@@ -1,0 +1,358 @@
+package templates
+
+import (
+	"fmt"
+	"math"
+
+	"bikegeo/pkg/geometry"
+	"bikegeo/pkg/model"
+)
+
+type Point [2]float64
+
+type FramePoints struct {
+	RA        Point
+	BB        Point
+	THT       Point
+	BHT       Point
+	Crown     Point
+	FA        Point
+	Saddle    Point
+	SeatClamp Point
+}
+
+func calcFramePoints(
+	reach, stack, htaDeg, staDeg, htl, bbDrop, rake, a2c, cupStack float64,
+	wheelbase, chainstay, saddleHeight, seatTubeLength float64,
+) FramePoints {
+	hta := geometry.ToRad(htaDeg)
+	sta := geometry.ToRad(staDeg)
+
+	ra := Point{0, 0}
+
+	cs := math.Max(chainstay, bbDrop+1.0)
+	xBb := math.Sqrt(math.Max(0, cs*cs-bbDrop*bbDrop))
+	yBb := -bbDrop
+	bb := Point{xBb, yBb}
+
+	xTht := xBb + reach
+	yTht := yBb + stack
+	tht := Point{xTht, yTht}
+
+	xBht := xTht + htl*math.Cos(hta)
+	yBht := yTht - htl*math.Sin(hta)
+	bht := Point{xBht, yBht}
+
+	xCrown := xBht + cupStack*math.Cos(hta)
+	yCrown := yBht - cupStack*math.Sin(hta)
+	crown := Point{xCrown, yCrown}
+
+	xFa := xCrown + a2c*math.Cos(hta) + rake*math.Sin(hta)
+	yFa := yCrown - a2c*math.Sin(hta) + rake*math.Cos(hta)
+	fa := Point{xFa, yFa}
+
+	xSaddle := xBb - saddleHeight*math.Cos(sta)
+	ySaddle := yBb + saddleHeight*math.Sin(sta)
+	saddle := Point{xSaddle, ySaddle}
+
+	stLen := math.Min(seatTubeLength, saddleHeight-100.0)
+	if stLen <= 0 {
+		stLen = 440.0
+	}
+	xClamp := xBb - stLen*math.Cos(sta)
+	yClamp := yBb + stLen*math.Sin(sta)
+	clamp := Point{xClamp, yClamp}
+
+	return FramePoints{
+		RA:        ra,
+		BB:        bb,
+		THT:       tht,
+		BHT:       bht,
+		Crown:     crown,
+		FA:        fa,
+		Saddle:    saddle,
+		SeatClamp: clamp,
+	}
+}
+
+type SvgCoords struct {
+	Scale     float64
+	WorldMinX float64
+	WorldMinY float64
+	Height    float64
+}
+
+func newSvgCoords(width, height float64) SvgCoords {
+	worldMinX := -200.0
+	worldMaxX := 1450.0
+	worldMinY := -400.0
+	worldMaxY := 950.0
+
+	scale := math.Min(
+		(width-60.0)/(worldMaxX-worldMinX),
+		(height-60.0)/(worldMaxY-worldMinY),
+	)
+
+	return SvgCoords{
+		Scale:     scale,
+		WorldMinX: worldMinX,
+		WorldMinY: worldMinY,
+		Height:    height,
+	}
+}
+
+func (s SvgCoords) ToX(x float64) float64 {
+	return 80.0 + (x-s.WorldMinX)*s.Scale
+}
+
+func (s SvgCoords) ToY(y float64) float64 {
+	return s.Height - 60.0 - (y-s.WorldMinY)*s.Scale
+}
+
+templ BikeDiagram(bike model.BikeGeometry, canonical *model.BikeFitAnalysis, riderSaddleHeight float64, showComparison bool) {
+	{{
+		coords := newSvgCoords(720, 440)
+		saddleH := riderSaddleHeight
+		if saddleH <= 0 {
+			saddleH = 750.0
+		}
+		stLen := bike.SeatTubeLength
+		if stLen <= 0 {
+			stLen = 440.0
+		}
+		cs := bike.ChainstayLength
+		if cs <= 0 {
+			cs = 430.0
+		}
+		baseCup := bike.CupStack
+		if baseCup == 0 && bike.HeadsetCupType == model.CupEC44 {
+			baseCup = 12.0
+		}
+		baseA2c := bike.ForkA2c
+		if baseA2c <= 0 {
+			baseA2c = 520.0
+		}
+
+		basePts := calcFramePoints(
+			bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg,
+			bike.Htl, bike.BbDrop, bike.ForkRake, baseA2c, baseCup,
+			bike.Wheelbase, cs, saddleH, stLen,
+		)
+
+		var canonPts *FramePoints
+		if canonical != nil {
+			cPts := calcFramePoints(
+				canonical.ActiveReach, canonical.ActiveStack, canonical.ActiveHta, canonical.ActiveSta,
+				bike.Htl, canonical.ActiveBbDrop, bike.ForkRake,
+				canonical.StructuralA2c-baseCup, baseCup,
+				bike.Wheelbase, cs, saddleH, stLen,
+			)
+			canonPts = &cPts
+		}
+		wheelRadius := 370.0 * coords.Scale
+	}}
+	<div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg overflow-hidden">
+		<div class="flex items-center justify-between mb-3 text-xs">
+			<div class="flex items-center gap-2">
+				<span class="font-bold text-white uppercase tracking-wider">2D Cartesian Frame Geometry Model</span>
+				<span class="text-slate-400 font-mono">Origin at Rear Axle (0, 0)</span>
+			</div>
+			<div class="flex items-center gap-4 text-[11px]">
+				<div class="flex items-center gap-1.5">
+					<span class="w-3 h-0.5 bg-slate-500 rounded"></span>
+					<span class="text-slate-400">Published / Baseline</span>
+				</div>
+				if showComparison && canonPts != nil {
+					<div class="flex items-center gap-1.5">
+						<span class="w-3 h-0.5 bg-cyan-400 rounded"></span>
+						<span class="text-cyan-400 font-semibold">Canonical / Pitched Pose</span>
+					</div>
+				}
+			</div>
+		</div>
+
+		<div class="w-full overflow-x-auto flex justify-center bg-slate-950 rounded-lg border border-slate-800/80 p-2">
+			<svg width="720" height="440" viewBox="0 0 720 440" class="select-none max-w-full h-auto">
+				<!-- Grid & Zero Axes -->
+				<line
+					x1="20"
+					y1={ fmt.Sprintf("%.1f", coords.ToY(0)) }
+					x2="700"
+					y2={ fmt.Sprintf("%.1f", coords.ToY(0)) }
+					stroke="#334155"
+					stroke-width="1"
+					stroke-dasharray="3 3"
+				></line>
+
+				<!-- Wheels & Baseline Pose -->
+				<g stroke="#64748b" opacity={ fmt.Sprintf("%v", map[bool]string{true: "0.45", false: "0.9"}[showComparison && canonPts != nil]) }>
+					<!-- Wheels -->
+					<circle
+						cx={ fmt.Sprintf("%.1f", coords.ToX(basePts.RA[0])) }
+						cy={ fmt.Sprintf("%.1f", coords.ToY(basePts.RA[1])) }
+						r={ fmt.Sprintf("%.1f", wheelRadius) }
+						fill="none"
+						stroke-dasharray="4 4"
+						stroke-width="1.2"
+					></circle>
+					<circle
+						cx={ fmt.Sprintf("%.1f", coords.ToX(basePts.FA[0])) }
+						cy={ fmt.Sprintf("%.1f", coords.ToY(basePts.FA[1])) }
+						r={ fmt.Sprintf("%.1f", wheelRadius) }
+						fill="none"
+						stroke-dasharray="4 4"
+						stroke-width="1.2"
+					></circle>
+
+					<!-- Axle / BB dots -->
+					<circle cx={ fmt.Sprintf("%.1f", coords.ToX(basePts.RA[0])) } cy={ fmt.Sprintf("%.1f", coords.ToY(basePts.RA[1])) } r="4" fill="#64748b"></circle>
+					<circle cx={ fmt.Sprintf("%.1f", coords.ToX(basePts.FA[0])) } cy={ fmt.Sprintf("%.1f", coords.ToY(basePts.FA[1])) } r="4" fill="#64748b"></circle>
+					<circle cx={ fmt.Sprintf("%.1f", coords.ToX(basePts.BB[0])) } cy={ fmt.Sprintf("%.1f", coords.ToY(basePts.BB[1])) } r="5" fill="#64748b"></circle>
+
+					<!-- Frame Tubes -->
+					<line
+						x1={ fmt.Sprintf("%.1f", coords.ToX(basePts.RA[0])) }
+						y1={ fmt.Sprintf("%.1f", coords.ToY(basePts.RA[1])) }
+						x2={ fmt.Sprintf("%.1f", coords.ToX(basePts.BB[0])) }
+						y2={ fmt.Sprintf("%.1f", coords.ToY(basePts.BB[1])) }
+						stroke-width="2"
+					></line>
+					<line
+						x1={ fmt.Sprintf("%.1f", coords.ToX(basePts.RA[0])) }
+						y1={ fmt.Sprintf("%.1f", coords.ToY(basePts.RA[1])) }
+						x2={ fmt.Sprintf("%.1f", coords.ToX(basePts.SeatClamp[0])) }
+						y2={ fmt.Sprintf("%.1f", coords.ToY(basePts.SeatClamp[1])) }
+						stroke-width="2"
+					></line>
+					<line
+						x1={ fmt.Sprintf("%.1f", coords.ToX(basePts.BB[0])) }
+						y1={ fmt.Sprintf("%.1f", coords.ToY(basePts.BB[1])) }
+						x2={ fmt.Sprintf("%.1f", coords.ToX(basePts.SeatClamp[0])) }
+						y2={ fmt.Sprintf("%.1f", coords.ToY(basePts.SeatClamp[1])) }
+						stroke-width="3"
+					></line>
+					<line
+						x1={ fmt.Sprintf("%.1f", coords.ToX(basePts.SeatClamp[0])) }
+						y1={ fmt.Sprintf("%.1f", coords.ToY(basePts.SeatClamp[1])) }
+						x2={ fmt.Sprintf("%.1f", coords.ToX(basePts.Saddle[0])) }
+						y2={ fmt.Sprintf("%.1f", coords.ToY(basePts.Saddle[1])) }
+						stroke-width="2"
+						stroke-dasharray="2 2"
+					></line>
+					<line
+						x1={ fmt.Sprintf("%.1f", coords.ToX(basePts.BB[0])) }
+						y1={ fmt.Sprintf("%.1f", coords.ToY(basePts.BB[1])) }
+						x2={ fmt.Sprintf("%.1f", coords.ToX(basePts.BHT[0])) }
+						y2={ fmt.Sprintf("%.1f", coords.ToY(basePts.BHT[1])) }
+						stroke-width="3"
+					></line>
+					<line
+						x1={ fmt.Sprintf("%.1f", coords.ToX(basePts.SeatClamp[0])) }
+						y1={ fmt.Sprintf("%.1f", coords.ToY(basePts.SeatClamp[1])) }
+						x2={ fmt.Sprintf("%.1f", coords.ToX(basePts.THT[0])) }
+						y2={ fmt.Sprintf("%.1f", coords.ToY(basePts.THT[1])) }
+						stroke-width="2"
+					></line>
+					<line
+						x1={ fmt.Sprintf("%.1f", coords.ToX(basePts.BHT[0])) }
+						y1={ fmt.Sprintf("%.1f", coords.ToY(basePts.BHT[1])) }
+						x2={ fmt.Sprintf("%.1f", coords.ToX(basePts.THT[0])) }
+						y2={ fmt.Sprintf("%.1f", coords.ToY(basePts.THT[1])) }
+						stroke-width="4"
+					></line>
+					<line
+						x1={ fmt.Sprintf("%.1f", coords.ToX(basePts.Crown[0])) }
+						y1={ fmt.Sprintf("%.1f", coords.ToY(basePts.Crown[1])) }
+						x2={ fmt.Sprintf("%.1f", coords.ToX(basePts.FA[0])) }
+						y2={ fmt.Sprintf("%.1f", coords.ToY(basePts.FA[1])) }
+						stroke-width="3"
+					></line>
+				</g>
+
+				<!-- Canonical Overlay Pose -->
+				if showComparison && canonPts != nil {
+					<g stroke="#06b6d4" opacity="1">
+						<circle
+							cx={ fmt.Sprintf("%.1f", coords.ToX(canonPts.FA[0])) }
+							cy={ fmt.Sprintf("%.1f", coords.ToY(canonPts.FA[1])) }
+							r={ fmt.Sprintf("%.1f", wheelRadius) }
+							fill="none"
+							stroke-dasharray="4 4"
+							stroke-width="1.2"
+						></circle>
+						<circle cx={ fmt.Sprintf("%.1f", coords.ToX(canonPts.FA[0])) } cy={ fmt.Sprintf("%.1f", coords.ToY(canonPts.FA[1])) } r="4" fill="#06b6d4"></circle>
+						<circle cx={ fmt.Sprintf("%.1f", coords.ToX(canonPts.BB[0])) } cy={ fmt.Sprintf("%.1f", coords.ToY(canonPts.BB[1])) } r="5" fill="#f59e0b"></circle>
+
+						<line
+							x1={ fmt.Sprintf("%.1f", coords.ToX(canonPts.RA[0])) }
+							y1={ fmt.Sprintf("%.1f", coords.ToY(canonPts.RA[1])) }
+							x2={ fmt.Sprintf("%.1f", coords.ToX(canonPts.BB[0])) }
+							y2={ fmt.Sprintf("%.1f", coords.ToY(canonPts.BB[1])) }
+							stroke-width="2.5"
+						></line>
+						<line
+							x1={ fmt.Sprintf("%.1f", coords.ToX(canonPts.RA[0])) }
+							y1={ fmt.Sprintf("%.1f", coords.ToY(canonPts.RA[1])) }
+							x2={ fmt.Sprintf("%.1f", coords.ToX(canonPts.SeatClamp[0])) }
+							y2={ fmt.Sprintf("%.1f", coords.ToY(canonPts.SeatClamp[1])) }
+							stroke-width="2.5"
+						></line>
+						<line
+							x1={ fmt.Sprintf("%.1f", coords.ToX(canonPts.BB[0])) }
+							y1={ fmt.Sprintf("%.1f", coords.ToY(canonPts.BB[1])) }
+							x2={ fmt.Sprintf("%.1f", coords.ToX(canonPts.SeatClamp[0])) }
+							y2={ fmt.Sprintf("%.1f", coords.ToY(canonPts.SeatClamp[1])) }
+							stroke-width="3"
+						></line>
+						<line
+							x1={ fmt.Sprintf("%.1f", coords.ToX(canonPts.SeatClamp[0])) }
+							y1={ fmt.Sprintf("%.1f", coords.ToY(canonPts.SeatClamp[1])) }
+							x2={ fmt.Sprintf("%.1f", coords.ToX(canonPts.Saddle[0])) }
+							y2={ fmt.Sprintf("%.1f", coords.ToY(canonPts.Saddle[1])) }
+							stroke-width="2"
+						></line>
+						<line
+							x1={ fmt.Sprintf("%.1f", coords.ToX(canonPts.BB[0])) }
+							y1={ fmt.Sprintf("%.1f", coords.ToY(canonPts.BB[1])) }
+							x2={ fmt.Sprintf("%.1f", coords.ToX(canonPts.BHT[0])) }
+							y2={ fmt.Sprintf("%.1f", coords.ToY(canonPts.BHT[1])) }
+							stroke-width="3"
+						></line>
+						<line
+							x1={ fmt.Sprintf("%.1f", coords.ToX(canonPts.SeatClamp[0])) }
+							y1={ fmt.Sprintf("%.1f", coords.ToY(canonPts.SeatClamp[1])) }
+							x2={ fmt.Sprintf("%.1f", coords.ToX(canonPts.THT[0])) }
+							y2={ fmt.Sprintf("%.1f", coords.ToY(canonPts.THT[1])) }
+							stroke-width="2.5"
+						></line>
+						<line
+							x1={ fmt.Sprintf("%.1f", coords.ToX(canonPts.BHT[0])) }
+							y1={ fmt.Sprintf("%.1f", coords.ToY(canonPts.BHT[1])) }
+							x2={ fmt.Sprintf("%.1f", coords.ToX(canonPts.THT[0])) }
+							y2={ fmt.Sprintf("%.1f", coords.ToY(canonPts.THT[1])) }
+							stroke-width="4"
+						></line>
+						<line
+							x1={ fmt.Sprintf("%.1f", coords.ToX(canonPts.Crown[0])) }
+							y1={ fmt.Sprintf("%.1f", coords.ToY(canonPts.Crown[1])) }
+							x2={ fmt.Sprintf("%.1f", coords.ToX(canonPts.FA[0])) }
+							y2={ fmt.Sprintf("%.1f", coords.ToY(canonPts.FA[1])) }
+							stroke-width="3"
+						></line>
+
+						<!-- Saddle symbol -->
+						<line
+							x1={ fmt.Sprintf("%.1f", coords.ToX(canonPts.Saddle[0])-25) }
+							y1={ fmt.Sprintf("%.1f", coords.ToY(canonPts.Saddle[1])) }
+							x2={ fmt.Sprintf("%.1f", coords.ToX(canonPts.Saddle[0])+15) }
+							y2={ fmt.Sprintf("%.1f", coords.ToY(canonPts.Saddle[1])) }
+							stroke="#10b981"
+							stroke-width="4"
+							stroke-linecap="round"
+						></line>
+					</g>
+				}
+			</svg>
+		</div>
+	</div>
+}

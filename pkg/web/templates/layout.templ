@@ -1,0 +1,29 @@
+package templates
+
+templ Layout(title string, activeTab string) {
+	<!DOCTYPE html>
+	<html lang="en" class="h-full bg-slate-950 text-slate-100">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title }</title>
+			<script src="https://cdn.tailwindcss.com"></script>
+			<script src="/static/js/htmx.min.js"></script>
+			<style>
+				.htmx-indicator {
+					display: none;
+				}
+				.htmx-request .htmx-indicator,
+				.htmx-request.htmx-indicator {
+					display: inline-flex;
+				}
+			</style>
+		</head>
+		<body class="min-h-full flex flex-col font-sans antialiased bg-slate-950 text-slate-100">
+			<div id="navbar-container">
+				{ children... }
+			</div>
+			<div id="modal-container"></div>
+		</body>
+	</html>
+}

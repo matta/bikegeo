@@ -1,0 +1,694 @@
+package templates
+
+import (
+	"fmt"
+
+	"bikegeo/pkg/canonicalizer"
+	"bikegeo/pkg/model"
+)
+
+func isSelected(ids []string, id string) bool {
+	for _, item := range ids {
+		if item == id {
+			return true
+		}
+	}
+	return false
+}
+
+func formatDelta(delta float64, unit string) string {
+	if delta > 0 {
+		return fmt.Sprintf("+%.1f%s", delta, unit)
+	}
+	return fmt.Sprintf("%.1f%s", delta, unit)
+}
+
+templ CompareView(
+	allBikes []model.BikeGeometry,
+	selectedIds []string,
+	rows []model.CanonicalComparisonRow,
+	presetId string,
+	staticA2c float64,
+	travelMm float64,
+	sagPercent float64,
+	cupMode string,
+	seatHeight float64,
+	refBikeId string,
+	diagramBikeId string,
+	searchQuery string,
+) {
+	<div id="compare-view" class="space-y-6">
+		<!-- Benchmark Control Panel -->
+		<form id="benchmark-form" class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+			<div class="flex flex-wrap items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-800">
+				<div class="flex items-center gap-2.5">
+					<div class="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"></path>
+						</svg>
+					</div>
+					<div>
+						<h2 class="text-lg font-bold text-white">Apples-to-Apples Canonicalization Benchmark</h2>
+						<p class="text-xs text-slate-400">
+							Pitches all frames to an identical fork axle-to-crown, sag, and headset cup configuration.
+						</p>
+					</div>
+				</div>
+
+				<div class="flex items-center gap-2">
+					<span class="text-xs text-slate-400">Comparing:</span>
+					<span class="px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 font-bold text-xs font-mono">
+						{ fmt.Sprintf("%d of %d Bikes", len(rows), len(allBikes)) }
+					</span>
+				</div>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+				<!-- Preset Selector -->
+				<div>
+					<label class="block text-xs font-medium text-slate-300 mb-1.5">Benchmark Fork Preset</label>
+					<select
+						name="preset_id"
+						hx-post="/compare/preset"
+						hx-target="#compare-view"
+						class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+					>
+						for _, p := range canonicalizer.CommonForkPresets {
+							<option value={ p.ID } selected?={ p.ID == presetId }>
+								{ fmt.Sprintf("%s (static %.0fmm)", p.Name, p.StaticA2c) }
+							</option>
+						}
+						<option value="custom" selected?={ presetId == "custom" }>Custom Specifications...</option>
+					</select>
+				</div>
+
+				<!-- Fork Static A2C & Travel -->
+				<div>
+					<div class="flex justify-between items-center mb-1.5">
+						<label class="text-xs font-medium text-slate-300">Fork Static A2C / Travel</label>
+						<span class="text-xs text-slate-400 font-mono">
+							{ fmt.Sprintf("%.0fmm / %.0fmm", staticA2c, travelMm) }
+						</span>
+					</div>
+					<div class="grid grid-cols-2 gap-2">
+						<input
+							type="number"
+							name="static_a2c"
+							value={ fmt.Sprintf("%.0f", staticA2c) }
+							hx-post="/compare/matrix"
+							hx-trigger="change"
+							hx-target="#comparison-matrix"
+							hx-include="#benchmark-form"
+							class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono"
+							placeholder="A2C mm"
+						/>
+						<input
+							type="number"
+							name="travel_mm"
+							value={ fmt.Sprintf("%.0f", travelMm) }
+							hx-post="/compare/matrix"
+							hx-trigger="change"
+							hx-target="#comparison-matrix"
+							hx-include="#benchmark-form"
+							class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono"
+							placeholder="Travel mm"
+						/>
+					</div>
+				</div>
+
+				<!-- Sag Percentage -->
+				<div>
+					<div class="flex justify-between items-center mb-1.5">
+						<label class="text-xs font-medium text-slate-300">Suspension Sag</label>
+						<span class="text-xs font-bold text-cyan-400 font-mono">
+							{ fmt.Sprintf("%.0f%% (%.1fmm eff A2C)", sagPercent, canonicalizer.CalculateSaggedA2c(staticA2c, travelMm, sagPercent)) }
+						</span>
+					</div>
+					<div class="flex items-center gap-2">
+						<input
+							type="range"
+							name="sag_percent"
+							min="0"
+							max="35"
+							step="1"
+							value={ fmt.Sprintf("%.0f", sagPercent) }
+							hx-post="/compare/matrix"
+							hx-trigger="input changed delay:150ms"
+							hx-target="#comparison-matrix"
+							hx-include="#benchmark-form"
+							class="w-full accent-amber-500 cursor-pointer"
+						/>
+					</div>
+				</div>
+
+				<!-- Rider Saddle Height -->
+				<div>
+					<div class="flex justify-between items-center mb-1.5">
+						<label class="text-xs font-medium text-slate-300">Rider Saddle Height (BB to Saddle)</label>
+						<span class="text-xs text-emerald-400 font-mono">
+							{ fmt.Sprintf("%.0f mm", seatHeight) }
+						</span>
+					</div>
+					<input
+						type="number"
+						name="seat_height"
+						min="500"
+						max="950"
+						step="5"
+						value={ fmt.Sprintf("%.0f", seatHeight) }
+						hx-post="/compare/matrix"
+						hx-trigger="change"
+						hx-target="#comparison-matrix"
+						hx-include="#benchmark-form"
+						class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono"
+					/>
+				</div>
+			</div>
+
+			<!-- Headset Cup Policy and Reference Baseline -->
+			<div class="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-slate-800 text-xs">
+				<div class="flex items-center gap-2">
+					<span class="text-slate-400">Headset Cup Policy:</span>
+					<div class="inline-flex rounded-lg p-0.5 bg-slate-950 border border-slate-800">
+						<button
+							type="button"
+							hx-post="/compare/cup-mode?mode=native"
+							hx-target="#compare-view"
+							hx-include="#benchmark-form"
+							class={ "px-2.5 py-1 rounded text-xs transition",
+								templ.KV("bg-amber-500 text-slate-950 font-semibold", cupMode == "native"),
+								templ.KV("text-slate-400 hover:text-white", cupMode != "native") }
+						>
+							Frame Native (EC44 = 12mm)
+						</button>
+						<button
+							type="button"
+							hx-post="/compare/cup-mode?mode=fixed_ec44"
+							hx-target="#compare-view"
+							hx-include="#benchmark-form"
+							class={ "px-2.5 py-1 rounded text-xs transition",
+								templ.KV("bg-amber-500 text-slate-950 font-semibold", cupMode == "fixed_ec44"),
+								templ.KV("text-slate-400 hover:text-white", cupMode != "fixed_ec44") }
+						>
+							Force EC44 (+12mm) on All
+						</button>
+						<button
+							type="button"
+							hx-post="/compare/cup-mode?mode=fixed_zero"
+							hx-target="#compare-view"
+							hx-include="#benchmark-form"
+							class={ "px-2.5 py-1 rounded text-xs transition",
+								templ.KV("bg-amber-500 text-slate-950 font-semibold", cupMode == "fixed_zero"),
+								templ.KV("text-slate-400 hover:text-white", cupMode != "fixed_zero") }
+						>
+							Zero-Stack (0mm) on All
+						</button>
+					</div>
+				</div>
+
+				<div class="flex items-center gap-2">
+					<span class="text-slate-400">Reference Baseline:</span>
+					<select
+						name="ref_bike_id"
+						hx-post="/compare/matrix"
+						hx-trigger="change"
+						hx-target="#comparison-matrix"
+						hx-include="#benchmark-form"
+						class="bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200"
+					>
+						for _, b := range allBikes {
+							if isSelected(selectedIds, b.ID) {
+								<option value={ b.ID } selected?={ b.ID == refBikeId }>
+									{ fmt.Sprintf("%s %s (%s)", b.Manufacturer, b.Model, b.Size) }
+								</option>
+							}
+						}
+					</select>
+				</div>
+			</div>
+		</form>
+
+		<!-- Bike Selection & Debounced Search Filter (Target Pattern 2) -->
+		<div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 shadow-md space-y-3">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div class="flex items-center gap-2 flex-1 max-w-md">
+					<svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+					</svg>
+					<!-- Target Pattern 2: Debounced search box updating results list without full-page reload -->
+					<input
+						type="search"
+						name="q"
+						value={ searchQuery }
+						placeholder="Search / filter bikes (e.g. Santa Cruz, Havok, L)..."
+						hx-get="/compare/matrix"
+						hx-trigger="keyup changed delay:300ms, search"
+						hx-target="#comparison-matrix"
+						hx-include="#benchmark-form"
+						class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500"
+					/>
+				</div>
+
+				<div class="flex items-center gap-2 text-xs">
+					<button
+						type="button"
+						hx-post="/compare/select-all"
+						hx-target="#compare-view"
+						hx-include="#benchmark-form"
+						class="text-amber-400 hover:underline cursor-pointer"
+					>
+						Select All
+					</button>
+					<span class="text-slate-600">|</span>
+					<button
+						type="button"
+						hx-post="/compare/clear-all"
+						hx-target="#compare-view"
+						hx-include="#benchmark-form"
+						class="text-slate-400 hover:underline cursor-pointer"
+					>
+						Clear
+					</button>
+				</div>
+			</div>
+
+			<!-- Bike Selection Pills -->
+			<div class="flex flex-wrap gap-2 pt-1 border-t border-slate-800/60">
+				for _, bike := range allBikes {
+					{{ sel := isSelected(selectedIds, bike.ID) }}
+					<button
+						type="button"
+						hx-post={ fmt.Sprintf("/compare/toggle-select?id=%s", bike.ID) }
+						hx-target="#compare-view"
+						hx-include="#benchmark-form"
+						class={ "px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-2 border cursor-pointer",
+							templ.KV("bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm", sel),
+							templ.KV("bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200", !sel) }
+					>
+						<span
+							class={ "w-2 h-2 rounded-full",
+								templ.KV("bg-amber-400", sel),
+								templ.KV("bg-slate-600", !sel) }
+						></span>
+						<span>{ fmt.Sprintf("%s %s (%s)", bike.Manufacturer, bike.Model, bike.Size) }</span>
+						if bike.HeadsetCupType == model.CupEC44 {
+							<span class="text-[10px] bg-slate-800 px-1 py-0.5 rounded text-amber-400 font-mono">
+								EC44
+							</span>
+						}
+					</button>
+				}
+			</div>
+		</div>
+
+		<!-- Canonicalized Comparison Matrix -->
+		<div id="comparison-matrix">
+			@ComparisonMatrix(rows, refBikeId, diagramBikeId, seatHeight, staticA2c, travelMm, sagPercent)
+		</div>
+	</div>
+}
+
+templ ComparisonMatrix(
+	rows []model.CanonicalComparisonRow,
+	refBikeId string,
+	diagramBikeId string,
+	seatHeight float64,
+	staticA2c float64,
+	travelMm float64,
+	sagPercent float64,
+) {
+	{{
+		effectiveA2c := canonicalizer.CalculateSaggedA2c(staticA2c, travelMm, sagPercent)
+		var refRow *model.CanonicalComparisonRow
+		for _, r := range rows {
+			if r.Bike.ID == refBikeId {
+				rCopy := r
+				refRow = &rCopy
+				break
+			}
+		}
+		if refRow == nil && len(rows) > 0 {
+			refRow = &rows[0]
+		}
+	}}
+	<div class="space-y-6">
+		<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+			<div class="p-4 border-b border-slate-800 flex flex-wrap justify-between items-center gap-2">
+				<div>
+					<h3 class="font-bold text-white text-base">
+						Canonicalized Geometry Comparison Matrix
+					</h3>
+					<p class="text-xs text-slate-400">
+						{ fmt.Sprintf("Values normalized to Benchmark A2C (%.1fmm) and Saddle Height (%.0fmm).", effectiveA2c, seatHeight) }
+					</p>
+				</div>
+				<div class="text-xs font-mono text-cyan-400 flex items-center gap-2">
+					<span>Δ relative to Reference Bike</span>
+					<span class="text-amber-400/80 text-[11px] font-sans italic">(Click reach/stack cells to inline-edit)</span>
+				</div>
+			</div>
+
+			if len(rows) == 0 {
+				<div class="p-8 text-center text-slate-400 text-sm">
+					No bikes selected for comparison. Click bike pills above to add frames.
+				</div>
+			} else {
+				<div class="overflow-x-auto">
+					<table class="w-full text-left text-xs border-collapse">
+						<thead>
+							<tr class="bg-slate-950/80 text-slate-400 border-b border-slate-800">
+								<th class="p-3 font-semibold uppercase tracking-wider w-52 sticky left-0 bg-slate-950 z-10">
+									Metric
+								</th>
+								for _, row := range rows {
+									<th
+										class={ "p-3 font-semibold min-w-[210px] border-l border-slate-800/60",
+											templ.KV("bg-amber-500/5", row.Bike.ID == refBikeId) }
+									>
+										<div class="flex items-center justify-between">
+											<span class="text-white text-sm font-bold">
+												{ row.Bike.Manufacturer } { row.Bike.Model }
+											</span>
+											if row.Bike.ID == refBikeId {
+												<span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-mono font-bold">
+													REF
+												</span>
+											}
+										</div>
+										<div class="text-slate-400 text-[11px] font-normal mt-0.5">
+											{ fmt.Sprintf("Size %s • %s Headset", row.Bike.Size, row.Bike.HeadsetCupType) }
+										</div>
+									</th>
+								}
+							</tr>
+						</thead>
+
+						<tbody class="divide-y divide-slate-800/60">
+							<!-- Published CAD Mode -->
+							<tr class="bg-slate-950/40">
+								<td class="p-2.5 font-medium text-slate-300 sticky left-0 bg-slate-900 z-10">
+									Published CAD Mode
+								</td>
+								for _, row := range rows {
+									<td class="p-2.5 border-l border-slate-800/60 font-mono">
+										if row.Validation.InferredPublishMode == model.ModeStaticCad {
+											<span class="px-2 py-0.5 rounded text-[11px] inline-block bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-sans">
+												Static (0% Sag)
+											</span>
+										} else if row.Validation.InferredPublishMode == model.ModeSaggedCad {
+											<span class="px-2 py-0.5 rounded text-[11px] inline-block bg-amber-500/10 text-amber-400 border border-amber-500/20 font-sans">
+												Sagged (~20% Sag)
+											</span>
+										} else {
+											<span class="px-2 py-0.5 rounded text-[11px] inline-block bg-rose-500/10 text-rose-400 border border-rose-500/20 font-sans">
+												Mismatched
+											</span>
+										}
+									</td>
+								}
+							</tr>
+
+							<!-- Canonical Reach (Target Pattern 1: Inline Editable Cell) -->
+							<tr class="hover:bg-slate-800/30">
+								<td class="p-2.5 font-medium text-cyan-300 sticky left-0 bg-slate-900 z-10">
+									<div>Canonical Reach</div>
+									<div class="text-[10px] text-slate-500 font-normal">Horizontal BB to Head Tube</div>
+								</td>
+								for _, row := range rows {
+									{{
+										deltaRef := 0.0
+										if refRow != nil {
+											deltaRef = row.Canonical.ActiveReach - refRow.Canonical.ActiveReach
+										}
+										deltaBase := row.Canonical.ActiveReach - row.Baseline.Reach
+									}}
+									<td class="p-2.5 border-l border-slate-800/60">
+										<div class="flex items-baseline justify-between font-mono">
+											@InlineCellDisplay(row.Bike.ID, "reach", fmt.Sprintf("%.1f", row.Canonical.ActiveReach), "mm", "text-cyan-300")
+											if row.Bike.ID != refBikeId && refRow != nil {
+												<span class={ "text-xs font-mono ml-2",
+													templ.KV("text-cyan-400", deltaRef > 0),
+													templ.KV("text-pink-400", deltaRef < 0),
+													templ.KV("text-slate-400", deltaRef == 0) }>
+													{ formatDelta(deltaRef, " mm") }
+												</span>
+											}
+										</div>
+										<div class="text-[10px] text-slate-500 mt-1">
+											{ fmt.Sprintf("Base: %.1fmm (%s)", row.Baseline.Reach, formatDelta(deltaBase, "")) }
+										</div>
+									</td>
+								}
+							</tr>
+
+							<!-- Canonical Stack (Target Pattern 1: Inline Editable Cell) -->
+							<tr class="hover:bg-slate-800/30">
+								<td class="p-2.5 font-medium text-amber-300 sticky left-0 bg-slate-900 z-10">
+									<div>Canonical Stack</div>
+									<div class="text-[10px] text-slate-500 font-normal">Vertical BB to Head Tube</div>
+								</td>
+								for _, row := range rows {
+									{{
+										deltaRef := 0.0
+										if refRow != nil {
+											deltaRef = row.Canonical.ActiveStack - refRow.Canonical.ActiveStack
+										}
+										deltaBase := row.Canonical.ActiveStack - row.Baseline.Stack
+									}}
+									<td class="p-2.5 border-l border-slate-800/60">
+										<div class="flex items-baseline justify-between font-mono">
+											@InlineCellDisplay(row.Bike.ID, "stack", fmt.Sprintf("%.1f", row.Canonical.ActiveStack), "mm", "text-amber-300")
+											if row.Bike.ID != refBikeId && refRow != nil {
+												<span class={ "text-xs font-mono ml-2",
+													templ.KV("text-amber-400", deltaRef > 0),
+													templ.KV("text-pink-400", deltaRef < 0),
+													templ.KV("text-slate-400", deltaRef == 0) }>
+													{ formatDelta(deltaRef, " mm") }
+												</span>
+											}
+										</div>
+										<div class="text-[10px] text-slate-500 mt-1">
+											{ fmt.Sprintf("Base: %.1fmm (%s)", row.Baseline.Stack, formatDelta(deltaBase, "")) }
+										</div>
+									</td>
+								}
+							</tr>
+
+							<!-- Canonical HTA -->
+							<tr class="hover:bg-slate-800/30">
+								<td class="p-2.5 font-medium text-slate-200 sticky left-0 bg-slate-900 z-10">
+									<div>Canonical HTA</div>
+									<div class="text-[10px] text-slate-500 font-normal">Head Tube Angle</div>
+								</td>
+								for _, row := range rows {
+									{{
+										deltaRef := 0.0
+										if refRow != nil {
+											deltaRef = row.Canonical.ActiveHta - refRow.Canonical.ActiveHta
+										}
+									}}
+									<td class="p-2.5 border-l border-slate-800/60">
+										<div class="flex items-baseline justify-between font-mono">
+											<span class="text-sm font-bold text-white">
+												{ fmt.Sprintf("%.2f°", row.Canonical.ActiveHta) }
+											</span>
+											if row.Bike.ID != refBikeId && refRow != nil {
+												<span class={ "text-xs font-mono",
+													templ.KV("text-emerald-400", deltaRef > 0),
+													templ.KV("text-pink-400", deltaRef < 0),
+													templ.KV("text-slate-400", deltaRef == 0) }>
+													{ formatDelta(deltaRef, "°") }
+												</span>
+											}
+										</div>
+										<div class="text-[10px] text-slate-500 mt-1">
+											{ fmt.Sprintf("Base: %.1f° (Δ %s)", row.Baseline.HtaDeg, formatDelta(row.Canonical.DeltaAngleDeg, "°")) }
+										</div>
+									</td>
+								}
+							</tr>
+
+							<!-- Canonical STA -->
+							<tr class="hover:bg-slate-800/30">
+								<td class="p-2.5 font-medium text-slate-200 sticky left-0 bg-slate-900 z-10">
+									<div>Canonical STA</div>
+									<div class="text-[10px] text-slate-500 font-normal">Seat Tube Angle</div>
+								</td>
+								for _, row := range rows {
+									{{
+										deltaRef := 0.0
+										if refRow != nil {
+											deltaRef = row.Canonical.ActiveSta - refRow.Canonical.ActiveSta
+										}
+									}}
+									<td class="p-2.5 border-l border-slate-800/60">
+										<div class="flex items-baseline justify-between font-mono">
+											<span class="text-sm font-bold text-white">
+												{ fmt.Sprintf("%.2f°", row.Canonical.ActiveSta) }
+											</span>
+											if row.Bike.ID != refBikeId && refRow != nil {
+												<span class={ "text-xs font-mono",
+													templ.KV("text-emerald-400", deltaRef > 0),
+													templ.KV("text-pink-400", deltaRef < 0),
+													templ.KV("text-slate-400", deltaRef == 0) }>
+													{ formatDelta(deltaRef, "°") }
+												</span>
+											}
+										</div>
+										<div class="text-[10px] text-slate-500 mt-1">
+											{ fmt.Sprintf("Base: %.1f°", row.Baseline.StaDeg) }
+										</div>
+									</td>
+								}
+							</tr>
+
+							<!-- Canonical BB Drop -->
+							<tr class="hover:bg-slate-800/30">
+								<td class="p-2.5 font-medium text-pink-300 sticky left-0 bg-slate-900 z-10">
+									<div>Canonical BB Drop</div>
+									<div class="text-[10px] text-slate-500 font-normal">Pitched around rear axle</div>
+								</td>
+								for _, row := range rows {
+									{{
+										deltaRef := 0.0
+										if refRow != nil {
+											deltaRef = row.Canonical.ActiveBbDrop - refRow.Canonical.ActiveBbDrop
+										}
+										deltaBase := row.Canonical.ActiveBbDrop - row.Baseline.BbDrop
+									}}
+									<td class="p-2.5 border-l border-slate-800/60">
+										<div class="flex items-baseline justify-between font-mono">
+											<span class="text-sm font-bold text-pink-300">
+												{ fmt.Sprintf("%.1f mm", row.Canonical.ActiveBbDrop) }
+											</span>
+											if row.Bike.ID != refBikeId && refRow != nil {
+												<span class={ "text-xs font-mono",
+													templ.KV("text-pink-400", deltaRef > 0),
+													templ.KV("text-emerald-400", deltaRef < 0),
+													templ.KV("text-slate-400", deltaRef == 0) }>
+													{ formatDelta(deltaRef, " mm") }
+												</span>
+											}
+										</div>
+										<div class="text-[10px] text-slate-500 mt-1">
+											{ fmt.Sprintf("Base: %.1fmm (%s)", row.Baseline.BbDrop, formatDelta(deltaBase, "")) }
+										</div>
+									</td>
+								}
+							</tr>
+
+							<!-- AETT -->
+							<tr class="hover:bg-slate-800/30 bg-slate-950/20">
+								<td class="p-2.5 font-medium text-emerald-300 sticky left-0 bg-slate-900 z-10">
+									<div>{ fmt.Sprintf("AETT @ %.0fmm", seatHeight) }</div>
+									<div class="text-[10px] text-slate-500 font-normal">Horizontal Saddle to Steerer</div>
+								</td>
+								for _, row := range rows {
+									{{
+										deltaRef := 0.0
+										if refRow != nil {
+											deltaRef = row.Canonical.Aett - refRow.Canonical.Aett
+										}
+									}}
+									<td class="p-2.5 border-l border-slate-800/60">
+										<div class="flex items-baseline justify-between font-mono">
+											<span class="text-sm font-bold text-emerald-300">
+												{ fmt.Sprintf("%.1f mm", row.Canonical.Aett) }
+											</span>
+											if row.Bike.ID != refBikeId && refRow != nil {
+												<span class={ "text-xs font-mono",
+													templ.KV("text-emerald-400", deltaRef > 0),
+													templ.KV("text-pink-400", deltaRef < 0),
+													templ.KV("text-slate-400", deltaRef == 0) }>
+													{ formatDelta(deltaRef, " mm") }
+												</span>
+											}
+										</div>
+										<div class="text-[10px] text-slate-500 mt-1">
+											{ fmt.Sprintf("Base AETT: %.1fmm", row.Baseline.Aett) }
+										</div>
+									</td>
+								}
+							</tr>
+
+							<!-- Spare Steerer Vertical -->
+							<tr class="hover:bg-slate-800/30">
+								<td class="p-2.5 font-medium text-indigo-300 sticky left-0 bg-slate-900 z-10">
+									<div>Spare Steerer (Vertical)</div>
+									<div class="text-[10px] text-slate-500 font-normal">Head tube to saddle level</div>
+								</td>
+								for _, row := range rows {
+									<td class="p-2.5 border-l border-slate-800/60 font-mono">
+										<span class="text-sm font-bold text-indigo-300">
+											{ fmt.Sprintf("%.1f mm", row.Canonical.SpareVerticalStack) }
+										</span>
+									</td>
+								}
+							</tr>
+
+							<!-- Spare Steerer Axial -->
+							<tr class="hover:bg-slate-800/30">
+								<td class="p-2.5 font-medium text-indigo-300 sticky left-0 bg-slate-900 z-10">
+									<div>Spare Steerer (Axial)</div>
+									<div class="text-[10px] text-slate-500 font-normal">Length along steerer column</div>
+								</td>
+								for _, row := range rows {
+									<td class="p-2.5 border-l border-slate-800/60 font-mono">
+										<span class="text-sm font-bold text-indigo-300">
+											{ fmt.Sprintf("%.1f mm", row.Canonical.SpareAxialSteerer) }
+										</span>
+									</td>
+								}
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+
+		<!-- 2D SVG Frame Diagram Visualizer -->
+		if len(rows) > 0 {
+			{{
+				var diagRow *model.CanonicalComparisonRow
+				for _, r := range rows {
+					if r.Bike.ID == diagramBikeId {
+						rCopy := r
+						diagRow = &rCopy
+						break
+					}
+				}
+				if diagRow == nil {
+					diagRow = &rows[0]
+				}
+			}}
+			<div class="space-y-2">
+				<div class="flex items-center justify-between">
+					<h3 class="text-sm font-semibold text-slate-200">
+						{ fmt.Sprintf("Visual 2D Overlay for %s %s (%s)", diagRow.Bike.Manufacturer, diagRow.Bike.Model, diagRow.Bike.Size) }
+					</h3>
+					<div class="flex items-center gap-2">
+						<span class="text-xs text-slate-400">View diagram for:</span>
+						<select
+							name="diagram_bike_id"
+							hx-post="/compare/diagram"
+							hx-trigger="change"
+							hx-target="#diagram-container"
+							hx-include="#benchmark-form"
+							class="bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-slate-200"
+						>
+							for _, r := range rows {
+								<option value={ r.Bike.ID } selected?={ r.Bike.ID == diagramBikeId }>
+									{ fmt.Sprintf("%s %s (%s)", r.Bike.Manufacturer, r.Bike.Model, r.Bike.Size) }
+								</option>
+							}
+						</select>
+					</div>
+				</div>
+
+				<div id="diagram-container">
+					@BikeDiagram(diagRow.Bike, &diagRow.Canonical, seatHeight, true)
+				</div>
+			</div>
+		}
+	</div>
+}
