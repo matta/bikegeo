@@ -1,7 +1,7 @@
 .PHONY: all generate vet test check build run clean
 
-# Default PATH setup to include linuxbrew and user go bin if present
-export PATH := /home/linuxbrew/.linuxbrew/bin:$(HOME)/go/bin:$(PATH)
+# Default PATH setup to include user go bin if present
+export PATH := $(HOME)/go/bin:$(PATH)
 
 all: check build
 
