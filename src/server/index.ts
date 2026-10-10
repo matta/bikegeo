@@ -114,7 +114,7 @@ export function startServer(port: number = 3001) {
   app.use((req, res, next) => {
     if (req.path.startsWith('/api')) return next();
     res.sendFile(path.join(distDir, 'index.html'), (err) => {
-      if (err) res.status(404).send('Not found. Run pnpm build first.');
+      if (err) res.status(404).send('Not found. Run npm run build first.');
     });
   });
 

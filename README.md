@@ -1,6 +1,6 @@
 # BikeGeo Analyst 🚲
 
-A simple, rigorous web application for **bicycle geometry validation and apples-to-apples frame comparisons**. Built in **TypeScript** and managed via **pnpm**.
+A simple, rigorous web application for **bicycle geometry validation and apples-to-apples frame comparisons**. Built in **TypeScript** and managed via **npm**.
 
 Bike geometry is stored directly in **local JSON files** under [`data/bikes/`](file:///home/matt/src/bikegeo/data/bikes).
 
@@ -41,34 +41,34 @@ Bike geometry is stored directly in **local JSON files** under [`data/bikes/`](f
 
 ---
 
-## Quick Start (pnpm)
+## Quick Start (npm)
 
 ### Prerequisites
 - Node.js (v18+)
-- pnpm (v9+)
+- npm (v10+)
 
 ### Installation
 ```bash
-pnpm install
+npm install
 ```
 
 ### Development Server
 Starts the web application and embedded JSON REST API:
 ```bash
-pnpm dev
+npm run dev
 ```
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ### Run Geometry Test Suite
 Runs the 2D Cartesian mathematical model test suite verifying parity against the analyst Python reference specification:
 ```bash
-pnpm test
+npm test
 ```
 
 ### Production Build & Server
 ```bash
-pnpm build
-pnpm server
+npm run build
+npm run server
 ```
 Runs the production server on [http://localhost:3001](http://localhost:3001).
 
