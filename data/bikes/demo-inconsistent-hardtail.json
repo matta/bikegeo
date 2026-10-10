@@ -18,8 +18,13 @@
       "id": "stock",
       "name": "Stock Build",
       "is_baseline": true,
-      "fork_travel_mm": 130,
-      "fork_a2c": 541,
+      "fork": {
+        "id": "fox34_130",
+        "name": "Fox Float 34 130mm",
+        "travel_mm": 130,
+        "a2c": 541,
+        "rake": 44
+      },
       "sag_percentage_published": 0,
       "geometries": {
         "M": {
@@ -29,7 +34,6 @@
           "sta_deg": 75.0,
           "htl": 120,
           "bb_drop": 65,
-          "fork_rake": 44,
           "wheelbase": 1170,
           "chainstay_length": 430,
           "front_center": 780,

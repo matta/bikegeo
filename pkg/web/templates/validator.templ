@@ -241,7 +241,14 @@ templ ValidatorHeader(frame *model.FrameModel, bike model.BikeGeometry, report m
 				<span class="text-base font-bold text-pink-400">{ fmt.Sprintf("%.0f", bike.BbDrop) } <span class="text-xs font-normal text-slate-400 font-sans">mm</span></span>
 			</div>
 			<div class="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
-				<span class="text-[11px] text-slate-400 uppercase tracking-wider block font-sans">Fork Rake</span>
+				<div class="flex items-center justify-between">
+					<span class="text-[11px] text-slate-400 uppercase tracking-wider block font-sans">Fork Rake</span>
+					if bike.Fork.IsInferred {
+						<span class="px-1 py-0.2 rounded text-[9px] font-medium bg-amber-950/60 text-amber-300 border border-amber-800/40" title={ fmt.Sprintf("Inferred from %s", bike.Fork.Name) }>
+							Inferred
+						</span>
+					}
+				</div>
 				<span class="text-base font-bold text-white">{ fmt.Sprintf("%.0f", bike.ForkRake) } <span class="text-xs font-normal text-slate-400 font-sans">mm</span></span>
 			</div>
 			<div class="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
@@ -362,7 +369,14 @@ templ ValidatorProofs(bike model.BikeGeometry, report model.ValidationReport) {
 
 			<div class="space-y-3">
 				<div class="flex justify-between items-center text-sm py-1.5 border-b border-slate-800">
-					<span class="text-slate-400">Published Fork A2C (Static):</span>
+					<span class="text-slate-400 flex items-center gap-1.5">
+						Published Fork A2C (Static):
+						if bike.Fork.IsInferred {
+							<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-950/60 text-amber-300 border border-amber-800/50" title={ fmt.Sprintf("Inferred from registry fork %s (%s)", bike.Fork.Name, bike.Fork.ID) }>
+								Inferred
+							</span>
+						}
+					</span>
 					<span class="font-semibold text-slate-200 font-mono">
 						if bike.ForkA2c > 0 {
 							{ fmt.Sprintf("%.0f mm", bike.ForkA2c) }

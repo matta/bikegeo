@@ -61,23 +61,21 @@ func TestValidateCrossConfig_ChumbaSendero(t *testing.T) {
 		CupStack:       12.0,
 		Configurations: []model.FrameConfiguration{
 			{
-				ID:           "fork-120",
-				Name:         "120mm Stock",
-				IsBaseline:   true,
-				ForkTravelMm: 120,
-				ForkA2c:      531,
+				ID:         "fork-120",
+				Name:       "120mm Stock",
+				IsBaseline: true,
+				Fork:       model.ForkSpec{TravelMm: 120, A2c: 531, Rake: 44},
 				Geometries: map[string]model.SizeGeometry{
-					"L": {Reach: 475, Stack: 645, HtaDeg: 67.0, StaDeg: 74.5, Htl: 125, BbDrop: 60, ForkRake: 44, Wheelbase: 1200, ChainstayLength: 430},
+					"L": {Reach: 475, Stack: 645, HtaDeg: 67.0, StaDeg: 74.5, Htl: 125, BbDrop: 60, Wheelbase: 1200, ChainstayLength: 430},
 				},
 			},
 			{
-				ID:           "fork-130",
-				Name:         "130mm Trail",
-				IsBaseline:   false,
-				ForkTravelMm: 130,
-				ForkA2c:      541,
+				ID:         "fork-130",
+				Name:       "130mm Trail",
+				IsBaseline: false,
+				Fork:       model.ForkSpec{TravelMm: 130, A2c: 541, Rake: 44},
 				Geometries: map[string]model.SizeGeometry{
-					"L": {Reach: 470, Stack: 649, HtaDeg: 66.5, StaDeg: 74.0, Htl: 125, BbDrop: 57, ForkRake: 44, Wheelbase: 1203, ChainstayLength: 430},
+					"L": {Reach: 470, Stack: 649, HtaDeg: 66.5, StaDeg: 74.0, Htl: 125, BbDrop: 57, Wheelbase: 1203, ChainstayLength: 430},
 				},
 			},
 		},
@@ -105,22 +103,20 @@ func TestValidateCrossConfig_Discrepancy(t *testing.T) {
 		HeadsetCupType: model.CupZS44,
 		Configurations: []model.FrameConfiguration{
 			{
-				ID:           "baseline",
-				IsBaseline:   true,
-				ForkTravelMm: 120,
-				ForkA2c:      530,
+				ID:         "baseline",
+				IsBaseline: true,
+				Fork:       model.ForkSpec{TravelMm: 120, A2c: 530, Rake: 44},
 				Geometries: map[string]model.SizeGeometry{
-					"L": {Reach: 475, Stack: 630, HtaDeg: 66.0, StaDeg: 75.0, Htl: 110, BbDrop: 60, ForkRake: 44, Wheelbase: 1200, ChainstayLength: 430},
+					"L": {Reach: 475, Stack: 630, HtaDeg: 66.0, StaDeg: 75.0, Htl: 110, BbDrop: 60, Wheelbase: 1200, ChainstayLength: 430},
 				},
 			},
 			{
-				ID:           "alternate-bad-cad",
-				IsBaseline:   false,
-				ForkTravelMm: 140,
-				ForkA2c:      550, // +20mm fork
+				ID:         "alternate-bad-cad",
+				IsBaseline: false,
+				Fork:       model.ForkSpec{TravelMm: 140, A2c: 550, Rake: 44}, // +20mm fork
 				Geometries: map[string]model.SizeGeometry{
 					// Deliberately impossible CAD: Stack decreased instead of increased!
-					"L": {Reach: 475, Stack: 610, HtaDeg: 66.0, StaDeg: 75.0, Htl: 110, BbDrop: 60, ForkRake: 44, Wheelbase: 1200, ChainstayLength: 430},
+					"L": {Reach: 475, Stack: 610, HtaDeg: 66.0, StaDeg: 75.0, Htl: 110, BbDrop: 60, Wheelbase: 1200, ChainstayLength: 430},
 				},
 			},
 		},

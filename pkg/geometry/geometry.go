@@ -296,8 +296,10 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string, configID strin
 		HeadsetCupType:         frame.HeadsetCupType,
 		CupStack:               cupStack,
 		SeatHeight:             frame.SeatHeight,
-		ForkTravelMm:           targetConfig.ForkTravelMm,
-		ForkA2c:                targetConfig.ForkA2c,
+		Fork:                   targetConfig.Fork,
+		ForkTravelMm:           targetConfig.Fork.TravelMm,
+		ForkA2c:                targetConfig.Fork.A2c,
+		ForkRake:               targetConfig.Fork.Rake,
 		SagPercentagePublished: targetConfig.SagPercentagePublished,
 	}
 
@@ -310,7 +312,6 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string, configID strin
 			res.StaDeg = geo.StaDeg
 			res.Htl = geo.Htl
 			res.BbDrop = geo.BbDrop
-			res.ForkRake = geo.ForkRake
 			res.Wheelbase = geo.Wheelbase
 			res.ChainstayLength = geo.ChainstayLength
 			res.FrontCenter = geo.FrontCenter
@@ -353,8 +354,8 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string, configID strin
 	if baseCup == 0 && frame.HeadsetCupType == model.CupEC44 {
 		baseCup = 12.0
 	}
-	baseStructuralA2c := baseConfig.ForkA2c + baseCup
-	targetStructuralA2c := targetConfig.ForkA2c + cupStack
+	baseStructuralA2c := baseConfig.Fork.A2c + baseCup
+	targetStructuralA2c := targetConfig.Fork.A2c + cupStack
 
 	dyn := CalculateDynamicGeometry(
 		baseGeo.Reach,
@@ -374,7 +375,6 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string, configID strin
 	res.StaDeg = dyn.NewSta
 	res.Htl = baseGeo.Htl
 	res.BbDrop = dyn.NewBbDrop
-	res.ForkRake = baseGeo.ForkRake
 	res.Wheelbase = baseGeo.Wheelbase
 	res.ChainstayLength = baseGeo.ChainstayLength
 	res.FrontCenter = baseGeo.FrontCenter

@@ -1,5 +1,8 @@
 package model
 
+import "encoding/json"
+
+
 type HeadsetCupType string
 
 const (
@@ -56,6 +59,7 @@ type BikeGeometry struct {
 	WheelSize       string  `json:"wheel_size,omitempty"`
 
 	// Published CAD & Hardware Assumptions
+	Fork                   ForkSpec       `json:"fork"`
 	ForkTravelMm           float64        `json:"fork_travel_mm,omitempty"`
 	ForkA2c                float64        `json:"fork_a2c,omitempty"`
 	SagPercentagePublished float64        `json:"sag_percentage_published,omitempty"`
@@ -66,6 +70,18 @@ type BikeGeometry struct {
 	SeatHeight float64 `json:"seat_height,omitempty"`
 }
 
+// ForkSpec encapsulates physical and geometric properties of a fork.
+type ForkSpec struct {
+	ID                 string  `json:"id,omitempty"`
+	Name               string  `json:"name,omitempty"`
+	TravelMm           float64 `json:"travel_mm"`
+	A2c                float64 `json:"a2c"`
+	Rake               float64 `json:"rake"`
+	StandardSagPercent float64 `json:"standard_sag_percent,omitempty"`
+	Description        string  `json:"description,omitempty"`
+	IsInferred         bool    `json:"is_inferred,omitempty"`
+}
+
 // SizeGeometry represents primary and optional frame dimensions for one size.
 type SizeGeometry struct {
 	Reach           float64 `json:"reach"`
@@ -74,7 +90,6 @@ type SizeGeometry struct {
 	StaDeg          float64 `json:"sta_deg"`
 	Htl             float64 `json:"htl"`
 	BbDrop          float64 `json:"bb_drop"`
-	ForkRake        float64 `json:"fork_rake"`
 	Wheelbase       float64 `json:"wheelbase"`
 	ChainstayLength float64 `json:"chainstay_length,omitempty"`
 	FrontCenter     float64 `json:"front_center,omitempty"`
@@ -87,8 +102,7 @@ type FrameConfiguration struct {
 	ID                     string                  `json:"id"`
 	Name                   string                  `json:"name"`
 	IsBaseline             bool                    `json:"is_baseline"`
-	ForkTravelMm           float64                 `json:"fork_travel_mm"`
-	ForkA2c                float64                 `json:"fork_a2c"`
+	Fork                   ForkSpec                `json:"fork"`
 	SagPercentagePublished float64                 `json:"sag_percentage_published"`
 	CupStack               *float64                `json:"cup_stack,omitempty"`
 	Notes                  string                  `json:"notes,omitempty"`
@@ -269,8 +283,46 @@ type CanonicalComparisonRow struct {
 type ForkPreset struct {
 	ID                 string  `json:"id"`
 	Name               string  `json:"name"`
-	TravelMm           float64 `json:"travelMm"`
-	StaticA2c          float64 `json:"staticA2c"`
-	StandardSagPercent float64 `json:"standardSagPercent"`
+	TravelMm           float64 `json:"travel_mm"`
+	StaticA2c          float64 `json:"a2c"`
+	Rake               float64 `json:"rake"`
+	StandardSagPercent float64 `json:"standard_sag_percent"`
 	Description        string  `json:"description"`
+}
+
+func (p ForkPreset) ToForkSpec() ForkSpec {
+	return ForkSpec{
+		ID:                 p.ID,
+		Name:               p.Name,
+		TravelMm:           p.TravelMm,
+		A2c:                p.StaticA2c,
+		Rake:               p.Rake,
+		StandardSagPercent: p.StandardSagPercent,
+		Description:        p.Description,
+	}
+}
+
+func (p *ForkPreset) UnmarshalJSON(data []byte) error {
+	type Alias ForkPreset
+	aux := struct {
+		*Alias
+		AltTravelMm   *float64 `json:"travelMm"`
+		AltStaticA2c  *float64 `json:"staticA2c"`
+		AltSagPercent *float64 `json:"standardSagPercent"`
+	}{
+		Alias: (*Alias)(p),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if p.TravelMm == 0 && aux.AltTravelMm != nil {
+		p.TravelMm = *aux.AltTravelMm
+	}
+	if p.StaticA2c == 0 && aux.AltStaticA2c != nil {
+		p.StaticA2c = *aux.AltStaticA2c
+	}
+	if p.StandardSagPercent == 0 && aux.AltSagPercent != nil {
+		p.StandardSagPercent = *aux.AltSagPercent
+	}
+	return nil
 }

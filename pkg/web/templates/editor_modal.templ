@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"bikegeo/pkg/canonicalizer"
 	"bikegeo/pkg/model"
 )
 
@@ -44,11 +45,10 @@ templ EditorModal(
 		}
 		if activeConfig == nil {
 			activeConfig = &model.FrameConfiguration{
-				ID:           "stock",
-				Name:         "Stock Build",
-				IsBaseline:   true,
-				ForkTravelMm: 130,
-				ForkA2c:      541,
+				ID:         "stock",
+				Name:       "Stock Build",
+				IsBaseline: true,
+				Fork:       model.ForkSpec{ID: "fox34_130", Name: "Fox Float 34 130mm", TravelMm: 130, A2c: 541, Rake: 44},
 			}
 		}
 	}}
@@ -296,8 +296,8 @@ templ EditorModal(
 						</div>
 
 						<!-- Active Configuration Specs -->
-						<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-800/50">
-							<div>
+						<div class="grid grid-cols-2 sm:grid-cols-6 gap-3 pt-2 border-t border-slate-800/50">
+							<div class="col-span-2">
 								<label class="block text-[11px] text-slate-400 mb-1">Config Name</label>
 								<input
 									type="text"
@@ -306,25 +306,69 @@ templ EditorModal(
 									class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white"
 								/>
 							</div>
+							<div class="col-span-2">
+								<div class="flex items-center justify-between mb-1">
+									<label class="block text-[11px] text-slate-400">Fork Preset</label>
+									if activeConfig.Fork.IsInferred || activeConfig.Fork.ID != "" {
+										<span class="px-1.5 py-0.2 rounded text-[9px] font-medium bg-amber-950/60 text-amber-300 border border-amber-800/40" title="Values inferred from registry entry">
+											Inferred
+										</span>
+									}
+								</div>
+								<select
+									name="active_fork_preset"
+									id="active_fork_preset"
+									onchange="handleForkPresetChange(this)"
+									class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white"
+								>
+									<option value="" data-a2c="" data-travel="" data-rake="">-- Custom Fork --</option>
+									for _, p := range canonicalizer.CommonForkPresets {
+										<option
+											value={ p.ID }
+											selected?={ activeConfig.Fork.ID == p.ID }
+											data-a2c={ fmt.Sprintf("%.1f", p.StaticA2c) }
+											data-travel={ fmt.Sprintf("%.0f", p.TravelMm) }
+											data-rake={ fmt.Sprintf("%.1f", p.Rake) }
+											data-name={ p.Name }
+										>
+											{ p.Name }
+										</option>
+									}
+								</select>
+							</div>
 							<div>
-								<label class="block text-[11px] text-slate-400 mb-1">Fork Static A2C (mm) *</label>
+								<label class="block text-[11px] text-slate-400 mb-1">Static A2C (mm) *</label>
 								<input
 									type="number"
 									step="any"
 									name="active_fork_a2c"
+									id="active_fork_a2c"
 									required
-									value={ fmt.Sprintf("%.1f", activeConfig.ForkA2c) }
+									value={ fmt.Sprintf("%.1f", activeConfig.Fork.A2c) }
 									class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono"
 								/>
 							</div>
 							<div>
-								<label class="block text-[11px] text-slate-400 mb-1">Fork Travel (mm)</label>
+								<label class="block text-[11px] text-slate-400 mb-1">Travel (mm)</label>
 								<input
 									type="number"
 									step="any"
 									name="active_fork_travel_mm"
-									value={ fmt.Sprintf("%.0f", activeConfig.ForkTravelMm) }
+									id="active_fork_travel_mm"
+									value={ fmt.Sprintf("%.0f", activeConfig.Fork.TravelMm) }
 									placeholder="0 for rigid"
+									class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono"
+								/>
+							</div>
+							<div>
+								<label class="block text-[11px] text-slate-400 mb-1">Fork Rake (mm) *</label>
+								<input
+									type="number"
+									step="any"
+									name="active_fork_rake"
+									id="active_fork_rake"
+									required
+									value={ fmt.Sprintf("%.1f", activeConfig.Fork.Rake) }
 									class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono"
 								/>
 							</div>
@@ -335,7 +379,7 @@ templ EditorModal(
 									step="any"
 									name="active_sag_published"
 									value={ fmt.Sprintf("%.0f", activeConfig.SagPercentagePublished) }
-									placeholder="0 for uncompressed CAD"
+									placeholder="0 for CAD"
 									class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono"
 								/>
 							</div>
@@ -609,36 +653,7 @@ templ EditorModal(
 										</td>
 									</tr>
 
-									<!-- Fork Rake -->
-									<tr class="hover:bg-slate-900/50">
-										<td class="p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800">
-											<div>Fork Rake / Offset (mm) *</div>
-										</td>
-										for _, sz := range sizes {
-											{{ geo := activeConfig.Geometries[sz] }}
-											<td class="p-1.5 border-r border-slate-800/80">
-												<input
-													type="number"
-													step="any"
-													required
-													name={ "fork_rake_" + sz }
-													value={ fmt.Sprintf("%.1f", geo.ForkRake) }
-													placeholder="mm"
-													class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500"
-												/>
-											</td>
-										}
-										<td class="p-1.5 text-center">
-											<button
-												type="button"
-												onclick="copyRowToAll('fork_rake')"
-												class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer"
-												title="Copy value across all sizes"
-											>
-												[-> All]
-											</button>
-										</td>
-									</tr>
+
 
 									<!-- Wheelbase -->
 									<tr class="hover:bg-slate-900/50">
@@ -753,6 +768,26 @@ templ EditorModal(
 	</div>
 
 	<script>
+		function handleForkPresetChange(select) {
+			const opt = select.options[select.selectedIndex];
+			if (!opt || !opt.value) return;
+			const a2c = opt.getAttribute('data-a2c');
+			const travel = opt.getAttribute('data-travel');
+			const rake = opt.getAttribute('data-rake');
+			if (a2c) {
+				const a2cInput = document.getElementById('active_fork_a2c');
+				if (a2cInput) a2cInput.value = a2c;
+			}
+			if (travel) {
+				const travelInput = document.getElementById('active_fork_travel_mm');
+				if (travelInput) travelInput.value = travel;
+			}
+			if (rake) {
+				const rakeInput = document.getElementById('active_fork_rake');
+				if (rakeInput) rakeInput.value = rake;
+			}
+		}
+
 		function copyRowToAll(prefix) {
 			const inputs = document.querySelectorAll(`input[name^="${prefix}_"]`);
 			let val = null;

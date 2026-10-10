@@ -4,7 +4,7 @@
   "model": "Honzo ESD",
   "year": 2024,
   "category": "hardtail",
-  "notes": "Radical hardcore hardtail with 63\u00b0 HTA and 150mm Marzocchi Bomber Z1 fork (561mm static A2C).",
+  "notes": "Radical hardcore hardtail with 63° HTA and 150mm Marzocchi Bomber Z1 fork (561mm static A2C).",
   "wheel_size": "29",
   "headset_cup_type": "ZS44",
   "cup_stack": 2.0,
@@ -18,8 +18,13 @@
       "id": "stock",
       "name": "Stock Build",
       "is_baseline": true,
-      "fork_travel_mm": 150,
-      "fork_a2c": 561,
+      "fork": {
+        "id": "fox36_150",
+        "name": "Marzocchi Bomber Z1 / Fox 36 150mm",
+        "travel_mm": 150,
+        "a2c": 561,
+        "rake": 44
+      },
       "sag_percentage_published": 0,
       "geometries": {
         "L": {
@@ -29,7 +34,6 @@
           "sta_deg": 77.5,
           "htl": 110,
           "bb_drop": 65,
-          "fork_rake": 44,
           "wheelbase": 1260,
           "chainstay_length": 435,
           "front_center": 0,

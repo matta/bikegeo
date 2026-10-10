@@ -114,24 +114,22 @@ func TestFrameModelStorage(t *testing.T) {
 		DefaultSize:    "L",
 		Configurations: []model.FrameConfiguration{
 			{
-				ID:           "fork-120",
-				Name:         "120mm Suspension",
-				IsBaseline:   true,
-				ForkTravelMm: 120,
-				ForkA2c:      531,
+				ID:         "fork-120",
+				Name:       "120mm Suspension",
+				IsBaseline: true,
+				Fork:       model.ForkSpec{TravelMm: 120, A2c: 531, Rake: 44},
 				Geometries: map[string]model.SizeGeometry{
-					"S":  {Reach: 425, Stack: 625, HtaDeg: 67.0, StaDeg: 74.5, Htl: 100, BbDrop: 60, ForkRake: 44, Wheelbase: 1145},
-					"M":  {Reach: 450, Stack: 635, HtaDeg: 67.0, StaDeg: 74.5, Htl: 110, BbDrop: 60, ForkRake: 44, Wheelbase: 1172},
-					"L":  {Reach: 475, Stack: 645, HtaDeg: 67.0, StaDeg: 74.5, Htl: 125, BbDrop: 60, ForkRake: 44, Wheelbase: 1200},
-					"XL": {Reach: 500, Stack: 655, HtaDeg: 67.0, StaDeg: 74.5, Htl: 140, BbDrop: 60, ForkRake: 44, Wheelbase: 1230},
+					"S":  {Reach: 425, Stack: 625, HtaDeg: 67.0, StaDeg: 74.5, Htl: 100, BbDrop: 60, Wheelbase: 1145},
+					"M":  {Reach: 450, Stack: 635, HtaDeg: 67.0, StaDeg: 74.5, Htl: 110, BbDrop: 60, Wheelbase: 1172},
+					"L":  {Reach: 475, Stack: 645, HtaDeg: 67.0, StaDeg: 74.5, Htl: 125, BbDrop: 60, Wheelbase: 1200},
+					"XL": {Reach: 500, Stack: 655, HtaDeg: 67.0, StaDeg: 74.5, Htl: 140, BbDrop: 60, Wheelbase: 1230},
 				},
 			},
 			{
-				ID:           "rigid-483",
-				Name:         "Rigid Fork",
-				IsBaseline:   false,
-				ForkTravelMm: 0,
-				ForkA2c:      483,
+				ID:         "rigid-483",
+				Name:       "Rigid Fork",
+				IsBaseline: false,
+				Fork:       model.ForkSpec{TravelMm: 0, A2c: 483, Rake: 44},
 				// Deliberately no geometries: should derive kinematically!
 			},
 		},
@@ -185,6 +183,35 @@ func TestFrameModelStorage(t *testing.T) {
 	}
 	if rigidLarge.Reach <= 475.0 {
 		t.Errorf("Expected longer reach for rigid fork, got %.1f", rigidLarge.Reach)
+	}
+}
+
+func TestLoadRealBikesDataDir(t *testing.T) {
+	store, err := storage.NewBikeStore("../../data/bikes")
+	if err != nil {
+		t.Fatalf("Failed to initialize store for ../../data/bikes: %v", err)
+	}
+	frames, err := store.GetAllFrames()
+	if err != nil {
+		t.Fatalf("Failed to get all frames: %v", err)
+	}
+	if len(frames) != 8 {
+		t.Errorf("Expected 8 frames, got %d", len(frames))
+	}
+	bikes, err := store.GetAllBikes()
+	if err != nil {
+		t.Fatalf("Failed to get all bikes: %v", err)
+	}
+	if len(bikes) == 0 {
+		t.Errorf("Expected materialized bikes, got 0")
+	}
+	for _, b := range bikes {
+		if b.Fork.A2c <= 0 {
+			t.Errorf("Bike %s has invalid Fork.A2c: %.1f", b.ID, b.Fork.A2c)
+		}
+		if b.Fork.Rake <= 0 {
+			t.Errorf("Bike %s has invalid Fork.Rake: %.1f", b.ID, b.Fork.Rake)
+		}
 	}
 }
 

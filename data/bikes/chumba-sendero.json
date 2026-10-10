@@ -21,8 +21,13 @@
       "id": "stock-120",
       "name": "120mm Suspension (Stock)",
       "is_baseline": true,
-      "fork_travel_mm": 120,
-      "fork_a2c": 531,
+      "fork": {
+        "id": "sid_120",
+        "name": "RockShox SID 120mm",
+        "travel_mm": 120,
+        "a2c": 531,
+        "rake": 44
+      },
       "sag_percentage_published": 0,
       "geometries": {
         "S": {
@@ -32,7 +37,6 @@
           "sta_deg": 74.5,
           "htl": 100,
           "bb_drop": 60,
-          "fork_rake": 44,
           "wheelbase": 1145,
           "chainstay_length": 430,
           "seat_tube_length": 390
@@ -44,7 +48,6 @@
           "sta_deg": 74.5,
           "htl": 110,
           "bb_drop": 60,
-          "fork_rake": 44,
           "wheelbase": 1172,
           "chainstay_length": 430,
           "seat_tube_length": 425
@@ -56,7 +59,6 @@
           "sta_deg": 74.5,
           "htl": 125,
           "bb_drop": 60,
-          "fork_rake": 44,
           "wheelbase": 1200,
           "chainstay_length": 430,
           "seat_tube_length": 465
@@ -68,7 +70,6 @@
           "sta_deg": 74.5,
           "htl": 140,
           "bb_drop": 60,
-          "fork_rake": 44,
           "wheelbase": 1230,
           "chainstay_length": 430,
           "seat_tube_length": 505
@@ -79,8 +80,13 @@
       "id": "trail-130",
       "name": "130mm Trail Fork",
       "is_baseline": false,
-      "fork_travel_mm": 130,
-      "fork_a2c": 541,
+      "fork": {
+        "id": "fox34_130",
+        "name": "Fox Float 34 130mm",
+        "travel_mm": 130,
+        "a2c": 541,
+        "rake": 44
+      },
       "sag_percentage_published": 0,
       "geometries": {
         "S": {
@@ -90,7 +96,6 @@
           "sta_deg": 74.0,
           "htl": 100,
           "bb_drop": 57,
-          "fork_rake": 44,
           "wheelbase": 1148,
           "chainstay_length": 430,
           "seat_tube_length": 390
@@ -102,7 +107,6 @@
           "sta_deg": 74.0,
           "htl": 110,
           "bb_drop": 57,
-          "fork_rake": 44,
           "wheelbase": 1175,
           "chainstay_length": 430,
           "seat_tube_length": 425
@@ -114,7 +118,6 @@
           "sta_deg": 74.0,
           "htl": 125,
           "bb_drop": 57,
-          "fork_rake": 44,
           "wheelbase": 1203,
           "chainstay_length": 430,
           "seat_tube_length": 465
@@ -126,7 +129,6 @@
           "sta_deg": 74.0,
           "htl": 140,
           "bb_drop": 57,
-          "fork_rake": 44,
           "wheelbase": 1233,
           "chainstay_length": 430,
           "seat_tube_length": 505
@@ -137,8 +139,13 @@
       "id": "rigid-483",
       "name": "Rigid 483mm Bikepacking",
       "is_baseline": false,
-      "fork_travel_mm": 0,
-      "fork_a2c": 483,
+      "fork": {
+        "id": "rigid_483",
+        "name": "Rigid Bikepacking 483mm",
+        "travel_mm": 0,
+        "a2c": 483,
+        "rake": 44
+      },
       "sag_percentage_published": 0,
       "geometries": {
         "S": {
@@ -148,7 +155,6 @@
           "sta_deg": 76.6,
           "htl": 100,
           "bb_drop": 74,
-          "fork_rake": 44,
           "wheelbase": 1130,
           "chainstay_length": 430,
           "seat_tube_length": 390
@@ -160,7 +166,6 @@
           "sta_deg": 76.6,
           "htl": 110,
           "bb_drop": 74,
-          "fork_rake": 44,
           "wheelbase": 1157,
           "chainstay_length": 430,
           "seat_tube_length": 425
@@ -172,7 +177,6 @@
           "sta_deg": 76.6,
           "htl": 125,
           "bb_drop": 74,
-          "fork_rake": 44,
           "wheelbase": 1185,
           "chainstay_length": 430,
           "seat_tube_length": 465
@@ -184,7 +188,6 @@
           "sta_deg": 76.6,
           "htl": 140,
           "bb_drop": 74,
-          "fork_rake": 44,
           "wheelbase": 1215,
           "chainstay_length": 430,
           "seat_tube_length": 505

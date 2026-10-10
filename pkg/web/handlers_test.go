@@ -382,13 +382,13 @@ func TestMultiSizeFrameSaveAndValidator(t *testing.T) {
 		"active_config_name":    {"120mm Stock"},
 		"active_fork_a2c":       {"531"},
 		"active_fork_travel_mm": {"120"},
+		"active_fork_rake":      {"44"},
 		"reach_M":               {"450"},
 		"stack_M":               {"635"},
 		"hta_deg_M":             {"67.0"},
 		"sta_deg_M":             {"74.5"},
 		"htl_M":                 {"110"},
 		"bb_drop_M":             {"60"},
-		"fork_rake_M":           {"44"},
 		"wheelbase_M":           {"1172"},
 		"reach_L":               {"475"},
 		"stack_L":               {"645"},
@@ -396,7 +396,6 @@ func TestMultiSizeFrameSaveAndValidator(t *testing.T) {
 		"sta_deg_L":             {"74.5"},
 		"htl_L":                 {"125"},
 		"bb_drop_L":             {"60"},
-		"fork_rake_L":           {"44"},
 		"wheelbase_L":           {"1200"},
 	}
 
@@ -449,11 +448,10 @@ func TestCompareSwitchSize(t *testing.T) {
 		DefaultSize:  "M",
 		Configurations: []model.FrameConfiguration{
 			{
-				ID:           "stock",
-				Name:         "Stock",
-				IsBaseline:   true,
-				ForkTravelMm: 120.0,
-				ForkA2c:      530.0,
+				ID:         "stock",
+				Name:       "Stock",
+				IsBaseline: true,
+				Fork:       model.ForkSpec{TravelMm: 120.0, A2c: 530.0, Rake: 44.0},
 				Geometries: map[string]model.SizeGeometry{
 					"M": {Reach: 440, Stack: 620, HtaDeg: 66, StaDeg: 75, Htl: 110, BbDrop: 60, Wheelbase: 1160, ChainstayLength: 430},
 					"L": {Reach: 465, Stack: 630, HtaDeg: 66, StaDeg: 75, Htl: 120, BbDrop: 60, Wheelbase: 1190, ChainstayLength: 430},

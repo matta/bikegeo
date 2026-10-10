@@ -739,16 +739,15 @@ func (s *Server) handleBikeNew(w http.ResponseWriter, r *http.Request) {
 		DefaultSize:    "L",
 		Configurations: []model.FrameConfiguration{
 			{
-				ID:           "stock",
-				Name:         "Stock Build",
-				IsBaseline:   true,
-				ForkTravelMm: 130,
-				ForkA2c:      541,
+				ID:         "stock",
+				Name:       "Stock Build",
+				IsBaseline: true,
+				Fork:       model.ForkSpec{ID: "fox34_130", Name: "Fox Float 34 130mm", TravelMm: 130, A2c: 541, Rake: 44},
 				Geometries: map[string]model.SizeGeometry{
-					"S":  {Reach: 425, Stack: 615, HtaDeg: 65.0, StaDeg: 74.5, Htl: 95, BbDrop: 55, ForkRake: 44, Wheelbase: 1160},
-					"M":  {Reach: 445, Stack: 625, HtaDeg: 65.0, StaDeg: 74.5, Htl: 105, BbDrop: 55, ForkRake: 44, Wheelbase: 1185},
-					"L":  {Reach: 465, Stack: 635, HtaDeg: 65.0, StaDeg: 74.5, Htl: 115, BbDrop: 55, ForkRake: 44, Wheelbase: 1210},
-					"XL": {Reach: 490, Stack: 645, HtaDeg: 65.0, StaDeg: 74.5, Htl: 130, BbDrop: 55, ForkRake: 44, Wheelbase: 1240},
+					"S":  {Reach: 425, Stack: 615, HtaDeg: 65.0, StaDeg: 74.5, Htl: 95, BbDrop: 55, Wheelbase: 1160},
+					"M":  {Reach: 445, Stack: 625, HtaDeg: 65.0, StaDeg: 74.5, Htl: 105, BbDrop: 55, Wheelbase: 1185},
+					"L":  {Reach: 465, Stack: 635, HtaDeg: 65.0, StaDeg: 74.5, Htl: 115, BbDrop: 55, Wheelbase: 1210},
+					"XL": {Reach: 490, Stack: 645, HtaDeg: 65.0, StaDeg: 74.5, Htl: 130, BbDrop: 55, Wheelbase: 1240},
 				},
 			},
 		},
@@ -783,11 +782,19 @@ func (s *Server) handleBikeEdit(w http.ResponseWriter, r *http.Request) {
 			DefaultSize:    bike.Size,
 			Configurations: []model.FrameConfiguration{
 				{
-					ID:           "stock",
-					Name:         "Stock Build",
-					IsBaseline:   true,
-					ForkTravelMm: bike.ForkTravelMm,
-					ForkA2c:      bike.ForkA2c,
+					ID:         "stock",
+					Name:       "Stock Build",
+					IsBaseline: true,
+					Fork: func() model.ForkSpec {
+						if bike.Fork.A2c > 0 || bike.Fork.Rake > 0 {
+							return bike.Fork
+						}
+						return model.ForkSpec{
+							TravelMm: bike.ForkTravelMm,
+							A2c:      bike.ForkA2c,
+							Rake:     bike.ForkRake,
+						}
+					}(),
 					Geometries: map[string]model.SizeGeometry{
 						bike.Size: {
 							Reach:           bike.Reach,
@@ -796,7 +803,6 @@ func (s *Server) handleBikeEdit(w http.ResponseWriter, r *http.Request) {
 							StaDeg:          bike.StaDeg,
 							Htl:             bike.Htl,
 							BbDrop:          bike.BbDrop,
-							ForkRake:        bike.ForkRake,
 							Wheelbase:       bike.Wheelbase,
 							ChainstayLength: bike.ChainstayLength,
 							SeatTubeLength:  bike.SeatTubeLength,
@@ -895,17 +901,22 @@ func (s *Server) handleModalAction(w http.ResponseWriter, r *http.Request) {
 		baseCfg := frame.GetBaselineConfiguration()
 		travel := 140.0
 		a2c := 551.0
+		rake := 44.0
 		if baseCfg != nil {
-			travel = baseCfg.ForkTravelMm + 10.0
-			a2c = baseCfg.ForkA2c + 10.0
+			travel = baseCfg.Fork.TravelMm + 10.0
+			a2c = baseCfg.Fork.A2c + 10.0
+			rake = baseCfg.Fork.Rake
 		}
 		frame.Configurations = append(frame.Configurations, model.FrameConfiguration{
-			ID:           newConfigID,
-			Name:         fmt.Sprintf("%.0fmm Build", travel),
-			IsBaseline:   false,
-			ForkTravelMm: travel,
-			ForkA2c:      a2c,
-			Geometries:   make(map[string]model.SizeGeometry),
+			ID:         newConfigID,
+			Name:       fmt.Sprintf("%.0fmm Build", travel),
+			IsBaseline: false,
+			Fork: model.ForkSpec{
+				TravelMm: travel,
+				A2c:      a2c,
+				Rake:     rake,
+			},
+			Geometries: make(map[string]model.SizeGeometry),
 		})
 		activeConfigID = newConfigID
 
@@ -932,7 +943,6 @@ func (s *Server) handleModalAction(w http.ResponseWriter, r *http.Request) {
 						StaDeg:          b.StaDeg,
 						Htl:             b.Htl,
 						BbDrop:          b.BbDrop,
-						ForkRake:        b.ForkRake,
 						Wheelbase:       b.Wheelbase,
 						ChainstayLength: b.ChainstayLength,
 						SeatTubeLength:  b.SeatTubeLength,
@@ -981,11 +991,19 @@ func (s *Server) parseFrameFromForm(r *http.Request) (model.FrameModel, string) 
 				DefaultSize:    sz,
 				Configurations: []model.FrameConfiguration{
 					{
-						ID:           "stock",
-						Name:         "Stock Build",
-						IsBaseline:   true,
-						ForkTravelMm: parsedBike.ForkTravelMm,
-						ForkA2c:      parsedBike.ForkA2c,
+						ID:         "stock",
+						Name:       "Stock Build",
+						IsBaseline: true,
+						Fork: func() model.ForkSpec {
+							if parsedBike.Fork.A2c > 0 || parsedBike.Fork.Rake > 0 {
+								return parsedBike.Fork
+							}
+							return model.ForkSpec{
+								TravelMm: parsedBike.ForkTravelMm,
+								A2c:      parsedBike.ForkA2c,
+								Rake:     parsedBike.ForkRake,
+							}
+						}(),
 						Geometries: map[string]model.SizeGeometry{
 							sz: {
 								Reach:           parsedBike.Reach,
@@ -994,7 +1012,6 @@ func (s *Server) parseFrameFromForm(r *http.Request) (model.FrameModel, string) 
 								StaDeg:          parsedBike.StaDeg,
 								Htl:             parsedBike.Htl,
 								BbDrop:          parsedBike.BbDrop,
-								ForkRake:        parsedBike.ForkRake,
 								Wheelbase:       parsedBike.Wheelbase,
 								ChainstayLength: parsedBike.ChainstayLength,
 								SeatTubeLength:  parsedBike.SeatTubeLength,
@@ -1045,6 +1062,8 @@ func (s *Server) parseFrameFromForm(r *http.Request) (model.FrameModel, string) 
 	if activeName == "" {
 		activeName = "Stock Build"
 	}
+	activePreset := strings.TrimSpace(r.FormValue("active_fork_preset"))
+	activeForkName := strings.TrimSpace(r.FormValue("active_fork_name"))
 	activeA2c, _ := strconv.ParseFloat(r.FormValue("active_fork_a2c"), 64)
 	if activeA2c <= 0 {
 		activeA2c, _ = strconv.ParseFloat(r.FormValue("fork_a2c"), 64)
@@ -1056,7 +1075,23 @@ func (s *Server) parseFrameFromForm(r *http.Request) (model.FrameModel, string) 
 	if activeTravel <= 0 {
 		activeTravel, _ = strconv.ParseFloat(r.FormValue("fork_travel_mm"), 64)
 	}
+	activeRake, _ := strconv.ParseFloat(r.FormValue("active_fork_rake"), 64)
+	if activeRake <= 0 {
+		activeRake, _ = strconv.ParseFloat(r.FormValue("fork_rake"), 64)
+	}
+	if activeRake <= 0 {
+		activeRake = 44.0
+	}
 	activeSag, _ := strconv.ParseFloat(r.FormValue("active_sag_published"), 64)
+
+	forkSpec := model.ForkSpec{
+		ID:       activePreset,
+		Name:     activeForkName,
+		TravelMm: activeTravel,
+		A2c:      activeA2c,
+		Rake:     activeRake,
+	}
+	forkSpec = canonicalizer.ResolveForkSpec(forkSpec)
 
 	activeGeos := make(map[string]model.SizeGeometry)
 	for _, sz := range sizes {
@@ -1084,10 +1119,6 @@ func (s *Server) parseFrameFromForm(r *http.Request) (model.FrameModel, string) 
 		if bbDrop == 0 {
 			bbDrop, _ = strconv.ParseFloat(r.FormValue("bb_drop"), 64)
 		}
-		rake, _ := strconv.ParseFloat(r.FormValue("fork_rake_"+sz), 64)
-		if rake == 0 {
-			rake, _ = strconv.ParseFloat(r.FormValue("fork_rake"), 64)
-		}
 		wb, _ := strconv.ParseFloat(r.FormValue("wheelbase_"+sz), 64)
 		if wb == 0 {
 			wb, _ = strconv.ParseFloat(r.FormValue("wheelbase"), 64)
@@ -1102,7 +1133,6 @@ func (s *Server) parseFrameFromForm(r *http.Request) (model.FrameModel, string) 
 			StaDeg:          sta,
 			Htl:             htl,
 			BbDrop:          bbDrop,
-			ForkRake:        rake,
 			Wheelbase:       wb,
 			ChainstayLength: cs,
 			SeatTubeLength:  st,
@@ -1113,8 +1143,7 @@ func (s *Server) parseFrameFromForm(r *http.Request) (model.FrameModel, string) 
 	for i := range configs {
 		if configs[i].ID == activeConfigID {
 			configs[i].Name = activeName
-			configs[i].ForkA2c = activeA2c
-			configs[i].ForkTravelMm = activeTravel
+			configs[i].Fork = forkSpec
 			configs[i].SagPercentagePublished = activeSag
 			configs[i].Geometries = activeGeos
 			found = true
@@ -1126,8 +1155,7 @@ func (s *Server) parseFrameFromForm(r *http.Request) (model.FrameModel, string) 
 			ID:                     activeConfigID,
 			Name:                   activeName,
 			IsBaseline:             len(configs) == 0,
-			ForkA2c:                activeA2c,
-			ForkTravelMm:           activeTravel,
+			Fork:                   forkSpec,
 			SagPercentagePublished: activeSag,
 			Geometries:             activeGeos,
 		})

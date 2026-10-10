@@ -46,3 +46,20 @@ func TestCanonicalizeBikes(t *testing.T) {
 		t.Errorf("Expected baseline reach 450, got %.1f", row.Baseline.Reach)
 	}
 }
+
+func TestResolveForkSpec(t *testing.T) {
+	spec := model.ForkSpec{ID: "fox34_130"}
+	resolved := canonicalizer.ResolveForkSpec(spec)
+	if resolved.A2c != 541 {
+		t.Errorf("Expected A2c 541, got %.1f", resolved.A2c)
+	}
+	if resolved.Rake != 44 {
+		t.Errorf("Expected Rake 44, got %.1f", resolved.Rake)
+	}
+	if resolved.TravelMm != 130 {
+		t.Errorf("Expected TravelMm 130, got %.1f", resolved.TravelMm)
+	}
+	if !resolved.IsInferred {
+		t.Errorf("Expected IsInferred to be true")
+	}
+}

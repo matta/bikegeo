@@ -18,8 +18,13 @@
       "id": "stock",
       "name": "Stock Build",
       "is_baseline": true,
-      "fork_travel_mm": 110,
-      "fork_a2c": 521,
+      "fork": {
+        "id": "sid_110",
+        "name": "RockShox SID 110mm",
+        "travel_mm": 110,
+        "a2c": 521,
+        "rake": 44
+      },
       "sag_percentage_published": 20,
       "geometries": {
         "M": {
@@ -29,7 +34,6 @@
           "sta_deg": 74.0,
           "htl": 150,
           "bb_drop": 70,
-          "fork_rake": 44,
           "wheelbase": 1150,
           "chainstay_length": 435,
           "front_center": 0,

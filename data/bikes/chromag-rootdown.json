@@ -18,8 +18,13 @@
       "id": "stock",
       "name": "Stock Build",
       "is_baseline": true,
-      "fork_travel_mm": 150,
-      "fork_a2c": 561,
+      "fork": {
+        "id": "fox36_150",
+        "name": "Fox 36 / Lyrik 150mm",
+        "travel_mm": 150,
+        "a2c": 561,
+        "rake": 44
+      },
       "sag_percentage_published": 0,
       "geometries": {
         "M/L": {
@@ -29,7 +34,6 @@
           "sta_deg": 76.0,
           "htl": 105,
           "bb_drop": 50,
-          "fork_rake": 44,
           "wheelbase": 1235,
           "chainstay_length": 420,
           "front_center": 0,

@@ -78,7 +78,7 @@ templ CompareView(
 					>
 						for _, p := range canonicalizer.CommonForkPresets {
 							<option value={ p.ID } selected?={ p.ID == presetId }>
-								{ fmt.Sprintf("%s (static %.0fmm)", p.Name, p.StaticA2c) }
+								{ fmt.Sprintf("%s (static %.0fmm, %.0fmm rake)", p.Name, p.StaticA2c, p.Rake) }
 							</option>
 						}
 						<option value="custom" selected?={ presetId == "custom" }>Custom Specifications...</option>
@@ -445,6 +445,35 @@ templ ComparisonMatrix(
 												Mismatched
 											</span>
 										}
+									</td>
+								}
+							</tr>
+
+							<!-- Spec'd Fork -->
+							<tr class="hover:bg-slate-800/30">
+								<td class="p-2.5 font-medium text-slate-300 sticky left-0 bg-slate-900 z-10">
+									<div>Spec'd Fork</div>
+									<div class="text-[10px] text-slate-500 font-normal">Travel / A2C / Rake</div>
+								</td>
+								for _, row := range rows {
+									<td class="p-2.5 border-l border-slate-800/60 font-mono text-xs">
+										<div class="flex items-center gap-1.5 flex-wrap">
+											<span class="text-slate-200 font-medium">
+												if row.Bike.Fork.Name != "" {
+													{ row.Bike.Fork.Name }
+												} else {
+													{ fmt.Sprintf("%.0fmm (%.0fmm A2C)", row.Bike.ForkTravelMm, row.Bike.ForkA2c) }
+												}
+											</span>
+											if row.Bike.Fork.IsInferred {
+												<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-950/60 text-amber-300 border border-amber-800/50" title={ fmt.Sprintf("Inferred from %s", row.Bike.Fork.Name) }>
+													Inferred
+												</span>
+											}
+										</div>
+										<div class="text-[10px] text-slate-500 mt-0.5">
+											{ fmt.Sprintf("A2C: %.0fmm | Rake: %.0fmm", row.Bike.ForkA2c, row.Bike.ForkRake) }
+										</div>
 									</td>
 								}
 							</tr>

@@ -18,8 +18,13 @@
       "id": "stock",
       "name": "Stock Build",
       "is_baseline": true,
-      "fork_travel_mm": 120,
-      "fork_a2c": 530,
+      "fork": {
+        "id": "sid_120",
+        "name": "RockShox SID 120mm",
+        "travel_mm": 120,
+        "a2c": 530,
+        "rake": 44
+      },
       "sag_percentage_published": 0,
       "geometries": {
         "L": {
@@ -29,7 +34,6 @@
           "sta_deg": 74.3,
           "htl": 105,
           "bb_drop": 60,
-          "fork_rake": 44,
           "wheelbase": 1172,
           "chainstay_length": 432,
           "front_center": 0,

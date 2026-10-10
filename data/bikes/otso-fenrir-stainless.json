@@ -17,8 +17,13 @@
       "id": "stock",
       "name": "Stock Build",
       "is_baseline": true,
-      "fork_travel_mm": 110,
-      "fork_a2c": 495,
+      "fork": {
+        "id": "sid_110",
+        "name": "RockShox SID 110mm / Rigid 495mm",
+        "travel_mm": 110,
+        "a2c": 495,
+        "rake": 44
+      },
       "sag_percentage_published": 0,
       "geometries": {
         "L": {
@@ -28,7 +33,6 @@
           "sta_deg": 75,
           "htl": 140,
           "bb_drop": 68,
-          "fork_rake": 44,
           "wheelbase": 1155,
           "seat_tube_length": 490
         },
@@ -39,7 +43,6 @@
           "sta_deg": 75,
           "htl": 160,
           "bb_drop": 68,
-          "fork_rake": 51,
           "wheelbase": 1190,
           "seat_tube_length": 530
         }

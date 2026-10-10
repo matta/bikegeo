@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"bikegeo/pkg/canonicalizer"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 )
@@ -38,6 +39,9 @@ func parseFrameFromData(data []byte, fileID string) (*model.FrameModel, error) {
 		if len(frame.Configurations) > 0 || len(frame.Sizes) > 0 {
 			if frame.ID == "" {
 				frame.ID = fileID
+			}
+			for i := range frame.Configurations {
+				frame.Configurations[i].Fork = canonicalizer.ResolveForkSpec(frame.Configurations[i].Fork)
 			}
 			return &frame, nil
 		}
@@ -73,11 +77,19 @@ func parseFrameFromData(data []byte, fileID string) (*model.FrameModel, error) {
 			DefaultSize:    size,
 			Configurations: []model.FrameConfiguration{
 				{
-					ID:                     "stock",
-					Name:                   "Stock Build",
-					IsBaseline:             true,
-					ForkTravelMm:           bike.ForkTravelMm,
-					ForkA2c:                bike.ForkA2c,
+					ID:         "stock",
+					Name:       "Stock Build",
+					IsBaseline: true,
+					Fork: func() model.ForkSpec {
+						if bike.Fork.A2c > 0 || bike.Fork.Rake > 0 {
+							return canonicalizer.ResolveForkSpec(bike.Fork)
+						}
+						return canonicalizer.ResolveForkSpec(model.ForkSpec{
+							TravelMm: bike.ForkTravelMm,
+							A2c:      bike.ForkA2c,
+							Rake:     bike.ForkRake,
+						})
+					}(),
 					SagPercentagePublished: bike.SagPercentagePublished,
 					Geometries: map[string]model.SizeGeometry{
 						size: {
@@ -87,7 +99,6 @@ func parseFrameFromData(data []byte, fileID string) (*model.FrameModel, error) {
 							StaDeg:          bike.StaDeg,
 							Htl:             bike.Htl,
 							BbDrop:          bike.BbDrop,
-							ForkRake:        bike.ForkRake,
 							Wheelbase:       bike.Wheelbase,
 							ChainstayLength: bike.ChainstayLength,
 							FrontCenter:     bike.FrontCenter,
@@ -376,12 +387,19 @@ func (s *BikeStore) SaveBike(bike model.BikeGeometry) (*model.BikeGeometry, erro
 		StaDeg:          bike.StaDeg,
 		Htl:             bike.Htl,
 		BbDrop:          bike.BbDrop,
-		ForkRake:        bike.ForkRake,
 		Wheelbase:       bike.Wheelbase,
 		ChainstayLength: bike.ChainstayLength,
 		FrontCenter:     bike.FrontCenter,
 		SeatTubeLength:  bike.SeatTubeLength,
 	}
+
+	forkSpec := bike.Fork
+	if forkSpec.A2c == 0 && bike.ForkA2c > 0 {
+		forkSpec.A2c = bike.ForkA2c
+		forkSpec.TravelMm = bike.ForkTravelMm
+		forkSpec.Rake = bike.ForkRake
+	}
+	forkSpec = canonicalizer.ResolveForkSpec(forkSpec)
 
 	if len(frame.Configurations) == 0 {
 		frame.Configurations = []model.FrameConfiguration{
@@ -389,8 +407,7 @@ func (s *BikeStore) SaveBike(bike model.BikeGeometry) (*model.BikeGeometry, erro
 				ID:                     "stock",
 				Name:                   "Stock Build",
 				IsBaseline:             true,
-				ForkTravelMm:           bike.ForkTravelMm,
-				ForkA2c:                bike.ForkA2c,
+				Fork:                   forkSpec,
 				SagPercentagePublished: bike.SagPercentagePublished,
 				Geometries:             map[string]model.SizeGeometry{size: sizeGeo},
 			},

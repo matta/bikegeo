@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"bikegeo/pkg/canonicalizer"
 	"bikegeo/pkg/model"
 )
 
@@ -71,11 +72,10 @@ func EditorModal(
 		}
 		if activeConfig == nil {
 			activeConfig = &model.FrameConfiguration{
-				ID:           "stock",
-				Name:         "Stock Build",
-				IsBaseline:   true,
-				ForkTravelMm: 130,
-				ForkA2c:      541,
+				ID:         "stock",
+				Name:       "Stock Build",
+				IsBaseline: true,
+				Fork:       model.ForkSpec{ID: "fox34_130", Name: "Fox Float 34 130mm", TravelMm: 130, A2c: 541, Rake: 44},
 			}
 		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm overflow-y-auto\"><div class=\"bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl\"><!-- Header --><div class=\"flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 shrink-0\"><div><h3 class=\"text-lg font-bold text-white\">")
@@ -565,7 +565,7 @@ func EditorModal(
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</div></div><button type=\"button\" hx-post=\"/bikes/modal/action?act=add-config\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs border border-slate-700 flex items-center gap-1 transition cursor-pointer\"><svg class=\"w-3.5 h-3.5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg> <span>+ Add Config</span></button></div><!-- Active Configuration Specs --><div class=\"grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-800/50\"><div><label class=\"block text-[11px] text-slate-400 mb-1\">Config Name</label> <input type=\"text\" name=\"active_config_name\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</div></div><button type=\"button\" hx-post=\"/bikes/modal/action?act=add-config\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs border border-slate-700 flex items-center gap-1 transition cursor-pointer\"><svg class=\"w-3.5 h-3.5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg> <span>+ Add Config</span></button></div><!-- Active Configuration Specs --><div class=\"grid grid-cols-2 sm:grid-cols-6 gap-3 pt-2 border-t border-slate-800/50\"><div class=\"col-span-2\"><label class=\"block text-[11px] text-slate-400 mb-1\">Config Name</label> <input type=\"text\" name=\"active_config_name\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -578,503 +578,587 @@ func EditorModal(
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white\"></div><div><label class=\"block text-[11px] text-slate-400 mb-1\">Fork Static A2C (mm) *</label> <input type=\"number\" step=\"any\" name=\"active_fork_a2c\" required value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white\"></div><div class=\"col-span-2\"><div class=\"flex items-center justify-between mb-1\"><label class=\"block text-[11px] text-slate-400\">Fork Preset</label> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var26 string
-			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", activeConfig.ForkA2c))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 316, Col: 58}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono\"></div><div><label class=\"block text-[11px] text-slate-400 mb-1\">Fork Travel (mm)</label> <input type=\"number\" step=\"any\" name=\"active_fork_travel_mm\" value=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var27 string
-			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.0f", activeConfig.ForkTravelMm))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 326, Col: 63}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "\" placeholder=\"0 for rigid\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono\"></div><div><label class=\"block text-[11px] text-slate-400 mb-1\">Published Sag (%)</label> <input type=\"number\" step=\"any\" name=\"active_sag_published\" value=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var28 string
-			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.0f", activeConfig.SagPercentagePublished))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 337, Col: 73}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "\" placeholder=\"0 for uncompressed CAD\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono\"></div></div>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if !activeConfig.IsBaseline {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<div class=\"flex items-center justify-between bg-indigo-950/30 border border-indigo-800/30 rounded-lg px-3 py-2 text-xs text-indigo-300\"><span>Alternative Configuration: Enter published values below or derive dynamically from baseline.</span> <button type=\"button\" hx-post=\"/bikes/modal/action?act=kinematic-fill\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[11px] cursor-pointer flex items-center gap-1 shadow-sm transition\"><svg class=\"w-3.5 h-3.5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15\"></path></svg> <span>Kinematic Auto-Fill</span></button></div>")
+			if activeConfig.Fork.IsInferred || activeConfig.Fork.ID != "" {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "<span class=\"px-1.5 py-0.2 rounded text-[9px] font-medium bg-amber-950/60 text-amber-300 border border-amber-800/40\" title=\"Values inferred from registry entry\">Inferred</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "</div><!-- 3. Dynamic Sizes & Multi-Size Geometry Grid --> <div><div class=\"flex flex-wrap items-center justify-between gap-3 mb-2.5\"><div class=\"flex items-center gap-2\"><h4 class=\"text-xs font-semibold uppercase tracking-wider text-cyan-400\">Geometry Chart Grid (")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "</div><select name=\"active_fork_preset\" id=\"active_fork_preset\" onchange=\"handleForkPresetChange(this)\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white\"><option value=\"\" data-a2c=\"\" data-travel=\"\" data-rake=\"\">-- Custom Fork --</option> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var29 string
-			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(activeConfig.Name)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 366, Col: 49}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, ")</h4><span class=\"text-xs text-slate-400\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var30 string
-			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("(%d Sizes Defined)", len(sizes)))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 369, Col: 56}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "</span></div><div class=\"flex items-center gap-2\"><span class=\"text-[11px] text-slate-400\">Quick Sizing Presets:</span> <button type=\"button\" hx-post=\"/bikes/modal/action?act=preset&preset_type=s_xl\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer\">S, M, L, XL</button> <button type=\"button\" hx-post=\"/bikes/modal/action?act=preset&preset_type=s1_s6\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer\">S1–S6</button> <button type=\"button\" hx-post=\"/bikes/modal/action?act=preset&preset_type=cm\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer\">49–61cm</button> <button type=\"button\" hx-post=\"/bikes/modal/action?act=add-size\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-xs font-medium border border-cyan-500/40 cursor-pointer flex items-center gap-1\"><svg class=\"w-3.5 h-3.5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg> <span>+ Add Size</span></button></div></div><!-- Geometry Table --><div class=\"overflow-x-auto border border-slate-800 rounded-xl bg-slate-950/60 shadow-inner\"><table class=\"w-full text-left text-xs border-collapse\"><thead><tr class=\"bg-slate-950 border-b border-slate-800 text-slate-300\"><th class=\"p-2.5 font-semibold w-48 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\">Frame Dimension</th>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			for _, sz := range sizes {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "<th class=\"p-2.5 text-center min-w-[120px] border-r border-slate-800/80\"><div class=\"flex items-center justify-center gap-1.5\"><input type=\"text\" name=\"sizes\" value=\"")
+			for _, p := range canonicalizer.CommonForkPresets {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "<option value=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var26 string
+				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.ID)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 327, Col: 23}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if activeConfig.Fork.ID == p.ID {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, " selected")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, " data-a2c=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var27 string
+				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", p.StaticA2c))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 329, Col: 54}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "\" data-travel=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var28 string
+				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.0f", p.TravelMm))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 330, Col: 56}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "\" data-rake=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var29 string
+				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", p.Rake))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 331, Col: 50}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "\" data-name=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var30 string
+				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Name)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 332, Col: 29}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var31 string
-				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.ResolveAttributeValue(sz)
+				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(p.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 429, Col: 24}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 334, Col: 19}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "\" class=\"w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-center font-bold text-amber-300 text-xs focus:border-amber-500\"> ")
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if len(sizes) > 1 {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<button type=\"button\" hx-post=\"")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var32 string
-					templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/bikes/modal/action?act=remove-size&size=%s", sz))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 435, Col: 87}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var32)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"text-rose-400 hover:text-rose-300 text-xs cursor-pointer px-1 py-0.5 rounded hover:bg-slate-800\" title=\"Remove Size Column\">×</button>")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "</div></th>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "</option>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "<th class=\"p-2.5 text-center w-28 text-slate-400\">Copy Helpers</th></tr></thead> <tbody class=\"divide-y divide-slate-800/60\"><!-- Reach --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-cyan-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Reach (mm) *</div></td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "</select></div><div><label class=\"block text-[11px] text-slate-400 mb-1\">Static A2C (mm) *</label> <input type=\"number\" step=\"any\" name=\"active_fork_a2c\" id=\"active_fork_a2c\" required value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var32 string
+			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", activeConfig.Fork.A2c))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 347, Col: 59}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var32)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono\"></div><div><label class=\"block text-[11px] text-slate-400 mb-1\">Travel (mm)</label> <input type=\"number\" step=\"any\" name=\"active_fork_travel_mm\" id=\"active_fork_travel_mm\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var33 string
+			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.0f", activeConfig.Fork.TravelMm))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 358, Col: 64}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "\" placeholder=\"0 for rigid\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono\"></div><div><label class=\"block text-[11px] text-slate-400 mb-1\">Fork Rake (mm) *</label> <input type=\"number\" step=\"any\" name=\"active_fork_rake\" id=\"active_fork_rake\" required value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var34 string
+			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", activeConfig.Fork.Rake))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 371, Col: 60}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono\"></div><div><label class=\"block text-[11px] text-slate-400 mb-1\">Published Sag (%)</label> <input type=\"number\" step=\"any\" name=\"active_sag_published\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var35 string
+			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.0f", activeConfig.SagPercentagePublished))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 381, Col: 73}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "\" placeholder=\"0 for CAD\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono\"></div></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if !activeConfig.IsBaseline {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "<div class=\"flex items-center justify-between bg-indigo-950/30 border border-indigo-800/30 rounded-lg px-3 py-2 text-xs text-indigo-300\"><span>Alternative Configuration: Enter published values below or derive dynamically from baseline.</span> <button type=\"button\" hx-post=\"/bikes/modal/action?act=kinematic-fill\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[11px] cursor-pointer flex items-center gap-1 shadow-sm transition\"><svg class=\"w-3.5 h-3.5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15\"></path></svg> <span>Kinematic Auto-Fill</span></button></div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "</div><!-- 3. Dynamic Sizes & Multi-Size Geometry Grid --> <div><div class=\"flex flex-wrap items-center justify-between gap-3 mb-2.5\"><div class=\"flex items-center gap-2\"><h4 class=\"text-xs font-semibold uppercase tracking-wider text-cyan-400\">Geometry Chart Grid (")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var36 string
+			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(activeConfig.Name)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 410, Col: 49}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, ")</h4><span class=\"text-xs text-slate-400\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var37 string
+			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("(%d Sizes Defined)", len(sizes)))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 413, Col: 56}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "</span></div><div class=\"flex items-center gap-2\"><span class=\"text-[11px] text-slate-400\">Quick Sizing Presets:</span> <button type=\"button\" hx-post=\"/bikes/modal/action?act=preset&preset_type=s_xl\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer\">S, M, L, XL</button> <button type=\"button\" hx-post=\"/bikes/modal/action?act=preset&preset_type=s1_s6\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer\">S1–S6</button> <button type=\"button\" hx-post=\"/bikes/modal/action?act=preset&preset_type=cm\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer\">49–61cm</button> <button type=\"button\" hx-post=\"/bikes/modal/action?act=add-size\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-xs font-medium border border-cyan-500/40 cursor-pointer flex items-center gap-1\"><svg class=\"w-3.5 h-3.5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg> <span>+ Add Size</span></button></div></div><!-- Geometry Table --><div class=\"overflow-x-auto border border-slate-800 rounded-xl bg-slate-950/60 shadow-inner\"><table class=\"w-full text-left text-xs border-collapse\"><thead><tr class=\"bg-slate-950 border-b border-slate-800 text-slate-300\"><th class=\"p-2.5 font-semibold w-48 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\">Frame Dimension</th>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, sz := range sizes {
-				geo := activeConfig.Geometries[sz]
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var33 string
-				templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.ResolveAttributeValue("reach_" + sz)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 465, Col: 33}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "\" value=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var34 string
-				templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.Reach))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 466, Col: 51}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "<td class=\"p-1.5 text-center\"></td></tr><!-- Stack --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-amber-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Stack (mm) *</div></td>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			for _, sz := range sizes {
-				geo := activeConfig.Geometries[sz]
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var35 string
-				templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.ResolveAttributeValue("stack_" + sz)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 487, Col: 33}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "\" value=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var36 string
-				templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.Stack))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 488, Col: 51}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "<td class=\"p-1.5 text-center\"></td></tr><!-- Head Tube Angle --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Head Tube Angle (°) *</div></td>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			for _, sz := range sizes {
-				geo := activeConfig.Geometries[sz]
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var37 string
-				templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.ResolveAttributeValue("hta_deg_" + sz)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 509, Col: 35}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var37)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "<th class=\"p-2.5 text-center min-w-[120px] border-r border-slate-800/80\"><div class=\"flex items-center justify-center gap-1.5\"><input type=\"text\" name=\"sizes\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var38 string
-				templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.2f", geo.HtaDeg))
+				templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.ResolveAttributeValue(sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 510, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 473, Col: 24}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var38)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "\" placeholder=\"deg\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "\" class=\"w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-center font-bold text-amber-300 text-xs focus:border-amber-500\"> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if len(sizes) > 1 {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "<button type=\"button\" hx-post=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var39 string
+					templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/bikes/modal/action?act=remove-size&size=%s", sz))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 479, Col: 87}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "\" hx-target=\"#modal-container\" hx-include=\"#bike-editor-form\" class=\"text-rose-400 hover:text-rose-300 text-xs cursor-pointer px-1 py-0.5 rounded hover:bg-slate-800\" title=\"Remove Size Column\">×</button>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "</div></th>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "<td class=\"p-1.5 text-center\"><button type=\"button\" onclick=\"copyRowToAll('hta_deg')\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer\" title=\"Copy value across all sizes\">[-> All]</button></td></tr><!-- Seat Tube Angle --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Seat Tube Angle (°) *</div></td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "<th class=\"p-2.5 text-center w-28 text-slate-400\">Copy Helpers</th></tr></thead> <tbody class=\"divide-y divide-slate-800/60\"><!-- Reach --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-cyan-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Reach (mm) *</div></td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, sz := range sizes {
 				geo := activeConfig.Geometries[sz]
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var39 string
-				templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue("sta_deg_" + sz)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 540, Col: 35}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var40 string
-				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.2f", geo.StaDeg))
+				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue("reach_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 541, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 509, Col: 33}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var40)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "\" placeholder=\"deg\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 91, "<td class=\"p-1.5 text-center\"><button type=\"button\" onclick=\"copyRowToAll('sta_deg')\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer\" title=\"Copy value across all sizes\">[-> All]</button></td></tr><!-- Head Tube Length --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Head Tube Length (mm) *</div></td>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			for _, sz := range sizes {
-				geo := activeConfig.Geometries[sz]
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var41 string
-				templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue("htl_" + sz)
+				templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.Reach))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 571, Col: 31}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 510, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 91, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "<td class=\"p-1.5 text-center\"></td></tr><!-- Stack --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-amber-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Stack (mm) *</div></td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			for _, sz := range sizes {
+				geo := activeConfig.Geometries[sz]
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var42 string
-				templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.Htl))
+				templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue("stack_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 572, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 531, Col: 33}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 94, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 95, "<td class=\"p-1.5 text-center\"></td></tr><!-- BB Drop --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>BB Drop (mm) *</div></td>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			for _, sz := range sizes {
-				geo := activeConfig.Geometries[sz]
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 96, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 94, "\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var43 string
-				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.ResolveAttributeValue("bb_drop_" + sz)
+				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.Stack))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 593, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 532, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var43)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 97, "\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 95, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 96, "<td class=\"p-1.5 text-center\"></td></tr><!-- Head Tube Angle --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Head Tube Angle (°) *</div></td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			for _, sz := range sizes {
+				geo := activeConfig.Geometries[sz]
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 97, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var44 string
-				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.BbDrop))
+				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.ResolveAttributeValue("hta_deg_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 594, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 553, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 98, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 99, "<td class=\"p-1.5 text-center\"><button type=\"button\" onclick=\"copyRowToAll('bb_drop')\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer\" title=\"Copy value across all sizes\">[-> All]</button></td></tr><!-- Fork Rake --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Fork Rake / Offset (mm) *</div></td>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			for _, sz := range sizes {
-				geo := activeConfig.Geometries[sz]
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 100, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 98, "\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var45 string
-				templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue("fork_rake_" + sz)
+				templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.2f", geo.HtaDeg))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 624, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 554, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 101, "\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 99, "\" placeholder=\"deg\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 100, "<td class=\"p-1.5 text-center\"><button type=\"button\" onclick=\"copyRowToAll('hta_deg')\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer\" title=\"Copy value across all sizes\">[-> All]</button></td></tr><!-- Seat Tube Angle --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Seat Tube Angle (°) *</div></td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			for _, sz := range sizes {
+				geo := activeConfig.Geometries[sz]
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 101, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var46 string
-				templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.ForkRake))
+				templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.ResolveAttributeValue("sta_deg_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 625, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 584, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var46)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 102, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 103, "<td class=\"p-1.5 text-center\"><button type=\"button\" onclick=\"copyRowToAll('fork_rake')\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer\" title=\"Copy value across all sizes\">[-> All]</button></td></tr><!-- Wheelbase --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Wheelbase (mm) *</div></td>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			for _, sz := range sizes {
-				geo := activeConfig.Geometries[sz]
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 104, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 102, "\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var47 string
-				templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.ResolveAttributeValue("wheelbase_" + sz)
+				templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.2f", geo.StaDeg))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 655, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 585, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var47)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 105, "\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 103, "\" placeholder=\"deg\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 104, "<td class=\"p-1.5 text-center\"><button type=\"button\" onclick=\"copyRowToAll('sta_deg')\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer\" title=\"Copy value across all sizes\">[-> All]</button></td></tr><!-- Head Tube Length --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Head Tube Length (mm) *</div></td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			for _, sz := range sizes {
+				geo := activeConfig.Geometries[sz]
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 105, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var48 string
-				templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.Wheelbase))
+				templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.ResolveAttributeValue("htl_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 656, Col: 55}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 615, Col: 31}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var48)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "<td class=\"p-1.5 text-center\"></td></tr><!-- Chainstay Length --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-400 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Chainstay Length (mm)</div></td>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			for _, sz := range sizes {
-				geo := activeConfig.Geometries[sz]
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 108, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" name=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var49 string
-				templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.ResolveAttributeValue("chainstay_" + sz)
+				templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.Htl))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 676, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 616, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var49)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 109, "\" value=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var50 string
-				templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.ChainstayLength))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 677, Col: 61}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var50)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 110, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 111, "<td class=\"p-1.5 text-center\"><button type=\"button\" onclick=\"copyRowToAll('chainstay')\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer\" title=\"Copy value across all sizes\">[-> All]</button></td></tr><!-- Seat Tube Length --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-400 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Seat Tube Length (mm)</div></td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 108, "<td class=\"p-1.5 text-center\"></td></tr><!-- BB Drop --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>BB Drop (mm) *</div></td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, sz := range sizes {
 				geo := activeConfig.Geometries[sz]
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 112, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" name=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 109, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var50 string
+				templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue("bb_drop_" + sz)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 637, Col: 35}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var50)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 110, "\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var51 string
-				templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.ResolveAttributeValue("seat_tube_" + sz)
+				templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.BbDrop))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 706, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 638, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var51)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 113, "\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 111, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 112, "<td class=\"p-1.5 text-center\"><button type=\"button\" onclick=\"copyRowToAll('bb_drop')\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer\" title=\"Copy value across all sizes\">[-> All]</button></td></tr><!-- Wheelbase --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Wheelbase (mm) *</div></td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			for _, sz := range sizes {
+				geo := activeConfig.Geometries[sz]
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 113, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" required name=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var52 string
-				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.SeatTubeLength))
+				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.ResolveAttributeValue("wheelbase_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 707, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 670, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var52)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "\" value=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var53 string
+				templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.Wheelbase))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 671, Col: 55}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var53)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 115, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 115, "<td class=\"p-1.5 text-center\"></td></tr></tbody></table></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 116, "<td class=\"p-1.5 text-center\"></td></tr><!-- Chainstay Length --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-400 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Chainstay Length (mm)</div></td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			for _, sz := range sizes {
+				geo := activeConfig.Geometries[sz]
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" name=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var54 string
+				templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.ResolveAttributeValue("chainstay_" + sz)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 691, Col: 37}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var54)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 118, "\" value=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var55 string
+				templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.ChainstayLength))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 692, Col: 61}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var55)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 119, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 120, "<td class=\"p-1.5 text-center\"><button type=\"button\" onclick=\"copyRowToAll('chainstay')\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer\" title=\"Copy value across all sizes\">[-> All]</button></td></tr><!-- Seat Tube Length --><tr class=\"hover:bg-slate-900/50\"><td class=\"p-2 font-medium text-slate-400 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\"><div>Seat Tube Length (mm)</div></td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			for _, sz := range sizes {
+				geo := activeConfig.Geometries[sz]
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 121, "<td class=\"p-1.5 border-r border-slate-800/80\"><input type=\"number\" step=\"any\" name=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var56 string
+				templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.ResolveAttributeValue("seat_tube_" + sz)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 721, Col: 37}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var56)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 122, "\" value=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var57 string
+				templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.SeatTubeLength))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 722, Col: 60}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var57)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 123, "\" placeholder=\"mm\" class=\"w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500\"></td>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 124, "<td class=\"p-1.5 text-center\"></td></tr></tbody></table></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 116, "<!-- Footer with Save & Loading Indicator --><div class=\"flex items-center justify-between pt-4 border-t border-slate-800 shrink-0\"><!-- Loading Indicator via hx-indicator --><div id=\"save-indicator\" class=\"htmx-indicator flex items-center gap-2 text-xs font-semibold text-amber-400\"><svg class=\"animate-spin w-4 h-4 text-amber-400\" fill=\"none\" viewBox=\"0 0 24 24\"><circle class=\"opacity-25\" cx=\"12\" cy=\"12\" r=\"10\" stroke=\"currentColor\" stroke-width=\"4\"></circle> <path class=\"opacity-75\" fill=\"currentColor\" d=\"M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z\"></path></svg> <span>Saving & validating frame geometry table...</span></div><div class=\"flex items-center gap-3 ml-auto\"><button type=\"button\" onclick=\"document.getElementById('modal-container').innerHTML = ''\" class=\"px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium cursor-pointer\">Cancel</button> <button type=\"submit\" class=\"px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/20 cursor-pointer flex items-center gap-1.5\"><svg class=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4\"></path></svg> <span>Save Frame Model</span></button></div></div></form></div></div><script>\n\t\tfunction copyRowToAll(prefix) {\n\t\t\tconst inputs = document.querySelectorAll(`input[name^=\"${prefix}_\"]`);\n\t\t\tlet val = null;\n\t\t\tinputs.forEach(inp => {\n\t\t\t\tif (val === null && inp.value && parseFloat(inp.value) > 0) {\n\t\t\t\t\tval = inp.value;\n\t\t\t\t}\n\t\t\t});\n\t\t\tif (val !== null) {\n\t\t\t\tinputs.forEach(inp => {\n\t\t\t\t\tinp.value = val;\n\t\t\t\t});\n\t\t\t}\n\t\t}\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 125, "<!-- Footer with Save & Loading Indicator --><div class=\"flex items-center justify-between pt-4 border-t border-slate-800 shrink-0\"><!-- Loading Indicator via hx-indicator --><div id=\"save-indicator\" class=\"htmx-indicator flex items-center gap-2 text-xs font-semibold text-amber-400\"><svg class=\"animate-spin w-4 h-4 text-amber-400\" fill=\"none\" viewBox=\"0 0 24 24\"><circle class=\"opacity-25\" cx=\"12\" cy=\"12\" r=\"10\" stroke=\"currentColor\" stroke-width=\"4\"></circle> <path class=\"opacity-75\" fill=\"currentColor\" d=\"M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z\"></path></svg> <span>Saving & validating frame geometry table...</span></div><div class=\"flex items-center gap-3 ml-auto\"><button type=\"button\" onclick=\"document.getElementById('modal-container').innerHTML = ''\" class=\"px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium cursor-pointer\">Cancel</button> <button type=\"submit\" class=\"px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/20 cursor-pointer flex items-center gap-1.5\"><svg class=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4\"></path></svg> <span>Save Frame Model</span></button></div></div></form></div></div><script>\n\t\tfunction handleForkPresetChange(select) {\n\t\t\tconst opt = select.options[select.selectedIndex];\n\t\t\tif (!opt || !opt.value) return;\n\t\t\tconst a2c = opt.getAttribute('data-a2c');\n\t\t\tconst travel = opt.getAttribute('data-travel');\n\t\t\tconst rake = opt.getAttribute('data-rake');\n\t\t\tif (a2c) {\n\t\t\t\tconst a2cInput = document.getElementById('active_fork_a2c');\n\t\t\t\tif (a2cInput) a2cInput.value = a2c;\n\t\t\t}\n\t\t\tif (travel) {\n\t\t\t\tconst travelInput = document.getElementById('active_fork_travel_mm');\n\t\t\t\tif (travelInput) travelInput.value = travel;\n\t\t\t}\n\t\t\tif (rake) {\n\t\t\t\tconst rakeInput = document.getElementById('active_fork_rake');\n\t\t\t\tif (rakeInput) rakeInput.value = rake;\n\t\t\t}\n\t\t}\n\n\t\tfunction copyRowToAll(prefix) {\n\t\t\tconst inputs = document.querySelectorAll(`input[name^=\"${prefix}_\"]`);\n\t\t\tlet val = null;\n\t\t\tinputs.forEach(inp => {\n\t\t\t\tif (val === null && inp.value && parseFloat(inp.value) > 0) {\n\t\t\t\t\tval = inp.value;\n\t\t\t\t}\n\t\t\t});\n\t\t\tif (val !== null) {\n\t\t\t\tinputs.forEach(inp => {\n\t\t\t\t\tinp.value = val;\n\t\t\t\t});\n\t\t\t}\n\t\t}\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

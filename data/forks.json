@@ -1,0 +1,83 @@
+[
+  {
+    "id": "fox34_130",
+    "name": "Fox Float 34 130mm",
+    "travel_mm": 130,
+    "a2c": 541,
+    "rake": 44,
+    "standard_sag_percent": 20,
+    "description": "Trail hardtail benchmark (static 541mm, 20% sag = 515mm, 44mm rake)"
+  },
+  {
+    "id": "sid_110",
+    "name": "RockShox SID 110mm",
+    "travel_mm": 110,
+    "a2c": 521,
+    "rake": 44,
+    "standard_sag_percent": 20,
+    "description": "Downcountry / Marathon fork (static 521mm, 20% sag = 499mm, 44mm rake)"
+  },
+  {
+    "id": "sid_100",
+    "name": "RockShox SID 100mm",
+    "travel_mm": 100,
+    "a2c": 506,
+    "rake": 44,
+    "standard_sag_percent": 20,
+    "description": "XC Race fork (static 506mm, 20% sag = 486mm, 44mm rake)"
+  },
+  {
+    "id": "fox34_120",
+    "name": "Fox Float 34 120mm",
+    "travel_mm": 120,
+    "a2c": 530,
+    "rake": 44,
+    "standard_sag_percent": 20,
+    "description": "Downcountry standard (static 530mm, 20% sag = 506mm, 44mm rake)"
+  },
+  {
+    "id": "sid_120",
+    "name": "RockShox SID 120mm",
+    "travel_mm": 120,
+    "a2c": 530,
+    "rake": 44,
+    "standard_sag_percent": 20,
+    "description": "XC race / Downcountry fork (static 530mm, 20% sag = 506mm, 44mm rake)"
+  },
+  {
+    "id": "pike_140",
+    "name": "RockShox Pike 140mm",
+    "travel_mm": 140,
+    "a2c": 551,
+    "rake": 44,
+    "standard_sag_percent": 20,
+    "description": "Aggressive trail fork (static 551mm, 20% sag = 523mm, 44mm rake)"
+  },
+  {
+    "id": "fox36_150",
+    "name": "Fox 36 / Lyrik 150mm",
+    "travel_mm": 150,
+    "a2c": 561,
+    "rake": 44,
+    "standard_sag_percent": 20,
+    "description": "Hardcore hardtail / Enduro (static 561mm, 20% sag = 531mm, 44mm rake)"
+  },
+  {
+    "id": "rigid_483",
+    "name": "Rigid Bikepacking 483mm",
+    "travel_mm": 0,
+    "a2c": 483,
+    "rake": 44,
+    "standard_sag_percent": 0,
+    "description": "Rigid expedition fork, suspension-corrected ~100mm (483mm static, 44mm rake)"
+  },
+  {
+    "id": "rigid_495",
+    "name": "Rigid Bikepacking 495mm",
+    "travel_mm": 0,
+    "a2c": 495,
+    "rake": 44,
+    "standard_sag_percent": 0,
+    "description": "Rigid expedition fork, suspension-corrected ~120mm (495mm static, 44mm rake)"
+  }
+]

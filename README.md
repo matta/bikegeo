@@ -29,8 +29,8 @@ This project is built around the hypermedia architecture:
 ## Key Features
 
 1. **Local JSON Bike Storage**:
-   - Each frame model is stored as an individual JSON document in [`data/bikes/`](data/bikes).
-   - Supports `manufacturer`, `model`, `size`, `category`, `reach`, `stack`, `hta_deg`, `sta_deg`, `htl`, `bb_drop`, `fork_rake`, `wheelbase`, `fork_travel_mm`, `fork_a2c`, `headset_cup_type`, `cup_stack`, `seat_height`, and more.
+   - Supports `manufacturer`, `model`, `category`, `headset_cup_type`, `cup_stack`, `seat_height`, per-size frame dimensions (`reach`, `stack`, `hta_deg`, `sta_deg`, `htl`, `bb_drop`, `wheelbase`), and configurations with modular fork specifications (`fork`: `{id, name, travel_mm, a2c, rake}`).
+   - Central fork registry in [`data/forks.json`](data/forks.json) allows configurations to reference standard forks by ID/name, auto-populating inferred values in the UI.
    - Built-in UI to add, edit, and delete bikes directly saving to disk.
 
 2. **Benchmark UX Patterns Implemented**:

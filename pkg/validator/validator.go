@@ -304,7 +304,7 @@ func ValidateCrossConfig(frame model.FrameModel, size string, comparedConfigID s
 		compCup = 12.0
 	}
 
-	deltaA2c := (compConfig.ForkA2c + compCup) - (baseConfig.ForkA2c + baseCup)
+	deltaA2c := (compConfig.Fork.A2c + compCup) - (baseConfig.Fork.A2c + baseCup)
 
 	baseGeo, hasBase := baseConfig.Geometries[size]
 	if !hasBase {
@@ -318,16 +318,16 @@ func ValidateCrossConfig(frame model.FrameModel, size string, comparedConfigID s
 			Size:             size,
 			BaselineConfigID: baseConfig.ID,
 			ComparedConfigID: compConfig.ID,
-			BaselineA2c:      baseConfig.ForkA2c,
-			ComparedA2c:      compConfig.ForkA2c,
+			BaselineA2c:      baseConfig.Fork.A2c,
+			ComparedA2c:      compConfig.Fork.A2c,
 			DeltaA2c:         deltaA2c,
 			IsCoherent:       true,
 			Message:          "Configuration is dynamically derived from baseline via kinematic rotation (no explicit manual overrides).",
 		}
 	}
 
-	baseStructural := baseConfig.ForkA2c + baseCup
-	compStructural := compConfig.ForkA2c + compCup
+	baseStructural := baseConfig.Fork.A2c + baseCup
+	compStructural := compConfig.Fork.A2c + compCup
 	dyn := geometry.CalculateDynamicGeometry(
 		baseGeo.Reach,
 		baseGeo.Stack,
@@ -378,8 +378,8 @@ func ValidateCrossConfig(frame model.FrameModel, size string, comparedConfigID s
 		Size:             size,
 		BaselineConfigID: baseConfig.ID,
 		ComparedConfigID: compConfig.ID,
-		BaselineA2c:      baseConfig.ForkA2c,
-		ComparedA2c:      compConfig.ForkA2c,
+		BaselineA2c:      baseConfig.Fork.A2c,
+		ComparedA2c:      compConfig.Fork.A2c,
 		DeltaA2c:         deltaA2c,
 		IsCoherent:       isCoherent,
 		MaxDiscrepancy:   maxDisc,
