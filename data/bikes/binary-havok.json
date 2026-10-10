@@ -1,0 +1,41 @@
+{
+  "id": "binary-havok",
+  "manufacturer": "Binary",
+  "model": "Havok",
+  "year": 2024,
+  "category": "hardtail",
+  "notes": "Titanium hardtail configured with RockShox SID 110mm fork and EC44 external lower headset cup.",
+  "wheel_size": "29",
+  "headset_cup_type": "EC44",
+  "cup_stack": 12.0,
+  "seat_height": 780,
+  "sizes": [
+    "M"
+  ],
+  "default_size": "M",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock Build",
+      "is_baseline": true,
+      "fork_travel_mm": 110,
+      "fork_a2c": 521,
+      "sag_percentage_published": 20,
+      "geometries": {
+        "M": {
+          "reach": 398,
+          "stack": 656,
+          "hta_deg": 69.0,
+          "sta_deg": 74.0,
+          "htl": 150,
+          "bb_drop": 70,
+          "fork_rake": 44,
+          "wheelbase": 1150,
+          "chainstay_length": 435,
+          "front_center": 0,
+          "seat_tube_length": 0
+        }
+      }
+    }
+  ]
+}

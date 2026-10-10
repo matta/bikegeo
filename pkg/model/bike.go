@@ -66,6 +66,114 @@ type BikeGeometry struct {
 	SeatHeight float64 `json:"seat_height,omitempty"`
 }
 
+// SizeGeometry represents primary and optional frame dimensions for one size.
+type SizeGeometry struct {
+	Reach           float64 `json:"reach"`
+	Stack           float64 `json:"stack"`
+	HtaDeg          float64 `json:"hta_deg"`
+	StaDeg          float64 `json:"sta_deg"`
+	Htl             float64 `json:"htl"`
+	BbDrop          float64 `json:"bb_drop"`
+	ForkRake        float64 `json:"fork_rake"`
+	Wheelbase       float64 `json:"wheelbase"`
+	ChainstayLength float64 `json:"chainstay_length,omitempty"`
+	FrontCenter     float64 `json:"front_center,omitempty"`
+	SeatTubeLength  float64 `json:"seat_tube_length,omitempty"`
+	StandoverHeight float64 `json:"standover_height,omitempty"`
+}
+
+// FrameConfiguration represents a specific fork or build configuration for the frame.
+type FrameConfiguration struct {
+	ID                     string                  `json:"id"`
+	Name                   string                  `json:"name"`
+	IsBaseline             bool                    `json:"is_baseline"`
+	ForkTravelMm           float64                 `json:"fork_travel_mm"`
+	ForkA2c                float64                 `json:"fork_a2c"`
+	SagPercentagePublished float64                 `json:"sag_percentage_published"`
+	CupStack               *float64                `json:"cup_stack,omitempty"`
+	Notes                  string                  `json:"notes,omitempty"`
+	Geometries             map[string]SizeGeometry `json:"geometries,omitempty"`
+}
+
+// FrameModel represents a unified bike frame family on disk and in memory.
+type FrameModel struct {
+	ID             string               `json:"id"`
+	Manufacturer   string               `json:"manufacturer"`
+	Model          string               `json:"model"`
+	Year           int                  `json:"year,omitempty"`
+	Category       BikeCategory         `json:"category,omitempty"`
+	Notes          string               `json:"notes,omitempty"`
+	WheelSize      string               `json:"wheel_size,omitempty"`
+	HeadsetCupType HeadsetCupType       `json:"headset_cup_type,omitempty"`
+	CupStack       float64              `json:"cup_stack,omitempty"`
+	SeatHeight     float64              `json:"seat_height,omitempty"`
+	Sizes          []string             `json:"sizes"`
+	DefaultSize    string               `json:"default_size,omitempty"`
+	Configurations []FrameConfiguration `json:"configurations"`
+}
+
+func (fm *FrameModel) GetSizes() []string {
+	if len(fm.Sizes) > 0 {
+		return fm.Sizes
+	}
+	return []string{"M"}
+}
+
+func (fm *FrameModel) GetDefaultSize() string {
+	if fm.DefaultSize != "" {
+		return fm.DefaultSize
+	}
+	if len(fm.Sizes) > 0 {
+		return fm.Sizes[0]
+	}
+	return "M"
+}
+
+func (fm *FrameModel) GetBaselineConfiguration() *FrameConfiguration {
+	for i := range fm.Configurations {
+		if fm.Configurations[i].IsBaseline {
+			return &fm.Configurations[i]
+		}
+	}
+	if len(fm.Configurations) > 0 {
+		return &fm.Configurations[0]
+	}
+	return nil
+}
+
+func (fm *FrameModel) GetConfiguration(configID string) *FrameConfiguration {
+	for i := range fm.Configurations {
+		if fm.Configurations[i].ID == configID {
+			return &fm.Configurations[i]
+		}
+	}
+	return fm.GetBaselineConfiguration()
+}
+
+type CrossConfigDiff struct {
+	Metric        string  `json:"metric"`
+	BaselineValue float64 `json:"baseline_value"`
+	ConfigValue   float64 `json:"config_value"`
+	PublishedDiff float64 `json:"published_diff"`
+	KinematicDiff float64 `json:"kinematic_diff"`
+	Discrepancy   float64 `json:"discrepancy"`
+}
+
+type CrossConfigValidation struct {
+	FrameModelID     string            `json:"frame_model_id"`
+	Size             string            `json:"size"`
+	BaselineConfigID string            `json:"baseline_config_id"`
+	ComparedConfigID string            `json:"compared_config_id"`
+	BaselineA2c      float64           `json:"baseline_a2c"`
+	ComparedA2c      float64           `json:"compared_a2c"`
+	DeltaA2c         float64           `json:"delta_a2c"`
+	IsCoherent       bool              `json:"is_coherent"`
+	MaxDiscrepancy   float64           `json:"max_discrepancy"`
+	Diffs            []CrossConfigDiff `json:"diffs"`
+	Message          string            `json:"message"`
+}
+
+
 type ValidationIssue struct {
 	ID         string   `json:"id"`
 	Field      string   `json:"field,omitempty"`

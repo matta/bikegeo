@@ -312,3 +312,174 @@ func TestRestAPICompatibility(t *testing.T) {
 		t.Errorf("Expected 1 canonical row, got %d", len(canonRows))
 	}
 }
+
+func TestMultiSizeGridModalActions(t *testing.T) {
+	srv, _, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. Initial modal for new bike contains multi-size grid
+	reqNew := httptest.NewRequest(http.MethodGet, "/bikes/new", nil)
+	recNew := httptest.NewRecorder()
+	srv.ServeHTTP(recNew, reqNew)
+
+	if recNew.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for /bikes/new, got %d", recNew.Code)
+	}
+	bodyNew := recNew.Body.String()
+	if !strings.Contains(bodyNew, "Geometry Chart Grid") {
+		t.Errorf("Expected Geometry Chart Grid in modal")
+	}
+
+	// 2. Action: add size column
+	formData := url.Values{
+		"manufacturer": {"Chumba"},
+		"model":        {"Sendero"},
+		"sizes":        {"S", "M", "L", "XL"},
+		"reach_L":      {"475.0"},
+		"stack_L":      {"645.0"},
+	}
+	reqAddSize := httptest.NewRequest(http.MethodPost, "/bikes/modal/action?act=add-size", strings.NewReader(formData.Encode()))
+	reqAddSize.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	recAddSize := httptest.NewRecorder()
+	srv.ServeHTTP(recAddSize, reqAddSize)
+
+	if recAddSize.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for add-size action, got %d", recAddSize.Code)
+	}
+	bodyAddSize := recAddSize.Body.String()
+	if !strings.Contains(bodyAddSize, "XXL") {
+		t.Errorf("Expected added size XXL in modal, got %s", bodyAddSize)
+	}
+
+	// 3. Action: add config
+	reqAddConfig := httptest.NewRequest(http.MethodPost, "/bikes/modal/action?act=add-config", strings.NewReader(formData.Encode()))
+	reqAddConfig.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	recAddConfig := httptest.NewRecorder()
+	srv.ServeHTTP(recAddConfig, reqAddConfig)
+
+	if recAddConfig.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for add-config action, got %d", recAddConfig.Code)
+	}
+	bodyAddConfig := recAddConfig.Body.String()
+	if !strings.Contains(bodyAddConfig, "Alternative Configuration") {
+		t.Errorf("Expected Alternative Configuration banner in modal")
+	}
+}
+
+func TestMultiSizeFrameSaveAndValidator(t *testing.T) {
+	srv, store, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. Save multi-size frame model
+	formData := url.Values{
+		"manufacturer":          {"Chumba"},
+		"model":                 {"Sendero"},
+		"year":                  {"2024"},
+		"category":              {"hardtail"},
+		"headset_cup_type":      {"EC44"},
+		"cup_stack":             {"12"},
+		"sizes":                 {"M", "L"},
+		"active_config_name":    {"120mm Stock"},
+		"active_fork_a2c":       {"531"},
+		"active_fork_travel_mm": {"120"},
+		"reach_M":               {"450"},
+		"stack_M":               {"635"},
+		"hta_deg_M":             {"67.0"},
+		"sta_deg_M":             {"74.5"},
+		"htl_M":                 {"110"},
+		"bb_drop_M":             {"60"},
+		"fork_rake_M":           {"44"},
+		"wheelbase_M":           {"1172"},
+		"reach_L":               {"475"},
+		"stack_L":               {"645"},
+		"hta_deg_L":             {"67.0"},
+		"sta_deg_L":             {"74.5"},
+		"htl_L":                 {"125"},
+		"bb_drop_L":             {"60"},
+		"fork_rake_L":           {"44"},
+		"wheelbase_L":           {"1200"},
+	}
+
+	reqSave := httptest.NewRequest(http.MethodPost, "/bikes/save?is_new=true", strings.NewReader(formData.Encode()))
+	reqSave.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	recSave := httptest.NewRecorder()
+	srv.ServeHTTP(recSave, reqSave)
+
+	if recSave.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for save, got %d", recSave.Code)
+	}
+
+	// Verify persistence in store
+	frame, err := store.GetFrameByID("chumba-sendero")
+	if err != nil || frame == nil {
+		t.Fatalf("Expected saved frame in store, got error: %v", err)
+	}
+	if len(frame.Sizes) != 2 {
+		t.Errorf("Expected 2 sizes in frame, got %d", len(frame.Sizes))
+	}
+
+	// 2. GET validator tab for this frame
+	reqVal := httptest.NewRequest(http.MethodGet, "/?tab=validator&id=chumba-sendero", nil)
+	recVal := httptest.NewRecorder()
+	srv.ServeHTTP(recVal, reqVal)
+
+	if recVal.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for validator tab, got %d", recVal.Code)
+	}
+	bodyVal := recVal.Body.String()
+	if !strings.Contains(bodyVal, "Chumba Sendero") {
+		t.Errorf("Expected Chumba Sendero in validator tab")
+	}
+	if !strings.Contains(bodyVal, "Edit Geometry Grid") {
+		t.Errorf("Expected Edit Geometry Grid button in validator tab")
+	}
+}
+
+func TestCompareSwitchSize(t *testing.T) {
+	srv, store, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Seed frame with two sizes
+	frame := model.FrameModel{
+		ID:           "test-switcher",
+		Manufacturer: "Switch",
+		Model:        "Test",
+		Category:     model.CategoryHardtail,
+		Sizes:        []string{"M", "L"},
+		DefaultSize:  "M",
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:           "stock",
+				Name:         "Stock",
+				IsBaseline:   true,
+				ForkTravelMm: 120.0,
+				ForkA2c:      530.0,
+				Geometries: map[string]model.SizeGeometry{
+					"M": {Reach: 440, Stack: 620, HtaDeg: 66, StaDeg: 75, Htl: 110, BbDrop: 60, Wheelbase: 1160, ChainstayLength: 430},
+					"L": {Reach: 465, Stack: 630, HtaDeg: 66, StaDeg: 75, Htl: 120, BbDrop: 60, Wheelbase: 1190, ChainstayLength: 430},
+				},
+			},
+		},
+	}
+	if _, err := store.SaveFrame(frame); err != nil {
+		t.Fatalf("Failed to save frame: %v", err)
+	}
+
+	form := url.Values{
+		"selected_ids": {"test-switcher-m"},
+		"to":           {"test-switcher-l"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/compare/switch-size?from=test-switcher-m", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "test-switcher-l") {
+		t.Errorf("Expected response to contain switched size ID test-switcher-l")
+	}
+}
+

@@ -56,6 +56,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /compare/toggle-select", s.handleCompareToggleSelect)
 	s.mux.HandleFunc("POST /compare/select-all", s.handleCompareSelectAll)
 	s.mux.HandleFunc("POST /compare/clear-all", s.handleCompareClearAll)
+	s.mux.HandleFunc("POST /compare/switch-size", s.handleCompareSwitchSize)
 	s.mux.HandleFunc("POST /compare/diagram", s.handleCompareDiagram)
 
 	// Validator routes
@@ -70,6 +71,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /bikes/new", s.handleBikeNew)
 	s.mux.HandleFunc("GET /bikes/{id}/edit", s.handleBikeEdit)
 	s.mux.HandleFunc("GET /bikes/modal-toggle-view", s.handleModalToggleView)
+	s.mux.HandleFunc("POST /bikes/modal/action", s.handleModalAction)
 	s.mux.HandleFunc("POST /bikes/save", s.handleBikeSave)
 	s.mux.HandleFunc("DELETE /bikes/{id}", s.handleBikeDelete)
 
@@ -95,27 +97,65 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		tab = "compare"
 	}
 
-	bikes, err := s.store.GetAllBikes()
+	frames, err := s.store.GetAllFrames()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	bikes, _ := s.store.GetAllBikes()
 
 	var contentComponent templ.Component
 
 	if tab == "validator" {
 		inspectedID := r.URL.Query().Get("id")
-		var inspectedBike model.BikeGeometry
-		if len(bikes) > 0 {
-			inspectedBike = bikes[0]
+		sizeParam := r.URL.Query().Get("size")
+		configParam := r.URL.Query().Get("config")
+
+		var inspectedFrame *model.FrameModel
+		if len(frames) > 0 {
+			inspectedFrame = &frames[0]
 			if inspectedID != "" {
-				for _, b := range bikes {
-					if b.ID == inspectedID {
-						inspectedBike = b
+				for i := range frames {
+					if frames[i].ID == inspectedID || strings.HasPrefix(inspectedID, frames[i].ID+"-") {
+						inspectedFrame = &frames[i]
 						break
 					}
 				}
 			}
+		}
+
+		activeSize := sizeParam
+		if activeSize == "" && inspectedFrame != nil {
+			activeSize = inspectedFrame.GetDefaultSize()
+		}
+		activeConfigID := configParam
+		if activeConfigID == "" && inspectedFrame != nil {
+			baseCfg := inspectedFrame.GetBaselineConfiguration()
+			if baseCfg != nil {
+				activeConfigID = baseCfg.ID
+			}
+		}
+
+		var inspectedBike model.BikeGeometry
+		if inspectedFrame != nil {
+			inspectedBike, _ = geometry.MaterializeBikeGeometry(*inspectedFrame, activeSize, activeConfigID)
+		} else if len(bikes) > 0 {
+			inspectedBike = bikes[0]
+		}
+
+		var crossVal *model.CrossConfigValidation
+		if inspectedFrame != nil && len(inspectedFrame.Configurations) > 1 {
+			compID := activeConfigID
+			baseCfg := inspectedFrame.GetBaselineConfiguration()
+			if baseCfg != nil && compID == baseCfg.ID {
+				for _, cfg := range inspectedFrame.Configurations {
+					if cfg.ID != baseCfg.ID {
+						compID = cfg.ID
+						break
+					}
+				}
+			}
+			crossVal = validator.ValidateCrossConfig(*inspectedFrame, activeSize, compID)
 		}
 
 		report := validator.ValidateBikeGeometry(inspectedBike)
@@ -157,7 +197,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 			cs,
 		)
 
-		contentComponent = templates.ValidatorView(bikes, inspectedBike, report, sagPercent, dynPose)
+		contentComponent = templates.ValidatorView(frames, inspectedFrame, inspectedBike, activeSize, activeConfigID, crossVal, report, sagPercent, dynPose)
 	} else {
 		// Compare tab
 		presetID := "fox34_130"
@@ -240,7 +280,7 @@ func (s *Server) computeComparisonRows(
 	for _, b := range allBikes {
 		isSel := false
 		for _, selID := range selectedIDs {
-			if selID == b.ID {
+			if selID == b.ID || strings.TrimSuffix(b.ID, "-"+strings.ToLower(b.Size)) == selID || strings.HasPrefix(b.ID, selID+"-") {
 				isSel = true
 				break
 			}
@@ -370,7 +410,7 @@ func (s *Server) handleCompareMatrix(w http.ResponseWriter, r *http.Request) {
 	rows := s.computeComparisonRows(bikes, selectedIDs, staticA2c, travelMm, sagPercent, cupMode, seatHeight, query)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = templates.ComparisonMatrix(rows, refBikeID, diagramBikeID, seatHeight, staticA2c, travelMm, sagPercent).Render(r.Context(), w)
+	_ = templates.ComparisonMatrix(rows, bikes, refBikeID, diagramBikeID, seatHeight, staticA2c, travelMm, sagPercent).Render(r.Context(), w)
 }
 
 func (s *Server) handleCompareCupMode(w http.ResponseWriter, r *http.Request) {
@@ -460,6 +500,47 @@ func (s *Server) handleCompareClearAll(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = templates.CompareView(bikes, keptIDs, rows, presetID, staticA2c, travelMm, sagPercent, cupMode, seatHeight, refBikeID, diagramBikeID, query).Render(r.Context(), w)
+}
+
+func (s *Server) handleCompareSwitchSize(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	fromID := r.URL.Query().Get("from")
+	toID := r.FormValue("to")
+	if toID == "" {
+		toID = r.URL.Query().Get("to")
+	}
+
+	staticA2c, travelMm, sagPercent, cupMode, seatHeight, refBikeID, diagramBikeID, query := s.parseBenchmarkParams(r)
+	presetID := r.FormValue("preset_id")
+	if presetID == "" {
+		presetID = "fox34_130"
+	}
+
+	bikes, _ := s.store.GetAllBikes()
+	selectedIDs := s.getSelectedBikeIDs(bikes, r)
+
+	var updatedIDs []string
+	for _, sid := range selectedIDs {
+		if sid == fromID {
+			if toID != "" {
+				updatedIDs = append(updatedIDs, toID)
+			}
+		} else {
+			updatedIDs = append(updatedIDs, sid)
+		}
+	}
+
+	if refBikeID == fromID {
+		refBikeID = toID
+	}
+	if diagramBikeID == fromID {
+		diagramBikeID = toID
+	}
+
+	rows := s.computeComparisonRows(bikes, updatedIDs, staticA2c, travelMm, sagPercent, cupMode, seatHeight, query)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = templates.CompareView(bikes, updatedIDs, rows, presetID, staticA2c, travelMm, sagPercent, cupMode, seatHeight, refBikeID, diagramBikeID, query).Render(r.Context(), w)
 }
 
 func (s *Server) handleCompareDiagram(w http.ResponseWriter, r *http.Request) {
@@ -649,39 +730,88 @@ func (s *Server) handleInlineEditSave(w http.ResponseWriter, r *http.Request) {
 
 // Target Pattern 3: Bike Add/Edit Modal & Async Save
 func (s *Server) handleBikeNew(w http.ResponseWriter, r *http.Request) {
-	newBike := model.BikeGeometry{
-		Size:           "M",
+	newFrame := model.FrameModel{
+		Year:           2024,
 		Category:       model.CategoryHardtail,
-		Reach:          450,
-		Stack:          630,
-		HtaDeg:         66.0,
-		StaDeg:         75.0,
-		Htl:            110,
-		BbDrop:         60,
-		ForkRake:       44,
-		Wheelbase:      1180,
-		ForkTravelMm:   130,
-		ForkA2c:        541,
-		HeadsetCupType: model.CupZS44,
-		CupStack:       2,
+		HeadsetCupType: model.CupEC44,
+		CupStack:       12.0,
+		Sizes:          []string{"S", "M", "L", "XL"},
+		DefaultSize:    "L",
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:           "stock",
+				Name:         "Stock Build",
+				IsBaseline:   true,
+				ForkTravelMm: 130,
+				ForkA2c:      541,
+				Geometries: map[string]model.SizeGeometry{
+					"S":  {Reach: 425, Stack: 615, HtaDeg: 65.0, StaDeg: 74.5, Htl: 95, BbDrop: 55, ForkRake: 44, Wheelbase: 1160},
+					"M":  {Reach: 445, Stack: 625, HtaDeg: 65.0, StaDeg: 74.5, Htl: 105, BbDrop: 55, ForkRake: 44, Wheelbase: 1185},
+					"L":  {Reach: 465, Stack: 635, HtaDeg: 65.0, StaDeg: 74.5, Htl: 115, BbDrop: 55, ForkRake: 44, Wheelbase: 1210},
+					"XL": {Reach: 490, Stack: 645, HtaDeg: 65.0, StaDeg: 74.5, Htl: 130, BbDrop: 55, ForkRake: 44, Wheelbase: 1240},
+				},
+			},
+		},
 	}
 
-	report := validator.ValidateBikeGeometry(newBike)
+	matBike, _ := geometry.MaterializeBikeGeometry(newFrame, newFrame.GetDefaultSize(), "")
+	report := validator.ValidateBikeGeometry(matBike)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = templates.EditorModal(newBike, true, &report, "", "form").Render(r.Context(), w)
+	_ = templates.EditorModal(newFrame, true, &report, "", "form", "stock").Render(r.Context(), w)
 }
 
 func (s *Server) handleBikeEdit(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	bike, err := s.store.GetBikeByID(id)
-	if err != nil || bike == nil {
-		http.Error(w, "Bike not found", http.StatusNotFound)
-		return
+	frame, err := s.store.GetFrameByID(id)
+	if err != nil || frame == nil {
+		bike, bErr := s.store.GetBikeByID(id)
+		if bErr != nil || bike == nil {
+			http.Error(w, "Bike or frame not found", http.StatusNotFound)
+			return
+		}
+		f := model.FrameModel{
+			ID:             id,
+			Manufacturer:   bike.Manufacturer,
+			Model:          bike.Model,
+			Year:           bike.Year,
+			Category:       bike.Category,
+			Notes:          bike.Notes,
+			WheelSize:      bike.WheelSize,
+			HeadsetCupType: bike.HeadsetCupType,
+			CupStack:       bike.CupStack,
+			Sizes:          []string{bike.Size},
+			DefaultSize:    bike.Size,
+			Configurations: []model.FrameConfiguration{
+				{
+					ID:           "stock",
+					Name:         "Stock Build",
+					IsBaseline:   true,
+					ForkTravelMm: bike.ForkTravelMm,
+					ForkA2c:      bike.ForkA2c,
+					Geometries: map[string]model.SizeGeometry{
+						bike.Size: {
+							Reach:           bike.Reach,
+							Stack:           bike.Stack,
+							HtaDeg:          bike.HtaDeg,
+							StaDeg:          bike.StaDeg,
+							Htl:             bike.Htl,
+							BbDrop:          bike.BbDrop,
+							ForkRake:        bike.ForkRake,
+							Wheelbase:       bike.Wheelbase,
+							ChainstayLength: bike.ChainstayLength,
+							SeatTubeLength:  bike.SeatTubeLength,
+						},
+					},
+				},
+			},
+		}
+		frame = &f
 	}
 
-	report := validator.ValidateBikeGeometry(*bike)
+	matBike, _ := geometry.MaterializeBikeGeometry(*frame, frame.GetDefaultSize(), "")
+	report := validator.ValidateBikeGeometry(matBike)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = templates.EditorModal(*bike, false, &report, "", "form").Render(r.Context(), w)
+	_ = templates.EditorModal(*frame, false, &report, "", "form", frame.GetBaselineConfiguration().ID).Render(r.Context(), w)
 }
 
 func (s *Server) handleModalToggleView(w http.ResponseWriter, r *http.Request) {
@@ -691,74 +821,346 @@ func (s *Server) handleModalToggleView(w http.ResponseWriter, r *http.Request) {
 		mode = "form"
 	}
 
-	bike := s.parseBikeFromForm(r)
-	report := validator.ValidateBikeGeometry(bike)
+	frame, activeConfigID := s.parseFrameFromForm(r)
+	matBike, _ := geometry.MaterializeBikeGeometry(frame, frame.GetDefaultSize(), activeConfigID)
+	report := validator.ValidateBikeGeometry(matBike)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = templates.EditorModal(bike, isNew, &report, "", mode).Render(r.Context(), w)
+	_ = templates.EditorModal(frame, isNew, &report, "", mode, activeConfigID).Render(r.Context(), w)
 }
 
-func (s *Server) parseBikeFromForm(r *http.Request) model.BikeGeometry {
+func (s *Server) handleModalAction(w http.ResponseWriter, r *http.Request) {
+	isNew := r.URL.Query().Get("is_new") == "true"
+	act := r.URL.Query().Get("act")
+	frame, activeConfigID := s.parseFrameFromForm(r)
+
+	switch act {
+	case "add-size":
+		newSizeName := fmt.Sprintf("S%d", len(frame.Sizes)+1)
+		if len(frame.Sizes) == 0 {
+			newSizeName = "M"
+		} else {
+			last := frame.Sizes[len(frame.Sizes)-1]
+			switch last {
+			case "S":
+				newSizeName = "M"
+			case "M":
+				newSizeName = "L"
+			case "L":
+				newSizeName = "XL"
+			case "XL":
+				newSizeName = "XXL"
+			}
+		}
+		frame.Sizes = append(frame.Sizes, newSizeName)
+		for i := range frame.Configurations {
+			if frame.Configurations[i].Geometries == nil {
+				frame.Configurations[i].Geometries = make(map[string]model.SizeGeometry)
+			}
+			if len(frame.Sizes) > 1 {
+				prevSz := frame.Sizes[len(frame.Sizes)-2]
+				prevGeo := frame.Configurations[i].Geometries[prevSz]
+				frame.Configurations[i].Geometries[newSizeName] = prevGeo
+			}
+		}
+
+	case "remove-size":
+		rmSz := r.URL.Query().Get("size")
+		if len(frame.Sizes) > 1 {
+			var updatedSizes []string
+			for _, sz := range frame.Sizes {
+				if sz != rmSz {
+					updatedSizes = append(updatedSizes, sz)
+				}
+			}
+			frame.Sizes = updatedSizes
+			for i := range frame.Configurations {
+				delete(frame.Configurations[i].Geometries, rmSz)
+			}
+		}
+
+	case "preset":
+		presetType := r.URL.Query().Get("preset_type")
+		switch presetType {
+		case "s_xl":
+			frame.Sizes = []string{"S", "M", "L", "XL"}
+		case "s1_s6":
+			frame.Sizes = []string{"S1", "S2", "S3", "S4", "S5", "S6"}
+		case "cm":
+			frame.Sizes = []string{"49cm", "52cm", "54cm", "56cm", "58cm", "61cm"}
+		}
+
+	case "add-config":
+		newConfigID := fmt.Sprintf("config-%d", len(frame.Configurations)+1)
+		baseCfg := frame.GetBaselineConfiguration()
+		travel := 140.0
+		a2c := 551.0
+		if baseCfg != nil {
+			travel = baseCfg.ForkTravelMm + 10.0
+			a2c = baseCfg.ForkA2c + 10.0
+		}
+		frame.Configurations = append(frame.Configurations, model.FrameConfiguration{
+			ID:           newConfigID,
+			Name:         fmt.Sprintf("%.0fmm Build", travel),
+			IsBaseline:   false,
+			ForkTravelMm: travel,
+			ForkA2c:      a2c,
+			Geometries:   make(map[string]model.SizeGeometry),
+		})
+		activeConfigID = newConfigID
+
+	case "switch-config":
+		cfgID := r.URL.Query().Get("config_id")
+		if cfgID != "" {
+			activeConfigID = cfgID
+		}
+
+	case "kinematic-fill":
+		cfg := frame.GetConfiguration(activeConfigID)
+		baseCfg := frame.GetBaselineConfiguration()
+		if cfg != nil && baseCfg != nil && !cfg.IsBaseline {
+			if cfg.Geometries == nil {
+				cfg.Geometries = make(map[string]model.SizeGeometry)
+			}
+			for _, sz := range frame.Sizes {
+				b, err := geometry.MaterializeBikeGeometry(frame, sz, cfg.ID)
+				if err == nil {
+					cfg.Geometries[sz] = model.SizeGeometry{
+						Reach:           b.Reach,
+						Stack:           b.Stack,
+						HtaDeg:          b.HtaDeg,
+						StaDeg:          b.StaDeg,
+						Htl:             b.Htl,
+						BbDrop:          b.BbDrop,
+						ForkRake:        b.ForkRake,
+						Wheelbase:       b.Wheelbase,
+						ChainstayLength: b.ChainstayLength,
+						SeatTubeLength:  b.SeatTubeLength,
+					}
+				}
+			}
+		}
+	}
+
+	matBike, _ := geometry.MaterializeBikeGeometry(frame, frame.GetDefaultSize(), activeConfigID)
+	report := validator.ValidateBikeGeometry(matBike)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = templates.EditorModal(frame, isNew, &report, "", "form", activeConfigID).Render(r.Context(), w)
+}
+
+func (s *Server) parseFrameFromForm(r *http.Request) (model.FrameModel, string) {
 	_ = r.ParseForm()
 
 	rawJSON := r.FormValue("raw_json")
 	if rawJSON != "" {
-		var parsed model.BikeGeometry
-		if err := json.Unmarshal([]byte(rawJSON), &parsed); err == nil {
-			return parsed
+		var parsed model.FrameModel
+		if err := json.Unmarshal([]byte(rawJSON), &parsed); err == nil && len(parsed.Configurations) > 0 {
+			activeID := "stock"
+			if base := parsed.GetBaselineConfiguration(); base != nil {
+				activeID = base.ID
+			}
+			return parsed, activeID
+		}
+		var parsedBike model.BikeGeometry
+		if err := json.Unmarshal([]byte(rawJSON), &parsedBike); err == nil && parsedBike.Manufacturer != "" {
+			sz := parsedBike.Size
+			if sz == "" {
+				sz = "M"
+			}
+			fm := model.FrameModel{
+				ID:             parsedBike.ID,
+				Manufacturer:   parsedBike.Manufacturer,
+				Model:          parsedBike.Model,
+				Year:           parsedBike.Year,
+				Category:       parsedBike.Category,
+				Notes:          parsedBike.Notes,
+				WheelSize:      parsedBike.WheelSize,
+				HeadsetCupType: parsedBike.HeadsetCupType,
+				CupStack:       parsedBike.CupStack,
+				Sizes:          []string{sz},
+				DefaultSize:    sz,
+				Configurations: []model.FrameConfiguration{
+					{
+						ID:           "stock",
+						Name:         "Stock Build",
+						IsBaseline:   true,
+						ForkTravelMm: parsedBike.ForkTravelMm,
+						ForkA2c:      parsedBike.ForkA2c,
+						Geometries: map[string]model.SizeGeometry{
+							sz: {
+								Reach:           parsedBike.Reach,
+								Stack:           parsedBike.Stack,
+								HtaDeg:          parsedBike.HtaDeg,
+								StaDeg:          parsedBike.StaDeg,
+								Htl:             parsedBike.Htl,
+								BbDrop:          parsedBike.BbDrop,
+								ForkRake:        parsedBike.ForkRake,
+								Wheelbase:       parsedBike.Wheelbase,
+								ChainstayLength: parsedBike.ChainstayLength,
+								SeatTubeLength:  parsedBike.SeatTubeLength,
+							},
+						},
+					},
+				},
+			}
+			return fm, "stock"
 		}
 	}
 
-	reach, _ := strconv.ParseFloat(r.FormValue("reach"), 64)
-	stack, _ := strconv.ParseFloat(r.FormValue("stack"), 64)
-	hta, _ := strconv.ParseFloat(r.FormValue("hta_deg"), 64)
-	sta, _ := strconv.ParseFloat(r.FormValue("sta_deg"), 64)
-	htl, _ := strconv.ParseFloat(r.FormValue("htl"), 64)
-	bbDrop, _ := strconv.ParseFloat(r.FormValue("bb_drop"), 64)
-	rake, _ := strconv.ParseFloat(r.FormValue("fork_rake"), 64)
-	wb, _ := strconv.ParseFloat(r.FormValue("wheelbase"), 64)
-	a2c, _ := strconv.ParseFloat(r.FormValue("fork_a2c"), 64)
-	travel, _ := strconv.ParseFloat(r.FormValue("fork_travel_mm"), 64)
-	cup, _ := strconv.ParseFloat(r.FormValue("cup_stack"), 64)
-
+	frameID := r.FormValue("id")
+	manufacturer := strings.TrimSpace(r.FormValue("manufacturer"))
+	modelName := strings.TrimSpace(r.FormValue("model"))
+	year, _ := strconv.Atoi(r.FormValue("year"))
+	category := model.BikeCategory(r.FormValue("category"))
+	wheelSize := strings.TrimSpace(r.FormValue("wheel_size"))
 	cupType := model.HeadsetCupType(r.FormValue("headset_cup_type"))
-	if cupType == model.CupEC44 && cup == 0 {
-		cup = 12.0
+	cupStack, _ := strconv.ParseFloat(r.FormValue("cup_stack"), 64)
+	if cupType == model.CupEC44 && cupStack == 0 {
+		cupStack = 12.0
+	}
+	notes := strings.TrimSpace(r.FormValue("notes"))
+
+	sizes := r.Form["sizes"]
+	if len(sizes) == 0 {
+		singleSize := r.FormValue("size")
+		if singleSize != "" {
+			sizes = []string{singleSize}
+		} else {
+			sizes = []string{"M"}
+		}
 	}
 
-	return model.BikeGeometry{
-		ID:             r.FormValue("id"),
-		Manufacturer:   strings.TrimSpace(r.FormValue("manufacturer")),
-		Model:          strings.TrimSpace(r.FormValue("model")),
-		Size:           strings.TrimSpace(r.FormValue("size")),
-		Category:       model.BikeCategory(r.FormValue("category")),
-		Notes:          strings.TrimSpace(r.FormValue("notes")),
-		Reach:          reach,
-		Stack:          stack,
-		HtaDeg:         hta,
-		StaDeg:         sta,
-		Htl:            htl,
-		BbDrop:         bbDrop,
-		ForkRake:       rake,
-		Wheelbase:      wb,
-		ForkA2c:        a2c,
-		ForkTravelMm:   travel,
-		HeadsetCupType: cupType,
-		CupStack:       cup,
+	activeConfigID := r.FormValue("active_config_id")
+	if activeConfigID == "" {
+		activeConfigID = "stock"
 	}
+
+	existing, _ := s.store.GetFrameByID(frameID)
+	var configs []model.FrameConfiguration
+	if existing != nil && len(existing.Configurations) > 0 {
+		configs = existing.Configurations
+	}
+
+	activeName := r.FormValue("active_config_name")
+	if activeName == "" {
+		activeName = "Stock Build"
+	}
+	activeA2c, _ := strconv.ParseFloat(r.FormValue("active_fork_a2c"), 64)
+	if activeA2c <= 0 {
+		activeA2c, _ = strconv.ParseFloat(r.FormValue("fork_a2c"), 64)
+	}
+	if activeA2c <= 0 {
+		activeA2c = 541.0
+	}
+	activeTravel, _ := strconv.ParseFloat(r.FormValue("active_fork_travel_mm"), 64)
+	if activeTravel <= 0 {
+		activeTravel, _ = strconv.ParseFloat(r.FormValue("fork_travel_mm"), 64)
+	}
+	activeSag, _ := strconv.ParseFloat(r.FormValue("active_sag_published"), 64)
+
+	activeGeos := make(map[string]model.SizeGeometry)
+	for _, sz := range sizes {
+		reach, _ := strconv.ParseFloat(r.FormValue("reach_"+sz), 64)
+		if reach == 0 {
+			reach, _ = strconv.ParseFloat(r.FormValue("reach"), 64)
+		}
+		stack, _ := strconv.ParseFloat(r.FormValue("stack_"+sz), 64)
+		if stack == 0 {
+			stack, _ = strconv.ParseFloat(r.FormValue("stack"), 64)
+		}
+		hta, _ := strconv.ParseFloat(r.FormValue("hta_deg_"+sz), 64)
+		if hta == 0 {
+			hta, _ = strconv.ParseFloat(r.FormValue("hta_deg"), 64)
+		}
+		sta, _ := strconv.ParseFloat(r.FormValue("sta_deg_"+sz), 64)
+		if sta == 0 {
+			sta, _ = strconv.ParseFloat(r.FormValue("sta_deg"), 64)
+		}
+		htl, _ := strconv.ParseFloat(r.FormValue("htl_"+sz), 64)
+		if htl == 0 {
+			htl, _ = strconv.ParseFloat(r.FormValue("htl"), 64)
+		}
+		bbDrop, _ := strconv.ParseFloat(r.FormValue("bb_drop_"+sz), 64)
+		if bbDrop == 0 {
+			bbDrop, _ = strconv.ParseFloat(r.FormValue("bb_drop"), 64)
+		}
+		rake, _ := strconv.ParseFloat(r.FormValue("fork_rake_"+sz), 64)
+		if rake == 0 {
+			rake, _ = strconv.ParseFloat(r.FormValue("fork_rake"), 64)
+		}
+		wb, _ := strconv.ParseFloat(r.FormValue("wheelbase_"+sz), 64)
+		if wb == 0 {
+			wb, _ = strconv.ParseFloat(r.FormValue("wheelbase"), 64)
+		}
+		cs, _ := strconv.ParseFloat(r.FormValue("chainstay_"+sz), 64)
+		st, _ := strconv.ParseFloat(r.FormValue("seat_tube_"+sz), 64)
+
+		activeGeos[sz] = model.SizeGeometry{
+			Reach:           reach,
+			Stack:           stack,
+			HtaDeg:          hta,
+			StaDeg:          sta,
+			Htl:             htl,
+			BbDrop:          bbDrop,
+			ForkRake:        rake,
+			Wheelbase:       wb,
+			ChainstayLength: cs,
+			SeatTubeLength:  st,
+		}
+	}
+
+	found := false
+	for i := range configs {
+		if configs[i].ID == activeConfigID {
+			configs[i].Name = activeName
+			configs[i].ForkA2c = activeA2c
+			configs[i].ForkTravelMm = activeTravel
+			configs[i].SagPercentagePublished = activeSag
+			configs[i].Geometries = activeGeos
+			found = true
+			break
+		}
+	}
+	if !found {
+		configs = append(configs, model.FrameConfiguration{
+			ID:                     activeConfigID,
+			Name:                   activeName,
+			IsBaseline:             len(configs) == 0,
+			ForkA2c:                activeA2c,
+			ForkTravelMm:           activeTravel,
+			SagPercentagePublished: activeSag,
+			Geometries:             activeGeos,
+		})
+	}
+
+	fm := model.FrameModel{
+		ID:             frameID,
+		Manufacturer:   manufacturer,
+		Model:          modelName,
+		Year:           year,
+		Category:       category,
+		Notes:          notes,
+		WheelSize:      wheelSize,
+		HeadsetCupType: cupType,
+		CupStack:       cupStack,
+		Sizes:          sizes,
+		DefaultSize:    sizes[0],
+		Configurations: configs,
+	}
+
+	return fm, activeConfigID
 }
 
-// Target Pattern 3: Asynchronous form submission with loading indicator and inline validation errors
 func (s *Server) handleBikeSave(w http.ResponseWriter, r *http.Request) {
 	isNew := r.URL.Query().Get("is_new") == "true"
-	bike := s.parseBikeFromForm(r)
+	frame, activeConfigID := s.parseFrameFromForm(r)
 
-	// Validate bike geometry
-	report := validator.ValidateBikeGeometry(bike)
+	// Validate baseline geometry for default size
+	matBike, _ := geometry.MaterializeBikeGeometry(frame, frame.GetDefaultSize(), "")
+	report := validator.ValidateBikeGeometry(matBike)
 
-	// If fatal error exists (e.g. missing essential dimensions or empty manufacturer/model/size)
-	if !report.IsValid || bike.Manufacturer == "" || bike.Model == "" || bike.Size == "" {
-		if bike.Manufacturer == "" {
+	if !report.IsValid || frame.Manufacturer == "" || frame.Model == "" || len(frame.Sizes) == 0 {
+		if frame.Manufacturer == "" {
 			report.Issues = append(report.Issues, model.ValidationIssue{
 				Field:    "manufacturer",
 				Severity: model.SeverityError,
@@ -766,7 +1168,7 @@ func (s *Server) handleBikeSave(w http.ResponseWriter, r *http.Request) {
 				Message:  "Manufacturer name is required.",
 			})
 		}
-		if bike.Model == "" {
+		if frame.Model == "" {
 			report.Issues = append(report.Issues, model.ValidationIssue{
 				Field:    "model",
 				Severity: model.SeverityError,
@@ -774,29 +1176,29 @@ func (s *Server) handleBikeSave(w http.ResponseWriter, r *http.Request) {
 				Message:  "Model name is required.",
 			})
 		}
-		if bike.Size == "" {
+		if len(frame.Sizes) == 0 {
 			report.Issues = append(report.Issues, model.ValidationIssue{
-				Field:    "size",
+				Field:    "sizes",
 				Severity: model.SeverityError,
-				Title:    "Missing Size",
-				Message:  "Frame size is required.",
+				Title:    "Missing Sizes",
+				Message:  "At least one frame size is required.",
 			})
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_ = templates.EditorModal(bike, isNew, &report, "Please resolve the validation errors highlighted below.", "form").Render(r.Context(), w)
+		_ = templates.EditorModal(frame, isNew, &report, "Please resolve the validation errors highlighted below.", "form", activeConfigID).Render(r.Context(), w)
 		return
 	}
 
-	saved, err := s.store.SaveBike(bike)
+	savedFrame, err := s.store.SaveFrame(frame)
 	if err != nil {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_ = templates.EditorModal(bike, isNew, &report, fmt.Sprintf("Storage error: %v", err), "form").Render(r.Context(), w)
+		_ = templates.EditorModal(frame, isNew, &report, fmt.Sprintf("Storage error: %v", err), "form", activeConfigID).Render(r.Context(), w)
 		return
 	}
 
-	// Successfully saved: close modal and trigger full reload or swap
-	w.Header().Set("HX-Location", fmt.Sprintf("/?tab=validator&id=%s", saved.ID))
+	defaultBike, _ := geometry.MaterializeBikeGeometry(*savedFrame, savedFrame.GetDefaultSize(), "")
+	w.Header().Set("HX-Location", fmt.Sprintf("/?tab=validator&id=%s", defaultBike.ID))
 	w.WriteHeader(http.StatusOK)
 }
 

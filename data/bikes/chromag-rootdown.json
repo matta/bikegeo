@@ -1,0 +1,41 @@
+{
+  "id": "chromag-rootdown",
+  "manufacturer": "Chromag",
+  "model": "Rootdown",
+  "year": 2024,
+  "category": "hardtail",
+  "notes": "Custom Chromag steel frame with straight 44mm head tube requiring an external EC44 lower cup (+12mm) for tapered forks.",
+  "wheel_size": "29",
+  "headset_cup_type": "EC44",
+  "cup_stack": 12.0,
+  "seat_height": 765,
+  "sizes": [
+    "M/L"
+  ],
+  "default_size": "M/L",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock Build",
+      "is_baseline": true,
+      "fork_travel_mm": 150,
+      "fork_a2c": 561,
+      "sag_percentage_published": 0,
+      "geometries": {
+        "M/L": {
+          "reach": 475,
+          "stack": 648,
+          "hta_deg": 64.0,
+          "sta_deg": 76.0,
+          "htl": 105,
+          "bb_drop": 50,
+          "fork_rake": 44,
+          "wheelbase": 1235,
+          "chainstay_length": 420,
+          "front_center": 0,
+          "seat_tube_length": 0
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "id": "trek-procaliber",
+  "manufacturer": "Trek",
+  "model": "Procaliber Gen 3",
+  "year": 2024,
+  "category": "hardtail",
+  "notes": "XC race hardtail with 120mm RockShox SID fork (530mm static A2C) and integrated IS headset.",
+  "wheel_size": "29",
+  "headset_cup_type": "IS52",
+  "cup_stack": 0.0,
+  "seat_height": 760,
+  "sizes": [
+    "L"
+  ],
+  "default_size": "L",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock Build",
+      "is_baseline": true,
+      "fork_travel_mm": 120,
+      "fork_a2c": 530,
+      "sag_percentage_published": 0,
+      "geometries": {
+        "L": {
+          "reach": 460,
+          "stack": 622,
+          "hta_deg": 67.0,
+          "sta_deg": 74.3,
+          "htl": 105,
+          "bb_drop": 60,
+          "fork_rake": 44,
+          "wheelbase": 1172,
+          "chainstay_length": 432,
+          "front_center": 0,
+          "seat_tube_length": 0
+        }
+      }
+    }
+  ]
+}

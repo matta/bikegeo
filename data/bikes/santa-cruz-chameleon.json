@@ -1,0 +1,41 @@
+{
+  "id": "santa-cruz-chameleon",
+  "manufacturer": "Santa Cruz",
+  "model": "Chameleon 29",
+  "year": 2024,
+  "category": "hardtail",
+  "notes": "Trail hardtail spec'd with Fox Float 34 130mm (541mm static A2C). Santa Cruz publishes uncompressed static geometry.",
+  "wheel_size": "29",
+  "headset_cup_type": "ZS44",
+  "cup_stack": 2.0,
+  "seat_height": 760,
+  "sizes": [
+    "L"
+  ],
+  "default_size": "L",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock Build",
+      "is_baseline": true,
+      "fork_travel_mm": 130,
+      "fork_a2c": 541,
+      "sag_percentage_published": 0,
+      "geometries": {
+        "L": {
+          "reach": 465,
+          "stack": 638,
+          "hta_deg": 65.0,
+          "sta_deg": 74.4,
+          "htl": 110,
+          "bb_drop": 55,
+          "fork_rake": 44,
+          "wheelbase": 1215,
+          "chainstay_length": 425,
+          "front_center": 792,
+          "seat_tube_length": 0
+        }
+      }
+    }
+  ]
+}

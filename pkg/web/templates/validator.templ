@@ -2,6 +2,8 @@ package templates
 
 import (
 	"fmt"
+	"math"
+	"strings"
 
 	"bikegeo/pkg/model"
 )
@@ -21,11 +23,11 @@ func isMismatched(diff *float64) bool {
 	return !isWithinStaticTolerance(diff) && !isWithinSaggedRange(diff)
 }
 
-templ ValidatorSidebar(bikes []model.BikeGeometry, inspectedBikeId string, report model.ValidationReport) {
+templ ValidatorSidebar(frames []model.FrameModel, inspectedFrameId string, report model.ValidationReport) {
 	<div class="lg:col-span-1 space-y-3">
 		<div class="flex items-center justify-between px-1">
 			<span class="text-xs font-semibold uppercase tracking-wider text-slate-400">
-				{ fmt.Sprintf("Local Frame Models (%d)", len(bikes)) }
+				{ fmt.Sprintf("Frame Models (%d)", len(frames)) }
 			</span>
 			<button
 				type="button"
@@ -36,17 +38,17 @@ templ ValidatorSidebar(bikes []model.BikeGeometry, inspectedBikeId string, repor
 				<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
 				</svg>
-				<span>New</span>
+				<span>New Frame</span>
 			</button>
 		</div>
 
 		<div class="space-y-2">
-			for _, b := range bikes {
+			for _, f := range frames {
 				{{
-					isInspected := b.ID == inspectedBikeId
+					isInspected := f.ID == inspectedFrameId
 				}}
 				<div
-					hx-get={ fmt.Sprintf("/?tab=validator&id=%s", b.ID) }
+					hx-get={ fmt.Sprintf("/?tab=validator&id=%s", f.ID) }
 					hx-target="#app-content"
 					class={ "p-3 rounded-xl border cursor-pointer transition flex flex-col justify-between",
 						templ.KV("bg-slate-900 border-amber-500/50 shadow-md ring-1 ring-amber-500/30", isInspected),
@@ -55,15 +57,15 @@ templ ValidatorSidebar(bikes []model.BikeGeometry, inspectedBikeId string, repor
 					<div class="flex items-start justify-between">
 						<div>
 							<div class="font-bold text-white text-sm">
-								{ b.Manufacturer } { b.Model }
+								{ f.Manufacturer } { f.Model }
 							</div>
 							<div class="text-xs text-slate-400 mt-0.5">
-								{ fmt.Sprintf("Size %s • %s", b.Size, b.Category) }
+								{ fmt.Sprintf("Sizes: %s • %s", strings.Join(f.GetSizes(), ", "), f.Category) }
 							</div>
 						</div>
 
 						<div class="flex items-center gap-1.5">
-							if b.ID == inspectedBikeId && !report.IsValid {
+							if f.ID == inspectedFrameId && !report.IsValid {
 								<svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
 								</svg>
@@ -77,17 +79,16 @@ templ ValidatorSidebar(bikes []model.BikeGeometry, inspectedBikeId string, repor
 
 					<div class="flex items-center justify-between mt-3 pt-2 border-t border-slate-800/60 text-[11px] text-slate-400">
 						<div>
-							R: <span class="text-cyan-400 font-mono font-semibold">{ fmt.Sprintf("%.0f", b.Reach) }</span>
-							S: <span class="text-amber-400 font-mono font-semibold">{ fmt.Sprintf("%.0f", b.Stack) }</span>
+							<span class="text-indigo-400 font-mono">{ fmt.Sprintf("%d config(s)", len(f.Configurations)) }</span>
 						</div>
 
 						<div class="flex items-center gap-2" onclick="event.stopPropagation()">
 							<button
 								type="button"
-								hx-get={ fmt.Sprintf("/bikes/%s/edit", b.ID) }
+								hx-get={ fmt.Sprintf("/bikes/%s/edit", f.ID) }
 								hx-target="#modal-container"
 								class="hover:text-amber-400 transition cursor-pointer"
-								title="Edit bike parameters"
+								title="Edit frame model geometry grid"
 							>
 								<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
@@ -95,11 +96,11 @@ templ ValidatorSidebar(bikes []model.BikeGeometry, inspectedBikeId string, repor
 							</button>
 							<button
 								type="button"
-								hx-delete={ fmt.Sprintf("/bikes/%s", b.ID) }
-								hx-confirm={ fmt.Sprintf("Are you sure you want to delete %s %s?", b.Manufacturer, b.Model) }
+								hx-delete={ fmt.Sprintf("/bikes/%s", f.ID) }
+								hx-confirm={ fmt.Sprintf("Are you sure you want to delete %s %s?", f.Manufacturer, f.Model) }
 								hx-target="#app-content"
 								class="hover:text-rose-400 transition cursor-pointer"
-								title="Delete bike"
+								title="Delete frame model"
 							>
 								<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -113,8 +114,8 @@ templ ValidatorSidebar(bikes []model.BikeGeometry, inspectedBikeId string, repor
 	</div>
 }
 
-templ ValidatorHeader(bike model.BikeGeometry, report model.ValidationReport) {
-	<div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+templ ValidatorHeader(frame *model.FrameModel, bike model.BikeGeometry, report model.ValidationReport, activeSize string, activeConfigID string) {
+	<div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
 		<div class="flex flex-wrap items-center justify-between gap-4">
 			<div>
 				<div class="flex items-center gap-3">
@@ -132,7 +133,7 @@ templ ValidatorHeader(bike model.BikeGeometry, report model.ValidationReport) {
 					if bike.Notes != "" {
 						{ bike.Notes }
 					} else {
-						Bicycle geometry CAD validation and hardtail consistency diagnostics.
+						Bicycle geometry CAD validation and multi-configuration hardtail consistency diagnostics.
 					}
 				</p>
 			</div>
@@ -143,30 +144,78 @@ templ ValidatorHeader(bike model.BikeGeometry, report model.ValidationReport) {
 						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 						</svg>
-						<span>Geometrically Valid</span>
+						<span>CAD Coherent</span>
 					</div>
 				} else {
 					<div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm font-medium">
 						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
 						</svg>
-						<span>Validation Errors</span>
+						<span>Validation Issues</span>
 					</div>
 				}
 
-				<button
-					type="button"
-					hx-get={ fmt.Sprintf("/bikes/%s/edit", bike.ID) }
-					hx-target="#modal-container"
-					class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition cursor-pointer"
-				>
-					Edit Parameters
-				</button>
+				if frame != nil {
+					<button
+						type="button"
+						hx-get={ fmt.Sprintf("/bikes/%s/edit", frame.ID) }
+						hx-target="#modal-container"
+						class="px-3.5 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg transition cursor-pointer shadow-sm flex items-center gap-1.5"
+					>
+						<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+						<span>Edit Geometry Grid</span>
+					</button>
+				}
 			</div>
 		</div>
 
+		<!-- Interactive Size & Configuration Selectors -->
+		if frame != nil {
+			<div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800 text-xs">
+				<!-- Sizes -->
+				<div class="flex items-center gap-2">
+					<span class="text-slate-400 font-medium">Size:</span>
+					<div class="inline-flex rounded-lg p-0.5 bg-slate-950 border border-slate-800">
+						for _, sz := range frame.GetSizes() {
+							<button
+								type="button"
+								hx-get={ fmt.Sprintf("/?tab=validator&id=%s&size=%s&config=%s", frame.ID, sz, activeConfigID) }
+								hx-target="#app-content"
+								class={ "px-2.5 py-1 rounded text-xs transition cursor-pointer font-bold",
+									templ.KV("bg-amber-500 text-slate-950 shadow-sm", sz == activeSize),
+									templ.KV("text-slate-400 hover:text-white", sz != activeSize) }
+							>
+								{ sz }
+							</button>
+						}
+					</div>
+				</div>
+
+				<!-- Configurations -->
+				if len(frame.Configurations) > 1 {
+					<div class="flex items-center gap-2">
+						<span class="text-slate-400 font-medium">Configuration:</span>
+						<div class="inline-flex rounded-lg p-0.5 bg-slate-950 border border-slate-800">
+							for _, cfg := range frame.Configurations {
+								<button
+									type="button"
+									hx-get={ fmt.Sprintf("/?tab=validator&id=%s&size=%s&config=%s", frame.ID, activeSize, cfg.ID) }
+									hx-target="#app-content"
+									class={ "px-2.5 py-1 rounded text-xs transition cursor-pointer font-medium",
+										templ.KV("bg-indigo-600 text-white font-semibold shadow-sm", cfg.ID == activeConfigID),
+										templ.KV("text-slate-400 hover:text-white", cfg.ID != activeConfigID) }
+								>
+									{ cfg.Name }
+								</button>
+							}
+						</div>
+					</div>
+				}
+			</div>
+		}
+
 		<!-- Quick Spec Pills -->
-		<div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 mt-5 pt-4 border-t border-slate-800 text-center font-mono">
+		<div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 pt-3 border-t border-slate-800 text-center font-mono">
 			<div class="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
 				<span class="text-[11px] text-slate-400 uppercase tracking-wider block font-sans">Reach</span>
 				<span class="text-base font-bold text-cyan-400">{ fmt.Sprintf("%.0f", bike.Reach) } <span class="text-xs font-normal text-slate-400 font-sans">mm</span></span>
@@ -201,6 +250,82 @@ templ ValidatorHeader(bike model.BikeGeometry, report model.ValidationReport) {
 			</div>
 		</div>
 	</div>
+}
+
+templ CrossConfigCoherenceCard(crossVal *model.CrossConfigValidation) {
+	if crossVal != nil {
+		<div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-md space-y-4">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div class="flex items-center gap-2">
+					<div class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+						</svg>
+					</div>
+					<div>
+						<h3 class="text-base font-semibold text-white">Cross-Configuration CAD Coherence Proof</h3>
+						<p class="text-xs text-slate-400">
+							{ fmt.Sprintf("Verifies physical 2D kinematic rotation between %s (%.0fmm A2C) and %s (%.0fmm A2C).",
+								crossVal.BaselineConfigID, crossVal.BaselineA2c,
+								crossVal.ComparedConfigID, crossVal.ComparedA2c) }
+						</p>
+					</div>
+				</div>
+
+				<div>
+					if crossVal.IsCoherent {
+						<span class="px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-medium flex items-center gap-1.5">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+							Physically Coherent CAD (Max Δ { fmt.Sprintf("%.1f mm", crossVal.MaxDiscrepancy) })
+						</span>
+					} else {
+						<span class="px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-medium flex items-center gap-1.5">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+							Discrepancy Detected (Max Δ { fmt.Sprintf("%.1f mm", crossVal.MaxDiscrepancy) })
+						</span>
+					}
+				</div>
+			</div>
+
+			<div class="overflow-x-auto border border-slate-800 rounded-lg">
+				<table class="w-full text-left text-xs border-collapse font-mono">
+					<thead>
+						<tr class="bg-slate-950 text-slate-400 border-b border-slate-800">
+							<th class="p-2.5 font-sans font-semibold">Dimension</th>
+							<th class="p-2.5 text-center">Baseline</th>
+							<th class="p-2.5 text-center">Config Published</th>
+							<th class="p-2.5 text-center">Kinematic Target</th>
+							<th class="p-2.5 text-center">Published Δ</th>
+							<th class="p-2.5 text-center">Discrepancy</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-800/60">
+						for _, diff := range crossVal.Diffs {
+							<tr class="hover:bg-slate-800/30">
+								<td class="p-2.5 font-sans font-medium text-slate-300">{ diff.Metric }</td>
+								<td class="p-2.5 text-center text-slate-400">{ fmt.Sprintf("%.2f", diff.BaselineValue) }</td>
+								<td class="p-2.5 text-center text-white font-bold">{ fmt.Sprintf("%.2f", diff.ConfigValue) }</td>
+								<td class="p-2.5 text-center text-cyan-400">{ fmt.Sprintf("%.2f", diff.ConfigValue - diff.Discrepancy) }</td>
+								<td class="p-2.5 text-center text-amber-300">{ fmt.Sprintf("%+.2f", diff.PublishedDiff) }</td>
+								<td class="p-2.5 text-center">
+									if diff.Discrepancy == 0 {
+										<span class="text-emerald-400 font-bold">0.0</span>
+									} else if math.Abs(diff.Discrepancy) <= 1.0 {
+										<span class="text-emerald-400">{ fmt.Sprintf("%+.2f", diff.Discrepancy) }</span>
+									} else {
+										<span class="text-rose-400 font-bold">{ fmt.Sprintf("%+.2f", diff.Discrepancy) }</span>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<div class="text-[11px] text-slate-400">
+				{ crossVal.Message }
+			</div>
+		</div>
+	}
 }
 
 templ ValidatorProofs(bike model.BikeGeometry, report model.ValidationReport) {
@@ -482,18 +607,29 @@ templ SagSimulatorResults(bike model.BikeGeometry, simSagPercent float64, dynPos
 }
 
 templ ValidatorView(
-	bikes []model.BikeGeometry,
+	frames []model.FrameModel,
+	inspectedFrame *model.FrameModel,
 	inspectedBike model.BikeGeometry,
+	activeSize string,
+	activeConfigID string,
+	crossVal *model.CrossConfigValidation,
 	report model.ValidationReport,
 	simSagPercent float64,
 	dynPose model.DynamicGeometryResult,
 ) {
 	<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-		@ValidatorSidebar(bikes, inspectedBike.ID, report)
+		if inspectedFrame != nil {
+			@ValidatorSidebar(frames, inspectedFrame.ID, report)
+		} else {
+			@ValidatorSidebar(frames, inspectedBike.ID, report)
+		}
 
 		<div class="lg:col-span-3 space-y-6">
-			@ValidatorHeader(inspectedBike, report)
+			@ValidatorHeader(inspectedFrame, inspectedBike, report, activeSize, activeConfigID)
 			@ValidatorProofs(inspectedBike, report)
+			if crossVal != nil {
+				@CrossConfigCoherenceCard(crossVal)
+			}
 			@ValidatorLog(report.Issues)
 
 			<!-- Dynamic Hardtail Sag Simulator -->

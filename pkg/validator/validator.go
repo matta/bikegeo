@@ -275,3 +275,116 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		FrontCenterDiff:     fcDiff,
 	}
 }
+
+// ValidateCrossConfig compares an alternate configuration's published geometry against the
+// baseline configuration's expected kinematic pitching.
+func ValidateCrossConfig(frame model.FrameModel, size string, comparedConfigID string) *model.CrossConfigValidation {
+	if size == "" {
+		size = frame.GetDefaultSize()
+	}
+	baseConfig := frame.GetBaselineConfiguration()
+	compConfig := frame.GetConfiguration(comparedConfigID)
+	if baseConfig == nil || compConfig == nil || baseConfig.ID == compConfig.ID {
+		return nil
+	}
+
+	baseCup := frame.CupStack
+	if baseConfig.CupStack != nil {
+		baseCup = *baseConfig.CupStack
+	}
+	if baseCup == 0 && frame.HeadsetCupType == model.CupEC44 {
+		baseCup = 12.0
+	}
+
+	compCup := frame.CupStack
+	if compConfig.CupStack != nil {
+		compCup = *compConfig.CupStack
+	}
+	if compCup == 0 && frame.HeadsetCupType == model.CupEC44 {
+		compCup = 12.0
+	}
+
+	deltaA2c := (compConfig.ForkA2c + compCup) - (baseConfig.ForkA2c + baseCup)
+
+	baseGeo, hasBase := baseConfig.Geometries[size]
+	if !hasBase {
+		return nil
+	}
+
+	publishedGeo, hasPublished := compConfig.Geometries[size]
+	if !hasPublished || publishedGeo.Reach == 0 || publishedGeo.Stack == 0 {
+		return &model.CrossConfigValidation{
+			FrameModelID:     frame.ID,
+			Size:             size,
+			BaselineConfigID: baseConfig.ID,
+			ComparedConfigID: compConfig.ID,
+			BaselineA2c:      baseConfig.ForkA2c,
+			ComparedA2c:      compConfig.ForkA2c,
+			DeltaA2c:         deltaA2c,
+			IsCoherent:       true,
+			Message:          "Configuration is dynamically derived from baseline via kinematic rotation (no explicit manual overrides).",
+		}
+	}
+
+	baseStructural := baseConfig.ForkA2c + baseCup
+	compStructural := compConfig.ForkA2c + compCup
+	dyn := geometry.CalculateDynamicGeometry(
+		baseGeo.Reach,
+		baseGeo.Stack,
+		baseGeo.HtaDeg,
+		baseGeo.StaDeg,
+		baseGeo.BbDrop,
+		baseStructural,
+		compStructural,
+		baseGeo.Wheelbase,
+		baseGeo.ChainstayLength,
+	)
+
+	var diffs []model.CrossConfigDiff
+	maxDisc := 0.0
+
+	checkMetric := func(name string, baseVal, pubVal, kinVal float64, isAngle bool) {
+		pubDiff := geometry.Round(pubVal-baseVal, 2)
+		kinDiff := geometry.Round(kinVal-baseVal, 2)
+		discrepancy := geometry.Round(pubVal-kinVal, 2)
+		absDisc := math.Abs(discrepancy)
+		if absDisc > maxDisc {
+			maxDisc = absDisc
+		}
+		diffs = append(diffs, model.CrossConfigDiff{
+			Metric:        name,
+			BaselineValue: baseVal,
+			ConfigValue:   pubVal,
+			PublishedDiff: pubDiff,
+			KinematicDiff: kinDiff,
+			Discrepancy:   discrepancy,
+		})
+	}
+
+	checkMetric("Head Tube Angle (°)", baseGeo.HtaDeg, publishedGeo.HtaDeg, dyn.NewHta, true)
+	checkMetric("Seat Tube Angle (°)", baseGeo.StaDeg, publishedGeo.StaDeg, dyn.NewSta, true)
+	checkMetric("Reach (mm)", baseGeo.Reach, publishedGeo.Reach, dyn.NewReach, false)
+	checkMetric("Stack (mm)", baseGeo.Stack, publishedGeo.Stack, dyn.NewStack, false)
+	checkMetric("BB Drop (mm)", baseGeo.BbDrop, publishedGeo.BbDrop, dyn.NewBbDrop, false)
+
+	isCoherent := maxDisc <= 3.0
+	message := "Published configuration is physically coherent with baseline frame rotation."
+	if !isCoherent {
+		message = fmt.Sprintf("CAD discrepancy detected (max delta: %.1f): published numbers deviate from kinematic 2D rotation.", maxDisc)
+	}
+
+	return &model.CrossConfigValidation{
+		FrameModelID:     frame.ID,
+		Size:             size,
+		BaselineConfigID: baseConfig.ID,
+		ComparedConfigID: compConfig.ID,
+		BaselineA2c:      baseConfig.ForkA2c,
+		ComparedA2c:      compConfig.ForkA2c,
+		DeltaA2c:         deltaA2c,
+		IsCoherent:       isCoherent,
+		MaxDiscrepancy:   maxDisc,
+		Diffs:            diffs,
+		Message:          message,
+	}
+}
+

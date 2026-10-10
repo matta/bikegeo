@@ -2,24 +2,40 @@
   "id": "demo-inconsistent-hardtail",
   "manufacturer": "Sample Bikes",
   "model": "Inconsistent Spec Demo",
-  "size": "M",
   "year": 2024,
   "category": "hardtail",
   "notes": "Deliberately flawed geometry sample: Published Stack is 590mm (geometrically impossible with a 130mm fork and 120mm HTL), plus EC44 head tube without lower cup stack accounted for.",
-  "reach": 440,
-  "stack": 590,
-  "hta_deg": 66.5,
-  "sta_deg": 75.0,
-  "htl": 120,
-  "bb_drop": 65,
-  "fork_rake": 44,
-  "wheelbase": 1170,
-  "chainstay_length": 430,
-  "front_center": 780,
-  "fork_travel_mm": 130,
-  "fork_a2c": 541,
-  "sag_percentage_published": 0,
+  "wheel_size": "29",
   "headset_cup_type": "EC44",
   "cup_stack": 0,
-  "seat_height": 740
+  "seat_height": 740,
+  "sizes": [
+    "M"
+  ],
+  "default_size": "M",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock Build",
+      "is_baseline": true,
+      "fork_travel_mm": 130,
+      "fork_a2c": 541,
+      "sag_percentage_published": 0,
+      "geometries": {
+        "M": {
+          "reach": 440,
+          "stack": 590,
+          "hta_deg": 66.5,
+          "sta_deg": 75.0,
+          "htl": 120,
+          "bb_drop": 65,
+          "fork_rake": 44,
+          "wheelbase": 1170,
+          "chainstay_length": 430,
+          "front_center": 780,
+          "seat_tube_length": 0
+        }
+      }
+    }
+  ]
 }

@@ -20,8 +20,8 @@ func findIssue(report *model.ValidationReport, field string) *model.ValidationIs
 	return nil
 }
 
-func bikeToJson(b model.BikeGeometry) string {
-	bytes, err := json.MarshalIndent(b, "", "  ")
+func frameToJson(f model.FrameModel) string {
+	bytes, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
 		return "{}"
 	}
@@ -29,26 +29,43 @@ func bikeToJson(b model.BikeGeometry) string {
 }
 
 templ EditorModal(
-	bike model.BikeGeometry,
+	frame model.FrameModel,
 	isNew bool,
 	report *model.ValidationReport,
 	serverError string,
 	viewMode string,
+	activeConfigID string,
 ) {
-	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-		<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl">
+	{{
+		sizes := frame.GetSizes()
+		activeConfig := frame.GetConfiguration(activeConfigID)
+		if activeConfig == nil {
+			activeConfig = frame.GetBaselineConfiguration()
+		}
+		if activeConfig == nil {
+			activeConfig = &model.FrameConfiguration{
+				ID:           "stock",
+				Name:         "Stock Build",
+				IsBaseline:   true,
+				ForkTravelMm: 130,
+				ForkA2c:      541,
+			}
+		}
+	}}
+	<div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+		<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl">
 			<!-- Header -->
-			<div class="flex items-center justify-between p-5 border-b border-slate-800">
+			<div class="flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 shrink-0">
 				<div>
 					<h3 class="text-lg font-bold text-white">
 						if isNew {
-							Add New Bike Geometry
+							Add New Bike Model & Geometry Grid
 						} else {
-							{ fmt.Sprintf("Edit: %s %s", bike.Manufacturer, bike.Model) }
+							{ fmt.Sprintf("Edit: %s %s", frame.Manufacturer, frame.Model) }
 						}
 					</h3>
 					<p class="text-xs text-slate-400">
-						Persists directly as a local JSON file in <code class="text-amber-400 font-mono">data/bikes/*.json</code>
+						Persists directly as a unified multi-size frame in <code class="text-amber-400 font-mono">data/bikes/*.json</code>
 					</p>
 				</div>
 
@@ -81,9 +98,9 @@ templ EditorModal(
 
 			<!-- Live Validation Pill Bar -->
 			if report != nil {
-				<div class="bg-slate-950 px-5 py-2.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+				<div class="bg-slate-950 px-5 py-2.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
 					<div class="flex items-center gap-2 font-mono">
-						<span class="text-slate-400 font-sans">Live Proof:</span>
+						<span class="text-slate-400 font-sans">Baseline CAD Proof ({ frame.GetDefaultSize() }):</span>
 						<span class="text-cyan-400">Geometric A2C = { fmt.Sprintf("%.1f mm", report.GeometricA2c) }</span>
 						if report.A2cDifference != nil {
 							<span class="text-slate-400 font-mono">
@@ -96,7 +113,7 @@ templ EditorModal(
 						if report.IsValid {
 							<span class="text-emerald-400 font-medium flex items-center gap-1">
 								<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-								Internally Coherent
+								Frame Spec Coherent
 							</span>
 						} else {
 							<span class="text-rose-400 font-medium flex items-center gap-1">
@@ -109,12 +126,12 @@ templ EditorModal(
 			}
 
 			if serverError != "" {
-				<div class="bg-rose-500/10 border-b border-rose-500/20 px-5 py-2.5 text-xs text-rose-300">
+				<div class="bg-rose-500/10 border-b border-rose-500/20 px-5 py-2.5 text-xs text-rose-300 shrink-0">
 					{ serverError }
 				</div>
 			}
 
-			<!-- Target Pattern 3: Asynchronous form submission with loading indicator via hx-indicator and inline validation errors -->
+			<!-- Async Form -->
 			<form
 				id="bike-editor-form"
 				hx-post={ fmt.Sprintf("/bikes/save?is_new=%t", isNew) }
@@ -122,309 +139,594 @@ templ EditorModal(
 				hx-indicator="#save-indicator"
 				class="flex-1 overflow-y-auto p-5 space-y-5"
 			>
-				<input type="hidden" name="id" value={ bike.ID }/>
+				<input type="hidden" name="id" value={ frame.ID }/>
+				<input type="hidden" name="active_config_id" value={ activeConfig.ID }/>
 
 				if viewMode == "json" {
 					<div>
-						<label class="block text-xs font-medium text-slate-300 mb-2">Raw JSON Document</label>
+						<label class="block text-xs font-medium text-slate-300 mb-2">Raw FrameModel JSON Document</label>
 						<textarea
 							name="raw_json"
-							rows="18"
+							rows="20"
 							class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-500"
 						>
-							{ bikeToJson(bike) }
+							{ frameToJson(frame) }
 						</textarea>
 					</div>
 				} else {
-					<!-- Frame Identity -->
+					<!-- 1. Frame Identity -->
 					<div>
 						<h4 class="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-2.5">
-							Frame Identity
+							Frame Identity & Hardware
 						</h4>
-						<div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-							<div>
+						<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+							<div class="sm:col-span-2">
 								<label class="block text-xs text-slate-300 mb-1">Manufacturer *</label>
 								<input
 									type="text"
 									name="manufacturer"
 									required
-									value={ bike.Manufacturer }
-									placeholder="e.g. Santa Cruz"
+									value={ frame.Manufacturer }
+									placeholder="e.g. Chumba, Santa Cruz"
 									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:border-amber-500"
 								/>
 								if issue := findIssue(report, "manufacturer"); issue != nil {
-									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Title }: { issue.Message }</div>
+									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Title }</div>
 								}
 							</div>
-							<div>
+							<div class="sm:col-span-2">
 								<label class="block text-xs text-slate-300 mb-1">Model *</label>
 								<input
 									type="text"
 									name="model"
 									required
-									value={ bike.Model }
-									placeholder="e.g. Chameleon 29"
+									value={ frame.Model }
+									placeholder="e.g. Sendero, Chameleon"
 									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:border-amber-500"
 								/>
 								if issue := findIssue(report, "model"); issue != nil {
-									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Title }: { issue.Message }</div>
+									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Title }</div>
 								}
 							</div>
 							<div>
-								<label class="block text-xs text-slate-300 mb-1">Size *</label>
+								<label class="block text-xs text-slate-300 mb-1">Year</label>
 								<input
-									type="text"
-									name="size"
-									required
-									value={ bike.Size }
-									placeholder="e.g. M, L, XL"
+									type="number"
+									name="year"
+									value={ fmt.Sprintf("%d", frame.Year) }
 									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:border-amber-500"
 								/>
-								if issue := findIssue(report, "size"); issue != nil {
-									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Title }: { issue.Message }</div>
-								}
 							</div>
 							<div>
 								<label class="block text-xs text-slate-300 mb-1">Category</label>
 								<select
 									name="category"
-									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:border-amber-500"
+									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-amber-500"
 								>
-									<option value="hardtail" selected?={ bike.Category == model.CategoryHardtail }>Hardtail</option>
-									<option value="full-suspension" selected?={ bike.Category == model.CategoryFullSuspension }>Full Suspension</option>
-									<option value="gravel" selected?={ bike.Category == model.CategoryGravel }>Gravel</option>
-									<option value="rigid" selected?={ bike.Category == model.CategoryRigid }>Rigid</option>
+									<option value="hardtail" selected?={ frame.Category == model.CategoryHardtail }>Hardtail</option>
+									<option value="rigid" selected?={ frame.Category == model.CategoryRigid }>Rigid</option>
+									<option value="gravel" selected?={ frame.Category == model.CategoryGravel }>Gravel</option>
+									<option value="full-suspension" selected?={ frame.Category == model.CategoryFullSuspension }>Full Suspension</option>
 								</select>
 							</div>
-						</div>
-					</div>
-
-					<!-- Primary Dimensions -->
-					<div>
-						<h4 class="text-xs font-semibold uppercase tracking-wider text-cyan-400 mb-2.5">
-							Primary Frame Geometry
-						</h4>
-						<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-							<!-- Reach -->
 							<div>
-								<label class="block text-xs text-slate-300 mb-1">Reach (mm) *</label>
+								<label class="block text-xs text-slate-300 mb-1">Wheel Size</label>
 								<input
-									type="number"
-									step="any"
-									name="reach"
-									required
-									value={ fmt.Sprintf("%.1f", bike.Reach) }
-									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500"
-								/>
-								if issue := findIssue(report, "reach"); issue != nil {
-									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Message }</div>
-								}
-							</div>
-
-							<!-- Stack -->
-							<div>
-								<label class="block text-xs text-slate-300 mb-1">Stack (mm) *</label>
-								<input
-									type="number"
-									step="any"
-									name="stack"
-									required
-									value={ fmt.Sprintf("%.1f", bike.Stack) }
-									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500"
-								/>
-								if issue := findIssue(report, "stack"); issue != nil {
-									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Message }</div>
-								}
-							</div>
-
-							<!-- HTA -->
-							<div>
-								<label class="block text-xs text-slate-300 mb-1">Head Tube Angle (°) *</label>
-								<input
-									type="number"
-									step="any"
-									name="hta_deg"
-									required
-									value={ fmt.Sprintf("%.2f", bike.HtaDeg) }
-									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500"
-								/>
-								if issue := findIssue(report, "hta_deg"); issue != nil {
-									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Message }</div>
-								}
-							</div>
-
-							<!-- STA -->
-							<div>
-								<label class="block text-xs text-slate-300 mb-1">Seat Tube Angle (°) *</label>
-								<input
-									type="number"
-									step="any"
-									name="sta_deg"
-									required
-									value={ fmt.Sprintf("%.2f", bike.StaDeg) }
-									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500"
-								/>
-								if issue := findIssue(report, "sta_deg"); issue != nil {
-									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Message }</div>
-								}
-							</div>
-
-							<!-- HTL -->
-							<div>
-								<label class="block text-xs text-slate-300 mb-1">Head Tube Length (mm) *</label>
-								<input
-									type="number"
-									step="any"
-									name="htl"
-									required
-									value={ fmt.Sprintf("%.1f", bike.Htl) }
-									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500"
-								/>
-								if issue := findIssue(report, "htl"); issue != nil {
-									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Message }</div>
-								}
-							</div>
-
-							<!-- BB Drop -->
-							<div>
-								<label class="block text-xs text-slate-300 mb-1">BB Drop (mm) *</label>
-								<input
-									type="number"
-									step="any"
-									name="bb_drop"
-									required
-									value={ fmt.Sprintf("%.1f", bike.BbDrop) }
-									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500"
-								/>
-								if issue := findIssue(report, "bb_drop"); issue != nil {
-									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Message }</div>
-								}
-							</div>
-
-							<!-- Fork Rake -->
-							<div>
-								<label class="block text-xs text-slate-300 mb-1">Fork Rake / Offset (mm) *</label>
-								<input
-									type="number"
-									step="any"
-									name="fork_rake"
-									required
-									value={ fmt.Sprintf("%.1f", bike.ForkRake) }
-									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500"
-								/>
-								if issue := findIssue(report, "fork_rake"); issue != nil {
-									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Message }</div>
-								}
-							</div>
-
-							<!-- Wheelbase -->
-							<div>
-								<label class="block text-xs text-slate-300 mb-1">Wheelbase (mm) *</label>
-								<input
-									type="number"
-									step="any"
-									name="wheelbase"
-									required
-									value={ fmt.Sprintf("%.1f", bike.Wheelbase) }
-									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500"
-								/>
-								if issue := findIssue(report, "wheelbase"); issue != nil {
-									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Message }</div>
-								}
-							</div>
-						</div>
-					</div>
-
-					<!-- Hardware & CAD Specifications -->
-					<div>
-						<h4 class="text-xs font-semibold uppercase tracking-wider text-indigo-400 mb-2.5">
-							Hardware & CAD Assumptions
-						</h4>
-						<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-							<!-- Stated Fork A2C -->
-							<div>
-								<label class="block text-xs text-slate-300 mb-1">Published Fork A2C (mm)</label>
-								<input
-									type="number"
-									step="any"
-									name="fork_a2c"
-									value={ fmt.Sprintf("%.1f", bike.ForkA2c) }
-									placeholder="e.g. 541"
-									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500"
-								/>
-								if issue := findIssue(report, "fork_a2c"); issue != nil {
-									<div class="text-[11px] text-rose-400 mt-1 font-medium">{ issue.Message }</div>
-								}
-							</div>
-
-							<!-- Fork Travel -->
-							<div>
-								<label class="block text-xs text-slate-300 mb-1">Fork Travel (mm)</label>
-								<input
-									type="number"
-									step="any"
-									name="fork_travel_mm"
-									value={ fmt.Sprintf("%.0f", bike.ForkTravelMm) }
-									placeholder="e.g. 130"
-									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500"
+									type="text"
+									name="wheel_size"
+									value={ frame.WheelSize }
+									placeholder="29, 27.5, Mullet"
+									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:border-amber-500"
 								/>
 							</div>
-
-							<!-- Headset Cup Type -->
 							<div>
-								<label class="block text-xs text-slate-300 mb-1">Headset Cup Standard</label>
+								<label class="block text-xs text-slate-300 mb-1">Headset Standard</label>
 								<select
 									name="headset_cup_type"
-									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:border-amber-500 font-mono"
+									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-mono focus:border-amber-500"
 								>
-									<option value="ZS44" selected?={ bike.HeadsetCupType == model.CupZS44 }>ZS44 (Zero Stack)</option>
-									<option value="EC44" selected?={ bike.HeadsetCupType == model.CupEC44 }>EC44 (External +12mm)</option>
-									<option value="ZS56" selected?={ bike.HeadsetCupType == model.CupZS56 }>ZS56</option>
-									<option value="IS52" selected?={ bike.HeadsetCupType == model.CupIS52 }>IS52 (Integrated)</option>
+									<option value="EC44" selected?={ frame.HeadsetCupType == model.CupEC44 }>EC44 (External +12mm)</option>
+									<option value="ZS44" selected?={ frame.HeadsetCupType == model.CupZS44 }>ZS44 (Zero Stack)</option>
+									<option value="IS52" selected?={ frame.HeadsetCupType == model.CupIS52 }>IS52 (Integrated)</option>
+									<option value="ZS56" selected?={ frame.HeadsetCupType == model.CupZS56 }>ZS56</option>
 								</select>
-								if issue := findIssue(report, "cup_stack"); issue != nil {
-									<div class="text-[11px] text-amber-400 mt-1 font-medium">{ issue.Message }</div>
-								}
 							</div>
-
-							<!-- Lower Cup Stack -->
 							<div>
 								<label class="block text-xs text-slate-300 mb-1">Lower Cup Stack (mm)</label>
 								<input
 									type="number"
 									step="any"
 									name="cup_stack"
-									value={ fmt.Sprintf("%.1f", bike.CupStack) }
+									value={ fmt.Sprintf("%.1f", frame.CupStack) }
 									placeholder="12 for EC44, 2 for ZS"
 									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500"
+								/>
+							</div>
+							<div class="sm:col-span-3">
+								<label class="block text-xs text-slate-300 mb-1">Frame Notes</label>
+								<input
+									type="text"
+									name="notes"
+									value={ frame.Notes }
+									placeholder="Dropouts, compatible forks, build options..."
+									class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:border-amber-500"
 								/>
 							</div>
 						</div>
 					</div>
 
-					<!-- Notes -->
+					<!-- 2. Configurations Bar -->
+					<div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 space-y-3">
+						<div class="flex flex-wrap items-center justify-between gap-2">
+							<div class="flex items-center gap-2">
+								<span class="text-xs font-semibold uppercase tracking-wider text-indigo-400">
+									Configurations:
+								</span>
+								<div class="flex flex-wrap items-center gap-1.5">
+									for _, cfg := range frame.Configurations {
+										{{ isActive := cfg.ID == activeConfig.ID }}
+										<button
+											type="button"
+											hx-post={ fmt.Sprintf("/bikes/modal/action?act=switch-config&config_id=%s", cfg.ID) }
+											hx-target="#modal-container"
+											hx-include="#bike-editor-form"
+											class={ "px-2.5 py-1 rounded text-xs transition cursor-pointer flex items-center gap-1 border",
+												templ.KV("bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-sm", isActive),
+												templ.KV("bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800", !isActive) }
+										>
+											<span>{ cfg.Name }</span>
+											if cfg.IsBaseline {
+												<span class="text-[10px] uppercase font-mono px-1 py-0.2 rounded bg-black/30 text-slate-200">Ref</span>
+											}
+										</button>
+									}
+								</div>
+							</div>
+
+							<button
+								type="button"
+								hx-post="/bikes/modal/action?act=add-config"
+								hx-target="#modal-container"
+								hx-include="#bike-editor-form"
+								class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs border border-slate-700 flex items-center gap-1 transition cursor-pointer"
+							>
+								<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+								<span>+ Add Config</span>
+							</button>
+						</div>
+
+						<!-- Active Configuration Specs -->
+						<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-800/50">
+							<div>
+								<label class="block text-[11px] text-slate-400 mb-1">Config Name</label>
+								<input
+									type="text"
+									name="active_config_name"
+									value={ activeConfig.Name }
+									class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white"
+								/>
+							</div>
+							<div>
+								<label class="block text-[11px] text-slate-400 mb-1">Fork Static A2C (mm) *</label>
+								<input
+									type="number"
+									step="any"
+									name="active_fork_a2c"
+									required
+									value={ fmt.Sprintf("%.1f", activeConfig.ForkA2c) }
+									class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono"
+								/>
+							</div>
+							<div>
+								<label class="block text-[11px] text-slate-400 mb-1">Fork Travel (mm)</label>
+								<input
+									type="number"
+									step="any"
+									name="active_fork_travel_mm"
+									value={ fmt.Sprintf("%.0f", activeConfig.ForkTravelMm) }
+									placeholder="0 for rigid"
+									class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono"
+								/>
+							</div>
+							<div>
+								<label class="block text-[11px] text-slate-400 mb-1">Published Sag (%)</label>
+								<input
+									type="number"
+									step="any"
+									name="active_sag_published"
+									value={ fmt.Sprintf("%.0f", activeConfig.SagPercentagePublished) }
+									placeholder="0 for uncompressed CAD"
+									class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono"
+								/>
+							</div>
+						</div>
+
+						if !activeConfig.IsBaseline {
+							<div class="flex items-center justify-between bg-indigo-950/30 border border-indigo-800/30 rounded-lg px-3 py-2 text-xs text-indigo-300">
+								<span>Alternative Configuration: Enter published values below or derive dynamically from baseline.</span>
+								<button
+									type="button"
+									hx-post="/bikes/modal/action?act=kinematic-fill"
+									hx-target="#modal-container"
+									hx-include="#bike-editor-form"
+									class="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[11px] cursor-pointer flex items-center gap-1 shadow-sm transition"
+								>
+									<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+									<span>Kinematic Auto-Fill</span>
+								</button>
+							</div>
+						}
+					</div>
+
+					<!-- 3. Dynamic Sizes & Multi-Size Geometry Grid -->
 					<div>
-						<label class="block text-xs text-slate-300 mb-1">Notes / Description</label>
-						<textarea
-							name="notes"
-							rows="2"
-							placeholder="Hardware configuration, rider notes, OEM fork details..."
-							class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:border-amber-500"
-						>
-							{ bike.Notes }
-						</textarea>
+						<div class="flex flex-wrap items-center justify-between gap-3 mb-2.5">
+							<div class="flex items-center gap-2">
+								<h4 class="text-xs font-semibold uppercase tracking-wider text-cyan-400">
+									Geometry Chart Grid ({ activeConfig.Name })
+								</h4>
+								<span class="text-xs text-slate-400">
+									{ fmt.Sprintf("(%d Sizes Defined)", len(sizes)) }
+								</span>
+							</div>
+
+							<div class="flex items-center gap-2">
+								<span class="text-[11px] text-slate-400">Quick Sizing Presets:</span>
+								<button
+									type="button"
+									hx-post="/bikes/modal/action?act=preset&preset_type=s_xl"
+									hx-target="#modal-container"
+									hx-include="#bike-editor-form"
+									class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer"
+								>
+									S, M, L, XL
+								</button>
+								<button
+									type="button"
+									hx-post="/bikes/modal/action?act=preset&preset_type=s1_s6"
+									hx-target="#modal-container"
+									hx-include="#bike-editor-form"
+									class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer"
+								>
+									S1–S6
+								</button>
+								<button
+									type="button"
+									hx-post="/bikes/modal/action?act=preset&preset_type=cm"
+									hx-target="#modal-container"
+									hx-include="#bike-editor-form"
+									class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer"
+								>
+									49–61cm
+								</button>
+								<button
+									type="button"
+									hx-post="/bikes/modal/action?act=add-size"
+									hx-target="#modal-container"
+									hx-include="#bike-editor-form"
+									class="px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-xs font-medium border border-cyan-500/40 cursor-pointer flex items-center gap-1"
+								>
+									<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+									<span>+ Add Size</span>
+								</button>
+							</div>
+						</div>
+
+						<!-- Geometry Table -->
+						<div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950/60 shadow-inner">
+							<table class="w-full text-left text-xs border-collapse">
+								<thead>
+									<tr class="bg-slate-950 border-b border-slate-800 text-slate-300">
+										<th class="p-2.5 font-semibold w-48 sticky left-0 bg-slate-950 z-10 border-r border-slate-800">
+											Frame Dimension
+										</th>
+										for _, sz := range sizes {
+											<th class="p-2.5 text-center min-w-[120px] border-r border-slate-800/80">
+												<div class="flex items-center justify-center gap-1.5">
+													<input
+														type="text"
+														name="sizes"
+														value={ sz }
+														class="w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-center font-bold text-amber-300 text-xs focus:border-amber-500"
+													/>
+													if len(sizes) > 1 {
+														<button
+															type="button"
+															hx-post={ fmt.Sprintf("/bikes/modal/action?act=remove-size&size=%s", sz) }
+															hx-target="#modal-container"
+															hx-include="#bike-editor-form"
+															class="text-rose-400 hover:text-rose-300 text-xs cursor-pointer px-1 py-0.5 rounded hover:bg-slate-800"
+															title="Remove Size Column"
+														>
+															×
+														</button>
+													}
+												</div>
+											</th>
+										}
+										<th class="p-2.5 text-center w-28 text-slate-400">
+											Copy Helpers
+										</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-slate-800/60">
+									<!-- Reach -->
+									<tr class="hover:bg-slate-900/50">
+										<td class="p-2 font-medium text-cyan-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800">
+											<div>Reach (mm) *</div>
+										</td>
+										for _, sz := range sizes {
+											{{ geo := activeConfig.Geometries[sz] }}
+											<td class="p-1.5 border-r border-slate-800/80">
+												<input
+													type="number"
+													step="any"
+													required
+													name={ "reach_" + sz }
+													value={ fmt.Sprintf("%.1f", geo.Reach) }
+													placeholder="mm"
+													class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500"
+												/>
+											</td>
+										}
+										<td class="p-1.5 text-center"></td>
+									</tr>
+
+									<!-- Stack -->
+									<tr class="hover:bg-slate-900/50">
+										<td class="p-2 font-medium text-amber-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800">
+											<div>Stack (mm) *</div>
+										</td>
+										for _, sz := range sizes {
+											{{ geo := activeConfig.Geometries[sz] }}
+											<td class="p-1.5 border-r border-slate-800/80">
+												<input
+													type="number"
+													step="any"
+													required
+													name={ "stack_" + sz }
+													value={ fmt.Sprintf("%.1f", geo.Stack) }
+													placeholder="mm"
+													class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500"
+												/>
+											</td>
+										}
+										<td class="p-1.5 text-center"></td>
+									</tr>
+
+									<!-- Head Tube Angle -->
+									<tr class="hover:bg-slate-900/50">
+										<td class="p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800">
+											<div>Head Tube Angle (°) *</div>
+										</td>
+										for _, sz := range sizes {
+											{{ geo := activeConfig.Geometries[sz] }}
+											<td class="p-1.5 border-r border-slate-800/80">
+												<input
+													type="number"
+													step="any"
+													required
+													name={ "hta_deg_" + sz }
+													value={ fmt.Sprintf("%.2f", geo.HtaDeg) }
+													placeholder="deg"
+													class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500"
+												/>
+											</td>
+										}
+										<td class="p-1.5 text-center">
+											<button
+												type="button"
+												onclick="copyRowToAll('hta_deg')"
+												class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer"
+												title="Copy value across all sizes"
+											>
+												[-> All]
+											</button>
+										</td>
+									</tr>
+
+									<!-- Seat Tube Angle -->
+									<tr class="hover:bg-slate-900/50">
+										<td class="p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800">
+											<div>Seat Tube Angle (°) *</div>
+										</td>
+										for _, sz := range sizes {
+											{{ geo := activeConfig.Geometries[sz] }}
+											<td class="p-1.5 border-r border-slate-800/80">
+												<input
+													type="number"
+													step="any"
+													required
+													name={ "sta_deg_" + sz }
+													value={ fmt.Sprintf("%.2f", geo.StaDeg) }
+													placeholder="deg"
+													class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500"
+												/>
+											</td>
+										}
+										<td class="p-1.5 text-center">
+											<button
+												type="button"
+												onclick="copyRowToAll('sta_deg')"
+												class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer"
+												title="Copy value across all sizes"
+											>
+												[-> All]
+											</button>
+										</td>
+									</tr>
+
+									<!-- Head Tube Length -->
+									<tr class="hover:bg-slate-900/50">
+										<td class="p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800">
+											<div>Head Tube Length (mm) *</div>
+										</td>
+										for _, sz := range sizes {
+											{{ geo := activeConfig.Geometries[sz] }}
+											<td class="p-1.5 border-r border-slate-800/80">
+												<input
+													type="number"
+													step="any"
+													required
+													name={ "htl_" + sz }
+													value={ fmt.Sprintf("%.1f", geo.Htl) }
+													placeholder="mm"
+													class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500"
+												/>
+											</td>
+										}
+										<td class="p-1.5 text-center"></td>
+									</tr>
+
+									<!-- BB Drop -->
+									<tr class="hover:bg-slate-900/50">
+										<td class="p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800">
+											<div>BB Drop (mm) *</div>
+										</td>
+										for _, sz := range sizes {
+											{{ geo := activeConfig.Geometries[sz] }}
+											<td class="p-1.5 border-r border-slate-800/80">
+												<input
+													type="number"
+													step="any"
+													required
+													name={ "bb_drop_" + sz }
+													value={ fmt.Sprintf("%.1f", geo.BbDrop) }
+													placeholder="mm"
+													class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500"
+												/>
+											</td>
+										}
+										<td class="p-1.5 text-center">
+											<button
+												type="button"
+												onclick="copyRowToAll('bb_drop')"
+												class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer"
+												title="Copy value across all sizes"
+											>
+												[-> All]
+											</button>
+										</td>
+									</tr>
+
+									<!-- Fork Rake -->
+									<tr class="hover:bg-slate-900/50">
+										<td class="p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800">
+											<div>Fork Rake / Offset (mm) *</div>
+										</td>
+										for _, sz := range sizes {
+											{{ geo := activeConfig.Geometries[sz] }}
+											<td class="p-1.5 border-r border-slate-800/80">
+												<input
+													type="number"
+													step="any"
+													required
+													name={ "fork_rake_" + sz }
+													value={ fmt.Sprintf("%.1f", geo.ForkRake) }
+													placeholder="mm"
+													class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500"
+												/>
+											</td>
+										}
+										<td class="p-1.5 text-center">
+											<button
+												type="button"
+												onclick="copyRowToAll('fork_rake')"
+												class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer"
+												title="Copy value across all sizes"
+											>
+												[-> All]
+											</button>
+										</td>
+									</tr>
+
+									<!-- Wheelbase -->
+									<tr class="hover:bg-slate-900/50">
+										<td class="p-2 font-medium text-slate-300 sticky left-0 bg-slate-950 z-10 border-r border-slate-800">
+											<div>Wheelbase (mm) *</div>
+										</td>
+										for _, sz := range sizes {
+											{{ geo := activeConfig.Geometries[sz] }}
+											<td class="p-1.5 border-r border-slate-800/80">
+												<input
+													type="number"
+													step="any"
+													required
+													name={ "wheelbase_" + sz }
+													value={ fmt.Sprintf("%.1f", geo.Wheelbase) }
+													placeholder="mm"
+													class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500"
+												/>
+											</td>
+										}
+										<td class="p-1.5 text-center"></td>
+									</tr>
+
+									<!-- Chainstay Length -->
+									<tr class="hover:bg-slate-900/50">
+										<td class="p-2 font-medium text-slate-400 sticky left-0 bg-slate-950 z-10 border-r border-slate-800">
+											<div>Chainstay Length (mm)</div>
+										</td>
+										for _, sz := range sizes {
+											{{ geo := activeConfig.Geometries[sz] }}
+											<td class="p-1.5 border-r border-slate-800/80">
+												<input
+													type="number"
+													step="any"
+													name={ "chainstay_" + sz }
+													value={ fmt.Sprintf("%.1f", geo.ChainstayLength) }
+													placeholder="mm"
+													class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500"
+												/>
+											</td>
+										}
+										<td class="p-1.5 text-center">
+											<button
+												type="button"
+												onclick="copyRowToAll('chainstay')"
+												class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] border border-slate-700 cursor-pointer"
+												title="Copy value across all sizes"
+											>
+												[-> All]
+											</button>
+										</td>
+									</tr>
+
+									<!-- Seat Tube Length -->
+									<tr class="hover:bg-slate-900/50">
+										<td class="p-2 font-medium text-slate-400 sticky left-0 bg-slate-950 z-10 border-r border-slate-800">
+											<div>Seat Tube Length (mm)</div>
+										</td>
+										for _, sz := range sizes {
+											{{ geo := activeConfig.Geometries[sz] }}
+											<td class="p-1.5 border-r border-slate-800/80">
+												<input
+													type="number"
+													step="any"
+													name={ "seat_tube_" + sz }
+													value={ fmt.Sprintf("%.1f", geo.SeatTubeLength) }
+													placeholder="mm"
+													class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white text-xs focus:border-amber-500"
+												/>
+											</td>
+										}
+										<td class="p-1.5 text-center"></td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
 					</div>
 				}
 
-				<!-- Footer with Save & Loading Indicator (Target Pattern 3) -->
-				<div class="flex items-center justify-between pt-4 border-t border-slate-800">
+				<!-- Footer with Save & Loading Indicator -->
+				<div class="flex items-center justify-between pt-4 border-t border-slate-800 shrink-0">
 					<!-- Loading Indicator via hx-indicator -->
 					<div id="save-indicator" class="htmx-indicator flex items-center gap-2 text-xs font-semibold text-amber-400">
 						<svg class="animate-spin w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24">
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 						</svg>
-						<span>Saving & validating frame geometry...</span>
+						<span>Saving & validating frame geometry table...</span>
 					</div>
 
 					<div class="flex items-center gap-3 ml-auto">
@@ -442,11 +744,28 @@ templ EditorModal(
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
 							</svg>
-							<span>Save Geometry</span>
+							<span>Save Frame Model</span>
 						</button>
 					</div>
 				</div>
 			</form>
 		</div>
 	</div>
+
+	<script>
+		function copyRowToAll(prefix) {
+			const inputs = document.querySelectorAll(`input[name^="${prefix}_"]`);
+			let val = null;
+			inputs.forEach(inp => {
+				if (val === null && inp.value && parseFloat(inp.value) > 0) {
+					val = inp.value;
+				}
+			});
+			if (val !== null) {
+				inputs.forEach(inp => {
+					inp.value = val;
+				});
+			}
+		}
+	</script>
 }

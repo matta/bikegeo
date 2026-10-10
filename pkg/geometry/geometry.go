@@ -3,6 +3,7 @@ package geometry
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"bikegeo/pkg/model"
 )
@@ -250,3 +251,135 @@ func AnalyzeBikeFit(
 		InferredPublishMode: inferredPublishMode,
 	}
 }
+
+// MaterializeBikeGeometry projects a FrameModel for a given size and configuration into a BikeGeometry instance.
+// If the target configuration has explicit published geometry for the size, it is used directly.
+// If explicit values are missing, it derives them dynamically by pitching the baseline geometry around the rear axle.
+func MaterializeBikeGeometry(frame model.FrameModel, size string, configID string) (model.BikeGeometry, error) {
+	if size == "" {
+		size = frame.GetDefaultSize()
+	}
+
+	targetConfig := frame.GetConfiguration(configID)
+	if targetConfig == nil {
+		targetConfig = frame.GetBaselineConfiguration()
+	}
+	if targetConfig == nil {
+		return model.BikeGeometry{}, fmt.Errorf("frame %s has no configurations", frame.ID)
+	}
+
+	cupStack := frame.CupStack
+	if targetConfig.CupStack != nil {
+		cupStack = *targetConfig.CupStack
+	}
+	if cupStack == 0 && frame.HeadsetCupType == model.CupEC44 {
+		cupStack = 12.0
+	}
+
+	bikeID := frame.ID
+	if !strings.HasSuffix(strings.ToLower(bikeID), "-"+strings.ToLower(size)) {
+		bikeID = fmt.Sprintf("%s-%s", frame.ID, strings.ToLower(size))
+	}
+	if !targetConfig.IsBaseline && targetConfig.ID != "" && targetConfig.ID != "stock" {
+		bikeID = fmt.Sprintf("%s-%s", bikeID, targetConfig.ID)
+	}
+
+	res := model.BikeGeometry{
+		ID:                     bikeID,
+		Manufacturer:           frame.Manufacturer,
+		Model:                  frame.Model,
+		Size:                   size,
+		Year:                   frame.Year,
+		Category:               frame.Category,
+		Notes:                  frame.Notes,
+		WheelSize:              frame.WheelSize,
+		HeadsetCupType:         frame.HeadsetCupType,
+		CupStack:               cupStack,
+		SeatHeight:             frame.SeatHeight,
+		ForkTravelMm:           targetConfig.ForkTravelMm,
+		ForkA2c:                targetConfig.ForkA2c,
+		SagPercentagePublished: targetConfig.SagPercentagePublished,
+	}
+
+	// 1. Direct explicit geometry match
+	if targetConfig.Geometries != nil {
+		if geo, ok := targetConfig.Geometries[size]; ok && geo.Reach > 0 && geo.Stack > 0 {
+			res.Reach = geo.Reach
+			res.Stack = geo.Stack
+			res.HtaDeg = geo.HtaDeg
+			res.StaDeg = geo.StaDeg
+			res.Htl = geo.Htl
+			res.BbDrop = geo.BbDrop
+			res.ForkRake = geo.ForkRake
+			res.Wheelbase = geo.Wheelbase
+			res.ChainstayLength = geo.ChainstayLength
+			res.FrontCenter = geo.FrontCenter
+			res.SeatTubeLength = geo.SeatTubeLength
+			return res, nil
+		}
+	}
+
+	// 2. Kinematic derivation from baseline configuration
+	baseConfig := frame.GetBaselineConfiguration()
+	if baseConfig == nil {
+		return res, fmt.Errorf("baseline configuration missing for frame %s", frame.ID)
+	}
+
+	var baseGeo model.SizeGeometry
+	var foundBase bool
+	if baseConfig.Geometries != nil {
+		baseGeo, foundBase = baseConfig.Geometries[size]
+	}
+	if !foundBase {
+		// Fallback: search any other config for this size
+		for _, cfg := range frame.Configurations {
+			if cfg.Geometries != nil {
+				if g, ok := cfg.Geometries[size]; ok && g.Reach > 0 {
+					baseGeo = g
+					foundBase = true
+					break
+				}
+			}
+		}
+	}
+	if !foundBase {
+		return res, fmt.Errorf("size %s not defined in frame %s", size, frame.ID)
+	}
+
+	baseCup := frame.CupStack
+	if baseConfig.CupStack != nil {
+		baseCup = *baseConfig.CupStack
+	}
+	if baseCup == 0 && frame.HeadsetCupType == model.CupEC44 {
+		baseCup = 12.0
+	}
+	baseStructuralA2c := baseConfig.ForkA2c + baseCup
+	targetStructuralA2c := targetConfig.ForkA2c + cupStack
+
+	dyn := CalculateDynamicGeometry(
+		baseGeo.Reach,
+		baseGeo.Stack,
+		baseGeo.HtaDeg,
+		baseGeo.StaDeg,
+		baseGeo.BbDrop,
+		baseStructuralA2c,
+		targetStructuralA2c,
+		baseGeo.Wheelbase,
+		baseGeo.ChainstayLength,
+	)
+
+	res.Reach = dyn.NewReach
+	res.Stack = dyn.NewStack
+	res.HtaDeg = dyn.NewHta
+	res.StaDeg = dyn.NewSta
+	res.Htl = baseGeo.Htl
+	res.BbDrop = dyn.NewBbDrop
+	res.ForkRake = baseGeo.ForkRake
+	res.Wheelbase = baseGeo.Wheelbase
+	res.ChainstayLength = baseGeo.ChainstayLength
+	res.FrontCenter = baseGeo.FrontCenter
+	res.SeatTubeLength = baseGeo.SeatTubeLength
+
+	return res, nil
+}
+

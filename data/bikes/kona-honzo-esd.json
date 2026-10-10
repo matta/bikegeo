@@ -1,0 +1,41 @@
+{
+  "id": "kona-honzo-esd",
+  "manufacturer": "Kona",
+  "model": "Honzo ESD",
+  "year": 2024,
+  "category": "hardtail",
+  "notes": "Radical hardcore hardtail with 63\u00b0 HTA and 150mm Marzocchi Bomber Z1 fork (561mm static A2C).",
+  "wheel_size": "29",
+  "headset_cup_type": "ZS44",
+  "cup_stack": 2.0,
+  "seat_height": 770,
+  "sizes": [
+    "L"
+  ],
+  "default_size": "L",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock Build",
+      "is_baseline": true,
+      "fork_travel_mm": 150,
+      "fork_a2c": 561,
+      "sag_percentage_published": 0,
+      "geometries": {
+        "L": {
+          "reach": 490,
+          "stack": 640,
+          "hta_deg": 63.0,
+          "sta_deg": 77.5,
+          "htl": 110,
+          "bb_drop": 65,
+          "fork_rake": 44,
+          "wheelbase": 1260,
+          "chainstay_length": 435,
+          "front_center": 0,
+          "seat_tube_length": 0
+        }
+      }
+    }
+  ]
+}

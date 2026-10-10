@@ -1,0 +1,49 @@
+{
+  "id": "otso-fenrir-stainless",
+  "manufacturer": "Otso",
+  "model": "Fenrir Stainless",
+  "year": 2024,
+  "category": "hardtail",
+  "wheel_size": "29",
+  "headset_cup_type": "EC44",
+  "cup_stack": 12,
+  "sizes": [
+    "L",
+    "XL"
+  ],
+  "default_size": "L",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock Build",
+      "is_baseline": true,
+      "fork_travel_mm": 110,
+      "fork_a2c": 495,
+      "sag_percentage_published": 0,
+      "geometries": {
+        "L": {
+          "reach": 428,
+          "stack": 642,
+          "hta_deg": 68,
+          "sta_deg": 75,
+          "htl": 140,
+          "bb_drop": 68,
+          "fork_rake": 44,
+          "wheelbase": 1155,
+          "seat_tube_length": 490
+        },
+        "XL": {
+          "reach": 441,
+          "stack": 660,
+          "hta_deg": 68,
+          "sta_deg": 75,
+          "htl": 160,
+          "bb_drop": 68,
+          "fork_rake": 51,
+          "wheelbase": 1190,
+          "seat_tube_length": 530
+        }
+      }
+    }
+  ]
+}
