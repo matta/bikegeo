@@ -200,7 +200,14 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	if isHtmx(r) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_ = contentComponent.Render(r.Context(), w)
+		if err := templates.NavbarOOB(tab, len(bikes)).Render(r.Context(), w); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := contentComponent.Render(r.Context(), w); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		return
 	}
 

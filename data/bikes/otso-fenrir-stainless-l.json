@@ -1,0 +1,19 @@
+{
+  "id": "otso-fenrir-stainless-l",
+  "manufacturer": "Otso",
+  "model": "Fenrir Stainless",
+  "size": "L",
+  "category": "hardtail",
+  "reach": 428,
+  "stack": 642,
+  "hta_deg": 68,
+  "sta_deg": 75,
+  "htl": 140,
+  "bb_drop": 68,
+  "fork_rake": 44,
+  "wheelbase": 1155,
+  "fork_travel_mm": 110,
+  "fork_a2c": 495,
+  "headset_cup_type": "EC44",
+  "cup_stack": 12
+}

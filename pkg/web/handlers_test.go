@@ -91,6 +91,30 @@ func TestIndexPage(t *testing.T) {
 	if !strings.Contains(bodyHtmx, "Master Stack Equation Proof") {
 		t.Errorf("Expected validator view to contain 'Master Stack Equation Proof'")
 	}
+	// Verify that Navbar is swapped out-of-band with Master Stack CAD Proof button highlighted
+	if !strings.Contains(bodyHtmx, `id="main-navbar" hx-swap-oob="true"`) {
+		t.Errorf("Expected out-of-band navbar swap with hx-swap-oob=\"true\"")
+	}
+	if !strings.Contains(bodyHtmx, "bg-amber-500") {
+		t.Errorf("Expected highlighted button to contain amber background class")
+	}
+
+	// 3. HTMX GET /?tab=compare
+	reqCompare := httptest.NewRequest(http.MethodGet, "/?tab=compare", nil)
+	reqCompare.Header.Set("HX-Request", "true")
+	recCompare := httptest.NewRecorder()
+	srv.ServeHTTP(recCompare, reqCompare)
+
+	if recCompare.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for HTMX compare request, got %d", recCompare.Code)
+	}
+	bodyCompare := recCompare.Body.String()
+	if !strings.Contains(bodyCompare, `id="main-navbar" hx-swap-oob="true"`) {
+		t.Errorf("Expected out-of-band navbar swap on compare tab")
+	}
+	if !strings.Contains(bodyCompare, "comparison-matrix") {
+		t.Errorf("Expected compare view to contain 'comparison-matrix'")
+	}
 }
 
 // Test Target Pattern 1: Inline Editable Data Cell
