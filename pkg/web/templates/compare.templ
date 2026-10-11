@@ -411,7 +411,8 @@ templ ComparisonMatrix(
 											<button
 												type="button"
 												hx-get={ fmt.Sprintf("/bikes/%s/edit", row.Bike.ID) }
-												hx-target="#modal-container"
+												hx-target="#app-content"
+												hx-push-url={ fmt.Sprintf("/bikes/%s/edit", row.Bike.ID) }
 												class="text-[10px] text-slate-400 hover:text-amber-400 cursor-pointer flex items-center gap-1 transition"
 												title="Edit Frame Model in Multi-Size Grid"
 											>

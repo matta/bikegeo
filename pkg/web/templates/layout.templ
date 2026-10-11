@@ -23,7 +23,8 @@ templ Layout(title string, activeTab string) {
 			<div id="navbar-container">
 				{ children... }
 			</div>
-			<div id="modal-container"></div>
+			<!-- Modals removed in favor of inline page view idioms -->
+			<div id="modal-container" class="hidden"></div>
 		</body>
 	</html>
 }

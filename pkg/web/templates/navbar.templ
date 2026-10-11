@@ -82,7 +82,8 @@ templ navbarInner(activeTab string, bikeCount int) {
 
 				<button
 					hx-get="/bikes/new"
-					hx-target="#modal-container"
+					hx-target="#app-content"
+					hx-push-url="/bikes/new"
 					class="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-amber-500/10 cursor-pointer"
 				>
 					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

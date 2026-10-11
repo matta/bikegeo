@@ -44,6 +44,7 @@ func isHtmx(r *http.Request) bool {
 func (s *Server) routes() {
 	// Static files
 	s.mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	s.mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
 
 	// Main web app pages and fragments
 	s.mux.HandleFunc("GET /", s.handleIndex)
@@ -238,8 +239,13 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
+	s.renderPageOrFragment(w, r, tab, contentComponent)
+}
+
+func (s *Server) renderPageOrFragment(w http.ResponseWriter, r *http.Request, tab string, contentComponent templ.Component) {
+	bikes, _ := s.store.GetAllBikes()
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if isHtmx(r) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := templates.NavbarOOB(tab, len(bikes)).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -252,7 +258,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page := templates.Layout("BikeGeo Analyst - Apples-to-Apples Frame Comparison", tab)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = page.Render(templ.WithChildren(r.Context(), templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
 		if err := templates.Navbar(tab, len(bikes)).Render(ctx, w); err != nil {
 			return err
@@ -755,8 +760,8 @@ func (s *Server) handleBikeNew(w http.ResponseWriter, r *http.Request) {
 
 	matBike, _ := geometry.MaterializeBikeGeometry(newFrame, newFrame.GetDefaultSize(), "")
 	report := validator.ValidateBikeGeometry(matBike)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = templates.EditorModal(newFrame, true, &report, "", "form", "stock").Render(r.Context(), w)
+	comp := templates.EditorModal(newFrame, true, &report, "", "form", "stock")
+	s.renderPageOrFragment(w, r, "validator", comp)
 }
 
 func (s *Server) handleBikeEdit(w http.ResponseWriter, r *http.Request) {
@@ -816,8 +821,8 @@ func (s *Server) handleBikeEdit(w http.ResponseWriter, r *http.Request) {
 
 	matBike, _ := geometry.MaterializeBikeGeometry(*frame, frame.GetDefaultSize(), "")
 	report := validator.ValidateBikeGeometry(matBike)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = templates.EditorModal(*frame, false, &report, "", "form", frame.GetBaselineConfiguration().ID).Render(r.Context(), w)
+	comp := templates.EditorModal(*frame, false, &report, "", "form", frame.GetBaselineConfiguration().ID)
+	s.renderPageOrFragment(w, r, "validator", comp)
 }
 
 func (s *Server) handleModalToggleView(w http.ResponseWriter, r *http.Request) {
@@ -1226,7 +1231,11 @@ func (s *Server) handleBikeSave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defaultBike, _ := geometry.MaterializeBikeGeometry(*savedFrame, savedFrame.GetDefaultSize(), "")
-	w.Header().Set("HX-Location", fmt.Sprintf("/?tab=validator&id=%s", defaultBike.ID))
+	locSave, _ := json.Marshal(map[string]string{
+		"path":   fmt.Sprintf("/?tab=validator&id=%s", defaultBike.ID),
+		"target": "#app-content",
+	})
+	w.Header().Set("HX-Location", string(locSave))
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -1234,7 +1243,11 @@ func (s *Server) handleBikeDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	_, _ = s.store.DeleteBike(id)
 
-	w.Header().Set("HX-Location", "/?tab=validator")
+	locDel, _ := json.Marshal(map[string]string{
+		"path":   "/?tab=validator",
+		"target": "#app-content",
+	})
+	w.Header().Set("HX-Location", string(locDel))
 	w.WriteHeader(http.StatusOK)
 }
 

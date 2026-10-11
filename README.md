@@ -36,7 +36,7 @@ This project is built around the hypermedia architecture:
 2. **Benchmark UX Patterns Implemented**:
    - **Inline-Editable Data Cells**: Click any cell (e.g. Reach or Stack) to edit in place, saved via `hx-post`, swapping back into updated display markup.
    - **Debounced Search-as-You-Type**: Search box with `hx-trigger="keyup changed delay:300ms, search"` filters the comparison matrix without full page reloads.
-   - **Asynchronous Form Submission**: Add/Edit modal with `hx-indicator` loading spinner and live inline validation errors.
+   - **Asynchronous Form Submission**: Add/Edit view with `hx-indicator` loading spinner and live inline validation errors.
 
 3. **Hardtail Geometry Dynamics**:
    - Hardtails compress **only at the front fork**, which dynamically rotates the entire frame around the rear axle.

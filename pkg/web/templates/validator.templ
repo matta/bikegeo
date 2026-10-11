@@ -32,7 +32,8 @@ templ ValidatorSidebar(frames []model.FrameModel, inspectedFrameId string, repor
 			<button
 				type="button"
 				hx-get="/bikes/new"
-				hx-target="#modal-container"
+				hx-target="#app-content"
+				hx-push-url="/bikes/new"
 				class="text-xs text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
 			>
 				<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -86,7 +87,8 @@ templ ValidatorSidebar(frames []model.FrameModel, inspectedFrameId string, repor
 							<button
 								type="button"
 								hx-get={ fmt.Sprintf("/bikes/%s/edit", f.ID) }
-								hx-target="#modal-container"
+								hx-target="#app-content"
+								hx-push-url={ fmt.Sprintf("/bikes/%s/edit", f.ID) }
 								class="hover:text-amber-400 transition cursor-pointer"
 								title="Edit frame model geometry grid"
 							>
@@ -159,7 +161,8 @@ templ ValidatorHeader(frame *model.FrameModel, bike model.BikeGeometry, report m
 					<button
 						type="button"
 						hx-get={ fmt.Sprintf("/bikes/%s/edit", frame.ID) }
-						hx-target="#modal-container"
+						hx-target="#app-content"
+						hx-push-url={ fmt.Sprintf("/bikes/%s/edit", frame.ID) }
 						class="px-3.5 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg transition cursor-pointer shadow-sm flex items-center gap-1.5"
 					>
 						<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
