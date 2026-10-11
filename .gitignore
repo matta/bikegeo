@@ -3,3 +3,6 @@ dist
 npm-debug.log*
 .DS_Store
 bin/
+playwright-report/
+test-results/
+tmp/

@@ -1219,6 +1219,7 @@ func (s *Server) handleBikeSave(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		_ = templates.EditorModal(frame, isNew, &report, "Please resolve the validation errors highlighted below.", "form", activeConfigID).Render(r.Context(), w)
 		return
 	}

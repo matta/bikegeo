@@ -153,6 +153,7 @@ templ EditorModal(
 			hx-post={ fmt.Sprintf("/bikes/save?is_new=%t", isNew) }
 			hx-target="#app-content"
 			hx-indicator="#save-indicator"
+			novalidate
 			class="space-y-6"
 		>
 			<input type="hidden" name="id" value={ frame.ID }/>

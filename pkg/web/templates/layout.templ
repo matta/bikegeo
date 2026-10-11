@@ -18,6 +18,20 @@ templ Layout(title string, activeTab string) {
 					display: inline-flex;
 				}
 			</style>
+			<script>
+				// Allow HTMX to swap HTTP 422 Unprocessable Entity responses.
+				// By default, HTMX ignores 4xx/5xx responses and skips DOM swapping.
+				// Intercepting 'htmx:beforeSwap' sets shouldSwap=true and isError=false
+				// for status 422, allowing server-rendered form validation error partials
+				// to be swapped into the target container while maintaining semantically
+				// accurate HTTP status codes.
+				document.addEventListener("htmx:beforeSwap", function(evt) {
+					if (evt.detail.xhr.status === 422) {
+						evt.detail.shouldSwap = true;
+						evt.detail.isError = false;
+					}
+				});
+			</script>
 		</head>
 		<body class="min-h-full flex flex-col font-sans antialiased bg-slate-950 text-slate-100">
 			<div id="navbar-container">
