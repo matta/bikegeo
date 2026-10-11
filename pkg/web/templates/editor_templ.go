@@ -37,7 +37,7 @@ func frameToJson(f model.FrameModel) string {
 	return string(bytes)
 }
 
-func EditorModal(
+func FrameEditorView(
 	frame model.FrameModel,
 	isNew bool,
 	report *model.ValidationReport,
@@ -89,7 +89,7 @@ func EditorModal(
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(cancelUrl)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 65, Col: 23}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 65, Col: 23}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -108,7 +108,7 @@ func EditorModal(
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("Edit: %s %s", frame.Manufacturer, frame.Model))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 79, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 79, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -120,9 +120,9 @@ func EditorModal(
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/bikes/modal-toggle-view?is_new=%t&mode=%s", isNew, map[bool]string{true: "json", false: "form"}[viewMode != "json"]))
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/bikes/editor/toggle-view?is_new=%t&mode=%s", isNew, map[bool]string{true: "json", false: "form"}[viewMode != "json"]))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 91, Col: 144}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 91, Col: 145}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -150,7 +150,7 @@ func EditorModal(
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(cancelUrl)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 105, Col: 23}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 105, Col: 23}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -168,7 +168,7 @@ func EditorModal(
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(frame.GetDefaultSize())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 119, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 119, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -181,7 +181,7 @@ func EditorModal(
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.1f mm", report.GeometricA2c))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 120, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 120, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -199,7 +199,7 @@ func EditorModal(
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%+.1f mm", *report.A2cDifference))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 123, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 123, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -227,7 +227,7 @@ func EditorModal(
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d issue(s) detected", len(report.Issues)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 137, Col: 64}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 137, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -251,7 +251,7 @@ func EditorModal(
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(serverError)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 146, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 146, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -269,7 +269,7 @@ func EditorModal(
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/bikes/save?is_new=%t", isNew))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 153, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 153, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 		if templ_7745c5c3_Err != nil {
@@ -282,7 +282,7 @@ func EditorModal(
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(frame.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 159, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 159, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 		if templ_7745c5c3_Err != nil {
@@ -295,7 +295,7 @@ func EditorModal(
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConfig.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 160, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 160, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 		if templ_7745c5c3_Err != nil {
@@ -313,7 +313,7 @@ func EditorModal(
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(frameToJson(frame))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 170, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 170, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -331,7 +331,7 @@ func EditorModal(
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(frame.Manufacturer)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 186, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 186, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 			if templ_7745c5c3_Err != nil {
@@ -349,7 +349,7 @@ func EditorModal(
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(issue.Title)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 191, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 191, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -367,7 +367,7 @@ func EditorModal(
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(frame.Model)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 200, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 200, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 			if templ_7745c5c3_Err != nil {
@@ -385,7 +385,7 @@ func EditorModal(
 				var templ_7745c5c3_Var18 string
 				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(issue.Title)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 205, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 205, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
@@ -403,7 +403,7 @@ func EditorModal(
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%d", frame.Year))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 213, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 213, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 			if templ_7745c5c3_Err != nil {
@@ -456,7 +456,7 @@ func EditorModal(
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(frame.WheelSize)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 234, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 234, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
 			if templ_7745c5c3_Err != nil {
@@ -509,7 +509,7 @@ func EditorModal(
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", frame.CupStack))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 257, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 257, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 			if templ_7745c5c3_Err != nil {
@@ -522,7 +522,7 @@ func EditorModal(
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue(frame.Notes)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 267, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 267, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
 			if templ_7745c5c3_Err != nil {
@@ -546,9 +546,9 @@ func EditorModal(
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var24 string
-				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/bikes/modal/action?act=switch-config&config_id=%s", cfg.ID))
+				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/bikes/editor/action?act=switch-config&config_id=%s", cfg.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 287, Col: 93}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 287, Col: 94}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
 				if templ_7745c5c3_Err != nil {
@@ -561,7 +561,7 @@ func EditorModal(
 				var templ_7745c5c3_Var25 string
 				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var23).String())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 1, Col: 0}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 1, Col: 0}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var25)
 				if templ_7745c5c3_Err != nil {
@@ -574,7 +574,7 @@ func EditorModal(
 				var templ_7745c5c3_Var26 string
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(cfg.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 294, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 294, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
@@ -595,14 +595,14 @@ func EditorModal(
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</div></div><button type=\"button\" hx-post=\"/bikes/modal/action?act=add-config\" hx-target=\"#app-content\" hx-include=\"#bike-editor-form\" class=\"px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs border border-slate-700 flex items-center gap-1 transition cursor-pointer\"><svg class=\"w-3.5 h-3.5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg> <span>+ Add Config</span></button></div><!-- Active Configuration Specs --><div class=\"grid grid-cols-2 sm:grid-cols-6 gap-3.5 pt-2 border-t border-slate-800/50\"><div class=\"col-span-2\"><label class=\"block text-[11px] text-slate-400 mb-1\">Config Name</label> <input type=\"text\" name=\"active_config_name\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</div></div><button type=\"button\" hx-post=\"/bikes/editor/action?act=add-config\" hx-target=\"#app-content\" hx-include=\"#bike-editor-form\" class=\"px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs border border-slate-700 flex items-center gap-1 transition cursor-pointer\"><svg class=\"w-3.5 h-3.5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg> <span>+ Add Config</span></button></div><!-- Active Configuration Specs --><div class=\"grid grid-cols-2 sm:grid-cols-6 gap-3.5 pt-2 border-t border-slate-800/50\"><div class=\"col-span-2\"><label class=\"block text-[11px] text-slate-400 mb-1\">Config Name</label> <input type=\"text\" name=\"active_config_name\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConfig.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 322, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 322, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 			if templ_7745c5c3_Err != nil {
@@ -630,7 +630,7 @@ func EditorModal(
 				var templ_7745c5c3_Var28 string
 				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue(opt.ID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 344, Col: 24}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 344, Col: 24}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
 				if templ_7745c5c3_Err != nil {
@@ -643,7 +643,7 @@ func EditorModal(
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", opt.StaticA2c))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 345, Col: 55}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 345, Col: 55}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
 				if templ_7745c5c3_Err != nil {
@@ -656,7 +656,7 @@ func EditorModal(
 				var templ_7745c5c3_Var30 string
 				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", opt.TravelMm))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 346, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 346, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 				if templ_7745c5c3_Err != nil {
@@ -669,7 +669,7 @@ func EditorModal(
 				var templ_7745c5c3_Var31 string
 				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", opt.Rake))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 347, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 347, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
 				if templ_7745c5c3_Err != nil {
@@ -692,7 +692,7 @@ func EditorModal(
 				var templ_7745c5c3_Var32 string
 				templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 350, Col: 20}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 350, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 				if templ_7745c5c3_Err != nil {
@@ -705,7 +705,7 @@ func EditorModal(
 				var templ_7745c5c3_Var33 string
 				templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.0f", opt.StaticA2c))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 350, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 350, Col: 65}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 				if templ_7745c5c3_Err != nil {
@@ -723,7 +723,7 @@ func EditorModal(
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", activeConfig.Fork.TravelMm))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 362, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 362, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
 			if templ_7745c5c3_Err != nil {
@@ -736,7 +736,7 @@ func EditorModal(
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", activeConfig.Fork.A2c))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 373, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 373, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
 			if templ_7745c5c3_Err != nil {
@@ -749,7 +749,7 @@ func EditorModal(
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", activeConfig.Fork.Rake))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 384, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 384, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
 			if templ_7745c5c3_Err != nil {
@@ -760,7 +760,7 @@ func EditorModal(
 				return templ_7745c5c3_Err
 			}
 			if !activeConfig.IsBaseline {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "<div class=\"flex items-center justify-between bg-indigo-950/30 border border-indigo-800/30 rounded-lg px-3 py-2 text-xs text-indigo-300\"><span>Alternative Configuration: Enter published values below or derive dynamically from baseline.</span> <button type=\"button\" hx-post=\"/bikes/modal/action?act=kinematic-fill\" hx-target=\"#app-content\" hx-include=\"#bike-editor-form\" class=\"px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[11px] cursor-pointer flex items-center gap-1 shadow-sm transition\"><svg class=\"w-3.5 h-3.5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15\"></path></svg> <span>Kinematic Auto-Fill</span></button></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "<div class=\"flex items-center justify-between bg-indigo-950/30 border border-indigo-800/30 rounded-lg px-3 py-2 text-xs text-indigo-300\"><span>Alternative Configuration: Enter published values below or derive dynamically from baseline.</span> <button type=\"button\" hx-post=\"/bikes/editor/action?act=kinematic-fill\" hx-target=\"#app-content\" hx-include=\"#bike-editor-form\" class=\"px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[11px] cursor-pointer flex items-center gap-1 shadow-sm transition\"><svg class=\"w-3.5 h-3.5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15\"></path></svg> <span>Kinematic Auto-Fill</span></button></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -772,7 +772,7 @@ func EditorModal(
 			var templ_7745c5c3_Var37 string
 			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(activeConfig.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 412, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 412, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
@@ -785,13 +785,13 @@ func EditorModal(
 			var templ_7745c5c3_Var38 string
 			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("(%d Sizes Defined)", len(sizes)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 415, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 415, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "</span></div><div class=\"flex items-center gap-2\"><span class=\"text-[11px] text-slate-400\">Quick Sizing Presets:</span> <button type=\"button\" hx-post=\"/bikes/modal/action?act=preset&preset_type=s_xl\" hx-target=\"#app-content\" hx-include=\"#bike-editor-form\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer\">S, M, L, XL</button> <button type=\"button\" hx-post=\"/bikes/modal/action?act=preset&preset_type=s1_s6\" hx-target=\"#app-content\" hx-include=\"#bike-editor-form\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer\">S1–S6</button> <button type=\"button\" hx-post=\"/bikes/modal/action?act=preset&preset_type=cm\" hx-target=\"#app-content\" hx-include=\"#bike-editor-form\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer\">49–61cm</button> <button type=\"button\" hx-post=\"/bikes/modal/action?act=add-size\" hx-target=\"#app-content\" hx-include=\"#bike-editor-form\" class=\"px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-xs font-medium border border-cyan-500/40 cursor-pointer flex items-center gap-1\"><svg class=\"w-3.5 h-3.5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg> <span>+ Add Size</span></button></div></div><!-- Geometry Table --><div class=\"overflow-x-auto border border-slate-800 rounded-xl bg-slate-950/60 shadow-inner\"><table class=\"w-full text-left text-xs border-collapse\"><thead><tr class=\"bg-slate-950 border-b border-slate-800 text-slate-300\"><th class=\"p-2.5 font-semibold w-48 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\">Frame Dimension</th>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "</span></div><div class=\"flex items-center gap-2\"><span class=\"text-[11px] text-slate-400\">Quick Sizing Presets:</span> <button type=\"button\" hx-post=\"/bikes/editor/action?act=preset&preset_type=s_xl\" hx-target=\"#app-content\" hx-include=\"#bike-editor-form\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer\">S, M, L, XL</button> <button type=\"button\" hx-post=\"/bikes/editor/action?act=preset&preset_type=s1_s6\" hx-target=\"#app-content\" hx-include=\"#bike-editor-form\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer\">S1–S6</button> <button type=\"button\" hx-post=\"/bikes/editor/action?act=preset&preset_type=cm\" hx-target=\"#app-content\" hx-include=\"#bike-editor-form\" class=\"px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer\">49–61cm</button> <button type=\"button\" hx-post=\"/bikes/editor/action?act=add-size\" hx-target=\"#app-content\" hx-include=\"#bike-editor-form\" class=\"px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-xs font-medium border border-cyan-500/40 cursor-pointer flex items-center gap-1\"><svg class=\"w-3.5 h-3.5\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 4v16m8-8H4\"></path></svg> <span>+ Add Size</span></button></div></div><!-- Geometry Table --><div class=\"overflow-x-auto border border-slate-800 rounded-xl bg-slate-950/60 shadow-inner\"><table class=\"w-full text-left text-xs border-collapse\"><thead><tr class=\"bg-slate-950 border-b border-slate-800 text-slate-300\"><th class=\"p-2.5 font-semibold w-48 sticky left-0 bg-slate-950 z-10 border-r border-slate-800\">Frame Dimension</th>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -803,7 +803,7 @@ func EditorModal(
 				var templ_7745c5c3_Var39 string
 				templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue(sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 475, Col: 23}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 475, Col: 23}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
 				if templ_7745c5c3_Err != nil {
@@ -819,9 +819,9 @@ func EditorModal(
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var40 string
-					templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/bikes/modal/action?act=remove-size&size=%s", sz))
+					templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/bikes/editor/action?act=remove-size&size=%s", sz))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 481, Col: 86}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 481, Col: 87}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var40)
 					if templ_7745c5c3_Err != nil {
@@ -850,7 +850,7 @@ func EditorModal(
 				var templ_7745c5c3_Var41 string
 				templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue("reach_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 511, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 511, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
 				if templ_7745c5c3_Err != nil {
@@ -863,7 +863,7 @@ func EditorModal(
 				var templ_7745c5c3_Var42 string
 				templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.Reach))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 512, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 512, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 				if templ_7745c5c3_Err != nil {
@@ -887,7 +887,7 @@ func EditorModal(
 				var templ_7745c5c3_Var43 string
 				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.ResolveAttributeValue("stack_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 533, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 533, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var43)
 				if templ_7745c5c3_Err != nil {
@@ -900,7 +900,7 @@ func EditorModal(
 				var templ_7745c5c3_Var44 string
 				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.Stack))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 534, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 534, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
 				if templ_7745c5c3_Err != nil {
@@ -924,7 +924,7 @@ func EditorModal(
 				var templ_7745c5c3_Var45 string
 				templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue("hta_deg_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 555, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 555, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 				if templ_7745c5c3_Err != nil {
@@ -937,7 +937,7 @@ func EditorModal(
 				var templ_7745c5c3_Var46 string
 				templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.2f", geo.HtaDeg))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 556, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 556, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var46)
 				if templ_7745c5c3_Err != nil {
@@ -961,7 +961,7 @@ func EditorModal(
 				var templ_7745c5c3_Var47 string
 				templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.ResolveAttributeValue("sta_deg_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 586, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 586, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var47)
 				if templ_7745c5c3_Err != nil {
@@ -974,7 +974,7 @@ func EditorModal(
 				var templ_7745c5c3_Var48 string
 				templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.2f", geo.StaDeg))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 587, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 587, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var48)
 				if templ_7745c5c3_Err != nil {
@@ -998,7 +998,7 @@ func EditorModal(
 				var templ_7745c5c3_Var49 string
 				templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.ResolveAttributeValue("htl_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 616, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 616, Col: 30}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var49)
 				if templ_7745c5c3_Err != nil {
@@ -1011,7 +1011,7 @@ func EditorModal(
 				var templ_7745c5c3_Var50 string
 				templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.Htl))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 617, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 617, Col: 48}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var50)
 				if templ_7745c5c3_Err != nil {
@@ -1035,7 +1035,7 @@ func EditorModal(
 				var templ_7745c5c3_Var51 string
 				templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.ResolveAttributeValue("bb_drop_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 638, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 638, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var51)
 				if templ_7745c5c3_Err != nil {
@@ -1048,7 +1048,7 @@ func EditorModal(
 				var templ_7745c5c3_Var52 string
 				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.BbDrop))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 639, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 639, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var52)
 				if templ_7745c5c3_Err != nil {
@@ -1072,7 +1072,7 @@ func EditorModal(
 				var templ_7745c5c3_Var53 string
 				templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.ResolveAttributeValue("wheelbase_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 668, Col: 36}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 668, Col: 36}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var53)
 				if templ_7745c5c3_Err != nil {
@@ -1085,7 +1085,7 @@ func EditorModal(
 				var templ_7745c5c3_Var54 string
 				templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.Wheelbase))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 669, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 669, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var54)
 				if templ_7745c5c3_Err != nil {
@@ -1109,7 +1109,7 @@ func EditorModal(
 				var templ_7745c5c3_Var55 string
 				templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.ResolveAttributeValue("chainstay_length_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 689, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 689, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var55)
 				if templ_7745c5c3_Err != nil {
@@ -1122,7 +1122,7 @@ func EditorModal(
 				var templ_7745c5c3_Var56 string
 				templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.ChainstayLength))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 690, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 690, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var56)
 				if templ_7745c5c3_Err != nil {
@@ -1146,7 +1146,7 @@ func EditorModal(
 				var templ_7745c5c3_Var57 string
 				templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.ResolveAttributeValue("seat_tube_length_" + sz)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 719, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 719, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var57)
 				if templ_7745c5c3_Err != nil {
@@ -1159,7 +1159,7 @@ func EditorModal(
 				var templ_7745c5c3_Var58 string
 				templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.1f", geo.SeatTubeLength))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 720, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 720, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var58)
 				if templ_7745c5c3_Err != nil {
@@ -1182,7 +1182,7 @@ func EditorModal(
 		var templ_7745c5c3_Var59 string
 		templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.ResolveAttributeValue(cancelUrl)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor_modal.templ`, Line: 748, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/web/templates/editor.templ`, Line: 748, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var59)
 		if templ_7745c5c3_Err != nil {

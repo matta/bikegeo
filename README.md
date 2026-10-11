@@ -130,7 +130,7 @@ bikegeo/
 │           ├── navbar.templ
 │           ├── compare.templ
 │           ├── validator.templ
-│           ├── editor_modal.templ
+│           ├── editor.templ
 │           ├── diagram.templ
 │           └── inline_edit.templ
 ├── static/

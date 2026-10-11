@@ -29,7 +29,7 @@ func frameToJson(f model.FrameModel) string {
 	return string(bytes)
 }
 
-templ EditorModal(
+templ FrameEditorView(
 	frame model.FrameModel,
 	isNew bool,
 	report *model.ValidationReport,
@@ -88,7 +88,7 @@ templ EditorModal(
 			<div class="flex items-center gap-2">
 				<button
 					type="button"
-					hx-get={ fmt.Sprintf("/bikes/modal-toggle-view?is_new=%t&mode=%s", isNew, map[bool]string{true: "json", false: "form"}[viewMode != "json"]) }
+					hx-get={ fmt.Sprintf("/bikes/editor/toggle-view?is_new=%t&mode=%s", isNew, map[bool]string{true: "json", false: "form"}[viewMode != "json"]) }
 					hx-target="#app-content"
 					hx-include="#bike-editor-form"
 					class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition cursor-pointer font-medium"
@@ -284,7 +284,7 @@ templ EditorModal(
 									{{ isActive := cfg.ID == activeConfig.ID }}
 									<button
 										type="button"
-										hx-post={ fmt.Sprintf("/bikes/modal/action?act=switch-config&config_id=%s", cfg.ID) }
+										hx-post={ fmt.Sprintf("/bikes/editor/action?act=switch-config&config_id=%s", cfg.ID) }
 										hx-target="#app-content"
 										hx-include="#bike-editor-form"
 										class={ "px-2.5 py-1 rounded text-xs transition cursor-pointer flex items-center gap-1 border",
@@ -302,7 +302,7 @@ templ EditorModal(
 
 						<button
 							type="button"
-							hx-post="/bikes/modal/action?act=add-config"
+							hx-post="/bikes/editor/action?act=add-config"
 							hx-target="#app-content"
 							hx-include="#bike-editor-form"
 							class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs border border-slate-700 flex items-center gap-1 transition cursor-pointer"
@@ -392,7 +392,7 @@ templ EditorModal(
 							<span>Alternative Configuration: Enter published values below or derive dynamically from baseline.</span>
 							<button
 								type="button"
-								hx-post="/bikes/modal/action?act=kinematic-fill"
+								hx-post="/bikes/editor/action?act=kinematic-fill"
 								hx-target="#app-content"
 								hx-include="#bike-editor-form"
 								class="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[11px] cursor-pointer flex items-center gap-1 shadow-sm transition"
@@ -420,7 +420,7 @@ templ EditorModal(
 							<span class="text-[11px] text-slate-400">Quick Sizing Presets:</span>
 							<button
 								type="button"
-								hx-post="/bikes/modal/action?act=preset&preset_type=s_xl"
+								hx-post="/bikes/editor/action?act=preset&preset_type=s_xl"
 								hx-target="#app-content"
 								hx-include="#bike-editor-form"
 								class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer"
@@ -429,7 +429,7 @@ templ EditorModal(
 							</button>
 							<button
 								type="button"
-								hx-post="/bikes/modal/action?act=preset&preset_type=s1_s6"
+								hx-post="/bikes/editor/action?act=preset&preset_type=s1_s6"
 								hx-target="#app-content"
 								hx-include="#bike-editor-form"
 								class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer"
@@ -438,7 +438,7 @@ templ EditorModal(
 							</button>
 							<button
 								type="button"
-								hx-post="/bikes/modal/action?act=preset&preset_type=cm"
+								hx-post="/bikes/editor/action?act=preset&preset_type=cm"
 								hx-target="#app-content"
 								hx-include="#bike-editor-form"
 								class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 cursor-pointer"
@@ -447,7 +447,7 @@ templ EditorModal(
 							</button>
 							<button
 								type="button"
-								hx-post="/bikes/modal/action?act=add-size"
+								hx-post="/bikes/editor/action?act=add-size"
 								hx-target="#app-content"
 								hx-include="#bike-editor-form"
 								class="px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-xs font-medium border border-cyan-500/40 cursor-pointer flex items-center gap-1"
@@ -478,7 +478,7 @@ templ EditorModal(
 												if len(sizes) > 1 {
 													<button
 														type="button"
-														hx-post={ fmt.Sprintf("/bikes/modal/action?act=remove-size&size=%s", sz) }
+														hx-post={ fmt.Sprintf("/bikes/editor/action?act=remove-size&size=%s", sz) }
 														hx-target="#app-content"
 														hx-include="#bike-editor-form"
 														class="text-rose-400 hover:text-rose-300 text-xs cursor-pointer px-1 py-0.5 rounded hover:bg-slate-800"

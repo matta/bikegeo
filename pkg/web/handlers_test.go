@@ -447,8 +447,8 @@ func TestBikeEditorViews(t *testing.T) {
 	docEditHtmx := parseHTML(t, recEditHtmx.Body.String())
 	assertElement(t, docEditHtmx, "#frame-editor-view")
 
-	// 5. Toggle view in editor modal (table vs form)
-	reqToggle := httptest.NewRequest(http.MethodGet, "/bikes/modal-toggle-view?view=table&is_new=true", nil)
+	// 5. Toggle view in editor view (table vs form)
+	reqToggle := httptest.NewRequest(http.MethodGet, "/bikes/editor/toggle-view?view=table&is_new=true", nil)
 	recToggle := httptest.NewRecorder()
 	srv.ServeHTTP(recToggle, reqToggle)
 	if recToggle.Code != http.StatusOK {
@@ -458,8 +458,8 @@ func TestBikeEditorViews(t *testing.T) {
 	assertElement(t, docToggle, "#frame-editor-view")
 }
 
-// Test Modal Action Matrix: Add/Remove sizes and configs
-func TestModalActionsFullSuite(t *testing.T) {
+// Test Editor Action Matrix: Add/Remove sizes and configs
+func TestEditorActionsFullSuite(t *testing.T) {
 	srv, _, cleanup := setupTestServer(t)
 	defer cleanup()
 
@@ -492,7 +492,7 @@ func TestModalActionsFullSuite(t *testing.T) {
 			for k, v := range baseForm {
 				form[k] = v
 			}
-			req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/bikes/modal/action?act=%s%s", a.act, a.query), strings.NewReader(form.Encode()))
+			req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/bikes/editor/action?act=%s%s", a.act, a.query), strings.NewReader(form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			rec := httptest.NewRecorder()
 			srv.ServeHTTP(rec, req)
@@ -658,11 +658,11 @@ func TestRestAPICompatibility(t *testing.T) {
 	}
 }
 
-func TestMultiSizeGridModalActions(t *testing.T) {
+func TestMultiSizeGridEditorActions(t *testing.T) {
 	srv, _, cleanup := setupTestServer(t)
 	defer cleanup()
 
-	// 1. Initial modal for new bike contains multi-size grid
+	// 1. Initial editor view for new bike contains multi-size grid
 	reqNew := httptest.NewRequest(http.MethodGet, "/bikes/new", nil)
 	recNew := httptest.NewRecorder()
 	srv.ServeHTTP(recNew, reqNew)
@@ -681,7 +681,7 @@ func TestMultiSizeGridModalActions(t *testing.T) {
 		"reach_L":      {"475.0"},
 		"stack_L":      {"645.0"},
 	}
-	reqAddSize := httptest.NewRequest(http.MethodPost, "/bikes/modal/action?act=add-size", strings.NewReader(formData.Encode()))
+	reqAddSize := httptest.NewRequest(http.MethodPost, "/bikes/editor/action?act=add-size", strings.NewReader(formData.Encode()))
 	reqAddSize.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	recAddSize := httptest.NewRecorder()
 	srv.ServeHTTP(recAddSize, reqAddSize)
@@ -693,7 +693,7 @@ func TestMultiSizeGridModalActions(t *testing.T) {
 	assertElement(t, docAddSize, "input[name='sizes'][value='XXL']")
 
 	// 3. Action: add config
-	reqAddConfig := httptest.NewRequest(http.MethodPost, "/bikes/modal/action?act=add-config", strings.NewReader(formData.Encode()))
+	reqAddConfig := httptest.NewRequest(http.MethodPost, "/bikes/editor/action?act=add-config", strings.NewReader(formData.Encode()))
 	reqAddConfig.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	recAddConfig := httptest.NewRecorder()
 	srv.ServeHTTP(recAddConfig, reqAddConfig)

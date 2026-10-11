@@ -68,11 +68,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /bikes/{id}/inline-display", s.handleInlineDisplay)
 	s.mux.HandleFunc("POST /bikes/{id}/inline-edit", s.handleInlineEditSave)
 
-	// Modal and Bike Save/Edit/Delete routes (Target Pattern 3)
+	// Frame Editor and Bike Save/Edit/Delete routes (Target Pattern 3)
 	s.mux.HandleFunc("GET /bikes/new", s.handleBikeNew)
 	s.mux.HandleFunc("GET /bikes/{id}/edit", s.handleBikeEdit)
-	s.mux.HandleFunc("GET /bikes/modal-toggle-view", s.handleModalToggleView)
-	s.mux.HandleFunc("POST /bikes/modal/action", s.handleModalAction)
+	s.mux.HandleFunc("GET /bikes/editor/toggle-view", s.handleEditorToggleView)
+	s.mux.HandleFunc("POST /bikes/editor/action", s.handleEditorAction)
 	s.mux.HandleFunc("POST /bikes/save", s.handleBikeSave)
 	s.mux.HandleFunc("DELETE /bikes/{id}", s.handleBikeDelete)
 
@@ -239,10 +239,10 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	s.renderPageOrFragment(w, r, tab, contentComponent)
+	s.renderPageOrFragment(w, r, tab, "BikeGeo Analyst - Apples-to-Apples Frame Comparison", contentComponent)
 }
 
-func (s *Server) renderPageOrFragment(w http.ResponseWriter, r *http.Request, tab string, contentComponent templ.Component) {
+func (s *Server) renderPageOrFragment(w http.ResponseWriter, r *http.Request, tab string, title string, contentComponent templ.Component) {
 	bikes, _ := s.store.GetAllBikes()
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if isHtmx(r) {
@@ -257,7 +257,7 @@ func (s *Server) renderPageOrFragment(w http.ResponseWriter, r *http.Request, ta
 		return
 	}
 
-	page := templates.Layout("BikeGeo Analyst - Apples-to-Apples Frame Comparison", tab)
+	page := templates.Layout(title, tab)
 	_ = page.Render(templ.WithChildren(r.Context(), templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
 		if err := templates.Navbar(tab, len(bikes)).Render(ctx, w); err != nil {
 			return err
@@ -733,7 +733,7 @@ func (s *Server) handleInlineEditSave(w http.ResponseWriter, r *http.Request) {
 	_ = templates.InlineCellDisplay(bike.ID, field, fmt.Sprintf("%.1f", newVal), "mm", colorClass).Render(r.Context(), w)
 }
 
-// Target Pattern 3: Bike Add/Edit Modal & Async Save
+// Target Pattern 3: Bike Add/Edit View & Async Save
 func (s *Server) handleBikeNew(w http.ResponseWriter, r *http.Request) {
 	newFrame := model.FrameModel{
 		Year:           2024,
@@ -760,8 +760,8 @@ func (s *Server) handleBikeNew(w http.ResponseWriter, r *http.Request) {
 
 	matBike, _ := geometry.MaterializeBikeGeometry(newFrame, newFrame.GetDefaultSize(), "")
 	report := validator.ValidateBikeGeometry(matBike)
-	comp := templates.EditorModal(newFrame, true, &report, "", "form", "stock")
-	s.renderPageOrFragment(w, r, "validator", comp)
+	comp := templates.FrameEditorView(newFrame, true, &report, "", "form", "stock")
+	s.renderPageOrFragment(w, r, "editor", "BikeGeo Analyst - Add Frame Model", comp)
 }
 
 func (s *Server) handleBikeEdit(w http.ResponseWriter, r *http.Request) {
@@ -821,11 +821,12 @@ func (s *Server) handleBikeEdit(w http.ResponseWriter, r *http.Request) {
 
 	matBike, _ := geometry.MaterializeBikeGeometry(*frame, frame.GetDefaultSize(), "")
 	report := validator.ValidateBikeGeometry(matBike)
-	comp := templates.EditorModal(*frame, false, &report, "", "form", frame.GetBaselineConfiguration().ID)
-	s.renderPageOrFragment(w, r, "validator", comp)
+	comp := templates.FrameEditorView(*frame, false, &report, "", "form", frame.GetBaselineConfiguration().ID)
+	title := fmt.Sprintf("BikeGeo Analyst - Edit %s %s", frame.Manufacturer, frame.Model)
+	s.renderPageOrFragment(w, r, "editor", title, comp)
 }
 
-func (s *Server) handleModalToggleView(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleEditorToggleView(w http.ResponseWriter, r *http.Request) {
 	isNew := r.URL.Query().Get("is_new") == "true"
 	mode := r.URL.Query().Get("mode")
 	if mode == "" {
@@ -837,10 +838,10 @@ func (s *Server) handleModalToggleView(w http.ResponseWriter, r *http.Request) {
 	report := validator.ValidateBikeGeometry(matBike)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = templates.EditorModal(frame, isNew, &report, "", mode, activeConfigID).Render(r.Context(), w)
+	_ = templates.FrameEditorView(frame, isNew, &report, "", mode, activeConfigID).Render(r.Context(), w)
 }
 
-func (s *Server) handleModalAction(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleEditorAction(w http.ResponseWriter, r *http.Request) {
 	isNew := r.URL.Query().Get("is_new") == "true"
 	act := r.URL.Query().Get("act")
 	frame, activeConfigID := s.parseFrameFromForm(r)
@@ -960,7 +961,7 @@ func (s *Server) handleModalAction(w http.ResponseWriter, r *http.Request) {
 	matBike, _ := geometry.MaterializeBikeGeometry(frame, frame.GetDefaultSize(), activeConfigID)
 	report := validator.ValidateBikeGeometry(matBike)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = templates.EditorModal(frame, isNew, &report, "", "form", activeConfigID).Render(r.Context(), w)
+	_ = templates.FrameEditorView(frame, isNew, &report, "", "form", activeConfigID).Render(r.Context(), w)
 }
 
 func (s *Server) parseFrameFromForm(r *http.Request) (model.FrameModel, string) {
@@ -1220,14 +1221,14 @@ func (s *Server) handleBikeSave(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		_ = templates.EditorModal(frame, isNew, &report, "Please resolve the validation errors highlighted below.", "form", activeConfigID).Render(r.Context(), w)
+		_ = templates.FrameEditorView(frame, isNew, &report, "Please resolve the validation errors highlighted below.", "form", activeConfigID).Render(r.Context(), w)
 		return
 	}
 
 	savedFrame, err := s.store.SaveFrame(frame)
 	if err != nil {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_ = templates.EditorModal(frame, isNew, &report, fmt.Sprintf("Storage error: %v", err), "form", activeConfigID).Render(r.Context(), w)
+		_ = templates.FrameEditorView(frame, isNew, &report, fmt.Sprintf("Storage error: %v", err), "form", activeConfigID).Render(r.Context(), w)
 		return
 	}
 
