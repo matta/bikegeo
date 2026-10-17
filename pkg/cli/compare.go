@@ -794,66 +794,63 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 	// 1. Setup Fork & Effective A2C
 	tableRows = append(tableRows, buildRow("Fork & Eff. A2C", func(i int, r model.CanonicalComparisonRow) string {
 		if r.SetupFork.TravelMm > 0 {
-			return fmt.Sprintf("%.0fmm (%.0fmm static)\n%.0f%% sag -> %.1fmm A2C", r.SetupFork.TravelMm, r.SetupFork.A2c, r.SagPercent, r.EffectiveA2c)
+			return fmt.Sprintf("%.0fmm @ %.0f%% sag -> %.1fmm A2C", r.SetupFork.TravelMm, r.SagPercent, r.EffectiveA2c)
 		}
-		return fmt.Sprintf("Rigid (%.0fmm A2C)\n0%% sag -> %.1fmm A2C", r.SetupFork.A2c, r.EffectiveA2c)
+		return fmt.Sprintf("Rigid (%.0fmm A2C) -> %.1fmm A2C", r.SetupFork.A2c, r.EffectiveA2c)
 	}))
 
-	// 2. Canonical Reach
-	tableRows = append(tableRows, buildRow("Canonical Reach", func(i int, r model.CanonicalComparisonRow) string {
+	// 2. Reach
+	tableRows = append(tableRows, buildRow("Reach", func(i int, r model.CanonicalComparisonRow) string {
 		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.ActiveReach)
 		if i != refIdx {
 			mainLine = fmt.Sprintf("%.1f mm (%s)", r.Canonical.ActiveReach, formatDelta(r.Canonical.ActiveReach-refRow.Canonical.ActiveReach, " mm"))
 		}
-		deltaBase := r.Canonical.ActiveReach - r.Baseline.Reach
-		return fmt.Sprintf("%s\nBase: %.1fmm (%s)", mainLine, r.Baseline.Reach, formatDelta(deltaBase, ""))
+		return mainLine
 	}))
 
-	// 4. Canonical Stack
-	tableRows = append(tableRows, buildRow("Canonical Stack", func(i int, r model.CanonicalComparisonRow) string {
+	// 3. Stack
+	tableRows = append(tableRows, buildRow("Stack", func(i int, r model.CanonicalComparisonRow) string {
 		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.ActiveStack)
 		if i != refIdx {
 			mainLine = fmt.Sprintf("%.1f mm (%s)", r.Canonical.ActiveStack, formatDelta(r.Canonical.ActiveStack-refRow.Canonical.ActiveStack, " mm"))
 		}
-		deltaBase := r.Canonical.ActiveStack - r.Baseline.Stack
-		return fmt.Sprintf("%s\nBase: %.1fmm (%s)", mainLine, r.Baseline.Stack, formatDelta(deltaBase, ""))
+		return mainLine
 	}))
 
-	// 5. Canonical HTA
-	tableRows = append(tableRows, buildRow("Canonical HTA", func(i int, r model.CanonicalComparisonRow) string {
+	// 4. HTA
+	tableRows = append(tableRows, buildRow("HTA", func(i int, r model.CanonicalComparisonRow) string {
 		mainLine := fmt.Sprintf("%.2f°", r.Canonical.ActiveHta)
 		if i != refIdx {
 			mainLine = fmt.Sprintf("%.2f° (%s)", r.Canonical.ActiveHta, formatDelta(r.Canonical.ActiveHta-refRow.Canonical.ActiveHta, "°"))
 		}
-		return fmt.Sprintf("%s\nBase: %.1f° (Δ %s)", mainLine, r.Baseline.HtaDeg, formatDelta(r.Canonical.DeltaAngleDeg, "°"))
+		return mainLine
 	}))
 
-	// 6. Canonical STA
-	tableRows = append(tableRows, buildRow("Canonical STA", func(i int, r model.CanonicalComparisonRow) string {
+	// 5. STA
+	tableRows = append(tableRows, buildRow("STA", func(i int, r model.CanonicalComparisonRow) string {
 		mainLine := fmt.Sprintf("%.2f°", r.Canonical.ActiveSta)
 		if i != refIdx {
 			mainLine = fmt.Sprintf("%.2f° (%s)", r.Canonical.ActiveSta, formatDelta(r.Canonical.ActiveSta-refRow.Canonical.ActiveSta, "°"))
 		}
-		return fmt.Sprintf("%s\nBase: %.1f°", mainLine, r.Baseline.StaDeg)
+		return mainLine
 	}))
 
-	// 7. Canonical BB Drop
-	tableRows = append(tableRows, buildRow("Canonical BB Drop", func(i int, r model.CanonicalComparisonRow) string {
+	// 6. BB Drop
+	tableRows = append(tableRows, buildRow("BB Drop", func(i int, r model.CanonicalComparisonRow) string {
 		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.ActiveBbDrop)
 		if i != refIdx {
 			mainLine = fmt.Sprintf("%.1f mm (%s)", r.Canonical.ActiveBbDrop, formatDelta(r.Canonical.ActiveBbDrop-refRow.Canonical.ActiveBbDrop, " mm"))
 		}
-		deltaBase := r.Canonical.ActiveBbDrop - r.Baseline.BbDrop
-		return fmt.Sprintf("%s\nBase: %.1fmm (%s)", mainLine, r.Baseline.BbDrop, formatDelta(deltaBase, ""))
+		return mainLine
 	}))
 
-	// 8. AETT
+	// 7. AETT
 	tableRows = append(tableRows, buildRow(fmt.Sprintf("AETT @ %.0fmm", state.SeatHeight), func(i int, r model.CanonicalComparisonRow) string {
 		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.Aett)
 		if i != refIdx {
 			mainLine = fmt.Sprintf("%.1f mm (%s)", r.Canonical.Aett, formatDelta(r.Canonical.Aett-refRow.Canonical.Aett, " mm"))
 		}
-		return fmt.Sprintf("%s\nBase AETT: %.1fmm", mainLine, r.Baseline.Aett)
+		return mainLine
 	}))
 
 	// 9. Spare Steerer (Vertical)

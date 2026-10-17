@@ -117,6 +117,9 @@ func TestCompare_MixedFramesForksAndSags(t *testing.T) {
 	if strings.Contains(out, "Published CAD Mode") {
 		t.Errorf("Expected 'Published CAD Mode' row to be removed from compare output, got:\n%s", out)
 	}
+	if strings.Contains(out, "Base:") || strings.Contains(out, "Base AETT:") {
+		t.Errorf("Expected 'Base:' lines to be removed from compare output, got:\n%s", out)
+	}
 }
 
 func TestCompare_EnforcesFrameForkSagAndValidationConstraints(t *testing.T) {
