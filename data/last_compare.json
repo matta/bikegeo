@@ -1,16 +1,10 @@
 {
   "seat_height": 780,
   "transpose": false,
-  "ref_index": 2,
+  "ref_index": 1,
   "columns": [
     {
       "frame_id": "binary-havok",
-      "size": "L",
-      "fork": "rigid",
-      "sag_percent": 0
-    },
-    {
-      "frame_id": "binary-havok",
       "size": "XL",
       "fork": "rigid",
       "sag_percent": 0
@@ -24,6 +18,12 @@
     {
       "frame_id": "otso-fenrir-stainless",
       "size": "XL",
+      "fork": "rigid",
+      "sag_percent": 0
+    },
+    {
+      "frame_id": "sour-pasta-party",
+      "size": "L",
       "fork": "rigid",
       "sag_percent": 0
     }
