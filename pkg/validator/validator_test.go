@@ -309,3 +309,40 @@ func TestValidateSourPastaParty(t *testing.T) {
 	}
 }
 
+func TestValidateRitcheyUltra(t *testing.T) {
+	ultra := model.FrameModel{
+		ID:                 "ritchey-ultra",
+		Manufacturer:       "Ritchey",
+		Model:              "Ultra",
+		Sizes:              []string{"S", "M", "L", "XL"},
+		DefaultSize:        "L",
+		HeadsetCupType:     model.CupIS52,
+		GeoHeadsetSpacerMm: model.Float64Ptr(0.0),
+		GeoSlopMm:          &model.GeoSlopMm{A2c: model.Float64Ptr(3.0)},
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:         "stock",
+				IsBaseline: true,
+				Fork: model.ForkSpec{
+					TravelMm: 120,
+					A2c:      530,
+					Rake:     44,
+				},
+				SagPercentagePublished: 20,
+				Geometries: map[string]model.SizeGeometry{
+					"S":  {Reach: 417, Stack: 606, HtaDeg: 68.0, StaDeg: 74.0, Htl: 100, BbDrop: 58, Wheelbase: 1121, ChainstayLength: 439},
+					"M":  {Reach: 430, Stack: 613, HtaDeg: 68.5, StaDeg: 74.0, Htl: 105, BbDrop: 58, Wheelbase: 1131, ChainstayLength: 439},
+					"L":  {Reach: 445, Stack: 617, HtaDeg: 68.5, StaDeg: 73.5, Htl: 110, BbDrop: 58, Wheelbase: 1148, ChainstayLength: 439},
+					"XL": {Reach: 460, Stack: 627, HtaDeg: 68.5, StaDeg: 73.5, Htl: 120, BbDrop: 58, Wheelbase: 1167, ChainstayLength: 439},
+				},
+			},
+		},
+	}
+
+	report := validator.ValidateFrame(ultra)
+	if !report.IsValid {
+		t.Fatalf("Expected Ritchey Ultra to pass validation: %s", report.ErrorSummary())
+	}
+}
+
+
