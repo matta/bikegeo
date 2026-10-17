@@ -20,35 +20,19 @@ func (a *App) runCompare(args []string) int {
 	fs.SetOutput(a.Err)
 
 	var interactive bool
-	var seatHeightFlag float64
-	var refColFlag int
 	var transposeFlag bool
 	var compactFlag bool
-	var defaultForkFlag string
-	var defaultSagFlag float64
-	var defaultSizeFlag string
-	var searchQuery string
-	var allSizesFlag bool
 
 	fs.BoolVar(&interactive, "i", false, "Interactive prompt/response mode to build or edit comparison columns")
 	fs.BoolVar(&interactive, "interactive", false, "Interactive prompt/response mode to build or edit comparison columns")
-	fs.Float64Var(&seatHeightFlag, "seat-height", 0, "Rider saddle height from BB in mm (default: saved or 760)")
-	fs.IntVar(&refColFlag, "ref", 0, "1-based column index to use as Reference (REF) for deltas")
 	fs.BoolVar(&transposeFlag, "transpose", false, "Transpose table (Columns as rows, Metrics as columns)")
 	fs.BoolVar(&compactFlag, "compact", false, "Compact/transposed table view (alias for --transpose)")
-	fs.StringVar(&defaultForkFlag, "fork", "", "Default fork travel (e.g. 120mm, rigid) for columns that omit it")
-	fs.Float64Var(&defaultSagFlag, "sag", -1, "Default sag % for columns that omit it")
-	fs.StringVar(&defaultSizeFlag, "size", "", "Default size for columns that omit it")
-	fs.StringVar(&searchQuery, "q", "", "Filter frames by search query when building columns")
-	fs.StringVar(&searchQuery, "search", "", "Filter frames by search query when building columns")
-	fs.BoolVar(&allSizesFlag, "all-sizes", false, "Include all sizes of matched frames")
 
 	boolFlags := map[string]bool{
 		"i":           true,
 		"interactive": true,
 		"transpose":   true,
 		"compact":     true,
-		"all-sizes":   true,
 	}
 	reordered := reorderFlagsForStdlib(fs, args, boolFlags)
 	if err := fs.Parse(reordered); err != nil {
@@ -78,55 +62,13 @@ func (a *App) runCompare(args []string) int {
 
 	state := a.loadOrDefaultComparisonState(frames)
 
-	if explicitFlags["seat-height"] && seatHeightFlag > 0 {
-		state.SeatHeight = seatHeightFlag
-	}
 	if explicitFlags["transpose"] || explicitFlags["compact"] {
 		state.Transpose = transposeFlag || compactFlag
-	}
-	if explicitFlags["ref"] && refColFlag >= 1 {
-		state.RefIndex = refColFlag - 1
 	}
 
 	posArgs := fs.Args()
 
-	// Apply search query or --all-sizes if requested without explicit positional specs
-	if len(posArgs) == 0 && (explicitFlags["q"] || explicitFlags["search"] || explicitFlags["all-sizes"]) {
-		var matchedCols []model.ComparisonSetup
-		q := strings.ToLower(strings.TrimSpace(searchQuery))
-		for _, f := range frames {
-			if q != "" {
-				hay := strings.ToLower(fmt.Sprintf("%s %s %s", f.ID, f.Manufacturer, f.Model))
-				if !strings.Contains(hay, q) {
-					continue
-				}
-			}
-			sizesToUse := []string{f.GetDefaultSize()}
-			if allSizesFlag {
-				sizesToUse = f.GetSizes()
-			} else if defaultSizeFlag != "" {
-				sizesToUse = []string{defaultSizeFlag}
-			}
-			for _, sz := range sizesToUse {
-				col := model.ComparisonSetup{
-					FrameID: f.ID,
-					Size:    sz,
-					Fork:    defaultForkFlag,
-				}
-				if defaultSagFlag >= 0 {
-					sagVal := defaultSagFlag
-					col.SagPercent = &sagVal
-				}
-				matchedCols = append(matchedCols, col)
-			}
-		}
-		if len(matchedCols) == 0 {
-			fmt.Fprintf(a.Err, "Error: no frames matched query %q\n", searchQuery)
-			return 1
-		}
-		state.Columns = matchedCols
-		state.RefIndex = 0
-	} else if len(posArgs) > 0 {
+	if len(posArgs) > 0 {
 		// Check if all positional arguments are incremental (+spec or -col_num / -frame)
 		isIncremental := true
 		for _, arg := range posArgs {
@@ -140,7 +82,7 @@ func (a *App) runCompare(args []string) int {
 			for _, arg := range posArgs {
 				if strings.HasPrefix(arg, "+") {
 					specStr := strings.TrimPrefix(arg, "+")
-					col, err := ParseComparisonSpec(frames, specStr, defaultSizeFlag, defaultForkFlag, defaultSagFlag)
+					col, err := ParseComparisonSpec(frames, specStr)
 					if err != nil {
 						fmt.Fprintf(a.Err, "Error: %v\n", err)
 						return 1
@@ -176,7 +118,7 @@ func (a *App) runCompare(args []string) int {
 			var newCols []model.ComparisonSetup
 			for _, specStr := range posArgs {
 				specStr = strings.TrimPrefix(specStr, "+")
-				col, err := ParseComparisonSpec(frames, specStr, defaultSizeFlag, defaultForkFlag, defaultSagFlag)
+				col, err := ParseComparisonSpec(frames, specStr)
 				if err != nil {
 					fmt.Fprintf(a.Err, "Error: %v\n", err)
 					return 1
@@ -184,25 +126,7 @@ func (a *App) runCompare(args []string) int {
 				newCols = append(newCols, col)
 			}
 			state.Columns = newCols
-			if !explicitFlags["ref"] {
-				state.RefIndex = 0
-			}
-		}
-	} else {
-		// No positional specs: apply global --fork, --sag, or --size overrides to saved columns if explicitly passed
-		if explicitFlags["fork"] || explicitFlags["sag"] || explicitFlags["size"] {
-			for i := range state.Columns {
-				if explicitFlags["fork"] {
-					state.Columns[i].Fork = defaultForkFlag
-				}
-				if explicitFlags["sag"] && defaultSagFlag >= 0 {
-					sagVal := defaultSagFlag
-					state.Columns[i].SagPercent = &sagVal
-				}
-				if explicitFlags["size"] && defaultSizeFlag != "" {
-					state.Columns[i].Size = defaultSizeFlag
-				}
-			}
+			state.RefIndex = 0
 		}
 	}
 
@@ -248,9 +172,6 @@ func (a *App) runCompare(args []string) int {
 func ParseComparisonSpec(
 	frames []model.FrameModel,
 	spec string,
-	defaultSize string,
-	defaultFork string,
-	defaultSag float64,
 ) (model.ComparisonSetup, error) {
 	parts := strings.Split(spec, "@")
 	frameToken := strings.TrimSpace(parts[0])
@@ -263,14 +184,6 @@ func ParseComparisonSpec(
 	setup := model.ComparisonSetup{
 		FrameID: frame.ID,
 		Size:    implicitSize,
-		Fork:    defaultFork,
-	}
-	if setup.Size == "" && defaultSize != "" {
-		setup.Size = defaultSize
-	}
-	if defaultSag >= 0 {
-		sagCopy := defaultSag
-		setup.SagPercent = &sagCopy
 	}
 
 	for _, rawMod := range parts[1:] {
@@ -515,7 +428,7 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 				specArg = strings.TrimPrefix(line, "+")
 			}
 			if specArg != "" && strings.Contains(specArg, "@") {
-				col, err := ParseComparisonSpec(frames, specArg, "", "", -1)
+				col, err := ParseComparisonSpec(frames, specArg)
 				if err != nil {
 					fmt.Fprintf(a.Out, "  ! %v\n", err)
 					continue

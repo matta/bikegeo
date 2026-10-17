@@ -224,18 +224,23 @@ func TestCompare_StatePersistenceAndIncrementalTweaks(t *testing.T) {
 	}
 
 	// 3. Incremental tweak: add fenrir@110mm@20% and remove column 2
-	code, out, errOut = runCLI(t, dataDir, stateFile, "", "compare", "+fenrir:XL@110mm@20%", "-2", "--seat-height", "775", "--format", "json")
+	code, out, errOut = runCLI(t, dataDir, stateFile, "", "compare", "+fenrir:XL@110mm@20%", "-2", "--format", "json")
 	if code != 0 {
 		t.Fatalf("Incremental compare failed: %s", errOut)
 	}
 	if err := json.Unmarshal([]byte(out), &saved); err != nil {
 		t.Fatalf("Unmarshal failed: %v", err)
 	}
-	if saved.SeatHeight != 775 {
-		t.Errorf("Expected saved SeatHeight 775, got %.0f", saved.SeatHeight)
-	}
 	if len(saved.Columns) != 2 || saved.Columns[1].Setup.FrameID != "otso-fenrir-stainless" {
 		t.Errorf("Expected 2nd column to be otso-fenrir-stainless, got %+v", saved.Columns)
+	}
+
+	// 4. Verify removed CLI flags on compare are rejected
+	for _, removedFlag := range []string{"--all-sizes", "--fork=120mm", "--ref=1", "--sag=20", "--search=havok", "-q=havok", "--seat-height=775", "--size=L"} {
+		code, _, _ := runCLI(t, dataDir, stateFile, "", "compare", removedFlag)
+		if code == 0 {
+			t.Errorf("Expected compare %s to fail after flag removal, but got exit code 0", removedFlag)
+		}
 	}
 }
 
