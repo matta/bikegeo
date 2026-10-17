@@ -430,6 +430,10 @@ func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig)
 			bike.StaDeg,
 			seatHeight,
 		)
+		baselineSetback := geometry.CalculateActualSetback(
+			bike.StaDeg,
+			seatHeight,
+		)
 
 		verticalStack, axialLength := geometry.CalculateSteererStack(
 			bike.Stack,
@@ -451,6 +455,7 @@ func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig)
 			BbDrop:             bike.BbDrop,
 			A2c:                baseA2c,
 			Aett:               geometry.Round(baselineAett, 1),
+			ActualSetback:      baselineSetback,
 			SpareVerticalStack: geometry.Round(verticalStack, 1),
 			SpareAxialSteerer:  geometry.Round(axialLength, 1),
 		}

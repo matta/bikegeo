@@ -88,6 +88,14 @@ func TestCompare_SameFrameDifferentSagsAndRigid(t *testing.T) {
 		t.Errorf("Col 2 expected rigid 485.0mm @ 0%% sag, got %.1fmm @ %.0f%%",
 			result.Columns[2].EffectiveA2c, result.Columns[2].SagPercent)
 	}
+
+	// Verify ActualSetback is computed and present in both Baseline and Canonical
+	if result.Columns[0].Canonical.ActualSetback <= 0 {
+		t.Errorf("Expected positive Canonical.ActualSetback, got %.1f", result.Columns[0].Canonical.ActualSetback)
+	}
+	if result.Columns[0].Baseline.ActualSetback <= 0 {
+		t.Errorf("Expected positive Baseline.ActualSetback, got %.1f", result.Columns[0].Baseline.ActualSetback)
+	}
 }
 
 func TestCompare_MixedFramesForksAndSags(t *testing.T) {
@@ -119,6 +127,9 @@ func TestCompare_MixedFramesForksAndSags(t *testing.T) {
 	}
 	if strings.Contains(out, "Base:") || strings.Contains(out, "Base AETT:") {
 		t.Errorf("Expected 'Base:' lines to be removed from compare output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Actual Setback @") {
+		t.Errorf("Expected 'Actual Setback @' in compare output, got:\n%s", out)
 	}
 }
 
@@ -284,6 +295,9 @@ func TestCompare_InteractiveMode(t *testing.T) {
 	}
 	if !strings.Contains(out, "120mm @ 25%") {
 		t.Errorf("Expected Otso Fenrir at 120mm @ 25%% in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Setback @770") {
+		t.Errorf("Expected 'Setback @770' header in transposed output, got:\n%s", out)
 	}
 }
 

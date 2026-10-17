@@ -100,10 +100,21 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 	if fit.Aett != 566.2 {
 		t.Errorf("Expected AETT 566.2, got %.1f", fit.Aett)
 	}
+	if fit.ActualSetback != 174.7 {
+		t.Errorf("Expected ActualSetback 174.7, got %.1f", fit.ActualSetback)
+	}
 	if fit.SpareVerticalStack != 126.4 {
 		t.Errorf("Expected SpareVerticalStack 126.4, got %.1f", fit.SpareVerticalStack)
 	}
 	if fit.SpareAxialSteerer != 132.9 {
 		t.Errorf("Expected SpareAxialSteerer 132.9, got %.1f", fit.SpareAxialSteerer)
+	}
+}
+
+func TestCalculateActualSetback(t *testing.T) {
+	// 760mm saddle height at 74.0 deg STA -> 760 * cos(74 deg) = 209.484... -> 209.5 mm
+	sb := geometry.CalculateActualSetback(74.0, 760.0)
+	if sb != 209.5 {
+		t.Errorf("Expected ActualSetback 209.5, got %.1f", sb)
 	}
 }

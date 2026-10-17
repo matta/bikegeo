@@ -718,6 +718,7 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 			"STA (ΔRef)",
 			"BB Drop",
 			fmt.Sprintf("AETT @%.0f (ΔRef)", state.SeatHeight),
+			fmt.Sprintf("Setback @%.0f (ΔRef)", state.SeatHeight),
 			"Steerer (V / A)",
 		}
 		var tableRows [][]string
@@ -738,6 +739,7 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 			htaStr := fmt.Sprintf("%.2f°", r.Canonical.ActiveHta)
 			staStr := fmt.Sprintf("%.2f°", r.Canonical.ActiveSta)
 			aettStr := fmt.Sprintf("%.1f mm", r.Canonical.Aett)
+			setbackStr := fmt.Sprintf("%.1f mm", r.Canonical.ActualSetback)
 
 			if i != refIdx {
 				reachStr = fmt.Sprintf("%.1f (%s)", r.Canonical.ActiveReach, formatDelta(r.Canonical.ActiveReach-refRow.Canonical.ActiveReach, ""))
@@ -745,6 +747,7 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 				htaStr = fmt.Sprintf("%.2f° (%s)", r.Canonical.ActiveHta, formatDelta(r.Canonical.ActiveHta-refRow.Canonical.ActiveHta, "°"))
 				staStr = fmt.Sprintf("%.2f° (%s)", r.Canonical.ActiveSta, formatDelta(r.Canonical.ActiveSta-refRow.Canonical.ActiveSta, "°"))
 				aettStr = fmt.Sprintf("%.1f (%s)", r.Canonical.Aett, formatDelta(r.Canonical.Aett-refRow.Canonical.Aett, ""))
+				setbackStr = fmt.Sprintf("%.1f (%s)", r.Canonical.ActualSetback, formatDelta(r.Canonical.ActualSetback-refRow.Canonical.ActualSetback, ""))
 			}
 
 			tableRows = append(tableRows, []string{
@@ -758,6 +761,7 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 				staStr,
 				fmt.Sprintf("%.1f mm", r.Canonical.ActiveBbDrop),
 				aettStr,
+				setbackStr,
 				fmt.Sprintf("%.1f / %.1f mm", r.Canonical.SpareVerticalStack, r.Canonical.SpareAxialSteerer),
 			})
 		}
@@ -849,6 +853,15 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.Aett)
 		if i != refIdx {
 			mainLine = fmt.Sprintf("%.1f mm (%s)", r.Canonical.Aett, formatDelta(r.Canonical.Aett-refRow.Canonical.Aett, " mm"))
+		}
+		return mainLine
+	}))
+
+	// 8. Actual Setback
+	tableRows = append(tableRows, buildRow(fmt.Sprintf("Actual Setback @ %.0fmm", state.SeatHeight), func(i int, r model.CanonicalComparisonRow) string {
+		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.ActualSetback)
+		if i != refIdx {
+			mainLine = fmt.Sprintf("%.1f mm (%s)", r.Canonical.ActualSetback, formatDelta(r.Canonical.ActualSetback-refRow.Canonical.ActualSetback, " mm"))
 		}
 		return mainLine
 	}))

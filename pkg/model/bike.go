@@ -534,6 +534,7 @@ type BikeFitAnalysis struct {
 	ActiveSta           float64 `json:"active_sta"`
 	ActiveBbDrop        float64 `json:"active_bb_drop"`
 	Aett                float64 `json:"aett"`
+	ActualSetback       float64 `json:"actual_setback"`
 	SpareVerticalStack  float64 `json:"spare_vertical_stack"`
 	SpareAxialSteerer   float64 `json:"spare_axial_steerer"`
 	DeltaAngleDeg       float64 `json:"delta_angle_deg"`
@@ -551,6 +552,7 @@ type BaselineMetrics struct {
 	BbDrop             float64 `json:"bb_drop"`
 	A2c                float64 `json:"a2c"`
 	Aett               float64 `json:"aett"`
+	ActualSetback      float64 `json:"actual_setback"`
 	SpareVerticalStack float64 `json:"spare_vertical_stack"`
 	SpareAxialSteerer  float64 `json:"spare_axial_steerer"`
 }

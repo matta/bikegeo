@@ -41,6 +41,13 @@ func CalculateAett(reach, stack, htaDeg, staDeg, seatHeight float64) float64 {
 	return iX - sX
 }
 
+// CalculateActualSetback calculates the horizontal setback distance in mm from the bottom bracket center (0,0)
+// to the center of the seat tube / seatpost at the specified saddle height.
+func CalculateActualSetback(staDeg, seatHeight float64) float64 {
+	sta := ToRad(staDeg)
+	return Round(seatHeight*math.Cos(sta), 1)
+}
+
 // CalculateSteererStack calculates the 'spare' steerer tube required to bring
 // the handlebars level with the saddle.
 // Returns:
@@ -221,6 +228,7 @@ func AnalyzeBikeFit(
 
 	// 3. Derived cockpit metrics
 	aett := CalculateAett(activeReach, activeStack, activeHta, activeSta, seatHeight)
+	actualSetback := CalculateActualSetback(activeSta, seatHeight)
 	verticalStack, axialLength := CalculateSteererStack(activeStack, activeSta, activeHta, seatHeight)
 
 	// 4. Infer CAD publish mode
@@ -245,6 +253,7 @@ func AnalyzeBikeFit(
 		ActiveSta:           Round(activeSta, 2),
 		ActiveBbDrop:        Round(activeBbDrop, 1),
 		Aett:                Round(aett, 1),
+		ActualSetback:       actualSetback,
 		SpareVerticalStack:  Round(verticalStack, 1),
 		SpareAxialSteerer:   Round(axialLength, 1),
 		DeltaAngleDeg:       Round(deltaAngle, 2),
