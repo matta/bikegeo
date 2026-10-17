@@ -448,6 +448,27 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 		return report
 	}
 
+	// Check adjustable chainstay boundaries
+	if frame.HasAdjustableChainstay() {
+		minCs := frame.GetMinChainstay()
+		maxCs := frame.GetMaxChainstay()
+		for _, cfg := range frame.Configurations {
+			for sz, geo := range cfg.Geometries {
+				if geo.ChainstayLength > 0 {
+					if geo.ChainstayLength < minCs || geo.ChainstayLength > maxCs {
+						report.IsValid = false
+						report.Issues = append(report.Issues, model.ValidationIssue{
+							ID:       "chainstay_out_of_range",
+							Severity: model.SeverityError,
+							Title:    "Chainstay Outside Adjustable Range",
+							Message:  fmt.Sprintf("Published chainstay %.1fmm for size %s (%s) is outside legal range [%.1fmm, %.1fmm].", geo.ChainstayLength, sz, cfg.ID, minCs, maxCs),
+						})
+					}
+				}
+			}
+		}
+	}
+
 	baseCfg := frame.GetBaselineConfiguration()
 	for _, cfg := range frame.Configurations {
 		for _, sz := range sizes {

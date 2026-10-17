@@ -293,7 +293,7 @@ func resolveAllColumns(
 		if err != nil {
 			return nil, nil, err
 		}
-		row, err := canonicalizer.ResolveFrameForkSetup(*frame, col, state.SeatHeight)
+		row, err := canonicalizer.ResolveFrameForkSetupWithProfile(*frame, col, state.SeatHeight, &state.RiderProfile)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -320,8 +320,9 @@ func (a *App) loadOrDefaultComparisonState(frames []model.FrameModel) model.Save
 					saved.RefIndex = 0
 				}
 				if saved.SeatHeight <= 0 {
-					saved.SeatHeight = 760.0
+					saved.SeatHeight = 780.0
 				}
+				saved.NormalizeRiderProfile()
 				return saved
 			}
 		}
@@ -344,10 +345,11 @@ func (a *App) loadOrDefaultComparisonState(frames []model.FrameModel) model.Save
 	}
 
 	return model.SavedComparisonState{
-		SeatHeight: 760.0,
-		Transpose:  false,
-		RefIndex:   0,
-		Columns:    cols,
+		SeatHeight:   780.0,
+		RiderProfile: model.DefaultRiderProfile(),
+		Transpose:    false,
+		RefIndex:     0,
+		Columns:      cols,
 	}
 }
 
@@ -383,7 +385,7 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 					fmt.Fprintf(a.Out, "  [%d] %s %s (%s)\n", i+1, refTag, col.FrameID, col.Size)
 					continue
 				}
-				row, err := canonicalizer.ResolveFrameForkSetup(*frame, col, state.SeatHeight)
+				row, err := canonicalizer.ResolveFrameForkSetupWithProfile(*frame, col, state.SeatHeight, &state.RiderProfile)
 				if err != nil {
 					fmt.Fprintf(a.Out, "  [%d] %s %s %s (%s) - %v\n", i+1, refTag, frame.Manufacturer, frame.Model, col.Size, err)
 					continue
@@ -434,7 +436,7 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 					continue
 				}
 				frame, _, _ := ResolveFrameByToken(frames, col.FrameID)
-				if _, err := canonicalizer.ResolveFrameForkSetup(*frame, col, state.SeatHeight); err != nil {
+				if _, err := canonicalizer.ResolveFrameForkSetupWithProfile(*frame, col, state.SeatHeight, &state.RiderProfile); err != nil {
 					fmt.Fprintf(a.Out, "  ! %v\n", err)
 					continue
 				}
@@ -663,7 +665,7 @@ func (a *App) promptColumnSetup(
 	}
 
 	// Validate against frame constraints immediately
-	row, err := canonicalizer.ResolveFrameForkSetup(*selectedFrame, candidate, state.SeatHeight)
+	row, err := canonicalizer.ResolveFrameForkSetupWithProfile(*selectedFrame, candidate, state.SeatHeight, &state.RiderProfile)
 	if err != nil {
 		return model.ComparisonSetup{}, err
 	}
@@ -691,8 +693,8 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 
 	title := "Apples-to-Apples Geometry Comparison Matrix"
 	subtitle := fmt.Sprintf(
-		"Saddle Height: %.0fmm | Reference Column: [%d] %s %s (%s)",
-		state.SeatHeight, refIdx+1,
+		"Saddle Height: %.0fmm | Modeled Back Angle: %.1f° | Reference Column: [%d] %s %s (%s)",
+		state.SeatHeight, refRow.Canonical.BackAngleDeg, refIdx+1,
 		refRow.Bike.Manufacturer, refRow.Bike.Model, refRow.Bike.Size,
 	)
 
@@ -717,9 +719,11 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 			"HTA (ΔRef)",
 			"STA (ΔRef)",
 			"BB Drop",
+			"Chainstay (ΔRef)",
 			fmt.Sprintf("AETT @%.0f (ΔRef)", state.SeatHeight),
 			fmt.Sprintf("Setback @%.0f (ΔRef)", state.SeatHeight),
 			"Steerer (V / A)",
+			"Weight Dist (F/R)",
 		}
 		var tableRows [][]string
 		for i, r := range rows {
@@ -740,6 +744,7 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 			staStr := fmt.Sprintf("%.2f°", r.Canonical.ActiveSta)
 			aettStr := fmt.Sprintf("%.1f mm", r.Canonical.Aett)
 			setbackStr := fmt.Sprintf("%.1f mm", r.Canonical.ActualSetback)
+			csStr := r.Canonical.ChainstayDesc
 
 			if i != refIdx {
 				reachStr = fmt.Sprintf("%.1f (%s)", r.Canonical.ActiveReach, formatDelta(r.Canonical.ActiveReach-refRow.Canonical.ActiveReach, ""))
@@ -748,6 +753,14 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 				staStr = fmt.Sprintf("%.2f° (%s)", r.Canonical.ActiveSta, formatDelta(r.Canonical.ActiveSta-refRow.Canonical.ActiveSta, "°"))
 				aettStr = fmt.Sprintf("%.1f (%s)", r.Canonical.Aett, formatDelta(r.Canonical.Aett-refRow.Canonical.Aett, ""))
 				setbackStr = fmt.Sprintf("%.1f (%s)", r.Canonical.ActualSetback, formatDelta(r.Canonical.ActualSetback-refRow.Canonical.ActualSetback, ""))
+				deltaCS := r.Canonical.ActiveChainstay - refRow.Canonical.ActiveChainstay
+				csStr = fmt.Sprintf("%s (%s)", r.Canonical.ChainstayDesc, formatDelta(deltaCS, " mm"))
+			}
+
+			weightStr := fmt.Sprintf("%.1f%% / %.1f%%", r.Canonical.WeightDistFrontPct, r.Canonical.WeightDistRearPct)
+			if i != refIdx {
+				deltaF := r.Canonical.WeightDistFrontPct - refRow.Canonical.WeightDistFrontPct
+				weightStr = fmt.Sprintf("%.1f%% / %.1f%% (%s F)", r.Canonical.WeightDistFrontPct, r.Canonical.WeightDistRearPct, formatDelta(deltaF, "%"))
 			}
 
 			tableRows = append(tableRows, []string{
@@ -760,9 +773,11 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 				htaStr,
 				staStr,
 				fmt.Sprintf("%.1f mm", r.Canonical.ActiveBbDrop),
+				csStr,
 				aettStr,
 				setbackStr,
 				fmt.Sprintf("%.1f / %.1f mm", r.Canonical.SpareVerticalStack, r.Canonical.SpareAxialSteerer),
+				weightStr,
 			})
 		}
 
@@ -848,7 +863,17 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 		return mainLine
 	}))
 
-	// 7. AETT
+	// 7. Chainstay
+	tableRows = append(tableRows, buildRow("Chainstay", func(i int, r model.CanonicalComparisonRow) string {
+		mainLine := r.Canonical.ChainstayDesc
+		if i != refIdx {
+			deltaCS := r.Canonical.ActiveChainstay - refRow.Canonical.ActiveChainstay
+			mainLine = fmt.Sprintf("%s (%s)", r.Canonical.ChainstayDesc, formatDelta(deltaCS, " mm"))
+		}
+		return mainLine
+	}))
+
+	// 8. AETT
 	tableRows = append(tableRows, buildRow(fmt.Sprintf("AETT @ %.0fmm", state.SeatHeight), func(i int, r model.CanonicalComparisonRow) string {
 		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.Aett)
 		if i != refIdx {
@@ -857,7 +882,7 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 		return mainLine
 	}))
 
-	// 8. Actual Setback
+	// 9. Actual Setback
 	tableRows = append(tableRows, buildRow(fmt.Sprintf("Actual Setback @ %.0fmm", state.SeatHeight), func(i int, r model.CanonicalComparisonRow) string {
 		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.ActualSetback)
 		if i != refIdx {
@@ -866,14 +891,24 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 		return mainLine
 	}))
 
-	// 9. Spare Steerer (Vertical)
+	// 10. Spare Steerer (Vertical)
 	tableRows = append(tableRows, buildRow("Spare Steerer (Vert)", func(i int, r model.CanonicalComparisonRow) string {
 		return fmt.Sprintf("%.1f mm", r.Canonical.SpareVerticalStack)
 	}))
 
-	// 10. Spare Steerer (Axial)
+	// 11. Spare Steerer (Axial)
 	tableRows = append(tableRows, buildRow("Spare Steerer (Axial)", func(i int, r model.CanonicalComparisonRow) string {
 		return fmt.Sprintf("%.1f mm", r.Canonical.SpareAxialSteerer)
+	}))
+
+	// 12. Weight Distribution (Front / Rear)
+	tableRows = append(tableRows, buildRow("Weight Dist (F/R)", func(i int, r model.CanonicalComparisonRow) string {
+		mainLine := fmt.Sprintf("%.1f%% / %.1f%%", r.Canonical.WeightDistFrontPct, r.Canonical.WeightDistRearPct)
+		if i != refIdx {
+			deltaF := r.Canonical.WeightDistFrontPct - refRow.Canonical.WeightDistFrontPct
+			mainLine = fmt.Sprintf("%.1f%% / %.1f%% (%s F)", r.Canonical.WeightDistFrontPct, r.Canonical.WeightDistRearPct, formatDelta(deltaF, "%"))
+		}
+		return mainLine
 	}))
 
 	return RenderOutput(a.Out, a.Format, title, subtitle, headers, tableRows, jsonPayload)

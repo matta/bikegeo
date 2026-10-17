@@ -198,6 +198,16 @@ func ResolveFrameForkSetup(
 	setup model.ComparisonSetup,
 	seatHeight float64,
 ) (model.CanonicalComparisonRow, error) {
+	return ResolveFrameForkSetupWithProfile(frame, setup, seatHeight, nil)
+}
+
+// ResolveFrameForkSetupWithProfile validates and resolves a ComparisonSetup with custom RiderProfile.
+func ResolveFrameForkSetupWithProfile(
+	frame model.FrameModel,
+	setup model.ComparisonSetup,
+	seatHeight float64,
+	profile *model.RiderProfile,
+) (model.CanonicalComparisonRow, error) {
 	// 0. Centralized frame validity gate: a frame in an error state may not be used.
 	frameVal := validator.ValidateFrame(frame)
 	if !frameVal.IsValid {
@@ -383,9 +393,10 @@ func ResolveFrameForkSetup(
 	effectiveA2c := CalculateSaggedA2c(resolvedFork.A2c, resolvedFork.TravelMm, sagPct)
 
 	canonCfg := model.CanonicalConfig{
-		TargetA2c:  effectiveA2c,
-		SeatHeight: seatHeight,
-		SagPercent: sagPct,
+		TargetA2c:    effectiveA2c,
+		SeatHeight:   seatHeight,
+		SagPercent:   sagPct,
+		RiderProfile: profile,
 	}
 
 	rows := CanonicalizeBikes([]model.BikeGeometry{bike}, canonCfg)
@@ -447,6 +458,11 @@ func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig)
 			baseA2c = valReport.GeometricA2c
 		}
 
+		activeCS := bike.ChainstayLength
+		if bike.HasAdjustableChainstay() {
+			activeCS = bike.GetMaxChainstay()
+		}
+
 		baseline := model.BaselineMetrics{
 			Reach:              bike.Reach,
 			Stack:              bike.Stack,
@@ -458,12 +474,14 @@ func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig)
 			ActualSetback:      baselineSetback,
 			SpareVerticalStack: geometry.Round(verticalStack, 1),
 			SpareAxialSteerer:  geometry.Round(axialLength, 1),
+			Chainstay:          geometry.Round(activeCS, 1),
 		}
 
-		canonical := geometry.AnalyzeBikeFit(
+		canonical := geometry.AnalyzeBikeFitWithProfile(
 			bike,
 			&config.TargetA2c,
 			&seatHeight,
+			config.RiderProfile,
 		)
 
 		rows = append(rows, model.CanonicalComparisonRow{

@@ -1,5 +1,15 @@
 {
   "seat_height": 780,
+  "rider_height_in": 74,
+  "rider_inseam_in": 35,
+  "rider_weight_lbs": 190,
+  "bike_weight_lbs": 28,
+  "baseline_stem_mm": 110,
+  "baseline_stem_angle_deg": -6,
+  "baseline_bar_rise_mm": 50,
+  "baseline_bar_sweep_deg": 20,
+  "baseline_bar_width_mm": 800,
+  "baseline_saddle_setback_offset_mm": 30,
   "transpose": false,
   "ref_index": 1,
   "columns": [
@@ -26,6 +36,18 @@
       "size": "L",
       "fork": "rigid",
       "sag_percent": 0
+    },
+    {
+      "frame_id": "esker-hayduke",
+      "size": "S3",
+      "fork": "120mm",
+      "sag_percent": 30
+    },
+    {
+      "frame_id": "esker-hayduke",
+      "size": "S4",
+      "fork": "120mm",
+      "sag_percent": 30
     }
   ]
 }

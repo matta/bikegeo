@@ -139,10 +139,11 @@ type BikeGeometry struct {
 	Wheelbase float64 `json:"wheelbase"`
 
 	// Optional Frame Dimensions
-	ChainstayLength float64 `json:"chainstay_length,omitempty"`
-	FrontCenter     float64 `json:"front_center,omitempty"`
-	SeatTubeLength  float64 `json:"seat_tube_length,omitempty"`
-	WheelSize       string  `json:"wheel_size,omitempty"`
+	ChainstayLength  float64   `json:"chainstay_length,omitempty"`
+	ChainstayRangeMm []float64 `json:"chainstay_range_mm,omitempty"`
+	FrontCenter      float64   `json:"front_center,omitempty"`
+	SeatTubeLength   float64   `json:"seat_tube_length,omitempty"`
+	WheelSize        string    `json:"wheel_size,omitempty"`
 
 	// Published CAD & Hardware Assumptions
 	Fork                   ForkSpec       `json:"fork"`
@@ -169,6 +170,24 @@ func (b BikeGeometry) GetGeoSlopMm() GeoSlopMm {
 		return *b.GeoSlopMm
 	}
 	return GeoSlopMm{}
+}
+
+func (b BikeGeometry) HasAdjustableChainstay() bool {
+	return len(b.ChainstayRangeMm) == 2 && b.ChainstayRangeMm[1] > b.ChainstayRangeMm[0]
+}
+
+func (b BikeGeometry) GetMinChainstay() float64 {
+	if b.HasAdjustableChainstay() {
+		return b.ChainstayRangeMm[0]
+	}
+	return 0
+}
+
+func (b BikeGeometry) GetMaxChainstay() float64 {
+	if b.HasAdjustableChainstay() {
+		return b.ChainstayRangeMm[1]
+	}
+	return 0
 }
 
 // ForkSpec encapsulates physical and geometric properties of a fork.
@@ -225,9 +244,28 @@ type FrameModel struct {
 	SupportedTravelMm  []float64            `json:"supported_travel_mm,omitempty"`
 	RigidA2cMm         float64              `json:"rigid_a2c_mm,omitempty"`
 	DefaultFork        string               `json:"default_fork,omitempty"`
+	ChainstayRangeMm   []float64            `json:"chainstay_range_mm,omitempty"`
 	Sizes              []string             `json:"sizes"`
 	DefaultSize        string               `json:"default_size,omitempty"`
 	Configurations     []FrameConfiguration `json:"configurations"`
+}
+
+func (fm *FrameModel) HasAdjustableChainstay() bool {
+	return len(fm.ChainstayRangeMm) == 2 && fm.ChainstayRangeMm[1] > fm.ChainstayRangeMm[0]
+}
+
+func (fm *FrameModel) GetMinChainstay() float64 {
+	if fm.HasAdjustableChainstay() {
+		return fm.ChainstayRangeMm[0]
+	}
+	return 0
+}
+
+func (fm *FrameModel) GetMaxChainstay() float64 {
+	if fm.HasAdjustableChainstay() {
+		return fm.ChainstayRangeMm[1]
+	}
+	return 0
 }
 
 func (fm *FrameModel) GetGeoHeadsetSpacerMm() float64 {
@@ -490,11 +528,43 @@ func (r FrameValidationReport) ErrorSummary() string {
 }
 
 
+// RiderProfile encapsulates anthropometric measurements and baseline cockpit reference parameters.
+type RiderProfile struct {
+	HeightIn                      float64 `json:"rider_height_in"`
+	InseamIn                      float64 `json:"rider_inseam_in"`
+	RiderWeightLbs                float64 `json:"rider_weight_lbs"`
+	BikeWeightLbs                 float64 `json:"bike_weight_lbs"`
+	BaselineStemMm                float64 `json:"baseline_stem_mm"`
+	BaselineStemAngleDeg          float64 `json:"baseline_stem_angle_deg"`
+	BaselineBarRiseMm             float64 `json:"baseline_bar_rise_mm"`
+	BaselineBarSweepDeg           float64 `json:"baseline_bar_sweep_deg"`
+	BaselineBarWidthMm            float64 `json:"baseline_bar_width_mm"`
+	BaselineSaddleSetbackOffsetMm float64 `json:"baseline_saddle_setback_offset_mm"`
+}
+
+// DefaultRiderProfile returns default anthropometric and cockpit parameters
+// based on a 6'2" rider (35" inseam) on the Otso Fenrir Large baseline build.
+func DefaultRiderProfile() RiderProfile {
+	return RiderProfile{
+		HeightIn:                      74.0, // 6'2"
+		InseamIn:                      35.0, // 35"
+		RiderWeightLbs:                190.0,
+		BikeWeightLbs:                 28.0,
+		BaselineStemMm:                110.0,
+		BaselineStemAngleDeg:          -6.0,
+		BaselineBarRiseMm:             50.0,
+		BaselineBarSweepDeg:           20.0,
+		BaselineBarWidthMm:            800.0,
+		BaselineSaddleSetbackOffsetMm: 30.0,
+	}
+}
+
 type CanonicalConfig struct {
-	TargetA2c  float64 `json:"targetA2c"`
-	SeatHeight float64 `json:"seatHeight"`
-	SagPercent float64 `json:"sagPercent"`
-	Name       string  `json:"name,omitempty"`
+	TargetA2c    float64       `json:"targetA2c"`
+	SeatHeight   float64       `json:"seatHeight"`
+	SagPercent   float64       `json:"sagPercent"`
+	Name         string        `json:"name,omitempty"`
+	RiderProfile *RiderProfile `json:"riderProfile,omitempty"`
 }
 
 // ComparisonSetup represents one column in a comparison matrix.
@@ -508,9 +578,45 @@ type ComparisonSetup struct {
 // SavedComparisonState persists the user's most recent comparison in data/last_compare.json.
 type SavedComparisonState struct {
 	SeatHeight float64           `json:"seat_height"`
-	Transpose  bool              `json:"transpose"`
-	RefIndex   int               `json:"ref_index"`
-	Columns    []ComparisonSetup `json:"columns"`
+	RiderProfile
+	Transpose bool              `json:"transpose"`
+	RefIndex  int               `json:"ref_index"`
+	Columns   []ComparisonSetup `json:"columns"`
+}
+
+// NormalizeRiderProfile fills any zero values in RiderProfile with standard defaults.
+func (s *SavedComparisonState) NormalizeRiderProfile() {
+	def := DefaultRiderProfile()
+	if s.HeightIn <= 0 {
+		s.HeightIn = def.HeightIn
+	}
+	if s.InseamIn <= 0 {
+		s.InseamIn = def.InseamIn
+	}
+	if s.RiderWeightLbs <= 0 {
+		s.RiderWeightLbs = def.RiderWeightLbs
+	}
+	if s.BikeWeightLbs <= 0 {
+		s.BikeWeightLbs = def.BikeWeightLbs
+	}
+	if s.BaselineStemMm <= 0 {
+		s.BaselineStemMm = def.BaselineStemMm
+	}
+	if s.BaselineStemAngleDeg == 0 {
+		s.BaselineStemAngleDeg = def.BaselineStemAngleDeg
+	}
+	if s.BaselineBarRiseMm <= 0 {
+		s.BaselineBarRiseMm = def.BaselineBarRiseMm
+	}
+	if s.BaselineBarSweepDeg <= 0 {
+		s.BaselineBarSweepDeg = def.BaselineBarSweepDeg
+	}
+	if s.BaselineBarWidthMm <= 0 {
+		s.BaselineBarWidthMm = def.BaselineBarWidthMm
+	}
+	if s.BaselineSaddleSetbackOffsetMm <= 0 {
+		s.BaselineSaddleSetbackOffsetMm = def.BaselineSaddleSetbackOffsetMm
+	}
 }
 
 type DynamicGeometryResult struct {
@@ -542,6 +648,16 @@ type BikeFitAnalysis struct {
 	DeltaStack          float64 `json:"delta_stack"`
 	DeltaBbDrop         float64 `json:"delta_bb_drop"`
 	InferredPublishMode string  `json:"inferredPublishMode"`
+
+	// Weight Distribution & Biomechanical Posture
+	WeightDistFrontPct float64 `json:"weight_dist_front_pct"`
+	WeightDistRearPct  float64 `json:"weight_dist_rear_pct"`
+	BackAngleDeg       float64 `json:"back_angle_deg"`
+	FrontCenterCalc    float64 `json:"front_center_calc"`
+	RearCenterCalc     float64 `json:"rear_center_calc"`
+	WheelbaseCalc      float64 `json:"wheelbase_calc"`
+	ActiveChainstay    float64 `json:"active_chainstay"`
+	ChainstayDesc      string  `json:"chainstay_desc"`
 }
 
 type BaselineMetrics struct {
@@ -555,6 +671,7 @@ type BaselineMetrics struct {
 	ActualSetback      float64 `json:"actual_setback"`
 	SpareVerticalStack float64 `json:"spare_vertical_stack"`
 	SpareAxialSteerer  float64 `json:"spare_axial_steerer"`
+	Chainstay          float64 `json:"chainstay"`
 }
 
 type CanonicalComparisonRow struct {

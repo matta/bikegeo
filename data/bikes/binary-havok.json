@@ -4,7 +4,7 @@
   "model": "Havok",
   "year": 2026,
   "category": "hardtail",
-  "notes": "Titanium 29+ drop-bar endurance & adventure bike frame designed around a 485mm axle-to-crown rigid fork or 100mm suspension fork with an EC44 external lower headset cup.",
+  "notes": "Titanium 29+ drop-bar endurance & adventure bike frame designed around a 485mm axle-to-crown rigid fork or 100mm suspension fork with an EC44 external lower headset cup. Features rocker sliding dropouts (445-460mm chainstay, forward 445mm position in published geometry).",
   "wheel_size": "29",
   "headset_cup_type": "EC44",
   "geo_headset_spacer_mm": 10,
@@ -16,6 +16,7 @@
   "supported_travel_mm": [100, 110, 120],
   "rigid_a2c_mm": 485,
   "default_fork": "rigid",
+  "chainstay_range_mm": [445, 460],
   "sizes": [
     "S",
     "M",

@@ -118,3 +118,43 @@ func TestCalculateActualSetback(t *testing.T) {
 		t.Errorf("Expected ActualSetback 209.5, got %.1f", sb)
 	}
 }
+
+func TestBiomechanicalPostureAndWeightDistribution(t *testing.T) {
+	profile := model.DefaultRiderProfile()
+	baselineBike := geometry.GetDefaultBaselineBike()
+
+	posture := geometry.CalculateBaselinePosture(baselineBike, profile, 780.0)
+
+	// Modeled back angle should be an endurance bikepacking position (~54.5° with 50mm rise bar and 20° sweep)
+	if posture.BackAngleDeg < 40.0 || posture.BackAngleDeg > 65.0 {
+		t.Errorf("Expected BackAngleDeg between 40° and 65°, got %.1f°", posture.BackAngleDeg)
+	}
+
+	// Hip position should be aft of BB
+	if posture.HipX >= 0 {
+		t.Errorf("Expected HipX < 0, got %.1f", posture.HipX)
+	}
+
+	// System CoG should be near the BB
+	if math.Abs(posture.SystemCgX) > 100.0 {
+		t.Errorf("Expected SystemCgX near BB (within 100mm), got %.1f", posture.SystemCgX)
+	}
+
+	// Test weight distribution on Otso Fenrir Large
+	fit := geometry.AnalyzeBikeFitWithProfile(baselineBike, nil, nil, &profile)
+	if fit.WeightDistFrontPct <= 30.0 || fit.WeightDistFrontPct >= 45.0 {
+		t.Errorf("Expected WeightDistFrontPct between 30%% and 45%%, got %.1f%%", fit.WeightDistFrontPct)
+	}
+	if math.Abs((fit.WeightDistFrontPct+fit.WeightDistRearPct)-100.0) > 0.2 {
+		t.Errorf("Expected front + rear to equal 100%%, got %.1f%% + %.1f%%", fit.WeightDistFrontPct, fit.WeightDistRearPct)
+	}
+
+	// Test chainstay effect: longer chainstay frame should have higher front weight percentage
+	shortCsDist := geometry.CalculateWeightDistribution(420, 640, 68, 140, 70, 50, 500, 430, posture)
+	longCsDist := geometry.CalculateWeightDistribution(420, 640, 68, 140, 70, 50, 500, 460, posture)
+
+	if longCsDist.FrontPct <= shortCsDist.FrontPct {
+		t.Errorf("Expected longer chainstay to shift weight forward (got short: %.1f%%, long: %.1f%%)", shortCsDist.FrontPct, longCsDist.FrontPct)
+	}
+}
+

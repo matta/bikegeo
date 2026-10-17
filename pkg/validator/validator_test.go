@@ -358,6 +358,7 @@ func TestValidateEskerHayduke(t *testing.T) {
 			A2c:       model.Float64Ptr(3.0),
 			Wheelbase: model.Float64Ptr(6.0),
 		},
+		ChainstayRangeMm:   []float64{440, 454},
 		Configurations: []model.FrameConfiguration{
 			{
 				ID:         "stock",

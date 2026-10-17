@@ -20,6 +20,10 @@
   ],
   "rigid_a2c_mm": 495,
   "default_fork": "120mm",
+  "chainstay_range_mm": [
+    440,
+    454
+  ],
   "sizes": [
     "S1",
     "S2",
