@@ -345,4 +345,43 @@ func TestValidateRitcheyUltra(t *testing.T) {
 	}
 }
 
+func TestValidateEskerHayduke(t *testing.T) {
+	hayduke := model.FrameModel{
+		ID:                 "esker-hayduke",
+		Manufacturer:       "Esker",
+		Model:              "Hayduke",
+		Sizes:              []string{"S1", "S2", "S3", "S4"},
+		DefaultSize:        "S3",
+		HeadsetCupType:     model.CupEC44,
+		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
+		GeoSlopMm: &model.GeoSlopMm{
+			A2c:       model.Float64Ptr(3.0),
+			Wheelbase: model.Float64Ptr(6.0),
+		},
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:         "stock",
+				IsBaseline: true,
+				Fork: model.ForkSpec{
+					TravelMm: 120,
+					A2c:      531,
+					Rake:     44,
+				},
+				SagPercentagePublished: 30,
+				Geometries: map[string]model.SizeGeometry{
+					"S1": {Reach: 420, Stack: 615, HtaDeg: 67.5, StaDeg: 74.0, Htl: 105, BbDrop: 65, Wheelbase: 1130, ChainstayLength: 440},
+					"S2": {Reach: 450, Stack: 620, HtaDeg: 67.5, StaDeg: 74.0, Htl: 110, BbDrop: 65, Wheelbase: 1160, ChainstayLength: 440},
+					"S3": {Reach: 470, Stack: 630, HtaDeg: 67.5, StaDeg: 74.0, Htl: 120, BbDrop: 65, Wheelbase: 1183, ChainstayLength: 440},
+					"S4": {Reach: 500, Stack: 645, HtaDeg: 67.5, StaDeg: 74.0, Htl: 140, BbDrop: 65, Wheelbase: 1218, ChainstayLength: 440},
+				},
+			},
+		},
+	}
+
+	report := validator.ValidateFrame(hayduke)
+	if !report.IsValid {
+		t.Fatalf("Expected Esker Hayduke to pass validation: %s", report.ErrorSummary())
+	}
+}
+
 

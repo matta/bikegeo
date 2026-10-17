@@ -1,0 +1,92 @@
+{
+  "id": "esker-hayduke",
+  "manufacturer": "Esker",
+  "model": "Hayduke",
+  "year": 2024,
+  "category": "hardtail",
+  "notes": "Custom seamless, quadruple-butted 4130 Chromoly adventure and bikepacking hardtail designed around a 120mm suspension fork at 30% sag (495mm A2C) or a 495mm rigid fork (Esker Fork Yeah!) with an EC44 lower headset cup (12mm stack). Features Portage adjustable dropouts (440-454mm chainstay, forward 440mm position in published geometry).",
+  "wheel_size": "29",
+  "headset_cup_type": "EC44",
+  "geo_headset_spacer_mm": 12,
+  "geo_slop_mm": {
+    "a2c": 3.0,
+    "wheelbase": 6.0
+  },
+  "seat_height": 760,
+  "supported_travel_mm": [
+    110,
+    120,
+    130
+  ],
+  "rigid_a2c_mm": 495,
+  "default_fork": "120mm",
+  "sizes": [
+    "S1",
+    "S2",
+    "S3",
+    "S4"
+  ],
+  "default_size": "S3",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock 120mm Suspension Build",
+      "is_baseline": true,
+      "fork": {
+        "id": "fox34_120",
+        "name": "Fox Float 34 120mm",
+        "travel_mm": 120,
+        "a2c": 531,
+        "rake": 44,
+        "standard_sag_percent": 30
+      },
+      "sag_percentage_published": 30,
+      "geometries": {
+        "S1": {
+          "reach": 420,
+          "stack": 615,
+          "hta_deg": 67.5,
+          "sta_deg": 74.0,
+          "htl": 105,
+          "bb_drop": 65,
+          "wheelbase": 1130,
+          "chainstay_length": 440,
+          "seat_tube_length": 380
+        },
+        "S2": {
+          "reach": 450,
+          "stack": 620,
+          "hta_deg": 67.5,
+          "sta_deg": 74.0,
+          "htl": 110,
+          "bb_drop": 65,
+          "wheelbase": 1160,
+          "chainstay_length": 440,
+          "seat_tube_length": 435
+        },
+        "S3": {
+          "reach": 470,
+          "stack": 630,
+          "hta_deg": 67.5,
+          "sta_deg": 74.0,
+          "htl": 120,
+          "bb_drop": 65,
+          "wheelbase": 1183,
+          "chainstay_length": 440,
+          "seat_tube_length": 485
+        },
+        "S4": {
+          "reach": 500,
+          "stack": 645,
+          "hta_deg": 67.5,
+          "sta_deg": 74.0,
+          "htl": 140,
+          "bb_drop": 65,
+          "wheelbase": 1218,
+          "chainstay_length": 440,
+          "seat_tube_length": 530
+        }
+      }
+    }
+  ]
+}
