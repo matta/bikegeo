@@ -296,8 +296,8 @@ func TestCompare_InteractiveMode(t *testing.T) {
 	if !strings.Contains(out, "120mm @ 25%") {
 		t.Errorf("Expected Otso Fenrir at 120mm @ 25%% in output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "Setback @770") {
-		t.Errorf("Expected 'Setback @770' header in transposed output, got:\n%s", out)
+	if !strings.Contains(out, "Setback") {
+		t.Errorf("Expected 'Setback' header in transposed output, got:\n%s", out)
 	}
 }
 

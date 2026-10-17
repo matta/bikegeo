@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -674,6 +675,30 @@ func (a *App) promptColumnSetup(
 }
 
 func formatDelta(delta float64, unit string) string {
+	if math.Abs(delta) < 0.05 {
+		return fmt.Sprintf("0.0%s", unit)
+	}
+	if delta > 0 {
+		return fmt.Sprintf("+%.1f%s", delta, unit)
+	}
+	return fmt.Sprintf("%.1f%s", delta, unit)
+}
+
+func formatDeltaMm(delta float64, unit string) string {
+	rounded := math.Round(delta)
+	if math.Abs(rounded) == 0 {
+		return fmt.Sprintf("0%s", unit)
+	}
+	if rounded > 0 {
+		return fmt.Sprintf("+%.0f%s", rounded, unit)
+	}
+	return fmt.Sprintf("%.0f%s", rounded, unit)
+}
+
+func formatDeltaAngle(delta float64, unit string) string {
+	if math.Abs(delta) < 0.05 {
+		return fmt.Sprintf("0.0%s", unit)
+	}
 	if delta > 0 {
 		return fmt.Sprintf("+%.1f%s", delta, unit)
 	}
@@ -693,7 +718,7 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 
 	title := "Apples-to-Apples Geometry Comparison Matrix"
 	subtitle := fmt.Sprintf(
-		"Saddle Height: %.0fmm | Modeled Back Angle: %.1f° | Reference Column: [%d] %s %s (%s)",
+		"Saddle Height: %.0fmm | Modeled Back Angle: %.1f° | Reference: [%d] %s %s (%s) (*max stay position; Δ in parens)",
 		state.SeatHeight, refRow.Canonical.BackAngleDeg, refIdx+1,
 		refRow.Bike.Manufacturer, refRow.Bike.Model, refRow.Bike.Size,
 	)
@@ -712,18 +737,17 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 		headers := []string{
 			"#",
 			"Frame (Size)",
-			"Fork & Sag Setup",
-			"Eff A2C",
-			"Reach (ΔRef)",
-			"Stack (ΔRef)",
-			"HTA (ΔRef)",
-			"STA (ΔRef)",
+			"Fork & Eff A2C",
+			"Reach",
+			"Stack",
+			"HTA (°)",
+			"STA (°)",
 			"BB Drop",
-			"Chainstay (ΔRef)",
-			fmt.Sprintf("AETT @%.0f (ΔRef)", state.SeatHeight),
-			fmt.Sprintf("Setback @%.0f (ΔRef)", state.SeatHeight),
-			"Steerer (V / A)",
-			"Weight Dist (F/R)",
+			"Chainstay",
+			"AETT",
+			"Setback",
+			"Spare Vert",
+			"Front Wt %",
 		}
 		var tableRows [][]string
 		for i, r := range rows {
@@ -731,52 +755,57 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 			if i == refIdx {
 				idxStr += " [REF]"
 			}
-			setupStr := "Rigid"
+			setupStr := fmt.Sprintf("Rigid (%.0fmm)", math.Round(r.EffectiveA2c))
 			if r.SetupFork.TravelMm > 0 {
-				setupStr = fmt.Sprintf("%.0fmm @ %.0f%%", r.SetupFork.TravelMm, r.SagPercent)
-			} else {
-				setupStr = fmt.Sprintf("Rigid (%.0fmm)", r.SetupFork.A2c)
+				setupStr = fmt.Sprintf("%.0fmm @ %.0f%% (%.0fmm)", r.SetupFork.TravelMm, r.SagPercent, math.Round(r.EffectiveA2c))
 			}
 
-			reachStr := fmt.Sprintf("%.1f mm", r.Canonical.ActiveReach)
-			stackStr := fmt.Sprintf("%.1f mm", r.Canonical.ActiveStack)
-			htaStr := fmt.Sprintf("%.2f°", r.Canonical.ActiveHta)
-			staStr := fmt.Sprintf("%.2f°", r.Canonical.ActiveSta)
-			aettStr := fmt.Sprintf("%.1f mm", r.Canonical.Aett)
-			setbackStr := fmt.Sprintf("%.1f mm", r.Canonical.ActualSetback)
-			csStr := r.Canonical.ChainstayDesc
+			reachStr := fmt.Sprintf("%.0f", math.Round(r.Canonical.ActiveReach))
+			stackStr := fmt.Sprintf("%.0f", math.Round(r.Canonical.ActiveStack))
+			htaStr := fmt.Sprintf("%.1f", r.Canonical.ActiveHta)
+			staStr := fmt.Sprintf("%.1f", r.Canonical.ActiveSta)
+			bbDropStr := fmt.Sprintf("%.0f", math.Round(r.Canonical.ActiveBbDrop))
+			aettStr := fmt.Sprintf("%.0f", math.Round(r.Canonical.Aett))
+			setbackStr := fmt.Sprintf("%.0f", math.Round(r.Canonical.ActualSetback))
+			spareVertStr := fmt.Sprintf("%.0f", math.Round(r.Canonical.SpareVerticalStack))
+
+			star := ""
+			if r.Bike.HasAdjustableChainstay() {
+				star = "*"
+			}
+			csStr := fmt.Sprintf("%.0f%s", math.Round(r.Canonical.ActiveChainstay), star)
 
 			if i != refIdx {
-				reachStr = fmt.Sprintf("%.1f (%s)", r.Canonical.ActiveReach, formatDelta(r.Canonical.ActiveReach-refRow.Canonical.ActiveReach, ""))
-				stackStr = fmt.Sprintf("%.1f (%s)", r.Canonical.ActiveStack, formatDelta(r.Canonical.ActiveStack-refRow.Canonical.ActiveStack, ""))
-				htaStr = fmt.Sprintf("%.2f° (%s)", r.Canonical.ActiveHta, formatDelta(r.Canonical.ActiveHta-refRow.Canonical.ActiveHta, "°"))
-				staStr = fmt.Sprintf("%.2f° (%s)", r.Canonical.ActiveSta, formatDelta(r.Canonical.ActiveSta-refRow.Canonical.ActiveSta, "°"))
-				aettStr = fmt.Sprintf("%.1f (%s)", r.Canonical.Aett, formatDelta(r.Canonical.Aett-refRow.Canonical.Aett, ""))
-				setbackStr = fmt.Sprintf("%.1f (%s)", r.Canonical.ActualSetback, formatDelta(r.Canonical.ActualSetback-refRow.Canonical.ActualSetback, ""))
+				reachStr = fmt.Sprintf("%.0f (%s)", math.Round(r.Canonical.ActiveReach), formatDeltaMm(r.Canonical.ActiveReach-refRow.Canonical.ActiveReach, ""))
+				stackStr = fmt.Sprintf("%.0f (%s)", math.Round(r.Canonical.ActiveStack), formatDeltaMm(r.Canonical.ActiveStack-refRow.Canonical.ActiveStack, ""))
+				htaStr = fmt.Sprintf("%.1f (%s)", r.Canonical.ActiveHta, formatDeltaAngle(r.Canonical.ActiveHta-refRow.Canonical.ActiveHta, ""))
+				staStr = fmt.Sprintf("%.1f (%s)", r.Canonical.ActiveSta, formatDeltaAngle(r.Canonical.ActiveSta-refRow.Canonical.ActiveSta, ""))
+				bbDropStr = fmt.Sprintf("%.0f (%s)", math.Round(r.Canonical.ActiveBbDrop), formatDeltaMm(r.Canonical.ActiveBbDrop-refRow.Canonical.ActiveBbDrop, ""))
 				deltaCS := r.Canonical.ActiveChainstay - refRow.Canonical.ActiveChainstay
-				csStr = fmt.Sprintf("%s (%s)", r.Canonical.ChainstayDesc, formatDelta(deltaCS, " mm"))
+				csStr = fmt.Sprintf("%.0f%s (%s)", math.Round(r.Canonical.ActiveChainstay), star, formatDeltaMm(deltaCS, ""))
+				aettStr = fmt.Sprintf("%.0f (%s)", math.Round(r.Canonical.Aett), formatDeltaMm(r.Canonical.Aett-refRow.Canonical.Aett, ""))
+				setbackStr = fmt.Sprintf("%.0f (%s)", math.Round(r.Canonical.ActualSetback), formatDeltaMm(r.Canonical.ActualSetback-refRow.Canonical.ActualSetback, ""))
 			}
 
-			weightStr := fmt.Sprintf("%.1f%% / %.1f%%", r.Canonical.WeightDistFrontPct, r.Canonical.WeightDistRearPct)
+			weightStr := fmt.Sprintf("%.1f%% F", r.Canonical.WeightDistFrontPct)
 			if i != refIdx {
 				deltaF := r.Canonical.WeightDistFrontPct - refRow.Canonical.WeightDistFrontPct
-				weightStr = fmt.Sprintf("%.1f%% / %.1f%% (%s F)", r.Canonical.WeightDistFrontPct, r.Canonical.WeightDistRearPct, formatDelta(deltaF, "%"))
+				weightStr = fmt.Sprintf("%.1f%% F (%s)", r.Canonical.WeightDistFrontPct, formatDelta(deltaF, "%"))
 			}
 
 			tableRows = append(tableRows, []string{
 				idxStr,
 				fmt.Sprintf("%s %s (%s)", r.Bike.Manufacturer, r.Bike.Model, r.Bike.Size),
 				setupStr,
-				fmt.Sprintf("%.1f mm", r.EffectiveA2c),
 				reachStr,
 				stackStr,
 				htaStr,
 				staStr,
-				fmt.Sprintf("%.1f mm", r.Canonical.ActiveBbDrop),
+				bbDropStr,
 				csStr,
 				aettStr,
 				setbackStr,
-				fmt.Sprintf("%.1f / %.1f mm", r.Canonical.SpareVerticalStack, r.Canonical.SpareAxialSteerer),
+				spareVertStr,
 				weightStr,
 			})
 		}
@@ -813,92 +842,96 @@ func (a *App) renderComparisonMatrix(rows []model.CanonicalComparisonRow, state 
 	// 1. Setup Fork & Effective A2C
 	tableRows = append(tableRows, buildRow("Fork & Eff. A2C", func(i int, r model.CanonicalComparisonRow) string {
 		if r.SetupFork.TravelMm > 0 {
-			return fmt.Sprintf("%.0fmm @ %.0f%% sag -> %.1fmm A2C", r.SetupFork.TravelMm, r.SagPercent, r.EffectiveA2c)
+			return fmt.Sprintf("%.0fmm @ %.0f%% sag -> %.0fmm A2C", r.SetupFork.TravelMm, r.SagPercent, math.Round(r.EffectiveA2c))
 		}
-		return fmt.Sprintf("Rigid (%.0fmm A2C) -> %.1fmm A2C", r.SetupFork.A2c, r.EffectiveA2c)
+		return fmt.Sprintf("Rigid (%.0fmm A2C) -> %.0fmm A2C", r.SetupFork.A2c, math.Round(r.EffectiveA2c))
 	}))
 
 	// 2. Reach
 	tableRows = append(tableRows, buildRow("Reach", func(i int, r model.CanonicalComparisonRow) string {
-		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.ActiveReach)
+		mainLine := fmt.Sprintf("%.0f mm", math.Round(r.Canonical.ActiveReach))
 		if i != refIdx {
-			mainLine = fmt.Sprintf("%.1f mm (%s)", r.Canonical.ActiveReach, formatDelta(r.Canonical.ActiveReach-refRow.Canonical.ActiveReach, " mm"))
+			mainLine = fmt.Sprintf("%.0f mm (%s)", math.Round(r.Canonical.ActiveReach), formatDeltaMm(r.Canonical.ActiveReach-refRow.Canonical.ActiveReach, " mm"))
 		}
 		return mainLine
 	}))
 
 	// 3. Stack
 	tableRows = append(tableRows, buildRow("Stack", func(i int, r model.CanonicalComparisonRow) string {
-		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.ActiveStack)
+		mainLine := fmt.Sprintf("%.0f mm", math.Round(r.Canonical.ActiveStack))
 		if i != refIdx {
-			mainLine = fmt.Sprintf("%.1f mm (%s)", r.Canonical.ActiveStack, formatDelta(r.Canonical.ActiveStack-refRow.Canonical.ActiveStack, " mm"))
+			mainLine = fmt.Sprintf("%.0f mm (%s)", math.Round(r.Canonical.ActiveStack), formatDeltaMm(r.Canonical.ActiveStack-refRow.Canonical.ActiveStack, " mm"))
 		}
 		return mainLine
 	}))
 
 	// 4. HTA
-	tableRows = append(tableRows, buildRow("HTA", func(i int, r model.CanonicalComparisonRow) string {
-		mainLine := fmt.Sprintf("%.2f°", r.Canonical.ActiveHta)
+	tableRows = append(tableRows, buildRow("HTA (°)", func(i int, r model.CanonicalComparisonRow) string {
+		mainLine := fmt.Sprintf("%.1f", r.Canonical.ActiveHta)
 		if i != refIdx {
-			mainLine = fmt.Sprintf("%.2f° (%s)", r.Canonical.ActiveHta, formatDelta(r.Canonical.ActiveHta-refRow.Canonical.ActiveHta, "°"))
+			mainLine = fmt.Sprintf("%.1f (%s)", r.Canonical.ActiveHta, formatDeltaAngle(r.Canonical.ActiveHta-refRow.Canonical.ActiveHta, ""))
 		}
 		return mainLine
 	}))
 
 	// 5. STA
-	tableRows = append(tableRows, buildRow("STA", func(i int, r model.CanonicalComparisonRow) string {
-		mainLine := fmt.Sprintf("%.2f°", r.Canonical.ActiveSta)
+	tableRows = append(tableRows, buildRow("STA (°)", func(i int, r model.CanonicalComparisonRow) string {
+		mainLine := fmt.Sprintf("%.1f", r.Canonical.ActiveSta)
 		if i != refIdx {
-			mainLine = fmt.Sprintf("%.2f° (%s)", r.Canonical.ActiveSta, formatDelta(r.Canonical.ActiveSta-refRow.Canonical.ActiveSta, "°"))
+			mainLine = fmt.Sprintf("%.1f (%s)", r.Canonical.ActiveSta, formatDeltaAngle(r.Canonical.ActiveSta-refRow.Canonical.ActiveSta, ""))
 		}
 		return mainLine
 	}))
 
 	// 6. BB Drop
 	tableRows = append(tableRows, buildRow("BB Drop", func(i int, r model.CanonicalComparisonRow) string {
-		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.ActiveBbDrop)
+		mainLine := fmt.Sprintf("%.0f mm", math.Round(r.Canonical.ActiveBbDrop))
 		if i != refIdx {
-			mainLine = fmt.Sprintf("%.1f mm (%s)", r.Canonical.ActiveBbDrop, formatDelta(r.Canonical.ActiveBbDrop-refRow.Canonical.ActiveBbDrop, " mm"))
+			mainLine = fmt.Sprintf("%.0f mm (%s)", math.Round(r.Canonical.ActiveBbDrop), formatDeltaMm(r.Canonical.ActiveBbDrop-refRow.Canonical.ActiveBbDrop, " mm"))
 		}
 		return mainLine
 	}))
 
 	// 7. Chainstay
 	tableRows = append(tableRows, buildRow("Chainstay", func(i int, r model.CanonicalComparisonRow) string {
-		mainLine := r.Canonical.ChainstayDesc
+		star := ""
+		if r.Bike.HasAdjustableChainstay() {
+			star = "*"
+		}
+		mainLine := fmt.Sprintf("%.0f mm%s", math.Round(r.Canonical.ActiveChainstay), star)
 		if i != refIdx {
 			deltaCS := r.Canonical.ActiveChainstay - refRow.Canonical.ActiveChainstay
-			mainLine = fmt.Sprintf("%s (%s)", r.Canonical.ChainstayDesc, formatDelta(deltaCS, " mm"))
+			mainLine = fmt.Sprintf("%.0f mm%s (%s)", math.Round(r.Canonical.ActiveChainstay), star, formatDeltaMm(deltaCS, " mm"))
 		}
 		return mainLine
 	}))
 
 	// 8. AETT
 	tableRows = append(tableRows, buildRow(fmt.Sprintf("AETT @ %.0fmm", state.SeatHeight), func(i int, r model.CanonicalComparisonRow) string {
-		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.Aett)
+		mainLine := fmt.Sprintf("%.0f mm", math.Round(r.Canonical.Aett))
 		if i != refIdx {
-			mainLine = fmt.Sprintf("%.1f mm (%s)", r.Canonical.Aett, formatDelta(r.Canonical.Aett-refRow.Canonical.Aett, " mm"))
+			mainLine = fmt.Sprintf("%.0f mm (%s)", math.Round(r.Canonical.Aett), formatDeltaMm(r.Canonical.Aett-refRow.Canonical.Aett, " mm"))
 		}
 		return mainLine
 	}))
 
 	// 9. Actual Setback
 	tableRows = append(tableRows, buildRow(fmt.Sprintf("Actual Setback @ %.0fmm", state.SeatHeight), func(i int, r model.CanonicalComparisonRow) string {
-		mainLine := fmt.Sprintf("%.1f mm", r.Canonical.ActualSetback)
+		mainLine := fmt.Sprintf("%.0f mm", math.Round(r.Canonical.ActualSetback))
 		if i != refIdx {
-			mainLine = fmt.Sprintf("%.1f mm (%s)", r.Canonical.ActualSetback, formatDelta(r.Canonical.ActualSetback-refRow.Canonical.ActualSetback, " mm"))
+			mainLine = fmt.Sprintf("%.0f mm (%s)", math.Round(r.Canonical.ActualSetback), formatDeltaMm(r.Canonical.ActualSetback-refRow.Canonical.ActualSetback, " mm"))
 		}
 		return mainLine
 	}))
 
 	// 10. Spare Steerer (Vertical)
 	tableRows = append(tableRows, buildRow("Spare Steerer (Vert)", func(i int, r model.CanonicalComparisonRow) string {
-		return fmt.Sprintf("%.1f mm", r.Canonical.SpareVerticalStack)
+		return fmt.Sprintf("%.0f mm", math.Round(r.Canonical.SpareVerticalStack))
 	}))
 
 	// 11. Spare Steerer (Axial)
 	tableRows = append(tableRows, buildRow("Spare Steerer (Axial)", func(i int, r model.CanonicalComparisonRow) string {
-		return fmt.Sprintf("%.1f mm", r.Canonical.SpareAxialSteerer)
+		return fmt.Sprintf("%.0f mm", math.Round(r.Canonical.SpareAxialSteerer))
 	}))
 
 	// 12. Weight Distribution (Front / Rear)

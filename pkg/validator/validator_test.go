@@ -43,7 +43,7 @@ func TestValidateOtsoFenrirSpacerNoAutoDetection(t *testing.T) {
 	fenrirZero := model.BikeGeometry{
 		ID:                 "otso-fenrir-stainless-l",
 		Manufacturer:       "Otso",
-		Model:              "Fenrir Stainless",
+		Model:              "Fenrir",
 		Size:               "L",
 		Reach:              428.0,
 		Stack:              642.0,

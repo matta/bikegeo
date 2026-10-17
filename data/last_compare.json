@@ -10,7 +10,7 @@
   "baseline_bar_sweep_deg": 20,
   "baseline_bar_width_mm": 800,
   "baseline_saddle_setback_offset_mm": 30,
-  "transpose": false,
+  "transpose": true,
   "ref_index": 1,
   "columns": [
     {
