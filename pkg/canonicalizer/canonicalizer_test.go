@@ -28,7 +28,6 @@ func TestCanonicalizeBikes(t *testing.T) {
 
 	config := model.CanonicalConfig{
 		TargetA2c:  515.0,
-		CupStack:   2.0,
 		SeatHeight: 760.0,
 		SagPercent: 20.0,
 	}

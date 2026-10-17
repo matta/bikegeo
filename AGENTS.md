@@ -1,65 +1,34 @@
 # Agent Instructions & Verification Loop
 
-This repository is built with **Go**, **templ**, and **HTMX**.
+This repository is a zero-dependency **Go** command-line application (`bikegeo`).
 
 ## Fast Feedback Command Loop
 
-After **every** code modification, always execute the following command to verify template generation, type safety, and test suite pass rate:
+After **every** code modification, always execute the following command to verify type safety and test suite pass rate:
 
 ```bash
-templ generate && go vet ./... && go test ./...
-```
-
-If Go or templ are installed in Homebrew or user paths:
-```bash
-export PATH=$HOME/go/bin:$PATH && templ generate && go vet ./... && go test ./...
+go vet ./... && go test ./...
 ```
 
 ## Architectural Guidelines
 
-- **Templates**: All UI components are authored in `.templ` files inside `pkg/web/templates/`.
-- **Compiler Type Safety**: `templ` compiles templates into type-checked Go code (`*_templ.go`). Struct fields and component props are strictly typed.
-- **Hypermedia / HTMX**:
-  - Favor returning HTML fragments (`hx-target`, `hx-swap="outerHTML"`) instead of JSON client-side state layers.
-  - Three target benchmark patterns implemented:
-    1. **Inline-editable data row/cell**: `InlineCellDisplay` and `InlineCellEdit` via `hx-post` and outerHTML swap.
-    2. **Debounced search box**: `hx-trigger="keyup changed delay:300ms, search"` updating `#comparison-matrix`.
-    3. **Asynchronous form submission**: `hx-indicator` spinner with inline validation error highlighting.
-- **Persistence**: Bikes are stored as individual JSON files in `data/bikes/*.json`.
+- **Zero External Dependencies**: Uses the Go standard library (`flag`, `encoding/json`, `encoding/csv`, `bufio`) with custom Unicode box-drawing, Markdown, CSV, and JSON table formatting in `pkg/cli/render.go`.
+- **Per-Column Comparison Model (`ComparisonSetup`)**:
+  - Every comparison column specifies `FrameID + Size + Fork (travel in mm or "rigid") + Sag %`.
+  - Allows comparing the same frame across multiple sag points or fork capacities alongside different frames.
+- **Frame-Level Fork Constraints**:
+  - Frames define `supported_travel_mm` (in mm), `rigid_a2c_mm`, and `default_fork` in `data/bikes/*.json`.
+  - `pkg/canonicalizer` strictly enforces these constraints, rejecting unsupported travel sizes, rigid forks on suspension-only frames, or non-zero sag on rigid forks.
+- **Persistence**:
+  - Bikes/frames are stored as individual JSON files in `data/bikes/*.json`.
+  - The most recent comparison state is persisted to `data/last_compare.json` so running `bikegeo compare` with no arguments replays the last comparison.
 
 ## Testing Strategy & Conventions
 
-This project uses a two-tier testing model optimized for Go + HTMX: fast HTTP fragment assertions in Go for coverage, and Playwright for browser-level DOM swap verification. **Do not use `go-rod`.**
-
----
-
-### 1. HTTP Handler & Partial Tests (Go)
-
-* **Coverage:** ~85–90% of test surface. Tests run sub-second without launching browsers.
-* **Stack:** `net/http/httptest` + `github.com/PuerkitoBio/goquery`.
-* **Conventions:**
-  * Simulate HTMX requests by setting headers (`req.Header.Set("HX-Request", "true")`).
-  * Verify dual behavior: standard GET returns the full HTML layout; HTMX requests return only the target fragment.
-  * Use `goquery` CSS selectors to assert DOM elements and attributes (`hx-target`, `hx-swap`, `hx-swap-oob`) instead of raw string/regex matching.
-  * Assert HTMX response headers (`HX-Trigger`, `HX-Redirect`, `HX-Push-Url`).
-  * Ensure validation failures return `422 Unprocessable Entity` so HTMX swaps error partials.
-* **Command:**
+- **Unit & Integration Tests**:
+  - Domain math, validation, canonicalization, storage, and CLI subcommands (`compare`, `validate`, `list`, `forks`, `init`, `set`, `import`, `delete`) are tested in `pkg/*/*_test.go`.
+  - Simulate interactive CLI flows (`-i`) by passing `strings.NewReader` to `cli.Run(args, stdin, stdout, stderr)`.
+- **Command**:
   ```bash
-  go test ./...
+  go vet ./... && go test -v ./...
   ```
-
----
-
-### 2. Browser End-to-End Tests (Playwright)
-
-* **Coverage:** Critical paths only (forms, inline editing, out-of-band updates, client-side events).
-* **Stack:** Playwright (`@playwright/test`) with TypeScript.
-* **Conventions:**
-  * **Auto-waiting:** Always use web-first assertions (`await expect(locator).toBeVisible()`, `toHaveCount()`, `toContainText()`). Never use hardcoded sleeps; Playwright automatically polls while HTMX completes DOM mutations.
-  * **Selectors:** Prioritize accessibility selectors (`page.getByRole()`, `page.getByLabel()`) or `data-testid` over brittle DOM hierarchy selectors.
-  * Run tests against a local instance or an ephemeral test server.
-* **Command:**
-  ```bash
-  npx playwright test
-  ```
-

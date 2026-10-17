@@ -1,12 +1,8 @@
-.PHONY: all generate vet test check build run clean test-e2e test-all
+.PHONY: all vet test check build run clean
 
-# Default PATH setup to include user go bin if present
 export PATH := $(HOME)/go/bin:$(PATH)
 
 all: check build
-
-generate:
-	templ generate
 
 vet:
 	go vet ./...
@@ -14,18 +10,13 @@ vet:
 test:
 	go test -v ./...
 
-check: generate vet test
+check: vet test
 
-test-e2e:
-	npx playwright test
-
-test-all: check test-e2e
-
-build: generate
-	go build -o bin/bikegeo ./cmd/server
+build:
+	go build -o bin/bikegeo ./cmd/bikegeo
 
 run: build
-	./bin/bikegeo
+	./bin/bikegeo compare
 
 clean:
-	rm -rf bin/ tmp/ playwright-report/ test-results/
+	rm -rf bin/

@@ -9,31 +9,55 @@ import (
 
 func TestValidateBinaryHavok(t *testing.T) {
 	binaryHavok := model.BikeGeometry{
-		ID:           "binary-havok-m",
-		Manufacturer: "Binary",
-		Model:        "Havok",
-		Size:         "M",
-		Reach:        398.0,
-		Stack:        656.0,
-		HtaDeg:       69.0,
-		StaDeg:       74.0,
-		Htl:          150.0,
-		BbDrop:       70.0,
-		ForkRake:     44.0,
-		Wheelbase:    1150.0,
-		ForkA2c:      521.0,
-		CupStack:     12.0,
+		ID:             "binary-havok-l",
+		Manufacturer:   "Binary",
+		Model:          "Havok",
+		Size:           "L",
+		Reach:          398.0,
+		Stack:          656.0,
+		HtaDeg:         69.0,
+		StaDeg:         74.0,
+		Htl:            150.0,
+		BbDrop:         70.0,
+		ForkRake:       45.0,
+		Wheelbase:      1111.0,
+		ForkA2c:        485.0,
+		HeadsetCupType: model.CupEC44,
 	}
 
 	report := validator.ValidateBikeGeometry(binaryHavok)
 	if !report.IsValid {
-		t.Errorf("Expected valid bike geometry, got invalid")
+		t.Errorf("Expected valid bike geometry, got invalid: %+v", report.Issues)
 	}
-	if report.GeometricA2c != 482.6 {
-		t.Errorf("Expected GeometricA2c 482.6, got %.1f", report.GeometricA2c)
+	if report.GeometricA2c != 483.0 {
+		t.Errorf("Expected GeometricA2c 483.0, got %.1f", report.GeometricA2c)
 	}
-	if report.TotalStructuralA2c != 494.6 {
-		t.Errorf("Expected TotalStructuralA2c 494.6, got %.1f", report.TotalStructuralA2c)
+	if report.TotalStructuralA2c != 495.0 {
+		t.Errorf("Expected TotalStructuralA2c 495.0, got %.1f", report.TotalStructuralA2c)
+	}
+}
+
+func TestValidateInconsistentStackFails(t *testing.T) {
+	flawed := model.BikeGeometry{
+		ID:             "flawed-hardtail",
+		Manufacturer:   "Flawed",
+		Model:          "Demo",
+		Size:           "M",
+		Reach:          440.0,
+		Stack:          590.0, // Impossible stack with 541mm fork and 120mm HTL
+		HtaDeg:         66.5,
+		StaDeg:         75.0,
+		Htl:            120.0,
+		BbDrop:         65.0,
+		ForkRake:       44.0,
+		Wheelbase:      1170.0,
+		ForkA2c:        541.0,
+		HeadsetCupType: model.CupEC44,
+	}
+
+	report := validator.ValidateBikeGeometry(flawed)
+	if report.IsValid {
+		t.Errorf("Expected flawed stack/A2C geometry to fail validation, got valid")
 	}
 }
 
@@ -58,7 +82,6 @@ func TestValidateCrossConfig_ChumbaSendero(t *testing.T) {
 		Sizes:          []string{"S", "M", "L", "XL"},
 		DefaultSize:    "L",
 		HeadsetCupType: model.CupEC44,
-		CupStack:       12.0,
 		Configurations: []model.FrameConfiguration{
 			{
 				ID:         "fork-120",

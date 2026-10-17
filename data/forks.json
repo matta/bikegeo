@@ -72,12 +72,21 @@
     "description": "Rigid expedition fork, suspension-corrected ~100mm (483mm static, 44mm rake)"
   },
   {
+    "id": "rigid_485",
+    "name": "Rigid Bikepacking 485mm",
+    "travel_mm": 0,
+    "a2c": 485,
+    "rake": 45,
+    "standard_sag_percent": 0,
+    "description": "Rigid adventure fork, suspension-corrected 100mm (485mm static, 45mm rake)"
+  },
+  {
     "id": "rigid_495",
-    "name": "Rigid Bikepacking 495mm",
+    "name": "Lithic / Rigid Bikepacking 495mm",
     "travel_mm": 0,
     "a2c": 495,
-    "rake": 44,
+    "rake": 51,
     "standard_sag_percent": 0,
-    "description": "Rigid expedition fork, suspension-corrected ~120mm (495mm static, 44mm rake)"
+    "description": "Rigid expedition fork, suspension-corrected 100-120mm (495mm static, 51mm rake)"
   }
 ]

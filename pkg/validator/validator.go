@@ -44,6 +44,16 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		}
 	}
 
+	if bike.ForkA2c <= 0 && bike.ForkTravelMm <= 0 {
+		issues = append(issues, model.ValidationIssue{
+			ID:       "missing_fork_a2c",
+			Field:    "fork_a2c",
+			Severity: model.SeverityError,
+			Title:    "Missing Essential Variable: Fork Axle-to-Crown (A2C)",
+			Message:  "Fork A2C (or travel_mm) is required to verify the Master Stack Equation.",
+		})
+	}
+
 	hasError := false
 	for _, issue := range issues {
 		if issue.Severity == model.SeverityError {
@@ -52,10 +62,7 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		}
 	}
 
-	effectiveCupStack := bike.CupStack
-	if effectiveCupStack == 0 && bike.HeadsetCupType == model.CupEC44 {
-		effectiveCupStack = 12.0
-	}
+	effectiveCupStack := bike.HeadsetCupType.CupStackMm()
 
 	if hasError {
 		return model.ValidationReport{
@@ -74,9 +81,9 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		issues = append(issues, model.ValidationIssue{
 			ID:       "hta_range",
 			Field:    "hta_deg",
-			Severity: model.SeverityWarning,
-			Title:    "Unusual Head Tube Angle",
-			Message:  fmt.Sprintf("HTA of %.1f° is outside normal range (58° - 74°).", bike.HtaDeg),
+			Severity: model.SeverityError,
+			Title:    "Invalid Head Tube Angle",
+			Message:  fmt.Sprintf("HTA of %.1f° is outside valid range (55° - 76°).", bike.HtaDeg),
 			Actual:   fmt.Sprintf("%.1f°", bike.HtaDeg),
 		})
 	}
@@ -85,9 +92,9 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		issues = append(issues, model.ValidationIssue{
 			ID:       "sta_range",
 			Field:    "sta_deg",
-			Severity: model.SeverityWarning,
-			Title:    "Unusual Seat Tube Angle",
-			Message:  fmt.Sprintf("STA of %.1f° is outside typical range (70° - 79°).", bike.StaDeg),
+			Severity: model.SeverityError,
+			Title:    "Invalid Seat Tube Angle",
+			Message:  fmt.Sprintf("STA of %.1f° is outside valid range (65° - 82°).", bike.StaDeg),
 			Actual:   fmt.Sprintf("%.1f°", bike.StaDeg),
 		})
 	}
@@ -96,25 +103,23 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		issues = append(issues, model.ValidationIssue{
 			ID:       "bb_drop_range",
 			Field:    "bb_drop",
-			Severity: model.SeverityWarning,
-			Title:    "Atypical Bottom Bracket Drop",
-			Message:  fmt.Sprintf("BB drop of %.1fmm is outside typical mountain bike range (30mm - 80mm).", bike.BbDrop),
+			Severity: model.SeverityError,
+			Title:    "Invalid Bottom Bracket Drop",
+			Message:  fmt.Sprintf("BB drop of %.1fmm is outside valid mountain/gravel bike range (15mm - 95mm).", bike.BbDrop),
 			Actual:   fmt.Sprintf("%.1f mm", bike.BbDrop),
 		})
 	}
 
-	// 3. Headset Cup & Lower Stack Reality Check (EC44 check)
-	isStraight44 := bike.HeadsetCupType == model.CupEC44
-	if isStraight44 && (bike.CupStack == 0 || bike.CupStack < 10.0) {
+	// 3. Headset Cup Type Validation
+	if !bike.HeadsetCupType.IsValid() {
 		issues = append(issues, model.ValidationIssue{
-			ID:       "headset_ec44_missing_stack",
-			Field:    "cup_stack",
-			Severity: model.SeverityWarning,
-			Title:    "EC44 Lower Cup Stack Notice",
-			Message:  "Frames with straight 44mm head tubes running tapered forks require an EC44 external lower cup.",
-			Details:  "Standard EC44/40 cups add ~12mm of structural height below the head tube. If not accounted for in CAD or build specs, the bike will sit slacker and taller than stated.",
-			Expected: "12 mm",
-			Actual:   fmt.Sprintf("%.1f mm", effectiveCupStack),
+			ID:       "invalid_headset_cup_type",
+			Field:    "headset_cup_type",
+			Severity: model.SeverityError,
+			Title:    "Unrecognized Headset Cup Type",
+			Message:  fmt.Sprintf("Headset cup type %q is not a recognized SHIS standard (EC44, ZS44, ZS56, IS42, IS52).", bike.HeadsetCupType),
+			Expected: "EC44, ZS44, ZS56, IS42, or IS52",
+			Actual:   string(bike.HeadsetCupType),
 		})
 	}
 
@@ -128,75 +133,73 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		effectiveCupStack,
 	)
 
+	statedStaticA2c := bike.ForkA2c
+	if statedStaticA2c <= 0 && bike.ForkTravelMm > 0 {
+		statedStaticA2c = bike.ForkTravelMm + 412.0
+	}
+
+	sagCompression := 0.0
+	if bike.SagPercentagePublished > 0 && bike.ForkTravelMm > 0 {
+		sagCompression = bike.ForkTravelMm * (bike.SagPercentagePublished / 100.0)
+	}
+	expectedForkA2c := geometry.Round(statedStaticA2c-sagCompression, 1)
+
 	inferredMode := model.ModeUnspecified
 	var a2cDiff *float64
 
-	if bike.ForkA2c > 0 {
-		diff := geometry.Round(bike.ForkA2c-calculatedForkA2c, 1)
-		a2cDiff = &diff
+	if expectedForkA2c > 0 {
+		diffWithCup := geometry.Round(expectedForkA2c-calculatedForkA2c, 1)
+		diffWithoutCup := geometry.Round(expectedForkA2c-structuralA2c, 1)
 
-		if math.Abs(diff) <= 6.0 {
-			inferredMode = model.ModeStaticCad
-			issues = append(issues, model.ValidationIssue{
-				ID:       "stack_static_confirmed",
-				Severity: model.SeveritySuccess,
-				Title:    "Stack & Fork A2C Match (Static CAD)",
-				Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches stated static fork A2C (%.1fmm) within %.1fmm.", calculatedForkA2c, bike.ForkA2c, math.Abs(diff)),
-				Details:  "The manufacturer published geometry measured with an unweighted (0% sag) fork.",
-				Expected: fmt.Sprintf("%.1f mm", bike.ForkA2c),
-				Actual:   fmt.Sprintf("%.1f mm", calculatedForkA2c),
-			})
-		} else if diff >= 15.0 && diff <= 38.0 {
-			inferredMode = model.ModeSaggedCad
-			sagEstPercent := 20.0
-			if bike.ForkTravelMm > 0 {
-				sagEstPercent = geometry.Round((diff/bike.ForkTravelMm)*100.0, 0)
+		if math.Abs(diffWithCup) <= 6.0 {
+			a2cDiff = &diffWithCup
+			if bike.SagPercentagePublished > 0 {
+				inferredMode = model.ModeSaggedCad
+				issues = append(issues, model.ValidationIssue{
+					ID:       "stack_sagged_confirmed",
+					Severity: model.SeveritySuccess,
+					Title:    "Stack & Sagged Fork A2C Match",
+					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches published %.0f%% sagged fork A2C (%.1fmm) within %.1fmm.", calculatedForkA2c, bike.SagPercentagePublished, expectedForkA2c, math.Abs(diffWithCup)),
+					Expected: fmt.Sprintf("%.1f mm", expectedForkA2c),
+					Actual:   fmt.Sprintf("%.1f mm", calculatedForkA2c),
+				})
 			} else {
-				sagEstPercent = geometry.Round((diff/120.0)*100.0, 0)
+				inferredMode = model.ModeStaticCad
+				issues = append(issues, model.ValidationIssue{
+					ID:       "stack_static_confirmed",
+					Severity: model.SeveritySuccess,
+					Title:    "Stack & Fork A2C Match (Static CAD)",
+					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches stated static fork A2C (%.1fmm) within %.1fmm.", calculatedForkA2c, expectedForkA2c, math.Abs(diffWithCup)),
+					Details:  "The manufacturer published geometry measured with an unweighted (0% sag) fork and lower headset cup included.",
+					Expected: fmt.Sprintf("%.1f mm", expectedForkA2c),
+					Actual:   fmt.Sprintf("%.1f mm", calculatedForkA2c),
+				})
 			}
+		} else if effectiveCupStack > 0 && math.Abs(diffWithoutCup) <= 6.0 {
+			a2cDiff = &diffWithoutCup
+			inferredMode = model.ModeCupOmittedCad
 			issues = append(issues, model.ValidationIssue{
-				ID:         "sagged_cad_detected",
-				Severity:   model.SeverityInfo,
-				Title:      "Hardtail Sagged CAD Convention Detected",
-				Message:    fmt.Sprintf("Published Stack corresponds to a sagged fork (geometric A2C = %.1fmm, ~%.1fmm compression).", calculatedForkA2c, diff),
-				Details:    fmt.Sprintf("The manufacturer published numbers with approximately %.0f%% fork sag rather than static fork length (%.1fmm). Canonicalizing will convert this to apples-to-apples.", sagEstPercent, bike.ForkA2c),
-				Expected:   fmt.Sprintf("%.1f mm (static)", bike.ForkA2c),
-				Actual:     fmt.Sprintf("%.1f mm (sagged CAD)", calculatedForkA2c),
-				Difference: diff,
+				ID:       "stack_cup_omitted_cad",
+				Severity: model.SeverityInfo,
+				Title:    "CAD Chart Omitted External Lower Headset Cup",
+				Message:  fmt.Sprintf("CAD structural A2C (%.1fmm) matches stated fork A2C (%.1fmm) within %.1fmm (0mm lower cup in CAD; %s adds +%.0fmm physically).", structuralA2c, expectedForkA2c, math.Abs(diffWithoutCup), bike.HeadsetCupType, effectiveCupStack),
+				Details:  "The manufacturer calculated published Stack without the external lower headset cup height; canonical comparisons automatically add the physical cup stack.",
+				Expected: fmt.Sprintf("%.1f mm (bare fork)", expectedForkA2c),
+				Actual:   fmt.Sprintf("%.1f mm (CAD total)", structuralA2c),
 			})
 		} else {
+			a2cDiff = &diffWithCup
 			inferredMode = model.ModeMismatchedCad
 			issues = append(issues, model.ValidationIssue{
 				ID:         "stack_a2c_mismatch",
 				Field:      "stack",
-				Severity:   model.SeverityWarning,
+				Severity:   model.SeverityError,
 				Title:      "Geometric Inconsistency in Stack / A2C",
-				Message:    fmt.Sprintf("The geometric A2C required to produce Stack %.1fmm is %.1fmm, diverging from stated fork %.1fmm by %.1fmm.", bike.Stack, calculatedForkA2c, bike.ForkA2c, diff),
-				Details:    "Possible causes: typo in published Stack or HTL, unlisted headset cup height, or chart calculated under different wheel diameter/sag assumptions.",
-				Expected:   fmt.Sprintf("%.1f mm", bike.ForkA2c),
+				Message:    fmt.Sprintf("The geometric A2C required to produce Stack %.1fmm is %.1fmm, diverging from stated fork %.1fmm by %.1fmm.", bike.Stack, calculatedForkA2c, expectedForkA2c, diffWithCup),
+				Details:    "Published Stack, HTL, BB Drop, HTA, and Fork A2C do not satisfy the Master Stack Equation within ±6mm tolerance.",
+				Expected:   fmt.Sprintf("%.1f mm", expectedForkA2c),
 				Actual:     fmt.Sprintf("%.1f mm", calculatedForkA2c),
-				Difference: diff,
-			})
-		}
-	} else if bike.ForkTravelMm > 0 {
-		estimatedStaticA2c := bike.ForkTravelMm + 412.0
-		diffFromEstimated := geometry.Round(estimatedStaticA2c-calculatedForkA2c, 1)
-
-		if math.Abs(diffFromEstimated) <= 8.0 {
-			inferredMode = model.ModeStaticCad
-			issues = append(issues, model.ValidationIssue{
-				ID:       "estimated_static_match",
-				Severity: model.SeverityInfo,
-				Title:    "Consistent with Standard Static Fork Travel",
-				Message:  fmt.Sprintf("Geometric A2C (%.1fmm) aligns with typical %.0fmm 29er fork (~%.0fmm static).", calculatedForkA2c, bike.ForkTravelMm, estimatedStaticA2c),
-			})
-		} else if diffFromEstimated >= 15.0 && diffFromEstimated <= 38.0 {
-			inferredMode = model.ModeSaggedCad
-			issues = append(issues, model.ValidationIssue{
-				ID:       "estimated_sagged_match",
-				Severity: model.SeverityInfo,
-				Title:    "Probable Sagged Geometry Chart",
-				Message:  fmt.Sprintf("Geometric A2C (%.1fmm) is ~%.1fmm shorter than a static %.0fmm fork, indicating sagged CAD baseline.", calculatedForkA2c, diffFromEstimated, bike.ForkTravelMm),
+				Difference: diffWithCup,
 			})
 		}
 	}
@@ -221,10 +224,10 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 			issues = append(issues, model.ValidationIssue{
 				ID:         "front_center_mismatch",
 				Field:      "front_center",
-				Severity:   model.SeverityWarning,
+				Severity:   model.SeverityError,
 				Title:      "Front Center Inconsistency",
 				Message:    fmt.Sprintf("Published Front Center (%.1fmm) differs from geometrically calculated FC (%.1fmm) by %.1fmm.", bike.FrontCenter, calculatedFc, diff),
-				Details:    "Check if Reach or Fork Rake was modified in published geometry.",
+				Details:    "Check if Reach, HTA, or Fork Rake is inconsistent in published geometry.",
 				Expected:   fmt.Sprintf("%.1f mm (calculated)", calculatedFc),
 				Actual:     fmt.Sprintf("%.1f mm (published)", bike.FrontCenter),
 				Difference: diff,
@@ -246,7 +249,7 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 			issues = append(issues, model.ValidationIssue{
 				ID:       "wheelbase_discrepancy",
 				Field:    "wheelbase",
-				Severity: model.SeverityWarning,
+				Severity: model.SeverityError,
 				Title:    "Wheelbase & Chainstay Discrepancy",
 				Message:  fmt.Sprintf("Wheelbase (%.1fmm) does not match Rear Center (%.1fmm) + Front Center (%.1fmm) = %.1fmm (Δ %.1fmm).", bike.Wheelbase, csHorizontal, calculatedFc, estimatedWb, wbDiff),
 			})
@@ -266,7 +269,8 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		IsValid:             isValid,
 		Issues:              issues,
 		GeometricA2c:        geometry.Round(calculatedForkA2c, 1),
-		StatedA2c:           bike.ForkA2c,
+		StatedA2c:           statedStaticA2c,
+		ExpectedForkA2c:     expectedForkA2c,
 		CupStack:            effectiveCupStack,
 		TotalStructuralA2c:  geometry.Round(structuralA2c, 1),
 		A2cDifference:       a2cDiff,
@@ -275,6 +279,96 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		FrontCenterDiff:     fcDiff,
 	}
 }
+
+// ValidateFrame is the centralized validation gate for an entire FrameModel.
+// It validates frame metadata, all sizes across all configurations, and cross-configuration coherence.
+// If ValidateFrame returns IsValid == false, the frame is in an error state and must not be used.
+func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
+	report := model.FrameValidationReport{
+		FrameID:     frame.ID,
+		IsValid:     true,
+		SizeReports: make(map[string]model.ValidationReport),
+	}
+
+	if frame.Manufacturer == "" || frame.Model == "" {
+		report.IsValid = false
+		report.Issues = append(report.Issues, model.ValidationIssue{
+			ID:       "missing_frame_metadata",
+			Severity: model.SeverityError,
+			Title:    "Missing Frame Metadata",
+			Message:  "Frame manufacturer and model name are required.",
+		})
+	}
+
+	if !frame.HeadsetCupType.IsValid() {
+		report.IsValid = false
+		report.Issues = append(report.Issues, model.ValidationIssue{
+			ID:       "invalid_headset_cup_type",
+			Field:    "headset_cup_type",
+			Severity: model.SeverityError,
+			Title:    "Unrecognized Headset Cup Type",
+			Message:  fmt.Sprintf("Headset cup type %q is not a recognized SHIS standard (EC44, ZS44, ZS56, IS42, IS52).", frame.HeadsetCupType),
+		})
+	}
+
+	sizes := frame.GetSizes()
+	if len(sizes) == 0 || len(frame.Configurations) == 0 {
+		report.IsValid = false
+		report.Issues = append(report.Issues, model.ValidationIssue{
+			ID:       "missing_configurations",
+			Severity: model.SeverityError,
+			Title:    "Missing Frame Configurations or Sizes",
+			Message:  "Frame must define at least one size and one baseline configuration.",
+		})
+		return report
+	}
+
+	baseCfg := frame.GetBaselineConfiguration()
+	for _, cfg := range frame.Configurations {
+		for _, sz := range sizes {
+			bike, err := geometry.MaterializeBikeGeometry(frame, sz, cfg.ID)
+			if err != nil {
+				report.IsValid = false
+				report.Issues = append(report.Issues, model.ValidationIssue{
+					ID:       "materialize_error",
+					Severity: model.SeverityError,
+					Title:    fmt.Sprintf("Failed to Materialize Size %s (%s)", sz, cfg.ID),
+					Message:  err.Error(),
+				})
+				continue
+			}
+			valRep := ValidateBikeGeometry(bike)
+			key := sz
+			if baseCfg != nil && cfg.ID != baseCfg.ID {
+				key = fmt.Sprintf("%s@%s", sz, cfg.ID)
+			}
+			report.SizeReports[key] = valRep
+			if !valRep.IsValid {
+				report.IsValid = false
+			}
+		}
+	}
+
+	if len(frame.Configurations) > 1 && baseCfg != nil {
+		for _, cfg := range frame.Configurations {
+			if cfg.ID == baseCfg.ID {
+				continue
+			}
+			for _, sz := range sizes {
+				cc := ValidateCrossConfig(frame, sz, cfg.ID)
+				if cc != nil {
+					report.CrossConfigs = append(report.CrossConfigs, *cc)
+					if !cc.IsCoherent {
+						report.IsValid = false
+					}
+				}
+			}
+		}
+	}
+
+	return report
+}
+
 
 // ValidateCrossConfig compares an alternate configuration's published geometry against the
 // baseline configuration's expected kinematic pitching.
@@ -288,23 +382,8 @@ func ValidateCrossConfig(frame model.FrameModel, size string, comparedConfigID s
 		return nil
 	}
 
-	baseCup := frame.CupStack
-	if baseConfig.CupStack != nil {
-		baseCup = *baseConfig.CupStack
-	}
-	if baseCup == 0 && frame.HeadsetCupType == model.CupEC44 {
-		baseCup = 12.0
-	}
-
-	compCup := frame.CupStack
-	if compConfig.CupStack != nil {
-		compCup = *compConfig.CupStack
-	}
-	if compCup == 0 && frame.HeadsetCupType == model.CupEC44 {
-		compCup = 12.0
-	}
-
-	deltaA2c := (compConfig.Fork.A2c + compCup) - (baseConfig.Fork.A2c + baseCup)
+	cupStack := frame.HeadsetCupType.CupStackMm()
+	deltaA2c := compConfig.Fork.A2c - baseConfig.Fork.A2c
 
 	baseGeo, hasBase := baseConfig.Geometries[size]
 	if !hasBase {
@@ -326,8 +405,8 @@ func ValidateCrossConfig(frame model.FrameModel, size string, comparedConfigID s
 		}
 	}
 
-	baseStructural := baseConfig.Fork.A2c + baseCup
-	compStructural := compConfig.Fork.A2c + compCup
+	baseStructural := baseConfig.Fork.A2c + cupStack
+	compStructural := compConfig.Fork.A2c + cupStack
 	dyn := geometry.CalculateDynamicGeometry(
 		baseGeo.Reach,
 		baseGeo.Stack,

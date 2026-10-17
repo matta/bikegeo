@@ -1,145 +1,85 @@
-# BikeGeo Analyst 🚲
+# BikeGeo Analyst CLI 🚲
 
-A web application for **bicycle geometry validation and apples-to-apples frame comparisons**. Built with **Go**, **templ**, and **HTMX**.
+A zero-dependency Go command-line application for **bicycle geometry validation and apples-to-apples frame comparisons**.
 
-Bike geometry is stored directly in **local JSON files** under [`data/bikes/`](data/bikes).
-
----
-
-## Architectural Philosophy: Go + templ + HTMX
-
-This project is built around the hypermedia architecture:
-
-```
-[Local JSON / Disk] ↔ [Go Handlers + templ Components] ↔ [HTML Over the Wire] ↔ [DOM]
-```
-
-### Why This Stack Excels
-1. **Deterministic, Rapid Compiler Feedback**:
-   Go compiles in seconds, and `templ generate && go vet ./... && go test ./...` provides strict, unambiguous compiler feedback.
-2. **Compile-Time Type-Safe Templates**:
-   [`templ`](https://templ.guide) compiles HTML templates into native Go code. If a model field or prop is renamed or mismatched, `go build` fails immediately at compile time.
-3. **Single Mental Model Without State Desynchronization**:
-   HTMX eliminates client-side state hydration and JSON glue layers. The server returns HTML fragments directly swapped into the DOM.
-4. **Offline & Self-Contained**:
-   HTMX is vendored directly under `static/js/htmx.min.js`.
+Bike geometry is stored in **local JSON files** under [`data/bikes/`](data/bikes), and the most recent comparison setup is persisted in `data/last_compare.json`.
 
 ---
 
 ## Key Features
 
-1. **Local JSON Bike Storage**:
-   - Supports `manufacturer`, `model`, `category`, `headset_cup_type`, `cup_stack`, `seat_height`, per-size frame dimensions (`reach`, `stack`, `hta_deg`, `sta_deg`, `htl`, `bb_drop`, `wheelbase`), and configurations with modular fork specifications (`fork`: `{id, name, travel_mm, a2c, rake}`).
-   - Central fork registry in [`data/forks.json`](data/forks.json) allows configurations to reference standard forks by ID/name, auto-populating inferred values in the UI.
-   - Built-in UI to add, edit, and delete bikes directly saving to disk.
+1. **Unified Per-Column Comparison Model (`Frame + Size + Fork + Sag`)**:
+   - Every column in `bikegeo compare` is an independent setup (`frame[@size][@fork][@sag%]`).
+   - Compare the **exact same frame** across different sag points (`sendero@20% sendero@30%`) or across its supported forks (`sendero@120mm@20% sendero@130mm@20% sendero@rigid`).
+   - Compare **different frames** at different sag points and fork capacities (`sendero@120mm@20% chameleon@130mm@30% fenrir@rigid`).
 
-2. **Benchmark UX Patterns Implemented**:
-   - **Inline-Editable Data Cells**: Click any cell (e.g. Reach or Stack) to edit in place, saved via `hx-post`, swapping back into updated display markup.
-   - **Debounced Search-as-You-Type**: Search box with `hx-trigger="keyup changed delay:300ms, search"` filters the comparison matrix without full page reloads.
-   - **Asynchronous Form Submission**: Add/Edit view with `hx-indicator` loading spinner and live inline validation errors.
+2. **Strict Frame-Level Fork & Sag Constraint Enforcement**:
+   - Frames specify legal suspension travel sizes in mm (`supported_travel_mm`, e.g. `[120, 130]`) and/or a rigid fork axle-to-crown (`rigid_a2c_mm`, e.g. `483`).
+   - Automatically prevents invalid combinations:
+     - Rejects unsupported suspension travel capacities for a frame.
+     - Rejects `rigid` forks on suspension-only frames.
+     - Rejects non-zero sag (`@20%`) on rigid forks.
+     - Handles fixed-fork frames seamlessly without asking redundant questions.
 
-3. **Hardtail Geometry Dynamics**:
-   - Hardtails compress **only at the front fork**, which dynamically rotates the entire frame around the rear axle.
-   - Accurately computes how changes in fork axle-to-crown (A2C) or suspension sag dynamically steepen/slacken head & seat angles, alter reach & stack, and shift bottom bracket drop.
+3. **Persistent Comparison Memory & Interactive Builder (`-i`)**:
+   - Automatically saves your most recent comparison to `data/last_compare.json`.
+   - Running bare `bikegeo compare` immediately replays your last comparison.
+   - Use `+spec` / `-col_num` to incrementally add or remove columns from the saved comparison.
+   - Run `bikegeo compare -i` for a guided prompt/response column builder that only prompts for choices allowed by each frame's constraints.
 
-4. **Master Stack Equation & CAD Reverse-Engineering**:
+4. **Master Stack Equation & CAD Reverse-Engineering (`bikegeo validate`)**:
    - Proves whether published manufacturer charts match physical front-end geometry:
      $$\text{Stack} = \text{BB\_drop} - \text{Rake} \cdot \cos(\text{HTA}) + (\text{A2C} + \text{cup\_stack} + \text{HTL}) \cdot \sin(\text{HTA})$$
    - Reverse-engineers geometric Axle-to-Crown:
      $$\text{A2C}_{\text{geo}} = \frac{\text{Stack} - \text{BB\_drop} + \text{Rake} \cdot \cos(\text{HTA})}{\sin(\text{HTA})} - \text{HTL} - \text{cup\_stack}$$
-   - Automatically detects whether the manufacturer published numbers at **0% static sag** or **15–25% sagged CAD**, or whether there is a published typo/inconsistency.
+   - Detects whether the manufacturer published numbers at **0% static sag** or **15–25% sagged CAD**, or whether there is a published typo/inconsistency.
+   - Verifies **Cross-Configuration CAD Coherence** when a frame publishes charts for multiple forks.
 
-5. **Headset Hardware Reality**:
-   - Explicitly accounts for external lower headset cups.
-   - Straight 44mm head tubes running tapered forks require an **EC44 lower cup**, adding **12 mm** of physical stack below the head tube.
-
-6. **Apples-to-Apples Canonicalized Comparisons**:
-   - Compares multiple frames on an identical benchmark (same canonical fork A2C, same suspension sag %, same headset cup standard, same rider saddle height).
-   - Computes:
-     - Canonical Reach, Stack, HTA, STA, and BB Drop.
-     - Actual Effective Top Tube (AETT) at rider saddle height.
-     - Spare Steerer Stack (vertical and axial length required to level bars with saddle).
-     - Delta values ($\Delta$) relative to baseline and reference frames.
-
-7. **Interactive 2D Cartesian SVG Frame Diagram**:
-   - Superimposes baseline frame pose against the dynamically pitched canonical pose relative to the rear axle origin $(0, 0)$.
-
-8. **Backward-Compatible REST API**:
-   - Provides `/api/bikes`, `/api/bikes/{id}`, `/api/validate`, `/api/canonicalize`, `/api/analyze`.
+5. **Multiple Output Formats**:
+   - Supports `--format table` (Unicode box tables, default), `--format json`, `--format md` (Markdown), and `--format csv`.
 
 ---
 
-## Quick Start (Go)
-
-### Prerequisites
-- Go (v1.22+)
-- `templ` CLI (`go install github.com/a-h/templ/cmd/templ@latest`)
+## Quick Start
 
 ### Build & Run
 ```bash
-make run
+make build
+./bin/bikegeo help
 ```
-Or directly:
+
+### Usage Examples
+
 ```bash
-templ generate
-go run ./cmd/server
+# List all stored frames, sizes, and supported fork capacities:
+./bin/bikegeo list
+./bin/bikegeo list --all-sizes
+
+# Compare the same frame across 20% sag, 30% sag, and its rigid fork:
+./bin/bikegeo compare havok@110mm@20% havok@110mm@30% havok@rigid
+
+# Compare different frames across sizes, sag points, and fork capacities:
+./bin/bikegeo compare havok@L@rigid fenrir@L@rigid fenrir@L@110mm@20%
+
+# Replay the most recent comparison (from data/last_compare.json):
+./bin/bikegeo compare
+
+# Incrementally add a column and switch to transposed/compact view:
+./bin/bikegeo compare +havok@ML@100mm@20% --transpose
+
+# Launch interactive prompt/response comparison builder:
+./bin/bikegeo compare -i
+
+# Validate frame CAD math across all sizes and configurations:
+./bin/bikegeo validate binary-havok
+./bin/bikegeo validate --all
 ```
-Open [http://localhost:3001](http://localhost:3001) in your browser.
 
 ---
 
-## Running the Verification Loop & Tests
+## Running Verification & Tests
 
 ```bash
-make check
-```
-Or via the agent loop command:
-```bash
-templ generate && go vet ./... && go test -v ./...
+go vet ./... && go test -v ./...
 ```
 
----
-
-## Project Structure
-
-```
-bikegeo/
-├── cmd/
-│   └── server/
-│       └── main.go           # Server entrypoint
-├── pkg/
-│   ├── model/
-│   │   └── bike.go           # BikeGeometry, ValidationReport, Fit types
-│   ├── geometry/
-│   │   ├── geometry.go       # 2D Cartesian physics & pitching math
-│   │   └── geometry_test.go  # Numerical parity tests
-│   ├── validator/
-│   │   ├── validator.go      # Master Stack equation proof & CAD checks
-│   │   └── validator_test.go # Validation tests
-│   ├── canonicalizer/
-│   │   ├── canonicalizer.go  # Apples-to-apples normalization engine
-│   │   └── canonicalizer_test.go
-│   ├── storage/
-│   │   ├── storage.go        # JSON file persistence in data/bikes/
-│   │   └── storage_test.go   # CRUD storage tests
-│   └── web/
-│       ├── handlers.go       # HTTP handlers (HTMX fragments & REST API)
-│       ├── handlers_test.go  # Integration test suite (Target Patterns 1, 2, 3)
-│       └── templates/        # Type-safe templ templates
-│           ├── layout.templ
-│           ├── navbar.templ
-│           ├── compare.templ
-│           ├── validator.templ
-│           ├── editor.templ
-│           ├── diagram.templ
-│           └── inline_edit.templ
-├── static/
-│   └── js/
-│       └── htmx.min.js       # Vendored offline HTMX
-├── data/
-│   └── bikes/                # Local JSON bike files
-├── Makefile                  # Build & test tasks
-├── AGENTS.md                 # Agent feedback loop instructions
-├── go.mod
-└── go.sum
-```

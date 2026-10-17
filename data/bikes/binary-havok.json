@@ -2,42 +2,101 @@
   "id": "binary-havok",
   "manufacturer": "Binary",
   "model": "Havok",
-  "year": 2024,
+  "year": 2026,
   "category": "hardtail",
-  "notes": "Titanium hardtail configured with RockShox SID 110mm fork and EC44 external lower headset cup.",
+  "notes": "Titanium 29+ drop-bar endurance & adventure bike frame designed around a 485mm axle-to-crown rigid fork or 100mm suspension fork with an EC44 external lower headset cup.",
   "wheel_size": "29",
   "headset_cup_type": "EC44",
-  "cup_stack": 12.0,
   "seat_height": 780,
+  "supported_travel_mm": [100, 110, 120],
+  "rigid_a2c_mm": 485,
+  "default_fork": "rigid",
   "sizes": [
-    "M"
+    "S",
+    "M",
+    "ML",
+    "L",
+    "XL"
   ],
-  "default_size": "M",
+  "default_size": "L",
   "configurations": [
     {
       "id": "stock",
-      "name": "Stock Build",
+      "name": "Stock Rigid 485mm Build",
       "is_baseline": true,
       "fork": {
-        "id": "sid_110",
-        "name": "RockShox SID 110mm",
-        "travel_mm": 110,
-        "a2c": 521,
-        "rake": 44
+        "id": "rigid_485",
+        "name": "Rigid Bikepacking 485mm",
+        "travel_mm": 0,
+        "a2c": 485,
+        "rake": 45
       },
-      "sag_percentage_published": 20,
+      "sag_percentage_published": 0,
       "geometries": {
+        "S": {
+          "reach": 367,
+          "stack": 621,
+          "hta_deg": 68.5,
+          "sta_deg": 74.0,
+          "htl": 115,
+          "bb_drop": 70,
+          "wheelbase": 1072,
+          "chainstay_length": 445,
+          "front_center": 636,
+          "seat_tube_length": 460,
+          "standover_height": 783
+        },
         "M": {
+          "reach": 386,
+          "stack": 627,
+          "hta_deg": 68.5,
+          "sta_deg": 74.0,
+          "htl": 120,
+          "bb_drop": 70,
+          "wheelbase": 1092,
+          "chainstay_length": 445,
+          "front_center": 657,
+          "seat_tube_length": 480,
+          "standover_height": 795
+        },
+        "ML": {
+          "reach": 389,
+          "stack": 642,
+          "hta_deg": 69.0,
+          "sta_deg": 74.0,
+          "htl": 135,
+          "bb_drop": 70,
+          "wheelbase": 1096,
+          "chainstay_length": 445,
+          "front_center": 660,
+          "seat_tube_length": 500,
+          "standover_height": 813
+        },
+        "L": {
           "reach": 398,
           "stack": 656,
           "hta_deg": 69.0,
           "sta_deg": 74.0,
           "htl": 150,
           "bb_drop": 70,
-          "wheelbase": 1150,
-          "chainstay_length": 435,
-          "front_center": 0,
-          "seat_tube_length": 0
+          "wheelbase": 1111,
+          "chainstay_length": 445,
+          "front_center": 675,
+          "seat_tube_length": 525,
+          "standover_height": 833
+        },
+        "XL": {
+          "reach": 408,
+          "stack": 670,
+          "hta_deg": 69.0,
+          "sta_deg": 74.0,
+          "htl": 165,
+          "bb_drop": 70,
+          "wheelbase": 1126,
+          "chainstay_length": 445,
+          "front_center": 690,
+          "seat_tube_length": 555,
+          "standover_height": 855
         }
       }
     }

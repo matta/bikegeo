@@ -109,7 +109,6 @@ func TestFrameModelStorage(t *testing.T) {
 		Year:           2024,
 		Category:       model.CategoryHardtail,
 		HeadsetCupType: model.CupEC44,
-		CupStack:       12.0,
 		Sizes:          []string{"S", "M", "L", "XL"},
 		DefaultSize:    "L",
 		Configurations: []model.FrameConfiguration{
@@ -195,15 +194,15 @@ func TestLoadRealBikesDataDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get all frames: %v", err)
 	}
-	if len(frames) != 8 {
-		t.Errorf("Expected 8 frames, got %d", len(frames))
+	if len(frames) != 2 {
+		t.Errorf("Expected 2 frames, got %d", len(frames))
 	}
 	bikes, err := store.GetAllBikes()
 	if err != nil {
 		t.Fatalf("Failed to get all bikes: %v", err)
 	}
-	if len(bikes) == 0 {
-		t.Errorf("Expected materialized bikes, got 0")
+	if len(bikes) != 10 {
+		t.Errorf("Expected 10 materialized bikes (5 sizes each), got %d", len(bikes))
 	}
 	for _, b := range bikes {
 		if b.Fork.A2c <= 0 {
