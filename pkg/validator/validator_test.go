@@ -273,3 +273,39 @@ func TestValidateCrossConfig_Discrepancy(t *testing.T) {
 	}
 }
 
+func TestValidateSourPastaParty(t *testing.T) {
+	pastaParty := model.FrameModel{
+		ID:                 "sour-pasta-party",
+		Manufacturer:       "Sour",
+		Model:              "Pasta Party",
+		Sizes:              []string{"S", "M", "L", "XL"},
+		DefaultSize:        "L",
+		HeadsetCupType:     model.CupEC44,
+		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
+		GeoSlopMm:          &model.GeoSlopMm{A2c: model.Float64Ptr(1.5)},
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:         "stock",
+				IsBaseline: true,
+				Fork: model.ForkSpec{
+					TravelMm: 120,
+					A2c:      530,
+					Rake:     44,
+				},
+				SagPercentagePublished: 15,
+				Geometries: map[string]model.SizeGeometry{
+					"S":  {Reach: 415, Stack: 607, HtaDeg: 66.6, StaDeg: 74.0, Htl: 85, BbDrop: 65, Wheelbase: 1128, ChainstayLength: 435},
+					"M":  {Reach: 437, Stack: 615, HtaDeg: 66.6, StaDeg: 74.0, Htl: 95, BbDrop: 65, Wheelbase: 1153, ChainstayLength: 435},
+					"L":  {Reach: 467, Stack: 619, HtaDeg: 66.6, StaDeg: 74.0, Htl: 100, BbDrop: 65, Wheelbase: 1185, ChainstayLength: 435},
+					"XL": {Reach: 491, Stack: 630, HtaDeg: 66.6, StaDeg: 74.0, Htl: 110, BbDrop: 65, Wheelbase: 1214, ChainstayLength: 435},
+				},
+			},
+		},
+	}
+
+	report := validator.ValidateFrame(pastaParty)
+	if !report.IsValid {
+		t.Fatalf("Expected Sour Pasta Party to pass validation: %s", report.ErrorSummary())
+	}
+}
+
