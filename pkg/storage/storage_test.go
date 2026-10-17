@@ -195,15 +195,15 @@ func TestLoadRealBikesDataDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get all frames: %v", err)
 	}
-	if len(frames) != 5 {
-		t.Errorf("Expected 5 frames, got %d", len(frames))
+	if len(frames) != 6 {
+		t.Errorf("Expected 6 frames, got %d", len(frames))
 	}
 	bikes, err := store.GetAllBikes()
 	if err != nil {
 		t.Fatalf("Failed to get all bikes: %v", err)
 	}
-	if len(bikes) != 22 {
-		t.Errorf("Expected 22 materialized bikes (Havok 5 + Fenrir 5 + Pasta Party 4 + Ultra 4 + Hayduke 4), got %d", len(bikes))
+	if len(bikes) != 26 {
+		t.Errorf("Expected 26 materialized bikes (Havok 5 + Fenrir 5 + Pasta Party 4 + Ultra 4 + Hayduke 4 + El Jefe 4), got %d", len(bikes))
 	}
 	for _, b := range bikes {
 		if b.Fork.A2c <= 0 {

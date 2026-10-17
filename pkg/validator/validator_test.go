@@ -385,4 +385,42 @@ func TestValidateEskerHayduke(t *testing.T) {
 	}
 }
 
+func TestValidateRevelElJefe(t *testing.T) {
+	jefe := model.FrameModel{
+		ID:                 "revel-el-jefe",
+		Manufacturer:       "Revel",
+		Model:              "El Jefe",
+		HeadsetCupType:     model.CupIS52,
+		GeoHeadsetSpacerMm: model.Float64Ptr(0.0),
+		GeoSlopMm: &model.GeoSlopMm{
+			A2c:       model.Float64Ptr(6.0),
+			Wheelbase: model.Float64Ptr(6.5),
+		},
+		ChainstayRangeMm: []float64{420, 435},
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:         "stock",
+				IsBaseline: true,
+				Fork: model.ForkSpec{
+					TravelMm: 120,
+					A2c:      534,
+					Rake:     44,
+				},
+				SagPercentagePublished: 20,
+				Geometries: map[string]model.SizeGeometry{
+					"S":  {Reach: 435, Stack: 599, HtaDeg: 67.5, StaDeg: 75.0, Htl: 86, BbDrop: 68, Wheelbase: 1121, ChainstayLength: 420, SeatTubeLength: 374, StandoverHeight: 700},
+					"M":  {Reach: 455, Stack: 607, HtaDeg: 67.5, StaDeg: 75.0, Htl: 96, BbDrop: 68, Wheelbase: 1146, ChainstayLength: 420, SeatTubeLength: 420, StandoverHeight: 735},
+					"L":  {Reach: 474, Stack: 615, HtaDeg: 67.5, StaDeg: 75.0, Htl: 106, BbDrop: 68, Wheelbase: 1167, ChainstayLength: 420, SeatTubeLength: 455, StandoverHeight: 770},
+					"XL": {Reach: 499, Stack: 627, HtaDeg: 67.5, StaDeg: 75.0, Htl: 116, BbDrop: 68, Wheelbase: 1199, ChainstayLength: 420, SeatTubeLength: 460, StandoverHeight: 790},
+				},
+			},
+		},
+	}
+
+	report := validator.ValidateFrame(jefe)
+	if !report.IsValid {
+		t.Fatalf("Expected Revel El Jefe to pass validation: %s", report.ErrorSummary())
+	}
+}
+
 

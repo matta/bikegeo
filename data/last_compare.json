@@ -48,6 +48,18 @@
       "size": "S4",
       "fork": "120mm",
       "sag_percent": 30
+    },
+    {
+      "frame_id": "revel-el-jefe",
+      "size": "L",
+      "fork": "120mm",
+      "sag_percent": 20
+    },
+    {
+      "frame_id": "revel-el-jefe",
+      "size": "XL",
+      "fork": "120mm",
+      "sag_percent": 20
     }
   ]
 }
