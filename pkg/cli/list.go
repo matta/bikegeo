@@ -134,7 +134,7 @@ func (a *App) runList(args []string) int {
 		if headsetStr == "" {
 			headsetStr = "Standard"
 		}
-		headsetStr = fmt.Sprintf("%s (+%.0fmm)", headsetStr, cup)
+		headsetStr = fmt.Sprintf("%s (+%.0fmm, CAD %.0fmm)", headsetStr, cup, f.GetGeoHeadsetSpacerMm())
 
 		rows = append(rows, []string{
 			f.ID,

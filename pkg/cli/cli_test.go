@@ -291,7 +291,26 @@ func TestValidate_CoherentAndInconsistentFrames(t *testing.T) {
 		t.Errorf("Expected both binary-havok and otso-fenrir-stainless in summary output, got:\n%s", out)
 	}
 
-	// 2. Break a frame's stack so it fails Master Stack Equation and verify validate returns exit code 1
+	// 2. Single-frame validate on Otso Fenrir shows CAD Headset Spacer = 0.0 mm and the EC44 mismatch warning
+	code, out, errOut = runCLI(t, dataDir, stateFile, "", "validate", "otso-fenrir-stainless")
+	if code != 0 {
+		t.Fatalf("Expected exit code 0 for otso-fenrir-stainless, got %d: %s", code, errOut)
+	}
+	if !strings.Contains(out, "CAD Headset Spacer Differs From Physical Headset Cup") {
+		t.Errorf("Expected CAD Headset Spacer warning in detailed output, got:\n%s", out)
+	}
+
+	// 3. Setting geo_headset_spacer_mm=12 on Otso Fenrir fails validation (no auto-detection)
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "set", "otso-fenrir-stainless", "geo_headset_spacer_mm=12")
+	if code != 0 {
+		t.Fatalf("set geo_headset_spacer_mm failed: %s", errOut)
+	}
+	code, out, _ = runCLI(t, dataDir, stateFile, "", "validate", "otso-fenrir-stainless")
+	if code == 0 {
+		t.Errorf("Expected non-zero exit code for otso-fenrir-stainless with geo_headset_spacer_mm=12")
+	}
+
+	// 4. Break a frame's stack so it fails Master Stack Equation and verify validate returns exit code 1
 	code, _, errOut = runCLI(t, dataDir, stateFile, "", "set", "binary-havok:L", "stack=590")
 	if code != 0 {
 		t.Fatalf("set failed: %s", errOut)

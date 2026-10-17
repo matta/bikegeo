@@ -23,9 +23,7 @@ type ValidationResultBundle struct {
 func formatPublishModeShort(mode model.PublishMode) string {
 	switch mode {
 	case model.ModeStaticCad:
-		return "Static (Cup in CAD)"
-	case model.ModeCupOmittedCad:
-		return "Static (0mm Cup in CAD)"
+		return "Static (0% Sag)"
 	case model.ModeSaggedCad:
 		return "Sagged CAD"
 	case model.ModeMismatchedCad:
@@ -291,12 +289,12 @@ func (a *App) renderDetailedValidation(b ValidationResultBundle) {
 
 	// 2. Master Stack Equation & Headset Proof
 	fmt.Fprintln(a.Out, "\nMaster Stack Equation & Headset Proof:")
-	fmt.Fprintln(a.Out, "  Formula: Stack = BB_Drop - Rake*cos(HTA) + (A2C + Cup + HTL)*sin(HTA)")
+	fmt.Fprintln(a.Out, "  Formula: Stack = BB_Drop - Rake*cos(HTA) + (A2C + Geo_Spacer + HTL)*sin(HTA)")
 	fmt.Fprintf(
 		a.Out,
-		"  Derived: (%.0f - %.0f + %.0f*cos(%.1f°)) / sin(%.1f°) - %.0f = %.1f mm (Fork A2C) + %.1f mm (Cup) = %.1f mm\n",
+		"  Derived: (%.0f - %.0f + %.0f*cos(%.1f°)) / sin(%.1f°) - %.0f = %.1f mm (Fork A2C) + %.1f mm (CAD Spacer) = %.1f mm\n",
 		b.Bike.Stack, b.Bike.BbDrop, b.Bike.ForkRake, b.Bike.HtaDeg, b.Bike.HtaDeg, b.Bike.Htl,
-		b.Report.GeometricA2c, b.Report.CupStack, b.Report.TotalStructuralA2c,
+		b.Report.GeometricA2c, b.Report.GeoHeadsetSpacerMm, b.Report.TotalStructuralA2c,
 	)
 
 	statedStr := "Not specified"
@@ -308,14 +306,22 @@ func (a *App) renderDetailedValidation(b ValidationResultBundle) {
 		diffStr = fmt.Sprintf("%+.1f mm", *b.Report.A2cDifference)
 	}
 
+	slop := b.Bike.GetGeoSlopMm()
+	slopStr := fmt.Sprintf(
+		"a2c: ±%.1fmm, fc: ±%.1fmm, wb: ±%.1fmm, cross: ±%.1fmm",
+		slop.GetA2c(), slop.GetFrontCenter(), slop.GetWheelbase(), slop.GetCrossConfig(),
+	)
+
 	proofHeaders := []string{"Metric", "Value"}
 	proofRows := [][]string{
 		{"Published Fork A2C (Static)", statedStr},
 		{"Reverse-Engineered CAD A2C", fmt.Sprintf("%.1f mm", b.Report.GeometricA2c)},
 		{"Axle-to-Crown Deviation (Δ)", diffStr},
 		{"Inferred Published Mode", formatPublishModeShort(b.Report.InferredPublishMode)},
-		{"Headset Standard & Lower Cup Stack", fmt.Sprintf("%s (%.1f mm)", b.Bike.HeadsetCupType, b.Report.CupStack)},
-		{"Calculated Front Center", fmt.Sprintf("%.1f mm", b.Report.FrontCenterCalc)},
+		{"CAD Headset Spacer (geo_headset_spacer_mm)", fmt.Sprintf("%.1f mm", b.Report.GeoHeadsetSpacerMm)},
+		{"Physical Headset Cup (headset_cup_type)", fmt.Sprintf("%s (%.1f mm)", b.Bike.HeadsetCupType, b.Report.CupStack)},
+		{"Allowed Slop Tolerances (geo_slop_mm)", slopStr},
+		{"Calculated Front Center (3D)", fmt.Sprintf("%.1f mm", b.Report.FrontCenterCalc)},
 	}
 	if b.Bike.FrontCenter > 0 {
 		proofRows = append(proofRows, []string{"Published Front Center", fmt.Sprintf("%.1f mm", b.Bike.FrontCenter)})

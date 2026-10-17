@@ -63,17 +63,18 @@ func parseFrameFromData(data []byte, fileID string) (*model.FrameModel, error) {
 		}
 
 		frame = model.FrameModel{
-			ID:             baseID,
-			Manufacturer:   bike.Manufacturer,
-			Model:          bike.Model,
-			Year:           bike.Year,
-			Category:       bike.Category,
-			Notes:          bike.Notes,
-			WheelSize:      bike.WheelSize,
-			HeadsetCupType: bike.HeadsetCupType,
-			SeatHeight:     bike.SeatHeight,
-			Sizes:          []string{size},
-			DefaultSize:    size,
+			ID:                 baseID,
+			Manufacturer:       bike.Manufacturer,
+			Model:              bike.Model,
+			Year:               bike.Year,
+			Category:           bike.Category,
+			Notes:              bike.Notes,
+			WheelSize:          bike.WheelSize,
+			HeadsetCupType:     bike.HeadsetCupType,
+			GeoHeadsetSpacerMm: bike.GeoHeadsetSpacerMm,
+			SeatHeight:         bike.SeatHeight,
+			Sizes:              []string{size},
+			DefaultSize:        size,
 			Configurations: []model.FrameConfiguration{
 				{
 					ID:         "stock",
@@ -352,17 +353,18 @@ func (s *BikeStore) SaveBike(bike model.BikeGeometry) (*model.BikeGeometry, erro
 		frame = *existing
 	} else {
 		frame = model.FrameModel{
-			ID:             baseID,
-			Manufacturer:   bike.Manufacturer,
-			Model:          bike.Model,
-			Year:           bike.Year,
-			Category:       bike.Category,
-			Notes:          bike.Notes,
-			WheelSize:      bike.WheelSize,
-			HeadsetCupType: bike.HeadsetCupType,
-			SeatHeight:     bike.SeatHeight,
-			Sizes:          []string{size},
-			DefaultSize:    size,
+			ID:                 baseID,
+			Manufacturer:       bike.Manufacturer,
+			Model:              bike.Model,
+			Year:               bike.Year,
+			Category:           bike.Category,
+			Notes:              bike.Notes,
+			WheelSize:          bike.WheelSize,
+			HeadsetCupType:     bike.HeadsetCupType,
+			GeoHeadsetSpacerMm: bike.GeoHeadsetSpacerMm,
+			SeatHeight:         bike.SeatHeight,
+			Sizes:              []string{size},
+			DefaultSize:        size,
 		}
 	}
 

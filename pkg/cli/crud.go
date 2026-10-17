@@ -27,6 +27,7 @@ func (a *App) runInit(args []string) int {
 	var rigidA2c float64
 	var defaultFork string
 	var cupType string
+	var geoSpacer float64
 	var save bool
 
 	fs.StringVar(&manufacturer, "manufacturer", "Custom", "Frame manufacturer name")
@@ -36,6 +37,7 @@ func (a *App) runInit(args []string) int {
 	fs.Float64Var(&rigidA2c, "rigid-a2c", 0, "Supported rigid fork axle-to-crown in mm (0 if rigid not supported)")
 	fs.StringVar(&defaultFork, "default-fork", "", "Default fork (e.g. '120mm' or 'rigid')")
 	fs.StringVar(&cupType, "cup-type", "EC44", "Headset lower cup standard (EC44, ZS44, IS52, ZS56)")
+	fs.Float64Var(&geoSpacer, "geo-spacer", -1, "Below-headset spacer in mm that the CAD chart was drawn with (default: matches --cup-type stack)")
 	fs.BoolVar(&save, "save", false, "Save generated template directly into data/bikes/<id>.json")
 
 	reordered := reorderFlagsForStdlib(fs, args, map[string]bool{"save": true})
@@ -99,7 +101,9 @@ func (a *App) runInit(args []string) int {
 		fmt.Fprintf(a.Err, "Error: invalid --cup-type %q (valid: EC44, ZS44, ZS56, IS42, IS52)\n", cupType)
 		return 2
 	}
-	cupStack := parsedCupType.CupStackMm()
+	if geoSpacer < 0 {
+		geoSpacer = parsedCupType.CupStackMm()
+	}
 
 	// Build coherent baseline geometry using the Master Stack Equation so it validates cleanly out-of-the-box
 	geos := make(map[string]model.SizeGeometry)
@@ -112,8 +116,8 @@ func (a *App) runInit(args []string) int {
 	for i, sz := range sizes {
 		reach := 425.0 + float64(i)*22.0
 		htl := 100.0 + float64(i)*10.0
-		structuralA2c := baseFork.A2c + cupStack
-		// Stack = BB_drop - Rake*cos(HTA) + (A2C + cup_stack + HTL)*sin(HTA)
+		structuralA2c := baseFork.A2c + geoSpacer
+		// Stack = BB_drop - Rake*cos(HTA) + (A2C + geo_headset_spacer_mm + HTL)*sin(HTA)
 		stack := geometry.Round(bbDrop-baseFork.Rake*math.Cos(htaRad)+(structuralA2c+htl)*math.Sin(htaRad), 1)
 		fc := geometry.CalculateFrontCenter(reach, htl, htaDeg, baseFork.Rake, structuralA2c)
 		wb := geometry.Round(rearCenter+fc, 1)
@@ -144,18 +148,19 @@ func (a *App) runInit(args []string) int {
 	}
 
 	frame := model.FrameModel{
-		Manufacturer:      manufacturer,
-		Model:             modelName,
-		Year:              2025,
-		Category:          cat,
-		WheelSize:         "29",
-		HeadsetCupType:    parsedCupType,
-		SeatHeight:        760.0,
-		SupportedTravelMm: travels,
-		RigidA2cMm:        rigidA2c,
-		DefaultFork:       defaultFork,
-		Sizes:             sizes,
-		DefaultSize:       defSize,
+		Manufacturer:       manufacturer,
+		Model:              modelName,
+		Year:               2025,
+		Category:           cat,
+		WheelSize:          "29",
+		HeadsetCupType:     parsedCupType,
+		GeoHeadsetSpacerMm: model.Float64Ptr(geoSpacer),
+		SeatHeight:         760.0,
+		SupportedTravelMm:  travels,
+		RigidA2cMm:         rigidA2c,
+		DefaultFork:        defaultFork,
+		Sizes:              sizes,
+		DefaultSize:        defSize,
 		Configurations: []model.FrameConfiguration{
 			{
 				ID:         "stock",
@@ -366,6 +371,53 @@ func (a *App) runSet(args []string) int {
 				return 1
 			}
 			frame.HeadsetCupType = ct
+		case "geo_headset_spacer_mm", "geo_spacer_mm", "geo_spacer", "headset_spacer_mm":
+			v, err := parseFloat()
+			if err != nil || v < 0 {
+				fmt.Fprintf(a.Err, "Error: geo_headset_spacer_mm must be a non-negative number\n")
+				return 1
+			}
+			frame.GeoHeadsetSpacerMm = model.Float64Ptr(v)
+		case "geo_slop_mm.a2c", "slop.a2c":
+			v, err := parseFloat()
+			if err != nil || v < 0 || v > 10.0 {
+				fmt.Fprintf(a.Err, "Error: geo_slop_mm.a2c must be between 0 and 10\n")
+				return 1
+			}
+			if frame.GeoSlopMm == nil {
+				frame.GeoSlopMm = &model.GeoSlopMm{}
+			}
+			frame.GeoSlopMm.A2c = model.Float64Ptr(v)
+		case "geo_slop_mm.front_center", "slop.front_center":
+			v, err := parseFloat()
+			if err != nil || v < 0 || v > 10.0 {
+				fmt.Fprintf(a.Err, "Error: geo_slop_mm.front_center must be between 0 and 10\n")
+				return 1
+			}
+			if frame.GeoSlopMm == nil {
+				frame.GeoSlopMm = &model.GeoSlopMm{}
+			}
+			frame.GeoSlopMm.FrontCenter = model.Float64Ptr(v)
+		case "geo_slop_mm.wheelbase", "slop.wheelbase":
+			v, err := parseFloat()
+			if err != nil || v < 0 || v > 10.0 {
+				fmt.Fprintf(a.Err, "Error: geo_slop_mm.wheelbase must be between 0 and 10\n")
+				return 1
+			}
+			if frame.GeoSlopMm == nil {
+				frame.GeoSlopMm = &model.GeoSlopMm{}
+			}
+			frame.GeoSlopMm.Wheelbase = model.Float64Ptr(v)
+		case "geo_slop_mm.cross_config", "slop.cross_config":
+			v, err := parseFloat()
+			if err != nil || v < 0 || v > 10.0 {
+				fmt.Fprintf(a.Err, "Error: geo_slop_mm.cross_config must be between 0 and 10\n")
+				return 1
+			}
+			if frame.GeoSlopMm == nil {
+				frame.GeoSlopMm = &model.GeoSlopMm{}
+			}
+			frame.GeoSlopMm.CrossConfig = model.Float64Ptr(v)
 		case "seat_height":
 			v, err := parseFloat()
 			if err != nil || v <= 0 {

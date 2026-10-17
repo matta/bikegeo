@@ -7,6 +7,11 @@ import (
 )
 
 
+// Float64Ptr returns a pointer to v, used for explicit JSON numeric fields where 0 is valid.
+func Float64Ptr(v float64) *float64 {
+	return &v
+}
+
 type HeadsetCupType string
 
 const (
@@ -31,10 +36,24 @@ func (c HeadsetCupType) CupStackMm() float64 {
 	}
 }
 
-// IsValid returns true if the HeadsetCupType is empty or a recognized standard.
+// ExpectedSpacerRangeMm returns the typical physical range [min, max] in mm for this lower headset cup standard.
+func (c HeadsetCupType) ExpectedSpacerRangeMm() (float64, float64) {
+	switch c {
+	case CupEC44:
+		return 10.0, 14.0
+	case CupZS44, CupZS56:
+		return 0.0, 4.0
+	case CupIS42, CupIS52:
+		return 0.0, 2.0
+	default:
+		return 0.0, 0.0
+	}
+}
+
+// IsValid returns true if the HeadsetCupType is a recognized non-empty SHIS standard.
 func (c HeadsetCupType) IsValid() bool {
 	switch c {
-	case "", CupEC44, CupZS44, CupZS56, CupIS42, CupIS52:
+	case CupEC44, CupZS44, CupZS56, CupIS42, CupIS52:
 		return true
 	default:
 		return false
@@ -58,6 +77,46 @@ const (
 	SeverityInfo    Severity = "info"
 	SeveritySuccess Severity = "success"
 )
+
+// DefaultGeoSlopMm is the default maximum allowed discrepancy (in mm) for geometric consistency checks.
+const DefaultGeoSlopMm = 1.0
+
+// GeoSlopMm defines optional measure-specific validation tolerances (in mm) for a frame.
+// Any nil field defaults to DefaultGeoSlopMm (1.0mm).
+type GeoSlopMm struct {
+	A2c         *float64 `json:"a2c,omitempty"`
+	FrontCenter *float64 `json:"front_center,omitempty"`
+	Wheelbase   *float64 `json:"wheelbase,omitempty"`
+	CrossConfig *float64 `json:"cross_config,omitempty"`
+}
+
+func (s GeoSlopMm) GetA2c() float64 {
+	if s.A2c != nil {
+		return *s.A2c
+	}
+	return DefaultGeoSlopMm
+}
+
+func (s GeoSlopMm) GetFrontCenter() float64 {
+	if s.FrontCenter != nil {
+		return *s.FrontCenter
+	}
+	return DefaultGeoSlopMm
+}
+
+func (s GeoSlopMm) GetWheelbase() float64 {
+	if s.Wheelbase != nil {
+		return *s.Wheelbase
+	}
+	return DefaultGeoSlopMm
+}
+
+func (s GeoSlopMm) GetCrossConfig() float64 {
+	if s.CrossConfig != nil {
+		return *s.CrossConfig
+	}
+	return DefaultGeoSlopMm
+}
 
 // BikeGeometry represents bicycle frame geometry data from disk JSON.
 type BikeGeometry struct {
@@ -90,10 +149,26 @@ type BikeGeometry struct {
 	ForkTravelMm           float64        `json:"fork_travel_mm,omitempty"`
 	ForkA2c                float64        `json:"fork_a2c,omitempty"`
 	SagPercentagePublished float64        `json:"sag_percentage_published,omitempty"`
-	HeadsetCupType         HeadsetCupType `json:"headset_cup_type,omitempty"`
+	HeadsetCupType         HeadsetCupType `json:"headset_cup_type"`
+	GeoHeadsetSpacerMm     *float64       `json:"geo_headset_spacer_mm"`
+	GeoSlopMm              *GeoSlopMm     `json:"geo_slop_mm,omitempty"`
 
 	// Rider Fit Reference
 	SeatHeight float64 `json:"seat_height,omitempty"`
+}
+
+func (b BikeGeometry) GetGeoHeadsetSpacerMm() float64 {
+	if b.GeoHeadsetSpacerMm != nil {
+		return *b.GeoHeadsetSpacerMm
+	}
+	return 0
+}
+
+func (b BikeGeometry) GetGeoSlopMm() GeoSlopMm {
+	if b.GeoSlopMm != nil {
+		return *b.GeoSlopMm
+	}
+	return GeoSlopMm{}
 }
 
 // ForkSpec encapsulates physical and geometric properties of a fork.
@@ -136,21 +211,37 @@ type FrameConfiguration struct {
 
 // FrameModel represents a unified bike frame family on disk and in memory.
 type FrameModel struct {
-	ID                string               `json:"id"`
-	Manufacturer      string               `json:"manufacturer"`
-	Model             string               `json:"model"`
-	Year              int                  `json:"year,omitempty"`
-	Category          BikeCategory         `json:"category,omitempty"`
-	Notes             string               `json:"notes,omitempty"`
-	WheelSize         string               `json:"wheel_size,omitempty"`
-	HeadsetCupType    HeadsetCupType       `json:"headset_cup_type,omitempty"`
-	SeatHeight        float64              `json:"seat_height,omitempty"`
-	SupportedTravelMm []float64            `json:"supported_travel_mm,omitempty"`
-	RigidA2cMm        float64              `json:"rigid_a2c_mm,omitempty"`
-	DefaultFork       string               `json:"default_fork,omitempty"`
-	Sizes             []string             `json:"sizes"`
-	DefaultSize       string               `json:"default_size,omitempty"`
-	Configurations    []FrameConfiguration `json:"configurations"`
+	ID                 string               `json:"id"`
+	Manufacturer       string               `json:"manufacturer"`
+	Model              string               `json:"model"`
+	Year               int                  `json:"year,omitempty"`
+	Category           BikeCategory         `json:"category,omitempty"`
+	Notes              string               `json:"notes,omitempty"`
+	WheelSize          string               `json:"wheel_size,omitempty"`
+	HeadsetCupType     HeadsetCupType       `json:"headset_cup_type"`
+	GeoHeadsetSpacerMm *float64             `json:"geo_headset_spacer_mm"`
+	GeoSlopMm          *GeoSlopMm           `json:"geo_slop_mm,omitempty"`
+	SeatHeight         float64              `json:"seat_height,omitempty"`
+	SupportedTravelMm  []float64            `json:"supported_travel_mm,omitempty"`
+	RigidA2cMm         float64              `json:"rigid_a2c_mm,omitempty"`
+	DefaultFork        string               `json:"default_fork,omitempty"`
+	Sizes              []string             `json:"sizes"`
+	DefaultSize        string               `json:"default_size,omitempty"`
+	Configurations     []FrameConfiguration `json:"configurations"`
+}
+
+func (fm *FrameModel) GetGeoHeadsetSpacerMm() float64 {
+	if fm.GeoHeadsetSpacerMm != nil {
+		return *fm.GeoHeadsetSpacerMm
+	}
+	return 0
+}
+
+func (fm *FrameModel) GetGeoSlopMm() GeoSlopMm {
+	if fm.GeoSlopMm != nil {
+		return *fm.GeoSlopMm
+	}
+	return GeoSlopMm{}
 }
 
 func (fm *FrameModel) GetSizes() []string {
@@ -339,7 +430,6 @@ type PublishMode string
 
 const (
 	ModeStaticCad     PublishMode = "static_cad"
-	ModeCupOmittedCad PublishMode = "cup_omitted_cad"
 	ModeSaggedCad     PublishMode = "sagged_cad_15_25"
 	ModeMismatchedCad PublishMode = "mismatched_cad"
 	ModeUnspecified   PublishMode = "unspecified"
@@ -352,6 +442,7 @@ type ValidationReport struct {
 	GeometricA2c        float64           `json:"geometricA2c"`
 	StatedA2c           float64           `json:"statedA2c,omitempty"`
 	ExpectedForkA2c     float64           `json:"expectedForkA2c,omitempty"`
+	GeoHeadsetSpacerMm  float64           `json:"geoHeadsetSpacerMm"`
 	CupStack            float64           `json:"cupStack"`
 	TotalStructuralA2c  float64           `json:"totalStructuralA2c"`
 	A2cDifference       *float64          `json:"a2cDifference,omitempty"`

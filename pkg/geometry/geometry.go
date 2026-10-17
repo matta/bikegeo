@@ -128,10 +128,16 @@ func CalculateDynamicGeometry(
 	}
 }
 
-// CalculateFrontCenter calculates theoretical Front-Center from frame geometry.
+// CalculateFrontCenter calculates theoretical horizontal Front-Center from frame geometry.
 func CalculateFrontCenter(reach, htl, htaDeg, rake, structuralA2c float64) float64 {
 	hta := ToRad(htaDeg)
 	return reach + (structuralA2c+htl)*math.Cos(hta) + rake*math.Sin(hta)
+}
+
+// CalculateFrontCenter3D calculates direct point-to-point Front-Center from the bottom bracket spindle to the front axle.
+func CalculateFrontCenter3D(reach, htl, htaDeg, rake, structuralA2c, bbDrop float64) float64 {
+	fcHoriz := CalculateFrontCenter(reach, htl, htaDeg, rake, structuralA2c)
+	return math.Hypot(fcHoriz, bbDrop)
 }
 
 // AnalyzeBikeFit runs the master analysis pipeline:
@@ -150,6 +156,10 @@ func AnalyzeBikeFit(
 	}
 
 	cupStack := bike.HeadsetCupType.CupStackMm()
+	geoSpacer := cupStack
+	if bike.GeoHeadsetSpacerMm != nil {
+		geoSpacer = *bike.GeoHeadsetSpacerMm
+	}
 
 	// 1. Reverse engineer baseline CAD geometric A2C
 	baseStructuralA2c, baseForkA2c := CalculateGeometricA2c(
@@ -158,7 +168,7 @@ func AnalyzeBikeFit(
 		bike.Htl,
 		bike.HtaDeg,
 		bike.ForkRake,
-		cupStack,
+		geoSpacer,
 	)
 
 	activeReach := bike.Reach
@@ -172,7 +182,7 @@ func AnalyzeBikeFit(
 	deltaStack := 0.0
 	deltaBbDrop := 0.0
 
-	// 2. If target A2C provided, apply dynamic pitching
+	// 2. If target A2C provided, apply dynamic pitching using physical headset_cup_type stack
 	if targetA2c != nil {
 		totalNewA2c := *targetA2c + cupStack
 
@@ -217,7 +227,8 @@ func AnalyzeBikeFit(
 	inferredPublishMode := "Unspecified"
 	if bike.ForkA2c > 0 {
 		diff := bike.ForkA2c - baseForkA2c
-		if math.Abs(diff) <= 6.0 {
+		a2cSlop := bike.GetGeoSlopMm().GetA2c()
+		if math.Abs(diff) <= a2cSlop {
 			inferredPublishMode = "Static Fork (0% Sag CAD)"
 		} else if diff >= 15.0 && diff <= 35.0 {
 			inferredPublishMode = fmt.Sprintf("Sagged (~20%% Sag CAD, ~%dmm sag)", int(math.Round(diff)))
@@ -260,7 +271,7 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string, configID strin
 		return model.BikeGeometry{}, fmt.Errorf("frame %s has no configurations", frame.ID)
 	}
 
-	cupStack := frame.HeadsetCupType.CupStackMm()
+	geoSpacer := frame.GetGeoHeadsetSpacerMm()
 
 	bikeID := frame.ID
 	if !strings.HasSuffix(strings.ToLower(bikeID), "-"+strings.ToLower(size)) {
@@ -280,6 +291,8 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string, configID strin
 		Notes:                  frame.Notes,
 		WheelSize:              frame.WheelSize,
 		HeadsetCupType:         frame.HeadsetCupType,
+		GeoHeadsetSpacerMm:     frame.GeoHeadsetSpacerMm,
+		GeoSlopMm:              frame.GeoSlopMm,
 		SeatHeight:             frame.SeatHeight,
 		Fork:                   targetConfig.Fork,
 		ForkTravelMm:           targetConfig.Fork.TravelMm,
@@ -332,8 +345,8 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string, configID strin
 		return res, fmt.Errorf("size %s not defined in frame %s", size, frame.ID)
 	}
 
-	baseStructuralA2c := baseConfig.Fork.A2c + cupStack
-	targetStructuralA2c := targetConfig.Fork.A2c + cupStack
+	baseStructuralA2c := baseConfig.Fork.A2c + geoSpacer
+	targetStructuralA2c := targetConfig.Fork.A2c + geoSpacer
 
 	dyn := CalculateDynamicGeometry(
 		baseGeo.Reach,

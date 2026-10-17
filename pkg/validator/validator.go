@@ -54,6 +54,51 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		})
 	}
 
+	if bike.HeadsetCupType == "" {
+		issues = append(issues, model.ValidationIssue{
+			ID:       "missing_headset_cup_type",
+			Field:    "headset_cup_type",
+			Severity: model.SeverityError,
+			Title:    "Missing Essential Variable: Headset Cup Type",
+			Message:  "headset_cup_type (EC44, ZS44, ZS56, IS42, or IS52) is required.",
+		})
+	} else if !bike.HeadsetCupType.IsValid() {
+		issues = append(issues, model.ValidationIssue{
+			ID:       "invalid_headset_cup_type",
+			Field:    "headset_cup_type",
+			Severity: model.SeverityError,
+			Title:    "Unrecognized Headset Cup Type",
+			Message:  fmt.Sprintf("Headset cup type %q is not a recognized SHIS standard (EC44, ZS44, ZS56, IS42, IS52).", bike.HeadsetCupType),
+			Expected: "EC44, ZS44, ZS56, IS42, or IS52",
+			Actual:   string(bike.HeadsetCupType),
+		})
+	}
+
+	if bike.GeoHeadsetSpacerMm == nil {
+		issues = append(issues, model.ValidationIssue{
+			ID:       "missing_geo_headset_spacer_mm",
+			Field:    "geo_headset_spacer_mm",
+			Severity: model.SeverityError,
+			Title:    "Missing Essential Variable: CAD Headset Spacer (mm)",
+			Message:  "geo_headset_spacer_mm must be explicitly stated in the geometry JSON (e.g. 10 or 0).",
+			Details:  "Every bike geometry must explicitly declare the below-headset spacer/cup height that the CAD chart was drawn with.",
+		})
+	} else if *bike.GeoHeadsetSpacerMm < 0 || *bike.GeoHeadsetSpacerMm > 25.0 {
+		issues = append(issues, model.ValidationIssue{
+			ID:       "invalid_geo_headset_spacer_mm",
+			Field:    "geo_headset_spacer_mm",
+			Severity: model.SeverityError,
+			Title:    "Invalid CAD Headset Spacer (mm)",
+			Message:  fmt.Sprintf("geo_headset_spacer_mm of %.1fmm is outside valid range (0mm - 25mm).", *bike.GeoHeadsetSpacerMm),
+			Expected: "0.0 - 25.0 mm",
+			Actual:   fmt.Sprintf("%.1f mm", *bike.GeoHeadsetSpacerMm),
+		})
+	}
+
+	if bike.GeoSlopMm != nil {
+		issues = append(issues, validateGeoSlop(bike.GeoSlopMm)...)
+	}
+
 	hasError := false
 	for _, issue := range issues {
 		if issue.Severity == model.SeverityError {
@@ -63,6 +108,8 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 	}
 
 	effectiveCupStack := bike.HeadsetCupType.CupStackMm()
+	geoSpacerMm := bike.GetGeoHeadsetSpacerMm()
+	slop := bike.GetGeoSlopMm()
 
 	if hasError {
 		return model.ValidationReport{
@@ -70,6 +117,7 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 			IsValid:             false,
 			Issues:              issues,
 			GeometricA2c:        0,
+			GeoHeadsetSpacerMm:  geoSpacerMm,
 			CupStack:            effectiveCupStack,
 			TotalStructuralA2c:  0,
 			InferredPublishMode: model.ModeUnspecified,
@@ -110,16 +158,18 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		})
 	}
 
-	// 3. Headset Cup Type Validation
-	if !bike.HeadsetCupType.IsValid() {
+	// 3. CAD Headset Spacer vs. Physical Headset Cup Type Plausibility Check
+	minSpacer, maxSpacer := bike.HeadsetCupType.ExpectedSpacerRangeMm()
+	if geoSpacerMm < minSpacer || geoSpacerMm > maxSpacer {
 		issues = append(issues, model.ValidationIssue{
-			ID:       "invalid_headset_cup_type",
-			Field:    "headset_cup_type",
-			Severity: model.SeverityError,
-			Title:    "Unrecognized Headset Cup Type",
-			Message:  fmt.Sprintf("Headset cup type %q is not a recognized SHIS standard (EC44, ZS44, ZS56, IS42, IS52).", bike.HeadsetCupType),
-			Expected: "EC44, ZS44, ZS56, IS42, or IS52",
-			Actual:   string(bike.HeadsetCupType),
+			ID:       "geo_spacer_cup_mismatch",
+			Field:    "geo_headset_spacer_mm",
+			Severity: model.SeverityWarning,
+			Title:    "CAD Headset Spacer Differs From Physical Headset Cup",
+			Message:  fmt.Sprintf("CAD geometry was drawn with a %.1fmm headset spacer, whereas %s physically uses %.0f–%.0fmm (standard %.0fmm).", geoSpacerMm, bike.HeadsetCupType, minSpacer, maxSpacer, effectiveCupStack),
+			Details:  "Validation uses geo_headset_spacer_mm to verify the published chart, while comparisons pitch the frame using the physical headset_cup_type stack.",
+			Expected: fmt.Sprintf("%.0f - %.0f mm (%s)", minSpacer, maxSpacer, bike.HeadsetCupType),
+			Actual:   fmt.Sprintf("%.1f mm (CAD)", geoSpacerMm),
 		})
 	}
 
@@ -130,7 +180,7 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		bike.Htl,
 		bike.HtaDeg,
 		bike.ForkRake,
-		effectiveCupStack,
+		geoSpacerMm,
 	)
 
 	statedStaticA2c := bike.ForkA2c
@@ -146,20 +196,20 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 
 	inferredMode := model.ModeUnspecified
 	var a2cDiff *float64
+	a2cSlop := slop.GetA2c()
 
 	if expectedForkA2c > 0 {
-		diffWithCup := geometry.Round(expectedForkA2c-calculatedForkA2c, 1)
-		diffWithoutCup := geometry.Round(expectedForkA2c-structuralA2c, 1)
+		diff := geometry.Round(expectedForkA2c-calculatedForkA2c, 1)
+		a2cDiff = &diff
 
-		if math.Abs(diffWithCup) <= 6.0 {
-			a2cDiff = &diffWithCup
+		if math.Abs(diff) <= a2cSlop {
 			if bike.SagPercentagePublished > 0 {
 				inferredMode = model.ModeSaggedCad
 				issues = append(issues, model.ValidationIssue{
 					ID:       "stack_sagged_confirmed",
 					Severity: model.SeveritySuccess,
 					Title:    "Stack & Sagged Fork A2C Match",
-					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches published %.0f%% sagged fork A2C (%.1fmm) within %.1fmm.", calculatedForkA2c, bike.SagPercentagePublished, expectedForkA2c, math.Abs(diffWithCup)),
+					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches published %.0f%% sagged fork A2C (%.1fmm) within %.1fmm (tolerance ±%.1fmm, %.1fmm CAD spacer).", calculatedForkA2c, bike.SagPercentagePublished, expectedForkA2c, math.Abs(diff), a2cSlop, geoSpacerMm),
 					Expected: fmt.Sprintf("%.1f mm", expectedForkA2c),
 					Actual:   fmt.Sprintf("%.1f mm", calculatedForkA2c),
 				})
@@ -169,66 +219,62 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 					ID:       "stack_static_confirmed",
 					Severity: model.SeveritySuccess,
 					Title:    "Stack & Fork A2C Match (Static CAD)",
-					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches stated static fork A2C (%.1fmm) within %.1fmm.", calculatedForkA2c, expectedForkA2c, math.Abs(diffWithCup)),
-					Details:  "The manufacturer published geometry measured with an unweighted (0% sag) fork and lower headset cup included.",
+					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches stated static fork A2C (%.1fmm) within %.1fmm (tolerance ±%.1fmm, %.1fmm CAD spacer).", calculatedForkA2c, expectedForkA2c, math.Abs(diff), a2cSlop, geoSpacerMm),
+					Details:  "The manufacturer published geometry measured with an unweighted (0% sag) fork and the explicitly stated CAD headset spacer.",
 					Expected: fmt.Sprintf("%.1f mm", expectedForkA2c),
 					Actual:   fmt.Sprintf("%.1f mm", calculatedForkA2c),
 				})
 			}
-		} else if effectiveCupStack > 0 && math.Abs(diffWithoutCup) <= 6.0 {
-			a2cDiff = &diffWithoutCup
-			inferredMode = model.ModeCupOmittedCad
-			issues = append(issues, model.ValidationIssue{
-				ID:       "stack_cup_omitted_cad",
-				Severity: model.SeverityInfo,
-				Title:    "CAD Chart Omitted External Lower Headset Cup",
-				Message:  fmt.Sprintf("CAD structural A2C (%.1fmm) matches stated fork A2C (%.1fmm) within %.1fmm (0mm lower cup in CAD; %s adds +%.0fmm physically).", structuralA2c, expectedForkA2c, math.Abs(diffWithoutCup), bike.HeadsetCupType, effectiveCupStack),
-				Details:  "The manufacturer calculated published Stack without the external lower headset cup height; canonical comparisons automatically add the physical cup stack.",
-				Expected: fmt.Sprintf("%.1f mm (bare fork)", expectedForkA2c),
-				Actual:   fmt.Sprintf("%.1f mm (CAD total)", structuralA2c),
-			})
 		} else {
-			a2cDiff = &diffWithCup
 			inferredMode = model.ModeMismatchedCad
 			issues = append(issues, model.ValidationIssue{
 				ID:         "stack_a2c_mismatch",
 				Field:      "stack",
 				Severity:   model.SeverityError,
 				Title:      "Geometric Inconsistency in Stack / A2C",
-				Message:    fmt.Sprintf("The geometric A2C required to produce Stack %.1fmm is %.1fmm, diverging from stated fork %.1fmm by %.1fmm.", bike.Stack, calculatedForkA2c, expectedForkA2c, diffWithCup),
-				Details:    "Published Stack, HTL, BB Drop, HTA, and Fork A2C do not satisfy the Master Stack Equation within ±6mm tolerance.",
+				Message:    fmt.Sprintf("The geometric A2C required to produce Stack %.1fmm (with %.1fmm CAD spacer) is %.1fmm, diverging from stated fork %.1fmm by %.1fmm (allowed slop ±%.1fmm).", bike.Stack, geoSpacerMm, calculatedForkA2c, expectedForkA2c, diff, a2cSlop),
+				Details:    fmt.Sprintf("Published Stack, HTL, BB Drop, HTA, CAD Headset Spacer, and Fork A2C do not satisfy the Master Stack Equation within ±%.1fmm tolerance.", a2cSlop),
 				Expected:   fmt.Sprintf("%.1f mm", expectedForkA2c),
 				Actual:     fmt.Sprintf("%.1f mm", calculatedForkA2c),
-				Difference: diffWithCup,
+				Difference: diff,
 			})
 		}
 	}
 
 	// 5. Front-Center & Wheelbase Consistency Check
-	calculatedFc := geometry.Round(
-		geometry.CalculateFrontCenter(
+	calculatedFcHoriz := geometry.CalculateFrontCenter(
+		bike.Reach,
+		bike.Htl,
+		bike.HtaDeg,
+		bike.ForkRake,
+		structuralA2c,
+	)
+	calculatedFc3D := geometry.Round(
+		geometry.CalculateFrontCenter3D(
 			bike.Reach,
 			bike.Htl,
 			bike.HtaDeg,
 			bike.ForkRake,
 			structuralA2c,
+			bike.BbDrop,
 		),
 		1,
 	)
 
 	var fcDiff *float64
+	fcSlop := slop.GetFrontCenter()
 	if bike.FrontCenter > 0 {
-		diff := geometry.Round(math.Abs(bike.FrontCenter-calculatedFc), 1)
+		diff := geometry.Round(math.Abs(bike.FrontCenter-calculatedFc3D), 1)
 		fcDiff = &diff
-		if diff > 12.0 {
+		if diff > fcSlop {
 			issues = append(issues, model.ValidationIssue{
 				ID:         "front_center_mismatch",
 				Field:      "front_center",
 				Severity:   model.SeverityError,
 				Title:      "Front Center Inconsistency",
-				Message:    fmt.Sprintf("Published Front Center (%.1fmm) differs from geometrically calculated FC (%.1fmm) by %.1fmm.", bike.FrontCenter, calculatedFc, diff),
-				Details:    "Check if Reach, HTA, or Fork Rake is inconsistent in published geometry.",
-				Expected:   fmt.Sprintf("%.1f mm (calculated)", calculatedFc),
+				Message:    fmt.Sprintf("Published Front Center (%.1fmm) differs from geometrically calculated 3D FC (%.1fmm) by %.1fmm (allowed slop ±%.1fmm).", bike.FrontCenter, calculatedFc3D, diff, fcSlop),
+				Details:    "Check if Reach, HTA, BB Drop, or Fork Rake is inconsistent in published geometry.",
+				Expected:   fmt.Sprintf("%.1f mm (calculated)", calculatedFc3D),
 				Actual:     fmt.Sprintf("%.1f mm (published)", bike.FrontCenter),
 				Difference: diff,
 			})
@@ -237,21 +283,34 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 				ID:       "front_center_ok",
 				Severity: model.SeveritySuccess,
 				Title:    "Front Center Geometrically Coherent",
-				Message:  fmt.Sprintf("Published Front Center matches calculated 2D vector within %.1fmm.", diff),
+				Message:  fmt.Sprintf("Published Front Center matches calculated point-to-point vector within %.1fmm (tolerance ±%.1fmm).", diff, fcSlop),
 			})
 		}
-	} else if bike.Wheelbase > 0 && bike.ChainstayLength > 0 {
+	}
+
+	wbSlop := slop.GetWheelbase()
+	if bike.Wheelbase > 0 && bike.ChainstayLength > 0 {
 		csHorizontal := math.Sqrt(math.Max(0, bike.ChainstayLength*bike.ChainstayLength-bike.BbDrop*bike.BbDrop))
-		estimatedWb := geometry.Round(csHorizontal+calculatedFc, 1)
+		estimatedWb := geometry.Round(csHorizontal+calculatedFcHoriz, 1)
 		wbDiff := geometry.Round(math.Abs(bike.Wheelbase-estimatedWb), 1)
 
-		if wbDiff > 15.0 {
+		if wbDiff > wbSlop {
 			issues = append(issues, model.ValidationIssue{
-				ID:       "wheelbase_discrepancy",
-				Field:    "wheelbase",
-				Severity: model.SeverityError,
-				Title:    "Wheelbase & Chainstay Discrepancy",
-				Message:  fmt.Sprintf("Wheelbase (%.1fmm) does not match Rear Center (%.1fmm) + Front Center (%.1fmm) = %.1fmm (Δ %.1fmm).", bike.Wheelbase, csHorizontal, calculatedFc, estimatedWb, wbDiff),
+				ID:         "wheelbase_discrepancy",
+				Field:      "wheelbase",
+				Severity:   model.SeverityError,
+				Title:      "Wheelbase & Chainstay Discrepancy",
+				Message:    fmt.Sprintf("Wheelbase (%.1fmm) does not match Rear Center (%.1fmm) + Front Center Horiz (%.1fmm) = %.1fmm (Δ %.1fmm, allowed slop ±%.1fmm).", bike.Wheelbase, csHorizontal, calculatedFcHoriz, estimatedWb, wbDiff, wbSlop),
+				Expected:   fmt.Sprintf("%.1f mm (calculated)", estimatedWb),
+				Actual:     fmt.Sprintf("%.1f mm (published)", bike.Wheelbase),
+				Difference: wbDiff,
+			})
+		} else {
+			issues = append(issues, model.ValidationIssue{
+				ID:       "wheelbase_ok",
+				Severity: model.SeveritySuccess,
+				Title:    "Wheelbase Geometrically Coherent",
+				Message:  fmt.Sprintf("Published Wheelbase matches horizontal Rear Center + Front Center within %.1fmm (tolerance ±%.1fmm).", wbDiff, wbSlop),
 			})
 		}
 	}
@@ -271,13 +330,42 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		GeometricA2c:        geometry.Round(calculatedForkA2c, 1),
 		StatedA2c:           statedStaticA2c,
 		ExpectedForkA2c:     expectedForkA2c,
+		GeoHeadsetSpacerMm:  geoSpacerMm,
 		CupStack:            effectiveCupStack,
 		TotalStructuralA2c:  geometry.Round(structuralA2c, 1),
 		A2cDifference:       a2cDiff,
 		InferredPublishMode: inferredMode,
-		FrontCenterCalc:     calculatedFc,
+		FrontCenterCalc:     calculatedFc3D,
 		FrontCenterDiff:     fcDiff,
 	}
+}
+
+func validateGeoSlop(slop *model.GeoSlopMm) []model.ValidationIssue {
+	if slop == nil {
+		return nil
+	}
+	var issues []model.ValidationIssue
+	check := func(field string, val *float64) {
+		if val == nil {
+			return
+		}
+		if *val < 0 || *val > 10.0 {
+			issues = append(issues, model.ValidationIssue{
+				ID:       "invalid_geo_slop_mm",
+				Field:    "geo_slop_mm." + field,
+				Severity: model.SeverityError,
+				Title:    "Invalid Geometric Slop Tolerance",
+				Message:  fmt.Sprintf("geo_slop_mm.%s of %.1fmm is outside valid range (0mm - 10mm).", field, *val),
+				Expected: "0.0 - 10.0 mm",
+				Actual:   fmt.Sprintf("%.1f mm", *val),
+			})
+		}
+	}
+	check("a2c", slop.A2c)
+	check("front_center", slop.FrontCenter)
+	check("wheelbase", slop.Wheelbase)
+	check("cross_config", slop.CrossConfig)
+	return issues
 }
 
 // ValidateFrame is the centralized validation gate for an entire FrameModel.
@@ -300,7 +388,16 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 		})
 	}
 
-	if !frame.HeadsetCupType.IsValid() {
+	if frame.HeadsetCupType == "" {
+		report.IsValid = false
+		report.Issues = append(report.Issues, model.ValidationIssue{
+			ID:       "missing_headset_cup_type",
+			Field:    "headset_cup_type",
+			Severity: model.SeverityError,
+			Title:    "Missing Headset Cup Type",
+			Message:  "Frame must specify headset_cup_type (EC44, ZS44, ZS56, IS42, or IS52).",
+		})
+	} else if !frame.HeadsetCupType.IsValid() {
 		report.IsValid = false
 		report.Issues = append(report.Issues, model.ValidationIssue{
 			ID:       "invalid_headset_cup_type",
@@ -309,6 +406,34 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 			Title:    "Unrecognized Headset Cup Type",
 			Message:  fmt.Sprintf("Headset cup type %q is not a recognized SHIS standard (EC44, ZS44, ZS56, IS42, IS52).", frame.HeadsetCupType),
 		})
+	}
+
+	if frame.GeoHeadsetSpacerMm == nil {
+		report.IsValid = false
+		report.Issues = append(report.Issues, model.ValidationIssue{
+			ID:       "missing_geo_headset_spacer_mm",
+			Field:    "geo_headset_spacer_mm",
+			Severity: model.SeverityError,
+			Title:    "Missing CAD Headset Spacer (mm)",
+			Message:  "Frame must explicitly specify geo_headset_spacer_mm (e.g. 10 or 0).",
+		})
+	} else if *frame.GeoHeadsetSpacerMm < 0 || *frame.GeoHeadsetSpacerMm > 25.0 {
+		report.IsValid = false
+		report.Issues = append(report.Issues, model.ValidationIssue{
+			ID:       "invalid_geo_headset_spacer_mm",
+			Field:    "geo_headset_spacer_mm",
+			Severity: model.SeverityError,
+			Title:    "Invalid CAD Headset Spacer (mm)",
+			Message:  fmt.Sprintf("geo_headset_spacer_mm of %.1fmm is outside valid range (0mm - 25mm).", *frame.GeoHeadsetSpacerMm),
+		})
+	}
+
+	if frame.GeoSlopMm != nil {
+		slopIssues := validateGeoSlop(frame.GeoSlopMm)
+		if len(slopIssues) > 0 {
+			report.IsValid = false
+			report.Issues = append(report.Issues, slopIssues...)
+		}
 	}
 
 	sizes := frame.GetSizes()
@@ -382,7 +507,7 @@ func ValidateCrossConfig(frame model.FrameModel, size string, comparedConfigID s
 		return nil
 	}
 
-	cupStack := frame.HeadsetCupType.CupStackMm()
+	geoSpacer := frame.GetGeoHeadsetSpacerMm()
 	deltaA2c := compConfig.Fork.A2c - baseConfig.Fork.A2c
 
 	baseGeo, hasBase := baseConfig.Geometries[size]
@@ -405,8 +530,8 @@ func ValidateCrossConfig(frame model.FrameModel, size string, comparedConfigID s
 		}
 	}
 
-	baseStructural := baseConfig.Fork.A2c + cupStack
-	compStructural := compConfig.Fork.A2c + cupStack
+	baseStructural := baseConfig.Fork.A2c + geoSpacer
+	compStructural := compConfig.Fork.A2c + geoSpacer
 	dyn := geometry.CalculateDynamicGeometry(
 		baseGeo.Reach,
 		baseGeo.Stack,
@@ -446,10 +571,11 @@ func ValidateCrossConfig(frame model.FrameModel, size string, comparedConfigID s
 	checkMetric("Stack (mm)", baseGeo.Stack, publishedGeo.Stack, dyn.NewStack, false)
 	checkMetric("BB Drop (mm)", baseGeo.BbDrop, publishedGeo.BbDrop, dyn.NewBbDrop, false)
 
-	isCoherent := maxDisc <= 3.0
+	ccSlop := frame.GetGeoSlopMm().GetCrossConfig()
+	isCoherent := maxDisc <= ccSlop
 	message := "Published configuration is physically coherent with baseline frame rotation."
 	if !isCoherent {
-		message = fmt.Sprintf("CAD discrepancy detected (max delta: %.1f): published numbers deviate from kinematic 2D rotation.", maxDisc)
+		message = fmt.Sprintf("CAD discrepancy detected (max delta: %.1f > %.1fmm tolerance): published numbers deviate from kinematic 2D rotation.", maxDisc, ccSlop)
 	}
 
 	return &model.CrossConfigValidation{

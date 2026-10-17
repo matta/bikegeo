@@ -103,14 +103,15 @@ func TestFrameModelStorage(t *testing.T) {
 	}
 
 	frame := model.FrameModel{
-		ID:             "chumba-sendero",
-		Manufacturer:   "Chumba",
-		Model:          "Sendero",
-		Year:           2024,
-		Category:       model.CategoryHardtail,
-		HeadsetCupType: model.CupEC44,
-		Sizes:          []string{"S", "M", "L", "XL"},
-		DefaultSize:    "L",
+		ID:                 "chumba-sendero",
+		Manufacturer:       "Chumba",
+		Model:              "Sendero",
+		Year:               2024,
+		Category:           model.CategoryHardtail,
+		HeadsetCupType:     model.CupEC44,
+		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
+		Sizes:              []string{"S", "M", "L", "XL"},
+		DefaultSize:        "L",
 		Configurations: []model.FrameConfiguration{
 			{
 				ID:         "fork-120",
