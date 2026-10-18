@@ -22,26 +22,20 @@
     {
       "frame_id": "otso-fenrir-stainless",
       "size": "L",
-      "fork": "rigid",
-      "sag_percent": 0
+      "fork": "120mm",
+      "sag_percent": 20
     },
     {
       "frame_id": "otso-fenrir-stainless",
       "size": "XL",
-      "fork": "rigid",
-      "sag_percent": 0
-    },
-    {
-      "frame_id": "sour-pasta-party",
-      "size": "L",
-      "fork": "rigid",
-      "sag_percent": 0
+      "fork": "120mm",
+      "sag_percent": 20
     },
     {
       "frame_id": "esker-hayduke",
       "size": "S3",
       "fork": "120mm",
-      "sag_percent": 30
+      "sag_percent": 20
     },
     {
       "frame_id": "esker-hayduke",

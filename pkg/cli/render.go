@@ -32,6 +32,12 @@ func NormalizeFormat(f string) (string, error) {
 	}
 }
 
+// FooterSection defines a named section of text lines rendered beneath a table.
+type FooterSection struct {
+	Title string
+	Lines []string
+}
+
 // RenderOutput renders structured tabular data in the requested format (table, json, md, csv).
 func RenderOutput(
 	w io.Writer,
@@ -41,6 +47,20 @@ func RenderOutput(
 	headers []string,
 	rows [][]string,
 	jsonPayload any,
+) error {
+	return RenderOutputWithFooter(w, format, title, subtitle, headers, rows, jsonPayload, nil)
+}
+
+// RenderOutputWithFooter renders structured tabular data with optional footer sections.
+func RenderOutputWithFooter(
+	w io.Writer,
+	format string,
+	title string,
+	subtitle string,
+	headers []string,
+	rows [][]string,
+	jsonPayload any,
+	footers []FooterSection,
 ) error {
 	norm, err := NormalizeFormat(format)
 	if err != nil {
@@ -79,25 +99,37 @@ func RenderOutput(
 		if subtitle != "" {
 			fmt.Fprintf(w, "%s\n\n", subtitle)
 		}
-		if len(headers) == 0 {
-			return nil
-		}
-		flatHeaders := make([]string, len(headers))
-		seps := make([]string, len(headers))
-		for i, h := range headers {
-			flatHeaders[i] = escapeMarkdownCell(h)
-			seps[i] = "---"
-		}
-		fmt.Fprintf(w, "| %s |\n", strings.Join(flatHeaders, " | "))
-		fmt.Fprintf(w, "| %s |\n", strings.Join(seps, " | "))
-		for _, r := range rows {
-			cells := make([]string, len(headers))
-			for i := range headers {
-				if i < len(r) {
-					cells[i] = escapeMarkdownCell(r[i])
-				}
+		if len(headers) > 0 {
+			flatHeaders := make([]string, len(headers))
+			seps := make([]string, len(headers))
+			for i, h := range headers {
+				flatHeaders[i] = escapeMarkdownCell(h)
+				seps[i] = "---"
 			}
-			fmt.Fprintf(w, "| %s |\n", strings.Join(cells, " | "))
+			fmt.Fprintf(w, "| %s |\n", strings.Join(flatHeaders, " | "))
+			fmt.Fprintf(w, "| %s |\n", strings.Join(seps, " | "))
+			for _, r := range rows {
+				cells := make([]string, len(headers))
+				for i := range headers {
+					if i < len(r) {
+						cells[i] = escapeMarkdownCell(r[i])
+					}
+				}
+				fmt.Fprintf(w, "| %s |\n", strings.Join(cells, " | "))
+			}
+		}
+		for _, f := range footers {
+			if len(f.Lines) == 0 {
+				continue
+			}
+			if f.Title != "" {
+				fmt.Fprintf(w, "\n#### %s\n\n", f.Title)
+			} else {
+				fmt.Fprintln(w)
+			}
+			for _, l := range f.Lines {
+				fmt.Fprintf(w, "- %s\n", l)
+			}
 		}
 		return nil
 
@@ -108,10 +140,22 @@ func RenderOutput(
 		if subtitle != "" {
 			fmt.Fprintf(w, "%s\n", subtitle)
 		}
-		if len(headers) == 0 {
-			return nil
+		if len(headers) > 0 {
+			RenderBoxTable(w, headers, rows)
 		}
-		RenderBoxTable(w, headers, rows)
+		for _, f := range footers {
+			if len(f.Lines) == 0 {
+				continue
+			}
+			if f.Title != "" {
+				fmt.Fprintf(w, "\n%s:\n", f.Title)
+			} else {
+				fmt.Fprintln(w)
+			}
+			for _, l := range f.Lines {
+				fmt.Fprintf(w, "  %s\n", l)
+			}
+		}
 		return nil
 	}
 }

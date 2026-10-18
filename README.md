@@ -35,7 +35,20 @@ Bike geometry is stored in **local JSON files** under [`data/bikes/`](data/bikes
    - Detects whether the manufacturer published numbers at **0% static sag** or **15–25% sagged CAD**, or whether there is a published typo/inconsistency.
    - Verifies **Cross-Configuration CAD Coherence** when a frame publishes charts for multiple forks.
 
-5. **Multiple Output Formats**:
+5. **Frame Scoring & Desirability Ranking (`pkg/scoring`)**:
+   - Compares how closely candidate frames match target fit and handling criteria using piecewise-linear desirability curves:
+     - **AETT** (weight 10, sweet spot 584–634mm, steep penalty beyond/below)
+     - **Setback** (weight 6, ideal 220mm)
+     - **Spare Vert** (weight 5, ideal 110mm)
+     - **Chainstay** (weight 4, longer is better with diminishing returns)
+     - **BB Drop** (weight 3, ideal 70mm, penalty for high BB)
+     - **HTA** (weight 2, ideal 68°, penalized if slacker than 67°, heavily penalized if steeper than 69°)
+     - **Front Wt %** (weight 1, higher front-wheel load is preferred)
+   - Tables are automatically sorted by score descending (with original `[#]` identifiers preserved).
+   - Generates plain-English footer explanations (`Biggest Losses vs. Ideal` and `Head-to-Head Deciding Factors`).
+   - Use `--no-score` to disable scoring and restore input order, or `--score-detail` for the full sub-score breakdown table.
+
+6. **Multiple Output Formats**:
    - Supports `--format table` (Unicode box tables, default), `--format json`, `--format md` (Markdown), and `--format csv`.
 
 ---

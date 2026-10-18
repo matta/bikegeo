@@ -385,3 +385,137 @@ func TestListForksAndCRUD(t *testing.T) {
 		t.Errorf("Unexpected delete size output: %s", out)
 	}
 }
+
+func TestCompare_ScoringAndFlags(t *testing.T) {
+	dataDir, stateFile := setupTestEnv(t)
+
+	// 1. Default compare has scoring enabled and sorted by score descending
+	code, out, errOut := runCLI(t, dataDir, stateFile, "", "compare",
+		"hayduke:S3@120mm@30%", "havok:XL@rigid", "--transpose")
+	if code != 0 {
+		t.Fatalf("compare failed: %s", errOut)
+	}
+	if !strings.Contains(out, "Score") {
+		t.Errorf("Expected 'Score' column in transposed compare, got:\n%s", out)
+	}
+	if !strings.Contains(out, "69 (#1)") {
+		t.Errorf("Expected '69 (#1)' for Hayduke S3, got:\n%s", out)
+	}
+	if !strings.Contains(out, "40 (#2)") {
+		t.Errorf("Expected '40 (#2)' for Havok XL, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Biggest Losses vs. Ideal:") {
+		t.Errorf("Expected 'Biggest Losses vs. Ideal:' section in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Head-to-Head Deciding Factors:") {
+		t.Errorf("Expected 'Head-to-Head Deciding Factors:' section in output, got:\n%s", out)
+	}
+	// Verify Hayduke (#1) appears before Havok (#2) in output
+	haydukeIdx := strings.Index(out, "Esker Hayduke (S3)")
+	havokIdx := strings.Index(out, "Binary Havok (XL)")
+	if haydukeIdx == -1 || havokIdx == -1 || haydukeIdx > havokIdx {
+		t.Errorf("Expected Hayduke before Havok due to sorting by score, got hayduke=%d, havok=%d", haydukeIdx, havokIdx)
+	}
+
+	// 2. --no-score flag disables scoring, disables sorting, and omits footers
+	code, outNoScore, errOut := runCLI(t, dataDir, stateFile, "", "compare",
+		"havok:XL@rigid", "hayduke:S3@120mm@30%", "--transpose", "--no-score")
+	if code != 0 {
+		t.Fatalf("compare --no-score failed: %s", errOut)
+	}
+	if strings.Contains(outNoScore, "Score") {
+		t.Errorf("Expected no 'Score' column with --no-score, got:\n%s", outNoScore)
+	}
+	if strings.Contains(outNoScore, "Biggest Losses vs. Ideal:") {
+		t.Errorf("Expected no footer with --no-score, got:\n%s", outNoScore)
+	}
+	// Havok was listed first in CLI args, so it should appear first without scoring
+	havokIdx = strings.Index(outNoScore, "Binary Havok (XL)")
+	haydukeIdx = strings.Index(outNoScore, "Esker Hayduke (S3)")
+	if havokIdx == -1 || haydukeIdx == -1 || havokIdx > haydukeIdx {
+		t.Errorf("Expected Havok before Hayduke without score sorting, got havok=%d, hayduke=%d", havokIdx, haydukeIdx)
+	}
+
+	// 3. --score-detail flag outputs second detail table
+	code, outDetail, errOut := runCLI(t, dataDir, stateFile, "", "compare",
+		"hayduke:S3@120mm@30%", "havok:XL@rigid", "--score-detail")
+	if code != 0 {
+		t.Fatalf("compare --score-detail failed: %s", errOut)
+	}
+	if !strings.Contains(outDetail, "Scoring Breakdown") {
+		t.Errorf("Expected 'Scoring Breakdown' section with --score-detail, got:\n%s", outDetail)
+	}
+	if !strings.Contains(outDetail, "Spare Vert") || !strings.Contains(outDetail, "Chainstay") {
+		t.Errorf("Expected criteria headers in score detail table, got:\n%s", outDetail)
+	}
+
+	// 4. JSON format output includes per-column score and top-level explanations
+	code, outJSON, errOut := runCLI(t, dataDir, stateFile, "", "compare",
+		"hayduke:S3@120mm@30%", "havok:XL@rigid", "--format", "json")
+	if code != 0 {
+		t.Fatalf("compare --format json failed: %s", errOut)
+	}
+	var jsonRes struct {
+		Columns []struct {
+			Setup struct {
+				FrameID string `json:"frame_id"`
+			} `json:"setup"`
+			Score struct {
+				Total    float64 `json:"total"`
+				Rank     int     `json:"rank"`
+				Criteria []struct {
+					ID       string  `json:"id"`
+					SubScore float64 `json:"sub_score"`
+				} `json:"criteria"`
+			} `json:"score"`
+		} `json:"columns"`
+		Explanations struct {
+			Losses     []string `json:"losses"`
+			HeadToHead []string `json:"head_to_head"`
+		} `json:"explanations"`
+	}
+	if err := json.Unmarshal([]byte(outJSON), &jsonRes); err != nil {
+		t.Fatalf("Failed to parse JSON output: %v\nOutput: %s", err, outJSON)
+	}
+	if len(jsonRes.Columns) != 2 {
+		t.Fatalf("Expected 2 columns in JSON, got %d", len(jsonRes.Columns))
+	}
+	if jsonRes.Columns[0].Score.Total == 0 || jsonRes.Columns[0].Score.Rank == 0 {
+		t.Errorf("Expected populated score for column 0: %+v", jsonRes.Columns[0].Score)
+	}
+	if len(jsonRes.Columns[0].Score.Criteria) != 7 {
+		t.Errorf("Expected 7 criteria in column score, got %d", len(jsonRes.Columns[0].Score.Criteria))
+	}
+	if len(jsonRes.Explanations.Losses) != 2 {
+		t.Errorf("Expected 2 loss explanations, got %d", len(jsonRes.Explanations.Losses))
+	}
+	if len(jsonRes.Explanations.HeadToHead) != 1 {
+		t.Errorf("Expected 1 head-to-head explanation, got %d", len(jsonRes.Explanations.HeadToHead))
+	}
+
+	// 5. CSV format includes Score header but no footer
+	code, outCSV, errOut := runCLI(t, dataDir, stateFile, "", "compare",
+		"hayduke:S3@120mm@30%", "havok:XL@rigid", "--format", "csv")
+	if code != 0 {
+		t.Fatalf("compare --format csv failed: %s", errOut)
+	}
+	if !strings.HasPrefix(outCSV, "#,Frame (Size),Score,") {
+		t.Errorf("Expected CSV header starting with '#,Frame (Size),Score,', got: %s", outCSV)
+	}
+	if strings.Contains(outCSV, "Biggest Losses") || strings.Contains(outCSV, "Head-to-Head") {
+		t.Errorf("Expected no footer in CSV output, got:\n%s", outCSV)
+	}
+
+	// 6. Markdown format includes table and footer markdown lists
+	code, outMD, errOut := runCLI(t, dataDir, stateFile, "", "compare",
+		"hayduke:S3@120mm@30%", "havok:XL@rigid", "--format", "md")
+	if code != 0 {
+		t.Fatalf("compare --format md failed: %s", errOut)
+	}
+	if !strings.Contains(outMD, "#### Biggest Losses vs. Ideal") {
+		t.Errorf("Expected markdown H4 for losses, got:\n%s", outMD)
+	}
+	if !strings.Contains(outMD, "#### Head-to-Head Deciding Factors") {
+		t.Errorf("Expected markdown H4 for head-to-head, got:\n%s", outMD)
+	}
+}
