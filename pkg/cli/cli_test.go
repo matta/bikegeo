@@ -398,8 +398,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	if !strings.Contains(out, "Score") {
 		t.Errorf("Expected 'Score' column in transposed compare, got:\n%s", out)
 	}
-	if !strings.Contains(out, "69 (#1)") {
-		t.Errorf("Expected '69 (#1)' for Hayduke S3, got:\n%s", out)
+	if !strings.Contains(out, "66 (#1)") {
+		t.Errorf("Expected '66 (#1)' for Hayduke S3, got:\n%s", out)
 	}
 	if !strings.Contains(out, "40 (#2)") {
 		t.Errorf("Expected '40 (#2)' for Havok XL, got:\n%s", out)

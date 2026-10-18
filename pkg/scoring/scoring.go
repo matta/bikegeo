@@ -54,6 +54,9 @@ type Criterion struct {
 	Describe func(v float64) string
 }
 
+// PreferredSpareVertMm is the ideal spare vertical stack (in mm) that yields a maximum score (100).
+const PreferredSpareVertMm = 100.0
+
 // DefaultCriteria returns the standard hard-coded scoring criteria agreed upon for bikegeo compare.
 var DefaultCriteria = []Criterion{
 	{
@@ -117,19 +120,19 @@ var DefaultCriteria = []Criterion{
 		Curve: Curve{
 			{X: 60, Y: -100},
 			{X: 85, Y: 0},
-			{X: 110, Y: 100},
+			{X: PreferredSpareVertMm, Y: 100},
 			{X: 135, Y: 0},
 			{X: 160, Y: -100},
 		},
 		Describe: func(v float64) string {
-			d := v - 110.0
+			d := v - PreferredSpareVertMm
 			if math.Abs(d) < 1.5 {
 				return fmt.Sprintf("spare vert %.0fmm is on target", v)
 			}
 			if d > 0 {
-				return fmt.Sprintf("spare vert %.0fmm is %.0fmm over 110", v, d)
+				return fmt.Sprintf("spare vert %.0fmm is %.0fmm over %.0f", v, d, PreferredSpareVertMm)
 			}
-			return fmt.Sprintf("spare vert %.0fmm is %.0fmm under 110", v, -d)
+			return fmt.Sprintf("spare vert %.0fmm is %.0fmm under %.0f", v, -d, PreferredSpareVertMm)
 		},
 	},
 	{

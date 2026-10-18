@@ -100,8 +100,8 @@ func TestDefaultCriteriaCurves(t *testing.T) {
 	if sv.Eval(85) != 0 {
 		t.Errorf("SpareVert(85) expected 0, got %f", sv.Eval(85))
 	}
-	if sv.Eval(110) != 100 {
-		t.Errorf("SpareVert(110) expected 100, got %f", sv.Eval(110))
+	if sv.Eval(PreferredSpareVertMm) != 100 {
+		t.Errorf("SpareVert(%.0f) expected 100, got %f", PreferredSpareVertMm, sv.Eval(PreferredSpareVertMm))
 	}
 	if sv.Eval(135) != 0 {
 		t.Errorf("SpareVert(135) expected 0, got %f", sv.Eval(135))
@@ -191,7 +191,7 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 	}{
 		{
 			name:     "Esker Hayduke (S3)",
-			expected: 69,
+			expected: 66,
 			a: model.BikeFitAnalysis{
 				Aett:               634.9,
 				ActualSetback:      213.4,
@@ -204,7 +204,7 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		},
 		{
 			name:     "Ritchey Ultra (XL)",
-			expected: 63,
+			expected: 61,
 			a: model.BikeFitAnalysis{
 				Aett:               633.3,
 				ActualSetback:      219.8,
@@ -230,7 +230,7 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		},
 		{
 			name:     "Otso Fenrir (XL)",
-			expected: 39,
+			expected: 40,
 			a: model.BikeFitAnalysis{
 				Aett:               604.3,
 				ActualSetback:      206,
@@ -243,7 +243,7 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		},
 		{
 			name:     "Otso Fenrir (L)",
-			expected: 38,
+			expected: 37,
 			a: model.BikeFitAnalysis{
 				Aett:               584,
 				ActualSetback:      205.7,
@@ -282,7 +282,7 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		},
 		{
 			name:     "Revel El Jefe (XL)",
-			expected: 2,
+			expected: 0,
 			a: model.BikeFitAnalysis{
 				Aett:               649.1,
 				ActualSetback:      203.5,
@@ -295,7 +295,7 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		},
 		{
 			name:     "Esker Hayduke (S4)",
-			expected: -22,
+			expected: -21,
 			a: model.BikeFitAnalysis{
 				Aett:               671.8,
 				ActualSetback:      215.5,
@@ -362,8 +362,8 @@ func TestExplain_GeneratesReadableOutput(t *testing.T) {
 		t.Fatalf("Expected 1 head-to-head entry, got %d", len(expl.HeadToHead))
 	}
 
-	// Verify head-to-head mentions Hayduke beating Ritchey by 6 (rounded 69 vs 63)
-	if !contains(expl.HeadToHead[0], "Esker Hayduke (S3) (69) > Ritchey Ultra (XL) (63) by 6") {
+	// Verify head-to-head mentions Hayduke beating Ritchey by 5 (rounded 66 vs 61)
+	if !contains(expl.HeadToHead[0], "Esker Hayduke (S3) (66) > Ritchey Ultra (XL) (61) by 5") {
 		t.Errorf("Unexpected H2H line: %s", expl.HeadToHead[0])
 	}
 }

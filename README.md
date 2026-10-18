@@ -39,7 +39,7 @@ Bike geometry is stored in **local JSON files** under [`data/bikes/`](data/bikes
    - Compares how closely candidate frames match target fit and handling criteria using piecewise-linear desirability curves:
      - **AETT** (weight 10, sweet spot 584–634mm, steep penalty beyond/below)
      - **Setback** (weight 6, ideal 220mm)
-     - **Spare Vert** (weight 5, ideal 110mm)
+     - **Spare Vert** (weight 5, ideal 100mm)
      - **Chainstay** (weight 4, longer is better with diminishing returns)
      - **BB Drop** (weight 3, ideal 70mm, penalty for high BB)
      - **HTA** (weight 2, ideal 68°, penalized if slacker than 67°, heavily penalized if steeper than 69°)
