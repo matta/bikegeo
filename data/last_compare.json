@@ -60,6 +60,12 @@
       "size": "XL",
       "fork": "120mm",
       "sag_percent": 20
+    },
+    {
+      "frame_id": "ritchey-ultra",
+      "size": "XL",
+      "fork": "120mm",
+      "sag_percent": 20
     }
   ]
 }
