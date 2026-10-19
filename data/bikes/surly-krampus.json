@@ -1,0 +1,94 @@
+{
+  "id": "surly-krampus",
+  "manufacturer": "Surly",
+  "model": "Krampus",
+  "year": 2024,
+  "category": "hardtail",
+  "notes": "4130 Chromoly steel 'Natch tubing 29+ trail hardtail designed around a 483mm rigid fork (47mm offset) or 100-120mm suspension forks (max 550x51mm) with a ZS44/EC44 headset (EC44 lower cup). Features 'Gnot-Boost' 145mm rear spacing (12x142 or 12x148mm) and clearance for 29x3.0\" tires.",
+  "wheel_size": "29",
+  "headset_cup_type": "EC44",
+  "geo_headset_spacer_mm": 12,
+  "geo_slop_mm": {
+    "a2c": 2.0
+  },
+  "seat_height": 760,
+  "supported_travel_mm": [
+    100,
+    110,
+    120
+  ],
+  "rigid_a2c_mm": 483,
+  "default_fork": "rigid",
+  "sizes": [
+    "S",
+    "M",
+    "L",
+    "XL"
+  ],
+  "default_size": "L",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock Rigid 483mm Build",
+      "is_baseline": true,
+      "fork": {
+        "id": "rigid_483",
+        "name": "Surly Krampus 4130 Chromoly 483mm",
+        "travel_mm": 0,
+        "a2c": 483,
+        "rake": 47
+      },
+      "sag_percentage_published": 0,
+      "geometries": {
+        "S": {
+          "reach": 404,
+          "stack": 593,
+          "hta_deg": 69,
+          "sta_deg": 73,
+          "htl": 90,
+          "bb_drop": 65,
+          "wheelbase": 1087,
+          "chainstay_length": 435,
+          "seat_tube_length": 368,
+          "standover_height": 770
+        },
+        "M": {
+          "reach": 426,
+          "stack": 602,
+          "hta_deg": 69,
+          "sta_deg": 73,
+          "htl": 100,
+          "bb_drop": 65,
+          "wheelbase": 1113,
+          "chainstay_length": 435,
+          "seat_tube_length": 419,
+          "standover_height": 797
+        },
+        "L": {
+          "reach": 448,
+          "stack": 612,
+          "hta_deg": 69,
+          "sta_deg": 73,
+          "htl": 110,
+          "bb_drop": 65,
+          "wheelbase": 1138,
+          "chainstay_length": 435,
+          "seat_tube_length": 470,
+          "standover_height": 825
+        },
+        "XL": {
+          "reach": 470,
+          "stack": 621,
+          "hta_deg": 69,
+          "sta_deg": 73,
+          "htl": 120,
+          "bb_drop": 65,
+          "wheelbase": 1164,
+          "chainstay_length": 435,
+          "seat_tube_length": 521,
+          "standover_height": 853
+        }
+      }
+    }
+  ]
+}

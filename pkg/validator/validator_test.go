@@ -423,4 +423,96 @@ func TestValidateRevelElJefe(t *testing.T) {
 	}
 }
 
+func TestValidateTumbleweedSunliner(t *testing.T) {
+	sunliner := model.FrameModel{
+		ID:                 "tumbleweed-sunliner",
+		Manufacturer:       "Tumbleweed",
+		Model:              "Sunliner",
+		Category:           model.CategoryRigid,
+		HeadsetCupType:     model.CupEC44,
+		GeoHeadsetSpacerMm: model.Float64Ptr(13.0),
+		RigidA2cMm:         440.0,
+		DefaultFork:        "rigid",
+		Sizes:              []string{"S", "M", "L", "XL"},
+		DefaultSize:        "L",
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:         "stock",
+				IsBaseline: true,
+				Fork: model.ForkSpec{
+					TravelMm: 0,
+					A2c:      440,
+					Rake:     55,
+				},
+				SagPercentagePublished: 0,
+				Geometries: map[string]model.SizeGeometry{
+					"S":  {Reach: 420, Stack: 590, HtaDeg: 69, StaDeg: 73, Htl: 130, BbDrop: 65, Wheelbase: 1131, ChainstayLength: 456, SeatTubeLength: 380, StandoverHeight: 765},
+					"M":  {Reach: 434, Stack: 608, HtaDeg: 69, StaDeg: 73, Htl: 150, BbDrop: 65, Wheelbase: 1153, ChainstayLength: 456, SeatTubeLength: 430, StandoverHeight: 795},
+					"L":  {Reach: 447, Stack: 632, HtaDeg: 69, StaDeg: 73, Htl: 175, BbDrop: 65, Wheelbase: 1175, ChainstayLength: 456, SeatTubeLength: 480, StandoverHeight: 835},
+					"XL": {Reach: 457, Stack: 664, HtaDeg: 69, StaDeg: 73, Htl: 210, BbDrop: 65, Wheelbase: 1197, ChainstayLength: 456, SeatTubeLength: 545, StandoverHeight: 875},
+				},
+			},
+		},
+	}
+
+	report := validator.ValidateFrame(sunliner)
+	if !report.IsValid {
+		t.Fatalf("Expected Tumbleweed Sunliner to pass validation: %s", report.ErrorSummary())
+	}
+	if !sunliner.IsFixedRigidOnly() {
+		t.Errorf("Expected Sunliner to be fixed rigid only")
+	}
+	if !sunliner.IsFixedFork() {
+		t.Errorf("Expected Sunliner to be fixed fork")
+	}
+}
+
+func TestValidateSurlyKrampus(t *testing.T) {
+	krampus := model.FrameModel{
+		ID:                 "surly-krampus",
+		Manufacturer:       "Surly",
+		Model:              "Krampus",
+		Category:           model.CategoryHardtail,
+		HeadsetCupType:     model.CupEC44,
+		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
+		GeoSlopMm: &model.GeoSlopMm{
+			A2c: model.Float64Ptr(2.0),
+		},
+		RigidA2cMm:        483.0,
+		DefaultFork:       "rigid",
+		SupportedTravelMm: []float64{100, 110, 120},
+		Sizes:             []string{"S", "M", "L", "XL"},
+		DefaultSize:       "L",
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:         "stock",
+				IsBaseline: true,
+				Fork: model.ForkSpec{
+					TravelMm: 0,
+					A2c:      483,
+					Rake:     47,
+				},
+				SagPercentagePublished: 0,
+				Geometries: map[string]model.SizeGeometry{
+					"S":  {Reach: 404, Stack: 593, HtaDeg: 69, StaDeg: 73, Htl: 90, BbDrop: 65, Wheelbase: 1087, ChainstayLength: 435, SeatTubeLength: 368, StandoverHeight: 770},
+					"M":  {Reach: 426, Stack: 602, HtaDeg: 69, StaDeg: 73, Htl: 100, BbDrop: 65, Wheelbase: 1113, ChainstayLength: 435, SeatTubeLength: 419, StandoverHeight: 797},
+					"L":  {Reach: 448, Stack: 612, HtaDeg: 69, StaDeg: 73, Htl: 110, BbDrop: 65, Wheelbase: 1138, ChainstayLength: 435, SeatTubeLength: 470, StandoverHeight: 825},
+					"XL": {Reach: 470, Stack: 621, HtaDeg: 69, StaDeg: 73, Htl: 120, BbDrop: 65, Wheelbase: 1164, ChainstayLength: 435, SeatTubeLength: 521, StandoverHeight: 853},
+				},
+			},
+		},
+	}
+
+	report := validator.ValidateFrame(krampus)
+	if !report.IsValid {
+		t.Fatalf("Expected Surly Krampus to pass validation: %s", report.ErrorSummary())
+	}
+	if !krampus.SupportsRigid() {
+		t.Errorf("Expected Krampus to support rigid fork")
+	}
+	if !krampus.SupportsTravel(120) {
+		t.Errorf("Expected Krampus to support 120mm travel fork")
+	}
+}
+
 

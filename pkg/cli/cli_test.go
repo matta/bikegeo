@@ -519,3 +519,76 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		t.Errorf("Expected markdown H4 for head-to-head, got:\n%s", outMD)
 	}
 }
+
+func TestCompare_TumbleweedSunlinerFixedForkConstraints(t *testing.T) {
+	dataDir, stateFile := setupTestEnv(t)
+
+	// 1. Bare compare on Sunliner (defaults to L, rigid 440mm fork, 0% sag)
+	code, out, errOut := runCLI(t, dataDir, stateFile, "", "compare", "sunliner")
+	if code != 0 {
+		t.Fatalf("Expected compare sunliner to succeed, got (code %d): %s", code, errOut)
+	}
+	if !strings.Contains(out, "Tumbleweed Sunliner (L)") {
+		t.Errorf("Expected Tumbleweed Sunliner (L) in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Rigid (440mm A2C)") {
+		t.Errorf("Expected Rigid (440mm A2C) in output, got:\n%s", out)
+	}
+
+	// 2. Size modifier works (sunliner:M or sunliner:S)
+	code, out, errOut = runCLI(t, dataDir, stateFile, "", "compare", "sunliner:M", "sunliner@rigid")
+	if code != 0 {
+		t.Fatalf("Expected compare sunliner:M to succeed: %s", errOut)
+	}
+	if !strings.Contains(out, "Tumbleweed Sunliner (M)") {
+		t.Errorf("Expected Tumbleweed Sunliner (M) in output, got:\n%s", out)
+	}
+
+	// 3. Attempting to assign a suspension fork travel (e.g. 120mm) must fail
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "compare", "sunliner@120mm")
+	if code == 0 {
+		t.Errorf("Expected compare sunliner@120mm to fail because Sunliner has a fixed rigid fork")
+	}
+	if !strings.Contains(errOut, "has a fixed rigid fork (440mm A2C) and does not support suspension fork \"120mm\"") {
+		t.Errorf("Expected fixed rigid fork rejection message, got: %s", errOut)
+	}
+
+	// 4. Attempting to assign a suspension fork preset (e.g. fox34_120) must fail
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "compare", "sunliner@fox34_120")
+	if code == 0 {
+		t.Errorf("Expected compare sunliner@fox34_120 to fail")
+	}
+	if !strings.Contains(errOut, "has a fixed rigid fork (440mm A2C) and does not support suspension fork \"fox34_120\"") {
+		t.Errorf("Expected fixed rigid fork rejection message, got: %s", errOut)
+	}
+
+	// 5. Attempting to assign sag (e.g. 20%) must fail
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "compare", "sunliner@20%")
+	if code == 0 {
+		t.Errorf("Expected compare sunliner@20%% to fail because rigid forks cannot have sag")
+	}
+	if !strings.Contains(errOut, "cannot apply 20% sag to rigid fork on \"Tumbleweed Sunliner\"") {
+		t.Errorf("Expected rigid fork sag rejection message, got: %s", errOut)
+	}
+
+	// 6. Interactive compare: selecting sunliner automatically skips fork and sag prompts
+	stdin := strings.Join([]string{
+		"c",        // Clear and add first column
+		"sunliner", // Frame
+		"M",        // Size
+		// Notice: fork and sag prompts are skipped!
+		"",         // Empty line (Enter) to run comparison
+	}, "\n") + "\n"
+
+	code, out, errOut = runCLI(t, dataDir, stateFile, stdin, "compare", "-i")
+	if code != 0 {
+		t.Fatalf("Interactive compare failed: %s\nOut:\n%s", errOut, out)
+	}
+	if !strings.Contains(out, "Fork: rigid (440mm) (fixed for this frame)") {
+		t.Errorf("Expected interactive session to report fixed fork, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Tumbleweed Sunliner (M)") {
+		t.Errorf("Expected comparison table to contain Sunliner (M), got:\n%s", out)
+	}
+}
+
