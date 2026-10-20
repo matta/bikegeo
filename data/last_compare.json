@@ -84,6 +84,18 @@
       "size": "XL",
       "fork": "120mm",
       "sag_percent": 20
+    },
+    {
+      "frame_id": "turner-venn-ti",
+      "size": "L",
+      "fork": "120mm",
+      "sag_percent": 20
+    },
+    {
+      "frame_id": "turner-venn-ti",
+      "size": "XL",
+      "fork": "120mm",
+      "sag_percent": 20
     }
   ]
 }

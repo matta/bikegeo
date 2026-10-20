@@ -632,5 +632,102 @@ func TestValidateImplausibleForkA2c(t *testing.T) {
 	}
 }
 
+func TestValidateTurnerVennTi(t *testing.T) {
+	venn := model.FrameModel{
+		ID:                 "turner-venn-ti",
+		Manufacturer:       "Turner",
+		Model:              "Venn Ti",
+		Year:               2024,
+		Category:           model.CategoryHardtail,
+		HeadsetCupType:     model.CupZS56,
+		GeoHeadsetSpacerMm: model.Float64Ptr(0.0),
+		GeoSlopMm: &model.GeoSlopMm{
+			A2c:       model.Float64Ptr(2.5),
+			Wheelbase: model.Float64Ptr(2.0),
+		},
+		DefaultFork:       "130mm",
+		SupportedTravelMm: []float64{120, 130, 140},
+		Sizes:             []string{"S", "M", "L", "XL"},
+		DefaultSize:       "L",
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:         "stock",
+				Name:       "Stock 130mm Suspension Build",
+				IsBaseline: true,
+				Fork: model.ForkSpec{
+					TravelMm:           130,
+					A2c:                541,
+					Rake:               44,
+					StandardSagPercent: 20,
+				},
+				SagPercentagePublished: 0,
+				Geometries: map[string]model.SizeGeometry{
+					"S": {
+						Reach:           410,
+						Stack:           628,
+						HtaDeg:          67.0,
+						StaDeg:          74.0,
+						Htl:             90,
+						BbDrop:          65,
+						Wheelbase:       1137,
+						ChainstayLength: 445,
+						SeatTubeLength:  410,
+					},
+					"M": {
+						Reach:           434,
+						Stack:           645,
+						HtaDeg:          67.0,
+						StaDeg:          74.0,
+						Htl:             110,
+						BbDrop:          65,
+						Wheelbase:       1170,
+						ChainstayLength: 445,
+						SeatTubeLength:  450,
+					},
+					"L": {
+						Reach:           448,
+						Stack:           662,
+						HtaDeg:          67.0,
+						StaDeg:          73.0,
+						Htl:             130,
+						BbDrop:          62,
+						Wheelbase:       1190,
+						ChainstayLength: 445,
+						SeatTubeLength:  490,
+					},
+					"XL": {
+						Reach:           470,
+						Stack:           690,
+						HtaDeg:          67.0,
+						StaDeg:          73.0,
+						Htl:             160,
+						BbDrop:          62,
+						Wheelbase:       1224,
+						ChainstayLength: 445,
+						SeatTubeLength:  530,
+					},
+				},
+			},
+		},
+	}
+
+	report := validator.ValidateFrame(venn)
+	if !report.IsValid {
+		t.Fatalf("Expected Turner Venn Ti to pass validation: %s", report.ErrorSummary())
+	}
+	if venn.SupportsRigid() {
+		t.Errorf("Expected Venn Ti to not support rigid fork")
+	}
+	if !venn.SupportsTravel(120) || !venn.SupportsTravel(130) || !venn.SupportsTravel(140) {
+		t.Errorf("Expected Venn Ti to support 120mm, 130mm, and 140mm travel forks")
+	}
+	if venn.SupportsTravel(100) || venn.SupportsTravel(150) {
+		t.Errorf("Expected Venn Ti to reject 100mm and 150mm travel forks")
+	}
+	if venn.HasAdjustableChainstay() {
+		t.Errorf("Expected Venn Ti to have fixed chainstays (445mm)")
+	}
+}
+
 
 

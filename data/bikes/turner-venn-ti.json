@@ -1,0 +1,91 @@
+{
+  "id": "turner-venn-ti",
+  "manufacturer": "Turner",
+  "model": "Venn Ti",
+  "year": 2024,
+  "category": "hardtail",
+  "notes": "Custom shaped 3Al-2.5V titanium trail & all-terrain hardtail featuring double-butted top and down tubes, tapered/butted chainstays, and a 3D-printed titanium lower chainstay yoke with integrated bridge. Designed around a 130mm suspension fork (120-140mm supported; baseline 541mm static A2C at 0% sag, 44mm offset) with a semi-integrated ZS44/ZS56 headset (0mm CAD spacer stack). Features SRAM UDH / T-Type transmission compatibility, T47 (92mm) threaded BB, 30.9mm seatpost with internal dropper routing, clearance for 29x2.8\" tires, post-mount rear brake up to 200mm, and max 34t chainring (52-55mm chainline). Turner published geometry unweighted (0% sag); size XL published stack of 670mm is an apparent transcription error for 690mm given the 160mm head tube length, 1224mm wheelbase, and 680mm effective top tube.",
+  "wheel_size": "29",
+  "headset_cup_type": "ZS56",
+  "geo_headset_spacer_mm": 0,
+  "geo_slop_mm": {
+    "a2c": 2.5,
+    "wheelbase": 2.0
+  },
+  "seat_height": 780,
+  "supported_travel_mm": [
+    120,
+    130,
+    140
+  ],
+  "default_fork": "130mm",
+  "sizes": [
+    "S",
+    "M",
+    "L",
+    "XL"
+  ],
+  "default_size": "L",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock 130mm Suspension Build",
+      "is_baseline": true,
+      "fork": {
+        "id": "fox34_130",
+        "name": "Fox Float 34 130mm",
+        "travel_mm": 130,
+        "a2c": 541,
+        "rake": 44,
+        "standard_sag_percent": 20
+      },
+      "sag_percentage_published": 0,
+      "geometries": {
+        "S": {
+          "reach": 410,
+          "stack": 628,
+          "hta_deg": 67.0,
+          "sta_deg": 74.0,
+          "htl": 90,
+          "bb_drop": 65,
+          "wheelbase": 1137,
+          "chainstay_length": 445,
+          "seat_tube_length": 410
+        },
+        "M": {
+          "reach": 434,
+          "stack": 645,
+          "hta_deg": 67.0,
+          "sta_deg": 74.0,
+          "htl": 110,
+          "bb_drop": 65,
+          "wheelbase": 1170,
+          "chainstay_length": 445,
+          "seat_tube_length": 450
+        },
+        "L": {
+          "reach": 448,
+          "stack": 662,
+          "hta_deg": 67.0,
+          "sta_deg": 73.0,
+          "htl": 130,
+          "bb_drop": 62,
+          "wheelbase": 1190,
+          "chainstay_length": 445,
+          "seat_tube_length": 490
+        },
+        "XL": {
+          "reach": 470,
+          "stack": 690,
+          "hta_deg": 67.0,
+          "sta_deg": 73.0,
+          "htl": 160,
+          "bb_drop": 62,
+          "wheelbase": 1224,
+          "chainstay_length": 445,
+          "seat_tube_length": 530
+        }
+      }
+    }
+  ]
+}
