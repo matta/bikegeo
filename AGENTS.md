@@ -23,6 +23,21 @@ go vet ./... && go test ./...
   - Bikes/frames are stored as individual JSON files in `data/bikes/*.json`.
   - The most recent comparison state is persisted to `data/last_compare.json` so running `bikegeo compare` with no arguments replays the last comparison.
 
+## Adding or Modifying Bike Frame Datasets
+
+When adding or editing frame files in `data/bikes/*.json`:
+1. **Frame Attributes & Hardware Assumptions**:
+   - Specify `headset_cup_type` (e.g. `EC44`, `ZS44`, `IS52`) and the explicit CAD spacer `geo_headset_spacer_mm` (typically 10-12mm for external cups, 0mm for integrated).
+   - Declare `supported_travel_mm` (slice of mm), `rigid_a2c_mm` (if supported), `default_fork`, and `chainstay_range_mm` (for adjustable/rocker dropouts).
+   - Ensure baseline configuration specifies published fork specs (`travel_mm`, `a2c`, `rake`, `standard_sag_percent`).
+   - If published geometry rounding exceeds default $\pm 1.0\text{mm}$, declare appropriate `geo_slop_mm` (e.g. `a2c`, `wheelbase`).
+2. **Synchronize Storage Test Counts**:
+   - `pkg/storage/storage_test.go` (`TestLoadRealBikesDataDir`) enforces exact counts for real frames and materialized bikes. Update these assertions when adding or removing frames.
+3. **Add Validation Unit Tests**:
+   - Add a test case in `pkg/validator/validator_test.go` verifying `validator.ValidateFrame(frame)` and frame capabilities (`SupportsRigid()`, `SupportsTravel()`, `HasAdjustableChainstay()`).
+4. **State Cleanliness**:
+   - Running CLI compare commands mutates `data/last_compare.json`. Avoid leaving unintended comparison changes in git state.
+
 ## Testing Strategy & Conventions
 
 - **Unit & Integration Tests**:
