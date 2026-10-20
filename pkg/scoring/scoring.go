@@ -9,6 +9,11 @@ import (
 	"bikegeo/pkg/model"
 )
 
+// Evaluator evaluates a value against a scoring curve to produce a sub-score (typically between -200 and 100).
+type Evaluator interface {
+	Eval(x float64) float64
+}
+
 // Point represents a (X, Y) coordinate on a piecewise-linear scoring curve.
 type Point struct {
 	X float64 `json:"x"`
@@ -43,6 +48,56 @@ func (c Curve) Eval(x float64) float64 {
 	return c[len(c)-1].Y
 }
 
+// QuadraticCurve models a plateau sweet spot [Low, High] with smooth quadratic roll-off outside the plateau.
+// Within [Low, High], Eval returns Peak (default 100.0).
+// When x < Low, y = Peak - 100.0 * ((Low - x) / WLow)^2.
+// When x > High, y = Peak - 100.0 * ((x - High) / WHigh)^2.
+// Values below Floor are clamped to Floor (default -200.0).
+type QuadraticCurve struct {
+	Low   float64 `json:"low"`
+	High  float64 `json:"high"`
+	WLow  float64 `json:"w_low"`
+	WHigh float64 `json:"w_high"`
+	Floor float64 `json:"floor"`
+	Peak  float64 `json:"peak"`
+}
+
+// Eval computes the quadratic plateau score for the given X.
+func (q QuadraticCurve) Eval(x float64) float64 {
+	peak := q.Peak
+	if peak == 0 {
+		peak = 100.0
+	}
+	floor := q.Floor
+	if floor == 0 {
+		floor = -200.0
+	}
+
+	if x >= q.Low && x <= q.High {
+		return peak
+	}
+
+	var y float64
+	if x < q.Low {
+		if q.WLow <= 0 {
+			return floor
+		}
+		d := (q.Low - x) / q.WLow
+		y = peak - 100.0*d*d
+	} else {
+		if q.WHigh <= 0 {
+			return floor
+		}
+		d := (x - q.High) / q.WHigh
+		y = peak - 100.0*d*d
+	}
+
+	if y < floor {
+		return floor
+	}
+	return y
+}
+
 // Criterion defines a single scoring factor with an extraction function, weight, curve, and description generator.
 type Criterion struct {
 	ID       string
@@ -50,7 +105,7 @@ type Criterion struct {
 	Unit     string
 	Weight   float64
 	Metric   func(model.BikeFitAnalysis) float64
-	Curve    Curve
+	Curve    Evaluator
 	Describe func(v float64) string
 }
 
@@ -65,26 +120,25 @@ var DefaultCriteria = []Criterion{
 		Unit:   "mm",
 		Weight: 10,
 		Metric: func(a model.BikeFitAnalysis) float64 { return a.Aett },
-		Curve: Curve{
-			{X: 564, Y: -200},
-			{X: 574, Y: -100},
-			{X: 584, Y: 0},
-			{X: 634, Y: 100},
-			{X: 644, Y: 0},
-			{X: 654, Y: -100},
-			{X: 664, Y: -200},
+		Curve: QuadraticCurve{
+			Low:   625,
+			High:  636,
+			WLow:  41,
+			WHigh: 24,
+			Floor: -200,
+			Peak:  100,
 		},
 		Describe: func(v float64) string {
 			if v < 584 {
 				return fmt.Sprintf("AETT %.0fmm is %.0fmm under the 584 minimum", v, 584-v)
 			}
-			if v <= 634 {
-				if v < 633.5 {
-					return fmt.Sprintf("AETT %.0fmm is %.0fmm short of the 634 sweet spot", v, 634-v)
-				}
-				return fmt.Sprintf("AETT %.0fmm is at the sweet spot", v)
+			if v < 625 {
+				return fmt.Sprintf("AETT %.0fmm is %.0fmm short of the 625 sweet spot", v, 625-v)
 			}
-			return fmt.Sprintf("AETT %.0fmm is %.0fmm past the 634 limit", v, v-634)
+			if v <= 636 {
+				return fmt.Sprintf("AETT %.0fmm is in the 625–636 sweet spot", v)
+			}
+			return fmt.Sprintf("AETT %.0fmm is %.0fmm past the 636 sweet spot", v, v-636)
 		},
 	},
 	{
@@ -93,12 +147,13 @@ var DefaultCriteria = []Criterion{
 		Unit:   "mm",
 		Weight: 6,
 		Metric: func(a model.BikeFitAnalysis) float64 { return a.ActualSetback },
-		Curve: Curve{
-			{X: 190, Y: -100},
-			{X: 205, Y: 0},
-			{X: 220, Y: 100},
-			{X: 235, Y: 0},
-			{X: 250, Y: -100},
+		Curve: QuadraticCurve{
+			Low:   220,
+			High:  220,
+			WLow:  15,
+			WHigh: 15,
+			Floor: -100,
+			Peak:  100,
 		},
 		Describe: func(v float64) string {
 			d := v - 220.0
@@ -117,12 +172,13 @@ var DefaultCriteria = []Criterion{
 		Unit:   "mm",
 		Weight: 5,
 		Metric: func(a model.BikeFitAnalysis) float64 { return a.SpareVerticalStack },
-		Curve: Curve{
-			{X: 60, Y: -100},
-			{X: 85, Y: 0},
-			{X: PreferredSpareVertMm, Y: 100},
-			{X: 135, Y: 0},
-			{X: 160, Y: -100},
+		Curve: QuadraticCurve{
+			Low:   PreferredSpareVertMm,
+			High:  PreferredSpareVertMm,
+			WLow:  15,
+			WHigh: 35,
+			Floor: -100,
+			Peak:  100,
 		},
 		Describe: func(v float64) string {
 			d := v - PreferredSpareVertMm
@@ -157,10 +213,13 @@ var DefaultCriteria = []Criterion{
 		Unit:   "mm",
 		Weight: 3,
 		Metric: func(a model.BikeFitAnalysis) float64 { return a.ActiveBbDrop },
-		Curve: Curve{
-			{X: 70.0 - 200.0/15.0, Y: -100},
-			{X: 70, Y: 100},
-			{X: 110, Y: -100},
+		Curve: QuadraticCurve{
+			Low:   70,
+			High:  70,
+			WLow:  20,
+			WHigh: 20,
+			Floor: -100,
+			Peak:  100,
 		},
 		Describe: func(v float64) string {
 			d := v - 70.0
@@ -179,12 +238,13 @@ var DefaultCriteria = []Criterion{
 		Unit:   "°",
 		Weight: 2,
 		Metric: func(a model.BikeFitAnalysis) float64 { return a.ActiveHta },
-		Curve: Curve{
-			{X: 66, Y: -100},
-			{X: 67, Y: 0},
-			{X: 68, Y: 100},
-			{X: 69, Y: 0},
-			{X: 70, Y: -200},
+		Curve: QuadraticCurve{
+			Low:   68,
+			High:  68,
+			WLow:  1.0,
+			WHigh: 1.0,
+			Floor: -200,
+			Peak:  100,
 		},
 		Describe: func(v float64) string {
 			d := v - 68.0

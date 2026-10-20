@@ -36,13 +36,13 @@ Bike geometry is stored in **local JSON files** under [`data/bikes/`](data/bikes
    - Verifies **Cross-Configuration CAD Coherence** when a frame publishes charts for multiple forks.
 
 5. **Frame Scoring & Desirability Ranking (`pkg/scoring`)**:
-   - Compares how closely candidate frames match target fit and handling criteria using piecewise-linear desirability curves:
-     - **AETT** (weight 10, sweet spot 584–634mm, steep penalty beyond/below)
-     - **Setback** (weight 6, ideal 220mm)
-     - **Spare Vert** (weight 5, ideal 100mm)
+   - Compares how closely candidate frames match target fit and handling criteria using smooth quadratic curves and plateau sweet spots:
+     - **AETT** (weight 10, sweet spot plateau 625–636mm, smooth quadratic roll-off reaching 0 at 584mm min / 660mm max)
+     - **Setback** (weight 6, ideal 220mm with quadratic roll-off reaching 0 at 205mm / 235mm)
+     - **Spare Vert** (weight 5, ideal 100mm with quadratic roll-off reaching 0 at 85mm / 135mm)
      - **Chainstay** (weight 4, longer is better with diminishing returns)
-     - **BB Drop** (weight 3, ideal 70mm, penalty for high BB)
-     - **HTA** (weight 2, ideal 68°, penalized if slacker than 67°, heavily penalized if steeper than 69°)
+     - **BB Drop** (weight 3, ideal 70mm with quadratic roll-off reaching 0 at 50mm / 90mm)
+     - **HTA** (weight 2, ideal 68° with quadratic roll-off reaching 0 at 67° / 69°)
      - **Front Wt %** (weight 1, higher front-wheel load is preferred)
    - Tables are automatically sorted by score descending (with original `[#]` identifiers preserved).
    - Generates plain-English footer explanations (`Biggest Losses vs. Ideal` and `Head-to-Head Deciding Factors`).

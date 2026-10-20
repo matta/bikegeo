@@ -44,6 +44,47 @@ func TestCurveEval(t *testing.T) {
 	}
 }
 
+func TestQuadraticCurveEval(t *testing.T) {
+	qc := QuadraticCurve{
+		Low:   625,
+		High:  636,
+		WLow:  41,
+		WHigh: 24,
+		Floor: -200,
+		Peak:  100,
+	}
+
+	// Inside plateau
+	for _, x := range []float64{625, 630, 634, 636} {
+		if val := qc.Eval(x); val != 100 {
+			t.Errorf("Eval(%f) inside plateau expected 100, got %f", x, val)
+		}
+	}
+
+	// Slight deviation above High (Hayduke at 637mm: 1mm over)
+	if val := qc.Eval(637); val < 99.8 || val > 100.0 {
+		t.Errorf("Eval(637) expected ~99.83, got %f", val)
+	}
+
+	// Zero crossing high
+	if math.Abs(qc.Eval(660)-0) > 0.001 {
+		t.Errorf("Eval(660) expected 0, got %f", qc.Eval(660))
+	}
+
+	// Zero crossing low
+	if math.Abs(qc.Eval(584)-0) > 0.001 {
+		t.Errorf("Eval(584) expected 0, got %f", qc.Eval(584))
+	}
+
+	// Floor clamping
+	if val := qc.Eval(700); val != -200 {
+		t.Errorf("Eval(700) expected -200 (clamped), got %f", val)
+	}
+	if val := qc.Eval(500); val != -200 {
+		t.Errorf("Eval(500) expected -200 (clamped), got %f", val)
+	}
+}
+
 func TestDefaultCriteriaCurves(t *testing.T) {
 	critMap := make(map[string]Criterion)
 	for _, c := range DefaultCriteria {
@@ -52,23 +93,27 @@ func TestDefaultCriteriaCurves(t *testing.T) {
 
 	// 1. AETT
 	aett := critMap["aett"].Curve
-	if aett.Eval(560) != -200 {
-		t.Errorf("AETT(560) expected -200, got %f", aett.Eval(560))
+	if aett.Eval(500) != -200 {
+		t.Errorf("AETT(500) expected -200, got %f", aett.Eval(500))
 	}
-	if aett.Eval(584) != 0 {
+	if math.Abs(aett.Eval(584)-0) > 0.001 {
 		t.Errorf("AETT(584) expected 0, got %f", aett.Eval(584))
+	}
+	if aett.Eval(625) != 100 {
+		t.Errorf("AETT(625) expected 100, got %f", aett.Eval(625))
 	}
 	if aett.Eval(634) != 100 {
 		t.Errorf("AETT(634) expected 100, got %f", aett.Eval(634))
 	}
-	if aett.Eval(644) != 0 {
-		t.Errorf("AETT(644) expected 0, got %f", aett.Eval(644))
+	if aett.Eval(636) != 100 {
+		t.Errorf("AETT(636) expected 100, got %f", aett.Eval(636))
 	}
-	if aett.Eval(654) != -100 {
-		t.Errorf("AETT(654) expected -100, got %f", aett.Eval(654))
+	// 3mm past 634 is 637mm: 1mm past 636 sweet spot -> > 99.8
+	if aett.Eval(637) < 99.8 {
+		t.Errorf("AETT(637) expected > 99.8, got %f", aett.Eval(637))
 	}
-	if aett.Eval(664) != -200 {
-		t.Errorf("AETT(664) expected -200, got %f", aett.Eval(664))
+	if math.Abs(aett.Eval(660)-0) > 0.001 {
+		t.Errorf("AETT(660) expected 0, got %f", aett.Eval(660))
 	}
 	if aett.Eval(680) != -200 {
 		t.Errorf("AETT(680) expected -200, got %f", aett.Eval(680))
@@ -79,13 +124,13 @@ func TestDefaultCriteriaCurves(t *testing.T) {
 	if sb.Eval(180) != -100 {
 		t.Errorf("Setback(180) expected -100, got %f", sb.Eval(180))
 	}
-	if sb.Eval(205) != 0 {
+	if math.Abs(sb.Eval(205)-0) > 0.001 {
 		t.Errorf("Setback(205) expected 0, got %f", sb.Eval(205))
 	}
 	if sb.Eval(220) != 100 {
 		t.Errorf("Setback(220) expected 100, got %f", sb.Eval(220))
 	}
-	if sb.Eval(235) != 0 {
+	if math.Abs(sb.Eval(235)-0) > 0.001 {
 		t.Errorf("Setback(235) expected 0, got %f", sb.Eval(235))
 	}
 	if sb.Eval(250) != -100 {
@@ -97,13 +142,13 @@ func TestDefaultCriteriaCurves(t *testing.T) {
 	if sv.Eval(60) != -100 {
 		t.Errorf("SpareVert(60) expected -100, got %f", sv.Eval(60))
 	}
-	if sv.Eval(85) != 0 {
+	if math.Abs(sv.Eval(85)-0) > 0.001 {
 		t.Errorf("SpareVert(85) expected 0, got %f", sv.Eval(85))
 	}
 	if sv.Eval(PreferredSpareVertMm) != 100 {
 		t.Errorf("SpareVert(%.0f) expected 100, got %f", PreferredSpareVertMm, sv.Eval(PreferredSpareVertMm))
 	}
-	if sv.Eval(135) != 0 {
+	if math.Abs(sv.Eval(135)-0) > 0.001 {
 		t.Errorf("SpareVert(135) expected 0, got %f", sv.Eval(135))
 	}
 	if sv.Eval(160) != -100 {
@@ -130,36 +175,39 @@ func TestDefaultCriteriaCurves(t *testing.T) {
 
 	// 5. BB Drop
 	bb := critMap["bbdrop"].Curve
-	if bb.Eval(50) != -100 {
-		t.Errorf("BBDrop(50) expected -100, got %f", bb.Eval(50))
+	if math.Abs(bb.Eval(50)-0) > 0.001 {
+		t.Errorf("BBDrop(50) expected 0, got %f", bb.Eval(50))
 	}
 	if math.Abs(bb.Eval(70)-100) > 0.001 {
 		t.Errorf("BBDrop(70) expected 100, got %f", bb.Eval(70))
 	}
-	if math.Abs(bb.Eval(110)-(-100)) > 0.001 {
+	if math.Abs(bb.Eval(90)-0) > 0.001 {
+		t.Errorf("BBDrop(90) expected 0, got %f", bb.Eval(90))
+	}
+	if bb.Eval(110) != -100 {
 		t.Errorf("BBDrop(110) expected -100, got %f", bb.Eval(110))
 	}
-	// Below 70 loses 15 pts/mm: at 65 should be 100 - 5*15 = 25
-	if math.Abs(bb.Eval(65)-25) > 0.001 {
-		t.Errorf("BBDrop(65) expected 25, got %f", bb.Eval(65))
+	// At 65 (5mm higher BB, W=20): 100 - 100*(5/20)^2 = 93.75
+	if math.Abs(bb.Eval(65)-93.75) > 0.001 {
+		t.Errorf("BBDrop(65) expected 93.75, got %f", bb.Eval(65))
 	}
-	// Above 70 loses 5 pts/mm: at 75 should be 100 - 5*5 = 75
-	if math.Abs(bb.Eval(75)-75) > 0.001 {
-		t.Errorf("BBDrop(75) expected 75, got %f", bb.Eval(75))
+	// At 75 (5mm lower BB, W=20): 100 - 100*(5/20)^2 = 93.75
+	if math.Abs(bb.Eval(75)-93.75) > 0.001 {
+		t.Errorf("BBDrop(75) expected 93.75, got %f", bb.Eval(75))
 	}
 
 	// 6. HTA
 	hta := critMap["hta"].Curve
-	if hta.Eval(65) != -100 {
-		t.Errorf("HTA(65) expected -100, got %f", hta.Eval(65))
+	if hta.Eval(65) != -200 {
+		t.Errorf("HTA(65) expected -200, got %f", hta.Eval(65))
 	}
-	if hta.Eval(67) != 0 {
+	if math.Abs(hta.Eval(67)-0) > 0.001 {
 		t.Errorf("HTA(67) expected 0, got %f", hta.Eval(67))
 	}
 	if hta.Eval(68) != 100 {
 		t.Errorf("HTA(68) expected 100, got %f", hta.Eval(68))
 	}
-	if hta.Eval(69) != 0 {
+	if math.Abs(hta.Eval(69)-0) > 0.001 {
 		t.Errorf("HTA(69) expected 0, got %f", hta.Eval(69))
 	}
 	if hta.Eval(70) != -200 {
@@ -191,7 +239,7 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 	}{
 		{
 			name:     "Esker Hayduke (S3)",
-			expected: 66,
+			expected: 85,
 			a: model.BikeFitAnalysis{
 				Aett:               634.9,
 				ActualSetback:      213.4,
@@ -204,7 +252,7 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		},
 		{
 			name:     "Ritchey Ultra (XL)",
-			expected: 61,
+			expected: 80,
 			a: model.BikeFitAnalysis{
 				Aett:               633.3,
 				ActualSetback:      219.8,
@@ -213,6 +261,71 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 				ActiveBbDrop:       59,
 				ActiveHta:          68.63,
 				WeightDistFrontPct: 35.2,
+			},
+		},
+		{
+			name:     "Otso Fenrir (XL)",
+			expected: 59,
+			a: model.BikeFitAnalysis{
+				Aett:               604.3,
+				ActualSetback:      206,
+				SpareVerticalStack: 88,
+				ActiveChainstay:    450,
+				ActiveBbDrop:       67.7,
+				ActiveHta:          67.69,
+				WeightDistFrontPct: 35.5,
+			},
+		},
+		{
+			name:     "Revel El Jefe (L)",
+			expected: 50,
+			a: model.BikeFitAnalysis{
+				Aett:               619.7,
+				ActualSetback:      205.3,
+				SpareVerticalStack: 135.4,
+				ActiveChainstay:    435,
+				ActiveBbDrop:       66.1,
+				ActiveHta:          67.24,
+				WeightDistFrontPct: 34.3,
+			},
+		},
+		{
+			name:     "Revel El Jefe (XL)",
+			expected: 46,
+			a: model.BikeFitAnalysis{
+				Aett:               649.1,
+				ActualSetback:      203.5,
+				SpareVerticalStack: 125,
+				ActiveChainstay:    435,
+				ActiveBbDrop:       67.1,
+				ActiveHta:          67.38,
+				WeightDistFrontPct: 33.5,
+			},
+		},
+		{
+			name:     "Otso Fenrir (L)",
+			expected: 45,
+			a: model.BikeFitAnalysis{
+				Aett:               584,
+				ActualSetback:      205.7,
+				SpareVerticalStack: 106.4,
+				ActiveChainstay:    450,
+				ActiveBbDrop:       67.8,
+				ActiveHta:          67.71,
+				WeightDistFrontPct: 36.2,
+			},
+		},
+		{
+			name:     "Sour Pasta Party (L)",
+			expected: 40,
+			a: model.BikeFitAnalysis{
+				Aett:               621.2,
+				ActualSetback:      202.9,
+				SpareVerticalStack: 141.7,
+				ActiveChainstay:    435,
+				ActiveBbDrop:       71.9,
+				ActiveHta:          67.52,
+				WeightDistFrontPct: 34.4,
 			},
 		},
 		{
@@ -229,73 +342,8 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 			},
 		},
 		{
-			name:     "Otso Fenrir (XL)",
-			expected: 40,
-			a: model.BikeFitAnalysis{
-				Aett:               604.3,
-				ActualSetback:      206,
-				SpareVerticalStack: 88,
-				ActiveChainstay:    450,
-				ActiveBbDrop:       67.7,
-				ActiveHta:          67.69,
-				WeightDistFrontPct: 35.5,
-			},
-		},
-		{
-			name:     "Otso Fenrir (L)",
-			expected: 37,
-			a: model.BikeFitAnalysis{
-				Aett:               584,
-				ActualSetback:      205.7,
-				SpareVerticalStack: 106.4,
-				ActiveChainstay:    450,
-				ActiveBbDrop:       67.8,
-				ActiveHta:          67.71,
-				WeightDistFrontPct: 36.2,
-			},
-		},
-		{
-			name:     "Sour Pasta Party (L)",
-			expected: 35,
-			a: model.BikeFitAnalysis{
-				Aett:               621.2,
-				ActualSetback:      202.9,
-				SpareVerticalStack: 141.7,
-				ActiveChainstay:    435,
-				ActiveBbDrop:       71.9,
-				ActiveHta:          67.52,
-				WeightDistFrontPct: 34.4,
-			},
-		},
-		{
-			name:     "Revel El Jefe (L)",
-			expected: 35,
-			a: model.BikeFitAnalysis{
-				Aett:               619.7,
-				ActualSetback:      205.3,
-				SpareVerticalStack: 135.4,
-				ActiveChainstay:    435,
-				ActiveBbDrop:       66.1,
-				ActiveHta:          67.24,
-				WeightDistFrontPct: 34.3,
-			},
-		},
-		{
-			name:     "Revel El Jefe (XL)",
-			expected: 0,
-			a: model.BikeFitAnalysis{
-				Aett:               649.1,
-				ActualSetback:      203.5,
-				SpareVerticalStack: 125,
-				ActiveChainstay:    435,
-				ActiveBbDrop:       67.1,
-				ActiveHta:          67.38,
-				WeightDistFrontPct: 33.5,
-			},
-		},
-		{
 			name:     "Esker Hayduke (S4)",
-			expected: -21,
+			expected: 19,
 			a: model.BikeFitAnalysis{
 				Aett:               671.8,
 				ActualSetback:      215.5,
@@ -362,8 +410,8 @@ func TestExplain_GeneratesReadableOutput(t *testing.T) {
 		t.Fatalf("Expected 1 head-to-head entry, got %d", len(expl.HeadToHead))
 	}
 
-	// Verify head-to-head mentions Hayduke beating Ritchey by 5 (rounded 66 vs 61)
-	if !contains(expl.HeadToHead[0], "Esker Hayduke (S3) (66) > Ritchey Ultra (XL) (61) by 5") {
+	// Verify head-to-head mentions Hayduke beating Ritchey by 5 (rounded 85 vs 80)
+	if !contains(expl.HeadToHead[0], "Esker Hayduke (S3) (85) > Ritchey Ultra (XL) (80) by 5") {
 		t.Errorf("Unexpected H2H line: %s", expl.HeadToHead[0])
 	}
 }
