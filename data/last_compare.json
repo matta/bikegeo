@@ -60,6 +60,18 @@
       "size": "XL",
       "fork": "120mm",
       "sag_percent": 20
+    },
+    {
+      "frame_id": "surly-krampus",
+      "size": "L",
+      "fork": "rigid",
+      "sag_percent": 0
+    },
+    {
+      "frame_id": "surly-krampus",
+      "size": "XL",
+      "fork": "rigid",
+      "sag_percent": 0
     }
   ]
 }
