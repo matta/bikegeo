@@ -4,7 +4,7 @@
   "model": "Kinetik",
   "year": 2026,
   "category": "hardtail",
-  "notes": "Butted 3Al-2.5V (Grade 9) titanium expedition hardtail frame designed around an unsagged 120mm suspension fork (512mm A2C) or 100-120mm travel (100mm recommended for S & SMD) / ~500mm rigid fork with a ZS44/EC44 headset (EC44 lower cup). Features rocker-style adjustable dropouts (455-472mm chainstay, forward 455mm position in published geometry), clearance for up to 29x3.0\" or 27.5x3.0\" tires, 12x148mm Boost spacing, 73mm BSA threaded BB, 31.6mm seatpost with internal dropper routing, and 9 accessory mount locations plus rack and fender mounts.",
+  "notes": "Butted 3Al-2.5V (Grade 9) titanium expedition hardtail frame designed around a 120mm suspension fork (530mm static A2C at 15% sag = 512mm published CAD A2C) or 100-120mm travel (100mm recommended for S & SMD) / ~500mm rigid fork with a ZS44/EC44 headset (EC44 lower cup). Features rocker-style adjustable dropouts (455-472mm chainstay, forward 455mm position in published geometry), clearance for up to 29x3.0\" or 27.5x3.0\" tires, 12x148mm Boost spacing, 73mm BSA threaded BB, 31.6mm seatpost with internal dropper routing, and 9 accessory mount locations plus rack and fender mounts.",
   "wheel_size": "29",
   "headset_cup_type": "EC44",
   "geo_headset_spacer_mm": 10,
@@ -40,13 +40,13 @@
       "is_baseline": true,
       "fork": {
         "id": "stock_120",
-        "name": "Stock 120mm Suspension (512mm A2C)",
+        "name": "Stock 120mm Suspension (530mm A2C, 15% Sag)",
         "travel_mm": 120,
-        "a2c": 512,
+        "a2c": 530,
         "rake": 44,
-        "standard_sag_percent": 0
+        "standard_sag_percent": 15
       },
-      "sag_percentage_published": 0,
+      "sag_percentage_published": 15,
       "geometries": {
         "S": {
           "reach": 417,

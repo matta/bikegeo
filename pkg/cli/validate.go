@@ -355,9 +355,12 @@ func (a *App) renderDetailedValidation(b ValidationResultBundle) {
 	}
 
 	// 4. Diagnostic Log
-	if len(b.Report.Issues) > 0 {
-		fmt.Fprintf(a.Out, "\nValidation Diagnostic Log (%d notices):\n", len(b.Report.Issues))
-		for _, iss := range b.Report.Issues {
+	var allIssues []model.ValidationIssue
+	allIssues = append(allIssues, b.Report.Issues...)
+	allIssues = append(allIssues, b.FrameReport.Issues...)
+	if len(allIssues) > 0 {
+		fmt.Fprintf(a.Out, "\nValidation Diagnostic Log (%d notices):\n", len(allIssues))
+		for _, iss := range allIssues {
 			sev := strings.ToUpper(string(iss.Severity))
 			fmt.Fprintf(a.Out, "  [%s] %s: %s\n", sev, iss.Title, iss.Message)
 			if iss.Expected != "" || iss.Actual != "" {

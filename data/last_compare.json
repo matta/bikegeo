@@ -16,8 +16,8 @@
     {
       "frame_id": "binary-havok",
       "size": "XL",
-      "fork": "rigid",
-      "sag_percent": 0
+      "fork": "100mm",
+      "sag_percent": 15
     },
     {
       "frame_id": "otso-fenrir-stainless",
@@ -41,7 +41,7 @@
       "frame_id": "esker-hayduke",
       "size": "S4",
       "fork": "120mm",
-      "sag_percent": 30
+      "sag_percent": 20
     },
     {
       "frame_id": "revel-el-jefe",
@@ -64,8 +64,8 @@
     {
       "frame_id": "surly-krampus",
       "size": "L",
-      "fork": "rigid",
-      "sag_percent": 0
+      "fork": "110mm",
+      "sag_percent": 20
     },
     {
       "frame_id": "surly-krampus",

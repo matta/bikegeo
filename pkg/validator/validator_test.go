@@ -539,11 +539,12 @@ func TestValidateBinaryKinetik(t *testing.T) {
 				ID:         "stock",
 				IsBaseline: true,
 				Fork: model.ForkSpec{
-					TravelMm: 120,
-					A2c:      512,
-					Rake:     44,
+					TravelMm:           120,
+					A2c:                530,
+					Rake:               44,
+					StandardSagPercent: 15,
 				},
-				SagPercentagePublished: 0,
+				SagPercentagePublished: 15,
 				Geometries: map[string]model.SizeGeometry{
 					"S":   {Reach: 417, Stack: 616, HtaDeg: 67, StaDeg: 74, Htl: 100, BbDrop: 60, Wheelbase: 1151, ChainstayLength: 455, FrontCenter: 703, SeatTubeLength: 390, StandoverHeight: 771},
 					"SMD": {Reach: 433, Stack: 616, HtaDeg: 67, StaDeg: 74, Htl: 100, BbDrop: 60, Wheelbase: 1167, ChainstayLength: 455, FrontCenter: 719, SeatTubeLength: 415, StandoverHeight: 792},
@@ -573,5 +574,63 @@ func TestValidateBinaryKinetik(t *testing.T) {
 		t.Errorf("Expected chainstay range 455-472mm, got %.1f-%.1f", kinetik.GetMinChainstay(), kinetik.GetMaxChainstay())
 	}
 }
+
+func TestValidateImplausibleForkA2c(t *testing.T) {
+	// A 120mm 29er fork with 512mm static A2C is physically implausible (standard is 520-545mm)
+	// and drops to 488mm effective A2C at 20% sag.
+	implausibleFrame := model.FrameModel{
+		ID:                 "bad-fork-frame",
+		Manufacturer:       "Test",
+		Model:              "BadFork",
+		WheelSize:          "29",
+		HeadsetCupType:     model.CupEC44,
+		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
+		SupportedTravelMm: []float64{120},
+		Sizes:             []string{"L"},
+		DefaultSize:       "L",
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:         "stock",
+				IsBaseline: true,
+				Fork: model.ForkSpec{
+					TravelMm: 120,
+					A2c:      512, // Implausible static A2C for 120mm 29er
+					Rake:     44,
+				},
+				SagPercentagePublished: 0,
+				Geometries: map[string]model.SizeGeometry{
+					"L": {Reach: 456, Stack: 657, HtaDeg: 67, StaDeg: 74.5, Htl: 145, BbDrop: 60, Wheelbase: 1208, ChainstayLength: 455, FrontCenter: 759},
+				},
+			},
+		},
+	}
+
+	report := validator.ValidateFrame(implausibleFrame)
+	if report.IsValid {
+		t.Fatalf("Expected frame with 120mm fork and 512mm static A2C to fail validation")
+	}
+
+	foundIssue := false
+	for _, iss := range report.Issues {
+		if iss.ID == "implausible_fork_a2c" || iss.ID == "implausible_supported_travel_a2c" {
+			foundIssue = true
+			break
+		}
+	}
+	if !foundIssue {
+		for _, szRep := range report.SizeReports {
+			for _, iss := range szRep.Issues {
+				if iss.ID == "implausible_fork_a2c" {
+					foundIssue = true
+					break
+				}
+			}
+		}
+	}
+	if !foundIssue {
+		t.Errorf("Expected issue 'implausible_fork_a2c' or 'implausible_supported_travel_a2c', got: %+v", report.Issues)
+	}
+}
+
 
 

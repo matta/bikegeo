@@ -158,6 +158,23 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		})
 	}
 
+	// Fork Travel & Static A2C Plausibility Check (for 29er forks)
+	if bike.ForkTravelMm > 0 && bike.ForkA2c > 0 {
+		minStaticA2c := bike.ForkTravelMm + 400.0
+		maxStaticA2c := bike.ForkTravelMm + 425.0
+		if bike.ForkA2c < minStaticA2c || bike.ForkA2c > maxStaticA2c {
+			issues = append(issues, model.ValidationIssue{
+				ID:       "implausible_fork_a2c",
+				Field:    "fork_a2c",
+				Severity: model.SeverityError,
+				Title:    "Implausible Suspension Fork Axle-to-Crown (A2C)",
+				Message:  fmt.Sprintf("Static fork A2C of %.1fmm for %.0fmm travel is outside plausible 29er physical range [%.1fmm, %.1fmm].", bike.ForkA2c, bike.ForkTravelMm, minStaticA2c, maxStaticA2c),
+				Expected: fmt.Sprintf("%.1f - %.1f mm", minStaticA2c, maxStaticA2c),
+				Actual:   fmt.Sprintf("%.1f mm", bike.ForkA2c),
+			})
+		}
+	}
+
 	// 3. CAD Headset Spacer vs. Physical Headset Cup Type Plausibility Check
 	minSpacer, maxSpacer := bike.HeadsetCupType.ExpectedSpacerRangeMm()
 	if geoSpacerMm < minSpacer || geoSpacerMm > maxSpacer {
@@ -465,6 +482,58 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 						})
 					}
 				}
+			}
+		}
+	}
+
+	// Validate that all supported suspension travels resolve to plausible physical A2C across plausible sag ranges (0% to 30%)
+	for _, travelMm := range frame.SupportedTravelMm {
+		if travelMm <= 0 {
+			continue
+		}
+		var staticA2c float64
+		foundInConfig := false
+		for _, cfg := range frame.Configurations {
+			if math.Abs(cfg.Fork.TravelMm-travelMm) < 0.1 && cfg.Fork.A2c > 0 {
+				staticA2c = cfg.Fork.A2c
+				foundInConfig = true
+				break
+			}
+		}
+		if !foundInConfig {
+			staticA2c = travelMm + 410.0
+		}
+
+		minStatic := travelMm + 400.0
+		maxStatic := travelMm + 425.0
+		if staticA2c < minStatic || staticA2c > maxStatic {
+			report.IsValid = false
+			report.Issues = append(report.Issues, model.ValidationIssue{
+				ID:       "implausible_supported_travel_a2c",
+				Severity: model.SeverityError,
+				Title:    fmt.Sprintf("Implausible Supported Fork Travel A2C (%.0fmm)", travelMm),
+				Message:  fmt.Sprintf("Supported travel %.0fmm resolves to static A2C %.1fmm, outside plausible 29er physical range [%.1fmm, %.1fmm].", travelMm, staticA2c, minStatic, maxStatic),
+				Expected: fmt.Sprintf("%.1f - %.1f mm", minStatic, maxStatic),
+				Actual:   fmt.Sprintf("%.1f mm", staticA2c),
+			})
+			continue
+		}
+
+		// Verify effective A2C across plausible sag range (0% to 30%)
+		for _, sagPct := range []float64{0, 20, 30} {
+			effA2c := geometry.Round(staticA2c-travelMm*(sagPct/100.0), 1)
+			minEff := travelMm*0.70 + 400.0
+			if effA2c < minEff || effA2c > maxStatic {
+				report.IsValid = false
+				report.Issues = append(report.Issues, model.ValidationIssue{
+					ID:       "implausible_supported_travel_a2c",
+					Severity: model.SeverityError,
+					Title:    fmt.Sprintf("Implausible Effective A2C for %.0fmm at %.0f%% Sag", travelMm, sagPct),
+					Message:  fmt.Sprintf("Supported travel %.0fmm at %.0f%% sag resolves to effective A2C %.1fmm (must be >= %.1fmm).", travelMm, sagPct, effA2c, minEff),
+					Expected: fmt.Sprintf(">= %.1f mm", minEff),
+					Actual:   fmt.Sprintf("%.1f mm", effA2c),
+				})
+				break
 			}
 		}
 	}
