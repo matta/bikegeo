@@ -72,6 +72,18 @@
       "size": "XL",
       "fork": "rigid",
       "sag_percent": 0
+    },
+    {
+      "frame_id": "binary-kinetik",
+      "size": "L",
+      "fork": "120mm",
+      "sag_percent": 20
+    },
+    {
+      "frame_id": "binary-kinetik",
+      "size": "XL",
+      "fork": "120mm",
+      "sag_percent": 20
     }
   ]
 }

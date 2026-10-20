@@ -515,4 +515,63 @@ func TestValidateSurlyKrampus(t *testing.T) {
 	}
 }
 
+func TestValidateBinaryKinetik(t *testing.T) {
+	kinetik := model.FrameModel{
+		ID:                 "binary-kinetik",
+		Manufacturer:       "Binary",
+		Model:              "Kinetik",
+		Year:               2026,
+		Category:           model.CategoryHardtail,
+		HeadsetCupType:     model.CupEC44,
+		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
+		GeoSlopMm: &model.GeoSlopMm{
+			A2c:       model.Float64Ptr(1.5),
+			Wheelbase: model.Float64Ptr(1.5),
+		},
+		RigidA2cMm:        500.0,
+		DefaultFork:       "120mm",
+		SupportedTravelMm: []float64{100, 110, 120},
+		ChainstayRangeMm:  []float64{455, 472},
+		Sizes:             []string{"S", "SMD", "M", "ML", "L", "XL"},
+		DefaultSize:       "L",
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:         "stock",
+				IsBaseline: true,
+				Fork: model.ForkSpec{
+					TravelMm: 120,
+					A2c:      512,
+					Rake:     44,
+				},
+				SagPercentagePublished: 0,
+				Geometries: map[string]model.SizeGeometry{
+					"S":   {Reach: 417, Stack: 616, HtaDeg: 67, StaDeg: 74, Htl: 100, BbDrop: 60, Wheelbase: 1151, ChainstayLength: 455, FrontCenter: 703, SeatTubeLength: 390, StandoverHeight: 771},
+					"SMD": {Reach: 433, Stack: 616, HtaDeg: 67, StaDeg: 74, Htl: 100, BbDrop: 60, Wheelbase: 1167, ChainstayLength: 455, FrontCenter: 719, SeatTubeLength: 415, StandoverHeight: 792},
+					"M":   {Reach: 434, Stack: 625, HtaDeg: 67, StaDeg: 74, Htl: 110, BbDrop: 60, Wheelbase: 1172, ChainstayLength: 455, FrontCenter: 724, SeatTubeLength: 420, StandoverHeight: 821},
+					"ML":  {Reach: 441, Stack: 643, HtaDeg: 67, StaDeg: 74, Htl: 130, BbDrop: 60, Wheelbase: 1187, ChainstayLength: 455, FrontCenter: 738, SeatTubeLength: 440, StandoverHeight: 840},
+					"L":   {Reach: 456, Stack: 657, HtaDeg: 67, StaDeg: 74.5, Htl: 145, BbDrop: 60, Wheelbase: 1208, ChainstayLength: 455, FrontCenter: 759, SeatTubeLength: 480, StandoverHeight: 867},
+					"XL":  {Reach: 465, Stack: 671, HtaDeg: 67, StaDeg: 74.5, Htl: 160, BbDrop: 60, Wheelbase: 1223, ChainstayLength: 455, FrontCenter: 774, SeatTubeLength: 508, StandoverHeight: 887},
+				},
+			},
+		},
+	}
+
+	report := validator.ValidateFrame(kinetik)
+	if !report.IsValid {
+		t.Fatalf("Expected Binary Kinetik to pass validation: %s", report.ErrorSummary())
+	}
+	if !kinetik.SupportsRigid() {
+		t.Errorf("Expected Kinetik to support rigid fork (500mm)")
+	}
+	if !kinetik.SupportsTravel(100) || !kinetik.SupportsTravel(120) {
+		t.Errorf("Expected Kinetik to support 100mm and 120mm travel forks")
+	}
+	if !kinetik.HasAdjustableChainstay() {
+		t.Errorf("Expected Kinetik to have adjustable chainstays")
+	}
+	if kinetik.GetMinChainstay() != 455 || kinetik.GetMaxChainstay() != 472 {
+		t.Errorf("Expected chainstay range 455-472mm, got %.1f-%.1f", kinetik.GetMinChainstay(), kinetik.GetMaxChainstay())
+	}
+}
+
 
