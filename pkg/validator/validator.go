@@ -99,6 +99,34 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		issues = append(issues, validateGeoSlop(bike.GeoSlopMm)...)
 	}
 
+	if bike.ActualStaDeg != 0 {
+		if bike.ActualStaDeg < 60.0 || bike.ActualStaDeg > 85.0 {
+			issues = append(issues, model.ValidationIssue{
+				ID:       "invalid_actual_sta_deg",
+				Field:    "actual_sta_deg",
+				Severity: model.SeverityError,
+				Title:    "Invalid Actual Seat Tube Angle",
+				Message:  fmt.Sprintf("actual_sta_deg of %.1f° is outside plausible range (60.0° - 85.0°).", bike.ActualStaDeg),
+				Expected: "60.0 - 85.0 deg",
+				Actual:   fmt.Sprintf("%.1f deg", bike.ActualStaDeg),
+			})
+		}
+	}
+
+	if bike.SeatTubeOffsetXMm != nil {
+		if *bike.SeatTubeOffsetXMm < 0 || *bike.SeatTubeOffsetXMm > 100.0 {
+			issues = append(issues, model.ValidationIssue{
+				ID:       "invalid_seat_tube_offset_x_mm",
+				Field:    "seat_tube_offset_x_mm",
+				Severity: model.SeverityError,
+				Title:    "Invalid Seat Tube Forward Offset",
+				Message:  fmt.Sprintf("seat_tube_offset_x_mm of %.1fmm is outside plausible range (0.0mm - 100.0mm).", *bike.SeatTubeOffsetXMm),
+				Expected: "0.0 - 100.0 mm",
+				Actual:   fmt.Sprintf("%.1f mm", *bike.SeatTubeOffsetXMm),
+			})
+		}
+	}
+
 	hasError := false
 	for _, issue := range issues {
 		if issue.Severity == model.SeverityError {
@@ -450,6 +478,36 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 		if len(slopIssues) > 0 {
 			report.IsValid = false
 			report.Issues = append(report.Issues, slopIssues...)
+		}
+	}
+
+	if frame.ActualStaDeg != 0 {
+		if frame.ActualStaDeg < 60.0 || frame.ActualStaDeg > 85.0 {
+			report.IsValid = false
+			report.Issues = append(report.Issues, model.ValidationIssue{
+				ID:       "invalid_actual_sta_deg",
+				Field:    "actual_sta_deg",
+				Severity: model.SeverityError,
+				Title:    "Invalid Actual Seat Tube Angle",
+				Message:  fmt.Sprintf("actual_sta_deg of %.1f° is outside plausible range (60.0° - 85.0°).", frame.ActualStaDeg),
+				Expected: "60.0 - 85.0 deg",
+				Actual:   fmt.Sprintf("%.1f deg", frame.ActualStaDeg),
+			})
+		}
+	}
+
+	if frame.SeatTubeOffsetXMm != nil {
+		if *frame.SeatTubeOffsetXMm < 0 || *frame.SeatTubeOffsetXMm > 100.0 {
+			report.IsValid = false
+			report.Issues = append(report.Issues, model.ValidationIssue{
+				ID:       "invalid_seat_tube_offset_x_mm",
+				Field:    "seat_tube_offset_x_mm",
+				Severity: model.SeverityError,
+				Title:    "Invalid Seat Tube Forward Offset",
+				Message:  fmt.Sprintf("seat_tube_offset_x_mm of %.1fmm is outside plausible range (0.0mm - 100.0mm).", *frame.SeatTubeOffsetXMm),
+				Expected: "0.0 - 100.0 mm",
+				Actual:   fmt.Sprintf("%.1f mm", *frame.SeatTubeOffsetXMm),
+			})
 		}
 	}
 

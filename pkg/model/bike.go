@@ -154,8 +154,60 @@ type BikeGeometry struct {
 	GeoHeadsetSpacerMm     *float64       `json:"geo_headset_spacer_mm"`
 	GeoSlopMm              *GeoSlopMm     `json:"geo_slop_mm,omitempty"`
 
+	// Bent / Offset Seat Tube
+	ActualStaDeg      float64  `json:"actual_sta_deg,omitempty"`
+	SeatTubeOffsetXMm *float64 `json:"seat_tube_offset_x_mm,omitempty"`
+
 	// Rider Fit Reference
 	SeatHeight float64 `json:"seat_height,omitempty"`
+}
+
+func (b BikeGeometry) HasBentSeatTube() bool {
+	return b.ActualStaDeg > 0 && math.Abs(b.ActualStaDeg-b.StaDeg) > 0.001
+}
+
+func (b BikeGeometry) GetActualStaDeg() float64 {
+	if b.ActualStaDeg > 0 {
+		return b.ActualStaDeg
+	}
+	return b.StaDeg
+}
+
+func (b BikeGeometry) GetSeatTubeOffsetXMm(stack, nominalSta float64) float64 {
+	if b.SeatTubeOffsetXMm != nil {
+		return *b.SeatTubeOffsetXMm
+	}
+	if !b.HasBentSeatTube() {
+		return 0
+	}
+	if stack <= 0 {
+		stack = b.Stack
+	}
+	if nominalSta <= 0 {
+		nominalSta = b.StaDeg
+	}
+	cotAct := 1.0 / math.Tan(b.ActualStaDeg*math.Pi/180.0)
+	cotNom := 1.0 / math.Tan(nominalSta*math.Pi/180.0)
+	return stack * (cotAct - cotNom)
+}
+
+func (b BikeGeometry) CalculateEffectiveSta(seatHeight, stack, nominalSta float64) float64 {
+	if !b.HasBentSeatTube() || seatHeight <= 0 {
+		if nominalSta > 0 {
+			return nominalSta
+		}
+		return b.StaDeg
+	}
+	ox := b.GetSeatTubeOffsetXMm(stack, nominalSta)
+	actRad := b.ActualStaDeg * math.Pi / 180.0
+	sinVal := (ox * math.Sin(actRad)) / seatHeight
+	if sinVal > 1.0 {
+		sinVal = 1.0
+	} else if sinVal < -1.0 {
+		sinVal = -1.0
+	}
+	alphaRad := math.Asin(sinVal)
+	return b.ActualStaDeg + (alphaRad * 180.0 / math.Pi)
 }
 
 func (b BikeGeometry) GetGeoHeadsetSpacerMm() float64 {
@@ -240,6 +292,8 @@ type FrameModel struct {
 	HeadsetCupType     HeadsetCupType       `json:"headset_cup_type"`
 	GeoHeadsetSpacerMm *float64             `json:"geo_headset_spacer_mm"`
 	GeoSlopMm          *GeoSlopMm           `json:"geo_slop_mm,omitempty"`
+	ActualStaDeg       float64              `json:"actual_sta_deg,omitempty"`
+	SeatTubeOffsetXMm  *float64             `json:"seat_tube_offset_x_mm,omitempty"`
 	SeatHeight         float64              `json:"seat_height,omitempty"`
 	SupportedTravelMm  []float64            `json:"supported_travel_mm,omitempty"`
 	RigidA2cMm         float64              `json:"rigid_a2c_mm,omitempty"`
@@ -248,6 +302,42 @@ type FrameModel struct {
 	Sizes              []string             `json:"sizes"`
 	DefaultSize        string               `json:"default_size,omitempty"`
 	Configurations     []FrameConfiguration `json:"configurations"`
+}
+
+func (fm *FrameModel) HasBentSeatTube() bool {
+	return fm.ActualStaDeg > 0
+}
+
+func (fm *FrameModel) GetActualStaDeg() float64 {
+	return fm.ActualStaDeg
+}
+
+func (fm *FrameModel) GetSeatTubeOffsetXMm(stack, nominalSta float64) float64 {
+	if fm.SeatTubeOffsetXMm != nil {
+		return *fm.SeatTubeOffsetXMm
+	}
+	if !fm.HasBentSeatTube() || stack <= 0 || nominalSta <= 0 {
+		return 0
+	}
+	cotAct := 1.0 / math.Tan(fm.ActualStaDeg*math.Pi/180.0)
+	cotNom := 1.0 / math.Tan(nominalSta*math.Pi/180.0)
+	return stack * (cotAct - cotNom)
+}
+
+func (fm *FrameModel) CalculateEffectiveSta(seatHeight, stack, nominalSta float64) float64 {
+	if !fm.HasBentSeatTube() || seatHeight <= 0 || nominalSta <= 0 {
+		return nominalSta
+	}
+	ox := fm.GetSeatTubeOffsetXMm(stack, nominalSta)
+	actRad := fm.ActualStaDeg * math.Pi / 180.0
+	sinVal := (ox * math.Sin(actRad)) / seatHeight
+	if sinVal > 1.0 {
+		sinVal = 1.0
+	} else if sinVal < -1.0 {
+		sinVal = -1.0
+	}
+	alphaRad := math.Asin(sinVal)
+	return fm.ActualStaDeg + (alphaRad * 180.0 / math.Pi)
 }
 
 func (fm *FrameModel) HasAdjustableChainstay() bool {

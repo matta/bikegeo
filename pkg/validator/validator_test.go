@@ -396,6 +396,7 @@ func TestValidateRevelElJefe(t *testing.T) {
 			A2c:       model.Float64Ptr(6.0),
 			Wheelbase: model.Float64Ptr(6.5),
 		},
+		ActualStaDeg:     73.3,
 		ChainstayRangeMm: []float64{420, 435},
 		Configurations: []model.FrameConfiguration{
 			{
@@ -420,6 +421,17 @@ func TestValidateRevelElJefe(t *testing.T) {
 	report := validator.ValidateFrame(jefe)
 	if !report.IsValid {
 		t.Fatalf("Expected Revel El Jefe to pass validation: %s", report.ErrorSummary())
+	}
+	if !jefe.HasBentSeatTube() {
+		t.Fatalf("Expected Revel El Jefe to have bent seat tube")
+	}
+
+	// Verify invalid actual_sta_deg fails validation
+	invalidJefe := jefe
+	invalidJefe.ActualStaDeg = 92.0
+	invReport := validator.ValidateFrame(invalidJefe)
+	if invReport.IsValid {
+		t.Errorf("Expected invalid actual_sta_deg (92.0°) to fail validation")
 	}
 }
 

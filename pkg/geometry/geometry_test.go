@@ -158,3 +158,111 @@ func TestBiomechanicalPostureAndWeightDistribution(t *testing.T) {
 	}
 }
 
+func TestBentSeatTubeElJefe(t *testing.T) {
+	actualSta := 73.3
+	nominalSta := 75.0
+
+	sizes := []struct {
+		name       string
+		stack      float64
+		expectedOx float64
+	}{
+		{"Small", 599.0, 19.21},
+		{"Medium", 607.0, 19.46},
+		{"Large", 615.0, 19.72},
+		{"XL", 627.0, 20.10},
+	}
+
+	for _, s := range sizes {
+		ox := geometry.CalculateBentSeatTubeOffset(s.stack, actualSta, nominalSta)
+		if math.Abs(ox-s.expectedOx) > 0.015 {
+			t.Errorf("Size %s: expected Ox ~ %.2f, got %.4f", s.name, s.expectedOx, ox)
+		}
+	}
+
+	// Reference Lookup Table Verification (Section 5 of Specification)
+	lookupCases := []struct {
+		sizeName    string
+		stack       float64
+		saddleL     float64
+		expectedSta float64
+		expectedSb  float64
+	}{
+		// Small (Ox ~ 19.21mm)
+		{"Small", 599.0, 650.0, 74.92, 169.1},
+		{"Small", 599.0, 700.0, 74.81, 183.5},
+		{"Small", 599.0, 750.0, 74.71, 197.9},
+		{"Small", 599.0, 790.0, 74.63, 209.4},
+		{"Small", 599.0, 830.0, 74.57, 220.9},
+
+		// Medium (Ox ~ 19.46mm)
+		{"Medium", 607.0, 650.0, 74.94, 168.8},
+		{"Medium", 607.0, 700.0, 74.83, 183.2},
+		{"Medium", 607.0, 750.0, 74.72, 197.6},
+		{"Medium", 607.0, 790.0, 74.65, 209.2},
+		{"Medium", 607.0, 830.0, 74.59, 220.7},
+
+		// Large (Ox ~ 19.72mm)
+		{"Large", 615.0, 650.0, 74.97, 168.6},
+		{"Large", 615.0, 700.0, 74.85, 183.0},
+		{"Large", 615.0, 750.0, 74.74, 197.4},
+		{"Large", 615.0, 790.0, 74.67, 208.9},
+		{"Large", 615.0, 830.0, 74.60, 220.5},
+
+		// XL (Ox ~ 20.10mm)
+		{"XL", 627.0, 650.0, 75.00, 168.2},
+		{"XL", 627.0, 700.0, 74.88, 182.6},
+		{"XL", 627.0, 750.0, 74.77, 197.0},
+		{"XL", 627.0, 790.0, 74.70, 208.6},
+		{"XL", 627.0, 830.0, 74.63, 220.1},
+	}
+
+	for _, tc := range lookupCases {
+		ox := geometry.CalculateBentSeatTubeOffset(tc.stack, actualSta, nominalSta)
+		effSta := geometry.CalculateEffectiveSta(actualSta, ox, tc.saddleL)
+		setback := geometry.CalculateActualSetback(effSta, tc.saddleL)
+
+		if math.Abs(effSta-tc.expectedSta) > 0.015 {
+			t.Errorf("[%s at L=%.0f] expected effective STA %.2f°, got %.4f°", tc.sizeName, tc.saddleL, tc.expectedSta, effSta)
+		}
+		if math.Abs(setback-tc.expectedSb) > 0.15 {
+			t.Errorf("[%s at L=%.0f] expected setback %.1fmm, got %.1fmm", tc.sizeName, tc.saddleL, tc.expectedSb, setback)
+		}
+	}
+
+	// Test Revel El Jefe Large in AnalyzeBikeFit pipeline
+	elJefeLarge := model.BikeGeometry{
+		ID:           "revel-el-jefe-l",
+		Manufacturer: "Revel",
+		Model:        "El Jefe",
+		Size:         "L",
+		Reach:        474.0,
+		Stack:        615.0,
+		HtaDeg:       67.5,
+		StaDeg:       75.0,
+		ActualStaDeg: 73.3,
+		Htl:          106.0,
+		BbDrop:       68.0,
+		ForkRake:     44.0,
+		SeatHeight:   780.0,
+		ForkA2c:      510.0,
+		Wheelbase:    1167.0,
+	}
+
+	if !elJefeLarge.HasBentSeatTube() {
+		t.Fatalf("Expected elJefeLarge.HasBentSeatTube() to be true")
+	}
+
+	fit := geometry.AnalyzeBikeFit(elJefeLarge, nil, &elJefeLarge.SeatHeight)
+
+	// Effective STA at 780mm saddle height should be ~74.69°
+	if math.Abs(fit.ActiveSta-74.69) > 0.02 {
+		t.Errorf("Expected ActiveSta ~ 74.69°, got %.2f°", fit.ActiveSta)
+	}
+
+	// Setback at 780mm: 780 * cos(74.688°) = 205.998 mm -> 206.0 mm
+	if fit.ActualSetback != 206.0 {
+		t.Errorf("Expected ActualSetback 206.0mm, got %.1fmm", fit.ActualSetback)
+	}
+}
+

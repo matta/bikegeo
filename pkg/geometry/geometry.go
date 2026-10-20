@@ -24,6 +24,35 @@ func Round(val float64, decimals int) float64 {
 	return math.Round(val*factor) / factor
 }
 
+// CalculateBentSeatTubeOffset derives the horizontal bottom bracket forward offset (Ox) in mm
+// for a bent or offset seat tube using the Stack plane (Method A).
+func CalculateBentSeatTubeOffset(stack, actualStaDeg, nominalStaDeg float64) float64 {
+	if actualStaDeg <= 0 || nominalStaDeg <= 0 || stack <= 0 {
+		return 0
+	}
+	cotAct := 1.0 / math.Tan(ToRad(actualStaDeg))
+	cotNom := 1.0 / math.Tan(ToRad(nominalStaDeg))
+	return stack * (cotAct - cotNom)
+}
+
+// CalculateEffectiveSta computes the true effective seat tube angle in degrees for a rider at
+// radial saddle height L (distance from BB spindle center to saddle along the effective angle).
+// Law of Sines: alpha = asin((Ox * sin(theta_act)) / L), theta_eff = theta_act + alpha.
+func CalculateEffectiveSta(actualStaDeg, offsetXMm, saddleDistanceL float64) float64 {
+	if saddleDistanceL <= 0 || actualStaDeg <= 0 {
+		return actualStaDeg
+	}
+	actRad := ToRad(actualStaDeg)
+	sinVal := (offsetXMm * math.Sin(actRad)) / saddleDistanceL
+	if sinVal > 1.0 {
+		sinVal = 1.0
+	} else if sinVal < -1.0 {
+		sinVal = -1.0
+	}
+	alphaRad := math.Asin(sinVal)
+	return actualStaDeg + ToDeg(alphaRad)
+}
+
 // CalculateAett calculates the Actual Effective Top Tube (AETT) length in mm.
 // AETT is the horizontal projection from the center of the seat tube
 // (at the specified rider saddle height) forward to the steering axis.
@@ -394,6 +423,9 @@ func AnalyzeBikeFitWithProfile(
 	activeStack := bike.Stack
 	activeHta := bike.HtaDeg
 	activeSta := bike.StaDeg
+	if bike.HasBentSeatTube() {
+		activeSta = bike.CalculateEffectiveSta(seatHeight, bike.Stack, bike.StaDeg)
+	}
 	activeBbDrop := bike.BbDrop
 	activeStructuralA2c := baseStructuralA2c
 	deltaAngle := 0.0
@@ -418,7 +450,7 @@ func AnalyzeBikeFitWithProfile(
 			bike.Reach,
 			bike.Stack,
 			bike.HtaDeg,
-			bike.StaDeg,
+			activeSta,
 			bike.BbDrop,
 			baseStructuralA2c,
 			totalNewA2c,
@@ -563,6 +595,8 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string, configID strin
 		GeoHeadsetSpacerMm:     frame.GeoHeadsetSpacerMm,
 		GeoSlopMm:              frame.GeoSlopMm,
 		SeatHeight:             frame.SeatHeight,
+		ActualStaDeg:           frame.ActualStaDeg,
+		SeatTubeOffsetXMm:      frame.SeatTubeOffsetXMm,
 		Fork:                   targetConfig.Fork,
 		ForkTravelMm:           targetConfig.Fork.TravelMm,
 		ForkA2c:                targetConfig.Fork.A2c,

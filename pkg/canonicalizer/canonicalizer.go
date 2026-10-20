@@ -434,21 +434,26 @@ func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig)
 			seatHeight = 750.0
 		}
 
+		baseSta := bike.StaDeg
+		if bike.HasBentSeatTube() {
+			baseSta = bike.CalculateEffectiveSta(seatHeight, bike.Stack, bike.StaDeg)
+		}
+
 		baselineAett := geometry.CalculateAett(
 			bike.Reach,
 			bike.Stack,
 			bike.HtaDeg,
-			bike.StaDeg,
+			baseSta,
 			seatHeight,
 		)
 		baselineSetback := geometry.CalculateActualSetback(
-			bike.StaDeg,
+			baseSta,
 			seatHeight,
 		)
 
 		verticalStack, axialLength := geometry.CalculateSteererStack(
 			bike.Stack,
-			bike.StaDeg,
+			baseSta,
 			bike.HtaDeg,
 			seatHeight,
 		)

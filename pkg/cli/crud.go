@@ -425,6 +425,20 @@ func (a *App) runSet(args []string) int {
 				return 1
 			}
 			frame.SeatHeight = v
+		case "actual_sta_deg", "actual_sta":
+			v, err := parseFloat()
+			if err != nil || v < 60.0 || v > 85.0 {
+				fmt.Fprintf(a.Err, "Error: actual_sta_deg must be between 60.0 and 85.0 degrees\n")
+				return 1
+			}
+			frame.ActualStaDeg = v
+		case "seat_tube_offset_x_mm", "seat_tube_offset":
+			v, err := parseFloat()
+			if err != nil || v < 0 || v > 100.0 {
+				fmt.Fprintf(a.Err, "Error: seat_tube_offset_x_mm must be between 0.0 and 100.0 mm\n")
+				return 1
+			}
+			frame.SeatTubeOffsetXMm = model.Float64Ptr(v)
 		case "rigid_a2c_mm", "rigid_a2c":
 			v, err := parseFloat()
 			if err != nil || v < 0 {
