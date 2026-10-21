@@ -22,7 +22,7 @@
     {
       "frame_id": "otso-fenrir-stainless",
       "size": "L",
-      "fork": "120mm",
+      "fork": "110mm",
       "sag_percent": 20
     },
     {
@@ -34,13 +34,7 @@
     {
       "frame_id": "esker-hayduke",
       "size": "S3",
-      "fork": "120mm",
-      "sag_percent": 20
-    },
-    {
-      "frame_id": "esker-hayduke",
-      "size": "S4",
-      "fork": "120mm",
+      "fork": "110mm",
       "sag_percent": 20
     },
     {
@@ -56,44 +50,32 @@
       "sag_percent": 20
     },
     {
-      "frame_id": "ritchey-ultra",
-      "size": "XL",
+      "frame_id": "surly-krampus",
+      "size": "L",
       "fork": "120mm",
       "sag_percent": 20
     },
     {
       "frame_id": "surly-krampus",
+      "size": "XL",
+      "fork": "120mm",
+      "sag_percent": 20
+    },
+    {
+      "frame_id": "binary-kinetik",
       "size": "L",
       "fork": "110mm",
       "sag_percent": 20
     },
     {
-      "frame_id": "surly-krampus",
-      "size": "XL",
-      "fork": "rigid",
-      "sag_percent": 0
-    },
-    {
-      "frame_id": "binary-kinetik",
-      "size": "L",
-      "fork": "120mm",
-      "sag_percent": 20
-    },
-    {
-      "frame_id": "binary-kinetik",
-      "size": "XL",
-      "fork": "120mm",
-      "sag_percent": 20
-    },
-    {
       "frame_id": "turner-venn-ti",
       "size": "L",
       "fork": "120mm",
       "sag_percent": 20
     },
     {
-      "frame_id": "turner-venn-ti",
-      "size": "XL",
+      "frame_id": "otso-fenrir-stainless",
+      "size": "L",
       "fork": "120mm",
       "sag_percent": 20
     }
