@@ -214,4 +214,3 @@ func TestLoadRealBikesDataDir(t *testing.T) {
 		}
 	}
 }
-

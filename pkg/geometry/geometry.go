@@ -216,7 +216,6 @@ func GetDefaultBaselineBike() model.BikeGeometry {
 		ForkRake:        54.0,
 		Wheelbase:       1158.0,
 		ChainstayLength: 450.0,
-		SeatHeight:      780.0,
 		ForkA2c:         495.0,
 		HeadsetCupType:  model.CupEC44,
 	}
@@ -226,13 +225,12 @@ func GetDefaultBaselineBike() model.BikeGeometry {
 func CalculateBaselinePosture(
 	bike model.BikeGeometry,
 	profile model.RiderProfile,
-	seatHeight float64,
-) BiomechanicalPosture {
-	if seatHeight <= 0 {
-		seatHeight = 780.0
+) (BiomechanicalPosture, error) {
+	if profile.SaddleHeightMm <= 0 {
+		return BiomechanicalPosture{}, fmt.Errorf("profile.SaddleHeightMm must be positive, got %.1f", profile.SaddleHeightMm)
 	}
-	if profile.HeightIn <= 0 {
-		profile = model.DefaultRiderProfile()
+	if profile.HeightIn <= 0 || profile.InseamIn <= 0 {
+		return BiomechanicalPosture{}, fmt.Errorf("profile must specify positive height and inseam, got height=%.1f inseam=%.1f", profile.HeightIn, profile.InseamIn)
 	}
 
 	staDeg := bike.StaDeg
@@ -247,8 +245,8 @@ func CalculateBaselinePosture(
 	}
 
 	// 1. Hip joint coordinates relative to Bottom Bracket (0,0)
-	seatAxisX := -seatHeight * math.Cos(staRad)
-	seatAxisY := seatHeight * math.Sin(staRad)
+	seatAxisX := -profile.SaddleHeightMm * math.Cos(staRad)
+	seatAxisY := profile.SaddleHeightMm * math.Sin(staRad)
 	saddleX := seatAxisX - profile.BaselineSaddleSetbackOffsetMm
 	saddleY := seatAxisY
 	hipX := saddleX
@@ -343,7 +341,7 @@ func CalculateBaselinePosture(
 		RiderCgY:     Round(riderCgY, 1),
 		SystemCgX:    Round(systemCgX, 1),
 		SystemCgY:    Round(systemCgY, 1),
-	}
+	}, nil
 }
 
 // CalculateWeightDistribution calculates static weight distribution between the axles for an active frame setup.
@@ -384,24 +382,13 @@ func CalculateWeightDistribution(
 func AnalyzeBikeFit(
 	bike model.BikeGeometry,
 	targetA2c *float64,
-	overrideSeatHeight *float64,
-) model.BikeFitAnalysis {
-	return AnalyzeBikeFitWithProfile(bike, targetA2c, overrideSeatHeight, nil)
-}
-
-// AnalyzeBikeFitWithProfile runs the master analysis pipeline with a customized RiderProfile.
-func AnalyzeBikeFitWithProfile(
-	bike model.BikeGeometry,
-	targetA2c *float64,
-	overrideSeatHeight *float64,
-	profile *model.RiderProfile,
-) model.BikeFitAnalysis {
-	seatHeight := 750.0
-	if overrideSeatHeight != nil && *overrideSeatHeight > 0 {
-		seatHeight = *overrideSeatHeight
-	} else if bike.SeatHeight > 0 {
-		seatHeight = bike.SeatHeight
+	profile model.RiderProfile,
+) (model.BikeFitAnalysis, error) {
+	if profile.SaddleHeightMm <= 0 {
+		return model.BikeFitAnalysis{}, fmt.Errorf("profile.SaddleHeightMm must be positive, got %.1f", profile.SaddleHeightMm)
 	}
+
+	seatHeight := profile.SaddleHeightMm
 
 	cupStack := bike.HeadsetCupType.CupStackMm()
 	geoSpacer := cupStack
@@ -490,12 +477,11 @@ func AnalyzeBikeFitWithProfile(
 	}
 
 	// 5. Biomechanical Posture & Weight Distribution
-	riderProf := model.DefaultRiderProfile()
-	if profile != nil {
-		riderProf = *profile
-	}
 	baselineBike := GetDefaultBaselineBike()
-	posture := CalculateBaselinePosture(baselineBike, riderProf, seatHeight)
+	posture, err := CalculateBaselinePosture(baselineBike, profile)
+	if err != nil {
+		return model.BikeFitAnalysis{}, err
+	}
 
 	activeCS := bike.ChainstayLength
 	if activeCS <= 0 {
@@ -553,7 +539,7 @@ func AnalyzeBikeFitWithProfile(
 		WheelbaseCalc:      weightDist.WheelbaseCalc,
 		ActiveChainstay:    Round(activeCS, 1),
 		ChainstayDesc:      csDesc,
-	}
+	}, nil
 }
 
 // MaterializeBikeGeometry projects a FrameModel for a given size and configuration into a BikeGeometry instance.
@@ -594,7 +580,6 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string, configID strin
 		HeadsetCupType:         frame.HeadsetCupType,
 		GeoHeadsetSpacerMm:     frame.GeoHeadsetSpacerMm,
 		GeoSlopMm:              frame.GeoSlopMm,
-		SeatHeight:             frame.SeatHeight,
 		ActualStaDeg:           frame.ActualStaDeg,
 		SeatTubeOffsetXMm:      frame.SeatTubeOffsetXMm,
 		Fork:                   targetConfig.Fork,

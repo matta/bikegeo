@@ -1,7 +1,7 @@
 {
-  "seat_height": 780,
   "rider_height_in": 74,
   "rider_inseam_in": 35,
+  "saddle_height_mm": 780,
   "rider_weight_lbs": 190,
   "bike_weight_lbs": 28,
   "baseline_stem_mm": 110,
@@ -89,6 +89,18 @@
       "frame_id": "fairlight-holt-2",
       "size": "XL",
       "fork": "120mm",
+      "sag_percent": 20
+    },
+    {
+      "frame_id": "sklar-pbj",
+      "size": "L",
+      "fork": "110mm",
+      "sag_percent": 20
+    },
+    {
+      "frame_id": "sklar-pbj",
+      "size": "XL",
+      "fork": "110mm",
       "sag_percent": 20
     }
   ]

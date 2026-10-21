@@ -158,8 +158,6 @@ type BikeGeometry struct {
 	ActualStaDeg      float64  `json:"actual_sta_deg,omitempty"`
 	SeatTubeOffsetXMm *float64 `json:"seat_tube_offset_x_mm,omitempty"`
 
-	// Rider Fit Reference
-	SeatHeight float64 `json:"seat_height,omitempty"`
 }
 
 func (b BikeGeometry) HasBentSeatTube() bool {
@@ -294,7 +292,6 @@ type FrameModel struct {
 	GeoSlopMm          *GeoSlopMm           `json:"geo_slop_mm,omitempty"`
 	ActualStaDeg       float64              `json:"actual_sta_deg,omitempty"`
 	SeatTubeOffsetXMm  *float64             `json:"seat_tube_offset_x_mm,omitempty"`
-	SeatHeight         float64              `json:"seat_height,omitempty"`
 	SupportedTravelMm  []float64            `json:"supported_travel_mm,omitempty"`
 	RigidA2cMm         float64              `json:"rigid_a2c_mm,omitempty"`
 	DefaultFork        string               `json:"default_fork,omitempty"`
@@ -622,6 +619,7 @@ func (r FrameValidationReport) ErrorSummary() string {
 type RiderProfile struct {
 	HeightIn                      float64 `json:"rider_height_in"`
 	InseamIn                      float64 `json:"rider_inseam_in"`
+	SaddleHeightMm                float64 `json:"saddle_height_mm"`
 	RiderWeightLbs                float64 `json:"rider_weight_lbs"`
 	BikeWeightLbs                 float64 `json:"bike_weight_lbs"`
 	BaselineStemMm                float64 `json:"baseline_stem_mm"`
@@ -638,6 +636,7 @@ func DefaultRiderProfile() RiderProfile {
 	return RiderProfile{
 		HeightIn:                      74.0, // 6'2"
 		InseamIn:                      35.0, // 35"
+		SaddleHeightMm:                780.0,
 		RiderWeightLbs:                190.0,
 		BikeWeightLbs:                 28.0,
 		BaselineStemMm:                110.0,
@@ -650,11 +649,10 @@ func DefaultRiderProfile() RiderProfile {
 }
 
 type CanonicalConfig struct {
-	TargetA2c    float64       `json:"targetA2c"`
-	SeatHeight   float64       `json:"seatHeight"`
-	SagPercent   float64       `json:"sagPercent"`
-	Name         string        `json:"name,omitempty"`
-	RiderProfile *RiderProfile `json:"riderProfile,omitempty"`
+	TargetA2c    float64      `json:"targetA2c"`
+	SagPercent   float64      `json:"sagPercent"`
+	Name         string       `json:"name,omitempty"`
+	RiderProfile RiderProfile `json:"riderProfile"`
 }
 
 // ComparisonSetup represents one column in a comparison matrix.
@@ -667,7 +665,6 @@ type ComparisonSetup struct {
 
 // SavedComparisonState persists the user's most recent comparison in data/last_compare.json.
 type SavedComparisonState struct {
-	SeatHeight float64           `json:"seat_height"`
 	RiderProfile
 	Transpose bool              `json:"transpose"`
 	RefIndex  int               `json:"ref_index"`
@@ -682,6 +679,9 @@ func (s *SavedComparisonState) NormalizeRiderProfile() {
 	}
 	if s.InseamIn <= 0 {
 		s.InseamIn = def.InseamIn
+	}
+	if s.SaddleHeightMm <= 0 {
+		s.SaddleHeightMm = def.SaddleHeightMm
 	}
 	if s.RiderWeightLbs <= 0 {
 		s.RiderWeightLbs = def.RiderWeightLbs

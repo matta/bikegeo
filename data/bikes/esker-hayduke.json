@@ -12,7 +12,6 @@
     "a2c": 3.0,
     "wheelbase": 6.0
   },
-  "seat_height": 760,
   "supported_travel_mm": [
     110,
     120,

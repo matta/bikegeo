@@ -155,7 +155,6 @@ func (a *App) runInit(args []string) int {
 		WheelSize:          "29",
 		HeadsetCupType:     parsedCupType,
 		GeoHeadsetSpacerMm: model.Float64Ptr(geoSpacer),
-		SeatHeight:         760.0,
 		SupportedTravelMm:  travels,
 		RigidA2cMm:         rigidA2c,
 		DefaultFork:        defaultFork,
@@ -418,13 +417,6 @@ func (a *App) runSet(args []string) int {
 				frame.GeoSlopMm = &model.GeoSlopMm{}
 			}
 			frame.GeoSlopMm.CrossConfig = model.Float64Ptr(v)
-		case "seat_height":
-			v, err := parseFloat()
-			if err != nil || v <= 0 {
-				fmt.Fprintf(a.Err, "Error: seat_height must be positive\n")
-				return 1
-			}
-			frame.SeatHeight = v
 		case "actual_sta_deg", "actual_sta":
 			v, err := parseFloat()
 			if err != nil || v < 60.0 || v > 85.0 {

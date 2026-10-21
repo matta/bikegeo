@@ -60,8 +60,8 @@ func TestCompare_SameFrameDifferentSagsAndRigid(t *testing.T) {
 	}
 
 	var result struct {
-		SeatHeight float64                        `json:"seat_height"`
-		Columns    []model.CanonicalComparisonRow `json:"columns"`
+		SaddleHeightMm float64                        `json:"saddle_height_mm"`
+		Columns        []model.CanonicalComparisonRow `json:"columns"`
 	}
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("Failed to parse JSON output: %v\nOutput: %s", err, out)
@@ -224,8 +224,8 @@ func TestCompare_StatePersistenceAndIncrementalTweaks(t *testing.T) {
 		t.Fatalf("Bare compare replay failed: %s", errOut)
 	}
 	var saved struct {
-		SeatHeight float64                        `json:"seat_height"`
-		Columns    []model.CanonicalComparisonRow `json:"columns"`
+		SaddleHeightMm float64                        `json:"saddle_height_mm"`
+		Columns        []model.CanonicalComparisonRow `json:"columns"`
 	}
 	if err := json.Unmarshal([]byte(out), &saved); err != nil {
 		t.Fatalf("Unmarshal failed: %v", err)

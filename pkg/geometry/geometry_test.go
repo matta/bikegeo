@@ -25,7 +25,6 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 		Htl:            150.0,
 		BbDrop:         70.0,
 		ForkRake:       44.0,
-		SeatHeight:     780.0,
 		ForkA2c:        521.0,
 		HeadsetCupType: model.CupEC44,
 		Wheelbase:      1150.0,
@@ -82,11 +81,14 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 	}
 
 	// Step 3: Master AnalyzeBikeFit pipeline
-	fit := geometry.AnalyzeBikeFit(
+	fit, err := geometry.AnalyzeBikeFit(
 		binaryHavok,
 		&saggedFork,
-		&binaryHavok.SeatHeight,
+		model.DefaultRiderProfile(),
 	)
+	if err != nil {
+		t.Fatalf("AnalyzeBikeFit failed: %v", err)
+	}
 
 	if fit.StructuralA2c != 428.8 {
 		t.Errorf("Expected StructuralA2c 428.8, got %.1f", fit.StructuralA2c)
@@ -123,7 +125,10 @@ func TestBiomechanicalPostureAndWeightDistribution(t *testing.T) {
 	profile := model.DefaultRiderProfile()
 	baselineBike := geometry.GetDefaultBaselineBike()
 
-	posture := geometry.CalculateBaselinePosture(baselineBike, profile, 780.0)
+	posture, err := geometry.CalculateBaselinePosture(baselineBike, profile)
+	if err != nil {
+		t.Fatalf("CalculateBaselinePosture failed: %v", err)
+	}
 
 	// Modeled back angle should be an endurance bikepacking position (~54.5° with 50mm rise bar and 20° sweep)
 	if posture.BackAngleDeg < 40.0 || posture.BackAngleDeg > 65.0 {
@@ -141,7 +146,10 @@ func TestBiomechanicalPostureAndWeightDistribution(t *testing.T) {
 	}
 
 	// Test weight distribution on Otso Fenrir Large
-	fit := geometry.AnalyzeBikeFitWithProfile(baselineBike, nil, nil, &profile)
+	fit, err := geometry.AnalyzeBikeFit(baselineBike, nil, profile)
+	if err != nil {
+		t.Fatalf("AnalyzeBikeFit failed: %v", err)
+	}
 	if fit.WeightDistFrontPct <= 30.0 || fit.WeightDistFrontPct >= 45.0 {
 		t.Errorf("Expected WeightDistFrontPct between 30%% and 45%%, got %.1f%%", fit.WeightDistFrontPct)
 	}
@@ -244,7 +252,6 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 		Htl:          106.0,
 		BbDrop:       68.0,
 		ForkRake:     44.0,
-		SeatHeight:   780.0,
 		ForkA2c:      510.0,
 		Wheelbase:    1167.0,
 	}
@@ -253,7 +260,10 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 		t.Fatalf("Expected elJefeLarge.HasBentSeatTube() to be true")
 	}
 
-	fit := geometry.AnalyzeBikeFit(elJefeLarge, nil, &elJefeLarge.SeatHeight)
+	fit, err := geometry.AnalyzeBikeFit(elJefeLarge, nil, model.DefaultRiderProfile())
+	if err != nil {
+		t.Fatalf("AnalyzeBikeFit failed: %v", err)
+	}
 
 	// Effective STA at 780mm saddle height should be ~74.69°
 	if math.Abs(fit.ActiveSta-74.69) > 0.02 {
@@ -263,6 +273,23 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 	// Setback at 780mm: 780 * cos(74.688°) = 205.998 mm -> 206.0 mm
 	if fit.ActualSetback != 206.0 {
 		t.Errorf("Expected ActualSetback 206.0mm, got %.1fmm", fit.ActualSetback)
+	}
+}
+
+func TestAnalyzeBikeFitRequiresPositiveSeatHeight(t *testing.T) {
+	bike := geometry.GetDefaultBaselineBike()
+
+	badProf := model.DefaultRiderProfile()
+	badProf.SaddleHeightMm = 0
+	if _, err := geometry.AnalyzeBikeFit(bike, nil, badProf); err == nil {
+		t.Errorf("Expected error for SaddleHeightMm <= 0 in AnalyzeBikeFit, got nil")
+	}
+	badProf.SaddleHeightMm = -100
+	if _, err := geometry.AnalyzeBikeFit(bike, nil, badProf); err == nil {
+		t.Errorf("Expected error for negative SaddleHeightMm in AnalyzeBikeFit, got nil")
+	}
+	if _, err := geometry.CalculateBaselinePosture(bike, badProf); err == nil {
+		t.Errorf("Expected error for SaddleHeightMm <= 0 in CalculateBaselinePosture, got nil")
 	}
 }
 

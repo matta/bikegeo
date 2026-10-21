@@ -11,7 +11,6 @@
   "geo_slop_mm": {
     "a2c": 2.0
   },
-  "seat_height": 760,
   "supported_travel_mm": [
     100,
     110,

@@ -26,13 +26,18 @@ func TestCanonicalizeBikes(t *testing.T) {
 		},
 	}
 
+	prof := model.DefaultRiderProfile()
+	prof.SaddleHeightMm = 760.0
 	config := model.CanonicalConfig{
-		TargetA2c:  515.0,
-		SeatHeight: 760.0,
-		SagPercent: 20.0,
+		TargetA2c:    515.0,
+		RiderProfile: prof,
+		SagPercent:   20.0,
 	}
 
-	rows := canonicalizer.CanonicalizeBikes(bikes, config)
+	rows, err := canonicalizer.CanonicalizeBikes(bikes, config)
+	if err != nil {
+		t.Fatalf("CanonicalizeBikes failed: %v", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("Expected 1 row, got %d", len(rows))
 	}
@@ -84,12 +89,15 @@ func TestCanonicalizeBentSeatTube(t *testing.T) {
 	}
 
 	config := model.CanonicalConfig{
-		TargetA2c:  510.0,
-		SeatHeight: 780.0,
-		SagPercent: 20.0,
+		TargetA2c:    510.0,
+		RiderProfile: model.DefaultRiderProfile(),
+		SagPercent:   20.0,
 	}
 
-	rows := canonicalizer.CanonicalizeBikes(bikes, config)
+	rows, err := canonicalizer.CanonicalizeBikes(bikes, config)
+	if err != nil {
+		t.Fatalf("CanonicalizeBikes failed: %v", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("Expected 1 row, got %d", len(rows))
 	}
@@ -109,5 +117,38 @@ func TestCanonicalizeBentSeatTube(t *testing.T) {
 	// Baseline Setback should be 206.0mm (derived from effective STA ~74.69°)
 	if row.Baseline.ActualSetback != 206.0 {
 		t.Errorf("Expected Baseline.ActualSetback 206.0, got %.1f", row.Baseline.ActualSetback)
+	}
+}
+
+func TestCanonicalizeBikesRequiresPositiveSeatHeight(t *testing.T) {
+	bikes := []model.BikeGeometry{
+		{
+			ID:           "test-bike",
+			Manufacturer: "Test",
+			Model:        "Model",
+			Reach:        450,
+			Stack:        620,
+			HtaDeg:       66.0,
+			StaDeg:       75.0,
+			Htl:          110,
+			BbDrop:       60,
+			ForkRake:     44,
+			Wheelbase:    1180,
+			ForkA2c:      541,
+		},
+	}
+
+	badZero := model.DefaultRiderProfile()
+	badZero.SaddleHeightMm = 0
+	cfgZero := model.CanonicalConfig{TargetA2c: 515.0, RiderProfile: badZero}
+	if _, err := canonicalizer.CanonicalizeBikes(bikes, cfgZero); err == nil {
+		t.Errorf("Expected error for SaddleHeightMm=0, got nil")
+	}
+
+	badNeg := model.DefaultRiderProfile()
+	badNeg.SaddleHeightMm = -50
+	cfgNegative := model.CanonicalConfig{TargetA2c: 515.0, RiderProfile: badNeg}
+	if _, err := canonicalizer.CanonicalizeBikes(bikes, cfgNegative); err == nil {
+		t.Errorf("Expected error for negative SaddleHeightMm, got nil")
 	}
 }

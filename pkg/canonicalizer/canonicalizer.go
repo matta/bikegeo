@@ -192,22 +192,16 @@ func CalculateSaggedA2c(staticA2c, travelMm, sagPercent float64) float64 {
 }
 
 // ResolveFrameForkSetup validates and resolves a ComparisonSetup (size, fork travel or rigid, and sag %)
-// against a FrameModel's physical constraints, returning the canonicalized comparison row.
+// against a FrameModel's physical constraints and RiderProfile, returning the canonicalized comparison row.
 func ResolveFrameForkSetup(
 	frame model.FrameModel,
 	setup model.ComparisonSetup,
-	seatHeight float64,
+	profile model.RiderProfile,
 ) (model.CanonicalComparisonRow, error) {
-	return ResolveFrameForkSetupWithProfile(frame, setup, seatHeight, nil)
-}
+	if profile.SaddleHeightMm <= 0 {
+		return model.CanonicalComparisonRow{}, fmt.Errorf("profile.SaddleHeightMm must be positive, got %.1f", profile.SaddleHeightMm)
+	}
 
-// ResolveFrameForkSetupWithProfile validates and resolves a ComparisonSetup with custom RiderProfile.
-func ResolveFrameForkSetupWithProfile(
-	frame model.FrameModel,
-	setup model.ComparisonSetup,
-	seatHeight float64,
-	profile *model.RiderProfile,
-) (model.CanonicalComparisonRow, error) {
 	// 0. Centralized frame validity gate: a frame in an error state may not be used.
 	frameVal := validator.ValidateFrame(frame)
 	if !frameVal.IsValid {
@@ -394,12 +388,14 @@ func ResolveFrameForkSetupWithProfile(
 
 	canonCfg := model.CanonicalConfig{
 		TargetA2c:    effectiveA2c,
-		SeatHeight:   seatHeight,
 		SagPercent:   sagPct,
 		RiderProfile: profile,
 	}
 
-	rows := CanonicalizeBikes([]model.BikeGeometry{bike}, canonCfg)
+	rows, err := CanonicalizeBikes([]model.BikeGeometry{bike}, canonCfg)
+	if err != nil {
+		return model.CanonicalComparisonRow{}, err
+	}
 	if len(rows) == 0 {
 		return model.CanonicalComparisonRow{}, fmt.Errorf("failed to canonicalize %s", frame.ID)
 	}
@@ -420,19 +416,15 @@ func ResolveFrameForkSetupWithProfile(
 }
 
 // CanonicalizeBikes normalizes and canonicalizes a collection of bikes to an apples-to-apples configuration.
-func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig) []model.CanonicalComparisonRow {
+func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig) ([]model.CanonicalComparisonRow, error) {
+	if config.RiderProfile.SaddleHeightMm <= 0 {
+		return nil, fmt.Errorf("canonical config requires positive saddle height, got %.1f", config.RiderProfile.SaddleHeightMm)
+	}
+	seatHeight := config.RiderProfile.SaddleHeightMm
 	var rows []model.CanonicalComparisonRow
 
 	for _, bike := range bikes {
 		valReport := validator.ValidateBikeGeometry(bike)
-
-		seatHeight := config.SeatHeight
-		if seatHeight <= 0 {
-			seatHeight = bike.SeatHeight
-		}
-		if seatHeight <= 0 {
-			seatHeight = 750.0
-		}
 
 		baseSta := bike.StaDeg
 		if bike.HasBentSeatTube() {
@@ -482,12 +474,14 @@ func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig)
 			Chainstay:          geometry.Round(activeCS, 1),
 		}
 
-		canonical := geometry.AnalyzeBikeFitWithProfile(
+		canonical, err := geometry.AnalyzeBikeFit(
 			bike,
 			&config.TargetA2c,
-			&seatHeight,
 			config.RiderProfile,
 		)
+		if err != nil {
+			return nil, err
+		}
 
 		rows = append(rows, model.CanonicalComparisonRow{
 			SagPercent:   config.SagPercent,
@@ -499,5 +493,5 @@ func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig)
 		})
 	}
 
-	return rows
+	return rows, nil
 }

@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -35,7 +36,9 @@ func NewBikeStore(dataDir string) (*BikeStore, error) {
 
 func parseFrameFromData(data []byte, fileID string) (*model.FrameModel, error) {
 	var frame model.FrameModel
-	if err := json.Unmarshal(data, &frame); err == nil {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&frame); err == nil {
 		if len(frame.Configurations) > 0 || len(frame.Sizes) > 0 {
 			if frame.ID == "" {
 				frame.ID = fileID
@@ -44,6 +47,11 @@ func parseFrameFromData(data []byte, fileID string) (*model.FrameModel, error) {
 				frame.Configurations[i].Fork = canonicalizer.ResolveForkSpec(frame.Configurations[i].Fork)
 			}
 			return &frame, nil
+		}
+	} else {
+		// If the JSON contains unrecognized fields, fail immediately
+		if strings.Contains(err.Error(), "unknown field") {
+			return nil, fmt.Errorf("failed to parse frame %s: %w", fileID, err)
 		}
 	}
 
@@ -72,7 +80,6 @@ func parseFrameFromData(data []byte, fileID string) (*model.FrameModel, error) {
 			WheelSize:          bike.WheelSize,
 			HeadsetCupType:     bike.HeadsetCupType,
 			GeoHeadsetSpacerMm: bike.GeoHeadsetSpacerMm,
-			SeatHeight:         bike.SeatHeight,
 			Sizes:              []string{size},
 			DefaultSize:        size,
 			Configurations: []model.FrameConfiguration{
@@ -362,7 +369,6 @@ func (s *BikeStore) SaveBike(bike model.BikeGeometry) (*model.BikeGeometry, erro
 			WheelSize:          bike.WheelSize,
 			HeadsetCupType:     bike.HeadsetCupType,
 			GeoHeadsetSpacerMm: bike.GeoHeadsetSpacerMm,
-			SeatHeight:         bike.SeatHeight,
 			Sizes:              []string{size},
 			DefaultSize:        size,
 		}

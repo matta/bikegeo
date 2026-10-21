@@ -302,7 +302,7 @@ func resolveAllColumns(
 		if err != nil {
 			return nil, nil, err
 		}
-		row, err := canonicalizer.ResolveFrameForkSetupWithProfile(*frame, col, state.SeatHeight, &state.RiderProfile)
+		row, err := canonicalizer.ResolveFrameForkSetup(*frame, col, state.RiderProfile)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -328,9 +328,6 @@ func (a *App) loadOrDefaultComparisonState(frames []model.FrameModel) model.Save
 				if saved.RefIndex < 0 || saved.RefIndex >= len(saved.Columns) {
 					saved.RefIndex = 0
 				}
-				if saved.SeatHeight <= 0 {
-					saved.SeatHeight = 780.0
-				}
 				saved.NormalizeRiderProfile()
 				return saved
 			}
@@ -354,7 +351,6 @@ func (a *App) loadOrDefaultComparisonState(frames []model.FrameModel) model.Save
 	}
 
 	return model.SavedComparisonState{
-		SeatHeight:   780.0,
 		RiderProfile: model.DefaultRiderProfile(),
 		Transpose:    false,
 		RefIndex:     0,
@@ -380,7 +376,7 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 	scanner := bufio.NewScanner(a.In)
 
 	for {
-		fmt.Fprintf(a.Out, "\nSaved Comparison (Saddle Height: %.0fmm):\n", state.SeatHeight)
+		fmt.Fprintf(a.Out, "\nSaved Comparison (Saddle Height: %.0fmm):\n", state.SaddleHeightMm)
 		if len(state.Columns) == 0 {
 			fmt.Fprintln(a.Out, "  (No columns currently selected)")
 		} else {
@@ -394,7 +390,7 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 					fmt.Fprintf(a.Out, "  [%d] %s %s (%s)\n", i+1, refTag, col.FrameID, col.Size)
 					continue
 				}
-				row, err := canonicalizer.ResolveFrameForkSetupWithProfile(*frame, col, state.SeatHeight, &state.RiderProfile)
+				row, err := canonicalizer.ResolveFrameForkSetup(*frame, col, state.RiderProfile)
 				if err != nil {
 					fmt.Fprintf(a.Out, "  [%d] %s %s %s (%s) - %v\n", i+1, refTag, frame.Manufacturer, frame.Model, col.Size, err)
 					continue
@@ -445,7 +441,7 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 					continue
 				}
 				frame, _, _ := ResolveFrameByToken(frames, col.FrameID)
-				if _, err := canonicalizer.ResolveFrameForkSetupWithProfile(*frame, col, state.SeatHeight, &state.RiderProfile); err != nil {
+				if _, err := canonicalizer.ResolveFrameForkSetup(*frame, col, state.RiderProfile); err != nil {
 					fmt.Fprintf(a.Out, "  ! %v\n", err)
 					continue
 				}
@@ -499,14 +495,14 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 		case cmd == "s" || cmd == "saddle" || cmd == "seat":
 			valStr := arg
 			if valStr == "" {
-				fmt.Fprintf(a.Out, "  Rider Saddle Height in mm [%.0f]: ", state.SeatHeight)
+				fmt.Fprintf(a.Out, "  Rider Saddle Height in mm [%.0f]: ", state.SaddleHeightMm)
 				if scanner.Scan() {
 					valStr = strings.TrimSpace(scanner.Text())
 				}
 			}
 			if valStr != "" {
 				if v, err := strconv.ParseFloat(valStr, 64); err == nil && v >= 400 && v <= 1100 {
-					state.SeatHeight = v
+					state.SaddleHeightMm = v
 				} else {
 					fmt.Fprintf(a.Out, "  ! Invalid saddle height %q\n", valStr)
 				}
@@ -674,7 +670,7 @@ func (a *App) promptColumnSetup(
 	}
 
 	// Validate against frame constraints immediately
-	row, err := canonicalizer.ResolveFrameForkSetupWithProfile(*selectedFrame, candidate, state.SeatHeight, &state.RiderProfile)
+	row, err := canonicalizer.ResolveFrameForkSetup(*selectedFrame, candidate, state.RiderProfile)
 	if err != nil {
 		return model.ComparisonSetup{}, err
 	}
@@ -730,10 +726,10 @@ type CompareExplanationsJSON struct {
 }
 
 type CompareJSONPayload struct {
-	SeatHeight   float64                  `json:"seat_height"`
-	RefIndex     int                      `json:"ref_index"`
-	Columns      []ScoredColumnJSON       `json:"columns"`
-	Explanations *CompareExplanationsJSON `json:"explanations,omitempty"`
+	SaddleHeightMm float64                  `json:"saddle_height_mm"`
+	RefIndex       int                      `json:"ref_index"`
+	Columns        []ScoredColumnJSON       `json:"columns"`
+	Explanations   *CompareExplanationsJSON `json:"explanations,omitempty"`
 }
 
 func (a *App) renderComparisonMatrix(
@@ -806,7 +802,7 @@ func (a *App) renderComparisonMatrix(
 	title := "Apples-to-Apples Geometry Comparison Matrix"
 	subtitle := fmt.Sprintf(
 		"Saddle Height: %.0fmm | Modeled Back Angle: %.1f° | Reference: [%d] %s %s (%s) (*max stay position; Δ in parens)",
-		state.SeatHeight, refRow.Canonical.BackAngleDeg, refIdx+1,
+		state.SaddleHeightMm, refRow.Canonical.BackAngleDeg, refIdx+1,
 		refRow.Bike.Manufacturer, refRow.Bike.Model, refRow.Bike.Size,
 	)
 
@@ -826,10 +822,10 @@ func (a *App) renderComparisonMatrix(
 		}
 	}
 	jsonPayload := CompareJSONPayload{
-		SeatHeight:   state.SeatHeight,
-		RefIndex:     refIdx,
-		Columns:      jsonCols,
-		Explanations: explJSON,
+		SaddleHeightMm: state.SaddleHeightMm,
+		RefIndex:       refIdx,
+		Columns:        jsonCols,
+		Explanations:   explJSON,
 	}
 
 	// Prepare detail table if requested
@@ -1078,7 +1074,7 @@ func (a *App) renderComparisonMatrix(
 		}))
 
 		// 8. AETT
-		tableRows = append(tableRows, buildRow(fmt.Sprintf("AETT @ %.0fmm", state.SeatHeight), func(colIdx int, item scoredRowItem) string {
+		tableRows = append(tableRows, buildRow(fmt.Sprintf("AETT @ %.0fmm", state.SaddleHeightMm), func(colIdx int, item scoredRowItem) string {
 			r := item.row
 			i := item.origIdx
 			mainLine := fmt.Sprintf("%.0f mm", math.Round(r.Canonical.Aett))
@@ -1089,7 +1085,7 @@ func (a *App) renderComparisonMatrix(
 		}))
 
 		// 9. Actual Setback
-		tableRows = append(tableRows, buildRow(fmt.Sprintf("Actual Setback @ %.0fmm", state.SeatHeight), func(colIdx int, item scoredRowItem) string {
+		tableRows = append(tableRows, buildRow(fmt.Sprintf("Actual Setback @ %.0fmm", state.SaddleHeightMm), func(colIdx int, item scoredRowItem) string {
 			r := item.row
 			i := item.origIdx
 			mainLine := fmt.Sprintf("%.0f mm", math.Round(r.Canonical.ActualSetback))
