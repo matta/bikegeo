@@ -278,13 +278,14 @@ var DefaultCriteria = []Criterion{
 
 // CriterionResult stores the calculated score breakdown for a single criterion.
 type CriterionResult struct {
-	ID       string  `json:"id"`
-	Label    string  `json:"label"`
-	Unit     string  `json:"unit"`
-	Value    float64 `json:"value"`
-	SubScore float64 `json:"sub_score"`
-	Weight   float64 `json:"weight"`
-	Points   float64 `json:"points"`
+	ID         string  `json:"id"`
+	Label      string  `json:"label"`
+	Unit       string  `json:"unit"`
+	Value      float64 `json:"value"`
+	SubScore   float64 `json:"sub_score"`
+	Weight     float64 `json:"weight"`
+	Points     float64 `json:"points"`
+	PointsLost float64 `json:"points_lost"`
 }
 
 // Result holds the overall score, ranking, and per-criterion details for a frame setup.
@@ -317,14 +318,20 @@ func Score(analysis model.BikeFitAnalysis, criteria []Criterion) Result {
 		pts := c.Weight * sub / totalWeight
 		totalScore += pts
 
+		lost := c.Weight * (100.0 - sub) / totalWeight
+		if lost < 0 {
+			lost = 0
+		}
+
 		results = append(results, CriterionResult{
-			ID:       c.ID,
-			Label:    c.Label,
-			Unit:     c.Unit,
-			Value:    val,
-			SubScore: sub,
-			Weight:   c.Weight,
-			Points:   pts,
+			ID:         c.ID,
+			Label:      c.Label,
+			Unit:       c.Unit,
+			Value:      val,
+			SubScore:   sub,
+			Weight:     c.Weight,
+			Points:     pts,
+			PointsLost: lost,
 		})
 	}
 
@@ -418,9 +425,8 @@ func Explain(frames []ScoredFrame, criteria []Criterion) Explanations {
 		var losses []lossItem
 
 		for i, c := range criteria {
-			sub := f.Score.Criteria[i].SubScore
 			val := f.Score.Criteria[i].Value
-			lost := c.Weight * (100.0 - sub) / totalWeight
+			lost := f.Score.Criteria[i].PointsLost
 			if math.Round(lost) >= 3.0 && c.Describe != nil {
 				desc := c.Describe(val)
 				losses = append(losses, lossItem{

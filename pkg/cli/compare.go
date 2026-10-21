@@ -835,21 +835,39 @@ func (a *App) renderComparisonMatrix(
 		detailHeaders = []string{"Rank", "#", "Frame", "AETT", "Setback", "Spare Vert", "Chainstay", "BB Drop", "HTA", "Front Wt", "Total"}
 		for _, item := range scoredItems {
 			subScores := make(map[string]float64)
+			pointsLost := make(map[string]float64)
 			for _, c := range item.score.Criteria {
 				subScores[c.ID] = c.SubScore
+				pointsLost[c.ID] = c.PointsLost
+			}
+			formatSubScoreCell := func(id string) string {
+				sub := math.Round(subScores[id])
+				lost := math.Round(pointsLost[id])
+				if lost >= 1 {
+					return fmt.Sprintf("%.0f (-%.0f)", sub, lost)
+				}
+				return fmt.Sprintf("%.0f", sub)
+			}
+			formatTotalCell := func(total float64) string {
+				rndTotal := math.Round(total)
+				totalLost := math.Round(100.0 - total)
+				if totalLost >= 1 {
+					return fmt.Sprintf("%.0f (-%.0f)", rndTotal, totalLost)
+				}
+				return fmt.Sprintf("%.0f", rndTotal)
 			}
 			detailRows = append(detailRows, []string{
 				fmt.Sprintf("%d", item.score.Rank),
 				fmt.Sprintf("%d", item.origIdx+1),
 				fmt.Sprintf("%s %s (%s)", item.row.Bike.Manufacturer, item.row.Bike.Model, item.row.Bike.Size),
-				fmt.Sprintf("%.0f", math.Round(subScores["aett"])),
-				fmt.Sprintf("%.0f", math.Round(subScores["setback"])),
-				fmt.Sprintf("%.0f", math.Round(subScores["sparevert"])),
-				fmt.Sprintf("%.0f", math.Round(subScores["chainstay"])),
-				fmt.Sprintf("%.0f", math.Round(subScores["bbdrop"])),
-				fmt.Sprintf("%.0f", math.Round(subScores["hta"])),
-				fmt.Sprintf("%.0f", math.Round(subScores["frontwt"])),
-				fmt.Sprintf("%.0f", math.Round(item.score.Total)),
+				formatSubScoreCell("aett"),
+				formatSubScoreCell("setback"),
+				formatSubScoreCell("sparevert"),
+				formatSubScoreCell("chainstay"),
+				formatSubScoreCell("bbdrop"),
+				formatSubScoreCell("hta"),
+				formatSubScoreCell("frontwt"),
+				formatTotalCell(item.score.Total),
 			})
 		}
 	}
@@ -1125,7 +1143,7 @@ func (a *App) renderComparisonMatrix(
 	if scoreDetail && scoringEnabled && a.Format != FormatJSON && a.Format != FormatCSV {
 		fmt.Fprintln(a.Out)
 		detailTitle := "Scoring Breakdown"
-		detailSubtitle := "Sub-scores (-200..+100) per criterion. Total = weighted average (weights: AETT 10, Setback 6, Spare Vert 5, Chainstay 4, BB Drop 3, HTA 2, Front Wt 1)"
+		detailSubtitle := "Sub-scores (-200..+100) per criterion (points lost on total score in parens). Total = weighted average (weights: AETT 10, Setback 6, Spare Vert 5, Chainstay 4, BB Drop 3, HTA 2, Front Wt 1)"
 		if err := RenderOutputWithFooter(a.Out, a.Format, detailTitle, detailSubtitle, detailHeaders, detailRows, nil, footers); err != nil {
 			return err
 		}

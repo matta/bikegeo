@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -448,6 +449,12 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	if !strings.Contains(outDetail, "Spare Vert") || !strings.Contains(outDetail, "Chainstay") {
 		t.Errorf("Expected criteria headers in score detail table, got:\n%s", outDetail)
 	}
+	if !strings.Contains(outDetail, "63 (-6)") {
+		t.Errorf("Expected '63 (-6)' for Hayduke Spare Vert in score detail table, got:\n%s", outDetail)
+	}
+	if !strings.Contains(outDetail, "85 (-15)") {
+		t.Errorf("Expected '85 (-15)' for Hayduke Total in score detail table, got:\n%s", outDetail)
+	}
 
 	// 4. JSON format output includes per-column score and top-level explanations
 	code, outJSON, errOut := runCLI(t, dataDir, stateFile, "", "compare",
@@ -464,8 +471,9 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 				Total    float64 `json:"total"`
 				Rank     int     `json:"rank"`
 				Criteria []struct {
-					ID       string  `json:"id"`
-					SubScore float64 `json:"sub_score"`
+					ID         string  `json:"id"`
+					SubScore   float64 `json:"sub_score"`
+					PointsLost float64 `json:"points_lost"`
 				} `json:"criteria"`
 			} `json:"score"`
 		} `json:"columns"`
@@ -485,6 +493,16 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	}
 	if len(jsonRes.Columns[0].Score.Criteria) != 7 {
 		t.Errorf("Expected 7 criteria in column score, got %d", len(jsonRes.Columns[0].Score.Criteria))
+	}
+	var foundSpareVertLost bool
+	for _, crit := range jsonRes.Columns[0].Score.Criteria {
+		if crit.ID == "sparevert" && math.Round(crit.PointsLost) == 6 {
+			foundSpareVertLost = true
+			break
+		}
+	}
+	if !foundSpareVertLost {
+		t.Errorf("Expected sparevert PointsLost to be ~6 in JSON output, got: %+v", jsonRes.Columns[0].Score.Criteria)
 	}
 	if len(jsonRes.Explanations.Losses) != 2 {
 		t.Errorf("Expected 2 loss explanations, got %d", len(jsonRes.Explanations.Losses))

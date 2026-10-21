@@ -422,6 +422,34 @@ func TestExplain_GeneratesReadableOutput(t *testing.T) {
 	}
 }
 
+func TestScore_PointsLost(t *testing.T) {
+	// AETT = 630 (ideal sweet spot 625-636), subscore = 100, points lost should be 0
+	// Spare vert = 119mm (19mm past 100mm sweet spot), subscore = 70.5, weight = 5, totalWeight = 31
+	// pointsLost = 5 * (100 - 70.5) / 31 ≈ 4.75 -> rounds to 5
+	analysis := model.BikeFitAnalysis{
+		Aett:               630.0,
+		ActualSetback:      220.0,
+		SpareVerticalStack: 119.0,
+		ActiveChainstay:    470.0,
+		ActiveBbDrop:       70.0,
+		ActiveHta:          68.0,
+		WeightDistFrontPct: 38.0,
+	}
+	res := Score(analysis, DefaultCriteria)
+	for _, c := range res.Criteria {
+		if c.ID == "aett" {
+			if c.PointsLost != 0 {
+				t.Errorf("Expected AETT points lost 0, got %f", c.PointsLost)
+			}
+		}
+		if c.ID == "sparevert" {
+			if math.Round(c.PointsLost) != 5 {
+				t.Errorf("Expected Spare Vert points lost ~5, got %f", c.PointsLost)
+			}
+		}
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || (len(s) > 0 && searchSubstr(s, substr)))
 }
