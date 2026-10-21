@@ -741,5 +741,104 @@ func TestValidateTurnerVennTi(t *testing.T) {
 	}
 }
 
+func TestValidateFairlightHolt(t *testing.T) {
+	holt := model.FrameModel{
+		ID:                 "fairlight-holt-2",
+		Manufacturer:       "Fairlight",
+		Model:              "Holt 2.0",
+		Year:               2025,
+		Category:           model.CategoryHardtail,
+		WheelSize:          "29",
+		HeadsetCupType:     model.CupEC44,
+		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
+		SeatHeight:         760,
+		ActualStaDeg:       74.3,
+		SupportedTravelMm:  []float64{100, 110, 120},
+		DefaultFork:        "120mm",
+		Sizes:              []string{"S", "M", "L", "XL"},
+		DefaultSize:        "L",
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:         "stock",
+				Name:       "Stock 120mm Suspension Build",
+				IsBaseline: true,
+				Fork: model.ForkSpec{
+					ID:                 "sid_120",
+					Name:               "RockShox SID 120mm",
+					TravelMm:           120,
+					A2c:                531,
+					Rake:               44,
+					StandardSagPercent: 20,
+				},
+				SagPercentagePublished: 20,
+				Geometries: map[string]model.SizeGeometry{
+					"S": {
+						Reach:           425,
+						Stack:           616,
+						HtaDeg:          67.0,
+						StaDeg:          75.3,
+						Htl:             100,
+						BbDrop:          63,
+						Wheelbase:       1138,
+						ChainstayLength: 435,
+						SeatTubeLength:  385,
+						StandoverHeight: 742,
+					},
+					"M": {
+						Reach:           450,
+						Stack:           616,
+						HtaDeg:          67.0,
+						StaDeg:          75.3,
+						Htl:             100,
+						BbDrop:          63,
+						Wheelbase:       1163,
+						ChainstayLength: 435,
+						SeatTubeLength:  425,
+						StandoverHeight: 765,
+					},
+					"L": {
+						Reach:           470,
+						Stack:           625,
+						HtaDeg:          67.0,
+						StaDeg:          75.3,
+						Htl:             110,
+						BbDrop:          63,
+						Wheelbase:       1187,
+						ChainstayLength: 435,
+						SeatTubeLength:  465,
+						StandoverHeight: 791,
+					},
+					"XL": {
+						Reach:           495,
+						Stack:           643,
+						HtaDeg:          67.0,
+						StaDeg:          75.2,
+						Htl:             130,
+						BbDrop:          63,
+						Wheelbase:       1220,
+						ChainstayLength: 435,
+						SeatTubeLength:  510,
+						StandoverHeight: 824,
+					},
+				},
+			},
+		},
+	}
 
-
+	report := validator.ValidateFrame(holt)
+	if !report.IsValid {
+		t.Fatalf("Expected Fairlight Holt 2.0 to pass validation: %s", report.ErrorSummary())
+	}
+	if holt.SupportsRigid() {
+		t.Errorf("Expected Holt 2.0 to not support rigid fork")
+	}
+	if !holt.SupportsTravel(100) || !holt.SupportsTravel(110) || !holt.SupportsTravel(120) {
+		t.Errorf("Expected Holt 2.0 to support 100mm, 110mm, and 120mm travel forks")
+	}
+	if holt.SupportsTravel(80) || holt.SupportsTravel(130) {
+		t.Errorf("Expected Holt 2.0 to reject 80mm and 130mm travel forks")
+	}
+	if holt.HasAdjustableChainstay() {
+		t.Errorf("Expected Holt 2.0 to have fixed chainstays (435mm)")
+	}
+}

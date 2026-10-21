@@ -78,6 +78,18 @@
       "size": "L",
       "fork": "120mm",
       "sag_percent": 20
+    },
+    {
+      "frame_id": "fairlight-holt-2",
+      "size": "L",
+      "fork": "120mm",
+      "sag_percent": 20
+    },
+    {
+      "frame_id": "fairlight-holt-2",
+      "size": "XL",
+      "fork": "120mm",
+      "sag_percent": 20
     }
   ]
 }
