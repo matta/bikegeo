@@ -109,8 +109,11 @@ type Criterion struct {
 	Describe func(v float64) string
 }
 
-// PreferredSpareVertMm is the ideal spare vertical stack (in mm) that yields a maximum score (100).
-const PreferredSpareVertMm = 100.0
+// PreferredSpareVertMinMm is the lower bound of the ideal spare vertical stack plateau (70mm).
+const PreferredSpareVertMinMm = 70.0
+
+// PreferredSpareVertMaxMm is the upper bound of the ideal spare vertical stack plateau (100mm).
+const PreferredSpareVertMaxMm = 100.0
 
 // DefaultCriteria returns the standard hard-coded scoring criteria agreed upon for bikegeo compare.
 var DefaultCriteria = []Criterion{
@@ -173,22 +176,21 @@ var DefaultCriteria = []Criterion{
 		Weight: 5,
 		Metric: func(a model.BikeFitAnalysis) float64 { return a.SpareVerticalStack },
 		Curve: QuadraticCurve{
-			Low:   PreferredSpareVertMm,
-			High:  PreferredSpareVertMm,
+			Low:   PreferredSpareVertMinMm,
+			High:  PreferredSpareVertMaxMm,
 			WLow:  15,
 			WHigh: 35,
 			Floor: -100,
 			Peak:  100,
 		},
 		Describe: func(v float64) string {
-			d := v - PreferredSpareVertMm
-			if math.Abs(d) < 1.5 {
-				return fmt.Sprintf("spare vert %.0fmm is on target", v)
+			if v < PreferredSpareVertMinMm {
+				return fmt.Sprintf("spare vert %.0fmm is %.0fmm short of the %.0fmm sweet spot", v, PreferredSpareVertMinMm-v, PreferredSpareVertMinMm)
 			}
-			if d > 0 {
-				return fmt.Sprintf("spare vert %.0fmm is %.0fmm over %.0f", v, d, PreferredSpareVertMm)
+			if v <= PreferredSpareVertMaxMm {
+				return fmt.Sprintf("spare vert %.0fmm is in the %.0f–%.0fmm sweet spot", v, PreferredSpareVertMinMm, PreferredSpareVertMaxMm)
 			}
-			return fmt.Sprintf("spare vert %.0fmm is %.0fmm under %.0f", v, -d, PreferredSpareVertMm)
+			return fmt.Sprintf("spare vert %.0fmm is %.0fmm past the %.0fmm sweet spot", v, v-PreferredSpareVertMaxMm, PreferredSpareVertMaxMm)
 		},
 	},
 	{

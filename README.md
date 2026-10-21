@@ -39,7 +39,7 @@ Bike geometry is stored in **local JSON files** under [`data/bikes/`](data/bikes
    - Compares how closely candidate frames match target fit and handling criteria using smooth quadratic curves and plateau sweet spots:
      - **AETT** (weight 10, sweet spot plateau 625–636mm, smooth quadratic roll-off reaching 0 at 584mm min / 660mm max)
      - **Setback** (weight 6, ideal 220mm with quadratic roll-off reaching 0 at 205mm / 235mm)
-     - **Spare Vert** (weight 5, ideal 100mm with quadratic roll-off reaching 0 at 85mm / 135mm)
+     - **Spare Vert** (weight 5, sweet spot plateau 70–100mm, smooth quadratic roll-off reaching 0 at 55mm min / 135mm max)
      - **Chainstay** (weight 4, longer is better with diminishing returns)
      - **BB Drop** (weight 3, ideal 70mm with quadratic roll-off reaching 0 at 50mm / 90mm)
      - **HTA** (weight 2, ideal 68° with quadratic roll-off reaching 0 at 67° / 69°)

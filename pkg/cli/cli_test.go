@@ -401,8 +401,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	if !strings.Contains(out, "85 (#1)") {
 		t.Errorf("Expected '85 (#1)' for Hayduke S3, got:\n%s", out)
 	}
-	if !strings.Contains(out, "40 (#2)") {
-		t.Errorf("Expected '40 (#2)' for Havok XL, got:\n%s", out)
+	if !strings.Contains(out, "72 (#2)") {
+		t.Errorf("Expected '72 (#2)' for Havok XL, got:\n%s", out)
 	}
 	if !strings.Contains(out, "Biggest Losses vs. Ideal:") {
 		t.Errorf("Expected 'Biggest Losses vs. Ideal:' section in output, got:\n%s", out)

@@ -137,16 +137,22 @@ func TestDefaultCriteriaCurves(t *testing.T) {
 		t.Errorf("Setback(250) expected -100, got %f", sb.Eval(250))
 	}
 
-	// 3. Spare Vert
+	// 3. Spare Vert: sweet spot [70, 100], WLow=15, WHigh=35, Floor=-100
 	sv := critMap["sparevert"].Curve
-	if sv.Eval(60) != -100 {
-		t.Errorf("SpareVert(60) expected -100, got %f", sv.Eval(60))
+	if sv.Eval(45) != -100 {
+		t.Errorf("SpareVert(45) expected -100, got %f", sv.Eval(45))
 	}
-	if math.Abs(sv.Eval(85)-0) > 0.001 {
-		t.Errorf("SpareVert(85) expected 0, got %f", sv.Eval(85))
+	if math.Abs(sv.Eval(55)-0) > 0.001 {
+		t.Errorf("SpareVert(55) expected 0, got %f", sv.Eval(55))
 	}
-	if sv.Eval(PreferredSpareVertMm) != 100 {
-		t.Errorf("SpareVert(%.0f) expected 100, got %f", PreferredSpareVertMm, sv.Eval(PreferredSpareVertMm))
+	if sv.Eval(70) != 100 {
+		t.Errorf("SpareVert(70) expected 100, got %f", sv.Eval(70))
+	}
+	if sv.Eval(85) != 100 {
+		t.Errorf("SpareVert(85) expected 100, got %f", sv.Eval(85))
+	}
+	if sv.Eval(PreferredSpareVertMaxMm) != 100 {
+		t.Errorf("SpareVert(%.0f) expected 100, got %f", PreferredSpareVertMaxMm, sv.Eval(PreferredSpareVertMaxMm))
 	}
 	if math.Abs(sv.Eval(135)-0) > 0.001 {
 		t.Errorf("SpareVert(135) expected 0, got %f", sv.Eval(135))
@@ -264,8 +270,21 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 			},
 		},
 		{
+			name:     "Binary Havok (XL)",
+			expected: 72,
+			a: model.BikeFitAnalysis{
+				Aett:               592.8,
+				ActualSetback:      216.3,
+				SpareVerticalStack: 78.7,
+				ActiveChainstay:    460,
+				ActiveBbDrop:       69.3,
+				ActiveHta:          68.9,
+				WeightDistFrontPct: 37.7,
+			},
+		},
+		{
 			name:     "Otso Fenrir (XL)",
-			expected: 59,
+			expected: 69,
 			a: model.BikeFitAnalysis{
 				Aett:               604.3,
 				ActualSetback:      206,
@@ -326,19 +345,6 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 				ActiveBbDrop:       71.9,
 				ActiveHta:          67.52,
 				WeightDistFrontPct: 34.4,
-			},
-		},
-		{
-			name:     "Binary Havok (XL)",
-			expected: 40,
-			a: model.BikeFitAnalysis{
-				Aett:               592.8,
-				ActualSetback:      216.3,
-				SpareVerticalStack: 78.7,
-				ActiveChainstay:    460,
-				ActiveBbDrop:       69.3,
-				ActiveHta:          68.9,
-				WeightDistFrontPct: 37.7,
 			},
 		},
 		{
