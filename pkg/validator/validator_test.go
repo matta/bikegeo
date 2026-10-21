@@ -842,3 +842,132 @@ func TestValidateFairlightHolt(t *testing.T) {
 		t.Errorf("Expected Holt 2.0 to have fixed chainstays (435mm)")
 	}
 }
+
+func TestValidateSklarPBJ(t *testing.T) {
+	pbj := model.FrameModel{
+		ID:                 "sklar-pbj",
+		Manufacturer:       "Sklar",
+		Model:              "PBJ",
+		Year:               2025,
+		Category:           model.CategoryHardtail,
+		WheelSize:          "29",
+		HeadsetCupType:     model.CupEC44,
+		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
+		SeatHeight:         760,
+		RigidA2cMm:         485.0,
+		DefaultFork:        "rigid",
+		SupportedTravelMm:  []float64{100, 110, 120},
+		ChainstayRangeMm:   []float64{432, 452},
+		Sizes:              []string{"XS", "S", "M", "L", "XL"},
+		DefaultSize:        "M",
+		GeoSlopMm: &model.GeoSlopMm{
+			A2c:         model.Float64Ptr(3.5),
+			FrontCenter: model.Float64Ptr(3.0),
+			Wheelbase:   model.Float64Ptr(5.0),
+		},
+		Configurations: []model.FrameConfiguration{
+			{
+				ID:         "stock",
+				Name:       "Stock Rigid 485mm Build",
+				IsBaseline: true,
+				Fork: model.ForkSpec{
+					ID:       "rigid_485",
+					Name:     "Sklar Chromoly Steel 485mm",
+					TravelMm: 0,
+					A2c:      485,
+					Rake:     52,
+				},
+				SagPercentagePublished: 0,
+				Geometries: map[string]model.SizeGeometry{
+					"XS": {
+						Reach:           411,
+						Stack:           574,
+						HtaDeg:          68.0,
+						StaDeg:          74.5,
+						Htl:             70,
+						BbDrop:          68,
+						Wheelbase:       1098,
+						FrontCenter:     675,
+						ChainstayLength: 432,
+						SeatTubeLength:  360,
+					},
+					"S": {
+						Reach:           433,
+						Stack:           588,
+						HtaDeg:          68.5,
+						StaDeg:          74.0,
+						Htl:             85,
+						BbDrop:          68,
+						Wheelbase:       1124,
+						FrontCenter:     698,
+						ChainstayLength: 432,
+						SeatTubeLength:  410,
+					},
+					"M": {
+						Reach:           461,
+						Stack:           615,
+						HtaDeg:          69.0,
+						StaDeg:          74.0,
+						Htl:             110,
+						BbDrop:          68,
+						Wheelbase:       1156,
+						FrontCenter:     730,
+						ChainstayLength: 432,
+						SeatTubeLength:  440,
+					},
+					"L": {
+						Reach:           475,
+						Stack:           641,
+						HtaDeg:          69.0,
+						StaDeg:          74.0,
+						Htl:             140,
+						BbDrop:          68,
+						Wheelbase:       1182,
+						FrontCenter:     755,
+						ChainstayLength: 432,
+						SeatTubeLength:  505,
+					},
+					"XL": {
+						Reach:           508,
+						Stack:           670,
+						HtaDeg:          69.0,
+						StaDeg:          74.0,
+						Htl:             170,
+						BbDrop:          68,
+						Wheelbase:       1222,
+						FrontCenter:     795,
+						ChainstayLength: 432,
+						SeatTubeLength:  530,
+					},
+				},
+			},
+		},
+	}
+
+	report := validator.ValidateFrame(pbj)
+	if !report.IsValid {
+		t.Fatalf("Expected Sklar PBJ to pass validation: %s", report.ErrorSummary())
+	}
+	if !pbj.SupportsRigid() {
+		t.Errorf("Expected Sklar PBJ to support rigid fork (485mm)")
+	}
+	if pbj.GetRigidA2c() != 485.0 {
+		t.Errorf("Expected Sklar PBJ rigid A2C to be 485mm, got %.1f", pbj.GetRigidA2c())
+	}
+	if !pbj.SupportsTravel(100) || !pbj.SupportsTravel(110) || !pbj.SupportsTravel(120) {
+		t.Errorf("Expected Sklar PBJ to support 100mm, 110mm, and 120mm travel forks")
+	}
+	if pbj.SupportsTravel(80) || pbj.SupportsTravel(130) {
+		t.Errorf("Expected Sklar PBJ to reject 80mm and 130mm travel forks")
+	}
+	if !pbj.HasAdjustableChainstay() {
+		t.Errorf("Expected Sklar PBJ to have adjustable chainstays")
+	}
+	if pbj.GetMinChainstay() != 432 || pbj.GetMaxChainstay() != 452 {
+		t.Errorf("Expected chainstay range 432-452mm (20mm adjustment), got %.1f-%.1f", pbj.GetMinChainstay(), pbj.GetMaxChainstay())
+	}
+	if pbj.GetMaxChainstay()-pbj.GetMinChainstay() != 20 {
+		t.Errorf("Expected exactly 20mm of chainstay adjustment, got %.1f", pbj.GetMaxChainstay()-pbj.GetMinChainstay())
+	}
+}
+

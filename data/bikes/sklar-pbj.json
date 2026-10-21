@@ -1,0 +1,113 @@
+{
+  "id": "sklar-pbj",
+  "manufacturer": "Sklar",
+  "model": "PBJ",
+  "year": 2025,
+  "category": "hardtail",
+  "notes": "Double butted heat-treated Chromoly steel all-terrain bike (ATB) / rigid mountain touring frame designed around a 485mm A2C rigid chromoly steel fork (52mm offset, 110x15mm Boost spacing, 180mm post mount, 1-1/8\" straight steerer with 30mm crown race, internal dynamo routing, cargo cage and rack/fender mounts). Headtube is EC34/EC44 (EC44 lower cup with 12mm CAD spacer). Suspension-corrected for 100mm suspension forks and officially compatible with up to 120mm suspension forks ('Singlespeed + 120mm Suspension' build tested and confirmed by builder Adam Sklar). Features sliding modular dropouts offering 20mm of rear chainstay adjustment (432-452mm range) compatible with singlespeed, standard geared, and SRAM Transmission (UDH insert kit). Clearance for 29x2.6\" tires (clears most 2.8\"), 73mm BSA threaded BB, 148x12mm Boost rear spacing (52mm chainline), 160mm post-mount rear brake insert, up to 36T chainring, 31.6mm seatpost with stealth dropper routing (34.9mm clamp included), and 3 bottle cage positions (two in main triangle, one under downtube). Published Medium wheelbase is corrected from 1165mm to 1156mm to resolve an errant digit transposition in published geometry (730mm front center + 427mm rear center = 1157mm).",
+  "wheel_size": "29",
+  "headset_cup_type": "EC44",
+  "geo_headset_spacer_mm": 12,
+  "geo_slop_mm": {
+    "a2c": 3.5,
+    "front_center": 3.0,
+    "wheelbase": 5.0
+  },
+  "seat_height": 760,
+  "supported_travel_mm": [
+    100,
+    110,
+    120
+  ],
+  "rigid_a2c_mm": 485,
+  "default_fork": "rigid",
+  "chainstay_range_mm": [
+    432,
+    452
+  ],
+  "sizes": [
+    "XS",
+    "S",
+    "M",
+    "L",
+    "XL"
+  ],
+  "default_size": "M",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock Rigid 485mm Build",
+      "is_baseline": true,
+      "fork": {
+        "id": "rigid_485",
+        "name": "Sklar Chromoly Steel 485mm",
+        "travel_mm": 0,
+        "a2c": 485,
+        "rake": 52
+      },
+      "sag_percentage_published": 0,
+      "geometries": {
+        "XS": {
+          "reach": 411,
+          "stack": 574,
+          "hta_deg": 68.0,
+          "sta_deg": 74.5,
+          "htl": 70,
+          "bb_drop": 68,
+          "wheelbase": 1098,
+          "front_center": 675,
+          "chainstay_length": 432,
+          "seat_tube_length": 360
+        },
+        "S": {
+          "reach": 433,
+          "stack": 588,
+          "hta_deg": 68.5,
+          "sta_deg": 74.0,
+          "htl": 85,
+          "bb_drop": 68,
+          "wheelbase": 1124,
+          "front_center": 698,
+          "chainstay_length": 432,
+          "seat_tube_length": 410
+        },
+        "M": {
+          "reach": 461,
+          "stack": 615,
+          "hta_deg": 69.0,
+          "sta_deg": 74.0,
+          "htl": 110,
+          "bb_drop": 68,
+          "wheelbase": 1156,
+          "front_center": 730,
+          "chainstay_length": 432,
+          "seat_tube_length": 440
+        },
+        "L": {
+          "reach": 475,
+          "stack": 641,
+          "hta_deg": 69.0,
+          "sta_deg": 74.0,
+          "htl": 140,
+          "bb_drop": 68,
+          "wheelbase": 1182,
+          "front_center": 755,
+          "chainstay_length": 432,
+          "seat_tube_length": 505
+        },
+        "XL": {
+          "reach": 508,
+          "stack": 670,
+          "hta_deg": 69.0,
+          "sta_deg": 74.0,
+          "htl": 170,
+          "bb_drop": 68,
+          "wheelbase": 1222,
+          "front_center": 795,
+          "chainstay_length": 432,
+          "seat_tube_length": 530
+        }
+      }
+    }
+  ]
+}
