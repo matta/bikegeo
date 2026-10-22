@@ -3,8 +3,10 @@ package cli
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -18,15 +20,48 @@ import (
 	"bikegeo/pkg/validator"
 )
 
+type optionalBool struct {
+	val   bool
+	isSet bool
+}
+
+func (o *optionalBool) Set(s string) error {
+	v, err := strconv.ParseBool(s)
+	if err != nil {
+		return err
+	}
+	o.val = v
+	o.isSet = true
+	return nil
+}
+
+func (o *optionalBool) String() string {
+	return strconv.FormatBool(o.val)
+}
+
+// IsBoolFlag allows the flag to be passed without "=true" (e.g., just "--save")
+func (o *optionalBool) IsBoolFlag() bool { return true }
+
+func (o *optionalBool) Resolve(defaultVal bool) bool {
+	if o.isSet {
+		return o.val
+	}
+	return defaultVal
+}
+
 func (a *App) runCompare(args []string) int {
 	fs := flag.NewFlagSet("compare", flag.ContinueOnError)
 	fs.SetOutput(a.Err)
+	fs.Usage = func() {
+		a.printCompareUsage(a.Out)
+	}
 
 	var interactive bool
 	var transposeFlag bool
 	var compactFlag bool
 	var noScoreFlag bool
 	var scoreDetailFlag bool
+	var saveFlag optionalBool
 
 	fs.BoolVar(&interactive, "i", false, "Interactive prompt/response mode to build or edit comparison columns")
 	fs.BoolVar(&interactive, "interactive", false, "Interactive prompt/response mode to build or edit comparison columns")
@@ -34,6 +69,7 @@ func (a *App) runCompare(args []string) int {
 	fs.BoolVar(&compactFlag, "compact", false, "Compact/transposed table view (alias for --transpose)")
 	fs.BoolVar(&noScoreFlag, "no-score", false, "Disable scoring and ranking display")
 	fs.BoolVar(&scoreDetailFlag, "score-detail", false, "Display detailed scoring breakdown table")
+	fs.Var(&saveFlag, "save", "Persist comparison state to state file (defaults to true if -i/--interactive)")
 
 	boolFlags := map[string]bool{
 		"i":            true,
@@ -42,9 +78,13 @@ func (a *App) runCompare(args []string) int {
 		"compact":      true,
 		"no-score":     true,
 		"score-detail": true,
+		"save":         true,
 	}
 	reordered := reorderFlagsForStdlib(fs, args, boolFlags)
 	if err := fs.Parse(reordered); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 
@@ -52,6 +92,8 @@ func (a *App) runCompare(args []string) int {
 	fs.Visit(func(f *flag.Flag) {
 		explicitFlags[f.Name] = true
 	})
+
+	shouldSave := saveFlag.Resolve(interactive)
 
 	store, err := a.openStore()
 	if err != nil {
@@ -76,6 +118,10 @@ func (a *App) runCompare(args []string) int {
 	}
 
 	posArgs := fs.Args()
+	if len(posArgs) == 1 && (posArgs[0] == "help" || posArgs[0] == "-h" || posArgs[0] == "--help") {
+		a.printCompareUsage(a.Out)
+		return 0
+	}
 
 	if len(posArgs) > 0 {
 		// Check if all positional arguments are incremental (+spec or -col_num / -frame)
@@ -91,12 +137,12 @@ func (a *App) runCompare(args []string) int {
 			for _, arg := range posArgs {
 				if strings.HasPrefix(arg, "+") {
 					specStr := strings.TrimPrefix(arg, "+")
-					col, err := ParseComparisonSpec(frames, specStr)
+					cols, err := ParseComparisonSpecs(frames, specStr)
 					if err != nil {
 						fmt.Fprintf(a.Err, "Error: %v\n", err)
 						return 1
 					}
-					state.Columns = append(state.Columns, col)
+					state.Columns = append(state.Columns, cols...)
 				} else if strings.HasPrefix(arg, "-") {
 					rmToken := strings.TrimPrefix(arg, "-")
 					if idx, err := strconv.Atoi(rmToken); err == nil {
@@ -131,7 +177,7 @@ func (a *App) runCompare(args []string) int {
 						}
 						var kept []model.ComparisonSetup
 						for _, c := range state.Columns {
-							if c.FrameID == f.ID && (sz == "" || strings.EqualFold(c.Size, sz)) {
+							if c.FrameID == f.ID && (sz == "" || strings.EqualFold(sz, "all") || strings.EqualFold(c.Size, sz)) {
 								continue
 							}
 							kept = append(kept, c)
@@ -142,32 +188,58 @@ func (a *App) runCompare(args []string) int {
 			}
 		} else {
 			var newCols []model.ComparisonSetup
+			var hasAllExpansion bool
+			var singleExpandedFrame *model.FrameModel
+
 			for _, specStr := range posArgs {
 				specStr = strings.TrimPrefix(specStr, "+")
-				col, err := ParseComparisonSpec(frames, specStr)
+				cols, err := ParseComparisonSpecs(frames, specStr)
 				if err != nil {
 					fmt.Fprintf(a.Err, "Error: %v\n", err)
 					return 1
 				}
-				newCols = append(newCols, col)
+				if len(posArgs) == 1 && len(cols) > 1 {
+					hasAllExpansion = true
+					f, _, _ := ResolveFrameByToken(frames, strings.Split(specStr, "@")[0])
+					singleExpandedFrame = f
+				}
+				newCols = append(newCols, cols...)
 			}
 			state.Columns = newCols
 			state.RefIndex = 0
+
+			if hasAllExpansion && singleExpandedFrame != nil {
+				defSize := singleExpandedFrame.GetDefaultSize()
+				for i, c := range newCols {
+					if c.FrameID == singleExpandedFrame.ID && strings.EqualFold(c.Size, defSize) {
+						state.RefIndex = i
+						break
+					}
+				}
+			}
 		}
 	}
 
 	if interactive {
-		var err error
-		state, err = a.runInteractiveCompare(frames, state)
+		newState, shouldRun, err := a.runInteractiveCompare(frames, state)
 		if err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}
+		if !shouldRun {
+			return 0
+		}
+		state = newState
 	}
 
 	if len(state.Columns) == 0 {
 		fmt.Fprintf(a.Err, "Error: no columns selected for comparison\n")
 		return 1
+	}
+
+	// Automatically enable compact/transpose view if more than 4 columns and not explicitly overridden
+	if !explicitFlags["transpose"] && !explicitFlags["compact"] && len(state.Columns) > 4 {
+		state.Transpose = true
 	}
 
 	if state.RefIndex < 0 || state.RefIndex >= len(state.Columns) {
@@ -182,8 +254,10 @@ func (a *App) runCompare(args []string) int {
 	}
 	state.Columns = normalizedCols
 
-	// Save the validated comparison state so bare `bikegeo compare` replays it
-	_ = a.saveComparisonState(state)
+	// Save the validated comparison state if opted in (or by default in interactive mode)
+	if shouldSave {
+		_ = a.saveComparisonState(state)
+	}
 
 	if err := a.renderComparisonMatrix(rows, state, !noScoreFlag, scoreDetailFlag); err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
@@ -193,18 +267,173 @@ func (a *App) runCompare(args []string) int {
 	return 0
 }
 
-// ParseComparisonSpec parses a CLI token of the form "frame[:size][@mod1][@mod2]..."
-// where modifiers can be a size (e.g. "L"), a fork travel/type (e.g. "120mm", "rigid"), or a sag % (e.g. "20%").
-func ParseComparisonSpec(
+func (a *App) printCompareUsage(w io.Writer) {
+	fmt.Fprint(w, `BikeGeo Analyst CLI - Compare Geometry & Fit Scoring
+
+Usage:
+  bikegeo compare [flags] [spec...]
+  bikegeo compare [flags] +<spec> ...
+  bikegeo compare [flags] -<spec|col_num> ...
+  bikegeo compare -i | --interactive
+
+Overview:
+  The compare command performs an apples-to-apples kinematic comparison of
+  bicycle frame geometries, normalizing dynamic fork travel, axle-to-crown (A2C),
+  rake, headset cup spacers, and suspension sag. Each setup is evaluated against
+  the rider's biomechanical profile (saddle height, back angle, arm reach, and
+  center of mass), computing key fit metrics (effective reach/stack, actual setback,
+  AETT, spare vertical travel, front weight distribution) and scoring each setup
+  against ideal fit criteria.
+
+Comparison Specs:
+  Comparison columns are defined using flexible spec tokens:
+    [+|-]frame[:size][@mod1][@mod2]...
+    (or using '@' throughout: frame[@size][@fork][@sag])
+
+  Frame Identifier:
+    - Exact frame ID (e.g. "seven-expedition-926f", "binary-havok")
+    - Model name or unique substring match (e.g. "expedition", "fenrir", "krampus")
+
+  Size Specifier:
+    - Specific size (e.g. ":L", ":XL", ":S3", ":S 60cm"): Must match one of the
+      frame's declared sizes.
+    - Default size (omitted size): If no size is specified, the frame's declared
+      default_size is automatically selected.
+    - All sizes (":all" or "@all"): Expands the frame into individual comparison
+      columns for EVERY size declared by the manufacturer.
+
+  Modifiers (order-independent, separated by '@'):
+    - Fork travel (e.g. "@120mm", "@100mm", or "@120"):
+      Suspension travel in millimeters. Must be within the frame's supported_travel_mm.
+    - Rigid fork ("@rigid" or "@0mm"):
+      Configures the frame with its declared rigid fork (rigid_a2c_mm).
+      Only permitted if the frame supports rigid forks. Rigid forks require 0% sag.
+    - Fork preset or configuration ID (e.g. "@enve_mountain_472", "@stock"):
+      Selects a known preset fork or frame configuration.
+    - Sag percentage (e.g. "@20%", "@sag=25", or "@20"):
+      Suspension sag percent. Pure numbers < 60 are treated as sag %; numbers >= 60
+      are treated as fork travel in mm. If omitted, uses the frame's default sag.
+    - Default fork (omitted fork):
+      If no fork is specified, the frame's declared default_fork is used.
+
+Comparison State & Column Management:
+  State Persistence:
+    - By default, non-interactive compare commands do NOT modify or write the state file.
+      The state file (data/last_compare.json or --state-file) is consulted to read rider
+      profile and existing columns, but remains untouched unless you opt in with --save.
+    - Interactive commands (bikegeo compare -i) persist the updated state by default
+      when confirmed with [Enter], unless --save=false is passed.
+    - Quitting interactive mode with 'q' or 'quit' cancels and exits immediately without saving.
+    - Running 'bikegeo compare' with no arguments replays the saved comparison.
+
+  Full Replacement (Bare Specs):
+    - Specifying arguments without '+' or '-' replaces all existing columns.
+      Example: bikegeo compare fenrir:L@110mm hayduke:S3@120mm
+    - Column 1 becomes the reference bike ([REF]), against which all delta
+      offsets (Δ in parens) are calculated.
+    - When replacing with a single frame's ':all' sizes, the reference column
+      automatically targets the frame's declared default_size (e.g. "S 60cm"),
+      centering delta values around the designer baseline.
+
+  Incremental Addition ('+spec'):
+    - Prefixing a spec with '+' appends column(s) to the existing comparison state
+      without altering existing columns or the reference bike.
+      Example: bikegeo compare +seven-expedition-926f:all@120mm
+
+  Incremental Removal ('-spec' or '-col_num'):
+    - By column number: '-1', '-2', etc. removes the 1-based column.
+    - By frame ID / substring: '-fenrir' or '-fenrir:all' removes all columns of that frame.
+    - By frame size: '-fenrir:L' removes all columns of that frame in size L.
+    - By specific fork/sag: '-fenrir:L@110mm' removes only that matching setup.
+
+  Reference Column ([REF]):
+    - In table output, all numeric deltas in parentheses (e.g. "+12", "-0.8°") are
+      calculated relative to the reference column.
+    - Can be modified interactively via 'bikegeo compare -i' using the 'ref #' action.
+
+Table Layout & Auto-Transposition:
+  - Standard View (Columns): Each bike is a vertical column; metrics are rows.
+    Ideal for 2 to 4 bikes.
+  - Transposed View (Rows): Each bike is a row; metrics are columns.
+    Enabled with --transpose or --compact.
+  - Automatic Transposition: When a comparison has more than 4 columns (such as
+    expanding ':all'), the table automatically renders in transposed mode unless
+    explicitly disabled with --transpose=false or --compact=false.
+
+Scoring & Ranking:
+  - When scoring is enabled (default), setups are scored against target biomechanical
+    criteria (setback, AETT, spare vertical travel, chainstay, BB drop, HTA, front wt %).
+  - Displayed rows are sorted descending by total score, placing the top-match #1 at the top.
+  - Explanations section highlights Biggest Losses vs. Ideal and Head-to-Head Deciding Factors.
+  - Use --score-detail to view the full criteria breakdown table.
+  - Use --no-score to disable scoring and view columns in their original configuration order.
+
+Flags:
+  -save[=bool], --save[=bool]  Persist comparison state to state file (defaults to true if -i/--interactive)
+  -compact, --compact       Render compact/transposed table (Columns as rows, Metrics as columns)
+  -transpose, --transpose   Alias for --compact
+  -i, --interactive         Launch interactive prompt/response comparison builder
+  -score-detail             Display detailed scoring breakdown table for each criterion
+  -no-score                 Disable scoring and ranking display
+
+Global Flags:
+  --data-dir <dir>          Path to bike JSON directory (default: "data/bikes")
+  --state-file <file>       Path to saved comparison state (default: "data/last_compare.json")
+  -f, --format <format>     Output format: table (default), json, md, csv
+  --json                    Shorthand for --format json
+
+Examples:
+  # Replay the most recently saved comparison:
+  bikegeo compare
+
+  # Perform a one-off comparison without altering your saved comparison state:
+  bikegeo compare seven-expedition-926f:all@120mm
+
+  # Compare bikes and persist the result as your new saved comparison:
+  bikegeo compare --save fenrir:L@110mm@20% hayduke:S3@120mm@25%
+
+  # Add all sizes of Seven Expedition to your existing comparison against your reference bike:
+  bikegeo compare +seven-expedition-926f:all@120mm
+
+  # Compare a single frame across multiple fork travels and rigid:
+  bikegeo compare fenrir:L@100mm@20% fenrir:L@120mm@20% fenrir:L@rigid
+
+  # Compare multiple different frames and forks:
+  bikegeo compare fenrir:L@110mm@20% hayduke:S3@120mm@25% krampus:XL@120mm
+
+  # Remove column 3 from the active comparison:
+  bikegeo compare -3
+
+  # Remove all columns of a specific frame:
+  bikegeo compare -seven-expedition-926f
+
+  # Remove a specific fork setup when multiple setups of the same frame exist:
+  bikegeo compare -fenrir:L@110mm
+
+  # View detailed scoring loss breakdown table:
+  bikegeo compare --score-detail
+
+  # Interactively edit and persist comparison (persists on [Enter], cancels on 'q'):
+  bikegeo compare -i
+
+  # Launch interactive comparison builder without persisting on exit:
+  bikegeo compare -i --save=false
+`)
+}
+
+// ParseComparisonSpecs parses a CLI token of the form "frame[:size][@mod1][@mod2]..."
+// If the size is specified as "all" (e.g. "frame:all" or "frame@all"), it expands to a ComparisonSetup
+// for every size in frame.GetSizes(). Otherwise, it returns a single-element slice.
+func ParseComparisonSpecs(
 	frames []model.FrameModel,
 	spec string,
-) (model.ComparisonSetup, error) {
+) ([]model.ComparisonSetup, error) {
 	parts := strings.Split(spec, "@")
 	frameToken := strings.TrimSpace(parts[0])
 
 	frame, implicitSize, err := ResolveFrameByToken(frames, frameToken)
 	if err != nil {
-		return model.ComparisonSetup{}, err
+		return nil, err
 	}
 
 	setup := model.ComparisonSetup{
@@ -219,12 +448,18 @@ func ParseComparisonSpec(
 		}
 		low := strings.ToLower(mod)
 
+		// 0. "all" modifier representing all sizes
+		if low == "all" {
+			setup.Size = "all"
+			continue
+		}
+
 		// 1. Sag modifier (e.g. "20%", "sag=25")
 		if strings.HasSuffix(low, "%") || strings.HasPrefix(low, "sag=") {
 			clean := strings.TrimSuffix(strings.TrimPrefix(low, "sag="), "%")
 			val, err := strconv.ParseFloat(clean, 64)
 			if err != nil {
-				return model.ComparisonSetup{}, fmt.Errorf("invalid sag modifier %q in %q", mod, spec)
+				return nil, fmt.Errorf("invalid sag modifier %q in %q", mod, spec)
 			}
 			setup.SagPercent = &val
 			continue
@@ -288,7 +523,7 @@ func ParseComparisonSpec(
 			continue
 		}
 
-		return model.ComparisonSetup{}, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"unrecognized modifier %q for frame \"%s %s\" (sizes: %s; supported forks: %s; sag: e.g. 20%%)",
 			mod, frame.Manufacturer, frame.Model,
 			strings.Join(frame.GetSizes(), ", "),
@@ -296,7 +531,38 @@ func ParseComparisonSpec(
 		)
 	}
 
-	return setup, nil
+	if strings.EqualFold(setup.Size, "all") {
+		sizes := frame.GetSizes()
+		if len(sizes) == 0 {
+			return nil, fmt.Errorf("frame %q has no declared sizes", frame.ID)
+		}
+		var setups []model.ComparisonSetup
+		for _, sz := range sizes {
+			s := setup
+			s.Size = sz
+			setups = append(setups, s)
+		}
+		return setups, nil
+	}
+
+	return []model.ComparisonSetup{setup}, nil
+}
+
+// ParseComparisonSpec parses a CLI token of the form "frame[:size][@mod1][@mod2]..."
+// where modifiers can be a size (e.g. "L"), a fork travel/type (e.g. "120mm", "rigid"), or a sag % (e.g. "20%").
+// If the token resolves to multiple sizes (e.g. ":all"), the first setup is returned.
+func ParseComparisonSpec(
+	frames []model.FrameModel,
+	spec string,
+) (model.ComparisonSetup, error) {
+	setups, err := ParseComparisonSpecs(frames, spec)
+	if err != nil {
+		return model.ComparisonSetup{}, err
+	}
+	if len(setups) == 0 {
+		return model.ComparisonSetup{}, fmt.Errorf("no comparison setups resolved for %q", spec)
+	}
+	return setups[0], nil
 }
 
 func isLikelySizeToken(low string) bool {
@@ -389,7 +655,7 @@ func (a *App) saveComparisonState(state model.SavedComparisonState) error {
 	return os.WriteFile(a.StatePath, data, 0644)
 }
 
-func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.SavedComparisonState) (model.SavedComparisonState, error) {
+func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.SavedComparisonState) (model.SavedComparisonState, bool, error) {
 	scanner := bufio.NewScanner(a.In)
 
 	for {
@@ -429,13 +695,16 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 			}
 		}
 
-		fmt.Fprint(a.Out, "\nAction ([a]dd, [e]dit #, [d]elete #, [r]ef #, [s]addle, [c]lear, or [Enter] to run): ")
+		fmt.Fprint(a.Out, "\nAction ([a]dd, [e]dit #, [d]elete #, [r]ef #, [s]addle, [c]lear, [Enter] to run, or [q]uit): ")
 		if !scanner.Scan() {
-			break
+			return state, false, nil
 		}
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.EqualFold(line, "run") || strings.EqualFold(line, "q") {
-			break
+		if line == "" || strings.EqualFold(line, "run") {
+			return state, true, nil
+		}
+		if strings.EqualFold(line, "q") || strings.EqualFold(line, "quit") {
+			return state, false, nil
 		}
 
 		fields := strings.Fields(line)
@@ -451,18 +720,20 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 			if strings.HasPrefix(cmd, "+") {
 				specArg = strings.TrimPrefix(line, "+")
 			}
-			if specArg != "" && strings.Contains(specArg, "@") {
-				col, err := ParseComparisonSpec(frames, specArg)
+			if specArg != "" && (strings.Contains(specArg, "@") || strings.Contains(strings.ToLower(specArg), ":all")) {
+				cols, err := ParseComparisonSpecs(frames, specArg)
 				if err != nil {
 					fmt.Fprintf(a.Out, "  ! %v\n", err)
 					continue
 				}
-				frame, _, _ := ResolveFrameByToken(frames, col.FrameID)
-				if _, err := canonicalizer.ResolveFrameForkSetup(*frame, col, state.RiderProfile); err != nil {
-					fmt.Fprintf(a.Out, "  ! %v\n", err)
-					continue
+				for _, col := range cols {
+					frame, _, _ := ResolveFrameByToken(frames, col.FrameID)
+					if _, err := canonicalizer.ResolveFrameForkSetup(*frame, col, state.RiderProfile); err != nil {
+						fmt.Fprintf(a.Out, "  ! %v\n", err)
+						continue
+					}
+					state.Columns = append(state.Columns, col)
 				}
-				state.Columns = append(state.Columns, col)
 			} else {
 				col, err := a.promptColumnSetup(scanner, frames, specArg, nil, state)
 				if err != nil {
@@ -539,8 +810,6 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 			fmt.Fprintf(a.Out, "  ! Unknown action %q (use a, e, d, r, s, c, or Enter)\n", line)
 		}
 	}
-
-	return state, nil
 }
 
 func promptIndex(scanner *bufio.Scanner, out interface{ Write([]byte) (int, error) }, arg string, max int, label string) (int, error) {

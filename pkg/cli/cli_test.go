@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"bikegeo/pkg/cli"
 	"bikegeo/pkg/model"
@@ -213,8 +214,8 @@ func TestCompare_EnforcesFrameForkSagAndValidationConstraints(t *testing.T) {
 func TestCompare_StatePersistenceAndIncrementalTweaks(t *testing.T) {
 	dataDir, stateFile := setupTestEnv(t)
 
-	// 1. Issue initial comparison
-	code, _, errOut := runCLI(t, dataDir, stateFile, "", "compare", "havok:ML@110mm@20%", "fenrir:L@rigid")
+	// 1. Issue initial comparison with --save
+	code, _, errOut := runCLI(t, dataDir, stateFile, "", "compare", "--save", "havok:ML@110mm@20%", "fenrir:L@rigid")
 	if code != 0 {
 		t.Fatalf("Initial compare failed: %s", errOut)
 	}
@@ -238,8 +239,8 @@ func TestCompare_StatePersistenceAndIncrementalTweaks(t *testing.T) {
 		t.Errorf("Expected col 0 to be binary-havok (ML), got %+v", saved.Columns[0].Setup)
 	}
 
-	// 3. Incremental tweak: add fenrir@110mm@20% and remove column 2
-	code, out, errOut = runCLI(t, dataDir, stateFile, "", "compare", "+fenrir:XL@110mm@20%", "-2", "--format", "json")
+	// 3. Incremental tweak with --save: add fenrir@110mm@20% and remove column 2
+	code, out, errOut = runCLI(t, dataDir, stateFile, "", "compare", "--save", "+fenrir:XL@110mm@20%", "-2", "--format", "json")
 	if code != 0 {
 		t.Fatalf("Incremental compare failed: %s", errOut)
 	}
@@ -392,7 +393,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 
 	// 1. Default compare has scoring enabled and sorted by score descending
 	code, out, errOut := runCLI(t, dataDir, stateFile, "", "compare",
-		"hayduke:S3@120mm@30%", "havok:XL@rigid", "--transpose")
+		"hayduke:S3@120mm@30%", "havok:XL@rigid", "--transpose", "--save")
 	if code != 0 {
 		t.Fatalf("compare failed: %s", errOut)
 	}
@@ -667,7 +668,7 @@ func TestCompare_DisambiguateDuplicateFrameSize(t *testing.T) {
 
 	// 4. Targeted removal of specific fork setup via -token@fork
 	// Set initial state with 2 Fenrirs and 1 Hayduke
-	code, _, errOut = runCLI(t, dataDir, stateFile, "", "compare",
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "compare", "--save",
 		"fenrir:L@110mm@20%", "fenrir:L@120mm@20%", "hayduke:S3@110mm@20%")
 	if code != 0 {
 		t.Fatalf("initial compare failed: %s", errOut)
@@ -689,4 +690,270 @@ func TestCompare_DisambiguateDuplicateFrameSize(t *testing.T) {
 		t.Errorf("Expected Esker Hayduke (S3) to remain in comparison, got:\n%s", outRemoved)
 	}
 }
+
+func TestCompare_AllSizesExpansion(t *testing.T) {
+	dataDir, stateFile := setupTestEnv(t)
+
+	// 1. Full replacement with seven-expedition-926f:all@120mm in JSON format
+	code, out, errOut := runCLI(t, dataDir, stateFile, "", "compare", "--save", "seven-expedition-926f:all@120mm", "--format", "json")
+	if code != 0 {
+		t.Fatalf("Expected exit code 0, got %d (stderr: %s)", code, errOut)
+	}
+
+	var result struct {
+		RefIndex int                            `json:"ref_index"`
+		Columns  []model.CanonicalComparisonRow `json:"columns"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("Failed to parse JSON output: %v\nOutput: %s", err, out)
+	}
+
+	// Seven Expedition 926f has 24 sizes (12 Standard 'S', 12 Endurance 'E')
+	if len(result.Columns) != 24 {
+		t.Fatalf("Expected 24 columns for Seven Expedition :all, got %d", len(result.Columns))
+	}
+
+	// Verify all columns are Seven Expedition with 120mm fork
+	for i, col := range result.Columns {
+		if col.Setup.FrameID != "seven-expedition-926f" {
+			t.Errorf("Col %d expected FrameID 'seven-expedition-926f', got %q", i, col.Setup.FrameID)
+		}
+		if col.SetupFork.TravelMm != 120 {
+			t.Errorf("Col %d expected 120mm fork travel, got %.0fmm", i, col.SetupFork.TravelMm)
+		}
+	}
+
+	// Verify reference index corresponds to Seven Expedition's default size: "S 60cm"
+	refCol := result.Columns[result.RefIndex]
+	if refCol.Setup.Size != "S 60cm" {
+		t.Errorf("Expected reference column to be 'S 60cm' (default_size), got %q at index %d", refCol.Setup.Size, result.RefIndex)
+	}
+
+	// Verify saved state automatically enabled Transpose since 24 > 4
+	savedData, err := os.ReadFile(stateFile)
+	if err != nil {
+		t.Fatalf("Failed to read state file: %v", err)
+	}
+	var savedState model.SavedComparisonState
+	if err := json.Unmarshal(savedData, &savedState); err != nil {
+		t.Fatalf("Failed to parse saved state: %v", err)
+	}
+	if !savedState.Transpose {
+		t.Errorf("Expected savedState.Transpose to be auto-enabled (true) for 24 columns, got false")
+	}
+
+	// 2. Incremental addition: start with Fenrir L, then add El Jefe :all (4 sizes)
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "compare", "--save", "fenrir:L@110mm@20%")
+	if code != 0 {
+		t.Fatalf("compare reset failed: %s", errOut)
+	}
+	code, outAdd, errOut := runCLI(t, dataDir, stateFile, "", "compare", "+revel-el-jefe:all@120mm", "--format", "json")
+	if code != 0 {
+		t.Fatalf("compare +revel-el-jefe:all failed: %s", errOut)
+	}
+	var addResult struct {
+		RefIndex int                            `json:"ref_index"`
+		Columns  []model.CanonicalComparisonRow `json:"columns"`
+	}
+	if err := json.Unmarshal([]byte(outAdd), &addResult); err != nil {
+		t.Fatalf("Failed to parse addResult: %v", err)
+	}
+	// 1 Fenrir + 4 El Jefe sizes = 5 columns
+	if len(addResult.Columns) != 5 {
+		t.Fatalf("Expected 5 columns (1 Fenrir + 4 El Jefe), got %d", len(addResult.Columns))
+	}
+	if addResult.RefIndex != 0 || addResult.Columns[0].Setup.FrameID != "otso-fenrir-stainless" {
+		t.Errorf("Expected reference column 0 to remain Otso Fenrir, got %s at index %d",
+			addResult.Columns[addResult.RefIndex].Setup.FrameID, addResult.RefIndex)
+	}
+
+	// 3. Removal via -revel-el-jefe:all removes all 4 El Jefe columns
+	code, outRm, errOut := runCLI(t, dataDir, stateFile, "", "compare", "-revel-el-jefe:all", "--format", "json")
+	if code != 0 {
+		t.Fatalf("compare -revel-el-jefe:all failed: %s", errOut)
+	}
+	var rmResult struct {
+		Columns []model.CanonicalComparisonRow `json:"columns"`
+	}
+	if err := json.Unmarshal([]byte(outRm), &rmResult); err != nil {
+		t.Fatalf("Failed to parse rmResult: %v", err)
+	}
+	if len(rmResult.Columns) != 1 || rmResult.Columns[0].Setup.FrameID != "otso-fenrir-stainless" {
+		t.Errorf("Expected only Fenrir to remain after -revel-el-jefe:all, got %d columns", len(rmResult.Columns))
+	}
+
+	// 4. Default fork fallback when fork modifier is omitted
+	code, outDefFork, errOut := runCLI(t, dataDir, stateFile, "", "compare", "revel-el-jefe:all", "--format", "json")
+	if code != 0 {
+		t.Fatalf("compare revel-el-jefe:all (default fork) failed: %s", errOut)
+	}
+	var defForkResult struct {
+		Columns []model.CanonicalComparisonRow `json:"columns"`
+	}
+	if err := json.Unmarshal([]byte(outDefFork), &defForkResult); err != nil {
+		t.Fatalf("Failed to parse defForkResult: %v", err)
+	}
+	if len(defForkResult.Columns) != 4 {
+		t.Fatalf("Expected 4 El Jefe columns, got %d", len(defForkResult.Columns))
+	}
+	// El Jefe default fork is 120mm travel
+	for i, col := range defForkResult.Columns {
+		if col.SetupFork.TravelMm != 120 {
+			t.Errorf("Col %d expected default fork 120mm, got %.0fmm", i, col.SetupFork.TravelMm)
+		}
+	}
+}
+
+func TestCompare_HelpOutputDocumentsSemantics(t *testing.T) {
+	dataDir, stateFile := setupTestEnv(t)
+
+	testCases := [][]string{
+		{"compare", "--help"},
+		{"compare", "-h"},
+		{"compare", "help"},
+	}
+
+	for _, args := range testCases {
+		code, out, errOut := runCLI(t, dataDir, stateFile, "", args...)
+		if code != 0 {
+			t.Fatalf("Expected exit code 0 for %v, got %d (err: %s)", args, code, errOut)
+		}
+
+		requiredSections := []string{
+			"Comparison Specs:",
+			"Frame Identifier:",
+			"All sizes (\":all\" or \"@all\"):",
+			"Comparison State & Column Management:",
+			"State Persistence:",
+			"Full Replacement (Bare Specs):",
+			"Incremental Addition ('+spec'):",
+			"Incremental Removal ('-spec' or '-col_num'):",
+			"Reference Column ([REF]):",
+			"Table Layout & Auto-Transposition:",
+			"Scoring & Ranking:",
+			"-save[=bool], --save[=bool]",
+			"Examples:",
+		}
+
+		for _, sec := range requiredSections {
+			if !strings.Contains(out, sec) {
+				t.Errorf("For args %v, expected help text to contain %q, but got:\n%s", args, sec, out)
+			}
+		}
+	}
+}
+
+func TestCompare_OptionalPersistence(t *testing.T) {
+	dataDir, stateFile := setupTestEnv(t)
+
+	// 1. Non-interactive compare without --save does NOT create or modify stateFile
+	code, out, errOut := runCLI(t, dataDir, stateFile, "", "compare", "havok:L@110mm@20%", "fenrir:L@rigid")
+	if code != 0 {
+		t.Fatalf("compare failed: %s (out: %s)", errOut, out)
+	}
+	if _, err := os.Stat(stateFile); !os.IsNotExist(err) {
+		t.Errorf("Expected stateFile to NOT exist after non-save compare, but got err: %v", err)
+	}
+
+	// 2. Non-interactive compare with --save DOES create/modify stateFile
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "compare", "--save", "havok:L@110mm@20%", "fenrir:L@rigid")
+	if code != 0 {
+		t.Fatalf("compare --save failed: %s", errOut)
+	}
+	afterSaveFi, err := os.Stat(stateFile)
+	if err != nil {
+		t.Fatalf("Expected stateFile to exist after compare --save, got err: %v", err)
+	}
+	saveModTime := afterSaveFi.ModTime()
+
+	// 2b. Non-interactive compare with explicit --save=false does NOT modify stateFile
+	time.Sleep(20 * time.Millisecond)
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "compare", "--save=false", "ritchey-ultra:L@120mm@20%")
+	if code != 0 {
+		t.Fatalf("compare --save=false failed: %s", errOut)
+	}
+	afterSaveFalseFi, err := os.Stat(stateFile)
+	if err != nil {
+		t.Fatalf("Failed to stat stateFile: %v", err)
+	}
+	if !afterSaveFalseFi.ModTime().Equal(saveModTime) {
+		t.Errorf("Expected stateFile modtime to remain %v with --save=false, but got %v", saveModTime, afterSaveFalseFi.ModTime())
+	}
+
+	// 3. Subsequent non-interactive compare without --save does NOT modify stateFile
+	time.Sleep(20 * time.Millisecond)
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "compare", "esker-hayduke:S3@110mm@20%")
+	if code != 0 {
+		t.Fatalf("compare without save failed: %s", errOut)
+	}
+	afterNonSaveFi, err := os.Stat(stateFile)
+	if err != nil {
+		t.Fatalf("Failed to stat stateFile: %v", err)
+	}
+	if !afterNonSaveFi.ModTime().Equal(saveModTime) {
+		t.Errorf("Expected stateFile modtime to remain %v, but was %v", saveModTime, afterNonSaveFi.ModTime())
+	}
+
+	// 4. Interactive mode defaults to saving on [Enter]
+	time.Sleep(20 * time.Millisecond)
+	stdinEnter := strings.Join([]string{
+		"s 760",
+		"",
+	}, "\n") + "\n"
+	code, _, errOut = runCLI(t, dataDir, stateFile, stdinEnter, "compare", "-i")
+	if code != 0 {
+		t.Fatalf("interactive compare failed: %s", errOut)
+	}
+	afterInteractiveFi, err := os.Stat(stateFile)
+	if err != nil {
+		t.Fatalf("Failed to stat stateFile after interactive: %v", err)
+	}
+	if afterInteractiveFi.ModTime().Equal(saveModTime) {
+		t.Errorf("Expected interactive compare on Enter to update stateFile, but modtime didn't change!")
+	}
+
+	// 5. Interactive mode with --save=false does NOT save on [Enter]
+	interModTime := afterInteractiveFi.ModTime()
+	time.Sleep(20 * time.Millisecond)
+	stdinNoSave := strings.Join([]string{
+		"s 750",
+		"",
+	}, "\n") + "\n"
+	code, _, errOut = runCLI(t, dataDir, stateFile, stdinNoSave, "compare", "-i", "--save=false")
+	if code != 0 {
+		t.Fatalf("interactive --save=false compare failed: %s", errOut)
+	}
+	afterNoSaveInterFi, err := os.Stat(stateFile)
+	if err != nil {
+		t.Fatalf("Failed to stat stateFile: %v", err)
+	}
+	if !afterNoSaveInterFi.ModTime().Equal(interModTime) {
+		t.Errorf("Expected interactive compare with --save=false to NOT modify stateFile!")
+	}
+
+	// 6. Interactive mode with 'q' cancels and does NOT save
+	time.Sleep(20 * time.Millisecond)
+	stdinQuit := strings.Join([]string{
+		"s 740",
+		"q",
+	}, "\n") + "\n"
+	code, outQuit, errOut := runCLI(t, dataDir, stateFile, stdinQuit, "compare", "-i")
+	if code != 0 {
+		t.Fatalf("interactive quit failed: %s", errOut)
+	}
+	afterQuitFi, err := os.Stat(stateFile)
+	if err != nil {
+		t.Fatalf("Failed to stat stateFile: %v", err)
+	}
+	if !afterQuitFi.ModTime().Equal(interModTime) {
+		t.Errorf("Expected interactive quit 'q' to NOT modify stateFile!")
+	}
+	// Verify table wasn't rendered on quit
+	if strings.Contains(outQuit, "Apples-to-Apples Geometry Comparison Matrix") {
+		t.Errorf("Expected table not to be rendered on 'q' quit, got:\n%s", outQuit)
+	}
+}
+
+
+
 

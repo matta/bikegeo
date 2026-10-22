@@ -158,6 +158,12 @@ Examples:
   # Compare different frames at different sag points and fork capacities:
   bikegeo compare sendero@120mm@20% chameleon@130mm@30% fenrir@rigid
 
+  # Compare all sizes of a frame against each other with a specified fork:
+  bikegeo compare seven-expedition-926f:all@120mm
+
+  # Add all sizes of a frame to the current comparison against your reference bike:
+  bikegeo compare +seven-expedition-926f:all@120mm
+
   # Launch interactive prompt/response builder to edit or run comparison:
   bikegeo compare -i
 
