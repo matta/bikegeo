@@ -1433,7 +1433,7 @@ func (a *App) renderComparisonMatrix(
 	if scoreDetail && scoringEnabled && a.Format != FormatJSON && a.Format != FormatCSV {
 		fmt.Fprintln(a.Out)
 		detailTitle := "Scoring Breakdown"
-		detailSubtitle := "Sub-scores (-200..+100) per criterion (points lost on total score in parens). Total = weighted average (weights: Setback 15, AETT 10, Spare Vert 5, Chainstay 4, BB Drop 3, HTA 2, Front Wt 1)"
+		detailSubtitle := "Sub-scores (-200..+100) per criterion (points lost on total score in parens). Total = weighted average (weights: Setback 10, AETT 10, Spare Vert 5, Chainstay 4, BB Drop 3, HTA 2, Front Wt 1)"
 		if err := RenderOutputWithFooter(a.Out, a.Format, detailTitle, detailSubtitle, detailHeaders, detailRows, nil, footers); err != nil {
 			return err
 		}

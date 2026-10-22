@@ -109,6 +109,15 @@ type Criterion struct {
 	Describe func(v float64) string
 }
 
+// PreferredSetbackMinMm is the lower bound of the ideal setback sweet spot band (220mm).
+const PreferredSetbackMinMm = 220.0
+
+// PreferredSetbackTargetMm is the dead center target of the setback sweet spot (230mm).
+const PreferredSetbackTargetMm = 230.0
+
+// PreferredSetbackMaxMm is the upper bound of the ideal setback sweet spot band (240mm).
+const PreferredSetbackMaxMm = 240.0
+
 // PreferredSpareVertMinMm is the lower bound of the ideal spare vertical stack plateau (70mm).
 const PreferredSpareVertMinMm = 70.0
 
@@ -121,25 +130,33 @@ var DefaultCriteria = []Criterion{
 		ID:     "setback",
 		Label:  "setback",
 		Unit:   "mm",
-		Weight: 15,
+		Weight: 10,
 		Metric: func(a model.BikeFitAnalysis) float64 { return a.ActualSetback },
-		Curve: QuadraticCurve{
-			Low:   220,
-			High:  220,
-			WLow:  10,
-			WHigh: 10,
-			Floor: -200,
-			Peak:  100,
+		Curve: Curve{
+			{X: 200, Y: -200},
+			{X: 210, Y: 0},
+			{X: 220, Y: 80},
+			{X: 225, Y: 95},
+			{X: 230, Y: 100},
+			{X: 235, Y: 95},
+			{X: 240, Y: 80},
+			{X: 250, Y: 0},
+			{X: 260, Y: -200},
 		},
 		Describe: func(v float64) string {
-			d := v - 220.0
-			if math.Abs(d) < 1.5 {
+			if math.Abs(v-PreferredSetbackTargetMm) < 1.5 {
 				return fmt.Sprintf("setback %.0fmm is on target", v)
 			}
-			if d > 0 {
-				return fmt.Sprintf("setback %.0fmm is %.0fmm over 220", v, d)
+			if v >= PreferredSetbackMinMm && v <= PreferredSetbackMaxMm {
+				if v < PreferredSetbackTargetMm {
+					return fmt.Sprintf("setback %.0fmm is in 220–240mm sweet spot (%.0fmm under 230)", v, PreferredSetbackTargetMm-v)
+				}
+				return fmt.Sprintf("setback %.0fmm is in 220–240mm sweet spot (%.0fmm over 230)", v, v-PreferredSetbackTargetMm)
 			}
-			return fmt.Sprintf("setback %.0fmm is %.0fmm under 220", v, -d)
+			if v < PreferredSetbackMinMm {
+				return fmt.Sprintf("setback %.0fmm is %.0fmm short of the 220mm sweet spot", v, PreferredSetbackMinMm-v)
+			}
+			return fmt.Sprintf("setback %.0fmm is %.0fmm past the 240mm sweet spot", v, v-PreferredSetbackMaxMm)
 		},
 	},
 	{

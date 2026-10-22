@@ -400,11 +400,11 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	if !strings.Contains(out, "Score") {
 		t.Errorf("Expected 'Score' column in transposed compare, got:\n%s", out)
 	}
-	if !strings.Contains(out, "75 (#1)") {
-		t.Errorf("Expected '75 (#1)' for Hayduke S3, got:\n%s", out)
+	if !strings.Contains(out, "69 (#1)") {
+		t.Errorf("Expected '69 (#1)' for Hayduke S3, got:\n%s", out)
 	}
-	if !strings.Contains(out, "74 (#2)") {
-		t.Errorf("Expected '74 (#2)' for Havok XL, got:\n%s", out)
+	if !strings.Contains(out, "62 (#2)") {
+		t.Errorf("Expected '62 (#2)' for Havok XL, got:\n%s", out)
 	}
 	if !strings.Contains(out, "Biggest Losses vs. Ideal:") {
 		t.Errorf("Expected 'Biggest Losses vs. Ideal:' section in output, got:\n%s", out)
@@ -453,8 +453,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	if !strings.Contains(outDetail, "63 (-5)") {
 		t.Errorf("Expected '63 (-5)' for Hayduke Spare Vert in score detail table, got:\n%s", outDetail)
 	}
-	if !strings.Contains(outDetail, "75 (-25)") {
-		t.Errorf("Expected '75 (-25)' for Hayduke Total in score detail table, got:\n%s", outDetail)
+	if !strings.Contains(outDetail, "69 (-31)") {
+		t.Errorf("Expected '69 (-31)' for Hayduke Total in score detail table, got:\n%s", outDetail)
 	}
 
 	// 4. JSON format output includes per-column score and top-level explanations
