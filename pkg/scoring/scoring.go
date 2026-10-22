@@ -118,6 +118,31 @@ const PreferredSpareVertMaxMm = 100.0
 // DefaultCriteria returns the standard hard-coded scoring criteria agreed upon for bikegeo compare.
 var DefaultCriteria = []Criterion{
 	{
+		ID:     "setback",
+		Label:  "setback",
+		Unit:   "mm",
+		Weight: 15,
+		Metric: func(a model.BikeFitAnalysis) float64 { return a.ActualSetback },
+		Curve: QuadraticCurve{
+			Low:   220,
+			High:  220,
+			WLow:  10,
+			WHigh: 10,
+			Floor: -200,
+			Peak:  100,
+		},
+		Describe: func(v float64) string {
+			d := v - 220.0
+			if math.Abs(d) < 1.5 {
+				return fmt.Sprintf("setback %.0fmm is on target", v)
+			}
+			if d > 0 {
+				return fmt.Sprintf("setback %.0fmm is %.0fmm over 220", v, d)
+			}
+			return fmt.Sprintf("setback %.0fmm is %.0fmm under 220", v, -d)
+		},
+	},
+	{
 		ID:     "aett",
 		Label:  "AETT",
 		Unit:   "mm",
@@ -142,31 +167,6 @@ var DefaultCriteria = []Criterion{
 				return fmt.Sprintf("AETT %.0fmm is in the 625–636 sweet spot", v)
 			}
 			return fmt.Sprintf("AETT %.0fmm is %.0fmm past the 636 sweet spot", v, v-636)
-		},
-	},
-	{
-		ID:     "setback",
-		Label:  "setback",
-		Unit:   "mm",
-		Weight: 6,
-		Metric: func(a model.BikeFitAnalysis) float64 { return a.ActualSetback },
-		Curve: QuadraticCurve{
-			Low:   220,
-			High:  220,
-			WLow:  15,
-			WHigh: 15,
-			Floor: -100,
-			Peak:  100,
-		},
-		Describe: func(v float64) string {
-			d := v - 220.0
-			if math.Abs(d) < 1.5 {
-				return fmt.Sprintf("setback %.0fmm is on target", v)
-			}
-			if d > 0 {
-				return fmt.Sprintf("setback %.0fmm is %.0fmm over 220", v, d)
-			}
-			return fmt.Sprintf("setback %.0fmm is %.0fmm under 220", v, -d)
 		},
 	},
 	{

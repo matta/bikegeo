@@ -832,7 +832,7 @@ func (a *App) renderComparisonMatrix(
 	var detailHeaders []string
 	var detailRows [][]string
 	if scoreDetail && scoringEnabled {
-		detailHeaders = []string{"Rank", "#", "Frame", "AETT", "Setback", "Spare Vert", "Chainstay", "BB Drop", "HTA", "Front Wt", "Total"}
+		detailHeaders = []string{"Rank", "#", "Frame", "Setback", "AETT", "Spare Vert", "Chainstay", "BB Drop", "HTA", "Front Wt", "Total"}
 		for _, item := range scoredItems {
 			subScores := make(map[string]float64)
 			pointsLost := make(map[string]float64)
@@ -860,8 +860,8 @@ func (a *App) renderComparisonMatrix(
 				fmt.Sprintf("%d", item.score.Rank),
 				fmt.Sprintf("%d", item.origIdx+1),
 				fmt.Sprintf("%s %s (%s)", item.row.Bike.Manufacturer, item.row.Bike.Model, item.row.Bike.Size),
-				formatSubScoreCell("aett"),
 				formatSubScoreCell("setback"),
+				formatSubScoreCell("aett"),
 				formatSubScoreCell("sparevert"),
 				formatSubScoreCell("chainstay"),
 				formatSubScoreCell("bbdrop"),
@@ -1143,7 +1143,7 @@ func (a *App) renderComparisonMatrix(
 	if scoreDetail && scoringEnabled && a.Format != FormatJSON && a.Format != FormatCSV {
 		fmt.Fprintln(a.Out)
 		detailTitle := "Scoring Breakdown"
-		detailSubtitle := "Sub-scores (-200..+100) per criterion (points lost on total score in parens). Total = weighted average (weights: AETT 10, Setback 6, Spare Vert 5, Chainstay 4, BB Drop 3, HTA 2, Front Wt 1)"
+		detailSubtitle := "Sub-scores (-200..+100) per criterion (points lost on total score in parens). Total = weighted average (weights: Setback 15, AETT 10, Spare Vert 5, Chainstay 4, BB Drop 3, HTA 2, Front Wt 1)"
 		if err := RenderOutputWithFooter(a.Out, a.Format, detailTitle, detailSubtitle, detailHeaders, detailRows, nil, footers); err != nil {
 			return err
 		}

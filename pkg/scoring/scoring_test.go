@@ -121,20 +121,26 @@ func TestDefaultCriteriaCurves(t *testing.T) {
 
 	// 2. Setback
 	sb := critMap["setback"].Curve
-	if sb.Eval(180) != -100 {
-		t.Errorf("Setback(180) expected -100, got %f", sb.Eval(180))
+	if sb.Eval(180) != -200 {
+		t.Errorf("Setback(180) expected -200, got %f", sb.Eval(180))
 	}
-	if math.Abs(sb.Eval(205)-0) > 0.001 {
-		t.Errorf("Setback(205) expected 0, got %f", sb.Eval(205))
+	if math.Abs(sb.Eval(210)-0) > 0.001 {
+		t.Errorf("Setback(210) expected 0, got %f", sb.Eval(210))
+	}
+	if sb.Eval(215) != 75 {
+		t.Errorf("Setback(215) expected 75, got %f", sb.Eval(215))
 	}
 	if sb.Eval(220) != 100 {
 		t.Errorf("Setback(220) expected 100, got %f", sb.Eval(220))
 	}
-	if math.Abs(sb.Eval(235)-0) > 0.001 {
-		t.Errorf("Setback(235) expected 0, got %f", sb.Eval(235))
+	if sb.Eval(225) != 75 {
+		t.Errorf("Setback(225) expected 75, got %f", sb.Eval(225))
 	}
-	if sb.Eval(250) != -100 {
-		t.Errorf("Setback(250) expected -100, got %f", sb.Eval(250))
+	if math.Abs(sb.Eval(230)-0) > 0.001 {
+		t.Errorf("Setback(230) expected 0, got %f", sb.Eval(230))
+	}
+	if sb.Eval(250) != -200 {
+		t.Errorf("Setback(250) expected -200, got %f", sb.Eval(250))
 	}
 
 	// 3. Spare Vert: sweet spot [70, 100], WLow=15, WHigh=35, Floor=-100
@@ -244,21 +250,8 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		a        model.BikeFitAnalysis
 	}{
 		{
-			name:     "Esker Hayduke (S3)",
-			expected: 85,
-			a: model.BikeFitAnalysis{
-				Aett:               634.9,
-				ActualSetback:      213.4,
-				SpareVerticalStack: 121.2,
-				ActiveChainstay:    454,
-				ActiveBbDrop:       65.9,
-				ActiveHta:          67.62,
-				WeightDistFrontPct: 35.4,
-			},
-		},
-		{
 			name:     "Ritchey Ultra (XL)",
-			expected: 80,
+			expected: 84,
 			a: model.BikeFitAnalysis{
 				Aett:               633.3,
 				ActualSetback:      219.8,
@@ -270,8 +263,21 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 			},
 		},
 		{
+			name:     "Esker Hayduke (S3)",
+			expected: 75,
+			a: model.BikeFitAnalysis{
+				Aett:               634.9,
+				ActualSetback:      213.4,
+				SpareVerticalStack: 121.2,
+				ActiveChainstay:    454,
+				ActiveBbDrop:       65.9,
+				ActiveHta:          67.62,
+				WeightDistFrontPct: 35.4,
+			},
+		},
+		{
 			name:     "Binary Havok (XL)",
-			expected: 72,
+			expected: 74,
 			a: model.BikeFitAnalysis{
 				Aett:               592.8,
 				ActualSetback:      216.3,
@@ -283,8 +289,21 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 			},
 		},
 		{
+			name:     "Esker Hayduke (S4)",
+			expected: 31,
+			a: model.BikeFitAnalysis{
+				Aett:               671.8,
+				ActualSetback:      215.5,
+				SpareVerticalStack: 104.2,
+				ActiveChainstay:    454,
+				ActiveBbDrop:       64.7,
+				ActiveHta:          67.46,
+				WeightDistFrontPct: 34.3,
+			},
+		},
+		{
 			name:     "Otso Fenrir (XL)",
-			expected: 69,
+			expected: 16,
 			a: model.BikeFitAnalysis{
 				Aett:               604.3,
 				ActualSetback:      206,
@@ -297,7 +316,7 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		},
 		{
 			name:     "Revel El Jefe (L)",
-			expected: 50,
+			expected: -5,
 			a: model.BikeFitAnalysis{
 				Aett:               619.7,
 				ActualSetback:      205.3,
@@ -309,21 +328,8 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 			},
 		},
 		{
-			name:     "Revel El Jefe (XL)",
-			expected: 46,
-			a: model.BikeFitAnalysis{
-				Aett:               649.1,
-				ActualSetback:      203.5,
-				SpareVerticalStack: 125,
-				ActiveChainstay:    435,
-				ActiveBbDrop:       67.1,
-				ActiveHta:          67.38,
-				WeightDistFrontPct: 33.5,
-			},
-		},
-		{
 			name:     "Otso Fenrir (L)",
-			expected: 45,
+			expected: -6,
 			a: model.BikeFitAnalysis{
 				Aett:               584,
 				ActualSetback:      205.7,
@@ -335,8 +341,21 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 			},
 		},
 		{
+			name:     "Revel El Jefe (XL)",
+			expected: -26,
+			a: model.BikeFitAnalysis{
+				Aett:               649.1,
+				ActualSetback:      203.5,
+				SpareVerticalStack: 125,
+				ActiveChainstay:    435,
+				ActiveBbDrop:       67.1,
+				ActiveHta:          67.38,
+				WeightDistFrontPct: 33.5,
+			},
+		},
+		{
 			name:     "Sour Pasta Party (L)",
-			expected: 40,
+			expected: -36,
 			a: model.BikeFitAnalysis{
 				Aett:               621.2,
 				ActualSetback:      202.9,
@@ -345,19 +364,6 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 				ActiveBbDrop:       71.9,
 				ActiveHta:          67.52,
 				WeightDistFrontPct: 34.4,
-			},
-		},
-		{
-			name:     "Esker Hayduke (S4)",
-			expected: 19,
-			a: model.BikeFitAnalysis{
-				Aett:               671.8,
-				ActualSetback:      215.5,
-				SpareVerticalStack: 104.2,
-				ActiveChainstay:    454,
-				ActiveBbDrop:       64.7,
-				ActiveHta:          67.46,
-				WeightDistFrontPct: 34.3,
 			},
 		},
 	}
@@ -416,8 +422,8 @@ func TestExplain_GeneratesReadableOutput(t *testing.T) {
 		t.Fatalf("Expected 1 head-to-head entry, got %d", len(expl.HeadToHead))
 	}
 
-	// Verify head-to-head mentions Hayduke beating Ritchey by 5 (rounded 85 vs 80)
-	if !contains(expl.HeadToHead[0], "Esker Hayduke (S3) (85) > Ritchey Ultra (XL) (80) by 5") {
+	// Verify head-to-head mentions Ritchey beating Hayduke by 10 (rounded 85 vs 75)
+	if !contains(expl.HeadToHead[0], "Ritchey Ultra (XL) (85) > Esker Hayduke (S3) (75) by 10") {
 		t.Errorf("Unexpected H2H line: %s", expl.HeadToHead[0])
 	}
 }
@@ -442,9 +448,14 @@ func TestScore_PointsLost(t *testing.T) {
 				t.Errorf("Expected AETT points lost 0, got %f", c.PointsLost)
 			}
 		}
+		if c.ID == "setback" {
+			if c.PointsLost != 0 {
+				t.Errorf("Expected Setback points lost 0, got %f", c.PointsLost)
+			}
+		}
 		if c.ID == "sparevert" {
-			if math.Round(c.PointsLost) != 5 {
-				t.Errorf("Expected Spare Vert points lost ~5, got %f", c.PointsLost)
+			if math.Round(c.PointsLost) != 4 {
+				t.Errorf("Expected Spare Vert points lost ~4, got %f", c.PointsLost)
 			}
 		}
 	}

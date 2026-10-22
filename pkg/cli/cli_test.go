@@ -399,11 +399,11 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	if !strings.Contains(out, "Score") {
 		t.Errorf("Expected 'Score' column in transposed compare, got:\n%s", out)
 	}
-	if !strings.Contains(out, "85 (#1)") {
-		t.Errorf("Expected '85 (#1)' for Hayduke S3, got:\n%s", out)
+	if !strings.Contains(out, "75 (#1)") {
+		t.Errorf("Expected '75 (#1)' for Hayduke S3, got:\n%s", out)
 	}
-	if !strings.Contains(out, "72 (#2)") {
-		t.Errorf("Expected '72 (#2)' for Havok XL, got:\n%s", out)
+	if !strings.Contains(out, "74 (#2)") {
+		t.Errorf("Expected '74 (#2)' for Havok XL, got:\n%s", out)
 	}
 	if !strings.Contains(out, "Biggest Losses vs. Ideal:") {
 		t.Errorf("Expected 'Biggest Losses vs. Ideal:' section in output, got:\n%s", out)
@@ -449,11 +449,11 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	if !strings.Contains(outDetail, "Spare Vert") || !strings.Contains(outDetail, "Chainstay") {
 		t.Errorf("Expected criteria headers in score detail table, got:\n%s", outDetail)
 	}
-	if !strings.Contains(outDetail, "63 (-6)") {
-		t.Errorf("Expected '63 (-6)' for Hayduke Spare Vert in score detail table, got:\n%s", outDetail)
+	if !strings.Contains(outDetail, "63 (-5)") {
+		t.Errorf("Expected '63 (-5)' for Hayduke Spare Vert in score detail table, got:\n%s", outDetail)
 	}
-	if !strings.Contains(outDetail, "85 (-15)") {
-		t.Errorf("Expected '85 (-15)' for Hayduke Total in score detail table, got:\n%s", outDetail)
+	if !strings.Contains(outDetail, "75 (-25)") {
+		t.Errorf("Expected '75 (-25)' for Hayduke Total in score detail table, got:\n%s", outDetail)
 	}
 
 	// 4. JSON format output includes per-column score and top-level explanations
@@ -496,13 +496,13 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	}
 	var foundSpareVertLost bool
 	for _, crit := range jsonRes.Columns[0].Score.Criteria {
-		if crit.ID == "sparevert" && math.Round(crit.PointsLost) == 6 {
+		if crit.ID == "sparevert" && math.Round(crit.PointsLost) == 5 {
 			foundSpareVertLost = true
 			break
 		}
 	}
 	if !foundSpareVertLost {
-		t.Errorf("Expected sparevert PointsLost to be ~6 in JSON output, got: %+v", jsonRes.Columns[0].Score.Criteria)
+		t.Errorf("Expected sparevert PointsLost to be ~5 in JSON output, got: %+v", jsonRes.Columns[0].Score.Criteria)
 	}
 	if len(jsonRes.Explanations.Losses) != 2 {
 		t.Errorf("Expected 2 loss explanations, got %d", len(jsonRes.Explanations.Losses))
