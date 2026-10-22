@@ -106,6 +106,23 @@ func (a *App) runCompare(args []string) int {
 							return 1
 						}
 						state.Columns = append(state.Columns[:colIdx], state.Columns[colIdx+1:]...)
+					} else if strings.Contains(rmToken, "@") {
+						targetCol, err := ParseComparisonSpec(frames, rmToken)
+						if err != nil {
+							fmt.Fprintf(a.Err, "Error: %v\n", err)
+							return 1
+						}
+						var kept []model.ComparisonSetup
+						for _, c := range state.Columns {
+							if c.FrameID == targetCol.FrameID &&
+								(targetCol.Size == "" || strings.EqualFold(c.Size, targetCol.Size)) &&
+								(targetCol.Fork == "" || forksMatch(c.Fork, targetCol.Fork)) &&
+								(targetCol.SagPercent == nil || (c.SagPercent != nil && math.Abs(*c.SagPercent-*targetCol.SagPercent) < 0.1)) {
+								continue
+							}
+							kept = append(kept, c)
+						}
+						state.Columns = kept
 					} else {
 						f, sz, err := ResolveFrameByToken(frames, rmToken)
 						if err != nil {
@@ -710,9 +727,10 @@ func formatDeltaAngle(delta float64, unit string) string {
 }
 
 type scoredRowItem struct {
-	origIdx int
-	row     model.CanonicalComparisonRow
-	score   scoring.Result
+	origIdx     int
+	row         model.CanonicalComparisonRow
+	score       scoring.Result
+	displayName string
 }
 
 type ScoredColumnJSON struct {
@@ -757,18 +775,21 @@ func (a *App) renderComparisonMatrix(
 		scoreResults = scoring.ScoreAll(analyses, scoring.DefaultCriteria)
 	}
 
+	displayNames := disambiguateFrameNames(rows)
+
 	scoredItems := make([]scoredRowItem, len(rows))
 	scoredFramesForExplain := make([]scoring.ScoredFrame, len(rows))
 	for i, r := range rows {
-		name := fmt.Sprintf("%s %s (%s)", r.Bike.Manufacturer, r.Bike.Model, r.Bike.Size)
+		name := displayNames[i]
 		res := scoring.Result{}
 		if scoringEnabled {
 			res = scoreResults[i]
 		}
 		scoredItems[i] = scoredRowItem{
-			origIdx: i,
-			row:     r,
-			score:   res,
+			origIdx:     i,
+			row:         r,
+			score:       res,
+			displayName: name,
 		}
 		scoredFramesForExplain[i] = scoring.ScoredFrame{
 			OriginalIndex: i,
@@ -801,9 +822,9 @@ func (a *App) renderComparisonMatrix(
 
 	title := "Apples-to-Apples Geometry Comparison Matrix"
 	subtitle := fmt.Sprintf(
-		"Saddle Height: %.0fmm | Modeled Back Angle: %.1f° | Reference: [%d] %s %s (%s) (*max stay position; Δ in parens)",
+		"Saddle Height: %.0fmm | Modeled Back Angle: %.1f° | Reference: [%d] %s (*max stay position; Δ in parens)",
 		state.SaddleHeightMm, refRow.Canonical.BackAngleDeg, refIdx+1,
-		refRow.Bike.Manufacturer, refRow.Bike.Model, refRow.Bike.Size,
+		displayNames[refIdx],
 	)
 
 	jsonCols := make([]ScoredColumnJSON, len(rows))
@@ -859,7 +880,7 @@ func (a *App) renderComparisonMatrix(
 			detailRows = append(detailRows, []string{
 				fmt.Sprintf("%d", item.score.Rank),
 				fmt.Sprintf("%d", item.origIdx+1),
-				fmt.Sprintf("%s %s (%s)", item.row.Bike.Manufacturer, item.row.Bike.Model, item.row.Bike.Size),
+				item.displayName,
 				formatSubScoreCell("setback"),
 				formatSubScoreCell("aett"),
 				formatSubScoreCell("sparevert"),
@@ -949,7 +970,7 @@ func (a *App) renderComparisonMatrix(
 
 			rowCells := []string{
 				idxStr,
-				fmt.Sprintf("%s %s (%s)", r.Bike.Manufacturer, r.Bike.Model, r.Bike.Size),
+				item.displayName,
 			}
 			if scoringEnabled {
 				scoreStr := fmt.Sprintf("%.0f (#%d)", math.Round(item.score.Total), item.score.Rank)
@@ -1150,5 +1171,87 @@ func (a *App) renderComparisonMatrix(
 	}
 
 	return nil
+}
+
+func forksMatch(a, b string) bool {
+	if strings.EqualFold(a, b) {
+		return true
+	}
+	normA := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(a)), "mm")
+	normB := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(b)), "mm")
+	return normA == normB
+}
+
+// disambiguateFrameNames returns a slice of display names corresponding to rows.
+// When a (FrameID, Size) appears multiple times in the comparison, each instance
+// is disambiguated with concise fork/sag modifiers (or fallback column index if identical).
+func disambiguateFrameNames(rows []model.CanonicalComparisonRow) []string {
+	names := make([]string, len(rows))
+	if len(rows) == 0 {
+		return names
+	}
+
+	groups := make(map[string][]int)
+	for i, r := range rows {
+		key := fmt.Sprintf("%s|%s", r.Setup.FrameID, strings.ToLower(r.Setup.Size))
+		groups[key] = append(groups[key], i)
+	}
+
+	for _, indices := range groups {
+		baseName := fmt.Sprintf("%s %s (%s)", rows[indices[0]].Bike.Manufacturer, rows[indices[0]].Bike.Model, rows[indices[0]].Setup.Size)
+		if len(indices) == 1 {
+			names[indices[0]] = baseName
+			continue
+		}
+
+		// Count fork types (e.g. "110mm", "rigid") within this duplicate group
+		forkTypeCounts := make(map[string]int)
+		for _, idx := range indices {
+			ft := getForkTypeLabel(rows[idx])
+			forkTypeCounts[ft]++
+		}
+
+		// Count fork + sag within this duplicate group in case identical setups exist
+		forkSagCounts := make(map[string]int)
+		for _, idx := range indices {
+			fs := getForkSagLabel(rows[idx])
+			forkSagCounts[fs]++
+		}
+
+		for _, idx := range indices {
+			r := rows[idx]
+			ft := getForkTypeLabel(r)
+			fs := getForkSagLabel(r)
+
+			var suffix string
+			if forkTypeCounts[ft] == 1 {
+				suffix = fmt.Sprintf("@ %s", ft)
+			} else {
+				suffix = fmt.Sprintf("@ %s", fs)
+			}
+
+			if forkSagCounts[fs] > 1 {
+				suffix = fmt.Sprintf("%s (#%d)", suffix, idx+1)
+			}
+
+			names[idx] = fmt.Sprintf("%s %s", baseName, suffix)
+		}
+	}
+
+	return names
+}
+
+func getForkTypeLabel(r model.CanonicalComparisonRow) string {
+	if r.SetupFork.TravelMm <= 0 || strings.EqualFold(r.Setup.Fork, "rigid") {
+		return "rigid"
+	}
+	return fmt.Sprintf("%.0fmm", r.SetupFork.TravelMm)
+}
+
+func getForkSagLabel(r model.CanonicalComparisonRow) string {
+	if r.SetupFork.TravelMm <= 0 || strings.EqualFold(r.Setup.Fork, "rigid") {
+		return "rigid"
+	}
+	return fmt.Sprintf("%.0fmm @ %.0f%%", r.SetupFork.TravelMm, r.SagPercent)
 }
 

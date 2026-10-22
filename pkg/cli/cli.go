@@ -204,7 +204,10 @@ func reorderFlagsForStdlib(fs *flag.FlagSet, args []string, boolFlags map[string
 		}
 	}
 
-	return append(flags, pos...)
+	if len(pos) > 0 {
+		return append(append(flags, "--"), pos...)
+	}
+	return flags
 }
 
 // ResolveFrameByToken finds a FrameModel by exact ID, legacy size-suffixed ID, or unique substring match.

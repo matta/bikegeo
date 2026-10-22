@@ -610,3 +610,83 @@ func TestCompare_TumbleweedSunlinerFixedForkConstraints(t *testing.T) {
 	}
 }
 
+func TestCompare_DisambiguateDuplicateFrameSize(t *testing.T) {
+	dataDir, stateFile := setupTestEnv(t)
+
+	// 1. Conditional disambiguation with different fork travels
+	code, out, errOut := runCLI(t, dataDir, stateFile, "", "compare",
+		"fenrir:L@110mm@20%", "fenrir:L@120mm@20%", "hayduke:S3@110mm@20%", "--transpose", "--score-detail")
+	if code != 0 {
+		t.Fatalf("compare failed (code %d): %s", code, errOut)
+	}
+
+	if !strings.Contains(out, "Otso Fenrir (L) @ 110mm") {
+		t.Errorf("Expected 'Otso Fenrir (L) @ 110mm' in disambiguated compare output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Otso Fenrir (L) @ 120mm") {
+		t.Errorf("Expected 'Otso Fenrir (L) @ 120mm' in disambiguated compare output, got:\n%s", out)
+	}
+	// Verify singleton is NOT suffixed
+	if !strings.Contains(out, "Esker Hayduke (S3)") || strings.Contains(out, "Esker Hayduke (S3) @") {
+		t.Errorf("Expected singleton 'Esker Hayduke (S3)' without fork suffix, got:\n%s", out)
+	}
+	// Verify subtitle reference
+	if !strings.Contains(out, "Reference: [1] Otso Fenrir (L) @ 110mm") {
+		t.Errorf("Expected reference subtitle to include disambiguated name, got:\n%s", out)
+	}
+	// Verify score detail table contains disambiguated names
+	if !strings.Contains(out, "Scoring Breakdown") {
+		t.Errorf("Expected 'Scoring Breakdown' section, got:\n%s", out)
+	}
+
+	// 2. Disambiguation with same travel but different sag
+	code, outSag, errOut := runCLI(t, dataDir, stateFile, "", "compare",
+		"fenrir:L@110mm@20%", "fenrir:L@110mm@30%", "--transpose")
+	if code != 0 {
+		t.Fatalf("compare same travel different sag failed: %s", errOut)
+	}
+	if !strings.Contains(outSag, "Otso Fenrir (L) @ 110mm @ 20%") {
+		t.Errorf("Expected 'Otso Fenrir (L) @ 110mm @ 20%%' in output, got:\n%s", outSag)
+	}
+	if !strings.Contains(outSag, "Otso Fenrir (L) @ 110mm @ 30%") {
+		t.Errorf("Expected 'Otso Fenrir (L) @ 110mm @ 30%%' in output, got:\n%s", outSag)
+	}
+
+	// 3. Fallback when setups are completely identical
+	code, outIdentical, errOut := runCLI(t, dataDir, stateFile, "", "compare",
+		"fenrir:L@110mm@20%", "fenrir:L@110mm@20%", "--transpose")
+	if code != 0 {
+		t.Fatalf("compare identical setups failed: %s", errOut)
+	}
+	if !strings.Contains(outIdentical, "Otso Fenrir (L) @ 110mm @ 20% (#1)") {
+		t.Errorf("Expected fallback (#1) for first identical setup, got:\n%s", outIdentical)
+	}
+	if !strings.Contains(outIdentical, "Otso Fenrir (L) @ 110mm @ 20% (#2)") {
+		t.Errorf("Expected fallback (#2) for second identical setup, got:\n%s", outIdentical)
+	}
+
+	// 4. Targeted removal of specific fork setup via -token@fork
+	// Set initial state with 2 Fenrirs and 1 Hayduke
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "compare",
+		"fenrir:L@110mm@20%", "fenrir:L@120mm@20%", "hayduke:S3@110mm@20%")
+	if code != 0 {
+		t.Fatalf("initial compare failed: %s", errOut)
+	}
+	// Remove only the 110mm Fenrir
+	code, outRemoved, errOut := runCLI(t, dataDir, stateFile, "", "compare",
+		"-fenrir:L@110mm", "--transpose")
+	if code != 0 {
+		t.Fatalf("targeted fork removal failed: %s", errOut)
+	}
+	if strings.Contains(outRemoved, "Otso Fenrir (L) @ 110mm") {
+		t.Errorf("Expected 110mm Fenrir to be removed, got:\n%s", outRemoved)
+	}
+	// Since Fenrir L now appears only once, it should NOT have the @ 120mm suffix!
+	if !strings.Contains(outRemoved, "Otso Fenrir (L)") || strings.Contains(outRemoved, "Otso Fenrir (L) @ 120mm") {
+		t.Errorf("Expected remaining Fenrir to revert to clean 'Otso Fenrir (L)' without suffix, got:\n%s", outRemoved)
+	}
+	if !strings.Contains(outRemoved, "Esker Hayduke (S3)") {
+		t.Errorf("Expected Esker Hayduke (S3) to remain in comparison, got:\n%s", outRemoved)
+	}
+}
+
