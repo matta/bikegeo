@@ -30,7 +30,7 @@ When adding or editing frame files in `data/bikes/*.json`:
    - Specify `headset_cup_type` (e.g. `EC44`, `ZS44`, `IS52`) and the explicit CAD spacer `geo_headset_spacer_mm` (typically 10-12mm for external cups, 0mm for integrated).
    - Declare `supported_travel_mm` (slice of mm), `rigid_a2c_mm` (if supported), `default_fork`, and `chainstay_range_mm` (for adjustable/rocker dropouts).
    - Ensure baseline configuration specifies published fork specs (`travel_mm`, `a2c`, `rake`, `standard_sag_percent`).
-   - If published geometry rounding exceeds default $\pm 1.0\text{mm}$, declare appropriate `geo_slop_mm` (e.g. `a2c`, `wheelbase`).
+   - If published geometry rounding exceeds default ±1.0 mm, declare appropriate `geo_slop_mm` (e.g. `a2c`, `wheelbase`).
 2. **Synchronize Storage Test Counts**:
    - `pkg/storage/storage_test.go` (`TestLoadRealBikesDataDir`) enforces exact counts for real frames and materialized bikes. Update these assertions when adding or removing frames.
 3. **Add Validation Unit Tests**:
@@ -47,3 +47,10 @@ When adding or editing frame files in `data/bikes/*.json`:
   ```bash
   go vet ./... && go test -v ./...
   ```
+
+## Output Formatting & Markdown Guidelines
+
+- **No LaTeX / MathJax**: The Antigravity IDE chat UI does not render LaTeX or MathJax math syntax (e.g., `$...$`, `$$...$$`, `\text{...}`). Never emit raw LaTeX math markup.
+- **Plain Text / Standard Markdown**: Format mathematical relationships, formulas, and dimensions using plain text or inline code blocks (e.g., `472 mm (Fork A2C) + 10 mm (CAD Spacer) = 482 mm (Structural A2C)` or `Stack = BB_Drop - Rake * cos(HTA) + (A2C + Spacer + HTL) * sin(HTA)`).
+- **Unicode Symbols**: Use standard Unicode characters for mathematical symbols and units (e.g., `±1.0 mm`, `70.0°`).
+
