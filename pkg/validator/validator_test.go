@@ -1005,4 +1005,41 @@ func TestValidateSevenExpedition926f(t *testing.T) {
 	}
 }
 
+func TestValidateSurlyECR(t *testing.T) {
+	data, err := os.ReadFile("../../data/bikes/surly-ecr.json")
+	if err != nil {
+		t.Fatalf("Failed to read surly-ecr.json: %v", err)
+	}
+	var ecr model.FrameModel
+	if err := json.Unmarshal(data, &ecr); err != nil {
+		t.Fatalf("Failed to parse surly-ecr.json: %v", err)
+	}
+
+	report := validator.ValidateFrame(ecr)
+	if !report.IsValid {
+		t.Fatalf("Expected Surly ECR to pass validation: %s", report.ErrorSummary())
+	}
+	if len(ecr.Sizes) != 3 {
+		t.Errorf("Expected 3 sizes (M, L, XL), got %d", len(ecr.Sizes))
+	}
+	if !ecr.SupportsRigid() {
+		t.Errorf("Expected Surly ECR to support rigid fork (468mm)")
+	}
+	if ecr.GetRigidA2c() != 468.0 {
+		t.Errorf("Expected Surly ECR rigid A2C to be 468mm, got %.1f", ecr.GetRigidA2c())
+	}
+	if !ecr.IsFixedRigidOnly() {
+		t.Errorf("Expected Surly ECR to be fixed rigid only")
+	}
+	if !ecr.IsFixedFork() {
+		t.Errorf("Expected Surly ECR to be fixed fork")
+	}
+	if ecr.SupportsTravel(100) || ecr.SupportsTravel(120) {
+		t.Errorf("Expected Surly ECR to reject suspension travel forks")
+	}
+	if ecr.HeadsetCupType != model.CupEC34 {
+		t.Errorf("Expected Surly ECR to have EC34 headset cup, got %s", ecr.HeadsetCupType)
+	}
+}
+
 

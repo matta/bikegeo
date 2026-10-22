@@ -60,7 +60,7 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 			Field:    "headset_cup_type",
 			Severity: model.SeverityError,
 			Title:    "Missing Essential Variable: Headset Cup Type",
-			Message:  "headset_cup_type (EC44, ZS44, ZS56, IS42, or IS52) is required.",
+			Message:  "headset_cup_type (EC34, EC44, ZS44, ZS56, IS42, or IS52) is required.",
 		})
 	} else if !bike.HeadsetCupType.IsValid() {
 		issues = append(issues, model.ValidationIssue{
@@ -68,8 +68,8 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 			Field:    "headset_cup_type",
 			Severity: model.SeverityError,
 			Title:    "Unrecognized Headset Cup Type",
-			Message:  fmt.Sprintf("Headset cup type %q is not a recognized SHIS standard (EC44, ZS44, ZS56, IS42, IS52).", bike.HeadsetCupType),
-			Expected: "EC44, ZS44, ZS56, IS42, or IS52",
+			Message:  fmt.Sprintf("Headset cup type %q is not a recognized SHIS standard (EC34, EC44, ZS44, ZS56, IS42, IS52).", bike.HeadsetCupType),
+			Expected: "EC34, EC44, ZS44, ZS56, IS42, or IS52",
 			Actual:   string(bike.HeadsetCupType),
 		})
 	}
@@ -440,7 +440,7 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 			Field:    "headset_cup_type",
 			Severity: model.SeverityError,
 			Title:    "Missing Headset Cup Type",
-			Message:  "Frame must specify headset_cup_type (EC44, ZS44, ZS56, IS42, or IS52).",
+			Message:  "Frame must specify headset_cup_type (EC34, EC44, ZS44, ZS56, IS42, or IS52).",
 		})
 	} else if !frame.HeadsetCupType.IsValid() {
 		report.IsValid = false
@@ -449,7 +449,7 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 			Field:    "headset_cup_type",
 			Severity: model.SeverityError,
 			Title:    "Unrecognized Headset Cup Type",
-			Message:  fmt.Sprintf("Headset cup type %q is not a recognized SHIS standard (EC44, ZS44, ZS56, IS42, IS52).", frame.HeadsetCupType),
+			Message:  fmt.Sprintf("Headset cup type %q is not a recognized SHIS standard (EC34, EC44, ZS44, ZS56, IS42, IS52).", frame.HeadsetCupType),
 		})
 	}
 

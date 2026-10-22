@@ -15,6 +15,7 @@ func Float64Ptr(v float64) *float64 {
 type HeadsetCupType string
 
 const (
+	CupEC34 HeadsetCupType = "EC34"
 	CupEC44 HeadsetCupType = "EC44"
 	CupZS44 HeadsetCupType = "ZS44"
 	CupZS56 HeadsetCupType = "ZS56"
@@ -22,10 +23,10 @@ const (
 	CupIS52 HeadsetCupType = "IS52"
 )
 
-// CupStackMm returns the physical lower headset cup stack height in mm for a 1.5" tapered fork steerer.
+// CupStackMm returns the physical lower headset cup stack height in mm for a 1-1/8" straight or 1.5" tapered fork steerer.
 func (c HeadsetCupType) CupStackMm() float64 {
 	switch c {
-	case CupEC44:
+	case CupEC34, CupEC44:
 		return 12.0
 	case CupZS44, CupZS56:
 		return 2.0
@@ -39,7 +40,7 @@ func (c HeadsetCupType) CupStackMm() float64 {
 // ExpectedSpacerRangeMm returns the typical physical range [min, max] in mm for this lower headset cup standard.
 func (c HeadsetCupType) ExpectedSpacerRangeMm() (float64, float64) {
 	switch c {
-	case CupEC44:
+	case CupEC34, CupEC44:
 		return 10.0, 14.0
 	case CupZS44, CupZS56:
 		return 0.0, 4.0
@@ -53,7 +54,7 @@ func (c HeadsetCupType) ExpectedSpacerRangeMm() (float64, float64) {
 // IsValid returns true if the HeadsetCupType is a recognized non-empty SHIS standard.
 func (c HeadsetCupType) IsValid() bool {
 	switch c {
-	case CupEC44, CupZS44, CupZS56, CupIS42, CupIS52:
+	case CupEC34, CupEC44, CupZS44, CupZS56, CupIS42, CupIS52:
 		return true
 	default:
 		return false

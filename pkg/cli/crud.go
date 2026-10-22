@@ -36,7 +36,7 @@ func (a *App) runInit(args []string) int {
 	fs.StringVar(&supportedTravelStr, "supported-travel", "120,130", "Comma-separated supported suspension travel sizes in mm (or 'none' for rigid-only)")
 	fs.Float64Var(&rigidA2c, "rigid-a2c", 0, "Supported rigid fork axle-to-crown in mm (0 if rigid not supported)")
 	fs.StringVar(&defaultFork, "default-fork", "", "Default fork (e.g. '120mm' or 'rigid')")
-	fs.StringVar(&cupType, "cup-type", "EC44", "Headset lower cup standard (EC44, ZS44, IS52, ZS56)")
+	fs.StringVar(&cupType, "cup-type", "EC44", "Headset lower cup standard (EC34, EC44, ZS44, IS52, ZS56)")
 	fs.Float64Var(&geoSpacer, "geo-spacer", -1, "Below-headset spacer in mm that the CAD chart was drawn with (default: matches --cup-type stack)")
 	fs.BoolVar(&save, "save", false, "Save generated template directly into data/bikes/<id>.json")
 
