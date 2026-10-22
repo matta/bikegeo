@@ -1,6 +1,8 @@
 package validator_test
 
 import (
+	"encoding/json"
+	"os"
 	"testing"
 
 	"bikegeo/pkg/model"
@@ -968,4 +970,39 @@ func TestValidateSklarPBJ(t *testing.T) {
 		t.Errorf("Expected exactly 20mm of chainstay adjustment, got %.1f", pbj.GetMaxChainstay()-pbj.GetMinChainstay())
 	}
 }
+
+func TestValidateSevenExpedition926f(t *testing.T) {
+	data, err := os.ReadFile("../../data/bikes/seven-expedition-926f.json")
+	if err != nil {
+		t.Fatalf("Failed to read seven-expedition-926f.json: %v", err)
+	}
+	var seven model.FrameModel
+	if err := json.Unmarshal(data, &seven); err != nil {
+		t.Fatalf("Failed to parse seven-expedition-926f.json: %v", err)
+	}
+
+	report := validator.ValidateFrame(seven)
+	if !report.IsValid {
+		t.Fatalf("Expected Seven Cycles Expedition 926f to pass validation: %s", report.ErrorSummary())
+	}
+	if len(seven.Sizes) != 24 {
+		t.Errorf("Expected 24 sizes (12 Standard Fit + 12 Endurance Fit), got %d", len(seven.Sizes))
+	}
+	if !seven.SupportsRigid() {
+		t.Errorf("Expected Seven Expedition 926f to support rigid fork (472mm)")
+	}
+	if seven.GetRigidA2c() != 472.0 {
+		t.Errorf("Expected Seven Expedition 926f rigid A2C to be 472mm, got %.1f", seven.GetRigidA2c())
+	}
+	if !seven.SupportsTravel(100) || !seven.SupportsTravel(110) || !seven.SupportsTravel(120) {
+		t.Errorf("Expected Seven Expedition 926f to support 100mm, 110mm, and 120mm travel forks")
+	}
+	if seven.SupportsTravel(80) || seven.SupportsTravel(130) {
+		t.Errorf("Expected Seven Expedition 926f to reject 80mm and 130mm travel forks")
+	}
+	if seven.HasAdjustableChainstay() {
+		t.Errorf("Expected Seven Expedition 926f to have fixed chainstays")
+	}
+}
+
 
