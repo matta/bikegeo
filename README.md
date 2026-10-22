@@ -35,20 +35,23 @@ Bike geometry is stored in **local JSON files** under [`data/bikes/`](data/bikes
    - Detects whether the manufacturer published numbers at **0% static sag** or **15–25% sagged CAD**, or whether there is a published typo/inconsistency.
    - Verifies **Cross-Configuration CAD Coherence** when a frame publishes charts for multiple forks.
 
-5. **Frame Scoring & Desirability Ranking (`pkg/scoring`)**:
-   - Compares how closely candidate frames match target fit and handling criteria using smooth quadratic curves and plateau sweet spots:
-     - **Setback** (weight 10, sweet spot peak 230mm, 220–240mm band with 225mm preferred over 220mm, sharp roll-off outside reaching 0 at 210mm / 250mm)
-     - **AETT** (weight 10, sweet spot plateau 625–636mm, smooth quadratic roll-off reaching 0 at 584mm min / 660mm max)
-     - **Spare Vert** (weight 5, sweet spot plateau 70–100mm, smooth quadratic roll-off reaching 0 at 55mm min / 135mm max)
-     - **Chainstay** (weight 4, longer is better with diminishing returns)
-     - **BB Drop** (weight 3, ideal 70mm with quadratic roll-off reaching 0 at 50mm / 90mm)
-     - **HTA** (weight 2, ideal 68° with quadratic roll-off reaching 0 at 67° / 69°)
-     - **Front Wt %** (weight 1, higher front-wheel load is preferred)
+5. **Ideal Frame Profiles & Sweet-Spot Scoring (`pkg/ideal`, `pkg/scoring`)**:
+   - Frames are evaluated against parameterized sweet-spot ranges defined in editable JSON profiles in `data/ideals/` (default: [`data/ideals/default.json`](data/ideals/default.json)).
+   - Evaluates criteria across nested ranges:
+     - **Ideal (`✓`)**: Scores 100.0 (e.g. Setback 230mm, AETT 625–636mm, Spare Vert 70–100mm, Chainstay ≥470mm).
+     - **Acceptable (`~`)**: Scores `edge_score` (typically 75–80) to 100 with linear ramp towards ideal (e.g. Setback 220–240mm, AETT 604–648mm). Cell displays offset to ideal (e.g. `225 ~ −5`).
+     - **Outside (`✗`)**: Soft falloff beyond acceptable to 0 (or floor). Cell displays offset to ideal (e.g. `213 ✗ −17`).
+   - Supports 15 raw geometry and derived fit metrics (`setback`, `aett`, `sparevert`, `chainstay`, `bbdrop`, `hta`, `frontwt`, `standover`, `reach`, `stack`, `sta`, `wheelbase`, `frontcenter`, `chainstay_range`, `bbheight`).
    - Tables are automatically sorted by score descending (with original `[#]` identifiers preserved).
    - Generates plain-English footer explanations (`Biggest Losses vs. Ideal` and `Head-to-Head Deciding Factors`).
+   - Switch profiles using `--ideal <name>` or `p <name>` in interactive mode (`bikegeo compare -i`).
    - Use `--no-score` to disable scoring and restore input order, or `--score-detail` for the full sub-score breakdown table.
 
-6. **Multiple Output Formats**:
+6. **Ideal Profile Management (`bikegeo ideals`)**:
+   - `bikegeo ideals`: List available profile JSON files.
+   - `bikegeo ideals show <name>`: Display profile attribute weights, sweet-spot ranges, and falloff configuration.
+
+7. **Multiple Output Formats**:
    - Supports `--format table` (Unicode box tables, default), `--format json`, `--format md` (Markdown), and `--format csv`.
 
 ---
@@ -68,17 +71,24 @@ make build
 ./bin/bikegeo list
 ./bin/bikegeo list --all-sizes
 
-# Compare the same frame across 20% sag, 30% sag, and its rigid fork:
-./bin/bikegeo compare havok@110mm@20% havok@110mm@30% havok@rigid
+# List available ideal frame profiles:
+./bin/bikegeo ideals
+./bin/bikegeo ideals show default
 
-# Compare different frames across sizes, sag points, and fork capacities:
-./bin/bikegeo compare havok@L@rigid fenrir@L@rigid fenrir@L@110mm@20%
+# Compare frames against an ideal profile (auto-transposed when >4 columns):
+./bin/bikegeo compare havok@110mm@20% hayduke:S3@110mm@20% fenrir:L@rigid
+
+# Compare using a specific ideal profile:
+./bin/bikegeo compare --ideal default fenrir:all@120mm
 
 # Replay the most recent comparison (from data/last_compare.json):
 ./bin/bikegeo compare
 
 # Incrementally add a column and switch to transposed/compact view:
 ./bin/bikegeo compare +havok@ML@100mm@20% --transpose
+
+# View detailed sub-score loss breakdown:
+./bin/bikegeo compare --score-detail
 
 # Launch interactive prompt/response comparison builder:
 ./bin/bikegeo compare -i

@@ -63,6 +63,8 @@ func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 		return app.runList(subArgs)
 	case "forks":
 		return app.runForks(subArgs)
+	case "ideals", "ideal":
+		return app.runIdeals(subArgs)
 	case "compare", "cmp":
 		return app.runCompare(subArgs)
 	case "validate", "val", "check":
@@ -135,6 +137,7 @@ Core Commands:
   validate [frame...]     Verify CAD Master Stack Equation, publish mode, and multi-config coherence
   list                    List all stored bike frames, sizes, and supported fork capacities
   forks                   List standard 29er fork presets and travel-to-A2C mappings
+  ideals [show <name>]    List ideal frame profiles or inspect attributes and sweet-spot curves
 
 Data Management Commands:
   init                    Generate a starter FrameModel JSON template

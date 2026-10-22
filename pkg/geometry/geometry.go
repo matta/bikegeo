@@ -603,6 +603,7 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string, configID strin
 			res.ChainstayLength = geo.ChainstayLength
 			res.FrontCenter = geo.FrontCenter
 			res.SeatTubeLength = geo.SeatTubeLength
+			res.StandoverHeight = geo.StandoverHeight
 			return res, nil
 		}
 	}
@@ -659,6 +660,7 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string, configID strin
 	res.ChainstayLength = baseGeo.ChainstayLength
 	res.FrontCenter = baseGeo.FrontCenter
 	res.SeatTubeLength = baseGeo.SeatTubeLength
+	res.StandoverHeight = baseGeo.StandoverHeight
 
 	return res, nil
 }

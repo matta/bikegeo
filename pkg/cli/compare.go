@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"bikegeo/pkg/canonicalizer"
+	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/scoring"
 	"bikegeo/pkg/validator"
@@ -61,6 +62,7 @@ func (a *App) runCompare(args []string) int {
 	var compactFlag bool
 	var noScoreFlag bool
 	var scoreDetailFlag bool
+	var idealFlag string
 	var saveFlag optionalBool
 
 	fs.BoolVar(&interactive, "i", false, "Interactive prompt/response mode to build or edit comparison columns")
@@ -69,6 +71,7 @@ func (a *App) runCompare(args []string) int {
 	fs.BoolVar(&compactFlag, "compact", false, "Compact/transposed table view (alias for --transpose)")
 	fs.BoolVar(&noScoreFlag, "no-score", false, "Disable scoring and ranking display")
 	fs.BoolVar(&scoreDetailFlag, "score-detail", false, "Display detailed scoring breakdown table")
+	fs.StringVar(&idealFlag, "ideal", "", "Ideal frame profile name (default: 'default')")
 	fs.Var(&saveFlag, "save", "Persist comparison state to state file (defaults to true if -i/--interactive)")
 
 	boolFlags := map[string]bool{
@@ -242,8 +245,24 @@ func (a *App) runCompare(args []string) int {
 		state.Transpose = true
 	}
 
-	if state.RefIndex < 0 || state.RefIndex >= len(state.Columns) {
-		state.RefIndex = 0
+	idealName := idealFlag
+	if idealName == "" {
+		if state.IdealProfile != "" {
+			idealName = state.IdealProfile
+		} else {
+			idealName = "default"
+		}
+	}
+
+	prof, err := ideal.LoadProfile(a.getIdealsDir(), idealName)
+	if err != nil {
+		fmt.Fprintf(a.Err, "Error: %v\n", err)
+		return 1
+	}
+	state.IdealProfile = prof.Name
+
+	if prof.SaddleHeightMm != nil && state.SaddleHeightMm > 0 && math.Abs(state.SaddleHeightMm-*prof.SaddleHeightMm) >= 0.5 {
+		fmt.Fprintf(a.Err, "Warning: ideal profile %q was designed for saddle height %.0fmm (current rider saddle height: %.0fmm)\n", prof.Name, *prof.SaddleHeightMm, state.SaddleHeightMm)
 	}
 
 	// Resolve and validate all columns against frame constraints
@@ -259,7 +278,7 @@ func (a *App) runCompare(args []string) int {
 		_ = a.saveComparisonState(state)
 	}
 
-	if err := a.renderComparisonMatrix(rows, state, !noScoreFlag, scoreDetailFlag); err != nil {
+	if err := a.renderComparisonMatrix(rows, state, prof, !noScoreFlag, scoreDetailFlag); err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
 	}
@@ -329,52 +348,43 @@ Comparison State & Column Management:
   Full Replacement (Bare Specs):
     - Specifying arguments without '+' or '-' replaces all existing columns.
       Example: bikegeo compare fenrir:L@110mm hayduke:S3@120mm
-    - Column 1 becomes the reference bike ([REF]), against which all delta
-      offsets (Δ in parens) are calculated.
-    - When replacing with a single frame's ':all' sizes, the reference column
-      automatically targets the frame's declared default_size (e.g. "S 60cm"),
-      centering delta values around the designer baseline.
 
   Incremental Addition ('+spec'):
-    - Prefixing a spec with '+' appends column(s) to the existing comparison state
-      without altering existing columns or the reference bike.
+    - Prefixing a spec with '+' appends column(s) to the existing comparison state.
       Example: bikegeo compare +seven-expedition-926f:all@120mm
 
   Incremental Removal ('-spec' or '-col_num'):
     - By column number: '-1', '-2', etc. removes the 1-based column.
-    - By frame ID / substring: '-fenrir' or '-fenrir:all' removes all columns of that frame.
-    - By frame size: '-fenrir:L' removes all columns of that frame in size L.
-    - By specific fork/sag: '-fenrir:L@110mm' removes only that matching setup.
-
-  Reference Column ([REF]):
-    - In table output, all numeric deltas in parentheses (e.g. "+12", "-0.8°") are
-      calculated relative to the reference column.
-    - Can be modified interactively via 'bikegeo compare -i' using the 'ref #' action.
+      - By frame ID / substring: '-fenrir' or '-fenrir:all' removes all columns of that frame.
+      - By frame size: '-fenrir:L' removes all columns of that frame in size L.
+      - By specific fork/sag: '-fenrir:L@110mm' removes only that matching setup.
 
 Table Layout & Auto-Transposition:
   - Standard View (Columns): Each bike is a vertical column; metrics are rows.
-    Ideal for 2 to 4 bikes.
+    Ideal and Acceptable ranges appear as reference columns.
   - Transposed View (Rows): Each bike is a row; metrics are columns.
+    Ideal and Acceptable ranges appear as top header rows.
     Enabled with --transpose or --compact.
   - Automatic Transposition: When a comparison has more than 4 columns (such as
     expanding ':all'), the table automatically renders in transposed mode unless
     explicitly disabled with --transpose=false or --compact=false.
 
 Scoring & Ranking:
-  - When scoring is enabled (default), setups are scored against target biomechanical
-    criteria (setback, AETT, spare vertical travel, chainstay, BB drop, HTA, front wt %).
+  - Setups are scored against sweet-spot curves defined in an Ideal Profile (default: data/ideals/default.json).
+  - Metrics display their evaluated zone (✓ ideal, ~ acceptable, ✗ outside) and distance to ideal.
   - Displayed rows are sorted descending by total score, placing the top-match #1 at the top.
   - Explanations section highlights Biggest Losses vs. Ideal and Head-to-Head Deciding Factors.
   - Use --score-detail to view the full criteria breakdown table.
   - Use --no-score to disable scoring and view columns in their original configuration order.
 
 Flags:
+  --ideal <name>               Select ideal profile from data/ideals/<name>.json (default: 'default')
   -save[=bool], --save[=bool]  Persist comparison state to state file (defaults to true if -i/--interactive)
-  -compact, --compact       Render compact/transposed table (Columns as rows, Metrics as columns)
-  -transpose, --transpose   Alias for --compact
-  -i, --interactive         Launch interactive prompt/response comparison builder
-  -score-detail             Display detailed scoring breakdown table for each criterion
-  -no-score                 Disable scoring and ranking display
+  -compact, --compact          Render compact/transposed table (Columns as rows, Metrics as columns)
+  -transpose, --transpose      Alias for --compact
+  -i, --interactive            Launch interactive prompt/response comparison builder
+  -score-detail                Display detailed scoring breakdown table for each criterion
+  -no-score                    Disable scoring and ranking display
 
 Global Flags:
   --data-dir <dir>          Path to bike JSON directory (default: "data/bikes")
@@ -608,8 +618,8 @@ func (a *App) loadOrDefaultComparisonState(frames []model.FrameModel) model.Save
 			}
 			if len(validCols) > 0 {
 				saved.Columns = validCols
-				if saved.RefIndex < 0 || saved.RefIndex >= len(saved.Columns) {
-					saved.RefIndex = 0
+				if saved.IdealProfile == "" {
+					saved.IdealProfile = "default"
 				}
 				saved.NormalizeRiderProfile()
 				return saved
@@ -636,7 +646,7 @@ func (a *App) loadOrDefaultComparisonState(frames []model.FrameModel) model.Save
 	return model.SavedComparisonState{
 		RiderProfile: model.DefaultRiderProfile(),
 		Transpose:    false,
-		RefIndex:     0,
+		IdealProfile: "default",
 		Columns:      cols,
 	}
 }
@@ -664,18 +674,14 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 			fmt.Fprintln(a.Out, "  (No columns currently selected)")
 		} else {
 			for i, col := range state.Columns {
-				refTag := "     "
-				if i == state.RefIndex {
-					refTag = "[REF]"
-				}
 				frame, _, err := ResolveFrameByToken(frames, col.FrameID)
 				if err != nil {
-					fmt.Fprintf(a.Out, "  [%d] %s %s (%s)\n", i+1, refTag, col.FrameID, col.Size)
+					fmt.Fprintf(a.Out, "  [%d] %s (%s)\n", i+1, col.FrameID, col.Size)
 					continue
 				}
 				row, err := canonicalizer.ResolveFrameForkSetup(*frame, col, state.RiderProfile)
 				if err != nil {
-					fmt.Fprintf(a.Out, "  [%d] %s %s %s (%s) - %v\n", i+1, refTag, frame.Manufacturer, frame.Model, col.Size, err)
+					fmt.Fprintf(a.Out, "  [%d] %s %s (%s) - %v\n", i+1, frame.Manufacturer, frame.Model, col.Size, err)
 					continue
 				}
 				sagInfo := "0% sag (rigid)"
@@ -684,9 +690,8 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 				}
 				fmt.Fprintf(
 					a.Out,
-					"  [%d] %s %-26s | %-28s | %-14s -> %.1fmm eff A2C\n",
+					"  [%d] %-26s | %-28s | %-14s -> %.1fmm eff A2C\n",
 					i+1,
-					refTag,
 					fmt.Sprintf("%s %s (%s)", frame.Manufacturer, frame.Model, row.Setup.Size),
 					row.SetupFork.Name,
 					sagInfo,
@@ -695,7 +700,7 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 			}
 		}
 
-		fmt.Fprint(a.Out, "\nAction ([a]dd, [e]dit #, [d]elete #, [r]ef #, [s]addle, [c]lear, [Enter] to run, or [q]uit): ")
+		fmt.Fprint(a.Out, "\nAction ([a]dd, [e]dit #, [d]elete #, [s]addle, [p]rofile, [c]lear, [Enter] to run, or [q]uit): ")
 		if !scanner.Scan() {
 			return state, false, nil
 		}
@@ -768,17 +773,6 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 				continue
 			}
 			state.Columns = append(state.Columns[:idx], state.Columns[idx+1:]...)
-			if state.RefIndex >= len(state.Columns) {
-				state.RefIndex = 0
-			}
-
-		case cmd == "r" || cmd == "ref":
-			idx, err := promptIndex(scanner, a.Out, arg, len(state.Columns), "Reference column #")
-			if err != nil {
-				fmt.Fprintf(a.Out, "  ! %v\n", err)
-				continue
-			}
-			state.RefIndex = idx
 
 		case cmd == "s" || cmd == "saddle" || cmd == "seat":
 			valStr := arg
@@ -796,6 +790,18 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 				}
 			}
 
+		case cmd == "p" || cmd == "profile" || cmd == "ideal":
+			profArg := arg
+			if profArg == "" {
+				fmt.Fprintf(a.Out, "  Ideal Profile name [%s]: ", state.IdealProfile)
+				if scanner.Scan() {
+					profArg = strings.TrimSpace(scanner.Text())
+				}
+			}
+			if profArg != "" {
+				state.IdealProfile = profArg
+			}
+
 		case cmd == "c" || cmd == "clear":
 			state.Columns = nil
 			state.RefIndex = 0
@@ -807,7 +813,7 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 			state.Columns = append(state.Columns, col)
 
 		default:
-			fmt.Fprintf(a.Out, "  ! Unknown action %q (use a, e, d, r, s, c, or Enter)\n", line)
+			fmt.Fprintf(a.Out, "  ! Unknown action %q (use a, e, d, p, s, c, or Enter)\n", line)
 		}
 	}
 }
@@ -1014,14 +1020,16 @@ type CompareExplanationsJSON struct {
 
 type CompareJSONPayload struct {
 	SaddleHeightMm float64                  `json:"saddle_height_mm"`
-	RefIndex       int                      `json:"ref_index"`
+	IdealProfile   string                   `json:"ideal_profile"`
 	Columns        []ScoredColumnJSON       `json:"columns"`
 	Explanations   *CompareExplanationsJSON `json:"explanations,omitempty"`
+	DataNotes      []string                 `json:"data_notes,omitempty"`
 }
 
 func (a *App) renderComparisonMatrix(
 	rows []model.CanonicalComparisonRow,
 	state model.SavedComparisonState,
+	prof *ideal.Profile,
 	scoringEnabled bool,
 	scoreDetail bool,
 ) error {
@@ -1029,19 +1037,17 @@ func (a *App) renderComparisonMatrix(
 		return nil
 	}
 
-	refIdx := state.RefIndex
-	if refIdx < 0 || refIdx >= len(rows) {
-		refIdx = 0
+	if prof == nil {
+		def, err := ideal.LoadProfile(a.getIdealsDir(), "default")
+		if err != nil {
+			return err
+		}
+		prof = def
 	}
-	refRow := rows[refIdx]
 
 	var scoreResults []scoring.Result
 	if scoringEnabled {
-		analyses := make([]model.BikeFitAnalysis, len(rows))
-		for i, r := range rows {
-			analyses[i] = r.Canonical
-		}
-		scoreResults = scoring.ScoreAll(analyses, scoring.DefaultCriteria)
+		scoreResults = scoring.ScoreAllRows(rows, prof)
 	}
 
 	displayNames := disambiguateFrameNames(rows)
@@ -1070,8 +1076,10 @@ func (a *App) renderComparisonMatrix(
 
 	var expl scoring.Explanations
 	var footers []FooterSection
+	missingNotes := scoring.CollectMissingDataNotes(scoredFramesForExplain)
+
 	if scoringEnabled && len(rows) > 0 {
-		expl = scoring.Explain(scoredFramesForExplain, scoring.DefaultCriteria)
+		expl = scoring.ExplainProfile(scoredFramesForExplain, prof)
 		footers = append(footers, FooterSection{
 			Title: "Biggest Losses vs. Ideal",
 			Lines: expl.Losses,
@@ -1083,17 +1091,32 @@ func (a *App) renderComparisonMatrix(
 			})
 		}
 
+		if len(missingNotes) > 0 {
+			footers = append(footers, FooterSection{
+				Title: "Data Notes",
+				Lines: missingNotes,
+			})
+		}
+
 		// Sort displayed rows/columns descending by score
 		sort.SliceStable(scoredItems, func(i, j int) bool {
 			return scoredItems[i].score.Total > scoredItems[j].score.Total
 		})
+	} else if len(missingNotes) > 0 {
+		footers = append(footers, FooterSection{
+			Title: "Data Notes",
+			Lines: missingNotes,
+		})
 	}
 
+	backAngle := 0.0
+	if len(rows) > 0 {
+		backAngle = rows[0].Canonical.BackAngleDeg
+	}
 	title := "Apples-to-Apples Geometry Comparison Matrix"
 	subtitle := fmt.Sprintf(
-		"Saddle Height: %.0fmm | Modeled Back Angle: %.1f° | Reference: [%d] %s (*max stay position; Δ in parens)",
-		state.SaddleHeightMm, refRow.Canonical.BackAngleDeg, refIdx+1,
-		displayNames[refIdx],
+		"Saddle Height: %.0fmm | Modeled Back Angle: %.1f° | Ideal Profile: %s (*max stay position)",
+		state.SaddleHeightMm, backAngle, prof.Name,
 	)
 
 	jsonCols := make([]ScoredColumnJSON, len(rows))
@@ -1113,24 +1136,46 @@ func (a *App) renderComparisonMatrix(
 	}
 	jsonPayload := CompareJSONPayload{
 		SaddleHeightMm: state.SaddleHeightMm,
-		RefIndex:       refIdx,
+		IdealProfile:   prof.Name,
 		Columns:        jsonCols,
 		Explanations:   explJSON,
+		DataNotes:      missingNotes,
 	}
 
 	// Prepare detail table if requested
 	var detailHeaders []string
 	var detailRows [][]string
+	var detailFooters []FooterSection
+	var detailSubtitle string
 	if scoreDetail && scoringEnabled {
-		detailHeaders = []string{"Rank", "#", "Frame", "Setback", "AETT", "Spare Vert", "Chainstay", "BB Drop", "HTA", "Front Wt", "Total"}
+		detailHeaders = []string{"Rank", "#", "Frame"}
+		var weightedAttrs []ideal.AttributeSpec
+		var weightParts []string
+		for _, attr := range prof.Attributes {
+			if attr.Weight > 0 && attr.Ideal != nil {
+				meta, _ := ideal.LookupAttribute(attr.ID)
+				detailHeaders = append(detailHeaders, meta.Label)
+				weightedAttrs = append(weightedAttrs, attr)
+				weightParts = append(weightParts, fmt.Sprintf("%s %.0f", meta.Label, attr.Weight))
+			}
+		}
+		detailHeaders = append(detailHeaders, "Total")
+		detailSubtitle = fmt.Sprintf("Sub-scores (-200..+100) per criterion (points lost on total score in parens). Total = weighted average (weights: %s)", strings.Join(weightParts, ", "))
+
 		for _, item := range scoredItems {
 			subScores := make(map[string]float64)
 			pointsLost := make(map[string]float64)
+			missingMap := make(map[string]bool)
 			for _, c := range item.score.Criteria {
 				subScores[c.ID] = c.SubScore
 				pointsLost[c.ID] = c.PointsLost
+				missingMap[c.ID] = c.Missing
 			}
+
 			formatSubScoreCell := func(id string) string {
+				if missingMap[id] {
+					return "—"
+				}
 				sub := math.Round(subScores[id])
 				lost := math.Round(pointsLost[id])
 				if lost >= 1 {
@@ -1146,20 +1191,19 @@ func (a *App) renderComparisonMatrix(
 				}
 				return fmt.Sprintf("%.0f", rndTotal)
 			}
-			detailRows = append(detailRows, []string{
+
+			rowCells := []string{
 				fmt.Sprintf("%d", item.score.Rank),
 				fmt.Sprintf("%d", item.origIdx+1),
 				item.displayName,
-				formatSubScoreCell("setback"),
-				formatSubScoreCell("aett"),
-				formatSubScoreCell("sparevert"),
-				formatSubScoreCell("chainstay"),
-				formatSubScoreCell("bbdrop"),
-				formatSubScoreCell("hta"),
-				formatSubScoreCell("frontwt"),
-				formatTotalCell(item.score.Total),
-			})
+			}
+			for _, wa := range weightedAttrs {
+				rowCells = append(rowCells, formatSubScoreCell(wa.ID))
+			}
+			rowCells = append(rowCells, formatTotalCell(item.score.Total))
+			detailRows = append(detailRows, rowCells)
 		}
+		detailFooters = footers
 	}
 
 	primaryFooters := footers
@@ -1176,65 +1220,47 @@ func (a *App) renderComparisonMatrix(
 		if scoringEnabled {
 			headers = append(headers, "Score")
 		}
-		headers = append(headers,
-			"Fork & Eff A2C",
-			"Reach",
-			"Stack",
-			"HTA (°)",
-			"STA (°)",
-			"BB Drop",
-			"Chainstay",
-			"AETT",
-			"Setback",
-			"Spare Vert",
-			"Front Wt %",
-		)
+		headers = append(headers, "Fork & Eff A2C")
+
+		for _, attr := range prof.Attributes {
+			meta, _ := ideal.LookupAttribute(attr.ID)
+			headers = append(headers, meta.Label)
+		}
 
 		var tableRows [][]string
+
+		// Row 0: Ideal
+		idealRow := make([]string, len(headers))
+		idealRow[1] = "Ideal"
+		attrOffset := 2
+		if scoringEnabled {
+			attrOffset = 3
+		}
+		attrOffset++ // past Fork & Eff A2C
+
+		for idx, attr := range prof.Attributes {
+			meta, _ := ideal.LookupAttribute(attr.ID)
+			idealRow[attrOffset+idx] = ideal.FormatRange(attr.Ideal, meta.Unit, meta.Decimals)
+		}
+
+		// Row 1: Acceptable
+		accRow := make([]string, len(headers))
+		accRow[1] = "Acceptable"
+		for idx, attr := range prof.Attributes {
+			meta, _ := ideal.LookupAttribute(attr.ID)
+			accRow[attrOffset+idx] = ideal.FormatRange(attr.Acceptable, meta.Unit, meta.Decimals)
+		}
+
+		tableRows = append(tableRows, idealRow, accRow)
+
 		for _, item := range scoredItems {
 			r := item.row
 			i := item.origIdx
 
 			idxStr := fmt.Sprintf("%d", i+1)
-			if i == refIdx {
-				idxStr += " [REF]"
-			}
 			setupStr := fmt.Sprintf("Rigid (%.0fmm)", math.Round(r.EffectiveA2c))
 			if r.SetupFork.TravelMm > 0 {
 				setupStr = fmt.Sprintf("%.0fmm @ %.0f%% (%.0fmm)", r.SetupFork.TravelMm, r.SagPercent, math.Round(r.EffectiveA2c))
-			}
-
-			reachStr := fmt.Sprintf("%.0f", math.Round(r.Canonical.ActiveReach))
-			stackStr := fmt.Sprintf("%.0f", math.Round(r.Canonical.ActiveStack))
-			htaStr := fmt.Sprintf("%.1f", r.Canonical.ActiveHta)
-			staStr := fmt.Sprintf("%.1f", r.Canonical.ActiveSta)
-			bbDropStr := fmt.Sprintf("%.0f", math.Round(r.Canonical.ActiveBbDrop))
-			aettStr := fmt.Sprintf("%.0f", math.Round(r.Canonical.Aett))
-			setbackStr := fmt.Sprintf("%.0f", math.Round(r.Canonical.ActualSetback))
-			spareVertStr := fmt.Sprintf("%.0f", math.Round(r.Canonical.SpareVerticalStack))
-
-			star := ""
-			if r.Bike.HasAdjustableChainstay() {
-				star = "*"
-			}
-			csStr := fmt.Sprintf("%.0f%s", math.Round(r.Canonical.ActiveChainstay), star)
-
-			if i != refIdx {
-				reachStr = fmt.Sprintf("%.0f (%s)", math.Round(r.Canonical.ActiveReach), formatDeltaMm(r.Canonical.ActiveReach-refRow.Canonical.ActiveReach, ""))
-				stackStr = fmt.Sprintf("%.0f (%s)", math.Round(r.Canonical.ActiveStack), formatDeltaMm(r.Canonical.ActiveStack-refRow.Canonical.ActiveStack, ""))
-				htaStr = fmt.Sprintf("%.1f (%s)", r.Canonical.ActiveHta, formatDeltaAngle(r.Canonical.ActiveHta-refRow.Canonical.ActiveHta, ""))
-				staStr = fmt.Sprintf("%.1f (%s)", r.Canonical.ActiveSta, formatDeltaAngle(r.Canonical.ActiveSta-refRow.Canonical.ActiveSta, ""))
-				bbDropStr = fmt.Sprintf("%.0f (%s)", math.Round(r.Canonical.ActiveBbDrop), formatDeltaMm(r.Canonical.ActiveBbDrop-refRow.Canonical.ActiveBbDrop, ""))
-				deltaCS := r.Canonical.ActiveChainstay - refRow.Canonical.ActiveChainstay
-				csStr = fmt.Sprintf("%.0f%s (%s)", math.Round(r.Canonical.ActiveChainstay), star, formatDeltaMm(deltaCS, ""))
-				aettStr = fmt.Sprintf("%.0f (%s)", math.Round(r.Canonical.Aett), formatDeltaMm(r.Canonical.Aett-refRow.Canonical.Aett, ""))
-				setbackStr = fmt.Sprintf("%.0f (%s)", math.Round(r.Canonical.ActualSetback), formatDeltaMm(r.Canonical.ActualSetback-refRow.Canonical.ActualSetback, ""))
-			}
-
-			weightStr := fmt.Sprintf("%.1f%% F", r.Canonical.WeightDistFrontPct)
-			if i != refIdx {
-				deltaF := r.Canonical.WeightDistFrontPct - refRow.Canonical.WeightDistFrontPct
-				weightStr = fmt.Sprintf("%.1f%% F (%s)", r.Canonical.WeightDistFrontPct, formatDelta(deltaF, "%"))
 			}
 
 			rowCells := []string{
@@ -1245,19 +1271,27 @@ func (a *App) renderComparisonMatrix(
 				scoreStr := fmt.Sprintf("%.0f (#%d)", math.Round(item.score.Total), item.score.Rank)
 				rowCells = append(rowCells, scoreStr)
 			}
-			rowCells = append(rowCells,
-				setupStr,
-				reachStr,
-				stackStr,
-				htaStr,
-				staStr,
-				bbDropStr,
-				csStr,
-				aettStr,
-				setbackStr,
-				spareVertStr,
-				weightStr,
-			)
+			rowCells = append(rowCells, setupStr)
+
+			critMap := make(map[string]scoring.CriterionResult)
+			for _, cr := range item.score.Criteria {
+				critMap[cr.ID] = cr
+			}
+
+			for _, attr := range prof.Attributes {
+				meta, _ := ideal.LookupAttribute(attr.ID)
+				if cr, ok := critMap[attr.ID]; ok {
+					rowCells = append(rowCells, cr.FormattedCell)
+				} else {
+					val, ok := meta.Extract(r)
+					if !ok {
+						rowCells = append(rowCells, "— (no data)")
+					} else {
+						ev := ideal.Evaluate(attr, meta, val, &r)
+						rowCells = append(rowCells, ev.FormattedCell)
+					}
+				}
+			}
 
 			tableRows = append(tableRows, rowCells)
 		}
@@ -1267,27 +1301,28 @@ func (a *App) renderComparisonMatrix(
 		}
 	} else {
 		// Default orientation: Metrics as rows, Bike Setups as columns
-		headers := make([]string, len(scoredItems)+1)
+		// Headers: Metric, Ideal, Acceptable, [1] Bike 1, [2] Bike 2...
+		headers := make([]string, len(scoredItems)+3)
 		headers[0] = "Metric"
+		headers[1] = "Ideal"
+		headers[2] = "Acceptable"
 		for colIdx, item := range scoredItems {
 			r := item.row
 			i := item.origIdx
-			refBadge := ""
-			if i == refIdx {
-				refBadge = " [REF]"
-			}
 			forkLine := fmt.Sprintf("Rigid (%.0fmm A2C)", r.SetupFork.A2c)
 			if r.SetupFork.TravelMm > 0 {
 				forkLine = fmt.Sprintf("%.0fmm @ %.0f%% sag", r.SetupFork.TravelMm, r.SagPercent)
 			}
-			headers[colIdx+1] = fmt.Sprintf("[%d] %s %s (%s)%s\n%s", i+1, r.Bike.Manufacturer, r.Bike.Model, r.Bike.Size, refBadge, forkLine)
+			headers[colIdx+3] = fmt.Sprintf("[%d] %s %s (%s)\n%s", i+1, r.Bike.Manufacturer, r.Bike.Model, r.Bike.Size, forkLine)
 		}
 
-		buildRow := func(metric string, cellFn func(colIdx int, item scoredRowItem) string) []string {
-			out := make([]string, len(scoredItems)+1)
+		buildRow := func(metric string, idealStr string, accStr string, cellFn func(colIdx int, item scoredRowItem) string) []string {
+			out := make([]string, len(scoredItems)+3)
 			out[0] = metric
+			out[1] = idealStr
+			out[2] = accStr
 			for colIdx, item := range scoredItems {
-				out[colIdx+1] = cellFn(colIdx, item)
+				out[colIdx+3] = cellFn(colIdx, item)
 			}
 			return out
 		}
@@ -1296,13 +1331,13 @@ func (a *App) renderComparisonMatrix(
 
 		// Score row if enabled
 		if scoringEnabled {
-			tableRows = append(tableRows, buildRow("Score", func(colIdx int, item scoredRowItem) string {
+			tableRows = append(tableRows, buildRow("Score", "", "", func(colIdx int, item scoredRowItem) string {
 				return fmt.Sprintf("%.0f (#%d)", math.Round(item.score.Total), item.score.Rank)
 			}))
 		}
 
-		// 1. Setup Fork & Effective A2C
-		tableRows = append(tableRows, buildRow("Fork & Eff. A2C", func(colIdx int, item scoredRowItem) string {
+		// Setup Fork & Effective A2C
+		tableRows = append(tableRows, buildRow("Fork & Eff. A2C", "", "", func(colIdx int, item scoredRowItem) string {
 			r := item.row
 			if r.SetupFork.TravelMm > 0 {
 				return fmt.Sprintf("%.0fmm @ %.0f%% sag -> %.0fmm A2C", r.SetupFork.TravelMm, r.SagPercent, math.Round(r.EffectiveA2c))
@@ -1310,120 +1345,31 @@ func (a *App) renderComparisonMatrix(
 			return fmt.Sprintf("Rigid (%.0fmm A2C) -> %.0fmm A2C", r.SetupFork.A2c, math.Round(r.EffectiveA2c))
 		}))
 
-		// 2. Reach
-		tableRows = append(tableRows, buildRow("Reach", func(colIdx int, item scoredRowItem) string {
-			r := item.row
-			i := item.origIdx
-			mainLine := fmt.Sprintf("%.0f mm", math.Round(r.Canonical.ActiveReach))
-			if i != refIdx {
-				mainLine = fmt.Sprintf("%.0f mm (%s)", math.Round(r.Canonical.ActiveReach), formatDeltaMm(r.Canonical.ActiveReach-refRow.Canonical.ActiveReach, " mm"))
+		// Attribute rows from prof.Attributes
+		for _, attr := range prof.Attributes {
+			meta, _ := ideal.LookupAttribute(attr.ID)
+			label := meta.Label
+			if strings.EqualFold(attr.ID, "aett") || strings.EqualFold(attr.ID, "setback") {
+				label = fmt.Sprintf("%s @ %.0fmm", meta.Label, state.SaddleHeightMm)
 			}
-			return mainLine
-		}))
+			idealStr := ideal.FormatRange(attr.Ideal, meta.Unit, meta.Decimals)
+			accStr := ideal.FormatRange(attr.Acceptable, meta.Unit, meta.Decimals)
 
-		// 3. Stack
-		tableRows = append(tableRows, buildRow("Stack", func(colIdx int, item scoredRowItem) string {
-			r := item.row
-			i := item.origIdx
-			mainLine := fmt.Sprintf("%.0f mm", math.Round(r.Canonical.ActiveStack))
-			if i != refIdx {
-				mainLine = fmt.Sprintf("%.0f mm (%s)", math.Round(r.Canonical.ActiveStack), formatDeltaMm(r.Canonical.ActiveStack-refRow.Canonical.ActiveStack, " mm"))
-			}
-			return mainLine
-		}))
-
-		// 4. HTA
-		tableRows = append(tableRows, buildRow("HTA (°)", func(colIdx int, item scoredRowItem) string {
-			r := item.row
-			i := item.origIdx
-			mainLine := fmt.Sprintf("%.1f", r.Canonical.ActiveHta)
-			if i != refIdx {
-				mainLine = fmt.Sprintf("%.1f (%s)", r.Canonical.ActiveHta, formatDeltaAngle(r.Canonical.ActiveHta-refRow.Canonical.ActiveHta, ""))
-			}
-			return mainLine
-		}))
-
-		// 5. STA
-		tableRows = append(tableRows, buildRow("STA (°)", func(colIdx int, item scoredRowItem) string {
-			r := item.row
-			i := item.origIdx
-			mainLine := fmt.Sprintf("%.1f", r.Canonical.ActiveSta)
-			if i != refIdx {
-				mainLine = fmt.Sprintf("%.1f (%s)", r.Canonical.ActiveSta, formatDeltaAngle(r.Canonical.ActiveSta-refRow.Canonical.ActiveSta, ""))
-			}
-			return mainLine
-		}))
-
-		// 6. BB Drop
-		tableRows = append(tableRows, buildRow("BB Drop", func(colIdx int, item scoredRowItem) string {
-			r := item.row
-			i := item.origIdx
-			mainLine := fmt.Sprintf("%.0f mm", math.Round(r.Canonical.ActiveBbDrop))
-			if i != refIdx {
-				mainLine = fmt.Sprintf("%.0f mm (%s)", math.Round(r.Canonical.ActiveBbDrop), formatDeltaMm(r.Canonical.ActiveBbDrop-refRow.Canonical.ActiveBbDrop, " mm"))
-			}
-			return mainLine
-		}))
-
-		// 7. Chainstay
-		tableRows = append(tableRows, buildRow("Chainstay", func(colIdx int, item scoredRowItem) string {
-			r := item.row
-			i := item.origIdx
-			star := ""
-			if r.Bike.HasAdjustableChainstay() {
-				star = "*"
-			}
-			mainLine := fmt.Sprintf("%.0f mm%s", math.Round(r.Canonical.ActiveChainstay), star)
-			if i != refIdx {
-				deltaCS := r.Canonical.ActiveChainstay - refRow.Canonical.ActiveChainstay
-				mainLine = fmt.Sprintf("%.0f mm%s (%s)", math.Round(r.Canonical.ActiveChainstay), star, formatDeltaMm(deltaCS, " mm"))
-			}
-			return mainLine
-		}))
-
-		// 8. AETT
-		tableRows = append(tableRows, buildRow(fmt.Sprintf("AETT @ %.0fmm", state.SaddleHeightMm), func(colIdx int, item scoredRowItem) string {
-			r := item.row
-			i := item.origIdx
-			mainLine := fmt.Sprintf("%.0f mm", math.Round(r.Canonical.Aett))
-			if i != refIdx {
-				mainLine = fmt.Sprintf("%.0f mm (%s)", math.Round(r.Canonical.Aett), formatDeltaMm(r.Canonical.Aett-refRow.Canonical.Aett, " mm"))
-			}
-			return mainLine
-		}))
-
-		// 9. Actual Setback
-		tableRows = append(tableRows, buildRow(fmt.Sprintf("Actual Setback @ %.0fmm", state.SaddleHeightMm), func(colIdx int, item scoredRowItem) string {
-			r := item.row
-			i := item.origIdx
-			mainLine := fmt.Sprintf("%.0f mm", math.Round(r.Canonical.ActualSetback))
-			if i != refIdx {
-				mainLine = fmt.Sprintf("%.0f mm (%s)", math.Round(r.Canonical.ActualSetback), formatDeltaMm(r.Canonical.ActualSetback-refRow.Canonical.ActualSetback, " mm"))
-			}
-			return mainLine
-		}))
-
-		// 10. Spare Steerer (Vertical)
-		tableRows = append(tableRows, buildRow("Spare Steerer (Vert)", func(colIdx int, item scoredRowItem) string {
-			return fmt.Sprintf("%.0f mm", math.Round(item.row.Canonical.SpareVerticalStack))
-		}))
-
-		// 11. Spare Steerer (Axial)
-		tableRows = append(tableRows, buildRow("Spare Steerer (Axial)", func(colIdx int, item scoredRowItem) string {
-			return fmt.Sprintf("%.0f mm", math.Round(item.row.Canonical.SpareAxialSteerer))
-		}))
-
-		// 12. Weight Distribution (Front / Rear)
-		tableRows = append(tableRows, buildRow("Weight Dist (F/R)", func(colIdx int, item scoredRowItem) string {
-			r := item.row
-			i := item.origIdx
-			mainLine := fmt.Sprintf("%.1f%% / %.1f%%", r.Canonical.WeightDistFrontPct, r.Canonical.WeightDistRearPct)
-			if i != refIdx {
-				deltaF := r.Canonical.WeightDistFrontPct - refRow.Canonical.WeightDistFrontPct
-				mainLine = fmt.Sprintf("%.1f%% / %.1f%% (%s F)", r.Canonical.WeightDistFrontPct, r.Canonical.WeightDistRearPct, formatDelta(deltaF, "%"))
-			}
-			return mainLine
-		}))
+			attrID := attr.ID
+			tableRows = append(tableRows, buildRow(label, idealStr, accStr, func(colIdx int, item scoredRowItem) string {
+				for _, cr := range item.score.Criteria {
+					if cr.ID == attrID {
+						return cr.FormattedCell
+					}
+				}
+				val, ok := meta.Extract(item.row)
+				if !ok {
+					return "— (no data)"
+				}
+				ev := ideal.Evaluate(attr, meta, val, &item.row)
+				return ev.FormattedCell
+			}))
+		}
 
 		if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, tableRows, jsonPayload, primaryFooters); err != nil {
 			return err
@@ -1433,8 +1379,7 @@ func (a *App) renderComparisonMatrix(
 	if scoreDetail && scoringEnabled && a.Format != FormatJSON && a.Format != FormatCSV {
 		fmt.Fprintln(a.Out)
 		detailTitle := "Scoring Breakdown"
-		detailSubtitle := "Sub-scores (-200..+100) per criterion (points lost on total score in parens). Total = weighted average (weights: Setback 10, AETT 10, Spare Vert 5, Chainstay 4, BB Drop 3, HTA 2, Front Wt 1)"
-		if err := RenderOutputWithFooter(a.Out, a.Format, detailTitle, detailSubtitle, detailHeaders, detailRows, nil, footers); err != nil {
+		if err := RenderOutputWithFooter(a.Out, a.Format, detailTitle, detailSubtitle, detailHeaders, detailRows, nil, detailFooters); err != nil {
 			return err
 		}
 	}

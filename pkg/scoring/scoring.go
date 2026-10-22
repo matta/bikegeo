@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 )
 
@@ -295,14 +296,19 @@ var DefaultCriteria = []Criterion{
 
 // CriterionResult stores the calculated score breakdown for a single criterion.
 type CriterionResult struct {
-	ID         string  `json:"id"`
-	Label      string  `json:"label"`
-	Unit       string  `json:"unit"`
-	Value      float64 `json:"value"`
-	SubScore   float64 `json:"sub_score"`
-	Weight     float64 `json:"weight"`
-	Points     float64 `json:"points"`
-	PointsLost float64 `json:"points_lost"`
+	ID              string  `json:"id"`
+	Label           string  `json:"label"`
+	Unit            string  `json:"unit"`
+	Value           float64 `json:"value"`
+	SubScore        float64 `json:"sub_score"`
+	Weight          float64 `json:"weight"`
+	Points          float64 `json:"points"`
+	PointsLost      float64 `json:"points_lost"`
+	Zone            string  `json:"zone,omitempty"`
+	DistanceToIdeal float64 `json:"distance_to_ideal,omitempty"`
+	FormattedCell   string  `json:"formatted_cell,omitempty"`
+	Missing         bool    `json:"missing,omitempty"`
+	IsDisplayOnly   bool    `json:"is_display_only,omitempty"`
 }
 
 // Result holds the overall score, ranking, and per-criterion details for a frame setup.
@@ -547,3 +553,351 @@ func Explain(frames []ScoredFrame, criteria []Criterion) Explanations {
 		HeadToHead: h2hList,
 	}
 }
+
+// ScoreRow scores a single CanonicalComparisonRow against an ideal profile.
+func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
+	if prof == nil {
+		def, _ := ideal.ParseProfileJSON(ideal.DefaultProfileJSON)
+		prof = def
+	}
+
+	type attrEval struct {
+		spec   ideal.AttributeSpec
+		meta   ideal.AttributeMeta
+		eval   ideal.Evaluation
+		val    float64
+		hasVal bool
+	}
+
+	var evals []attrEval
+	totalActiveWeight := 0.0
+
+	for _, spec := range prof.Attributes {
+		meta, ok := ideal.LookupAttribute(spec.ID)
+		if !ok {
+			continue
+		}
+		val, ok := meta.Extract(row)
+		if !ok {
+			evals = append(evals, attrEval{spec: spec, meta: meta, hasVal: false})
+			continue
+		}
+
+		ev := ideal.Evaluate(spec, meta, val, &row)
+		evals = append(evals, attrEval{spec: spec, meta: meta, eval: ev, val: val, hasVal: true})
+
+		if spec.Weight > 0 && spec.Ideal != nil {
+			totalActiveWeight += spec.Weight
+		}
+	}
+
+	if totalActiveWeight <= 0 {
+		totalActiveWeight = 1.0
+	}
+
+	var results []CriterionResult
+	totalScore := 0.0
+
+	for _, item := range evals {
+		if !item.hasVal {
+			results = append(results, CriterionResult{
+				ID:            item.spec.ID,
+				Label:         item.meta.Label,
+				Unit:          item.meta.Unit,
+				Missing:       true,
+				FormattedCell: "— (no data)",
+				Weight:        item.spec.Weight,
+			})
+			continue
+		}
+
+		if item.eval.IsDisplayOnly || item.spec.Weight <= 0 {
+			results = append(results, CriterionResult{
+				ID:            item.spec.ID,
+				Label:         item.meta.Label,
+				Unit:          item.meta.Unit,
+				Value:         item.val,
+				IsDisplayOnly: true,
+				FormattedCell: item.eval.FormattedCell,
+			})
+			continue
+		}
+
+		sub := item.eval.SubScore
+		pts := item.spec.Weight * sub / totalActiveWeight
+		totalScore += pts
+
+		lost := item.spec.Weight * (100.0 - sub) / totalActiveWeight
+		if lost < 0 {
+			lost = 0
+		}
+
+		results = append(results, CriterionResult{
+			ID:              item.spec.ID,
+			Label:           item.meta.Label,
+			Unit:            item.meta.Unit,
+			Value:           item.val,
+			SubScore:        sub,
+			Weight:          item.spec.Weight,
+			Points:          pts,
+			PointsLost:      lost,
+			Zone:            string(item.eval.Zone),
+			DistanceToIdeal: item.eval.DistanceToIdeal,
+			FormattedCell:   item.eval.FormattedCell,
+		})
+	}
+
+	return Result{
+		Total:    totalScore,
+		Criteria: results,
+	}
+}
+
+// ScoreAllRows scores an array of CanonicalComparisonRow against an ideal profile and assigns ranks.
+func ScoreAllRows(rows []model.CanonicalComparisonRow, prof *ideal.Profile) []Result {
+	results := make([]Result, len(rows))
+	type item struct {
+		index int
+		total float64
+	}
+	items := make([]item, len(rows))
+
+	for i, r := range rows {
+		res := ScoreRow(r, prof)
+		results[i] = res
+		items[i] = item{index: i, total: res.Total}
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i].total > items[j].total
+	})
+
+	for rank, it := range items {
+		results[it.index].Rank = rank + 1
+	}
+
+	return results
+}
+
+// DescribeLoss generates plain-English explanation for why points were lost on an attribute.
+func DescribeLoss(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val float64, dist float64, zone ideal.ZoneType) string {
+	lowID := strings.ToLower(spec.ID)
+	switch lowID {
+	case "hta", "sta":
+		label := meta.Label
+		target := 68.0
+		if dist < 0 {
+			if spec.Ideal != nil && spec.Ideal.Min != nil {
+				target = *spec.Ideal.Min
+			}
+			return fmt.Sprintf("%s %.1f° is %.1f° slacker than %.1f", label, val, -dist, target)
+		}
+		if spec.Ideal != nil && spec.Ideal.Max != nil {
+			target = *spec.Ideal.Max
+		}
+		return fmt.Sprintf("%s %.1f° is %.1f° steeper than %.1f", label, val, dist, target)
+
+	case "bbdrop":
+		if dist < 0 {
+			return fmt.Sprintf("BB drop %.0fmm sits %.0fmm higher than ideal", val, -dist)
+		}
+		return fmt.Sprintf("BB drop %.0fmm sits %.0fmm lower than ideal", val, dist)
+	}
+
+	valStr := formatValue(meta.Unit, val)
+	distVal := math.Abs(dist)
+	distStr := formatValue(meta.Unit, distVal)
+
+	if dist < 0 {
+		if spec.Acceptable != nil && spec.Acceptable.Min != nil && val < *spec.Acceptable.Min {
+			accStr := formatValue(meta.Unit, *spec.Acceptable.Min)
+			return fmt.Sprintf("%s %s is %s short of the %s sweet spot", meta.Label, valStr, distStr, accStr)
+		}
+		return fmt.Sprintf("%s %s is %s short of ideal", meta.Label, valStr, distStr)
+	}
+
+	if spec.Acceptable != nil && spec.Acceptable.Max != nil && val > *spec.Acceptable.Max {
+		accStr := formatValue(meta.Unit, *spec.Acceptable.Max)
+		return fmt.Sprintf("%s %s is %s past the %s sweet spot", meta.Label, valStr, distStr, accStr)
+	}
+	return fmt.Sprintf("%s %s is %s past ideal", meta.Label, valStr, distStr)
+}
+
+// ExplainProfile generates plain-English summary explanations for frames scored against an ideal profile.
+func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
+	if prof == nil {
+		return Explain(frames, DefaultCriteria)
+	}
+
+	attrSpecMap := make(map[string]ideal.AttributeSpec)
+	for _, a := range prof.Attributes {
+		attrSpecMap[strings.ToLower(a.ID)] = a
+	}
+
+	// Sort frames by total score descending (matching rank)
+	sorted := make([]ScoredFrame, len(frames))
+	copy(sorted, frames)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return sorted[i].Score.Total > sorted[j].Score.Total
+	})
+
+	var lossesList []string
+	for _, f := range sorted {
+		type lossItem struct {
+			pointsLost float64
+			text       string
+		}
+		var losses []lossItem
+
+		for _, cr := range f.Score.Criteria {
+			if cr.Missing || cr.IsDisplayOnly || cr.Weight <= 0 {
+				continue
+			}
+			spec, ok := attrSpecMap[strings.ToLower(cr.ID)]
+			if !ok {
+				continue
+			}
+			meta, ok := ideal.LookupAttribute(cr.ID)
+			if !ok {
+				continue
+			}
+
+			if math.Round(cr.PointsLost) >= 3.0 {
+				desc := DescribeLoss(spec, meta, cr.Value, cr.DistanceToIdeal, ideal.ZoneType(cr.Zone))
+				losses = append(losses, lossItem{
+					pointsLost: cr.PointsLost,
+					text:       fmt.Sprintf("%s (-%.0f)", desc, math.Round(cr.PointsLost)),
+				})
+			}
+		}
+
+		sort.SliceStable(losses, func(i, j int) bool {
+			return losses[i].pointsLost > losses[j].pointsLost
+		})
+
+		var textParts []string
+		for i := 0; i < len(losses) && i < 2; i++ {
+			textParts = append(textParts, losses[i].text)
+		}
+
+		body := "near ideal everywhere"
+		if len(textParts) > 0 {
+			body = strings.Join(textParts, "; ")
+		}
+
+		lossesList = append(lossesList, fmt.Sprintf("%s (%.0f): %s", f.Name, math.Round(f.Score.Total), body))
+	}
+
+	var h2hList []string
+	for idx := 0; idx < len(sorted)-1; idx++ {
+		fa := sorted[idx]
+		fb := sorted[idx+1]
+
+		taRound := math.Round(fa.Score.Total)
+		tbRound := math.Round(fb.Score.Total)
+		gap := int(taRound - tbRound)
+
+		var head string
+		if gap < 1 {
+			head = fmt.Sprintf("%s (%.0f) ≈ %s (%.0f) — essentially tied", fa.Name, taRound, fb.Name, tbRound)
+		} else {
+			head = fmt.Sprintf("%s (%.0f) > %s (%.0f) by %d", fa.Name, taRound, fb.Name, tbRound, gap)
+		}
+
+		type diffItem struct {
+			diff  float64
+			label string
+			unit  string
+			valA  float64
+			valB  float64
+		}
+		var pro []diffItem
+		var con []diffItem
+
+		critBMap := make(map[string]CriterionResult)
+		for _, c := range fb.Score.Criteria {
+			critBMap[c.ID] = c
+		}
+
+		for _, ca := range fa.Score.Criteria {
+			if ca.Missing || ca.IsDisplayOnly || ca.Weight <= 0 {
+				continue
+			}
+			cb, ok := critBMap[ca.ID]
+			if !ok || cb.Missing || cb.IsDisplayOnly || cb.Weight <= 0 {
+				continue
+			}
+
+			diff := ca.Points - cb.Points
+			item := diffItem{
+				diff:  diff,
+				label: ca.Label,
+				unit:  ca.Unit,
+				valA:  ca.Value,
+				valB:  cb.Value,
+			}
+			if diff >= 1.0 {
+				pro = append(pro, item)
+			} else if diff <= -1.0 {
+				con = append(con, item)
+			}
+		}
+
+		sort.SliceStable(pro, func(i, j int) bool {
+			return pro[i].diff > pro[j].diff
+		})
+		sort.SliceStable(con, func(i, j int) bool {
+			return con[i].diff < con[j].diff
+		})
+
+		var whyParts []string
+		for i := 0; i < len(pro) && i < 2; i++ {
+			p := pro[i]
+			whyParts = append(whyParts, fmt.Sprintf("%s %s vs %s (+%.0f)",
+				p.label, formatValue(p.unit, p.valA), formatValue(p.unit, p.valB), math.Round(p.diff)))
+		}
+
+		line := head
+		if len(whyParts) > 0 {
+			line = head + ": " + strings.Join(whyParts, "; ")
+		}
+
+		if len(con) > 0 {
+			c := con[0]
+			line += fmt.Sprintf("; offset by %s %s vs %s (%.0f)",
+				c.label, formatValue(c.unit, c.valA), formatValue(c.unit, c.valB), math.Round(c.diff))
+		}
+
+		h2hList = append(h2hList, line)
+	}
+
+	return Explanations{
+		Losses:     lossesList,
+		HeadToHead: h2hList,
+	}
+}
+
+// CollectMissingDataNotes collects human-readable footnotes for any attributes that were missing on some frames.
+func CollectMissingDataNotes(frames []ScoredFrame) []string {
+	missingMap := make(map[string][]string)
+	var orderedLabels []string
+
+	for _, f := range frames {
+		for _, c := range f.Score.Criteria {
+			if c.Missing {
+				if len(missingMap[c.Label]) == 0 {
+					orderedLabels = append(orderedLabels, c.Label)
+				}
+				missingMap[c.Label] = append(missingMap[c.Label], f.Name)
+			}
+		}
+	}
+
+	var notes []string
+	for _, label := range orderedLabels {
+		names := missingMap[label]
+		notes = append(notes, fmt.Sprintf("%s not scored for: %s", label, strings.Join(names, ", ")))
+	}
+	return notes
+}
+

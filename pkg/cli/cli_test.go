@@ -115,8 +115,8 @@ func TestCompare_MixedFramesForksAndSags(t *testing.T) {
 		t.Fatalf("Expected exit code 0, got %d (stderr: %s)", code, errOut)
 	}
 
-	if !strings.Contains(out, "Binary Havok (L) [REF]") {
-		t.Errorf("Expected Binary Havok (L) [REF] in table output, got:\n%s", out)
+	if !strings.Contains(out, "Binary Havok (L)") {
+		t.Errorf("Expected Binary Havok (L) in table output, got:\n%s", out)
 	}
 	if !strings.Contains(out, "120mm @ 25% sag") {
 		t.Errorf("Expected '120mm @ 25%% sag' in table output, got:\n%s", out)
@@ -130,8 +130,8 @@ func TestCompare_MixedFramesForksAndSags(t *testing.T) {
 	if strings.Contains(out, "Base:") || strings.Contains(out, "Base AETT:") {
 		t.Errorf("Expected 'Base:' lines to be removed from compare output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "Actual Setback @") {
-		t.Errorf("Expected 'Actual Setback @' in compare output, got:\n%s", out)
+	if !strings.Contains(out, "Setback @") {
+		t.Errorf("Expected 'Setback @' in compare output, got:\n%s", out)
 	}
 }
 
@@ -266,7 +266,7 @@ func TestCompare_InteractiveMode(t *testing.T) {
 	// Simulate interactive session:
 	// - c (clear and add first column: "havok", size "L", fork "rigid" -> sag prompt is skipped!)
 	// - a (add second column: "fenrir", size "L", fork "120mm", sag "25")
-	// - r 2 (set column 2 as reference)
+	// - p default (set profile)
 	// - s 770 (set saddle height to 770)
 	// - Enter (run comparison)
 	stdin := strings.Join([]string{
@@ -279,7 +279,7 @@ func TestCompare_InteractiveMode(t *testing.T) {
 		"L",
 		"120mm",
 		"25",
-		"r 2",
+		"p default",
 		"s 770",
 		"",
 	}, "\n") + "\n"
@@ -292,8 +292,8 @@ func TestCompare_InteractiveMode(t *testing.T) {
 	if !strings.Contains(out, "Saddle Height: 770mm") {
 		t.Errorf("Expected Saddle Height 770mm in output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "2 [REF]") {
-		t.Errorf("Expected column 2 to be marked [REF] in transposed output, got:\n%s", out)
+	if !strings.Contains(out, "Ideal Profile: default") {
+		t.Errorf("Expected Ideal Profile: default in transposed output, got:\n%s", out)
 	}
 	if !strings.Contains(out, "120mm @ 25%") {
 		t.Errorf("Expected Otso Fenrir at 120mm @ 25%% in output, got:\n%s", out)
@@ -400,11 +400,11 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	if !strings.Contains(out, "Score") {
 		t.Errorf("Expected 'Score' column in transposed compare, got:\n%s", out)
 	}
-	if !strings.Contains(out, "69 (#1)") {
-		t.Errorf("Expected '69 (#1)' for Hayduke S3, got:\n%s", out)
+	if !strings.Contains(out, "68 (#1)") {
+		t.Errorf("Expected '68 (#1)' for Hayduke S3, got:\n%s", out)
 	}
-	if !strings.Contains(out, "62 (#2)") {
-		t.Errorf("Expected '62 (#2)' for Havok XL, got:\n%s", out)
+	if !strings.Contains(out, "60 (#2)") {
+		t.Errorf("Expected '60 (#2)' for Havok XL, got:\n%s", out)
 	}
 	if !strings.Contains(out, "Biggest Losses vs. Ideal:") {
 		t.Errorf("Expected 'Biggest Losses vs. Ideal:' section in output, got:\n%s", out)
@@ -450,11 +450,11 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	if !strings.Contains(outDetail, "Spare Vert") || !strings.Contains(outDetail, "Chainstay") {
 		t.Errorf("Expected criteria headers in score detail table, got:\n%s", outDetail)
 	}
-	if !strings.Contains(outDetail, "63 (-5)") {
-		t.Errorf("Expected '63 (-5)' for Hayduke Spare Vert in score detail table, got:\n%s", outDetail)
+	if !strings.Contains(outDetail, "59 (-6)") {
+		t.Errorf("Expected '59 (-6)' for Hayduke Spare Vert in score detail table, got:\n%s", outDetail)
 	}
-	if !strings.Contains(outDetail, "69 (-31)") {
-		t.Errorf("Expected '69 (-31)' for Hayduke Total in score detail table, got:\n%s", outDetail)
+	if !strings.Contains(outDetail, "68 (-32)") {
+		t.Errorf("Expected '68 (-32)' for Hayduke Total in score detail table, got:\n%s", outDetail)
 	}
 
 	// 4. JSON format output includes per-column score and top-level explanations
@@ -492,18 +492,18 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	if jsonRes.Columns[0].Score.Total == 0 || jsonRes.Columns[0].Score.Rank == 0 {
 		t.Errorf("Expected populated score for column 0: %+v", jsonRes.Columns[0].Score)
 	}
-	if len(jsonRes.Columns[0].Score.Criteria) != 7 {
-		t.Errorf("Expected 7 criteria in column score, got %d", len(jsonRes.Columns[0].Score.Criteria))
+	if len(jsonRes.Columns[0].Score.Criteria) != 10 {
+		t.Errorf("Expected 10 criteria in column score, got %d", len(jsonRes.Columns[0].Score.Criteria))
 	}
 	var foundSpareVertLost bool
 	for _, crit := range jsonRes.Columns[0].Score.Criteria {
-		if crit.ID == "sparevert" && math.Round(crit.PointsLost) == 5 {
+		if crit.ID == "sparevert" && math.Round(crit.PointsLost) == 6 {
 			foundSpareVertLost = true
 			break
 		}
 	}
 	if !foundSpareVertLost {
-		t.Errorf("Expected sparevert PointsLost to be ~5 in JSON output, got: %+v", jsonRes.Columns[0].Score.Criteria)
+		t.Errorf("Expected sparevert PointsLost to be ~6 in JSON output, got: %+v", jsonRes.Columns[0].Score.Criteria)
 	}
 	if len(jsonRes.Explanations.Losses) != 2 {
 		t.Errorf("Expected 2 loss explanations, got %d", len(jsonRes.Explanations.Losses))
@@ -631,9 +631,9 @@ func TestCompare_DisambiguateDuplicateFrameSize(t *testing.T) {
 	if !strings.Contains(out, "Esker Hayduke (S3)") || strings.Contains(out, "Esker Hayduke (S3) @") {
 		t.Errorf("Expected singleton 'Esker Hayduke (S3)' without fork suffix, got:\n%s", out)
 	}
-	// Verify subtitle reference
-	if !strings.Contains(out, "Reference: [1] Otso Fenrir (L) @ 110mm") {
-		t.Errorf("Expected reference subtitle to include disambiguated name, got:\n%s", out)
+	// Verify subtitle ideal profile
+	if !strings.Contains(out, "Ideal Profile: default") {
+		t.Errorf("Expected subtitle to include ideal profile, got:\n%s", out)
 	}
 	// Verify score detail table contains disambiguated names
 	if !strings.Contains(out, "Scoring Breakdown") {
@@ -701,8 +701,8 @@ func TestCompare_AllSizesExpansion(t *testing.T) {
 	}
 
 	var result struct {
-		RefIndex int                            `json:"ref_index"`
-		Columns  []model.CanonicalComparisonRow `json:"columns"`
+		IdealProfile string                         `json:"ideal_profile"`
+		Columns      []model.CanonicalComparisonRow `json:"columns"`
 	}
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("Failed to parse JSON output: %v\nOutput: %s", err, out)
@@ -723,10 +723,8 @@ func TestCompare_AllSizesExpansion(t *testing.T) {
 		}
 	}
 
-	// Verify reference index corresponds to Seven Expedition's default size: "S 60cm"
-	refCol := result.Columns[result.RefIndex]
-	if refCol.Setup.Size != "S 60cm" {
-		t.Errorf("Expected reference column to be 'S 60cm' (default_size), got %q at index %d", refCol.Setup.Size, result.RefIndex)
+	if result.IdealProfile != "default" {
+		t.Errorf("Expected IdealProfile 'default', got %q", result.IdealProfile)
 	}
 
 	// Verify saved state automatically enabled Transpose since 24 > 4
@@ -752,8 +750,7 @@ func TestCompare_AllSizesExpansion(t *testing.T) {
 		t.Fatalf("compare +revel-el-jefe:all failed: %s", errOut)
 	}
 	var addResult struct {
-		RefIndex int                            `json:"ref_index"`
-		Columns  []model.CanonicalComparisonRow `json:"columns"`
+		Columns []model.CanonicalComparisonRow `json:"columns"`
 	}
 	if err := json.Unmarshal([]byte(outAdd), &addResult); err != nil {
 		t.Fatalf("Failed to parse addResult: %v", err)
@@ -762,9 +759,9 @@ func TestCompare_AllSizesExpansion(t *testing.T) {
 	if len(addResult.Columns) != 5 {
 		t.Fatalf("Expected 5 columns (1 Fenrir + 4 El Jefe), got %d", len(addResult.Columns))
 	}
-	if addResult.RefIndex != 0 || addResult.Columns[0].Setup.FrameID != "otso-fenrir-stainless" {
-		t.Errorf("Expected reference column 0 to remain Otso Fenrir, got %s at index %d",
-			addResult.Columns[addResult.RefIndex].Setup.FrameID, addResult.RefIndex)
+	if addResult.Columns[0].Setup.FrameID != "otso-fenrir-stainless" {
+		t.Errorf("Expected first column to remain Otso Fenrir, got %s",
+			addResult.Columns[0].Setup.FrameID)
 	}
 
 	// 3. Removal via -revel-el-jefe:all removes all 4 El Jefe columns
@@ -828,7 +825,7 @@ func TestCompare_HelpOutputDocumentsSemantics(t *testing.T) {
 			"Full Replacement (Bare Specs):",
 			"Incremental Addition ('+spec'):",
 			"Incremental Removal ('-spec' or '-col_num'):",
-			"Reference Column ([REF]):",
+			"--ideal <name>",
 			"Table Layout & Auto-Transposition:",
 			"Scoring & Ranking:",
 			"-save[=bool], --save[=bool]",

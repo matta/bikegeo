@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 )
 
@@ -485,3 +486,124 @@ func searchSubstr(s, substr string) bool {
 	}
 	return false
 }
+
+func floatPtr(v float64) *float64 { return &v }
+
+func TestScoreRow_MissingDataRenormalization(t *testing.T) {
+	prof := &ideal.Profile{
+		Name: "test-missing",
+		Attributes: []ideal.AttributeSpec{
+			{
+				ID:        "setback",
+				Weight:    10,
+				Ideal:     &ideal.Range{Min: floatPtr(230), Max: floatPtr(230)},
+				EdgeScore: floatPtr(80),
+				Falloff:   &ideal.Falloff{Below: floatPtr(10), Above: floatPtr(10)},
+			},
+			{
+				ID:        "standover",
+				Weight:    10,
+				Ideal:     &ideal.Range{Min: floatPtr(700), Max: floatPtr(750)},
+				EdgeScore: floatPtr(80),
+				Falloff:   &ideal.Falloff{Below: floatPtr(50), Above: floatPtr(50)},
+			},
+		},
+	}
+
+	// Frame A has both setback=230 (100) and standover=720 (100) -> total 100
+	rowA := model.CanonicalComparisonRow{
+		Bike: model.BikeGeometry{
+			StandoverHeight: 720,
+		},
+		Canonical: model.BikeFitAnalysis{
+			ActualSetback: 230,
+		},
+	}
+	resA := ScoreRow(rowA, prof)
+	if math.Round(resA.Total) != 100 {
+		t.Errorf("Frame A expected total 100, got %.1f", resA.Total)
+	}
+
+	// Frame B has setback=230 (100) and standover=0 (missing)
+	// Active weight should renormalize to 10/10 -> total 100
+	rowB := model.CanonicalComparisonRow{
+		Bike: model.BikeGeometry{
+			StandoverHeight: 0,
+		},
+		Canonical: model.BikeFitAnalysis{
+			ActualSetback: 230,
+		},
+	}
+	resB := ScoreRow(rowB, prof)
+	if math.Round(resB.Total) != 100 {
+		t.Errorf("Frame B expected total 100 with renormalized weight, got %.1f", resB.Total)
+	}
+	if !resB.Criteria[1].Missing {
+		t.Errorf("Expected standover criterion on Frame B to have Missing=true")
+	}
+	if resB.Criteria[1].FormattedCell != "— (no data)" {
+		t.Errorf("Expected '— (no data)', got %q", resB.Criteria[1].FormattedCell)
+	}
+
+	// Test CollectMissingDataNotes
+	frames := []ScoredFrame{
+		{Name: "Bike A", Score: resA},
+		{Name: "Bike B", Score: resB},
+	}
+	notes := CollectMissingDataNotes(frames)
+	if len(notes) != 1 || !contains(notes[0], "Standover not scored for: Bike B") {
+		t.Errorf("Unexpected missing notes: %v", notes)
+	}
+}
+
+func TestExplainProfile_LossesAndH2H(t *testing.T) {
+	prof, err := ideal.LoadProfile("", "default")
+	if err != nil {
+		t.Fatalf("Failed to load default profile: %v", err)
+	}
+
+	rowRitchey := model.CanonicalComparisonRow{
+		Canonical: model.BikeFitAnalysis{
+			Aett:               633.3,
+			ActualSetback:      219.8,
+			SpareVerticalStack: 122.5,
+			ActiveChainstay:    439,
+			ActiveBbDrop:       59,
+			ActiveHta:          68.63,
+			WeightDistFrontPct: 35.2,
+		},
+	}
+	rowHayduke := model.CanonicalComparisonRow{
+		Canonical: model.BikeFitAnalysis{
+			Aett:               634.9,
+			ActualSetback:      213.4,
+			SpareVerticalStack: 121.2,
+			ActiveChainstay:    454,
+			ActiveBbDrop:       65.9,
+			ActiveHta:          67.62,
+			WeightDistFrontPct: 35.4,
+		},
+	}
+
+	scoreRitchey := ScoreRow(rowRitchey, prof)
+	scoreHayduke := ScoreRow(rowHayduke, prof)
+
+	frames := []ScoredFrame{
+		{Name: "Ritchey Ultra (XL)", Score: scoreRitchey, Row: rowRitchey},
+		{Name: "Esker Hayduke (S3)", Score: scoreHayduke, Row: rowHayduke},
+	}
+
+	expl := ExplainProfile(frames, prof)
+	if len(expl.Losses) != 2 {
+		t.Fatalf("Expected 2 losses, got %d", len(expl.Losses))
+	}
+	if len(expl.HeadToHead) != 1 {
+		t.Fatalf("Expected 1 head-to-head, got %d", len(expl.HeadToHead))
+	}
+
+	// Verify Loss text mentions setback for Hayduke
+	if !contains(expl.Losses[1], "Esker Hayduke (S3)") || !contains(expl.Losses[1], "Setback") {
+		t.Errorf("Expected setback loss in Hayduke explanation: %s", expl.Losses[1])
+	}
+}
+

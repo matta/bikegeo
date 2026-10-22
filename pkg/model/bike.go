@@ -143,6 +143,7 @@ type BikeGeometry struct {
 	ChainstayRangeMm []float64 `json:"chainstay_range_mm,omitempty"`
 	FrontCenter      float64   `json:"front_center,omitempty"`
 	SeatTubeLength   float64   `json:"seat_tube_length,omitempty"`
+	StandoverHeight  float64   `json:"standover_height,omitempty"`
 	WheelSize        string    `json:"wheel_size,omitempty"`
 
 	// Published CAD & Hardware Assumptions
@@ -666,9 +667,10 @@ type ComparisonSetup struct {
 // SavedComparisonState persists the user's most recent comparison in data/last_compare.json.
 type SavedComparisonState struct {
 	RiderProfile
-	Transpose bool              `json:"transpose"`
-	RefIndex  int               `json:"ref_index"`
-	Columns   []ComparisonSetup `json:"columns"`
+	Transpose    bool              `json:"transpose"`
+	RefIndex     int               `json:"ref_index,omitempty"`
+	IdealProfile string            `json:"ideal_profile,omitempty"`
+	Columns      []ComparisonSetup `json:"columns"`
 }
 
 // NormalizeRiderProfile fills any zero values in RiderProfile with standard defaults.
