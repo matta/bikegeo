@@ -8,15 +8,23 @@ import (
 	"path/filepath"
 	"strings"
 
+	"bikegeo/pkg/canonicalizer"
 	"bikegeo/pkg/ideal"
+	"bikegeo/pkg/model"
+	"bikegeo/pkg/storage"
+	"bikegeo/pkg/validator"
 )
 
 // Session manages editing state, deep copies, dirty tracking, and disk persistence for an ideal profile.
 type Session struct {
-	IdealsDir string
-	Original  *ideal.Profile
-	Working   *ideal.Profile
-	OrigJSON  []byte
+	IdealsDir   string
+	DataDir     string
+	StatePath   string
+	Original    *ideal.Profile
+	Working     *ideal.Profile
+	OrigJSON    []byte
+	FleetRows   []model.CanonicalComparisonRow
+	CompareRows []model.CanonicalComparisonRow
 }
 
 // NewSession creates an editing session from a loaded Profile.
@@ -153,4 +161,90 @@ func (s *Session) MoveAttribute(oldIndex, newIndex int) bool {
 	s.Working.Attributes = append(s.Working.Attributes[:oldIndex], s.Working.Attributes[oldIndex+1:]...)
 	s.Working.Attributes = append(s.Working.Attributes[:newIndex], append([]ideal.AttributeSpec{attr}, s.Working.Attributes[newIndex:]...)...)
 	return true
+}
+
+// PopulateBikes loads fleet bikes from dataDir and active comparison bikes from statePath.
+func (s *Session) PopulateBikes(bikesDir string, statePath string) {
+	if bikesDir != "" {
+		s.DataDir = bikesDir
+	} else if s.DataDir != "" {
+		bikesDir = s.DataDir
+	} else {
+		if info, err := os.Stat("data/bikes"); err == nil && info.IsDir() {
+			bikesDir = "data/bikes"
+			s.DataDir = bikesDir
+		}
+	}
+
+	if statePath != "" {
+		s.StatePath = statePath
+	} else if s.StatePath != "" {
+		statePath = s.StatePath
+	} else {
+		if _, err := os.Stat("data/last_compare.json"); err == nil {
+			statePath = "data/last_compare.json"
+			s.StatePath = statePath
+		}
+	}
+
+	saddleHeight := 780.0
+	if s.Working != nil && s.Working.SaddleHeightMm != nil && *s.Working.SaddleHeightMm > 0 {
+		saddleHeight = *s.Working.SaddleHeightMm
+	}
+	rider := model.DefaultRiderProfile()
+	rider.SaddleHeightMm = saddleHeight
+
+	// Load fleet bikes across all sizes
+	if bikesDir != "" {
+		if store, err := storage.NewBikeStore(bikesDir); err == nil {
+			if frames, err := store.GetAllFrames(); err == nil {
+				s.FleetRows = nil
+				for _, f := range frames {
+					if !validator.ValidateFrame(f).IsValid {
+						continue
+					}
+					for _, sz := range f.GetSizes() {
+						setup := model.ComparisonSetup{
+							FrameID: f.ID,
+							Size:    sz,
+							Fork:    f.GetDefaultForkSpecString(),
+						}
+						if row, err := canonicalizer.ResolveFrameForkSetup(f, setup, rider); err == nil {
+							s.FleetRows = append(s.FleetRows, row)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Load comparison state if available
+	if statePath != "" {
+		if data, err := os.ReadFile(statePath); err == nil {
+			var saved model.SavedComparisonState
+			if err := json.Unmarshal(data, &saved); err == nil && len(saved.Columns) > 0 {
+				saved.NormalizeRiderProfile()
+				if s.Working != nil && s.Working.SaddleHeightMm != nil && *s.Working.SaddleHeightMm > 0 {
+					saved.RiderProfile.SaddleHeightMm = *s.Working.SaddleHeightMm
+				}
+				if bikesDir != "" {
+					if store, err := storage.NewBikeStore(bikesDir); err == nil {
+						if frames, err := store.GetAllFrames(); err == nil {
+							s.CompareRows = nil
+							for _, col := range saved.Columns {
+								for i := range frames {
+									if frames[i].ID == col.FrameID {
+										if row, err := canonicalizer.ResolveFrameForkSetup(frames[i], col, saved.RiderProfile); err == nil {
+											s.CompareRows = append(s.CompareRows, row)
+										}
+										break
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }

@@ -16,6 +16,8 @@ import (
 type ProfileChooserScreen struct {
 	App       *tui.App
 	IdealsDir string
+	DataDir   string
+	StatePath string
 	Theme     tui.Theme
 	ListView  *tui.ListView
 	StatusBar *tui.StatusBar
@@ -163,6 +165,7 @@ func (pcs *ProfileChooserScreen) openProfile(name string) {
 		pcs.isErr = true
 		return
 	}
+	session.PopulateBikes(pcs.DataDir, pcs.StatePath)
 
 	editScreen := NewProfileEditScreen(pcs.App, session)
 	editScreen.OnBack = func() {
@@ -197,6 +200,7 @@ func (pcs *ProfileChooserScreen) promptNewProfile() {
 					modal.StatusIsWarn = true
 					return
 				}
+				session.PopulateBikes(pcs.DataDir, pcs.StatePath)
 				pcs.App.PopView()
 				editScreen := NewProfileEditScreen(pcs.App, session)
 				editScreen.OnBack = func() {
@@ -253,6 +257,7 @@ func (pcs *ProfileChooserScreen) promptCloneProfile() {
 					return
 				}
 				session.Working.Name = name
+				session.PopulateBikes(pcs.DataDir, pcs.StatePath)
 				pcs.App.PopView()
 				editScreen := NewProfileEditScreen(pcs.App, session)
 				editScreen.OnBack = func() {

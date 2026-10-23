@@ -79,6 +79,7 @@ func NewProfileEditScreen(app *tui.App, session *Session) *ProfileEditScreen {
 		} else if v, err := strconv.ParseFloat(s, 64); err == nil && v > 0 {
 			session.Working.SaddleHeightMm = &v
 		}
+		session.PopulateBikes(session.DataDir, session.StatePath)
 		screen.updateValidationStatus()
 	}
 
@@ -474,6 +475,7 @@ func (pe *ProfileEditScreen) HandleEvent(ev tcell.Event) tui.EventResult {
 func (pe *ProfileEditScreen) openEditAttributeModal(idx int) {
 	attr := pe.Session.Working.Attributes[idx]
 	modal := NewAttributeModal(attr, false, pe.Theme)
+	modal.SetBikeRows(pe.Session.FleetRows, pe.Session.CompareRows)
 	modal.OnSave = func(updated ideal.AttributeSpec) {
 		pe.Session.Working.Attributes[idx] = updated
 		pe.updateValidationStatus()
@@ -495,6 +497,7 @@ func (pe *ProfileEditScreen) openAddAttributeModal() {
 		Falloff:    &ideal.Falloff{Below: ptrFloat(10), Above: ptrFloat(10)},
 	}
 	modal := NewAttributeModal(newSpec, true, pe.Theme)
+	modal.SetBikeRows(pe.Session.FleetRows, pe.Session.CompareRows)
 	modal.OnSave = func(updated ideal.AttributeSpec) {
 		pe.Session.AddAttribute(updated)
 		pe.selectedAttrIdx = len(pe.Session.Working.Attributes) - 1

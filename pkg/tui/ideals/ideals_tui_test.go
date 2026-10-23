@@ -9,6 +9,7 @@ import (
 	"github.com/gdamore/tcell/v3"
 
 	"bikegeo/pkg/ideal"
+	"bikegeo/pkg/model"
 	"bikegeo/pkg/tui"
 )
 
@@ -269,6 +270,229 @@ func TestTableColumnAlignment(t *testing.T) {
 		if rowRunes[floorColIdx-1] != ' ' {
 			t.Errorf("Attr %s: misalignment before Floor column, got %q at idx %d in:\n%s", attr.ID, string(rowRunes[floorColIdx-1]), floorColIdx-1, row)
 		}
+	}
+}
+
+func TestCurveInspectorZoneBarAndEnglishSummary(t *testing.T) {
+	meta, _ := ideal.LookupAttribute("aett")
+
+	// 1. Two-Sided Bounded Spec
+	spec := ideal.AttributeSpec{
+		ID:     "aett",
+		Weight: 10,
+		Ideal: &ideal.Range{
+			Min: ptrFloat(625),
+			Max: ptrFloat(636),
+		},
+		Acceptable: &ideal.Range{
+			Min: ptrFloat(605),
+			Max: ptrFloat(648),
+		},
+		EdgeScore: ptrFloat(75),
+		Falloff: &ideal.Falloff{
+			Below: ptrFloat(20),
+			Above: ptrFloat(12),
+		},
+		Floor: ptrFloat(-200),
+	}
+
+	inspector := NewCurveInspector(spec, meta, tui.DefaultTheme())
+
+	// Verify Zone Segments
+	segs := inspector.buildZoneSegments()
+	if len(segs) != 7 {
+		t.Fatalf("expected 7 segments for two-sided curve, got %d", len(segs))
+	}
+	if segs[0].Name != "[FLOOR]" || segs[0].ScoreStr != "-200" {
+		t.Errorf("expected left floor segment, got %+v", segs[0])
+	}
+	if segs[1].Name != "[PENALTY]" || segs[1].ScoreStr != "0–75" {
+		t.Errorf("expected left penalty segment, got %+v", segs[1])
+	}
+	if segs[2].Name != "[ACCEPT]" || segs[2].ScoreStr != "75–100" {
+		t.Errorf("expected left accept segment, got %+v", segs[2])
+	}
+	if segs[3].Name != "[== IDEAL ==]" || segs[3].RangeStr != "625–636" || segs[3].ScoreStr != "100" {
+		t.Errorf("expected ideal segment, got %+v", segs[3])
+	}
+	if segs[4].Name != "[ACCEPT]" || segs[4].ScoreStr != "100–75" {
+		t.Errorf("expected right accept segment, got %+v", segs[4])
+	}
+	if segs[5].Name != "[PENALTY]" || segs[5].ScoreStr != "75–0" {
+		t.Errorf("expected right penalty segment, got %+v", segs[5])
+	}
+	if segs[6].Name != "[FLOOR]" || segs[6].ScoreStr != "-200" {
+		t.Errorf("expected right floor segment, got %+v", segs[6])
+	}
+
+	// Verify English Summary
+	bullets := inspector.generateEnglishSummary()
+	if len(bullets) < 4 {
+		t.Fatalf("expected at least 4 summary bullets, got %d", len(bullets))
+	}
+	if !strings.Contains(bullets[0], "625–636 mm receives full 100 pts") {
+		t.Errorf("unexpected sweet spot bullet: %q", bullets[0])
+	}
+	if !strings.Contains(bullets[1], "605–648 mm tapers from 100 down to 75 pts") {
+		t.Errorf("unexpected acceptable bullet: %q", bullets[1])
+	}
+	if !strings.Contains(bullets[2], "below 605") || !strings.Contains(bullets[2], "above 648") {
+		t.Errorf("unexpected penalty bullet: %q", bullets[2])
+	}
+
+	// 2. One-Sided Spec (Chainstay >= 455)
+	csMeta, _ := ideal.LookupAttribute("chainstay")
+	csSpec := ideal.AttributeSpec{
+		ID:     "chainstay",
+		Weight: 4,
+		Ideal: &ideal.Range{
+			Min: ptrFloat(455),
+		},
+		Acceptable: &ideal.Range{
+			Min: ptrFloat(445),
+		},
+		EdgeScore: ptrFloat(70),
+		Falloff: &ideal.Falloff{
+			Below: ptrFloat(25),
+		},
+		Floor: ptrFloat(-100),
+	}
+	csInspector := NewCurveInspector(csSpec, csMeta, tui.DefaultTheme())
+	csSegs := csInspector.buildZoneSegments()
+	if len(csSegs) != 4 {
+		t.Fatalf("expected 4 segments for lower-only curve, got %d", len(csSegs))
+	}
+	if csSegs[3].Name != "[==== IDEAL (UNBOUNDED) ====]" || csSegs[3].RangeStr != "≥ 455" {
+		t.Errorf("expected unbounded ideal segment, got %+v", csSegs[3])
+	}
+
+	csBullets := csInspector.generateEnglishSummary()
+	if !strings.Contains(csBullets[0], "≥ 455 mm receives full 100 pts") {
+		t.Errorf("unexpected chainstay sweet spot bullet: %q", csBullets[0])
+	}
+
+	// 3. Prober & Database Ranking
+	fleetRows := []model.CanonicalComparisonRow{
+		{
+			Bike: model.BikeGeometry{Manufacturer: "Surly", Model: "ECR"},
+			Setup: model.ComparisonSetup{Size: "L"},
+			Canonical: model.BikeFitAnalysis{Aett: 630},
+		},
+		{
+			Bike: model.BikeGeometry{Manufacturer: "Ritchey", Model: "Ultra"},
+			Setup: model.ComparisonSetup{Size: "L"},
+			Canonical: model.BikeFitAnalysis{Aett: 647},
+		},
+		{
+			Bike: model.BikeGeometry{Manufacturer: "Esker", Model: "Hayduke"},
+			Setup: model.ComparisonSetup{Size: "M"},
+			Canonical: model.BikeFitAnalysis{Aett: 595},
+		},
+	}
+	compareRows := []model.CanonicalComparisonRow{
+		fleetRows[0],
+	}
+
+	inspector.SetBikeRows(fleetRows, compareRows)
+	if len(inspector.ActiveRows()) != 3 {
+		t.Fatalf("expected 3 fleet rows, got %d", len(inspector.ActiveRows()))
+	}
+
+	// Toggle Dataset
+	inspector.ToggleDataset()
+	if len(inspector.ActiveRows()) != 1 {
+		t.Fatalf("expected 1 compare row after toggle, got %d", len(inspector.ActiveRows()))
+	}
+	inspector.ToggleDataset()
+	if len(inspector.ActiveRows()) != 3 {
+		t.Fatalf("expected 3 fleet rows after second toggle, got %d", len(inspector.ActiveRows()))
+	}
+
+	// Value Prober
+	testVal := 630.0
+	inspector.SetProbeVal(&testVal)
+	if inspector.ProbeVal == nil || *inspector.ProbeVal != 630.0 {
+		t.Fatalf("expected ProbeVal 630.0, got %v", inspector.ProbeVal)
+	}
+}
+
+func TestAttributeModalTwoPaneLiveUpdatesAndHotkeys(t *testing.T) {
+	spec := ideal.AttributeSpec{
+		ID:     "aett",
+		Weight: 10,
+		Ideal:  &ideal.Range{Min: ptrFloat(625), Max: ptrFloat(636)},
+		Acceptable: &ideal.Range{Min: ptrFloat(605), Max: ptrFloat(648)},
+		EdgeScore:  ptrFloat(75),
+		Falloff:    &ideal.Falloff{Below: ptrFloat(20), Above: ptrFloat(12)},
+		Floor:      ptrFloat(-200),
+	}
+
+	_, scr := tui.NewMockScreen(t, 100, 30)
+	defer scr.Fini()
+
+	app := tui.NewApp(scr)
+	modal := NewAttributeModal(spec, false, tui.DefaultTheme())
+
+	fleetRows := []model.CanonicalComparisonRow{
+		{
+			Bike: model.BikeGeometry{Manufacturer: "Surly", Model: "ECR"},
+			Setup: model.ComparisonSetup{Size: "L"},
+			Canonical: model.BikeFitAnalysis{Aett: 630},
+		},
+		{
+			Bike: model.BikeGeometry{Manufacturer: "Ritchey", Model: "Ultra"},
+			Setup: model.ComparisonSetup{Size: "L"},
+			Canonical: model.BikeFitAnalysis{Aett: 647},
+		},
+	}
+	compareRows := []model.CanonicalComparisonRow{
+		fleetRows[0],
+	}
+	modal.SetBikeRows(fleetRows, compareRows)
+
+	app.PushView(modal)
+	app.Redraw()
+
+	dump := tui.ScreenDump(scr)
+
+	// Check for left pane elements
+	if !tui.ScreenContains(scr, "Probe Value") {
+		t.Fatalf("expected 'Probe Value' input on left form pane, got:\n%s", dump)
+	}
+
+	// Check for right pane inspector elements
+	if !tui.ScreenContains(scr, "Analysis: AETT") {
+		t.Fatalf("expected 'Analysis: AETT' header in inspector pane, got:\n%s", dump)
+	}
+	if !tui.ScreenContains(scr, "IDEAL") {
+		t.Fatalf("expected 'IDEAL' segment on zone bar, got:\n%s", dump)
+	}
+	if !tui.ScreenContains(scr, "Sweet spot: 625–636 mm receives full 100 pts") {
+		t.Fatalf("expected English summary on right pane, got:\n%s", dump)
+	}
+	if !tui.ScreenContains(scr, "Surly ECR (L") {
+		t.Fatalf("expected representative real frame on right pane, got:\n%s", dump)
+	}
+
+	// Test live probe entry
+	modal.probeInput.SetText("632")
+	modal.validateLive()
+	app.Redraw()
+
+	if !tui.ScreenContains(scr, "Probe: 632mm ── Score: 100 pts") {
+		t.Fatalf("expected live probe calculation on screen, got:\n%s", tui.ScreenDump(scr))
+	}
+
+	// Test Dataset Toggle via F2 key
+	if !tui.ScreenContains(scr, "Fleet: 2 sizes") {
+		t.Fatalf("expected Fleet dataset indicator on screen, got:\n%s", tui.ScreenDump(scr))
+	}
+	f2Ev := tcell.NewEventKey(tcell.KeyF2, "", tcell.ModNone)
+	modal.HandleEvent(f2Ev)
+	app.Redraw()
+
+	if !tui.ScreenContains(scr, "Compare: 1 sizes") {
+		t.Fatalf("expected Compare dataset indicator on screen after F2 toggle, got:\n%s", tui.ScreenDump(scr))
 	}
 }
 

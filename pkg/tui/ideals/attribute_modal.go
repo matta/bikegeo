@@ -8,8 +8,54 @@ import (
 	"github.com/gdamore/tcell/v3"
 
 	"bikegeo/pkg/ideal"
+	"bikegeo/pkg/model"
 	"bikegeo/pkg/tui"
 )
+
+// modalTwoPaneLayout arranges form controls on the left and live curve analysis on the right.
+type modalTwoPaneLayout struct {
+	Form      *tui.Form
+	Inspector *CurveInspector
+	Theme     tui.Theme
+}
+
+func (l *modalTwoPaneLayout) Draw(s tcell.Screen, bounds tui.Rect) {
+	if bounds.W <= 0 || bounds.H <= 0 {
+		return
+	}
+
+	leftW := 38
+	if bounds.W < 80 {
+		leftW = 34
+	}
+	if leftW > bounds.W/2 {
+		leftW = bounds.W / 2
+	}
+
+	leftRect := tui.Rect{X: bounds.X, Y: bounds.Y, W: leftW, H: bounds.H}
+	l.Form.Draw(s, leftRect)
+
+	divX := bounds.X + leftW + 1
+	if divX < bounds.X+bounds.W-8 {
+		for y := bounds.Y; y < bounds.Y+bounds.H; y++ {
+			tui.DrawText(s, divX, y, "│", l.Theme.Border)
+		}
+
+		rightX := divX + 2
+		rightW := bounds.X + bounds.W - rightX
+		if rightW > 0 {
+			rightRect := tui.Rect{X: rightX, Y: bounds.Y, W: rightW, H: bounds.H}
+			l.Inspector.Draw(s, rightRect)
+		}
+	}
+}
+
+func (l *modalTwoPaneLayout) HandleEvent(ev tcell.Event) tui.EventResult {
+	if l.Form != nil {
+		return l.Form.HandleEvent(ev)
+	}
+	return tui.EventIgnored
+}
 
 // AttributeModal allows editing all fields of a single AttributeSpec.
 type AttributeModal struct {
@@ -18,6 +64,8 @@ type AttributeModal struct {
 	Theme     tui.Theme
 	Modal     *tui.ModalDialog
 	Form      *tui.Form
+	Inspector *CurveInspector
+	Layout    *modalTwoPaneLayout
 
 	idPicker      *tui.CyclePicker
 	weightInput   *tui.TextInput
@@ -29,11 +77,19 @@ type AttributeModal struct {
 	fallBelow     *tui.TextInput
 	fallAbove     *tui.TextInput
 	floorInput    *tui.TextInput
+	probeInput    *tui.TextInput
 
 	allKnown []ideal.AttributeMeta
 
 	OnSave   func(updated ideal.AttributeSpec)
 	OnCancel func()
+}
+
+// SetBikeRows configures fleet and comparison datasets for live curve evaluation.
+func (am *AttributeModal) SetBikeRows(fleet, compare []model.CanonicalComparisonRow) {
+	if am.Inspector != nil {
+		am.Inspector.SetBikeRows(fleet, compare)
+	}
 }
 
 // NewAttributeModal creates an attribute editor modal.
@@ -58,7 +114,7 @@ func NewAttributeModal(spec ideal.AttributeSpec, isNew bool, theme tui.Theme) *A
 		title = "Add Attribute"
 	}
 
-	am.Modal = tui.NewModalDialog(title, 64, 18)
+	am.Modal = tui.NewModalDialog(title, 104, 26)
 	am.Modal.Theme = theme
 
 	// Build form controls
@@ -125,6 +181,7 @@ func NewAttributeModal(spec ideal.AttributeSpec, isNew bool, theme tui.Theme) *A
 		flStr = fmtFloat(*spec.Floor)
 	}
 	am.floorInput = tui.NewTextInput(flStr)
+	am.probeInput = tui.NewTextInput("")
 
 	form := tui.NewForm()
 	form.Theme = theme
@@ -139,9 +196,16 @@ func NewAttributeModal(spec ideal.AttributeSpec, isNew bool, theme tui.Theme) *A
 	form.AddField(tui.FormField{ID: "fall_below", Label: "Falloff Below", Hint: unit + " (>0)", Widget: am.fallBelow})
 	form.AddField(tui.FormField{ID: "fall_above", Label: "Falloff Above", Hint: unit + " (>0)", Widget: am.fallAbove})
 	form.AddField(tui.FormField{ID: "floor", Label: "Score Floor", Hint: "(<0, e.g. -100)", Widget: am.floorInput})
+	form.AddField(tui.FormField{ID: "probe", Label: "Probe Value", Hint: unit + " (test)", Widget: am.probeInput})
 
 	am.Form = form
-	am.Modal.Content = form
+	am.Inspector = NewCurveInspector(spec, meta, theme)
+	am.Layout = &modalTwoPaneLayout{
+		Form:      form,
+		Inspector: am.Inspector,
+		Theme:     theme,
+	}
+	am.Modal.Content = am.Layout
 
 	// Update unit hints on ID change
 	am.idPicker.OnChange = func(idx int, val string) {
@@ -154,6 +218,8 @@ func NewAttributeModal(spec ideal.AttributeSpec, isNew bool, theme tui.Theme) *A
 			switch form.Fields[i].ID {
 			case "ideal_min", "ideal_max", "acc_min", "acc_max", "fall_below", "fall_above":
 				form.Fields[i].Hint = u
+			case "probe":
+				form.Fields[i].Hint = u + " (test)"
 			}
 		}
 		am.validateLive()
@@ -171,6 +237,7 @@ func NewAttributeModal(spec ideal.AttributeSpec, isNew bool, theme tui.Theme) *A
 	am.fallBelow.OnChange = changeHook
 	am.fallAbove.OnChange = changeHook
 	am.floorInput.OnChange = changeHook
+	am.probeInput.OnChange = changeHook
 
 	am.Modal.Buttons = []tui.ModalButton{
 		{
@@ -191,6 +258,14 @@ func NewAttributeModal(spec ideal.AttributeSpec, isNew bool, theme tui.Theme) *A
 			Action: func() {
 				if am.OnCancel != nil {
 					am.OnCancel()
+				}
+			},
+		},
+		{
+			Label: "Toggle Fleet (F2)",
+			Action: func() {
+				if am.Inspector != nil {
+					am.Inspector.ToggleDataset()
 				}
 			},
 		},
@@ -315,7 +390,21 @@ func (am *AttributeModal) BuildSpec() (ideal.AttributeSpec, error) {
 }
 
 func (am *AttributeModal) validateLive() {
-	_, err := am.BuildSpec()
+	spec, err := am.BuildSpec()
+	meta, _ := ideal.LookupAttribute(am.idPicker.SelectedValue())
+
+	if am.probeInput != nil {
+		if val, err := parseOptFloat(am.probeInput.Text); err == nil {
+			am.Inspector.SetProbeVal(val)
+		} else {
+			am.Inspector.SetProbeVal(nil)
+		}
+	}
+
+	if am.Inspector != nil {
+		am.Inspector.SetSpec(spec, meta)
+	}
+
 	if err != nil {
 		am.Modal.StatusMsg = "⚠ " + err.Error()
 		am.Modal.StatusIsWarn = true
@@ -330,6 +419,12 @@ func (am *AttributeModal) Init(theme tui.Theme) {
 	am.Theme = theme
 	am.Modal.Theme = theme
 	am.Form.Theme = theme
+	if am.Inspector != nil {
+		am.Inspector.Theme = theme
+	}
+	if am.Layout != nil {
+		am.Layout.Theme = theme
+	}
 }
 
 // Draw renders modal overlay.
@@ -352,6 +447,12 @@ func (am *AttributeModal) HandleEvent(ev tcell.Event) tui.EventResult {
 					am.OnSave(attr)
 					return tui.EventHandled
 				}
+			}
+		}
+		if kev.Key() == tcell.KeyF2 || kev.Key() == tcell.KeyCtrlF {
+			if am.Inspector != nil {
+				am.Inspector.ToggleDataset()
+				return tui.EventHandled
 			}
 		}
 	}

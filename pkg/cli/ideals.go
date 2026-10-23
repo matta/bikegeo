@@ -98,10 +98,13 @@ func (a *App) EditIdealsWithScreen(screen tcell.Screen, idealsDir string, profil
 			fmt.Fprintf(a.Err, "Error creating session for profile %q: %v\n", profileName, err)
 			return 1
 		}
+		session.PopulateBikes(a.DataDir, a.StatePath)
 		editScreen := ideals.NewProfileEditScreen(tuiApp, session)
 		tuiApp.PushView(editScreen)
 	} else {
 		chooser := ideals.NewProfileChooserScreen(tuiApp, idealsDir)
+		chooser.DataDir = a.DataDir
+		chooser.StatePath = a.StatePath
 		tuiApp.PushView(chooser)
 	}
 
