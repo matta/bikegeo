@@ -137,7 +137,7 @@ Core Commands:
   validate [frame...]     Verify CAD Master Stack Equation, publish mode, and multi-config coherence
   list                    List all stored bike frames, sizes, and supported fork capacities
   forks                   List standard 29er fork presets and travel-to-A2C mappings
-  ideals [show <name>]    List ideal frame profiles or inspect attributes and sweet-spot curves
+  ideals [show|edit [name]] List, inspect, or edit ideal frame profiles in a TUI
 
 Data Management Commands:
   init                    Generate a starter FrameModel JSON template

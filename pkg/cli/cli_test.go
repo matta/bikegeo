@@ -7,11 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/gdamore/tcell/v3/vt"
+
 	"bikegeo/pkg/cli"
 	"bikegeo/pkg/model"
+	"bikegeo/pkg/tui"
 )
 
 func setupTestEnv(t *testing.T) (dataDir string, stateFile string) {
@@ -950,6 +954,108 @@ func TestCompare_OptionalPersistence(t *testing.T) {
 		t.Errorf("Expected table not to be rendered on 'q' quit, got:\n%s", outQuit)
 	}
 }
+
+func TestIdealsCLI(t *testing.T) {
+	dataDir := t.TempDir()
+	stateFile := filepath.Join(t.TempDir(), "last_compare.json")
+
+	// 1. ideals list
+	code, out, errOut := runCLI(t, dataDir, stateFile, "", "ideals", "list")
+	if code != 0 {
+		t.Fatalf("ideals list failed (%d): %s", code, errOut)
+	}
+	if !strings.Contains(out, "Ideal Frame Profiles") {
+		t.Fatalf("expected output to contain 'Ideal Frame Profiles', got:\n%s", out)
+	}
+	if !strings.Contains(out, "default") {
+		t.Fatalf("expected output to list 'default' profile, got:\n%s", out)
+	}
+
+	// 2. ideals show default
+	code, out, errOut = runCLI(t, dataDir, stateFile, "", "ideals", "show", "default")
+	if code != 0 {
+		t.Fatalf("ideals show failed (%d): %s", code, errOut)
+	}
+	if !strings.Contains(out, "Ideal Profile: default") {
+		t.Fatalf("expected output to contain 'Ideal Profile: default', got:\n%s", out)
+	}
+
+	// 3. ideals show nonexistent
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "ideals", "show", "nonexistent")
+	if code == 0 {
+		t.Fatalf("expected error for nonexistent profile, got code 0")
+	}
+	if !strings.Contains(errOut, "not found") {
+		t.Fatalf("expected error to mention 'not found', got:\n%s", errOut)
+	}
+}
+
+func TestIdealsEditTUIWithMockScreen(t *testing.T) {
+	dataDir := t.TempDir()
+	idealsDir := filepath.Join(dataDir, "..", "ideals")
+	_ = os.MkdirAll(idealsDir, 0755)
+
+	var errBuf bytes.Buffer
+	app := &cli.App{
+		DataDir: dataDir,
+		Err:     &errBuf,
+	}
+
+	// 1. Edit default profile with MockScreen
+	mt, scr := tui.NewMockScreen(t, 100, 30)
+	defer scr.Fini()
+
+	var code int
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		code = app.EditIdealsWithScreen(scr, idealsDir, "default")
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	if !tui.ScreenContains(scr, "IDEAL PROFILE: default") {
+		t.Fatalf("expected MockScreen to display default profile, got:\n%s", tui.ScreenDump(scr))
+	}
+	mt.KeyTap(vt.KeyQ)
+	wg.Wait()
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d (err: %s)", code, errBuf.String())
+	}
+
+	// 2. Edit chooser with MockScreen (no profile specified)
+	mt2, scr2 := tui.NewMockScreen(t, 100, 30)
+	defer scr2.Fini()
+
+	var code2 int
+	var wg2 sync.WaitGroup
+	wg2.Add(1)
+	go func() {
+		defer wg2.Done()
+		code2 = app.EditIdealsWithScreen(scr2, idealsDir, "")
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	if !tui.ScreenContains(scr2, "BIKEGEO IDEAL PROFILES") {
+		t.Fatalf("expected MockScreen to display chooser, got:\n%s", tui.ScreenDump(scr2))
+	}
+	mt2.KeyTap(vt.KeyQ)
+	wg2.Wait()
+
+	if code2 != 0 {
+		t.Fatalf("expected exit code 0 for chooser, got %d", code2)
+	}
+
+	// 3. Edit nonexistent profile
+	_, scr3 := tui.NewMockScreen(t, 100, 30)
+	defer scr3.Fini()
+	code3 := app.EditIdealsWithScreen(scr3, idealsDir, "nonexistent")
+	if code3 == 0 {
+		t.Fatalf("expected error code for nonexistent profile")
+	}
+}
+
 
 
 

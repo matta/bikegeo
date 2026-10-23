@@ -5,7 +5,11 @@ import (
 	"math"
 	"strings"
 
+	"github.com/gdamore/tcell/v3"
+
 	"bikegeo/pkg/ideal"
+	"bikegeo/pkg/tui"
+	"bikegeo/pkg/tui/ideals"
 )
 
 func (a *App) getIdealsDir() string {
@@ -53,10 +57,59 @@ func (a *App) runIdeals(args []string) int {
 			return 2
 		}
 		return a.showIdeal(idealsDir, args[1])
+	case "edit", "tui":
+		profileName := ""
+		if len(args) >= 2 {
+			profileName = args[1]
+		}
+		return a.editIdeals(idealsDir, profileName)
 	default:
 		// Shorthand: 'bikegeo ideals default' -> show default
 		return a.showIdeal(idealsDir, args[0])
 	}
+}
+
+func (a *App) editIdeals(idealsDir string, profileName string) int {
+	screen, err := tcell.NewScreen()
+	if err != nil {
+		fmt.Fprintf(a.Err, "Error creating terminal screen: %v\n", err)
+		return 1
+	}
+	if err := screen.Init(); err != nil {
+		fmt.Fprintf(a.Err, "Error initializing terminal screen: %v\n", err)
+		return 1
+	}
+	defer screen.Fini()
+
+	return a.EditIdealsWithScreen(screen, idealsDir, profileName)
+}
+
+// EditIdealsWithScreen executes the TUI ideals editor on the provided tcell.Screen.
+func (a *App) EditIdealsWithScreen(screen tcell.Screen, idealsDir string, profileName string) int {
+	tuiApp := tui.NewApp(screen)
+	if profileName != "" {
+		p, err := ideal.LoadProfile(idealsDir, profileName)
+		if err != nil {
+			fmt.Fprintf(a.Err, "Error loading profile %q: %v\n", profileName, err)
+			return 1
+		}
+		session, err := ideals.NewSession(idealsDir, p)
+		if err != nil {
+			fmt.Fprintf(a.Err, "Error creating session for profile %q: %v\n", profileName, err)
+			return 1
+		}
+		editScreen := ideals.NewProfileEditScreen(tuiApp, session)
+		tuiApp.PushView(editScreen)
+	} else {
+		chooser := ideals.NewProfileChooserScreen(tuiApp, idealsDir)
+		tuiApp.PushView(chooser)
+	}
+
+	if err := tuiApp.Run(); err != nil {
+		fmt.Fprintf(a.Err, "TUI error: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func (a *App) listIdeals(idealsDir string) int {
