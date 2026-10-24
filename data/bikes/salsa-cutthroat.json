@@ -1,0 +1,104 @@
+{
+  "id": "salsa-cutthroat",
+  "manufacturer": "Salsa",
+  "model": "Cutthroat",
+  "year": 2024,
+  "category": "gravel",
+  "notes": "Carbon drop-bar ultra-endurance and bikepacking frame with Class 5 VRS (Vibration Reduction System), designed around the Cutthroat Carbon rigid fork (483mm A2C, 51mm offset) or 100mm suspension forks with an integrated IS41/IS52 headset (FSA Orbit ITA). Published CAD geometry is drawn around a 100mm suspension fork (506mm static A2C) at 25% sag (481mm effective A2C). Clearance for up to 29x2.4\" tires.",
+  "wheel_size": "29",
+  "headset_cup_type": "IS52",
+  "geo_headset_spacer_mm": 0,
+  "geo_slop_mm": {
+    "wheelbase": 1.2
+  },
+  "supported_travel_mm": [
+    100
+  ],
+  "rigid_a2c_mm": 483,
+  "default_fork": "rigid",
+  "sizes": [
+    "52cm",
+    "54cm",
+    "56cm",
+    "58cm",
+    "60cm"
+  ],
+  "default_size": "56cm",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock 100mm Suspension Geometry (25% Sag)",
+      "is_baseline": true,
+      "fork": {
+        "id": "suspension_100mm_29",
+        "name": "100mm 29\" Suspension Fork (25% Sag CAD)",
+        "travel_mm": 100,
+        "a2c": 506,
+        "rake": 51
+      },
+      "sag_percentage_published": 25,
+      "geometries": {
+        "52cm": {
+          "reach": 357,
+          "stack": 585,
+          "hta_deg": 69,
+          "sta_deg": 74.5,
+          "htl": 90,
+          "bb_drop": 70,
+          "wheelbase": 1050,
+          "chainstay_length": 445,
+          "seat_tube_length": 356,
+          "standover_height": 700
+        },
+        "54cm": {
+          "reach": 372,
+          "stack": 592,
+          "hta_deg": 69,
+          "sta_deg": 74.25,
+          "htl": 98,
+          "bb_drop": 70,
+          "wheelbase": 1066,
+          "chainstay_length": 445,
+          "seat_tube_length": 419,
+          "standover_height": 742
+        },
+        "56cm": {
+          "reach": 385,
+          "stack": 620,
+          "hta_deg": 69,
+          "sta_deg": 74.25,
+          "htl": 127,
+          "bb_drop": 70,
+          "wheelbase": 1091,
+          "chainstay_length": 445,
+          "seat_tube_length": 508,
+          "standover_height": 811
+        },
+        "58cm": {
+          "reach": 394,
+          "stack": 645,
+          "hta_deg": 69,
+          "sta_deg": 74,
+          "htl": 154,
+          "bb_drop": 70,
+          "wheelbase": 1110,
+          "chainstay_length": 445,
+          "seat_tube_length": 559,
+          "standover_height": 852
+        },
+        "60cm": {
+          "reach": 406,
+          "stack": 664,
+          "hta_deg": 69,
+          "sta_deg": 73.75,
+          "htl": 175,
+          "bb_drop": 70,
+          "wheelbase": 1129,
+          "chainstay_length": 445,
+          "seat_tube_length": 584,
+          "standover_height": 874
+        }
+      }
+    }
+  ]
+}
