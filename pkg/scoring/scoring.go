@@ -900,4 +900,3 @@ func CollectMissingDataNotes(frames []ScoredFrame) []string {
 	}
 	return notes
 }
-

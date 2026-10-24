@@ -1468,4 +1468,3 @@ func getForkSagLabel(r model.CanonicalComparisonRow) string {
 	}
 	return fmt.Sprintf("%.0fmm @ %.0f%%", r.SetupFork.TravelMm, r.SagPercent)
 }
-

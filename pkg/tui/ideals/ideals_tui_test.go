@@ -66,9 +66,9 @@ func TestSessionStateManagement(t *testing.T) {
 	// Test attribute manipulation
 	initCount := len(session.Working.Attributes)
 	session.AddAttribute(ideal.AttributeSpec{
-		ID:     "standover",
-		Weight: 2,
-		Ideal:  &ideal.Range{Min: ptrFloat(700), Max: ptrFloat(750)},
+		ID:      "standover",
+		Weight:  2,
+		Ideal:   &ideal.Range{Min: ptrFloat(700), Max: ptrFloat(750)},
 		Falloff: &ideal.Falloff{Below: ptrFloat(20), Above: ptrFloat(20)},
 	})
 	if len(session.Working.Attributes) != initCount+1 {
@@ -271,4 +271,3 @@ func TestTableColumnAlignment(t *testing.T) {
 		}
 	}
 }
-

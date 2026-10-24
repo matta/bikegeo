@@ -360,7 +360,7 @@ func TestValidateEskerHayduke(t *testing.T) {
 			A2c:       model.Float64Ptr(3.0),
 			Wheelbase: model.Float64Ptr(6.0),
 		},
-		ChainstayRangeMm:   []float64{440, 454},
+		ChainstayRangeMm: []float64{440, 454},
 		Configurations: []model.FrameConfiguration{
 			{
 				ID:         "stock",
@@ -599,9 +599,9 @@ func TestValidateImplausibleForkA2c(t *testing.T) {
 		WheelSize:          "29",
 		HeadsetCupType:     model.CupEC44,
 		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
-		SupportedTravelMm: []float64{120},
-		Sizes:             []string{"L"},
-		DefaultSize:       "L",
+		SupportedTravelMm:  []float64{120},
+		Sizes:              []string{"L"},
+		DefaultSize:        "L",
 		Configurations: []model.FrameConfiguration{
 			{
 				ID:         "stock",
@@ -1041,5 +1041,3 @@ func TestValidateSurlyECR(t *testing.T) {
 		t.Errorf("Expected Surly ECR to have EC34 headset cup, got %s", ecr.HeadsetCupType)
 	}
 }
-
-

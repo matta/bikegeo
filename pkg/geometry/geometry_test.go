@@ -292,4 +292,3 @@ func TestAnalyzeBikeFitRequiresPositiveSeatHeight(t *testing.T) {
 		t.Errorf("Expected error for SaddleHeightMm <= 0 in CalculateBaselinePosture, got nil")
 	}
 }
-

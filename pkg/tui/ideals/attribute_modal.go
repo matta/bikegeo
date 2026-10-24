@@ -13,11 +13,11 @@ import (
 
 // AttributeModal allows editing all fields of a single AttributeSpec.
 type AttributeModal struct {
-	Spec      ideal.AttributeSpec
-	IsNew     bool
-	Theme     tui.Theme
-	Modal     *tui.ModalDialog
-	Form      *tui.Form
+	Spec  ideal.AttributeSpec
+	IsNew bool
+	Theme tui.Theme
+	Modal *tui.ModalDialog
+	Form  *tui.Form
 
 	idPicker      *tui.CyclePicker
 	weightInput   *tui.TextInput
@@ -301,9 +301,9 @@ func (am *AttributeModal) BuildSpec() (ideal.AttributeSpec, error) {
 	if spec.Weight == 0 {
 		// Provide dummy weighted attribute to satisfy profile level constraint
 		testProf.Attributes = append(testProf.Attributes, ideal.AttributeSpec{
-			ID:     "aett",
-			Weight: 1,
-			Ideal:  &ideal.Range{Min: ptrFloat(600), Max: ptrFloat(600)},
+			ID:      "aett",
+			Weight:  1,
+			Ideal:   &ideal.Range{Min: ptrFloat(600), Max: ptrFloat(600)},
 			Falloff: &ideal.Falloff{Below: ptrFloat(10), Above: ptrFloat(10)},
 		})
 	}
