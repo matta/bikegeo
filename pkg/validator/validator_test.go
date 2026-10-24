@@ -377,9 +377,9 @@ func TestValidateImplausibleForkA2c(t *testing.T) {
 		WheelSize:          "29",
 		HeadsetCupType:     model.CupEC44,
 		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
-		SupportedTravelMm: []float64{120},
-		Sizes:             []string{"L"},
-		DefaultSize:       "L",
+		SupportedTravelMm:  []float64{120},
+		Sizes:              []string{"L"},
+		DefaultSize:        "L",
 		Configurations: []model.FrameConfiguration{
 			{
 				ID:         "stock",
@@ -536,5 +536,3 @@ func TestSizeResiduals(t *testing.T) {
 		}
 	}
 }
-
-

@@ -15,25 +15,25 @@ import (
 
 // FitResult holds the CAD geometry fit analysis for a frame configuration across all sizes.
 type FitResult struct {
-	Frame                   model.FrameModel              `json:"frame"`
-	ConfigID                string                        `json:"config_id"`
-	Residuals               []validator.SizeResidual      `json:"residuals"`
-	BestFitStructuralA2c    float64                       `json:"best_fit_structural_a2c"` // Minimax midpoint
-	MeanStructuralA2c       float64                       `json:"mean_structural_a2c"`
-	SpreadStructuralA2c     float64                       `json:"spread_structural_a2c"`
-	ImpliedSpacerMm         float64                       `json:"implied_spacer_mm"`
-	ImpliedStaticForkA2c    float64                       `json:"implied_static_fork_a2c"`
-	DeclaredSpacerMm        float64                       `json:"declared_spacer_mm"`
-	DeclaredStaticForkA2c   float64                       `json:"declared_static_fork_a2c"`
-	DeclaredRake            float64                       `json:"declared_rake"`
-	DeclaredSagPct          float64                       `json:"declared_sag_pct"`
-	MinPassingSlopA2c       float64                       `json:"min_passing_slop_a2c"`
-	MinPassingSlopFc        float64                       `json:"min_passing_slop_fc"`
-	MinPassingSlopWb        float64                       `json:"min_passing_slop_wb"`
-	HasPublishedFc          bool                          `json:"has_published_fc"`
-	HasPublishedWb          bool                          `json:"has_published_wb"`
-	IsValid                 bool                          `json:"is_valid"`
-	FrameReport             model.FrameValidationReport   `json:"frame_report"`
+	Frame                 model.FrameModel            `json:"frame"`
+	ConfigID              string                      `json:"config_id"`
+	Residuals             []validator.SizeResidual    `json:"residuals"`
+	BestFitStructuralA2c  float64                     `json:"best_fit_structural_a2c"` // Minimax midpoint
+	MeanStructuralA2c     float64                     `json:"mean_structural_a2c"`
+	SpreadStructuralA2c   float64                     `json:"spread_structural_a2c"`
+	ImpliedSpacerMm       float64                     `json:"implied_spacer_mm"`
+	ImpliedStaticForkA2c  float64                     `json:"implied_static_fork_a2c"`
+	DeclaredSpacerMm      float64                     `json:"declared_spacer_mm"`
+	DeclaredStaticForkA2c float64                     `json:"declared_static_fork_a2c"`
+	DeclaredRake          float64                     `json:"declared_rake"`
+	DeclaredSagPct        float64                     `json:"declared_sag_pct"`
+	MinPassingSlopA2c     float64                     `json:"min_passing_slop_a2c"`
+	MinPassingSlopFc      float64                     `json:"min_passing_slop_fc"`
+	MinPassingSlopWb      float64                     `json:"min_passing_slop_wb"`
+	HasPublishedFc        bool                        `json:"has_published_fc"`
+	HasPublishedWb        bool                        `json:"has_published_wb"`
+	IsValid               bool                        `json:"is_valid"`
+	FrameReport           model.FrameValidationReport `json:"frame_report"`
 }
 
 // AnalyzeFit computes the minimax best-fit structural A2C, implied spacer, implied static fork A2C,

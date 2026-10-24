@@ -1,10 +1,14 @@
-.PHONY: all vet test check build run clean
+.PHONY: all fmt vet test check build run clean
 
 export PATH := $(HOME)/go/bin:$(PATH)
 
 all: check build
 
+fmt:
+	go fmt ./...
+
 vet:
+	go fmt ./...
 	go vet ./...
 
 test:

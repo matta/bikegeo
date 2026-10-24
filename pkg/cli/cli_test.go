@@ -600,7 +600,7 @@ func TestCompare_TumbleweedSunlinerFixedForkConstraints(t *testing.T) {
 		"sunliner", // Frame
 		"M",        // Size
 		// Notice: fork and sag prompts are skipped!
-		"",         // Empty line (Enter) to run comparison
+		"", // Empty line (Enter) to run comparison
 	}, "\n") + "\n"
 
 	code, out, errOut = runCLI(t, dataDir, stateFile, stdin, "compare", "-i")
@@ -1114,9 +1114,3 @@ func TestFitCommand(t *testing.T) {
 		t.Errorf("Expected error for nonexistent frame")
 	}
 }
-
-
-
-
-
-

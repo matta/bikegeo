@@ -10,6 +10,14 @@ After **every** code modification, always execute the following command to verif
 go vet ./... && go test ./...
 ```
 
+## Final Verification & Cleanup
+
+Formatting is not part of the fast feedback loop, but is part of the final cleanup stages of code modification. Before completing a task or submitting changes, format all Go source files and verify the full check suite:
+
+```bash
+go fmt ./... && make check
+```
+
 ## Architectural Guidelines
 
 - **Zero External Dependencies**: Uses the Go standard library (`flag`, `encoding/json`, `encoding/csv`, `bufio`) with custom Unicode box-drawing, Markdown, CSV, and JSON table formatting in `pkg/cli/render.go`.

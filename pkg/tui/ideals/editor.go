@@ -166,11 +166,11 @@ func (pe *ProfileEditScreen) Draw(s tcell.Screen, bounds tui.Rect) {
 
 	tui.DrawText(s, bounds.X+2, bounds.Y+2, "Name:", labelStyle)
 	pe.nameInput.Focused = (pe.Section == FocusHeader && pe.headerFocus == 0)
-	pe.nameInput.Draw(s, tui.Rect{X: bounds.X+8, Y: bounds.Y+2, W: 20, H: 1})
+	pe.nameInput.Draw(s, tui.Rect{X: bounds.X + 8, Y: bounds.Y + 2, W: 20, H: 1})
 
 	tui.DrawText(s, bounds.X+30, bounds.Y+2, "Saddle Ht (mm):", labelStyle)
 	pe.saddleInput.Focused = (pe.Section == FocusHeader && pe.headerFocus == 1)
-	pe.saddleInput.Draw(s, tui.Rect{X: bounds.X+46, Y: bounds.Y+2, W: 10, H: 1})
+	pe.saddleInput.Draw(s, tui.Rect{X: bounds.X + 46, Y: bounds.Y + 2, W: 10, H: 1})
 
 	tui.DrawText(s, bounds.X+2, bounds.Y+3, "Description:", labelStyle)
 	pe.descInput.Focused = (pe.Section == FocusHeader && pe.headerFocus == 2)
@@ -178,7 +178,7 @@ func (pe *ProfileEditScreen) Draw(s tcell.Screen, bounds tui.Rect) {
 	if descW < 10 {
 		descW = 10
 	}
-	pe.descInput.Draw(s, tui.Rect{X: bounds.X+15, Y: bounds.Y+3, W: descW, H: 1})
+	pe.descInput.Draw(s, tui.Rect{X: bounds.X + 15, Y: bounds.Y + 3, W: descW, H: 1})
 
 	// 3. Attribute Table (rows 6 .. bounds.H - 2)
 	tableY := bounds.Y + 6
@@ -489,9 +489,9 @@ func (pe *ProfileEditScreen) openEditAttributeModal(idx int) {
 
 func (pe *ProfileEditScreen) openAddAttributeModal() {
 	newSpec := ideal.AttributeSpec{
-		ID:     "bbdrop",
-		Weight: 5,
-		Ideal:  &ideal.Range{Min: ptrFloat(70), Max: ptrFloat(70)},
+		ID:         "bbdrop",
+		Weight:     5,
+		Ideal:      &ideal.Range{Min: ptrFloat(70), Max: ptrFloat(70)},
 		Acceptable: &ideal.Range{Min: ptrFloat(60), Max: ptrFloat(80)},
 		EdgeScore:  ptrFloat(75),
 		Falloff:    &ideal.Falloff{Below: ptrFloat(10), Above: ptrFloat(10)},

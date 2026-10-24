@@ -104,7 +104,7 @@ func CalculateSteererStack(stack, staDeg, htaDeg, seatHeight float64) (verticalS
 func CalculateGeometricA2c(stack, bbDrop, htl, htaDeg, rake, cupStack float64) (structuralA2c float64, forkA2c float64) {
 	hta := ToRad(htaDeg)
 
-	structuralA2c = (stack - bbDrop + rake*math.Cos(hta))/math.Sin(hta) - htl
+	structuralA2c = (stack-bbDrop+rake*math.Cos(hta))/math.Sin(hta) - htl
 	forkA2c = structuralA2c - cupStack
 
 	return structuralA2c, forkA2c
@@ -664,4 +664,3 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string, configID strin
 
 	return res, nil
 }
-

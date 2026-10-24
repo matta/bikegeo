@@ -642,7 +642,6 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 	return report
 }
 
-
 // ValidateCrossConfig compares an alternate configuration's published geometry against the
 // baseline configuration's expected kinematic pitching.
 func ValidateCrossConfig(frame model.FrameModel, size string, comparedConfigID string) *model.CrossConfigValidation {
@@ -740,4 +739,3 @@ func ValidateCrossConfig(frame model.FrameModel, size string, comparedConfigID s
 		Message:          message,
 	}
 }
-

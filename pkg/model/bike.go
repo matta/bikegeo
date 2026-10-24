@@ -6,7 +6,6 @@ import (
 	"math"
 )
 
-
 // Float64Ptr returns a pointer to v, used for explicit JSON numeric fields where 0 is valid.
 func Float64Ptr(v float64) *float64 {
 	return &v
@@ -159,7 +158,6 @@ type BikeGeometry struct {
 	// Bent / Offset Seat Tube
 	ActualStaDeg      float64  `json:"actual_sta_deg,omitempty"`
 	SeatTubeOffsetXMm *float64 `json:"seat_tube_offset_x_mm,omitempty"`
-
 }
 
 func (b BikeGeometry) HasBentSeatTube() bool {
@@ -540,7 +538,6 @@ type CrossConfigValidation struct {
 	Message          string            `json:"message"`
 }
 
-
 type ValidationIssue struct {
 	ID         string   `json:"id"`
 	Field      string   `json:"field,omitempty"`
@@ -615,7 +612,6 @@ func (r FrameValidationReport) ErrorSummary() string {
 	}
 	return fmt.Sprintf("frame %q failed validation: %s", r.FrameID, msgs[0])
 }
-
 
 // RiderProfile encapsulates anthropometric measurements and baseline cockpit reference parameters.
 type RiderProfile struct {

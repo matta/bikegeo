@@ -67,9 +67,9 @@ func TestSessionStateManagement(t *testing.T) {
 	// Test attribute manipulation
 	initCount := len(session.Working.Attributes)
 	session.AddAttribute(ideal.AttributeSpec{
-		ID:     "standover",
-		Weight: 2,
-		Ideal:  &ideal.Range{Min: ptrFloat(700), Max: ptrFloat(750)},
+		ID:      "standover",
+		Weight:  2,
+		Ideal:   &ideal.Range{Min: ptrFloat(700), Max: ptrFloat(750)},
 		Falloff: &ideal.Falloff{Below: ptrFloat(20), Above: ptrFloat(20)},
 	})
 	if len(session.Working.Attributes) != initCount+1 {
@@ -374,18 +374,18 @@ func TestCurveInspectorZoneBarAndEnglishSummary(t *testing.T) {
 	// 3. Prober & Database Ranking
 	fleetRows := []model.CanonicalComparisonRow{
 		{
-			Bike: model.BikeGeometry{Manufacturer: "Surly", Model: "ECR"},
-			Setup: model.ComparisonSetup{Size: "L"},
+			Bike:      model.BikeGeometry{Manufacturer: "Surly", Model: "ECR"},
+			Setup:     model.ComparisonSetup{Size: "L"},
 			Canonical: model.BikeFitAnalysis{Aett: 630},
 		},
 		{
-			Bike: model.BikeGeometry{Manufacturer: "Ritchey", Model: "Ultra"},
-			Setup: model.ComparisonSetup{Size: "L"},
+			Bike:      model.BikeGeometry{Manufacturer: "Ritchey", Model: "Ultra"},
+			Setup:     model.ComparisonSetup{Size: "L"},
 			Canonical: model.BikeFitAnalysis{Aett: 647},
 		},
 		{
-			Bike: model.BikeGeometry{Manufacturer: "Esker", Model: "Hayduke"},
-			Setup: model.ComparisonSetup{Size: "M"},
+			Bike:      model.BikeGeometry{Manufacturer: "Esker", Model: "Hayduke"},
+			Setup:     model.ComparisonSetup{Size: "M"},
 			Canonical: model.BikeFitAnalysis{Aett: 595},
 		},
 	}
@@ -418,9 +418,9 @@ func TestCurveInspectorZoneBarAndEnglishSummary(t *testing.T) {
 
 func TestAttributeModalTwoPaneLiveUpdatesAndHotkeys(t *testing.T) {
 	spec := ideal.AttributeSpec{
-		ID:     "aett",
-		Weight: 10,
-		Ideal:  &ideal.Range{Min: ptrFloat(625), Max: ptrFloat(636)},
+		ID:         "aett",
+		Weight:     10,
+		Ideal:      &ideal.Range{Min: ptrFloat(625), Max: ptrFloat(636)},
 		Acceptable: &ideal.Range{Min: ptrFloat(605), Max: ptrFloat(648)},
 		EdgeScore:  ptrFloat(75),
 		Falloff:    &ideal.Falloff{Below: ptrFloat(20), Above: ptrFloat(12)},
@@ -435,13 +435,13 @@ func TestAttributeModalTwoPaneLiveUpdatesAndHotkeys(t *testing.T) {
 
 	fleetRows := []model.CanonicalComparisonRow{
 		{
-			Bike: model.BikeGeometry{Manufacturer: "Surly", Model: "ECR"},
-			Setup: model.ComparisonSetup{Size: "L"},
+			Bike:      model.BikeGeometry{Manufacturer: "Surly", Model: "ECR"},
+			Setup:     model.ComparisonSetup{Size: "L"},
 			Canonical: model.BikeFitAnalysis{Aett: 630},
 		},
 		{
-			Bike: model.BikeGeometry{Manufacturer: "Ritchey", Model: "Ultra"},
-			Setup: model.ComparisonSetup{Size: "L"},
+			Bike:      model.BikeGeometry{Manufacturer: "Ritchey", Model: "Ultra"},
+			Setup:     model.ComparisonSetup{Size: "L"},
 			Canonical: model.BikeFitAnalysis{Aett: 647},
 		},
 	}
@@ -495,4 +495,3 @@ func TestAttributeModalTwoPaneLiveUpdatesAndHotkeys(t *testing.T) {
 		t.Fatalf("expected Compare dataset indicator on screen after F2 toggle, got:\n%s", tui.ScreenDump(scr))
 	}
 }
-

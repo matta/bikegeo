@@ -606,4 +606,3 @@ func TestExplainProfile_LossesAndH2H(t *testing.T) {
 		t.Errorf("Expected setback loss in Hayduke explanation: %s", expl.Losses[1])
 	}
 }
-
