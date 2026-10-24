@@ -69,6 +69,8 @@ func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 		return app.runCompare(subArgs)
 	case "validate", "val", "check":
 		return app.runValidate(subArgs)
+	case "fit":
+		return app.runFit(subArgs)
 	case "init", "template", "new":
 		return app.runInit(subArgs)
 	case "set":
@@ -135,6 +137,7 @@ Usage:
 Core Commands:
   compare [spec...]       Compare bike setups (frame[@size][@fork][@sag%]) or replay last comparison
   validate [frame...]     Verify CAD Master Stack Equation, publish mode, and multi-config coherence
+  fit <frame[:size]>      Analyze CAD residuals, solve minimax A2C/spacer, and sweep parameter trials
   list                    List all stored bike frames, sizes, and supported fork capacities
   forks                   List standard 29er fork presets and travel-to-A2C mappings
   ideals [show|edit [name]] List, inspect, or edit ideal frame profiles in a TUI

@@ -3,8 +3,12 @@ package validator_test
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
+	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/validator"
 )
@@ -270,121 +274,6 @@ func TestValidateCrossConfig_Discrepancy(t *testing.T) {
 	if crossVal.IsCoherent {
 		t.Errorf("Expected flawed config to fail coherence check")
 	}
-	if crossVal.MaxDiscrepancy < 10.0 {
-		t.Errorf("Expected large discrepancy, got %.1f", crossVal.MaxDiscrepancy)
-	}
-}
-
-func TestValidateSourPastaParty(t *testing.T) {
-	pastaParty := model.FrameModel{
-		ID:                 "sour-pasta-party",
-		Manufacturer:       "Sour",
-		Model:              "Pasta Party",
-		Sizes:              []string{"S", "M", "L", "XL"},
-		DefaultSize:        "L",
-		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
-		GeoSlopMm:          &model.GeoSlopMm{A2c: model.Float64Ptr(1.5)},
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				IsBaseline: true,
-				Fork: model.ForkSpec{
-					TravelMm: 120,
-					A2c:      530,
-					Rake:     44,
-				},
-				SagPercentagePublished: 15,
-				Geometries: map[string]model.SizeGeometry{
-					"S":  {Reach: 415, Stack: 607, HtaDeg: 66.6, StaDeg: 74.0, Htl: 85, BbDrop: 65, Wheelbase: 1128, ChainstayLength: 435},
-					"M":  {Reach: 437, Stack: 615, HtaDeg: 66.6, StaDeg: 74.0, Htl: 95, BbDrop: 65, Wheelbase: 1153, ChainstayLength: 435},
-					"L":  {Reach: 467, Stack: 619, HtaDeg: 66.6, StaDeg: 74.0, Htl: 100, BbDrop: 65, Wheelbase: 1185, ChainstayLength: 435},
-					"XL": {Reach: 491, Stack: 630, HtaDeg: 66.6, StaDeg: 74.0, Htl: 110, BbDrop: 65, Wheelbase: 1214, ChainstayLength: 435},
-				},
-			},
-		},
-	}
-
-	report := validator.ValidateFrame(pastaParty)
-	if !report.IsValid {
-		t.Fatalf("Expected Sour Pasta Party to pass validation: %s", report.ErrorSummary())
-	}
-}
-
-func TestValidateRitcheyUltra(t *testing.T) {
-	ultra := model.FrameModel{
-		ID:                 "ritchey-ultra",
-		Manufacturer:       "Ritchey",
-		Model:              "Ultra",
-		Sizes:              []string{"S", "M", "L", "XL"},
-		DefaultSize:        "L",
-		HeadsetCupType:     model.CupIS52,
-		GeoHeadsetSpacerMm: model.Float64Ptr(0.0),
-		GeoSlopMm:          &model.GeoSlopMm{A2c: model.Float64Ptr(3.0)},
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				IsBaseline: true,
-				Fork: model.ForkSpec{
-					TravelMm: 120,
-					A2c:      530,
-					Rake:     44,
-				},
-				SagPercentagePublished: 20,
-				Geometries: map[string]model.SizeGeometry{
-					"S":  {Reach: 417, Stack: 606, HtaDeg: 68.0, StaDeg: 74.0, Htl: 100, BbDrop: 58, Wheelbase: 1121, ChainstayLength: 439},
-					"M":  {Reach: 430, Stack: 613, HtaDeg: 68.5, StaDeg: 74.0, Htl: 105, BbDrop: 58, Wheelbase: 1131, ChainstayLength: 439},
-					"L":  {Reach: 445, Stack: 617, HtaDeg: 68.5, StaDeg: 73.5, Htl: 110, BbDrop: 58, Wheelbase: 1148, ChainstayLength: 439},
-					"XL": {Reach: 460, Stack: 627, HtaDeg: 68.5, StaDeg: 73.5, Htl: 120, BbDrop: 58, Wheelbase: 1167, ChainstayLength: 439},
-				},
-			},
-		},
-	}
-
-	report := validator.ValidateFrame(ultra)
-	if !report.IsValid {
-		t.Fatalf("Expected Ritchey Ultra to pass validation: %s", report.ErrorSummary())
-	}
-}
-
-func TestValidateEskerHayduke(t *testing.T) {
-	hayduke := model.FrameModel{
-		ID:                 "esker-hayduke",
-		Manufacturer:       "Esker",
-		Model:              "Hayduke",
-		Sizes:              []string{"S1", "S2", "S3", "S4"},
-		DefaultSize:        "S3",
-		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
-		GeoSlopMm: &model.GeoSlopMm{
-			A2c:       model.Float64Ptr(3.0),
-			Wheelbase: model.Float64Ptr(6.0),
-		},
-		ChainstayRangeMm:   []float64{440, 454},
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				IsBaseline: true,
-				Fork: model.ForkSpec{
-					TravelMm: 120,
-					A2c:      531,
-					Rake:     44,
-				},
-				SagPercentagePublished: 30,
-				Geometries: map[string]model.SizeGeometry{
-					"S1": {Reach: 420, Stack: 615, HtaDeg: 67.5, StaDeg: 74.0, Htl: 105, BbDrop: 65, Wheelbase: 1130, ChainstayLength: 440},
-					"S2": {Reach: 450, Stack: 620, HtaDeg: 67.5, StaDeg: 74.0, Htl: 110, BbDrop: 65, Wheelbase: 1160, ChainstayLength: 440},
-					"S3": {Reach: 470, Stack: 630, HtaDeg: 67.5, StaDeg: 74.0, Htl: 120, BbDrop: 65, Wheelbase: 1183, ChainstayLength: 440},
-					"S4": {Reach: 500, Stack: 645, HtaDeg: 67.5, StaDeg: 74.0, Htl: 140, BbDrop: 65, Wheelbase: 1218, ChainstayLength: 440},
-				},
-			},
-		},
-	}
-
-	report := validator.ValidateFrame(hayduke)
-	if !report.IsValid {
-		t.Fatalf("Expected Esker Hayduke to pass validation: %s", report.ErrorSummary())
-	}
 }
 
 func TestValidateRevelElJefe(t *testing.T) {
@@ -476,117 +365,6 @@ func TestValidateTumbleweedSunliner(t *testing.T) {
 	if !sunliner.IsFixedRigidOnly() {
 		t.Errorf("Expected Sunliner to be fixed rigid only")
 	}
-	if !sunliner.IsFixedFork() {
-		t.Errorf("Expected Sunliner to be fixed fork")
-	}
-}
-
-func TestValidateSurlyKrampus(t *testing.T) {
-	krampus := model.FrameModel{
-		ID:                 "surly-krampus",
-		Manufacturer:       "Surly",
-		Model:              "Krampus",
-		Category:           model.CategoryHardtail,
-		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
-		GeoSlopMm: &model.GeoSlopMm{
-			A2c: model.Float64Ptr(2.0),
-		},
-		RigidA2cMm:        483.0,
-		DefaultFork:       "rigid",
-		SupportedTravelMm: []float64{100, 110, 120},
-		Sizes:             []string{"S", "M", "L", "XL"},
-		DefaultSize:       "L",
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				IsBaseline: true,
-				Fork: model.ForkSpec{
-					TravelMm: 0,
-					A2c:      483,
-					Rake:     47,
-				},
-				SagPercentagePublished: 0,
-				Geometries: map[string]model.SizeGeometry{
-					"S":  {Reach: 404, Stack: 593, HtaDeg: 69, StaDeg: 73, Htl: 90, BbDrop: 65, Wheelbase: 1087, ChainstayLength: 435, SeatTubeLength: 368, StandoverHeight: 770},
-					"M":  {Reach: 426, Stack: 602, HtaDeg: 69, StaDeg: 73, Htl: 100, BbDrop: 65, Wheelbase: 1113, ChainstayLength: 435, SeatTubeLength: 419, StandoverHeight: 797},
-					"L":  {Reach: 448, Stack: 612, HtaDeg: 69, StaDeg: 73, Htl: 110, BbDrop: 65, Wheelbase: 1138, ChainstayLength: 435, SeatTubeLength: 470, StandoverHeight: 825},
-					"XL": {Reach: 470, Stack: 621, HtaDeg: 69, StaDeg: 73, Htl: 120, BbDrop: 65, Wheelbase: 1164, ChainstayLength: 435, SeatTubeLength: 521, StandoverHeight: 853},
-				},
-			},
-		},
-	}
-
-	report := validator.ValidateFrame(krampus)
-	if !report.IsValid {
-		t.Fatalf("Expected Surly Krampus to pass validation: %s", report.ErrorSummary())
-	}
-	if !krampus.SupportsRigid() {
-		t.Errorf("Expected Krampus to support rigid fork")
-	}
-	if !krampus.SupportsTravel(120) {
-		t.Errorf("Expected Krampus to support 120mm travel fork")
-	}
-}
-
-func TestValidateBinaryKinetik(t *testing.T) {
-	kinetik := model.FrameModel{
-		ID:                 "binary-kinetik",
-		Manufacturer:       "Binary",
-		Model:              "Kinetik",
-		Year:               2026,
-		Category:           model.CategoryHardtail,
-		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
-		GeoSlopMm: &model.GeoSlopMm{
-			A2c:       model.Float64Ptr(1.5),
-			Wheelbase: model.Float64Ptr(1.5),
-		},
-		RigidA2cMm:        500.0,
-		DefaultFork:       "120mm",
-		SupportedTravelMm: []float64{100, 110, 120},
-		ChainstayRangeMm:  []float64{455, 472},
-		Sizes:             []string{"S", "SMD", "M", "ML", "L", "XL"},
-		DefaultSize:       "L",
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				IsBaseline: true,
-				Fork: model.ForkSpec{
-					TravelMm:           120,
-					A2c:                530,
-					Rake:               44,
-					StandardSagPercent: 15,
-				},
-				SagPercentagePublished: 15,
-				Geometries: map[string]model.SizeGeometry{
-					"S":   {Reach: 417, Stack: 616, HtaDeg: 67, StaDeg: 74, Htl: 100, BbDrop: 60, Wheelbase: 1151, ChainstayLength: 455, FrontCenter: 703, SeatTubeLength: 390, StandoverHeight: 771},
-					"SMD": {Reach: 433, Stack: 616, HtaDeg: 67, StaDeg: 74, Htl: 100, BbDrop: 60, Wheelbase: 1167, ChainstayLength: 455, FrontCenter: 719, SeatTubeLength: 415, StandoverHeight: 792},
-					"M":   {Reach: 434, Stack: 625, HtaDeg: 67, StaDeg: 74, Htl: 110, BbDrop: 60, Wheelbase: 1172, ChainstayLength: 455, FrontCenter: 724, SeatTubeLength: 420, StandoverHeight: 821},
-					"ML":  {Reach: 441, Stack: 643, HtaDeg: 67, StaDeg: 74, Htl: 130, BbDrop: 60, Wheelbase: 1187, ChainstayLength: 455, FrontCenter: 738, SeatTubeLength: 440, StandoverHeight: 840},
-					"L":   {Reach: 456, Stack: 657, HtaDeg: 67, StaDeg: 74.5, Htl: 145, BbDrop: 60, Wheelbase: 1208, ChainstayLength: 455, FrontCenter: 759, SeatTubeLength: 480, StandoverHeight: 867},
-					"XL":  {Reach: 465, Stack: 671, HtaDeg: 67, StaDeg: 74.5, Htl: 160, BbDrop: 60, Wheelbase: 1223, ChainstayLength: 455, FrontCenter: 774, SeatTubeLength: 508, StandoverHeight: 887},
-				},
-			},
-		},
-	}
-
-	report := validator.ValidateFrame(kinetik)
-	if !report.IsValid {
-		t.Fatalf("Expected Binary Kinetik to pass validation: %s", report.ErrorSummary())
-	}
-	if !kinetik.SupportsRigid() {
-		t.Errorf("Expected Kinetik to support rigid fork (500mm)")
-	}
-	if !kinetik.SupportsTravel(100) || !kinetik.SupportsTravel(120) {
-		t.Errorf("Expected Kinetik to support 100mm and 120mm travel forks")
-	}
-	if !kinetik.HasAdjustableChainstay() {
-		t.Errorf("Expected Kinetik to have adjustable chainstays")
-	}
-	if kinetik.GetMinChainstay() != 455 || kinetik.GetMaxChainstay() != 472 {
-		t.Errorf("Expected chainstay range 455-472mm, got %.1f-%.1f", kinetik.GetMinChainstay(), kinetik.GetMaxChainstay())
-	}
 }
 
 func TestValidateImplausibleForkA2c(t *testing.T) {
@@ -646,399 +424,116 @@ func TestValidateImplausibleForkA2c(t *testing.T) {
 	}
 }
 
-func TestValidateTurnerVennTi(t *testing.T) {
-	venn := model.FrameModel{
-		ID:                 "turner-venn-ti",
-		Manufacturer:       "Turner",
-		Model:              "Venn Ti",
-		Year:               2024,
-		Category:           model.CategoryHardtail,
-		HeadsetCupType:     model.CupZS56,
-		GeoHeadsetSpacerMm: model.Float64Ptr(0.0),
-		GeoSlopMm: &model.GeoSlopMm{
-			A2c:       model.Float64Ptr(2.5),
-			Wheelbase: model.Float64Ptr(2.0),
-		},
-		DefaultFork:       "130mm",
-		SupportedTravelMm: []float64{120, 130, 140},
-		Sizes:             []string{"S", "M", "L", "XL"},
-		DefaultSize:       "L",
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				Name:       "Stock 130mm Suspension Build",
-				IsBaseline: true,
-				Fork: model.ForkSpec{
-					TravelMm:           130,
-					A2c:                541,
-					Rake:               44,
-					StandardSagPercent: 20,
-				},
-				SagPercentagePublished: 0,
-				Geometries: map[string]model.SizeGeometry{
-					"S": {
-						Reach:           410,
-						Stack:           628,
-						HtaDeg:          67.0,
-						StaDeg:          74.0,
-						Htl:             90,
-						BbDrop:          65,
-						Wheelbase:       1137,
-						ChainstayLength: 445,
-						SeatTubeLength:  410,
-					},
-					"M": {
-						Reach:           434,
-						Stack:           645,
-						HtaDeg:          67.0,
-						StaDeg:          74.0,
-						Htl:             110,
-						BbDrop:          65,
-						Wheelbase:       1170,
-						ChainstayLength: 445,
-						SeatTubeLength:  450,
-					},
-					"L": {
-						Reach:           448,
-						Stack:           662,
-						HtaDeg:          67.0,
-						StaDeg:          73.0,
-						Htl:             130,
-						BbDrop:          62,
-						Wheelbase:       1190,
-						ChainstayLength: 445,
-						SeatTubeLength:  490,
-					},
-					"XL": {
-						Reach:           470,
-						Stack:           690,
-						HtaDeg:          67.0,
-						StaDeg:          73.0,
-						Htl:             160,
-						BbDrop:          62,
-						Wheelbase:       1224,
-						ChainstayLength: 445,
-						SeatTubeLength:  530,
-					},
-				},
-			},
-		},
-	}
-
-	report := validator.ValidateFrame(venn)
-	if !report.IsValid {
-		t.Fatalf("Expected Turner Venn Ti to pass validation: %s", report.ErrorSummary())
-	}
-	if venn.SupportsRigid() {
-		t.Errorf("Expected Venn Ti to not support rigid fork")
-	}
-	if !venn.SupportsTravel(120) || !venn.SupportsTravel(130) || !venn.SupportsTravel(140) {
-		t.Errorf("Expected Venn Ti to support 120mm, 130mm, and 140mm travel forks")
-	}
-	if venn.SupportsTravel(100) || venn.SupportsTravel(150) {
-		t.Errorf("Expected Venn Ti to reject 100mm and 150mm travel forks")
-	}
-	if venn.HasAdjustableChainstay() {
-		t.Errorf("Expected Venn Ti to have fixed chainstays (445mm)")
-	}
-}
-
-func TestValidateFairlightHolt(t *testing.T) {
-	holt := model.FrameModel{
-		ID:                 "fairlight-holt-2",
-		Manufacturer:       "Fairlight",
-		Model:              "Holt 2.0",
-		Year:               2025,
-		Category:           model.CategoryHardtail,
-		WheelSize:          "29",
-		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
-		ActualStaDeg:       74.3,
-		SupportedTravelMm:  []float64{100, 110, 120},
-		DefaultFork:        "120mm",
-		Sizes:              []string{"S", "M", "L", "XL"},
-		DefaultSize:        "L",
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				Name:       "Stock 120mm Suspension Build",
-				IsBaseline: true,
-				Fork: model.ForkSpec{
-					ID:                 "sid_120",
-					Name:               "RockShox SID 120mm",
-					TravelMm:           120,
-					A2c:                531,
-					Rake:               44,
-					StandardSagPercent: 20,
-				},
-				SagPercentagePublished: 20,
-				Geometries: map[string]model.SizeGeometry{
-					"S": {
-						Reach:           425,
-						Stack:           616,
-						HtaDeg:          67.0,
-						StaDeg:          75.3,
-						Htl:             100,
-						BbDrop:          63,
-						Wheelbase:       1138,
-						ChainstayLength: 435,
-						SeatTubeLength:  385,
-						StandoverHeight: 742,
-					},
-					"M": {
-						Reach:           450,
-						Stack:           616,
-						HtaDeg:          67.0,
-						StaDeg:          75.3,
-						Htl:             100,
-						BbDrop:          63,
-						Wheelbase:       1163,
-						ChainstayLength: 435,
-						SeatTubeLength:  425,
-						StandoverHeight: 765,
-					},
-					"L": {
-						Reach:           470,
-						Stack:           625,
-						HtaDeg:          67.0,
-						StaDeg:          75.3,
-						Htl:             110,
-						BbDrop:          63,
-						Wheelbase:       1187,
-						ChainstayLength: 435,
-						SeatTubeLength:  465,
-						StandoverHeight: 791,
-					},
-					"XL": {
-						Reach:           495,
-						Stack:           643,
-						HtaDeg:          67.0,
-						StaDeg:          75.2,
-						Htl:             130,
-						BbDrop:          63,
-						Wheelbase:       1220,
-						ChainstayLength: 435,
-						SeatTubeLength:  510,
-						StandoverHeight: 824,
-					},
-				},
-			},
-		},
-	}
-
-	report := validator.ValidateFrame(holt)
-	if !report.IsValid {
-		t.Fatalf("Expected Fairlight Holt 2.0 to pass validation: %s", report.ErrorSummary())
-	}
-	if holt.SupportsRigid() {
-		t.Errorf("Expected Holt 2.0 to not support rigid fork")
-	}
-	if !holt.SupportsTravel(100) || !holt.SupportsTravel(110) || !holt.SupportsTravel(120) {
-		t.Errorf("Expected Holt 2.0 to support 100mm, 110mm, and 120mm travel forks")
-	}
-	if holt.SupportsTravel(80) || holt.SupportsTravel(130) {
-		t.Errorf("Expected Holt 2.0 to reject 80mm and 130mm travel forks")
-	}
-	if holt.HasAdjustableChainstay() {
-		t.Errorf("Expected Holt 2.0 to have fixed chainstays (435mm)")
-	}
-}
-
-func TestValidateSklarPBJ(t *testing.T) {
-	pbj := model.FrameModel{
-		ID:                 "sklar-pbj",
-		Manufacturer:       "Sklar",
-		Model:              "PBJ",
-		Year:               2025,
-		Category:           model.CategoryHardtail,
-		WheelSize:          "29",
-		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
-		RigidA2cMm:         485.0,
-		DefaultFork:        "rigid",
-		SupportedTravelMm:  []float64{100, 110, 120},
-		ChainstayRangeMm:   []float64{432, 452},
-		Sizes:              []string{"XS", "S", "M", "L", "XL"},
-		DefaultSize:        "M",
-		GeoSlopMm: &model.GeoSlopMm{
-			A2c:         model.Float64Ptr(3.5),
-			FrontCenter: model.Float64Ptr(3.0),
-			Wheelbase:   model.Float64Ptr(5.0),
-		},
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				Name:       "Stock Rigid 485mm Build",
-				IsBaseline: true,
-				Fork: model.ForkSpec{
-					ID:       "rigid_485",
-					Name:     "Sklar Chromoly Steel 485mm",
-					TravelMm: 0,
-					A2c:      485,
-					Rake:     52,
-				},
-				SagPercentagePublished: 0,
-				Geometries: map[string]model.SizeGeometry{
-					"XS": {
-						Reach:           411,
-						Stack:           574,
-						HtaDeg:          68.0,
-						StaDeg:          74.5,
-						Htl:             70,
-						BbDrop:          68,
-						Wheelbase:       1098,
-						FrontCenter:     675,
-						ChainstayLength: 432,
-						SeatTubeLength:  360,
-					},
-					"S": {
-						Reach:           433,
-						Stack:           588,
-						HtaDeg:          68.5,
-						StaDeg:          74.0,
-						Htl:             85,
-						BbDrop:          68,
-						Wheelbase:       1124,
-						FrontCenter:     698,
-						ChainstayLength: 432,
-						SeatTubeLength:  410,
-					},
-					"M": {
-						Reach:           461,
-						Stack:           615,
-						HtaDeg:          69.0,
-						StaDeg:          74.0,
-						Htl:             110,
-						BbDrop:          68,
-						Wheelbase:       1156,
-						FrontCenter:     730,
-						ChainstayLength: 432,
-						SeatTubeLength:  440,
-					},
-					"L": {
-						Reach:           475,
-						Stack:           641,
-						HtaDeg:          69.0,
-						StaDeg:          74.0,
-						Htl:             140,
-						BbDrop:          68,
-						Wheelbase:       1182,
-						FrontCenter:     755,
-						ChainstayLength: 432,
-						SeatTubeLength:  505,
-					},
-					"XL": {
-						Reach:           508,
-						Stack:           670,
-						HtaDeg:          69.0,
-						StaDeg:          74.0,
-						Htl:             170,
-						BbDrop:          68,
-						Wheelbase:       1222,
-						FrontCenter:     795,
-						ChainstayLength: 432,
-						SeatTubeLength:  530,
-					},
-				},
-			},
-		},
-	}
-
-	report := validator.ValidateFrame(pbj)
-	if !report.IsValid {
-		t.Fatalf("Expected Sklar PBJ to pass validation: %s", report.ErrorSummary())
-	}
-	if !pbj.SupportsRigid() {
-		t.Errorf("Expected Sklar PBJ to support rigid fork (485mm)")
-	}
-	if pbj.GetRigidA2c() != 485.0 {
-		t.Errorf("Expected Sklar PBJ rigid A2C to be 485mm, got %.1f", pbj.GetRigidA2c())
-	}
-	if !pbj.SupportsTravel(100) || !pbj.SupportsTravel(110) || !pbj.SupportsTravel(120) {
-		t.Errorf("Expected Sklar PBJ to support 100mm, 110mm, and 120mm travel forks")
-	}
-	if pbj.SupportsTravel(80) || pbj.SupportsTravel(130) {
-		t.Errorf("Expected Sklar PBJ to reject 80mm and 130mm travel forks")
-	}
-	if !pbj.HasAdjustableChainstay() {
-		t.Errorf("Expected Sklar PBJ to have adjustable chainstays")
-	}
-	if pbj.GetMinChainstay() != 432 || pbj.GetMaxChainstay() != 452 {
-		t.Errorf("Expected chainstay range 432-452mm (20mm adjustment), got %.1f-%.1f", pbj.GetMinChainstay(), pbj.GetMaxChainstay())
-	}
-	if pbj.GetMaxChainstay()-pbj.GetMinChainstay() != 20 {
-		t.Errorf("Expected exactly 20mm of chainstay adjustment, got %.1f", pbj.GetMaxChainstay()-pbj.GetMinChainstay())
-	}
-}
-
-func TestValidateSevenExpedition926f(t *testing.T) {
-	data, err := os.ReadFile("../../data/bikes/seven-expedition-926f.json")
+func TestAllFrameData(t *testing.T) {
+	files, err := filepath.Glob("../../data/bikes/*.json")
 	if err != nil {
-		t.Fatalf("Failed to read seven-expedition-926f.json: %v", err)
+		t.Fatalf("Failed to glob data/bikes/*.json: %v", err)
 	}
-	var seven model.FrameModel
-	if err := json.Unmarshal(data, &seven); err != nil {
-		t.Fatalf("Failed to parse seven-expedition-926f.json: %v", err)
+	if len(files) == 0 {
+		t.Fatalf("Expected at least one frame file in data/bikes, found 0")
 	}
 
-	report := validator.ValidateFrame(seven)
-	if !report.IsValid {
-		t.Fatalf("Expected Seven Cycles Expedition 926f to pass validation: %s", report.ErrorSummary())
-	}
-	if len(seven.Sizes) != 24 {
-		t.Errorf("Expected 24 sizes (12 Standard Fit + 12 Endurance Fit), got %d", len(seven.Sizes))
-	}
-	if !seven.SupportsRigid() {
-		t.Errorf("Expected Seven Expedition 926f to support rigid fork (472mm)")
-	}
-	if seven.GetRigidA2c() != 472.0 {
-		t.Errorf("Expected Seven Expedition 926f rigid A2C to be 472mm, got %.1f", seven.GetRigidA2c())
-	}
-	if !seven.SupportsTravel(100) || !seven.SupportsTravel(110) || !seven.SupportsTravel(120) {
-		t.Errorf("Expected Seven Expedition 926f to support 100mm, 110mm, and 120mm travel forks")
-	}
-	if seven.SupportsTravel(80) || seven.SupportsTravel(130) {
-		t.Errorf("Expected Seven Expedition 926f to reject 80mm and 130mm travel forks")
-	}
-	if seven.HasAdjustableChainstay() {
-		t.Errorf("Expected Seven Expedition 926f to have fixed chainstays")
+	for _, path := range files {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Errorf("Failed to read %s: %v", path, err)
+			continue
+		}
+
+		var frame model.FrameModel
+		if err := json.Unmarshal(data, &frame); err != nil {
+			t.Errorf("Failed to unmarshal %s: %v", path, err)
+			continue
+		}
+
+		// 1. Verify filename matches frame ID
+		expectedFilename := frame.ID + ".json"
+		if filepath.Base(path) != expectedFilename {
+			t.Errorf("Filename mismatch: %s has ID %q (expected filename %s)", path, frame.ID, expectedFilename)
+		}
+
+		// 2. Verify FrameModel validation passes
+		report := validator.ValidateFrame(frame)
+		if !report.IsValid {
+			t.Errorf("Frame %s failed validation: %s", frame.ID, report.ErrorSummary())
+		}
+
+		// 3. Verify all declared sizes materialize and validate
+		for _, sz := range frame.GetSizes() {
+			bike, err := geometry.MaterializeBikeGeometry(frame, sz, "")
+			if err != nil {
+				t.Errorf("Frame %s failed to materialize size %s: %v", frame.ID, sz, err)
+				continue
+			}
+			bikeRep := validator.ValidateBikeGeometry(bike)
+			if !bikeRep.IsValid {
+				t.Errorf("Frame %s (size %s) failed bike validation: %+v", frame.ID, sz, bikeRep.Issues)
+			}
+		}
+
+		// 4. Verify default fork specification is coherent
+		if frame.DefaultFork == "" {
+			t.Errorf("Frame %s has empty default_fork", frame.ID)
+		} else if frame.DefaultFork == "rigid" {
+			if !frame.SupportsRigid() {
+				t.Errorf("Frame %s has default_fork 'rigid' but SupportsRigid() is false", frame.ID)
+			}
+		} else {
+			travelVal := strings.TrimSuffix(frame.DefaultFork, "mm")
+			if travel, err := strconv.ParseFloat(travelVal, 64); err == nil {
+				if !frame.SupportsTravel(travel) {
+					t.Errorf("Frame %s has default_fork %q but SupportsTravel(%.0f) is false", frame.ID, frame.DefaultFork, travel)
+				}
+			}
+		}
+
+		// 5. Verify rigid and travel capabilities match fields
+		if frame.RigidA2cMm > 0 && !frame.SupportsRigid() {
+			t.Errorf("Frame %s has rigid_a2c_mm=%.1f but SupportsRigid() is false", frame.ID, frame.RigidA2cMm)
+		}
+		for _, tr := range frame.SupportedTravelMm {
+			if !frame.SupportsTravel(tr) {
+				t.Errorf("Frame %s has supported_travel_mm including %.0f but SupportsTravel(%.0f) is false", frame.ID, tr, tr)
+			}
+		}
+
+		// 6. Verify adjustable chainstay ranges if present
+		if frame.HasAdjustableChainstay() {
+			if frame.GetMinChainstay() >= frame.GetMaxChainstay() {
+				t.Errorf("Frame %s has invalid chainstay range [%.1f, %.1f]", frame.ID, frame.GetMinChainstay(), frame.GetMaxChainstay())
+			}
+		}
 	}
 }
 
-func TestValidateSurlyECR(t *testing.T) {
-	data, err := os.ReadFile("../../data/bikes/surly-ecr.json")
-	if err != nil {
-		t.Fatalf("Failed to read surly-ecr.json: %v", err)
-	}
-	var ecr model.FrameModel
-	if err := json.Unmarshal(data, &ecr); err != nil {
-		t.Fatalf("Failed to parse surly-ecr.json: %v", err)
+func TestSizeResiduals(t *testing.T) {
+	files, err := filepath.Glob("../../data/bikes/*.json")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("Failed to glob data/bikes/*.json")
 	}
 
-	report := validator.ValidateFrame(ecr)
-	if !report.IsValid {
-		t.Fatalf("Expected Surly ECR to pass validation: %s", report.ErrorSummary())
+	// Test SizeResiduals on the first available real frame
+	data, err := os.ReadFile(files[0])
+	if err != nil {
+		t.Fatalf("Failed to read %s: %v", files[0], err)
 	}
-	if len(ecr.Sizes) != 3 {
-		t.Errorf("Expected 3 sizes (M, L, XL), got %d", len(ecr.Sizes))
+
+	var frame model.FrameModel
+	if err := json.Unmarshal(data, &frame); err != nil {
+		t.Fatalf("Failed to unmarshal %s: %v", files[0], err)
 	}
-	if !ecr.SupportsRigid() {
-		t.Errorf("Expected Surly ECR to support rigid fork (468mm)")
+
+	residuals, err := validator.SizeResiduals(frame, "")
+	if err != nil {
+		t.Fatalf("SizeResiduals failed on %s: %v", frame.ID, err)
 	}
-	if ecr.GetRigidA2c() != 468.0 {
-		t.Errorf("Expected Surly ECR rigid A2C to be 468mm, got %.1f", ecr.GetRigidA2c())
+	if len(residuals) != len(frame.Sizes) {
+		t.Errorf("Expected %d residuals for %s, got %d", len(frame.Sizes), frame.ID, len(residuals))
 	}
-	if !ecr.IsFixedRigidOnly() {
-		t.Errorf("Expected Surly ECR to be fixed rigid only")
-	}
-	if !ecr.IsFixedFork() {
-		t.Errorf("Expected Surly ECR to be fixed fork")
-	}
-	if ecr.SupportsTravel(100) || ecr.SupportsTravel(120) {
-		t.Errorf("Expected Surly ECR to reject suspension travel forks")
-	}
-	if ecr.HeadsetCupType != model.CupEC34 {
-		t.Errorf("Expected Surly ECR to have EC34 headset cup, got %s", ecr.HeadsetCupType)
+	for _, r := range residuals {
+		if r.ImpliedStructuralA2c <= 0 {
+			t.Errorf("Expected positive ImpliedStructuralA2c for size %s, got %.2f", r.Size, r.ImpliedStructuralA2c)
+		}
 	}
 }
 

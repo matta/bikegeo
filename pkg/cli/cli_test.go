@@ -1056,6 +1056,66 @@ func TestIdealsEditTUIWithMockScreen(t *testing.T) {
 	}
 }
 
+func TestFitCommand(t *testing.T) {
+	dataDir, stateFile := setupTestEnv(t)
+
+	// 1. Single frame fit analysis
+	code, out, errOut := runCLI(t, dataDir, stateFile, "", "fit", "surly-ecr")
+	if code != 0 {
+		t.Fatalf("fit failed with code %d: %s", code, errOut)
+	}
+	if !strings.Contains(out, "Best-fit structural A2C (minimax):") {
+		t.Errorf("Expected minimax structural A2C in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "implied spacer @ declared fork 468 mm:") {
+		t.Errorf("Expected implied spacer in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Minimum passing slop:") {
+		t.Errorf("Expected minimum passing slop in output, got:\n%s", out)
+	}
+
+	// 2. Combinatorial trials (--try)
+	code, out, errOut = runCLI(t, dataDir, stateFile, "", "fit", "seven-expedition-926f",
+		"--try", "fork.a2c=470,472",
+		"--try", "fork.rake=44,52,55",
+		"--try", "spacer=10,12",
+	)
+	if code != 0 {
+		t.Fatalf("fit --try failed with code %d: %s", code, errOut)
+	}
+	if !strings.Contains(out, "Fit Sweep: Seven Expedition 926f (12 combinations)") {
+		t.Errorf("Expected 12 combinations in sweep title, got:\n%s", out)
+	}
+	if !strings.Contains(out, "PASS") || !strings.Contains(out, "FAIL") {
+		t.Errorf("Expected PASS and FAIL combo results, got:\n%s", out)
+	}
+
+	// 3. JSON format
+	code, out, errOut = runCLI(t, dataDir, stateFile, "", "fit", "surly-ecr", "--json")
+	if code != 0 {
+		t.Fatalf("fit --json failed with code %d: %s", code, errOut)
+	}
+	if !strings.Contains(out, `"best_fit_structural_a2c"`) {
+		t.Errorf("Expected JSON with best_fit_structural_a2c, got:\n%s", out)
+	}
+
+	// 4. Detailed sweep table
+	code, out, errOut = runCLI(t, dataDir, stateFile, "", "fit", "surly-ecr", "--try", "spacer=11,12", "--detail")
+	if code != 0 {
+		t.Fatalf("fit --try --detail failed with code %d: %s", code, errOut)
+	}
+	if !strings.Contains(out, "Combination: spacer=11") {
+		t.Errorf("Expected detail combination header, got:\n%s", out)
+	}
+
+	// 5. Error handling for unknown frame
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "fit", "nonexistent-frame")
+	if code == 0 {
+		t.Errorf("Expected error for nonexistent frame")
+	}
+}
+
+
 
 
 
