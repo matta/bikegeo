@@ -27,6 +27,12 @@
     },
     {
       "frame_id": "otso-fenrir-stainless",
+      "size": "L",
+      "fork": "rigid",
+      "sag_percent": 0
+    },
+    {
+      "frame_id": "otso-fenrir-stainless",
       "size": "XL",
       "fork": "120mm",
       "sag_percent": 20
