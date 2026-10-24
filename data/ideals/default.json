@@ -95,11 +95,11 @@
       "weight": 2,
       "ideal": {
         "min": 68,
-        "max": 68
+        "max": 69
       },
       "acceptable": {
         "min": 67.5,
-        "max": 68.5
+        "max": 69.5
       },
       "edge_score": 75,
       "falloff": {
