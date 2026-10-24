@@ -12,6 +12,7 @@
   "baseline_saddle_setback_offset_mm": 30,
   "transpose": true,
   "ref_index": 1,
+  "ideal_profile": "default",
   "columns": [
     {
       "frame_id": "binary-havok",
@@ -107,6 +108,30 @@
       "frame_id": "sklar-pbj",
       "size": "XL",
       "fork": "110mm",
+      "sag_percent": 20
+    },
+    {
+      "frame_id": "salsa-fargo",
+      "size": "L",
+      "fork": "rigid",
+      "sag_percent": 0
+    },
+    {
+      "frame_id": "salsa-fargo",
+      "size": "XL",
+      "fork": "rigid",
+      "sag_percent": 0
+    },
+    {
+      "frame_id": "salsa-fargo",
+      "size": "L",
+      "fork": "100mm",
+      "sag_percent": 20
+    },
+    {
+      "frame_id": "salsa-fargo",
+      "size": "XL",
+      "fork": "100mm",
       "sag_percent": 20
     }
   ]

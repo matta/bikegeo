@@ -1,0 +1,105 @@
+{
+  "id": "salsa-fargo",
+  "manufacturer": "Salsa",
+  "model": "Fargo",
+  "year": 2024,
+  "category": "hardtail",
+  "notes": "Triple-butted seamless CroMoly steel drop-bar bikepacking and off-road exploration frame designed around the Cutthroat Carbon Deluxe rigid fork (483mm A2C, 51mm offset) or 100mm suspension forks with a ZS44/EC44 headset (FSA Orbit ITA). Features Alternator 1.5 dropouts (445-462mm chainstay length) and clearance for up to 29x2.4\" (or 29x3.0\" on sizes S-XL).",
+  "wheel_size": "29",
+  "headset_cup_type": "EC44",
+  "geo_headset_spacer_mm": 0,
+  "supported_travel_mm": [
+    100
+  ],
+  "rigid_a2c_mm": 483,
+  "default_fork": "rigid",
+  "chainstay_range_mm": [
+    445,
+    462
+  ],
+  "sizes": [
+    "XS",
+    "S",
+    "M",
+    "L",
+    "XL"
+  ],
+  "default_size": "L",
+  "configurations": [
+    {
+      "id": "stock",
+      "name": "Stock Rigid 483mm Build",
+      "is_baseline": true,
+      "fork": {
+        "id": "cutthroat_deluxe_483",
+        "name": "Salsa Cutthroat Carbon Deluxe 483mm",
+        "travel_mm": 0,
+        "a2c": 483,
+        "rake": 51
+      },
+      "sag_percentage_published": 0,
+      "geometries": {
+        "XS": {
+          "reach": 352,
+          "stack": 584,
+          "hta_deg": 68.5,
+          "sta_deg": 74.0,
+          "htl": 90,
+          "bb_drop": 70,
+          "wheelbase": 1067,
+          "chainstay_length": 462,
+          "seat_tube_length": 355.6,
+          "standover_height": 690
+        },
+        "S": {
+          "reach": 366,
+          "stack": 605,
+          "hta_deg": 69.0,
+          "sta_deg": 74.0,
+          "htl": 110,
+          "bb_drop": 70,
+          "wheelbase": 1083,
+          "chainstay_length": 462,
+          "seat_tube_length": 406.4,
+          "standover_height": 732
+        },
+        "M": {
+          "reach": 371,
+          "stack": 633,
+          "hta_deg": 69.0,
+          "sta_deg": 73.0,
+          "htl": 140,
+          "bb_drop": 70,
+          "wheelbase": 1099,
+          "chainstay_length": 462,
+          "seat_tube_length": 457.2,
+          "standover_height": 778
+        },
+        "L": {
+          "reach": 388,
+          "stack": 661,
+          "hta_deg": 69.0,
+          "sta_deg": 73.0,
+          "htl": 170,
+          "bb_drop": 70,
+          "wheelbase": 1126,
+          "chainstay_length": 462,
+          "seat_tube_length": 508.0,
+          "standover_height": 821
+        },
+        "XL": {
+          "reach": 412,
+          "stack": 680,
+          "hta_deg": 69.0,
+          "sta_deg": 73.0,
+          "htl": 190,
+          "bb_drop": 70,
+          "wheelbase": 1158,
+          "chainstay_length": 462,
+          "seat_tube_length": 558.8,
+          "standover_height": 859
+        }
+      }
+    }
+  ]
+}
