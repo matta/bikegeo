@@ -29,9 +29,9 @@ Bike geometry is stored in **local JSON files** under [`data/bikes/`](data/bikes
 
 4. **Master Stack Equation & CAD Reverse-Engineering (`bikegeo validate`)**:
    - Proves whether published manufacturer charts match physical front-end geometry:
-     $$\text{Stack} = \text{BB\_drop} - \text{Rake} \cdot \cos(\text{HTA}) + (\text{A2C} + \text{cup\_stack} + \text{HTL}) \cdot \sin(\text{HTA})$$
+     $$\text{Stack} = \text{BB}_{\text{drop}} - \text{Rake} \cdot \cos(\text{HTA}) + (\text{A2C} + \text{cup}_{\text{stack}} + \text{HTL}) \cdot \sin(\text{HTA})$$
    - Reverse-engineers geometric Axle-to-Crown:
-     $$\text{A2C}_{\text{geo}} = \frac{\text{Stack} - \text{BB\_drop} + \text{Rake} \cdot \cos(\text{HTA})}{\sin(\text{HTA})} - \text{HTL} - \text{cup\_stack}$$
+     $$\text{A2C}_{\text{geo}} = \frac{\text{Stack} - \text{BB}_{\text{drop}} + \text{Rake} \cdot \cos(\text{HTA})}{\sin(\text{HTA})} - \text{HTL} - \text{cup}_{\text{stack}}$$
    - Detects whether the manufacturer published numbers at **0% static sag** or **15–25% sagged CAD**, or whether there is a published typo/inconsistency.
    - Verifies **Cross-Configuration CAD Coherence** when a frame publishes charts for multiple forks.
 
