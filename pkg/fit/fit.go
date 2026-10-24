@@ -337,6 +337,12 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		}
 		frame.GeoSlopMm.CrossConfig = model.Float64Ptr(v)
 		return nil
+	case "geo_slop_mm.reason", "slop.reason":
+		if frame.GeoSlopMm == nil {
+			frame.GeoSlopMm = &model.GeoSlopMm{}
+		}
+		frame.GeoSlopMm.Reason = val
+		return nil
 	case "actual_sta_deg", "actual_sta":
 		v, err := parseFloat()
 		if err != nil || v < 60.0 || v > 85.0 {
@@ -604,6 +610,192 @@ func RunSweeps(frame model.FrameModel, configID, defaultSize string, tryFlags []
 		}
 		return results[i].MaxAbsDeltaFc < results[j].MaxAbsDeltaFc
 	})
+
+	return results, nil
+}
+
+// SolveFit automatically explores candidate physical explanations for CAD geometry
+// (plausible fork travels, standard sag points, static A2C values, rakes including 44, 51, 55mm, and lower spacers).
+func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResult, error) {
+	baseFit, err := AnalyzeFit(frame, configID)
+	if err != nil {
+		return nil, err
+	}
+	targetA2c := baseFit.BestFitStructuralA2c
+
+	targetCfg := frame.GetConfiguration(configID)
+	if targetCfg == nil {
+		targetCfg = frame.GetBaselineConfiguration()
+	}
+
+	// 1. Candidate Travels
+	travelSet := make(map[float64]bool)
+	for _, t := range frame.GetSupportedTravels() {
+		travelSet[t] = true
+	}
+	for _, t := range []float64{0, 100, 110, 120, 130, 140, 150} {
+		travelSet[t] = true
+	}
+	if targetCfg != nil {
+		travelSet[targetCfg.Fork.TravelMm] = true
+	}
+
+	// 2. Candidate Rakes: declared rake, 44, 51, 55 mm
+	rakeSet := make(map[float64]bool)
+	rakeSet[44.0] = true
+	rakeSet[51.0] = true
+	rakeSet[55.0] = true
+	if targetCfg != nil && targetCfg.Fork.Rake > 0 {
+		rakeSet[targetCfg.Fork.Rake] = true
+	}
+	var rakes []float64
+	for r := range rakeSet {
+		rakes = append(rakes, r)
+	}
+	sort.Float64s(rakes)
+
+	// 3. Candidate Spacers
+	spacerSet := make(map[float64]bool)
+	spacerSet[frame.GetGeoHeadsetSpacerMm()] = true
+	// Probe standard physical headset spacers: 0 (bare / integrated), 2 (ZS), and 10, 12, 14 (EC)
+	for _, s := range []float64{0.0, 2.0, 10.0, 12.0, 14.0} {
+		spacerSet[s] = true
+	}
+	var spacers []float64
+	for s := range spacerSet {
+		spacers = append(spacers, s)
+	}
+	sort.Float64s(spacers)
+
+	// 4. Generate candidate (travel, sag, staticA2c, spacer)
+	type forkCandidate struct {
+		travel    float64
+		sag       float64
+		staticA2c float64
+		spacer    float64
+		effA2c    float64
+		structA2c float64
+	}
+
+	var forkCombos []forkCandidate
+
+	for travel := range travelSet {
+		var sags []float64
+		if travel == 0 {
+			sags = []float64{0}
+		} else {
+			sags = []float64{0, 15, 20, 25, 30}
+		}
+
+		for _, sag := range sags {
+			var staticA2cs []float64
+			if travel == 0 {
+				if frame.RigidA2cMm > 0 {
+					staticA2cs = append(staticA2cs, frame.RigidA2cMm)
+				}
+				if targetCfg != nil && targetCfg.Fork.A2c > 0 {
+					staticA2cs = append(staticA2cs, targetCfg.Fork.A2c)
+				}
+				for _, a := range []float64{440, 470, 480, 483, 485, 490, 495, 500, 510} {
+					staticA2cs = append(staticA2cs, a)
+				}
+			} else {
+				staticA2cs = []float64{travel + 406, travel + 410, travel + 412, travel + 420}
+				if targetCfg != nil && math.Abs(targetCfg.Fork.TravelMm-travel) < 0.1 && targetCfg.Fork.A2c > 0 {
+					staticA2cs = append(staticA2cs, targetCfg.Fork.A2c)
+				}
+			}
+
+			a2cSeen := make(map[float64]bool)
+			for _, a2c := range staticA2cs {
+				if a2cSeen[a2c] {
+					continue
+				}
+				a2cSeen[a2c] = true
+
+				effA2c := a2c - travel*(sag/100.0)
+
+				for _, sp := range spacers {
+					structA2c := effA2c + sp
+					if math.Abs(structA2c-targetA2c) <= 6.0 {
+						forkCombos = append(forkCombos, forkCandidate{
+							travel:    travel,
+							sag:       sag,
+							staticA2c: a2c,
+							spacer:    sp,
+							effA2c:    effA2c,
+							structA2c: structA2c,
+						})
+					}
+				}
+			}
+		}
+	}
+
+	var results []ComboResult
+	seenCombos := make(map[string]bool)
+
+	for _, fc := range forkCombos {
+		for _, rake := range rakes {
+			var assigns []string
+			if fc.travel > 0 {
+				assigns = append(assigns, fmt.Sprintf("travel=%.0f", fc.travel))
+				assigns = append(assigns, fmt.Sprintf("sag=%.0f", fc.sag))
+			} else {
+				assigns = append(assigns, "travel=0")
+				assigns = append(assigns, "sag=0")
+			}
+			assigns = append(assigns, fmt.Sprintf("fork.a2c=%.0f", fc.staticA2c))
+			assigns = append(assigns, fmt.Sprintf("fork.rake=%.0f", rake))
+			assigns = append(assigns, fmt.Sprintf("spacer=%.0f", fc.spacer))
+
+			desc := strings.Join(assigns, " ")
+			if seenCombos[desc] {
+				continue
+			}
+			seenCombos[desc] = true
+
+			clone := CloneFrame(frame)
+			for _, a := range assigns {
+				_ = ApplyAssignment(&clone, configID, defaultSize, a)
+			}
+
+			fitRes, err := AnalyzeFit(clone, configID)
+			if err != nil {
+				continue
+			}
+
+			results = append(results, ComboResult{
+				Description:       desc,
+				Assignments:       assigns,
+				MaxAbsDeltaA2c:    fitRes.MinPassingSlopA2c,
+				MaxAbsDeltaFc:     fitRes.MinPassingSlopFc,
+				MaxAbsDeltaWb:     fitRes.MinPassingSlopWb,
+				MinPassingSlopA2c: fitRes.MinPassingSlopA2c,
+				MinPassingSlopFc:  fitRes.MinPassingSlopFc,
+				MinPassingSlopWb:  fitRes.MinPassingSlopWb,
+				IsValid:           fitRes.IsValid,
+				FitResult:         fitRes,
+			})
+		}
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].IsValid != results[j].IsValid {
+			return results[i].IsValid
+		}
+		if math.Abs(results[i].MaxAbsDeltaA2c-results[j].MaxAbsDeltaA2c) > 0.001 {
+			return results[i].MaxAbsDeltaA2c < results[j].MaxAbsDeltaA2c
+		}
+		if math.Abs(results[i].MaxAbsDeltaWb-results[j].MaxAbsDeltaWb) > 0.001 {
+			return results[i].MaxAbsDeltaWb < results[j].MaxAbsDeltaWb
+		}
+		return results[i].MaxAbsDeltaFc < results[j].MaxAbsDeltaFc
+	})
+
+	if len(results) > 10 {
+		results = results[:10]
+	}
 
 	return results, nil
 }

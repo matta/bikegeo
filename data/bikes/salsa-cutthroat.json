@@ -8,9 +8,6 @@
   "wheel_size": "29",
   "headset_cup_type": "IS52",
   "geo_headset_spacer_mm": 0,
-  "geo_slop_mm": {
-    "wheelbase": 1.2
-  },
   "supported_travel_mm": [
     100
   ],

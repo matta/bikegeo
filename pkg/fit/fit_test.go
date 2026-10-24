@@ -190,3 +190,18 @@ func TestRunSweepsCombinationLimit(t *testing.T) {
 		t.Fatalf("Expected error when exceeding 200 combinations, got nil")
 	}
 }
+
+func TestSolveFit(t *testing.T) {
+	frame := sampleFrame()
+	combos, err := fit.SolveFit(frame, "stock", "L")
+	if err != nil {
+		t.Fatalf("SolveFit failed: %v", err)
+	}
+	if len(combos) == 0 {
+		t.Fatalf("Expected SolveFit to return candidate combinations")
+	}
+	// Best candidate should have low delta A2C
+	if combos[0].MaxAbsDeltaA2c > 5.0 {
+		t.Errorf("Expected best candidate to have low delta A2C, got %.2f", combos[0].MaxAbsDeltaA2c)
+	}
+}

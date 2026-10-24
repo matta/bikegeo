@@ -215,11 +215,22 @@ func (a *App) runFit(args []string) int {
 		slopDeclParts = append(slopDeclParts, fmt.Sprintf("fc ±%.1f", declaredSlop.GetFrontCenter()))
 	}
 	if fitRes.HasPublishedWb {
-		slopDeclParts = append(slopDeclParts, fmt.Sprintf("wb ±%.1f", declaredSlop.GetWheelbase()))
+		if declaredSlop.Wheelbase != nil {
+			slopDeclParts = append(slopDeclParts, fmt.Sprintf("wb ±%.1f", *declaredSlop.Wheelbase))
+		} else {
+			slopDeclParts = append(slopDeclParts, "wb dynamic")
+		}
 	}
 
 	fmt.Fprintf(a.Out, "Minimum passing slop: %s   (declared: %s)\n",
 		strings.Join(slopReqParts, ", "), strings.Join(slopDeclParts, ", "))
+
+	if declaredSlop.HasCustomSlop() {
+		fmt.Fprintf(a.Out, "\n[NOTE] Frame defines custom geo_slop_mm overrides: %s\n", declaredSlop.String())
+		if declaredSlop.Reason != "" {
+			fmt.Fprintf(a.Out, "       Reason: %s\n", declaredSlop.Reason)
+		}
+	}
 
 	statusBadge := "PASS"
 	if !fitRes.IsValid {
@@ -231,6 +242,30 @@ func (a *App) runFit(args []string) int {
 		fmt.Fprintf(a.Out, "\nValidation Notices (%d):\n", len(fitRes.FrameReport.Issues))
 		for _, iss := range fitRes.FrameReport.Issues {
 			fmt.Fprintf(a.Out, "  [%s] %s: %s\n", strings.ToUpper(string(iss.Severity)), iss.Title, iss.Message)
+		}
+	}
+
+	if !fitRes.IsValid || fitRes.MinPassingSlopA2c > 1.0 {
+		candidates, err := fit.SolveFit(frame, configID, targetSize)
+		if err == nil && len(candidates) > 0 {
+			fmt.Fprintln(a.Out, "\nCandidate Physical Solutions (Geo slop is an absolute last resort):")
+			var candHeaders = []string{"Physical Configuration", "max|ΔA2C|", "max|ΔWB|", "Valid?", "Suggested Command"}
+			var candRows [][]string
+			for _, c := range candidates {
+				validStr := "FAIL"
+				if c.IsValid {
+					validStr = "PASS"
+				}
+				cmd := fmt.Sprintf("bikegeo set %s %s", frame.ID, strings.Join(c.Assignments, " "))
+				candRows = append(candRows, []string{
+					c.Description,
+					fmt.Sprintf("%.1f mm", c.MaxAbsDeltaA2c),
+					fmt.Sprintf("%.1f mm", c.MaxAbsDeltaWb),
+					validStr,
+					cmd,
+				})
+			}
+			_ = RenderOutput(a.Out, a.Format, "", "", candHeaders, candRows, candidates)
 		}
 	}
 

@@ -8,6 +8,42 @@ import (
 	"bikegeo/pkg/model"
 )
 
+// CalculateDynamicWheelbaseTolerance computes the allowable wheelbase discrepancy based on
+// propagation of uncertainty from input measurements (Reach ±0.5mm, Chainstay ±0.5mm,
+// published Wheelbase ±0.5mm, and HTA precision step projection), with a standard minimum physical floor of 2.0mm.
+func CalculateDynamicWheelbaseTolerance(bike model.BikeGeometry, structuralA2c float64) float64 {
+	deltaReach := 0.5
+	if bike.Reach > 0 && bike.Reach != math.Floor(bike.Reach) {
+		deltaReach = 0.05
+	}
+	deltaCs := 0.5
+	if bike.ChainstayLength > 0 && bike.ChainstayLength != math.Floor(bike.ChainstayLength) {
+		deltaCs = 0.05
+	}
+	deltaWb := 0.5
+	if bike.Wheelbase > 0 && bike.Wheelbase != math.Floor(bike.Wheelbase) {
+		deltaWb = 0.05
+	}
+
+	deltaHtaDeg := 0.25
+	if bike.HtaDeg == math.Floor(bike.HtaDeg) {
+		deltaHtaDeg = 0.5
+	} else if bike.HtaDeg*2 == math.Floor(bike.HtaDeg*2) {
+		deltaHtaDeg = 0.25
+	} else {
+		deltaHtaDeg = 0.05
+	}
+	deltaHtaRad := deltaHtaDeg * math.Pi / 180.0
+
+	frontEndLength := structuralA2c + bike.Htl
+	htaRad := bike.HtaDeg * math.Pi / 180.0
+	deltaFcHta := math.Abs(-frontEndLength*math.Sin(htaRad)+bike.ForkRake*math.Cos(htaRad)) * deltaHtaRad
+
+	propagated := math.Sqrt(deltaReach*deltaReach + deltaCs*deltaCs + deltaWb*deltaWb + deltaFcHta*deltaFcHta)
+	const floor = 2.0
+	return math.Max(floor, geometry.Round(propagated, 1))
+}
+
 // ValidateBikeGeometry validates a bike dataset for internal consistency,
 // hardtail CAD conventions (static vs. sagged charts), headset cup requirements,
 // and mathematical coherence between Stack, Reach, A2C, HTL, and BB Drop.
@@ -334,6 +370,9 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 	}
 
 	wbSlop := slop.GetWheelbase()
+	if slop.Wheelbase == nil {
+		wbSlop = CalculateDynamicWheelbaseTolerance(bike, structuralA2c)
+	}
 	if bike.Wheelbase > 0 && bike.ChainstayLength > 0 {
 		csHorizontal := math.Sqrt(math.Max(0, bike.ChainstayLength*bike.ChainstayLength-bike.BbDrop*bike.BbDrop))
 		estimatedWb := geometry.Round(csHorizontal+calculatedFcHoriz, 1)

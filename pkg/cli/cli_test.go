@@ -1113,4 +1113,17 @@ func TestFitCommand(t *testing.T) {
 	if code == 0 {
 		t.Errorf("Expected error for nonexistent frame")
 	}
+
+	// 6. Automatic candidate physical solutions on failing configuration
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "set", "seven-expedition-926f", "fork.a2c=420")
+	if code != 0 {
+		t.Fatalf("set failed: %s", errOut)
+	}
+	code, out, errOut = runCLI(t, dataDir, stateFile, "", "fit", "seven-expedition-926f")
+	if code != 0 {
+		t.Fatalf("fit failed with code %d: %s", code, errOut)
+	}
+	if !strings.Contains(out, "Candidate Physical Solutions (Geo slop is an absolute last resort):") {
+		t.Errorf("Expected candidate physical solutions table, got:\n%s", out)
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 )
 
 // Float64Ptr returns a pointer to v, used for explicit JSON numeric fields where 0 is valid.
@@ -88,6 +89,11 @@ type GeoSlopMm struct {
 	FrontCenter *float64 `json:"front_center,omitempty"`
 	Wheelbase   *float64 `json:"wheelbase,omitempty"`
 	CrossConfig *float64 `json:"cross_config,omitempty"`
+	Reason      string   `json:"reason,omitempty"`
+}
+
+func (s GeoSlopMm) HasCustomSlop() bool {
+	return s.A2c != nil || s.FrontCenter != nil || s.Wheelbase != nil || s.CrossConfig != nil
 }
 
 func (s GeoSlopMm) GetA2c() float64 {
@@ -116,6 +122,26 @@ func (s GeoSlopMm) GetCrossConfig() float64 {
 		return *s.CrossConfig
 	}
 	return DefaultGeoSlopMm
+}
+
+func (s GeoSlopMm) String() string {
+	var parts []string
+	if s.A2c != nil {
+		parts = append(parts, fmt.Sprintf("a2c: ±%.1fmm", *s.A2c))
+	}
+	if s.FrontCenter != nil {
+		parts = append(parts, fmt.Sprintf("fc: ±%.1fmm", *s.FrontCenter))
+	}
+	if s.Wheelbase != nil {
+		parts = append(parts, fmt.Sprintf("wb: ±%.1fmm", *s.Wheelbase))
+	}
+	if s.CrossConfig != nil {
+		parts = append(parts, fmt.Sprintf("cross: ±%.1fmm", *s.CrossConfig))
+	}
+	if len(parts) == 0 {
+		return "defaults (a2c: ±1.0mm, fc: ±1.0mm, wb: dynamic, cross: ±1.0mm)"
+	}
+	return strings.Join(parts, ", ")
 }
 
 // BikeGeometry represents bicycle frame geometry data from disk JSON.

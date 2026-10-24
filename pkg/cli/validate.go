@@ -307,9 +307,16 @@ func (a *App) renderDetailedValidation(b ValidationResultBundle) {
 	}
 
 	slop := b.Bike.GetGeoSlopMm()
+	var wbSlopStr string
+	if slop.Wheelbase != nil {
+		wbSlopStr = fmt.Sprintf("wb: ±%.1fmm", *slop.Wheelbase)
+	} else {
+		dynTol := validator.CalculateDynamicWheelbaseTolerance(b.Bike, b.Report.TotalStructuralA2c)
+		wbSlopStr = fmt.Sprintf("wb: ±%.1fmm (dynamic precision floor)", dynTol)
+	}
 	slopStr := fmt.Sprintf(
-		"a2c: ±%.1fmm, fc: ±%.1fmm, wb: ±%.1fmm, cross: ±%.1fmm",
-		slop.GetA2c(), slop.GetFrontCenter(), slop.GetWheelbase(), slop.GetCrossConfig(),
+		"a2c: ±%.1fmm, fc: ±%.1fmm, %s, cross: ±%.1fmm",
+		slop.GetA2c(), slop.GetFrontCenter(), wbSlopStr, slop.GetCrossConfig(),
 	)
 
 	proofHeaders := []string{"Metric", "Value"}
@@ -327,6 +334,29 @@ func (a *App) renderDetailedValidation(b ValidationResultBundle) {
 		proofRows = append(proofRows, []string{"Published Front Center", fmt.Sprintf("%.1f mm", b.Bike.FrontCenter)})
 	}
 	_ = RenderOutput(a.Out, a.Format, "", "", proofHeaders, proofRows, nil)
+
+	if slop.HasCustomSlop() || slop.Reason != "" {
+		fmt.Fprintln(a.Out, "\nActive Geo Slop Overrides (geo_slop_mm):")
+		if slop.Reason != "" {
+			fmt.Fprintf(a.Out, "  Reason: %s\n", slop.Reason)
+		}
+		var overrides []string
+		if slop.A2c != nil {
+			overrides = append(overrides, fmt.Sprintf("a2c: ±%.1fmm", *slop.A2c))
+		}
+		if slop.FrontCenter != nil {
+			overrides = append(overrides, fmt.Sprintf("fc: ±%.1fmm", *slop.FrontCenter))
+		}
+		if slop.Wheelbase != nil {
+			overrides = append(overrides, fmt.Sprintf("wb: ±%.1fmm", *slop.Wheelbase))
+		}
+		if slop.CrossConfig != nil {
+			overrides = append(overrides, fmt.Sprintf("cross: ±%.1fmm", *slop.CrossConfig))
+		}
+		if len(overrides) > 0 {
+			fmt.Fprintf(a.Out, "  Overrides: %s\n", strings.Join(overrides, ", "))
+		}
+	}
 
 	// 3. Cross-Configuration CAD Coherence Proof
 	if b.CrossConfig != nil {
