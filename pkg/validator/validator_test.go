@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -194,85 +193,71 @@ func TestValidateMissingRequired(t *testing.T) {
 	}
 }
 
-func TestValidateCrossConfig_ChumbaSendero(t *testing.T) {
-	sendero := model.FrameModel{
-		ID:                 "chumba-sendero",
-		Manufacturer:       "Chumba",
-		Model:              "Sendero",
-		Sizes:              []string{"S", "M", "L", "XL"},
-		DefaultSize:        "L",
-		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "fork-120",
-				Name:       "120mm Stock",
-				IsBaseline: true,
-				Fork:       model.ForkSpec{TravelMm: 120, A2c: 531, Rake: 44},
-				Geometries: map[string]model.SizeGeometry{
-					"L": {Reach: 475, Stack: 645, HtaDeg: 67.0, StaDeg: 74.5, Htl: 125, BbDrop: 60, Wheelbase: 1200, ChainstayLength: 430},
-				},
-			},
-			{
-				ID:         "fork-130",
-				Name:       "130mm Trail",
-				IsBaseline: false,
-				Fork:       model.ForkSpec{TravelMm: 130, A2c: 541, Rake: 44},
-				Geometries: map[string]model.SizeGeometry{
-					"L": {Reach: 470, Stack: 649, HtaDeg: 66.5, StaDeg: 74.0, Htl: 125, BbDrop: 57, Wheelbase: 1203, ChainstayLength: 430},
-				},
-			},
-		},
+func TestValidateForkRef_ValidAndSuggestions(t *testing.T) {
+	// 1. Valid fork ref passes with zero issues
+	validRef := model.ForkRef{
+		Fork:   "fox34_120",
+		SagPct: model.Float64Ptr(20.0),
+		A2cMm:  506.0,
+		RakeMm: 44.0,
+	}
+	issues := validator.ValidateForkRef("test-frame", "cad_fork", validRef)
+	if len(issues) != 0 {
+		t.Fatalf("Expected valid ForkRef to have 0 issues, got %d: %+v", len(issues), issues)
 	}
 
-	crossVal := validator.ValidateCrossConfig(sendero, "L", "fork-130")
-	if crossVal == nil {
-		t.Fatalf("Expected non-nil CrossConfigValidation")
+	// 2. Missing fork catalog ID generates suggestions based on A2C and Rake
+	missingForkRef := model.ForkRef{
+		A2cMm:  506.0,
+		RakeMm: 44.0,
 	}
-	if !crossVal.IsCoherent {
-		t.Errorf("Expected coherent cross-config validation, got max discrepancy: %.2f", crossVal.MaxDiscrepancy)
+	issues = validator.ValidateForkRef("test-frame", "cad_fork", missingForkRef)
+	if len(issues) == 0 {
+		t.Fatalf("Expected error for missing fork catalog ID")
 	}
-	if crossVal.DeltaA2c != 10.0 {
-		t.Errorf("Expected DeltaA2c 10.0, got %.1f", crossVal.DeltaA2c)
+	if issues[0].ID != "missing_cad_fork_fork" {
+		t.Errorf("Expected issue missing_cad_fork_fork, got %s", issues[0].ID)
 	}
-}
-
-func TestValidateCrossConfig_Discrepancy(t *testing.T) {
-	badFrame := model.FrameModel{
-		ID:                 "flawed-test-frame",
-		Manufacturer:       "Flawed",
-		Model:              "Frame",
-		Sizes:              []string{"L"},
-		DefaultSize:        "L",
-		HeadsetCupType:     model.CupZS44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(2.0),
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "baseline",
-				IsBaseline: true,
-				Fork:       model.ForkSpec{TravelMm: 120, A2c: 530, Rake: 44},
-				Geometries: map[string]model.SizeGeometry{
-					"L": {Reach: 475, Stack: 630, HtaDeg: 66.0, StaDeg: 75.0, Htl: 110, BbDrop: 60, Wheelbase: 1200, ChainstayLength: 430},
-				},
-			},
-			{
-				ID:         "alternate-bad-cad",
-				IsBaseline: false,
-				Fork:       model.ForkSpec{TravelMm: 140, A2c: 550, Rake: 44}, // +20mm fork
-				Geometries: map[string]model.SizeGeometry{
-					// Deliberately impossible CAD: Stack decreased instead of increased!
-					"L": {Reach: 475, Stack: 610, HtaDeg: 66.0, StaDeg: 75.0, Htl: 110, BbDrop: 60, Wheelbase: 1200, ChainstayLength: 430},
-				},
-			},
-		},
+	if !strings.Contains(issues[0].Message, "fox34_120") {
+		t.Errorf("Expected suggestions to include fox34_120, got message: %s", issues[0].Message)
 	}
 
-	crossVal := validator.ValidateCrossConfig(badFrame, "L", "alternate-bad-cad")
-	if crossVal == nil {
-		t.Fatalf("Expected non-nil CrossConfigValidation")
+	// 3. Missing sag_pct on suspension fork
+	missingSagRef := model.ForkRef{
+		Fork:   "fox34_120",
+		A2cMm:  506.0,
+		RakeMm: 44.0,
 	}
-	if crossVal.IsCoherent {
-		t.Errorf("Expected flawed config to fail coherence check")
+	issues = validator.ValidateForkRef("test-frame", "cad_fork", missingSagRef)
+	if len(issues) == 0 || issues[0].ID != "missing_cad_fork_sag_pct" {
+		t.Errorf("Expected missing_cad_fork_sag_pct issue, got %+v", issues)
+	}
+
+	// 4. Mismatched A2C triggers error and suggests matching A2C
+	mismatchedA2cRef := model.ForkRef{
+		Fork:   "fox34_120",
+		SagPct: model.Float64Ptr(20.0),
+		A2cMm:  520.0,
+		RakeMm: 44.0,
+	}
+	issues = validator.ValidateForkRef("test-frame", "cad_fork", mismatchedA2cRef)
+	if len(issues) == 0 || issues[0].ID != "invalid_cad_fork_invariant" {
+		t.Fatalf("Expected invalid_cad_fork_invariant issue, got %+v", issues)
+	}
+	if !strings.Contains(issues[0].Message, "506.0") {
+		t.Errorf("Expected message to suggest expected A2C 506.0, got: %s", issues[0].Message)
+	}
+
+	// 5. Unsupported rake triggers error listing available rakes
+	unsupportedRakeRef := model.ForkRef{
+		Fork:   "fox34_120",
+		SagPct: model.Float64Ptr(20.0),
+		A2cMm:  506.0,
+		RakeMm: 51.0,
+	}
+	issues = validator.ValidateForkRef("test-frame", "cad_fork", unsupportedRakeRef)
+	if len(issues) == 0 || issues[0].ID != "unsupported_cad_fork_rake" {
+		t.Errorf("Expected unsupported_cad_fork_rake issue, got %+v", issues)
 	}
 }
 
@@ -289,23 +274,34 @@ func TestValidateRevelElJefe(t *testing.T) {
 		},
 		ActualStaDeg:     73.3,
 		ChainstayRangeMm: []float64{420, 435},
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				IsBaseline: true,
-				Fork: model.ForkSpec{
-					TravelMm: 120,
-					A2c:      534,
-					Rake:     44,
-				},
-				SagPercentagePublished: 20,
-				Geometries: map[string]model.SizeGeometry{
-					"S":  {Reach: 435, Stack: 599, HtaDeg: 67.5, StaDeg: 75.0, Htl: 86, BbDrop: 68, Wheelbase: 1121, ChainstayLength: 420, SeatTubeLength: 374, StandoverHeight: 700},
-					"M":  {Reach: 455, Stack: 607, HtaDeg: 67.5, StaDeg: 75.0, Htl: 96, BbDrop: 68, Wheelbase: 1146, ChainstayLength: 420, SeatTubeLength: 420, StandoverHeight: 735},
-					"L":  {Reach: 474, Stack: 615, HtaDeg: 67.5, StaDeg: 75.0, Htl: 106, BbDrop: 68, Wheelbase: 1167, ChainstayLength: 420, SeatTubeLength: 455, StandoverHeight: 770},
-					"XL": {Reach: 499, Stack: 627, HtaDeg: 67.5, StaDeg: 75.0, Htl: 116, BbDrop: 68, Wheelbase: 1199, ChainstayLength: 420, SeatTubeLength: 460, StandoverHeight: 790},
-				},
-			},
+		Sizes:            []string{"S", "M", "L", "XL"},
+		DefaultSize:      "L",
+		CadFork: model.ForkRef{
+			Fork:   "sid_120",
+			SagPct: model.Float64Ptr(20.0),
+			A2cMm:  510.0,
+			RakeMm: 44.0,
+		},
+		DefaultFork: model.ForkRef{
+			Fork:   "sid_120",
+			SagPct: model.Float64Ptr(20.0),
+			A2cMm:  510.0,
+			RakeMm: 44.0,
+		},
+		RigidFork: &model.ForkRef{
+			Fork:   "rigid_510",
+			A2cMm:  510.0,
+			RakeMm: 44.0,
+		},
+		ForkRange: []model.ForkRef{
+			{Fork: "sid_100", A2cMm: 506.0, RakeMm: 44.0},
+			{Fork: "fox34_130", A2cMm: 541.0, RakeMm: 44.0},
+		},
+		Geometries: map[string]model.SizeGeometry{
+			"S":  {Reach: 435, Stack: 599, HtaDeg: 67.5, StaDeg: 75.0, Htl: 86, BbDrop: 68, Wheelbase: 1121, ChainstayLength: 420, SeatTubeLength: 374, StandoverHeight: 700},
+			"M":  {Reach: 455, Stack: 607, HtaDeg: 67.5, StaDeg: 75.0, Htl: 96, BbDrop: 68, Wheelbase: 1146, ChainstayLength: 420, SeatTubeLength: 420, StandoverHeight: 735},
+			"L":  {Reach: 474, Stack: 615, HtaDeg: 67.5, StaDeg: 75.0, Htl: 106, BbDrop: 68, Wheelbase: 1167, ChainstayLength: 420, SeatTubeLength: 455, StandoverHeight: 770},
+			"XL": {Reach: 499, Stack: 627, HtaDeg: 67.5, StaDeg: 75.0, Htl: 116, BbDrop: 68, Wheelbase: 1199, ChainstayLength: 420, SeatTubeLength: 460, StandoverHeight: 790},
 		},
 	}
 
@@ -334,27 +330,32 @@ func TestValidateTumbleweedSunliner(t *testing.T) {
 		Category:           model.CategoryRigid,
 		HeadsetCupType:     model.CupEC44,
 		GeoHeadsetSpacerMm: model.Float64Ptr(13.0),
-		RigidA2cMm:         440.0,
-		DefaultFork:        "rigid",
 		Sizes:              []string{"S", "M", "L", "XL"},
 		DefaultSize:        "L",
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				IsBaseline: true,
-				Fork: model.ForkSpec{
-					TravelMm: 0,
-					A2c:      440,
-					Rake:     55,
-				},
-				SagPercentagePublished: 0,
-				Geometries: map[string]model.SizeGeometry{
-					"S":  {Reach: 420, Stack: 590, HtaDeg: 69, StaDeg: 73, Htl: 130, BbDrop: 65, Wheelbase: 1131, ChainstayLength: 456, SeatTubeLength: 380, StandoverHeight: 765},
-					"M":  {Reach: 434, Stack: 608, HtaDeg: 69, StaDeg: 73, Htl: 150, BbDrop: 65, Wheelbase: 1153, ChainstayLength: 456, SeatTubeLength: 430, StandoverHeight: 795},
-					"L":  {Reach: 447, Stack: 632, HtaDeg: 69, StaDeg: 73, Htl: 175, BbDrop: 65, Wheelbase: 1175, ChainstayLength: 456, SeatTubeLength: 480, StandoverHeight: 835},
-					"XL": {Reach: 457, Stack: 664, HtaDeg: 69, StaDeg: 73, Htl: 210, BbDrop: 65, Wheelbase: 1197, ChainstayLength: 456, SeatTubeLength: 545, StandoverHeight: 875},
-				},
-			},
+		CadFork: model.ForkRef{
+			Fork:   "sunliner_440",
+			A2cMm:  440.0,
+			RakeMm: 55.0,
+		},
+		DefaultFork: model.ForkRef{
+			Fork:   "sunliner_440",
+			A2cMm:  440.0,
+			RakeMm: 55.0,
+		},
+		RigidFork: &model.ForkRef{
+			Fork:   "sunliner_440",
+			A2cMm:  440.0,
+			RakeMm: 55.0,
+		},
+		ForkRange: []model.ForkRef{
+			{Fork: "sunliner_440", A2cMm: 440.0, RakeMm: 55.0},
+			{Fork: "sunliner_440", A2cMm: 440.0, RakeMm: 55.0},
+		},
+		Geometries: map[string]model.SizeGeometry{
+			"S":  {Reach: 420, Stack: 590, HtaDeg: 69, StaDeg: 73, Htl: 130, BbDrop: 65, Wheelbase: 1131, ChainstayLength: 456, SeatTubeLength: 380, StandoverHeight: 765},
+			"M":  {Reach: 434, Stack: 608, HtaDeg: 69, StaDeg: 73, Htl: 150, BbDrop: 65, Wheelbase: 1153, ChainstayLength: 456, SeatTubeLength: 430, StandoverHeight: 795},
+			"L":  {Reach: 447, Stack: 632, HtaDeg: 69, StaDeg: 73, Htl: 175, BbDrop: 65, Wheelbase: 1175, ChainstayLength: 456, SeatTubeLength: 480, StandoverHeight: 835},
+			"XL": {Reach: 457, Stack: 664, HtaDeg: 69, StaDeg: 73, Htl: 210, BbDrop: 65, Wheelbase: 1197, ChainstayLength: 456, SeatTubeLength: 545, StandoverHeight: 875},
 		},
 	}
 
@@ -367,60 +368,52 @@ func TestValidateTumbleweedSunliner(t *testing.T) {
 	}
 }
 
-func TestValidateImplausibleForkA2c(t *testing.T) {
-	// A 120mm 29er fork with 512mm static A2C is physically implausible (standard is 520-545mm)
-	// and drops to 488mm effective A2C at 20% sag.
-	implausibleFrame := model.FrameModel{
-		ID:                 "bad-fork-frame",
+func TestValidateForkRange(t *testing.T) {
+	// Frame with inverted fork range (min static A2C > max static A2C)
+	invalidRangeFrame := model.FrameModel{
+		ID:                 "bad-range-frame",
 		Manufacturer:       "Test",
-		Model:              "BadFork",
+		Model:              "BadRange",
 		WheelSize:          "29",
 		HeadsetCupType:     model.CupEC44,
 		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
-		SupportedTravelMm:  []float64{120},
 		Sizes:              []string{"L"},
 		DefaultSize:        "L",
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				IsBaseline: true,
-				Fork: model.ForkSpec{
-					TravelMm: 120,
-					A2c:      512, // Implausible static A2C for 120mm 29er
-					Rake:     44,
-				},
-				SagPercentagePublished: 0,
-				Geometries: map[string]model.SizeGeometry{
-					"L": {Reach: 456, Stack: 657, HtaDeg: 67, StaDeg: 74.5, Htl: 145, BbDrop: 60, Wheelbase: 1208, ChainstayLength: 455, FrontCenter: 759},
-				},
-			},
+		CadFork: model.ForkRef{
+			Fork:   "fox34_120",
+			SagPct: model.Float64Ptr(20.0),
+			A2cMm:  506.0,
+			RakeMm: 44.0,
+		},
+		DefaultFork: model.ForkRef{
+			Fork:   "fox34_120",
+			SagPct: model.Float64Ptr(20.0),
+			A2cMm:  506.0,
+			RakeMm: 44.0,
+		},
+		ForkRange: []model.ForkRef{
+			{Fork: "fox34_130", A2cMm: 541.0, RakeMm: 44.0},
+			{Fork: "fox34_120", A2cMm: 530.0, RakeMm: 44.0},
+		},
+		Geometries: map[string]model.SizeGeometry{
+			"L": {Reach: 456, Stack: 657, HtaDeg: 67, StaDeg: 74.5, Htl: 145, BbDrop: 60, Wheelbase: 1208, ChainstayLength: 455},
 		},
 	}
 
-	report := validator.ValidateFrame(implausibleFrame)
+	report := validator.ValidateFrame(invalidRangeFrame)
 	if report.IsValid {
-		t.Fatalf("Expected frame with 120mm fork and 512mm static A2C to fail validation")
+		t.Fatalf("Expected frame with inverted fork range to fail validation")
 	}
 
-	foundIssue := false
+	foundRangeIssue := false
 	for _, iss := range report.Issues {
-		if iss.ID == "implausible_fork_a2c" || iss.ID == "implausible_supported_travel_a2c" {
-			foundIssue = true
+		if iss.ID == "inverted_fork_range" {
+			foundRangeIssue = true
 			break
 		}
 	}
-	if !foundIssue {
-		for _, szRep := range report.SizeReports {
-			for _, iss := range szRep.Issues {
-				if iss.ID == "implausible_fork_a2c" {
-					foundIssue = true
-					break
-				}
-			}
-		}
-	}
-	if !foundIssue {
-		t.Errorf("Expected issue 'implausible_fork_a2c' or 'implausible_supported_travel_a2c', got: %+v", report.Issues)
+	if !foundRangeIssue {
+		t.Errorf("Expected issue 'inverted_fork_range', got: %+v", report.Issues)
 	}
 }
 
@@ -460,7 +453,7 @@ func TestAllFrameData(t *testing.T) {
 
 		// 3. Verify all declared sizes materialize and validate
 		for _, sz := range frame.GetSizes() {
-			bike, err := geometry.MaterializeBikeGeometry(frame, sz, "")
+			bike, err := geometry.MaterializeBikeGeometry(frame, sz)
 			if err != nil {
 				t.Errorf("Frame %s failed to materialize size %s: %v", frame.ID, sz, err)
 				continue
@@ -471,33 +464,29 @@ func TestAllFrameData(t *testing.T) {
 			}
 		}
 
-		// 4. Verify default fork specification is coherent
-		if frame.DefaultFork == "" {
-			t.Errorf("Frame %s has empty default_fork", frame.ID)
-		} else if frame.DefaultFork == "rigid" {
-			if !frame.SupportsRigid() {
-				t.Errorf("Frame %s has default_fork 'rigid' but SupportsRigid() is false", frame.ID)
+		// 4. Verify CAD and Default fork specifications are populated
+		if frame.CadFork.Fork == "" || frame.CadFork.A2cMm <= 0 {
+			t.Errorf("Frame %s has invalid cad_fork: %+v", frame.ID, frame.CadFork)
+		}
+		if frame.DefaultFork.Fork == "" || frame.DefaultFork.A2cMm <= 0 {
+			t.Errorf("Frame %s has invalid default_fork: %+v", frame.ID, frame.DefaultFork)
+		}
+
+		// 5. Verify fork range
+		if minF, maxF, ok := frame.GetForkRange(); ok {
+			if minF.StaticA2c() > maxF.StaticA2c() {
+				t.Errorf("Frame %s has inverted fork range: min static %.1f > max static %.1f", frame.ID, minF.StaticA2c(), maxF.StaticA2c())
 			}
 		} else {
-			travelVal := strings.TrimSuffix(frame.DefaultFork, "mm")
-			if travel, err := strconv.ParseFloat(travelVal, 64); err == nil {
-				if !frame.SupportsTravel(travel) {
-					t.Errorf("Frame %s has default_fork %q but SupportsTravel(%.0f) is false", frame.ID, frame.DefaultFork, travel)
-				}
-			}
+			t.Errorf("Frame %s missing fork_range", frame.ID)
 		}
 
-		// 5. Verify rigid and travel capabilities match fields
-		if frame.RigidA2cMm > 0 && !frame.SupportsRigid() {
-			t.Errorf("Frame %s has rigid_a2c_mm=%.1f but SupportsRigid() is false", frame.ID, frame.RigidA2cMm)
-		}
-		for _, tr := range frame.SupportedTravelMm {
-			if !frame.SupportsTravel(tr) {
-				t.Errorf("Frame %s has supported_travel_mm including %.0f but SupportsTravel(%.0f) is false", frame.ID, tr, tr)
-			}
+		// 6. Verify rigid capability matches field
+		if frame.SupportsRigid() && frame.GetRigidA2c() <= 0 {
+			t.Errorf("Frame %s supports rigid but has rigid A2C <= 0", frame.ID)
 		}
 
-		// 6. Verify adjustable chainstay ranges if present
+		// 7. Verify adjustable chainstay ranges if present
 		if frame.HasAdjustableChainstay() {
 			if frame.GetMinChainstay() >= frame.GetMaxChainstay() {
 				t.Errorf("Frame %s has invalid chainstay range [%.1f, %.1f]", frame.ID, frame.GetMinChainstay(), frame.GetMaxChainstay())
@@ -523,7 +512,7 @@ func TestSizeResiduals(t *testing.T) {
 		t.Fatalf("Failed to unmarshal %s: %v", files[0], err)
 	}
 
-	residuals, err := validator.SizeResiduals(frame, "")
+	residuals, err := validator.SizeResiduals(frame)
 	if err != nil {
 		t.Fatalf("SizeResiduals failed on %s: %v", frame.ID, err)
 	}

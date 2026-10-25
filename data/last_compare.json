@@ -17,122 +17,142 @@
     {
       "frame_id": "binary-havok",
       "size": "XL",
-      "fork": "100mm",
-      "sag_percent": 15
+      "a2c_mm": 491,
+      "rake_mm": 44,
+      "display_label": "100mm @ 15%"
     },
     {
       "frame_id": "otso-fenrir-stainless",
       "size": "L",
-      "fork": "110mm",
-      "sag_percent": 20
+      "a2c_mm": 499,
+      "rake_mm": 44,
+      "display_label": "110mm @ 20%"
     },
     {
       "frame_id": "otso-fenrir-stainless",
       "size": "L",
-      "fork": "rigid",
-      "sag_percent": 0
+      "a2c_mm": 495,
+      "rake_mm": 54,
+      "display_label": "Rigid (495mm)"
     },
     {
       "frame_id": "otso-fenrir-stainless",
       "size": "XL",
-      "fork": "120mm",
-      "sag_percent": 20
+      "a2c_mm": 506,
+      "rake_mm": 44,
+      "display_label": "120mm @ 20%"
     },
     {
       "frame_id": "esker-hayduke",
       "size": "S3",
-      "fork": "110mm",
-      "sag_percent": 20
+      "a2c_mm": 499,
+      "rake_mm": 44,
+      "display_label": "110mm @ 20%"
     },
     {
       "frame_id": "revel-el-jefe",
       "size": "L",
-      "fork": "120mm",
-      "sag_percent": 20
+      "a2c_mm": 506,
+      "rake_mm": 44,
+      "display_label": "120mm @ 20%"
     },
     {
       "frame_id": "revel-el-jefe",
       "size": "XL",
-      "fork": "120mm",
-      "sag_percent": 20
+      "a2c_mm": 506,
+      "rake_mm": 44,
+      "display_label": "120mm @ 20%"
     },
     {
       "frame_id": "surly-krampus",
       "size": "L",
-      "fork": "120mm",
-      "sag_percent": 20
+      "a2c_mm": 506,
+      "rake_mm": 44,
+      "display_label": "120mm @ 20%"
     },
     {
       "frame_id": "surly-krampus",
       "size": "XL",
-      "fork": "120mm",
-      "sag_percent": 20
+      "a2c_mm": 506,
+      "rake_mm": 44,
+      "display_label": "120mm @ 20%"
     },
     {
       "frame_id": "binary-kinetik",
       "size": "L",
-      "fork": "110mm",
-      "sag_percent": 20
+      "a2c_mm": 499,
+      "rake_mm": 44,
+      "display_label": "110mm @ 20%"
     },
     {
       "frame_id": "turner-venn-ti",
       "size": "L",
-      "fork": "120mm",
-      "sag_percent": 20
+      "a2c_mm": 506,
+      "rake_mm": 44,
+      "display_label": "120mm @ 20%"
     },
     {
       "frame_id": "otso-fenrir-stainless",
       "size": "L",
-      "fork": "120mm",
-      "sag_percent": 20
+      "a2c_mm": 506,
+      "rake_mm": 44,
+      "display_label": "120mm @ 20%"
     },
     {
       "frame_id": "fairlight-holt-2",
       "size": "L",
-      "fork": "120mm",
-      "sag_percent": 20
+      "a2c_mm": 506,
+      "rake_mm": 44,
+      "display_label": "120mm @ 20%"
     },
     {
       "frame_id": "fairlight-holt-2",
       "size": "XL",
-      "fork": "120mm",
-      "sag_percent": 20
+      "a2c_mm": 506,
+      "rake_mm": 44,
+      "display_label": "120mm @ 20%"
     },
     {
       "frame_id": "sklar-pbj",
       "size": "L",
-      "fork": "110mm",
-      "sag_percent": 20
+      "a2c_mm": 499,
+      "rake_mm": 44,
+      "display_label": "110mm @ 20%"
     },
     {
       "frame_id": "sklar-pbj",
       "size": "XL",
-      "fork": "110mm",
-      "sag_percent": 20
+      "a2c_mm": 499,
+      "rake_mm": 44,
+      "display_label": "110mm @ 20%"
     },
     {
       "frame_id": "salsa-fargo",
       "size": "L",
-      "fork": "rigid",
-      "sag_percent": 0
+      "a2c_mm": 483,
+      "rake_mm": 51,
+      "display_label": "Rigid (483mm)"
     },
     {
       "frame_id": "salsa-fargo",
       "size": "XL",
-      "fork": "rigid",
-      "sag_percent": 0
+      "a2c_mm": 483,
+      "rake_mm": 51,
+      "display_label": "Rigid (483mm)"
     },
     {
       "frame_id": "salsa-fargo",
       "size": "L",
-      "fork": "100mm",
-      "sag_percent": 20
+      "a2c_mm": 486,
+      "rake_mm": 44,
+      "display_label": "100mm @ 20%"
     },
     {
       "frame_id": "salsa-fargo",
       "size": "XL",
-      "fork": "100mm",
-      "sag_percent": 20
+      "a2c_mm": 486,
+      "rake_mm": 44,
+      "display_label": "100mm @ 20%"
     }
   ]
 }

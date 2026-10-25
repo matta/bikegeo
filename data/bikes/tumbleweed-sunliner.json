@@ -8,9 +8,33 @@
   "wheel_size": "29",
   "headset_cup_type": "EC44",
   "geo_headset_spacer_mm": 13,
-  "supported_travel_mm": [],
-  "rigid_a2c_mm": 440,
-  "default_fork": "rigid",
+  "cad_fork": {
+    "fork": "sunliner_440",
+    "a2c_mm": 440.0,
+    "rake_mm": 55.0
+  },
+  "default_fork": {
+    "fork": "sunliner_440",
+    "a2c_mm": 440.0,
+    "rake_mm": 55.0
+  },
+  "rigid_fork": {
+    "fork": "sunliner_440",
+    "a2c_mm": 440.0,
+    "rake_mm": 55.0
+  },
+  "fork_range": [
+    {
+      "fork": "sunliner_440",
+      "a2c_mm": 440.0,
+      "rake_mm": 55.0
+    },
+    {
+      "fork": "sunliner_440",
+      "a2c_mm": 440.0,
+      "rake_mm": 55.0
+    }
+  ],
   "sizes": [
     "S",
     "M",
@@ -18,69 +42,54 @@
     "XL"
   ],
   "default_size": "L",
-  "configurations": [
-    {
-      "id": "stock",
-      "name": "Stock Rigid 440mm Build",
-      "is_baseline": true,
-      "fork": {
-        "id": "rigid_440",
-        "name": "Tumbleweed Chromoly Steel Unicrown 440mm",
-        "travel_mm": 0,
-        "a2c": 440,
-        "rake": 55
-      },
-      "sag_percentage_published": 0,
-      "geometries": {
-        "S": {
-          "reach": 420,
-          "stack": 590,
-          "hta_deg": 69,
-          "sta_deg": 73,
-          "htl": 130,
-          "bb_drop": 65,
-          "wheelbase": 1131,
-          "chainstay_length": 456,
-          "seat_tube_length": 380,
-          "standover_height": 765
-        },
-        "M": {
-          "reach": 434,
-          "stack": 608,
-          "hta_deg": 69,
-          "sta_deg": 73,
-          "htl": 150,
-          "bb_drop": 65,
-          "wheelbase": 1153,
-          "chainstay_length": 456,
-          "seat_tube_length": 430,
-          "standover_height": 795
-        },
-        "L": {
-          "reach": 447,
-          "stack": 632,
-          "hta_deg": 69,
-          "sta_deg": 73,
-          "htl": 175,
-          "bb_drop": 65,
-          "wheelbase": 1175,
-          "chainstay_length": 456,
-          "seat_tube_length": 480,
-          "standover_height": 835
-        },
-        "XL": {
-          "reach": 457,
-          "stack": 664,
-          "hta_deg": 69,
-          "sta_deg": 73,
-          "htl": 210,
-          "bb_drop": 65,
-          "wheelbase": 1197,
-          "chainstay_length": 456,
-          "seat_tube_length": 545,
-          "standover_height": 875
-        }
-      }
+  "geometries": {
+    "S": {
+      "reach": 420,
+      "stack": 590,
+      "hta_deg": 69,
+      "sta_deg": 73,
+      "htl": 130,
+      "bb_drop": 65,
+      "wheelbase": 1131,
+      "chainstay_length": 456,
+      "seat_tube_length": 380,
+      "standover_height": 765
+    },
+    "M": {
+      "reach": 434,
+      "stack": 608,
+      "hta_deg": 69,
+      "sta_deg": 73,
+      "htl": 150,
+      "bb_drop": 65,
+      "wheelbase": 1153,
+      "chainstay_length": 456,
+      "seat_tube_length": 430,
+      "standover_height": 795
+    },
+    "L": {
+      "reach": 447,
+      "stack": 632,
+      "hta_deg": 69,
+      "sta_deg": 73,
+      "htl": 175,
+      "bb_drop": 65,
+      "wheelbase": 1175,
+      "chainstay_length": 456,
+      "seat_tube_length": 480,
+      "standover_height": 835
+    },
+    "XL": {
+      "reach": 457,
+      "stack": 664,
+      "hta_deg": 69,
+      "sta_deg": 73,
+      "htl": 210,
+      "bb_drop": 65,
+      "wheelbase": 1197,
+      "chainstay_length": 456,
+      "seat_tube_length": 545,
+      "standover_height": 875
     }
-  ]
+  }
 }

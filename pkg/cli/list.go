@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"bikegeo/pkg/canonicalizer"
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 )
@@ -81,16 +81,11 @@ func (a *App) runList(args []string) int {
 		var bikesOut []model.BikeGeometry
 
 		for _, f := range filteredFrames {
-			baseCfg := f.GetBaselineConfiguration()
-			baseID := ""
-			if baseCfg != nil {
-				baseID = baseCfg.ID
-			}
 			for _, sz := range f.GetSizes() {
 				if szF != "" && strings.ToLower(sz) != szF {
 					continue
 				}
-				b, err := geometry.MaterializeBikeGeometry(f, sz, baseID)
+				b, err := geometry.MaterializeBikeGeometry(f, sz)
 				if err != nil {
 					continue
 				}
@@ -162,29 +157,34 @@ func (a *App) runForks(args []string) int {
 		return 2
 	}
 
-	presets := canonicalizer.CommonForkPresets
-	headers := []string{"Preset ID", "Reference Name", "Travel", "Static A2C", "Sagged A2C (Std)", "Rake", "Std Sag"}
+	forks := catalog.CommonForkCatalog
+	headers := []string{"Fork ID", "Name", "Travel", "Standard", "Options (A2C / Rake)"}
 	var rows [][]string
 
-	for _, p := range presets {
+	for _, f := range forks {
 		travelStr := "Rigid (0mm)"
-		if p.TravelMm > 0 {
-			travelStr = fmt.Sprintf("%.0f mm", p.TravelMm)
+		if f.TravelMm > 0 {
+			travelStr = fmt.Sprintf("%.0f mm", f.TravelMm)
 		}
-		saggedA2c := canonicalizer.CalculateSaggedA2c(p.StaticA2c, p.TravelMm, p.StandardSagPercent)
+		stdStr := "—"
+		if f.Standard {
+			stdStr = "yes"
+		}
+		var optStrs []string
+		for _, o := range f.Options {
+			optStrs = append(optStrs, fmt.Sprintf("%.0f/%.0f", o.A2cMm, o.RakeMm))
+		}
 		rows = append(rows, []string{
-			p.ID,
-			p.Name,
+			f.ID,
+			f.Name,
 			travelStr,
-			fmt.Sprintf("%.0f mm", p.StaticA2c),
-			fmt.Sprintf("%.1f mm", saggedA2c),
-			fmt.Sprintf("%.0f mm", p.Rake),
-			fmt.Sprintf("%.0f%%", p.StandardSagPercent),
+			stdStr,
+			strings.Join(optStrs, ", "),
 		})
 	}
 
-	title := fmt.Sprintf("Standard Fork Presets & Travel-to-A2C Registry (%d)", len(presets))
-	if err := RenderOutput(a.Out, a.Format, title, "", headers, rows, presets); err != nil {
+	title := fmt.Sprintf("Standard Fork Catalog (%d)", len(forks))
+	if err := RenderOutput(a.Out, a.Format, title, "", headers, rows, forks); err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
 	}

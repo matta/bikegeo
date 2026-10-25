@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/storage"
 )
@@ -102,6 +103,8 @@ func TestFrameModelStorage(t *testing.T) {
 		t.Fatalf("Failed to create store: %v", err)
 	}
 
+	cadFork := model.ForkRef{Fork: "fox34_120", SagPct: model.Float64Ptr(20), A2cMm: 506, RakeMm: 44}
+	rigidFork := &model.ForkRef{Fork: "rigid_483", A2cMm: 483, RakeMm: 44}
 	frame := model.FrameModel{
 		ID:                 "chumba-sendero",
 		Manufacturer:       "Chumba",
@@ -112,26 +115,18 @@ func TestFrameModelStorage(t *testing.T) {
 		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
 		Sizes:              []string{"S", "M", "L", "XL"},
 		DefaultSize:        "L",
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "fork-120",
-				Name:       "120mm Suspension",
-				IsBaseline: true,
-				Fork:       model.ForkSpec{TravelMm: 120, A2c: 531, Rake: 44},
-				Geometries: map[string]model.SizeGeometry{
-					"S":  {Reach: 425, Stack: 625, HtaDeg: 67.0, StaDeg: 74.5, Htl: 100, BbDrop: 60, Wheelbase: 1145},
-					"M":  {Reach: 450, Stack: 635, HtaDeg: 67.0, StaDeg: 74.5, Htl: 110, BbDrop: 60, Wheelbase: 1172},
-					"L":  {Reach: 475, Stack: 645, HtaDeg: 67.0, StaDeg: 74.5, Htl: 125, BbDrop: 60, Wheelbase: 1200},
-					"XL": {Reach: 500, Stack: 655, HtaDeg: 67.0, StaDeg: 74.5, Htl: 140, BbDrop: 60, Wheelbase: 1230},
-				},
-			},
-			{
-				ID:         "rigid-483",
-				Name:       "Rigid Fork",
-				IsBaseline: false,
-				Fork:       model.ForkSpec{TravelMm: 0, A2c: 483, Rake: 44},
-				// Deliberately no geometries: should derive kinematically!
-			},
+		CadFork:            cadFork,
+		DefaultFork:        cadFork,
+		RigidFork:          rigidFork,
+		ForkRange: []model.ForkRef{
+			{Fork: "rigid_483", A2cMm: 483, RakeMm: 44},
+			{Fork: "fox34_130", A2cMm: 540, RakeMm: 44},
+		},
+		Geometries: map[string]model.SizeGeometry{
+			"S":  {Reach: 425, Stack: 625, HtaDeg: 67.0, StaDeg: 74.5, Htl: 100, BbDrop: 60, Wheelbase: 1145},
+			"M":  {Reach: 450, Stack: 635, HtaDeg: 67.0, StaDeg: 74.5, Htl: 110, BbDrop: 60, Wheelbase: 1172},
+			"L":  {Reach: 475, Stack: 645, HtaDeg: 67.0, StaDeg: 74.5, Htl: 125, BbDrop: 60, Wheelbase: 1200},
+			"XL": {Reach: 500, Stack: 655, HtaDeg: 67.0, StaDeg: 74.5, Htl: 140, BbDrop: 60, Wheelbase: 1230},
 		},
 	}
 
@@ -168,21 +163,22 @@ func TestFrameModelStorage(t *testing.T) {
 	if largeBike == nil || largeBike.Reach != 475 {
 		t.Errorf("Expected reach 475 for L, got %+v", largeBike)
 	}
+	if largeBike.ForkA2c != 506 {
+		t.Errorf("Expected fork A2C 506 for L, got %.1f", largeBike.ForkA2c)
+	}
 
-	// Retrieve by alternate config ID (kinematically derived)
-	rigidLarge, err := store.GetBikeByID("chumba-sendero-l-rigid-483")
-	if err != nil {
-		t.Fatalf("GetBikeByID rigid error: %v", err)
+	// Kinematically derive geometry for rigid fork (483mm A2C vs 506mm CAD)
+	derived := geometry.CalculateDynamicGeometry(
+		largeBike.Reach, largeBike.Stack, largeBike.HtaDeg, largeBike.StaDeg, largeBike.BbDrop,
+		506.0+largeBike.GetGeoHeadsetSpacerMm(), 483.0+largeBike.GetGeoHeadsetSpacerMm(),
+		largeBike.Wheelbase, largeBike.ChainstayLength,
+	)
+	// Rigid fork (483 vs 506) pitches down front end, increasing reach and steepening HTA
+	if derived.NewHta <= 67.0 {
+		t.Errorf("Expected steeper HTA for rigid fork, got %.2f", derived.NewHta)
 	}
-	if rigidLarge == nil {
-		t.Fatalf("Expected rigid large bike to be materialized")
-	}
-	// Rigid fork (483 vs 531) pitches down front end, increasing reach and steepening HTA
-	if rigidLarge.HtaDeg <= 67.0 {
-		t.Errorf("Expected steeper HTA for rigid fork, got %.2f", rigidLarge.HtaDeg)
-	}
-	if rigidLarge.Reach <= 475.0 {
-		t.Errorf("Expected longer reach for rigid fork, got %.1f", rigidLarge.Reach)
+	if derived.NewReach <= 475.0 {
+		t.Errorf("Expected longer reach for rigid fork, got %.1f", derived.NewReach)
 	}
 }
 
@@ -210,11 +206,11 @@ func TestLoadRealBikesDataDir(t *testing.T) {
 		t.Errorf("Expected %d materialized bikes, got %d", expectedBikes, len(bikes))
 	}
 	for _, b := range bikes {
-		if b.Fork.A2c <= 0 {
-			t.Errorf("Bike %s has invalid Fork.A2c: %.1f", b.ID, b.Fork.A2c)
+		if b.ForkA2c <= 0 {
+			t.Errorf("Bike %s has invalid ForkA2c: %.1f", b.ID, b.ForkA2c)
 		}
-		if b.Fork.Rake <= 0 {
-			t.Errorf("Bike %s has invalid Fork.Rake: %.1f", b.ID, b.Fork.Rake)
+		if b.ForkRake <= 0 {
+			t.Errorf("Bike %s has invalid ForkRake: %.1f", b.ID, b.ForkRake)
 		}
 	}
 }

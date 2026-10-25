@@ -78,22 +78,65 @@ func (a *App) runInit(args []string) int {
 		rigidA2c = 483.0
 	}
 
-	var baseFork model.ForkSpec
+	var cadFork model.ForkRef
+	var defaultForkRef model.ForkRef
+	var rigidFork *model.ForkRef
+	var forkRange []model.ForkRef
+
 	if len(travels) > 0 {
-		baseFork = canonicalizer.GetStandardForkForTravel(travels[0])
-		if defaultFork == "" {
-			defaultFork = fmt.Sprintf("%.0fmm", travels[0])
+		minTravel := travels[0]
+		maxTravel := travels[len(travels)-1]
+		stdFork, ok := canonicalizer.GetStandardForkForTravel(minTravel)
+		optA2c := minTravel + 410.0
+		optRake := 44.0
+		forkID := fmt.Sprintf("standard_%.0f", minTravel)
+		if ok && len(stdFork.Options) > 0 {
+			forkID = stdFork.ID
+			optA2c = stdFork.Options[0].A2cMm
+			optRake = stdFork.Options[0].RakeMm
+		}
+		cadFork = model.ForkRef{
+			Fork:   forkID,
+			A2cMm:  optA2c,
+			RakeMm: optRake,
+			SagPct: model.Float64Ptr(0),
+		}
+		defaultForkRef = cadFork
+
+		maxStdFork, okMax := canonicalizer.GetStandardForkForTravel(maxTravel)
+		maxOptA2c := maxTravel + 410.0
+		maxOptRake := 44.0
+		maxForkID := fmt.Sprintf("standard_%.0f", maxTravel)
+		if okMax && len(maxStdFork.Options) > 0 {
+			maxForkID = maxStdFork.ID
+			maxOptA2c = maxStdFork.Options[0].A2cMm
+			maxOptRake = maxStdFork.Options[0].RakeMm
+		}
+		forkRange = []model.ForkRef{
+			cadFork,
+			{
+				Fork:   maxForkID,
+				A2cMm:  maxOptA2c,
+				RakeMm: maxOptRake,
+				SagPct: model.Float64Ptr(0),
+			},
 		}
 	} else {
-		baseFork = model.ForkSpec{
-			ID:       fmt.Sprintf("rigid_%.0f", rigidA2c),
-			Name:     fmt.Sprintf("Rigid %.0fmm", rigidA2c),
-			TravelMm: 0,
-			A2c:      rigidA2c,
-			Rake:     44,
+		cadFork = model.ForkRef{
+			Fork:   fmt.Sprintf("rigid_%.0f", rigidA2c),
+			A2cMm:  rigidA2c,
+			RakeMm: 44,
 		}
-		if defaultFork == "" {
-			defaultFork = "rigid"
+		defaultForkRef = cadFork
+		rigidFork = &cadFork
+		forkRange = []model.ForkRef{cadFork, cadFork}
+	}
+
+	if rigidA2c > 0 && rigidFork == nil {
+		rigidFork = &model.ForkRef{
+			Fork:   fmt.Sprintf("rigid_%.0f", rigidA2c),
+			A2cMm:  rigidA2c,
+			RakeMm: 44,
 		}
 	}
 
@@ -117,10 +160,10 @@ func (a *App) runInit(args []string) int {
 	for i, sz := range sizes {
 		reach := 425.0 + float64(i)*22.0
 		htl := 100.0 + float64(i)*10.0
-		structuralA2c := baseFork.A2c + geoSpacer
+		structuralA2c := cadFork.A2cMm + geoSpacer
 		// Stack = BB_drop - Rake*cos(HTA) + (A2C + geo_headset_spacer_mm + HTL)*sin(HTA)
-		stack := geometry.Round(bbDrop-baseFork.Rake*math.Cos(htaRad)+(structuralA2c+htl)*math.Sin(htaRad), 1)
-		fc := geometry.CalculateFrontCenter(reach, htl, htaDeg, baseFork.Rake, structuralA2c)
+		stack := geometry.Round(bbDrop-cadFork.RakeMm*math.Cos(htaRad)+(structuralA2c+htl)*math.Sin(htaRad), 1)
+		fc := geometry.CalculateFrontCenter(reach, htl, htaDeg, cadFork.RakeMm, structuralA2c)
 		wb := geometry.Round(rearCenter+fc, 1)
 		geos[sz] = model.SizeGeometry{
 			Reach:           reach,
@@ -156,20 +199,13 @@ func (a *App) runInit(args []string) int {
 		WheelSize:          "29",
 		HeadsetCupType:     parsedCupType,
 		GeoHeadsetSpacerMm: model.Float64Ptr(geoSpacer),
-		SupportedTravelMm:  travels,
-		RigidA2cMm:         rigidA2c,
-		DefaultFork:        defaultFork,
+		CadFork:            cadFork,
+		DefaultFork:        defaultForkRef,
+		RigidFork:          rigidFork,
+		ForkRange:          forkRange,
 		Sizes:              sizes,
 		DefaultSize:        defSize,
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				Name:       "Stock Build",
-				IsBaseline: true,
-				Fork:       baseFork,
-				Geometries: geos,
-			},
-		},
+		Geometries:         geos,
 	}
 
 	if save {
@@ -263,7 +299,7 @@ func (a *App) runSet(args []string) int {
 		return 1
 	}
 
-	matBike, _ := geometry.MaterializeBikeGeometry(*saved, targetSize, "")
+	matBike, _ := geometry.MaterializeBikeGeometry(*saved, targetSize)
 	report := validator.ValidateBikeGeometry(matBike)
 
 	if a.Format == FormatJSON {
@@ -316,7 +352,7 @@ func (a *App) runImport(args []string) int {
 		return 1
 	}
 
-	if len(frame.Configurations) == 0 {
+	if len(frame.Geometries) == 0 {
 		// Check if it was a single-size BikeGeometry JSON
 		var bike model.BikeGeometry
 		if err := json.Unmarshal(data, &bike); err == nil && bike.Reach > 0 && bike.Stack > 0 {
@@ -338,7 +374,7 @@ func (a *App) runImport(args []string) int {
 			fmt.Fprintf(a.Out, "Imported %s %s (%s) as %s\n", saved.Manufacturer, saved.Model, saved.Size, saved.ID)
 			return 0
 		}
-		fmt.Fprintf(a.Err, "Error: frame JSON must include at least one configuration\n")
+		fmt.Fprintf(a.Err, "Error: frame JSON must include at least one size geometry\n")
 		return 1
 	}
 

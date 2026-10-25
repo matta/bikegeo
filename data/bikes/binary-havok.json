@@ -12,10 +12,37 @@
     "a2c": 1.5,
     "wheelbase": 1.5
   },
-  "supported_travel_mm": [100, 110, 120],
-  "rigid_a2c_mm": 485,
-  "default_fork": "rigid",
-  "chainstay_range_mm": [445, 460],
+  "chainstay_range_mm": [
+    445,
+    460
+  ],
+  "cad_fork": {
+    "fork": "rigid_485",
+    "a2c_mm": 485.0,
+    "rake_mm": 45.0
+  },
+  "default_fork": {
+    "fork": "rigid_485",
+    "a2c_mm": 485.0,
+    "rake_mm": 45.0
+  },
+  "rigid_fork": {
+    "fork": "rigid_485",
+    "a2c_mm": 485.0,
+    "rake_mm": 45.0
+  },
+  "fork_range": [
+    {
+      "fork": "rigid_485",
+      "a2c_mm": 485.0,
+      "rake_mm": 45.0
+    },
+    {
+      "fork": "fox34_120",
+      "a2c_mm": 530.0,
+      "rake_mm": 44.0
+    }
+  ],
   "sizes": [
     "S",
     "M",
@@ -24,86 +51,71 @@
     "XL"
   ],
   "default_size": "L",
-  "configurations": [
-    {
-      "id": "stock",
-      "name": "Stock Rigid 485mm Build",
-      "is_baseline": true,
-      "fork": {
-        "id": "rigid_485",
-        "name": "Rigid Bikepacking 485mm",
-        "travel_mm": 0,
-        "a2c": 485,
-        "rake": 45
-      },
-      "sag_percentage_published": 0,
-      "geometries": {
-        "S": {
-          "reach": 367,
-          "stack": 621,
-          "hta_deg": 68.5,
-          "sta_deg": 74.0,
-          "htl": 115,
-          "bb_drop": 70,
-          "wheelbase": 1072,
-          "chainstay_length": 445,
-          "front_center": 636,
-          "seat_tube_length": 460,
-          "standover_height": 783
-        },
-        "M": {
-          "reach": 386,
-          "stack": 627,
-          "hta_deg": 68.5,
-          "sta_deg": 74.0,
-          "htl": 120,
-          "bb_drop": 70,
-          "wheelbase": 1092,
-          "chainstay_length": 445,
-          "front_center": 657,
-          "seat_tube_length": 480,
-          "standover_height": 795
-        },
-        "ML": {
-          "reach": 389,
-          "stack": 642,
-          "hta_deg": 69.0,
-          "sta_deg": 74.0,
-          "htl": 135,
-          "bb_drop": 70,
-          "wheelbase": 1096,
-          "chainstay_length": 445,
-          "front_center": 660,
-          "seat_tube_length": 500,
-          "standover_height": 813
-        },
-        "L": {
-          "reach": 398,
-          "stack": 656,
-          "hta_deg": 69.0,
-          "sta_deg": 74.0,
-          "htl": 150,
-          "bb_drop": 70,
-          "wheelbase": 1111,
-          "chainstay_length": 445,
-          "front_center": 675,
-          "seat_tube_length": 525,
-          "standover_height": 833
-        },
-        "XL": {
-          "reach": 408,
-          "stack": 670,
-          "hta_deg": 69.0,
-          "sta_deg": 74.0,
-          "htl": 165,
-          "bb_drop": 70,
-          "wheelbase": 1126,
-          "chainstay_length": 445,
-          "front_center": 690,
-          "seat_tube_length": 555,
-          "standover_height": 855
-        }
-      }
+  "geometries": {
+    "S": {
+      "reach": 367,
+      "stack": 621,
+      "hta_deg": 68.5,
+      "sta_deg": 74.0,
+      "htl": 115,
+      "bb_drop": 70,
+      "wheelbase": 1072,
+      "chainstay_length": 445,
+      "front_center": 636,
+      "seat_tube_length": 460,
+      "standover_height": 783
+    },
+    "M": {
+      "reach": 386,
+      "stack": 627,
+      "hta_deg": 68.5,
+      "sta_deg": 74.0,
+      "htl": 120,
+      "bb_drop": 70,
+      "wheelbase": 1092,
+      "chainstay_length": 445,
+      "front_center": 657,
+      "seat_tube_length": 480,
+      "standover_height": 795
+    },
+    "ML": {
+      "reach": 389,
+      "stack": 642,
+      "hta_deg": 69.0,
+      "sta_deg": 74.0,
+      "htl": 135,
+      "bb_drop": 70,
+      "wheelbase": 1096,
+      "chainstay_length": 445,
+      "front_center": 660,
+      "seat_tube_length": 500,
+      "standover_height": 813
+    },
+    "L": {
+      "reach": 398,
+      "stack": 656,
+      "hta_deg": 69.0,
+      "sta_deg": 74.0,
+      "htl": 150,
+      "bb_drop": 70,
+      "wheelbase": 1111,
+      "chainstay_length": 445,
+      "front_center": 675,
+      "seat_tube_length": 525,
+      "standover_height": 833
+    },
+    "XL": {
+      "reach": 408,
+      "stack": 670,
+      "hta_deg": 69.0,
+      "sta_deg": 74.0,
+      "htl": 165,
+      "bb_drop": 70,
+      "wheelbase": 1126,
+      "chainstay_length": 445,
+      "front_center": 690,
+      "seat_tube_length": 555,
+      "standover_height": 855
     }
-  ]
+  }
 }

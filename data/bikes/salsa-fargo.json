@@ -8,14 +8,36 @@
   "wheel_size": "29",
   "headset_cup_type": "EC44",
   "geo_headset_spacer_mm": 0,
-  "supported_travel_mm": [
-    100
-  ],
-  "rigid_a2c_mm": 483,
-  "default_fork": "rigid",
   "chainstay_range_mm": [
     445,
     462
+  ],
+  "cad_fork": {
+    "fork": "firestarter_deluxe_483",
+    "a2c_mm": 483.0,
+    "rake_mm": 51.0
+  },
+  "default_fork": {
+    "fork": "firestarter_deluxe_483",
+    "a2c_mm": 483.0,
+    "rake_mm": 51.0
+  },
+  "rigid_fork": {
+    "fork": "firestarter_deluxe_483",
+    "a2c_mm": 483.0,
+    "rake_mm": 51.0
+  },
+  "fork_range": [
+    {
+      "fork": "firestarter_deluxe_483",
+      "a2c_mm": 483.0,
+      "rake_mm": 51.0
+    },
+    {
+      "fork": "sid_100",
+      "a2c_mm": 506.0,
+      "rake_mm": 51.0
+    }
   ],
   "sizes": [
     "XS",
@@ -25,81 +47,66 @@
     "XL"
   ],
   "default_size": "L",
-  "configurations": [
-    {
-      "id": "stock",
-      "name": "Stock Rigid 483mm Build",
-      "is_baseline": true,
-      "fork": {
-        "id": "cutthroat_deluxe_483",
-        "name": "Salsa Cutthroat Carbon Deluxe 483mm",
-        "travel_mm": 0,
-        "a2c": 483,
-        "rake": 51
-      },
-      "sag_percentage_published": 0,
-      "geometries": {
-        "XS": {
-          "reach": 352,
-          "stack": 584,
-          "hta_deg": 68.5,
-          "sta_deg": 74.0,
-          "htl": 90,
-          "bb_drop": 70,
-          "wheelbase": 1067,
-          "chainstay_length": 462,
-          "seat_tube_length": 355.6,
-          "standover_height": 690
-        },
-        "S": {
-          "reach": 366,
-          "stack": 605,
-          "hta_deg": 69.0,
-          "sta_deg": 74.0,
-          "htl": 110,
-          "bb_drop": 70,
-          "wheelbase": 1083,
-          "chainstay_length": 462,
-          "seat_tube_length": 406.4,
-          "standover_height": 732
-        },
-        "M": {
-          "reach": 371,
-          "stack": 633,
-          "hta_deg": 69.0,
-          "sta_deg": 73.0,
-          "htl": 140,
-          "bb_drop": 70,
-          "wheelbase": 1099,
-          "chainstay_length": 462,
-          "seat_tube_length": 457.2,
-          "standover_height": 778
-        },
-        "L": {
-          "reach": 388,
-          "stack": 661,
-          "hta_deg": 69.0,
-          "sta_deg": 73.0,
-          "htl": 170,
-          "bb_drop": 70,
-          "wheelbase": 1126,
-          "chainstay_length": 462,
-          "seat_tube_length": 508.0,
-          "standover_height": 821
-        },
-        "XL": {
-          "reach": 412,
-          "stack": 680,
-          "hta_deg": 69.0,
-          "sta_deg": 73.0,
-          "htl": 190,
-          "bb_drop": 70,
-          "wheelbase": 1158,
-          "chainstay_length": 462,
-          "seat_tube_length": 558.8,
-          "standover_height": 859
-        }
-      }
+  "geometries": {
+    "XS": {
+      "reach": 352,
+      "stack": 584,
+      "hta_deg": 68.5,
+      "sta_deg": 74.0,
+      "htl": 90,
+      "bb_drop": 70,
+      "wheelbase": 1067,
+      "chainstay_length": 462,
+      "seat_tube_length": 355.6,
+      "standover_height": 690
+    },
+    "S": {
+      "reach": 366,
+      "stack": 605,
+      "hta_deg": 69.0,
+      "sta_deg": 74.0,
+      "htl": 110,
+      "bb_drop": 70,
+      "wheelbase": 1083,
+      "chainstay_length": 462,
+      "seat_tube_length": 406.4,
+      "standover_height": 732
+    },
+    "M": {
+      "reach": 371,
+      "stack": 633,
+      "hta_deg": 69.0,
+      "sta_deg": 73.0,
+      "htl": 140,
+      "bb_drop": 70,
+      "wheelbase": 1099,
+      "chainstay_length": 462,
+      "seat_tube_length": 457.2,
+      "standover_height": 778
+    },
+    "L": {
+      "reach": 388,
+      "stack": 661,
+      "hta_deg": 69.0,
+      "sta_deg": 73.0,
+      "htl": 170,
+      "bb_drop": 70,
+      "wheelbase": 1126,
+      "chainstay_length": 462,
+      "seat_tube_length": 508.0,
+      "standover_height": 821
+    },
+    "XL": {
+      "reach": 412,
+      "stack": 680,
+      "hta_deg": 69.0,
+      "sta_deg": 73.0,
+      "htl": 190,
+      "bb_drop": 70,
+      "wheelbase": 1158,
+      "chainstay_length": 462,
+      "seat_tube_length": 558.8,
+      "standover_height": 859
     }
-  ]
+  }
 }

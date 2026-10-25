@@ -9,12 +9,30 @@
   "headset_cup_type": "EC44",
   "geo_headset_spacer_mm": 12,
   "actual_sta_deg": 74.3,
-  "supported_travel_mm": [
-    100,
-    110,
-    120
+  "cad_fork": {
+    "fork": "pike_120",
+    "sag_pct": 20.0,
+    "a2c_mm": 507.0,
+    "rake_mm": 44.0
+  },
+  "default_fork": {
+    "fork": "pike_120",
+    "sag_pct": 20.0,
+    "a2c_mm": 507.0,
+    "rake_mm": 44.0
+  },
+  "fork_range": [
+    {
+      "fork": "sid_100",
+      "a2c_mm": 506.0,
+      "rake_mm": 44.0
+    },
+    {
+      "fork": "pike_120",
+      "a2c_mm": 531.0,
+      "rake_mm": 44.0
+    }
   ],
-  "default_fork": "120mm",
   "sizes": [
     "S",
     "M",
@@ -22,70 +40,54 @@
     "XL"
   ],
   "default_size": "L",
-  "configurations": [
-    {
-      "id": "stock",
-      "name": "Stock 120mm Suspension Build",
-      "is_baseline": true,
-      "fork": {
-        "id": "sid_120",
-        "name": "RockShox SID 120mm",
-        "travel_mm": 120,
-        "a2c": 531,
-        "rake": 44,
-        "standard_sag_percent": 20
-      },
-      "sag_percentage_published": 20,
-      "geometries": {
-        "S": {
-          "reach": 425,
-          "stack": 616,
-          "hta_deg": 67.0,
-          "sta_deg": 75.3,
-          "htl": 100,
-          "bb_drop": 63,
-          "wheelbase": 1138,
-          "chainstay_length": 435,
-          "seat_tube_length": 385,
-          "standover_height": 742
-        },
-        "M": {
-          "reach": 450,
-          "stack": 616,
-          "hta_deg": 67.0,
-          "sta_deg": 75.3,
-          "htl": 100,
-          "bb_drop": 63,
-          "wheelbase": 1163,
-          "chainstay_length": 435,
-          "seat_tube_length": 425,
-          "standover_height": 765
-        },
-        "L": {
-          "reach": 470,
-          "stack": 625,
-          "hta_deg": 67.0,
-          "sta_deg": 75.3,
-          "htl": 110,
-          "bb_drop": 63,
-          "wheelbase": 1187,
-          "chainstay_length": 435,
-          "seat_tube_length": 465,
-          "standover_height": 791
-        },
-        "XL": {
-          "reach": 495,
-          "stack": 643,
-          "hta_deg": 67.0,
-          "sta_deg": 75.2,
-          "htl": 130,
-          "bb_drop": 63,
-          "wheelbase": 1220,
-          "chainstay_length": 435,
-          "seat_tube_length": 510,
-          "standover_height": 824
-        }
-      }
+  "geometries": {
+    "S": {
+      "reach": 425,
+      "stack": 616,
+      "hta_deg": 67.0,
+      "sta_deg": 75.3,
+      "htl": 100,
+      "bb_drop": 63,
+      "wheelbase": 1138,
+      "chainstay_length": 435,
+      "seat_tube_length": 385,
+      "standover_height": 742
+    },
+    "M": {
+      "reach": 450,
+      "stack": 616,
+      "hta_deg": 67.0,
+      "sta_deg": 75.3,
+      "htl": 100,
+      "bb_drop": 63,
+      "wheelbase": 1163,
+      "chainstay_length": 435,
+      "seat_tube_length": 425,
+      "standover_height": 765
+    },
+    "L": {
+      "reach": 470,
+      "stack": 625,
+      "hta_deg": 67.0,
+      "sta_deg": 75.3,
+      "htl": 110,
+      "bb_drop": 63,
+      "wheelbase": 1187,
+      "chainstay_length": 435,
+      "seat_tube_length": 465,
+      "standover_height": 791
+    },
+    "XL": {
+      "reach": 495,
+      "stack": 643,
+      "hta_deg": 67.0,
+      "sta_deg": 75.2,
+      "htl": 130,
+      "bb_drop": 63,
+      "wheelbase": 1220,
+      "chainstay_length": 435,
+      "seat_tube_length": 510,
+      "standover_height": 824
     }
-  ]
+  }
 }

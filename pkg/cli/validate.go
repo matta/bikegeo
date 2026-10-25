@@ -11,13 +11,11 @@ import (
 )
 
 type ValidationResultBundle struct {
-	Frame       model.FrameModel             `json:"frame"`
-	Size        string                       `json:"size"`
-	ConfigID    string                       `json:"config_id"`
-	Bike        model.BikeGeometry           `json:"bike"`
-	Report      model.ValidationReport       `json:"report"`
-	FrameReport model.FrameValidationReport  `json:"frame_report"`
-	CrossConfig *model.CrossConfigValidation `json:"cross_config,omitempty"`
+	Frame       model.FrameModel            `json:"frame"`
+	Size        string                      `json:"size"`
+	Bike        model.BikeGeometry          `json:"bike"`
+	Report      model.ValidationReport      `json:"report"`
+	FrameReport model.FrameValidationReport `json:"frame_report"`
 }
 
 func formatPublishModeShort(mode model.PublishMode) string {
@@ -115,14 +113,8 @@ func (a *App) runValidate(args []string) int {
 
 	for i, f := range targetFrames {
 		sz := targetSizes[i]
-		cfgID := configFlag
-		if cfgID == "" {
-			if base := f.GetBaselineConfiguration(); base != nil {
-				cfgID = base.ID
-			}
-		}
 
-		bike, err := geometry.MaterializeBikeGeometry(f, sz, cfgID)
+		bike, err := geometry.MaterializeBikeGeometry(f, sz)
 		if err != nil {
 			fmt.Fprintf(a.Err, "Error materializing %s (%s): %v\n", f.ID, sz, err)
 			return 1
@@ -134,32 +126,12 @@ func (a *App) runValidate(args []string) int {
 			hasInvalid = true
 		}
 
-		var crossVal *model.CrossConfigValidation
-		if len(f.Configurations) > 1 {
-			compID := cfgID
-			baseCfg := f.GetBaselineConfiguration()
-			if baseCfg != nil && compID == baseCfg.ID {
-				for _, c := range f.Configurations {
-					if c.ID != baseCfg.ID {
-						compID = c.ID
-						break
-					}
-				}
-			}
-			crossVal = validator.ValidateCrossConfig(f, sz, compID)
-			if crossVal != nil && !crossVal.IsCoherent {
-				hasInvalid = true
-			}
-		}
-
 		bundles = append(bundles, ValidationResultBundle{
 			Frame:       f,
 			Size:        sz,
-			ConfigID:    cfgID,
 			Bike:        bike,
 			Report:      report,
 			FrameReport: frameReport,
-			CrossConfig: crossVal,
 		})
 	}
 
@@ -247,13 +219,7 @@ func (a *App) runValidate(args []string) int {
 }
 
 func isBundleValid(b ValidationResultBundle) bool {
-	if !b.Report.IsValid || !b.FrameReport.IsValid {
-		return false
-	}
-	if b.CrossConfig != nil && !b.CrossConfig.IsCoherent {
-		return false
-	}
-	return true
+	return b.Report.IsValid && b.FrameReport.IsValid
 }
 
 func (a *App) renderDetailedValidation(b ValidationResultBundle) {
@@ -358,33 +324,7 @@ func (a *App) renderDetailedValidation(b ValidationResultBundle) {
 		}
 	}
 
-	// 3. Cross-Configuration CAD Coherence Proof
-	if b.CrossConfig != nil {
-		cc := b.CrossConfig
-		coherenceStatus := "COHERENT"
-		if !cc.IsCoherent {
-			coherenceStatus = "DISCREPANCY DETECTED"
-		}
-		ccTitle := fmt.Sprintf(
-			"\nCross-Configuration CAD Coherence Proof [%s] (%s %.0fmm vs %s %.0fmm, Max Δ %.2fmm):",
-			coherenceStatus, cc.BaselineConfigID, cc.BaselineA2c, cc.ComparedConfigID, cc.ComparedA2c, cc.MaxDiscrepancy,
-		)
-		ccHeaders := []string{"Dimension", "Baseline", "Config Published", "Kinematic Target", "Published Δ", "Discrepancy"}
-		var ccRows [][]string
-		for _, d := range cc.Diffs {
-			ccRows = append(ccRows, []string{
-				d.Metric,
-				fmt.Sprintf("%.2f", d.BaselineValue),
-				fmt.Sprintf("%.2f", d.ConfigValue),
-				fmt.Sprintf("%.2f", d.ConfigValue-d.Discrepancy),
-				fmt.Sprintf("%+.2f", d.PublishedDiff),
-				fmt.Sprintf("%+.2f", d.Discrepancy),
-			})
-		}
-		_ = RenderOutput(a.Out, a.Format, ccTitle, cc.Message, ccHeaders, ccRows, nil)
-	}
-
-	// 4. Diagnostic Log
+	// 3. Diagnostic Log
 	var allIssues []model.ValidationIssue
 	allIssues = append(allIssues, b.Report.Issues...)
 	allIssues = append(allIssues, b.FrameReport.Issues...)

@@ -207,7 +207,8 @@ func (s *Session) PopulateBikes(bikesDir string, statePath string) {
 						setup := model.ComparisonSetup{
 							FrameID: f.ID,
 							Size:    sz,
-							Fork:    f.GetDefaultForkSpecString(),
+							A2cMm:   f.DefaultFork.A2cMm,
+							RakeMm:  f.DefaultFork.RakeMm,
 						}
 						if row, err := canonicalizer.ResolveFrameForkSetup(f, setup, rider); err == nil {
 							s.FleetRows = append(s.FleetRows, row)

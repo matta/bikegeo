@@ -34,26 +34,17 @@ type SizeResidual struct {
 	ValidationReport     model.ValidationReport `json:"validation_report"`
 }
 
-// SizeResiduals calculates the geometric residuals for every size in the specified configuration of a FrameModel.
-// If configID is empty, the baseline configuration is used.
-func SizeResiduals(frame model.FrameModel, configID string) ([]SizeResidual, error) {
+// SizeResiduals calculates the geometric residuals for every size of a FrameModel.
+func SizeResiduals(frame model.FrameModel) ([]SizeResidual, error) {
 	sizes := frame.GetSizes()
 	if len(sizes) == 0 {
 		return nil, fmt.Errorf("frame %s has no sizes defined", frame.ID)
 	}
 
-	targetCfg := frame.GetConfiguration(configID)
-	if targetCfg == nil {
-		targetCfg = frame.GetBaselineConfiguration()
-	}
-	if targetCfg == nil {
-		return nil, fmt.Errorf("frame %s has no configuration matching %q", frame.ID, configID)
-	}
-
 	var results []SizeResidual
 
 	for _, sz := range sizes {
-		bike, err := geometry.MaterializeBikeGeometry(frame, sz, targetCfg.ID)
+		bike, err := geometry.MaterializeBikeGeometry(frame, sz)
 		if err != nil {
 			return nil, fmt.Errorf("failed to materialize size %s: %w", sz, err)
 		}
@@ -70,16 +61,7 @@ func SizeResiduals(frame model.FrameModel, configID string) ([]SizeResidual, err
 			geoSpacer,
 		)
 
-		statedStaticA2c := bike.ForkA2c
-		if statedStaticA2c <= 0 && bike.ForkTravelMm > 0 {
-			statedStaticA2c = bike.ForkTravelMm + 412.0
-		}
-
-		sagCompression := 0.0
-		if bike.SagPercentagePublished > 0 && bike.ForkTravelMm > 0 {
-			sagCompression = bike.ForkTravelMm * (bike.SagPercentagePublished / 100.0)
-		}
-		expectedForkA2c := geometry.Round(statedStaticA2c-sagCompression, 1)
+		expectedForkA2c := bike.GetCadA2c()
 
 		deltaA2c := 0.0
 		if expectedForkA2c > 0 {
@@ -121,7 +103,7 @@ func SizeResiduals(frame model.FrameModel, configID string) ([]SizeResidual, err
 			ImpliedStructuralA2c: geometry.Round(structuralA2c, 2),
 			DeclaredSpacer:       geoSpacer,
 			ImpliedForkA2c:       geometry.Round(calculatedForkA2c, 1),
-			StatedStaticForkA2c:  statedStaticA2c,
+			StatedStaticForkA2c:  expectedForkA2c,
 			ExpectedForkA2c:      expectedForkA2c,
 			DeltaA2c:             deltaA2c,
 			FcPub:                bike.FrontCenter,

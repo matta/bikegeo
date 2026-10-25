@@ -165,8 +165,7 @@ func (a *App) runCompare(args []string) int {
 						for _, c := range state.Columns {
 							if c.FrameID == targetCol.FrameID &&
 								(targetCol.Size == "" || strings.EqualFold(c.Size, targetCol.Size)) &&
-								(targetCol.Fork == "" || forksMatch(c.Fork, targetCol.Fork)) &&
-								(targetCol.SagPercent == nil || (c.SagPercent != nil && math.Abs(*c.SagPercent-*targetCol.SagPercent) < 0.1)) {
+								(targetCol.A2cMm <= 0 || math.Abs(c.A2cMm-targetCol.A2cMm) < 0.1) {
 								continue
 							}
 							kept = append(kept, c)
@@ -446,10 +445,9 @@ func ParseComparisonSpecs(
 		return nil, err
 	}
 
-	setup := model.ComparisonSetup{
-		FrameID: frame.ID,
-		Size:    implicitSize,
-	}
+	var forkToken string
+	var sagOverride *float64
+	sizeToken := implicitSize
 
 	for _, rawMod := range parts[1:] {
 		mod := strings.TrimSpace(rawMod)
@@ -460,28 +458,34 @@ func ParseComparisonSpecs(
 
 		// 0. "all" modifier representing all sizes
 		if low == "all" {
-			setup.Size = "all"
+			sizeToken = "all"
 			continue
 		}
 
-		// 1. Sag modifier (e.g. "20%", "sag=25")
+		// 1. Direct A2C syntax: a2c=NNN/MM or a2c=NNN
+		if strings.HasPrefix(low, "a2c=") {
+			forkToken = mod
+			continue
+		}
+
+		// 2. Sag modifier (e.g. "20%", "sag=25")
 		if strings.HasSuffix(low, "%") || strings.HasPrefix(low, "sag=") {
 			clean := strings.TrimSuffix(strings.TrimPrefix(low, "sag="), "%")
 			val, err := strconv.ParseFloat(clean, 64)
 			if err != nil {
 				return nil, fmt.Errorf("invalid sag modifier %q in %q", mod, spec)
 			}
-			setup.SagPercent = &val
+			sagOverride = &val
 			continue
 		}
 
-		// 2. Rigid fork modifier
+		// 3. Rigid fork modifier
 		if low == "rigid" || low == "0mm" || strings.HasPrefix(low, "rigid") {
-			setup.Fork = "rigid"
+			forkToken = "rigid"
 			continue
 		}
 
-		// 3. Exact match on one of the frame's sizes
+		// 4. Exact match on one of the frame's sizes
 		matchedSize := ""
 		for _, sz := range frame.GetSizes() {
 			if strings.EqualFold(sz, mod) {
@@ -490,46 +494,35 @@ func ParseComparisonSpecs(
 			}
 		}
 		if matchedSize != "" {
-			setup.Size = matchedSize
+			sizeToken = matchedSize
 			continue
 		}
 
-		// 4. Fork travel modifier ending with "mm" (e.g. "120mm", "150mm")
+		// 5. Fork travel modifier ending with "mm" (e.g. "120mm", "150mm")
 		if strings.HasSuffix(low, "mm") {
-			setup.Fork = low
+			forkToken = mod
 			continue
 		}
 
-		// 5. Pure numeric modifier: >= 60 is fork travel (mm); < 60 is sag (%)
+		// 6. Pure numeric modifier: >= 60 is fork travel (mm); < 60 is sag (%)
 		if val, err := strconv.ParseFloat(low, 64); err == nil {
 			if val >= 60 {
-				setup.Fork = fmt.Sprintf("%.0fmm", val)
+				forkToken = fmt.Sprintf("%.0fmm", val)
 			} else {
-				setup.SagPercent = &val
+				sagOverride = &val
 			}
 			continue
 		}
 
-		// 6. Fork preset ID or frame configuration ID
-		if _, ok := canonicalizer.GetForkPreset(mod); ok {
-			setup.Fork = mod
-			continue
-		}
-		matchedCfg := false
-		for _, cfg := range frame.Configurations {
-			if strings.EqualFold(cfg.ID, mod) {
-				setup.Fork = cfg.ID
-				matchedCfg = true
-				break
-			}
-		}
-		if matchedCfg {
+		// 7. Fork preset ID or name in catalog
+		if _, ok := canonicalizer.GetCatalogFork(mod); ok {
+			forkToken = mod
 			continue
 		}
 
 		// If modifier looks like a size token (e.g. XS, S, M, L, XL, XXL), let size validation report it
 		if isLikelySizeToken(low) {
-			setup.Size = mod
+			sizeToken = mod
 			continue
 		}
 
@@ -539,6 +532,19 @@ func ParseComparisonSpecs(
 			strings.Join(frame.GetSizes(), ", "),
 			strings.Join(frame.GetSupportedForkOptions(), ", "),
 		)
+	}
+
+	targetA2c, targetRake, _, displayLabel, err := canonicalizer.ResolveForkToken(forkToken, sagOverride, *frame)
+	if err != nil {
+		return nil, err
+	}
+
+	setup := model.ComparisonSetup{
+		FrameID:      frame.ID,
+		Size:         sizeToken,
+		A2cMm:        targetA2c,
+		RakeMm:       targetRake,
+		DisplayLabel: displayLabel,
 	}
 
 	if strings.EqualFold(setup.Size, "all") {
@@ -634,9 +640,11 @@ func (a *App) loadOrDefaultComparisonState(frames []model.FrameModel) model.Save
 			continue
 		}
 		cols = append(cols, model.ComparisonSetup{
-			FrameID: f.ID,
-			Size:    f.GetDefaultSize(),
-			Fork:    f.GetDefaultForkSpecString(),
+			FrameID:      f.ID,
+			Size:         f.GetDefaultSize(),
+			A2cMm:        f.DefaultFork.A2cMm,
+			RakeMm:       f.DefaultFork.RakeMm,
+			DisplayLabel: "Stock",
 		})
 		if len(cols) >= 3 {
 			break
@@ -684,17 +692,12 @@ func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.Saved
 					fmt.Fprintf(a.Out, "  [%d] %s %s (%s) - %v\n", i+1, frame.Manufacturer, frame.Model, col.Size, err)
 					continue
 				}
-				sagInfo := "0% sag (rigid)"
-				if row.SetupFork.TravelMm > 0 {
-					sagInfo = fmt.Sprintf("%.0f%% sag", row.SagPercent)
-				}
 				fmt.Fprintf(
 					a.Out,
-					"  [%d] %-26s | %-28s | %-14s -> %.1fmm eff A2C\n",
+					"  [%d] %-26s | %-28s -> %.1fmm eff A2C\n",
 					i+1,
 					fmt.Sprintf("%s %s (%s)", frame.Manufacturer, frame.Model, row.Setup.Size),
-					row.SetupFork.Name,
-					sagInfo,
+					row.DisplayLabel,
 					row.EffectiveA2c,
 				)
 			}
@@ -910,8 +913,8 @@ func (a *App) promptColumnSetup(
 
 	// 2. Fork prompt (skipped if frame only supports 1 fixed fork)
 	chosenFork := selectedFrame.GetDefaultForkSpecString()
-	if existing != nil && existing.FrameID == selectedFrame.ID && existing.Fork != "" {
-		chosenFork = existing.Fork
+	if existing != nil && existing.FrameID == selectedFrame.ID && existing.DisplayLabel != "" {
+		chosenFork = existing.DisplayLabel
 	}
 
 	if selectedFrame.IsFixedFork() {
@@ -937,9 +940,6 @@ func (a *App) promptColumnSetup(
 	var sagPtr *float64
 	if !isRigid {
 		defSag := 20.0
-		if existing != nil && existing.SagPercent != nil && *existing.SagPercent > 0 {
-			defSag = *existing.SagPercent
-		}
 		fmt.Fprintf(a.Out, "  Sag %% [%.0f]: ", defSag)
 		if scanner.Scan() {
 			inp := strings.TrimSpace(strings.TrimSuffix(scanner.Text(), "%"))
@@ -954,11 +954,17 @@ func (a *App) promptColumnSetup(
 		sagPtr = &defSag
 	}
 
+	targetA2c, targetRake, _, displayLabel, err := canonicalizer.ResolveForkToken(chosenFork, sagPtr, *selectedFrame)
+	if err != nil {
+		return model.ComparisonSetup{}, err
+	}
+
 	candidate := model.ComparisonSetup{
-		FrameID:    selectedFrame.ID,
-		Size:       chosenSize,
-		Fork:       chosenFork,
-		SagPercent: sagPtr,
+		FrameID:      selectedFrame.ID,
+		Size:         chosenSize,
+		A2cMm:        targetA2c,
+		RakeMm:       targetRake,
+		DisplayLabel: displayLabel,
 	}
 
 	// Validate against frame constraints immediately
@@ -1258,9 +1264,9 @@ func (a *App) renderComparisonMatrix(
 			i := item.origIdx
 
 			idxStr := fmt.Sprintf("%d", i+1)
-			setupStr := fmt.Sprintf("Rigid (%.0fmm)", math.Round(r.EffectiveA2c))
-			if r.SetupFork.TravelMm > 0 {
-				setupStr = fmt.Sprintf("%.0fmm @ %.0f%% (%.0fmm)", r.SetupFork.TravelMm, r.SagPercent, math.Round(r.EffectiveA2c))
+			setupStr := fmt.Sprintf("%s (%.0fmm)", r.DisplayLabel, math.Round(r.EffectiveA2c))
+			if r.DisplayLabel == "" {
+				setupStr = fmt.Sprintf("%.0fmm A2C", math.Round(r.EffectiveA2c))
 			}
 
 			rowCells := []string{
@@ -1309,9 +1315,9 @@ func (a *App) renderComparisonMatrix(
 		for colIdx, item := range scoredItems {
 			r := item.row
 			i := item.origIdx
-			forkLine := fmt.Sprintf("Rigid (%.0fmm A2C)", r.SetupFork.A2c)
-			if r.SetupFork.TravelMm > 0 {
-				forkLine = fmt.Sprintf("%.0fmm @ %.0f%% sag", r.SetupFork.TravelMm, r.SagPercent)
+			forkLine := r.DisplayLabel
+			if forkLine == "" {
+				forkLine = fmt.Sprintf("%.0fmm A2C", math.Round(r.EffectiveA2c))
 			}
 			headers[colIdx+3] = fmt.Sprintf("[%d] %s %s (%s)\n%s", i+1, r.Bike.Manufacturer, r.Bike.Model, r.Bike.Size, forkLine)
 		}
@@ -1339,10 +1345,10 @@ func (a *App) renderComparisonMatrix(
 		// Setup Fork & Effective A2C
 		tableRows = append(tableRows, buildRow("Fork & Eff. A2C", "", "", func(colIdx int, item scoredRowItem) string {
 			r := item.row
-			if r.SetupFork.TravelMm > 0 {
-				return fmt.Sprintf("%.0fmm @ %.0f%% sag -> %.0fmm A2C", r.SetupFork.TravelMm, r.SagPercent, math.Round(r.EffectiveA2c))
+			if r.DisplayLabel != "" {
+				return fmt.Sprintf("%s -> %.0fmm A2C", r.DisplayLabel, math.Round(r.EffectiveA2c))
 			}
-			return fmt.Sprintf("Rigid (%.0fmm A2C) -> %.0fmm A2C", r.SetupFork.A2c, math.Round(r.EffectiveA2c))
+			return fmt.Sprintf("%.0fmm A2C", math.Round(r.EffectiveA2c))
 		}))
 
 		// Attribute rows from prof.Attributes
@@ -1456,15 +1462,31 @@ func disambiguateFrameNames(rows []model.CanonicalComparisonRow) []string {
 }
 
 func getForkTypeLabel(r model.CanonicalComparisonRow) string {
-	if r.SetupFork.TravelMm <= 0 || strings.EqualFold(r.Setup.Fork, "rigid") {
+	lbl := r.DisplayLabel
+	if lbl == "" {
+		lbl = r.Setup.DisplayLabel
+	}
+	if strings.Contains(lbl, "@") {
+		parts := strings.Split(lbl, "@")
+		return strings.TrimSpace(parts[0])
+	}
+	if strings.HasPrefix(strings.ToLower(lbl), "rigid") {
 		return "rigid"
 	}
-	return fmt.Sprintf("%.0fmm", r.SetupFork.TravelMm)
+	if lbl != "" {
+		return lbl
+	}
+	return fmt.Sprintf("%.0fmm A2C", math.Round(r.EffectiveA2c))
 }
 
 func getForkSagLabel(r model.CanonicalComparisonRow) string {
-	if r.SetupFork.TravelMm <= 0 || strings.EqualFold(r.Setup.Fork, "rigid") {
-		return "rigid"
+	lbl := r.DisplayLabel
+	if lbl == "" {
+		lbl = r.Setup.DisplayLabel
 	}
-	return fmt.Sprintf("%.0fmm @ %.0f%%", r.SetupFork.TravelMm, r.SagPercent)
+	clean := strings.TrimSpace(strings.TrimSuffix(lbl, " sag"))
+	if clean != "" {
+		return clean
+	}
+	return fmt.Sprintf("%.0fmm A2C", math.Round(r.EffectiveA2c))
 }

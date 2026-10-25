@@ -34,7 +34,7 @@ func TestCanonicalizeBikes(t *testing.T) {
 		SagPercent:   20.0,
 	}
 
-	rows, err := canonicalizer.CanonicalizeBikes(bikes, config)
+	rows, err := canonicalizer.CanonicalizeBikes(bikes, config, 44.0, "Fox 34 130mm")
 	if err != nil {
 		t.Fatalf("CanonicalizeBikes failed: %v", err)
 	}
@@ -51,20 +51,19 @@ func TestCanonicalizeBikes(t *testing.T) {
 	}
 }
 
-func TestResolveForkSpec(t *testing.T) {
-	spec := model.ForkSpec{ID: "fox34_130"}
-	resolved := canonicalizer.ResolveForkSpec(spec)
-	if resolved.A2c != 541 {
-		t.Errorf("Expected A2c 541, got %.1f", resolved.A2c)
+func TestGetCatalogFork(t *testing.T) {
+	entry, found := canonicalizer.GetCatalogFork("fox34_130")
+	if !found {
+		t.Fatalf("Expected fox34_130 to be found in catalog")
 	}
-	if resolved.Rake != 44 {
-		t.Errorf("Expected Rake 44, got %.1f", resolved.Rake)
+	if entry.TravelMm != 130 {
+		t.Errorf("Expected TravelMm 130, got %.1f", entry.TravelMm)
 	}
-	if resolved.TravelMm != 130 {
-		t.Errorf("Expected TravelMm 130, got %.1f", resolved.TravelMm)
+	if len(entry.Options) == 0 || entry.Options[0].A2cMm != 541 {
+		t.Errorf("Expected Option A2C 541, got %+v", entry.Options)
 	}
-	if !resolved.IsInferred {
-		t.Errorf("Expected IsInferred to be true")
+	if entry.Options[0].RakeMm != 44 {
+		t.Errorf("Expected Option Rake 44, got %+v", entry.Options)
 	}
 }
 
@@ -94,7 +93,7 @@ func TestCanonicalizeBentSeatTube(t *testing.T) {
 		SagPercent:   20.0,
 	}
 
-	rows, err := canonicalizer.CanonicalizeBikes(bikes, config)
+	rows, err := canonicalizer.CanonicalizeBikes(bikes, config, 44.0, "Fox 34 130mm")
 	if err != nil {
 		t.Fatalf("CanonicalizeBikes failed: %v", err)
 	}
@@ -141,14 +140,14 @@ func TestCanonicalizeBikesRequiresPositiveSeatHeight(t *testing.T) {
 	badZero := model.DefaultRiderProfile()
 	badZero.SaddleHeightMm = 0
 	cfgZero := model.CanonicalConfig{TargetA2c: 515.0, RiderProfile: badZero}
-	if _, err := canonicalizer.CanonicalizeBikes(bikes, cfgZero); err == nil {
+	if _, err := canonicalizer.CanonicalizeBikes(bikes, cfgZero, 44.0, "130mm"); err == nil {
 		t.Errorf("Expected error for SaddleHeightMm=0, got nil")
 	}
 
 	badNeg := model.DefaultRiderProfile()
 	badNeg.SaddleHeightMm = -50
 	cfgNegative := model.CanonicalConfig{TargetA2c: 515.0, RiderProfile: badNeg}
-	if _, err := canonicalizer.CanonicalizeBikes(bikes, cfgNegative); err == nil {
+	if _, err := canonicalizer.CanonicalizeBikes(bikes, cfgNegative, 44.0, "130mm"); err == nil {
 		t.Errorf("Expected error for negative SaddleHeightMm, got nil")
 	}
 }

@@ -4,7 +4,7 @@
   "model": "ECR",
   "year": 2021,
   "category": "rigid",
-  "notes": "4130 Chromoly steel 'Natch tubing 29+ rigid adventure and bikepacking bike designed around a 468mm rigid fork (43mm offset) with horizontal slotted dropouts and Gnot-Boost 145mm rear spacing. Clearance for 29x3.0\" tires with or without fenders. Traditional Ø34mm head tube (EC34/28.6 upper, EC34/30 lower). Fixed rigid fork only; not compatible with suspension forks.",
+  "notes": "4130 Chromoly steel 'Natch tubing 29+ rigid adventure and bikepacking bike designed around a 468mm rigid fork (43mm offset) with horizontal slotted dropouts and Gnot-Boost 145mm rear spacing. Clearance for 29x3.0\" tires with or without fenders. Traditional \u00d834mm head tube (EC34/28.6 upper, EC34/30 lower). Fixed rigid fork only; not compatible with suspension forks.",
   "wheel_size": "29",
   "headset_cup_type": "EC34",
   "geo_headset_spacer_mm": 12,
@@ -12,66 +12,75 @@
     "a2c": 1.0,
     "wheelbase": 1.0
   },
-  "supported_travel_mm": [],
-  "rigid_a2c_mm": 468,
-  "default_fork": "rigid",
+  "cad_fork": {
+    "fork": "surly_ecr_468",
+    "a2c_mm": 468.0,
+    "rake_mm": 43.0
+  },
+  "default_fork": {
+    "fork": "surly_ecr_468",
+    "a2c_mm": 468.0,
+    "rake_mm": 43.0
+  },
+  "rigid_fork": {
+    "fork": "surly_ecr_468",
+    "a2c_mm": 468.0,
+    "rake_mm": 43.0
+  },
+  "fork_range": [
+    {
+      "fork": "surly_ecr_468",
+      "a2c_mm": 468.0,
+      "rake_mm": 43.0
+    },
+    {
+      "fork": "surly_ecr_468",
+      "a2c_mm": 468.0,
+      "rake_mm": 43.0
+    }
+  ],
   "sizes": [
     "M",
     "L",
     "XL"
   ],
   "default_size": "L",
-  "configurations": [
-    {
-      "id": "stock",
-      "name": "Stock Rigid 468mm Build",
-      "is_baseline": true,
-      "fork": {
-        "id": "rigid_468",
-        "name": "Surly ECR 4130 Chromoly 468mm",
-        "travel_mm": 0,
-        "a2c": 468,
-        "rake": 43
-      },
-      "sag_percentage_published": 0,
-      "geometries": {
-        "M": {
-          "reach": 408,
-          "stack": 609.5,
-          "hta_deg": 70,
-          "sta_deg": 72.5,
-          "htl": 100,
-          "bb_drop": 80,
-          "wheelbase": 1090,
-          "chainstay_length": 451,
-          "seat_tube_length": 457.2,
-          "standover_height": 805
-        },
-        "L": {
-          "reach": 420.5,
-          "stack": 633,
-          "hta_deg": 70,
-          "sta_deg": 72.5,
-          "htl": 125,
-          "bb_drop": 80,
-          "wheelbase": 1111,
-          "chainstay_length": 451,
-          "seat_tube_length": 507.9,
-          "standover_height": 840
-        },
-        "XL": {
-          "reach": 433,
-          "stack": 656.5,
-          "hta_deg": 70,
-          "sta_deg": 72.5,
-          "htl": 150,
-          "bb_drop": 80,
-          "wheelbase": 1132.5,
-          "chainstay_length": 451,
-          "seat_tube_length": 558.7,
-          "standover_height": 875
-        }
-      }
+  "geometries": {
+    "M": {
+      "reach": 408,
+      "stack": 609.5,
+      "hta_deg": 70,
+      "sta_deg": 72.5,
+      "htl": 100,
+      "bb_drop": 80,
+      "wheelbase": 1090,
+      "chainstay_length": 451,
+      "seat_tube_length": 457.2,
+      "standover_height": 805
+    },
+    "L": {
+      "reach": 420.5,
+      "stack": 633,
+      "hta_deg": 70,
+      "sta_deg": 72.5,
+      "htl": 125,
+      "bb_drop": 80,
+      "wheelbase": 1111,
+      "chainstay_length": 451,
+      "seat_tube_length": 507.9,
+      "standover_height": 840
+    },
+    "XL": {
+      "reach": 433,
+      "stack": 656.5,
+      "hta_deg": 70,
+      "sta_deg": 72.5,
+      "htl": 150,
+      "bb_drop": 80,
+      "wheelbase": 1132.5,
+      "chainstay_length": 451,
+      "seat_tube_length": 558.7,
+      "standover_height": 875
     }
-  ]
+  }
 }

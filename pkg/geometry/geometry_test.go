@@ -84,6 +84,7 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 	fit, err := geometry.AnalyzeBikeFit(
 		binaryHavok,
 		&saggedFork,
+		nil,
 		model.DefaultRiderProfile(),
 	)
 	if err != nil {
@@ -146,7 +147,7 @@ func TestBiomechanicalPostureAndWeightDistribution(t *testing.T) {
 	}
 
 	// Test weight distribution on Otso Fenrir Large
-	fit, err := geometry.AnalyzeBikeFit(baselineBike, nil, profile)
+	fit, err := geometry.AnalyzeBikeFit(baselineBike, nil, nil, profile)
 	if err != nil {
 		t.Fatalf("AnalyzeBikeFit failed: %v", err)
 	}
@@ -260,7 +261,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 		t.Fatalf("Expected elJefeLarge.HasBentSeatTube() to be true")
 	}
 
-	fit, err := geometry.AnalyzeBikeFit(elJefeLarge, nil, model.DefaultRiderProfile())
+	fit, err := geometry.AnalyzeBikeFit(elJefeLarge, nil, nil, model.DefaultRiderProfile())
 	if err != nil {
 		t.Fatalf("AnalyzeBikeFit failed: %v", err)
 	}
@@ -281,14 +282,44 @@ func TestAnalyzeBikeFitRequiresPositiveSeatHeight(t *testing.T) {
 
 	badProf := model.DefaultRiderProfile()
 	badProf.SaddleHeightMm = 0
-	if _, err := geometry.AnalyzeBikeFit(bike, nil, badProf); err == nil {
+	if _, err := geometry.AnalyzeBikeFit(bike, nil, nil, badProf); err == nil {
 		t.Errorf("Expected error for SaddleHeightMm <= 0 in AnalyzeBikeFit, got nil")
 	}
 	badProf.SaddleHeightMm = -100
-	if _, err := geometry.AnalyzeBikeFit(bike, nil, badProf); err == nil {
+	if _, err := geometry.AnalyzeBikeFit(bike, nil, nil, badProf); err == nil {
 		t.Errorf("Expected error for negative SaddleHeightMm in AnalyzeBikeFit, got nil")
 	}
 	if _, err := geometry.CalculateBaselinePosture(bike, badProf); err == nil {
 		t.Errorf("Expected error for SaddleHeightMm <= 0 in CalculateBaselinePosture, got nil")
+	}
+}
+
+func TestAnalyzeBikeFitRequiresPositiveRake(t *testing.T) {
+	bike := geometry.GetDefaultBaselineBike()
+	prof := model.DefaultRiderProfile()
+
+	// 1. Zero bike ForkRake
+	badBike := bike
+	badBike.ForkRake = 0
+	if _, err := geometry.AnalyzeBikeFit(badBike, nil, nil, prof); err == nil {
+		t.Errorf("Expected error for ForkRake <= 0 in AnalyzeBikeFit, got nil")
+	}
+
+	// 2. Negative bike ForkRake
+	badBike.ForkRake = -44.0
+	if _, err := geometry.AnalyzeBikeFit(badBike, nil, nil, prof); err == nil {
+		t.Errorf("Expected error for negative ForkRake in AnalyzeBikeFit, got nil")
+	}
+
+	// 3. Zero targetRake
+	badRake := 0.0
+	if _, err := geometry.AnalyzeBikeFit(bike, nil, &badRake, prof); err == nil {
+		t.Errorf("Expected error for targetRake <= 0 in AnalyzeBikeFit, got nil")
+	}
+
+	// 4. Negative targetRake
+	badRake = -44.0
+	if _, err := geometry.AnalyzeBikeFit(bike, nil, &badRake, prof); err == nil {
+		t.Errorf("Expected error for negative targetRake in AnalyzeBikeFit, got nil")
 	}
 }

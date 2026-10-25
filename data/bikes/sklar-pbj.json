@@ -13,16 +13,36 @@
     "front_center": 3.0,
     "wheelbase": 5.0
   },
-  "supported_travel_mm": [
-    100,
-    110,
-    120
-  ],
-  "rigid_a2c_mm": 485,
-  "default_fork": "rigid",
   "chainstay_range_mm": [
     432,
     452
+  ],
+  "cad_fork": {
+    "fork": "sklar_steel_485",
+    "a2c_mm": 485.0,
+    "rake_mm": 52.0
+  },
+  "default_fork": {
+    "fork": "sklar_steel_485",
+    "a2c_mm": 485.0,
+    "rake_mm": 52.0
+  },
+  "rigid_fork": {
+    "fork": "sklar_steel_485",
+    "a2c_mm": 485.0,
+    "rake_mm": 52.0
+  },
+  "fork_range": [
+    {
+      "fork": "sklar_steel_485",
+      "a2c_mm": 485.0,
+      "rake_mm": 52.0
+    },
+    {
+      "fork": "fox34_120",
+      "a2c_mm": 530.0,
+      "rake_mm": 44.0
+    }
   ],
   "sizes": [
     "XS",
@@ -32,81 +52,66 @@
     "XL"
   ],
   "default_size": "M",
-  "configurations": [
-    {
-      "id": "stock",
-      "name": "Stock Rigid 485mm Build",
-      "is_baseline": true,
-      "fork": {
-        "id": "rigid_485",
-        "name": "Sklar Chromoly Steel 485mm",
-        "travel_mm": 0,
-        "a2c": 485,
-        "rake": 52
-      },
-      "sag_percentage_published": 0,
-      "geometries": {
-        "XS": {
-          "reach": 411,
-          "stack": 574,
-          "hta_deg": 68.0,
-          "sta_deg": 74.5,
-          "htl": 70,
-          "bb_drop": 68,
-          "wheelbase": 1098,
-          "front_center": 675,
-          "chainstay_length": 432,
-          "seat_tube_length": 360
-        },
-        "S": {
-          "reach": 433,
-          "stack": 588,
-          "hta_deg": 68.5,
-          "sta_deg": 74.0,
-          "htl": 85,
-          "bb_drop": 68,
-          "wheelbase": 1124,
-          "front_center": 698,
-          "chainstay_length": 432,
-          "seat_tube_length": 410
-        },
-        "M": {
-          "reach": 461,
-          "stack": 615,
-          "hta_deg": 69.0,
-          "sta_deg": 74.0,
-          "htl": 110,
-          "bb_drop": 68,
-          "wheelbase": 1156,
-          "front_center": 730,
-          "chainstay_length": 432,
-          "seat_tube_length": 440
-        },
-        "L": {
-          "reach": 475,
-          "stack": 641,
-          "hta_deg": 69.0,
-          "sta_deg": 74.0,
-          "htl": 140,
-          "bb_drop": 68,
-          "wheelbase": 1182,
-          "front_center": 755,
-          "chainstay_length": 432,
-          "seat_tube_length": 505
-        },
-        "XL": {
-          "reach": 508,
-          "stack": 670,
-          "hta_deg": 69.0,
-          "sta_deg": 74.0,
-          "htl": 170,
-          "bb_drop": 68,
-          "wheelbase": 1222,
-          "front_center": 795,
-          "chainstay_length": 432,
-          "seat_tube_length": 530
-        }
-      }
+  "geometries": {
+    "XS": {
+      "reach": 411,
+      "stack": 574,
+      "hta_deg": 68.0,
+      "sta_deg": 74.5,
+      "htl": 70,
+      "bb_drop": 68,
+      "wheelbase": 1098,
+      "front_center": 675,
+      "chainstay_length": 432,
+      "seat_tube_length": 360
+    },
+    "S": {
+      "reach": 433,
+      "stack": 588,
+      "hta_deg": 68.5,
+      "sta_deg": 74.0,
+      "htl": 85,
+      "bb_drop": 68,
+      "wheelbase": 1124,
+      "front_center": 698,
+      "chainstay_length": 432,
+      "seat_tube_length": 410
+    },
+    "M": {
+      "reach": 461,
+      "stack": 615,
+      "hta_deg": 69.0,
+      "sta_deg": 74.0,
+      "htl": 110,
+      "bb_drop": 68,
+      "wheelbase": 1156,
+      "front_center": 730,
+      "chainstay_length": 432,
+      "seat_tube_length": 440
+    },
+    "L": {
+      "reach": 475,
+      "stack": 641,
+      "hta_deg": 69.0,
+      "sta_deg": 74.0,
+      "htl": 140,
+      "bb_drop": 68,
+      "wheelbase": 1182,
+      "front_center": 755,
+      "chainstay_length": 432,
+      "seat_tube_length": 505
+    },
+    "XL": {
+      "reach": 508,
+      "stack": 670,
+      "hta_deg": 69.0,
+      "sta_deg": 74.0,
+      "htl": 170,
+      "bb_drop": 68,
+      "wheelbase": 1222,
+      "front_center": 795,
+      "chainstay_length": 432,
+      "seat_tube_length": 530
     }
-  ]
+  }
 }

@@ -11,9 +11,35 @@
   "geo_slop_mm": {
     "a2c": 1.5
   },
-  "supported_travel_mm": [100, 110, 120],
-  "rigid_a2c_mm": 490,
-  "default_fork": "120mm",
+  "cad_fork": {
+    "fork": "fox34_120",
+    "sag_pct": 15.0,
+    "a2c_mm": 512.0,
+    "rake_mm": 44.0
+  },
+  "default_fork": {
+    "fork": "fox34_120",
+    "sag_pct": 15.0,
+    "a2c_mm": 512.0,
+    "rake_mm": 44.0
+  },
+  "rigid_fork": {
+    "fork": "rigid_490",
+    "a2c_mm": 490.0,
+    "rake_mm": 44.0
+  },
+  "fork_range": [
+    {
+      "fork": "rigid_490",
+      "a2c_mm": 490.0,
+      "rake_mm": 44.0
+    },
+    {
+      "fork": "fox34_120",
+      "a2c_mm": 530.0,
+      "rake_mm": 44.0
+    }
+  ],
   "sizes": [
     "S",
     "M",
@@ -21,66 +47,50 @@
     "XL"
   ],
   "default_size": "L",
-  "configurations": [
-    {
-      "id": "stock",
-      "name": "Stock 120mm Suspension Build",
-      "is_baseline": true,
-      "fork": {
-        "id": "fox34_120",
-        "name": "Fox Float 34 120mm",
-        "travel_mm": 120,
-        "a2c": 530,
-        "rake": 44,
-        "standard_sag_percent": 15
-      },
-      "sag_percentage_published": 15,
-      "geometries": {
-        "S": {
-          "reach": 415,
-          "stack": 607,
-          "hta_deg": 66.6,
-          "sta_deg": 74.0,
-          "htl": 85,
-          "bb_drop": 65,
-          "wheelbase": 1128,
-          "chainstay_length": 435,
-          "seat_tube_length": 395
-        },
-        "M": {
-          "reach": 437,
-          "stack": 615,
-          "hta_deg": 66.6,
-          "sta_deg": 74.0,
-          "htl": 95,
-          "bb_drop": 65,
-          "wheelbase": 1153,
-          "chainstay_length": 435,
-          "seat_tube_length": 435
-        },
-        "L": {
-          "reach": 467,
-          "stack": 619,
-          "hta_deg": 66.6,
-          "sta_deg": 74.0,
-          "htl": 100,
-          "bb_drop": 65,
-          "wheelbase": 1185,
-          "chainstay_length": 435,
-          "seat_tube_length": 485
-        },
-        "XL": {
-          "reach": 491,
-          "stack": 630,
-          "hta_deg": 66.6,
-          "sta_deg": 74.0,
-          "htl": 110,
-          "bb_drop": 65,
-          "wheelbase": 1214,
-          "chainstay_length": 435,
-          "seat_tube_length": 535
-        }
-      }
+  "geometries": {
+    "S": {
+      "reach": 415,
+      "stack": 607,
+      "hta_deg": 66.6,
+      "sta_deg": 74.0,
+      "htl": 85,
+      "bb_drop": 65,
+      "wheelbase": 1128,
+      "chainstay_length": 435,
+      "seat_tube_length": 395
+    },
+    "M": {
+      "reach": 437,
+      "stack": 615,
+      "hta_deg": 66.6,
+      "sta_deg": 74.0,
+      "htl": 95,
+      "bb_drop": 65,
+      "wheelbase": 1153,
+      "chainstay_length": 435,
+      "seat_tube_length": 435
+    },
+    "L": {
+      "reach": 467,
+      "stack": 619,
+      "hta_deg": 66.6,
+      "sta_deg": 74.0,
+      "htl": 100,
+      "bb_drop": 65,
+      "wheelbase": 1185,
+      "chainstay_length": 435,
+      "seat_tube_length": 485
+    },
+    "XL": {
+      "reach": 491,
+      "stack": 630,
+      "hta_deg": 66.6,
+      "sta_deg": 74.0,
+      "htl": 110,
+      "bb_drop": 65,
+      "wheelbase": 1214,
+      "chainstay_length": 435,
+      "seat_tube_length": 535
     }
-  ]
+  }
 }

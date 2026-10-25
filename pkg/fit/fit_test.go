@@ -8,6 +8,12 @@ import (
 )
 
 func sampleFrame() model.FrameModel {
+	fork := model.ForkRef{
+		Fork:   "fox34_sc_120",
+		A2cMm:  530,
+		RakeMm: 44,
+		SagPct: model.Float64Ptr(0),
+	}
 	return model.FrameModel{
 		ID:                 "test-bike",
 		Manufacturer:       "TestMfg",
@@ -16,40 +22,31 @@ func sampleFrame() model.FrameModel {
 		Category:           model.CategoryHardtail,
 		HeadsetCupType:     model.CupEC44,
 		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
+		CadFork:            fork,
+		DefaultFork:        fork,
+		ForkRange:          []model.ForkRef{fork, fork},
 		Sizes:              []string{"M", "L"},
 		DefaultSize:        "L",
-		Configurations: []model.FrameConfiguration{
-			{
-				ID:         "stock",
-				IsBaseline: true,
-				Fork: model.ForkSpec{
-					TravelMm: 120,
-					A2c:      530,
-					Rake:     44,
-				},
-				SagPercentagePublished: 0,
-				Geometries: map[string]model.SizeGeometry{
-					"M": {
-						Reach:           430,
-						Stack:           620,
-						HtaDeg:          67.0,
-						StaDeg:          74.0,
-						Htl:             100,
-						BbDrop:          60,
-						Wheelbase:       1150,
-						ChainstayLength: 435,
-					},
-					"L": {
-						Reach:           455,
-						Stack:           630,
-						HtaDeg:          67.0,
-						StaDeg:          74.0,
-						Htl:             110,
-						BbDrop:          60,
-						Wheelbase:       1175,
-						ChainstayLength: 435,
-					},
-				},
+		Geometries: map[string]model.SizeGeometry{
+			"M": {
+				Reach:           430,
+				Stack:           620,
+				HtaDeg:          67.0,
+				StaDeg:          74.0,
+				Htl:             100,
+				BbDrop:          60,
+				Wheelbase:       1150,
+				ChainstayLength: 435,
+			},
+			"L": {
+				Reach:           455,
+				Stack:           630,
+				HtaDeg:          67.0,
+				StaDeg:          74.0,
+				Htl:             110,
+				BbDrop:          60,
+				Wheelbase:       1175,
+				ChainstayLength: 435,
 			},
 		},
 	}
@@ -106,38 +103,38 @@ func TestApplyAssignment(t *testing.T) {
 	if err := fit.ApplyAssignment(&frame, "stock", "", "fork.a2c=540"); err != nil {
 		t.Fatalf("Failed to set fork.a2c: %v", err)
 	}
-	if frame.Configurations[0].Fork.A2c != 540 {
-		t.Errorf("Expected fork.a2c 540, got %.1f", frame.Configurations[0].Fork.A2c)
+	if frame.CadFork.A2cMm != 540 {
+		t.Errorf("Expected fork.a2c 540, got %.1f", frame.CadFork.A2cMm)
 	}
 
 	if err := fit.ApplyAssignment(&frame, "stock", "", "fork.rake=51"); err != nil {
 		t.Fatalf("Failed to set fork.rake: %v", err)
 	}
-	if frame.Configurations[0].Fork.Rake != 51 {
-		t.Errorf("Expected fork.rake 51, got %.1f", frame.Configurations[0].Fork.Rake)
+	if frame.CadFork.RakeMm != 51 {
+		t.Errorf("Expected fork.rake 51, got %.1f", frame.CadFork.RakeMm)
 	}
 
 	if err := fit.ApplyAssignment(&frame, "stock", "", "sag=20"); err != nil {
 		t.Fatalf("Failed to set sag: %v", err)
 	}
-	if frame.Configurations[0].SagPercentagePublished != 20 {
-		t.Errorf("Expected sag 20, got %.1f", frame.Configurations[0].SagPercentagePublished)
+	if frame.CadFork.SagPct == nil || *frame.CadFork.SagPct != 20 {
+		t.Errorf("Expected sag 20, got %v", frame.CadFork.SagPct)
 	}
 
 	// 3. Per-size overrides
 	if err := fit.ApplyAssignment(&frame, "stock", "", "M:stack=625"); err != nil {
 		t.Fatalf("Failed to set M:stack: %v", err)
 	}
-	if frame.Configurations[0].Geometries["M"].Stack != 625 {
-		t.Errorf("Expected M stack 625, got %.1f", frame.Configurations[0].Geometries["M"].Stack)
+	if frame.Geometries["M"].Stack != 625 {
+		t.Errorf("Expected M stack 625, got %.1f", frame.Geometries["M"].Stack)
 	}
 
 	// 4. Default size fallback
 	if err := fit.ApplyAssignment(&frame, "stock", "L", "reach=460"); err != nil {
 		t.Fatalf("Failed to set reach on default size: %v", err)
 	}
-	if frame.Configurations[0].Geometries["L"].Reach != 460 {
-		t.Errorf("Expected L reach 460, got %.1f", frame.Configurations[0].Geometries["L"].Reach)
+	if frame.Geometries["L"].Reach != 460 {
+		t.Errorf("Expected L reach 460, got %.1f", frame.Geometries["L"].Reach)
 	}
 
 	// 5. Invalid assignments

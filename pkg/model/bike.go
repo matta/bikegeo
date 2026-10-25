@@ -1,9 +1,9 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 )
 
@@ -173,17 +173,29 @@ type BikeGeometry struct {
 	WheelSize        string    `json:"wheel_size,omitempty"`
 
 	// Published CAD & Hardware Assumptions
-	Fork                   ForkSpec       `json:"fork"`
-	ForkTravelMm           float64        `json:"fork_travel_mm,omitempty"`
-	ForkA2c                float64        `json:"fork_a2c,omitempty"`
-	SagPercentagePublished float64        `json:"sag_percentage_published,omitempty"`
-	HeadsetCupType         HeadsetCupType `json:"headset_cup_type"`
-	GeoHeadsetSpacerMm     *float64       `json:"geo_headset_spacer_mm"`
-	GeoSlopMm              *GeoSlopMm     `json:"geo_slop_mm,omitempty"`
+	CadFork            ForkRef        `json:"cad_fork"`
+	ForkA2c            float64        `json:"fork_a2c,omitempty"`
+	HeadsetCupType     HeadsetCupType `json:"headset_cup_type"`
+	GeoHeadsetSpacerMm *float64       `json:"geo_headset_spacer_mm"`
+	GeoSlopMm          *GeoSlopMm     `json:"geo_slop_mm,omitempty"`
 
 	// Bent / Offset Seat Tube
 	ActualStaDeg      float64  `json:"actual_sta_deg,omitempty"`
 	SeatTubeOffsetXMm *float64 `json:"seat_tube_offset_x_mm,omitempty"`
+}
+
+func (b BikeGeometry) GetCadA2c() float64 {
+	if b.CadFork.A2cMm > 0 {
+		return b.CadFork.A2cMm
+	}
+	return b.ForkA2c
+}
+
+func (b BikeGeometry) GetCadRake() float64 {
+	if b.CadFork.RakeMm > 0 {
+		return b.CadFork.RakeMm
+	}
+	return b.ForkRake
 }
 
 func (b BikeGeometry) HasBentSeatTube() bool {
@@ -266,7 +278,59 @@ func (b BikeGeometry) GetMaxChainstay() float64 {
 	return 0
 }
 
-// ForkSpec encapsulates physical and geometric properties of a fork.
+// ForkCatalogOption specifies an available (A2C, rake) pair for a catalog fork.
+type ForkCatalogOption struct {
+	A2cMm  float64 `json:"a2c_mm"`
+	RakeMm float64 `json:"rake_mm"`
+}
+
+// ForkCatalogEntry encapsulates a fork model in data/forks.json.
+type ForkCatalogEntry struct {
+	ID          string              `json:"id"`
+	Name        string              `json:"name"`
+	TravelMm    float64             `json:"travel_mm"`
+	Standard    bool                `json:"standard,omitempty"`
+	Options     []ForkCatalogOption `json:"options"`
+	Description string              `json:"description,omitempty"`
+}
+
+// ForkPreset is an alias for ForkCatalogEntry.
+type ForkPreset = ForkCatalogEntry
+
+// ForkRef encapsulates a reference to a catalog fork with resolved A2C and rake.
+type ForkRef struct {
+	Fork   string   `json:"fork"`
+	SagPct *float64 `json:"sag_pct,omitempty"`
+	A2cMm  float64  `json:"a2c_mm"`
+	RakeMm float64  `json:"rake_mm"`
+}
+
+func (r ForkRef) GetSagPct() float64 {
+	if r.SagPct != nil {
+		return *r.SagPct
+	}
+	return 0.0
+}
+
+func (r ForkRef) ForkTravel() float64 {
+	parts := strings.Split(r.Fork, "_")
+	for _, p := range parts {
+		if v, err := strconv.ParseFloat(strings.TrimSuffix(p, "mm"), 64); err == nil && v >= 60 && v <= 200 {
+			return v
+		}
+	}
+	return 0.0
+}
+
+func (r ForkRef) StaticA2c() float64 {
+	tr := r.ForkTravel()
+	if tr > 0 && r.SagPct != nil && *r.SagPct > 0 {
+		return r.A2cMm + tr*(*r.SagPct/100.0)
+	}
+	return r.A2cMm
+}
+
+// ForkSpec encapsulates physical and geometric properties of a fork (for compatibility).
 type ForkSpec struct {
 	ID                 string  `json:"id,omitempty"`
 	Name               string  `json:"name,omitempty"`
@@ -293,38 +357,28 @@ type SizeGeometry struct {
 	StandoverHeight float64 `json:"standover_height,omitempty"`
 }
 
-// FrameConfiguration represents a specific fork or build configuration for the frame.
-type FrameConfiguration struct {
-	ID                     string                  `json:"id"`
-	Name                   string                  `json:"name"`
-	IsBaseline             bool                    `json:"is_baseline"`
-	Fork                   ForkSpec                `json:"fork"`
-	SagPercentagePublished float64                 `json:"sag_percentage_published"`
-	Notes                  string                  `json:"notes,omitempty"`
-	Geometries             map[string]SizeGeometry `json:"geometries,omitempty"`
-}
-
 // FrameModel represents a unified bike frame family on disk and in memory.
 type FrameModel struct {
-	ID                 string               `json:"id"`
-	Manufacturer       string               `json:"manufacturer"`
-	Model              string               `json:"model"`
-	Year               int                  `json:"year,omitempty"`
-	Category           BikeCategory         `json:"category,omitempty"`
-	Notes              string               `json:"notes,omitempty"`
-	WheelSize          string               `json:"wheel_size,omitempty"`
-	HeadsetCupType     HeadsetCupType       `json:"headset_cup_type"`
-	GeoHeadsetSpacerMm *float64             `json:"geo_headset_spacer_mm"`
-	GeoSlopMm          *GeoSlopMm           `json:"geo_slop_mm,omitempty"`
-	ActualStaDeg       float64              `json:"actual_sta_deg,omitempty"`
-	SeatTubeOffsetXMm  *float64             `json:"seat_tube_offset_x_mm,omitempty"`
-	SupportedTravelMm  []float64            `json:"supported_travel_mm,omitempty"`
-	RigidA2cMm         float64              `json:"rigid_a2c_mm,omitempty"`
-	DefaultFork        string               `json:"default_fork,omitempty"`
-	ChainstayRangeMm   []float64            `json:"chainstay_range_mm,omitempty"`
-	Sizes              []string             `json:"sizes"`
-	DefaultSize        string               `json:"default_size,omitempty"`
-	Configurations     []FrameConfiguration `json:"configurations"`
+	ID                 string                  `json:"id"`
+	Manufacturer       string                  `json:"manufacturer"`
+	Model              string                  `json:"model"`
+	Year               int                     `json:"year,omitempty"`
+	Category           BikeCategory            `json:"category,omitempty"`
+	Notes              string                  `json:"notes,omitempty"`
+	WheelSize          string                  `json:"wheel_size,omitempty"`
+	HeadsetCupType     HeadsetCupType          `json:"headset_cup_type"`
+	GeoHeadsetSpacerMm *float64                `json:"geo_headset_spacer_mm"`
+	GeoSlopMm          *GeoSlopMm              `json:"geo_slop_mm,omitempty"`
+	ActualStaDeg       float64                 `json:"actual_sta_deg,omitempty"`
+	SeatTubeOffsetXMm  *float64                `json:"seat_tube_offset_x_mm,omitempty"`
+	ChainstayRangeMm   []float64               `json:"chainstay_range_mm,omitempty"`
+	Sizes              []string                `json:"sizes"`
+	DefaultSize        string                  `json:"default_size,omitempty"`
+	CadFork            ForkRef                 `json:"cad_fork"`
+	DefaultFork        ForkRef                 `json:"default_fork"`
+	RigidFork          *ForkRef                `json:"rigid_fork,omitempty"`
+	ForkRange          []ForkRef               `json:"fork_range"` // [min, max]
+	Geometries         map[string]SizeGeometry `json:"geometries"`
 }
 
 func (fm *FrameModel) HasBentSeatTube() bool {
@@ -412,90 +466,59 @@ func (fm *FrameModel) GetDefaultSize() string {
 	return "M"
 }
 
-func (fm *FrameModel) GetBaselineConfiguration() *FrameConfiguration {
-	for i := range fm.Configurations {
-		if fm.Configurations[i].IsBaseline {
-			return &fm.Configurations[i]
-		}
-	}
-	if len(fm.Configurations) > 0 {
-		return &fm.Configurations[0]
-	}
-	return nil
+func (fm *FrameModel) GetCadA2c() float64 {
+	return fm.CadFork.A2cMm
 }
 
-func (fm *FrameModel) GetConfiguration(configID string) *FrameConfiguration {
-	for i := range fm.Configurations {
-		if fm.Configurations[i].ID == configID {
-			return &fm.Configurations[i]
-		}
-	}
-	return fm.GetBaselineConfiguration()
+func (fm *FrameModel) GetCadRake() float64 {
+	return fm.CadFork.RakeMm
 }
 
-// GetSupportedTravels returns the list of supported suspension travel sizes in mm.
-// If SupportedTravelMm is explicitly defined on the frame, it is returned.
-// Otherwise, it is inferred from Configurations with TravelMm > 0.
-func (fm *FrameModel) GetSupportedTravels() []float64 {
-	if len(fm.SupportedTravelMm) > 0 {
-		out := make([]float64, len(fm.SupportedTravelMm))
-		copy(out, fm.SupportedTravelMm)
-		return out
-	}
-	var inferred []float64
-	for _, cfg := range fm.Configurations {
-		if cfg.Fork.TravelMm > 0 {
-			exists := false
-			for _, t := range inferred {
-				if math.Abs(t-cfg.Fork.TravelMm) < 0.1 {
-					exists = true
-					break
-				}
-			}
-			if !exists {
-				inferred = append(inferred, cfg.Fork.TravelMm)
-			}
-		}
-	}
-	return inferred
+func (fm *FrameModel) SupportsRigid() bool {
+	return fm.RigidFork != nil
 }
 
-// GetRigidA2c returns the supported rigid fork axle-to-crown in mm (or 0 if rigid is not supported).
 func (fm *FrameModel) GetRigidA2c() float64 {
-	if fm.RigidA2cMm > 0 {
-		return fm.RigidA2cMm
-	}
-	for _, cfg := range fm.Configurations {
-		if cfg.Fork.TravelMm == 0 && cfg.Fork.A2c > 0 {
-			return cfg.Fork.A2c
-		}
+	if fm.RigidFork != nil {
+		return fm.RigidFork.A2cMm
 	}
 	return 0
 }
 
-// SupportsRigid returns true if the frame supports a rigid fork.
-func (fm *FrameModel) SupportsRigid() bool {
-	return fm.GetRigidA2c() > 0
+func (fm *FrameModel) GetRigidRake() float64 {
+	if fm.RigidFork != nil {
+		return fm.RigidFork.RakeMm
+	}
+	return 0
 }
 
-// SupportsTravel returns true if the frame supports the given suspension travel in mm.
-func (fm *FrameModel) SupportsTravel(travelMm float64) bool {
-	if travelMm <= 0 {
-		return false
+func (fm *FrameModel) GetDefaultFork() ForkRef {
+	return fm.DefaultFork
+}
+
+func (fm *FrameModel) GetForkRange() (ForkRef, ForkRef, bool) {
+	if len(fm.ForkRange) == 2 {
+		return fm.ForkRange[0], fm.ForkRange[1], true
 	}
-	for _, t := range fm.GetSupportedTravels() {
-		if math.Abs(t-travelMm) < 0.1 {
-			return true
-		}
+	return ForkRef{}, ForkRef{}, false
+}
+
+func (fm *FrameModel) GetSizeGeometry(size string) (SizeGeometry, bool) {
+	if fm.Geometries == nil {
+		return SizeGeometry{}, false
 	}
-	return false
+	geo, ok := fm.Geometries[size]
+	return geo, ok
 }
 
 // GetSupportedForkOptions returns human-readable strings for all legal fork choices on this frame.
 func (fm *FrameModel) GetSupportedForkOptions() []string {
+	if fm.IsFixedRigidOnly() {
+		return []string{fmt.Sprintf("rigid (%.0fmm)", fm.GetRigidA2c())}
+	}
 	var opts []string
-	for _, t := range fm.GetSupportedTravels() {
-		opts = append(opts, fmt.Sprintf("%.0fmm", t))
+	if minF, maxF, ok := fm.GetForkRange(); ok {
+		opts = append(opts, fmt.Sprintf("%.0f–%.0fmm A2C", minF.A2cMm, maxF.A2cMm))
 	}
 	if a2c := fm.GetRigidA2c(); a2c > 0 {
 		opts = append(opts, fmt.Sprintf("rigid (%.0fmm)", a2c))
@@ -503,65 +526,31 @@ func (fm *FrameModel) GetSupportedForkOptions() []string {
 	return opts
 }
 
-// GetDefaultForkSpecString returns the default fork token (e.g. "120mm" or "rigid") for this frame.
-func (fm *FrameModel) GetDefaultForkSpecString() string {
-	if fm.DefaultFork != "" {
-		return fm.DefaultFork
-	}
-	base := fm.GetBaselineConfiguration()
-	if base != nil {
-		if base.Fork.TravelMm > 0 {
-			return fmt.Sprintf("%.0fmm", base.Fork.TravelMm)
-		}
-		if base.Fork.A2c > 0 {
-			return "rigid"
-		}
-	}
-	travels := fm.GetSupportedTravels()
-	if len(travels) > 0 {
-		return fmt.Sprintf("%.0fmm", travels[0])
-	}
-	if fm.SupportsRigid() {
-		return "rigid"
-	}
-	return "120mm"
-}
-
-// IsFixedFork returns true if the frame only supports a single fork capacity/type.
-func (fm *FrameModel) IsFixedFork() bool {
-	count := len(fm.GetSupportedTravels())
-	if fm.SupportsRigid() {
-		count++
-	}
-	return count <= 1
-}
-
-// IsFixedRigidOnly returns true if the frame only supports a rigid fork and no suspension forks.
+// IsFixedRigidOnly returns true if the frame only supports a rigid fork.
 func (fm *FrameModel) IsFixedRigidOnly() bool {
-	return len(fm.GetSupportedTravels()) == 0 && fm.SupportsRigid()
+	if minF, maxF, ok := fm.GetForkRange(); ok {
+		return fm.SupportsRigid() && math.Abs(minF.A2cMm-maxF.A2cMm) < 0.1 && math.Abs(minF.A2cMm-fm.GetRigidA2c()) < 0.1
+	}
+	return fm.SupportsRigid()
 }
 
-type CrossConfigDiff struct {
-	Metric        string  `json:"metric"`
-	BaselineValue float64 `json:"baseline_value"`
-	ConfigValue   float64 `json:"config_value"`
-	PublishedDiff float64 `json:"published_diff"`
-	KinematicDiff float64 `json:"kinematic_diff"`
-	Discrepancy   float64 `json:"discrepancy"`
+// IsFixedFork returns true if the frame has a single fixed fork travel/A2C.
+func (fm *FrameModel) IsFixedFork() bool {
+	if minF, maxF, ok := fm.GetForkRange(); ok {
+		return math.Abs(minF.StaticA2c()-maxF.StaticA2c()) < 0.1
+	}
+	return false
 }
 
-type CrossConfigValidation struct {
-	FrameModelID     string            `json:"frame_model_id"`
-	Size             string            `json:"size"`
-	BaselineConfigID string            `json:"baseline_config_id"`
-	ComparedConfigID string            `json:"compared_config_id"`
-	BaselineA2c      float64           `json:"baseline_a2c"`
-	ComparedA2c      float64           `json:"compared_a2c"`
-	DeltaA2c         float64           `json:"delta_a2c"`
-	IsCoherent       bool              `json:"is_coherent"`
-	MaxDiscrepancy   float64           `json:"max_discrepancy"`
-	Diffs            []CrossConfigDiff `json:"diffs"`
-	Message          string            `json:"message"`
+// GetDefaultForkSpecString returns a token representation of the default fork for CLI display.
+func (fm *FrameModel) GetDefaultForkSpecString() string {
+	if fm.DefaultFork.Fork != "" {
+		return fm.DefaultFork.Fork
+	}
+	if fm.DefaultFork.A2cMm > 0 {
+		return fmt.Sprintf("a2c=%.0f", fm.DefaultFork.A2cMm)
+	}
+	return "stock"
 }
 
 type ValidationIssue struct {
@@ -601,13 +590,12 @@ type ValidationReport struct {
 	FrontCenterDiff     *float64          `json:"frontCenterDiff,omitempty"`
 }
 
-// FrameValidationReport holds the complete validation result across all sizes and configurations of a FrameModel.
+// FrameValidationReport holds the complete validation result across all sizes of a FrameModel.
 type FrameValidationReport struct {
-	FrameID      string                      `json:"frame_id"`
-	IsValid      bool                        `json:"is_valid"`
-	Issues       []ValidationIssue           `json:"issues,omitempty"`
-	SizeReports  map[string]ValidationReport `json:"size_reports,omitempty"`
-	CrossConfigs []CrossConfigValidation     `json:"cross_configs,omitempty"`
+	FrameID     string                      `json:"frame_id"`
+	IsValid     bool                        `json:"is_valid"`
+	Issues      []ValidationIssue           `json:"issues,omitempty"`
+	SizeReports map[string]ValidationReport `json:"size_reports,omitempty"`
 }
 
 // ErrorSummary returns a human-readable summary of all validation errors on the frame.
@@ -626,11 +614,6 @@ func (r FrameValidationReport) ErrorSummary() string {
 			if iss.Severity == SeverityError {
 				msgs = append(msgs, fmt.Sprintf("[Size %s] %s: %s", sz, iss.Title, iss.Message))
 			}
-		}
-	}
-	for _, cc := range r.CrossConfigs {
-		if !cc.IsCoherent {
-			msgs = append(msgs, fmt.Sprintf("[Cross-Config %s vs %s (%s)] %s", cc.BaselineConfigID, cc.ComparedConfigID, cc.Size, cc.Message))
 		}
 	}
 	if len(msgs) == 0 {
@@ -681,10 +664,11 @@ type CanonicalConfig struct {
 
 // ComparisonSetup represents one column in a comparison matrix.
 type ComparisonSetup struct {
-	FrameID    string   `json:"frame_id"`
-	Size       string   `json:"size"`
-	Fork       string   `json:"fork"`                  // e.g. "120mm", "130mm", "rigid"
-	SagPercent *float64 `json:"sag_percent,omitempty"` // nil -> defaults to 20% for suspension, 0% for rigid
+	FrameID      string  `json:"frame_id"`
+	Size         string  `json:"size"`
+	A2cMm        float64 `json:"a2c_mm"`
+	RakeMm       float64 `json:"rake_mm"`
+	DisplayLabel string  `json:"display_label"`
 }
 
 // SavedComparisonState persists the user's most recent comparison in data/last_compare.json.
@@ -790,59 +774,12 @@ type BaselineMetrics struct {
 }
 
 type CanonicalComparisonRow struct {
-	Setup        ComparisonSetup  `json:"setup"`
-	SetupFork    ForkSpec         `json:"setup_fork"`
-	SagPercent   float64          `json:"sag_percent"`
-	EffectiveA2c float64          `json:"effective_a2c"`
-	Bike         BikeGeometry     `json:"bike"`
-	Validation   ValidationReport `json:"validation"`
-	Baseline     BaselineMetrics  `json:"baseline"`
-	Canonical    BikeFitAnalysis  `json:"canonical"`
-}
-
-type ForkPreset struct {
-	ID                 string  `json:"id"`
-	Name               string  `json:"name"`
-	TravelMm           float64 `json:"travel_mm"`
-	StaticA2c          float64 `json:"a2c"`
-	Rake               float64 `json:"rake"`
-	StandardSagPercent float64 `json:"standard_sag_percent"`
-	Description        string  `json:"description"`
-}
-
-func (p ForkPreset) ToForkSpec() ForkSpec {
-	return ForkSpec{
-		ID:                 p.ID,
-		Name:               p.Name,
-		TravelMm:           p.TravelMm,
-		A2c:                p.StaticA2c,
-		Rake:               p.Rake,
-		StandardSagPercent: p.StandardSagPercent,
-		Description:        p.Description,
-	}
-}
-
-func (p *ForkPreset) UnmarshalJSON(data []byte) error {
-	type Alias ForkPreset
-	aux := struct {
-		*Alias
-		AltTravelMm   *float64 `json:"travelMm"`
-		AltStaticA2c  *float64 `json:"staticA2c"`
-		AltSagPercent *float64 `json:"standardSagPercent"`
-	}{
-		Alias: (*Alias)(p),
-	}
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-	if p.TravelMm == 0 && aux.AltTravelMm != nil {
-		p.TravelMm = *aux.AltTravelMm
-	}
-	if p.StaticA2c == 0 && aux.AltStaticA2c != nil {
-		p.StaticA2c = *aux.AltStaticA2c
-	}
-	if p.StandardSagPercent == 0 && aux.AltSagPercent != nil {
-		p.StandardSagPercent = *aux.AltSagPercent
-	}
-	return nil
+	Setup         ComparisonSetup  `json:"setup"`
+	DisplayLabel  string           `json:"display_label"`
+	EffectiveA2c  float64          `json:"effective_a2c"`
+	EffectiveRake float64          `json:"effective_rake"`
+	Bike          BikeGeometry     `json:"bike"`
+	Validation    ValidationReport `json:"validation"`
+	Baseline      BaselineMetrics  `json:"baseline"`
+	Canonical     BikeFitAnalysis  `json:"canonical"`
 }

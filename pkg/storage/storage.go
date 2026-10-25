@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"bikegeo/pkg/canonicalizer"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 )
@@ -39,12 +38,9 @@ func parseFrameFromData(data []byte, fileID string) (*model.FrameModel, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&frame); err == nil {
-		if len(frame.Configurations) > 0 || len(frame.Sizes) > 0 {
+		if len(frame.Geometries) > 0 || len(frame.Sizes) > 0 {
 			if frame.ID == "" {
 				frame.ID = fileID
-			}
-			for i := range frame.Configurations {
-				frame.Configurations[i].Fork = canonicalizer.ResolveForkSpec(frame.Configurations[i].Fork)
 			}
 			return &frame, nil
 		}
@@ -70,6 +66,14 @@ func parseFrameFromData(data []byte, fileID string) (*model.FrameModel, error) {
 			baseID = strings.TrimSuffix(baseID, "-"+strings.ToLower(size))
 		}
 
+		cadFork := bike.CadFork
+		if cadFork.A2cMm == 0 && bike.ForkA2c > 0 {
+			cadFork = model.ForkRef{
+				A2cMm:  bike.ForkA2c,
+				RakeMm: bike.ForkRake,
+			}
+		}
+
 		frame = model.FrameModel{
 			ID:                 baseID,
 			Manufacturer:       bike.Manufacturer,
@@ -82,36 +86,21 @@ func parseFrameFromData(data []byte, fileID string) (*model.FrameModel, error) {
 			GeoHeadsetSpacerMm: bike.GeoHeadsetSpacerMm,
 			Sizes:              []string{size},
 			DefaultSize:        size,
-			Configurations: []model.FrameConfiguration{
-				{
-					ID:         "stock",
-					Name:       "Stock Build",
-					IsBaseline: true,
-					Fork: func() model.ForkSpec {
-						if bike.Fork.A2c > 0 || bike.Fork.Rake > 0 {
-							return canonicalizer.ResolveForkSpec(bike.Fork)
-						}
-						return canonicalizer.ResolveForkSpec(model.ForkSpec{
-							TravelMm: bike.ForkTravelMm,
-							A2c:      bike.ForkA2c,
-							Rake:     bike.ForkRake,
-						})
-					}(),
-					SagPercentagePublished: bike.SagPercentagePublished,
-					Geometries: map[string]model.SizeGeometry{
-						size: {
-							Reach:           bike.Reach,
-							Stack:           bike.Stack,
-							HtaDeg:          bike.HtaDeg,
-							StaDeg:          bike.StaDeg,
-							Htl:             bike.Htl,
-							BbDrop:          bike.BbDrop,
-							Wheelbase:       bike.Wheelbase,
-							ChainstayLength: bike.ChainstayLength,
-							FrontCenter:     bike.FrontCenter,
-							SeatTubeLength:  bike.SeatTubeLength,
-						},
-					},
+			CadFork:            cadFork,
+			DefaultFork:        cadFork,
+			ForkRange:          []model.ForkRef{cadFork, cadFork},
+			Geometries: map[string]model.SizeGeometry{
+				size: {
+					Reach:           bike.Reach,
+					Stack:           bike.Stack,
+					HtaDeg:          bike.HtaDeg,
+					StaDeg:          bike.StaDeg,
+					Htl:             bike.Htl,
+					BbDrop:          bike.BbDrop,
+					Wheelbase:       bike.Wheelbase,
+					ChainstayLength: bike.ChainstayLength,
+					FrontCenter:     bike.FrontCenter,
+					SeatTubeLength:  bike.SeatTubeLength,
 				},
 			},
 		}
@@ -269,13 +258,8 @@ func (s *BikeStore) GetAllBikes() ([]model.BikeGeometry, error) {
 	var bikes []model.BikeGeometry
 	for _, frame := range frames {
 		sizes := frame.GetSizes()
-		baseCfg := frame.GetBaselineConfiguration()
-		var baseCfgID string
-		if baseCfg != nil {
-			baseCfgID = baseCfg.ID
-		}
 		for _, size := range sizes {
-			b, err := geometry.MaterializeBikeGeometry(frame, size, baseCfgID)
+			b, err := geometry.MaterializeBikeGeometry(frame, size)
 			if err == nil {
 				bikes = append(bikes, b)
 			}
@@ -299,15 +283,9 @@ func (s *BikeStore) GetBikeByID(id string) (*model.BikeGeometry, error) {
 	}
 
 	for _, frame := range frames {
-		baseCfg := frame.GetBaselineConfiguration()
-		var baseCfgID string
-		if baseCfg != nil {
-			baseCfgID = baseCfg.ID
-		}
-
 		// Exact frame ID match -> return default size
 		if frame.ID == id {
-			b, err := geometry.MaterializeBikeGeometry(frame, frame.GetDefaultSize(), baseCfgID)
+			b, err := geometry.MaterializeBikeGeometry(frame, frame.GetDefaultSize())
 			if err == nil {
 				return &b, nil
 			}
@@ -316,19 +294,9 @@ func (s *BikeStore) GetBikeByID(id string) (*model.BikeGeometry, error) {
 		for _, size := range frame.GetSizes() {
 			candID := fmt.Sprintf("%s-%s", frame.ID, strings.ToLower(size))
 			if candID == id {
-				b, err := geometry.MaterializeBikeGeometry(frame, size, baseCfgID)
+				b, err := geometry.MaterializeBikeGeometry(frame, size)
 				if err == nil {
 					return &b, nil
-				}
-			}
-			// Check with config ID
-			for _, cfg := range frame.Configurations {
-				candConfigID := fmt.Sprintf("%s-%s-%s", frame.ID, strings.ToLower(size), cfg.ID)
-				if candConfigID == id {
-					b, err := geometry.MaterializeBikeGeometry(frame, size, cfg.ID)
-					if err == nil {
-						return &b, nil
-					}
 				}
 			}
 		}
@@ -399,34 +367,25 @@ func (s *BikeStore) SaveBike(bike model.BikeGeometry) (*model.BikeGeometry, erro
 		SeatTubeLength:  bike.SeatTubeLength,
 	}
 
-	forkSpec := bike.Fork
-	if forkSpec.A2c == 0 && bike.ForkA2c > 0 {
-		forkSpec.A2c = bike.ForkA2c
-		forkSpec.TravelMm = bike.ForkTravelMm
-		forkSpec.Rake = bike.ForkRake
+	if frame.Geometries == nil {
+		frame.Geometries = make(map[string]model.SizeGeometry)
 	}
-	forkSpec = canonicalizer.ResolveForkSpec(forkSpec)
+	frame.Geometries[size] = sizeGeo
 
-	if len(frame.Configurations) == 0 {
-		frame.Configurations = []model.FrameConfiguration{
-			{
-				ID:                     "stock",
-				Name:                   "Stock Build",
-				IsBaseline:             true,
-				Fork:                   forkSpec,
-				SagPercentagePublished: bike.SagPercentagePublished,
-				Geometries:             map[string]model.SizeGeometry{size: sizeGeo},
-			},
-		}
-	} else {
-		// Update baseline configuration geometry
-		baseCfg := frame.GetBaselineConfiguration()
-		if baseCfg != nil {
-			if baseCfg.Geometries == nil {
-				baseCfg.Geometries = make(map[string]model.SizeGeometry)
+	if frame.CadFork.A2cMm == 0 {
+		frame.CadFork = bike.CadFork
+		if frame.CadFork.A2cMm == 0 && bike.ForkA2c > 0 {
+			frame.CadFork = model.ForkRef{
+				A2cMm:  bike.ForkA2c,
+				RakeMm: bike.ForkRake,
 			}
-			baseCfg.Geometries[size] = sizeGeo
 		}
+	}
+	if frame.DefaultFork.A2cMm == 0 {
+		frame.DefaultFork = frame.CadFork
+	}
+	if len(frame.ForkRange) == 0 {
+		frame.ForkRange = []model.ForkRef{frame.CadFork, frame.CadFork}
 	}
 
 	savedFrame, err := s.SaveFrame(frame)
@@ -434,7 +393,7 @@ func (s *BikeStore) SaveBike(bike model.BikeGeometry) (*model.BikeGeometry, erro
 		return nil, err
 	}
 
-	res, err := geometry.MaterializeBikeGeometry(*savedFrame, size, "")
+	res, err := geometry.MaterializeBikeGeometry(*savedFrame, size)
 	if err != nil {
 		return nil, err
 	}
@@ -458,9 +417,7 @@ func (s *BikeStore) DeleteBike(id string) (bool, error) {
 					if f.DefaultSize == sz {
 						f.DefaultSize = f.Sizes[0]
 					}
-					for cfgIdx := range f.Configurations {
-						delete(f.Configurations[cfgIdx].Geometries, sz)
-					}
+					delete(f.Geometries, sz)
 					_, err := s.SaveFrame(*f)
 					return err == nil, err
 				} else {

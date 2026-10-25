@@ -1,198 +1,216 @@
 package canonicalizer
 
 import (
-	"encoding/json"
 	"fmt"
-	"math"
-	"os"
 	"strconv"
 	"strings"
 
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/validator"
 )
 
-var DefaultForkPresets = []model.ForkPreset{
-	{
-		ID:                 "fox34_130",
-		Name:               "Fox Float 34 130mm",
-		TravelMm:           130,
-		StaticA2c:          541,
-		Rake:               44,
-		StandardSagPercent: 20,
-		Description:        "Trail hardtail benchmark (static 541mm, 20% sag = 515mm, 44mm rake)",
-	},
-	{
-		ID:                 "sid_110",
-		Name:               "RockShox SID 110mm",
-		TravelMm:           110,
-		StaticA2c:          521,
-		Rake:               44,
-		StandardSagPercent: 20,
-		Description:        "Downcountry / Marathon fork (static 521mm, 20% sag = 499mm, 44mm rake)",
-	},
-	{
-		ID:                 "sid_100",
-		Name:               "RockShox SID 100mm",
-		TravelMm:           100,
-		StaticA2c:          506,
-		Rake:               44,
-		StandardSagPercent: 20,
-		Description:        "XC Race fork (static 506mm, 20% sag = 486mm, 44mm rake)",
-	},
-	{
-		ID:                 "fox34_120",
-		Name:               "Fox Float 34 120mm",
-		TravelMm:           120,
-		StaticA2c:          530,
-		Rake:               44,
-		StandardSagPercent: 20,
-		Description:        "Downcountry standard (static 530mm, 20% sag = 506mm, 44mm rake)",
-	},
-	{
-		ID:                 "sid_120",
-		Name:               "RockShox SID 120mm",
-		TravelMm:           120,
-		StaticA2c:          530,
-		Rake:               44,
-		StandardSagPercent: 20,
-		Description:        "XC race / Downcountry fork (static 530mm, 20% sag = 506mm, 44mm rake)",
-	},
-	{
-		ID:                 "pike_140",
-		Name:               "RockShox Pike 140mm",
-		TravelMm:           140,
-		StaticA2c:          551,
-		Rake:               44,
-		StandardSagPercent: 20,
-		Description:        "Aggressive trail fork (static 551mm, 20% sag = 523mm, 44mm rake)",
-	},
-	{
-		ID:                 "fox36_150",
-		Name:               "Fox 36 / Lyrik 150mm",
-		TravelMm:           150,
-		StaticA2c:          561,
-		Rake:               44,
-		StandardSagPercent: 20,
-		Description:        "Hardcore hardtail / Enduro (static 561mm, 20% sag = 531mm, 44mm rake)",
-	},
-	{
-		ID:                 "rigid_483",
-		Name:               "Rigid Bikepacking 483mm",
-		TravelMm:           0,
-		StaticA2c:          483,
-		Rake:               44,
-		StandardSagPercent: 0,
-		Description:        "Rigid expedition fork, suspension-corrected ~100mm (483mm static, 44mm rake)",
-	},
-	{
-		ID:                 "rigid_485",
-		Name:               "Rigid Bikepacking 485mm",
-		TravelMm:           0,
-		StaticA2c:          485,
-		Rake:               45,
-		StandardSagPercent: 0,
-		Description:        "Rigid adventure fork, suspension-corrected 100mm (485mm static, 45mm rake)",
-	},
-	{
-		ID:                 "rigid_495",
-		Name:               "Lithic / Rigid Bikepacking 495mm",
-		TravelMm:           0,
-		StaticA2c:          495,
-		Rake:               51,
-		StandardSagPercent: 0,
-		Description:        "Rigid expedition fork, suspension-corrected 100-120mm (495mm static, 51mm rake)",
-	},
+// Re-export catalog types and helpers for canonicalizer callers
+type ForkSuggestion = catalog.ForkSuggestion
+
+var CommonForkCatalog = catalog.CommonForkCatalog
+
+func GetCatalogFork(id string) (model.ForkCatalogEntry, bool) {
+	return catalog.GetCatalogFork(id)
 }
 
-var CommonForkPresets = DefaultForkPresets
+func GetForkPreset(id string) (model.ForkCatalogEntry, bool) {
+	return catalog.GetCatalogFork(id)
+}
 
-func init() {
-	candidates := []string{"data/forks.json", "../../data/forks.json"}
-	for _, path := range candidates {
-		if data, err := os.ReadFile(path); err == nil {
-			var presets []model.ForkPreset
-			if err := json.Unmarshal(data, &presets); err == nil && len(presets) > 0 {
-				CommonForkPresets = presets
-				break
+func GetStandardForkForTravel(travelMm float64) (model.ForkCatalogEntry, bool) {
+	return catalog.GetStandardForkForTravel(travelMm)
+}
+
+func FindForkSuggestions(targetA2c, targetRake float64) []ForkSuggestion {
+	return catalog.FindForkSuggestions(targetA2c, targetRake)
+}
+
+// ResolveForkToken resolves a user comparison modifier (e.g. "120mm", "rigid", "stock", "a2c=506/44")
+// against the fork catalog and frame constraints.
+func ResolveForkToken(
+	token string,
+	sagOverride *float64,
+	frame model.FrameModel,
+) (targetA2c float64, targetRake float64, staticA2c float64, displayLabel string, err error) {
+	clean := strings.TrimSpace(token)
+	lower := strings.ToLower(clean)
+
+	// 1. Stock / Default fork
+	// 1. Stock / Default fork
+	if lower == "" || lower == "stock" || lower == "default" {
+		def := frame.GetDefaultFork()
+		if def.A2cMm <= 0 {
+			def = frame.CadFork
+		}
+		targetA2c = def.A2cMm
+		targetRake = def.RakeMm
+		staticA2c = def.A2cMm
+		if def.Fork != "" {
+			if entry, ok := GetCatalogFork(def.Fork); ok {
+				if entry.TravelMm == 0 && sagOverride != nil && *sagOverride > 0 {
+					return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", *sagOverride, frame.Manufacturer, frame.Model)
+				}
+				if entry.TravelMm > 0 && len(entry.Options) > 0 {
+					staticA2c = entry.Options[0].A2cMm
+					sag := def.GetSagPct()
+					if sagOverride != nil {
+						sag = *sagOverride
+						targetA2c = geometry.Round(staticA2c-entry.TravelMm*(sag/100.0), 1)
+					}
+					displayLabel = fmt.Sprintf("%.0fmm @ %.0f%%", entry.TravelMm, sag)
+					return targetA2c, targetRake, staticA2c, displayLabel, nil
+				}
 			}
 		}
-	}
-}
-
-// GetForkPreset looks up a fork preset by ID or Name.
-func GetForkPreset(id string) (model.ForkPreset, bool) {
-	for _, p := range CommonForkPresets {
-		if strings.EqualFold(p.ID, id) || strings.EqualFold(p.Name, id) {
-			return p, true
+		if frame.IsFixedRigidOnly() && sagOverride != nil && *sagOverride > 0 {
+			return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", *sagOverride, frame.Manufacturer, frame.Model)
 		}
-	}
-	return model.ForkPreset{}, false
-}
-
-// GetStandardForkForTravel returns a standard 29er suspension ForkSpec for a given travel in mm.
-func GetStandardForkForTravel(travelMm float64) model.ForkSpec {
-	for _, p := range CommonForkPresets {
-		if p.TravelMm > 0 && math.Abs(p.TravelMm-travelMm) < 0.1 {
-			spec := p.ToForkSpec()
-			spec.Name = fmt.Sprintf("%.0fmm Suspension", travelMm)
-			return spec
+		if frame.IsFixedRigidOnly() {
+			displayLabel = fmt.Sprintf("Rigid (%.0fmm A2C)", targetA2c)
+		} else {
+			displayLabel = "Stock"
 		}
+		return targetA2c, targetRake, staticA2c, displayLabel, nil
 	}
-	// Linear fallback for non-preset travel (e.g. 160mm -> 571mm)
-	estA2c := 411.0 + travelMm
-	return model.ForkSpec{
-		Name:               fmt.Sprintf("%.0fmm Suspension", travelMm),
-		TravelMm:           travelMm,
-		A2c:                estA2c,
-		Rake:               44.0,
-		StandardSagPercent: 20.0,
+
+	// 2. Rigid fork
+	if lower == "rigid" || lower == "0mm" || lower == "0" || strings.HasPrefix(lower, "rigid") {
+		if !frame.SupportsRigid() {
+			return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" (%s) does not support a rigid fork", frame.Manufacturer, frame.Model, frame.ID)
+		}
+		if sagOverride != nil && *sagOverride > 0 {
+			return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", *sagOverride, frame.Manufacturer, frame.Model)
+		}
+		targetA2c = frame.GetRigidA2c()
+		targetRake = frame.GetRigidRake()
+		staticA2c = targetA2c
+		displayLabel = fmt.Sprintf("Rigid (%.0fmm A2C)", targetA2c)
+		return targetA2c, targetRake, staticA2c, displayLabel, nil
 	}
+
+	// 3. Direct A2C syntax: a2c=NNN/MM or a2c=NNN
+	if strings.HasPrefix(lower, "a2c=") {
+		valPart := strings.TrimPrefix(lower, "a2c=")
+		if strings.Contains(valPart, "/") {
+			parts := strings.SplitN(valPart, "/", 2)
+			a2cVal, err := strconv.ParseFloat(parts[0], 64)
+			if err != nil {
+				return 0, 0, 0, "", fmt.Errorf("invalid A2C in %q: %w", token, err)
+			}
+			rakeVal, err := strconv.ParseFloat(parts[1], 64)
+			if err != nil {
+				return 0, 0, 0, "", fmt.Errorf("invalid rake in %q: %w", token, err)
+			}
+			targetA2c = a2cVal
+			targetRake = rakeVal
+		} else {
+			a2cVal, err := strconv.ParseFloat(valPart, 64)
+			if err != nil {
+				return 0, 0, 0, "", fmt.Errorf("invalid A2C in %q: %w", token, err)
+			}
+			targetA2c = a2cVal
+			targetRake = frame.CadFork.RakeMm
+			if targetRake <= 0 {
+				targetRake = 44.0
+			}
+		}
+		staticA2c = targetA2c
+		displayLabel = fmt.Sprintf("a2c=%.0f/%.0f", targetA2c, targetRake)
+		return targetA2c, targetRake, staticA2c, displayLabel, nil
+	}
+
+	// 4. Suspension travel token (e.g. "120mm", "120")
+	travelStr := strings.TrimSuffix(lower, "mm")
+	if travelVal, err := strconv.ParseFloat(travelStr, 64); err == nil && travelVal >= 60 {
+		if frame.IsFixedRigidOnly() {
+			return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" has a fixed rigid fork (%.0fmm A2C) and does not support suspension fork %q", frame.Manufacturer, frame.Model, frame.GetRigidA2c(), token)
+		}
+		if minF, maxF, hasRange := frame.GetForkRange(); hasRange {
+			minTravel := minF.ForkTravel()
+			maxTravel := maxF.ForkTravel()
+			if travelVal < minTravel-0.1 || travelVal > maxTravel+0.1 {
+				return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" (%s) does not support a %.0fmm suspension fork (supported: %s)",
+					frame.Manufacturer, frame.Model, frame.ID, travelVal, strings.Join(frame.GetSupportedForkOptions(), ", "))
+			}
+		}
+		var stdFork model.ForkCatalogEntry
+		foundFrameFork := false
+		if def := frame.GetDefaultFork(); def.Fork != "" {
+			if entry, ok := GetCatalogFork(def.Fork); ok && entry.TravelMm == travelVal && len(entry.Options) > 0 {
+				stdFork = entry
+				foundFrameFork = true
+			}
+		}
+		if !foundFrameFork {
+			if def := frame.CadFork; def.Fork != "" {
+				if entry, ok := GetCatalogFork(def.Fork); ok && entry.TravelMm == travelVal && len(entry.Options) > 0 {
+					stdFork = entry
+					foundFrameFork = true
+				}
+			}
+		}
+		if !foundFrameFork {
+			f, ok := GetStandardForkForTravel(travelVal)
+			if !ok {
+				return 0, 0, 0, "", fmt.Errorf("no catalog fork found for %.0fmm suspension travel", travelVal)
+			}
+			stdFork = f
+		}
+		if len(stdFork.Options) == 0 {
+			return 0, 0, 0, "", fmt.Errorf("fork %s has no configured options", stdFork.ID)
+		}
+		opt := stdFork.Options[0]
+		staticA2c = opt.A2cMm
+		targetRake = opt.RakeMm
+		sag := 20.0
+		if sagOverride != nil {
+			sag = *sagOverride
+		}
+		targetA2c = geometry.Round(staticA2c-stdFork.TravelMm*(sag/100.0), 1)
+		displayLabel = fmt.Sprintf("%.0fmm @ %.0f%% sag", travelVal, sag)
+		return targetA2c, targetRake, staticA2c, displayLabel, nil
+	}
+
+	// 5. Explicit catalog fork ID lookup
+	if entry, ok := GetCatalogFork(token); ok {
+		if len(entry.Options) == 0 {
+			return 0, 0, 0, "", fmt.Errorf("fork %s has no options", entry.ID)
+		}
+		opt := entry.Options[0]
+		staticA2c = opt.A2cMm
+		targetRake = opt.RakeMm
+		if entry.TravelMm == 0 {
+			if sagOverride != nil && *sagOverride > 0 {
+				return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", *sagOverride, frame.Manufacturer, frame.Model)
+			}
+			targetA2c = staticA2c
+			displayLabel = fmt.Sprintf("Rigid (%.0fmm A2C)", targetA2c)
+		} else {
+			if frame.IsFixedRigidOnly() {
+				return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" has a fixed rigid fork (%.0fmm A2C) and does not support suspension fork %q", frame.Manufacturer, frame.Model, frame.GetRigidA2c(), token)
+			}
+			sag := 20.0
+			if sagOverride != nil {
+				sag = *sagOverride
+			}
+			targetA2c = geometry.Round(staticA2c-entry.TravelMm*(sag/100.0), 1)
+			displayLabel = fmt.Sprintf("%.0fmm @ %.0f%% sag", entry.TravelMm, sag)
+		}
+		return targetA2c, targetRake, staticA2c, displayLabel, nil
+	}
+
+	return 0, 0, 0, "", fmt.Errorf("unrecognized fork specification %q for frame \"%s %s\"", token, frame.Manufacturer, frame.Model)
 }
 
-// ResolveForkSpec enriches a ForkSpec with registry metadata.
-// If values were populated from the registry or if linked to a registry preset,
-// IsInferred is set to true.
-func ResolveForkSpec(spec model.ForkSpec) model.ForkSpec {
-	if spec.ID == "" {
-		return spec
-	}
-	preset, found := GetForkPreset(spec.ID)
-	if !found {
-		return spec
-	}
-	res := spec
-	if res.Name == "" {
-		res.Name = preset.Name
-	}
-	if res.TravelMm == 0 {
-		res.TravelMm = preset.TravelMm
-	}
-	if res.A2c == 0 {
-		res.A2c = preset.StaticA2c
-	}
-	if res.Rake == 0 {
-		res.Rake = preset.Rake
-	}
-	if res.StandardSagPercent == 0 {
-		res.StandardSagPercent = preset.StandardSagPercent
-	}
-	if res.Description == "" {
-		res.Description = preset.Description
-	}
-	res.IsInferred = true
-	return res
-}
-
-// CalculateSaggedA2c calculates effective A2C taking suspension sag into consideration.
-func CalculateSaggedA2c(staticA2c, travelMm, sagPercent float64) float64 {
-	sagMm := travelMm * (sagPercent / 100.0)
-	return geometry.Round(staticA2c-sagMm, 1)
-}
-
-// ResolveFrameForkSetup validates and resolves a ComparisonSetup (size, fork travel or rigid, and sag %)
-// against a FrameModel's physical constraints and RiderProfile, returning the canonicalized comparison row.
+// ResolveFrameForkSetup resolves a ComparisonSetup against a FrameModel, enforcing physical validity
+// and legal fork limits, and canonicalizes to the comparison model.
 func ResolveFrameForkSetup(
 	frame model.FrameModel,
 	setup model.ComparisonSetup,
@@ -202,13 +220,13 @@ func ResolveFrameForkSetup(
 		return model.CanonicalComparisonRow{}, fmt.Errorf("profile.SaddleHeightMm must be positive, got %.1f", profile.SaddleHeightMm)
 	}
 
-	// 0. Centralized frame validity gate: a frame in an error state may not be used.
+	// 0. Centralized frame validity gate
 	frameVal := validator.ValidateFrame(frame)
 	if !frameVal.IsValid {
 		return model.CanonicalComparisonRow{}, fmt.Errorf("%s", frameVal.ErrorSummary())
 	}
 
-	// 1. Validate & normalize size
+	// 1. Validate size
 	size := strings.TrimSpace(setup.Size)
 	if size == "" {
 		size = frame.GetDefaultSize()
@@ -229,170 +247,53 @@ func ResolveFrameForkSetup(
 		size = matchedSize
 	}
 
-	// 2. Resolve Fork (suspension travel mm vs rigid)
-	forkToken := strings.TrimSpace(setup.Fork)
-	ExplicitlyProvidedFork := forkToken != ""
-	if forkToken == "" {
-		forkToken = frame.GetDefaultForkSpecString()
+	targetA2c := setup.A2cMm
+	targetRake := setup.RakeMm
+	displayLabel := setup.DisplayLabel
+
+	// If A2C is not pre-resolved, resolve default fork
+	if targetA2c <= 0 {
+		tA2c, tRake, _, dLabel, err := ResolveForkToken("", nil, frame)
+		if err != nil {
+			return model.CanonicalComparisonRow{}, err
+		}
+		targetA2c = tA2c
+		targetRake = tRake
+		displayLabel = dLabel
 	}
-	lowerFork := strings.ToLower(forkToken)
-
-	var resolvedFork model.ForkSpec
-	var canonicalForkLabel string
-	isRigid := false
-
-	// Check if token represents a rigid fork ("rigid", "0mm", or a rigid preset/config)
-	if lowerFork == "rigid" || lowerFork == "0mm" || lowerFork == "0" || strings.HasPrefix(lowerFork, "rigid") {
-		isRigid = true
-	} else if preset, ok := GetForkPreset(forkToken); ok && preset.TravelMm == 0 {
-		isRigid = true
-	} else {
-		for _, cfg := range frame.Configurations {
-			if strings.EqualFold(cfg.ID, forkToken) && cfg.Fork.TravelMm == 0 {
-				isRigid = true
-				break
-			}
+	if targetRake <= 0 {
+		targetRake = frame.CadFork.RakeMm
+		if targetRake <= 0 {
+			targetRake = 44.0
 		}
 	}
-
-	supportedDesc := strings.Join(frame.GetSupportedForkOptions(), ", ")
-
-	if isRigid {
-		if !frame.SupportsRigid() {
-			return model.CanonicalComparisonRow{}, fmt.Errorf(
-				"frame \"%s %s\" (%s) does not support a rigid fork (supported: %s)",
-				frame.Manufacturer, frame.Model, frame.ID, supportedDesc,
-			)
-		}
-		if setup.SagPercent != nil && *setup.SagPercent > 0 {
-			return model.CanonicalComparisonRow{}, fmt.Errorf(
-				"cannot apply %.0f%% sag to rigid fork on \"%s %s\" (%s); rigid forks have 0mm travel",
-				*setup.SagPercent, frame.Manufacturer, frame.Model, frame.ID,
-			)
-		}
-		rigidA2c := frame.GetRigidA2c()
-		rake := 44.0
-		// Check if frame has a rigid config for rake
-		for _, cfg := range frame.Configurations {
-			if cfg.Fork.TravelMm == 0 && cfg.Fork.Rake > 0 {
-				rake = cfg.Fork.Rake
-				break
-			}
-		}
-		resolvedFork = model.ForkSpec{
-			ID:       fmt.Sprintf("rigid_%.0f", rigidA2c),
-			Name:     fmt.Sprintf("Rigid (%.0fmm A2C)", rigidA2c),
-			TravelMm: 0,
-			A2c:      rigidA2c,
-			Rake:     rake,
-		}
-		canonicalForkLabel = "rigid"
-	} else {
-		// Suspension fork requested
-		if frame.IsFixedRigidOnly() && ExplicitlyProvidedFork {
-			return model.CanonicalComparisonRow{}, fmt.Errorf(
-				"frame \"%s %s\" (%s) has a fixed rigid fork (%.0fmm A2C) and does not support suspension fork %q",
-				frame.Manufacturer, frame.Model, frame.ID, frame.GetRigidA2c(), forkToken,
-			)
-		}
-
-		// Parse travel in mm from token (e.g. "120mm", "120", or preset/config ID)
-		var travelMm float64
-		var explicitPreset *model.ForkPreset
-
-		cleaned := strings.TrimSuffix(lowerFork, "mm")
-		if val, err := strconv.ParseFloat(cleaned, 64); err == nil && val > 0 {
-			travelMm = val
-		} else if preset, ok := GetForkPreset(forkToken); ok && preset.TravelMm > 0 {
-			travelMm = preset.TravelMm
-			explicitPreset = &preset
-		} else {
-			for _, cfg := range frame.Configurations {
-				if strings.EqualFold(cfg.ID, forkToken) && cfg.Fork.TravelMm > 0 {
-					travelMm = cfg.Fork.TravelMm
-					break
-				}
-			}
-		}
-
-		if travelMm <= 0 {
-			return model.CanonicalComparisonRow{}, fmt.Errorf(
-				"invalid fork specification %q for frame \"%s %s\" (supported: %s)",
-				forkToken, frame.Manufacturer, frame.Model, supportedDesc,
-			)
-		}
-
-		if !frame.SupportsTravel(travelMm) {
-			return model.CanonicalComparisonRow{}, fmt.Errorf(
-				"frame \"%s %s\" (%s) does not support a %.0fmm suspension fork (supported: %s)",
-				frame.Manufacturer, frame.Model, frame.ID, travelMm, supportedDesc,
-			)
-		}
-
-		// Resolve A2C and Rake for this travel size:
-		// 1. Explicit preset if specified
-		// 2. Frame's own configuration matching this travel (if its A2C is static suspension A2C)
-		// 3. Standard fork for this travel from forks.json
-		if explicitPreset != nil {
-			resolvedFork = explicitPreset.ToForkSpec()
-		} else {
-			foundInFrame := false
-			for _, cfg := range frame.Configurations {
-				if math.Abs(cfg.Fork.TravelMm-travelMm) < 0.1 && cfg.Fork.A2c > 0 {
-					resolvedFork = cfg.Fork
-					resolvedFork.Name = fmt.Sprintf("%.0fmm Suspension (%.0fmm A2C)", travelMm, cfg.Fork.A2c)
-					foundInFrame = true
-					break
-				}
-			}
-			if !foundInFrame {
-				std := GetStandardForkForTravel(travelMm)
-				std.Name = fmt.Sprintf("%.0fmm Suspension (%.0fmm A2C)", travelMm, std.A2c)
-				resolvedFork = std
-			}
-		}
-		canonicalForkLabel = fmt.Sprintf("%.0fmm", travelMm)
+	if displayLabel == "" {
+		displayLabel = fmt.Sprintf("a2c=%.0f/%.0f", targetA2c, targetRake)
 	}
 
-	// 3. Resolve & validate Sag %
-	sagPct := 0.0
-	if !isRigid {
-		if setup.SagPercent != nil {
-			if *setup.SagPercent < 0 || *setup.SagPercent > 50 {
-				return model.CanonicalComparisonRow{}, fmt.Errorf(
-					"invalid sag percentage %.1f%% for \"%s %s\" (must be between 0%% and 50%%)",
-					*setup.SagPercent, frame.Manufacturer, frame.Model,
-				)
-			}
-			sagPct = *setup.SagPercent
-		} else if resolvedFork.StandardSagPercent > 0 {
-			sagPct = resolvedFork.StandardSagPercent
-		} else {
-			sagPct = 20.0
+	// 2. Validate against frame fork range
+	if minF, maxF, hasRange := frame.GetForkRange(); hasRange {
+		// Static check: targetA2c should be plausible within [min.A2c - 20, max.A2c]
+		if targetA2c < minF.A2cMm-35.0 || targetA2c > maxF.A2cMm+5.0 {
+			return model.CanonicalComparisonRow{}, fmt.Errorf(
+				"effective A2C %.1fmm (%s) is outside frame \"%s %s\" legal static range [%.0fmm, %.0fmm]",
+				targetA2c, displayLabel, frame.Manufacturer, frame.Model, minF.A2cMm, maxF.A2cMm,
+			)
 		}
 	}
 
-	// 4. Materialize baseline BikeGeometry for this frame & size
-	baseCfg := frame.GetBaselineConfiguration()
-	baseCfgID := ""
-	if baseCfg != nil {
-		baseCfgID = baseCfg.ID
-	}
-	bike, err := geometry.MaterializeBikeGeometry(frame, size, baseCfgID)
+	// 3. Materialize baseline geometry
+	bike, err := geometry.MaterializeBikeGeometry(frame, size)
 	if err != nil {
 		return model.CanonicalComparisonRow{}, err
 	}
 
-	// 5. Compute Effective A2C
-	effectiveA2c := CalculateSaggedA2c(resolvedFork.A2c, resolvedFork.TravelMm, sagPct)
-
 	canonCfg := model.CanonicalConfig{
-		TargetA2c:    effectiveA2c,
-		SagPercent:   sagPct,
+		TargetA2c:    targetA2c,
 		RiderProfile: profile,
 	}
 
-	rows, err := CanonicalizeBikes([]model.BikeGeometry{bike}, canonCfg)
+	rows, err := CanonicalizeBikes([]model.BikeGeometry{bike}, canonCfg, targetRake, displayLabel)
 	if err != nil {
 		return model.CanonicalComparisonRow{}, err
 	}
@@ -401,22 +302,27 @@ func ResolveFrameForkSetup(
 	}
 
 	row := rows[0]
-	sagCopy := sagPct
 	row.Setup = model.ComparisonSetup{
-		FrameID:    frame.ID,
-		Size:       size,
-		Fork:       canonicalForkLabel,
-		SagPercent: &sagCopy,
+		FrameID:      frame.ID,
+		Size:         size,
+		A2cMm:        targetA2c,
+		RakeMm:       targetRake,
+		DisplayLabel: displayLabel,
 	}
-	row.SetupFork = resolvedFork
-	row.SagPercent = sagPct
-	row.EffectiveA2c = effectiveA2c
+	row.DisplayLabel = displayLabel
+	row.EffectiveA2c = targetA2c
+	row.EffectiveRake = targetRake
 
 	return row, nil
 }
 
 // CanonicalizeBikes normalizes and canonicalizes a collection of bikes to an apples-to-apples configuration.
-func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig) ([]model.CanonicalComparisonRow, error) {
+func CanonicalizeBikes(
+	bikes []model.BikeGeometry,
+	config model.CanonicalConfig,
+	targetRake float64,
+	displayLabel string,
+) ([]model.CanonicalComparisonRow, error) {
 	if config.RiderProfile.SaddleHeightMm <= 0 {
 		return nil, fmt.Errorf("canonical config requires positive saddle height, got %.1f", config.RiderProfile.SaddleHeightMm)
 	}
@@ -450,7 +356,7 @@ func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig)
 			seatHeight,
 		)
 
-		baseA2c := bike.ForkA2c
+		baseA2c := bike.GetCadA2c()
 		if baseA2c <= 0 {
 			baseA2c = valReport.GeometricA2c
 		}
@@ -477,6 +383,7 @@ func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig)
 		canonical, err := geometry.AnalyzeBikeFit(
 			bike,
 			&config.TargetA2c,
+			&targetRake,
 			config.RiderProfile,
 		)
 		if err != nil {
@@ -484,12 +391,13 @@ func CanonicalizeBikes(bikes []model.BikeGeometry, config model.CanonicalConfig)
 		}
 
 		rows = append(rows, model.CanonicalComparisonRow{
-			SagPercent:   config.SagPercent,
-			EffectiveA2c: config.TargetA2c,
-			Bike:         bike,
-			Validation:   valReport,
-			Baseline:     baseline,
-			Canonical:    canonical,
+			DisplayLabel:  displayLabel,
+			EffectiveA2c:  config.TargetA2c,
+			EffectiveRake: targetRake,
+			Bike:          bike,
+			Validation:    valReport,
+			Baseline:      baseline,
+			Canonical:     canonical,
 		})
 	}
 

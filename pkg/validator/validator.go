@@ -3,7 +3,9 @@ package validator
 import (
 	"fmt"
 	"math"
+	"strings"
 
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 )
@@ -80,13 +82,13 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		}
 	}
 
-	if bike.ForkA2c <= 0 && bike.ForkTravelMm <= 0 {
+	if bike.GetCadA2c() <= 0 {
 		issues = append(issues, model.ValidationIssue{
 			ID:       "missing_fork_a2c",
-			Field:    "fork_a2c",
+			Field:    "cad_fork.a2c_mm",
 			Severity: model.SeverityError,
 			Title:    "Missing Essential Variable: Fork Axle-to-Crown (A2C)",
-			Message:  "Fork A2C (or travel_mm) is required to verify the Master Stack Equation.",
+			Message:  "CAD Fork A2C is required to verify the Master Stack Equation.",
 		})
 	}
 
@@ -222,19 +224,21 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		})
 	}
 
-	// Fork Travel & Static A2C Plausibility Check (for 29er forks)
-	if bike.ForkTravelMm > 0 && bike.ForkA2c > 0 {
-		minStaticA2c := bike.ForkTravelMm + 400.0
-		maxStaticA2c := bike.ForkTravelMm + 425.0
-		if bike.ForkA2c < minStaticA2c || bike.ForkA2c > maxStaticA2c {
+	// Fork Travel & Static A2C Plausibility Check (for 29er suspension forks)
+	forkTravel := bike.CadFork.ForkTravel()
+	staticA2c := bike.CadFork.StaticA2c()
+	if forkTravel > 0 && staticA2c > 0 {
+		minStaticA2c := forkTravel + 400.0
+		maxStaticA2c := forkTravel + 425.0
+		if staticA2c < minStaticA2c || staticA2c > maxStaticA2c {
 			issues = append(issues, model.ValidationIssue{
 				ID:       "implausible_fork_a2c",
-				Field:    "fork_a2c",
+				Field:    "cad_fork.a2c_mm",
 				Severity: model.SeverityError,
 				Title:    "Implausible Suspension Fork Axle-to-Crown (A2C)",
-				Message:  fmt.Sprintf("Static fork A2C of %.1fmm for %.0fmm travel is outside plausible 29er physical range [%.1fmm, %.1fmm].", bike.ForkA2c, bike.ForkTravelMm, minStaticA2c, maxStaticA2c),
+				Message:  fmt.Sprintf("Static fork A2C of %.1fmm for %.0fmm travel is outside plausible 29er physical range [%.1fmm, %.1fmm].", staticA2c, forkTravel, minStaticA2c, maxStaticA2c),
 				Expected: fmt.Sprintf("%.1f - %.1f mm", minStaticA2c, maxStaticA2c),
-				Actual:   fmt.Sprintf("%.1f mm", bike.ForkA2c),
+				Actual:   fmt.Sprintf("%.1f mm", staticA2c),
 			})
 		}
 	}
@@ -264,16 +268,11 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		geoSpacerMm,
 	)
 
-	statedStaticA2c := bike.ForkA2c
-	if statedStaticA2c <= 0 && bike.ForkTravelMm > 0 {
-		statedStaticA2c = bike.ForkTravelMm + 412.0
+	expectedForkA2c := bike.GetCadA2c()
+	statedStaticA2c := staticA2c
+	if statedStaticA2c <= 0 {
+		statedStaticA2c = expectedForkA2c
 	}
-
-	sagCompression := 0.0
-	if bike.SagPercentagePublished > 0 && bike.ForkTravelMm > 0 {
-		sagCompression = bike.ForkTravelMm * (bike.SagPercentagePublished / 100.0)
-	}
-	expectedForkA2c := geometry.Round(statedStaticA2c-sagCompression, 1)
 
 	inferredMode := model.ModeUnspecified
 	var a2cDiff *float64
@@ -284,13 +283,13 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		a2cDiff = &diff
 
 		if math.Abs(diff) <= a2cSlop {
-			if bike.SagPercentagePublished > 0 {
+			if bike.CadFork.SagPct != nil && *bike.CadFork.SagPct > 0 {
 				inferredMode = model.ModeSaggedCad
 				issues = append(issues, model.ValidationIssue{
 					ID:       "stack_sagged_confirmed",
 					Severity: model.SeveritySuccess,
 					Title:    "Stack & Sagged Fork A2C Match",
-					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches published %.0f%% sagged fork A2C (%.1fmm) within %.1fmm (tolerance ±%.1fmm, %.1fmm CAD spacer).", calculatedForkA2c, bike.SagPercentagePublished, expectedForkA2c, math.Abs(diff), a2cSlop, geoSpacerMm),
+					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches published %.0f%% sagged fork A2C (%.1fmm) within %.1fmm (tolerance ±%.1fmm, %.1fmm CAD spacer).", calculatedForkA2c, *bike.CadFork.SagPct, expectedForkA2c, math.Abs(diff), a2cSlop, geoSpacerMm),
 					Expected: fmt.Sprintf("%.1f mm", expectedForkA2c),
 					Actual:   fmt.Sprintf("%.1f mm", calculatedForkA2c),
 				})
@@ -300,7 +299,7 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 					ID:       "stack_static_confirmed",
 					Severity: model.SeveritySuccess,
 					Title:    "Stack & Fork A2C Match (Static CAD)",
-					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches stated static fork A2C (%.1fmm) within %.1fmm (tolerance ±%.1fmm, %.1fmm CAD spacer).", calculatedForkA2c, expectedForkA2c, math.Abs(diff), a2cSlop, geoSpacerMm),
+					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches stated fork A2C (%.1fmm) within %.1fmm (tolerance ±%.1fmm, %.1fmm CAD spacer).", calculatedForkA2c, expectedForkA2c, math.Abs(diff), a2cSlop, geoSpacerMm),
 					Details:  "The manufacturer published geometry measured with an unweighted (0% sag) fork and the explicitly stated CAD headset spacer.",
 					Expected: fmt.Sprintf("%.1f mm", expectedForkA2c),
 					Actual:   fmt.Sprintf("%.1f mm", calculatedForkA2c),
@@ -550,14 +549,87 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 		}
 	}
 
-	sizes := frame.GetSizes()
-	if len(sizes) == 0 || len(frame.Configurations) == 0 {
+	// Validate Fork References
+	cadForkIssues := ValidateForkRef(frame.ID, "cad_fork", frame.CadFork)
+	if len(cadForkIssues) > 0 {
+		report.IsValid = false
+		report.Issues = append(report.Issues, cadForkIssues...)
+	}
+
+	defaultForkIssues := ValidateForkRef(frame.ID, "default_fork", frame.DefaultFork)
+	if len(defaultForkIssues) > 0 {
+		report.IsValid = false
+		report.Issues = append(report.Issues, defaultForkIssues...)
+	}
+
+	if frame.RigidFork != nil {
+		rigidForkIssues := ValidateForkRef(frame.ID, "rigid_fork", *frame.RigidFork)
+		if len(rigidForkIssues) > 0 {
+			report.IsValid = false
+			report.Issues = append(report.Issues, rigidForkIssues...)
+		}
+	}
+
+	if len(frame.ForkRange) != 2 {
 		report.IsValid = false
 		report.Issues = append(report.Issues, model.ValidationIssue{
-			ID:       "missing_configurations",
+			ID:       "invalid_fork_range",
+			Field:    "fork_range",
 			Severity: model.SeverityError,
-			Title:    "Missing Frame Configurations or Sizes",
-			Message:  "Frame must define at least one size and one baseline configuration.",
+			Title:    "Invalid Fork Range",
+			Message:  "fork_range must contain exactly two ForkRef elements [min, max].",
+		})
+	} else {
+		for i, ref := range frame.ForkRange {
+			fName := fmt.Sprintf("fork_range[%d]", i)
+			rIssues := ValidateForkRef(frame.ID, fName, ref)
+			if len(rIssues) > 0 {
+				report.IsValid = false
+				report.Issues = append(report.Issues, rIssues...)
+			}
+		}
+
+		minStatic := frame.ForkRange[0].StaticA2c()
+		maxStatic := frame.ForkRange[1].StaticA2c()
+		if minStatic > maxStatic {
+			report.IsValid = false
+			report.Issues = append(report.Issues, model.ValidationIssue{
+				ID:       "inverted_fork_range",
+				Field:    "fork_range",
+				Severity: model.SeverityError,
+				Title:    "Inverted Fork Range",
+				Message:  fmt.Sprintf("fork_range[0] static A2C (%.1fmm) must be <= fork_range[1] static A2C (%.1fmm).", minStatic, maxStatic),
+			})
+		} else {
+			checkWithin := func(name string, fref model.ForkRef) {
+				st := fref.StaticA2c()
+				if st > 0 && (st < minStatic-0.5 || st > maxStatic+0.5) {
+					report.IsValid = false
+					report.Issues = append(report.Issues, model.ValidationIssue{
+						ID:       name + "_outside_fork_range",
+						Field:    name,
+						Severity: model.SeverityError,
+						Title:    fmt.Sprintf("%s Outside Fork Range", name),
+						Message:  fmt.Sprintf("%s static A2C %.1fmm is outside allowed fork_range [%.1fmm, %.1fmm].", name, st, minStatic, maxStatic),
+					})
+				}
+			}
+			checkWithin("cad_fork", frame.CadFork)
+			checkWithin("default_fork", frame.DefaultFork)
+			if frame.RigidFork != nil {
+				checkWithin("rigid_fork", *frame.RigidFork)
+			}
+		}
+	}
+
+	sizes := frame.GetSizes()
+	if len(sizes) == 0 || len(frame.Geometries) == 0 {
+		report.IsValid = false
+		report.Issues = append(report.Issues, model.ValidationIssue{
+			ID:       "missing_geometries",
+			Severity: model.SeverityError,
+			Title:    "Missing Frame Geometries or Sizes",
+			Message:  "Frame must define at least one size in geometries.",
 		})
 		return report
 	}
@@ -566,215 +638,220 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 	if frame.HasAdjustableChainstay() {
 		minCs := frame.GetMinChainstay()
 		maxCs := frame.GetMaxChainstay()
-		for _, cfg := range frame.Configurations {
-			for sz, geo := range cfg.Geometries {
-				if geo.ChainstayLength > 0 {
-					if geo.ChainstayLength < minCs || geo.ChainstayLength > maxCs {
-						report.IsValid = false
-						report.Issues = append(report.Issues, model.ValidationIssue{
-							ID:       "chainstay_out_of_range",
-							Severity: model.SeverityError,
-							Title:    "Chainstay Outside Adjustable Range",
-							Message:  fmt.Sprintf("Published chainstay %.1fmm for size %s (%s) is outside legal range [%.1fmm, %.1fmm].", geo.ChainstayLength, sz, cfg.ID, minCs, maxCs),
-						})
-					}
+		for sz, geo := range frame.Geometries {
+			if geo.ChainstayLength > 0 {
+				if geo.ChainstayLength < minCs || geo.ChainstayLength > maxCs {
+					report.IsValid = false
+					report.Issues = append(report.Issues, model.ValidationIssue{
+						ID:       "chainstay_out_of_range",
+						Severity: model.SeverityError,
+						Title:    "Chainstay Outside Adjustable Range",
+						Message:  fmt.Sprintf("Published chainstay %.1fmm for size %s is outside legal range [%.1fmm, %.1fmm].", geo.ChainstayLength, sz, minCs, maxCs),
+					})
 				}
 			}
 		}
 	}
 
-	// Validate that all supported suspension travels resolve to plausible physical A2C across plausible sag ranges (0% to 30%)
-	for _, travelMm := range frame.SupportedTravelMm {
-		if travelMm <= 0 {
-			continue
-		}
-		var staticA2c float64
-		foundInConfig := false
-		for _, cfg := range frame.Configurations {
-			if math.Abs(cfg.Fork.TravelMm-travelMm) < 0.1 && cfg.Fork.A2c > 0 {
-				staticA2c = cfg.Fork.A2c
-				foundInConfig = true
-				break
-			}
-		}
-		if !foundInConfig {
-			staticA2c = travelMm + 410.0
-		}
-
-		minStatic := travelMm + 400.0
-		maxStatic := travelMm + 425.0
-		if staticA2c < minStatic || staticA2c > maxStatic {
+	for _, sz := range sizes {
+		bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+		if err != nil {
 			report.IsValid = false
 			report.Issues = append(report.Issues, model.ValidationIssue{
-				ID:       "implausible_supported_travel_a2c",
+				ID:       "materialize_error",
 				Severity: model.SeverityError,
-				Title:    fmt.Sprintf("Implausible Supported Fork Travel A2C (%.0fmm)", travelMm),
-				Message:  fmt.Sprintf("Supported travel %.0fmm resolves to static A2C %.1fmm, outside plausible 29er physical range [%.1fmm, %.1fmm].", travelMm, staticA2c, minStatic, maxStatic),
-				Expected: fmt.Sprintf("%.1f - %.1f mm", minStatic, maxStatic),
-				Actual:   fmt.Sprintf("%.1f mm", staticA2c),
+				Title:    fmt.Sprintf("Failed to Materialize Size %s", sz),
+				Message:  err.Error(),
 			})
 			continue
 		}
-
-		// Verify effective A2C across plausible sag range (0% to 30%)
-		for _, sagPct := range []float64{0, 20, 30} {
-			effA2c := geometry.Round(staticA2c-travelMm*(sagPct/100.0), 1)
-			minEff := travelMm*0.70 + 400.0
-			if effA2c < minEff || effA2c > maxStatic {
-				report.IsValid = false
-				report.Issues = append(report.Issues, model.ValidationIssue{
-					ID:       "implausible_supported_travel_a2c",
-					Severity: model.SeverityError,
-					Title:    fmt.Sprintf("Implausible Effective A2C for %.0fmm at %.0f%% Sag", travelMm, sagPct),
-					Message:  fmt.Sprintf("Supported travel %.0fmm at %.0f%% sag resolves to effective A2C %.1fmm (must be >= %.1fmm).", travelMm, sagPct, effA2c, minEff),
-					Expected: fmt.Sprintf(">= %.1f mm", minEff),
-					Actual:   fmt.Sprintf("%.1f mm", effA2c),
-				})
-				break
-			}
-		}
-	}
-
-	baseCfg := frame.GetBaselineConfiguration()
-	for _, cfg := range frame.Configurations {
-		for _, sz := range sizes {
-			bike, err := geometry.MaterializeBikeGeometry(frame, sz, cfg.ID)
-			if err != nil {
-				report.IsValid = false
-				report.Issues = append(report.Issues, model.ValidationIssue{
-					ID:       "materialize_error",
-					Severity: model.SeverityError,
-					Title:    fmt.Sprintf("Failed to Materialize Size %s (%s)", sz, cfg.ID),
-					Message:  err.Error(),
-				})
-				continue
-			}
-			valRep := ValidateBikeGeometry(bike)
-			key := sz
-			if baseCfg != nil && cfg.ID != baseCfg.ID {
-				key = fmt.Sprintf("%s@%s", sz, cfg.ID)
-			}
-			report.SizeReports[key] = valRep
-			if !valRep.IsValid {
-				report.IsValid = false
-			}
-		}
-	}
-
-	if len(frame.Configurations) > 1 && baseCfg != nil {
-		for _, cfg := range frame.Configurations {
-			if cfg.ID == baseCfg.ID {
-				continue
-			}
-			for _, sz := range sizes {
-				cc := ValidateCrossConfig(frame, sz, cfg.ID)
-				if cc != nil {
-					report.CrossConfigs = append(report.CrossConfigs, *cc)
-					if !cc.IsCoherent {
-						report.IsValid = false
-					}
-				}
-			}
+		valRep := ValidateBikeGeometry(bike)
+		report.SizeReports[sz] = valRep
+		if !valRep.IsValid {
+			report.IsValid = false
 		}
 	}
 
 	return report
 }
 
-// ValidateCrossConfig compares an alternate configuration's published geometry against the
-// baseline configuration's expected kinematic pitching.
-func ValidateCrossConfig(frame model.FrameModel, size string, comparedConfigID string) *model.CrossConfigValidation {
-	if size == "" {
-		size = frame.GetDefaultSize()
+// ValidateForkRef validates a ForkRef for required fields and invariant correctness against the catalog.
+func ValidateForkRef(frameID string, fieldName string, fref model.ForkRef) []model.ValidationIssue {
+	var issues []model.ValidationIssue
+
+	if fref.A2cMm <= 0 {
+		issues = append(issues, model.ValidationIssue{
+			ID:       "missing_" + fieldName + "_a2c",
+			Field:    fieldName + ".a2c_mm",
+			Severity: model.SeverityError,
+			Title:    fmt.Sprintf("Missing A2C in %s", fieldName),
+			Message:  fmt.Sprintf("%s must specify positive a2c_mm.", fieldName),
+		})
 	}
-	baseConfig := frame.GetBaselineConfiguration()
-	compConfig := frame.GetConfiguration(comparedConfigID)
-	if baseConfig == nil || compConfig == nil || baseConfig.ID == compConfig.ID {
-		return nil
-	}
-
-	geoSpacer := frame.GetGeoHeadsetSpacerMm()
-	deltaA2c := compConfig.Fork.A2c - baseConfig.Fork.A2c
-
-	baseGeo, hasBase := baseConfig.Geometries[size]
-	if !hasBase {
-		return nil
-	}
-
-	publishedGeo, hasPublished := compConfig.Geometries[size]
-	if !hasPublished || publishedGeo.Reach == 0 || publishedGeo.Stack == 0 {
-		return &model.CrossConfigValidation{
-			FrameModelID:     frame.ID,
-			Size:             size,
-			BaselineConfigID: baseConfig.ID,
-			ComparedConfigID: compConfig.ID,
-			BaselineA2c:      baseConfig.Fork.A2c,
-			ComparedA2c:      compConfig.Fork.A2c,
-			DeltaA2c:         deltaA2c,
-			IsCoherent:       true,
-			Message:          "Configuration is dynamically derived from baseline via kinematic rotation (no explicit manual overrides).",
-		}
-	}
-
-	baseStructural := baseConfig.Fork.A2c + geoSpacer
-	compStructural := compConfig.Fork.A2c + geoSpacer
-	dyn := geometry.CalculateDynamicGeometry(
-		baseGeo.Reach,
-		baseGeo.Stack,
-		baseGeo.HtaDeg,
-		baseGeo.StaDeg,
-		baseGeo.BbDrop,
-		baseStructural,
-		compStructural,
-		baseGeo.Wheelbase,
-		baseGeo.ChainstayLength,
-	)
-
-	var diffs []model.CrossConfigDiff
-	maxDisc := 0.0
-
-	checkMetric := func(name string, baseVal, pubVal, kinVal float64, isAngle bool) {
-		pubDiff := geometry.Round(pubVal-baseVal, 2)
-		kinDiff := geometry.Round(kinVal-baseVal, 2)
-		discrepancy := geometry.Round(pubVal-kinVal, 2)
-		absDisc := math.Abs(discrepancy)
-		if absDisc > maxDisc {
-			maxDisc = absDisc
-		}
-		diffs = append(diffs, model.CrossConfigDiff{
-			Metric:        name,
-			BaselineValue: baseVal,
-			ConfigValue:   pubVal,
-			PublishedDiff: pubDiff,
-			KinematicDiff: kinDiff,
-			Discrepancy:   discrepancy,
+	if fref.RakeMm <= 0 {
+		issues = append(issues, model.ValidationIssue{
+			ID:       "missing_" + fieldName + "_rake",
+			Field:    fieldName + ".rake_mm",
+			Severity: model.SeverityError,
+			Title:    fmt.Sprintf("Missing Rake in %s", fieldName),
+			Message:  fmt.Sprintf("%s must specify positive rake_mm.", fieldName),
 		})
 	}
 
-	checkMetric("Head Tube Angle (°)", baseGeo.HtaDeg, publishedGeo.HtaDeg, dyn.NewHta, true)
-	checkMetric("Seat Tube Angle (°)", baseGeo.StaDeg, publishedGeo.StaDeg, dyn.NewSta, true)
-	checkMetric("Reach (mm)", baseGeo.Reach, publishedGeo.Reach, dyn.NewReach, false)
-	checkMetric("Stack (mm)", baseGeo.Stack, publishedGeo.Stack, dyn.NewStack, false)
-	checkMetric("BB Drop (mm)", baseGeo.BbDrop, publishedGeo.BbDrop, dyn.NewBbDrop, false)
-
-	ccSlop := frame.GetGeoSlopMm().GetCrossConfig()
-	isCoherent := maxDisc <= ccSlop
-	message := "Published configuration is physically coherent with baseline frame rotation."
-	if !isCoherent {
-		message = fmt.Sprintf("CAD discrepancy detected (max delta: %.1f > %.1fmm tolerance): published numbers deviate from kinematic 2D rotation.", maxDisc, ccSlop)
+	if fref.Fork == "" {
+		suggestions := catalog.FindForkSuggestions(fref.A2cMm, fref.RakeMm)
+		var msg string
+		if len(suggestions) > 0 {
+			var lines []string
+			for _, s := range suggestions {
+				if s.SagPct != nil {
+					lines = append(lines, fmt.Sprintf("  - fork: %q, sag_pct: %.1f (static A2C: %.1fmm, rake: %.1fmm, %s)", s.ForkID, *s.SagPct, s.StaticA2c, s.Rake, s.ForkName))
+				} else {
+					lines = append(lines, fmt.Sprintf("  - fork: %q (rigid A2C: %.1fmm, rake: %.1fmm, %s)", s.ForkID, s.StaticA2c, s.Rake, s.ForkName))
+				}
+			}
+			msg = fmt.Sprintf("%s is missing 'fork' catalog ID. Matching catalog options for A2C=%.1fmm, Rake=%.1fmm:\n%s", fieldName, fref.A2cMm, fref.RakeMm, strings.Join(lines, "\n"))
+		} else {
+			msg = fmt.Sprintf("%s is missing 'fork' catalog ID. No catalog forks match A2C=%.1fmm and Rake=%.1fmm.", fieldName, fref.A2cMm, fref.RakeMm)
+		}
+		issues = append(issues, model.ValidationIssue{
+			ID:       "missing_" + fieldName + "_fork",
+			Field:    fieldName + ".fork",
+			Severity: model.SeverityError,
+			Title:    fmt.Sprintf("Missing Fork ID in %s", fieldName),
+			Message:  msg,
+		})
+		return issues
 	}
 
-	return &model.CrossConfigValidation{
-		FrameModelID:     frame.ID,
-		Size:             size,
-		BaselineConfigID: baseConfig.ID,
-		ComparedConfigID: compConfig.ID,
-		BaselineA2c:      baseConfig.Fork.A2c,
-		ComparedA2c:      compConfig.Fork.A2c,
-		DeltaA2c:         deltaA2c,
-		IsCoherent:       isCoherent,
-		MaxDiscrepancy:   maxDisc,
-		Diffs:            diffs,
-		Message:          message,
+	entry, found := catalog.GetCatalogFork(fref.Fork)
+	if !found {
+		issues = append(issues, model.ValidationIssue{
+			ID:       "unknown_" + fieldName + "_fork",
+			Field:    fieldName + ".fork",
+			Severity: model.SeverityError,
+			Title:    fmt.Sprintf("Unknown Fork ID in %s", fieldName),
+			Message:  fmt.Sprintf("Fork %q in %s is not defined in data/forks.json.", fref.Fork, fieldName),
+		})
+		return issues
 	}
+
+	if entry.TravelMm == 0 {
+		// Rigid fork
+		if fref.SagPct != nil && *fref.SagPct != 0 {
+			issues = append(issues, model.ValidationIssue{
+				ID:       "invalid_" + fieldName + "_sag",
+				Field:    fieldName + ".sag_pct",
+				Severity: model.SeverityError,
+				Title:    fmt.Sprintf("Invalid Sag on Rigid Fork in %s", fieldName),
+				Message:  fmt.Sprintf("Rigid fork %q cannot have sag_pct (got %.1f%%).", fref.Fork, *fref.SagPct),
+			})
+		}
+		matched := false
+		for _, opt := range entry.Options {
+			if math.Abs(opt.A2cMm-fref.A2cMm) <= 0.5 && math.Abs(opt.RakeMm-fref.RakeMm) <= 0.5 {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			issues = append(issues, model.ValidationIssue{
+				ID:       "invalid_" + fieldName + "_geometry",
+				Field:    fieldName,
+				Severity: model.SeverityError,
+				Title:    fmt.Sprintf("Fork Geometry Mismatch in %s", fieldName),
+				Message:  fmt.Sprintf("Rigid fork %q does not offer option with A2C=%.1fmm and Rake=%.1fmm.", fref.Fork, fref.A2cMm, fref.RakeMm),
+			})
+		}
+	} else {
+		// Suspension fork
+		if fref.SagPct == nil {
+			if strings.HasPrefix(fieldName, "fork_range") {
+				// Fork range bounds represent static fork travel limits (0% sag)
+				matchedStatic := false
+				for _, opt := range entry.Options {
+					if math.Abs(opt.RakeMm-fref.RakeMm) <= 0.5 && math.Abs(opt.A2cMm-fref.A2cMm) <= 0.5 {
+						matchedStatic = true
+						break
+					}
+				}
+				if matchedStatic {
+					return issues
+				}
+			}
+			var candSags []string
+			for _, opt := range entry.Options {
+				if math.Abs(opt.RakeMm-fref.RakeMm) <= 0.5 {
+					diff := opt.A2cMm - fref.A2cMm
+					if diff >= 0 && diff <= entry.TravelMm*0.45 {
+						cand := geometry.Round((diff/entry.TravelMm)*100.0, 1)
+						candSags = append(candSags, fmt.Sprintf("sag_pct: %.1f%% (static A2C: %.1fmm)", cand, opt.A2cMm))
+					}
+				}
+			}
+			msg := fmt.Sprintf("Suspension fork %q in %s requires 'sag_pct'.", fref.Fork, fieldName)
+			if len(candSags) > 0 {
+				msg += fmt.Sprintf(" Matching sag for A2C=%.1fmm: %s", fref.A2cMm, strings.Join(candSags, ", "))
+			}
+			issues = append(issues, model.ValidationIssue{
+				ID:       "missing_" + fieldName + "_sag_pct",
+				Field:    fieldName + ".sag_pct",
+				Severity: model.SeverityError,
+				Title:    fmt.Sprintf("Missing Sag Percentage in %s", fieldName),
+				Message:  msg,
+			})
+		} else {
+			if *fref.SagPct < 0 || *fref.SagPct > 45 {
+				issues = append(issues, model.ValidationIssue{
+					ID:       "invalid_" + fieldName + "_sag_pct",
+					Field:    fieldName + ".sag_pct",
+					Severity: model.SeverityError,
+					Title:    fmt.Sprintf("Invalid Sag Percentage in %s", fieldName),
+					Message:  fmt.Sprintf("Sag percentage %.1f%% is outside plausible range [0%%, 45%%].", *fref.SagPct),
+				})
+			}
+			hasRake := false
+			var allowedRakes []string
+			for _, opt := range entry.Options {
+				allowedRakes = append(allowedRakes, fmt.Sprintf("%.0fmm", opt.RakeMm))
+				if math.Abs(opt.RakeMm-fref.RakeMm) <= 0.5 {
+					hasRake = true
+				}
+			}
+			if !hasRake {
+				issues = append(issues, model.ValidationIssue{
+					ID:       "unsupported_" + fieldName + "_rake",
+					Field:    fieldName + ".rake_mm",
+					Severity: model.SeverityError,
+					Title:    fmt.Sprintf("Unsupported Rake in %s", fieldName),
+					Message:  fmt.Sprintf("Fork %q does not support rake %.1fmm (available: %s).", fref.Fork, fref.RakeMm, strings.Join(allowedRakes, ", ")),
+				})
+				return issues
+			}
+
+			matched := false
+			var candA2cs []string
+			for _, opt := range entry.Options {
+				if math.Abs(opt.RakeMm-fref.RakeMm) <= 0.5 {
+					expectedA2c := opt.A2cMm - entry.TravelMm*(*fref.SagPct/100.0)
+					candA2cs = append(candA2cs, fmt.Sprintf("%.1fmm", expectedA2c))
+					if math.Abs(expectedA2c-fref.A2cMm) <= 0.5 {
+						matched = true
+						break
+					}
+				}
+			}
+			if !matched {
+				issues = append(issues, model.ValidationIssue{
+					ID:       "invalid_" + fieldName + "_invariant",
+					Field:    fieldName,
+					Severity: model.SeverityError,
+					Title:    fmt.Sprintf("Fork Invariant Violated in %s", fieldName),
+					Message:  fmt.Sprintf("Fork %q A2C=%.1fmm at %.1f%% sag does not match expected A2C (%s).", fref.Fork, fref.A2cMm, *fref.SagPct, strings.Join(candA2cs, ", ")),
+				})
+			}
+		}
+	}
+
+	return issues
 }

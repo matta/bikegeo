@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/validator"
@@ -39,20 +40,12 @@ type FitResult struct {
 // AnalyzeFit computes the minimax best-fit structural A2C, implied spacer, implied static fork A2C,
 // per-size residuals, and minimum passing slop tolerances.
 func AnalyzeFit(frame model.FrameModel, configID string) (*FitResult, error) {
-	residuals, err := validator.SizeResiduals(frame, configID)
+	residuals, err := validator.SizeResiduals(frame)
 	if err != nil {
 		return nil, err
 	}
 	if len(residuals) == 0 {
 		return nil, fmt.Errorf("no sizes found for frame %s", frame.ID)
-	}
-
-	targetCfg := frame.GetConfiguration(configID)
-	if targetCfg == nil {
-		targetCfg = frame.GetBaselineConfiguration()
-	}
-	if targetCfg == nil {
-		return nil, fmt.Errorf("configuration %q not found on frame %s", configID, frame.ID)
 	}
 
 	minStruct := math.Inf(1)
@@ -105,16 +98,16 @@ func AnalyzeFit(frame model.FrameModel, configID string) (*FitResult, error) {
 		residuals[i].DeltaVsBest = geometry.Round(residuals[i].ImpliedStructuralA2c-bestFit, 2)
 	}
 
-	statedForkA2c := targetCfg.Fork.A2c
-	if statedForkA2c <= 0 && targetCfg.Fork.TravelMm > 0 {
-		statedForkA2c = targetCfg.Fork.TravelMm + 412.0
+	effectiveForkA2c := frame.CadFork.A2cMm
+	statedForkA2c := frame.CadFork.StaticA2c()
+	if statedForkA2c <= 0 {
+		statedForkA2c = effectiveForkA2c
 	}
-
-	sagComp := 0.0
-	if targetCfg.SagPercentagePublished > 0 && targetCfg.Fork.TravelMm > 0 {
-		sagComp = targetCfg.Fork.TravelMm * (targetCfg.SagPercentagePublished / 100.0)
+	sagPct := 0.0
+	if frame.CadFork.SagPct != nil {
+		sagPct = *frame.CadFork.SagPct
 	}
-	effectiveForkA2c := statedForkA2c - sagComp
+	sagComp := statedForkA2c - effectiveForkA2c
 
 	declaredSpacer := frame.GetGeoHeadsetSpacerMm()
 	impliedSpacer := geometry.Round(bestFit-effectiveForkA2c, 2)
@@ -124,7 +117,7 @@ func AnalyzeFit(frame model.FrameModel, configID string) (*FitResult, error) {
 
 	return &FitResult{
 		Frame:                 frame,
-		ConfigID:              targetCfg.ID,
+		ConfigID:              configID,
 		Residuals:             residuals,
 		BestFitStructuralA2c:  bestFit,
 		MeanStructuralA2c:     mean,
@@ -133,8 +126,8 @@ func AnalyzeFit(frame model.FrameModel, configID string) (*FitResult, error) {
 		ImpliedStaticForkA2c:  impliedStaticForkA2c,
 		DeclaredSpacerMm:      declaredSpacer,
 		DeclaredStaticForkA2c: statedForkA2c,
-		DeclaredRake:          targetCfg.Fork.Rake,
-		DeclaredSagPct:        targetCfg.SagPercentagePublished,
+		DeclaredRake:          frame.CadFork.RakeMm,
+		DeclaredSagPct:        sagPct,
 		MinPassingSlopA2c:     geometry.Round(maxAbsDeltaA2c, 1),
 		MinPassingSlopFc:      geometry.Round(maxAbsDeltaFc, 1),
 		MinPassingSlopWb:      geometry.Round(maxAbsDeltaWb, 1),
@@ -165,17 +158,6 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 	key := strings.TrimSpace(parts[0])
 	val := strings.TrimSpace(parts[1])
 
-	targetCfg := frame.GetConfiguration(targetConfigID)
-	if targetCfg == nil {
-		targetCfg = frame.GetBaselineConfiguration()
-	}
-	if targetCfg == nil {
-		return fmt.Errorf("configuration %q not found on frame %s", targetConfigID, frame.ID)
-	}
-	if targetCfg.Geometries == nil {
-		targetCfg.Geometries = make(map[string]model.SizeGeometry)
-	}
-
 	parseFloat := func() (float64, error) {
 		v, err := strconv.ParseFloat(val, 64)
 		if err != nil {
@@ -198,9 +180,9 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		targetSize = matched
 	} else if dotIdx := strings.Index(key, "."); dotIdx != -1 {
 		prefix := strings.TrimSpace(key[:dotIdx])
-		// Only treat as size prefix if prefix is NOT a known domain group (fork, slop, geo_slop_mm)
+		// Only treat as size prefix if prefix is NOT a known domain group (fork, cad_fork, default_fork, slop, geo_slop_mm)
 		lowerPrefix := strings.ToLower(prefix)
-		if lowerPrefix != "fork" && lowerPrefix != "slop" && lowerPrefix != "geo_slop_mm" {
+		if lowerPrefix != "fork" && lowerPrefix != "cad_fork" && lowerPrefix != "default_fork" && lowerPrefix != "slop" && lowerPrefix != "geo_slop_mm" {
 			matched := matchSize(frame.GetSizes(), prefix)
 			if matched != "" {
 				targetSize = matched
@@ -218,43 +200,65 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 
 	normField := strings.ToLower(strings.TrimSpace(fieldKey))
 
-	// 1. Fork & Build Attributes (applies to target configuration)
+	// 1. Fork & Build Attributes
 	switch normField {
-	case "fork.a2c", "fork_a2c", "fork.axle_to_crown":
+	case "cad_fork.a2c", "cad_fork.a2c_mm", "fork.a2c", "fork_a2c", "fork.axle_to_crown", "a2c":
 		v, err := parseFloat()
 		if err != nil || v <= 0 {
 			return fmt.Errorf("fork A2C must be a positive number")
 		}
-		targetCfg.Fork.A2c = v
+		frame.CadFork.A2cMm = v
 		return nil
 
-	case "fork.rake", "fork_rake", "fork.offset":
+	case "cad_fork.rake", "cad_fork.rake_mm", "fork.rake", "fork_rake", "fork.offset", "rake":
 		v, err := parseFloat()
 		if err != nil || v <= 0 {
 			return fmt.Errorf("fork rake must be a positive number")
 		}
-		targetCfg.Fork.Rake = v
+		frame.CadFork.RakeMm = v
 		return nil
 
-	case "fork.travel_mm", "fork.travel", "fork_travel", "travel":
-		v, err := parseFloat()
-		if err != nil || v < 0 {
-			return fmt.Errorf("fork travel must be non-negative")
-		}
-		targetCfg.Fork.TravelMm = v
-		return nil
-
-	case "sag", "sag_percent", "sag_percentage_published", "fork.sag":
+	case "cad_fork.sag", "sag", "sag_percent", "sag_percentage_published", "fork.sag":
 		v, err := parseFloat()
 		if err != nil || v < 0 || v > 50 {
 			return fmt.Errorf("sag percentage must be between 0 and 50")
 		}
-		targetCfg.SagPercentagePublished = v
+		frame.CadFork.SagPct = model.Float64Ptr(v)
 		return nil
-	}
+
+	case "cad_fork.fork", "fork":
+		frame.CadFork.Fork = val
+		return nil
+
+	case "default_fork.a2c", "default_fork.a2c_mm":
+		v, err := parseFloat()
+		if err != nil || v <= 0 {
+			return fmt.Errorf("default_fork A2C must be a positive number")
+		}
+		frame.DefaultFork.A2cMm = v
+		return nil
+
+	case "default_fork.rake", "default_fork.rake_mm":
+		v, err := parseFloat()
+		if err != nil || v <= 0 {
+			return fmt.Errorf("default_fork rake must be a positive number")
+		}
+		frame.DefaultFork.RakeMm = v
+		return nil
+
+	case "default_fork.sag":
+		v, err := parseFloat()
+		if err != nil || v < 0 || v > 50 {
+			return fmt.Errorf("default_fork sag must be between 0 and 50")
+		}
+		frame.DefaultFork.SagPct = model.Float64Ptr(v)
+		return nil
+
+	case "default_fork.fork", "default_fork":
+		frame.DefaultFork.Fork = val
+		return nil
 
 	// 2. Frame-Level Hardware & Metadata Attributes
-	switch normField {
 	case "manufacturer":
 		frame.Manufacturer = val
 		return nil
@@ -273,9 +277,6 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		return nil
 	case "wheel_size":
 		frame.WheelSize = val
-		return nil
-	case "default_fork":
-		frame.DefaultFork = val
 		return nil
 	case "default_size":
 		frame.DefaultSize = val
@@ -362,29 +363,22 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if err != nil || v < 0 {
 			return fmt.Errorf("rigid_a2c_mm must be non-negative")
 		}
-		frame.RigidA2cMm = v
-		return nil
-	case "supported_travel_mm", "supported_travel":
-		var travels []float64
-		if val != "" && val != "none" && val != "0" {
-			for _, p := range strings.Split(val, ",") {
-				v, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(p), "mm"), 64)
-				if err != nil || v <= 0 {
-					return fmt.Errorf("invalid travel value %q", p)
-				}
-				travels = append(travels, v)
-			}
+		if frame.RigidFork == nil {
+			frame.RigidFork = &model.ForkRef{}
 		}
-		frame.SupportedTravelMm = travels
+		frame.RigidFork.A2cMm = v
 		return nil
 	}
 
 	// 3. Size-Specific Geometry Attributes
+	if frame.Geometries == nil {
+		frame.Geometries = make(map[string]model.SizeGeometry)
+	}
 	matchedSz := matchSize(frame.GetSizes(), targetSize)
 	if matchedSz == "" {
 		return fmt.Errorf("no target size specified or found for geometry field %q (available: %s)", normField, strings.Join(frame.GetSizes(), ", "))
 	}
-	geo := targetCfg.Geometries[matchedSz]
+	geo := frame.Geometries[matchedSz]
 
 	switch normField {
 	case "reach":
@@ -457,7 +451,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		return fmt.Errorf("unknown field %q", normField)
 	}
 
-	targetCfg.Geometries[matchedSz] = geo
+	frame.Geometries[matchedSz] = geo
 	return nil
 }
 
@@ -623,21 +617,13 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 	}
 	targetA2c := baseFit.BestFitStructuralA2c
 
-	targetCfg := frame.GetConfiguration(configID)
-	if targetCfg == nil {
-		targetCfg = frame.GetBaselineConfiguration()
-	}
-
 	// 1. Candidate Travels
 	travelSet := make(map[float64]bool)
-	for _, t := range frame.GetSupportedTravels() {
-		travelSet[t] = true
-	}
 	for _, t := range []float64{0, 100, 110, 120, 130, 140, 150} {
 		travelSet[t] = true
 	}
-	if targetCfg != nil {
-		travelSet[targetCfg.Fork.TravelMm] = true
+	if tr := frame.CadFork.ForkTravel(); tr > 0 {
+		travelSet[tr] = true
 	}
 
 	// 2. Candidate Rakes: declared rake, 44, 51, 55 mm
@@ -645,8 +631,8 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 	rakeSet[44.0] = true
 	rakeSet[51.0] = true
 	rakeSet[55.0] = true
-	if targetCfg != nil && targetCfg.Fork.Rake > 0 {
-		rakeSet[targetCfg.Fork.Rake] = true
+	if frame.CadFork.RakeMm > 0 {
+		rakeSet[frame.CadFork.RakeMm] = true
 	}
 	var rakes []float64
 	for r := range rakeSet {
@@ -690,19 +676,19 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 		for _, sag := range sags {
 			var staticA2cs []float64
 			if travel == 0 {
-				if frame.RigidA2cMm > 0 {
-					staticA2cs = append(staticA2cs, frame.RigidA2cMm)
+				if frame.RigidFork != nil {
+					staticA2cs = append(staticA2cs, frame.RigidFork.A2cMm)
 				}
-				if targetCfg != nil && targetCfg.Fork.A2c > 0 {
-					staticA2cs = append(staticA2cs, targetCfg.Fork.A2c)
+				if frame.CadFork.A2cMm > 0 {
+					staticA2cs = append(staticA2cs, frame.CadFork.A2cMm)
 				}
 				for _, a := range []float64{440, 470, 480, 483, 485, 490, 495, 500, 510} {
 					staticA2cs = append(staticA2cs, a)
 				}
 			} else {
 				staticA2cs = []float64{travel + 406, travel + 410, travel + 412, travel + 420}
-				if targetCfg != nil && math.Abs(targetCfg.Fork.TravelMm-travel) < 0.1 && targetCfg.Fork.A2c > 0 {
-					staticA2cs = append(staticA2cs, targetCfg.Fork.A2c)
+				if frame.CadFork.StaticA2c() > 0 {
+					staticA2cs = append(staticA2cs, frame.CadFork.StaticA2c())
 				}
 			}
 
@@ -738,16 +724,17 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 	for _, fc := range forkCombos {
 		for _, rake := range rakes {
 			var assigns []string
+			assigns = append(assigns, fmt.Sprintf("cad_fork.a2c=%.0f", fc.effA2c))
+			assigns = append(assigns, fmt.Sprintf("cad_fork.rake=%.0f", rake))
 			if fc.travel > 0 {
-				assigns = append(assigns, fmt.Sprintf("travel=%.0f", fc.travel))
-				assigns = append(assigns, fmt.Sprintf("sag=%.0f", fc.sag))
-			} else {
-				assigns = append(assigns, "travel=0")
-				assigns = append(assigns, "sag=0")
+				assigns = append(assigns, fmt.Sprintf("cad_fork.sag=%.0f", fc.sag))
 			}
-			assigns = append(assigns, fmt.Sprintf("fork.a2c=%.0f", fc.staticA2c))
-			assigns = append(assigns, fmt.Sprintf("fork.rake=%.0f", rake))
 			assigns = append(assigns, fmt.Sprintf("spacer=%.0f", fc.spacer))
+
+			suggs := catalog.FindForkSuggestions(fc.effA2c, rake)
+			if len(suggs) > 0 {
+				assigns = append(assigns, fmt.Sprintf("cad_fork.fork=%s", suggs[0].ForkID))
+			}
 
 			desc := strings.Join(assigns, " ")
 			if seenCombos[desc] {

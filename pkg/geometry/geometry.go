@@ -382,6 +382,7 @@ func CalculateWeightDistribution(
 func AnalyzeBikeFit(
 	bike model.BikeGeometry,
 	targetA2c *float64,
+	targetRake *float64,
 	profile model.RiderProfile,
 ) (model.BikeFitAnalysis, error) {
 	if profile.SaddleHeightMm <= 0 {
@@ -464,8 +465,9 @@ func AnalyzeBikeFit(
 
 	// 4. Infer CAD publish mode
 	inferredPublishMode := "Unspecified"
-	if bike.ForkA2c > 0 {
-		diff := bike.ForkA2c - baseForkA2c
+	cadA2c := bike.GetCadA2c()
+	if cadA2c > 0 {
+		diff := cadA2c - baseForkA2c
 		a2cSlop := bike.GetGeoSlopMm().GetA2c()
 		if math.Abs(diff) <= a2cSlop {
 			inferredPublishMode = "Static Fork (0% Sag CAD)"
@@ -498,8 +500,11 @@ func AnalyzeBikeFit(
 		htl = 120.0
 	}
 	rake := bike.ForkRake
+	if targetRake != nil {
+		rake = *targetRake
+	}
 	if rake <= 0 {
-		rake = 44.0
+		return model.BikeFitAnalysis{}, fmt.Errorf("fork rake must be positive, got %.1fmm", rake)
 	}
 
 	weightDist := CalculateWeightDistribution(
@@ -542,125 +547,56 @@ func AnalyzeBikeFit(
 	}, nil
 }
 
-// MaterializeBikeGeometry projects a FrameModel for a given size and configuration into a BikeGeometry instance.
-// If the target configuration has explicit published geometry for the size, it is used directly.
-// If explicit values are missing, it derives them dynamically by pitching the baseline geometry around the rear axle.
-func MaterializeBikeGeometry(frame model.FrameModel, size string, configID string) (model.BikeGeometry, error) {
+// MaterializeBikeGeometry projects a FrameModel for a given size into a BikeGeometry instance.
+func MaterializeBikeGeometry(frame model.FrameModel, size string) (model.BikeGeometry, error) {
 	if size == "" {
 		size = frame.GetDefaultSize()
 	}
 
-	targetConfig := frame.GetConfiguration(configID)
-	if targetConfig == nil {
-		targetConfig = frame.GetBaselineConfiguration()
+	geo, ok := frame.GetSizeGeometry(size)
+	if !ok {
+		return model.BikeGeometry{}, fmt.Errorf("size %s not defined in frame %s", size, frame.ID)
 	}
-	if targetConfig == nil {
-		return model.BikeGeometry{}, fmt.Errorf("frame %s has no configurations", frame.ID)
-	}
-
-	geoSpacer := frame.GetGeoHeadsetSpacerMm()
 
 	bikeID := frame.ID
 	if !strings.HasSuffix(strings.ToLower(bikeID), "-"+strings.ToLower(size)) {
 		bikeID = fmt.Sprintf("%s-%s", frame.ID, strings.ToLower(size))
 	}
-	if !targetConfig.IsBaseline && targetConfig.ID != "" && targetConfig.ID != "stock" {
-		bikeID = fmt.Sprintf("%s-%s", bikeID, targetConfig.ID)
+
+	cadA2c := frame.CadFork.A2cMm
+	cadRake := frame.CadFork.RakeMm
+	if cadRake <= 0 {
+		cadRake = 44.0
 	}
 
-	res := model.BikeGeometry{
-		ID:                     bikeID,
-		Manufacturer:           frame.Manufacturer,
-		Model:                  frame.Model,
-		Size:                   size,
-		Year:                   frame.Year,
-		Category:               frame.Category,
-		Notes:                  frame.Notes,
-		WheelSize:              frame.WheelSize,
-		HeadsetCupType:         frame.HeadsetCupType,
-		GeoHeadsetSpacerMm:     frame.GeoHeadsetSpacerMm,
-		GeoSlopMm:              frame.GeoSlopMm,
-		ActualStaDeg:           frame.ActualStaDeg,
-		SeatTubeOffsetXMm:      frame.SeatTubeOffsetXMm,
-		Fork:                   targetConfig.Fork,
-		ForkTravelMm:           targetConfig.Fork.TravelMm,
-		ForkA2c:                targetConfig.Fork.A2c,
-		ForkRake:               targetConfig.Fork.Rake,
-		SagPercentagePublished: targetConfig.SagPercentagePublished,
-		ChainstayRangeMm:       frame.ChainstayRangeMm,
-	}
-
-	// 1. Direct explicit geometry match
-	if targetConfig.Geometries != nil {
-		if geo, ok := targetConfig.Geometries[size]; ok && geo.Reach > 0 && geo.Stack > 0 {
-			res.Reach = geo.Reach
-			res.Stack = geo.Stack
-			res.HtaDeg = geo.HtaDeg
-			res.StaDeg = geo.StaDeg
-			res.Htl = geo.Htl
-			res.BbDrop = geo.BbDrop
-			res.Wheelbase = geo.Wheelbase
-			res.ChainstayLength = geo.ChainstayLength
-			res.FrontCenter = geo.FrontCenter
-			res.SeatTubeLength = geo.SeatTubeLength
-			res.StandoverHeight = geo.StandoverHeight
-			return res, nil
-		}
-	}
-
-	// 2. Kinematic derivation from baseline configuration
-	baseConfig := frame.GetBaselineConfiguration()
-	if baseConfig == nil {
-		return res, fmt.Errorf("baseline configuration missing for frame %s", frame.ID)
-	}
-
-	var baseGeo model.SizeGeometry
-	var foundBase bool
-	if baseConfig.Geometries != nil {
-		baseGeo, foundBase = baseConfig.Geometries[size]
-	}
-	if !foundBase {
-		// Fallback: search any other config for this size
-		for _, cfg := range frame.Configurations {
-			if cfg.Geometries != nil {
-				if g, ok := cfg.Geometries[size]; ok && g.Reach > 0 {
-					baseGeo = g
-					foundBase = true
-					break
-				}
-			}
-		}
-	}
-	if !foundBase {
-		return res, fmt.Errorf("size %s not defined in frame %s", size, frame.ID)
-	}
-
-	baseStructuralA2c := baseConfig.Fork.A2c + geoSpacer
-	targetStructuralA2c := targetConfig.Fork.A2c + geoSpacer
-
-	dyn := CalculateDynamicGeometry(
-		baseGeo.Reach,
-		baseGeo.Stack,
-		baseGeo.HtaDeg,
-		baseGeo.StaDeg,
-		baseGeo.BbDrop,
-		baseStructuralA2c,
-		targetStructuralA2c,
-		baseGeo.Wheelbase,
-		baseGeo.ChainstayLength,
-	)
-
-	res.Reach = dyn.NewReach
-	res.Stack = dyn.NewStack
-	res.HtaDeg = dyn.NewHta
-	res.StaDeg = dyn.NewSta
-	res.Htl = baseGeo.Htl
-	res.BbDrop = dyn.NewBbDrop
-	res.Wheelbase = baseGeo.Wheelbase
-	res.ChainstayLength = baseGeo.ChainstayLength
-	res.FrontCenter = baseGeo.FrontCenter
-	res.SeatTubeLength = baseGeo.SeatTubeLength
-	res.StandoverHeight = baseGeo.StandoverHeight
-
-	return res, nil
+	return model.BikeGeometry{
+		ID:                 bikeID,
+		Manufacturer:       frame.Manufacturer,
+		Model:              frame.Model,
+		Size:               size,
+		Year:               frame.Year,
+		Category:           frame.Category,
+		Notes:              frame.Notes,
+		WheelSize:          frame.WheelSize,
+		HeadsetCupType:     frame.HeadsetCupType,
+		GeoHeadsetSpacerMm: frame.GeoHeadsetSpacerMm,
+		GeoSlopMm:          frame.GeoSlopMm,
+		ActualStaDeg:       frame.ActualStaDeg,
+		SeatTubeOffsetXMm:  frame.SeatTubeOffsetXMm,
+		CadFork:            frame.CadFork,
+		ForkA2c:            cadA2c,
+		ForkRake:           cadRake,
+		Reach:              geo.Reach,
+		Stack:              geo.Stack,
+		HtaDeg:             geo.HtaDeg,
+		StaDeg:             geo.StaDeg,
+		Htl:                geo.Htl,
+		BbDrop:             geo.BbDrop,
+		Wheelbase:          geo.Wheelbase,
+		ChainstayLength:    geo.ChainstayLength,
+		FrontCenter:        geo.FrontCenter,
+		SeatTubeLength:     geo.SeatTubeLength,
+		StandoverHeight:    geo.StandoverHeight,
+		ChainstayRangeMm:   frame.ChainstayRangeMm,
+	}, nil
 }

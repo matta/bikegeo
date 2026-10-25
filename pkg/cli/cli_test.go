@@ -89,10 +89,12 @@ func TestCompare_SameFrameDifferentSagsAndRigid(t *testing.T) {
 		t.Errorf("Expected 30%% sag reach (%.1f) > 20%% sag reach (%.1f)",
 			result.Columns[1].Canonical.ActiveReach, result.Columns[0].Canonical.ActiveReach)
 	}
-	// Column 3: rigid -> 485.0mm A2C, 0% sag
-	if result.Columns[2].EffectiveA2c != 485.0 || result.Columns[2].SagPercent != 0 {
-		t.Errorf("Col 2 expected rigid 485.0mm @ 0%% sag, got %.1fmm @ %.0f%%",
-			result.Columns[2].EffectiveA2c, result.Columns[2].SagPercent)
+	// Column 3: rigid -> 485.0mm A2C
+	if result.Columns[2].EffectiveA2c != 485.0 {
+		t.Errorf("Col 2 expected rigid 485.0mm, got %.1fmm", result.Columns[2].EffectiveA2c)
+	}
+	if !strings.Contains(strings.ToLower(result.Columns[2].DisplayLabel), "rigid") {
+		t.Errorf("Col 2 expected rigid in display label, got %s", result.Columns[2].DisplayLabel)
 	}
 
 	// Verify ActualSetback is computed and present in both Baseline and Canonical
@@ -722,8 +724,8 @@ func TestCompare_AllSizesExpansion(t *testing.T) {
 		if col.Setup.FrameID != "seven-expedition-926f" {
 			t.Errorf("Col %d expected FrameID 'seven-expedition-926f', got %q", i, col.Setup.FrameID)
 		}
-		if col.SetupFork.TravelMm != 120 {
-			t.Errorf("Col %d expected 120mm fork travel, got %.0fmm", i, col.SetupFork.TravelMm)
+		if col.EffectiveA2c <= 0 || !strings.Contains(col.DisplayLabel, "120mm") {
+			t.Errorf("Col %d expected 120mm fork in display label, got %s", i, col.DisplayLabel)
 		}
 	}
 
@@ -799,8 +801,8 @@ func TestCompare_AllSizesExpansion(t *testing.T) {
 	}
 	// El Jefe default fork is 120mm travel
 	for i, col := range defForkResult.Columns {
-		if col.SetupFork.TravelMm != 120 {
-			t.Errorf("Col %d expected default fork 120mm, got %.0fmm", i, col.SetupFork.TravelMm)
+		if col.EffectiveA2c <= 0 || !strings.Contains(col.DisplayLabel, "120mm") {
+			t.Errorf("Col %d expected default fork 120mm in display label, got %s", i, col.DisplayLabel)
 		}
 	}
 }

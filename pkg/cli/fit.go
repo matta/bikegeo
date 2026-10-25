@@ -68,9 +68,7 @@ func (a *App) runFit(args []string) int {
 
 	configID := configFlag
 	if configID == "" {
-		if base := frame.GetBaselineConfiguration(); base != nil {
-			configID = base.ID
-		}
+		configID = "stock"
 	}
 
 	normFormat, _ := NormalizeFormat(a.Format)
@@ -164,29 +162,20 @@ func (a *App) runFit(args []string) int {
 		return 0
 	}
 
-	cfg := frame.GetConfiguration(configID)
-	cfgName := configID
-	forkDesc := "unspecified fork"
-	if cfg != nil {
-		if cfg.Name != "" {
-			cfgName = cfg.Name
-		}
-		if cfg.Fork.TravelMm == 0 {
-			forkDesc = fmt.Sprintf("rigid %.0f mm, rake %.0f mm", cfg.Fork.A2c, cfg.Fork.Rake)
-		} else {
-			forkDesc = fmt.Sprintf("%.0f mm travel (%.0f mm A2C, rake %.0f mm)", cfg.Fork.TravelMm, cfg.Fork.A2c, cfg.Fork.Rake)
-		}
+	forkDesc := fmt.Sprintf("A2C %.0f mm, rake %.0f mm", frame.CadFork.A2cMm, frame.CadFork.RakeMm)
+	if frame.CadFork.Fork != "" {
+		forkDesc = fmt.Sprintf("%s (%s)", frame.CadFork.Fork, forkDesc)
 	}
 
 	spacerVal := frame.GetGeoHeadsetSpacerMm()
 	sagVal := 0.0
-	if cfg != nil {
-		sagVal = cfg.SagPercentagePublished
+	if frame.CadFork.SagPct != nil {
+		sagVal = *frame.CadFork.SagPct
 	}
 
 	title := fmt.Sprintf(
-		"%s %s — configuration %q (%s, spacer %.1f mm, sag %.0f%%)",
-		frame.Manufacturer, frame.Model, cfgName, forkDesc, spacerVal, sagVal,
+		"%s %s — CAD Fork (%s, spacer %.1f mm, sag %.0f%%)",
+		frame.Manufacturer, frame.Model, forkDesc, spacerVal, sagVal,
 	)
 
 	a.renderResidualsTable(title, fitRes)
