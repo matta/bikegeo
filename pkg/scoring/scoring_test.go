@@ -180,22 +180,22 @@ func TestDefaultCriteriaCurves(t *testing.T) {
 		t.Errorf("SpareVert(160) expected -100, got %f", sv.Eval(160))
 	}
 
-	// 4. Chainstay
-	cs := critMap["chainstay"].Curve
-	if cs.Eval(380) != -100 {
-		t.Errorf("Chainstay(380) expected -100, got %f", cs.Eval(380))
+	// 4. Seat-RC
+	src := critMap["seat_to_rc"].Curve
+	if src.Eval(170) != -100 {
+		t.Errorf("Seat-RC(170) expected -100, got %f", src.Eval(170))
 	}
-	if cs.Eval(420) != 0 {
-		t.Errorf("Chainstay(420) expected 0, got %f", cs.Eval(420))
+	if src.Eval(200) != 0 {
+		t.Errorf("Seat-RC(200) expected 0, got %f", src.Eval(200))
 	}
-	if cs.Eval(445) != 70 {
-		t.Errorf("Chainstay(445) expected 70, got %f", cs.Eval(445))
+	if src.Eval(220) != 70 {
+		t.Errorf("Seat-RC(220) expected 70, got %f", src.Eval(220))
 	}
-	if cs.Eval(470) != 100 {
-		t.Errorf("Chainstay(470) expected 100, got %f", cs.Eval(470))
+	if src.Eval(235) != 100 {
+		t.Errorf("Seat-RC(235) expected 100, got %f", src.Eval(235))
 	}
-	if cs.Eval(480) != 100 {
-		t.Errorf("Chainstay(480) expected 100, got %f", cs.Eval(480))
+	if src.Eval(250) != 100 {
+		t.Errorf("Seat-RC(250) expected 100, got %f", src.Eval(250))
 	}
 
 	// 5. BB Drop
@@ -270,6 +270,7 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 				ActualSetback:      219.8,
 				SpareVerticalStack: 122.5,
 				ActiveChainstay:    439,
+				SeatToRearCenter:   215.2,
 				ActiveBbDrop:       59,
 				ActiveHta:          68.63,
 				WeightDistFrontPct: 35.2,
@@ -277,12 +278,13 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		},
 		{
 			name:     "Esker Hayduke (S3)",
-			expected: 69,
+			expected: 71,
 			a: model.BikeFitAnalysis{
 				Aett:               634.9,
 				ActualSetback:      213.4,
 				SpareVerticalStack: 121.2,
 				ActiveChainstay:    454,
+				SeatToRearCenter:   235.8,
 				ActiveBbDrop:       65.9,
 				ActiveHta:          67.62,
 				WeightDistFrontPct: 35.4,
@@ -290,12 +292,13 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		},
 		{
 			name:     "Binary Havok (XL)",
-			expected: 62,
+			expected: 63,
 			a: model.BikeFitAnalysis{
 				Aett:               592.8,
 				ActualSetback:      216.3,
 				SpareVerticalStack: 78.7,
 				ActiveChainstay:    460,
+				SeatToRearCenter:   238.4,
 				ActiveBbDrop:       69.3,
 				ActiveHta:          68.9,
 				WeightDistFrontPct: 37.7,
@@ -303,12 +306,13 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		},
 		{
 			name:     "Otso Fenrir (XL)",
-			expected: 36,
+			expected: 39,
 			a: model.BikeFitAnalysis{
 				Aett:               604.3,
 				ActualSetback:      206,
 				SpareVerticalStack: 88,
 				ActiveChainstay:    450,
+				SeatToRearCenter:   238.9,
 				ActiveBbDrop:       67.7,
 				ActiveHta:          67.69,
 				WeightDistFrontPct: 35.5,
@@ -316,51 +320,55 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		},
 		{
 			name:     "Revel El Jefe (L)",
-			expected: 17,
+			expected: 21,
 			a: model.BikeFitAnalysis{
 				Aett:               619.7,
 				ActualSetback:      205.3,
 				SpareVerticalStack: 135.4,
 				ActiveChainstay:    435,
+				SeatToRearCenter:   224.6,
 				ActiveBbDrop:       66.1,
 				ActiveHta:          67.24,
 				WeightDistFrontPct: 34.3,
 			},
 		},
 		{
-			name:     "Esker Hayduke (S4)",
-			expected: 14,
-			a: model.BikeFitAnalysis{
-				Aett:               671.8,
-				ActualSetback:      215.5,
-				SpareVerticalStack: 104.2,
-				ActiveChainstay:    454,
-				ActiveBbDrop:       64.7,
-				ActiveHta:          67.46,
-				WeightDistFrontPct: 34.3,
-			},
-		},
-		{
 			name:     "Otso Fenrir (L)",
-			expected: 13,
+			expected: 16,
 			a: model.BikeFitAnalysis{
 				Aett:               584,
 				ActualSetback:      205.7,
 				SpareVerticalStack: 106.4,
 				ActiveChainstay:    450,
+				SeatToRearCenter:   239.2,
 				ActiveBbDrop:       67.8,
 				ActiveHta:          67.71,
 				WeightDistFrontPct: 36.2,
 			},
 		},
 		{
+			name:     "Esker Hayduke (S4)",
+			expected: 16,
+			a: model.BikeFitAnalysis{
+				Aett:               671.8,
+				ActualSetback:      215.5,
+				SpareVerticalStack: 104.2,
+				ActiveChainstay:    454,
+				SeatToRearCenter:   233.9,
+				ActiveBbDrop:       64.7,
+				ActiveHta:          67.46,
+				WeightDistFrontPct: 34.3,
+			},
+		},
+		{
 			name:     "Revel El Jefe (XL)",
-			expected: 7,
+			expected: 12,
 			a: model.BikeFitAnalysis{
 				Aett:               649.1,
 				ActualSetback:      203.5,
 				SpareVerticalStack: 125,
 				ActiveChainstay:    435,
+				SeatToRearCenter:   226.3,
 				ActiveBbDrop:       67.1,
 				ActiveHta:          67.38,
 				WeightDistFrontPct: 33.5,
@@ -368,12 +376,13 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		},
 		{
 			name:     "Sour Pasta Party (L)",
-			expected: 0,
+			expected: 5,
 			a: model.BikeFitAnalysis{
 				Aett:               621.2,
 				ActualSetback:      202.9,
 				SpareVerticalStack: 141.7,
 				ActiveChainstay:    435,
+				SeatToRearCenter:   226.1,
 				ActiveBbDrop:       71.9,
 				ActiveHta:          67.52,
 				WeightDistFrontPct: 34.4,
@@ -408,6 +417,7 @@ func TestExplain_GeneratesReadableOutput(t *testing.T) {
 				ActualSetback:      213.4,
 				SpareVerticalStack: 121.2,
 				ActiveChainstay:    454.0,
+				SeatToRearCenter:   235.8,
 				ActiveBbDrop:       65.9,
 				ActiveHta:          67.62,
 				WeightDistFrontPct: 35.4,
@@ -420,6 +430,7 @@ func TestExplain_GeneratesReadableOutput(t *testing.T) {
 				ActualSetback:      219.8,
 				SpareVerticalStack: 122.5,
 				ActiveChainstay:    439.0,
+				SeatToRearCenter:   215.2,
 				ActiveBbDrop:       59.0,
 				ActiveHta:          68.62,
 				WeightDistFrontPct: 35.2,
@@ -435,8 +446,8 @@ func TestExplain_GeneratesReadableOutput(t *testing.T) {
 		t.Fatalf("Expected 1 head-to-head entry, got %d", len(expl.HeadToHead))
 	}
 
-	// Verify head-to-head mentions Ritchey beating Hayduke by 7 (rounded 76 vs 69)
-	if !contains(expl.HeadToHead[0], "Ritchey Ultra (XL) (76) > Esker Hayduke (S3) (69) by 7") {
+	// Verify head-to-head mentions Ritchey beating Hayduke by 5 (rounded 76 vs 71)
+	if !contains(expl.HeadToHead[0], "Ritchey Ultra (XL) (76) > Esker Hayduke (S3) (71) by 5") {
 		t.Errorf("Unexpected H2H line: %s", expl.HeadToHead[0])
 	}
 }
@@ -450,6 +461,7 @@ func TestScore_PointsLost(t *testing.T) {
 		ActualSetback:      230.0,
 		SpareVerticalStack: 119.0,
 		ActiveChainstay:    470.0,
+		SeatToRearCenter:   235.0,
 		ActiveBbDrop:       70.0,
 		ActiveHta:          68.0,
 		WeightDistFrontPct: 38.0,
@@ -568,6 +580,7 @@ func TestExplainProfile_LossesAndH2H(t *testing.T) {
 			ActualSetback:      219.8,
 			SpareVerticalStack: 122.5,
 			ActiveChainstay:    439,
+			SeatToRearCenter:   215.2,
 			ActiveBbDrop:       59,
 			ActiveHta:          68.63,
 			WeightDistFrontPct: 35.2,
@@ -579,6 +592,7 @@ func TestExplainProfile_LossesAndH2H(t *testing.T) {
 			ActualSetback:      213.4,
 			SpareVerticalStack: 121.2,
 			ActiveChainstay:    454,
+			SeatToRearCenter:   235.8,
 			ActiveBbDrop:       65.9,
 			ActiveHta:          67.62,
 			WeightDistFrontPct: 35.4,

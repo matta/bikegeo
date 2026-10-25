@@ -58,17 +58,17 @@
       "floor": -100
     },
     {
-      "id": "chainstay",
+      "id": "seat_to_rc",
       "weight": 4,
       "ideal": {
-        "min": 455
+        "min": 235
       },
       "acceptable": {
-        "min": 445
+        "min": 220
       },
       "edge_score": 70,
       "falloff": {
-        "below": 25
+        "below": 20
       },
       "floor": -100
     },
@@ -130,6 +130,9 @@
     },
     {
       "id": "sta"
+    },
+    {
+      "id": "chainstay"
     }
   ]
 }

@@ -541,6 +541,7 @@ func AnalyzeBikeFit(
 		BackAngleDeg:       weightDist.BackAngleDeg,
 		FrontCenterCalc:    weightDist.FrontCenterCalc,
 		RearCenterCalc:     weightDist.RearCenterCalc,
+		SeatToRearCenter:   Round(weightDist.RearCenterCalc-actualSetback, 1),
 		WheelbaseCalc:      weightDist.WheelbaseCalc,
 		ActiveChainstay:    Round(activeCS, 1),
 		ChainstayDesc:      csDesc,

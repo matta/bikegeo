@@ -212,19 +212,19 @@ var DefaultCriteria = []Criterion{
 		},
 	},
 	{
-		ID:     "chainstay",
-		Label:  "chainstay",
+		ID:     "seat_to_rc",
+		Label:  "Seat-RC",
 		Unit:   "mm",
 		Weight: 4,
-		Metric: func(a model.BikeFitAnalysis) float64 { return a.ActiveChainstay },
+		Metric: func(a model.BikeFitAnalysis) float64 { return a.SeatToRearCenter },
 		Curve: Curve{
-			{X: 420.0 - 250.0/7.0, Y: -100},
-			{X: 420, Y: 0},
-			{X: 445, Y: 70},
-			{X: 470, Y: 100},
+			{X: 200.0 - 200.0/7.0, Y: -100},
+			{X: 200, Y: 0},
+			{X: 220, Y: 70},
+			{X: 235, Y: 100},
 		},
 		Describe: func(v float64) string {
-			return fmt.Sprintf("chainstay %.0fmm", v)
+			return fmt.Sprintf("Seat-RC %.0fmm", v)
 		},
 	},
 	{

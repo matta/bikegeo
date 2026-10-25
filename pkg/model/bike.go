@@ -754,6 +754,7 @@ type BikeFitAnalysis struct {
 	BackAngleDeg       float64 `json:"back_angle_deg"`
 	FrontCenterCalc    float64 `json:"front_center_calc"`
 	RearCenterCalc     float64 `json:"rear_center_calc"`
+	SeatToRearCenter   float64 `json:"seat_to_rear_center"`
 	WheelbaseCalc      float64 `json:"wheelbase_calc"`
 	ActiveChainstay    float64 `json:"active_chainstay"`
 	ChainstayDesc      string  `json:"chainstay_desc"`
@@ -771,6 +772,7 @@ type BaselineMetrics struct {
 	SpareVerticalStack float64 `json:"spare_vertical_stack"`
 	SpareAxialSteerer  float64 `json:"spare_axial_steerer"`
 	Chainstay          float64 `json:"chainstay"`
+	SeatToRearCenter   float64 `json:"seat_to_rear_center"`
 }
 
 type CanonicalComparisonRow struct {

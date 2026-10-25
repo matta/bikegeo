@@ -55,6 +55,15 @@ var registry = []AttributeMeta{
 		},
 	},
 	{
+		ID:       "seat_to_rc",
+		Label:    "Seat-RC",
+		Unit:     "mm",
+		Decimals: 0,
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			return row.Canonical.SeatToRearCenter, true
+		},
+	},
+	{
 		ID:       "chainstay",
 		Label:    "Chainstay",
 		Unit:     "mm",
@@ -169,16 +178,26 @@ var registry = []AttributeMeta{
 }
 
 var registryMap = func() map[string]AttributeMeta {
-	m := make(map[string]AttributeMeta, len(registry))
+	m := make(map[string]AttributeMeta, len(registry)*2)
 	for _, a := range registry {
-		m[strings.ToLower(a.ID)] = a
+		lower := strings.ToLower(a.ID)
+		m[lower] = a
+		cleaned := strings.ReplaceAll(strings.ReplaceAll(lower, "_", ""), "-", "")
+		if cleaned != lower {
+			m[cleaned] = a
+		}
 	}
 	return m
 }()
 
 // LookupAttribute returns the AttributeMeta for a given ID, or false if unknown.
 func LookupAttribute(id string) (AttributeMeta, bool) {
-	meta, ok := registryMap[strings.ToLower(strings.TrimSpace(id))]
+	norm := strings.ToLower(strings.TrimSpace(id))
+	meta, ok := registryMap[norm]
+	if !ok {
+		cleaned := strings.ReplaceAll(strings.ReplaceAll(norm, "_", ""), "-", "")
+		meta, ok = registryMap[cleaned]
+	}
 	return meta, ok
 }
 

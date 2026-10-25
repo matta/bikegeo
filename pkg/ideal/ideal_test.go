@@ -16,8 +16,46 @@ func TestDefaultProfileValid(t *testing.T) {
 	if p.Name != "default" {
 		t.Errorf("Expected profile name 'default', got %q", p.Name)
 	}
-	if len(p.Attributes) != 10 {
-		t.Fatalf("Expected 10 attributes in default profile, got %d", len(p.Attributes))
+	if len(p.Attributes) != 11 {
+		t.Fatalf("Expected 11 attributes in default profile, got %d", len(p.Attributes))
+	}
+}
+
+func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
+	// Seat-RC: ideal >= 235, acceptable >= 220, edge_score 70, falloff below 20, floor -100
+	spec := AttributeSpec{
+		ID:         "seat_to_rc",
+		Weight:     4,
+		Ideal:      &Range{Min: floatPtr(235)},
+		Acceptable: &Range{Min: floatPtr(220)},
+		EdgeScore:  floatPtr(70),
+		Falloff:    &Falloff{Below: floatPtr(20)},
+		Floor:      floatPtr(-100),
+	}
+	meta, ok := LookupAttribute("seat_to_rc")
+	if !ok {
+		t.Fatalf("LookupAttribute('seat_to_rc') failed")
+	}
+
+	// 235 -> Ideal (100)
+	if res := Evaluate(spec, meta, 235, nil); res.Zone != ZoneIdeal || res.SubScore != 100 {
+		t.Errorf("Seat-RC 235 expected ZoneIdeal / 100, got %v / %.1f", res.Zone, res.SubScore)
+	}
+	// 250 -> Ideal (100)
+	if res := Evaluate(spec, meta, 250, nil); res.Zone != ZoneIdeal || res.SubScore != 100 {
+		t.Errorf("Seat-RC 250 expected ZoneIdeal / 100, got %v / %.1f", res.Zone, res.SubScore)
+	}
+	// 220 -> Acceptable edge (70)
+	if res := Evaluate(spec, meta, 220, nil); res.Zone != ZoneAcceptable || res.SubScore != 70 {
+		t.Errorf("Seat-RC 220 expected ZoneAcceptable / 70, got %v / %.1f", res.Zone, res.SubScore)
+	}
+	// 200 -> 20 below acceptable (0)
+	if res := Evaluate(spec, meta, 200, nil); res.Zone != ZoneOutside || math.Abs(res.SubScore-0) > 0.001 {
+		t.Errorf("Seat-RC 200 expected ZoneOutside / 0, got %v / %.1f", res.Zone, res.SubScore)
+	}
+	// 150 -> Below floor (-100 clamped)
+	if res := Evaluate(spec, meta, 150, nil); res.SubScore != -100 {
+		t.Errorf("Seat-RC 150 expected clamped to -100, got %.1f", res.SubScore)
 	}
 }
 

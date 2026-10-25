@@ -2,6 +2,7 @@ package canonicalizer
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -366,6 +367,9 @@ func CanonicalizeBikes(
 			activeCS = bike.GetMaxChainstay()
 		}
 
+		baseCS := math.Max(activeCS, bike.BbDrop+1.0)
+		baseRearCenter := math.Sqrt(math.Max(0, baseCS*baseCS-bike.BbDrop*bike.BbDrop))
+
 		baseline := model.BaselineMetrics{
 			Reach:              bike.Reach,
 			Stack:              bike.Stack,
@@ -378,6 +382,7 @@ func CanonicalizeBikes(
 			SpareVerticalStack: geometry.Round(verticalStack, 1),
 			SpareAxialSteerer:  geometry.Round(axialLength, 1),
 			Chainstay:          geometry.Round(activeCS, 1),
+			SeatToRearCenter:   geometry.Round(baseRearCenter-baselineSetback, 1),
 		}
 
 		canonical, err := geometry.AnalyzeBikeFit(
