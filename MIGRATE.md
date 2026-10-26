@@ -101,7 +101,60 @@ The following schedule matrix maps prerequisites, deliverables, verification gat
 
 ---
 
-## 4. Detailed Phase Specifications
+## 4. Migration Protocol & Operational Contract
+
+To guarantee orderly, reproducible, and verifiable progress throughout the port, all implementation activities must adhere strictly to the following protocol:
+
+### 4.1 Branch Isolation
+* **Dedicated Branch:** All porting activities must occur strictly on the `migrate` branch.
+* **Baseline Preservation:** `main` remains untouched as the production reference baseline. No migration commits may land directly on `main`.
+* **Branch Initialization:** Prior to implementing Phase 0, the branch is established via `git checkout -b migrate`.
+* **Clean State Guarantee:** The Go reference binary (`bin/bikegeo-go`) is built once from the clean baseline and preserved for differential testing.
+
+### 4.2 Incremental Micro-Commit Discipline
+* **One Minimal but Meaningful Unit Per Step:**
+  - Every step must accomplish exactly one focused, self-contained atomic deliverable from the Work Breakdown Matrix (Section 3).
+  - Examples of atomic units:
+    - Step 1.1: Implement `units.rs` (dimensional scalar newtypes, arithmetic operator overloading, and unit tests).
+    - Step 1.2: Implement `model/bike.rs` (Serde data structures matching `data/bikes/*.json` schema + unit test).
+    - Step 3.0: Port `render.rs` box table formatting + golden diff test.
+  - **Anti-pattern:** Never batch multiple modules, subsystems, or unrelated refactors into a single step or commit.
+* **Commit Immediately After Each Step:**
+  - As soon as a minimal unit of work satisfies its verification gate, the agent must commit it to git on `migrate`.
+  - Uncommitted multi-step code accumulation is strictly prohibited.
+* **Mandatory Pre-Commit Verification Gate:**
+  - Every commit on `migrate` must represent a clean, compilable, and passing state. Broken or failing commits are forbidden.
+  - Required checks before creating a commit:
+    1. `cargo check` (zero compiler errors or warnings).
+    2. `cargo test <target>` (100% test pass rate for all ported modules).
+    3. Differential check (for CLI stages: `diff -u` against `bin/bikegeo-go` produces 0 diff).
+    4. Code formatting: `cargo fmt`.
+* **Standardized Commit Format:**
+  - Follow Conventional Commits: `<type>(<scope>): <concise summary>`
+    - Types: `feat`, `test`, `fix`, `refactor`, `docs`, `chore`.
+    - Scopes: `units`, `model`, `storage`, `catalog`, `geometry`, `validator`, `canonicalizer`, `ideal`, `scoring`, `fit`, `render`, `cli`, `tui`, `diff`.
+  - The commit message body must explicitly detail:
+    1. The minimal unit of work completed.
+    2. Verification commands executed and test results.
+
+### 4.3 Agent Operational Loop (SOP)
+For each incremental step, the AI agent must strictly follow this 7-step cycle:
+1. **Scope Selection:** Select the next unblocked item from the Dependency DAG (Section 2) and Roadmap Matrix (Section 3).
+2. **Implementation:** Write the Rust code and its corresponding 1:1 ported unit tests in `src/` and `tests/`.
+3. **Fast Verification:** Run `cargo check && cargo test <target>` and ensure 100% pass rate.
+4. **Parity Check (If Applicable):** If the step implements or touches CLI output or JSON serialization, run the differential test against `bin/bikegeo-go` to confirm zero diff.
+5. **Format:** Run `cargo fmt`.
+6. **Commit:** Stage only the relevant files (`git add <files>`) and commit to `migrate` with a structured Conventional Commit message.
+7. **Report:** Provide a brief summary of the completed step to the user and identify the next unblocked item.
+
+### 4.4 Impasse & Rollback Strategy
+* If a borrow-checker conflict or architectural friction is encountered:
+  - Do not layer speculative patches or hacky workarounds over multiple tool calls.
+  - Discard uncommitted experiments back to the last clean commit (`git restore .`) and re-evaluate the ownership architecture cleanly before proceeding.
+
+---
+
+## 5. Detailed Phase Specifications
 
 ### Phase 0: The Differential Verification Harness (Pre-Migration)
 
@@ -300,7 +353,7 @@ Replace the ~2,500 lines of custom low-level `tcell` widget code in [`pkg/tui/`]
 
 ---
 
-## 5. Differential Test Matrix Reference Checklist
+## 6. Differential Test Matrix Reference Checklist
 
 Before marking the migration complete, every item below must pass diffing against `bin/bikegeo-go`:
 
