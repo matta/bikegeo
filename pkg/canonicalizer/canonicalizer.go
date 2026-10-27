@@ -79,7 +79,7 @@ func ResolveForkToken(
 						sag = *sagOverride
 					}
 					targetA2c = geometry.Round(staticA2c-entry.TravelMm*(sag/100.0), 1)
-					displayLabel = fmt.Sprintf("%.0fmm @ %.0f%%", entry.TravelMm, sag)
+					displayLabel = FormatSuspensionFork(entry.TravelMm, sag)
 					return targetA2c, targetRake, staticA2c, displayLabel, nil
 				}
 			}
@@ -88,9 +88,9 @@ func ResolveForkToken(
 			return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", *sagOverride, frame.Manufacturer, frame.Model)
 		}
 		if frame.IsFixedRigidOnly() {
-			displayLabel = fmt.Sprintf("Rigid (%.0fmm A2C)", targetA2c)
+			displayLabel = FormatRigidFork(targetA2c)
 		} else {
-			displayLabel = "Stock"
+			displayLabel = FormatStockFork()
 		}
 		return targetA2c, targetRake, staticA2c, displayLabel, nil
 	}
@@ -106,7 +106,7 @@ func ResolveForkToken(
 		targetA2c = frame.GetRigidA2c()
 		targetRake = frame.GetRigidRake()
 		staticA2c = targetA2c
-		displayLabel = fmt.Sprintf("Rigid (%.0fmm A2C)", targetA2c)
+		displayLabel = FormatRigidFork(targetA2c)
 		return targetA2c, targetRake, staticA2c, displayLabel, nil
 	}
 
@@ -137,7 +137,7 @@ func ResolveForkToken(
 			}
 		}
 		staticA2c = targetA2c
-		displayLabel = fmt.Sprintf("a2c=%.0f/%.0f", targetA2c, targetRake)
+		displayLabel = FormatCustomA2cFork(targetA2c, targetRake)
 		if err := checkA2cRange(targetA2c); err != nil {
 			return 0, 0, 0, "", err
 		}
@@ -184,7 +184,7 @@ func ResolveForkToken(
 			sag = *sagOverride
 		}
 		targetA2c = geometry.Round(staticA2c-stdFork.TravelMm*(sag/100.0), 1)
-		displayLabel = fmt.Sprintf("%.0fmm @ %.0f%% sag", travelVal, sag)
+		displayLabel = FormatSuspensionFork(travelVal, sag)
 		if err := checkA2cRange(targetA2c); err != nil {
 			return 0, 0, 0, "", err
 		}
@@ -204,7 +204,7 @@ func ResolveForkToken(
 				return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", *sagOverride, frame.Manufacturer, frame.Model)
 			}
 			targetA2c = staticA2c
-			displayLabel = fmt.Sprintf("Rigid (%.0fmm A2C)", targetA2c)
+			displayLabel = FormatRigidFork(targetA2c)
 		} else {
 			if frame.IsFixedRigidOnly() {
 				return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" has a fixed rigid fork (%.0fmm A2C) and does not support suspension fork %q", frame.Manufacturer, frame.Model, frame.GetRigidA2c(), token)
@@ -214,7 +214,7 @@ func ResolveForkToken(
 				sag = *sagOverride
 			}
 			targetA2c = geometry.Round(staticA2c-entry.TravelMm*(sag/100.0), 1)
-			displayLabel = fmt.Sprintf("%.0fmm @ %.0f%% sag", entry.TravelMm, sag)
+			displayLabel = FormatSuspensionFork(entry.TravelMm, sag)
 		}
 		if err := checkA2cRange(targetA2c); err != nil {
 			return 0, 0, 0, "", err
@@ -284,7 +284,7 @@ func ResolveFrameForkSetup(
 		}
 	}
 	if displayLabel == "" {
-		displayLabel = fmt.Sprintf("a2c=%.0f/%.0f", targetA2c, targetRake)
+		displayLabel = FormatCustomA2cFork(targetA2c, targetRake)
 	}
 
 	// 2. Validate against frame effective A2C range

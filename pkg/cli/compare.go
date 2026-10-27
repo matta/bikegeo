@@ -645,7 +645,7 @@ func (a *App) loadOrDefaultComparisonState(frames []model.FrameModel) model.Save
 			Size:         f.GetDefaultSize(),
 			A2cMm:        defFork.A2cMm,
 			RakeMm:       defFork.RakeMm,
-			DisplayLabel: "Stock",
+			DisplayLabel: canonicalizer.FormatStockFork(),
 		})
 		if len(cols) >= 3 {
 			break
@@ -1265,10 +1265,7 @@ func (a *App) renderComparisonMatrix(
 			i := item.origIdx
 
 			idxStr := fmt.Sprintf("%d", i+1)
-			setupStr := fmt.Sprintf("%s (%.0fmm)", r.DisplayLabel, math.Round(r.EffectiveA2c))
-			if r.DisplayLabel == "" {
-				setupStr = fmt.Sprintf("%.0fmm A2C", math.Round(r.EffectiveA2c))
-			}
+			setupStr := canonicalizer.FormatForkEffA2c(r)
 
 			rowCells := []string{
 				idxStr,
@@ -1345,11 +1342,7 @@ func (a *App) renderComparisonMatrix(
 
 		// Setup Fork & Effective A2C
 		tableRows = append(tableRows, buildRow("Fork & Eff. A2C", "", "", func(colIdx int, item scoredRowItem) string {
-			r := item.row
-			if r.DisplayLabel != "" {
-				return fmt.Sprintf("%s -> %.0fmm A2C", r.DisplayLabel, math.Round(r.EffectiveA2c))
-			}
-			return fmt.Sprintf("%.0fmm A2C", math.Round(r.EffectiveA2c))
+			return canonicalizer.FormatForkFlow(item.row)
 		}))
 
 		// Attribute rows from prof.Attributes
@@ -1428,21 +1421,21 @@ func disambiguateFrameNames(rows []model.CanonicalComparisonRow) []string {
 		// Count fork types (e.g. "110mm", "rigid") within this duplicate group
 		forkTypeCounts := make(map[string]int)
 		for _, idx := range indices {
-			ft := getForkTypeLabel(rows[idx])
+			ft := canonicalizer.FormatForkType(rows[idx])
 			forkTypeCounts[ft]++
 		}
 
 		// Count fork + sag within this duplicate group in case identical setups exist
 		forkSagCounts := make(map[string]int)
 		for _, idx := range indices {
-			fs := getForkSagLabel(rows[idx])
+			fs := canonicalizer.FormatForkSag(rows[idx])
 			forkSagCounts[fs]++
 		}
 
 		for _, idx := range indices {
 			r := rows[idx]
-			ft := getForkTypeLabel(r)
-			fs := getForkSagLabel(r)
+			ft := canonicalizer.FormatForkType(r)
+			fs := canonicalizer.FormatForkSag(r)
 
 			var suffix string
 			if forkTypeCounts[ft] == 1 {
@@ -1460,34 +1453,4 @@ func disambiguateFrameNames(rows []model.CanonicalComparisonRow) []string {
 	}
 
 	return names
-}
-
-func getForkTypeLabel(r model.CanonicalComparisonRow) string {
-	lbl := r.DisplayLabel
-	if lbl == "" {
-		lbl = r.Setup.DisplayLabel
-	}
-	if strings.Contains(lbl, "@") {
-		parts := strings.Split(lbl, "@")
-		return strings.TrimSpace(parts[0])
-	}
-	if strings.HasPrefix(strings.ToLower(lbl), "rigid") {
-		return "rigid"
-	}
-	if lbl != "" {
-		return lbl
-	}
-	return fmt.Sprintf("%.0fmm A2C", math.Round(r.EffectiveA2c))
-}
-
-func getForkSagLabel(r model.CanonicalComparisonRow) string {
-	lbl := r.DisplayLabel
-	if lbl == "" {
-		lbl = r.Setup.DisplayLabel
-	}
-	clean := strings.TrimSpace(strings.TrimSuffix(lbl, " sag"))
-	if clean != "" {
-		return clean
-	}
-	return fmt.Sprintf("%.0fmm A2C", math.Round(r.EffectiveA2c))
 }

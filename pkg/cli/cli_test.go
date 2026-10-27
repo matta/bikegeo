@@ -127,8 +127,8 @@ func TestCompare_MixedFramesForksAndSags(t *testing.T) {
 	if !strings.Contains(out, "120mm @ 25% sag") {
 		t.Errorf("Expected '120mm @ 25%% sag' in table output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "Rigid (495mm A2C)") {
-		t.Errorf("Expected 'Rigid (495mm A2C)' in table output, got:\n%s", out)
+	if !strings.Contains(out, "Rigid (495mm)") {
+		t.Errorf("Expected 'Rigid (495mm)' in table output, got:\n%s", out)
 	}
 	if strings.Contains(out, "Published CAD Mode") {
 		t.Errorf("Expected 'Published CAD Mode' row to be removed from compare output, got:\n%s", out)
@@ -181,8 +181,8 @@ func TestCompare_EnforcesFrameForkSagAndValidationConstraints(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("Expected fixed rigid frame comparison to succeed, got: %s", errOut)
 	}
-	if !strings.Contains(out, "Rigid (483mm A2C)") {
-		t.Errorf("Expected Rigid (483mm A2C) in output, got:\n%s", out)
+	if !strings.Contains(out, "Rigid (483mm)") {
+		t.Errorf("Expected Rigid (483mm) in output, got:\n%s", out)
 	}
 
 	// Asking for sag on the fixed rigid frame must fail
@@ -556,8 +556,8 @@ func TestCompare_TumbleweedSunlinerFixedForkConstraints(t *testing.T) {
 	if !strings.Contains(out, "Tumbleweed Sunliner (L)") {
 		t.Errorf("Expected Tumbleweed Sunliner (L) in output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "Rigid (440mm A2C)") {
-		t.Errorf("Expected Rigid (440mm A2C) in output, got:\n%s", out)
+	if !strings.Contains(out, "Rigid (440mm)") {
+		t.Errorf("Expected Rigid (440mm) in output, got:\n%s", out)
 	}
 
 	// 2. Size modifier works (sunliner:M or sunliner:S)
