@@ -27,18 +27,6 @@
     "a2c_mm": 468.0,
     "rake_mm": 43.0
   },
-  "fork_range": [
-    {
-      "fork": "surly_ecr_468",
-      "a2c_mm": 468.0,
-      "rake_mm": 43.0
-    },
-    {
-      "fork": "surly_ecr_468",
-      "a2c_mm": 468.0,
-      "rake_mm": 43.0
-    }
-  ],
   "sizes": [
     "M",
     "L",
@@ -82,5 +70,12 @@
       "seat_tube_length": 558.7,
       "standover_height": 875
     }
-  }
+  },
+  "supported_forks": [
+    {
+      "fork": "surly_ecr_468",
+      "a2c_mm": 468.0,
+      "rake_mm": 43.0
+    }
+  ]
 }

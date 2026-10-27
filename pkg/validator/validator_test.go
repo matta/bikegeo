@@ -293,7 +293,7 @@ func TestValidateRevelElJefe(t *testing.T) {
 			A2cMm:  510.0,
 			RakeMm: 44.0,
 		},
-		ForkRange: []model.ForkRef{
+		SupportedForks: []model.ForkRef{
 			{Fork: "sid_100", A2cMm: 506.0, RakeMm: 44.0},
 			{Fork: "fox34_130", A2cMm: 541.0, RakeMm: 44.0},
 		},
@@ -347,8 +347,7 @@ func TestValidateTumbleweedSunliner(t *testing.T) {
 			A2cMm:  440.0,
 			RakeMm: 55.0,
 		},
-		ForkRange: []model.ForkRef{
-			{Fork: "sunliner_440", A2cMm: 440.0, RakeMm: 55.0},
+		SupportedForks: []model.ForkRef{
 			{Fork: "sunliner_440", A2cMm: 440.0, RakeMm: 55.0},
 		},
 		Geometries: map[string]model.SizeGeometry{
@@ -368,12 +367,12 @@ func TestValidateTumbleweedSunliner(t *testing.T) {
 	}
 }
 
-func TestValidateForkRange(t *testing.T) {
-	// Frame with inverted fork range (min static A2C > max static A2C)
-	invalidRangeFrame := model.FrameModel{
-		ID:                 "bad-range-frame",
+func TestValidateSupportedForks(t *testing.T) {
+	// Frame with missing supported forks
+	missingForksFrame := model.FrameModel{
+		ID:                 "no-forks-frame",
 		Manufacturer:       "Test",
-		Model:              "BadRange",
+		Model:              "NoForks",
 		WheelSize:          "29",
 		HeadsetCupType:     model.CupEC44,
 		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
@@ -391,29 +390,26 @@ func TestValidateForkRange(t *testing.T) {
 			A2cMm:  506.0,
 			RakeMm: 44.0,
 		},
-		ForkRange: []model.ForkRef{
-			{Fork: "fox34_130", A2cMm: 541.0, RakeMm: 44.0},
-			{Fork: "fox34_120", A2cMm: 530.0, RakeMm: 44.0},
-		},
+		SupportedForks: nil,
 		Geometries: map[string]model.SizeGeometry{
 			"L": {Reach: 456, Stack: 657, HtaDeg: 67, StaDeg: 74.5, Htl: 145, BbDrop: 60, Wheelbase: 1208, ChainstayLength: 455},
 		},
 	}
 
-	report := validator.ValidateFrame(invalidRangeFrame)
+	report := validator.ValidateFrame(missingForksFrame)
 	if report.IsValid {
-		t.Fatalf("Expected frame with inverted fork range to fail validation")
+		t.Fatalf("Expected frame with missing supported forks to fail validation")
 	}
 
-	foundRangeIssue := false
+	foundIssue := false
 	for _, iss := range report.Issues {
-		if iss.ID == "inverted_fork_range" {
-			foundRangeIssue = true
+		if iss.ID == "missing_supported_forks" {
+			foundIssue = true
 			break
 		}
 	}
-	if !foundRangeIssue {
-		t.Errorf("Expected issue 'inverted_fork_range', got: %+v", report.Issues)
+	if !foundIssue {
+		t.Errorf("Expected issue 'missing_supported_forks', got: %+v", report.Issues)
 	}
 }
 
@@ -472,13 +468,12 @@ func TestAllFrameData(t *testing.T) {
 			t.Errorf("Frame %s has invalid default_fork: %+v", frame.ID, frame.DefaultFork)
 		}
 
-		// 5. Verify fork range
-		if minF, maxF, ok := frame.GetForkRange(); ok {
-			if minF.StaticA2c() > maxF.StaticA2c() {
-				t.Errorf("Frame %s has inverted fork range: min static %.1f > max static %.1f", frame.ID, minF.StaticA2c(), maxF.StaticA2c())
-			}
-		} else {
-			t.Errorf("Frame %s missing fork_range", frame.ID)
+		// 5. Verify supported forks
+		if len(frame.SupportedForks) == 0 {
+			t.Errorf("Frame %s missing supported_forks", frame.ID)
+		}
+		if _, _, ok := frame.EffectiveA2cRange(); !ok {
+			t.Errorf("Frame %s cannot derive valid A2C range", frame.ID)
 		}
 
 		// 6. Verify rigid capability matches field

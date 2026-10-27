@@ -34,18 +34,6 @@
     "a2c_mm": 510.0,
     "rake_mm": 44.0
   },
-  "fork_range": [
-    {
-      "fork": "sid_100",
-      "a2c_mm": 506.0,
-      "rake_mm": 44.0
-    },
-    {
-      "fork": "fox34_130",
-      "a2c_mm": 541.0,
-      "rake_mm": 44.0
-    }
-  ],
   "sizes": [
     "S",
     "M",
@@ -102,5 +90,22 @@
       "seat_tube_length": 460,
       "standover_height": 790
     }
-  }
+  },
+  "supported_forks": [
+    {
+      "fork": "rigid_510",
+      "a2c_mm": 510.0,
+      "rake_mm": 44.0
+    },
+    {
+      "fork": "sid_100",
+      "a2c_mm": 506.0,
+      "rake_mm": 44.0
+    },
+    {
+      "fork": "fox34_130",
+      "a2c_mm": 541.0,
+      "rake_mm": 44.0
+    }
+  ]
 }

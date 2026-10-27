@@ -377,7 +377,7 @@ type FrameModel struct {
 	CadFork            ForkRef                 `json:"cad_fork"`
 	DefaultFork        ForkRef                 `json:"default_fork"`
 	RigidFork          *ForkRef                `json:"rigid_fork,omitempty"`
-	ForkRange          []ForkRef               `json:"fork_range"` // [min, max]
+	SupportedForks     []ForkRef               `json:"supported_forks"`
 	Geometries         map[string]SizeGeometry `json:"geometries"`
 }
 
@@ -475,12 +475,25 @@ func (fm *FrameModel) GetCadRake() float64 {
 }
 
 func (fm *FrameModel) SupportsRigid() bool {
-	return fm.RigidFork != nil
+	if fm.RigidFork != nil && fm.RigidFork.A2cMm > 0 {
+		return true
+	}
+	for _, f := range fm.SupportedForks {
+		if f.ForkTravel() == 0 && f.A2cMm > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (fm *FrameModel) GetRigidA2c() float64 {
 	if fm.RigidFork != nil {
 		return fm.RigidFork.A2cMm
+	}
+	for _, f := range fm.SupportedForks {
+		if f.ForkTravel() == 0 && f.A2cMm > 0 {
+			return f.A2cMm
+		}
 	}
 	return 0
 }
@@ -489,18 +502,16 @@ func (fm *FrameModel) GetRigidRake() float64 {
 	if fm.RigidFork != nil {
 		return fm.RigidFork.RakeMm
 	}
+	for _, f := range fm.SupportedForks {
+		if f.ForkTravel() == 0 && f.A2cMm > 0 {
+			return f.RakeMm
+		}
+	}
 	return 0
 }
 
 func (fm *FrameModel) GetDefaultFork() ForkRef {
 	return fm.DefaultFork
-}
-
-func (fm *FrameModel) GetForkRange() (ForkRef, ForkRef, bool) {
-	if len(fm.ForkRange) == 2 {
-		return fm.ForkRange[0], fm.ForkRange[1], true
-	}
-	return ForkRef{}, ForkRef{}, false
 }
 
 func (fm *FrameModel) GetSizeGeometry(size string) (SizeGeometry, bool) {
@@ -511,35 +522,135 @@ func (fm *FrameModel) GetSizeGeometry(size string) (SizeGeometry, bool) {
 	return geo, ok
 }
 
+// EffectiveA2cRange derives the frame's valid operating A2C range [min, max] in mm
+// purely from the mathematical union of each fork in SupportedForks.
+// Suspension forks expand across standard sag (15% to 30%), with the upper bound extending
+// to static A2C (0% sag). Rigid forks contribute a ±5.0mm tolerance window.
+func (fm *FrameModel) EffectiveA2cRange() (minA2c float64, maxA2c float64, ok bool) {
+	minA2c = math.Inf(1)
+	maxA2c = math.Inf(-1)
+
+	processFork := func(ref ForkRef) {
+		if ref.A2cMm <= 0 {
+			return
+		}
+		tr := ref.ForkTravel()
+		if tr > 0 {
+			st := ref.StaticA2c()
+			minA := st - tr*0.30
+			maxA := st
+			if minA < minA2c {
+				minA2c = minA
+			}
+			if maxA > maxA2c {
+				maxA2c = maxA
+			}
+		} else {
+			// Rigid fork
+			minA := ref.A2cMm - 5.0
+			maxA := ref.A2cMm + 5.0
+			if minA < minA2c {
+				minA2c = minA
+			}
+			if maxA > maxA2c {
+				maxA2c = maxA
+			}
+		}
+	}
+
+	for _, f := range fm.SupportedForks {
+		processFork(f)
+	}
+
+	if fm.RigidFork != nil {
+		processFork(*fm.RigidFork)
+	}
+
+	if math.IsInf(minA2c, 1) || math.IsInf(maxA2c, -1) {
+		if fm.CadFork.A2cMm > 0 {
+			processFork(fm.CadFork)
+		} else if fm.DefaultFork.A2cMm > 0 {
+			processFork(fm.DefaultFork)
+		}
+	}
+
+	if math.IsInf(minA2c, 1) || math.IsInf(maxA2c, -1) {
+		return 0, 0, false
+	}
+
+	minA2c = math.Round(minA2c*10.0) / 10.0
+	maxA2c = math.Round(maxA2c*10.0) / 10.0
+	return minA2c, maxA2c, true
+}
+
 // GetSupportedForkOptions returns human-readable strings for all legal fork choices on this frame.
 func (fm *FrameModel) GetSupportedForkOptions() []string {
 	if fm.IsFixedRigidOnly() {
 		return []string{fmt.Sprintf("rigid (%.0fmm)", fm.GetRigidA2c())}
 	}
-	var opts []string
-	if minF, maxF, ok := fm.GetForkRange(); ok {
-		opts = append(opts, fmt.Sprintf("%.0f–%.0fmm A2C", minF.A2cMm, maxF.A2cMm))
+
+	minA2c, maxA2c, ok := fm.EffectiveA2cRange()
+	if !ok {
+		return []string{"none"}
 	}
-	if a2c := fm.GetRigidA2c(); a2c > 0 {
-		opts = append(opts, fmt.Sprintf("rigid (%.0fmm)", a2c))
+
+	var hasRigid bool
+	var minTr, maxTr float64
+	for _, f := range fm.SupportedForks {
+		tr := f.ForkTravel()
+		if tr == 0 {
+			hasRigid = true
+		} else {
+			if minTr == 0 || tr < minTr {
+				minTr = tr
+			}
+			if tr > maxTr {
+				maxTr = tr
+			}
+		}
 	}
-	return opts
+
+	var exSummary string
+	if minTr > 0 && maxTr > 0 {
+		if hasRigid {
+			if math.Abs(minTr-maxTr) < 0.1 {
+				exSummary = fmt.Sprintf("e.g. rigid, %.0fmm", maxTr)
+			} else {
+				exSummary = fmt.Sprintf("e.g. rigid, up to %.0fmm", maxTr)
+			}
+		} else {
+			if math.Abs(minTr-maxTr) < 0.1 {
+				exSummary = fmt.Sprintf("e.g. %.0fmm", minTr)
+			} else {
+				exSummary = fmt.Sprintf("e.g. %.0f–%.0fmm", minTr, maxTr)
+			}
+		}
+	} else if hasRigid {
+		exSummary = fmt.Sprintf("rigid %.0fmm", fm.GetRigidA2c())
+	}
+
+	if exSummary != "" {
+		return []string{fmt.Sprintf("%.0f–%.0fmm A2C (%s)", minA2c, maxA2c, exSummary)}
+	}
+	return []string{fmt.Sprintf("%.0f–%.0fmm A2C", minA2c, maxA2c)}
 }
 
 // IsFixedRigidOnly returns true if the frame only supports a rigid fork.
 func (fm *FrameModel) IsFixedRigidOnly() bool {
-	if minF, maxF, ok := fm.GetForkRange(); ok {
-		return fm.SupportsRigid() && math.Abs(minF.A2cMm-maxF.A2cMm) < 0.1 && math.Abs(minF.A2cMm-fm.GetRigidA2c()) < 0.1
+	if !fm.SupportsRigid() {
+		return false
 	}
-	return fm.SupportsRigid()
+	for _, f := range fm.SupportedForks {
+		if f.ForkTravel() > 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // IsFixedFork returns true if the frame has a single fixed fork travel/A2C.
 func (fm *FrameModel) IsFixedFork() bool {
-	if minF, maxF, ok := fm.GetForkRange(); ok {
-		return math.Abs(minF.StaticA2c()-maxF.StaticA2c()) < 0.1
-	}
-	return false
+	return len(fm.SupportedForks) == 1
 }
 
 // GetDefaultForkSpecString returns a token representation of the default fork for CLI display.

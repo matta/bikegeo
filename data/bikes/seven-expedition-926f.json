@@ -23,18 +23,6 @@
     "a2c_mm": 472.0,
     "rake_mm": 55.0
   },
-  "fork_range": [
-    {
-      "fork": "enve_mountain_472",
-      "a2c_mm": 472.0,
-      "rake_mm": 55.0
-    },
-    {
-      "fork": "fox34_120",
-      "a2c_mm": 530.0,
-      "rake_mm": 44.0
-    }
-  ],
   "sizes": [
     "S 55cm",
     "S 57cm",
@@ -351,5 +339,22 @@
       "seat_tube_length": 490,
       "standover_height": 871
     }
-  }
+  },
+  "supported_forks": [
+    {
+      "fork": "enve_mountain_472",
+      "a2c_mm": 472.0,
+      "rake_mm": 55.0
+    },
+    {
+      "fork": "sid_100",
+      "a2c_mm": 506.0,
+      "rake_mm": 44.0
+    },
+    {
+      "fork": "fox34_120",
+      "a2c_mm": 530.0,
+      "rake_mm": 44.0
+    }
+  ]
 }

@@ -570,18 +570,18 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 		}
 	}
 
-	if len(frame.ForkRange) != 2 {
+	if len(frame.SupportedForks) == 0 {
 		report.IsValid = false
 		report.Issues = append(report.Issues, model.ValidationIssue{
-			ID:       "invalid_fork_range",
-			Field:    "fork_range",
+			ID:       "missing_supported_forks",
+			Field:    "supported_forks",
 			Severity: model.SeverityError,
-			Title:    "Invalid Fork Range",
-			Message:  "fork_range must contain exactly two ForkRef elements [min, max].",
+			Title:    "Missing Supported Forks",
+			Message:  "Frame must define at least one supported fork in supported_forks.",
 		})
 	} else {
-		for i, ref := range frame.ForkRange {
-			fName := fmt.Sprintf("fork_range[%d]", i)
+		for i, ref := range frame.SupportedForks {
+			fName := fmt.Sprintf("supported_forks[%d]", i)
 			rIssues := ValidateForkRef(frame.ID, fName, ref)
 			if len(rIssues) > 0 {
 				report.IsValid = false
@@ -589,28 +589,18 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 			}
 		}
 
-		minStatic := frame.ForkRange[0].StaticA2c()
-		maxStatic := frame.ForkRange[1].StaticA2c()
-		if minStatic > maxStatic {
-			report.IsValid = false
-			report.Issues = append(report.Issues, model.ValidationIssue{
-				ID:       "inverted_fork_range",
-				Field:    "fork_range",
-				Severity: model.SeverityError,
-				Title:    "Inverted Fork Range",
-				Message:  fmt.Sprintf("fork_range[0] static A2C (%.1fmm) must be <= fork_range[1] static A2C (%.1fmm).", minStatic, maxStatic),
-			})
-		} else {
+		minA2c, maxA2c, hasRange := frame.EffectiveA2cRange()
+		if hasRange {
 			checkWithin := func(name string, fref model.ForkRef) {
-				st := fref.StaticA2c()
-				if st > 0 && (st < minStatic-0.5 || st > maxStatic+0.5) {
+				eff := fref.A2cMm
+				if eff > 0 && (eff < minA2c-0.5 || eff > maxA2c+0.5) {
 					report.IsValid = false
 					report.Issues = append(report.Issues, model.ValidationIssue{
-						ID:       name + "_outside_fork_range",
+						ID:       name + "_outside_supported_forks",
 						Field:    name,
 						Severity: model.SeverityError,
-						Title:    fmt.Sprintf("%s Outside Fork Range", name),
-						Message:  fmt.Sprintf("%s static A2C %.1fmm is outside allowed fork_range [%.1fmm, %.1fmm].", name, st, minStatic, maxStatic),
+						Title:    fmt.Sprintf("%s Outside Supported Range", name),
+						Message:  fmt.Sprintf("%s effective A2C %.1fmm is outside allowed range [%.1fmm, %.1fmm].", name, eff, minA2c, maxA2c),
 					})
 				}
 			}
@@ -766,8 +756,8 @@ func ValidateForkRef(frameID string, fieldName string, fref model.ForkRef) []mod
 	} else {
 		// Suspension fork
 		if fref.SagPct == nil {
-			if strings.HasPrefix(fieldName, "fork_range") {
-				// Fork range bounds represent static fork travel limits (0% sag)
+			if strings.HasPrefix(fieldName, "supported_forks") {
+				// Supported forks represent static fork travel limits (0% sag)
 				matchedStatic := false
 				for _, opt := range entry.Options {
 					if math.Abs(opt.RakeMm-fref.RakeMm) <= 0.5 && math.Abs(opt.A2cMm-fref.A2cMm) <= 0.5 {

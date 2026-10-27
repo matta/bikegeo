@@ -118,7 +118,7 @@ func TestFrameModelStorage(t *testing.T) {
 		CadFork:            cadFork,
 		DefaultFork:        cadFork,
 		RigidFork:          rigidFork,
-		ForkRange: []model.ForkRef{
+		SupportedForks: []model.ForkRef{
 			{Fork: "rigid_483", A2cMm: 483, RakeMm: 44},
 			{Fork: "fox34_130", A2cMm: 540, RakeMm: 44},
 		},

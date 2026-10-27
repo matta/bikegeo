@@ -149,7 +149,7 @@ func TestCompare_EnforcesFrameForkSagAndValidationConstraints(t *testing.T) {
 	if code == 0 {
 		t.Errorf("Expected error when requesting unsupported 150mm fork on Binary Havok")
 	}
-	if !strings.Contains(errOut, "does not support a 150mm suspension fork") {
+	if !strings.Contains(errOut, "does not support fork \"150mm\"") {
 		t.Errorf("Expected unsupported fork message, got: %s", errOut)
 	}
 

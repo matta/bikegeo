@@ -24,18 +24,6 @@
     "a2c_mm": 483.0,
     "rake_mm": 51.0
   },
-  "fork_range": [
-    {
-      "fork": "firestarter_deluxe_483",
-      "a2c_mm": 483.0,
-      "rake_mm": 51.0
-    },
-    {
-      "fork": "sid_100",
-      "a2c_mm": 506.0,
-      "rake_mm": 51.0
-    }
-  ],
   "sizes": [
     "52cm",
     "54cm",
@@ -105,5 +93,17 @@
       "seat_tube_length": 584,
       "standover_height": 874
     }
-  }
+  },
+  "supported_forks": [
+    {
+      "fork": "firestarter_deluxe_483",
+      "a2c_mm": 483.0,
+      "rake_mm": 51.0
+    },
+    {
+      "fork": "sid_100",
+      "a2c_mm": 506.0,
+      "rake_mm": 51.0
+    }
+  ]
 }

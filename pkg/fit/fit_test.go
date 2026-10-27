@@ -24,7 +24,7 @@ func sampleFrame() model.FrameModel {
 		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
 		CadFork:            fork,
 		DefaultFork:        fork,
-		ForkRange:          []model.ForkRef{fork, fork},
+		SupportedForks:     []model.ForkRef{fork},
 		Sizes:              []string{"M", "L"},
 		DefaultSize:        "L",
 		Geometries: map[string]model.SizeGeometry{

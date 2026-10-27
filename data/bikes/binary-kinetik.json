@@ -33,18 +33,6 @@
     "a2c_mm": 500.0,
     "rake_mm": 44.0
   },
-  "fork_range": [
-    {
-      "fork": "rigid_500",
-      "a2c_mm": 500.0,
-      "rake_mm": 44.0
-    },
-    {
-      "fork": "fox34_120",
-      "a2c_mm": 530.0,
-      "rake_mm": 44.0
-    }
-  ],
   "sizes": [
     "S",
     "SMD",
@@ -133,5 +121,22 @@
       "seat_tube_length": 508,
       "standover_height": 887
     }
-  }
+  },
+  "supported_forks": [
+    {
+      "fork": "rigid_500",
+      "a2c_mm": 500.0,
+      "rake_mm": 44.0
+    },
+    {
+      "fork": "sid_100",
+      "a2c_mm": 506.0,
+      "rake_mm": 44.0
+    },
+    {
+      "fork": "fox34_120",
+      "a2c_mm": 530.0,
+      "rake_mm": 44.0
+    }
+  ]
 }

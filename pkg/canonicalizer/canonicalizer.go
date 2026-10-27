@@ -43,7 +43,18 @@ func ResolveForkToken(
 	clean := strings.TrimSpace(token)
 	lower := strings.ToLower(clean)
 
-	// 1. Stock / Default fork
+	checkA2cRange := func(a2c float64) error {
+		if minA2c, maxA2c, ok := frame.EffectiveA2cRange(); ok {
+			if a2c < minA2c-0.1 || a2c > maxA2c+0.1 {
+				return fmt.Errorf(
+					"frame \"%s %s\" (%s) does not support fork %q (effective A2C %.1fmm outside supported range %s)",
+					frame.Manufacturer, frame.Model, frame.ID, token, a2c, strings.Join(frame.GetSupportedForkOptions(), ", "),
+				)
+			}
+		}
+		return nil
+	}
+
 	// 1. Stock / Default fork
 	if lower == "" || lower == "stock" || lower == "default" {
 		def := frame.GetDefaultFork()
@@ -124,6 +135,9 @@ func ResolveForkToken(
 		}
 		staticA2c = targetA2c
 		displayLabel = fmt.Sprintf("a2c=%.0f/%.0f", targetA2c, targetRake)
+		if err := checkA2cRange(targetA2c); err != nil {
+			return 0, 0, 0, "", err
+		}
 		return targetA2c, targetRake, staticA2c, displayLabel, nil
 	}
 
@@ -132,14 +146,6 @@ func ResolveForkToken(
 	if travelVal, err := strconv.ParseFloat(travelStr, 64); err == nil && travelVal >= 60 {
 		if frame.IsFixedRigidOnly() {
 			return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" has a fixed rigid fork (%.0fmm A2C) and does not support suspension fork %q", frame.Manufacturer, frame.Model, frame.GetRigidA2c(), token)
-		}
-		if minF, maxF, hasRange := frame.GetForkRange(); hasRange {
-			minTravel := minF.ForkTravel()
-			maxTravel := maxF.ForkTravel()
-			if travelVal < minTravel-0.1 || travelVal > maxTravel+0.1 {
-				return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" (%s) does not support a %.0fmm suspension fork (supported: %s)",
-					frame.Manufacturer, frame.Model, frame.ID, travelVal, strings.Join(frame.GetSupportedForkOptions(), ", "))
-			}
 		}
 		var stdFork model.ForkCatalogEntry
 		foundFrameFork := false
@@ -176,6 +182,9 @@ func ResolveForkToken(
 		}
 		targetA2c = geometry.Round(staticA2c-stdFork.TravelMm*(sag/100.0), 1)
 		displayLabel = fmt.Sprintf("%.0fmm @ %.0f%% sag", travelVal, sag)
+		if err := checkA2cRange(targetA2c); err != nil {
+			return 0, 0, 0, "", err
+		}
 		return targetA2c, targetRake, staticA2c, displayLabel, nil
 	}
 
@@ -203,6 +212,9 @@ func ResolveForkToken(
 			}
 			targetA2c = geometry.Round(staticA2c-entry.TravelMm*(sag/100.0), 1)
 			displayLabel = fmt.Sprintf("%.0fmm @ %.0f%% sag", entry.TravelMm, sag)
+		}
+		if err := checkA2cRange(targetA2c); err != nil {
+			return 0, 0, 0, "", err
 		}
 		return targetA2c, targetRake, staticA2c, displayLabel, nil
 	}
@@ -272,13 +284,12 @@ func ResolveFrameForkSetup(
 		displayLabel = fmt.Sprintf("a2c=%.0f/%.0f", targetA2c, targetRake)
 	}
 
-	// 2. Validate against frame fork range
-	if minF, maxF, hasRange := frame.GetForkRange(); hasRange {
-		// Static check: targetA2c should be plausible within [min.A2c - 20, max.A2c]
-		if targetA2c < minF.A2cMm-35.0 || targetA2c > maxF.A2cMm+5.0 {
+	// 2. Validate against frame effective A2C range
+	if minA2c, maxA2c, ok := frame.EffectiveA2cRange(); ok {
+		if targetA2c < minA2c-0.1 || targetA2c > maxA2c+0.1 {
 			return model.CanonicalComparisonRow{}, fmt.Errorf(
-				"effective A2C %.1fmm (%s) is outside frame \"%s %s\" legal static range [%.0fmm, %.0fmm]",
-				targetA2c, displayLabel, frame.Manufacturer, frame.Model, minF.A2cMm, maxF.A2cMm,
+				"effective A2C %.1fmm (%s) is outside frame \"%s %s\" legal range [%.0fmm, %.0fmm]",
+				targetA2c, displayLabel, frame.Manufacturer, frame.Model, minA2c, maxA2c,
 			)
 		}
 	}

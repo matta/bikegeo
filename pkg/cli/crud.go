@@ -81,45 +81,30 @@ func (a *App) runInit(args []string) int {
 	var cadFork model.ForkRef
 	var defaultForkRef model.ForkRef
 	var rigidFork *model.ForkRef
-	var forkRange []model.ForkRef
+	var supportedForks []model.ForkRef
 
 	if len(travels) > 0 {
-		minTravel := travels[0]
-		maxTravel := travels[len(travels)-1]
-		stdFork, ok := canonicalizer.GetStandardForkForTravel(minTravel)
-		optA2c := minTravel + 410.0
-		optRake := 44.0
-		forkID := fmt.Sprintf("standard_%.0f", minTravel)
-		if ok && len(stdFork.Options) > 0 {
-			forkID = stdFork.ID
-			optA2c = stdFork.Options[0].A2cMm
-			optRake = stdFork.Options[0].RakeMm
-		}
-		cadFork = model.ForkRef{
-			Fork:   forkID,
-			A2cMm:  optA2c,
-			RakeMm: optRake,
-			SagPct: model.Float64Ptr(0),
-		}
-		defaultForkRef = cadFork
-
-		maxStdFork, okMax := canonicalizer.GetStandardForkForTravel(maxTravel)
-		maxOptA2c := maxTravel + 410.0
-		maxOptRake := 44.0
-		maxForkID := fmt.Sprintf("standard_%.0f", maxTravel)
-		if okMax && len(maxStdFork.Options) > 0 {
-			maxForkID = maxStdFork.ID
-			maxOptA2c = maxStdFork.Options[0].A2cMm
-			maxOptRake = maxStdFork.Options[0].RakeMm
-		}
-		forkRange = []model.ForkRef{
-			cadFork,
-			{
-				Fork:   maxForkID,
-				A2cMm:  maxOptA2c,
-				RakeMm: maxOptRake,
+		for i, tr := range travels {
+			stdFork, ok := canonicalizer.GetStandardForkForTravel(tr)
+			optA2c := tr + 410.0
+			optRake := 44.0
+			forkID := fmt.Sprintf("standard_%.0f", tr)
+			if ok && len(stdFork.Options) > 0 {
+				forkID = stdFork.ID
+				optA2c = stdFork.Options[0].A2cMm
+				optRake = stdFork.Options[0].RakeMm
+			}
+			fRef := model.ForkRef{
+				Fork:   forkID,
+				A2cMm:  optA2c,
+				RakeMm: optRake,
 				SagPct: model.Float64Ptr(0),
-			},
+			}
+			supportedForks = append(supportedForks, fRef)
+			if i == 0 {
+				cadFork = fRef
+				defaultForkRef = fRef
+			}
 		}
 	} else {
 		cadFork = model.ForkRef{
@@ -129,15 +114,17 @@ func (a *App) runInit(args []string) int {
 		}
 		defaultForkRef = cadFork
 		rigidFork = &cadFork
-		forkRange = []model.ForkRef{cadFork, cadFork}
+		supportedForks = []model.ForkRef{cadFork}
 	}
 
 	if rigidA2c > 0 && rigidFork == nil {
-		rigidFork = &model.ForkRef{
+		rf := model.ForkRef{
 			Fork:   fmt.Sprintf("rigid_%.0f", rigidA2c),
 			A2cMm:  rigidA2c,
 			RakeMm: 44,
 		}
+		rigidFork = &rf
+		supportedForks = append([]model.ForkRef{rf}, supportedForks...)
 	}
 
 	parsedCupType := model.HeadsetCupType(strings.ToUpper(strings.TrimSpace(cupType)))
@@ -202,7 +189,7 @@ func (a *App) runInit(args []string) int {
 		CadFork:            cadFork,
 		DefaultFork:        defaultForkRef,
 		RigidFork:          rigidFork,
-		ForkRange:          forkRange,
+		SupportedForks:     supportedForks,
 		Sizes:              sizes,
 		DefaultSize:        defSize,
 		Geometries:         geos,

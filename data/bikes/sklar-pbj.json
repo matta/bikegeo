@@ -32,18 +32,6 @@
     "a2c_mm": 485.0,
     "rake_mm": 52.0
   },
-  "fork_range": [
-    {
-      "fork": "sklar_steel_485",
-      "a2c_mm": 485.0,
-      "rake_mm": 52.0
-    },
-    {
-      "fork": "fox34_120",
-      "a2c_mm": 530.0,
-      "rake_mm": 44.0
-    }
-  ],
   "sizes": [
     "XS",
     "S",
@@ -113,5 +101,22 @@
       "chainstay_length": 432,
       "seat_tube_length": 530
     }
-  }
+  },
+  "supported_forks": [
+    {
+      "fork": "sklar_steel_485",
+      "a2c_mm": 485.0,
+      "rake_mm": 52.0
+    },
+    {
+      "fork": "sid_100",
+      "a2c_mm": 506.0,
+      "rake_mm": 44.0
+    },
+    {
+      "fork": "fox34_120",
+      "a2c_mm": 530.0,
+      "rake_mm": 44.0
+    }
+  ]
 }

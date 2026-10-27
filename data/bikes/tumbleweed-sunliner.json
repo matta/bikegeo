@@ -23,18 +23,6 @@
     "a2c_mm": 440.0,
     "rake_mm": 55.0
   },
-  "fork_range": [
-    {
-      "fork": "sunliner_440",
-      "a2c_mm": 440.0,
-      "rake_mm": 55.0
-    },
-    {
-      "fork": "sunliner_440",
-      "a2c_mm": 440.0,
-      "rake_mm": 55.0
-    }
-  ],
   "sizes": [
     "S",
     "M",
@@ -91,5 +79,12 @@
       "seat_tube_length": 545,
       "standover_height": 875
     }
-  }
+  },
+  "supported_forks": [
+    {
+      "fork": "sunliner_440",
+      "a2c_mm": 440.0,
+      "rake_mm": 55.0
+    }
+  ]
 }

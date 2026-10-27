@@ -33,18 +33,6 @@
     "a2c_mm": 495.0,
     "rake_mm": 51.0
   },
-  "fork_range": [
-    {
-      "fork": "rigid_495",
-      "a2c_mm": 495.0,
-      "rake_mm": 51.0
-    },
-    {
-      "fork": "fox34_130",
-      "a2c_mm": 541.0,
-      "rake_mm": 44.0
-    }
-  ],
   "sizes": [
     "S1",
     "S2",
@@ -97,5 +85,22 @@
       "chainstay_length": 440,
       "seat_tube_length": 530
     }
-  }
+  },
+  "supported_forks": [
+    {
+      "fork": "rigid_495",
+      "a2c_mm": 495.0,
+      "rake_mm": 51.0
+    },
+    {
+      "fork": "pike_120",
+      "a2c_mm": 531.0,
+      "rake_mm": 44.0
+    },
+    {
+      "fork": "fox34_130",
+      "a2c_mm": 541.0,
+      "rake_mm": 44.0
+    }
+  ]
 }

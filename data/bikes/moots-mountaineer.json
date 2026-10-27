@@ -24,18 +24,6 @@
     "a2c_mm": 507.0,
     "rake_mm": 44.0
   },
-  "fork_range": [
-    {
-      "fork": "pike_120",
-      "a2c_mm": 531.0,
-      "rake_mm": 44.0
-    },
-    {
-      "fork": "pike_120",
-      "a2c_mm": 531.0,
-      "rake_mm": 44.0
-    }
-  ],
   "sizes": [
     "S",
     "M",
@@ -92,5 +80,12 @@
       "seat_tube_length": 533.4,
       "standover_height": 856
     }
-  }
+  },
+  "supported_forks": [
+    {
+      "fork": "pike_120",
+      "a2c_mm": 531.0,
+      "rake_mm": 44.0
+    }
+  ]
 }

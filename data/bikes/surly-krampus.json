@@ -26,18 +26,6 @@
     "a2c_mm": 483.0,
     "rake_mm": 47.0
   },
-  "fork_range": [
-    {
-      "fork": "surly_krampus_483",
-      "a2c_mm": 483.0,
-      "rake_mm": 47.0
-    },
-    {
-      "fork": "fox34_120",
-      "a2c_mm": 530.0,
-      "rake_mm": 44.0
-    }
-  ],
   "sizes": [
     "S",
     "M",
@@ -94,5 +82,22 @@
       "seat_tube_length": 521,
       "standover_height": 853
     }
-  }
+  },
+  "supported_forks": [
+    {
+      "fork": "surly_krampus_483",
+      "a2c_mm": 483.0,
+      "rake_mm": 47.0
+    },
+    {
+      "fork": "sid_100",
+      "a2c_mm": 506.0,
+      "rake_mm": 44.0
+    },
+    {
+      "fork": "fox34_120",
+      "a2c_mm": 530.0,
+      "rake_mm": 44.0
+    }
+  ]
 }
