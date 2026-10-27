@@ -72,10 +72,13 @@ func ResolveForkToken(
 				if entry.TravelMm > 0 && len(entry.Options) > 0 {
 					staticA2c = entry.Options[0].A2cMm
 					sag := def.GetSagPct()
+					if sag == 0 {
+						sag = 20.0
+					}
 					if sagOverride != nil {
 						sag = *sagOverride
-						targetA2c = geometry.Round(staticA2c-entry.TravelMm*(sag/100.0), 1)
 					}
+					targetA2c = geometry.Round(staticA2c-entry.TravelMm*(sag/100.0), 1)
 					displayLabel = fmt.Sprintf("%.0fmm @ %.0f%%", entry.TravelMm, sag)
 					return targetA2c, targetRake, staticA2c, displayLabel, nil
 				}

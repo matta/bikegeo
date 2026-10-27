@@ -14,16 +14,6 @@
     "a2c_mm": 481.0,
     "rake_mm": 51.0
   },
-  "default_fork": {
-    "fork": "firestarter_deluxe_483",
-    "a2c_mm": 483.0,
-    "rake_mm": 51.0
-  },
-  "rigid_fork": {
-    "fork": "firestarter_deluxe_483",
-    "a2c_mm": 483.0,
-    "rake_mm": 51.0
-  },
   "sizes": [
     "52cm",
     "54cm",
@@ -94,7 +84,7 @@
       "standover_height": 874
     }
   },
-  "supported_forks": [
+  "forks": [
     {
       "fork": "firestarter_deluxe_483",
       "a2c_mm": 483.0,

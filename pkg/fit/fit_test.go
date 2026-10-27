@@ -23,8 +23,7 @@ func sampleFrame() model.FrameModel {
 		HeadsetCupType:     model.CupEC44,
 		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
 		CadFork:            fork,
-		DefaultFork:        fork,
-		SupportedForks:     []model.ForkRef{fork},
+		Forks:              []model.ForkRef{fork},
 		Sizes:              []string{"M", "L"},
 		DefaultSize:        "L",
 		Geometries: map[string]model.SizeGeometry{

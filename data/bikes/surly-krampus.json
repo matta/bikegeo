@@ -16,16 +16,6 @@
     "a2c_mm": 483.0,
     "rake_mm": 47.0
   },
-  "default_fork": {
-    "fork": "surly_krampus_483",
-    "a2c_mm": 483.0,
-    "rake_mm": 47.0
-  },
-  "rigid_fork": {
-    "fork": "surly_krampus_483",
-    "a2c_mm": 483.0,
-    "rake_mm": 47.0
-  },
   "sizes": [
     "S",
     "M",
@@ -83,7 +73,7 @@
       "standover_height": 853
     }
   },
-  "supported_forks": [
+  "forks": [
     {
       "fork": "surly_krampus_483",
       "a2c_mm": 483.0,

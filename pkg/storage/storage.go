@@ -87,8 +87,7 @@ func parseFrameFromData(data []byte, fileID string) (*model.FrameModel, error) {
 			Sizes:              []string{size},
 			DefaultSize:        size,
 			CadFork:            cadFork,
-			DefaultFork:        cadFork,
-			SupportedForks:     []model.ForkRef{cadFork},
+			Forks:              []model.ForkRef{cadFork},
 			Geometries: map[string]model.SizeGeometry{
 				size: {
 					Reach:           bike.Reach,
@@ -381,11 +380,8 @@ func (s *BikeStore) SaveBike(bike model.BikeGeometry) (*model.BikeGeometry, erro
 			}
 		}
 	}
-	if frame.DefaultFork.A2cMm == 0 {
-		frame.DefaultFork = frame.CadFork
-	}
-	if len(frame.SupportedForks) == 0 {
-		frame.SupportedForks = []model.ForkRef{frame.CadFork}
+	if len(frame.Forks) == 0 {
+		frame.Forks = []model.ForkRef{frame.CadFork}
 	}
 
 	savedFrame, err := s.SaveFrame(frame)

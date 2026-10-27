@@ -375,9 +375,7 @@ type FrameModel struct {
 	Sizes              []string                `json:"sizes"`
 	DefaultSize        string                  `json:"default_size,omitempty"`
 	CadFork            ForkRef                 `json:"cad_fork"`
-	DefaultFork        ForkRef                 `json:"default_fork"`
-	RigidFork          *ForkRef                `json:"rigid_fork,omitempty"`
-	SupportedForks     []ForkRef               `json:"supported_forks"`
+	Forks              []ForkRef               `json:"forks"`
 	Geometries         map[string]SizeGeometry `json:"geometries"`
 }
 
@@ -475,10 +473,7 @@ func (fm *FrameModel) GetCadRake() float64 {
 }
 
 func (fm *FrameModel) SupportsRigid() bool {
-	if fm.RigidFork != nil && fm.RigidFork.A2cMm > 0 {
-		return true
-	}
-	for _, f := range fm.SupportedForks {
+	for _, f := range fm.Forks {
 		if f.ForkTravel() == 0 && f.A2cMm > 0 {
 			return true
 		}
@@ -487,10 +482,7 @@ func (fm *FrameModel) SupportsRigid() bool {
 }
 
 func (fm *FrameModel) GetRigidA2c() float64 {
-	if fm.RigidFork != nil {
-		return fm.RigidFork.A2cMm
-	}
-	for _, f := range fm.SupportedForks {
+	for _, f := range fm.Forks {
 		if f.ForkTravel() == 0 && f.A2cMm > 0 {
 			return f.A2cMm
 		}
@@ -499,10 +491,7 @@ func (fm *FrameModel) GetRigidA2c() float64 {
 }
 
 func (fm *FrameModel) GetRigidRake() float64 {
-	if fm.RigidFork != nil {
-		return fm.RigidFork.RakeMm
-	}
-	for _, f := range fm.SupportedForks {
+	for _, f := range fm.Forks {
 		if f.ForkTravel() == 0 && f.A2cMm > 0 {
 			return f.RakeMm
 		}
@@ -511,7 +500,10 @@ func (fm *FrameModel) GetRigidRake() float64 {
 }
 
 func (fm *FrameModel) GetDefaultFork() ForkRef {
-	return fm.DefaultFork
+	if len(fm.Forks) > 0 {
+		return fm.Forks[0]
+	}
+	return fm.CadFork
 }
 
 func (fm *FrameModel) GetSizeGeometry(size string) (SizeGeometry, bool) {
@@ -523,7 +515,7 @@ func (fm *FrameModel) GetSizeGeometry(size string) (SizeGeometry, bool) {
 }
 
 // EffectiveA2cRange derives the frame's valid operating A2C range [min, max] in mm
-// purely from the mathematical union of each fork in SupportedForks.
+// purely from the mathematical union of each fork in Forks.
 // Suspension forks expand across standard sag (15% to 30%), with the upper bound extending
 // to static A2C (0% sag). Rigid forks contribute a ±5.0mm tolerance window.
 func (fm *FrameModel) EffectiveA2cRange() (minA2c float64, maxA2c float64, ok bool) {
@@ -558,19 +550,13 @@ func (fm *FrameModel) EffectiveA2cRange() (minA2c float64, maxA2c float64, ok bo
 		}
 	}
 
-	for _, f := range fm.SupportedForks {
+	for _, f := range fm.Forks {
 		processFork(f)
-	}
-
-	if fm.RigidFork != nil {
-		processFork(*fm.RigidFork)
 	}
 
 	if math.IsInf(minA2c, 1) || math.IsInf(maxA2c, -1) {
 		if fm.CadFork.A2cMm > 0 {
 			processFork(fm.CadFork)
-		} else if fm.DefaultFork.A2cMm > 0 {
-			processFork(fm.DefaultFork)
 		}
 	}
 
@@ -596,7 +582,7 @@ func (fm *FrameModel) GetSupportedForkOptions() []string {
 
 	var hasRigid bool
 	var minTr, maxTr float64
-	for _, f := range fm.SupportedForks {
+	for _, f := range fm.Forks {
 		tr := f.ForkTravel()
 		if tr == 0 {
 			hasRigid = true
@@ -640,7 +626,7 @@ func (fm *FrameModel) IsFixedRigidOnly() bool {
 	if !fm.SupportsRigid() {
 		return false
 	}
-	for _, f := range fm.SupportedForks {
+	for _, f := range fm.Forks {
 		if f.ForkTravel() > 0 {
 			return false
 		}
@@ -650,16 +636,17 @@ func (fm *FrameModel) IsFixedRigidOnly() bool {
 
 // IsFixedFork returns true if the frame has a single fixed fork travel/A2C.
 func (fm *FrameModel) IsFixedFork() bool {
-	return len(fm.SupportedForks) == 1
+	return len(fm.Forks) == 1
 }
 
 // GetDefaultForkSpecString returns a token representation of the default fork for CLI display.
 func (fm *FrameModel) GetDefaultForkSpecString() string {
-	if fm.DefaultFork.Fork != "" {
-		return fm.DefaultFork.Fork
+	def := fm.GetDefaultFork()
+	if def.Fork != "" {
+		return def.Fork
 	}
-	if fm.DefaultFork.A2cMm > 0 {
-		return fmt.Sprintf("a2c=%.0f", fm.DefaultFork.A2cMm)
+	if def.A2cMm > 0 {
+		return fmt.Sprintf("a2c=%.0f", def.A2cMm)
 	}
 	return "stock"
 }

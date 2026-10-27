@@ -13,16 +13,6 @@
     "a2c_mm": 440.0,
     "rake_mm": 55.0
   },
-  "default_fork": {
-    "fork": "sunliner_440",
-    "a2c_mm": 440.0,
-    "rake_mm": 55.0
-  },
-  "rigid_fork": {
-    "fork": "sunliner_440",
-    "a2c_mm": 440.0,
-    "rake_mm": 55.0
-  },
   "sizes": [
     "S",
     "M",
@@ -80,7 +70,7 @@
       "standover_height": 875
     }
   },
-  "supported_forks": [
+  "forks": [
     {
       "fork": "sunliner_440",
       "a2c_mm": 440.0,

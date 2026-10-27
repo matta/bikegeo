@@ -104,7 +104,6 @@ func TestFrameModelStorage(t *testing.T) {
 	}
 
 	cadFork := model.ForkRef{Fork: "fox34_120", SagPct: model.Float64Ptr(20), A2cMm: 506, RakeMm: 44}
-	rigidFork := &model.ForkRef{Fork: "rigid_483", A2cMm: 483, RakeMm: 44}
 	frame := model.FrameModel{
 		ID:                 "chumba-sendero",
 		Manufacturer:       "Chumba",
@@ -116,9 +115,7 @@ func TestFrameModelStorage(t *testing.T) {
 		Sizes:              []string{"S", "M", "L", "XL"},
 		DefaultSize:        "L",
 		CadFork:            cadFork,
-		DefaultFork:        cadFork,
-		RigidFork:          rigidFork,
-		SupportedForks: []model.ForkRef{
+		Forks: []model.ForkRef{
 			{Fork: "rigid_483", A2cMm: 483, RakeMm: 44},
 			{Fork: "fox34_130", A2cMm: 540, RakeMm: 44},
 		},

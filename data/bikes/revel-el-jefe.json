@@ -23,17 +23,6 @@
     "a2c_mm": 510.0,
     "rake_mm": 44.0
   },
-  "default_fork": {
-    "fork": "sid_120",
-    "sag_pct": 20.0,
-    "a2c_mm": 510.0,
-    "rake_mm": 44.0
-  },
-  "rigid_fork": {
-    "fork": "rigid_510",
-    "a2c_mm": 510.0,
-    "rake_mm": 44.0
-  },
   "sizes": [
     "S",
     "M",
@@ -91,10 +80,10 @@
       "standover_height": 790
     }
   },
-  "supported_forks": [
+  "forks": [
     {
-      "fork": "rigid_510",
-      "a2c_mm": 510.0,
+      "fork": "sid_120",
+      "a2c_mm": 530.0,
       "rake_mm": 44.0
     },
     {
@@ -105,6 +94,11 @@
     {
       "fork": "fox34_130",
       "a2c_mm": 541.0,
+      "rake_mm": 44.0
+    },
+    {
+      "fork": "rigid_510",
+      "a2c_mm": 510.0,
       "rake_mm": 44.0
     }
   ]

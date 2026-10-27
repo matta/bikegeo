@@ -22,17 +22,6 @@
     "a2c_mm": 512.0,
     "rake_mm": 44.0
   },
-  "default_fork": {
-    "fork": "fox34_120",
-    "sag_pct": 15.0,
-    "a2c_mm": 512.0,
-    "rake_mm": 44.0
-  },
-  "rigid_fork": {
-    "fork": "rigid_500",
-    "a2c_mm": 500.0,
-    "rake_mm": 44.0
-  },
   "sizes": [
     "S",
     "SMD",
@@ -122,10 +111,10 @@
       "standover_height": 887
     }
   },
-  "supported_forks": [
+  "forks": [
     {
-      "fork": "rigid_500",
-      "a2c_mm": 500.0,
+      "fork": "fox34_120",
+      "a2c_mm": 530.0,
       "rake_mm": 44.0
     },
     {
@@ -134,8 +123,8 @@
       "rake_mm": 44.0
     },
     {
-      "fork": "fox34_120",
-      "a2c_mm": 530.0,
+      "fork": "rigid_500",
+      "a2c_mm": 500.0,
       "rake_mm": 44.0
     }
   ]

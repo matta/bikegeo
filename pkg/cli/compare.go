@@ -332,7 +332,7 @@ Comparison Specs:
       Suspension sag percent. Pure numbers < 60 are treated as sag %; numbers >= 60
       are treated as fork travel in mm. If omitted, uses the frame's default sag.
     - Default fork (omitted fork):
-      If no fork is specified, the frame's declared default_fork is used.
+      If no fork is specified, the frame's default fork (first entry in forks) is used.
 
 Comparison State & Column Management:
   State Persistence:
@@ -639,11 +639,12 @@ func (a *App) loadOrDefaultComparisonState(frames []model.FrameModel) model.Save
 		if !validator.ValidateFrame(f).IsValid {
 			continue
 		}
+		defFork := f.GetDefaultFork()
 		cols = append(cols, model.ComparisonSetup{
 			FrameID:      f.ID,
 			Size:         f.GetDefaultSize(),
-			A2cMm:        f.DefaultFork.A2cMm,
-			RakeMm:       f.DefaultFork.RakeMm,
+			A2cMm:        defFork.A2cMm,
+			RakeMm:       defFork.RakeMm,
 			DisplayLabel: "Stock",
 		})
 		if len(cols) >= 3 {

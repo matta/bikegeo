@@ -15,12 +15,6 @@
     "a2c_mm": 507.0,
     "rake_mm": 44.0
   },
-  "default_fork": {
-    "fork": "pike_120",
-    "sag_pct": 20.0,
-    "a2c_mm": 507.0,
-    "rake_mm": 44.0
-  },
   "sizes": [
     "S",
     "M",
@@ -78,15 +72,15 @@
       "standover_height": 824
     }
   },
-  "supported_forks": [
-    {
-      "fork": "sid_100",
-      "a2c_mm": 506.0,
-      "rake_mm": 44.0
-    },
+  "forks": [
     {
       "fork": "pike_120",
       "a2c_mm": 531.0,
+      "rake_mm": 44.0
+    },
+    {
+      "fork": "sid_100",
+      "a2c_mm": 506.0,
       "rake_mm": 44.0
     }
   ]

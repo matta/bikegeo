@@ -282,18 +282,9 @@ func TestValidateRevelElJefe(t *testing.T) {
 			A2cMm:  510.0,
 			RakeMm: 44.0,
 		},
-		DefaultFork: model.ForkRef{
-			Fork:   "sid_120",
-			SagPct: model.Float64Ptr(20.0),
-			A2cMm:  510.0,
-			RakeMm: 44.0,
-		},
-		RigidFork: &model.ForkRef{
-			Fork:   "rigid_510",
-			A2cMm:  510.0,
-			RakeMm: 44.0,
-		},
-		SupportedForks: []model.ForkRef{
+		Forks: []model.ForkRef{
+			{Fork: "sid_120", A2cMm: 530.0, RakeMm: 44.0},
+			{Fork: "rigid_510", A2cMm: 510.0, RakeMm: 44.0},
 			{Fork: "sid_100", A2cMm: 506.0, RakeMm: 44.0},
 			{Fork: "fox34_130", A2cMm: 541.0, RakeMm: 44.0},
 		},
@@ -337,17 +328,7 @@ func TestValidateTumbleweedSunliner(t *testing.T) {
 			A2cMm:  440.0,
 			RakeMm: 55.0,
 		},
-		DefaultFork: model.ForkRef{
-			Fork:   "sunliner_440",
-			A2cMm:  440.0,
-			RakeMm: 55.0,
-		},
-		RigidFork: &model.ForkRef{
-			Fork:   "sunliner_440",
-			A2cMm:  440.0,
-			RakeMm: 55.0,
-		},
-		SupportedForks: []model.ForkRef{
+		Forks: []model.ForkRef{
 			{Fork: "sunliner_440", A2cMm: 440.0, RakeMm: 55.0},
 		},
 		Geometries: map[string]model.SizeGeometry{
@@ -367,8 +348,8 @@ func TestValidateTumbleweedSunliner(t *testing.T) {
 	}
 }
 
-func TestValidateSupportedForks(t *testing.T) {
-	// Frame with missing supported forks
+func TestValidateForks(t *testing.T) {
+	// Frame with missing forks
 	missingForksFrame := model.FrameModel{
 		ID:                 "no-forks-frame",
 		Manufacturer:       "Test",
@@ -384,13 +365,7 @@ func TestValidateSupportedForks(t *testing.T) {
 			A2cMm:  506.0,
 			RakeMm: 44.0,
 		},
-		DefaultFork: model.ForkRef{
-			Fork:   "fox34_120",
-			SagPct: model.Float64Ptr(20.0),
-			A2cMm:  506.0,
-			RakeMm: 44.0,
-		},
-		SupportedForks: nil,
+		Forks: nil,
 		Geometries: map[string]model.SizeGeometry{
 			"L": {Reach: 456, Stack: 657, HtaDeg: 67, StaDeg: 74.5, Htl: 145, BbDrop: 60, Wheelbase: 1208, ChainstayLength: 455},
 		},
@@ -398,18 +373,18 @@ func TestValidateSupportedForks(t *testing.T) {
 
 	report := validator.ValidateFrame(missingForksFrame)
 	if report.IsValid {
-		t.Fatalf("Expected frame with missing supported forks to fail validation")
+		t.Fatalf("Expected frame with missing forks to fail validation")
 	}
 
 	foundIssue := false
 	for _, iss := range report.Issues {
-		if iss.ID == "missing_supported_forks" {
+		if iss.ID == "missing_forks" {
 			foundIssue = true
 			break
 		}
 	}
 	if !foundIssue {
-		t.Errorf("Expected issue 'missing_supported_forks', got: %+v", report.Issues)
+		t.Errorf("Expected issue 'missing_forks', got: %+v", report.Issues)
 	}
 }
 
@@ -460,17 +435,14 @@ func TestAllFrameData(t *testing.T) {
 			}
 		}
 
-		// 4. Verify CAD and Default fork specifications are populated
+		// 4. Verify CAD fork specification is populated
 		if frame.CadFork.Fork == "" || frame.CadFork.A2cMm <= 0 {
 			t.Errorf("Frame %s has invalid cad_fork: %+v", frame.ID, frame.CadFork)
 		}
-		if frame.DefaultFork.Fork == "" || frame.DefaultFork.A2cMm <= 0 {
-			t.Errorf("Frame %s has invalid default_fork: %+v", frame.ID, frame.DefaultFork)
-		}
 
-		// 5. Verify supported forks
-		if len(frame.SupportedForks) == 0 {
-			t.Errorf("Frame %s missing supported_forks", frame.ID)
+		// 5. Verify forks
+		if len(frame.Forks) == 0 {
+			t.Errorf("Frame %s missing forks", frame.ID)
 		}
 		if _, _, ok := frame.EffectiveA2cRange(); !ok {
 			t.Errorf("Frame %s cannot derive valid A2C range", frame.ID)

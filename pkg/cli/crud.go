@@ -79,9 +79,7 @@ func (a *App) runInit(args []string) int {
 	}
 
 	var cadFork model.ForkRef
-	var defaultForkRef model.ForkRef
-	var rigidFork *model.ForkRef
-	var supportedForks []model.ForkRef
+	var forks []model.ForkRef
 
 	if len(travels) > 0 {
 		for i, tr := range travels {
@@ -100,10 +98,9 @@ func (a *App) runInit(args []string) int {
 				RakeMm: optRake,
 				SagPct: model.Float64Ptr(0),
 			}
-			supportedForks = append(supportedForks, fRef)
+			forks = append(forks, fRef)
 			if i == 0 {
 				cadFork = fRef
-				defaultForkRef = fRef
 			}
 		}
 	} else {
@@ -112,19 +109,30 @@ func (a *App) runInit(args []string) int {
 			A2cMm:  rigidA2c,
 			RakeMm: 44,
 		}
-		defaultForkRef = cadFork
-		rigidFork = &cadFork
-		supportedForks = []model.ForkRef{cadFork}
+		forks = []model.ForkRef{cadFork}
 	}
 
-	if rigidA2c > 0 && rigidFork == nil {
+	if rigidA2c > 0 && len(travels) > 0 {
 		rf := model.ForkRef{
 			Fork:   fmt.Sprintf("rigid_%.0f", rigidA2c),
 			A2cMm:  rigidA2c,
 			RakeMm: 44,
 		}
-		rigidFork = &rf
-		supportedForks = append([]model.ForkRef{rf}, supportedForks...)
+		forks = append([]model.ForkRef{rf}, forks...)
+	}
+
+	if defaultFork != "" {
+		defClean := strings.ToLower(strings.TrimSpace(defaultFork))
+		for idx, f := range forks {
+			if strings.EqualFold(f.Fork, defClean) ||
+				(defClean == "rigid" && f.ForkTravel() == 0) ||
+				(strings.HasPrefix(defClean, fmt.Sprintf("%.0f", f.ForkTravel())) && f.ForkTravel() > 0) {
+				if idx > 0 {
+					forks[0], forks[idx] = forks[idx], forks[0]
+				}
+				break
+			}
+		}
 	}
 
 	parsedCupType := model.HeadsetCupType(strings.ToUpper(strings.TrimSpace(cupType)))
@@ -187,9 +195,7 @@ func (a *App) runInit(args []string) int {
 		HeadsetCupType:     parsedCupType,
 		GeoHeadsetSpacerMm: model.Float64Ptr(geoSpacer),
 		CadFork:            cadFork,
-		DefaultFork:        defaultForkRef,
-		RigidFork:          rigidFork,
-		SupportedForks:     supportedForks,
+		Forks:              forks,
 		Sizes:              sizes,
 		DefaultSize:        defSize,
 		Geometries:         geos,

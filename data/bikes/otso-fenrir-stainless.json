@@ -17,16 +17,6 @@
     "a2c_mm": 495.0,
     "rake_mm": 54.0
   },
-  "default_fork": {
-    "fork": "lithic_carbon_mountain",
-    "a2c_mm": 495.0,
-    "rake_mm": 54.0
-  },
-  "rigid_fork": {
-    "fork": "lithic_carbon_mountain",
-    "a2c_mm": 495.0,
-    "rake_mm": 54.0
-  },
   "sizes": [
     "XS",
     "S",
@@ -97,7 +87,7 @@
       "standover_height": 866
     }
   },
-  "supported_forks": [
+  "forks": [
     {
       "fork": "lithic_carbon_mountain",
       "a2c_mm": 495.0,

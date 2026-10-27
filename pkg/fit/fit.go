@@ -230,32 +230,23 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		frame.CadFork.Fork = val
 		return nil
 
-	case "default_fork.a2c", "default_fork.a2c_mm":
-		v, err := parseFloat()
-		if err != nil || v <= 0 {
-			return fmt.Errorf("default_fork A2C must be a positive number")
-		}
-		frame.DefaultFork.A2cMm = v
-		return nil
-
-	case "default_fork.rake", "default_fork.rake_mm":
-		v, err := parseFloat()
-		if err != nil || v <= 0 {
-			return fmt.Errorf("default_fork rake must be a positive number")
-		}
-		frame.DefaultFork.RakeMm = v
-		return nil
-
-	case "default_fork.sag":
-		v, err := parseFloat()
-		if err != nil || v < 0 || v > 50 {
-			return fmt.Errorf("default_fork sag must be between 0 and 50")
-		}
-		frame.DefaultFork.SagPct = model.Float64Ptr(v)
-		return nil
-
 	case "default_fork.fork", "default_fork":
-		frame.DefaultFork.Fork = val
+		for idx, f := range frame.Forks {
+			if strings.EqualFold(f.Fork, val) || (val == "rigid" && f.ForkTravel() == 0) {
+				if idx > 0 {
+					frame.Forks[0], frame.Forks[idx] = frame.Forks[idx], frame.Forks[0]
+				}
+				return nil
+			}
+		}
+		if entry, ok := catalog.GetCatalogFork(val); ok && len(entry.Options) > 0 {
+			newRef := model.ForkRef{
+				Fork:   entry.ID,
+				A2cMm:  entry.Options[0].A2cMm,
+				RakeMm: entry.Options[0].RakeMm,
+			}
+			frame.Forks = append([]model.ForkRef{newRef}, frame.Forks...)
+		}
 		return nil
 
 	// 2. Frame-Level Hardware & Metadata Attributes
@@ -360,13 +351,24 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		return nil
 	case "rigid_a2c_mm", "rigid_a2c":
 		v, err := parseFloat()
-		if err != nil || v < 0 {
-			return fmt.Errorf("rigid_a2c_mm must be non-negative")
+		if err != nil || v <= 0 {
+			return fmt.Errorf("rigid_a2c_mm must be a positive number")
 		}
-		if frame.RigidFork == nil {
-			frame.RigidFork = &model.ForkRef{}
+		found := false
+		for i := range frame.Forks {
+			if frame.Forks[i].ForkTravel() == 0 {
+				frame.Forks[i].A2cMm = v
+				found = true
+				break
+			}
 		}
-		frame.RigidFork.A2cMm = v
+		if !found {
+			frame.Forks = append(frame.Forks, model.ForkRef{
+				Fork:   fmt.Sprintf("rigid_%.0f", v),
+				A2cMm:  v,
+				RakeMm: 44.0,
+			})
+		}
 		return nil
 	}
 
@@ -676,8 +678,8 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 		for _, sag := range sags {
 			var staticA2cs []float64
 			if travel == 0 {
-				if frame.RigidFork != nil {
-					staticA2cs = append(staticA2cs, frame.RigidFork.A2cMm)
+				if frame.SupportsRigid() {
+					staticA2cs = append(staticA2cs, frame.GetRigidA2c())
 				}
 				if frame.CadFork.A2cMm > 0 {
 					staticA2cs = append(staticA2cs, frame.CadFork.A2cMm)
