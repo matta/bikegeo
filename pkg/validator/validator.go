@@ -112,24 +112,15 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		})
 	}
 
-	if bike.GeoHeadsetSpacerMm == nil {
-		issues = append(issues, model.ValidationIssue{
-			ID:       "missing_geo_headset_spacer_mm",
-			Field:    "geo_headset_spacer_mm",
-			Severity: model.SeverityError,
-			Title:    "Missing Essential Variable: CAD Headset Spacer (mm)",
-			Message:  "geo_headset_spacer_mm must be explicitly stated in the geometry JSON (e.g. 10 or 0).",
-			Details:  "Every bike geometry must explicitly declare the below-headset spacer/cup height that the CAD chart was drawn with.",
-		})
-	} else if *bike.GeoHeadsetSpacerMm < 0 || *bike.GeoHeadsetSpacerMm > 25.0 {
+	if bike.GeoHeadsetSpacerMm < 0 || bike.GeoHeadsetSpacerMm > 25.0 {
 		issues = append(issues, model.ValidationIssue{
 			ID:       "invalid_geo_headset_spacer_mm",
 			Field:    "geo_headset_spacer_mm",
 			Severity: model.SeverityError,
 			Title:    "Invalid CAD Headset Spacer (mm)",
-			Message:  fmt.Sprintf("geo_headset_spacer_mm of %.1fmm is outside valid range (0mm - 25mm).", *bike.GeoHeadsetSpacerMm),
+			Message:  fmt.Sprintf("geo_headset_spacer_mm of %.1fmm is outside valid range (0mm - 25mm).", bike.GeoHeadsetSpacerMm),
 			Expected: "0.0 - 25.0 mm",
-			Actual:   fmt.Sprintf("%.1f mm", *bike.GeoHeadsetSpacerMm),
+			Actual:   fmt.Sprintf("%.1f mm", bike.GeoHeadsetSpacerMm),
 		})
 	}
 
@@ -283,13 +274,13 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		a2cDiff = &diff
 
 		if math.Abs(diff) <= a2cSlop {
-			if bike.CadFork.SagPct != nil && *bike.CadFork.SagPct > 0 {
+			if bike.CadFork.SagPct > 0 {
 				inferredMode = model.ModeSaggedCad
 				issues = append(issues, model.ValidationIssue{
 					ID:       "stack_sagged_confirmed",
 					Severity: model.SeveritySuccess,
 					Title:    "Stack & Sagged Fork A2C Match",
-					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches published %.0f%% sagged fork A2C (%.1fmm) within %.1fmm (tolerance ±%.1fmm, %.1fmm CAD spacer).", calculatedForkA2c, *bike.CadFork.SagPct, expectedForkA2c, math.Abs(diff), a2cSlop, geoSpacerMm),
+					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches published %.0f%% sagged fork A2C (%.1fmm) within %.1fmm (tolerance ±%.1fmm, %.1fmm CAD spacer).", calculatedForkA2c, bike.CadFork.SagPct, expectedForkA2c, math.Abs(diff), a2cSlop, geoSpacerMm),
 					Expected: fmt.Sprintf("%.1f mm", expectedForkA2c),
 					Actual:   fmt.Sprintf("%.1f mm", calculatedForkA2c),
 				})
@@ -491,23 +482,14 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 		})
 	}
 
-	if frame.GeoHeadsetSpacerMm == nil {
-		report.IsValid = false
-		report.Issues = append(report.Issues, model.ValidationIssue{
-			ID:       "missing_geo_headset_spacer_mm",
-			Field:    "geo_headset_spacer_mm",
-			Severity: model.SeverityError,
-			Title:    "Missing CAD Headset Spacer (mm)",
-			Message:  "Frame must explicitly specify geo_headset_spacer_mm (e.g. 10 or 0).",
-		})
-	} else if *frame.GeoHeadsetSpacerMm < 0 || *frame.GeoHeadsetSpacerMm > 25.0 {
+	if frame.GeoHeadsetSpacerMm < 0 || frame.GeoHeadsetSpacerMm > 25.0 {
 		report.IsValid = false
 		report.Issues = append(report.Issues, model.ValidationIssue{
 			ID:       "invalid_geo_headset_spacer_mm",
 			Field:    "geo_headset_spacer_mm",
 			Severity: model.SeverityError,
 			Title:    "Invalid CAD Headset Spacer (mm)",
-			Message:  fmt.Sprintf("geo_headset_spacer_mm of %.1fmm is outside valid range (0mm - 25mm).", *frame.GeoHeadsetSpacerMm),
+			Message:  fmt.Sprintf("geo_headset_spacer_mm of %.1fmm is outside valid range (0mm - 25mm).", frame.GeoHeadsetSpacerMm),
 		})
 	}
 
@@ -550,36 +532,18 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 	}
 
 	// Validate Cockpit & Stem/Spacer Envelope
-	if frame.MaxSpacerMm == nil {
-		report.IsValid = false
-		report.Issues = append(report.Issues, model.ValidationIssue{
-			ID:       "missing_max_spacer_mm",
-			Field:    "max_spacer_mm",
-			Severity: model.SeverityError,
-			Title:    "Missing Maximum Spacer Stack",
-			Message:  "Frame must explicitly specify max_spacer_mm (e.g. 40).",
-		})
-	} else if *frame.MaxSpacerMm < 0 || *frame.MaxSpacerMm > 100.0 {
+	if frame.MaxSpacerMm < 0 || frame.MaxSpacerMm > 100.0 {
 		report.IsValid = false
 		report.Issues = append(report.Issues, model.ValidationIssue{
 			ID:       "invalid_max_spacer_mm",
 			Field:    "max_spacer_mm",
 			Severity: model.SeverityError,
 			Title:    "Invalid Maximum Spacer Stack",
-			Message:  fmt.Sprintf("max_spacer_mm of %.1fmm is outside valid range (0mm - 100mm).", *frame.MaxSpacerMm),
+			Message:  fmt.Sprintf("max_spacer_mm of %.1fmm is outside valid range (0mm - 100mm).", frame.MaxSpacerMm),
 		})
 	}
 
-	if frame.CanonicalStem == nil {
-		report.IsValid = false
-		report.Issues = append(report.Issues, model.ValidationIssue{
-			ID:       "missing_canonical_stem",
-			Field:    "canonical_stem",
-			Severity: model.SeverityError,
-			Title:    "Missing Canonical Stem",
-			Message:  "Frame must explicitly specify canonical_stem with length_mm and angle_deg.",
-		})
-	} else if frame.CanonicalStem.LengthMm <= 0 {
+	if frame.CanonicalStem.LengthMm <= 0 {
 		report.IsValid = false
 		report.Issues = append(report.Issues, model.ValidationIssue{
 			ID:       "invalid_canonical_stem",
@@ -639,7 +603,7 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 			expandedStems = append(expandedStems, entry.Expand()...)
 		}
 
-		if frame.CanonicalStem != nil && frame.CanonicalStem.LengthMm > 0 {
+		if frame.CanonicalStem.LengthMm > 0 {
 			hasCanonical := false
 			for _, s := range expandedStems {
 				if math.Abs(s.LengthMm-frame.CanonicalStem.LengthMm) < 0.001 && math.Abs(s.AngleDeg-frame.CanonicalStem.AngleDeg) < 0.001 {
@@ -818,13 +782,13 @@ func ValidateForkRef(frameID string, fieldName string, fref model.ForkRef) []mod
 
 	if entry.TravelMm == 0 {
 		// Rigid fork
-		if fref.SagPct != nil && *fref.SagPct != 0 {
+		if fref.SagPct != 0 {
 			issues = append(issues, model.ValidationIssue{
 				ID:       "invalid_" + fieldName + "_sag",
 				Field:    fieldName + ".sag_pct",
 				Severity: model.SeverityError,
 				Title:    fmt.Sprintf("Invalid Sag on Rigid Fork in %s", fieldName),
-				Message:  fmt.Sprintf("Rigid fork %q cannot have sag_pct (got %.1f%%).", fref.Fork, *fref.SagPct),
+				Message:  fmt.Sprintf("Rigid fork %q cannot have sag_pct (got %.1f%%).", fref.Fork, fref.SagPct),
 			})
 		}
 		matched := false
@@ -845,89 +809,69 @@ func ValidateForkRef(frameID string, fieldName string, fref model.ForkRef) []mod
 		}
 	} else {
 		// Suspension fork
-		if fref.SagPct == nil {
-			if strings.HasPrefix(fieldName, "forks") {
-				// Supported forks represent static fork travel limits (0% sag)
-				matchedStatic := false
-				for _, opt := range entry.Options {
-					if math.Abs(opt.RakeMm-fref.RakeMm) <= 0.5 && math.Abs(opt.A2cMm-fref.A2cMm) <= 0.5 {
-						matchedStatic = true
-						break
-					}
-				}
-				if matchedStatic {
-					return issues
-				}
-			}
-			var candSags []string
-			for _, opt := range entry.Options {
-				if math.Abs(opt.RakeMm-fref.RakeMm) <= 0.5 {
-					diff := opt.A2cMm - fref.A2cMm
-					if diff >= 0 && diff <= entry.TravelMm*0.45 {
-						cand := geometry.Round((diff/entry.TravelMm)*100.0, 1)
-						candSags = append(candSags, fmt.Sprintf("sag_pct: %.1f%% (static A2C: %.1fmm)", cand, opt.A2cMm))
-					}
-				}
-			}
-			msg := fmt.Sprintf("Suspension fork %q in %s requires 'sag_pct'.", fref.Fork, fieldName)
-			if len(candSags) > 0 {
-				msg += fmt.Sprintf(" Matching sag for A2C=%.1fmm: %s", fref.A2cMm, strings.Join(candSags, ", "))
-			}
+		if fref.SagPct < 0 || fref.SagPct > 45 {
 			issues = append(issues, model.ValidationIssue{
-				ID:       "missing_" + fieldName + "_sag_pct",
+				ID:       "invalid_" + fieldName + "_sag_pct",
 				Field:    fieldName + ".sag_pct",
 				Severity: model.SeverityError,
-				Title:    fmt.Sprintf("Missing Sag Percentage in %s", fieldName),
-				Message:  msg,
+				Title:    fmt.Sprintf("Invalid Sag Percentage in %s", fieldName),
+				Message:  fmt.Sprintf("Sag percentage %.1f%% is outside plausible range [0%%, 45%%].", fref.SagPct),
 			})
-		} else {
-			if *fref.SagPct < 0 || *fref.SagPct > 45 {
+		}
+		hasRake := false
+		var allowedRakes []string
+		for _, opt := range entry.Options {
+			allowedRakes = append(allowedRakes, fmt.Sprintf("%.0fmm", opt.RakeMm))
+			if math.Abs(opt.RakeMm-fref.RakeMm) <= 0.5 {
+				hasRake = true
+			}
+		}
+		if !hasRake {
+			issues = append(issues, model.ValidationIssue{
+				ID:       "unsupported_" + fieldName + "_rake",
+				Field:    fieldName + ".rake_mm",
+				Severity: model.SeverityError,
+				Title:    fmt.Sprintf("Unsupported Rake in %s", fieldName),
+				Message:  fmt.Sprintf("Fork %q does not support rake %.1fmm (available: %s).", fref.Fork, fref.RakeMm, strings.Join(allowedRakes, ", ")),
+			})
+			return issues
+		}
+
+		matched := false
+		var candA2cs []string
+		var candSags []string
+		for _, opt := range entry.Options {
+			if math.Abs(opt.RakeMm-fref.RakeMm) <= 0.5 {
+				expectedA2c := opt.A2cMm - entry.TravelMm*(fref.SagPct/100.0)
+				candA2cs = append(candA2cs, fmt.Sprintf("%.1fmm", expectedA2c))
+				if math.Abs(expectedA2c-fref.A2cMm) <= 0.5 {
+					matched = true
+					break
+				}
+				diff := opt.A2cMm - fref.A2cMm
+				if diff > 0.5 && diff <= entry.TravelMm*0.45 {
+					cand := geometry.Round((diff/entry.TravelMm)*100.0, 1)
+					candSags = append(candSags, fmt.Sprintf("sag_pct: %.1f%% (static A2C: %.1fmm)", cand, opt.A2cMm))
+				}
+			}
+		}
+		if !matched {
+			if fref.SagPct == 0 && len(candSags) > 0 {
+				msg := fmt.Sprintf("Suspension fork %q in %s requires 'sag_pct'. Matching sag for A2C=%.1fmm: %s", fref.Fork, fieldName, fref.A2cMm, strings.Join(candSags, ", "))
 				issues = append(issues, model.ValidationIssue{
-					ID:       "invalid_" + fieldName + "_sag_pct",
+					ID:       "missing_" + fieldName + "_sag_pct",
 					Field:    fieldName + ".sag_pct",
 					Severity: model.SeverityError,
-					Title:    fmt.Sprintf("Invalid Sag Percentage in %s", fieldName),
-					Message:  fmt.Sprintf("Sag percentage %.1f%% is outside plausible range [0%%, 45%%].", *fref.SagPct),
+					Title:    fmt.Sprintf("Missing Sag Percentage in %s", fieldName),
+					Message:  msg,
 				})
-			}
-			hasRake := false
-			var allowedRakes []string
-			for _, opt := range entry.Options {
-				allowedRakes = append(allowedRakes, fmt.Sprintf("%.0fmm", opt.RakeMm))
-				if math.Abs(opt.RakeMm-fref.RakeMm) <= 0.5 {
-					hasRake = true
-				}
-			}
-			if !hasRake {
-				issues = append(issues, model.ValidationIssue{
-					ID:       "unsupported_" + fieldName + "_rake",
-					Field:    fieldName + ".rake_mm",
-					Severity: model.SeverityError,
-					Title:    fmt.Sprintf("Unsupported Rake in %s", fieldName),
-					Message:  fmt.Sprintf("Fork %q does not support rake %.1fmm (available: %s).", fref.Fork, fref.RakeMm, strings.Join(allowedRakes, ", ")),
-				})
-				return issues
-			}
-
-			matched := false
-			var candA2cs []string
-			for _, opt := range entry.Options {
-				if math.Abs(opt.RakeMm-fref.RakeMm) <= 0.5 {
-					expectedA2c := opt.A2cMm - entry.TravelMm*(*fref.SagPct/100.0)
-					candA2cs = append(candA2cs, fmt.Sprintf("%.1fmm", expectedA2c))
-					if math.Abs(expectedA2c-fref.A2cMm) <= 0.5 {
-						matched = true
-						break
-					}
-				}
-			}
-			if !matched {
+			} else {
 				issues = append(issues, model.ValidationIssue{
 					ID:       "invalid_" + fieldName + "_invariant",
 					Field:    fieldName,
 					Severity: model.SeverityError,
 					Title:    fmt.Sprintf("Fork Invariant Violated in %s", fieldName),
-					Message:  fmt.Sprintf("Fork %q A2C=%.1fmm at %.1f%% sag does not match expected A2C (%s).", fref.Fork, fref.A2cMm, *fref.SagPct, strings.Join(candA2cs, ", ")),
+					Message:  fmt.Sprintf("Fork %q A2C=%.1fmm at %.1f%% sag does not match expected A2C (%s).", fref.Fork, fref.A2cMm, fref.SagPct, strings.Join(candA2cs, ", ")),
 				})
 			}
 		}

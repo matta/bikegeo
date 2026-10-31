@@ -12,7 +12,7 @@ func sampleFrame() model.FrameModel {
 		Fork:   "fox34_sc_120",
 		A2cMm:  530,
 		RakeMm: 44,
-		SagPct: model.Float64Ptr(0),
+		SagPct: 0,
 	}
 	return model.FrameModel{
 		ID:                 "test-bike",
@@ -21,7 +21,7 @@ func sampleFrame() model.FrameModel {
 		Year:               2024,
 		Category:           model.CategoryHardtail,
 		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
+		GeoHeadsetSpacerMm: 10.0,
 		CadFork:            fork,
 		Forks:              []model.ForkRef{fork},
 		Sizes:              []string{"M", "L"},
@@ -116,7 +116,7 @@ func TestApplyAssignment(t *testing.T) {
 	if err := fit.ApplyAssignment(&frame, "stock", "", "sag=20"); err != nil {
 		t.Fatalf("Failed to set sag: %v", err)
 	}
-	if frame.CadFork.SagPct == nil || *frame.CadFork.SagPct != 20 {
+	if frame.CadFork.SagPct != 20 {
 		t.Errorf("Expected sag 20, got %v", frame.CadFork.SagPct)
 	}
 

@@ -664,7 +664,7 @@ func TestScoreRow_SaddleHb(t *testing.T) {
 
 	row := model.CanonicalComparisonRow{
 		Bike: model.BikeGeometry{
-			CanonicalStem: &canonicalStem,
+			CanonicalStem: canonicalStem,
 			Stems: []model.StemSpec{
 				{LengthMm: 50, AngleDeg: -6},
 				{LengthMm: 70, AngleDeg: -6},
@@ -744,8 +744,8 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 		Stack:         645.0,
 		HtaDeg:        68.0,
 		StaDeg:        staDeg,
-		MaxSpacerMm:   &maxSpacer,
-		CanonicalStem: &canonicalStem,
+		MaxSpacerMm:   maxSpacer,
+		CanonicalStem: canonicalStem,
 		Stems: []model.StemSpec{
 			{LengthMm: 50, AngleDeg: -6},
 			{LengthMm: 60, AngleDeg: -6},

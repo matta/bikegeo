@@ -1,7 +1,6 @@
 package fit
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -16,25 +15,25 @@ import (
 
 // FitResult holds the CAD geometry fit analysis for a frame configuration across all sizes.
 type FitResult struct {
-	Frame                 model.FrameModel            `json:"frame"`
-	ConfigID              string                      `json:"config_id"`
-	Residuals             []validator.SizeResidual    `json:"residuals"`
-	BestFitStructuralA2c  float64                     `json:"best_fit_structural_a2c"` // Minimax midpoint
-	MeanStructuralA2c     float64                     `json:"mean_structural_a2c"`
-	SpreadStructuralA2c   float64                     `json:"spread_structural_a2c"`
-	ImpliedSpacerMm       float64                     `json:"implied_spacer_mm"`
-	ImpliedStaticForkA2c  float64                     `json:"implied_static_fork_a2c"`
-	DeclaredSpacerMm      float64                     `json:"declared_spacer_mm"`
-	DeclaredStaticForkA2c float64                     `json:"declared_static_fork_a2c"`
-	DeclaredRake          float64                     `json:"declared_rake"`
-	DeclaredSagPct        float64                     `json:"declared_sag_pct"`
-	MinPassingSlopA2c     float64                     `json:"min_passing_slop_a2c"`
-	MinPassingSlopFc      float64                     `json:"min_passing_slop_fc"`
-	MinPassingSlopWb      float64                     `json:"min_passing_slop_wb"`
-	HasPublishedFc        bool                        `json:"has_published_fc"`
-	HasPublishedWb        bool                        `json:"has_published_wb"`
-	IsValid               bool                        `json:"is_valid"`
-	FrameReport           model.FrameValidationReport `json:"frame_report"`
+	Frame                 model.FrameModel
+	ConfigID              string
+	Residuals             []validator.SizeResidual
+	BestFitStructuralA2c  float64 // Minimax midpoint
+	MeanStructuralA2c     float64
+	SpreadStructuralA2c   float64
+	ImpliedSpacerMm       float64
+	ImpliedStaticForkA2c  float64
+	DeclaredSpacerMm      float64
+	DeclaredStaticForkA2c float64
+	DeclaredRake          float64
+	DeclaredSagPct        float64
+	MinPassingSlopA2c     float64
+	MinPassingSlopFc      float64
+	MinPassingSlopWb      float64
+	HasPublishedFc        bool
+	HasPublishedWb        bool
+	IsValid               bool
+	FrameReport           model.FrameValidationReport
 }
 
 // AnalyzeFit computes the minimax best-fit structural A2C, implied spacer, implied static fork A2C,
@@ -103,10 +102,7 @@ func AnalyzeFit(frame model.FrameModel, configID string) (*FitResult, error) {
 	if statedForkA2c <= 0 {
 		statedForkA2c = effectiveForkA2c
 	}
-	sagPct := 0.0
-	if frame.CadFork.SagPct != nil {
-		sagPct = *frame.CadFork.SagPct
-	}
+	sagPct := frame.CadFork.SagPct
 	sagComp := statedForkA2c - effectiveForkA2c
 
 	declaredSpacer := frame.GetGeoHeadsetSpacerMm()
@@ -140,10 +136,7 @@ func AnalyzeFit(frame model.FrameModel, configID string) (*FitResult, error) {
 
 // CloneFrame creates a deep copy of a FrameModel.
 func CloneFrame(frame model.FrameModel) model.FrameModel {
-	data, _ := json.Marshal(frame)
-	var clone model.FrameModel
-	_ = json.Unmarshal(data, &clone)
-	return clone
+	return frame.Clone()
 }
 
 // ApplyAssignment parses and applies a key=value mutation to a FrameModel.
@@ -223,7 +216,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if err != nil || v < 0 || v > 50 {
 			return fmt.Errorf("sag percentage must be between 0 and 50")
 		}
-		frame.CadFork.SagPct = model.Float64Ptr(v)
+		frame.CadFork.SagPct = v
 		return nil
 
 	case "cad_fork.fork", "fork":
@@ -287,7 +280,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if err != nil || v < 0 || v > 25.0 {
 			return fmt.Errorf("geo_headset_spacer_mm must be between 0 and 25 mm")
 		}
-		frame.GeoHeadsetSpacerMm = model.Float64Ptr(v)
+		frame.GeoHeadsetSpacerMm = v
 		return nil
 	case "geo_slop_mm.a2c", "slop.a2c":
 		v, err := parseFloat()
@@ -375,14 +368,14 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if err != nil || v < 0 || v > 100.0 {
 			return fmt.Errorf("max_spacer_mm must be between 0 and 100 mm")
 		}
-		frame.MaxSpacerMm = model.Float64Ptr(v)
+		frame.MaxSpacerMm = v
 		return nil
 	case "canonical_stem":
 		st, err := parseStemSpec(val)
 		if err != nil {
 			return fmt.Errorf("invalid canonical_stem %q: %w", val, err)
 		}
-		frame.CanonicalStem = &st
+		frame.CanonicalStem = st
 		return nil
 	case "stems":
 		var parsedStemIDs []string
@@ -537,16 +530,16 @@ func ParseTryFlag(flagVal string) (TrySpec, error) {
 
 // ComboResult holds the result of testing a specific combination of trial values.
 type ComboResult struct {
-	Description       string     `json:"description"`
-	Assignments       []string   `json:"assignments"`
-	MaxAbsDeltaA2c    float64    `json:"max_abs_delta_a2c"`
-	MaxAbsDeltaFc     float64    `json:"max_abs_delta_fc"`
-	MaxAbsDeltaWb     float64    `json:"max_abs_delta_wb"`
-	MinPassingSlopA2c float64    `json:"min_passing_slop_a2c"`
-	MinPassingSlopFc  float64    `json:"min_passing_slop_fc"`
-	MinPassingSlopWb  float64    `json:"min_passing_slop_wb"`
-	IsValid           bool       `json:"is_valid"`
-	FitResult         *FitResult `json:"fit_result,omitempty"`
+	Description       string
+	Assignments       []string
+	MaxAbsDeltaA2c    float64
+	MaxAbsDeltaFc     float64
+	MaxAbsDeltaWb     float64
+	MinPassingSlopA2c float64
+	MinPassingSlopFc  float64
+	MinPassingSlopWb  float64
+	IsValid           bool
+	FitResult         *FitResult
 }
 
 const MaxTryCombinations = 200

@@ -1,46 +1,91 @@
 package ideal
 
+// Float returns a pointer to v.
+func Float(v float64) *float64 {
+	return &v
+}
+
 // Range specifies an inclusive numeric interval [Min, Max].
 // If Min is nil, the range is unbounded below.
 // If Max is nil, the range is unbounded above.
 type Range struct {
-	Min *float64 `json:"min,omitempty"`
-	Max *float64 `json:"max,omitempty"`
+	Min *float64
+	Max *float64
+}
+
+// Between returns a Range with inclusive [min, max] bounds.
+func Between(min, max float64) *Range {
+	return &Range{Min: Float(min), Max: Float(max)}
+}
+
+// Exact returns a single-point Range [val, val].
+func Exact(val float64) *Range {
+	return &Range{Min: Float(val), Max: Float(val)}
+}
+
+// AtLeast returns a lower-bounded Range [min, +inf).
+func AtLeast(min float64) *Range {
+	return &Range{Min: Float(min)}
+}
+
+// AtMost returns an upper-bounded Range (-inf, max].
+func AtMost(max float64) *Range {
+	return &Range{Max: Float(max)}
 }
 
 // Falloff specifies the drop-off distance outside the acceptable range
 // where the sub-score drops from the edge score to 0.
 type Falloff struct {
-	Below *float64 `json:"below,omitempty"`
-	Above *float64 `json:"above,omitempty"`
+	Below *float64
+	Above *float64
+}
+
+// FalloffBoth returns a Falloff with both Below and Above drop-off distances.
+func FalloffBoth(below, above float64) *Falloff {
+	return &Falloff{Below: Float(below), Above: Float(above)}
+}
+
+// FalloffBelow returns a Falloff with only a Below drop-off distance.
+func FalloffBelow(below float64) *Falloff {
+	return &Falloff{Below: Float(below)}
+}
+
+// FalloffAbove returns a Falloff with only an Above drop-off distance.
+func FalloffAbove(above float64) *Falloff {
+	return &Falloff{Above: Float(above)}
 }
 
 // AttributeSpec describes the scoring and display configuration for a single geometry or fit metric.
 type AttributeSpec struct {
-	ID         string   `json:"id"`
-	Weight     float64  `json:"weight,omitempty"`
-	Ideal      *Range   `json:"ideal,omitempty"`
-	Acceptable *Range   `json:"acceptable,omitempty"`
-	EdgeScore  *float64 `json:"edge_score,omitempty"`
-	Falloff    *Falloff `json:"falloff,omitempty"`
-	Floor      *float64 `json:"floor,omitempty"`
+	ID         string
+	Weight     float64
+	Ideal      *Range
+	Acceptable *Range
+	EdgeScore  *float64
+	Falloff    *Falloff
+	Floor      *float64
+}
+
+// DisplayOnly returns an unscored, display-only AttributeSpec for the given attribute ID.
+func DisplayOnly(id string) AttributeSpec {
+	return AttributeSpec{ID: id}
 }
 
 // Profile represents an idealized frame definition with sweet-spot ranges across attributes.
 type Profile struct {
-	Name           string          `json:"name"`
-	Description    string          `json:"description,omitempty"`
-	SaddleHeightMm *float64        `json:"saddle_height_mm,omitempty"`
-	Attributes     []AttributeSpec `json:"attributes"`
+	Name           string
+	Description    string
+	SaddleHeightMm *float64
+	Attributes     []AttributeSpec
 }
 
 // ProfileSummary provides high-level metadata for listing profiles.
 type ProfileSummary struct {
-	Name           string   `json:"name"`
-	Description    string   `json:"description"`
-	SaddleHeightMm *float64 `json:"saddle_height_mm,omitempty"`
-	AttributeCount int      `json:"attribute_count"`
-	ScoredCount    int      `json:"scored_count"`
+	Name           string
+	Description    string
+	SaddleHeightMm *float64
+	AttributeCount int
+	ScoredCount    int
 }
 
 // ZoneType defines which region a metric value falls into.

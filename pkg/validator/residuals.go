@@ -10,28 +10,28 @@ import (
 
 // SizeResidual captures the CAD geometry residuals and consistency metrics for a single frame size.
 type SizeResidual struct {
-	Size                 string                 `json:"size"`
-	HtaDeg               float64                `json:"hta_deg"`
-	Stack                float64                `json:"stack"`
-	Reach                float64                `json:"reach"`
-	Htl                  float64                `json:"htl"`
-	BbDrop               float64                `json:"bb_drop"`
-	ForkRake             float64                `json:"fork_rake"`
-	ChainstayLength      float64                `json:"chainstay_length,omitempty"`
-	ImpliedStructuralA2c float64                `json:"implied_structural_a2c"`
-	DeclaredSpacer       float64                `json:"declared_spacer"`
-	ImpliedForkA2c       float64                `json:"implied_fork_a2c"`
-	StatedStaticForkA2c  float64                `json:"stated_static_fork_a2c"`
-	ExpectedForkA2c      float64                `json:"expected_fork_a2c"`
-	DeltaA2c             float64                `json:"delta_a2c"` // Expected - Calculated
-	DeltaVsBest          float64                `json:"delta_vs_best"`
-	FcPub                float64                `json:"fc_pub,omitempty"`
-	FcCalc               float64                `json:"fc_calc,omitempty"`
-	DeltaFc              *float64               `json:"delta_fc,omitempty"` // Calc - Pub
-	WbPub                float64                `json:"wb_pub,omitempty"`
-	WbCalc               float64                `json:"wb_calc,omitempty"`
-	DeltaWb              *float64               `json:"delta_wb,omitempty"` // Calc - Pub
-	ValidationReport     model.ValidationReport `json:"validation_report"`
+	Size                 string
+	HtaDeg               float64
+	Stack                float64
+	Reach                float64
+	Htl                  float64
+	BbDrop               float64
+	ForkRake             float64
+	ChainstayLength      float64
+	ImpliedStructuralA2c float64
+	DeclaredSpacer       float64
+	ImpliedForkA2c       float64
+	StatedStaticForkA2c  float64
+	ExpectedForkA2c      float64
+	DeltaA2c             float64 // Expected - Calculated
+	DeltaVsBest          float64
+	FcPub                float64
+	FcCalc               float64
+	DeltaFc              *float64 // Calc - Pub
+	WbPub                float64
+	WbCalc               float64
+	DeltaWb              *float64 // Calc - Pub
+	ValidationReport     model.ValidationReport
 }
 
 // SizeResiduals calculates the geometric residuals for every size of a FrameModel.

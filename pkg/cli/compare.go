@@ -1,54 +1,21 @@
 package cli
 
 import (
-	"bufio"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"math"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
 	"bikegeo/pkg/canonicalizer"
+	"bikegeo/pkg/frames"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/scoring"
-	"bikegeo/pkg/validator"
 )
-
-type optionalBool struct {
-	val   bool
-	isSet bool
-}
-
-func (o *optionalBool) Set(s string) error {
-	v, err := strconv.ParseBool(s)
-	if err != nil {
-		return err
-	}
-	o.val = v
-	o.isSet = true
-	return nil
-}
-
-func (o *optionalBool) String() string {
-	return strconv.FormatBool(o.val)
-}
-
-// IsBoolFlag allows the flag to be passed without "=true" (e.g., just "--save")
-func (o *optionalBool) IsBoolFlag() bool { return true }
-
-func (o *optionalBool) Resolve(defaultVal bool) bool {
-	if o.isSet {
-		return o.val
-	}
-	return defaultVal
-}
 
 func (a *App) runCompare(args []string) int {
 	fs := flag.NewFlagSet("compare", flag.ContinueOnError)
@@ -57,31 +24,23 @@ func (a *App) runCompare(args []string) int {
 		a.printCompareUsage(a.Out)
 	}
 
-	var interactive bool
 	var transposeFlag bool
 	var compactFlag bool
 	var noScoreFlag bool
 	var scoreDetailFlag bool
 	var idealFlag string
-	var saveFlag optionalBool
 
-	fs.BoolVar(&interactive, "i", false, "Interactive prompt/response mode to build or edit comparison columns")
-	fs.BoolVar(&interactive, "interactive", false, "Interactive prompt/response mode to build or edit comparison columns")
 	fs.BoolVar(&transposeFlag, "transpose", false, "Transpose table (Columns as rows, Metrics as columns)")
 	fs.BoolVar(&compactFlag, "compact", false, "Compact/transposed table view (alias for --transpose)")
 	fs.BoolVar(&noScoreFlag, "no-score", false, "Disable scoring and ranking display")
 	fs.BoolVar(&scoreDetailFlag, "score-detail", false, "Display detailed scoring breakdown table")
 	fs.StringVar(&idealFlag, "ideal", "", "Ideal frame profile name (default: 'default')")
-	fs.Var(&saveFlag, "save", "Persist comparison state to state file (defaults to true if -i/--interactive)")
 
 	boolFlags := map[string]bool{
-		"i":            true,
-		"interactive":  true,
 		"transpose":    true,
 		"compact":      true,
 		"no-score":     true,
 		"score-detail": true,
-		"save":         true,
 	}
 	reordered := reorderFlagsForStdlib(fs, args, boolFlags)
 	if err := fs.Parse(reordered); err != nil {
@@ -96,25 +55,13 @@ func (a *App) runCompare(args []string) int {
 		explicitFlags[f.Name] = true
 	})
 
-	shouldSave := saveFlag.Resolve(interactive)
-
-	store, err := a.openStore()
-	if err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
+	allFrames := frames.AllFrames()
+	if len(allFrames) == 0 {
+		fmt.Fprintf(a.Err, "Error: no bike frames found\n")
 		return 1
 	}
 
-	frames, err := store.GetAllFrames()
-	if err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
-		return 1
-	}
-	if len(frames) == 0 {
-		fmt.Fprintf(a.Err, "Error: no bike frames found in %s\n", a.DataDir)
-		return 1
-	}
-
-	state := a.loadOrDefaultComparisonState(frames)
+	state := DefaultComparisonState()
 
 	if explicitFlags["transpose"] || explicitFlags["compact"] {
 		state.Transpose = transposeFlag || compactFlag
@@ -140,7 +87,7 @@ func (a *App) runCompare(args []string) int {
 			for _, arg := range posArgs {
 				if strings.HasPrefix(arg, "+") {
 					specStr := strings.TrimPrefix(arg, "+")
-					cols, err := ParseComparisonSpecs(frames, specStr)
+					cols, err := ParseComparisonSpecs(allFrames, specStr)
 					if err != nil {
 						fmt.Fprintf(a.Err, "Error: %v\n", err)
 						return 1
@@ -156,7 +103,7 @@ func (a *App) runCompare(args []string) int {
 						}
 						state.Columns = append(state.Columns[:colIdx], state.Columns[colIdx+1:]...)
 					} else if strings.Contains(rmToken, "@") {
-						targetCol, err := ParseComparisonSpec(frames, rmToken)
+						targetCol, err := ParseComparisonSpec(allFrames, rmToken)
 						if err != nil {
 							fmt.Fprintf(a.Err, "Error: %v\n", err)
 							return 1
@@ -172,7 +119,7 @@ func (a *App) runCompare(args []string) int {
 						}
 						state.Columns = kept
 					} else {
-						f, sz, err := ResolveFrameByToken(frames, rmToken)
+						f, sz, err := ResolveFrameByToken(allFrames, rmToken)
 						if err != nil {
 							fmt.Fprintf(a.Err, "Error: %v\n", err)
 							return 1
@@ -195,20 +142,23 @@ func (a *App) runCompare(args []string) int {
 
 			for _, specStr := range posArgs {
 				specStr = strings.TrimPrefix(specStr, "+")
-				cols, err := ParseComparisonSpecs(frames, specStr)
+				cols, err := ParseComparisonSpecs(allFrames, specStr)
 				if err != nil {
 					fmt.Fprintf(a.Err, "Error: %v\n", err)
 					return 1
 				}
 				if len(posArgs) == 1 && len(cols) > 1 {
 					hasAllExpansion = true
-					f, _, _ := ResolveFrameByToken(frames, strings.Split(specStr, "@")[0])
+					f, _, _ := ResolveFrameByToken(allFrames, strings.Split(specStr, "@")[0])
 					singleExpandedFrame = f
 				}
 				newCols = append(newCols, cols...)
 			}
 			state.Columns = newCols
 			state.RefIndex = 0
+			if !explicitFlags["transpose"] && !explicitFlags["compact"] {
+				state.Transpose = len(state.Columns) > 4
+			}
 
 			if hasAllExpansion && singleExpandedFrame != nil {
 				defSize := singleExpandedFrame.GetDefaultSize()
@@ -220,18 +170,6 @@ func (a *App) runCompare(args []string) int {
 				}
 			}
 		}
-	}
-
-	if interactive {
-		newState, shouldRun, err := a.runInteractiveCompare(frames, state)
-		if err != nil {
-			fmt.Fprintf(a.Err, "Error: %v\n", err)
-			return 1
-		}
-		if !shouldRun {
-			return 0
-		}
-		state = newState
 	}
 
 	if len(state.Columns) == 0 {
@@ -253,7 +191,7 @@ func (a *App) runCompare(args []string) int {
 		}
 	}
 
-	prof, err := ideal.LoadProfile(a.getIdealsDir(), idealName)
+	prof, err := ideal.GetProfile(idealName)
 	if err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
@@ -265,17 +203,12 @@ func (a *App) runCompare(args []string) int {
 	}
 
 	// Resolve and validate all columns against frame constraints
-	rows, normalizedCols, err := resolveAllColumns(frames, state)
+	rows, normalizedCols, err := resolveAllColumns(allFrames, state)
 	if err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
 	}
 	state.Columns = normalizedCols
-
-	// Save the validated comparison state if opted in (or by default in interactive mode)
-	if shouldSave {
-		_ = a.saveComparisonState(state)
-	}
 
 	if err := a.renderComparisonMatrix(rows, state, prof, !noScoreFlag, scoreDetailFlag); err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
@@ -292,7 +225,6 @@ Usage:
   bikegeo compare [flags] [spec...]
   bikegeo compare [flags] +<spec> ...
   bikegeo compare [flags] -<spec|col_num> ...
-  bikegeo compare -i | --interactive
 
 Overview:
   The compare command performs an apples-to-apples kinematic comparison of
@@ -322,12 +254,12 @@ Comparison Specs:
 
   Modifiers (order-independent, separated by '@'):
     - Fork travel (e.g. "@120mm", "@100mm", or "@120"):
-      Suspension travel in millimeters. Must be within the frame's supported_travel_mm.
+      Suspension travel in millimeters. Must be within the frame's supported forks.
     - Rigid fork ("@rigid" or "@0mm"):
-      Configures the frame with its declared rigid fork (rigid_a2c_mm).
+      Configures the frame with its declared rigid fork.
       Only permitted if the frame supports rigid forks. Rigid forks require 0% sag.
-    - Fork preset or configuration ID (e.g. "@enve_mountain_472", "@stock"):
-      Selects a known preset fork or frame configuration.
+    - Fork preset ID (e.g. "@enve_472", "@stock"):
+      Selects a known preset fork from the catalog.
     - Sag percentage (e.g. "@20%", "@sag=25", or "@20"):
       Suspension sag percent. Pure numbers < 60 are treated as sag %; numbers >= 60
       are treated as fork travel in mm. If omitted, uses the frame's default sag.
@@ -335,28 +267,22 @@ Comparison Specs:
       If no fork is specified, the frame's default fork (first entry in forks) is used.
 
 Comparison State & Column Management:
-  State Persistence:
-    - By default, non-interactive compare commands do NOT modify or write the state file.
-      The state file (data/last_compare.json or --state-file) is consulted to read rider
-      profile and existing columns, but remains untouched unless you opt in with --save.
-    - Interactive commands (bikegeo compare -i) persist the updated state by default
-      when confirmed with [Enter], unless --save=false is passed.
-    - Quitting interactive mode with 'q' or 'quit' cancels and exits immediately without saving.
-    - Running 'bikegeo compare' with no arguments replays the saved comparison.
+  Default Comparison Baseline:
+    - Running 'bikegeo compare' with no arguments evaluates the compiled default comparison setups.
 
   Full Replacement (Bare Specs):
-    - Specifying arguments without '+' or '-' replaces all existing columns.
+    - Specifying arguments without '+' or '-' replaces all columns for that run.
       Example: bikegeo compare fenrir:L@110mm hayduke:S3@120mm
 
   Incremental Addition ('+spec'):
-    - Prefixing a spec with '+' appends column(s) to the existing comparison state.
+    - Prefixing a spec with '+' appends column(s) to the default comparison baseline.
       Example: bikegeo compare +seven-expedition-926f:all@120mm
 
   Incremental Removal ('-spec' or '-col_num'):
-    - By column number: '-1', '-2', etc. removes the 1-based column.
-      - By frame ID / substring: '-fenrir' or '-fenrir:all' removes all columns of that frame.
-      - By frame size: '-fenrir:L' removes all columns of that frame in size L.
-      - By specific fork/sag: '-fenrir:L@110mm' removes only that matching setup.
+    - By column number: '-1', '-2', etc. removes the 1-based column from the default baseline.
+    - By frame ID / substring: '-fenrir' or '-fenrir:all' removes all columns of that frame.
+    - By frame size: '-fenrir:L' removes all columns of that frame in size L.
+    - By specific fork/sag: '-fenrir:L@110mm' removes only that matching setup.
 
 Table Layout & Auto-Transposition:
   - Standard View (Columns): Each bike is a vertical column; metrics are rows.
@@ -369,7 +295,7 @@ Table Layout & Auto-Transposition:
     explicitly disabled with --transpose=false or --compact=false.
 
 Scoring & Ranking:
-  - Setups are scored against sweet-spot curves defined in an Ideal Profile (default: data/ideals/default.json).
+  - Setups are scored against sweet-spot curves defined in an Ideal Profile (default: 'default').
   - Metrics display their evaluated zone (✓ ideal, ~ acceptable, ✗ outside) and distance to ideal.
   - Displayed rows are sorted descending by total score, placing the top-match #1 at the top.
   - Explanations section highlights Biggest Losses vs. Ideal and Head-to-Head Deciding Factors.
@@ -377,56 +303,14 @@ Scoring & Ranking:
   - Use --no-score to disable scoring and view columns in their original configuration order.
 
 Flags:
-  --ideal <name>               Select ideal profile from data/ideals/<name>.json (default: 'default')
-  -save[=bool], --save[=bool]  Persist comparison state to state file (defaults to true if -i/--interactive)
+  --ideal <name>               Select ideal profile ('default' or 'idmatch')
   -compact, --compact          Render compact/transposed table (Columns as rows, Metrics as columns)
   -transpose, --transpose      Alias for --compact
-  -i, --interactive            Launch interactive prompt/response comparison builder
   -score-detail                Display detailed scoring breakdown table for each criterion
   -no-score                    Disable scoring and ranking display
 
 Global Flags:
-  --data-dir <dir>          Path to bike JSON directory (default: "data/bikes")
-  --state-file <file>       Path to saved comparison state (default: "data/last_compare.json")
-  -f, --format <format>     Output format: table (default), json, md, csv
-  --json                    Shorthand for --format json
-
-Examples:
-  # Replay the most recently saved comparison:
-  bikegeo compare
-
-  # Perform a one-off comparison without altering your saved comparison state:
-  bikegeo compare seven-expedition-926f:all@120mm
-
-  # Compare bikes and persist the result as your new saved comparison:
-  bikegeo compare --save fenrir:L@110mm@20% hayduke:S3@120mm@25%
-
-  # Add all sizes of Seven Expedition to your existing comparison against your reference bike:
-  bikegeo compare +seven-expedition-926f:all@120mm
-
-  # Compare a single frame across multiple fork travels and rigid:
-  bikegeo compare fenrir:L@100mm@20% fenrir:L@120mm@20% fenrir:L@rigid
-
-  # Compare multiple different frames and forks:
-  bikegeo compare fenrir:L@110mm@20% hayduke:S3@120mm@25% krampus:XL@120mm
-
-  # Remove column 3 from the active comparison:
-  bikegeo compare -3
-
-  # Remove all columns of a specific frame:
-  bikegeo compare -seven-expedition-926f
-
-  # Remove a specific fork setup when multiple setups of the same frame exist:
-  bikegeo compare -fenrir:L@110mm
-
-  # View detailed scoring loss breakdown table:
-  bikegeo compare --score-detail
-
-  # Interactively edit and persist comparison (persists on [Enter], cancels on 'q'):
-  bikegeo compare -i
-
-  # Launch interactive comparison builder without persisting on exit:
-  bikegeo compare -i --save=false
+  -f, --format <format>     Output format: table (default), md, csv
 `)
 }
 
@@ -612,400 +496,36 @@ func resolveAllColumns(
 	return rows, normalized, nil
 }
 
-func (a *App) loadOrDefaultComparisonState(frames []model.FrameModel) model.SavedComparisonState {
-	if data, err := os.ReadFile(a.StatePath); err == nil {
-		var saved model.SavedComparisonState
-		if err := json.Unmarshal(data, &saved); err == nil && len(saved.Columns) > 0 {
-			var validCols []model.ComparisonSetup
-			for _, col := range saved.Columns {
-				if f, _, err := ResolveFrameByToken(frames, col.FrameID); err == nil && validator.ValidateFrame(*f).IsValid {
-					validCols = append(validCols, col)
-				}
-			}
-			if len(validCols) > 0 {
-				saved.Columns = validCols
-				if saved.IdealProfile == "" {
-					saved.IdealProfile = "default"
-				}
-				saved.NormalizeRiderProfile()
-				return saved
-			}
-		}
-	}
-
-	// Default initial state: up to 3 valid frames with their default size and default fork
-	var cols []model.ComparisonSetup
-	for _, f := range frames {
-		if !validator.ValidateFrame(f).IsValid {
-			continue
-		}
-		defFork := f.GetDefaultFork()
-		cols = append(cols, model.ComparisonSetup{
-			FrameID:      f.ID,
-			Size:         f.GetDefaultSize(),
-			A2cMm:        defFork.A2cMm,
-			RakeMm:       defFork.RakeMm,
-			DisplayLabel: canonicalizer.FormatStockFork(),
-		})
-		if len(cols) >= 3 {
-			break
-		}
-	}
-
+// DefaultComparisonState returns the compiled baseline comparison configuration.
+func DefaultComparisonState() model.SavedComparisonState {
 	return model.SavedComparisonState{
 		RiderProfile: model.DefaultRiderProfile(),
-		Transpose:    false,
+		Transpose:    true,
+		RefIndex:     1,
 		IdealProfile: "default",
-		Columns:      cols,
+		Columns: []model.ComparisonSetup{
+			{FrameID: "binary-havok", Size: "XL", A2cMm: 491, RakeMm: 44, DisplayLabel: "100mm @ 15% sag"},
+			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
+			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 495, RakeMm: 54, DisplayLabel: "Rigid (495mm)"},
+			{FrameID: "otso-fenrir-stainless", Size: "XL", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "esker-hayduke", Size: "S3", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
+			{FrameID: "revel-el-jefe", Size: "L", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "revel-el-jefe", Size: "XL", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "surly-krampus", Size: "L", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "surly-krampus", Size: "XL", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "binary-kinetik", Size: "L", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
+			{FrameID: "turner-venn-ti", Size: "L", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "fairlight-holt-2", Size: "L", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "fairlight-holt-2", Size: "XL", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "sklar-pbj", Size: "L", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
+			{FrameID: "sklar-pbj", Size: "XL", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
+			{FrameID: "salsa-fargo", Size: "L", A2cMm: 483, RakeMm: 51, DisplayLabel: "Rigid (483mm)"},
+			{FrameID: "salsa-fargo", Size: "XL", A2cMm: 483, RakeMm: 51, DisplayLabel: "Rigid (483mm)"},
+			{FrameID: "salsa-fargo", Size: "L", A2cMm: 486, RakeMm: 44, DisplayLabel: "100mm @ 20% sag"},
+			{FrameID: "salsa-fargo", Size: "XL", A2cMm: 486, RakeMm: 44, DisplayLabel: "100mm @ 20% sag"},
+		},
 	}
-}
-
-func (a *App) saveComparisonState(state model.SavedComparisonState) error {
-	if a.StatePath == "" {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(a.StatePath), 0755); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(a.StatePath, data, 0644)
-}
-
-func (a *App) runInteractiveCompare(frames []model.FrameModel, state model.SavedComparisonState) (model.SavedComparisonState, bool, error) {
-	scanner := bufio.NewScanner(a.In)
-
-	for {
-		fmt.Fprintf(a.Out, "\nSaved Comparison (Saddle Height: %.0fmm):\n", state.SaddleHeightMm)
-		if len(state.Columns) == 0 {
-			fmt.Fprintln(a.Out, "  (No columns currently selected)")
-		} else {
-			for i, col := range state.Columns {
-				frame, _, err := ResolveFrameByToken(frames, col.FrameID)
-				if err != nil {
-					fmt.Fprintf(a.Out, "  [%d] %s (%s)\n", i+1, col.FrameID, col.Size)
-					continue
-				}
-				row, err := canonicalizer.ResolveFrameForkSetup(*frame, col, state.RiderProfile)
-				if err != nil {
-					fmt.Fprintf(a.Out, "  [%d] %s %s (%s) - %v\n", i+1, frame.Manufacturer, frame.Model, col.Size, err)
-					continue
-				}
-				fmt.Fprintf(
-					a.Out,
-					"  [%d] %-26s | %-28s -> %.1fmm eff A2C\n",
-					i+1,
-					fmt.Sprintf("%s %s (%s)", frame.Manufacturer, frame.Model, row.Setup.Size),
-					row.DisplayLabel,
-					row.EffectiveA2c,
-				)
-			}
-		}
-
-		fmt.Fprint(a.Out, "\nAction ([a]dd, [e]dit #, [d]elete #, [s]addle, [p]rofile, [c]lear, [Enter] to run, or [q]uit): ")
-		if !scanner.Scan() {
-			return state, false, nil
-		}
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.EqualFold(line, "run") {
-			return state, true, nil
-		}
-		if strings.EqualFold(line, "q") || strings.EqualFold(line, "quit") {
-			return state, false, nil
-		}
-
-		fields := strings.Fields(line)
-		cmd := strings.ToLower(fields[0])
-		arg := ""
-		if len(fields) > 1 {
-			arg = strings.Join(fields[1:], " ")
-		}
-
-		switch {
-		case cmd == "a" || cmd == "add" || strings.HasPrefix(cmd, "+"):
-			specArg := arg
-			if strings.HasPrefix(cmd, "+") {
-				specArg = strings.TrimPrefix(line, "+")
-			}
-			if specArg != "" && (strings.Contains(specArg, "@") || strings.Contains(strings.ToLower(specArg), ":all")) {
-				cols, err := ParseComparisonSpecs(frames, specArg)
-				if err != nil {
-					fmt.Fprintf(a.Out, "  ! %v\n", err)
-					continue
-				}
-				for _, col := range cols {
-					frame, _, _ := ResolveFrameByToken(frames, col.FrameID)
-					if _, err := canonicalizer.ResolveFrameForkSetup(*frame, col, state.RiderProfile); err != nil {
-						fmt.Fprintf(a.Out, "  ! %v\n", err)
-						continue
-					}
-					state.Columns = append(state.Columns, col)
-				}
-			} else {
-				col, err := a.promptColumnSetup(scanner, frames, specArg, nil, state)
-				if err != nil {
-					fmt.Fprintf(a.Out, "  ! %v\n", err)
-					continue
-				}
-				state.Columns = append(state.Columns, col)
-			}
-
-		case cmd == "e" || cmd == "edit":
-			idx, err := promptIndex(scanner, a.Out, arg, len(state.Columns), "Edit column #")
-			if err != nil {
-				fmt.Fprintf(a.Out, "  ! %v\n", err)
-				continue
-			}
-			existing := state.Columns[idx]
-			updated, err := a.promptColumnSetup(scanner, frames, existing.FrameID, &existing, state)
-			if err != nil {
-				fmt.Fprintf(a.Out, "  ! %v\n", err)
-				continue
-			}
-			state.Columns[idx] = updated
-
-		case cmd == "d" || cmd == "del" || cmd == "delete" || strings.HasPrefix(cmd, "-"):
-			rmArg := arg
-			if strings.HasPrefix(cmd, "-") {
-				rmArg = strings.TrimPrefix(cmd, "-")
-			}
-			idx, err := promptIndex(scanner, a.Out, rmArg, len(state.Columns), "Delete column #")
-			if err != nil {
-				fmt.Fprintf(a.Out, "  ! %v\n", err)
-				continue
-			}
-			state.Columns = append(state.Columns[:idx], state.Columns[idx+1:]...)
-
-		case cmd == "s" || cmd == "saddle" || cmd == "seat":
-			valStr := arg
-			if valStr == "" {
-				fmt.Fprintf(a.Out, "  Rider Saddle Height in mm [%.0f]: ", state.SaddleHeightMm)
-				if scanner.Scan() {
-					valStr = strings.TrimSpace(scanner.Text())
-				}
-			}
-			if valStr != "" {
-				if v, err := strconv.ParseFloat(valStr, 64); err == nil && v >= 400 && v <= 1100 {
-					state.SaddleHeightMm = v
-				} else {
-					fmt.Fprintf(a.Out, "  ! Invalid saddle height %q\n", valStr)
-				}
-			}
-
-		case cmd == "p" || cmd == "profile" || cmd == "ideal":
-			profArg := arg
-			if profArg == "" {
-				fmt.Fprintf(a.Out, "  Ideal Profile name [%s]: ", state.IdealProfile)
-				if scanner.Scan() {
-					profArg = strings.TrimSpace(scanner.Text())
-				}
-			}
-			if profArg != "" {
-				state.IdealProfile = profArg
-			}
-
-		case cmd == "c" || cmd == "clear":
-			state.Columns = nil
-			state.RefIndex = 0
-			col, err := a.promptColumnSetup(scanner, frames, "", nil, state)
-			if err != nil {
-				fmt.Fprintf(a.Out, "  ! %v\n", err)
-				continue
-			}
-			state.Columns = append(state.Columns, col)
-
-		default:
-			fmt.Fprintf(a.Out, "  ! Unknown action %q (use a, e, d, p, s, c, or Enter)\n", line)
-		}
-	}
-}
-
-func promptIndex(scanner *bufio.Scanner, out interface{ Write([]byte) (int, error) }, arg string, max int, label string) (int, error) {
-	if max == 0 {
-		return 0, fmt.Errorf("no columns in comparison")
-	}
-	valStr := strings.TrimSpace(arg)
-	if valStr == "" {
-		fmt.Fprintf(out, "  %s (1-%d): ", label, max)
-		if scanner.Scan() {
-			valStr = strings.TrimSpace(scanner.Text())
-		}
-	}
-	idx, err := strconv.Atoi(valStr)
-	if err != nil || idx < 1 || idx > max {
-		return 0, fmt.Errorf("invalid column number %q (expected 1..%d)", valStr, max)
-	}
-	return idx - 1, nil
-}
-
-func (a *App) promptColumnSetup(
-	scanner *bufio.Scanner,
-	frames []model.FrameModel,
-	initialFrameToken string,
-	existing *model.ComparisonSetup,
-	state model.SavedComparisonState,
-) (model.ComparisonSetup, error) {
-	var selectedFrame *model.FrameModel
-
-	if initialFrameToken != "" {
-		if idx, err := strconv.Atoi(initialFrameToken); err == nil && idx >= 1 && idx <= len(frames) {
-			selectedFrame = &frames[idx-1]
-		} else if f, _, err := ResolveFrameByToken(frames, initialFrameToken); err == nil {
-			selectedFrame = f
-		}
-	}
-
-	if selectedFrame == nil {
-		fmt.Fprintln(a.Out, "\n  Available Frames:")
-		for i, f := range frames {
-			fmt.Fprintf(
-				a.Out,
-				"    [%d] %-28s | Sizes: %-12s | Forks: %s\n",
-				i+1,
-				fmt.Sprintf("%s %s", f.Manufacturer, f.Model),
-				strings.Join(f.GetSizes(), ", "),
-				strings.Join(f.GetSupportedForkOptions(), ", "),
-			)
-		}
-		defHint := ""
-		if existing != nil {
-			defHint = fmt.Sprintf(" [%s]", existing.FrameID)
-		}
-		fmt.Fprintf(a.Out, "  Select frame (1-%d or name)%s: ", len(frames), defHint)
-		if !scanner.Scan() {
-			return model.ComparisonSetup{}, fmt.Errorf("cancelled")
-		}
-		inp := strings.TrimSpace(scanner.Text())
-		if inp == "" && existing != nil {
-			inp = existing.FrameID
-		}
-		if idx, err := strconv.Atoi(inp); err == nil && idx >= 1 && idx <= len(frames) {
-			selectedFrame = &frames[idx-1]
-		} else {
-			f, _, err := ResolveFrameByToken(frames, inp)
-			if err != nil {
-				return model.ComparisonSetup{}, err
-			}
-			selectedFrame = f
-		}
-	}
-
-	// 1. Size prompt (skipped if frame only has 1 size)
-	sizes := selectedFrame.GetSizes()
-	chosenSize := selectedFrame.GetDefaultSize()
-	if existing != nil && existing.FrameID == selectedFrame.ID && existing.Size != "" {
-		chosenSize = existing.Size
-	}
-
-	if len(sizes) == 1 {
-		chosenSize = sizes[0]
-		fmt.Fprintf(a.Out, "  Size: %s (only size)\n", chosenSize)
-	} else {
-		fmt.Fprintf(a.Out, "  Size [%s] (%s): ", chosenSize, strings.Join(sizes, ", "))
-		if scanner.Scan() {
-			inp := strings.TrimSpace(scanner.Text())
-			if inp != "" {
-				chosenSize = inp
-			}
-		}
-	}
-
-	// 2. Fork prompt (skipped if frame only supports 1 fixed fork)
-	chosenFork := selectedFrame.GetDefaultForkSpecString()
-	if existing != nil && existing.FrameID == selectedFrame.ID && existing.DisplayLabel != "" {
-		chosenFork = existing.DisplayLabel
-	}
-
-	if selectedFrame.IsFixedFork() {
-		fmt.Fprintf(a.Out, "  Fork: %s (fixed for this frame)\n", strings.Join(selectedFrame.GetSupportedForkOptions(), ""))
-	} else {
-		fmt.Fprintf(
-			a.Out,
-			"  Fork [%s] (%s): ",
-			chosenFork,
-			strings.Join(selectedFrame.GetSupportedForkOptions(), ", "),
-		)
-		if scanner.Scan() {
-			inp := strings.TrimSpace(scanner.Text())
-			if inp != "" {
-				chosenFork = inp
-			}
-		}
-	}
-
-	// 3. Sag % prompt (skipped automatically if chosen fork is rigid!)
-	lowFork := strings.ToLower(strings.TrimSpace(chosenFork))
-	isRigid := lowFork == "rigid" || lowFork == "0mm" || strings.HasPrefix(lowFork, "rigid") || selectedFrame.IsFixedRigidOnly()
-	var sagPtr *float64
-	if !isRigid {
-		defSag := 20.0
-		fmt.Fprintf(a.Out, "  Sag %% [%.0f]: ", defSag)
-		if scanner.Scan() {
-			inp := strings.TrimSpace(strings.TrimSuffix(scanner.Text(), "%"))
-			if inp != "" {
-				val, err := strconv.ParseFloat(inp, 64)
-				if err != nil {
-					return model.ComparisonSetup{}, fmt.Errorf("invalid sag percentage %q", inp)
-				}
-				defSag = val
-			}
-		}
-		sagPtr = &defSag
-	}
-
-	targetA2c, targetRake, _, displayLabel, err := canonicalizer.ResolveForkToken(chosenFork, sagPtr, *selectedFrame)
-	if err != nil {
-		return model.ComparisonSetup{}, err
-	}
-
-	candidate := model.ComparisonSetup{
-		FrameID:      selectedFrame.ID,
-		Size:         chosenSize,
-		A2cMm:        targetA2c,
-		RakeMm:       targetRake,
-		DisplayLabel: displayLabel,
-	}
-
-	// Validate against frame constraints immediately
-	row, err := canonicalizer.ResolveFrameForkSetup(*selectedFrame, candidate, state.RiderProfile)
-	if err != nil {
-		return model.ComparisonSetup{}, err
-	}
-
-	return row.Setup, nil
-}
-
-func formatDelta(delta float64, unit string) string {
-	if math.Abs(delta) < 0.05 {
-		return fmt.Sprintf("0.0%s", unit)
-	}
-	if delta > 0 {
-		return fmt.Sprintf("+%.1f%s", delta, unit)
-	}
-	return fmt.Sprintf("%.1f%s", delta, unit)
-}
-
-func formatDeltaMm(delta float64, unit string) string {
-	rounded := math.Round(delta)
-	if math.Abs(rounded) == 0 {
-		return fmt.Sprintf("0%s", unit)
-	}
-	if rounded > 0 {
-		return fmt.Sprintf("+%.0f%s", rounded, unit)
-	}
-	return fmt.Sprintf("%.0f%s", rounded, unit)
-}
-
-func formatDeltaAngle(delta float64, unit string) string {
-	if math.Abs(delta) < 0.05 {
-		return fmt.Sprintf("0.0%s", unit)
-	}
-	if delta > 0 {
-		return fmt.Sprintf("+%.1f%s", delta, unit)
-	}
-	return fmt.Sprintf("%.1f%s", delta, unit)
 }
 
 type scoredRowItem struct {
@@ -1013,24 +533,6 @@ type scoredRowItem struct {
 	row         model.CanonicalComparisonRow
 	score       scoring.Result
 	displayName string
-}
-
-type ScoredColumnJSON struct {
-	model.CanonicalComparisonRow
-	Score *scoring.Result `json:"score,omitempty"`
-}
-
-type CompareExplanationsJSON struct {
-	Losses     []string `json:"losses"`
-	HeadToHead []string `json:"head_to_head"`
-}
-
-type CompareJSONPayload struct {
-	SaddleHeightMm float64                  `json:"saddle_height_mm"`
-	IdealProfile   string                   `json:"ideal_profile"`
-	Columns        []ScoredColumnJSON       `json:"columns"`
-	Explanations   *CompareExplanationsJSON `json:"explanations,omitempty"`
-	DataNotes      []string                 `json:"data_notes,omitempty"`
 }
 
 func (a *App) renderComparisonMatrix(
@@ -1045,7 +547,7 @@ func (a *App) renderComparisonMatrix(
 	}
 
 	if prof == nil {
-		def, err := ideal.LoadProfile(a.getIdealsDir(), "default")
+		def, err := ideal.GetProfile("default")
 		if err != nil {
 			return err
 		}
@@ -1127,29 +629,6 @@ func (a *App) renderComparisonMatrix(
 		"Saddle Height: %.0fmm | Modeled Back Angle: %.1f° | Ideal Profile: %s (*max stay position)",
 		state.SaddleHeightMm, backAngle, prof.Name,
 	)
-
-	jsonCols := make([]ScoredColumnJSON, len(rows))
-	for i, r := range rows {
-		jsonCols[i].CanonicalComparisonRow = r
-		if scoringEnabled {
-			resCopy := scoreResults[i]
-			jsonCols[i].Score = &resCopy
-		}
-	}
-	var explJSON *CompareExplanationsJSON
-	if scoringEnabled && len(rows) > 0 {
-		explJSON = &CompareExplanationsJSON{
-			Losses:     expl.Losses,
-			HeadToHead: expl.HeadToHead,
-		}
-	}
-	jsonPayload := CompareJSONPayload{
-		SaddleHeightMm: state.SaddleHeightMm,
-		IdealProfile:   prof.Name,
-		Columns:        jsonCols,
-		Explanations:   explJSON,
-		DataNotes:      missingNotes,
-	}
 
 	// Prepare detail table if requested
 	var detailHeaders []string
@@ -1244,7 +723,7 @@ func (a *App) renderComparisonMatrix(
 	}
 
 	primaryFooters := footers
-	if scoreDetail && scoringEnabled && a.Format != FormatJSON && a.Format != FormatCSV {
+	if scoreDetail && scoringEnabled && a.Format != FormatCSV {
 		// Delay footers until after the detail table
 		primaryFooters = nil
 	}
@@ -1330,7 +809,7 @@ func (a *App) renderComparisonMatrix(
 			tableRows = append(tableRows, rowCells)
 		}
 
-		if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, tableRows, jsonPayload, primaryFooters); err != nil {
+		if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, tableRows, primaryFooters); err != nil {
 			return err
 		}
 	} else {
@@ -1401,29 +880,20 @@ func (a *App) renderComparisonMatrix(
 			}))
 		}
 
-		if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, tableRows, jsonPayload, primaryFooters); err != nil {
+		if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, tableRows, primaryFooters); err != nil {
 			return err
 		}
 	}
 
-	if scoreDetail && scoringEnabled && a.Format != FormatJSON && a.Format != FormatCSV {
+	if scoreDetail && scoringEnabled && a.Format != FormatCSV {
 		fmt.Fprintln(a.Out)
 		detailTitle := "Scoring Breakdown"
-		if err := RenderOutputWithFooter(a.Out, a.Format, detailTitle, detailSubtitle, detailHeaders, detailRows, nil, detailFooters); err != nil {
+		if err := RenderOutputWithFooter(a.Out, a.Format, detailTitle, detailSubtitle, detailHeaders, detailRows, detailFooters); err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-func forksMatch(a, b string) bool {
-	if strings.EqualFold(a, b) {
-		return true
-	}
-	normA := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(a)), "mm")
-	normB := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(b)), "mm")
-	return normA == normB
 }
 
 // disambiguateFrameNames returns a slice of display names corresponding to rows.

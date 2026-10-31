@@ -18,8 +18,8 @@ type Evaluator interface {
 
 // Point represents a (X, Y) coordinate on a piecewise-linear scoring curve.
 type Point struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
+	X float64
+	Y float64
 }
 
 // Curve is a piecewise-linear function defined by a sequence of Points ordered by X.
@@ -56,12 +56,12 @@ func (c Curve) Eval(x float64) float64 {
 // When x > High, y = Peak - 100.0 * ((x - High) / WHigh)^2.
 // Values below Floor are clamped to Floor (default -200.0).
 type QuadraticCurve struct {
-	Low   float64 `json:"low"`
-	High  float64 `json:"high"`
-	WLow  float64 `json:"w_low"`
-	WHigh float64 `json:"w_high"`
-	Floor float64 `json:"floor"`
-	Peak  float64 `json:"peak"`
+	Low   float64
+	High  float64
+	WLow  float64
+	WHigh float64
+	Floor float64
+	Peak  float64
 }
 
 // Eval computes the quadratic plateau score for the given X.
@@ -297,26 +297,26 @@ var DefaultCriteria = []Criterion{
 
 // CriterionResult stores the calculated score breakdown for a single criterion.
 type CriterionResult struct {
-	ID              string  `json:"id"`
-	Label           string  `json:"label"`
-	Unit            string  `json:"unit"`
-	Value           float64 `json:"value"`
-	SubScore        float64 `json:"sub_score"`
-	Weight          float64 `json:"weight"`
-	Points          float64 `json:"points"`
-	PointsLost      float64 `json:"points_lost"`
-	Zone            string  `json:"zone,omitempty"`
-	DistanceToIdeal float64 `json:"distance_to_ideal,omitempty"`
-	FormattedCell   string  `json:"formatted_cell,omitempty"`
-	Missing         bool    `json:"missing,omitempty"`
-	IsDisplayOnly   bool    `json:"is_display_only,omitempty"`
+	ID              string
+	Label           string
+	Unit            string
+	Value           float64
+	SubScore        float64
+	Weight          float64
+	Points          float64
+	PointsLost      float64
+	Zone            string
+	DistanceToIdeal float64
+	FormattedCell   string
+	Missing         bool
+	IsDisplayOnly   bool
 }
 
 // Result holds the overall score, ranking, and per-criterion details for a frame setup.
 type Result struct {
-	Total    float64           `json:"total"`
-	Rank     int               `json:"rank"`
-	Criteria []CriterionResult `json:"criteria"`
+	Total    float64
+	Rank     int
+	Criteria []CriterionResult
 }
 
 // Score calculates the Result for a single BikeFitAnalysis against given criteria.
@@ -406,8 +406,8 @@ type ScoredFrame struct {
 
 // Explanations holds plain-English explanatory sentences for frame scores.
 type Explanations struct {
-	Losses     []string `json:"losses"`
-	HeadToHead []string `json:"head_to_head"`
+	Losses     []string
+	HeadToHead []string
 }
 
 func formatValue(unit string, v float64) string {
@@ -558,8 +558,7 @@ func Explain(frames []ScoredFrame, criteria []Criterion) Explanations {
 // ScoreRow scores a single CanonicalComparisonRow against an ideal profile.
 func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	if prof == nil {
-		def, _ := ideal.ParseProfileJSON(ideal.DefaultProfileJSON)
-		prof = def
+		prof = ideal.DefaultProfile()
 	}
 
 	type attrEval struct {

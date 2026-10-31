@@ -5,118 +5,32 @@ import (
 	"math"
 	"strings"
 
-	"github.com/gdamore/tcell/v3"
-
 	"bikegeo/pkg/ideal"
-	"bikegeo/pkg/tui"
-	"bikegeo/pkg/tui/ideals"
 )
 
-func (a *App) getIdealsDir() string {
-	parent := filepathDirClean(a.DataDir)
-	return filepathJoin(parent, "ideals")
-}
-
-func filepathDirClean(path string) string {
-	cleaned := strings.TrimRight(path, "/\\")
-	idx := strings.LastIndexAny(cleaned, "/\\")
-	if idx == -1 {
-		return "."
-	}
-	if idx == 0 {
-		return "/"
-	}
-	return cleaned[:idx]
-}
-
-func filepathJoin(elem ...string) string {
-	var parts []string
-	for _, e := range elem {
-		trimmed := strings.Trim(e, "/\\")
-		if trimmed != "" {
-			parts = append(parts, trimmed)
-		}
-	}
-	return strings.Join(parts, "/")
-}
-
 func (a *App) runIdeals(args []string) int {
-	idealsDir := a.getIdealsDir()
-
 	if len(args) == 0 {
-		return a.listIdeals(idealsDir)
+		return a.listIdeals()
 	}
 
 	sub := strings.ToLower(args[0])
 	switch sub {
 	case "list", "ls":
-		return a.listIdeals(idealsDir)
+		return a.listIdeals()
 	case "show", "view", "get":
 		if len(args) < 2 {
 			fmt.Fprintf(a.Err, "Error: 'ideals show' requires a profile name (e.g. 'default')\n")
 			return 2
 		}
-		return a.showIdeal(idealsDir, args[1])
-	case "edit", "tui":
-		profileName := ""
-		if len(args) >= 2 {
-			profileName = args[1]
-		}
-		return a.editIdeals(idealsDir, profileName)
+		return a.showIdeal(args[1])
 	default:
 		// Shorthand: 'bikegeo ideals default' -> show default
-		return a.showIdeal(idealsDir, args[0])
+		return a.showIdeal(args[0])
 	}
 }
 
-func (a *App) editIdeals(idealsDir string, profileName string) int {
-	screen, err := tcell.NewScreen()
-	if err != nil {
-		fmt.Fprintf(a.Err, "Error creating terminal screen: %v\n", err)
-		return 1
-	}
-	if err := screen.Init(); err != nil {
-		fmt.Fprintf(a.Err, "Error initializing terminal screen: %v\n", err)
-		return 1
-	}
-	defer screen.Fini()
-
-	return a.EditIdealsWithScreen(screen, idealsDir, profileName)
-}
-
-// EditIdealsWithScreen executes the TUI ideals editor on the provided tcell.Screen.
-func (a *App) EditIdealsWithScreen(screen tcell.Screen, idealsDir string, profileName string) int {
-	tuiApp := tui.NewApp(screen)
-	if profileName != "" {
-		p, err := ideal.LoadProfile(idealsDir, profileName)
-		if err != nil {
-			fmt.Fprintf(a.Err, "Error loading profile %q: %v\n", profileName, err)
-			return 1
-		}
-		session, err := ideals.NewSession(idealsDir, p)
-		if err != nil {
-			fmt.Fprintf(a.Err, "Error creating session for profile %q: %v\n", profileName, err)
-			return 1
-		}
-		session.PopulateBikes(a.DataDir, a.StatePath)
-		editScreen := ideals.NewProfileEditScreen(tuiApp, session)
-		tuiApp.PushView(editScreen)
-	} else {
-		chooser := ideals.NewProfileChooserScreen(tuiApp, idealsDir)
-		chooser.DataDir = a.DataDir
-		chooser.StatePath = a.StatePath
-		tuiApp.PushView(chooser)
-	}
-
-	if err := tuiApp.Run(); err != nil {
-		fmt.Fprintf(a.Err, "TUI error: %v\n", err)
-		return 1
-	}
-	return 0
-}
-
-func (a *App) listIdeals(idealsDir string) int {
-	summaries, err := ideal.ListProfiles(idealsDir)
+func (a *App) listIdeals() int {
+	summaries, err := ideal.ListProfiles()
 	if err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
@@ -139,8 +53,8 @@ func (a *App) listIdeals(idealsDir string) int {
 	}
 
 	title := "Ideal Frame Profiles"
-	subtitle := fmt.Sprintf("Directory: %s (use 'bikegeo ideals show <name>' to view details)", idealsDir)
-	if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, rows, summaries); err != nil {
+	subtitle := "Use 'bikegeo ideals show <name>' to view details"
+	if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, rows); err != nil {
 		fmt.Fprintf(a.Err, "Error rendering output: %v\n", err)
 		return 1
 	}
@@ -148,8 +62,8 @@ func (a *App) listIdeals(idealsDir string) int {
 	return 0
 }
 
-func (a *App) showIdeal(idealsDir string, name string) int {
-	p, err := ideal.LoadProfile(idealsDir, name)
+func (a *App) showIdeal(name string) int {
+	p, err := ideal.GetProfile(name)
 	if err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
@@ -234,13 +148,13 @@ func (a *App) showIdeal(idealsDir string, name string) int {
 		})
 	}
 
-	if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, rows, p); err != nil {
+	if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, rows); err != nil {
 		fmt.Fprintf(a.Err, "Error rendering output: %v\n", err)
 		return 1
 	}
 
 	// In table or markdown mode, also render sample evaluation points
-	if a.Format != FormatJSON && a.Format != FormatCSV {
+	if a.Format != FormatCSV {
 		sampleHeaders := []string{"Attribute", "Test Value", "Zone", "Score", "Table Display"}
 		var sampleRows [][]string
 
@@ -266,7 +180,7 @@ func (a *App) showIdeal(idealsDir string, name string) int {
 
 		if len(sampleRows) > 0 {
 			fmt.Fprintln(a.Out)
-			_ = RenderOutput(a.Out, a.Format, "Sample Evaluation Points", "Key checkpoints across ideal, acceptable, and falloff zones", sampleHeaders, sampleRows, nil)
+			_ = RenderOutput(a.Out, a.Format, "Sample Evaluation Points", "Key checkpoints across ideal, acceptable, and falloff zones", sampleHeaders, sampleRows)
 		}
 	}
 

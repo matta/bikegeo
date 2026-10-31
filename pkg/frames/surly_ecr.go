@@ -1,0 +1,66 @@
+package frames
+
+import "bikegeo/pkg/model"
+
+var SurlyECR = model.FrameModel{
+	ID:                 "surly-ecr",
+	Manufacturer:       "Surly",
+	Model:              "ECR",
+	Year:               2021,
+	Category:           model.CategoryRigid,
+	WheelSize:          "29",
+	HeadsetCupType:     model.CupEC34,
+	GeoHeadsetSpacerMm: 12,
+	GeoSlopMm: &model.GeoSlopMm{
+		A2c:       model.Float64Ptr(1),
+		Wheelbase: model.Float64Ptr(1),
+	},
+	MaxSpacerMm:   40,
+	CanonicalStem: model.StemSpec{LengthMm: 60, AngleDeg: -6},
+	Stems:         []string{"mtb"},
+	Sizes:         []string{"M", "L", "XL"},
+	DefaultSize:   "L",
+	CadFork:       model.ForkRef{Fork: "surly_ecr_468", A2cMm: 468, RakeMm: 43},
+	Forks: []model.ForkRef{
+		{Fork: "surly_ecr_468", A2cMm: 468, RakeMm: 43},
+	},
+	Notes: "4130 Chromoly steel 'Natch tubing 29+ rigid adventure and bikepacking bike designed around a 468mm rigid fork (43mm offset) with horizontal slotted dropouts and Gnot-Boost 145mm rear spacing. Clearance for 29x3.0\" tires with or without fenders. Traditional Ø34mm head tube (EC34/28.6 upper, EC34/30 lower). Fixed rigid fork only; not compatible with suspension forks.",
+	Geometries: map[string]model.SizeGeometry{
+		"M": {
+			Reach:           408,
+			Stack:           609.5,
+			HtaDeg:          70,
+			StaDeg:          72.5,
+			Htl:             100,
+			BbDrop:          80,
+			Wheelbase:       1090,
+			ChainstayLength: 451,
+			SeatTubeLength:  457.2,
+			StandoverHeight: 805,
+		},
+		"L": {
+			Reach:           420.5,
+			Stack:           633,
+			HtaDeg:          70,
+			StaDeg:          72.5,
+			Htl:             125,
+			BbDrop:          80,
+			Wheelbase:       1111,
+			ChainstayLength: 451,
+			SeatTubeLength:  507.9,
+			StandoverHeight: 840,
+		},
+		"XL": {
+			Reach:           433,
+			Stack:           656.5,
+			HtaDeg:          70,
+			StaDeg:          72.5,
+			Htl:             150,
+			BbDrop:          80,
+			Wheelbase:       1132.5,
+			ChainstayLength: 451,
+			SeatTubeLength:  558.7,
+			StandoverHeight: 875,
+		},
+	},
+}

@@ -14,20 +14,21 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 	saggedFork := sid110Static - sag20Pct // 416.8 mm
 
 	binaryHavok := model.BikeGeometry{
-		ID:             "binary-havok-m",
-		Manufacturer:   "Binary",
-		Model:          "Havok",
-		Size:           "M",
-		Reach:          398.0,
-		Stack:          656.0,
-		HtaDeg:         69.0,
-		StaDeg:         74.0,
-		Htl:            150.0,
-		BbDrop:         70.0,
-		ForkRake:       44.0,
-		ForkA2c:        521.0,
-		HeadsetCupType: model.CupEC44,
-		Wheelbase:      1150.0,
+		ID:                 "binary-havok-m",
+		Manufacturer:       "Binary",
+		Model:              "Havok",
+		Size:               "M",
+		Reach:              398.0,
+		Stack:              656.0,
+		HtaDeg:             69.0,
+		StaDeg:             74.0,
+		Htl:                150.0,
+		BbDrop:             70.0,
+		ForkRake:           44.0,
+		ForkA2c:            521.0,
+		HeadsetCupType:     model.CupEC44,
+		GeoHeadsetSpacerMm: 12.0,
+		Wheelbase:          1150.0,
 	}
 
 	// Step 1: Geometric A2C
@@ -405,8 +406,8 @@ func TestMapPossibleHBs_And_SelectBestHB(t *testing.T) {
 		Stack:         stack,
 		HtaDeg:        htaDeg,
 		StaDeg:        staDeg,
-		MaxSpacerMm:   &maxSpacer,
-		CanonicalStem: &canonical,
+		MaxSpacerMm:   maxSpacer,
+		CanonicalStem: canonical,
 		Stems:         stems,
 	}
 

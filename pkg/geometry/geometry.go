@@ -263,8 +263,8 @@ func MapPossibleHBs(
 	brp model.BRPPoint,
 ) []model.HBPoint {
 	stems := bike.Stems
-	if len(stems) == 0 && bike.CanonicalStem != nil && bike.CanonicalStem.LengthMm > 0 {
-		stems = []model.StemSpec{*bike.CanonicalStem}
+	if len(stems) == 0 && bike.CanonicalStem.LengthMm > 0 {
+		stems = []model.StemSpec{bike.CanonicalStem}
 	}
 	spacers := bike.GetSpacersMm()
 
@@ -719,10 +719,7 @@ func AnalyzeBikeFit(
 	seatHeight := profile.SaddleHeightMm
 
 	cupStack := bike.HeadsetCupType.CupStackMm()
-	geoSpacer := cupStack
-	if bike.GeoHeadsetSpacerMm != nil {
-		geoSpacer = *bike.GeoHeadsetSpacerMm
-	}
+	geoSpacer := bike.GeoHeadsetSpacerMm
 
 	// 1. Reverse engineer baseline CAD geometric A2C
 	baseStructuralA2c, baseForkA2c := CalculateGeometricA2c(

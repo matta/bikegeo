@@ -2,7 +2,6 @@ package cli
 
 import (
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -11,7 +10,6 @@ import (
 
 const (
 	FormatTable    = "table"
-	FormatJSON     = "json"
 	FormatMarkdown = "md"
 	FormatCSV      = "csv"
 )
@@ -21,14 +19,12 @@ func NormalizeFormat(f string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(f)) {
 	case "", "table", "text", "ascii":
 		return FormatTable, nil
-	case "json":
-		return FormatJSON, nil
 	case "md", "markdown":
 		return FormatMarkdown, nil
 	case "csv":
 		return FormatCSV, nil
 	default:
-		return "", fmt.Errorf("unsupported format %q (supported: table, json, md, csv)", f)
+		return "", fmt.Errorf("unsupported format %q (supported: table, md, csv)", f)
 	}
 }
 
@@ -38,7 +34,7 @@ type FooterSection struct {
 	Lines []string
 }
 
-// RenderOutput renders structured tabular data in the requested format (table, json, md, csv).
+// RenderOutput renders structured tabular data in the requested format (table, md, csv).
 func RenderOutput(
 	w io.Writer,
 	format string,
@@ -46,9 +42,8 @@ func RenderOutput(
 	subtitle string,
 	headers []string,
 	rows [][]string,
-	jsonPayload any,
 ) error {
-	return RenderOutputWithFooter(w, format, title, subtitle, headers, rows, jsonPayload, nil)
+	return RenderOutputWithFooter(w, format, title, subtitle, headers, rows, nil)
 }
 
 // RenderOutputWithFooter renders structured tabular data with optional footer sections.
@@ -59,7 +54,6 @@ func RenderOutputWithFooter(
 	subtitle string,
 	headers []string,
 	rows [][]string,
-	jsonPayload any,
 	footers []FooterSection,
 ) error {
 	norm, err := NormalizeFormat(format)
@@ -68,11 +62,6 @@ func RenderOutputWithFooter(
 	}
 
 	switch norm {
-	case FormatJSON:
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "  ")
-		return enc.Encode(jsonPayload)
-
 	case FormatCSV:
 		cw := csv.NewWriter(w)
 		if len(headers) > 0 {

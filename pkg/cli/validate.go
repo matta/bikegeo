@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"strings"
 
+	"bikegeo/pkg/frames"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/validator"
 )
 
 type ValidationResultBundle struct {
-	Frame       model.FrameModel            `json:"frame"`
-	Size        string                      `json:"size"`
-	Bike        model.BikeGeometry          `json:"bike"`
-	Report      model.ValidationReport      `json:"report"`
-	FrameReport model.FrameValidationReport `json:"frame_report"`
+	Frame       model.FrameModel
+	Size        string
+	Bike        model.BikeGeometry
+	Report      model.ValidationReport
+	FrameReport model.FrameValidationReport
 }
 
 func formatPublishModeShort(mode model.PublishMode) string {
@@ -48,19 +49,9 @@ func (a *App) runValidate(args []string) int {
 		return 2
 	}
 
-	store, err := a.openStore()
-	if err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
-		return 1
-	}
-
-	allFrames, err := store.GetAllFrames()
-	if err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
-		return 1
-	}
+	allFrames := frames.AllFrames()
 	if len(allFrames) == 0 {
-		fmt.Fprintf(a.Err, "Error: no bike frames found in %s\n", a.DataDir)
+		fmt.Fprintf(a.Err, "Error: no bike frames found\n")
 		return 1
 	}
 
@@ -142,20 +133,6 @@ func (a *App) runValidate(args []string) int {
 	}
 
 	normFormat, _ := NormalizeFormat(a.Format)
-	if normFormat == FormatJSON {
-		var payload any = bundles
-		if len(bundles) == 1 && !allFlag && len(posArgs) == 1 {
-			payload = bundles[0]
-		}
-		if err := RenderOutput(a.Out, FormatJSON, "", "", nil, nil, payload); err != nil {
-			fmt.Fprintf(a.Err, "Error: %v\n", err)
-			return 1
-		}
-		if hasInvalid {
-			return 1
-		}
-		return 0
-	}
 
 	// If multiple frames are validated (e.g. --all), print a summary table first
 	if len(bundles) > 1 {
@@ -188,7 +165,7 @@ func (a *App) runValidate(args []string) int {
 		}
 
 		title := fmt.Sprintf("CAD Geometry Validation Summary (%d Frames)", len(bundles))
-		if err := RenderOutput(a.Out, a.Format, title, "", headers, rows, bundles); err != nil {
+		if err := RenderOutput(a.Out, a.Format, title, "", headers, rows); err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}
@@ -251,7 +228,7 @@ func (a *App) renderDetailedValidation(b ValidationResultBundle) {
 		fmt.Sprintf("%.1f mm", b.Bike.ForkRake),
 		fmt.Sprintf("%.1f mm", b.Bike.Wheelbase),
 	}
-	_ = RenderOutput(a.Out, a.Format, title, subtitle, specHeaders, [][]string{specRow}, b)
+	_ = RenderOutput(a.Out, a.Format, title, subtitle, specHeaders, [][]string{specRow})
 
 	// 2. Master Stack Equation & Headset Proof
 	fmt.Fprintln(a.Out, "\nMaster Stack Equation & Headset Proof:")
@@ -299,7 +276,7 @@ func (a *App) renderDetailedValidation(b ValidationResultBundle) {
 	if b.Bike.FrontCenter > 0 {
 		proofRows = append(proofRows, []string{"Published Front Center", fmt.Sprintf("%.1f mm", b.Bike.FrontCenter)})
 	}
-	_ = RenderOutput(a.Out, a.Format, "", "", proofHeaders, proofRows, nil)
+	_ = RenderOutput(a.Out, a.Format, "", "", proofHeaders, proofRows)
 
 	if slop.HasCustomSlop() || slop.Reason != "" {
 		fmt.Fprintln(a.Out, "\nActive Geo Slop Overrides (geo_slop_mm):")

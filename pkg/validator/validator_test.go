@@ -1,12 +1,10 @@
 package validator_test
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
+	"bikegeo/pkg/frames"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/validator"
@@ -28,7 +26,7 @@ func TestValidateBinaryHavok(t *testing.T) {
 		Wheelbase:          1111.0,
 		ForkA2c:            485.0,
 		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
+		GeoHeadsetSpacerMm: 10.0,
 	}
 
 	report := validator.ValidateBikeGeometry(binaryHavok)
@@ -61,7 +59,7 @@ func TestValidateOtsoFenrirSpacerNoAutoDetection(t *testing.T) {
 		ChainstayLength:    450.0,
 		ForkA2c:            495.0,
 		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(0.0),
+		GeoHeadsetSpacerMm: 0.0,
 	}
 
 	repZero := validator.ValidateBikeGeometry(fenrirZero)
@@ -101,18 +99,18 @@ func TestValidateOtsoFenrirSpacerNoAutoDetection(t *testing.T) {
 
 	// With geo_headset_spacer_mm = 12, auto-detection is gone so Fenrir fails Master Stack Equation
 	fenrirTwelve := fenrirZero
-	fenrirTwelve.GeoHeadsetSpacerMm = model.Float64Ptr(12.0)
+	fenrirTwelve.GeoHeadsetSpacerMm = 12.0
 	repTwelve := validator.ValidateBikeGeometry(fenrirTwelve)
 	if repTwelve.IsValid {
 		t.Errorf("Expected Fenrir with 12mm CAD spacer to fail validation without auto-detection")
 	}
 
-	// Missing geo_headset_spacer_mm (nil) must fail validation
-	fenrirMissing := fenrirZero
-	fenrirMissing.GeoHeadsetSpacerMm = nil
-	repMissing := validator.ValidateBikeGeometry(fenrirMissing)
-	if repMissing.IsValid {
-		t.Errorf("Expected missing geo_headset_spacer_mm to fail validation")
+	// Out-of-range geo_headset_spacer_mm (-1.0) must fail validation
+	fenrirInvalidSpacer := fenrirZero
+	fenrirInvalidSpacer.GeoHeadsetSpacerMm = -1.0
+	repInvalidSpacer := validator.ValidateBikeGeometry(fenrirInvalidSpacer)
+	if repInvalidSpacer.IsValid {
+		t.Errorf("Expected negative geo_headset_spacer_mm to fail validation")
 	}
 }
 
@@ -135,7 +133,7 @@ func TestValidateGeoSlopMmAnd3DFrontCenter(t *testing.T) {
 		FrontCenter:        657.0,
 		ForkA2c:            485.0,
 		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
+		GeoHeadsetSpacerMm: 10.0,
 	}
 
 	// Without geo_slop_mm, default 1.0mm slop rejects size M's 1.4mm A2C and 1.2mm Wheelbase discrepancy
@@ -171,7 +169,7 @@ func TestValidateInconsistentStackFails(t *testing.T) {
 		Wheelbase:          1170.0,
 		ForkA2c:            541.0,
 		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(12.0),
+		GeoHeadsetSpacerMm: 12.0,
 	}
 
 	report := validator.ValidateBikeGeometry(flawed)
@@ -197,7 +195,7 @@ func TestValidateForkRef_ValidAndSuggestions(t *testing.T) {
 	// 1. Valid fork ref passes with zero issues
 	validRef := model.ForkRef{
 		Fork:   "fox34_120",
-		SagPct: model.Float64Ptr(20.0),
+		SagPct: 20.0,
 		A2cMm:  506.0,
 		RakeMm: 44.0,
 	}
@@ -222,7 +220,7 @@ func TestValidateForkRef_ValidAndSuggestions(t *testing.T) {
 		t.Errorf("Expected suggestions to include fox34_120, got message: %s", issues[0].Message)
 	}
 
-	// 3. Missing sag_pct on suspension fork
+	// 3. Missing sag_pct on suspension fork with sagged A2C
 	missingSagRef := model.ForkRef{
 		Fork:   "fox34_120",
 		A2cMm:  506.0,
@@ -236,7 +234,7 @@ func TestValidateForkRef_ValidAndSuggestions(t *testing.T) {
 	// 4. Mismatched A2C triggers error and suggests matching A2C
 	mismatchedA2cRef := model.ForkRef{
 		Fork:   "fox34_120",
-		SagPct: model.Float64Ptr(20.0),
+		SagPct: 20.0,
 		A2cMm:  520.0,
 		RakeMm: 44.0,
 	}
@@ -251,7 +249,7 @@ func TestValidateForkRef_ValidAndSuggestions(t *testing.T) {
 	// 5. Unsupported rake triggers error listing available rakes
 	unsupportedRakeRef := model.ForkRef{
 		Fork:   "fox34_120",
-		SagPct: model.Float64Ptr(20.0),
+		SagPct: 20.0,
 		A2cMm:  506.0,
 		RakeMm: 51.0,
 	}
@@ -267,7 +265,7 @@ func TestValidateRevelElJefe(t *testing.T) {
 		Manufacturer:       "Revel",
 		Model:              "El Jefe",
 		HeadsetCupType:     model.CupIS52,
-		GeoHeadsetSpacerMm: model.Float64Ptr(0.0),
+		GeoHeadsetSpacerMm: 0.0,
 		GeoSlopMm: &model.GeoSlopMm{
 			A2c:       model.Float64Ptr(6.0),
 			Wheelbase: model.Float64Ptr(6.5),
@@ -278,7 +276,7 @@ func TestValidateRevelElJefe(t *testing.T) {
 		DefaultSize:      "L",
 		CadFork: model.ForkRef{
 			Fork:   "sid_120",
-			SagPct: model.Float64Ptr(20.0),
+			SagPct: 20.0,
 			A2cMm:  510.0,
 			RakeMm: 44.0,
 		},
@@ -288,8 +286,8 @@ func TestValidateRevelElJefe(t *testing.T) {
 			{Fork: "sid_100", A2cMm: 506.0, RakeMm: 44.0},
 			{Fork: "fox34_130", A2cMm: 541.0, RakeMm: 44.0},
 		},
-		MaxSpacerMm:   model.Float64Ptr(40.0),
-		CanonicalStem: &model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0},
+		MaxSpacerMm:   40.0,
+		CanonicalStem: model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0},
 		Stems:         []string{"mtb"},
 		Geometries: map[string]model.SizeGeometry{
 			"S":  {Reach: 435, Stack: 599, HtaDeg: 67.5, StaDeg: 75.0, Htl: 86, BbDrop: 68, Wheelbase: 1121, ChainstayLength: 420, SeatTubeLength: 374, StandoverHeight: 700},
@@ -323,7 +321,7 @@ func TestValidateTumbleweedSunliner(t *testing.T) {
 		Model:              "Sunliner",
 		Category:           model.CategoryRigid,
 		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(13.0),
+		GeoHeadsetSpacerMm: 13.0,
 		Sizes:              []string{"S", "M", "L", "XL"},
 		DefaultSize:        "L",
 		CadFork: model.ForkRef{
@@ -334,8 +332,8 @@ func TestValidateTumbleweedSunliner(t *testing.T) {
 		Forks: []model.ForkRef{
 			{Fork: "sunliner_440", A2cMm: 440.0, RakeMm: 55.0},
 		},
-		MaxSpacerMm:   model.Float64Ptr(40.0),
-		CanonicalStem: &model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0},
+		MaxSpacerMm:   40.0,
+		CanonicalStem: model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0},
 		Stems:         []string{"mtb"},
 		Geometries: map[string]model.SizeGeometry{
 			"S":  {Reach: 420, Stack: 590, HtaDeg: 69, StaDeg: 73, Htl: 130, BbDrop: 65, Wheelbase: 1131, ChainstayLength: 456, SeatTubeLength: 380, StandoverHeight: 765},
@@ -362,16 +360,19 @@ func TestValidateForks(t *testing.T) {
 		Model:              "NoForks",
 		WheelSize:          "29",
 		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: model.Float64Ptr(10.0),
+		GeoHeadsetSpacerMm: 10.0,
 		Sizes:              []string{"L"},
 		DefaultSize:        "L",
 		CadFork: model.ForkRef{
 			Fork:   "fox34_120",
-			SagPct: model.Float64Ptr(20.0),
+			SagPct: 20.0,
 			A2cMm:  506.0,
 			RakeMm: 44.0,
 		},
-		Forks: nil,
+		Forks:         nil,
+		MaxSpacerMm:   40.0,
+		CanonicalStem: model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0},
+		Stems:         []string{"mtb"},
 		Geometries: map[string]model.SizeGeometry{
 			"L": {Reach: 456, Stack: 657, HtaDeg: 67, StaDeg: 74.5, Htl: 145, BbDrop: 60, Wheelbase: 1208, ChainstayLength: 455},
 		},
@@ -395,40 +396,19 @@ func TestValidateForks(t *testing.T) {
 }
 
 func TestAllFrameData(t *testing.T) {
-	files, err := filepath.Glob("../../data/bikes/*.json")
-	if err != nil {
-		t.Fatalf("Failed to glob data/bikes/*.json: %v", err)
-	}
-	if len(files) == 0 {
-		t.Fatalf("Expected at least one frame file in data/bikes, found 0")
+	allFrames := frames.AllFrames()
+	if len(allFrames) == 0 {
+		t.Fatalf("Expected at least one frame in pkg/frames, found 0")
 	}
 
-	for _, path := range files {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Errorf("Failed to read %s: %v", path, err)
-			continue
-		}
-
-		var frame model.FrameModel
-		if err := json.Unmarshal(data, &frame); err != nil {
-			t.Errorf("Failed to unmarshal %s: %v", path, err)
-			continue
-		}
-
-		// 1. Verify filename matches frame ID
-		expectedFilename := frame.ID + ".json"
-		if filepath.Base(path) != expectedFilename {
-			t.Errorf("Filename mismatch: %s has ID %q (expected filename %s)", path, frame.ID, expectedFilename)
-		}
-
-		// 2. Verify FrameModel validation passes
+	for _, frame := range allFrames {
+		// 1. Verify FrameModel validation passes
 		report := validator.ValidateFrame(frame)
 		if !report.IsValid {
 			t.Errorf("Frame %s failed validation: %s", frame.ID, report.ErrorSummary())
 		}
 
-		// 3. Verify all declared sizes materialize and validate
+		// 2. Verify all declared sizes materialize and validate
 		for _, sz := range frame.GetSizes() {
 			bike, err := geometry.MaterializeBikeGeometry(frame, sz)
 			if err != nil {
@@ -441,12 +421,12 @@ func TestAllFrameData(t *testing.T) {
 			}
 		}
 
-		// 4. Verify CAD fork specification is populated
+		// 3. Verify CAD fork specification is populated
 		if frame.CadFork.Fork == "" || frame.CadFork.A2cMm <= 0 {
 			t.Errorf("Frame %s has invalid cad_fork: %+v", frame.ID, frame.CadFork)
 		}
 
-		// 5. Verify forks
+		// 4. Verify forks
 		if len(frame.Forks) == 0 {
 			t.Errorf("Frame %s missing forks", frame.ID)
 		}
@@ -454,12 +434,12 @@ func TestAllFrameData(t *testing.T) {
 			t.Errorf("Frame %s cannot derive valid A2C range", frame.ID)
 		}
 
-		// 6. Verify rigid capability matches field
+		// 5. Verify rigid capability matches field
 		if frame.SupportsRigid() && frame.GetRigidA2c() <= 0 {
 			t.Errorf("Frame %s supports rigid but has rigid A2C <= 0", frame.ID)
 		}
 
-		// 7. Verify adjustable chainstay ranges if present
+		// 6. Verify adjustable chainstay ranges if present
 		if frame.HasAdjustableChainstay() {
 			if frame.GetMinChainstay() >= frame.GetMaxChainstay() {
 				t.Errorf("Frame %s has invalid chainstay range [%.1f, %.1f]", frame.ID, frame.GetMinChainstay(), frame.GetMaxChainstay())
@@ -469,22 +449,12 @@ func TestAllFrameData(t *testing.T) {
 }
 
 func TestSizeResiduals(t *testing.T) {
-	files, err := filepath.Glob("../../data/bikes/*.json")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("Failed to glob data/bikes/*.json")
+	allFrames := frames.AllFrames()
+	if len(allFrames) == 0 {
+		t.Fatalf("Expected at least one frame in pkg/frames")
 	}
 
-	// Test SizeResiduals on the first available real frame
-	data, err := os.ReadFile(files[0])
-	if err != nil {
-		t.Fatalf("Failed to read %s: %v", files[0], err)
-	}
-
-	var frame model.FrameModel
-	if err := json.Unmarshal(data, &frame); err != nil {
-		t.Fatalf("Failed to unmarshal %s: %v", files[0], err)
-	}
-
+	frame := allFrames[0]
 	residuals, err := validator.SizeResiduals(frame)
 	if err != nil {
 		t.Fatalf("SizeResiduals failed on %s: %v", frame.ID, err)
@@ -500,20 +470,12 @@ func TestSizeResiduals(t *testing.T) {
 }
 
 func TestValidateFrameStemSpacerRequirements(t *testing.T) {
-	files, err := filepath.Glob("../../data/bikes/*.json")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("Failed to glob data/bikes/*.json")
+	allFrames := frames.AllFrames()
+	if len(allFrames) == 0 {
+		t.Fatalf("Expected at least one frame in pkg/frames")
 	}
 
-	data, err := os.ReadFile(files[0])
-	if err != nil {
-		t.Fatalf("Failed to read %s: %v", files[0], err)
-	}
-
-	var validFrame model.FrameModel
-	if err := json.Unmarshal(data, &validFrame); err != nil {
-		t.Fatalf("Failed to unmarshal %s: %v", files[0], err)
-	}
+	validFrame := allFrames[0]
 
 	// 1. Valid frame passes
 	rep := validator.ValidateFrame(validFrame)
@@ -521,56 +483,40 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 		t.Fatalf("Expected valid frame to pass, got: %s", rep.ErrorSummary())
 	}
 
-	// 2. Missing MaxSpacerMm
-	fNoSpacer := validFrame
-	fNoSpacer.MaxSpacerMm = nil
-	rep = validator.ValidateFrame(fNoSpacer)
-	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Missing Maximum Spacer Stack") {
-		t.Errorf("Expected Missing Maximum Spacer Stack error, got: %s", rep.ErrorSummary())
-	}
-
-	// 3. Negative MaxSpacerMm
-	fNegSpacer := validFrame
-	fNegSpacer.MaxSpacerMm = model.Float64Ptr(-5.0)
+	// 2. Negative MaxSpacerMm
+	fNegSpacer := validFrame.Clone()
+	fNegSpacer.MaxSpacerMm = -5.0
 	rep = validator.ValidateFrame(fNegSpacer)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Invalid Maximum Spacer Stack") {
 		t.Errorf("Expected Invalid Maximum Spacer Stack error, got: %s", rep.ErrorSummary())
 	}
 
-	// 4. Missing CanonicalStem
-	fNoCanon := validFrame
-	fNoCanon.CanonicalStem = nil
-	rep = validator.ValidateFrame(fNoCanon)
-	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Missing Canonical Stem") {
-		t.Errorf("Expected Missing Canonical Stem error, got: %s", rep.ErrorSummary())
-	}
-
-	// 5. Zero/negative CanonicalStem length
-	fBadCanon := validFrame
-	fBadCanon.CanonicalStem = &model.StemSpec{LengthMm: 0, AngleDeg: -6}
+	// 3. Zero/negative CanonicalStem length
+	fBadCanon := validFrame.Clone()
+	fBadCanon.CanonicalStem = model.StemSpec{LengthMm: 0, AngleDeg: -6}
 	rep = validator.ValidateFrame(fBadCanon)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "canonical_stem length_mm must be positive") {
 		t.Errorf("Expected canonical stem positive length error, got: %s", rep.ErrorSummary())
 	}
 
-	// 6. Missing Stems
-	fNoStems := validFrame
+	// 4. Missing Stems
+	fNoStems := validFrame.Clone()
 	fNoStems.Stems = nil
 	rep = validator.ValidateFrame(fNoStems)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Missing Stems") {
 		t.Errorf("Expected Missing Stems error, got: %s", rep.ErrorSummary())
 	}
 
-	// 7. CanonicalStem not included in Stems
-	fCanonNotInStems := validFrame
-	fCanonNotInStems.CanonicalStem = &model.StemSpec{LengthMm: 125, AngleDeg: -17}
+	// 5. CanonicalStem not included in Stems
+	fCanonNotInStems := validFrame.Clone()
+	fCanonNotInStems.CanonicalStem = model.StemSpec{LengthMm: 125, AngleDeg: -17}
 	rep = validator.ValidateFrame(fCanonNotInStems)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Canonical Stem Not in Stems List") {
 		t.Errorf("Expected Canonical Stem Not in Stems List error, got: %s", rep.ErrorSummary())
 	}
 
-	// 8. Unknown Stem Set in Stems
-	fUnknownStem := validFrame
+	// 6. Unknown Stem Set in Stems
+	fUnknownStem := validFrame.Clone()
 	fUnknownStem.Stems = []string{"nonexistent_stem"}
 	rep = validator.ValidateFrame(fUnknownStem)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "not defined in data/stems.json") {

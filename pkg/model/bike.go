@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Float64Ptr returns a pointer to v, used for explicit JSON numeric fields where 0 is valid.
+// Float64Ptr returns a pointer to v, used for optional numeric fields where nil means unset.
 func Float64Ptr(v float64) *float64 {
 	return &v
 }
@@ -85,11 +85,11 @@ const DefaultGeoSlopMm = 1.0
 // GeoSlopMm defines optional measure-specific validation tolerances (in mm) for a frame.
 // Any nil field defaults to DefaultGeoSlopMm (1.0mm).
 type GeoSlopMm struct {
-	A2c         *float64 `json:"a2c,omitempty"`
-	FrontCenter *float64 `json:"front_center,omitempty"`
-	Wheelbase   *float64 `json:"wheelbase,omitempty"`
-	CrossConfig *float64 `json:"cross_config,omitempty"`
-	Reason      string   `json:"reason,omitempty"`
+	A2c         *float64
+	FrontCenter *float64
+	Wheelbase   *float64
+	CrossConfig *float64
+	Reason      string
 }
 
 func (s GeoSlopMm) HasCustomSlop() bool {
@@ -144,49 +144,49 @@ func (s GeoSlopMm) String() string {
 	return strings.Join(parts, ", ")
 }
 
-// BikeGeometry represents bicycle frame geometry data from disk JSON.
+// BikeGeometry represents materialized bicycle frame geometry for a single size.
 type BikeGeometry struct {
-	ID           string       `json:"id"`
-	Manufacturer string       `json:"manufacturer"`
-	Model        string       `json:"model"`
-	Size         string       `json:"size"`
-	Year         int          `json:"year,omitempty"`
-	Category     BikeCategory `json:"category,omitempty"`
-	Notes        string       `json:"notes,omitempty"`
+	ID           string
+	Manufacturer string
+	Model        string
+	Size         string
+	Year         int
+	Category     BikeCategory
+	Notes        string
 
 	// Primary Frame Dimensions (mm / deg)
-	Reach     float64 `json:"reach"`
-	Stack     float64 `json:"stack"`
-	HtaDeg    float64 `json:"hta_deg"`
-	StaDeg    float64 `json:"sta_deg"`
-	Htl       float64 `json:"htl"`
-	BbDrop    float64 `json:"bb_drop"`
-	ForkRake  float64 `json:"fork_rake"`
-	Wheelbase float64 `json:"wheelbase"`
+	Reach     float64
+	Stack     float64
+	HtaDeg    float64
+	StaDeg    float64
+	Htl       float64
+	BbDrop    float64
+	ForkRake  float64
+	Wheelbase float64
 
 	// Optional Frame Dimensions
-	ChainstayLength  float64   `json:"chainstay_length,omitempty"`
-	ChainstayRangeMm []float64 `json:"chainstay_range_mm,omitempty"`
-	FrontCenter      float64   `json:"front_center,omitempty"`
-	SeatTubeLength   float64   `json:"seat_tube_length,omitempty"`
-	StandoverHeight  float64   `json:"standover_height,omitempty"`
-	WheelSize        string    `json:"wheel_size,omitempty"`
+	ChainstayLength  float64
+	ChainstayRangeMm []float64
+	FrontCenter      float64
+	SeatTubeLength   float64
+	StandoverHeight  float64
+	WheelSize        string
 
 	// Published CAD & Hardware Assumptions
-	CadFork            ForkRef        `json:"cad_fork"`
-	ForkA2c            float64        `json:"fork_a2c,omitempty"`
-	HeadsetCupType     HeadsetCupType `json:"headset_cup_type"`
-	GeoHeadsetSpacerMm *float64       `json:"geo_headset_spacer_mm"`
-	GeoSlopMm          *GeoSlopMm     `json:"geo_slop_mm,omitempty"`
+	CadFork            ForkRef
+	ForkA2c            float64
+	HeadsetCupType     HeadsetCupType
+	GeoHeadsetSpacerMm float64
+	GeoSlopMm          *GeoSlopMm
 
 	// Bent / Offset Seat Tube
-	ActualStaDeg      float64  `json:"actual_sta_deg,omitempty"`
-	SeatTubeOffsetXMm *float64 `json:"seat_tube_offset_x_mm,omitempty"`
+	ActualStaDeg      float64
+	SeatTubeOffsetXMm *float64
 
 	// Cockpit & Stem/Spacer Envelope
-	MaxSpacerMm   *float64   `json:"max_spacer_mm,omitempty"`
-	CanonicalStem *StemSpec  `json:"canonical_stem,omitempty"`
-	Stems         []StemSpec `json:"stems,omitempty"`
+	MaxSpacerMm   float64
+	CanonicalStem StemSpec
+	Stems         []StemSpec
 }
 
 func (b BikeGeometry) GetCadA2c() float64 {
@@ -252,10 +252,7 @@ func (b BikeGeometry) CalculateEffectiveSta(seatHeight, stack, nominalSta float6
 }
 
 func (b BikeGeometry) GetGeoHeadsetSpacerMm() float64 {
-	if b.GeoHeadsetSpacerMm != nil {
-		return *b.GeoHeadsetSpacerMm
-	}
-	return 0
+	return b.GeoHeadsetSpacerMm
 }
 
 func (b BikeGeometry) GetGeoSlopMm() GeoSlopMm {
@@ -294,15 +291,15 @@ const StemLengthStepMm = 10.0
 
 // StemSpec represents a stem configuration (length in mm, angle in degrees).
 type StemSpec struct {
-	LengthMm float64 `json:"length_mm"`
-	AngleDeg float64 `json:"angle_deg"`
+	LengthMm float64
+	AngleDeg float64
 }
 
-// StemCatalogEntry encapsulates a stem set in data/stems.json.
+// StemCatalogEntry encapsulates a stem set in pkg/catalog.
 type StemCatalogEntry struct {
-	ID            string    `json:"id"`
-	LengthRangeMm []float64 `json:"length_range_mm"`
-	AnglesDeg     []float64 `json:"angles_deg"`
+	ID            string
+	LengthRangeMm []float64
+	AnglesDeg     []float64
 }
 
 // Expand generates the Cartesian product of stems across LengthRangeMm (in StemLengthStepMm steps) and AnglesDeg.
@@ -347,31 +344,28 @@ const SaddleRailStepMm = 1.0
 // BRPPoint represents a saddle Biomechanical Reference Point (70mm width mark)
 // for a specific fore-aft rail offset along the constant-radius SaddleHeightMm arc.
 type BRPPoint struct {
-	SeatpostSetbackMm float64 `json:"seatpost_setback_mm"`
-	SaddleBrpOffsetMm float64 `json:"saddle_brp_offset_mm"`
-	RailOffsetMm      float64 `json:"rail_offset_mm"`
-	TotalPerpOffsetMm float64 `json:"total_perp_offset_mm"`
-	BrpX              float64 `json:"brp_x"`
-	BrpY              float64 `json:"brp_y"`
-	BrpSetbackMm      float64 `json:"brp_setback_mm"`
-	BrpAngleFromBbDeg float64 `json:"brp_angle_from_bb_deg"`
+	SeatpostSetbackMm float64
+	SaddleBrpOffsetMm float64
+	RailOffsetMm      float64
+	TotalPerpOffsetMm float64
+	BrpX              float64
+	BrpY              float64
+	BrpSetbackMm      float64
+	BrpAngleFromBbDeg float64
 }
 
 // HBPoint represents a mapped handlebar-stem intersection point (HB) and its resulting Saddle-Handlebar distance and drop.
 type HBPoint struct {
-	Stem           StemSpec `json:"stem"`
-	SpacerMm       float64  `json:"spacer_mm"`
-	HbX            float64  `json:"hb_x"`
-	HbY            float64  `json:"hb_y"`
-	SaddleHbMm     float64  `json:"saddle_hb_mm"`
-	SaddleHbDropMm float64  `json:"saddle_hb_drop_mm"`
+	Stem           StemSpec
+	SpacerMm       float64
+	HbX            float64
+	HbY            float64
+	SaddleHbMm     float64
+	SaddleHbDropMm float64
 }
 
 func (b BikeGeometry) GetMaxSpacerMm() float64 {
-	if b.MaxSpacerMm != nil {
-		return *b.MaxSpacerMm
-	}
-	return 0
+	return b.MaxSpacerMm
 }
 
 func (b BikeGeometry) GetSpacersMm() []float64 {
@@ -387,26 +381,23 @@ func (b BikeGeometry) GetSpacersMm() []float64 {
 }
 
 func (b BikeGeometry) GetCanonicalStem() StemSpec {
-	if b.CanonicalStem != nil {
-		return *b.CanonicalStem
-	}
-	return StemSpec{}
+	return b.CanonicalStem
 }
 
 // ForkCatalogOption specifies an available (A2C, rake) pair for a catalog fork.
 type ForkCatalogOption struct {
-	A2cMm  float64 `json:"a2c_mm"`
-	RakeMm float64 `json:"rake_mm"`
+	A2cMm  float64
+	RakeMm float64
 }
 
-// ForkCatalogEntry encapsulates a fork model in data/forks.json.
+// ForkCatalogEntry encapsulates a fork model in pkg/catalog.
 type ForkCatalogEntry struct {
-	ID          string              `json:"id"`
-	Name        string              `json:"name"`
-	TravelMm    float64             `json:"travel_mm"`
-	Standard    bool                `json:"standard,omitempty"`
-	Options     []ForkCatalogOption `json:"options"`
-	Description string              `json:"description,omitempty"`
+	ID          string
+	Name        string
+	TravelMm    float64
+	Standard    bool
+	Options     []ForkCatalogOption
+	Description string
 }
 
 // ForkPreset is an alias for ForkCatalogEntry.
@@ -414,17 +405,14 @@ type ForkPreset = ForkCatalogEntry
 
 // ForkRef encapsulates a reference to a catalog fork with resolved A2C and rake.
 type ForkRef struct {
-	Fork   string   `json:"fork"`
-	SagPct *float64 `json:"sag_pct,omitempty"`
-	A2cMm  float64  `json:"a2c_mm"`
-	RakeMm float64  `json:"rake_mm"`
+	Fork   string
+	SagPct float64
+	A2cMm  float64
+	RakeMm float64
 }
 
 func (r ForkRef) GetSagPct() float64 {
-	if r.SagPct != nil {
-		return *r.SagPct
-	}
-	return 0.0
+	return r.SagPct
 }
 
 func (r ForkRef) ForkTravel() float64 {
@@ -439,71 +427,117 @@ func (r ForkRef) ForkTravel() float64 {
 
 func (r ForkRef) StaticA2c() float64 {
 	tr := r.ForkTravel()
-	if tr > 0 && r.SagPct != nil && *r.SagPct > 0 {
-		return r.A2cMm + tr*(*r.SagPct/100.0)
+	if tr > 0 && r.SagPct > 0 {
+		return r.A2cMm + tr*(r.SagPct/100.0)
 	}
 	return r.A2cMm
 }
 
 // ForkSpec encapsulates physical and geometric properties of a fork (for compatibility).
 type ForkSpec struct {
-	ID                 string  `json:"id,omitempty"`
-	Name               string  `json:"name,omitempty"`
-	TravelMm           float64 `json:"travel_mm"`
-	A2c                float64 `json:"a2c"`
-	Rake               float64 `json:"rake"`
-	StandardSagPercent float64 `json:"standard_sag_percent,omitempty"`
-	Description        string  `json:"description,omitempty"`
-	IsInferred         bool    `json:"is_inferred,omitempty"`
+	ID                 string
+	Name               string
+	TravelMm           float64
+	A2c                float64
+	Rake               float64
+	StandardSagPercent float64
+	Description        string
+	IsInferred         bool
 }
 
 // SizeGeometry represents primary and optional frame dimensions for one size.
 type SizeGeometry struct {
-	Reach           float64 `json:"reach"`
-	Stack           float64 `json:"stack"`
-	HtaDeg          float64 `json:"hta_deg"`
-	StaDeg          float64 `json:"sta_deg"`
-	Htl             float64 `json:"htl"`
-	BbDrop          float64 `json:"bb_drop"`
-	Wheelbase       float64 `json:"wheelbase"`
-	ChainstayLength float64 `json:"chainstay_length,omitempty"`
-	FrontCenter     float64 `json:"front_center,omitempty"`
-	SeatTubeLength  float64 `json:"seat_tube_length,omitempty"`
-	StandoverHeight float64 `json:"standover_height,omitempty"`
+	Reach           float64
+	Stack           float64
+	HtaDeg          float64
+	StaDeg          float64
+	Htl             float64
+	BbDrop          float64
+	Wheelbase       float64
+	ChainstayLength float64
+	FrontCenter     float64
+	SeatTubeLength  float64
+	StandoverHeight float64
 }
 
-// FrameModel represents a unified bike frame family on disk and in memory.
+// FrameModel represents a unified bike frame family in memory.
 type FrameModel struct {
-	ID                 string                  `json:"id"`
-	Manufacturer       string                  `json:"manufacturer"`
-	Model              string                  `json:"model"`
-	Year               int                     `json:"year,omitempty"`
-	Category           BikeCategory            `json:"category,omitempty"`
-	Notes              string                  `json:"notes,omitempty"`
-	WheelSize          string                  `json:"wheel_size,omitempty"`
-	HeadsetCupType     HeadsetCupType          `json:"headset_cup_type"`
-	GeoHeadsetSpacerMm *float64                `json:"geo_headset_spacer_mm"`
-	GeoSlopMm          *GeoSlopMm              `json:"geo_slop_mm,omitempty"`
-	ActualStaDeg       float64                 `json:"actual_sta_deg,omitempty"`
-	SeatTubeOffsetXMm  *float64                `json:"seat_tube_offset_x_mm,omitempty"`
-	ChainstayRangeMm   []float64               `json:"chainstay_range_mm,omitempty"`
-	Sizes              []string                `json:"sizes"`
-	DefaultSize        string                  `json:"default_size,omitempty"`
-	CadFork            ForkRef                 `json:"cad_fork"`
-	Forks              []ForkRef               `json:"forks"`
-	Geometries         map[string]SizeGeometry `json:"geometries"`
+	ID           string
+	Manufacturer string
+	Model        string
+	Year         int
+	Category     BikeCategory
+	Notes        string
+	// TODO: WheelSize should be a type
+	WheelSize          string
+	HeadsetCupType     HeadsetCupType
+	GeoHeadsetSpacerMm float64
+	GeoSlopMm          *GeoSlopMm
+	ActualStaDeg       float64
+	SeatTubeOffsetXMm  *float64
+	ChainstayRangeMm   []float64
+	Sizes              []string
+	DefaultSize        string
+	CadFork            ForkRef
+	Forks              []ForkRef
+	Geometries         map[string]SizeGeometry
 
 	// Cockpit & Stem/Spacer Envelope
-	MaxSpacerMm   *float64  `json:"max_spacer_mm"`
-	CanonicalStem *StemSpec `json:"canonical_stem"`
-	Stems         []string  `json:"stems"`
+	MaxSpacerMm   float64
+	CanonicalStem StemSpec
+	Stems         []string
+}
+
+// Clone returns a deep copy of the FrameModel.
+func (fm FrameModel) Clone() FrameModel {
+	out := fm
+	if fm.GeoSlopMm != nil {
+		slop := *fm.GeoSlopMm
+		if fm.GeoSlopMm.A2c != nil {
+			v := *fm.GeoSlopMm.A2c
+			slop.A2c = &v
+		}
+		if fm.GeoSlopMm.FrontCenter != nil {
+			v := *fm.GeoSlopMm.FrontCenter
+			slop.FrontCenter = &v
+		}
+		if fm.GeoSlopMm.Wheelbase != nil {
+			v := *fm.GeoSlopMm.Wheelbase
+			slop.Wheelbase = &v
+		}
+		if fm.GeoSlopMm.CrossConfig != nil {
+			v := *fm.GeoSlopMm.CrossConfig
+			slop.CrossConfig = &v
+		}
+		out.GeoSlopMm = &slop
+	}
+	if fm.SeatTubeOffsetXMm != nil {
+		v := *fm.SeatTubeOffsetXMm
+		out.SeatTubeOffsetXMm = &v
+	}
+	if fm.ChainstayRangeMm != nil {
+		out.ChainstayRangeMm = append([]float64(nil), fm.ChainstayRangeMm...)
+	}
+	if fm.Sizes != nil {
+		out.Sizes = append([]string(nil), fm.Sizes...)
+	}
+	if fm.Forks != nil {
+		out.Forks = append([]ForkRef(nil), fm.Forks...)
+	}
+	if fm.Stems != nil {
+		out.Stems = append([]string(nil), fm.Stems...)
+	}
+	if fm.Geometries != nil {
+		out.Geometries = make(map[string]SizeGeometry, len(fm.Geometries))
+		for k, v := range fm.Geometries {
+			out.Geometries[k] = v
+		}
+	}
+	return out
 }
 
 func (fm *FrameModel) GetMaxSpacerMm() float64 {
-	if fm.MaxSpacerMm != nil {
-		return *fm.MaxSpacerMm
-	}
-	return 0
+	return fm.MaxSpacerMm
 }
 
 func (fm *FrameModel) GetSpacersMm() []float64 {
@@ -519,10 +553,7 @@ func (fm *FrameModel) GetSpacersMm() []float64 {
 }
 
 func (fm *FrameModel) GetCanonicalStem() StemSpec {
-	if fm.CanonicalStem != nil {
-		return *fm.CanonicalStem
-	}
-	return StemSpec{}
+	return fm.CanonicalStem
 }
 
 func (fm *FrameModel) HasBentSeatTube() bool {
@@ -580,10 +611,7 @@ func (fm *FrameModel) GetMaxChainstay() float64 {
 }
 
 func (fm *FrameModel) GetGeoHeadsetSpacerMm() float64 {
-	if fm.GeoHeadsetSpacerMm != nil {
-		return *fm.GeoHeadsetSpacerMm
-	}
-	return 0
+	return fm.GeoHeadsetSpacerMm
 }
 
 func (fm *FrameModel) GetGeoSlopMm() GeoSlopMm {
@@ -798,15 +826,15 @@ func (fm *FrameModel) GetDefaultForkSpecString() string {
 }
 
 type ValidationIssue struct {
-	ID         string   `json:"id"`
-	Field      string   `json:"field,omitempty"`
-	Severity   Severity `json:"severity"`
-	Title      string   `json:"title"`
-	Message    string   `json:"message"`
-	Details    string   `json:"details,omitempty"`
-	Expected   string   `json:"expected,omitempty"`
-	Actual     string   `json:"actual,omitempty"`
-	Difference float64  `json:"difference,omitempty"`
+	ID         string
+	Field      string
+	Severity   Severity
+	Title      string
+	Message    string
+	Details    string
+	Expected   string
+	Actual     string
+	Difference float64
 }
 
 type PublishMode string
@@ -819,27 +847,27 @@ const (
 )
 
 type ValidationReport struct {
-	BikeID              string            `json:"bikeId"`
-	IsValid             bool              `json:"isValid"`
-	Issues              []ValidationIssue `json:"issues"`
-	GeometricA2c        float64           `json:"geometricA2c"`
-	StatedA2c           float64           `json:"statedA2c,omitempty"`
-	ExpectedForkA2c     float64           `json:"expectedForkA2c,omitempty"`
-	GeoHeadsetSpacerMm  float64           `json:"geoHeadsetSpacerMm"`
-	CupStack            float64           `json:"cupStack"`
-	TotalStructuralA2c  float64           `json:"totalStructuralA2c"`
-	A2cDifference       *float64          `json:"a2cDifference,omitempty"`
-	InferredPublishMode PublishMode       `json:"inferredPublishMode"`
-	FrontCenterCalc     float64           `json:"frontCenterCalc,omitempty"`
-	FrontCenterDiff     *float64          `json:"frontCenterDiff,omitempty"`
+	BikeID              string
+	IsValid             bool
+	Issues              []ValidationIssue
+	GeometricA2c        float64
+	StatedA2c           float64
+	ExpectedForkA2c     float64
+	GeoHeadsetSpacerMm  float64
+	CupStack            float64
+	TotalStructuralA2c  float64
+	A2cDifference       *float64
+	InferredPublishMode PublishMode
+	FrontCenterCalc     float64
+	FrontCenterDiff     *float64
 }
 
 // FrameValidationReport holds the complete validation result across all sizes of a FrameModel.
 type FrameValidationReport struct {
-	FrameID     string                      `json:"frame_id"`
-	IsValid     bool                        `json:"is_valid"`
-	Issues      []ValidationIssue           `json:"issues,omitempty"`
-	SizeReports map[string]ValidationReport `json:"size_reports,omitempty"`
+	FrameID     string
+	IsValid     bool
+	Issues      []ValidationIssue
+	SizeReports map[string]ValidationReport
 }
 
 // ErrorSummary returns a human-readable summary of all validation errors on the frame.
@@ -868,17 +896,17 @@ func (r FrameValidationReport) ErrorSummary() string {
 
 // RiderProfile encapsulates anthropometric measurements and baseline cockpit reference parameters.
 type RiderProfile struct {
-	HeightIn                      float64 `json:"rider_height_in"`
-	InseamIn                      float64 `json:"rider_inseam_in"`
-	SaddleHeightMm                float64 `json:"saddle_height_mm"`
-	RiderWeightLbs                float64 `json:"rider_weight_lbs"`
-	BikeWeightLbs                 float64 `json:"bike_weight_lbs"`
-	BaselineStemMm                float64 `json:"baseline_stem_mm"`
-	BaselineStemAngleDeg          float64 `json:"baseline_stem_angle_deg"`
-	BaselineBarRiseMm             float64 `json:"baseline_bar_rise_mm"`
-	BaselineBarSweepDeg           float64 `json:"baseline_bar_sweep_deg"`
-	BaselineBarWidthMm            float64 `json:"baseline_bar_width_mm"`
-	BaselineSaddleSetbackOffsetMm float64 `json:"baseline_saddle_setback_offset_mm"`
+	HeightIn                      float64
+	InseamIn                      float64
+	SaddleHeightMm                float64
+	RiderWeightLbs                float64
+	BikeWeightLbs                 float64
+	BaselineStemMm                float64
+	BaselineStemAngleDeg          float64
+	BaselineBarRiseMm             float64
+	BaselineBarSweepDeg           float64
+	BaselineBarWidthMm            float64
+	BaselineSaddleSetbackOffsetMm float64
 }
 
 // DefaultRiderProfile returns default anthropometric and cockpit parameters
@@ -900,28 +928,28 @@ func DefaultRiderProfile() RiderProfile {
 }
 
 type CanonicalConfig struct {
-	TargetA2c    float64      `json:"targetA2c"`
-	SagPercent   float64      `json:"sagPercent"`
-	Name         string       `json:"name,omitempty"`
-	RiderProfile RiderProfile `json:"riderProfile"`
+	TargetA2c    float64
+	SagPercent   float64
+	Name         string
+	RiderProfile RiderProfile
 }
 
 // ComparisonSetup represents one column in a comparison matrix.
 type ComparisonSetup struct {
-	FrameID      string  `json:"frame_id"`
-	Size         string  `json:"size"`
-	A2cMm        float64 `json:"a2c_mm"`
-	RakeMm       float64 `json:"rake_mm"`
-	DisplayLabel string  `json:"display_label"`
+	FrameID      string
+	Size         string
+	A2cMm        float64
+	RakeMm       float64
+	DisplayLabel string
 }
 
-// SavedComparisonState persists the user's most recent comparison in data/last_compare.json.
+// SavedComparisonState holds the active comparison configuration.
 type SavedComparisonState struct {
 	RiderProfile
-	Transpose    bool              `json:"transpose"`
-	RefIndex     int               `json:"ref_index,omitempty"`
-	IdealProfile string            `json:"ideal_profile,omitempty"`
-	Columns      []ComparisonSetup `json:"columns"`
+	Transpose    bool
+	RefIndex     int
+	IdealProfile string
+	Columns      []ComparisonSetup
 }
 
 // NormalizeRiderProfile fills any zero values in RiderProfile with standard defaults.
@@ -963,79 +991,79 @@ func (s *SavedComparisonState) NormalizeRiderProfile() {
 }
 
 type DynamicGeometryResult struct {
-	NewHta        float64 `json:"new_hta"`
-	NewSta        float64 `json:"new_sta"`
-	NewReach      float64 `json:"new_reach"`
-	NewStack      float64 `json:"new_stack"`
-	NewBbDrop     float64 `json:"new_bb_drop"`
-	DeltaAngleDeg float64 `json:"delta_angle_deg"`
-	DeltaReach    float64 `json:"delta_reach"`
-	DeltaStack    float64 `json:"delta_stack"`
-	DeltaBbDrop   float64 `json:"delta_bb_drop"`
-	TotalNewA2c   float64 `json:"total_new_a2c"`
+	NewHta        float64
+	NewSta        float64
+	NewReach      float64
+	NewStack      float64
+	NewBbDrop     float64
+	DeltaAngleDeg float64
+	DeltaReach    float64
+	DeltaStack    float64
+	DeltaBbDrop   float64
+	TotalNewA2c   float64
 }
 
 type BikeFitAnalysis struct {
-	StructuralA2c       float64 `json:"structural_a2c"`
-	ActiveReach         float64 `json:"active_reach"`
-	ActiveStack         float64 `json:"active_stack"`
-	ActiveHta           float64 `json:"active_hta"`
-	ActiveSta           float64 `json:"active_sta"`
-	ActiveBbDrop        float64 `json:"active_bb_drop"`
-	Aett                float64 `json:"aett"`
-	ActualSetback       float64 `json:"actual_setback"`
-	SpareVerticalStack  float64 `json:"spare_vertical_stack"`
-	SpareAxialSteerer   float64 `json:"spare_axial_steerer"`
-	DeltaAngleDeg       float64 `json:"delta_angle_deg"`
-	DeltaReach          float64 `json:"delta_reach"`
-	DeltaStack          float64 `json:"delta_stack"`
-	DeltaBbDrop         float64 `json:"delta_bb_drop"`
-	InferredPublishMode string  `json:"inferredPublishMode"`
+	StructuralA2c       float64
+	ActiveReach         float64
+	ActiveStack         float64
+	ActiveHta           float64
+	ActiveSta           float64
+	ActiveBbDrop        float64
+	Aett                float64
+	ActualSetback       float64
+	SpareVerticalStack  float64
+	SpareAxialSteerer   float64
+	DeltaAngleDeg       float64
+	DeltaReach          float64
+	DeltaStack          float64
+	DeltaBbDrop         float64
+	InferredPublishMode string
 
 	// Weight Distribution & Biomechanical Posture
-	WeightDistFrontPct float64 `json:"weight_dist_front_pct"`
-	WeightDistRearPct  float64 `json:"weight_dist_rear_pct"`
-	BackAngleDeg       float64 `json:"back_angle_deg"`
-	FrontCenterCalc    float64 `json:"front_center_calc"`
-	RearCenterCalc     float64 `json:"rear_center_calc"`
-	SeatToRearCenter   float64 `json:"seat_to_rear_center"`
-	WheelbaseCalc      float64 `json:"wheelbase_calc"`
-	ActiveChainstay    float64 `json:"active_chainstay"`
-	ChainstayDesc      string  `json:"chainstay_desc"`
+	WeightDistFrontPct float64
+	WeightDistRearPct  float64
+	BackAngleDeg       float64
+	FrontCenterCalc    float64
+	RearCenterCalc     float64
+	SeatToRearCenter   float64
+	WheelbaseCalc      float64
+	ActiveChainstay    float64
+	ChainstayDesc      string
 
 	// Cockpit BRP & HB Points and Saddle-Handlebar Metrics
-	DeadCenterBRP  BRPPoint   `json:"dead_center_brp"`
-	SelectedBRP    *BRPPoint  `json:"selected_brp,omitempty"`
-	PossibleBRPs   []BRPPoint `json:"possible_brps,omitempty"`
-	SaddleHbMm     float64    `json:"saddle_hb_mm"`
-	SaddleHbDropMm float64    `json:"saddle_hb_drop_mm"`
-	SelectedHB     *HBPoint   `json:"selected_hb,omitempty"`
-	PossibleHBs    []HBPoint  `json:"possible_hbs,omitempty"`
+	DeadCenterBRP  BRPPoint
+	SelectedBRP    *BRPPoint
+	PossibleBRPs   []BRPPoint
+	SaddleHbMm     float64
+	SaddleHbDropMm float64
+	SelectedHB     *HBPoint
+	PossibleHBs    []HBPoint
 }
 
 type BaselineMetrics struct {
-	Reach              float64 `json:"reach"`
-	Stack              float64 `json:"stack"`
-	HtaDeg             float64 `json:"hta_deg"`
-	StaDeg             float64 `json:"sta_deg"`
-	BbDrop             float64 `json:"bb_drop"`
-	A2c                float64 `json:"a2c"`
-	Aett               float64 `json:"aett"`
-	ActualSetback      float64 `json:"actual_setback"`
-	SpareVerticalStack float64 `json:"spare_vertical_stack"`
-	SpareAxialSteerer  float64 `json:"spare_axial_steerer"`
-	Chainstay          float64 `json:"chainstay"`
-	SeatToRearCenter   float64 `json:"seat_to_rear_center"`
-	SaddleHbMm         float64 `json:"saddle_hb_mm"`
+	Reach              float64
+	Stack              float64
+	HtaDeg             float64
+	StaDeg             float64
+	BbDrop             float64
+	A2c                float64
+	Aett               float64
+	ActualSetback      float64
+	SpareVerticalStack float64
+	SpareAxialSteerer  float64
+	Chainstay          float64
+	SeatToRearCenter   float64
+	SaddleHbMm         float64
 }
 
 type CanonicalComparisonRow struct {
-	Setup         ComparisonSetup  `json:"setup"`
-	DisplayLabel  string           `json:"display_label"`
-	EffectiveA2c  float64          `json:"effective_a2c"`
-	EffectiveRake float64          `json:"effective_rake"`
-	Bike          BikeGeometry     `json:"bike"`
-	Validation    ValidationReport `json:"validation"`
-	Baseline      BaselineMetrics  `json:"baseline"`
-	Canonical     BikeFitAnalysis  `json:"canonical"`
+	Setup         ComparisonSetup
+	DisplayLabel  string
+	EffectiveA2c  float64
+	EffectiveRake float64
+	Bike          BikeGeometry
+	Validation    ValidationReport
+	Baseline      BaselineMetrics
+	Canonical     BikeFitAnalysis
 }

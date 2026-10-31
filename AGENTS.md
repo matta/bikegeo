@@ -20,50 +20,47 @@ go fmt ./... && make check
 
 ## Architectural Guidelines
 
-- **Zero External Dependencies**: Uses the Go standard library (`flag`, `encoding/json`, `encoding/csv`, `bufio`) with custom Unicode box-drawing, Markdown, CSV, and JSON table formatting in `pkg/cli/render.go`.
+- **Zero External Dependencies & Pure-Go Data**:
+  - Uses only the Go standard library (`flag`, `encoding/csv`) with custom Unicode box-drawing, Markdown, and CSV table formatting in `pkg/cli/render.go`.
+  - All bike frames (`pkg/frames/*.go`), fork and stem catalogs (`pkg/catalog/catalog.go`), ideal fit profiles (`pkg/ideal/loader.go`), and the default comparison baseline (`cli.DefaultComparisonState()` in `pkg/cli/compare.go`) are compiled directly as Go structs. There are no JSON data files or runtime persistence files.
 - **Per-Column Comparison Model (`ComparisonSetup`)**:
   - Every comparison column specifies `FrameID + Size + Fork (travel in mm or "rigid") + Sag %`.
   - Allows comparing the same frame across multiple sag points or fork capacities alongside different frames.
 - **Frame-Level Fork Constraints**:
-  - Frames define `supported_travel_mm` (in mm), `rigid_a2c_mm`, and `default_fork` in `data/bikes/*.json`.
+  - Frames define `CadFork` and `Forks` (supported fork refs with `ID`, `A2cMm`, `RakeMm`, `SagPct`) in `pkg/frames/*.go`.
   - `pkg/canonicalizer` strictly enforces these constraints, rejecting unsupported travel sizes, rigid forks on suspension-only frames, or non-zero sag on rigid forks.
-- **Persistence**:
-  - Bikes/frames are stored as individual JSON files in `data/bikes/*.json`.
-  - The most recent comparison state is persisted to `data/last_compare.json` so running `bikegeo compare` with no arguments replays the last comparison.
+- **Default Comparison Baseline**:
+  - Running `bikegeo compare` with no arguments evaluates `cli.DefaultComparisonState()`. Incremental `+spec` and `-spec` / `-col_num` flags add or remove columns against that baseline in memory.
 
 ## Adding or Modifying Bike Frame Datasets
 
-When adding or editing frame files in `data/bikes/*.json`:
+When adding or editing frame files in `pkg/frames/*.go`:
 1. **Strict Ground Truth & Chart Immutability**:
    - Published manufacturer geometry numbers (Stack, Reach, HTA, Wheelbase, etc.) are sacred ground truth. **NEVER modify or nudge published chart numbers** to absorb rounding residuals or force validation to pass.
-   - Size geometry overrides are strictly forbidden unless resolving a proven, catastrophic manufacturer typo (>5mm or digit transposition) documented in `notes`.
+   - Size geometry overrides are strictly forbidden unless resolving a proven, catastrophic manufacturer typo (>5mm or digit transposition) documented in `Notes`.
 2. **Headset Standard & Cup Stack Verification**:
    - Verify the frame material and headset specification before finishing ingestion.
    - Carbon frames and frames with integrated headset bearings use `IS42`/`IS52` (0.0mm lower cup stack).
-   - Steel/aluminum frames with external cups (`EC34`/`EC44`) physically add 10–14mm stack below the headtube; `geo_headset_spacer_mm` explicitly sets the CAD spacer (typically 10–12mm if drawn with cups, or 0.0mm if drawn to the bare headtube).
-3. **`geo_slop_mm` is an Absolute Last Resort**:
-   - `geo_slop_mm` must **never** be used to mask modeling errors (such as using the bike's sold rigid fork rather than the suspension fork the CAD chart was drawn around, ignoring CAD sag, or assuming the wrong headset standard).
+   - Steel/aluminum frames with external cups (`EC34`/`EC44`) physically add 10–14mm stack below the headtube; `GeoHeadsetSpacerMm` explicitly sets the CAD spacer (typically 10–12mm if drawn with cups, or 0.0mm if drawn to the bare headtube).
+3. **`GeoSlopMm` is an Absolute Last Resort**:
+   - `GeoSlopMm` must **never** be used to mask modeling errors (such as using the bike's sold rigid fork rather than the suspension fork the CAD chart was drawn around, ignoring CAD sag, or assuming the wrong headset standard).
    - Wheelbase validation incorporates dynamic propagation of input rounding uncertainty with a 2.0mm physical precision floor, eliminating the need for custom wheelbase slop from normal rounding noise.
-   - If a custom `geo_slop_mm` override is genuinely necessary, it requires an explicit `"reason"` field in the JSON documenting the manufacturer discrepancy.
+   - If a custom `GeoSlopMm` override is genuinely necessary, it requires an explicit `Reason` field on `model.GeoSlopMm` documenting the manufacturer discrepancy.
 4. **Use `bikegeo fit` as Primary Tool & Automated Solver**:
-   - Run `bikegeo fit <frame>` to diagnose geometry. If validation fails or A2C slop > 1.0mm, `bikegeo fit` automatically runs the physical solver exploring candidate fork travels, standard sag points (0%, 15%, 20%, 25%, 30%), static A2C values, rakes (including 44, 51, and 55mm), and headset spacers, presenting copy-paste `bikegeo set ...` solutions.
+   - Run `bikegeo fit <frame>` to diagnose geometry. If validation fails or A2C slop > 1.0mm, `bikegeo fit` automatically runs the physical solver exploring candidate fork travels, standard sag points (0%, 15%, 20%, 25%, 30%), static A2C values, rakes (including 44, 51, and 55mm), and headset spacers, presenting the solved Go struct fields.
    - Use `bikegeo fit <frame> --try ...` to sweep candidate parameters manually when exploring non-standard options.
    - Ad-hoc scripts are acceptable for source data wrangling (unit conversions, table parsing) or investigating unmodeled frame quirks, but routine CAD back-solving belongs in `fit`.
    - See the workspace skill [ingest-frame](file:///.agents/skills/ingest-frame/SKILL.md) for the complete 5-step recipe.
-5. **Apply Parameters with `bikegeo set`**:
-   - Use `bikegeo set <frame> cup_type=IS52 spacer=0 fork.a2c=506 sag=25 ...` to update frame or configuration properties.
+5. **Register New Frames in `pkg/frames/frames.go`**:
+   - Create `pkg/frames/<frame-id>.go` and add the frame to the `allFrames` slice in `pkg/frames/frames.go`.
 6. **Automated Test Coverage**:
-   - `pkg/validator/validator_test.go` (`TestAllFrameData`) automatically validates all files in `data/bikes/*.json`, verifies every size materializes and passes validation, checks ID/filename parity, and verifies supported fork capabilities.
-   - `pkg/storage/storage_test.go` (`TestLoadRealBikesDataDir`) dynamically validates storage loading and size counts without hard-coded numbers.
+   - `pkg/validator/validator_test.go` (`TestAllFrameData`) automatically validates all frames in `frames.AllFrames()`, verifies every size materializes and passes validation, and verifies supported fork capabilities.
    - You do **not** need to add boilerplate per-frame unit tests or update test counts when adding frames.
-7. **State Cleanliness**:
-   - Running CLI compare commands mutates `data/last_compare.json`. Avoid leaving unintended comparison changes in git state.
 
 ## Testing Strategy & Conventions
 
 - **Unit & Integration Tests**:
-  - Domain math, validation, canonicalization, storage, and CLI subcommands (`compare`, `validate`, `list`, `forks`, `init`, `set`, `import`, `delete`) are tested in `pkg/*/*_test.go`.
-  - Simulate interactive CLI flows (`-i`) by passing `strings.NewReader` to `cli.Run(args, stdin, stdout, stderr)`.
+  - Domain math, validation, canonicalization, ideal profiles, scoring, fit solver, and CLI subcommands (`compare`, `validate`, `list`, `forks`, `stems`, `ideals`, `fit`) are tested in `pkg/*/*_test.go`.
 - **Command**:
   ```bash
   go vet ./... && go test -v ./...
@@ -74,4 +71,3 @@ When adding or editing frame files in `data/bikes/*.json`:
 - **No LaTeX / MathJax**: The Antigravity IDE chat UI does not render LaTeX or MathJax math syntax (e.g., `$...$`, `$$...$$`, `\text{...}`). Never emit raw LaTeX math markup.
 - **Plain Text / Standard Markdown**: Format mathematical relationships, formulas, and dimensions using plain text or inline code blocks (e.g., `472 mm (Fork A2C) + 10 mm (CAD Spacer) = 482 mm (Structural A2C)` or `Stack = BB_Drop - Rake * cos(HTA) + (A2C + Spacer + HTL) * sin(HTA)`).
 - **Unicode Symbols**: Use standard Unicode characters for mathematical symbols and units (e.g., `±1.0 mm`, `70.0°`).
-

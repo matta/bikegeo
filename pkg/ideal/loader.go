@@ -1,30 +1,179 @@
 package ideal
 
 import (
-	"bytes"
-	_ "embed"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 )
 
-//go:embed default.json
-var DefaultProfileJSON []byte
-
-// ParseProfileJSON parses and strictly validates an ideal frame profile from JSON bytes.
-// Unknown fields are rejected. Defaults (such as floor = -200) are populated.
-func ParseProfileJSON(data []byte) (*Profile, error) {
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-
-	var p Profile
-	if err := dec.Decode(&p); err != nil {
-		return nil, fmt.Errorf("invalid ideal profile JSON: %w", err)
+// DefaultProfile returns the default ideal frame profile.
+func DefaultProfile() *Profile {
+	p := &Profile{
+		Name:           "default",
+		Description:    "Approximation of pre-profile hard-coded scoring",
+		SaddleHeightMm: Float(780),
+		Attributes: []AttributeSpec{
+			{
+				ID:         "setback",
+				Weight:     10,
+				Ideal:      Exact(230),
+				Acceptable: Between(220, 240),
+				EdgeScore:  Float(80),
+				Falloff:    FalloffBoth(10, 10),
+				Floor:      Float(-200),
+			},
+			{
+				ID:         "aett",
+				Weight:     10,
+				Ideal:      Between(625, 636),
+				Acceptable: Between(604.5, 648),
+				EdgeScore:  Float(75),
+				Falloff:    FalloffBoth(20.5, 12),
+				Floor:      Float(-200),
+			},
+			{
+				ID:         "sparevert",
+				Weight:     5,
+				Ideal:      Between(70, 100),
+				Acceptable: Between(62.5, 117.5),
+				EdgeScore:  Float(75),
+				Falloff:    FalloffBoth(7.5, 17.5),
+				Floor:      Float(-100),
+			},
+			{
+				ID:         "seat_to_rc",
+				Weight:     4,
+				Ideal:      AtLeast(235),
+				Acceptable: AtLeast(220),
+				EdgeScore:  Float(70),
+				Falloff:    FalloffBelow(20),
+				Floor:      Float(-100),
+			},
+			{
+				ID:         "bbdrop",
+				Weight:     3,
+				Ideal:      Exact(70),
+				Acceptable: Between(60, 80),
+				EdgeScore:  Float(75),
+				Falloff:    FalloffBoth(10, 10),
+				Floor:      Float(-100),
+			},
+			{
+				ID:         "hta",
+				Weight:     2,
+				Ideal:      Between(68, 69),
+				Acceptable: Between(67.5, 69.5),
+				EdgeScore:  Float(75),
+				Falloff:    FalloffBoth(0.5, 0.5),
+				Floor:      Float(-200),
+			},
+			{
+				ID:         "frontwt",
+				Weight:     1,
+				Ideal:      AtLeast(38),
+				Acceptable: AtLeast(38),
+				Falloff:    FalloffBelow(5),
+				Floor:      Float(-100),
+			},
+			DisplayOnly("reach"),
+			DisplayOnly("stack"),
+			DisplayOnly("sta"),
+			DisplayOnly("chainstay"),
+			DisplayOnly("saddle_hb"),
+		},
 	}
+	_, _ = NormalizeAndValidate(p)
+	return p
+}
 
+// IdmatchProfile returns the idmatch biomechanical fit profile (BRP -> HB).
+func IdmatchProfile() *Profile {
+	p := &Profile{
+		Name:           "idmatch",
+		Description:    "Biomechanical fit profile based on idmatch Bikelab report (BRP -> HB)",
+		SaddleHeightMm: Float(746),
+		Attributes: []AttributeSpec{
+			{
+				ID:         "brp_setback",
+				Weight:     10,
+				Ideal:      Exact(219),
+				Acceptable: Between(214, 224),
+				EdgeScore:  Float(75),
+				Falloff:    FalloffBoth(20, 20),
+				Floor:      Float(-200),
+			},
+			{
+				ID:         "saddle_hb",
+				Weight:     10,
+				Ideal:      Between(695, 705),
+				Acceptable: Between(685, 715),
+				EdgeScore:  Float(75),
+				Falloff:    FalloffBoth(15, 15),
+				Floor:      Float(-200),
+			},
+			{
+				ID:         "saddle_hb_drop",
+				Weight:     5,
+				Ideal:      Between(8, 18),
+				Acceptable: Between(0, 26),
+				EdgeScore:  Float(75),
+				Falloff:    FalloffBoth(10, 10),
+				Floor:      Float(-100),
+			},
+			{
+				ID:         "bbdrop",
+				Weight:     3,
+				Ideal:      Exact(70),
+				Acceptable: Between(60, 80),
+				EdgeScore:  Float(75),
+				Falloff:    FalloffBoth(10, 10),
+				Floor:      Float(-100),
+			},
+			{
+				ID:         "hta",
+				Weight:     2,
+				Ideal:      Between(68, 69),
+				Acceptable: Between(67.5, 69.5),
+				EdgeScore:  Float(75),
+				Falloff:    FalloffBoth(0.5, 0.5),
+				Floor:      Float(-200),
+			},
+			{
+				ID:         "frontwt",
+				Weight:     1,
+				Ideal:      AtLeast(38),
+				Acceptable: AtLeast(38),
+				Falloff:    FalloffBelow(5),
+				Floor:      Float(-100),
+			},
+			DisplayOnly("reach"),
+			DisplayOnly("stack"),
+			DisplayOnly("sta"),
+			DisplayOnly("chainstay"),
+			DisplayOnly("setback"),
+			DisplayOnly("aett"),
+			DisplayOnly("sparevert"),
+			DisplayOnly("seat_to_rc"),
+		},
+	}
+	_, _ = NormalizeAndValidate(p)
+	return p
+}
+
+// AllProfiles returns all compiled ideal profiles in alphabetical order.
+func AllProfiles() []*Profile {
+	profiles := []*Profile{
+		DefaultProfile(),
+		IdmatchProfile(),
+	}
+	sort.SliceStable(profiles, func(i, j int) bool {
+		return profiles[i].Name < profiles[j].Name
+	})
+	return profiles
+}
+
+// NormalizeAndValidate populates default Acceptable and Floor fields on a Profile and validates it.
+func NormalizeAndValidate(p *Profile) (*Profile, error) {
 	for i := range p.Attributes {
 		attr := &p.Attributes[i]
 		if attr.Ideal != nil {
@@ -41,77 +190,40 @@ func ParseProfileJSON(data []byte) (*Profile, error) {
 		}
 	}
 
-	if err := ValidateProfile(&p); err != nil {
+	if err := ValidateProfile(p); err != nil {
 		return nil, err
 	}
 
-	return &p, nil
+	return p, nil
 }
 
-// LoadProfile loads an ideal profile by name from the given directory (e.g. data/ideals).
-// If name is "default" (or empty) and not found on disk, it falls back to the embedded default.
-func LoadProfile(dir string, name string) (*Profile, error) {
+// GetProfile looks up a compiled ideal profile by name (defaults to "default" when empty).
+func GetProfile(name string) (*Profile, error) {
 	cleanName := strings.TrimSuffix(strings.TrimSpace(name), ".json")
 	if cleanName == "" {
 		cleanName = "default"
 	}
 
-	if dir != "" {
-		path := filepath.Join(dir, cleanName+".json")
-		if data, err := os.ReadFile(path); err == nil {
-			p, err := ParseProfileJSON(data)
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", path, err)
-			}
+	for _, p := range AllProfiles() {
+		if strings.EqualFold(p.Name, cleanName) {
 			return p, nil
 		}
 	}
 
-	if strings.EqualFold(cleanName, "default") {
-		return ParseProfileJSON(DefaultProfileJSON)
-	}
-
-	return nil, fmt.Errorf("ideal profile %q not found in %s", cleanName, dir)
+	return nil, fmt.Errorf("ideal profile %q not found", cleanName)
 }
 
-// ListProfiles discovers and returns summaries of all valid ideal profiles in the directory.
-// Always includes the embedded default profile if not present on disk.
-func ListProfiles(dir string) ([]ProfileSummary, error) {
-	seen := make(map[string]bool)
+// LoadProfile is a compatibility wrapper for GetProfile.
+func LoadProfile(_ string, name string) (*Profile, error) {
+	return GetProfile(name)
+}
+
+// ListProfiles returns summaries of all compiled ideal profiles.
+func ListProfiles(_ ...string) ([]ProfileSummary, error) {
 	var summaries []ProfileSummary
-
-	if dir != "" {
-		entries, err := os.ReadDir(dir)
-		if err == nil {
-			for _, entry := range entries {
-				if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-					continue
-				}
-				path := filepath.Join(dir, entry.Name())
-				data, err := os.ReadFile(path)
-				if err != nil {
-					continue
-				}
-				p, err := ParseProfileJSON(data)
-				if err != nil {
-					continue
-				}
-				seen[strings.ToLower(p.Name)] = true
-				summaries = append(summaries, summarizeProfile(p))
-			}
-		}
+	for _, p := range AllProfiles() {
+		summaries = append(summaries, summarizeProfile(p))
 	}
-
-	if !seen["default"] {
-		if def, err := ParseProfileJSON(DefaultProfileJSON); err == nil {
-			summaries = append(summaries, summarizeProfile(def))
-		}
-	}
-
-	sort.SliceStable(summaries, func(i, j int) bool {
-		return summaries[i].Name < summaries[j].Name
-	})
-
 	return summaries, nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"bikegeo/pkg/catalog"
+	"bikegeo/pkg/frames"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 )
@@ -33,24 +34,14 @@ func (a *App) runList(args []string) int {
 		query = strings.Join(fs.Args(), " ")
 	}
 
-	store, err := a.openStore()
-	if err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
-		return 1
-	}
-
-	frames, err := store.GetAllFrames()
-	if err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
-		return 1
-	}
+	allFrames := frames.AllFrames()
 
 	q := strings.ToLower(strings.TrimSpace(query))
 	cat := strings.ToLower(strings.TrimSpace(category))
 	szF := strings.ToLower(strings.TrimSpace(sizeFilter))
 
 	var filteredFrames []model.FrameModel
-	for _, f := range frames {
+	for _, f := range allFrames {
 		if q != "" {
 			hay := strings.ToLower(fmt.Sprintf("%s %s %s %s", f.ID, f.Manufacturer, f.Model, strings.Join(f.GetSizes(), " ")))
 			if !strings.Contains(hay, q) {
@@ -78,7 +69,6 @@ func (a *App) runList(args []string) int {
 	if allSizes {
 		headers := []string{"Frame ID", "Manufacturer & Model", "Size", "Reach", "Stack", "HTA", "STA", "BB Drop", "Supported Forks"}
 		var rows [][]string
-		var bikesOut []model.BikeGeometry
 
 		for _, f := range filteredFrames {
 			for _, sz := range f.GetSizes() {
@@ -89,7 +79,6 @@ func (a *App) runList(args []string) int {
 				if err != nil {
 					continue
 				}
-				bikesOut = append(bikesOut, b)
 				rows = append(rows, []string{
 					f.ID,
 					fmt.Sprintf("%s %s", f.Manufacturer, f.Model),
@@ -105,7 +94,7 @@ func (a *App) runList(args []string) int {
 		}
 
 		title := fmt.Sprintf("Stored Bikes (%d sizes across %d frames)", len(rows), len(filteredFrames))
-		if err := RenderOutput(a.Out, a.Format, title, "", headers, rows, bikesOut); err != nil {
+		if err := RenderOutput(a.Out, a.Format, title, "", headers, rows); err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}
@@ -143,7 +132,7 @@ func (a *App) runList(args []string) int {
 	}
 
 	title := fmt.Sprintf("Stored Frame Models (%d)", len(filteredFrames))
-	if err := RenderOutput(a.Out, a.Format, title, "", headers, rows, filteredFrames); err != nil {
+	if err := RenderOutput(a.Out, a.Format, title, "", headers, rows); err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
 	}
@@ -184,7 +173,7 @@ func (a *App) runForks(args []string) int {
 	}
 
 	title := fmt.Sprintf("Standard Fork Catalog (%d)", len(forks))
-	if err := RenderOutput(a.Out, a.Format, title, "", headers, rows, forks); err != nil {
+	if err := RenderOutput(a.Out, a.Format, title, "", headers, rows); err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
 	}
@@ -221,7 +210,7 @@ func (a *App) runStems(args []string) int {
 	}
 
 	title := fmt.Sprintf("Standard Stem Catalog (%d)", len(stems))
-	if err := RenderOutput(a.Out, a.Format, title, "", headers, rows, stems); err != nil {
+	if err := RenderOutput(a.Out, a.Format, title, "", headers, rows); err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
 	}

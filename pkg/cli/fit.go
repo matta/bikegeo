@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"bikegeo/pkg/fit"
+	"bikegeo/pkg/frames"
 )
 
 type stringSliceFlag []string
@@ -42,18 +43,7 @@ func (a *App) runFit(args []string) int {
 		return 2
 	}
 
-	store, err := a.openStore()
-	if err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
-		return 1
-	}
-
-	allFrames, err := store.GetAllFrames()
-	if err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
-		return 1
-	}
-
+	allFrames := frames.AllFrames()
 	framePtr, impSz, err := ResolveFrameByToken(allFrames, posArgs[0])
 	if err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
@@ -71,22 +61,12 @@ func (a *App) runFit(args []string) int {
 		configID = "stock"
 	}
 
-	normFormat, _ := NormalizeFormat(a.Format)
-
 	// Mode 1: Combinatorial Sweeps (--try)
 	if len(tryFlags) > 0 {
 		combos, err := fit.RunSweeps(frame, configID, targetSize, tryFlags)
 		if err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
-		}
-
-		if normFormat == FormatJSON {
-			if err := RenderOutput(a.Out, FormatJSON, "", "", nil, nil, combos); err != nil {
-				fmt.Fprintf(a.Err, "Error: %v\n", err)
-				return 1
-			}
-			return 0
 		}
 
 		title := fmt.Sprintf("Fit Sweep: %s %s (%d combinations)", frame.Manufacturer, frame.Model, len(combos))
@@ -132,7 +112,7 @@ func (a *App) runFit(args []string) int {
 			})
 		}
 
-		if err := RenderOutput(a.Out, a.Format, title, "", headers, rows, combos); err != nil {
+		if err := RenderOutput(a.Out, a.Format, title, "", headers, rows); err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}
@@ -154,24 +134,13 @@ func (a *App) runFit(args []string) int {
 		return 1
 	}
 
-	if normFormat == FormatJSON {
-		if err := RenderOutput(a.Out, FormatJSON, "", "", nil, nil, fitRes); err != nil {
-			fmt.Fprintf(a.Err, "Error: %v\n", err)
-			return 1
-		}
-		return 0
-	}
-
 	forkDesc := fmt.Sprintf("A2C %.0f mm, rake %.0f mm", frame.CadFork.A2cMm, frame.CadFork.RakeMm)
 	if frame.CadFork.Fork != "" {
 		forkDesc = fmt.Sprintf("%s (%s)", frame.CadFork.Fork, forkDesc)
 	}
 
 	spacerVal := frame.GetGeoHeadsetSpacerMm()
-	sagVal := 0.0
-	if frame.CadFork.SagPct != nil {
-		sagVal = *frame.CadFork.SagPct
-	}
+	sagVal := frame.CadFork.SagPct
 
 	title := fmt.Sprintf(
 		"%s %s — CAD Fork (%s, spacer %.1f mm, sag %.0f%%)",
@@ -238,23 +207,22 @@ func (a *App) runFit(args []string) int {
 		candidates, err := fit.SolveFit(frame, configID, targetSize)
 		if err == nil && len(candidates) > 0 {
 			fmt.Fprintln(a.Out, "\nCandidate Physical Solutions (Geo slop is an absolute last resort):")
-			var candHeaders = []string{"Physical Configuration", "max|ΔA2C|", "max|ΔWB|", "Valid?", "Suggested Command"}
+			var candHeaders = []string{"Physical Configuration", "max|ΔA2C|", "max|ΔWB|", "Valid?", "Solved Go Fields"}
 			var candRows [][]string
 			for _, c := range candidates {
 				validStr := "FAIL"
 				if c.IsValid {
 					validStr = "PASS"
 				}
-				cmd := fmt.Sprintf("bikegeo set %s %s", frame.ID, strings.Join(c.Assignments, " "))
 				candRows = append(candRows, []string{
 					c.Description,
 					fmt.Sprintf("%.1f mm", c.MaxAbsDeltaA2c),
 					fmt.Sprintf("%.1f mm", c.MaxAbsDeltaWb),
 					validStr,
-					cmd,
+					strings.Join(c.Assignments, ", "),
 				})
 			}
-			_ = RenderOutput(a.Out, a.Format, "", "", candHeaders, candRows, candidates)
+			_ = RenderOutput(a.Out, a.Format, "", "", candHeaders, candRows)
 		}
 	}
 
@@ -302,5 +270,5 @@ func (a *App) renderResidualsTable(title string, fitRes *fit.FitResult) {
 		})
 	}
 
-	_ = RenderOutput(a.Out, a.Format, title, "", headers, rows, fitRes)
+	_ = RenderOutput(a.Out, a.Format, title, "", headers, rows)
 }

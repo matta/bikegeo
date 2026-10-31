@@ -9,9 +9,9 @@ import (
 func floatPtr(v float64) *float64 { return &v }
 
 func TestDefaultProfileValid(t *testing.T) {
-	p, err := ParseProfileJSON(DefaultProfileJSON)
-	if err != nil {
-		t.Fatalf("Failed to parse embedded DefaultProfileJSON: %v", err)
+	p := DefaultProfile()
+	if err := ValidateProfile(p); err != nil {
+		t.Fatalf("DefaultProfile failed validation: %v", err)
 	}
 	if p.Name != "default" {
 		t.Errorf("Expected profile name 'default', got %q", p.Name)
@@ -65,9 +65,9 @@ func TestLookupAttribute_BrpSetbackAndDrop(t *testing.T) {
 }
 
 func TestIdmatchProfileValid(t *testing.T) {
-	p, err := LoadProfile("../../data/ideals", "idmatch")
+	p, err := GetProfile("idmatch")
 	if err != nil {
-		t.Fatalf("Failed to load idmatch profile: %v", err)
+		t.Fatalf("Failed to get idmatch profile: %v", err)
 	}
 	if p.Name != "idmatch" {
 		t.Errorf("Expected profile name 'idmatch', got %q", p.Name)
@@ -85,11 +85,11 @@ func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
 	spec := AttributeSpec{
 		ID:         "seat_to_rc",
 		Weight:     4,
-		Ideal:      &Range{Min: floatPtr(235)},
-		Acceptable: &Range{Min: floatPtr(220)},
-		EdgeScore:  floatPtr(70),
-		Falloff:    &Falloff{Below: floatPtr(20)},
-		Floor:      floatPtr(-100),
+		Ideal:      AtLeast(235),
+		Acceptable: AtLeast(220),
+		EdgeScore:  Float(70),
+		Falloff:    FalloffBelow(20),
+		Floor:      Float(-100),
 	}
 	meta, ok := LookupAttribute("seat_to_rc")
 	if !ok {
@@ -123,11 +123,11 @@ func TestEvaluate_DesignDocTable(t *testing.T) {
 	spec := AttributeSpec{
 		ID:         "aett",
 		Weight:     10,
-		Ideal:      &Range{Min: floatPtr(630), Max: floatPtr(642)},
-		Acceptable: &Range{Min: floatPtr(606), Max: floatPtr(642)},
-		EdgeScore:  floatPtr(60),
-		Falloff:    &Falloff{Below: floatPtr(10), Above: floatPtr(5)},
-		Floor:      floatPtr(-200),
+		Ideal:      Between(630, 642),
+		Acceptable: Between(606, 642),
+		EdgeScore:  Float(60),
+		Falloff:    FalloffBoth(10, 5),
+		Floor:      Float(-200),
 	}
 	meta, ok := LookupAttribute("aett")
 	if !ok {
@@ -170,11 +170,11 @@ func TestEvaluate_OneSidedChainstay(t *testing.T) {
 	spec := AttributeSpec{
 		ID:         "chainstay",
 		Weight:     4,
-		Ideal:      &Range{Min: floatPtr(470)},
-		Acceptable: &Range{Min: floatPtr(445)},
-		EdgeScore:  floatPtr(70),
-		Falloff:    &Falloff{Below: floatPtr(25)},
-		Floor:      floatPtr(-100),
+		Ideal:      AtLeast(470),
+		Acceptable: AtLeast(445),
+		EdgeScore:  Float(70),
+		Falloff:    FalloffBelow(25),
+		Floor:      Float(-100),
 	}
 	meta, ok := LookupAttribute("chainstay")
 	if !ok {
@@ -204,9 +204,7 @@ func TestEvaluate_OneSidedChainstay(t *testing.T) {
 }
 
 func TestEvaluate_DisplayOnly(t *testing.T) {
-	spec := AttributeSpec{
-		ID: "reach",
-	}
+	spec := DisplayOnly("reach")
 	meta, ok := LookupAttribute("reach")
 	if !ok {
 		t.Fatalf("LookupAttribute('reach') failed")
@@ -222,53 +220,78 @@ func TestEvaluate_DisplayOnly(t *testing.T) {
 }
 
 func TestValidation_StrictRejections(t *testing.T) {
-	// 1. Unknown JSON field
-	jsonUnknown := `{"name": "test", "extra_bad_field": 123, "attributes": [{"id": "reach"}]}`
-	if _, err := ParseProfileJSON([]byte(jsonUnknown)); err == nil {
-		t.Errorf("Expected error for unknown JSON field, got nil")
+	// 1. Unknown attribute ID
+	pBadID := &Profile{
+		Name: "test",
+		Attributes: []AttributeSpec{
+			{ID: "nonexistent_attr", Weight: 5, Ideal: AtLeast(10)},
+		},
 	}
-
-	// 2. Unknown attribute ID
-	jsonBadID := `{"name": "test", "attributes": [{"id": "nonexistent_attr", "weight": 5, "ideal": {"min": 10}}]}`
-	if _, err := ParseProfileJSON([]byte(jsonBadID)); err == nil || !strings.Contains(err.Error(), "not a recognized attribute id") {
+	if _, err := NormalizeAndValidate(pBadID); err == nil || !strings.Contains(err.Error(), "not a recognized attribute id") {
 		t.Errorf("Expected unrecognized attribute error, got: %v", err)
 	}
 
-	// 3. Duplicate attribute ID
-	jsonDup := `{"name": "test", "attributes": [{"id": "reach"}, {"id": "reach"}]}`
-	if _, err := ParseProfileJSON([]byte(jsonDup)); err == nil || !strings.Contains(err.Error(), "duplicate attribute id") {
+	// 2. Duplicate attribute ID
+	pDup := &Profile{
+		Name: "test",
+		Attributes: []AttributeSpec{
+			DisplayOnly("reach"),
+			DisplayOnly("reach"),
+		},
+	}
+	if _, err := NormalizeAndValidate(pDup); err == nil || !strings.Contains(err.Error(), "duplicate attribute id") {
 		t.Errorf("Expected duplicate attribute error, got: %v", err)
 	}
 
-	// 4. Inverted ideal min > max
-	jsonInverted := `{"name": "test", "attributes": [{"id": "hta", "weight": 2, "ideal": {"min": 69, "max": 67}, "falloff": {"below": 1, "above": 1}}]}`
-	if _, err := ParseProfileJSON([]byte(jsonInverted)); err == nil || !strings.Contains(err.Error(), "exceeds max") {
+	// 3. Inverted ideal min > max
+	pInverted := &Profile{
+		Name: "test",
+		Attributes: []AttributeSpec{
+			{ID: "hta", Weight: 2, Ideal: Between(69, 67), Falloff: FalloffBoth(1, 1)},
+		},
+	}
+	if _, err := NormalizeAndValidate(pInverted); err == nil || !strings.Contains(err.Error(), "exceeds max") {
 		t.Errorf("Expected inverted min/max error, got: %v", err)
 	}
 
-	// 5. Acceptable wider than ideal but missing edge_score
-	jsonMissingEdge := `{"name": "test", "attributes": [{"id": "hta", "weight": 2, "ideal": {"min": 68, "max": 68}, "acceptable": {"min": 67, "max": 69}, "falloff": {"below": 1, "above": 1}}]}`
-	if _, err := ParseProfileJSON([]byte(jsonMissingEdge)); err == nil || !strings.Contains(err.Error(), "edge_score is not defined") {
+	// 4. Acceptable wider than ideal but missing edge_score
+	pMissingEdge := &Profile{
+		Name: "test",
+		Attributes: []AttributeSpec{
+			{ID: "hta", Weight: 2, Ideal: Exact(68), Acceptable: Between(67, 69), Falloff: FalloffBoth(1, 1)},
+		},
+	}
+	if _, err := NormalizeAndValidate(pMissingEdge); err == nil || !strings.Contains(err.Error(), "edge_score is not defined") {
 		t.Errorf("Expected missing edge_score error, got: %v", err)
 	}
 
-	// 6. Missing falloff
-	jsonNoFalloff := `{"name": "test", "attributes": [{"id": "hta", "weight": 2, "ideal": {"min": 68, "max": 68}}]}`
-	if _, err := ParseProfileJSON([]byte(jsonNoFalloff)); err == nil || !strings.Contains(err.Error(), "must define positive falloff") {
+	// 5. Missing falloff
+	pNoFalloff := &Profile{
+		Name: "test",
+		Attributes: []AttributeSpec{
+			{ID: "hta", Weight: 2, Ideal: Exact(68)},
+		},
+	}
+	if _, err := NormalizeAndValidate(pNoFalloff); err == nil || !strings.Contains(err.Error(), "must define positive falloff") {
 		t.Errorf("Expected missing falloff error, got: %v", err)
 	}
 
-	// 7. Non-negative floor
-	jsonBadFloor := `{"name": "test", "attributes": [{"id": "hta", "weight": 2, "ideal": {"min": 68, "max": 68}, "falloff": {"below": 1, "above": 1}, "floor": 10}]}`
-	if _, err := ParseProfileJSON([]byte(jsonBadFloor)); err == nil || !strings.Contains(err.Error(), "floor (10.0) must be negative") {
+	// 6. Non-negative floor
+	pBadFloor := &Profile{
+		Name: "test",
+		Attributes: []AttributeSpec{
+			{ID: "hta", Weight: 2, Ideal: Exact(68), Falloff: FalloffBoth(1, 1), Floor: Float(10)},
+		},
+	}
+	if _, err := NormalizeAndValidate(pBadFloor); err == nil || !strings.Contains(err.Error(), "floor (10.0) must be negative") {
 		t.Errorf("Expected negative floor error, got: %v", err)
 	}
 }
 
-func TestLoadProfile_FallbackToEmbedded(t *testing.T) {
-	p, err := LoadProfile("/nonexistent/directory", "default")
+func TestGetProfile_Default(t *testing.T) {
+	p, err := GetProfile("")
 	if err != nil {
-		t.Fatalf("Expected fallback to embedded default profile, got: %v", err)
+		t.Fatalf("Expected default profile, got: %v", err)
 	}
 	if p.Name != "default" {
 		t.Errorf("Expected profile name 'default', got %q", p.Name)
