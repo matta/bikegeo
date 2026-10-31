@@ -1,4 +1,4 @@
-.PHONY: all fmt vet test check build run clean
+.PHONY: all fmt vet test check build run clean watch
 
 export PATH := $(HOME)/go/bin:$(PATH)
 
@@ -15,6 +15,9 @@ test:
 	go test -v ./...
 
 check: vet test
+
+watch:
+	watchexec -c -f '*.go' -f 'go.*' -f '*.json' -f '*.s' -f '*.[ch]' "go vet ./... && go test ./..."
 
 build:
 	go build -o bin/bikegeo ./cmd/bikegeo
