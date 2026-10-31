@@ -376,6 +376,23 @@ func TestListForksAndCRUD(t *testing.T) {
 		t.Errorf("Expected fox34_130 in CSV output, got:\n%s", out)
 	}
 
+	// 2b. List stems in table and JSON format
+	code, out, errOut = runCLI(t, dataDir, stateFile, "", "stems")
+	if code != 0 {
+		t.Fatalf("stems failed: %s", errOut)
+	}
+	if !strings.Contains(out, "mtb") || !strings.Contains(out, "gravel") {
+		t.Errorf("Expected mtb and gravel in stems output, got:\n%s", out)
+	}
+
+	code, out, errOut = runCLI(t, dataDir, stateFile, "", "stems", "--json")
+	if code != 0 {
+		t.Fatalf("stems --json failed: %s", errOut)
+	}
+	if !strings.Contains(out, `"id": "mtb"`) {
+		t.Errorf("Expected mtb in JSON stems output, got:\n%s", out)
+	}
+
 	// 3. Set a geometry field on a bike
 	code, out, errOut = runCLI(t, dataDir, stateFile, "", "set", "binary-havok:L", "reach=400")
 	if code != 0 {
@@ -1178,7 +1195,7 @@ func TestCompare_SaddleHbMetricAndSetCockpit(t *testing.T) {
 	code, _, errOut = runCLI(t, dataDir, stateFile, "", "set", "surly-ecr",
 		"canonical_stem=70/-6",
 		"max_spacer=35",
-		"stems=50/-6,70/-6,90/0",
+		"stems=mtb,gravel",
 	)
 	if code != 0 {
 		t.Fatalf("set failed: %s", errOut)
@@ -1198,7 +1215,7 @@ func TestCompare_SaddleHbMetricAndSetCockpit(t *testing.T) {
 	if frame.MaxSpacerMm == nil || *frame.MaxSpacerMm != 35 {
 		t.Errorf("Expected MaxSpacerMm 35, got %v", frame.MaxSpacerMm)
 	}
-	if len(frame.Stems) != 3 {
-		t.Errorf("Expected 3 stems, got %d: %+v", len(frame.Stems), frame.Stems)
+	if len(frame.Stems) != 2 || frame.Stems[0] != "mtb" || frame.Stems[1] != "gravel" {
+		t.Errorf("Expected 2 stem sets [mtb, gravel], got %v", frame.Stems)
 	}
 }

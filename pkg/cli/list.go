@@ -190,3 +190,40 @@ func (a *App) runForks(args []string) int {
 	}
 	return 0
 }
+
+func (a *App) runStems(args []string) int {
+	fs := flag.NewFlagSet("stems", flag.ContinueOnError)
+	fs.SetOutput(a.Err)
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	stems := catalog.CommonStemCatalog
+	headers := []string{"Stem Set ID", "Length Range", "Angles", "Total Stems"}
+	var rows [][]string
+
+	for _, s := range stems {
+		rangeStr := "—"
+		if len(s.LengthRangeMm) == 2 {
+			rangeStr = fmt.Sprintf("%.0f–%.0f mm", s.LengthRangeMm[0], s.LengthRangeMm[1])
+		}
+		var angStrs []string
+		for _, ang := range s.AnglesDeg {
+			angStrs = append(angStrs, fmt.Sprintf("%.0f°", ang))
+		}
+		totalStems := len(s.Expand())
+		rows = append(rows, []string{
+			s.ID,
+			rangeStr,
+			strings.Join(angStrs, ", "),
+			fmt.Sprintf("%d", totalStems),
+		})
+	}
+
+	title := fmt.Sprintf("Standard Stem Catalog (%d)", len(stems))
+	if err := RenderOutput(a.Out, a.Format, title, "", headers, rows, stems); err != nil {
+		fmt.Fprintf(a.Err, "Error: %v\n", err)
+		return 1
+	}
+	return 0
+}

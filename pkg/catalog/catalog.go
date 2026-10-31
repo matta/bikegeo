@@ -2,20 +2,23 @@ package catalog
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"strings"
 
-	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 )
 
 // CommonForkCatalog holds the global catalog of forks loaded from data/forks.json.
 var CommonForkCatalog []model.ForkCatalogEntry
 
+// CommonStemCatalog holds the global catalog of stems loaded from data/stems.json.
+var CommonStemCatalog []model.StemCatalogEntry
+
 func init() {
-	candidates := []string{"data/forks.json", "../data/forks.json", "../../data/forks.json"}
-	for _, path := range candidates {
+	forkCandidates := []string{"data/forks.json", "../data/forks.json", "../../data/forks.json"}
+	for _, path := range forkCandidates {
 		if data, err := os.ReadFile(path); err == nil {
 			var cat []model.ForkCatalogEntry
 			if err := json.Unmarshal(data, &cat); err == nil && len(cat) > 0 {
@@ -24,6 +27,47 @@ func init() {
 			}
 		}
 	}
+
+	stemCandidates := []string{"data/stems.json", "../data/stems.json", "../../data/stems.json"}
+	for _, path := range stemCandidates {
+		if data, err := os.ReadFile(path); err == nil {
+			var cat []model.StemCatalogEntry
+			if err := json.Unmarshal(data, &cat); err == nil && len(cat) > 0 {
+				CommonStemCatalog = cat
+				break
+			}
+		}
+	}
+}
+
+// GetCatalogStem looks up a stem set by ID.
+func GetCatalogStem(id string) (model.StemCatalogEntry, bool) {
+	for _, p := range CommonStemCatalog {
+		if strings.EqualFold(p.ID, id) {
+			return p, true
+		}
+	}
+	return model.StemCatalogEntry{}, false
+}
+
+// ExpandStemSets expands and deduplicates a slice of stem catalog IDs into []model.StemSpec.
+func ExpandStemSets(ids []string) []model.StemSpec {
+	var results []model.StemSpec
+	seen := make(map[string]bool)
+	for _, id := range ids {
+		entry, found := GetCatalogStem(id)
+		if !found {
+			continue
+		}
+		for _, s := range entry.Expand() {
+			key := fmt.Sprintf("%.1f/%.1f", s.LengthMm, s.AngleDeg)
+			if !seen[key] {
+				seen[key] = true
+				results = append(results, s)
+			}
+		}
+	}
+	return results
 }
 
 // GetCatalogFork looks up a fork entry by ID or Name.
@@ -87,7 +131,7 @@ func FindForkSuggestions(targetA2c, targetRake float64) []ForkSuggestion {
 				// Suspension fork
 				compression := opt.A2cMm - targetA2c
 				if compression >= 0 && compression <= fork.TravelMm*0.45 {
-					sagPct := geometry.Round((compression/fork.TravelMm)*100.0, 1)
+					sagPct := math.Round(((compression/fork.TravelMm)*100.0)*10.0) / 10.0
 					suggestions = append(suggestions, ForkSuggestion{
 						ForkID:    fork.ID,
 						ForkName:  fork.Name,

@@ -63,6 +63,8 @@ func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 		return app.runList(subArgs)
 	case "forks":
 		return app.runForks(subArgs)
+	case "stems":
+		return app.runStems(subArgs)
 	case "ideals", "ideal":
 		return app.runIdeals(subArgs)
 	case "compare", "cmp":
@@ -140,6 +142,7 @@ Core Commands:
   fit <frame[:size]>      Analyze CAD residuals, solve minimax A2C/spacer, and sweep parameter trials
   list                    List all stored bike frames, sizes, and supported fork capacities
   forks                   List standard 29er fork presets and travel-to-A2C mappings
+  stems                   List standard stem presets and length/angle envelopes
   ideals [show|edit [name]] List, inspect, or edit ideal frame profiles in a TUI
 
 Data Management Commands:

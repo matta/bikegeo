@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/model"
 )
 
@@ -784,6 +785,6 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string) (model.BikeGeo
 		ChainstayRangeMm:   frame.ChainstayRangeMm,
 		MaxSpacerMm:        frame.MaxSpacerMm,
 		CanonicalStem:      frame.CanonicalStem,
-		Stems:              frame.Stems,
+		Stems:              catalog.ExpandStemSets(frame.Stems),
 	}, nil
 }

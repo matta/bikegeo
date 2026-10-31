@@ -289,10 +289,37 @@ const StemThicknessMm = 40.0
 // SpacerStepMm is the fixed increment (in mm) for steerer spacers from 0 up to MaxSpacerMm.
 const SpacerStepMm = 5.0
 
+// StemLengthStepMm is the fixed increment (in mm) for stem lengths in catalog stem ranges.
+const StemLengthStepMm = 10.0
+
 // StemSpec represents a stem configuration (length in mm, angle in degrees).
 type StemSpec struct {
 	LengthMm float64 `json:"length_mm"`
 	AngleDeg float64 `json:"angle_deg"`
+}
+
+// StemCatalogEntry encapsulates a stem set in data/stems.json.
+type StemCatalogEntry struct {
+	ID            string    `json:"id"`
+	LengthRangeMm []float64 `json:"length_range_mm"`
+	AnglesDeg     []float64 `json:"angles_deg"`
+}
+
+// Expand generates the Cartesian product of stems across LengthRangeMm (in StemLengthStepMm steps) and AnglesDeg.
+func (e StemCatalogEntry) Expand() []StemSpec {
+	if len(e.LengthRangeMm) != 2 || e.LengthRangeMm[0] <= 0 || e.LengthRangeMm[1] < e.LengthRangeMm[0] {
+		return nil
+	}
+	var stems []StemSpec
+	for l := e.LengthRangeMm[0]; l <= e.LengthRangeMm[1]+0.001; l += StemLengthStepMm {
+		for _, a := range e.AnglesDeg {
+			stems = append(stems, StemSpec{
+				LengthMm: math.Round(l*10.0) / 10.0,
+				AngleDeg: a,
+			})
+		}
+	}
+	return stems
 }
 
 // HBPoint represents a mapped handlebar-stem intersection point (HB) and its resulting Saddle-Handlebar distance.
@@ -431,9 +458,9 @@ type FrameModel struct {
 	Geometries         map[string]SizeGeometry `json:"geometries"`
 
 	// Cockpit & Stem/Spacer Envelope
-	MaxSpacerMm   *float64   `json:"max_spacer_mm"`
-	CanonicalStem *StemSpec  `json:"canonical_stem"`
-	Stems         []StemSpec `json:"stems"`
+	MaxSpacerMm   *float64  `json:"max_spacer_mm"`
+	CanonicalStem *StemSpec `json:"canonical_stem"`
+	Stems         []string  `json:"stems"`
 }
 
 func (fm *FrameModel) GetMaxSpacerMm() float64 {

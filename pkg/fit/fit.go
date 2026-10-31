@@ -385,22 +385,25 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		frame.CanonicalStem = &st
 		return nil
 	case "stems":
-		var parsedStems []model.StemSpec
+		var parsedStemIDs []string
 		for _, part := range strings.Split(val, ",") {
 			part = strings.TrimSpace(part)
 			if part == "" {
 				continue
 			}
-			st, err := parseStemSpec(part)
-			if err != nil {
-				return fmt.Errorf("invalid stem in stems %q: %w", part, err)
+			if _, found := catalog.GetCatalogStem(part); !found {
+				var available []string
+				for _, entry := range catalog.CommonStemCatalog {
+					available = append(available, entry.ID)
+				}
+				return fmt.Errorf("unknown stem set %q in stems (available: %s)", part, strings.Join(available, ", "))
 			}
-			parsedStems = append(parsedStems, st)
+			parsedStemIDs = append(parsedStemIDs, part)
 		}
-		if len(parsedStems) == 0 {
-			return fmt.Errorf("stems must specify at least one stem")
+		if len(parsedStemIDs) == 0 {
+			return fmt.Errorf("stems must specify at least one stem set ID")
 		}
-		frame.Stems = parsedStems
+		frame.Stems = parsedStemIDs
 		return nil
 	}
 

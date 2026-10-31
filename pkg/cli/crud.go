@@ -187,16 +187,10 @@ func (a *App) runInit(args []string) int {
 	}
 
 	canonicalStem := model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0}
-	stemLengths := []float64{40, 50, 60, 70, 80, 90, 100}
+	initStems := []string{"mtb"}
 	if cat == model.CategoryGravel {
 		canonicalStem = model.StemSpec{LengthMm: 80.0, AngleDeg: -6.0}
-		stemLengths = []float64{60, 70, 80, 90, 100, 110}
-	}
-	var initStems []model.StemSpec
-	for _, l := range stemLengths {
-		for _, a := range []float64{-6, 0, 6} {
-			initStems = append(initStems, model.StemSpec{LengthMm: l, AngleDeg: a})
-		}
+		initStems = []string{"gravel"}
 	}
 
 	frame := model.FrameModel{

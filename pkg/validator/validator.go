@@ -600,31 +600,63 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 			Message:  "Frame must explicitly define at least one stem option in stems.",
 		})
 	} else {
-		hasCanonical := false
-		for i, s := range frame.Stems {
-			if s.LengthMm <= 0 {
+		var expandedStems []model.StemSpec
+		for i, stemID := range frame.Stems {
+			stemID = strings.TrimSpace(stemID)
+			if stemID == "" {
 				report.IsValid = false
 				report.Issues = append(report.Issues, model.ValidationIssue{
-					ID:       fmt.Sprintf("invalid_stem_%d", i),
+					ID:       fmt.Sprintf("empty_stem_set_%d", i),
 					Field:    fmt.Sprintf("stems[%d]", i),
 					Severity: model.SeverityError,
-					Title:    "Invalid Stem Length",
-					Message:  fmt.Sprintf("stems[%d] length_mm must be positive, got %.1fmm.", i, s.LengthMm),
+					Title:    "Empty Stem Set ID",
+					Message:  fmt.Sprintf("stems[%d] cannot be empty.", i),
+				})
+				continue
+			}
+			entry, found := catalog.GetCatalogStem(stemID)
+			if !found {
+				report.IsValid = false
+				report.Issues = append(report.Issues, model.ValidationIssue{
+					ID:       fmt.Sprintf("unknown_stem_set_%s", stemID),
+					Field:    fmt.Sprintf("stems[%d]", i),
+					Severity: model.SeverityError,
+					Title:    "Unknown Stem Set",
+					Message:  fmt.Sprintf("Stem set %q in stems[%d] is not defined in data/stems.json.", stemID, i),
+				})
+				continue
+			}
+			if len(entry.LengthRangeMm) != 2 || entry.LengthRangeMm[0] <= 0 || entry.LengthRangeMm[1] < entry.LengthRangeMm[0] {
+				report.IsValid = false
+				report.Issues = append(report.Issues, model.ValidationIssue{
+					ID:       fmt.Sprintf("invalid_stem_set_range_%s", stemID),
+					Field:    fmt.Sprintf("stems[%d]", i),
+					Severity: model.SeverityError,
+					Title:    "Invalid Stem Set Length Range",
+					Message:  fmt.Sprintf("Stem set %q has invalid length range %v.", stemID, entry.LengthRangeMm),
 				})
 			}
-			if frame.CanonicalStem != nil && math.Abs(s.LengthMm-frame.CanonicalStem.LengthMm) < 0.001 && math.Abs(s.AngleDeg-frame.CanonicalStem.AngleDeg) < 0.001 {
-				hasCanonical = true
-			}
+			expandedStems = append(expandedStems, entry.Expand()...)
 		}
-		if frame.CanonicalStem != nil && frame.CanonicalStem.LengthMm > 0 && !hasCanonical {
-			report.IsValid = false
-			report.Issues = append(report.Issues, model.ValidationIssue{
-				ID:       "canonical_stem_not_in_stems",
-				Field:    "stems",
-				Severity: model.SeverityError,
-				Title:    "Canonical Stem Not in Stems List",
-				Message:  fmt.Sprintf("canonical_stem (%.0fmm / %.1f°) must be included in the stems options list.", frame.CanonicalStem.LengthMm, frame.CanonicalStem.AngleDeg),
-			})
+
+		if frame.CanonicalStem != nil && frame.CanonicalStem.LengthMm > 0 {
+			hasCanonical := false
+			for _, s := range expandedStems {
+				if math.Abs(s.LengthMm-frame.CanonicalStem.LengthMm) < 0.001 && math.Abs(s.AngleDeg-frame.CanonicalStem.AngleDeg) < 0.001 {
+					hasCanonical = true
+					break
+				}
+			}
+			if !hasCanonical {
+				report.IsValid = false
+				report.Issues = append(report.Issues, model.ValidationIssue{
+					ID:       "canonical_stem_not_in_stems",
+					Field:    "stems",
+					Severity: model.SeverityError,
+					Title:    "Canonical Stem Not in Stems List",
+					Message:  fmt.Sprintf("canonical_stem (%.0fmm / %.1f°) must be included in the stems options list.", frame.CanonicalStem.LengthMm, frame.CanonicalStem.AngleDeg),
+				})
+			}
 		}
 	}
 

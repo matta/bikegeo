@@ -290,11 +290,7 @@ func TestValidateRevelElJefe(t *testing.T) {
 		},
 		MaxSpacerMm:   model.Float64Ptr(40.0),
 		CanonicalStem: &model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0},
-		Stems: []model.StemSpec{
-			{LengthMm: 50.0, AngleDeg: -6.0},
-			{LengthMm: 60.0, AngleDeg: -6.0},
-			{LengthMm: 70.0, AngleDeg: -6.0},
-		},
+		Stems:         []string{"mtb"},
 		Geometries: map[string]model.SizeGeometry{
 			"S":  {Reach: 435, Stack: 599, HtaDeg: 67.5, StaDeg: 75.0, Htl: 86, BbDrop: 68, Wheelbase: 1121, ChainstayLength: 420, SeatTubeLength: 374, StandoverHeight: 700},
 			"M":  {Reach: 455, Stack: 607, HtaDeg: 67.5, StaDeg: 75.0, Htl: 96, BbDrop: 68, Wheelbase: 1146, ChainstayLength: 420, SeatTubeLength: 420, StandoverHeight: 735},
@@ -340,11 +336,7 @@ func TestValidateTumbleweedSunliner(t *testing.T) {
 		},
 		MaxSpacerMm:   model.Float64Ptr(40.0),
 		CanonicalStem: &model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0},
-		Stems: []model.StemSpec{
-			{LengthMm: 50.0, AngleDeg: -6.0},
-			{LengthMm: 60.0, AngleDeg: -6.0},
-			{LengthMm: 70.0, AngleDeg: -6.0},
-		},
+		Stems:         []string{"mtb"},
 		Geometries: map[string]model.SizeGeometry{
 			"S":  {Reach: 420, Stack: 590, HtaDeg: 69, StaDeg: 73, Htl: 130, BbDrop: 65, Wheelbase: 1131, ChainstayLength: 456, SeatTubeLength: 380, StandoverHeight: 765},
 			"M":  {Reach: 434, Stack: 608, HtaDeg: 69, StaDeg: 73, Htl: 150, BbDrop: 65, Wheelbase: 1153, ChainstayLength: 456, SeatTubeLength: 430, StandoverHeight: 795},
@@ -575,5 +567,13 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 	rep = validator.ValidateFrame(fCanonNotInStems)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Canonical Stem Not in Stems List") {
 		t.Errorf("Expected Canonical Stem Not in Stems List error, got: %s", rep.ErrorSummary())
+	}
+
+	// 8. Unknown Stem Set in Stems
+	fUnknownStem := validFrame
+	fUnknownStem.Stems = []string{"nonexistent_stem"}
+	rep = validator.ValidateFrame(fUnknownStem)
+	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "not defined in data/stems.json") {
+		t.Errorf("Expected Unknown Stem Set error, got: %s", rep.ErrorSummary())
 	}
 }
