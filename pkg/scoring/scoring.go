@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 )
@@ -577,6 +578,19 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 		if !ok {
 			continue
 		}
+
+		if strings.EqualFold(spec.ID, "saddle_hb") && len(row.Canonical.PossibleHBs) > 0 {
+			var minT, maxT *float64
+			if spec.Ideal != nil {
+				minT = spec.Ideal.Min
+				maxT = spec.Ideal.Max
+			}
+			if best, ok := geometry.SelectBestHB(row.Canonical.PossibleHBs, row.Bike.GetCanonicalStem(), minT, maxT); ok {
+				row.Canonical.SelectedHB = &best
+				row.Canonical.SaddleHbMm = best.SaddleHbMm
+			}
+		}
+
 		val, ok := meta.Extract(row)
 		if !ok {
 			evals = append(evals, attrEval{spec: spec, meta: meta, hasVal: false})

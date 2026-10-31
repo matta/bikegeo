@@ -77,6 +77,176 @@ func CalculateActualSetback(staDeg, seatHeight float64) float64 {
 	return Round(seatHeight*math.Cos(sta), 1)
 }
 
+// CalculateHBPoint calculates the HB reference point (center of the stem handlebar clamp)
+// and the Saddle-Handlebar distance from the top of the seatpost (at rider saddle height along effective STA).
+// Steerer tube extends upward and rearward at polar angle (180° - HTA).
+// Stem clamp center sits at d_steerer = spacerMm + StemThicknessMm/2.0 along the steerer axis:
+//
+//	SteererX = reach - d_steerer * cos(HTA)
+//	SteererY = stack + d_steerer * sin(HTA)
+//
+// Stem angle is rotated 90° clockwise from the upward steerer axis, then rotated AngleDeg:
+//
+//	theta_stem = (180° - HTA) - 90° + AngleDeg = (90° - HTA) + AngleDeg
+//	HbX = SteererX + stem.LengthMm * cos(theta_stem)
+//	HbY = SteererY + stem.LengthMm * sin(theta_stem)
+//
+// Seatpost top at rider saddle height along STA:
+//
+//	SeatX = -seatHeight * cos(STA)
+//	SeatY = seatHeight * sin(STA)
+//
+// Distance:
+//
+//	SaddleHbMm = hypot(HbX - SeatX, HbY - SeatY)
+func CalculateHBPoint(
+	reach, stack, htaDeg, staDeg, seatHeight float64,
+	stem model.StemSpec,
+	spacerMm float64,
+) model.HBPoint {
+	hta := ToRad(htaDeg)
+	sta := ToRad(staDeg)
+
+	seatX := -seatHeight * math.Cos(sta)
+	seatY := seatHeight * math.Sin(sta)
+
+	dSteerer := spacerMm + model.StemThicknessMm/2.0
+	steererX := reach - dSteerer*math.Cos(hta)
+	steererY := stack + dSteerer*math.Sin(hta)
+
+	thetaStem := ToRad((90.0 - htaDeg) + stem.AngleDeg)
+	hbX := steererX + stem.LengthMm*math.Cos(thetaStem)
+	hbY := steererY + stem.LengthMm*math.Sin(thetaStem)
+
+	dist := math.Hypot(hbX-seatX, hbY-seatY)
+
+	return model.HBPoint{
+		Stem:       stem,
+		SpacerMm:   spacerMm,
+		HbX:        Round(hbX, 1),
+		HbY:        Round(hbY, 1),
+		SaddleHbMm: Round(dist, 1),
+	}
+}
+
+// MapPossibleHBs maps all possible HB points for a bike across its allowed stems and spacer stack heights.
+func MapPossibleHBs(
+	bike model.BikeGeometry,
+	activeReach, activeStack, activeHta, activeSta, seatHeight float64,
+) []model.HBPoint {
+	stems := bike.Stems
+	if len(stems) == 0 && bike.CanonicalStem != nil && bike.CanonicalStem.LengthMm > 0 {
+		stems = []model.StemSpec{*bike.CanonicalStem}
+	}
+	spacers := bike.GetSpacersMm()
+
+	var points []model.HBPoint
+	for _, st := range stems {
+		for _, sp := range spacers {
+			pt := CalculateHBPoint(activeReach, activeStack, activeHta, activeSta, seatHeight, st, sp)
+			points = append(points, pt)
+		}
+	}
+	return points
+}
+
+// SelectBestHB selects the best HB point from a slice of possible points for a desired target range.
+// Ranking hierarchy:
+// 1. Min rounded mm distance to target range (0 if inside or if target is nil)
+// 2. Closest stem length to canonicalStem
+// 3. Closest stem angle to canonicalStem
+// 4. Smallest spacer stack (spacerMm)
+// 5. Min exact unrounded distance to target midpoint
+func SelectBestHB(
+	possible []model.HBPoint,
+	canonicalStem model.StemSpec,
+	targetMin, targetMax *float64,
+) (model.HBPoint, bool) {
+	if len(possible) == 0 {
+		return model.HBPoint{}, false
+	}
+
+	best := possible[0]
+	hasTarget := targetMin != nil || targetMax != nil
+
+	calcTargetMid := func() float64 {
+		if targetMin != nil && targetMax != nil {
+			return (*targetMin + *targetMax) / 2.0
+		}
+		if targetMin != nil {
+			return *targetMin
+		}
+		if targetMax != nil {
+			return *targetMax
+		}
+		return 0
+	}
+	targetMid := calcTargetMid()
+
+	rangeDist := func(val float64) float64 {
+		if !hasTarget {
+			return 0
+		}
+		if targetMin != nil && val < *targetMin {
+			return *targetMin - val
+		}
+		if targetMax != nil && val > *targetMax {
+			return val - *targetMax
+		}
+		return 0
+	}
+
+	better := func(a, b model.HBPoint) bool {
+		if hasTarget {
+			distA := rangeDist(a.SaddleHbMm)
+			distB := rangeDist(b.SaddleHbMm)
+			roundDistA := math.Round(distA)
+			roundDistB := math.Round(distB)
+			if roundDistA != roundDistB {
+				return roundDistA < roundDistB
+			}
+		}
+
+		// Tie-breaker 1: closest stem length to canonical
+		lenDiffA := math.Abs(a.Stem.LengthMm - canonicalStem.LengthMm)
+		lenDiffB := math.Abs(b.Stem.LengthMm - canonicalStem.LengthMm)
+		if math.Abs(lenDiffA-lenDiffB) > 0.001 {
+			return lenDiffA < lenDiffB
+		}
+
+		// Tie-breaker 2: closest stem angle to canonical
+		angDiffA := math.Abs(a.Stem.AngleDeg - canonicalStem.AngleDeg)
+		angDiffB := math.Abs(b.Stem.AngleDeg - canonicalStem.AngleDeg)
+		if math.Abs(angDiffA-angDiffB) > 0.001 {
+			return angDiffA < angDiffB
+		}
+
+		// Tie-breaker 3: smallest spacer stack
+		if math.Abs(a.SpacerMm-b.SpacerMm) > 0.001 {
+			return a.SpacerMm < b.SpacerMm
+		}
+
+		// Tie-breaker 4: closest unrounded distance to target midpoint
+		if hasTarget {
+			midDiffA := math.Abs(a.SaddleHbMm - targetMid)
+			midDiffB := math.Abs(b.SaddleHbMm - targetMid)
+			if math.Abs(midDiffA-midDiffB) > 0.001 {
+				return midDiffA < midDiffB
+			}
+		}
+
+		return false
+	}
+
+	for _, pt := range possible[1:] {
+		if better(pt, best) {
+			best = pt
+		}
+	}
+
+	return best, true
+}
+
 // CalculateSteererStack calculates the 'spare' steerer tube required to bring
 // the handlebars level with the saddle.
 // Returns:
@@ -519,6 +689,15 @@ func AnalyzeBikeFit(
 		posture,
 	)
 
+	// 6. Cockpit HB Point & Saddle-Handlebar Distance
+	possibleHBs := MapPossibleHBs(bike, activeReach, activeStack, activeHta, activeSta, seatHeight)
+	var selectedHB *model.HBPoint
+	var saddleHbMm float64
+	if best, ok := SelectBestHB(possibleHBs, bike.GetCanonicalStem(), nil, nil); ok {
+		selectedHB = &best
+		saddleHbMm = best.SaddleHbMm
+	}
+
 	return model.BikeFitAnalysis{
 		StructuralA2c:       Round(activeStructuralA2c, 1),
 		ActiveReach:         Round(activeReach, 1),
@@ -545,6 +724,10 @@ func AnalyzeBikeFit(
 		WheelbaseCalc:      weightDist.WheelbaseCalc,
 		ActiveChainstay:    Round(activeCS, 1),
 		ChainstayDesc:      csDesc,
+
+		SaddleHbMm:  saddleHbMm,
+		SelectedHB:  selectedHB,
+		PossibleHBs: possibleHBs,
 	}, nil
 }
 
@@ -599,5 +782,8 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string) (model.BikeGeo
 		SeatTubeLength:     geo.SeatTubeLength,
 		StandoverHeight:    geo.StandoverHeight,
 		ChainstayRangeMm:   frame.ChainstayRangeMm,
+		MaxSpacerMm:        frame.MaxSpacerMm,
+		CanonicalStem:      frame.CanonicalStem,
+		Stems:              frame.Stems,
 	}, nil
 }

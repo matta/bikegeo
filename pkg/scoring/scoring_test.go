@@ -2,6 +2,7 @@ package scoring
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"bikegeo/pkg/ideal"
@@ -618,5 +619,78 @@ func TestExplainProfile_LossesAndH2H(t *testing.T) {
 	// Verify Loss text mentions setback for Hayduke
 	if !contains(expl.Losses[1], "Esker Hayduke (S3)") || !contains(expl.Losses[1], "Setback") {
 		t.Errorf("Expected setback loss in Hayduke explanation: %s", expl.Losses[1])
+	}
+}
+
+func TestScoreRow_SaddleHb(t *testing.T) {
+	prof := &ideal.Profile{
+		Name: "test-saddle-hb",
+		Attributes: []ideal.AttributeSpec{
+			{
+				ID:        "saddle_hb",
+				Weight:    10,
+				Ideal:     &ideal.Range{Min: floatPtr(695), Max: floatPtr(705)},
+				EdgeScore: floatPtr(80),
+				Falloff:   &ideal.Falloff{Below: floatPtr(50), Above: floatPtr(50)},
+			},
+		},
+	}
+
+	canonicalStem := model.StemSpec{LengthMm: 60, AngleDeg: -6}
+	possibleHBs := []model.HBPoint{
+		{
+			Stem:       model.StemSpec{LengthMm: 50, AngleDeg: -6},
+			SpacerMm:   10,
+			HbX:        500,
+			HbY:        650,
+			SaddleHbMm: 680,
+		},
+		{
+			Stem:       model.StemSpec{LengthMm: 70, AngleDeg: -6},
+			SpacerMm:   20,
+			HbX:        520,
+			HbY:        660,
+			SaddleHbMm: 700, // Exact target match
+		},
+		{
+			Stem:       model.StemSpec{LengthMm: 90, AngleDeg: 0},
+			SpacerMm:   0,
+			HbX:        540,
+			HbY:        670,
+			SaddleHbMm: 730,
+		},
+	}
+
+	row := model.CanonicalComparisonRow{
+		Bike: model.BikeGeometry{
+			CanonicalStem: &canonicalStem,
+			Stems: []model.StemSpec{
+				{LengthMm: 50, AngleDeg: -6},
+				{LengthMm: 70, AngleDeg: -6},
+				{LengthMm: 90, AngleDeg: 0},
+			},
+		},
+		Canonical: model.BikeFitAnalysis{
+			PossibleHBs: possibleHBs,
+			SelectedHB:  &possibleHBs[0], // Initially non-target
+			SaddleHbMm:  possibleHBs[0].SaddleHbMm,
+		},
+	}
+
+	res := ScoreRow(row, prof)
+	if math.Round(res.Total) != 100 {
+		t.Errorf("Expected total score 100 for Saddle-HB in target range [695, 705], got %.1f", res.Total)
+	}
+
+	if len(res.Criteria) != 1 {
+		t.Fatalf("Expected 1 criterion, got %d", len(res.Criteria))
+	}
+
+	crit := res.Criteria[0]
+	if crit.ID != "saddle_hb" {
+		t.Errorf("Expected criterion ID 'saddle_hb', got %s", crit.ID)
+	}
+	if !strings.Contains(crit.FormattedCell, "700") || !strings.Contains(crit.FormattedCell, "70mm") {
+		t.Errorf("Expected formatted cell to reflect selected HB (700, 70mm stem), got %q", crit.FormattedCell)
 	}
 }

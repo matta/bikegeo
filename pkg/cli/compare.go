@@ -1052,6 +1052,16 @@ func (a *App) renderComparisonMatrix(
 		prof = def
 	}
 
+	var targetMin, targetMax *float64
+	for _, attr := range prof.Attributes {
+		if strings.EqualFold(attr.ID, "saddle_hb") && attr.Ideal != nil {
+			targetMin = attr.Ideal.Min
+			targetMax = attr.Ideal.Max
+			break
+		}
+	}
+	canonicalizer.ApplyIdealHBTarget(rows, targetMin, targetMax)
+
 	var scoreResults []scoring.Result
 	if scoringEnabled {
 		scoreResults = scoring.ScoreAllRows(rows, prof)
@@ -1349,7 +1359,7 @@ func (a *App) renderComparisonMatrix(
 		for _, attr := range prof.Attributes {
 			meta, _ := ideal.LookupAttribute(attr.ID)
 			label := meta.Label
-			if strings.EqualFold(attr.ID, "aett") || strings.EqualFold(attr.ID, "setback") {
+			if strings.EqualFold(attr.ID, "aett") || strings.EqualFold(attr.ID, "setback") || strings.EqualFold(attr.ID, "saddle_hb") {
 				label = fmt.Sprintf("%s @ %.0fmm", meta.Label, state.SaddleHeightMm)
 			}
 			idealStr := ideal.FormatRange(attr.Ideal, meta.Unit, meta.Decimals)

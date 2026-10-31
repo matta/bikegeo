@@ -16,8 +16,25 @@ func TestDefaultProfileValid(t *testing.T) {
 	if p.Name != "default" {
 		t.Errorf("Expected profile name 'default', got %q", p.Name)
 	}
-	if len(p.Attributes) != 11 {
-		t.Fatalf("Expected 11 attributes in default profile, got %d", len(p.Attributes))
+	if len(p.Attributes) != 12 {
+		t.Fatalf("Expected 12 attributes in default profile, got %d", len(p.Attributes))
+	}
+}
+
+func TestLookupAttribute_SaddleHb(t *testing.T) {
+	meta, ok := LookupAttribute("saddle_hb")
+	if !ok {
+		t.Fatalf("LookupAttribute('saddle_hb') failed")
+	}
+	if meta.Label != "Saddle-HB" || meta.Unit != "mm" {
+		t.Errorf("Unexpected meta: %+v", meta)
+	}
+
+	// Canonical name variants
+	for _, variant := range []string{"saddle-hb", "saddlehb", "SADDLE_HB", "Saddle-HB"} {
+		if _, ok := LookupAttribute(variant); !ok {
+			t.Errorf("LookupAttribute(%q) failed", variant)
+		}
 	}
 }
 

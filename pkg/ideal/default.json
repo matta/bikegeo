@@ -65,6 +65,7 @@
     { "id": "reach" },
     { "id": "stack" },
     { "id": "sta" },
-    { "id": "chainstay" }
+    { "id": "chainstay" },
+    { "id": "saddle_hb" }
   ]
 }

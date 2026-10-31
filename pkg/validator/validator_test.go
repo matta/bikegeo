@@ -288,6 +288,13 @@ func TestValidateRevelElJefe(t *testing.T) {
 			{Fork: "sid_100", A2cMm: 506.0, RakeMm: 44.0},
 			{Fork: "fox34_130", A2cMm: 541.0, RakeMm: 44.0},
 		},
+		MaxSpacerMm:   model.Float64Ptr(40.0),
+		CanonicalStem: &model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0},
+		Stems: []model.StemSpec{
+			{LengthMm: 50.0, AngleDeg: -6.0},
+			{LengthMm: 60.0, AngleDeg: -6.0},
+			{LengthMm: 70.0, AngleDeg: -6.0},
+		},
 		Geometries: map[string]model.SizeGeometry{
 			"S":  {Reach: 435, Stack: 599, HtaDeg: 67.5, StaDeg: 75.0, Htl: 86, BbDrop: 68, Wheelbase: 1121, ChainstayLength: 420, SeatTubeLength: 374, StandoverHeight: 700},
 			"M":  {Reach: 455, Stack: 607, HtaDeg: 67.5, StaDeg: 75.0, Htl: 96, BbDrop: 68, Wheelbase: 1146, ChainstayLength: 420, SeatTubeLength: 420, StandoverHeight: 735},
@@ -330,6 +337,13 @@ func TestValidateTumbleweedSunliner(t *testing.T) {
 		},
 		Forks: []model.ForkRef{
 			{Fork: "sunliner_440", A2cMm: 440.0, RakeMm: 55.0},
+		},
+		MaxSpacerMm:   model.Float64Ptr(40.0),
+		CanonicalStem: &model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0},
+		Stems: []model.StemSpec{
+			{LengthMm: 50.0, AngleDeg: -6.0},
+			{LengthMm: 60.0, AngleDeg: -6.0},
+			{LengthMm: 70.0, AngleDeg: -6.0},
 		},
 		Geometries: map[string]model.SizeGeometry{
 			"S":  {Reach: 420, Stack: 590, HtaDeg: 69, StaDeg: 73, Htl: 130, BbDrop: 65, Wheelbase: 1131, ChainstayLength: 456, SeatTubeLength: 380, StandoverHeight: 765},
@@ -490,5 +504,76 @@ func TestSizeResiduals(t *testing.T) {
 		if r.ImpliedStructuralA2c <= 0 {
 			t.Errorf("Expected positive ImpliedStructuralA2c for size %s, got %.2f", r.Size, r.ImpliedStructuralA2c)
 		}
+	}
+}
+
+func TestValidateFrameStemSpacerRequirements(t *testing.T) {
+	files, err := filepath.Glob("../../data/bikes/*.json")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("Failed to glob data/bikes/*.json")
+	}
+
+	data, err := os.ReadFile(files[0])
+	if err != nil {
+		t.Fatalf("Failed to read %s: %v", files[0], err)
+	}
+
+	var validFrame model.FrameModel
+	if err := json.Unmarshal(data, &validFrame); err != nil {
+		t.Fatalf("Failed to unmarshal %s: %v", files[0], err)
+	}
+
+	// 1. Valid frame passes
+	rep := validator.ValidateFrame(validFrame)
+	if !rep.IsValid {
+		t.Fatalf("Expected valid frame to pass, got: %s", rep.ErrorSummary())
+	}
+
+	// 2. Missing MaxSpacerMm
+	fNoSpacer := validFrame
+	fNoSpacer.MaxSpacerMm = nil
+	rep = validator.ValidateFrame(fNoSpacer)
+	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Missing Maximum Spacer Stack") {
+		t.Errorf("Expected Missing Maximum Spacer Stack error, got: %s", rep.ErrorSummary())
+	}
+
+	// 3. Negative MaxSpacerMm
+	fNegSpacer := validFrame
+	fNegSpacer.MaxSpacerMm = model.Float64Ptr(-5.0)
+	rep = validator.ValidateFrame(fNegSpacer)
+	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Invalid Maximum Spacer Stack") {
+		t.Errorf("Expected Invalid Maximum Spacer Stack error, got: %s", rep.ErrorSummary())
+	}
+
+	// 4. Missing CanonicalStem
+	fNoCanon := validFrame
+	fNoCanon.CanonicalStem = nil
+	rep = validator.ValidateFrame(fNoCanon)
+	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Missing Canonical Stem") {
+		t.Errorf("Expected Missing Canonical Stem error, got: %s", rep.ErrorSummary())
+	}
+
+	// 5. Zero/negative CanonicalStem length
+	fBadCanon := validFrame
+	fBadCanon.CanonicalStem = &model.StemSpec{LengthMm: 0, AngleDeg: -6}
+	rep = validator.ValidateFrame(fBadCanon)
+	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "canonical_stem length_mm must be positive") {
+		t.Errorf("Expected canonical stem positive length error, got: %s", rep.ErrorSummary())
+	}
+
+	// 6. Missing Stems
+	fNoStems := validFrame
+	fNoStems.Stems = nil
+	rep = validator.ValidateFrame(fNoStems)
+	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Missing Stems") {
+		t.Errorf("Expected Missing Stems error, got: %s", rep.ErrorSummary())
+	}
+
+	// 7. CanonicalStem not included in Stems
+	fCanonNotInStems := validFrame
+	fCanonNotInStems.CanonicalStem = &model.StemSpec{LengthMm: 125, AngleDeg: -17}
+	rep = validator.ValidateFrame(fCanonNotInStems)
+	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Canonical Stem Not in Stems List") {
+		t.Errorf("Expected Canonical Stem Not in Stems List error, got: %s", rep.ErrorSummary())
 	}
 }

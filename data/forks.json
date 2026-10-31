@@ -113,6 +113,18 @@
     "description": "Rigid carbon mountain fork with flip-chip (472mm static, 44mm or 55mm rake)"
   },
   {
+    "id": "enve_mountain_boost",
+    "name": "ENVE Mountain Carbon Boost 492mm",
+    "travel_mm": 0,
+    "standard": false,
+    "options": [
+      { "a2c_mm": 492, "rake_mm": 52 },
+      { "a2c_mm": 492, "rake_mm": 55 },
+      { "a2c_mm": 490, "rake_mm": 44 }
+    ],
+    "description": "Rigid carbon mountain fork with flip-chip Boost 15x110 (490/492mm static, 44mm or 52/55mm rake)"
+  },
+  {
     "id": "firestarter_deluxe_483",
     "name": "Salsa Firestarter / Cutthroat Carbon Deluxe 483mm",
     "travel_mm": 0,

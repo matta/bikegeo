@@ -127,5 +127,96 @@
       "a2c_mm": 500.0,
       "rake_mm": 44.0
     }
+  ],
+  "max_spacer_mm": 40,
+  "canonical_stem": {
+    "length_mm": 60,
+    "angle_deg": -6
+  },
+  "stems": [
+    {
+      "length_mm": 40,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 40,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 40,
+      "angle_deg": 6
+    },
+    {
+      "length_mm": 50,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 50,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 50,
+      "angle_deg": 6
+    },
+    {
+      "length_mm": 60,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 60,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 60,
+      "angle_deg": 6
+    },
+    {
+      "length_mm": 70,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 70,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 70,
+      "angle_deg": 6
+    },
+    {
+      "length_mm": 80,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 80,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 80,
+      "angle_deg": 6
+    },
+    {
+      "length_mm": 90,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 90,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 90,
+      "angle_deg": 6
+    },
+    {
+      "length_mm": 100,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 100,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 100,
+      "angle_deg": 6
+    }
   ]
 }

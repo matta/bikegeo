@@ -4,7 +4,7 @@
   "model": "Expedition 926d",
   "year": 2025,
   "category": "hardtail",
-  "notes": "Handcrafted titanium bikepacking & adventure mountain frame designed for drop handlebars ('d'), 29\" wheels with 2.0-2.6\" tires, and 100/142mm or Boost 110/148mm spacing. Seven published Rider-Ready geometry across two fit profiles in 12 sizes (Standard Fit 'S' and Endurance Fit 'E', for 24 total sizes). The published geometry was mathematically modeled in CAD around the 472mm A2C ENVE Mountain Carbon fork (specified at 5.5cm / 55mm rake per Seven's specification note: \"Optimized for 29 x 2.6\" tires at 5.5 cm rake setting\") paired with an EC44 external lower headset cup (10mm CAD spacer), yielding ~482mm structural A2C (satisfied within ≤0.6mm across all 24 sizes with zero A2C slop required). While complete builds feature the ENVE Mountain Carbon Boost fork (490/492mm A2C) or 100mm suspension forks, running those taller forks kinematically pitches the frame around the rear axle (e.g. 492mm Boost fork raises stack by ~7mm, shortens reach by ~11mm, slackens HTA by ~1.0°, and reduces BB drop by ~8mm). Wheelbases are derived from horizontal rear center plus front center.",
+  "notes": "Handcrafted titanium bikepacking & adventure mountain frame designed for drop handlebars ('d'), 29\" wheels with 2.0-2.6\" tires, and 100/142mm or Boost 110/148mm spacing. Seven published Rider-Ready geometry across two fit profiles in 12 sizes (Standard Fit 'S' and Endurance Fit 'E', for 24 total sizes). The published geometry was mathematically modeled in CAD around the 472mm A2C ENVE Mountain Carbon fork (specified at 5.5cm / 55mm rake per Seven's specification note: \"Optimized for 29 x 2.6\" tires at 5.5 cm rake setting\") paired with an EC44 external lower headset cup (10mm CAD spacer), yielding ~482mm structural A2C (satisfied within \u22640.6mm across all 24 sizes with zero A2C slop required). While complete builds feature the ENVE Mountain Carbon Boost fork (490/492mm A2C) or 100mm suspension forks, running those taller forks kinematically pitches the frame around the rear axle (e.g. 492mm Boost fork raises stack by ~7mm, shortens reach by ~11mm, slackens HTA by ~1.0\u00b0, and reduces BB drop by ~8mm). Wheelbases are derived from horizontal rear center plus front center.",
   "wheel_size": "29",
   "headset_cup_type": "EC44",
   "geo_headset_spacer_mm": 10,
@@ -50,6 +50,11 @@
     "rake_mm": 55
   },
   "forks": [
+    {
+      "fork": "enve_mountain_472",
+      "a2c_mm": 472,
+      "rake_mm": 55
+    },
     {
       "fork": "enve_mountain_boost",
       "a2c_mm": 492,
@@ -350,5 +355,96 @@
       "seat_tube_length": 505,
       "standover_height": 879
     }
-  }
+  },
+  "max_spacer_mm": 40,
+  "canonical_stem": {
+    "length_mm": 60,
+    "angle_deg": -6
+  },
+  "stems": [
+    {
+      "length_mm": 40,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 40,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 40,
+      "angle_deg": 6
+    },
+    {
+      "length_mm": 50,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 50,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 50,
+      "angle_deg": 6
+    },
+    {
+      "length_mm": 60,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 60,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 60,
+      "angle_deg": 6
+    },
+    {
+      "length_mm": 70,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 70,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 70,
+      "angle_deg": 6
+    },
+    {
+      "length_mm": 80,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 80,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 80,
+      "angle_deg": 6
+    },
+    {
+      "length_mm": 90,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 90,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 90,
+      "angle_deg": 6
+    },
+    {
+      "length_mm": 100,
+      "angle_deg": -6
+    },
+    {
+      "length_mm": 100,
+      "angle_deg": 0
+    },
+    {
+      "length_mm": 100,
+      "angle_deg": 6
+    }
+  ]
 }

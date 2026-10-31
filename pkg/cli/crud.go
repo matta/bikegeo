@@ -186,6 +186,19 @@ func (a *App) runInit(args []string) int {
 		cat = model.CategoryRigid
 	}
 
+	canonicalStem := model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0}
+	stemLengths := []float64{40, 50, 60, 70, 80, 90, 100}
+	if cat == model.CategoryGravel {
+		canonicalStem = model.StemSpec{LengthMm: 80.0, AngleDeg: -6.0}
+		stemLengths = []float64{60, 70, 80, 90, 100, 110}
+	}
+	var initStems []model.StemSpec
+	for _, l := range stemLengths {
+		for _, a := range []float64{-6, 0, 6} {
+			initStems = append(initStems, model.StemSpec{LengthMm: l, AngleDeg: a})
+		}
+	}
+
 	frame := model.FrameModel{
 		Manufacturer:       manufacturer,
 		Model:              modelName,
@@ -199,6 +212,9 @@ func (a *App) runInit(args []string) int {
 		Sizes:              sizes,
 		DefaultSize:        defSize,
 		Geometries:         geos,
+		MaxSpacerMm:        model.Float64Ptr(40.0),
+		CanonicalStem:      &canonicalStem,
+		Stems:              initStems,
 	}
 
 	if save {

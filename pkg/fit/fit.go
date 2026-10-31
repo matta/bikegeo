@@ -370,6 +370,38 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 			})
 		}
 		return nil
+	case "max_spacer_mm", "max_spacer":
+		v, err := parseFloat()
+		if err != nil || v < 0 || v > 100.0 {
+			return fmt.Errorf("max_spacer_mm must be between 0 and 100 mm")
+		}
+		frame.MaxSpacerMm = model.Float64Ptr(v)
+		return nil
+	case "canonical_stem":
+		st, err := parseStemSpec(val)
+		if err != nil {
+			return fmt.Errorf("invalid canonical_stem %q: %w", val, err)
+		}
+		frame.CanonicalStem = &st
+		return nil
+	case "stems":
+		var parsedStems []model.StemSpec
+		for _, part := range strings.Split(val, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			st, err := parseStemSpec(part)
+			if err != nil {
+				return fmt.Errorf("invalid stem in stems %q: %w", part, err)
+			}
+			parsedStems = append(parsedStems, st)
+		}
+		if len(parsedStems) == 0 {
+			return fmt.Errorf("stems must specify at least one stem")
+		}
+		frame.Stems = parsedStems
+		return nil
 	}
 
 	// 3. Size-Specific Geometry Attributes
@@ -787,4 +819,29 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 	}
 
 	return results, nil
+}
+
+func parseStemSpec(s string) (model.StemSpec, error) {
+	s = strings.TrimSpace(s)
+	parts := strings.Split(s, "/")
+	if len(parts) == 1 {
+		l, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(parts[0]), "mm"), 64)
+		if err != nil || l <= 0 {
+			return model.StemSpec{}, fmt.Errorf("invalid stem length: %q", parts[0])
+		}
+		return model.StemSpec{LengthMm: l, AngleDeg: 0}, nil
+	}
+	if len(parts) == 2 {
+		l, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(parts[0]), "mm"), 64)
+		if err != nil || l <= 0 {
+			return model.StemSpec{}, fmt.Errorf("invalid stem length: %q", parts[0])
+		}
+		angStr := strings.TrimSuffix(strings.TrimSuffix(strings.TrimSpace(parts[1]), "deg"), "°")
+		a, err := strconv.ParseFloat(angStr, 64)
+		if err != nil {
+			return model.StemSpec{}, fmt.Errorf("invalid stem angle: %q", parts[1])
+		}
+		return model.StemSpec{LengthMm: l, AngleDeg: a}, nil
+	}
+	return model.StemSpec{}, fmt.Errorf("invalid stem format %q, expected 'length' or 'length/angle'", s)
 }

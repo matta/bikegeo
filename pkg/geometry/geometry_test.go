@@ -323,3 +323,149 @@ func TestAnalyzeBikeFitRequiresPositiveRake(t *testing.T) {
 		t.Errorf("Expected error for negative targetRake in AnalyzeBikeFit, got nil")
 	}
 }
+
+func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
+	reach := 450.0
+	stack := 620.0
+	seatHeight := 750.0
+	staDeg := 74.0
+
+	// Case 1: HTA = 73°, stem -17° (90° - 73° - 17° = 0° => stem extends strictly horizontally forward)
+	// spacer = 0 mm => d_steerer = 0 + 40/2 = 20 mm
+	// steererX = reach - 20 * cos(73°)
+	// steererY = stack + 20 * sin(73°)
+	// HbX = steererX + length * cos(0°) = steererX + 100
+	// HbY = steererY + length * sin(0°) = steererY
+	stem1 := model.StemSpec{LengthMm: 100.0, AngleDeg: -17.0}
+	hb1 := geometry.CalculateHBPoint(reach, stack, 73.0, staDeg, seatHeight, stem1, 0.0)
+
+	expectedSteererX1 := reach - 20.0*math.Cos(73.0*math.Pi/180.0)
+	expectedSteererY1 := stack + 20.0*math.Sin(73.0*math.Pi/180.0)
+	expectedHbX1 := expectedSteererX1 + 100.0
+	expectedHbY1 := expectedSteererY1
+
+	if math.Abs(hb1.HbX-expectedHbX1) > 0.1 {
+		t.Errorf("hb1.HbX expected %.2f, got %.2f", expectedHbX1, hb1.HbX)
+	}
+	if math.Abs(hb1.HbY-expectedHbY1) > 0.1 {
+		t.Errorf("hb1.HbY expected %.2f, got %.2f", expectedHbY1, hb1.HbY)
+	}
+
+	// Verify Seatpost Top coordinates
+	seatX := -seatHeight * math.Cos(staDeg*math.Pi/180.0)
+	seatY := seatHeight * math.Sin(staDeg*math.Pi/180.0)
+	expectedDist1 := math.Hypot(expectedHbX1-seatX, expectedHbY1-seatY)
+	if math.Abs(hb1.SaddleHbMm-expectedDist1) > 0.1 {
+		t.Errorf("hb1.SaddleHbMm expected %.2f, got %.2f", expectedDist1, hb1.SaddleHbMm)
+	}
+
+	// Case 2: HTA = 70°, stem -6° with 10mm spacers
+	// d_steerer = 10 + 20 = 30 mm
+	// theta_stem = (90 - 70) + (-6) = 14°
+	stem2 := model.StemSpec{LengthMm: 80.0, AngleDeg: -6.0}
+	hb2 := geometry.CalculateHBPoint(reach, stack, 70.0, staDeg, seatHeight, stem2, 10.0)
+
+	expectedSteererX2 := reach - 30.0*math.Cos(70.0*math.Pi/180.0)
+	expectedSteererY2 := stack + 30.0*math.Sin(70.0*math.Pi/180.0)
+	expectedHbX2 := expectedSteererX2 + 80.0*math.Cos(14.0*math.Pi/180.0)
+	expectedHbY2 := expectedSteererY2 + 80.0*math.Sin(14.0*math.Pi/180.0)
+	expectedDist2 := math.Hypot(expectedHbX2-seatX, expectedHbY2-seatY)
+
+	if math.Abs(hb2.HbX-expectedHbX2) > 0.1 {
+		t.Errorf("hb2.HbX expected %.2f, got %.2f", expectedHbX2, hb2.HbX)
+	}
+	if math.Abs(hb2.HbY-expectedHbY2) > 0.1 {
+		t.Errorf("hb2.HbY expected %.2f, got %.2f", expectedHbY2, hb2.HbY)
+	}
+	if math.Abs(hb2.SaddleHbMm-expectedDist2) > 0.1 {
+		t.Errorf("hb2.SaddleHbMm expected %.2f, got %.2f", expectedDist2, hb2.SaddleHbMm)
+	}
+}
+
+func TestMapPossibleHBs_And_SelectBestHB(t *testing.T) {
+	reach := 440.0
+	stack := 630.0
+	htaDeg := 68.0
+	staDeg := 74.0
+	seatHeight := 750.0
+
+	maxSpacer := 20.0 // 0, 5, 10, 15, 20 mm (5 spacer points)
+	canonical := model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0}
+	stems := []model.StemSpec{
+		{LengthMm: 50.0, AngleDeg: -6.0},
+		{LengthMm: 60.0, AngleDeg: -6.0},
+		{LengthMm: 70.0, AngleDeg: -6.0},
+	}
+
+	bike := model.BikeGeometry{
+		Reach:         reach,
+		Stack:         stack,
+		HtaDeg:        htaDeg,
+		StaDeg:        staDeg,
+		MaxSpacerMm:   &maxSpacer,
+		CanonicalStem: &canonical,
+		Stems:         stems,
+	}
+
+	points := geometry.MapPossibleHBs(bike, reach, stack, htaDeg, staDeg, seatHeight)
+	// 3 stems * 5 spacers = 15 points
+	if len(points) != 15 {
+		t.Fatalf("Expected 15 possible HB points, got %d", len(points))
+	}
+
+	// 1. With nil target, SelectBestHB should select the canonical stem at 0 spacer
+	bestNoTarget, ok := geometry.SelectBestHB(points, canonical, nil, nil)
+	if !ok {
+		t.Fatalf("SelectBestHB returned false")
+	}
+	if bestNoTarget.Stem.LengthMm != canonical.LengthMm || bestNoTarget.Stem.AngleDeg != canonical.AngleDeg {
+		t.Errorf("Expected canonical stem, got %+v", bestNoTarget.Stem)
+	}
+	if bestNoTarget.SpacerMm != 0 {
+		t.Errorf("Expected 0 spacer with no target, got %.1f", bestNoTarget.SpacerMm)
+	}
+
+	// 2. Select with target range matching one specific stem/spacer combination
+	// Let's find point for 70mm stem @ 10mm spacer:
+	var targetPt model.HBPoint
+	for _, p := range points {
+		if p.Stem.LengthMm == 70.0 && p.SpacerMm == 10.0 {
+			targetPt = p
+			break
+		}
+	}
+	targetMin := targetPt.SaddleHbMm - 0.5
+	targetMax := targetPt.SaddleHbMm + 0.5
+	bestTarget, ok := geometry.SelectBestHB(points, canonical, &targetMin, &targetMax)
+	if !ok {
+		t.Fatalf("SelectBestHB returned false")
+	}
+	if math.Abs(bestTarget.SaddleHbMm-targetPt.SaddleHbMm) > 0.001 {
+		t.Errorf("Expected SaddleHbMm %.1f, got %.1f", targetPt.SaddleHbMm, bestTarget.SaddleHbMm)
+	}
+	if bestTarget.Stem.LengthMm != 70.0 || bestTarget.SpacerMm != 10.0 {
+		t.Errorf("Expected 70mm stem @ 10mm spacer, got %+v @ %.1fmm", bestTarget.Stem, bestTarget.SpacerMm)
+	}
+
+	// 3. Test tie breaking: if two points both fall in [targetMin, targetMax], point with canonical stem wins
+	// Let target encompass both 60mm stem @ 10mm and 70mm stem @ 0mm
+	var ptCanon, ptOther model.HBPoint
+	for _, p := range points {
+		if p.Stem.LengthMm == 60.0 && p.SpacerMm == 10.0 {
+			ptCanon = p
+		}
+		if p.Stem.LengthMm == 70.0 && p.SpacerMm == 0.0 {
+			ptOther = p
+		}
+	}
+	minVal := math.Min(ptCanon.SaddleHbMm, ptOther.SaddleHbMm) - 2.0
+	maxVal := math.Max(ptCanon.SaddleHbMm, ptOther.SaddleHbMm) + 2.0
+	bestTie, ok := geometry.SelectBestHB(points, canonical, &minVal, &maxVal)
+	if !ok {
+		t.Fatalf("SelectBestHB returned false")
+	}
+	// The 60mm stem (canonical length) must win over 50mm or 70mm
+	if bestTie.Stem.LengthMm != canonical.LengthMm {
+		t.Errorf("Expected canonical stem length %.0fmm to win tie-break, got %.0fmm", canonical.LengthMm, bestTie.Stem.LengthMm)
+	}
+}

@@ -384,6 +384,16 @@ func CanonicalizeBikes(
 		baseCS := math.Max(activeCS, bike.BbDrop+1.0)
 		baseRearCenter := math.Sqrt(math.Max(0, baseCS*baseCS-bike.BbDrop*bike.BbDrop))
 
+		baseHB := geometry.CalculateHBPoint(
+			bike.Reach,
+			bike.Stack,
+			bike.HtaDeg,
+			baseSta,
+			seatHeight,
+			bike.GetCanonicalStem(),
+			0.0,
+		)
+
 		baseline := model.BaselineMetrics{
 			Reach:              bike.Reach,
 			Stack:              bike.Stack,
@@ -397,6 +407,7 @@ func CanonicalizeBikes(
 			SpareAxialSteerer:  geometry.Round(axialLength, 1),
 			Chainstay:          geometry.Round(activeCS, 1),
 			SeatToRearCenter:   geometry.Round(baseRearCenter-baselineSetback, 1),
+			SaddleHbMm:         baseHB.SaddleHbMm,
 		}
 
 		canonical, err := geometry.AnalyzeBikeFit(
@@ -421,4 +432,17 @@ func CanonicalizeBikes(
 	}
 
 	return rows, nil
+}
+
+// ApplyIdealHBTarget updates each row's canonical SelectedHB and SaddleHbMm
+// by selecting the optimal HB point from PossibleHBs against the target range [targetMin, targetMax].
+func ApplyIdealHBTarget(rows []model.CanonicalComparisonRow, targetMin, targetMax *float64) {
+	for i := range rows {
+		if len(rows[i].Canonical.PossibleHBs) > 0 {
+			if best, ok := geometry.SelectBestHB(rows[i].Canonical.PossibleHBs, rows[i].Bike.GetCanonicalStem(), targetMin, targetMax); ok {
+				rows[i].Canonical.SelectedHB = &best
+				rows[i].Canonical.SaddleHbMm = best.SaddleHbMm
+			}
+		}
+	}
 }

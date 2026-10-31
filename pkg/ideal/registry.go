@@ -175,6 +175,29 @@ var registry = []AttributeMeta{
 			return row.Bike.StandoverHeight, true
 		},
 	},
+	{
+		ID:       "saddle_hb",
+		Label:    "Saddle-HB",
+		Unit:     "mm",
+		Decimals: 0,
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.SaddleHbMm <= 0 {
+				return 0, false
+			}
+			return row.Canonical.SaddleHbMm, true
+		},
+		FormatVal: func(val float64, row *model.CanonicalComparisonRow) string {
+			if row != nil && row.Canonical.SelectedHB != nil && row.Canonical.SelectedHB.Stem.LengthMm > 0 {
+				hb := row.Canonical.SelectedHB
+				sign := "+"
+				if hb.SpacerMm < 0 {
+					sign = ""
+				}
+				return fmt.Sprintf("%.0f (%.0fmm %.0f° %s%.0fmm)", val, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm)
+			}
+			return fmt.Sprintf("%.0f", val)
+		},
+	},
 }
 
 var registryMap = func() map[string]AttributeMeta {

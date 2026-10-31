@@ -182,6 +182,11 @@ type BikeGeometry struct {
 	// Bent / Offset Seat Tube
 	ActualStaDeg      float64  `json:"actual_sta_deg,omitempty"`
 	SeatTubeOffsetXMm *float64 `json:"seat_tube_offset_x_mm,omitempty"`
+
+	// Cockpit & Stem/Spacer Envelope
+	MaxSpacerMm   *float64   `json:"max_spacer_mm,omitempty"`
+	CanonicalStem *StemSpec  `json:"canonical_stem,omitempty"`
+	Stems         []StemSpec `json:"stems,omitempty"`
 }
 
 func (b BikeGeometry) GetCadA2c() float64 {
@@ -276,6 +281,53 @@ func (b BikeGeometry) GetMaxChainstay() float64 {
 		return b.ChainstayRangeMm[1]
 	}
 	return 0
+}
+
+// StemThicknessMm is the fixed axial height (in mm) of the stem clamp on the steerer tube.
+const StemThicknessMm = 40.0
+
+// SpacerStepMm is the fixed increment (in mm) for steerer spacers from 0 up to MaxSpacerMm.
+const SpacerStepMm = 5.0
+
+// StemSpec represents a stem configuration (length in mm, angle in degrees).
+type StemSpec struct {
+	LengthMm float64 `json:"length_mm"`
+	AngleDeg float64 `json:"angle_deg"`
+}
+
+// HBPoint represents a mapped handlebar-stem intersection point (HB) and its resulting Saddle-Handlebar distance.
+type HBPoint struct {
+	Stem       StemSpec `json:"stem"`
+	SpacerMm   float64  `json:"spacer_mm"`
+	HbX        float64  `json:"hb_x"`
+	HbY        float64  `json:"hb_y"`
+	SaddleHbMm float64  `json:"saddle_hb_mm"`
+}
+
+func (b BikeGeometry) GetMaxSpacerMm() float64 {
+	if b.MaxSpacerMm != nil {
+		return *b.MaxSpacerMm
+	}
+	return 0
+}
+
+func (b BikeGeometry) GetSpacersMm() []float64 {
+	max := b.GetMaxSpacerMm()
+	if max < 0 {
+		return []float64{0}
+	}
+	var spacers []float64
+	for s := 0.0; s <= max+0.001; s += SpacerStepMm {
+		spacers = append(spacers, s)
+	}
+	return spacers
+}
+
+func (b BikeGeometry) GetCanonicalStem() StemSpec {
+	if b.CanonicalStem != nil {
+		return *b.CanonicalStem
+	}
+	return StemSpec{}
 }
 
 // ForkCatalogOption specifies an available (A2C, rake) pair for a catalog fork.
@@ -377,6 +429,37 @@ type FrameModel struct {
 	CadFork            ForkRef                 `json:"cad_fork"`
 	Forks              []ForkRef               `json:"forks"`
 	Geometries         map[string]SizeGeometry `json:"geometries"`
+
+	// Cockpit & Stem/Spacer Envelope
+	MaxSpacerMm   *float64   `json:"max_spacer_mm"`
+	CanonicalStem *StemSpec  `json:"canonical_stem"`
+	Stems         []StemSpec `json:"stems"`
+}
+
+func (fm *FrameModel) GetMaxSpacerMm() float64 {
+	if fm.MaxSpacerMm != nil {
+		return *fm.MaxSpacerMm
+	}
+	return 0
+}
+
+func (fm *FrameModel) GetSpacersMm() []float64 {
+	max := fm.GetMaxSpacerMm()
+	if max < 0 {
+		return []float64{0}
+	}
+	var spacers []float64
+	for s := 0.0; s <= max+0.001; s += SpacerStepMm {
+		spacers = append(spacers, s)
+	}
+	return spacers
+}
+
+func (fm *FrameModel) GetCanonicalStem() StemSpec {
+	if fm.CanonicalStem != nil {
+		return *fm.CanonicalStem
+	}
+	return StemSpec{}
 }
 
 func (fm *FrameModel) HasBentSeatTube() bool {
@@ -856,6 +939,11 @@ type BikeFitAnalysis struct {
 	WheelbaseCalc      float64 `json:"wheelbase_calc"`
 	ActiveChainstay    float64 `json:"active_chainstay"`
 	ChainstayDesc      string  `json:"chainstay_desc"`
+
+	// Cockpit HB Point & Saddle-Handlebar Distance
+	SaddleHbMm  float64   `json:"saddle_hb_mm"`
+	SelectedHB  *HBPoint  `json:"selected_hb,omitempty"`
+	PossibleHBs []HBPoint `json:"possible_hbs,omitempty"`
 }
 
 type BaselineMetrics struct {
@@ -871,6 +959,7 @@ type BaselineMetrics struct {
 	SpareAxialSteerer  float64 `json:"spare_axial_steerer"`
 	Chainstay          float64 `json:"chainstay"`
 	SeatToRearCenter   float64 `json:"seat_to_rear_center"`
+	SaddleHbMm         float64 `json:"saddle_hb_mm"`
 }
 
 type CanonicalComparisonRow struct {

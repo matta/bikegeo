@@ -549,6 +549,85 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 		}
 	}
 
+	// Validate Cockpit & Stem/Spacer Envelope
+	if frame.MaxSpacerMm == nil {
+		report.IsValid = false
+		report.Issues = append(report.Issues, model.ValidationIssue{
+			ID:       "missing_max_spacer_mm",
+			Field:    "max_spacer_mm",
+			Severity: model.SeverityError,
+			Title:    "Missing Maximum Spacer Stack",
+			Message:  "Frame must explicitly specify max_spacer_mm (e.g. 40).",
+		})
+	} else if *frame.MaxSpacerMm < 0 || *frame.MaxSpacerMm > 100.0 {
+		report.IsValid = false
+		report.Issues = append(report.Issues, model.ValidationIssue{
+			ID:       "invalid_max_spacer_mm",
+			Field:    "max_spacer_mm",
+			Severity: model.SeverityError,
+			Title:    "Invalid Maximum Spacer Stack",
+			Message:  fmt.Sprintf("max_spacer_mm of %.1fmm is outside valid range (0mm - 100mm).", *frame.MaxSpacerMm),
+		})
+	}
+
+	if frame.CanonicalStem == nil {
+		report.IsValid = false
+		report.Issues = append(report.Issues, model.ValidationIssue{
+			ID:       "missing_canonical_stem",
+			Field:    "canonical_stem",
+			Severity: model.SeverityError,
+			Title:    "Missing Canonical Stem",
+			Message:  "Frame must explicitly specify canonical_stem with length_mm and angle_deg.",
+		})
+	} else if frame.CanonicalStem.LengthMm <= 0 {
+		report.IsValid = false
+		report.Issues = append(report.Issues, model.ValidationIssue{
+			ID:       "invalid_canonical_stem",
+			Field:    "canonical_stem",
+			Severity: model.SeverityError,
+			Title:    "Invalid Canonical Stem",
+			Message:  fmt.Sprintf("canonical_stem length_mm must be positive, got %.1fmm.", frame.CanonicalStem.LengthMm),
+		})
+	}
+
+	if len(frame.Stems) == 0 {
+		report.IsValid = false
+		report.Issues = append(report.Issues, model.ValidationIssue{
+			ID:       "missing_stems",
+			Field:    "stems",
+			Severity: model.SeverityError,
+			Title:    "Missing Stems",
+			Message:  "Frame must explicitly define at least one stem option in stems.",
+		})
+	} else {
+		hasCanonical := false
+		for i, s := range frame.Stems {
+			if s.LengthMm <= 0 {
+				report.IsValid = false
+				report.Issues = append(report.Issues, model.ValidationIssue{
+					ID:       fmt.Sprintf("invalid_stem_%d", i),
+					Field:    fmt.Sprintf("stems[%d]", i),
+					Severity: model.SeverityError,
+					Title:    "Invalid Stem Length",
+					Message:  fmt.Sprintf("stems[%d] length_mm must be positive, got %.1fmm.", i, s.LengthMm),
+				})
+			}
+			if frame.CanonicalStem != nil && math.Abs(s.LengthMm-frame.CanonicalStem.LengthMm) < 0.001 && math.Abs(s.AngleDeg-frame.CanonicalStem.AngleDeg) < 0.001 {
+				hasCanonical = true
+			}
+		}
+		if frame.CanonicalStem != nil && frame.CanonicalStem.LengthMm > 0 && !hasCanonical {
+			report.IsValid = false
+			report.Issues = append(report.Issues, model.ValidationIssue{
+				ID:       "canonical_stem_not_in_stems",
+				Field:    "stems",
+				Severity: model.SeverityError,
+				Title:    "Canonical Stem Not in Stems List",
+				Message:  fmt.Sprintf("canonical_stem (%.0fmm / %.1f°) must be included in the stems options list.", frame.CanonicalStem.LengthMm, frame.CanonicalStem.AngleDeg),
+			})
+		}
+	}
+
 	// Validate Fork References
 	cadForkIssues := ValidateForkRef(frame.ID, "cad_fork", frame.CadFork)
 	if len(cadForkIssues) > 0 {

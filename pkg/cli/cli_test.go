@@ -15,6 +15,7 @@ import (
 
 	"bikegeo/pkg/cli"
 	"bikegeo/pkg/model"
+	"bikegeo/pkg/storage"
 	"bikegeo/pkg/tui"
 )
 
@@ -498,8 +499,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 	if jsonRes.Columns[0].Score.Total == 0 || jsonRes.Columns[0].Score.Rank == 0 {
 		t.Errorf("Expected populated score for column 0: %+v", jsonRes.Columns[0].Score)
 	}
-	if len(jsonRes.Columns[0].Score.Criteria) != 11 {
-		t.Errorf("Expected 11 criteria in column score, got %d", len(jsonRes.Columns[0].Score.Criteria))
+	if len(jsonRes.Columns[0].Score.Criteria) != 12 {
+		t.Errorf("Expected 12 criteria in column score, got %d", len(jsonRes.Columns[0].Score.Criteria))
 	}
 	var foundSpareVertLost bool
 	for _, crit := range jsonRes.Columns[0].Score.Criteria {
@@ -1127,5 +1128,77 @@ func TestFitCommand(t *testing.T) {
 	}
 	if !strings.Contains(out, "Candidate Physical Solutions (Geo slop is an absolute last resort):") {
 		t.Errorf("Expected candidate physical solutions table, got:\n%s", out)
+	}
+}
+
+func TestCompare_SaddleHbMetricAndSetCockpit(t *testing.T) {
+	dataDir, stateFile := setupTestEnv(t)
+
+	// 1. Run compare in standard text table mode
+	code, outText, errOut := runCLI(t, dataDir, stateFile, "", "compare", "havok:L@110mm@20%")
+	if code != 0 {
+		t.Fatalf("compare failed: %s", errOut)
+	}
+	if !strings.Contains(outText, "Saddle-HB @ 780mm") {
+		t.Errorf("Expected 'Saddle-HB @ 780mm' in table output, got:\n%s", outText)
+	}
+	if !strings.Contains(outText, "(60mm -6° +0mm)") {
+		t.Errorf("Expected '(60mm -6° +0mm)' in table output, got:\n%s", outText)
+	}
+
+	// 2. Run compare in JSON mode and verify Saddle-HB fields
+	code, outJSON, errOut := runCLI(t, dataDir, stateFile, "", "compare", "havok:L@110mm@20%", "--format", "json")
+	if code != 0 {
+		t.Fatalf("compare --format json failed: %s", errOut)
+	}
+	var res struct {
+		Columns []model.CanonicalComparisonRow `json:"columns"`
+	}
+	if err := json.Unmarshal([]byte(outJSON), &res); err != nil {
+		t.Fatalf("Failed to parse compare json: %v", err)
+	}
+	if len(res.Columns) != 1 {
+		t.Fatalf("Expected 1 column, got %d", len(res.Columns))
+	}
+	col := res.Columns[0]
+	if col.Canonical.SaddleHbMm <= 0 {
+		t.Errorf("Expected positive SaddleHbMm, got %.1f", col.Canonical.SaddleHbMm)
+	}
+	if col.Canonical.SelectedHB == nil {
+		t.Fatalf("Expected non-nil SelectedHB")
+	}
+	if col.Canonical.SelectedHB.Stem.LengthMm <= 0 {
+		t.Errorf("Expected positive stem length in SelectedHB, got %.1f", col.Canonical.SelectedHB.Stem.LengthMm)
+	}
+	if len(col.Canonical.PossibleHBs) == 0 {
+		t.Errorf("Expected non-empty PossibleHBs")
+	}
+
+	// 3. Test `bikegeo set` updating cockpit envelope on surly-ecr
+	code, _, errOut = runCLI(t, dataDir, stateFile, "", "set", "surly-ecr",
+		"canonical_stem=70/-6",
+		"max_spacer=35",
+		"stems=50/-6,70/-6,90/0",
+	)
+	if code != 0 {
+		t.Fatalf("set failed: %s", errOut)
+	}
+
+	store, err := storage.NewBikeStore(dataDir)
+	if err != nil {
+		t.Fatalf("failed to init bike store: %v", err)
+	}
+	frame, err := store.GetFrameByID("surly-ecr")
+	if err != nil {
+		t.Fatalf("Failed to reload frame surly-ecr: %v", err)
+	}
+	if frame.CanonicalStem == nil || frame.CanonicalStem.LengthMm != 70 || frame.CanonicalStem.AngleDeg != -6 {
+		t.Errorf("Expected CanonicalStem 70/-6, got %+v", frame.CanonicalStem)
+	}
+	if frame.MaxSpacerMm == nil || *frame.MaxSpacerMm != 35 {
+		t.Errorf("Expected MaxSpacerMm 35, got %v", frame.MaxSpacerMm)
+	}
+	if len(frame.Stems) != 3 {
+		t.Errorf("Expected 3 stems, got %d: %+v", len(frame.Stems), frame.Stems)
 	}
 }
