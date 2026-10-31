@@ -18,6 +18,8 @@ type AttributeMeta struct {
 }
 
 var registry = []AttributeMeta{
+	// Deprecated: setback measures horizontal distance to the bare seat tube centerline (SaddleHeight * cos(STA)),
+	// ignoring seatpost setback and saddle rails. Use brp_setback for BRP-referenced saddle setback.
 	{
 		ID:       "setback",
 		Label:    "Setback",
@@ -27,6 +29,7 @@ var registry = []AttributeMeta{
 			return row.Canonical.ActualSetback, true
 		},
 	},
+	// Deprecated: aett measures top-tube reach from the bare seat tube centerline.
 	{
 		ID:       "aett",
 		Label:    "AETT",
@@ -176,6 +179,29 @@ var registry = []AttributeMeta{
 		},
 	},
 	{
+		ID:       "brp_setback",
+		Label:    "BRP Setback",
+		Unit:     "mm",
+		Decimals: 0,
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.DeadCenterBRP.BrpSetbackMm <= 0 {
+				return 0, false
+			}
+			return row.Canonical.DeadCenterBRP.BrpSetbackMm, true
+		},
+		FormatVal: func(val float64, row *model.CanonicalComparisonRow) string {
+			if row != nil && row.Canonical.SelectedBRP != nil {
+				brp := row.Canonical.SelectedBRP
+				sign := "+"
+				if brp.RailOffsetMm < 0 {
+					sign = ""
+				}
+				return fmt.Sprintf("%.0f (rail %s%.0fmm)", brp.BrpSetbackMm, sign, brp.RailOffsetMm)
+			}
+			return fmt.Sprintf("%.0f", val)
+		},
+	},
+	{
 		ID:       "saddle_hb",
 		Label:    "Saddle-HB",
 		Unit:     "mm",
@@ -198,6 +224,25 @@ var registry = []AttributeMeta{
 			return fmt.Sprintf("%.0f", val)
 		},
 	},
+	{
+		ID:       "saddle_hb_drop",
+		Label:    "Saddle-HB Drop",
+		Unit:     "mm",
+		Decimals: 0,
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.SelectedHB == nil {
+				return 0, false
+			}
+			return row.Canonical.SelectedHB.SaddleHbDropMm, true
+		},
+		FormatVal: func(val float64, row *model.CanonicalComparisonRow) string {
+			sign := ""
+			if val > 0 {
+				sign = "+"
+			}
+			return fmt.Sprintf("%s%.0f", sign, val)
+		},
+	},
 }
 
 var registryMap = func() map[string]AttributeMeta {
@@ -216,6 +261,12 @@ var registryMap = func() map[string]AttributeMeta {
 // LookupAttribute returns the AttributeMeta for a given ID, or false if unknown.
 func LookupAttribute(id string) (AttributeMeta, bool) {
 	norm := strings.ToLower(strings.TrimSpace(id))
+	if norm == "brp" {
+		norm = "brp_setback"
+	}
+	if norm == "hb_drop" || norm == "drop" {
+		norm = "saddle_hb_drop"
+	}
 	meta, ok := registryMap[norm]
 	if !ok {
 		cleaned := strings.ReplaceAll(strings.ReplaceAll(norm, "_", ""), "-", "")

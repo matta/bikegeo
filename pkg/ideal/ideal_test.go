@@ -38,6 +38,48 @@ func TestLookupAttribute_SaddleHb(t *testing.T) {
 	}
 }
 
+func TestLookupAttribute_BrpSetbackAndDrop(t *testing.T) {
+	// BRP Setback lookup and variants
+	for _, variant := range []string{"brp_setback", "brp-setback", "brpsetback", "brp", "BRP", "BRP_SETBACK"} {
+		meta, ok := LookupAttribute(variant)
+		if !ok {
+			t.Errorf("LookupAttribute(%q) failed", variant)
+			continue
+		}
+		if meta.Label != "BRP Setback" || meta.Unit != "mm" {
+			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
+		}
+	}
+
+	// Saddle-HB Drop lookup and variants
+	for _, variant := range []string{"saddle_hb_drop", "saddle-hb-drop", "saddlehbdrop", "hb_drop", "drop", "SADDLE_HB_DROP"} {
+		meta, ok := LookupAttribute(variant)
+		if !ok {
+			t.Errorf("LookupAttribute(%q) failed", variant)
+			continue
+		}
+		if meta.Label != "Saddle-HB Drop" || meta.Unit != "mm" {
+			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
+		}
+	}
+}
+
+func TestIdmatchProfileValid(t *testing.T) {
+	p, err := LoadProfile("../../data/ideals", "idmatch")
+	if err != nil {
+		t.Fatalf("Failed to load idmatch profile: %v", err)
+	}
+	if p.Name != "idmatch" {
+		t.Errorf("Expected profile name 'idmatch', got %q", p.Name)
+	}
+	if p.SaddleHeightMm == nil || *p.SaddleHeightMm != 746.0 {
+		t.Errorf("Expected SaddleHeightMm 746, got %v", p.SaddleHeightMm)
+	}
+	if err := ValidateProfile(p); err != nil {
+		t.Fatalf("ValidateProfile failed on idmatch: %v", err)
+	}
+}
+
 func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
 	// Seat-RC: ideal >= 235, acceptable >= 220, edge_score 70, falloff below 20, floor -100
 	spec := AttributeSpec{

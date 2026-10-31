@@ -330,6 +330,9 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	seatHeight := 750.0
 	staDeg := 74.0
 
+	// BRP point with 0 offset matches bare seat tube top coordinates
+	brp := geometry.CalculateBRPPoint(staDeg, seatHeight, 0.0, 0.0, 0.0)
+
 	// Case 1: HTA = 73°, stem -17° (90° - 73° - 17° = 0° => stem extends strictly horizontally forward)
 	// spacer = 0 mm => d_steerer = 0 + 40/2 = 20 mm
 	// steererX = reach - 20 * cos(73°)
@@ -337,7 +340,7 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	// HbX = steererX + length * cos(0°) = steererX + 100
 	// HbY = steererY + length * sin(0°) = steererY
 	stem1 := model.StemSpec{LengthMm: 100.0, AngleDeg: -17.0}
-	hb1 := geometry.CalculateHBPoint(reach, stack, 73.0, staDeg, seatHeight, stem1, 0.0)
+	hb1 := geometry.CalculateHBPoint(reach, stack, 73.0, brp, stem1, 0.0)
 
 	expectedSteererX1 := reach - 20.0*math.Cos(73.0*math.Pi/180.0)
 	expectedSteererY1 := stack + 20.0*math.Sin(73.0*math.Pi/180.0)
@@ -363,7 +366,7 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	// d_steerer = 10 + 20 = 30 mm
 	// theta_stem = (90 - 70) + (-6) = 14°
 	stem2 := model.StemSpec{LengthMm: 80.0, AngleDeg: -6.0}
-	hb2 := geometry.CalculateHBPoint(reach, stack, 70.0, staDeg, seatHeight, stem2, 10.0)
+	hb2 := geometry.CalculateHBPoint(reach, stack, 70.0, brp, stem2, 10.0)
 
 	expectedSteererX2 := reach - 30.0*math.Cos(70.0*math.Pi/180.0)
 	expectedSteererY2 := stack + 30.0*math.Sin(70.0*math.Pi/180.0)
@@ -407,7 +410,8 @@ func TestMapPossibleHBs_And_SelectBestHB(t *testing.T) {
 		Stems:         stems,
 	}
 
-	points := geometry.MapPossibleHBs(bike, reach, stack, htaDeg, staDeg, seatHeight)
+	brp := geometry.CalculateBRPPoint(staDeg, seatHeight, 0.0, 0.0, 0.0)
+	points := geometry.MapPossibleHBs(bike, reach, stack, htaDeg, brp)
 	// 3 stems * 5 spacers = 15 points
 	if len(points) != 15 {
 		t.Fatalf("Expected 15 possible HB points, got %d", len(points))
@@ -467,5 +471,144 @@ func TestMapPossibleHBs_And_SelectBestHB(t *testing.T) {
 	// The 60mm stem (canonical length) must win over 50mm or 70mm
 	if bestTie.Stem.LengthMm != canonical.LengthMm {
 		t.Errorf("Expected canonical stem length %.0fmm to win tie-break, got %.0fmm", canonical.LengthMm, bestTie.Stem.LengthMm)
+	}
+}
+
+func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
+	// idmatch report: Saddle height = 746mm (exact hypot(219, 713) = 745.88mm)
+	// BRP: X = -219.0mm, Z = 713.0mm => angle from BB = 72.93°
+	seatHeight := 746.0
+
+	// Test 1: On a frame with STA = 72.9255° and 0 offset, BRP is exactly (-219.0, 713.0)
+	brpZero := geometry.CalculateBRPPoint(72.9255, seatHeight, 0.0, 0.0, 0.0)
+	if math.Abs(brpZero.BrpX-(-219.0)) > 0.5 {
+		t.Errorf("Expected BrpX ~ -219.0, got %.1f", brpZero.BrpX)
+	}
+	if math.Abs(brpZero.BrpY-713.0) > 0.5 {
+		t.Errorf("Expected BrpY ~ 713.0, got %.1f", brpZero.BrpY)
+	}
+	if brpZero.BrpSetbackMm != 219.0 {
+		t.Errorf("Expected BrpSetbackMm 219.0, got %.1f", brpZero.BrpSetbackMm)
+	}
+	if math.Abs(brpZero.BrpAngleFromBbDeg-72.9) > 0.1 {
+		t.Errorf("Expected BrpAngleFromBbDeg 72.9°, got %.1f°", brpZero.BrpAngleFromBbDeg)
+	}
+
+	// Test 2: Radial distance invariance hypot(BrpX, BrpY) == seatHeight across various offsets
+	for _, railOffset := range []float64{-20.0, -10.0, 0.0, 5.0, 15.0, 20.0} {
+		brp := geometry.CalculateBRPPoint(74.0, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSaddleBrpOffsetMm, railOffset)
+		r := math.Hypot(brp.BrpX, brp.BrpY)
+		if math.Abs(r-seatHeight) > 0.15 {
+			t.Errorf("Radial distance violated for railOffset=%.1f: expected %.1f, got %.2f", railOffset, seatHeight, r)
+		}
+	}
+
+	// Test 3: CalculateHBPoint reproduces idmatch Saddle-Handlebar distance d=700mm and drop c=+13mm
+	// In the report, BRP = (-219, 713) and HB = (481, 726)
+	brpReport := model.BRPPoint{
+		BrpX:         -219.0,
+		BrpY:         713.0,
+		BrpSetbackMm: 219.0,
+	}
+	// Place steerer and stem such that HbX=481.0, HbY=726.0
+	// For HTA=90°, stem length=81mm at angle 0°: steererX = 400, steererY = 726 => HbX=481, HbY=726
+	reach := 400.0 + 20.0*math.Cos(90.0*math.Pi/180.0) // 400
+	stack := 726.0 - 20.0*math.Sin(90.0*math.Pi/180.0) // 706
+	stem := model.StemSpec{LengthMm: 81.0, AngleDeg: 0.0}
+	hb := geometry.CalculateHBPoint(reach, stack, 90.0, brpReport, stem, 0.0)
+
+	if math.Abs(hb.SaddleHbMm-700.1) > 0.2 {
+		t.Errorf("Expected SaddleHbMm ~ 700.1mm, got %.1fmm", hb.SaddleHbMm)
+	}
+	if math.Abs(hb.SaddleHbDropMm-13.0) > 0.1 {
+		t.Errorf("Expected SaddleHbDropMm 13.0mm, got %.1fmm", hb.SaddleHbDropMm)
+	}
+}
+
+func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
+	staDeg := 74.5
+	seatHeight := 746.0
+
+	points := geometry.MapPossibleBRPs(staDeg, seatHeight)
+	// -20 to +20 in 1mm steps = 41 points
+	if len(points) != 41 {
+		t.Fatalf("Expected 41 candidate BRP points, got %d", len(points))
+	}
+
+	// 1. Without target, should select dead-center (RailOffsetMm = 0)
+	bestNoTarget, ok := geometry.SelectBestBRP(points, nil, nil)
+	if !ok {
+		t.Fatalf("SelectBestBRP returned false")
+	}
+	if math.Abs(bestNoTarget.RailOffsetMm) > 0.001 {
+		t.Errorf("Expected 0 rail offset without target, got %.1f", bestNoTarget.RailOffsetMm)
+	}
+
+	// 2. Target 219mm (reachable on STA=74.5°)
+	tMin := 218.5
+	tMax := 219.5
+	bestTarget, ok := geometry.SelectBestBRP(points, &tMin, &tMax)
+	if !ok {
+		t.Fatalf("SelectBestBRP returned false")
+	}
+	if math.Abs(bestTarget.BrpSetbackMm-219.0) > 0.5 {
+		t.Errorf("Expected BrpSetbackMm ~ 219.0, got %.1f", bestTarget.BrpSetbackMm)
+	}
+	// For STA=74.5°, dead-center setback is ~206mm, so moving ~+13mm rearward achieves 219mm
+	if bestTarget.RailOffsetMm < 12.0 || bestTarget.RailOffsetMm > 15.0 {
+		t.Errorf("Expected RailOffsetMm between +12 and +15mm, got %.1f", bestTarget.RailOffsetMm)
+	}
+
+	// 3. Target 219mm on very slack STA=71.9° (Surly Krampus): dead center is ~248mm, requires -30mm (clamps to -20mm)
+	slackPoints := geometry.MapPossibleBRPs(71.9, seatHeight)
+	bestClamped, ok := geometry.SelectBestBRP(slackPoints, &tMin, &tMax)
+	if !ok {
+		t.Fatalf("SelectBestBRP returned false for slack points")
+	}
+	if bestClamped.RailOffsetMm != -model.SaddleRailMaxAdjustmentMm {
+		t.Errorf("Expected clamp to -20mm rail offset, got %.1f", bestClamped.RailOffsetMm)
+	}
+}
+
+func TestSelectBestHBWithDrop_Hierarchy(t *testing.T) {
+	canonicalStem := model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0}
+
+	// ptA: SaddleHbMm = 700 (inside distance [695, 705]), SaddleHbDropMm = 25 (12mm away from drop target 13)
+	// ptB: SaddleHbMm = 700 (inside distance [695, 705]), SaddleHbDropMm = 14 (1mm away from drop target 13)
+	// ptC: SaddleHbMm = 708 (3mm away from distance), SaddleHbDropMm = 13 (0mm away from drop target)
+	ptA := model.HBPoint{
+		Stem:           model.StemSpec{LengthMm: 60, AngleDeg: 0},
+		SpacerMm:       20,
+		SaddleHbMm:     700.0,
+		SaddleHbDropMm: 25.0,
+	}
+	ptB := model.HBPoint{
+		Stem:           model.StemSpec{LengthMm: 60, AngleDeg: -6},
+		SpacerMm:       10,
+		SaddleHbMm:     700.0,
+		SaddleHbDropMm: 14.0,
+	}
+	ptC := model.HBPoint{
+		Stem:           model.StemSpec{LengthMm: 70, AngleDeg: -6},
+		SpacerMm:       10,
+		SaddleHbMm:     708.0,
+		SaddleHbDropMm: 13.0,
+	}
+
+	pts := []model.HBPoint{ptA, ptC, ptB}
+	distMin := 695.0
+	distMax := 705.0
+	dropMin := 8.0
+	dropMax := 18.0
+
+	// ptB must win over ptA because both are in distance target range [695, 705], but ptB is in drop target range [8, 18].
+	// ptB must win over ptC because distance is PRIMARY (ptC is outside distance range [695, 705]).
+	best, ok := geometry.SelectBestHBWithDrop(pts, canonicalStem, &distMin, &distMax, &dropMin, &dropMax)
+	if !ok {
+		t.Fatalf("SelectBestHBWithDrop returned false")
+	}
+	if best.SaddleHbMm != 700.0 || best.SaddleHbDropMm != 14.0 {
+		t.Errorf("Expected ptB (700mm, drop 14mm) to win primary distance / secondary drop hierarchy, got dist=%.1f, drop=%.1f",
+			best.SaddleHbMm, best.SaddleHbDropMm)
 	}
 }

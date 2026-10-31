@@ -260,8 +260,8 @@ func (a *App) runCompare(args []string) int {
 	}
 	state.IdealProfile = prof.Name
 
-	if prof.SaddleHeightMm != nil && state.SaddleHeightMm > 0 && math.Abs(state.SaddleHeightMm-*prof.SaddleHeightMm) >= 0.5 {
-		fmt.Fprintf(a.Err, "Warning: ideal profile %q was designed for saddle height %.0fmm (current rider saddle height: %.0fmm)\n", prof.Name, *prof.SaddleHeightMm, state.SaddleHeightMm)
+	if prof.SaddleHeightMm != nil && *prof.SaddleHeightMm > 0 {
+		state.SaddleHeightMm = *prof.SaddleHeightMm
 	}
 
 	// Resolve and validate all columns against frame constraints
@@ -1052,15 +1052,7 @@ func (a *App) renderComparisonMatrix(
 		prof = def
 	}
 
-	var targetMin, targetMax *float64
-	for _, attr := range prof.Attributes {
-		if strings.EqualFold(attr.ID, "saddle_hb") && attr.Ideal != nil {
-			targetMin = attr.Ideal.Min
-			targetMax = attr.Ideal.Max
-			break
-		}
-	}
-	canonicalizer.ApplyIdealHBTarget(rows, targetMin, targetMax)
+	canonicalizer.ApplyIdealCockpitTargets(rows, prof)
 
 	var scoreResults []scoring.Result
 	if scoringEnabled {
@@ -1195,10 +1187,38 @@ func (a *App) renderComparisonMatrix(
 				}
 				sub := math.Round(subScores[id])
 				lost := math.Round(pointsLost[id])
+				scorePart := fmt.Sprintf("%.0f", sub)
 				if lost >= 1 {
-					return fmt.Sprintf("%.0f (-%.0f)", sub, lost)
+					scorePart = fmt.Sprintf("%.0f (-%.0f)", sub, lost)
 				}
-				return fmt.Sprintf("%.0f", sub)
+
+				lowID := strings.ToLower(id)
+				if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && item.row.Canonical.SelectedBRP != nil {
+					brp := item.row.Canonical.SelectedBRP
+					sign := "+"
+					if brp.RailOffsetMm < 0 {
+						sign = ""
+					}
+					return fmt.Sprintf("%s [rail %s%.0fmm]", scorePart, sign, brp.RailOffsetMm)
+				}
+				if (lowID == "saddle_hb" || lowID == "saddlehb") && item.row.Canonical.SelectedHB != nil && item.row.Canonical.SelectedHB.Stem.LengthMm > 0 {
+					hb := item.row.Canonical.SelectedHB
+					sign := "+"
+					if hb.SpacerMm < 0 {
+						sign = ""
+					}
+					return fmt.Sprintf("%s [%.0fmm %.0f° %s%.0fmm]", scorePart, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm)
+				}
+				if (lowID == "saddle_hb_drop" || lowID == "hb_drop" || lowID == "saddlehbdrop") && item.row.Canonical.SelectedHB != nil {
+					drop := item.row.Canonical.SelectedHB.SaddleHbDropMm
+					sign := ""
+					if drop > 0 {
+						sign = "+"
+					}
+					return fmt.Sprintf("%s [%s%.0fmm]", scorePart, sign, drop)
+				}
+
+				return scorePart
 			}
 			formatTotalCell := func(total float64) string {
 				rndTotal := math.Round(total)
@@ -1359,7 +1379,7 @@ func (a *App) renderComparisonMatrix(
 		for _, attr := range prof.Attributes {
 			meta, _ := ideal.LookupAttribute(attr.ID)
 			label := meta.Label
-			if strings.EqualFold(attr.ID, "aett") || strings.EqualFold(attr.ID, "setback") || strings.EqualFold(attr.ID, "saddle_hb") {
+			if strings.EqualFold(attr.ID, "aett") || strings.EqualFold(attr.ID, "setback") || strings.EqualFold(attr.ID, "saddle_hb") || strings.EqualFold(attr.ID, "brp_setback") || strings.EqualFold(attr.ID, "saddle_hb_drop") {
 				label = fmt.Sprintf("%s @ %.0fmm", meta.Label, state.SaddleHeightMm)
 			}
 			idealStr := ideal.FormatRange(attr.Ideal, meta.Unit, meta.Decimals)

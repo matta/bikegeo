@@ -8,6 +8,7 @@ import (
 
 	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
+	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/validator"
 )
@@ -384,12 +385,19 @@ func CanonicalizeBikes(
 		baseCS := math.Max(activeCS, bike.BbDrop+1.0)
 		baseRearCenter := math.Sqrt(math.Max(0, baseCS*baseCS-bike.BbDrop*bike.BbDrop))
 
+		baseBRP := geometry.CalculateBRPPoint(
+			baseSta,
+			seatHeight,
+			model.DefaultSeatpostSetbackMm,
+			model.DefaultSaddleBrpOffsetMm,
+			0.0,
+		)
+
 		baseHB := geometry.CalculateHBPoint(
 			bike.Reach,
 			bike.Stack,
 			bike.HtaDeg,
-			baseSta,
-			seatHeight,
+			baseBRP,
 			bike.GetCanonicalStem(),
 			0.0,
 		)
@@ -434,14 +442,68 @@ func CanonicalizeBikes(
 	return rows, nil
 }
 
-// ApplyIdealHBTarget updates each row's canonical SelectedHB and SaddleHbMm
-// by selecting the optimal HB point from PossibleHBs against the target range [targetMin, targetMax].
+// ApplyIdealCockpitTargets updates each row's canonical SelectedBRP, SelectedHB, SaddleHbMm, and SaddleHbDropMm
+// by first selecting the optimal BRP position along the saddle rails against the brp_setback target,
+// re-mapping possible HB points from that BRP, and then selecting the optimal HB point against saddle_hb (primary)
+// and saddle_hb_drop (secondary) targets.
+func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.Profile) {
+	if prof == nil {
+		return
+	}
+
+	var brpMin, brpMax *float64
+	var distMin, distMax *float64
+	var dropMin, dropMax *float64
+
+	for _, attr := range prof.Attributes {
+		lowID := strings.ToLower(attr.ID)
+		if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && attr.Ideal != nil {
+			brpMin = attr.Ideal.Min
+			brpMax = attr.Ideal.Max
+		} else if (lowID == "saddle_hb" || lowID == "saddlehb") && attr.Ideal != nil {
+			distMin = attr.Ideal.Min
+			distMax = attr.Ideal.Max
+		} else if (lowID == "saddle_hb_drop" || lowID == "hb_drop" || lowID == "saddlehbdrop") && attr.Ideal != nil {
+			dropMin = attr.Ideal.Min
+			dropMax = attr.Ideal.Max
+		}
+	}
+
+	for i := range rows {
+		can := &rows[i].Canonical
+		// 1. Optimize BRP on saddle rails if candidate BRPs exist
+		if len(can.PossibleBRPs) > 0 {
+			if bestBRP, ok := geometry.SelectBestBRP(can.PossibleBRPs, brpMin, brpMax); ok {
+				can.SelectedBRP = &bestBRP
+			}
+			activeBRP := can.DeadCenterBRP
+			if can.SelectedBRP != nil {
+				activeBRP = *can.SelectedBRP
+			}
+			// 2. Re-map PossibleHBs referencing the selected BRP
+			can.PossibleHBs = geometry.MapPossibleHBs(rows[i].Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP)
+		}
+
+		// 3. Select best HB point (saddle_hb primary, saddle_hb_drop secondary)
+		if len(can.PossibleHBs) > 0 {
+			if bestHB, ok := geometry.SelectBestHBWithDrop(can.PossibleHBs, rows[i].Bike.GetCanonicalStem(), distMin, distMax, dropMin, dropMax); ok {
+				can.SelectedHB = &bestHB
+				can.SaddleHbMm = bestHB.SaddleHbMm
+				can.SaddleHbDropMm = bestHB.SaddleHbDropMm
+			}
+		}
+	}
+}
+
+// ApplyIdealHBTarget is retained for backward compatibility, optimizing HB points against a distance target.
 func ApplyIdealHBTarget(rows []model.CanonicalComparisonRow, targetMin, targetMax *float64) {
 	for i := range rows {
-		if len(rows[i].Canonical.PossibleHBs) > 0 {
-			if best, ok := geometry.SelectBestHB(rows[i].Canonical.PossibleHBs, rows[i].Bike.GetCanonicalStem(), targetMin, targetMax); ok {
-				rows[i].Canonical.SelectedHB = &best
-				rows[i].Canonical.SaddleHbMm = best.SaddleHbMm
+		can := &rows[i].Canonical
+		if len(can.PossibleHBs) > 0 {
+			if best, ok := geometry.SelectBestHB(can.PossibleHBs, rows[i].Bike.GetCanonicalStem(), targetMin, targetMax); ok {
+				can.SelectedHB = &best
+				can.SaddleHbMm = best.SaddleHbMm
+				can.SaddleHbDropMm = best.SaddleHbDropMm
 			}
 		}
 	}

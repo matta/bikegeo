@@ -322,13 +322,49 @@ func (e StemCatalogEntry) Expand() []StemSpec {
 	return stems
 }
 
-// HBPoint represents a mapped handlebar-stem intersection point (HB) and its resulting Saddle-Handlebar distance.
+// DefaultSeatpostSetbackMm is the perpendicular rearward offset (in mm) of the seatpost clamp
+// from the seat tube centerline (modeled on a Redshift ShockStop suspension seatpost: 7mm static, up to 12mm sagged).
+const DefaultSeatpostSetbackMm = 7.0
+
+// DefaultSaddleBrpOffsetMm is the perpendicular rearward offset (in mm) from the center of the
+// saddle rails to the saddle's 70mm-width Biomechanical Reference Point (BRP).
+// For SQlab stepped Ergowave saddles with extended rails, the effective BRP sits at the rail center (0.0mm).
+const DefaultSaddleBrpOffsetMm = 0.0
+
+// DefaultBrpOffsetMm is the total perpendicular offset (in mm) from the seat tube centerline
+// to the BRP when the saddle is clamped at dead center (0mm) on the rails (7.0 + 0.0 = 7.0mm).
+const DefaultBrpOffsetMm = DefaultSeatpostSetbackMm + DefaultSaddleBrpOffsetMm
+
+// SaddleRailIdealMarginMm is the fore-aft rail offset window (±mm from dead center of rails) considered ideal.
+const SaddleRailIdealMarginMm = 5.0
+
+// SaddleRailMaxAdjustmentMm is the maximum safe fore-aft adjustment (±mm from dead center of rails; 40mm total window).
+const SaddleRailMaxAdjustmentMm = 20.0
+
+// SaddleRailStepMm is the discrete step size (in mm) when mapping candidate BRP positions along the saddle rails.
+const SaddleRailStepMm = 1.0
+
+// BRPPoint represents a saddle Biomechanical Reference Point (70mm width mark)
+// for a specific fore-aft rail offset along the constant-radius SaddleHeightMm arc.
+type BRPPoint struct {
+	SeatpostSetbackMm float64 `json:"seatpost_setback_mm"`
+	SaddleBrpOffsetMm float64 `json:"saddle_brp_offset_mm"`
+	RailOffsetMm      float64 `json:"rail_offset_mm"`
+	TotalPerpOffsetMm float64 `json:"total_perp_offset_mm"`
+	BrpX              float64 `json:"brp_x"`
+	BrpY              float64 `json:"brp_y"`
+	BrpSetbackMm      float64 `json:"brp_setback_mm"`
+	BrpAngleFromBbDeg float64 `json:"brp_angle_from_bb_deg"`
+}
+
+// HBPoint represents a mapped handlebar-stem intersection point (HB) and its resulting Saddle-Handlebar distance and drop.
 type HBPoint struct {
-	Stem       StemSpec `json:"stem"`
-	SpacerMm   float64  `json:"spacer_mm"`
-	HbX        float64  `json:"hb_x"`
-	HbY        float64  `json:"hb_y"`
-	SaddleHbMm float64  `json:"saddle_hb_mm"`
+	Stem           StemSpec `json:"stem"`
+	SpacerMm       float64  `json:"spacer_mm"`
+	HbX            float64  `json:"hb_x"`
+	HbY            float64  `json:"hb_y"`
+	SaddleHbMm     float64  `json:"saddle_hb_mm"`
+	SaddleHbDropMm float64  `json:"saddle_hb_drop_mm"`
 }
 
 func (b BikeGeometry) GetMaxSpacerMm() float64 {
@@ -967,10 +1003,14 @@ type BikeFitAnalysis struct {
 	ActiveChainstay    float64 `json:"active_chainstay"`
 	ChainstayDesc      string  `json:"chainstay_desc"`
 
-	// Cockpit HB Point & Saddle-Handlebar Distance
-	SaddleHbMm  float64   `json:"saddle_hb_mm"`
-	SelectedHB  *HBPoint  `json:"selected_hb,omitempty"`
-	PossibleHBs []HBPoint `json:"possible_hbs,omitempty"`
+	// Cockpit BRP & HB Points and Saddle-Handlebar Metrics
+	DeadCenterBRP  BRPPoint   `json:"dead_center_brp"`
+	SelectedBRP    *BRPPoint  `json:"selected_brp,omitempty"`
+	PossibleBRPs   []BRPPoint `json:"possible_brps,omitempty"`
+	SaddleHbMm     float64    `json:"saddle_hb_mm"`
+	SaddleHbDropMm float64    `json:"saddle_hb_drop_mm"`
+	SelectedHB     *HBPoint   `json:"selected_hb,omitempty"`
+	PossibleHBs    []HBPoint  `json:"possible_hbs,omitempty"`
 }
 
 type BaselineMetrics struct {

@@ -1,0 +1,135 @@
+{
+  "name": "idmatch",
+  "description": "Biomechanical fit profile based on idmatch Bikelab report (BRP -> HB)",
+  "saddle_height_mm": 746,
+  "attributes": [
+    {
+      "id": "brp_setback",
+      "weight": 10,
+      "ideal": {
+        "min": 219,
+        "max": 219
+      },
+      "acceptable": {
+        "min": 214,
+        "max": 224
+      },
+      "edge_score": 75,
+      "falloff": {
+        "below": 20,
+        "above": 20
+      },
+      "floor": -200
+    },
+    {
+      "id": "saddle_hb",
+      "weight": 10,
+      "ideal": {
+        "min": 695,
+        "max": 705
+      },
+      "acceptable": {
+        "min": 685,
+        "max": 715
+      },
+      "edge_score": 75,
+      "falloff": {
+        "below": 15,
+        "above": 15
+      },
+      "floor": -200
+    },
+    {
+      "id": "saddle_hb_drop",
+      "weight": 5,
+      "ideal": {
+        "min": 8,
+        "max": 18
+      },
+      "acceptable": {
+        "min": 0,
+        "max": 26
+      },
+      "edge_score": 75,
+      "falloff": {
+        "below": 10,
+        "above": 10
+      },
+      "floor": -100
+    },
+    {
+      "id": "bbdrop",
+      "weight": 3,
+      "ideal": {
+        "min": 70,
+        "max": 70
+      },
+      "acceptable": {
+        "min": 60,
+        "max": 80
+      },
+      "edge_score": 75,
+      "falloff": {
+        "below": 10,
+        "above": 10
+      },
+      "floor": -100
+    },
+    {
+      "id": "hta",
+      "weight": 2,
+      "ideal": {
+        "min": 68,
+        "max": 69
+      },
+      "acceptable": {
+        "min": 67.5,
+        "max": 69.5
+      },
+      "edge_score": 75,
+      "falloff": {
+        "below": 0.5,
+        "above": 0.5
+      },
+      "floor": -200
+    },
+    {
+      "id": "frontwt",
+      "weight": 1,
+      "ideal": {
+        "min": 38
+      },
+      "acceptable": {
+        "min": 38
+      },
+      "falloff": {
+        "below": 5
+      },
+      "floor": -100
+    },
+    {
+      "id": "reach"
+    },
+    {
+      "id": "stack"
+    },
+    {
+      "id": "sta"
+    },
+    {
+      "id": "chainstay"
+    },
+    {
+      "id": "setback"
+    },
+    {
+      "id": "aett"
+    },
+    {
+      "id": "sparevert"
+    },
+    {
+      "id": "seat_to_rc"
+    }
+  ]
+}

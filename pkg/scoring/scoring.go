@@ -573,22 +573,47 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	var evals []attrEval
 	totalActiveWeight := 0.0
 
+	var brpMin, brpMax *float64
+	var distMin, distMax *float64
+	var dropMin, dropMax *float64
+
+	for _, spec := range prof.Attributes {
+		lowID := strings.ToLower(spec.ID)
+		if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && spec.Ideal != nil {
+			brpMin = spec.Ideal.Min
+			brpMax = spec.Ideal.Max
+		} else if (lowID == "saddle_hb" || lowID == "saddlehb") && spec.Ideal != nil {
+			distMin = spec.Ideal.Min
+			distMax = spec.Ideal.Max
+		} else if (lowID == "saddle_hb_drop" || lowID == "hb_drop" || lowID == "saddlehbdrop") && spec.Ideal != nil {
+			dropMin = spec.Ideal.Min
+			dropMax = spec.Ideal.Max
+		}
+	}
+
+	can := &row.Canonical
+	if len(can.PossibleBRPs) > 0 {
+		if bestBRP, ok := geometry.SelectBestBRP(can.PossibleBRPs, brpMin, brpMax); ok {
+			can.SelectedBRP = &bestBRP
+		}
+		activeBRP := can.DeadCenterBRP
+		if can.SelectedBRP != nil {
+			activeBRP = *can.SelectedBRP
+		}
+		can.PossibleHBs = geometry.MapPossibleHBs(row.Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP)
+	}
+	if len(can.PossibleHBs) > 0 {
+		if bestHB, ok := geometry.SelectBestHBWithDrop(can.PossibleHBs, row.Bike.GetCanonicalStem(), distMin, distMax, dropMin, dropMax); ok {
+			can.SelectedHB = &bestHB
+			can.SaddleHbMm = bestHB.SaddleHbMm
+			can.SaddleHbDropMm = bestHB.SaddleHbDropMm
+		}
+	}
+
 	for _, spec := range prof.Attributes {
 		meta, ok := ideal.LookupAttribute(spec.ID)
 		if !ok {
 			continue
-		}
-
-		if strings.EqualFold(spec.ID, "saddle_hb") && len(row.Canonical.PossibleHBs) > 0 {
-			var minT, maxT *float64
-			if spec.Ideal != nil {
-				minT = spec.Ideal.Min
-				maxT = spec.Ideal.Max
-			}
-			if best, ok := geometry.SelectBestHB(row.Canonical.PossibleHBs, row.Bike.GetCanonicalStem(), minT, maxT); ok {
-				row.Canonical.SelectedHB = &best
-				row.Canonical.SaddleHbMm = best.SaddleHbMm
-			}
 		}
 
 		val, ok := meta.Extract(row)
@@ -695,10 +720,33 @@ func ScoreAllRows(rows []model.CanonicalComparisonRow, prof *ideal.Profile) []Re
 
 // DescribeLoss generates plain-English explanation for why points were lost on an attribute.
 func DescribeLoss(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val float64, dist float64, zone ideal.ZoneType) string {
+	return DescribeLossWithRow(spec, meta, val, dist, zone, nil)
+}
+
+// DescribeLossWithRow generates plain-English explanation for why points were lost on an attribute,
+// incorporating cockpit setup context (such as rail offset or stem/spacer configuration) if available.
+func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val float64, dist float64, zone ideal.ZoneType, row *model.CanonicalComparisonRow) string {
+	label := meta.Label
 	lowID := strings.ToLower(spec.ID)
+
+	if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && row != nil && row.Canonical.SelectedBRP != nil {
+		brp := row.Canonical.SelectedBRP
+		sign := "+"
+		if brp.RailOffsetMm < 0 {
+			sign = ""
+		}
+		label = fmt.Sprintf("%s (rail %s%.0fmm)", meta.Label, sign, brp.RailOffsetMm)
+	} else if (lowID == "saddle_hb" || lowID == "saddlehb") && row != nil && row.Canonical.SelectedHB != nil && row.Canonical.SelectedHB.Stem.LengthMm > 0 {
+		hb := row.Canonical.SelectedHB
+		sign := "+"
+		if hb.SpacerMm < 0 {
+			sign = ""
+		}
+		label = fmt.Sprintf("%s (%.0fmm %.0f° %s%.0fmm)", meta.Label, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm)
+	}
+
 	switch lowID {
 	case "hta", "sta":
-		label := meta.Label
 		target := 68.0
 		if dist < 0 {
 			if spec.Ideal != nil && spec.Ideal.Min != nil {
@@ -725,16 +773,16 @@ func DescribeLoss(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val float6
 	if dist < 0 {
 		if spec.Acceptable != nil && spec.Acceptable.Min != nil && val < *spec.Acceptable.Min {
 			accStr := formatValue(meta.Unit, *spec.Acceptable.Min)
-			return fmt.Sprintf("%s %s is %s short of the %s sweet spot", meta.Label, valStr, distStr, accStr)
+			return fmt.Sprintf("%s %s is %s short of the %s sweet spot", label, valStr, distStr, accStr)
 		}
-		return fmt.Sprintf("%s %s is %s short of ideal", meta.Label, valStr, distStr)
+		return fmt.Sprintf("%s %s is %s short of ideal", label, valStr, distStr)
 	}
 
 	if spec.Acceptable != nil && spec.Acceptable.Max != nil && val > *spec.Acceptable.Max {
 		accStr := formatValue(meta.Unit, *spec.Acceptable.Max)
-		return fmt.Sprintf("%s %s is %s past the %s sweet spot", meta.Label, valStr, distStr, accStr)
+		return fmt.Sprintf("%s %s is %s past the %s sweet spot", label, valStr, distStr, accStr)
 	}
-	return fmt.Sprintf("%s %s is %s past ideal", meta.Label, valStr, distStr)
+	return fmt.Sprintf("%s %s is %s past ideal", label, valStr, distStr)
 }
 
 // ExplainProfile generates plain-English summary explanations for frames scored against an ideal profile.
@@ -777,7 +825,7 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 			}
 
 			if math.Round(cr.PointsLost) >= 3.0 {
-				desc := DescribeLoss(spec, meta, cr.Value, cr.DistanceToIdeal, ideal.ZoneType(cr.Zone))
+				desc := DescribeLossWithRow(spec, meta, cr.Value, cr.DistanceToIdeal, ideal.ZoneType(cr.Zone), &f.Row)
 				losses = append(losses, lossItem{
 					pointsLost: cr.PointsLost,
 					text:       fmt.Sprintf("%s (-%.0f)", desc, math.Round(cr.PointsLost)),

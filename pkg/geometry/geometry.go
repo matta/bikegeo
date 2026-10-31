@@ -78,93 +78,65 @@ func CalculateActualSetback(staDeg, seatHeight float64) float64 {
 	return Round(seatHeight*math.Cos(sta), 1)
 }
 
-// CalculateHBPoint calculates the HB reference point (center of the stem handlebar clamp)
-// and the Saddle-Handlebar distance from the top of the seatpost (at rider saddle height along effective STA).
-// Steerer tube extends upward and rearward at polar angle (180° - HTA).
-// Stem clamp center sits at d_steerer = spacerMm + StemThicknessMm/2.0 along the steerer axis:
-//
-//	SteererX = reach - d_steerer * cos(HTA)
-//	SteererY = stack + d_steerer * sin(HTA)
-//
-// Stem angle is rotated 90° clockwise from the upward steerer axis, then rotated AngleDeg:
-//
-//	theta_stem = (180° - HTA) - 90° + AngleDeg = (90° - HTA) + AngleDeg
-//	HbX = SteererX + stem.LengthMm * cos(theta_stem)
-//	HbY = SteererY + stem.LengthMm * sin(theta_stem)
-//
-// Seatpost top at rider saddle height along STA:
-//
-//	SeatX = -seatHeight * cos(STA)
-//	SeatY = seatHeight * sin(STA)
-//
-// Distance:
-//
-//	SaddleHbMm = hypot(HbX - SeatX, HbY - SeatY)
-func CalculateHBPoint(
-	reach, stack, htaDeg, staDeg, seatHeight float64,
-	stem model.StemSpec,
-	spacerMm float64,
-) model.HBPoint {
-	hta := ToRad(htaDeg)
+// CalculateBRPPoint computes the saddle Biomechanical Reference Point (BRP) coordinates,
+// horizontal setback, and angle from BB at radial distance seatHeight from BB (0,0)
+// with perpendicular offset (seatpostSetbackMm + saddleBrpOffsetMm + railOffsetMm) behind the seat tube axis.
+func CalculateBRPPoint(
+	staDeg, seatHeight, seatpostSetbackMm, saddleBrpOffsetMm, railOffsetMm float64,
+) model.BRPPoint {
 	sta := ToRad(staDeg)
+	totalPerp := seatpostSetbackMm + saddleBrpOffsetMm + railOffsetMm
 
-	seatX := -seatHeight * math.Cos(sta)
-	seatY := seatHeight * math.Sin(sta)
+	axial := math.Sqrt(math.Max(0, seatHeight*seatHeight-totalPerp*totalPerp))
+	brpX := -axial*math.Cos(sta) - totalPerp*math.Sin(sta)
+	brpY := axial*math.Sin(sta) - totalPerp*math.Cos(sta)
 
-	dSteerer := spacerMm + model.StemThicknessMm/2.0
-	steererX := reach - dSteerer*math.Cos(hta)
-	steererY := stack + dSteerer*math.Sin(hta)
+	setback := -brpX
+	angleFromBb := 0.0
+	if setback > 0 && brpY > 0 {
+		angleFromBb = ToDeg(math.Atan2(brpY, setback))
+	}
 
-	thetaStem := ToRad((90.0 - htaDeg) + stem.AngleDeg)
-	hbX := steererX + stem.LengthMm*math.Cos(thetaStem)
-	hbY := steererY + stem.LengthMm*math.Sin(thetaStem)
-
-	dist := math.Hypot(hbX-seatX, hbY-seatY)
-
-	return model.HBPoint{
-		Stem:       stem,
-		SpacerMm:   spacerMm,
-		HbX:        Round(hbX, 1),
-		HbY:        Round(hbY, 1),
-		SaddleHbMm: Round(dist, 1),
+	return model.BRPPoint{
+		SeatpostSetbackMm: seatpostSetbackMm,
+		SaddleBrpOffsetMm: saddleBrpOffsetMm,
+		RailOffsetMm:      railOffsetMm,
+		TotalPerpOffsetMm: Round(totalPerp, 1),
+		BrpX:              Round(brpX, 1),
+		BrpY:              Round(brpY, 1),
+		BrpSetbackMm:      Round(setback, 1),
+		BrpAngleFromBbDeg: Round(angleFromBb, 1),
 	}
 }
 
-// MapPossibleHBs maps all possible HB points for a bike across its allowed stems and spacer stack heights.
-func MapPossibleHBs(
-	bike model.BikeGeometry,
-	activeReach, activeStack, activeHta, activeSta, seatHeight float64,
-) []model.HBPoint {
-	stems := bike.Stems
-	if len(stems) == 0 && bike.CanonicalStem != nil && bike.CanonicalStem.LengthMm > 0 {
-		stems = []model.StemSpec{*bike.CanonicalStem}
-	}
-	spacers := bike.GetSpacersMm()
-
-	var points []model.HBPoint
-	for _, st := range stems {
-		for _, sp := range spacers {
-			pt := CalculateHBPoint(activeReach, activeStack, activeHta, activeSta, seatHeight, st, sp)
-			points = append(points, pt)
-		}
+// MapPossibleBRPs maps candidate BRP points across the usable rail adjustment range
+// [-SaddleRailMaxAdjustmentMm, +SaddleRailMaxAdjustmentMm] in SaddleRailStepMm steps.
+func MapPossibleBRPs(staDeg, seatHeight float64) []model.BRPPoint {
+	var points []model.BRPPoint
+	for r := -model.SaddleRailMaxAdjustmentMm; r <= model.SaddleRailMaxAdjustmentMm+0.001; r += model.SaddleRailStepMm {
+		pt := CalculateBRPPoint(
+			staDeg,
+			seatHeight,
+			model.DefaultSeatpostSetbackMm,
+			model.DefaultSaddleBrpOffsetMm,
+			Round(r, 1),
+		)
+		points = append(points, pt)
 	}
 	return points
 }
 
-// SelectBestHB selects the best HB point from a slice of possible points for a desired target range.
+// SelectBestBRP selects the best BRP point from candidate points for a target setback range.
 // Ranking hierarchy:
-// 1. Min rounded mm distance to target range (0 if inside or if target is nil)
-// 2. Closest stem length to canonicalStem
-// 3. Closest stem angle to canonicalStem
-// 4. Smallest spacer stack (spacerMm)
-// 5. Min exact unrounded distance to target midpoint
-func SelectBestHB(
-	possible []model.HBPoint,
-	canonicalStem model.StemSpec,
+// 1. Min rounded mm distance to target setback range (0 if inside or if target is nil)
+// 2. Smallest absolute rail offset (|RailOffsetMm|, closest to dead center 0mm on rails)
+// 3. Min exact unrounded distance to target midpoint
+func SelectBestBRP(
+	possible []model.BRPPoint,
 	targetMin, targetMax *float64,
-) (model.HBPoint, bool) {
+) (model.BRPPoint, bool) {
 	if len(possible) == 0 {
-		return model.HBPoint{}, false
+		return model.BRPPoint{}, false
 	}
 
 	best := possible[0]
@@ -197,14 +169,182 @@ func SelectBestHB(
 		return 0
 	}
 
-	better := func(a, b model.HBPoint) bool {
+	better := func(a, b model.BRPPoint) bool {
 		if hasTarget {
-			distA := rangeDist(a.SaddleHbMm)
-			distB := rangeDist(b.SaddleHbMm)
+			distA := rangeDist(a.BrpSetbackMm)
+			distB := rangeDist(b.BrpSetbackMm)
 			roundDistA := math.Round(distA)
 			roundDistB := math.Round(distB)
 			if roundDistA != roundDistB {
 				return roundDistA < roundDistB
+			}
+		}
+
+		// Tie-breaker 1: closest to dead center on rails (min |RailOffsetMm|)
+		railDiffA := math.Abs(a.RailOffsetMm)
+		railDiffB := math.Abs(b.RailOffsetMm)
+		if math.Abs(railDiffA-railDiffB) > 0.001 {
+			return railDiffA < railDiffB
+		}
+
+		// Tie-breaker 2: min unrounded distance to target midpoint
+		if hasTarget {
+			midDiffA := math.Abs(a.BrpSetbackMm - targetMid)
+			midDiffB := math.Abs(b.BrpSetbackMm - targetMid)
+			if math.Abs(midDiffA-midDiffB) > 0.001 {
+				return midDiffA < midDiffB
+			}
+		}
+
+		return false
+	}
+
+	for _, pt := range possible[1:] {
+		if better(pt, best) {
+			best = pt
+		}
+	}
+
+	return best, true
+}
+
+// CalculateHBPoint calculates the HB reference point (center of the stem handlebar clamp)
+// and the Saddle-Handlebar distance and drop from the saddle BRP reference point.
+// Steerer tube extends upward and rearward at polar angle (180° - HTA).
+// Stem clamp center sits at d_steerer = spacerMm + StemThicknessMm/2.0 along the steerer axis:
+//
+//	SteererX = reach - d_steerer * cos(HTA)
+//	SteererY = stack + d_steerer * sin(HTA)
+//
+// Stem angle is rotated 90° clockwise from the upward steerer axis, then rotated AngleDeg:
+//
+//	theta_stem = (180° - HTA) - 90° + AngleDeg = (90° - HTA) + AngleDeg
+//	HbX = SteererX + stem.LengthMm * cos(theta_stem)
+//	HbY = SteererY + stem.LengthMm * sin(theta_stem)
+//
+// Distance & Drop from BRP:
+//
+//	SaddleHbMm = hypot(HbX - brp.BrpX, HbY - brp.BrpY)
+//	SaddleHbDropMm = HbY - brp.BrpY
+func CalculateHBPoint(
+	reach, stack, htaDeg float64,
+	brp model.BRPPoint,
+	stem model.StemSpec,
+	spacerMm float64,
+) model.HBPoint {
+	hta := ToRad(htaDeg)
+
+	dSteerer := spacerMm + model.StemThicknessMm/2.0
+	steererX := reach - dSteerer*math.Cos(hta)
+	steererY := stack + dSteerer*math.Sin(hta)
+
+	thetaStem := ToRad((90.0 - htaDeg) + stem.AngleDeg)
+	hbX := steererX + stem.LengthMm*math.Cos(thetaStem)
+	hbY := steererY + stem.LengthMm*math.Sin(thetaStem)
+
+	dist := math.Hypot(hbX-brp.BrpX, hbY-brp.BrpY)
+	drop := hbY - brp.BrpY
+
+	return model.HBPoint{
+		Stem:           stem,
+		SpacerMm:       spacerMm,
+		HbX:            Round(hbX, 1),
+		HbY:            Round(hbY, 1),
+		SaddleHbMm:     Round(dist, 1),
+		SaddleHbDropMm: Round(drop, 1),
+	}
+}
+
+// MapPossibleHBs maps all possible HB points for a bike across its allowed stems and spacer stack heights,
+// referencing distance and drop from the given BRP reference point.
+func MapPossibleHBs(
+	bike model.BikeGeometry,
+	activeReach, activeStack, activeHta float64,
+	brp model.BRPPoint,
+) []model.HBPoint {
+	stems := bike.Stems
+	if len(stems) == 0 && bike.CanonicalStem != nil && bike.CanonicalStem.LengthMm > 0 {
+		stems = []model.StemSpec{*bike.CanonicalStem}
+	}
+	spacers := bike.GetSpacersMm()
+
+	var points []model.HBPoint
+	for _, st := range stems {
+		for _, sp := range spacers {
+			pt := CalculateHBPoint(activeReach, activeStack, activeHta, brp, st, sp)
+			points = append(points, pt)
+		}
+	}
+	return points
+}
+
+// SelectBestHBWithDrop selects the best HB point from candidate points for desired target distance and drop ranges.
+// Ranking hierarchy:
+// 1. Primary: Min rounded mm distance to distance target range (saddle_hb, 0 if inside or nil)
+// 2. Secondary: Min rounded mm distance to drop target range (saddle_hb_drop, 0 if inside or nil)
+// 3. Tie-breaker 1: Closest stem length to canonicalStem
+// 4. Tie-breaker 2: Closest stem angle to canonicalStem
+// 5. Tie-breaker 3: Smallest spacer stack (spacerMm)
+// 6. Tie-breaker 4: Min exact unrounded distance to target midpoints (distance first, then drop)
+func SelectBestHBWithDrop(
+	possible []model.HBPoint,
+	canonicalStem model.StemSpec,
+	distMin, distMax *float64,
+	dropMin, dropMax *float64,
+) (model.HBPoint, bool) {
+	if len(possible) == 0 {
+		return model.HBPoint{}, false
+	}
+
+	best := possible[0]
+	hasDistTarget := distMin != nil || distMax != nil
+	hasDropTarget := dropMin != nil || dropMax != nil
+
+	calcMid := func(minVal, maxVal *float64) float64 {
+		if minVal != nil && maxVal != nil {
+			return (*minVal + *maxVal) / 2.0
+		}
+		if minVal != nil {
+			return *minVal
+		}
+		if maxVal != nil {
+			return *maxVal
+		}
+		return 0
+	}
+	distMid := calcMid(distMin, distMax)
+	dropMid := calcMid(dropMin, dropMax)
+
+	rangeDist := func(val float64, minVal, maxVal *float64) float64 {
+		if minVal != nil && val < *minVal {
+			return *minVal - val
+		}
+		if maxVal != nil && val > *maxVal {
+			return val - *maxVal
+		}
+		return 0
+	}
+
+	better := func(a, b model.HBPoint) bool {
+		// 1. Primary: Saddle-HB distance range
+		if hasDistTarget {
+			distA := rangeDist(a.SaddleHbMm, distMin, distMax)
+			distB := rangeDist(b.SaddleHbMm, distMin, distMax)
+			roundDistA := math.Round(distA)
+			roundDistB := math.Round(distB)
+			if roundDistA != roundDistB {
+				return roundDistA < roundDistB
+			}
+		}
+
+		// 2. Secondary: Saddle-HB drop range
+		if hasDropTarget {
+			dropA := rangeDist(a.SaddleHbDropMm, dropMin, dropMax)
+			dropB := rangeDist(b.SaddleHbDropMm, dropMin, dropMax)
+			roundDropA := math.Round(dropA)
+			roundDropB := math.Round(dropB)
+			if roundDropA != roundDropB {
+				return roundDropA < roundDropB
 			}
 		}
 
@@ -227,10 +367,17 @@ func SelectBestHB(
 			return a.SpacerMm < b.SpacerMm
 		}
 
-		// Tie-breaker 4: closest unrounded distance to target midpoint
-		if hasTarget {
-			midDiffA := math.Abs(a.SaddleHbMm - targetMid)
-			midDiffB := math.Abs(b.SaddleHbMm - targetMid)
+		// Tie-breaker 4: closest unrounded distance to target midpoints
+		if hasDistTarget {
+			midDiffA := math.Abs(a.SaddleHbMm - distMid)
+			midDiffB := math.Abs(b.SaddleHbMm - distMid)
+			if math.Abs(midDiffA-midDiffB) > 0.001 {
+				return midDiffA < midDiffB
+			}
+		}
+		if hasDropTarget {
+			midDiffA := math.Abs(a.SaddleHbDropMm - dropMid)
+			midDiffB := math.Abs(b.SaddleHbDropMm - dropMid)
 			if math.Abs(midDiffA-midDiffB) > 0.001 {
 				return midDiffA < midDiffB
 			}
@@ -246,6 +393,15 @@ func SelectBestHB(
 	}
 
 	return best, true
+}
+
+// SelectBestHB selects the best HB point from candidate points for a desired target distance range.
+func SelectBestHB(
+	possible []model.HBPoint,
+	canonicalStem model.StemSpec,
+	targetMin, targetMax *float64,
+) (model.HBPoint, bool) {
+	return SelectBestHBWithDrop(possible, canonicalStem, targetMin, targetMax, nil, nil)
 }
 
 // CalculateSteererStack calculates the 'spare' steerer tube required to bring
@@ -690,13 +846,25 @@ func AnalyzeBikeFit(
 		posture,
 	)
 
-	// 6. Cockpit HB Point & Saddle-Handlebar Distance
-	possibleHBs := MapPossibleHBs(bike, activeReach, activeStack, activeHta, activeSta, seatHeight)
+	// 6. Cockpit BRP & HB Points and Saddle-Handlebar Distance
+	deadCenterBRP := CalculateBRPPoint(
+		activeSta,
+		seatHeight,
+		model.DefaultSeatpostSetbackMm,
+		model.DefaultSaddleBrpOffsetMm,
+		0.0,
+	)
+	possibleBRPs := MapPossibleBRPs(activeSta, seatHeight)
+	selectedBRP := deadCenterBRP
+
+	possibleHBs := MapPossibleHBs(bike, activeReach, activeStack, activeHta, selectedBRP)
 	var selectedHB *model.HBPoint
 	var saddleHbMm float64
+	var saddleHbDropMm float64
 	if best, ok := SelectBestHB(possibleHBs, bike.GetCanonicalStem(), nil, nil); ok {
 		selectedHB = &best
 		saddleHbMm = best.SaddleHbMm
+		saddleHbDropMm = best.SaddleHbDropMm
 	}
 
 	return model.BikeFitAnalysis{
@@ -726,9 +894,13 @@ func AnalyzeBikeFit(
 		ActiveChainstay:    Round(activeCS, 1),
 		ChainstayDesc:      csDesc,
 
-		SaddleHbMm:  saddleHbMm,
-		SelectedHB:  selectedHB,
-		PossibleHBs: possibleHBs,
+		DeadCenterBRP:  deadCenterBRP,
+		SelectedBRP:    &selectedBRP,
+		PossibleBRPs:   possibleBRPs,
+		SaddleHbMm:     saddleHbMm,
+		SaddleHbDropMm: saddleHbDropMm,
+		SelectedHB:     selectedHB,
+		PossibleHBs:    possibleHBs,
 	}, nil
 }
 

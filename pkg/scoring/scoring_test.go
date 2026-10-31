@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 )
@@ -692,5 +693,95 @@ func TestScoreRow_SaddleHb(t *testing.T) {
 	}
 	if !strings.Contains(crit.FormattedCell, "700") || !strings.Contains(crit.FormattedCell, "70mm") {
 		t.Errorf("Expected formatted cell to reflect selected HB (700, 70mm stem), got %q", crit.FormattedCell)
+	}
+}
+
+func TestScoreRow_IdmatchFit(t *testing.T) {
+	// Ideal profile with BRP Setback (target 219mm), Saddle-HB (target 700mm), and Saddle-HB Drop (target 13mm)
+	prof := &ideal.Profile{
+		Name:           "test-idmatch",
+		SaddleHeightMm: floatPtr(746),
+		Attributes: []ideal.AttributeSpec{
+			{
+				ID:         "brp_setback",
+				Weight:     10,
+				Ideal:      &ideal.Range{Min: floatPtr(219), Max: floatPtr(219)}, // target 219mm
+				Acceptable: &ideal.Range{Min: floatPtr(214), Max: floatPtr(224)}, // within ±5mm of rail center
+				EdgeScore:  floatPtr(75),
+				Falloff:    &ideal.Falloff{Below: floatPtr(20), Above: floatPtr(20)},
+			},
+			{
+				ID:         "saddle_hb",
+				Weight:     10,
+				Ideal:      &ideal.Range{Min: floatPtr(695), Max: floatPtr(705)},
+				Acceptable: &ideal.Range{Min: floatPtr(685), Max: floatPtr(715)},
+				EdgeScore:  floatPtr(75),
+				Falloff:    &ideal.Falloff{Below: floatPtr(15), Above: floatPtr(15)},
+			},
+			{
+				ID:         "saddle_hb_drop",
+				Weight:     5,
+				Ideal:      &ideal.Range{Min: floatPtr(8), Max: floatPtr(18)},
+				Acceptable: &ideal.Range{Min: floatPtr(0), Max: floatPtr(26)},
+				EdgeScore:  floatPtr(75),
+				Falloff:    &ideal.Falloff{Below: floatPtr(10), Above: floatPtr(10)},
+			},
+		},
+	}
+
+	// Otso Fenrir Large frame geometry at saddle height 746mm
+	// Effective STA ~ 74.53°
+	staDeg := 74.53
+	seatHeight := 746.0
+	deadCenterBRP := geometry.CalculateBRPPoint(staDeg, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSaddleBrpOffsetMm, 0.0)
+	possibleBRPs := geometry.MapPossibleBRPs(staDeg, seatHeight)
+
+	canonicalStem := model.StemSpec{LengthMm: 60, AngleDeg: -6}
+	maxSpacer := 30.0
+
+	bike := model.BikeGeometry{
+		Reach:         425.0,
+		Stack:         645.0,
+		HtaDeg:        68.0,
+		StaDeg:        staDeg,
+		MaxSpacerMm:   &maxSpacer,
+		CanonicalStem: &canonicalStem,
+		Stems: []model.StemSpec{
+			{LengthMm: 50, AngleDeg: -6},
+			{LengthMm: 60, AngleDeg: -6},
+			{LengthMm: 70, AngleDeg: -6},
+			{LengthMm: 80, AngleDeg: -6},
+		},
+	}
+
+	row := model.CanonicalComparisonRow{
+		Bike: bike,
+		Canonical: model.BikeFitAnalysis{
+			ActiveReach:   425.0,
+			ActiveStack:   645.0,
+			ActiveHta:     68.0,
+			ActiveSta:     staDeg,
+			DeadCenterBRP: deadCenterBRP,
+			PossibleBRPs:  possibleBRPs,
+		},
+	}
+
+	res := ScoreRow(row, prof)
+	if res.Total < 70.0 {
+		t.Errorf("Expected score > 70 for Otso Fenrir (penalized for rail offset), got %.1f", res.Total)
+	}
+
+	// Verify criteria results
+	for _, c := range res.Criteria {
+		if c.ID == "brp_setback" {
+			if !strings.Contains(c.FormattedCell, "219") || !strings.Contains(c.FormattedCell, "rail") {
+				t.Errorf("Expected brp_setback to reflect rail adjustment to 219mm, got %q", c.FormattedCell)
+			}
+		}
+		if c.ID == "saddle_hb" {
+			if c.SubScore < 95.0 {
+				t.Errorf("Expected saddle_hb subscore >= 95, got %.1f (%q)", c.SubScore, c.FormattedCell)
+			}
+		}
 	}
 }

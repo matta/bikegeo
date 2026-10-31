@@ -4,75 +4,73 @@ This directory contains ideal bike fit profiles used by `bikegeo compare` and th
 
 ---
 
-## Saddle-Handlebar Distance (`saddle_hb`)
+## idmatch Biomechanical Reference Point (BRP) & Saddle Position
 
 ### Definition & Reference Points
 
-The **Saddle-Handlebar distance** (`saddle_hb`, in mm) measures the 2D Euclidean distance in the sagittal plane from the **top of the seatpost** (at the rider's seat height along the active effective seat tube angle) to the **HB reference point**:
+The **BRP (Biomechanical Reference Point)** is the standardized anatomical point on a saddle where its width reaches exactly **70 mm**. Defining setup measurements relative to the BRP eliminates discrepancies caused by varying saddle lengths, nose shapes, and contour tapers:
 
-> *The HB reference corresponds to the intersection point between the handlebar and the stem of your bike. Defining the HB point facilitates operations to correctly restore the measurements suggested by your bike-fitting on the bike.* (idmatch Bikelab)
+> *The BRP (Biomechanical Reference Point) is the point, common to all saddles currently on the market, where the saddle reaches a width of 70mm. Defining the BRP allows you to have a common denominator from which you can calculate all the setup measurements for your saddle.* (idmatch Bikelab)
 
-### Geometric Modeling
+The **HB reference point** is the intersection between the handlebar and the stem clamp center.
 
-In a sagittal coordinate system where the Bottom Bracket (BB) spindle center is at `(0, 0)` with `+X` pointing forward and `+Y` pointing upward:
+### Four Standard idmatch Cockpit Measurements
 
-1. **Seatpost Top (`SeatX, SeatY`)**:
-   At rider saddle height `L = SaddleHeightMm` along effective seat tube angle `STA`:
-   - `SeatX = -L * cos(STA)`
-   - `SeatY = L * sin(STA)`
-
-2. **Steerer Tube & Stem Clamp Center (`SteererX, SteererY`)**:
-   The steerer tube extends upward and rearward from the head tube top `(ActiveReach, ActiveStack)` at polar angle `180° - HTA`.
-   With a fixed stem steerer clamp thickness of **40 mm** (`model.StemThicknessMm`) and steerer spacers `s` (`0 <= s <= max_spacer_mm` in discrete **5 mm** increments, `model.SpacerStepMm`), the center of the stem clamp sits at axial distance `d_steerer = s + 20.0 mm`:
-   - `SteererX = ActiveReach - (s + 20.0) * cos(HTA)`
-   - `SteererY = ActiveStack + (s + 20.0) * sin(HTA)`
-
-3. **Stem Angle Rotation & HB Coordinates (`HbX, HbY`)**:
-   A stem perpendicular to the steerer tube (`0°` angle) is rotated `90°` clockwise from the upward steerer axis, pointing at polar angle `(180° - HTA) - 90° = 90° - HTA` above horizontal.
-   Applying stem angle `AngleDeg` (e.g. `-6°` rotates an additional `6°` clockwise / downward):
-   - `theta_stem = (90.0° - HTA) + AngleDeg`
-   - `HbX = SteererX + LengthMm * cos(theta_stem)`
-   - `HbY = SteererY + LengthMm * sin(theta_stem)`
-
-4. **Saddle-Handlebar Distance**:
-   - `SaddleHbMm = hypot(HbX - SeatX, HbY - SeatY)`
+From an idmatch Bikelab report (e.g. `206563 - Matt Armstrong - Report idmatch Bikelab.pdf`):
+1. **Saddle height `(a)`**: `746 mm` — Radial distance from the Bottom Bracket spindle center `(0, 0)` to the BRP.
+2. **Saddle setback `(b)`**: `219 mm` — Horizontal distance behind the Bottom Bracket to the BRP.
+3. **Saddle-Handlebar distance `(d)`**: `700 mm` — Direct 2D Euclidean distance from BRP to HB: `hypot(HbX - BrpX, HbY - BrpY)`.
+4. **Saddle-Handlebar Drop `(c)`**: `+13 mm` — Vertical height difference from BRP to HB: `HbY - BrpY` (positive = HB is higher than saddle).
+5. **Saddle angle from BB `(g)`**: `72.9°` — Polar angle from the Bottom Bracket to the BRP: `atan2(713, 219) = 72.93°`. (Note: this is the angle to the BRP itself, not a frame's Seat Tube Angle).
 
 ---
 
-## Frame Requirements
+## Hardware Modeling & Saddle Rails
 
-Every frame definition in `data/bikes/*.json` explicitly configures its cockpit hardware envelope:
-- `max_spacer_mm`: Maximum allowable steerer spacer stack (typically `40` mm).
-- `canonical_stem`: The reference stem length and angle (e.g. `60 mm / -6°` for mountain/rigid; `80 mm / -6°` for gravel).
-- `stems`: The complete set of allowed stems (lengths and angles) suitable for the frame.
+On a real bicycle, the BRP sits behind the seat tube centerline due to:
+- **Seatpost Setback**: `model.DefaultSeatpostSetbackMm = 7.0 mm` (modeled on a Redshift ShockStop suspension seatpost: 7 mm static, up to 12 mm sagged).
+- **Saddle BRP Offset**: `model.DefaultSaddleBrpOffsetMm = 0.0 mm` (offset of the 70 mm width line from the center of the saddle rails; defaults to 0.0 mm for SQlab stepped Ergowave saddles with extended rails; see [Measuring Saddle BRP Offset](measuring_saddle_brp.md)).
+- **Neutral Offset**: `model.DefaultBrpOffsetMm = 7.0 mm` (total perpendicular offset behind the seat tube when clamped at dead center `0 mm` on the rails).
+- **Usable Rail Range**: `model.SaddleRailMaxAdjustmentMm = ±20.0 mm` (40 mm total usable clamping window), with `model.SaddleRailIdealMarginMm = ±5.0 mm` considered dead-center/ideal.
 
-These fields are strictly validated by `pkg/validator`—no implicit defaults are assumed.
+### Constant-Radius Rail Adjustment
+
+Every candidate position on the saddle rails (`RailOffsetMm` from `-20 mm` forward to `+20 mm` rearward) maintains exact radial distance `L = SaddleHeightMm` (`746 mm`) from the Bottom Bracket:
+- `d_perp = DefaultBrpOffsetMm + RailOffsetMm`
+- `d_axial = sqrt(L² - d_perp²)`
+- `BrpX = -d_axial * cos(STA) - d_perp * sin(STA)` (`BrpSetback = -BrpX`)
+- `BrpY =  d_axial * sin(STA) - d_perp * cos(STA)`
+
+When a target setback is specified (e.g. `219 mm` in `data/ideals/idmatch.json`), `SelectBestBRP` slides the saddle on its rails toward that target (clamped to `±20 mm`), scoring the frame on how close the required rail offset is to dead center (`0 mm`), while `Saddle-HB` distance `(d)` and drop `(c)` are measured directly from the achieved BRP to HB.
 
 ---
 
-## State of Affairs in `default.json`
+## Front Cockpit Optimization (`HBPoint`)
 
-In [`data/ideals/default.json`](file:///Users/matt/src/bikegeo/data/ideals/default.json), `saddle_hb` is registered as a **display-only attribute** (no `weight` or `ideal` range). This ensures:
-- Existing scoring baselines, total scores, and ranking regression tests remain 100% backward-compatible.
-- The default comparison table displays the Saddle-Handlebar distance achieved using the frame's `canonical_stem` at `0 mm` spacer.
+The steerer tube extends upward and rearward at polar angle `180° - HTA`. With stem clamp thickness of 40 mm and steerer spacers `s` (`0..max_spacer_mm` in 5 mm steps):
+- `SteererX = Reach - (s + 20.0) * cos(HTA)`
+- `SteererY = Stack + (s + 20.0) * sin(HTA)`
+- `HbX = SteererX + LengthMm * cos((90° - HTA) + AngleDeg)`
+- `HbY = SteererY + LengthMm * sin((90° - HTA) + AngleDeg)`
 
-### Activating `saddle_hb` for Target Optimization & Scoring
+When targets are present, `SelectBestHBWithDrop` selects the optimal stem and spacer combination using strict hierarchy:
+1. **Primary (`saddle_hb`)**: Minimum rounded mm distance to the distance target range `(d)`.
+2. **Secondary (`saddle_hb_drop`)**: Minimum rounded mm distance to the drop target range `(c)`.
+3. **Tie-breaker 1**: Closest stem length to `canonical_stem`.
+4. **Tie-breaker 2**: Closest stem angle to `canonical_stem`.
+5. **Tie-breaker 3**: Smallest spacer stack (`spacerMm`).
+6. **Tie-breaker 4**: Closest unrounded distance to target midpoint.
 
-To optimize stems and spacers for a specific target Saddle-Handlebar distance (such as **700 mm** from an idmatch Bikelab report), define an `ideal` range in an ideal profile:
+---
 
-```json
-{
-  "id": "saddle_hb",
-  "weight": 8,
-  "ideal": { "min": 695, "max": 705 },
-  "acceptable": { "min": 685, "max": 715 },
-  "edge_score": 75,
-  "falloff": { "below": 15, "above": 15 }
-}
-```
+## Ideal Profiles & Deprecation Strategy
 
-When an ideal target is present, `bikegeo compare` automatically searches the full envelope of mapped HB points across all allowed stems and spacer stacks (`0..max_spacer_mm`), selecting the optimal `(stem, spacer)` combination that satisfies the target distance:
-1. Minimizes distance outside the `ideal` range (points inside `[min, max]` are prioritized).
-2. Breaks ties using the stem closest to the frame's `canonical_stem` (length first, then angle).
-3. Breaks remaining ties with the lowest spacer stack height.
-4. Breaks final ties by proximity to the target midpoint.
+### `data/ideals/idmatch.json`
+Built directly around the idmatch Bikelab report:
+- `saddle_height_mm`: `746`
+- `brp_setback`: Target `219 mm` (`ideal: 219, acceptable: 214–224, edge_score: 75, falloff: 20`)
+- `saddle_hb`: Target `700 mm` (`ideal: 695–705, acceptable: 685–715, edge_score: 75, falloff: 15`)
+- `saddle_hb_drop`: Target `13 mm` (`ideal: 8–18, acceptable: 0–26, edge_score: 75, falloff: 10`)
+
+### `data/ideals/default.json` (Legacy Profile)
+Retained for 100% backwards compatibility with previous test suites and baselines. Legacy seat-tube metrics (`setback`, `aett`, `sparevert`, `spareaxial`, `seat_to_rc`) measure to the bare seat tube centerline and are deprecated in favor of BRP-referenced metrics.
