@@ -177,7 +177,7 @@ func CalculateIdealSeatTubeAngle(
 	// Clamping forward on rails (positive X_clamp) moves saddle rearward relative to clamp,
 	// meaning for the same target setback, the seat tube must sit further forward (smaller ST setback -> steeper STA).
 	// Clamping rearward on rails (negative X_clamp) moves saddle forward, requiring seat tube further back (larger ST setback -> slacker STA).
-	minClamp, maxClamp := saddle.PhysicalClampWindowMm(clampLengthMm)
+	minClamp, maxClamp := saddle.ClampWindowMm(clampLengthMm)
 	stSetbackForwardClamp := stSetback - maxClamp // steeper STA
 	stSetbackRearClamp := stSetback - minClamp    // slacker STA
 
@@ -211,18 +211,16 @@ func CalculateIdealSeatTubeAngle(
 
 // SaddleTranslationResult encapsulates the cross-saddle translation for pelvic equivalence.
 type SaddleTranslationResult struct {
-	ReferenceSaddle        model.SaddleSpec
-	TargetSaddle           model.SaddleSpec
-	ReferenceClampOffset   float64
-	TargetClampOffset      float64
-	SitBoneDeltaMm         float64 // Difference in rail-to-sit-bone distance (target - ref)
-	BrpDeltaMm             float64 // Difference in BRP-to-sit-bone span (target - ref)
-	ClampLengthMm          float64
-	TargetNominalClampMin  float64
-	TargetNominalClampMax  float64
-	TargetPhysicalClampMin float64
-	TargetPhysicalClampMax float64
-	IsPhysicallyFeasible   bool
+	ReferenceSaddle      model.SaddleSpec
+	TargetSaddle         model.SaddleSpec
+	ReferenceClampOffset float64
+	TargetClampOffset    float64
+	SitBoneDeltaMm       float64 // Difference in rail-to-sit-bone distance (target - ref)
+	BrpDeltaMm           float64 // Difference in BRP-to-sit-bone span (target - ref)
+	ClampLengthMm        float64
+	TargetClampMin       float64
+	TargetClampMax       float64
+	IsFeasible           bool
 }
 
 // TranslateSaddleFit translates a clamp position on refSaddle to targetSaddle to keep
@@ -241,24 +239,21 @@ func TranslateSaddleFit(
 	sbDelta := targetSaddle.RailCenterToSitBonesMm - refSaddle.RailCenterToSitBonesMm
 	brpDelta := targetSaddle.DeltaBrpToSitBonesMm() - refSaddle.DeltaBrpToSitBonesMm()
 
-	nomMin, nomMax := targetSaddle.NominalClampWindowMm(clampLengthMm)
-	physMin, physMax := targetSaddle.PhysicalClampWindowMm(clampLengthMm)
+	minClamp, maxClamp := targetSaddle.ClampWindowMm(clampLengthMm)
 
-	isFeasible := targetClamp >= physMin-0.001 && targetClamp <= physMax+0.001
+	isFeasible := targetClamp >= minClamp-0.001 && targetClamp <= maxClamp+0.001
 
 	return SaddleTranslationResult{
-		ReferenceSaddle:        refSaddle,
-		TargetSaddle:           targetSaddle,
-		ReferenceClampOffset:   Round(refClampOffset, 1),
-		TargetClampOffset:      Round(targetClamp, 1),
-		SitBoneDeltaMm:         Round(sbDelta, 1),
-		BrpDeltaMm:             Round(brpDelta, 1),
-		ClampLengthMm:          clampLengthMm,
-		TargetNominalClampMin:  Round(nomMin, 1),
-		TargetNominalClampMax:  Round(nomMax, 1),
-		TargetPhysicalClampMin: Round(physMin, 1),
-		TargetPhysicalClampMax: Round(physMax, 1),
-		IsPhysicallyFeasible:   isFeasible,
+		ReferenceSaddle:      refSaddle,
+		TargetSaddle:         targetSaddle,
+		ReferenceClampOffset: Round(refClampOffset, 1),
+		TargetClampOffset:    Round(targetClamp, 1),
+		SitBoneDeltaMm:       Round(sbDelta, 1),
+		BrpDeltaMm:           Round(brpDelta, 1),
+		ClampLengthMm:        clampLengthMm,
+		TargetClampMin:       Round(minClamp, 1),
+		TargetClampMax:       Round(maxClamp, 1),
+		IsFeasible:           isFeasible,
 	}
 }
 
@@ -276,7 +271,7 @@ func CalculateSaddleBRPPoint(
 	return pt
 }
 
-// MapPossibleSaddleBRPs maps candidate BRP points within the physical clamp window
+// MapPossibleSaddleBRPs maps candidate BRP points within the clamp window
 // of the given saddle and clamp length.
 func MapPossibleSaddleBRPs(
 	staDeg, seatHeight, seatpostSetbackMm float64,
@@ -286,7 +281,7 @@ func MapPossibleSaddleBRPs(
 	if clampLengthMm <= 0 {
 		clampLengthMm = model.DefaultSeatpostClampLengthMm
 	}
-	minClamp, maxClamp := saddle.PhysicalClampWindowMm(clampLengthMm)
+	minClamp, maxClamp := saddle.ClampWindowMm(clampLengthMm)
 
 	// In CalculateBRPPoint: totalPerp = seatpostSetback + brpOffset + railOffset
 	// Positive railOffset moves the saddle rearward (so clamp offset = -railOffset is negative).

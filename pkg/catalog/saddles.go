@@ -12,7 +12,6 @@ var CommonSaddleCatalog = []model.SaddleSpec{
 		ID:                     "sqlab-610-ergolux",
 		Name:                   "SQlab 610 Ergolux Active 2.1",
 		RailLengthMm:           60.0,
-		ExtendedRearRailMm:     7.5,
 		RailCenterToBrpMm:      23.0,
 		RailCenterToSitBonesMm: -50.0,
 	},
@@ -20,7 +19,6 @@ var CommonSaddleCatalog = []model.SaddleSpec{
 		ID:                     "berthoud-aspin-open",
 		Name:                   "Berthoud Aspin Open",
 		RailLengthMm:           64.0,
-		ExtendedRearRailMm:     0.0,
 		RailCenterToBrpMm:      43.5,
 		RailCenterToSitBonesMm: -44.5,
 	},
@@ -34,7 +32,6 @@ var CommonSaddleCatalog = []model.SaddleSpec{
 		ID:                     "selle-italia-slr-boost-superflow-l3",
 		Name:                   "Selle Italia SLR Boost Superflow (L3 145mm)",
 		RailLengthMm:           40.0,  // 8 x 5mm printed graduations between rear tick and front STOP mark [-20.0 to +20.0]
-		ExtendedRearRailMm:     0.0,   // ~4.0mm straight bottom rail rearward of rear tick, but 0.0mm top clearance due to shell skirt
 		RailCenterToBrpMm:      17.7,  // BRP (114.0mm from nose) is 17.7mm forward of rail scale center (131.7mm from nose)
 		RailCenterToSitBonesMm: -65.3, // Sit bone line (197.0mm from nose) is 65.3mm rearward of rail scale center (83.0mm behind BRP)
 	},

@@ -326,7 +326,6 @@ type SaddleSpec struct {
 	ID                     string
 	Name                   string
 	RailLengthMm           float64 // Total straight clamping length on rails (e.g. 60mm for SQlab [-30 to +30])
-	ExtendedRearRailMm     float64 // Additional straight rail length rearward of -L_rail/2 before rear bend (mm)
 	RailCenterToBrpMm      float64 // Forward distance from rail center to 70mm BRP (+mm toward nose)
 	RailCenterToSitBonesMm float64 // Distance from rail center to sit bones (-mm toward tail)
 }
@@ -385,22 +384,15 @@ func (s SaddleSpec) TranslateClampOffset(thisClampOffset float64, targetSaddle S
 	return thisClampOffset + (targetSaddle.RailCenterToSitBonesMm - s.RailCenterToSitBonesMm)
 }
 
-// NominalClampWindowMm returns the nominal clamp-center travel bounds [minX, maxX]
+// ClampWindowMm returns the clamp-center travel bounds [minX, maxX]
 // for a seatpost clamp of length clampLengthMm (L_clamp):
 // X_clamp_min = -((L_rail - L_clamp) / 2), X_clamp_max = +((L_rail - L_clamp) / 2).
-func (s SaddleSpec) NominalClampWindowMm(clampLengthMm float64) (minX float64, maxX float64) {
+func (s SaddleSpec) ClampWindowMm(clampLengthMm float64) (minX float64, maxX float64) {
 	if s.RailLengthMm <= clampLengthMm {
 		return 0, 0
 	}
 	half := (s.RailLengthMm - clampLengthMm) / 2.0
 	return -half, half
-}
-
-// PhysicalClampWindowMm returns the physical clamp-center travel bounds including any extended
-// straight rail section rearward of the printed scale: [minX - ExtendedRearRailMm, maxX].
-func (s SaddleSpec) PhysicalClampWindowMm(clampLengthMm float64) (minX float64, maxX float64) {
-	minX, maxX = s.NominalClampWindowMm(clampLengthMm)
-	return minX - s.ExtendedRearRailMm, maxX
 }
 
 // DefaultSeatpostSetbackMm is the perpendicular rearward offset (in mm) of the seatpost clamp

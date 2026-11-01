@@ -33,7 +33,7 @@ On a real bicycle, the BRP sits offset from the seat tube centerline due to:
   - For the default **SQlab 610 Ergolux Active 2.1**: `RailCenterToBrpMm = +23.0 mm`, `RailCenterToSitBonesMm = -50.0 mm`.
   - For the **Berthoud Aspin Open**: `RailCenterToBrpMm = +43.5 mm`, `RailCenterToSitBonesMm = -44.5 mm`.
   - Pelvic fit equivalence between them differs by only `5.5 mm` on the rails (`0.44°` of Seat Tube Angle).
-- **Usable Rail Range**: Determined by `(L_rail - L_clamp) / 2` plus any extended rear straight rail section.
+- **Usable Rail Range**: Determined by `(L_rail - L_clamp) / 2` (bounded by `[-half, +half]` along the straight clamping rails).
 - **Ideal Seat Tube Angle**: Use `bikegeo saddles` to compute the required custom frame Seat Tube Angle to clamp any catalog saddle dead-center (`0.0 mm`) on your seatpost.
 
 ### Constant-Radius Rail Adjustment

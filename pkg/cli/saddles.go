@@ -46,7 +46,6 @@ func (a *App) runSaddles(args []string) int {
 		"Saddle ID",
 		"Name",
 		"Rail Length",
-		"Extended Rear",
 		"Rail -> BRP (70mm)",
 		"Rail -> Sit Bones",
 		"BRP -> Sit Bones",
@@ -54,15 +53,10 @@ func (a *App) runSaddles(args []string) int {
 	var rows [][]string
 
 	for _, s := range saddles {
-		extStr := "0.0 mm"
-		if s.ExtendedRearRailMm > 0 {
-			extStr = fmt.Sprintf("+%.1f mm", s.ExtendedRearRailMm)
-		}
 		rows = append(rows, []string{
 			s.ID,
 			s.Name,
 			fmt.Sprintf("%.0f mm", s.RailLengthMm),
-			extStr,
 			fmt.Sprintf("+%.1f mm", s.RailCenterToBrpMm),
 			fmt.Sprintf("%.1f mm", s.RailCenterToSitBonesMm),
 			fmt.Sprintf("%.1f mm", s.DeltaBrpToSitBonesMm()),
@@ -91,10 +85,10 @@ func (a *App) runSaddles(args []string) int {
 				fmt.Sprintf("Pelvic Fit Equivalence (SLR Boost): Sit bones sit 15.3 mm further rearward (SLR -65.3mm vs SQlab -50.0mm), steepening STA by ~1.20° at %.0fmm SH.", saddleHeight),
 				"BRP Caliper Discrepancy: BRP lines vary widely due to nose taper (Aspin 88mm vs SQlab 73mm vs SLR Boost 83mm from sit bones), proving raw BRP misleads without resolving sit bones.",
 				fmt.Sprintf("Clamp Translation to Aspin: Clamping SQlab at -15.0mm translates to %.1fmm on Aspin (window [%.1f, +%.1f] mm; feasible: %t); dead-center translates to +%.1fmm (window [%.1f, +%.1f] mm).",
-					transAspinDropBest.TargetClampOffset, transAspinDropBest.TargetPhysicalClampMin, transAspinDropBest.TargetPhysicalClampMax, transAspinDropBest.IsPhysicallyFeasible,
-					transAspinStd.TargetClampOffset, transAspinStd.TargetPhysicalClampMin, transAspinStd.TargetPhysicalClampMax),
+					transAspinDropBest.TargetClampOffset, transAspinDropBest.TargetClampMin, transAspinDropBest.TargetClampMax, transAspinDropBest.IsFeasible,
+					transAspinStd.TargetClampOffset, transAspinStd.TargetClampMin, transAspinStd.TargetClampMax),
 				fmt.Sprintf("Clamp Translation to SLR Boost: Clamping SQlab at dead-center (0.0mm) translates to %+.1fmm on SLR Boost (30mm clamp window [%.1f, +%.1f] mm; feasible: %t; 45mm clamp feasible: %t due to 40mm rail).",
-					transSlrStd.TargetClampOffset, transSlrStd.TargetPhysicalClampMin, transSlrStd.TargetPhysicalClampMax, transSlrStd.IsPhysicallyFeasible, transSlrDropBest.IsPhysicallyFeasible),
+					transSlrStd.TargetClampOffset, transSlrStd.TargetClampMin, transSlrStd.TargetClampMax, transSlrStd.IsFeasible, transSlrDropBest.IsFeasible),
 			},
 		})
 	}

@@ -64,33 +64,33 @@ func TestSaddleSpec_Methods(t *testing.T) {
 	}
 
 	// 4. Clamp Windows with 45mm clamp (Drop Best) and 30mm clamp (standard)
-	// SQlab 60mm rail (-30 to +30): nominal clamp center is [-7.5, +7.5]
-	minNom, maxNom := sqlab.NominalClampWindowMm(model.DropBestClampLengthMm)
-	if minNom != -7.5 || maxNom != 7.5 {
-		t.Errorf("Expected SQlab 45mm nominal clamp window [-7.5, +7.5], got [%.1f, %.1f]", minNom, maxNom)
+	// SQlab 60mm rail (-30 to +30): clamp center is [-7.5, +7.5] with 45mm clamp
+	sqMin45, sqMax45 := sqlab.ClampWindowMm(model.DropBestClampLengthMm)
+	if sqMin45 != -7.5 || sqMax45 != 7.5 {
+		t.Errorf("Expected SQlab 45mm clamp window [-7.5, +7.5], got [%.1f, %.1f]", sqMin45, sqMax45)
 	}
-	// SQlab physical clamp center includes 7.5mm extended rear rail: [-15.0, +7.5]
-	minPhys, maxPhys := sqlab.PhysicalClampWindowMm(model.DropBestClampLengthMm)
-	if minPhys != -15.0 || maxPhys != 7.5 {
-		t.Errorf("Expected SQlab 45mm physical clamp window [-15.0, +7.5], got [%.1f, %.1f]", minPhys, maxPhys)
+	// SQlab 60mm rail with 30mm clamp: [-15.0, +15.0]
+	sqMin30, sqMax30 := sqlab.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
+	if sqMin30 != -15.0 || sqMax30 != 15.0 {
+		t.Errorf("Expected SQlab 30mm clamp window [-15.0, +15.0], got [%.1f, %.1f]", sqMin30, sqMax30)
 	}
 
-	// Berthoud Aspin 64mm rail: nominal = physical = [-9.5, +9.5] with 45mm clamp
-	aspinMin, aspinMax := aspin.PhysicalClampWindowMm(model.DropBestClampLengthMm)
+	// Berthoud Aspin 64mm rail: [-9.5, +9.5] with 45mm clamp
+	aspinMin, aspinMax := aspin.ClampWindowMm(model.DropBestClampLengthMm)
 	if aspinMin != -9.5 || aspinMax != 9.5 {
-		t.Errorf("Expected Aspin 45mm physical clamp window [-9.5, +9.5], got [%.1f, %.1f]", aspinMin, aspinMax)
+		t.Errorf("Expected Aspin 45mm clamp window [-9.5, +9.5], got [%.1f, %.1f]", aspinMin, aspinMax)
 	}
 
 	// Selle Italia SLR Boost 40mm rail:
-	// 30mm clamp: nominal = physical = [-5.0, +5.0]
-	slrMin30, slrMax30 := slr.PhysicalClampWindowMm(model.DefaultSeatpostClampLengthMm)
+	// 30mm clamp: [-5.0, +5.0]
+	slrMin30, slrMax30 := slr.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
 	if slrMin30 != -5.0 || slrMax30 != 5.0 {
-		t.Errorf("Expected SLR Boost 30mm physical clamp window [-5.0, +5.0], got [%.1f, %.1f]", slrMin30, slrMax30)
+		t.Errorf("Expected SLR Boost 30mm clamp window [-5.0, +5.0], got [%.1f, %.1f]", slrMin30, slrMax30)
 	}
 	// 45mm clamp: clamp length > rail length (incompatible -> [0.0, 0.0])
-	slrMin45, slrMax45 := slr.PhysicalClampWindowMm(model.DropBestClampLengthMm)
+	slrMin45, slrMax45 := slr.ClampWindowMm(model.DropBestClampLengthMm)
 	if slrMin45 != 0.0 || slrMax45 != 0.0 {
-		t.Errorf("Expected SLR Boost 45mm physical clamp window [0.0, 0.0], got [%.1f, %.1f]", slrMin45, slrMax45)
+		t.Errorf("Expected SLR Boost 45mm clamp window [0.0, 0.0], got [%.1f, %.1f]", slrMin45, slrMax45)
 	}
 }
 
@@ -113,8 +113,8 @@ func TestTranslateSaddleFit_SQlabToAspinAndSLR(t *testing.T) {
 	}
 
 	// -9.5mm falls exactly on the Aspin's rear mechanical stop
-	if !resAspin.IsPhysicallyFeasible {
-		t.Errorf("Expected translation to be physically feasible, got false")
+	if !resAspin.IsFeasible {
+		t.Errorf("Expected translation to be feasible, got false")
 	}
 
 	// BRP delta is 88 - 73 = 15.0mm
@@ -133,7 +133,7 @@ func TestTranslateSaddleFit_SQlabToAspinAndSLR(t *testing.T) {
 		t.Errorf("Expected TargetClampOffset -15.3, got %.1f", resSLR.TargetClampOffset)
 	}
 	// -15.3mm is outside the 40mm rail's [-5.0, +5.0] 30mm clamp window
-	if resSLR.IsPhysicallyFeasible {
+	if resSLR.IsFeasible {
 		t.Errorf("Expected SLR 30mm translation to not be feasible within clamp window, got true")
 	}
 }
