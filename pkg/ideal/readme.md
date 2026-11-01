@@ -29,7 +29,7 @@ From an idmatch Bikelab report (e.g. `206563 - Matt Armstrong - Report idmatch B
 
 On a real bicycle, the BRP sits offset from the seat tube centerline due to:
 - **Seatpost Setback**: `model.DefaultSeatpostSetbackMm = 7.0 mm` (modeled on a Redshift ShockStop suspension seatpost: 7 mm static, up to 12 mm sagged).
-- **Saddle Geometry**: Defined in the Canonical Saddle Coordinate System (`X_RC = 0.0 mm` at the rail center; see [Measuring Saddle BRP Offset](measuring_saddle_brp.md)).
+- **Saddle Geometry**: Defined in the Canonical Saddle Coordinate System (`X_RC = 0.0 mm` at the rail center; inspect with `bikegeo saddles`).
   - For the default **SQlab 610 Ergolux Active 2.1**: `RailCenterToBrpMm = +23.0 mm`, `RailCenterToSitBonesMm = -50.0 mm`.
   - For the **Berthoud Aspin Open**: `RailCenterToBrpMm = +43.5 mm`, `RailCenterToSitBonesMm = -44.5 mm`.
   - Pelvic fit equivalence between them differs by only `5.5 mm` on the rails (`0.44°` of Seat Tube Angle).

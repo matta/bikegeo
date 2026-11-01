@@ -532,6 +532,7 @@ func TestSaddlesCommand(t *testing.T) {
 		expectedStrings := []string{
 			"SQlab 610 Ergolux Active 2.1",
 			"Berthoud Aspin Open",
+			"Selle Italia SLR Boost Superflow (L3 145mm)",
 			"Cross-Saddle Fit Translation",
 			"Ideal Seat Tube Angle",
 			"Universal Compromise Seat Tube Angle (All Saddles)",
@@ -539,12 +540,15 @@ func TestSaddlesCommand(t *testing.T) {
 			"Max Rail Offset",
 			"Universal ±5mm Window",
 			"Individual Saddle Offsets",
-			"74.2°",
-			"72.0°",
+			"SQlab 610 Ideal STA",
+			"Aspin Ideal STA",
+			"SLR Boost Ideal STA",
+			"Safe Range (SLR Boost)",
 			"72.3°",
-			"73.1°",
-			"72.1°",
-			"±2.8 mm",
+			"71.8°",
+			"73.5°",
+			"72.7°",
+			"±10.4 mm",
 		}
 		for _, exp := range expectedStrings {
 			if !strings.Contains(out, exp) {
@@ -560,6 +564,16 @@ func TestSaddlesCommand(t *testing.T) {
 		}
 		if !strings.Contains(out, "Berthoud Aspin Open") {
 			t.Errorf("expected Berthoud Aspin Open in output, got:\n%s", out)
+		}
+	})
+
+	t.Run("SpecificSaddleArgument_SLR", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "saddles", "slr")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+		if !strings.Contains(out, "Selle Italia SLR Boost Superflow") {
+			t.Errorf("expected Selle Italia SLR Boost in output, got:\n%s", out)
 		}
 	})
 

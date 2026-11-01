@@ -74,23 +74,27 @@ func (a *App) runSaddles(args []string) int {
 
 	var footers []FooterSection
 
-	// 1. Cross-Saddle Translation Section (SQlab 610 vs Berthoud Aspin)
+	// 1. Cross-Saddle Translation Section (SQlab 610 vs Berthoud Aspin & Selle Italia SLR Boost)
 	sqlab, hasSQ := catalog.GetSaddle("sqlab-610-ergolux")
 	aspin, hasAspin := catalog.GetSaddle("berthoud-aspin-open")
-	if hasSQ && hasAspin {
-		transDropBest := geometry.TranslateSaddleFit(sqlab, -15.0, aspin, model.DropBestClampLengthMm)
-		transStd := geometry.TranslateSaddleFit(sqlab, 0.0, aspin, model.DefaultSeatpostClampLengthMm)
+	slr, hasSLR := catalog.GetSaddle("selle-italia-slr-boost-superflow-l3")
+	if hasSQ && hasAspin && hasSLR {
+		transAspinDropBest := geometry.TranslateSaddleFit(sqlab, -15.0, aspin, model.DropBestClampLengthMm)
+		transAspinStd := geometry.TranslateSaddleFit(sqlab, 0.0, aspin, model.DefaultSeatpostClampLengthMm)
+		transSlrDropBest := geometry.TranslateSaddleFit(sqlab, -15.0, slr, model.DropBestClampLengthMm)
+		transSlrStd := geometry.TranslateSaddleFit(sqlab, 0.0, slr, model.DefaultSeatpostClampLengthMm)
 
 		footers = append(footers, FooterSection{
-			Title: "Cross-Saddle Fit Translation: SQlab 610 Ergolux <-> Berthoud Aspin Open",
+			Title: "Cross-Saddle Fit Translation: SQlab 610 Ergolux vs. Catalog Saddles",
 			Lines: []string{
-				fmt.Sprintf("Pelvic Fit Equivalence: Rail-to-sit-bone delta is only %.1f mm (Aspin -44.5mm vs SQlab -50.0mm).", transDropBest.SitBoneDeltaMm),
-				fmt.Sprintf("Seat Tube Angle Delta: A %.1f mm rail shift equates to only ~0.44° of Seat Tube Angle at %.0fmm saddle height.", transDropBest.SitBoneDeltaMm, saddleHeight),
-				fmt.Sprintf("BRP Caliper Discrepancy: The 70mm width line differs by +%.1f mm (Aspin 88mm vs SQlab 73mm), proving that raw BRP misleads without resolving sit bones.", transDropBest.BrpDeltaMm),
-				fmt.Sprintf("Drop Best Clamp Translation: Clamping SQlab at -15.0mm translates to %.1fmm on the Aspin (clamping window: [%.1f, +%.1f] mm; feasible: %t).",
-					transDropBest.TargetClampOffset, transDropBest.TargetPhysicalClampMin, transDropBest.TargetPhysicalClampMax, transDropBest.IsPhysicallyFeasible),
-				fmt.Sprintf("Standard 30mm Clamp Translation: Clamping SQlab at dead-center (0.0mm) translates to +%.1fmm on the Aspin (clamping window: [%.1f, +%.1f] mm).",
-					transStd.TargetClampOffset, transStd.TargetPhysicalClampMin, transStd.TargetPhysicalClampMax),
+				fmt.Sprintf("Pelvic Fit Equivalence (Aspin): Rail-to-sit-bone delta is only %.1f mm (Aspin -44.5mm vs SQlab -50.0mm), slackening STA by ~0.44° at %.0fmm SH.", transAspinDropBest.SitBoneDeltaMm, saddleHeight),
+				fmt.Sprintf("Pelvic Fit Equivalence (SLR Boost): Sit bones sit 15.3 mm further rearward (SLR -65.3mm vs SQlab -50.0mm), steepening STA by ~1.20° at %.0fmm SH.", saddleHeight),
+				"BRP Caliper Discrepancy: BRP lines vary widely due to nose taper (Aspin 88mm vs SQlab 73mm vs SLR Boost 83mm from sit bones), proving raw BRP misleads without resolving sit bones.",
+				fmt.Sprintf("Clamp Translation to Aspin: Clamping SQlab at -15.0mm translates to %.1fmm on Aspin (window [%.1f, +%.1f] mm; feasible: %t); dead-center translates to +%.1fmm (window [%.1f, +%.1f] mm).",
+					transAspinDropBest.TargetClampOffset, transAspinDropBest.TargetPhysicalClampMin, transAspinDropBest.TargetPhysicalClampMax, transAspinDropBest.IsPhysicallyFeasible,
+					transAspinStd.TargetClampOffset, transAspinStd.TargetPhysicalClampMin, transAspinStd.TargetPhysicalClampMax),
+				fmt.Sprintf("Clamp Translation to SLR Boost: Clamping SQlab at dead-center (0.0mm) translates to %+.1fmm on SLR Boost (30mm clamp window [%.1f, +%.1f] mm; feasible: %t; 45mm clamp feasible: %t due to 40mm rail).",
+					transSlrStd.TargetClampOffset, transSlrStd.TargetPhysicalClampMin, transSlrStd.TargetPhysicalClampMax, transSlrStd.IsPhysicallyFeasible, transSlrDropBest.IsPhysicallyFeasible),
 			},
 		})
 	}
@@ -116,7 +120,7 @@ func (a *App) runSaddles(args []string) int {
 	}
 
 	// 2. Consolidated Comparison Table across all catalog saddles (when no specific saddle argument is given)
-	if len(posArgs) == 0 && hasSQ && hasAspin {
+	if len(posArgs) == 0 && hasSQ && hasAspin && hasSLR {
 		if a.Format != FormatCSV {
 			fmt.Fprintln(a.Out)
 		}
@@ -126,22 +130,21 @@ func (a *App) runSaddles(args []string) int {
 			"Hardware Setback",
 			"SQlab 610 Ideal STA",
 			"Aspin Ideal STA",
-			"Delta (Aspin - SQlab)",
+			"SLR Boost Ideal STA",
 			"Safe Range (SQlab)",
 			"Safe Range (Aspin)",
+			"Safe Range (SLR Boost)",
 		}
 		var compRows [][]string
 
 		for _, p := range posts {
 			resSQ := geometry.CalculateIdealSeatTubeAngle(sqlab, sitBoneSetback, saddleHeight, p.setback, p.name, p.clamp)
 			resAspin := geometry.CalculateIdealSeatTubeAngle(aspin, sitBoneSetback, saddleHeight, p.setback, p.name, p.clamp)
-			delta := resAspin.IdealStaDeg - resSQ.IdealStaDeg
+			resSLR := geometry.CalculateIdealSeatTubeAngle(slr, sitBoneSetback, saddleHeight, p.setback, p.name, p.clamp)
 
-			deltaStr := fmt.Sprintf("%.2f°", delta)
-			if delta < 0 {
-				deltaStr = fmt.Sprintf("%.2f° (slacker)", delta)
-			} else if delta > 0 {
-				deltaStr = fmt.Sprintf("+%.2f° (steeper)", delta)
+			safeSLR := fmt.Sprintf("%.1f°–%.1f°", resSLR.MinStaDeg, resSLR.MaxStaDeg)
+			if p.clamp > slr.RailLengthMm {
+				safeSLR = "N/A (clamp > rail)"
 			}
 
 			compRows = append(compRows, []string{
@@ -149,9 +152,10 @@ func (a *App) runSaddles(args []string) int {
 				fmt.Sprintf("%.1f mm", p.setback),
 				fmt.Sprintf("%.1f°", resSQ.IdealStaDeg),
 				fmt.Sprintf("%.1f°", resAspin.IdealStaDeg),
-				deltaStr,
+				fmt.Sprintf("%.1f°", resSLR.IdealStaDeg),
 				fmt.Sprintf("%.1f°–%.1f°", resSQ.MinStaDeg, resSQ.MaxStaDeg),
 				fmt.Sprintf("%.1f°–%.1f°", resAspin.MinStaDeg, resAspin.MaxStaDeg),
+				safeSLR,
 			})
 		}
 
@@ -161,10 +165,10 @@ func (a *App) runSaddles(args []string) int {
 			{
 				Title: "Seat Tube Angle Interpretation & Comparison",
 				Lines: []string{
-					"Switching from SQlab 610 to Berthoud Aspin slackens the Ideal Seat Tube Angle by exactly 0.45° across all seatposts.",
-					"Target sit bone setback 292mm is achieved with the saddle clamped dead-center (0.0mm) at the Ideal STA.",
-					"With a 39mm sagged setup (Redshift + Drop Best), the Ideal STA is ~74.2°–74.5° (explaining why the Otso Fenrir L at 74.53° requires the Drop Best).",
-					"For a custom frame built for this rider without the Drop Best, a standard 15–25mm post requires an Ideal STA of 71.8°–73.1° (or 71.2°–72.0° with a Redshift post).",
+					"At a given saddle height and seatpost setback, the Ideal STA directly reflects the saddle's rail-to-sit-bone geometry.",
+					"SQlab 610 (-50.0mm) and Berthoud Aspin (-44.5mm) track within 0.45° of each other across all seatposts.",
+					"Selle Italia SLR Boost (-65.3mm) places sit bones 15.3mm further rearward, requiring a ~1.2° steeper STA (or ~15mm less seatpost setback) to achieve the same pelvic position.",
+					"With a 39mm sagged setup (Redshift + Drop Best), the Ideal STA is ~74.2°–74.5° for SQlab/Aspin (explaining why the Otso Fenrir L at 74.53° requires the Drop Best). Note: 45mm clamps exceed the SLR Boost's 40mm straight rail.",
 				},
 			},
 		}
@@ -205,6 +209,8 @@ func (a *App) runSaddles(args []string) int {
 					label = "SQlab 610"
 				case "berthoud-aspin-open":
 					label = "Aspin"
+				case "selle-italia-slr-boost-superflow-l3":
+					label = "SLR Boost"
 				}
 				offsetParts = append(offsetParts, fmt.Sprintf("%s: %+.1fmm", label, so.OffsetMm))
 			}
@@ -226,9 +232,8 @@ func (a *App) runSaddles(args []string) int {
 				Title: "Framebuilder Compromise Recommendations",
 				Lines: []string{
 					"A frame built with the Compromise STA guarantees that any saddle in the catalog mounts within the specified Max Rail Offset of dead-center.",
-					"On a standard 15mm setback post, a 72.1° STA fits both SQlab 610 (-2.8mm) and Berthoud Aspin (+2.8mm) well within the ±5mm sweet spot.",
-					"The Universal ±5mm Window shows the allowable builder tolerance range where ALL catalog saddles simultaneously fit within ±5mm.",
-					"If using a Redshift ShockStop + Drop Best (39mm sagged), a 74.0° Compromise STA satisfies both saddles within ±2.8mm (closely matching the Otso Fenrir L at 74.5°).",
+					"Between SQlab (-50.0mm sit bones), Aspin (-44.5mm), and SLR Boost (-65.3mm), the sit bone span across the catalog is 20.8mm, leading to a ±10.4mm compromise clamp offset.",
+					"Due to the SLR Boost's rearward sit-bone placement and 40mm straight rails, universal ±5mm compatibility across all three saddles requires varying seatpost setback (e.g. 0–10mm setback for SLR Boost vs 15–25mm for SQlab/Aspin).",
 				},
 			},
 		}
