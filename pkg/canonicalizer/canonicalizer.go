@@ -486,9 +486,26 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 
 	for i := range rows {
 		can := &rows[i].Canonical
+
+		// Derive row-specific BRP target from primary pelvic sit bone setback (anchored by reference SQlab saddle)
+		rowBrpMin, rowBrpMax := brpMin, brpMax
+		if can.Saddle.ID != "" && (brpMin != nil || brpMax != nil) {
+			refSQ := model.ReferenceIdmatchSaddle()
+			if brpMin != nil {
+				pelvicMin := refSQ.SitBoneSetbackFromBrp(*brpMin)
+				trMin := can.Saddle.TargetBrpForPelvicSetback(pelvicMin)
+				rowBrpMin = &trMin
+			}
+			if brpMax != nil {
+				pelvicMax := refSQ.SitBoneSetbackFromBrp(*brpMax)
+				trMax := can.Saddle.TargetBrpForPelvicSetback(pelvicMax)
+				rowBrpMax = &trMax
+			}
+		}
+
 		// 1. Optimize BRP on saddle rails if candidate BRPs exist
 		if len(can.PossibleBRPs) > 0 {
-			if bestBRP, ok := geometry.SelectBestBRP(can.PossibleBRPs, brpMin, brpMax); ok {
+			if bestBRP, ok := geometry.SelectBestBRP(can.PossibleBRPs, rowBrpMin, rowBrpMax); ok {
 				can.SelectedBRP = &bestBRP
 				can.SitBoneSetbackMm = bestBRP.SitBoneSetbackMm
 				can.AchievedClampOffset = bestBRP.AchievedClampOffsetMm

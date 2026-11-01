@@ -555,6 +555,40 @@ type scoredRowItem struct {
 	displayName string
 }
 
+func adaptProfileAttributeForSaddle(attr ideal.AttributeSpec, saddle model.SaddleSpec) ideal.AttributeSpec {
+	lowID := strings.ToLower(attr.ID)
+	if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && saddle.ID != "" && saddle.ID != "sqlab-610-ergolux" {
+		refSQ := model.ReferenceIdmatchSaddle()
+		copied := attr
+		if attr.Ideal != nil {
+			idCopy := *attr.Ideal
+			if idCopy.Min != nil {
+				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*idCopy.Min))
+				idCopy.Min = &val
+			}
+			if idCopy.Max != nil {
+				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*idCopy.Max))
+				idCopy.Max = &val
+			}
+			copied.Ideal = &idCopy
+		}
+		if attr.Acceptable != nil {
+			accCopy := *attr.Acceptable
+			if accCopy.Min != nil {
+				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*accCopy.Min))
+				accCopy.Min = &val
+			}
+			if accCopy.Max != nil {
+				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*accCopy.Max))
+				accCopy.Max = &val
+			}
+			copied.Acceptable = &accCopy
+		}
+		return copied
+	}
+	return attr
+}
+
 func (a *App) renderComparisonMatrix(
 	rows []model.CanonicalComparisonRow,
 	state model.SavedComparisonState,
@@ -611,6 +645,24 @@ func (a *App) renderComparisonMatrix(
 
 	if scoringEnabled && len(rows) > 0 {
 		expl = scoring.ExplainProfile(scoredFramesForExplain, prof)
+
+		if strings.EqualFold(prof.Name, "idmatch") {
+			saddle := state.Saddle
+			if saddle.ID == "" {
+				saddle = catalog.DefaultSaddle()
+			}
+			targetSitBones := model.DerivePelvicSetbackFromIdmatchBrp(219.0)
+			targetBRP := saddle.TargetBrpForPelvicSetback(targetSitBones)
+			footers = append(footers, FooterSection{
+				Title: "Biomechanical Pelvic Fit & Seatpost Baseline",
+				Lines: []string{
+					fmt.Sprintf("Primary Pelvic Invariant: Sit Bone Setback is %.0fmm behind BB (derived from idmatch BRP 219mm + SQlab delta 73mm).", targetSitBones),
+					"Seatpost Hardware Baseline: Hardcoded to Redshift ShockStop suspension post with 11mm sagged setback (7mm static + 4mm sag).",
+					fmt.Sprintf("Active Saddle Target: %s has BRP %.0fmm behind BB (Delta BRP-to-SitBones = %.0fmm).", saddle.Name, targetBRP, saddle.DeltaBrpToSitBonesMm()),
+				},
+			})
+		}
+
 		footers = append(footers, FooterSection{
 			Title: "Biggest Losses vs. Ideal",
 			Lines: expl.Losses,
@@ -650,7 +702,7 @@ func (a *App) renderComparisonMatrix(
 		saddleName = catalog.DefaultSaddle().Name
 	}
 	subtitle := fmt.Sprintf(
-		"Saddle Height: %.0fmm | Saddle: %s | Modeled Back Angle: %.1f° | Ideal Profile: %s (*max stay position)",
+		"Saddle Height: %.0fmm | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Modeled Back Angle: %.1f° | Ideal Profile: %s (*max stay position)",
 		state.SaddleHeightMm, saddleName, backAngle, prof.Name,
 	)
 
@@ -772,6 +824,11 @@ func (a *App) renderComparisonMatrix(
 		// Row 0: Ideal
 		idealRow := make([]string, len(headers))
 		idealRow[1] = "Ideal"
+
+		// Row 1: Acceptable
+		accRow := make([]string, len(headers))
+		accRow[1] = "Acceptable"
+
 		attrOffset := 2
 		if scoringEnabled {
 			attrOffset = 3
@@ -779,16 +836,10 @@ func (a *App) renderComparisonMatrix(
 		attrOffset++ // past Fork & Eff A2C
 
 		for idx, attr := range prof.Attributes {
-			meta, _ := ideal.LookupAttribute(attr.ID)
-			idealRow[attrOffset+idx] = ideal.FormatRange(attr.Ideal, meta.Unit, meta.Decimals)
-		}
-
-		// Row 1: Acceptable
-		accRow := make([]string, len(headers))
-		accRow[1] = "Acceptable"
-		for idx, attr := range prof.Attributes {
-			meta, _ := ideal.LookupAttribute(attr.ID)
-			accRow[attrOffset+idx] = ideal.FormatRange(attr.Acceptable, meta.Unit, meta.Decimals)
+			evalAttr := adaptProfileAttributeForSaddle(attr, state.Saddle)
+			meta, _ := ideal.LookupAttribute(evalAttr.ID)
+			idealRow[attrOffset+idx] = ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals)
+			accRow[attrOffset+idx] = ideal.FormatRange(evalAttr.Acceptable, meta.Unit, meta.Decimals)
 		}
 
 		tableRows = append(tableRows, idealRow, accRow)
@@ -880,15 +931,16 @@ func (a *App) renderComparisonMatrix(
 
 		// Attribute rows from prof.Attributes
 		for _, attr := range prof.Attributes {
-			meta, _ := ideal.LookupAttribute(attr.ID)
+			evalAttr := adaptProfileAttributeForSaddle(attr, state.Saddle)
+			meta, _ := ideal.LookupAttribute(evalAttr.ID)
 			label := meta.Label
-			if strings.EqualFold(attr.ID, "aett") || strings.EqualFold(attr.ID, "setback") || strings.EqualFold(attr.ID, "saddle_hb") || strings.EqualFold(attr.ID, "brp_setback") || strings.EqualFold(attr.ID, "saddle_hb_drop") {
+			if strings.EqualFold(evalAttr.ID, "aett") || strings.EqualFold(evalAttr.ID, "setback") || strings.EqualFold(evalAttr.ID, "saddle_hb") || strings.EqualFold(evalAttr.ID, "brp_setback") || strings.EqualFold(evalAttr.ID, "saddle_hb_drop") {
 				label = fmt.Sprintf("%s @ %.0fmm", meta.Label, state.SaddleHeightMm)
 			}
-			idealStr := ideal.FormatRange(attr.Ideal, meta.Unit, meta.Decimals)
-			accStr := ideal.FormatRange(attr.Acceptable, meta.Unit, meta.Decimals)
+			idealStr := ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals)
+			accStr := ideal.FormatRange(evalAttr.Acceptable, meta.Unit, meta.Decimals)
 
-			attrID := attr.ID
+			attrID := evalAttr.ID
 			tableRows = append(tableRows, buildRow(label, idealStr, accStr, func(colIdx int, item scoredRowItem) string {
 				for _, cr := range item.score.Criteria {
 					if cr.ID == attrID {
@@ -899,7 +951,7 @@ func (a *App) renderComparisonMatrix(
 				if !ok {
 					return "— (no data)"
 				}
-				ev := ideal.Evaluate(attr, meta, val, &item.row)
+				ev := ideal.Evaluate(evalAttr, meta, val, &item.row)
 				return ev.FormattedCell
 			}))
 		}

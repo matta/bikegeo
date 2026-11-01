@@ -527,13 +527,13 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 }
 
 func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
-	staDeg := 74.5
+	staDeg := 72.0
 	seatHeight := 746.0
 
 	points := geometry.MapPossibleBRPs(staDeg, seatHeight)
-	// -20 to +20 in 1mm steps = 41 points
-	if len(points) != 41 {
-		t.Fatalf("Expected 41 candidate BRP points, got %d", len(points))
+	// SQlab 610 with 30mm clamp: straight rails 60mm -> clamp window [-15, +15] in 1mm steps = 31 points
+	if len(points) != 31 {
+		t.Fatalf("Expected 31 candidate BRP points, got %d", len(points))
 	}
 
 	// 1. Without target, should select dead-center (RailOffsetMm = 0)
@@ -545,7 +545,7 @@ func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
 		t.Errorf("Expected 0 rail offset without target, got %.1f", bestNoTarget.RailOffsetMm)
 	}
 
-	// 2. Target 219mm (reachable on STA=74.5°)
+	// 2. Target 219mm on STA=72.0° with Redshift sagged 11mm: dead-center setback is 219.1mm
 	tMin := 218.5
 	tMax := 219.5
 	bestTarget, ok := geometry.SelectBestBRP(points, &tMin, &tMax)
@@ -555,19 +555,18 @@ func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
 	if math.Abs(bestTarget.BrpSetbackMm-219.0) > 0.5 {
 		t.Errorf("Expected BrpSetbackMm ~ 219.0, got %.1f", bestTarget.BrpSetbackMm)
 	}
-	// For STA=74.5°, dead-center setback is ~206mm, so moving ~+13mm rearward achieves 219mm
-	if bestTarget.RailOffsetMm < 12.0 || bestTarget.RailOffsetMm > 15.0 {
-		t.Errorf("Expected RailOffsetMm between +12 and +15mm, got %.1f", bestTarget.RailOffsetMm)
+	if math.Abs(bestTarget.RailOffsetMm) > 1.0 {
+		t.Errorf("Expected RailOffsetMm near 0mm on 72.0° STA, got %.1f", bestTarget.RailOffsetMm)
 	}
 
-	// 3. Target 219mm on very slack STA=71.9° (Surly Krampus): dead center is ~248mm, requires -30mm (clamps to -20mm)
-	slackPoints := geometry.MapPossibleBRPs(71.9, seatHeight)
-	bestClamped, ok := geometry.SelectBestBRP(slackPoints, &tMin, &tMax)
+	// 3. Target 219mm on steep STA=75.0° (Binary Kinetik): dead center is ~181.5mm, requires +37.5mm (clamps to +15mm)
+	steepPoints := geometry.MapPossibleBRPs(75.0, seatHeight)
+	bestClamped, ok := geometry.SelectBestBRP(steepPoints, &tMin, &tMax)
 	if !ok {
-		t.Fatalf("SelectBestBRP returned false for slack points")
+		t.Fatalf("SelectBestBRP returned false for steep points")
 	}
-	if bestClamped.RailOffsetMm != -model.SaddleRailMaxAdjustmentMm {
-		t.Errorf("Expected clamp to -20mm rail offset, got %.1f", bestClamped.RailOffsetMm)
+	if bestClamped.RailOffsetMm != 15.0 {
+		t.Errorf("Expected clamp to max +15mm rail offset, got %.1f", bestClamped.RailOffsetMm)
 	}
 }
 

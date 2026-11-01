@@ -28,22 +28,25 @@ From an idmatch Bikelab report (e.g. `206563 - Matt Armstrong - Report idmatch B
 ## Hardware Modeling & Saddle Rails
 
 On a real bicycle, the BRP sits offset from the seat tube centerline due to:
-- **Seatpost Setback**: `model.DefaultSeatpostSetbackMm = 7.0 mm` (modeled on a Redshift ShockStop suspension seatpost: 7 mm static, up to 12 mm sagged).
+- **Seatpost Setback**: `model.DefaultSeatpostSetbackMm = 11.0 mm` (modeled on a Redshift ShockStop suspension seatpost: 7 mm static + 4 mm dynamic sag under rider weight).
 - **Saddle Geometry**: Defined in the Canonical Saddle Coordinate System (`X_RC = 0.0 mm` at the rail center; inspect with `bikegeo saddles`).
-  - For the default **SQlab 610 Ergolux Active 2.1**: `RailCenterToBrpMm = +23.0 mm`, `RailCenterToSitBonesMm = -50.0 mm`.
+  - For the reference **SQlab 610 Ergolux Active 2.1**: `RailCenterToBrpMm = +23.0 mm`, `RailCenterToSitBonesMm = -50.0 mm`.
   - For the **Berthoud Aspin Open**: `RailCenterToBrpMm = +43.5 mm`, `RailCenterToSitBonesMm = -44.5 mm`.
   - Pelvic fit equivalence between them differs by only `5.5 mm` on the rails (`0.44°` of Seat Tube Angle).
+- **Primary Pelvic Invariant**: Sit Bone Setback is `292.0 mm` behind the BB (derived from idmatch BRP 219 mm + SQlab span 73 mm).
 - **Usable Rail Range**: Determined by `(L_rail - L_clamp) / 2` (bounded by `[-half, +half]` along the straight clamping rails).
 - **Ideal Seat Tube Angle**: Use `bikegeo saddles` to compute the required custom frame Seat Tube Angle to clamp any catalog saddle dead-center (`0.0 mm`) on your seatpost.
 
 ### Constant-Radius Rail Adjustment
 
 Every candidate position on the saddle rails maintains exact radial distance `L = SaddleHeightMm` (`746 mm`) from the Bottom Bracket:
-- `d_perp = SeatpostSetback + RailCenterToBrpMm + RailOffsetMm`
-- `d_axial = sqrt(L² - d_perp²)`
-- `BrpX = -d_axial * cos(STA) - d_perp * sin(STA)` (`BrpSetback = -BrpX`)
-- `BrpY =  d_axial * sin(STA) - d_perp * cos(STA)`
-- `SitBoneSetback = s.SitBoneSetbackFromBrp(BrpSetback)`
+- `clamp_perp = SeatpostSetback + RailOffsetMm`
+- `brp_perp = clamp_perp - RailCenterToBrpMm` (forward offset toward nose reduces rearward perpendicular offset from seat tube axis)
+- `sit_bone_perp = clamp_perp - RailCenterToSitBonesMm`
+- `d_axial = sqrt(L² - brp_perp²)`
+- `BrpX = -d_axial * cos(STA) - brp_perp * sin(STA)` (`BrpSetback = -BrpX`)
+- `BrpY =  d_axial * sin(STA) - brp_perp * cos(STA)`
+- `SitBoneX = -d_axial * cos(STA) - sit_bone_perp * sin(STA)` (`SitBoneSetback = -SitBoneX`)
 
 When a target setback is specified (e.g. `219 mm` in `idmatch`), `SelectBestBRP` slides the saddle on its rails toward that target (bounded by the saddle's physical clamp window), scoring the frame on how close the required rail offset is to dead center (`0 mm`), while `Saddle-HB` distance `(d)` and drop `(c)` are measured directly from the achieved BRP to HB.
 

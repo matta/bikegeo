@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 )
@@ -729,12 +728,12 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 		},
 	}
 
-	// Otso Fenrir Large frame geometry at saddle height 746mm
-	// Effective STA ~ 74.53°
-	staDeg := 74.53
+	// Frame geometry with ideal 72.0° STA at saddle height 746mm
+	staDeg := 72.0
 	seatHeight := 746.0
-	deadCenterBRP := geometry.CalculateBRPPoint(staDeg, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSaddleBrpOffsetMm, 0.0)
-	possibleBRPs := geometry.MapPossibleBRPs(staDeg, seatHeight)
+	saddle := model.ReferenceIdmatchSaddle()
+	deadCenterBRP := saddle.CalculatePoint(staDeg, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
+	possibleBRPs := saddle.MapPossibleBRPs(staDeg, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
 
 	canonicalStem := model.StemSpec{LengthMm: 60, AngleDeg: -6}
 	maxSpacer := 30.0
@@ -761,17 +760,18 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 			ActiveStack:   645.0,
 			ActiveHta:     68.0,
 			ActiveSta:     staDeg,
+			Saddle:        saddle,
 			DeadCenterBRP: deadCenterBRP,
 			PossibleBRPs:  possibleBRPs,
 		},
 	}
 
 	res := ScoreRow(row, prof)
-	if res.Total < 70.0 {
-		t.Errorf("Expected score > 70 for Otso Fenrir (penalized for rail offset), got %.1f", res.Total)
+	if res.Total < 90.0 {
+		t.Errorf("Expected score > 90 for 72.0° frame (ideal setback match), got %.1f", res.Total)
 	}
 
-	// Verify criteria results
+	// Verify criteria results for 72.0° frame
 	for _, c := range res.Criteria {
 		if c.ID == "brp_setback" {
 			if !strings.Contains(c.FormattedCell, "219") || !strings.Contains(c.FormattedCell, "rail") {
@@ -783,5 +783,28 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 				t.Errorf("Expected saddle_hb subscore >= 95, got %.1f (%q)", c.SubScore, c.FormattedCell)
 			}
 		}
+	}
+
+	// Verify that steep STA = 74.53° (Otso Fenrir) is properly penalized without a Drop Best
+	fenrirSTA := 74.53
+	fenrirDeadCenter := saddle.CalculatePoint(fenrirSTA, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
+	fenrirPossible := saddle.MapPossibleBRPs(fenrirSTA, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
+	fenrirBike := bike
+	fenrirBike.StaDeg = fenrirSTA
+	fenrirRow := model.CanonicalComparisonRow{
+		Bike: fenrirBike,
+		Canonical: model.BikeFitAnalysis{
+			ActiveReach:   425.0,
+			ActiveStack:   645.0,
+			ActiveHta:     68.0,
+			ActiveSta:     fenrirSTA,
+			Saddle:        saddle,
+			DeadCenterBRP: fenrirDeadCenter,
+			PossibleBRPs:  fenrirPossible,
+		},
+	}
+	fenrirRes := ScoreRow(fenrirRow, prof)
+	if fenrirRes.Total > 50.0 {
+		t.Errorf("Expected score < 50 for Otso Fenrir on Redshift post alone (cannot reach 219mm), got %.1f", fenrirRes.Total)
 	}
 }

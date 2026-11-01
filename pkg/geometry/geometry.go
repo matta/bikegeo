@@ -80,16 +80,18 @@ func CalculateActualSetback(staDeg, seatHeight float64) float64 {
 
 // CalculateBRPPoint computes the saddle Biomechanical Reference Point (BRP) coordinates,
 // horizontal setback, and angle from BB at radial distance seatHeight from BB (0,0)
-// with perpendicular offset (seatpostSetbackMm + saddleBrpOffsetMm + railOffsetMm) behind the seat tube axis.
+// with perpendicular offset behind the seat tube axis.
 func CalculateBRPPoint(
 	staDeg, seatHeight, seatpostSetbackMm, saddleBrpOffsetMm, railOffsetMm float64,
 ) model.BRPPoint {
 	sta := ToRad(staDeg)
-	totalPerp := seatpostSetbackMm + saddleBrpOffsetMm + railOffsetMm
+	clampPerp := seatpostSetbackMm + railOffsetMm
+	// Forward offset toward nose reduces rearward perpendicular offset from seat tube axis:
+	brpPerp := clampPerp - saddleBrpOffsetMm
 
-	axial := math.Sqrt(math.Max(0, seatHeight*seatHeight-totalPerp*totalPerp))
-	brpX := -axial*math.Cos(sta) - totalPerp*math.Sin(sta)
-	brpY := axial*math.Sin(sta) - totalPerp*math.Cos(sta)
+	axial := math.Sqrt(math.Max(0, seatHeight*seatHeight-brpPerp*brpPerp))
+	brpX := -axial*math.Cos(sta) - brpPerp*math.Sin(sta)
+	brpY := axial*math.Sin(sta) - brpPerp*math.Cos(sta)
 
 	setback := -brpX
 	angleFromBb := 0.0
@@ -98,32 +100,27 @@ func CalculateBRPPoint(
 	}
 
 	return model.BRPPoint{
-		SeatpostSetbackMm: seatpostSetbackMm,
-		SaddleBrpOffsetMm: saddleBrpOffsetMm,
-		RailOffsetMm:      railOffsetMm,
-		TotalPerpOffsetMm: Round(totalPerp, 1),
-		BrpX:              Round(brpX, 1),
-		BrpY:              Round(brpY, 1),
-		BrpSetbackMm:      Round(setback, 1),
-		BrpAngleFromBbDeg: Round(angleFromBb, 1),
+		SeatpostSetbackMm:     seatpostSetbackMm,
+		SaddleBrpOffsetMm:     saddleBrpOffsetMm,
+		RailOffsetMm:          railOffsetMm,
+		AchievedClampOffsetMm: railOffsetMm,
+		TotalPerpOffsetMm:     Round(brpPerp, 1),
+		BrpX:                  Round(brpX, 1),
+		BrpY:                  Round(brpY, 1),
+		BrpSetbackMm:          Round(setback, 1),
+		BrpAngleFromBbDeg:     Round(angleFromBb, 1),
 	}
 }
 
 // MapPossibleBRPs maps candidate BRP points across the usable rail adjustment range
-// [-SaddleRailMaxAdjustmentMm, +SaddleRailMaxAdjustmentMm] in SaddleRailStepMm steps.
+// for the default reference saddle (SQlab 610) with the default seatpost setback.
 func MapPossibleBRPs(staDeg, seatHeight float64) []model.BRPPoint {
-	var points []model.BRPPoint
-	for r := -model.SaddleRailMaxAdjustmentMm; r <= model.SaddleRailMaxAdjustmentMm+0.001; r += model.SaddleRailStepMm {
-		pt := CalculateBRPPoint(
-			staDeg,
-			seatHeight,
-			model.DefaultSeatpostSetbackMm,
-			model.DefaultSaddleBrpOffsetMm,
-			Round(r, 1),
-		)
-		points = append(points, pt)
-	}
-	return points
+	return model.ReferenceIdmatchSaddle().MapPossibleBRPs(
+		staDeg,
+		seatHeight,
+		model.DefaultSeatpostSetbackMm,
+		model.DefaultSeatpostClampLengthMm,
+	)
 }
 
 // SelectBestBRP selects the best BRP point from candidate points for a target setback range.

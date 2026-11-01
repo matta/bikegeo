@@ -224,3 +224,49 @@ func TestCalculateUniversalCompromiseSTA(t *testing.T) {
 		t.Errorf("Expected 3-saddle MaxRailOffsetMm ~ 10.4mm, got %.2fmm", res39_3.MaxRailOffsetMm)
 	}
 }
+
+func TestSaddleSpec_CalculatePoint_And_PelvicDerivation(t *testing.T) {
+	sqlab, _ := catalog.GetSaddle("sqlab-610-ergolux")
+	aspin, _ := catalog.GetSaddle("berthoud-aspin-open")
+	slr, _ := catalog.GetSaddle("selle-italia-slr-boost-superflow-l3")
+
+	// 1. Primary pelvic setback derivation from idmatch 219mm BRP via SQlab reference
+	pelvicSetback := model.DerivePelvicSetbackFromIdmatchBrp(219.0)
+	if pelvicSetback != 292.0 {
+		t.Errorf("Expected pelvic setback 292.0mm, got %.1fmm", pelvicSetback)
+	}
+
+	// 2. Active saddle BRP targets derived from pelvic setback
+	if sqlab.TargetBrpForPelvicSetback(pelvicSetback) != 219.0 {
+		t.Errorf("Expected SQlab target BRP 219.0mm, got %.1fmm", sqlab.TargetBrpForPelvicSetback(pelvicSetback))
+	}
+	if aspin.TargetBrpForPelvicSetback(pelvicSetback) != 204.0 {
+		t.Errorf("Expected Aspin target BRP 204.0mm, got %.1fmm", aspin.TargetBrpForPelvicSetback(pelvicSetback))
+	}
+	if slr.TargetBrpForPelvicSetback(pelvicSetback) != 209.0 {
+		t.Errorf("Expected SLR Boost target BRP 209.0mm, got %.1fmm", slr.TargetBrpForPelvicSetback(pelvicSetback))
+	}
+
+	// 3. Vector math on 72.0° STA with Redshift sagged (11mm setback)
+	seatHeight := 746.0
+	pt72 := sqlab.CalculatePoint(72.0, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
+	if math.Abs(pt72.BrpSetbackMm-219.1) > 0.3 {
+		t.Errorf("Expected 72.0° STA dead-center BRP ~219.1mm, got %.1fmm", pt72.BrpSetbackMm)
+	}
+	if math.Abs(pt72.BrpAngleFromBbDeg-72.9) > 0.2 {
+		t.Errorf("Expected 72.0° STA BRP angle ~72.9°, got %.1f°", pt72.BrpAngleFromBbDeg)
+	}
+
+	// 4. Steep 75.0° STA (Binary Kinetik) runs out of rearward rail travel
+	pt75DeadCenter := sqlab.CalculatePoint(75.0, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
+	if math.Abs(pt75DeadCenter.BrpSetbackMm-181.5) > 0.5 {
+		t.Errorf("Expected 75.0° STA dead-center BRP ~181.5mm, got %.1fmm", pt75DeadCenter.BrpSetbackMm)
+	}
+	pt75MaxRail := sqlab.CalculatePoint(75.0, seatHeight, model.DefaultSeatpostSetbackMm, 15.0)
+	if pt75MaxRail.BrpSetbackMm > 197.0 {
+		t.Errorf("Expected 75.0° STA max rail BRP <= 197mm (cannot reach 219mm), got %.1fmm", pt75MaxRail.BrpSetbackMm)
+	}
+	if pt75MaxRail.SitBoneSetbackMm > 270.0 {
+		t.Errorf("Expected 75.0° STA max rail SitBoneSetback <= 270mm (cannot reach 292mm), got %.1fmm", pt75MaxRail.SitBoneSetbackMm)
+	}
+}

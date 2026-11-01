@@ -555,6 +555,39 @@ func Explain(frames []ScoredFrame, criteria []Criterion) Explanations {
 	}
 }
 
+func translateBrpSpecForSaddle(spec ideal.AttributeSpec, saddle model.SaddleSpec) ideal.AttributeSpec {
+	if saddle.ID == "" || saddle.ID == "sqlab-610-ergolux" {
+		return spec
+	}
+	refSQ := model.ReferenceIdmatchSaddle()
+	copied := spec
+	if spec.Ideal != nil {
+		idCopy := *spec.Ideal
+		if idCopy.Min != nil {
+			val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*idCopy.Min))
+			idCopy.Min = &val
+		}
+		if idCopy.Max != nil {
+			val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*idCopy.Max))
+			idCopy.Max = &val
+		}
+		copied.Ideal = &idCopy
+	}
+	if spec.Acceptable != nil {
+		accCopy := *spec.Acceptable
+		if accCopy.Min != nil {
+			val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*accCopy.Min))
+			accCopy.Min = &val
+		}
+		if accCopy.Max != nil {
+			val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*accCopy.Max))
+			accCopy.Max = &val
+		}
+		copied.Acceptable = &accCopy
+	}
+	return copied
+}
+
 // ScoreRow scores a single CanonicalComparisonRow against an ideal profile.
 func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	if prof == nil {
@@ -591,8 +624,24 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	}
 
 	can := &row.Canonical
+
+	rowBrpMin, rowBrpMax := brpMin, brpMax
+	if can.Saddle.ID != "" && (brpMin != nil || brpMax != nil) {
+		refSQ := model.ReferenceIdmatchSaddle()
+		if brpMin != nil {
+			pelvicMin := refSQ.SitBoneSetbackFromBrp(*brpMin)
+			trMin := can.Saddle.TargetBrpForPelvicSetback(pelvicMin)
+			rowBrpMin = &trMin
+		}
+		if brpMax != nil {
+			pelvicMax := refSQ.SitBoneSetbackFromBrp(*brpMax)
+			trMax := can.Saddle.TargetBrpForPelvicSetback(pelvicMax)
+			rowBrpMax = &trMax
+		}
+	}
+
 	if len(can.PossibleBRPs) > 0 {
-		if bestBRP, ok := geometry.SelectBestBRP(can.PossibleBRPs, brpMin, brpMax); ok {
+		if bestBRP, ok := geometry.SelectBestBRP(can.PossibleBRPs, rowBrpMin, rowBrpMax); ok {
 			can.SelectedBRP = &bestBRP
 			can.SitBoneSetbackMm = bestBRP.SitBoneSetbackMm
 			can.AchievedClampOffset = bestBRP.AchievedClampOffsetMm
@@ -617,17 +666,23 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 			continue
 		}
 
+		evalSpec := spec
+		lowID := strings.ToLower(spec.ID)
+		if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && can.Saddle.ID != "" {
+			evalSpec = translateBrpSpecForSaddle(spec, can.Saddle)
+		}
+
 		val, ok := meta.Extract(row)
 		if !ok {
-			evals = append(evals, attrEval{spec: spec, meta: meta, hasVal: false})
+			evals = append(evals, attrEval{spec: evalSpec, meta: meta, hasVal: false})
 			continue
 		}
 
-		ev := ideal.Evaluate(spec, meta, val, &row)
-		evals = append(evals, attrEval{spec: spec, meta: meta, eval: ev, val: val, hasVal: true})
+		ev := ideal.Evaluate(evalSpec, meta, val, &row)
+		evals = append(evals, attrEval{spec: evalSpec, meta: meta, eval: ev, val: val, hasVal: true})
 
-		if spec.Weight > 0 && spec.Ideal != nil {
-			totalActiveWeight += spec.Weight
+		if evalSpec.Weight > 0 && evalSpec.Ideal != nil {
+			totalActiveWeight += evalSpec.Weight
 		}
 	}
 

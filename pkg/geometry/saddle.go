@@ -263,12 +263,7 @@ func CalculateSaddleBRPPoint(
 	saddle model.SaddleSpec,
 	railOffsetMm float64,
 ) model.BRPPoint {
-	brpOffset := saddle.RailCenterToBrpMm
-	pt := CalculateBRPPoint(staDeg, seatHeight, seatpostSetbackMm, brpOffset, railOffsetMm)
-	pt.Saddle = saddle
-	pt.AchievedClampOffsetMm = Round(-railOffsetMm, 1)
-	pt.SitBoneSetbackMm = Round(saddle.SitBoneSetbackFromBrp(pt.BrpSetbackMm), 1)
-	return pt
+	return saddle.CalculatePoint(staDeg, seatHeight, seatpostSetbackMm, railOffsetMm)
 }
 
 // MapPossibleSaddleBRPs maps candidate BRP points within the clamp window
@@ -278,21 +273,5 @@ func MapPossibleSaddleBRPs(
 	saddle model.SaddleSpec,
 	clampLengthMm float64,
 ) []model.BRPPoint {
-	if clampLengthMm <= 0 {
-		clampLengthMm = model.DefaultSeatpostClampLengthMm
-	}
-	minClamp, maxClamp := saddle.ClampWindowMm(clampLengthMm)
-
-	// In CalculateBRPPoint: totalPerp = seatpostSetback + brpOffset + railOffset
-	// Positive railOffset moves the saddle rearward (so clamp offset = -railOffset is negative).
-	// Therefore, clamp offset in [minClamp, maxClamp] corresponds to railOffset in [-maxClamp, -minClamp].
-	minRail := -maxClamp
-	maxRail := -minClamp
-
-	var points []model.BRPPoint
-	for r := minRail; r <= maxRail+0.001; r += model.SaddleRailStepMm {
-		pt := CalculateSaddleBRPPoint(staDeg, seatHeight, seatpostSetbackMm, saddle, Round(r, 1))
-		points = append(points, pt)
-	}
-	return points
+	return saddle.MapPossibleBRPs(staDeg, seatHeight, seatpostSetbackMm, clampLengthMm)
 }
