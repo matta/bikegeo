@@ -1,58 +1,80 @@
-# Measuring Saddle Biomechanical Reference Point (BRP) Offset
+# Canonical Saddle Coordinate System & BRP Fit Translation
 
-This guide explains how to measure the physical relationship between a saddle's **Biomechanical Reference Point (BRP)** and its **mounting rails** for use in `bikegeo` fit calculations.
-
----
-
-## 1. What is the BRP?
-
-The **Biomechanical Reference Point (BRP)** is an industry-standard fit benchmark popularized by Selle Italia and the **idmatch** fitting system:
-* It is defined as the exact cross-section along the saddle's longitudinal centerline where the saddle shell reaches a **width of 70 mm**.
-* Because saddle lengths and shapes vary dramatically between short-nosed modern saddles (240 mm) and traditional saddles (275–285 mm), measuring saddle position from the nose is unreliable. The BRP provides a consistent, anatomically anchored landmark that aligns with the rider's pelvis and ischial tuberosities (sit bones).
+This guide explains how `bikegeo` models saddle geometry, mounting rail constraints, the **Biomechanical Reference Point (BRP)**, and the rider's **sit bones** for custom frame geometry and bike fit calculations.
 
 ---
 
-## 2. Why Rail Offset Matters in `bikegeo`
+## 1. Physical Roles: Frame Datum vs. Anatomical Contact vs. Caliper Landmark
 
-When a saddle is clamped in a seatpost:
-1. **Seatpost Setback**: The seatpost clamp typically sits offset from the extended seat tube centerline. For example, a **Redshift ShockStop suspension seatpost** introduces a `+7.0 mm` rearward static setback.
-2. **Saddle Rail Position**: The saddle rails provide a fore-aft adjustment window (typically `±20 mm` from the center of the rail markings).
-3. **Ideal Frame Fit**: An ideal frame geometry allows clamping the saddle **dead-center (`0 mm`)** on its rails. If a frame has an excessively steep seat tube angle, the rider must slide the saddle far back on the rails (e.g. `+15 mm` to `+20 mm`) or install an offset adapter (such as a Fair Bicycle Drop Best) to achieve their biomechanical setback.
+In bike fit modeling, it is critical not to conflate three separate physical realities:
+1. **Mechanical Mounting Datum (Saddle Rails):** The bicycle frame connects only to the saddle rails via the seatpost clamp. The longitudinal origin is the exact center of the straight clamping section (`X_RC = 0.0 mm`).
+2. **Anatomical Contact Point (Sit Bones):** The rider's pelvis and ischial tuberosities rest on the rear platform of the saddle (`RailCenterToSitBonesMm`, typically `-45 mm` to `-50 mm` behind the rail center).
+3. **Caliper Fit Landmark (70mm BRP):** The Biomechanical Reference Point popularized by idmatch is defined as the cross-section along the nose where the saddle measures **70 mm wide**. It is an external measurement landmark, not a contact point.
 
-In `bikegeo`, the total neutral perpendicular offset from the seat tube centerline to the BRP is:
-
-$$\text{DefaultBrpOffsetMm} = \text{DefaultSeatpostSetbackMm} + \text{DefaultSaddleBrpOffsetMm}$$
+Because different saddles have different nose tapers, the distance from BRP to the sit bones varies considerably (e.g. `73 mm` on an SQlab 610 vs. `88 mm` on a Berthoud Aspin Open). **Any time a BRP coordinate is used to compute a physical location (such as a seat tube angle, clamp offset, or sit bone position), it must be resolved through a specific saddle.**
 
 ---
 
-## 3. How to Measure Your Saddle BRP Offset
+## 2. Canonical Coordinate Sign Convention
 
-To determine `DefaultSaddleBrpOffsetMm` for your specific saddle:
+All longitudinal measurements are projected along the plane of the saddle rails:
+* **Origin (`0.0 mm`):** Exact center of the straight rail clamping zone (`X_RC = 0.0 mm`).
+* **Positive (`+`):** Forward toward the saddle nose.
+* **Negative (`-`):** Rearward toward the saddle tail.
 
-### Step 1: Find the 70 mm BRP Line
-1. Place the saddle on a flat workbench with its rails parallel to the table.
-2. Using calipers or a precise millimeter ruler, locate the point along the saddle nose where the top shell is **exactly 70.0 mm wide**.
-3. Mark this position lightly with a pencil or small piece of tape across the top or side edge of the saddle cover. (Some Selle Italia saddles have this line pre-marked on the cover or underside).
+```text
+  <--- REAR (Negative -)                       FRONT (Positive +) --->
 
-### Step 2: Locate the Center of the Saddle Rails
-1. Look at the printed scale on the straight clamping section of the saddle rails.
-2. Identify the **`0` mark** (the midpoint of the manufacturer's designated clamping range).
-   * *Note: If the rails do not have a `0` mark, measure the total straight length of the clamping section between the front and rear bends and find the exact halfway point.*
+    [Sit Bones]                 [Rail Center]               [BRP 70mm]
+ RailCenterToSitBonesMm < 0        X_RC = 0            RailCenterToBrpMm > 0
+--------|-----------------------------|-------------------------|-------->
+        |<-- |RailCenterToSitBones| ->|<-- RailCenterToBrpMm -->|
+        |<----------------- DeltaBrpToSitBones ----------------->|
+```
 
-### Step 3: Measure the Fore-Aft Offset
-1. Sight straight down (perpendicular to the straight section of the rails) from your marked 70 mm BRP line down to the rail scale:
-   * **If the 70 mm line is directly above the rail center (`0` mark)**:
-     `Saddle BRP Offset = 0.0 mm`
-   * **If the 70 mm line sits rearward (toward the saddle tail) from the rail center**:
-     `Saddle BRP Offset = +X mm` (positive offset)
-   * **If the 70 mm line sits forward (toward the saddle nose) from the rail center**:
-     `Saddle BRP Offset = -X mm` (negative offset)
+* `DeltaBrpToSitBones = RailCenterToBrpMm - RailCenterToSitBonesMm`
 
 ---
 
-## 4. Special Considerations for SQlab Saddles
+## 3. Direct Measurements: SQlab 610 Ergolux vs. Berthoud Aspin Open
 
-SQlab saddles (e.g. 611, 612 Ergowave, 60X) feature an ergonomic stepped wave design:
-* The rider's sit bones do not rest on the narrow nose taper; they sit firmly on the raised rear Ergowave platform.
-* To accommodate this posture without forcing the rider to reach too far forward, SQlab designs their saddle rails roughly **10–15 mm longer** and positioned further forward under the shell than standard saddles.
-* Consequently, when an SQlab saddle is mounted with its rails centered, the effective anatomical reference point sits much closer to the center of the rails (`0.0 mm`), rather than behind the clamp. `bikegeo` therefore defaults `DefaultSaddleBrpOffsetMm = 0.0 mm`.
+| Saddle Model | Straight Rail Length | Extended Rear Rail | Rail -> BRP (70mm) | Rail -> Sit Bones | BRP -> Sit Bones |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **SQlab 610 Ergolux Active 2.1** | `60.0 mm` (`-30` to `+30`) | `+7.5 mm` (to `-37.5 mm`) | `+23.0 mm` | `-50.0 mm` | `73.0 mm` |
+| **Berthoud Aspin Open** | `64.0 mm` (`-32` to `+32`) | `0.0 mm` (hard stops) | `+43.5 mm` | `-44.5 mm` | `88.0 mm` |
+| **Delta (`Aspin - SQlab`)** | `+4.0 mm` | — | **`+20.5 mm`** | **`+5.5 mm`** | **`+15.0 mm`** |
+
+### Key Takeaway on Pelvic Fit Equivalence
+* The sit bone position relative to the rail center differs by **only 5.5 mm** between the SQlab 610 and Berthoud Aspin.
+* Translating from SQlab to Berthoud Aspin requires only a `5.5 mm` clamp shift on the rails, or represents only **`0.44°` of Seat Tube Angle** at a `746 mm` saddle height.
+* The large `20.5 mm` difference in BRP position is an artifact of nose taper. If a fitter blindly placed the Berthoud Aspin at the SQlab's BRP setback without translating sit bones, the rider's pelvis would be pushed **`15.0 mm` too far back**.
+
+---
+
+## 4. Seatpost Clamp Travel Invariants
+
+For a straight rail length `L_rail` and a seatpost clamp of length `L_clamp`, the usable travel of the clamp center on the rails is:
+* `ClampCenterNominalMin = -((L_rail - L_clamp) / 2)`
+* `ClampCenterNominalMax = +((L_rail - L_clamp) / 2)`
+* `ClampCenterPhysicalMin = ClampCenterNominalMin - ExtendedRearRailMm`
+
+With a **45 mm Fair Bicycle Drop Best clamp**:
+* **SQlab 610:** Nominal `[-7.5, +7.5] mm`. With `7.5 mm` extended rear straight rail, physical travel reaches `[-15.0, +7.5] mm`.
+* **Berthoud Aspin:** Hard dogleg stops at `±32.0 mm` limit clamp travel to `[-9.5, +9.5] mm`. Clamping the SQlab at `-15.0 mm` translates to `-9.5 mm` on the Aspin—landing right on the rear mechanical stop.
+
+---
+
+## 5. Ideal Custom Frame Seat Tube Angle (STA)
+
+To hit a target sit bone setback of `292.0 mm` behind the BB at `746 mm` saddle height with the saddle clamped **dead-center (`0.0 mm`)**:
+
+```text
+IdealSTA = acos((TargetSitBoneSetback + RailCenterToSitBones - SeatpostSetback) / SaddleHeight)
+```
+
+* **Standard 15mm Setback Post:** `Ideal STA = 72.4°`
+* **Standard 25mm Setback Post:** `Ideal STA = 73.2°`
+* **Redshift Post (7mm static / 11mm sagged):** `Ideal STA = 71.7°` / `72.0°`
+* **Redshift + Drop Best (35mm static / 39mm sagged):** `Ideal STA = 74.1°` / `74.5°`
+
+Use `bikegeo saddles` to inspect the full table and cross-saddle translation interactively.

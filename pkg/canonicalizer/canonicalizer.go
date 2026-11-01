@@ -227,12 +227,25 @@ func ResolveForkToken(
 }
 
 // ResolveFrameForkSetup resolves a ComparisonSetup against a FrameModel, enforcing physical validity
-// and legal fork limits, and canonicalizes to the comparison model.
+// and legal fork limits, and canonicalizes to the comparison model using the default saddle.
 func ResolveFrameForkSetup(
 	frame model.FrameModel,
 	setup model.ComparisonSetup,
 	profile model.RiderProfile,
 ) (model.CanonicalComparisonRow, error) {
+	return ResolveFrameForkSetupWithSaddle(frame, setup, profile, catalog.DefaultSaddle())
+}
+
+// ResolveFrameForkSetupWithSaddle resolves a ComparisonSetup against a FrameModel using an explicit SaddleSpec.
+func ResolveFrameForkSetupWithSaddle(
+	frame model.FrameModel,
+	setup model.ComparisonSetup,
+	profile model.RiderProfile,
+	saddle model.SaddleSpec,
+) (model.CanonicalComparisonRow, error) {
+	if saddle.ID == "" {
+		saddle = catalog.DefaultSaddle()
+	}
 	if profile.SaddleHeightMm <= 0 {
 		return model.CanonicalComparisonRow{}, fmt.Errorf("profile.SaddleHeightMm must be positive, got %.1f", profile.SaddleHeightMm)
 	}
@@ -306,6 +319,7 @@ func ResolveFrameForkSetup(
 
 	canonCfg := model.CanonicalConfig{
 		TargetA2c:    targetA2c,
+		Saddle:       saddle,
 		RiderProfile: profile,
 	}
 
@@ -418,11 +432,12 @@ func CanonicalizeBikes(
 			SaddleHbMm:         baseHB.SaddleHbMm,
 		}
 
-		canonical, err := geometry.AnalyzeBikeFit(
+		canonical, err := geometry.AnalyzeBikeFitWithSaddle(
 			bike,
 			&config.TargetA2c,
 			&targetRake,
 			config.RiderProfile,
+			config.Saddle,
 		)
 		if err != nil {
 			return nil, err
@@ -475,6 +490,8 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 		if len(can.PossibleBRPs) > 0 {
 			if bestBRP, ok := geometry.SelectBestBRP(can.PossibleBRPs, brpMin, brpMax); ok {
 				can.SelectedBRP = &bestBRP
+				can.SitBoneSetbackMm = bestBRP.SitBoneSetbackMm
+				can.AchievedClampOffset = bestBRP.AchievedClampOffsetMm
 			}
 			activeBRP := can.DeadCenterBRP
 			if can.SelectedBRP != nil {

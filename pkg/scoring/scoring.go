@@ -594,6 +594,8 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	if len(can.PossibleBRPs) > 0 {
 		if bestBRP, ok := geometry.SelectBestBRP(can.PossibleBRPs, brpMin, brpMax); ok {
 			can.SelectedBRP = &bestBRP
+			can.SitBoneSetbackMm = bestBRP.SitBoneSetbackMm
+			can.AchievedClampOffset = bestBRP.AchievedClampOffsetMm
 		}
 		activeBRP := can.DeadCenterBRP
 		if can.SelectedBRP != nil {

@@ -243,6 +243,30 @@ var registry = []AttributeMeta{
 			return fmt.Sprintf("%s%.0f", sign, val)
 		},
 	},
+	{
+		ID:       "sit_bone_setback",
+		Label:    "Sit Bones",
+		Unit:     "mm",
+		Decimals: 0,
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.SitBoneSetbackMm <= 0 {
+				return 0, false
+			}
+			return row.Canonical.SitBoneSetbackMm, true
+		},
+	},
+	{
+		ID:       "ideal_sta",
+		Label:    "Ideal STA",
+		Unit:     "°",
+		Decimals: 1,
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.IdealStaDeg <= 0 {
+				return 0, false
+			}
+			return row.Canonical.IdealStaDeg, true
+		},
+	},
 }
 
 var registryMap = func() map[string]AttributeMeta {
@@ -266,6 +290,12 @@ func LookupAttribute(id string) (AttributeMeta, bool) {
 	}
 	if norm == "hb_drop" || norm == "drop" {
 		norm = "saddle_hb_drop"
+	}
+	if norm == "sit_bones" || norm == "sitbones" || norm == "sitbone" || norm == "sit_bone" {
+		norm = "sit_bone_setback"
+	}
+	if norm == "idealsta" {
+		norm = "ideal_sta"
 	}
 	meta, ok := registryMap[norm]
 	if !ok {

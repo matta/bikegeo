@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"bikegeo/pkg/canonicalizer"
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/frames"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
@@ -29,12 +30,14 @@ func (a *App) runCompare(args []string) int {
 	var noScoreFlag bool
 	var scoreDetailFlag bool
 	var idealFlag string
+	var saddleFlag string
 
 	fs.BoolVar(&transposeFlag, "transpose", false, "Transpose table (Columns as rows, Metrics as columns)")
 	fs.BoolVar(&compactFlag, "compact", false, "Compact/transposed table view (alias for --transpose)")
 	fs.BoolVar(&noScoreFlag, "no-score", false, "Disable scoring and ranking display")
 	fs.BoolVar(&scoreDetailFlag, "score-detail", false, "Display detailed scoring breakdown table")
 	fs.StringVar(&idealFlag, "ideal", "", "Ideal frame profile name (default: 'default')")
+	fs.StringVar(&saddleFlag, "saddle", "", "Saddle model from catalog (default: 'sqlab-610-ergolux')")
 
 	boolFlags := map[string]bool{
 		"transpose":    true,
@@ -202,6 +205,19 @@ func (a *App) runCompare(args []string) int {
 		state.SaddleHeightMm = *prof.SaddleHeightMm
 	}
 
+	if saddleFlag != "" {
+		s, ok := catalog.GetSaddle(saddleFlag)
+		if !ok {
+			fmt.Fprintf(a.Err, "Error: unrecognized saddle %q (see 'bikegeo saddles' for catalog)\n", saddleFlag)
+			return 1
+		}
+		state.SaddleID = s.ID
+		state.Saddle = s
+	} else if state.Saddle.ID == "" {
+		state.Saddle = catalog.DefaultSaddle()
+		state.SaddleID = state.Saddle.ID
+	}
+
 	// Resolve and validate all columns against frame constraints
 	rows, normalizedCols, err := resolveAllColumns(allFrames, state)
 	if err != nil {
@@ -304,6 +320,7 @@ Scoring & Ranking:
 
 Flags:
   --ideal <name>               Select ideal profile ('default' or 'idmatch')
+  --saddle <name>              Select saddle model from catalog ('sqlab-610-ergolux' or 'berthoud-aspin-open')
   -compact, --compact          Render compact/transposed table (Columns as rows, Metrics as columns)
   -transpose, --transpose      Alias for --compact
   -score-detail                Display detailed scoring breakdown table for each criterion
@@ -485,7 +502,7 @@ func resolveAllColumns(
 		if err != nil {
 			return nil, nil, err
 		}
-		row, err := canonicalizer.ResolveFrameForkSetup(*frame, col, state.RiderProfile)
+		row, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, col, state.RiderProfile, state.Saddle)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -498,11 +515,14 @@ func resolveAllColumns(
 
 // DefaultComparisonState returns the compiled baseline comparison configuration.
 func DefaultComparisonState() model.SavedComparisonState {
+	defSaddle := catalog.DefaultSaddle()
 	return model.SavedComparisonState{
 		RiderProfile: model.DefaultRiderProfile(),
 		Transpose:    true,
 		RefIndex:     1,
 		IdealProfile: "default",
+		SaddleID:     defSaddle.ID,
+		Saddle:       defSaddle,
 		Columns: []model.ComparisonSetup{
 			{FrameID: "binary-havok", Size: "XL", A2cMm: 491, RakeMm: 44, DisplayLabel: "100mm @ 15% sag"},
 			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
@@ -625,9 +645,13 @@ func (a *App) renderComparisonMatrix(
 		backAngle = rows[0].Canonical.BackAngleDeg
 	}
 	title := "Apples-to-Apples Geometry Comparison Matrix"
+	saddleName := state.Saddle.Name
+	if saddleName == "" {
+		saddleName = catalog.DefaultSaddle().Name
+	}
 	subtitle := fmt.Sprintf(
-		"Saddle Height: %.0fmm | Modeled Back Angle: %.1f° | Ideal Profile: %s (*max stay position)",
-		state.SaddleHeightMm, backAngle, prof.Name,
+		"Saddle Height: %.0fmm | Saddle: %s | Modeled Back Angle: %.1f° | Ideal Profile: %s (*max stay position)",
+		state.SaddleHeightMm, saddleName, backAngle, prof.Name,
 	)
 
 	// Prepare detail table if requested

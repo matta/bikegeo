@@ -522,3 +522,64 @@ func TestCompare_SaddleHbMetric(t *testing.T) {
 		t.Errorf("expected 'Saddle-HB @ 780mm' row in compare output, got:\n%s", out)
 	}
 }
+
+func TestSaddlesCommand(t *testing.T) {
+	t.Run("CatalogAndTranslationTable", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "saddles")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+		expectedStrings := []string{
+			"SQlab 610 Ergolux Active 2.1",
+			"Berthoud Aspin Open",
+			"Cross-Saddle Fit Translation",
+			"Ideal Seat Tube Angle",
+			"Universal Compromise Seat Tube Angle (All Saddles)",
+			"Compromise STA",
+			"Max Rail Offset",
+			"Universal ±5mm Window",
+			"Individual Saddle Offsets",
+			"74.2°",
+			"72.0°",
+			"72.3°",
+			"73.1°",
+			"72.1°",
+			"±2.8 mm",
+		}
+		for _, exp := range expectedStrings {
+			if !strings.Contains(out, exp) {
+				t.Errorf("expected output to contain %q, got:\n%s", exp, out)
+			}
+		}
+	})
+
+	t.Run("SpecificSaddleArgument", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "saddles", "aspin")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+		if !strings.Contains(out, "Berthoud Aspin Open") {
+			t.Errorf("expected Berthoud Aspin Open in output, got:\n%s", out)
+		}
+	})
+
+	t.Run("UnrecognizedSaddle", func(t *testing.T) {
+		_, errOut, code := runCLI(t, "saddles", "nonexistent-saddle")
+		if code == 0 {
+			t.Fatalf("expected non-zero exit code for unrecognized saddle")
+		}
+		if !strings.Contains(errOut, "unrecognized saddle") {
+			t.Errorf("expected unrecognized saddle error, got: %s", errOut)
+		}
+	})
+}
+
+func TestCompare_WithSaddleFlag(t *testing.T) {
+	out, errOut, code := runCLI(t, "compare", "--ideal", "idmatch", "--saddle", "berthoud-aspin-open", "havok:L@110mm@20%")
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+	}
+	if !strings.Contains(out, "Berthoud Aspin Open") {
+		t.Errorf("expected Berthoud Aspin Open in subtitle, got:\n%s", out)
+	}
+}

@@ -57,6 +57,8 @@ func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 		return app.runStems(subArgs)
 	case "ideals", "ideal":
 		return app.runIdeals(subArgs)
+	case "saddles", "saddle":
+		return app.runSaddles(subArgs)
 	case "compare", "cmp":
 		return app.runCompare(subArgs)
 	case "validate", "val", "check":
@@ -103,6 +105,7 @@ Core Commands:
   list                    List all bike frames, sizes, and supported fork capacities
   forks                   List standard 29er fork presets and travel-to-A2C mappings
   stems                   List standard stem presets and length/angle envelopes
+  saddles [show <id>]     List saddle catalog, translate pelvic fit, and solve ideal custom STA
   ideals [show <name>]    List or inspect ideal frame profiles
 
 Global Flags:

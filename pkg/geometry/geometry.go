@@ -712,6 +712,20 @@ func AnalyzeBikeFit(
 	targetRake *float64,
 	profile model.RiderProfile,
 ) (model.BikeFitAnalysis, error) {
+	return AnalyzeBikeFitWithSaddle(bike, targetA2c, targetRake, profile, catalog.DefaultSaddle())
+}
+
+// AnalyzeBikeFitWithSaddle runs the master analysis pipeline using an explicit SaddleSpec.
+func AnalyzeBikeFitWithSaddle(
+	bike model.BikeGeometry,
+	targetA2c *float64,
+	targetRake *float64,
+	profile model.RiderProfile,
+	saddle model.SaddleSpec,
+) (model.BikeFitAnalysis, error) {
+	if saddle.ID == "" {
+		saddle = catalog.DefaultSaddle()
+	}
 	if profile.SaddleHeightMm <= 0 {
 		return model.BikeFitAnalysis{}, fmt.Errorf("profile.SaddleHeightMm must be positive, got %.1f", profile.SaddleHeightMm)
 	}
@@ -844,14 +858,20 @@ func AnalyzeBikeFit(
 	)
 
 	// 6. Cockpit BRP & HB Points and Saddle-Handlebar Distance
-	deadCenterBRP := CalculateBRPPoint(
+	deadCenterBRP := CalculateSaddleBRPPoint(
 		activeSta,
 		seatHeight,
 		model.DefaultSeatpostSetbackMm,
-		model.DefaultSaddleBrpOffsetMm,
+		saddle,
 		0.0,
 	)
-	possibleBRPs := MapPossibleBRPs(activeSta, seatHeight)
+	possibleBRPs := MapPossibleSaddleBRPs(
+		activeSta,
+		seatHeight,
+		model.DefaultSeatpostSetbackMm,
+		saddle,
+		model.DefaultSeatpostClampLengthMm,
+	)
 	selectedBRP := deadCenterBRP
 
 	possibleHBs := MapPossibleHBs(bike, activeReach, activeStack, activeHta, selectedBRP)
@@ -863,6 +883,8 @@ func AnalyzeBikeFit(
 		saddleHbMm = best.SaddleHbMm
 		saddleHbDropMm = best.SaddleHbDropMm
 	}
+
+	idealSTA := saddle.IdealSeatTubeAngle(292.0, seatHeight, model.DefaultSeatpostSetbackMm)
 
 	return model.BikeFitAnalysis{
 		StructuralA2c:       Round(activeStructuralA2c, 1),
@@ -891,13 +913,17 @@ func AnalyzeBikeFit(
 		ActiveChainstay:    Round(activeCS, 1),
 		ChainstayDesc:      csDesc,
 
-		DeadCenterBRP:  deadCenterBRP,
-		SelectedBRP:    &selectedBRP,
-		PossibleBRPs:   possibleBRPs,
-		SaddleHbMm:     saddleHbMm,
-		SaddleHbDropMm: saddleHbDropMm,
-		SelectedHB:     selectedHB,
-		PossibleHBs:    possibleHBs,
+		Saddle:              saddle,
+		SitBoneSetbackMm:    deadCenterBRP.SitBoneSetbackMm,
+		IdealStaDeg:         Round(idealSTA, 1),
+		AchievedClampOffset: deadCenterBRP.AchievedClampOffsetMm,
+		DeadCenterBRP:       deadCenterBRP,
+		SelectedBRP:         &selectedBRP,
+		PossibleBRPs:        possibleBRPs,
+		SaddleHbMm:          saddleHbMm,
+		SaddleHbDropMm:      saddleHbDropMm,
+		SelectedHB:          selectedHB,
+		PossibleHBs:         possibleHBs,
 	}, nil
 }
 

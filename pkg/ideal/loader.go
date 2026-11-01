@@ -154,6 +154,8 @@ func IdmatchProfile() *Profile {
 			DisplayOnly("aett"),
 			DisplayOnly("sparevert"),
 			DisplayOnly("seat_to_rc"),
+			DisplayOnly("sit_bone_setback"),
+			DisplayOnly("ideal_sta"),
 		},
 	}
 	_, _ = NormalizeAndValidate(p)

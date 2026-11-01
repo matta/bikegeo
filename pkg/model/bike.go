@@ -319,13 +319,105 @@ func (e StemCatalogEntry) Expand() []StemSpec {
 	return stems
 }
 
+// SaddleSpec defines a saddle's longitudinal geometry in the Canonical Saddle Coordinate System,
+// where the origin (0.0mm) is the midpoint of the nominal straight rail clamping section,
+// positive (+) is forward toward the nose, and negative (-) is rearward toward the tail.
+type SaddleSpec struct {
+	ID                     string
+	Name                   string
+	RailLengthMm           float64 // Total straight clamping length on rails (e.g. 60mm for SQlab [-30 to +30])
+	ExtendedRearRailMm     float64 // Additional straight rail length rearward of -L_rail/2 before rear bend (mm)
+	RailCenterToBrpMm      float64 // Forward distance from rail center to 70mm BRP (+mm toward nose)
+	RailCenterToSitBonesMm float64 // Distance from rail center to sit bones (-mm toward tail)
+}
+
+// DeltaBrpToSitBonesMm returns the longitudinal distance from the 70mm BRP back to the sit bone line:
+// Delta_BRP_to_SitBones = RailCenterToBrpMm - RailCenterToSitBonesMm.
+func (s SaddleSpec) DeltaBrpToSitBonesMm() float64 {
+	return s.RailCenterToBrpMm - s.RailCenterToSitBonesMm
+}
+
+// SitBoneSetbackFromBrp converts a BRP setback behind the bottom bracket into the rider's sit bone setback:
+// SitBoneSetback = brpSetback + (RailCenterToBrpMm - RailCenterToSitBonesMm).
+func (s SaddleSpec) SitBoneSetbackFromBrp(brpSetbackMm float64) float64 {
+	return brpSetbackMm + (s.RailCenterToBrpMm - s.RailCenterToSitBonesMm)
+}
+
+// BrpSetbackFromSitBones converts a desired sit bone setback into the BRP caliper reading for this specific saddle:
+// BrpSetback = sitBoneSetback - (RailCenterToBrpMm - RailCenterToSitBonesMm).
+func (s SaddleSpec) BrpSetbackFromSitBones(sitBoneSetbackMm float64) float64 {
+	return sitBoneSetbackMm - (s.RailCenterToBrpMm - s.RailCenterToSitBonesMm)
+}
+
+// RailCenterSetbackFromBrp converts a BRP setback into the setback of the saddle's 0.0mm rail center mark:
+// RailCenterSetback = brpSetback + RailCenterToBrpMm.
+func (s SaddleSpec) RailCenterSetbackFromBrp(brpSetbackMm float64) float64 {
+	return brpSetbackMm + s.RailCenterToBrpMm
+}
+
+// ClampOffsetFromBrp calculates the position of the seatpost clamp center on the saddle rails
+// given the BRP setback, the frame's seat tube setback, and seatpost setback:
+// ClampOffset = RailCenterSetback - (SeatTubeSetback + SeatpostSetback).
+func (s SaddleSpec) ClampOffsetFromBrp(brpSetbackMm, seatTubeSetbackMm, seatpostSetbackMm float64) float64 {
+	return s.RailCenterSetbackFromBrp(brpSetbackMm) - (seatTubeSetbackMm + seatpostSetbackMm)
+}
+
+// IdealSeatTubeAngle computes the exact effective Seat Tube Angle required to mount this saddle
+// with its clamp dead-center (0.0mm) on the rails for a given sit bone setback and saddle height:
+func (s SaddleSpec) IdealSeatTubeAngle(sitBoneSetbackMm, saddleHeightMm, seatpostSetbackMm float64) float64 {
+	if saddleHeightMm <= 0 {
+		return 0
+	}
+	railCenterSetback := sitBoneSetbackMm + s.RailCenterToSitBonesMm
+	stSetback := railCenterSetback - seatpostSetbackMm
+	ratio := stSetback / saddleHeightMm
+	if ratio < -1.0 {
+		ratio = -1.0
+	} else if ratio > 1.0 {
+		ratio = 1.0
+	}
+	return math.Acos(ratio) * 180.0 / math.Pi
+}
+
+// TranslateClampOffset converts a clamp position from this saddle to targetSaddle to keep sit bones in the identical position:
+// TargetClampOffset = thisClampOffset + (targetSaddle.RailCenterToSitBonesMm - s.RailCenterToSitBonesMm).
+func (s SaddleSpec) TranslateClampOffset(thisClampOffset float64, targetSaddle SaddleSpec) float64 {
+	return thisClampOffset + (targetSaddle.RailCenterToSitBonesMm - s.RailCenterToSitBonesMm)
+}
+
+// NominalClampWindowMm returns the nominal clamp-center travel bounds [minX, maxX]
+// for a seatpost clamp of length clampLengthMm (L_clamp):
+// X_clamp_min = -((L_rail - L_clamp) / 2), X_clamp_max = +((L_rail - L_clamp) / 2).
+func (s SaddleSpec) NominalClampWindowMm(clampLengthMm float64) (minX float64, maxX float64) {
+	if s.RailLengthMm <= clampLengthMm {
+		return 0, 0
+	}
+	half := (s.RailLengthMm - clampLengthMm) / 2.0
+	return -half, half
+}
+
+// PhysicalClampWindowMm returns the physical clamp-center travel bounds including any extended
+// straight rail section rearward of the printed scale: [minX - ExtendedRearRailMm, maxX].
+func (s SaddleSpec) PhysicalClampWindowMm(clampLengthMm float64) (minX float64, maxX float64) {
+	minX, maxX = s.NominalClampWindowMm(clampLengthMm)
+	return minX - s.ExtendedRearRailMm, maxX
+}
+
 // DefaultSeatpostSetbackMm is the perpendicular rearward offset (in mm) of the seatpost clamp
 // from the seat tube centerline (modeled on a Redshift ShockStop suspension seatpost: 7mm static, up to 12mm sagged).
 const DefaultSeatpostSetbackMm = 7.0
 
-// DefaultSaddleBrpOffsetMm is the perpendicular rearward offset (in mm) from the center of the
+// DefaultSeatpostSagMm is the typical dynamic sag setback (in mm) for a suspension seatpost under rider weight.
+const DefaultSeatpostSagMm = 4.0
+
+// DefaultSeatpostClampLengthMm is the standard seatpost clamp length (in mm).
+const DefaultSeatpostClampLengthMm = 30.0
+
+// DropBestClampLengthMm is the clamp length (in mm) of a Fair Bicycle Drop Best UC M6 adapter.
+const DropBestClampLengthMm = 45.0
+
+// DefaultSaddleBrpOffsetMm is the legacy perpendicular rearward offset (in mm) from the center of the
 // saddle rails to the saddle's 70mm-width Biomechanical Reference Point (BRP).
-// For SQlab stepped Ergowave saddles with extended rails, the effective BRP sits at the rail center (0.0mm).
 const DefaultSaddleBrpOffsetMm = 0.0
 
 // DefaultBrpOffsetMm is the total perpendicular offset (in mm) from the seat tube centerline
@@ -344,14 +436,17 @@ const SaddleRailStepMm = 1.0
 // BRPPoint represents a saddle Biomechanical Reference Point (70mm width mark)
 // for a specific fore-aft rail offset along the constant-radius SaddleHeightMm arc.
 type BRPPoint struct {
-	SeatpostSetbackMm float64
-	SaddleBrpOffsetMm float64
-	RailOffsetMm      float64
-	TotalPerpOffsetMm float64
-	BrpX              float64
-	BrpY              float64
-	BrpSetbackMm      float64
-	BrpAngleFromBbDeg float64
+	Saddle                SaddleSpec
+	SeatpostSetbackMm     float64
+	SaddleBrpOffsetMm     float64
+	RailOffsetMm          float64
+	AchievedClampOffsetMm float64
+	TotalPerpOffsetMm     float64
+	BrpX                  float64
+	BrpY                  float64
+	BrpSetbackMm          float64
+	SitBoneSetbackMm      float64
+	BrpAngleFromBbDeg     float64
 }
 
 // HBPoint represents a mapped handlebar-stem intersection point (HB) and its resulting Saddle-Handlebar distance and drop.
@@ -931,6 +1026,7 @@ type CanonicalConfig struct {
 	TargetA2c    float64
 	SagPercent   float64
 	Name         string
+	Saddle       SaddleSpec
 	RiderProfile RiderProfile
 }
 
@@ -949,6 +1045,8 @@ type SavedComparisonState struct {
 	Transpose    bool
 	RefIndex     int
 	IdealProfile string
+	SaddleID     string
+	Saddle       SaddleSpec
 	Columns      []ComparisonSetup
 }
 
@@ -1032,13 +1130,17 @@ type BikeFitAnalysis struct {
 	ChainstayDesc      string
 
 	// Cockpit BRP & HB Points and Saddle-Handlebar Metrics
-	DeadCenterBRP  BRPPoint
-	SelectedBRP    *BRPPoint
-	PossibleBRPs   []BRPPoint
-	SaddleHbMm     float64
-	SaddleHbDropMm float64
-	SelectedHB     *HBPoint
-	PossibleHBs    []HBPoint
+	Saddle              SaddleSpec
+	SitBoneSetbackMm    float64
+	IdealStaDeg         float64
+	AchievedClampOffset float64
+	DeadCenterBRP       BRPPoint
+	SelectedBRP         *BRPPoint
+	PossibleBRPs        []BRPPoint
+	SaddleHbMm          float64
+	SaddleHbDropMm      float64
+	SelectedHB          *HBPoint
+	PossibleHBs         []HBPoint
 }
 
 type BaselineMetrics struct {
