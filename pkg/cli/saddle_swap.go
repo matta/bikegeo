@@ -197,318 +197,121 @@ func (a *App) runSaddleSwap(args []string) int {
 			hbDrop,
 		)
 
-		// Table 1: Physical & Biomechanical Checkpoints
-		t1Title := fmt.Sprintf("Saddle Swap Analysis: %s → %s", sourceSaddle.Name, targetSaddle.Name)
-		t1Subtitle := "Checkpoint 1: Saddle Physical Dimensions & 2D Step Profile (0.0mm = straight rail center)"
-		t1Headers := []string{
-			"Dimension / Checkpoint",
+		// 1. Unified Saddle Swap Table (Sit Position Invariant, BRP Shifts, Workshop Actions)
+		title := fmt.Sprintf("Saddle Swap Analysis: %s → %s", sourceSaddle.Name, targetSaddle.Name)
+		subtitle := fmt.Sprintf("Active Seatpost Setback: %.1fmm (sagged)", postSetback)
+		headers := []string{
+			"Fit Dimension / Checkpoint",
 			fmt.Sprintf("Source: %s", sourceSaddle.Name),
 			fmt.Sprintf("Target: %s", targetSaddle.Name),
-			"Delta (Target - Source)",
-			"Biomechanical Significance",
+			"Difference / Workshop Action",
 		}
 
-		srcMin30, srcMax30 := sourceSaddle.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
-		tgtMin30, tgtMax30 := targetSaddle.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
-		srcMin45, srcMax45 := sourceSaddle.ClampWindowMm(model.DropBestClampLengthMm)
-		tgtMin45, tgtMax45 := targetSaddle.ClampWindowMm(model.DropBestClampLengthMm)
+		// Saddle height delta to BRP
+		var shAction string
+		if report.BrpSaddleHeightShiftMm > 0 {
+			shAction = fmt.Sprintf("%+.1f mm (Raise seatpost collar)", report.BrpSaddleHeightShiftMm)
+		} else if report.BrpSaddleHeightShiftMm < 0 {
+			shAction = fmt.Sprintf("%.1f mm (Lower seatpost collar)", report.BrpSaddleHeightShiftMm)
+		} else {
+			shAction = "0.0 mm (Keep collar unchanged)"
+		}
 
-		t1Rows := [][]string{
+		// 70mm BRP 2D point shift direction
+		var brpDir string
+		if report.BrpDeltaXMm > 0 && report.BrpDeltaYMm > 0 {
+			brpDir = "Forward & upward"
+		} else if report.BrpDeltaXMm > 0 && report.BrpDeltaYMm < 0 {
+			brpDir = "Forward & downward"
+		} else if report.BrpDeltaXMm > 0 && report.BrpDeltaYMm == 0 {
+			brpDir = "Forward"
+		} else if report.BrpDeltaXMm < 0 && report.BrpDeltaYMm > 0 {
+			brpDir = "Rearward & upward"
+		} else if report.BrpDeltaXMm < 0 && report.BrpDeltaYMm < 0 {
+			brpDir = "Rearward & downward"
+		} else if report.BrpDeltaXMm < 0 && report.BrpDeltaYMm == 0 {
+			brpDir = "Rearward"
+		} else if report.BrpDeltaXMm == 0 && report.BrpDeltaYMm > 0 {
+			brpDir = "Upward"
+		} else if report.BrpDeltaXMm == 0 && report.BrpDeltaYMm < 0 {
+			brpDir = "Downward"
+		} else {
+			brpDir = "Unmoved"
+		}
+		brpDiff := fmt.Sprintf("(%+.1f, %+.1f) mm (%s)", report.BrpDeltaXMm, report.BrpDeltaYMm, brpDir)
+
+		// Clamp adjustment
+		var clampDiff string
+		if report.Pelvic.IsFeasible {
+			if report.RailCenterToSitBonesDeltaMm > 0 {
+				clampDiff = fmt.Sprintf("Slide %.1f mm forward (Safe, margin %.1fmm)", math.Abs(report.RailCenterToSitBonesDeltaMm), report.Pelvic.MarginFromLimitMm)
+			} else if report.RailCenterToSitBonesDeltaMm < 0 {
+				clampDiff = fmt.Sprintf("Slide %.1f mm rearward (Safe, margin %.1fmm)", math.Abs(report.RailCenterToSitBonesDeltaMm), report.Pelvic.MarginFromLimitMm)
+			} else {
+				clampDiff = fmt.Sprintf("Centered (Safe, margin %.1fmm)", report.Pelvic.MarginFromLimitMm)
+			}
+		} else {
+			clampDiff = fmt.Sprintf("Infeasible (exceeds rails by %.1f mm)", math.Abs(report.Pelvic.MarginFromLimitMm))
+		}
+
+		swapRows := [][]string{
 			{
-				"Straight Rail Clamping Length",
-				fmt.Sprintf("%.0f mm", sourceSaddle.RailLengthMm),
-				fmt.Sprintf("%.0f mm", targetSaddle.RailLengthMm),
-				fmt.Sprintf("%+.0f mm", targetSaddle.RailLengthMm-sourceSaddle.RailLengthMm),
-				"Usable fore-aft clamping travel on straight rail section",
+				"BB to Sit Bones Distance",
+				fmt.Sprintf("%.1f mm", report.BaselineLegExtensionMm),
+				fmt.Sprintf("%.1f mm", report.Pelvic.LegExtensionMm),
+				"0.0 mm (Preserved)",
 			},
 			{
-				"Rail Center -> 70mm BRP (X)",
-				fmt.Sprintf("%+.1f mm", sourceSaddle.RailCenterToBrpMm),
-				fmt.Sprintf("%+.1f mm", targetSaddle.RailCenterToBrpMm),
-				fmt.Sprintf("%+.1f mm", report.RailCenterToBrpDeltaMm),
-				fmt.Sprintf("Nose taper reaches 70mm width %.1fmm further forward on rails", math.Abs(report.RailCenterToBrpDeltaMm)),
+				"Sit Bone Point (X, Y)",
+				fmt.Sprintf("(-%.1f, %.1f) mm", sitBoneSetback, report.SourceSitBoneHeightMm),
+				fmt.Sprintf("(-%.1f, %.1f) mm", report.Pelvic.AchievedSitBoneMm, report.Pelvic.AchievedSitBoneHeightMm),
+				"(0.0, 0.0) mm (Preserved)",
 			},
 			{
-				"Rail Center -> Sit Bones (X)",
-				fmt.Sprintf("%.1f mm", sourceSaddle.RailCenterToSitBonesMm),
-				fmt.Sprintf("%.1f mm", targetSaddle.RailCenterToSitBonesMm),
-				fmt.Sprintf("%+.1f mm", report.RailCenterToSitBonesDeltaMm),
-				fmt.Sprintf("True pelvic contact point is only %.1fmm shifted on rails", math.Abs(report.RailCenterToSitBonesDeltaMm)),
-			},
-			{
-				"BRP -> Sit Bones Span (ΔX)",
-				fmt.Sprintf("%.1f mm", sourceSaddle.DeltaBrpToSitBonesMm()),
-				fmt.Sprintf("%.1f mm", targetSaddle.DeltaBrpToSitBonesMm()),
-				fmt.Sprintf("%+.1f mm", report.BrpToSitBonesSpanDeltaMm),
-				fmt.Sprintf("BRP Skew: 70mm line sits %.1fmm further ahead of pelvis", math.Abs(report.BrpToSitBonesSpanDeltaMm)),
-			},
-			{
-				"Sit Position Step Elevation (ΔY)",
-				fmt.Sprintf("%+.1f mm", report.SourceStepElevationMm),
-				fmt.Sprintf("%+.1f mm", report.TargetStepElevationMm),
-				fmt.Sprintf("%+.1f mm", report.StepElevationDeltaMm),
-				"Vertical elevation of sit bones above 70mm BRP horizontal plane",
-			},
-			{
-				"Target BRP Setback (behind BB)",
-				fmt.Sprintf("%.1f mm", report.SourceBrpSetbackMm),
-				fmt.Sprintf("%.1f mm", report.TargetEquivalentBrpSetbackMm),
-				fmt.Sprintf("%+.1f mm (must move)", report.BrpSetbackShiftMm),
-				"BRP must move forward to keep pelvis at identical setback",
-			},
-			{
-				"Target BRP Height (above BB)",
-				fmt.Sprintf("%.1f mm", report.SourceBrpHeightMm),
-				fmt.Sprintf("%.1f mm", report.TargetEquivalentBrpHeightMm),
-				fmt.Sprintf("%+.1f mm (must move)", report.BrpHeightShiftMm),
-				"BRP must move upward to compensate for saddle step profile",
-			},
-			{
-				"Target Saddle Height (BB to BRP)",
+				"Saddle Height (BB to 70mm BRP)",
 				fmt.Sprintf("%.1f mm", saddleHeight),
 				fmt.Sprintf("%.1f mm", report.TargetEquivalentSaddleHeightMm),
-				fmt.Sprintf("%+.1f mm (must adjust)", report.BrpSaddleHeightShiftMm),
-				"Radial distance from BB to 70mm BRP must change in space",
+				shAction,
 			},
 			{
-				"Safe Clamping Window (30mm clamp)",
-				fmt.Sprintf("[%.1f, +%.1f] mm", srcMin30, srcMax30),
-				fmt.Sprintf("[%.1f, +%.1f] mm", tgtMin30, tgtMax30),
-				fmt.Sprintf("%+.1f mm travel", (targetSaddle.RailLengthMm-sourceSaddle.RailLengthMm)/2.0),
-				"Safe travel bounds for standard 30mm seatpost clamp",
+				"70mm BRP Point (X, Y)",
+				fmt.Sprintf("(-%.1f, %.1f) mm", report.SourceBrpSetbackMm, report.SourceBrpHeightMm),
+				fmt.Sprintf("(-%.1f, %.1f) mm", report.TargetEquivalentBrpSetbackMm, report.TargetEquivalentBrpHeightMm),
+				brpDiff,
 			},
 			{
-				"Safe Clamping Window (45mm clamp)",
-				fmt.Sprintf("[%.1f, +%.1f] mm", srcMin45, srcMax45),
-				fmt.Sprintf("[%.1f, +%.1f] mm", tgtMin45, tgtMax45),
-				fmt.Sprintf("%+.1f mm travel", (targetSaddle.RailLengthMm-sourceSaddle.RailLengthMm)/2.0),
-				"Safe travel bounds for 45mm Fair Bicycle Drop Best clamp",
-			},
-		}
-
-		if err := RenderOutput(a.Out, a.Format, t1Title, t1Subtitle, t1Headers, t1Rows); err != nil {
-			fmt.Fprintf(a.Err, "Error: %v\n", err)
-			return 1
-		}
-		if a.Format != FormatCSV {
-			fmt.Fprintln(a.Out)
-		}
-
-		// Table 2: Fit Outcome: Naive BRP vs True Pelvic
-		t2Title := "Fit Outcome: Naive BRP Alignment vs. True Pelvic Alignment (2D Coordinates)"
-		t2Subtitle := fmt.Sprintf("Source SH (to BRP): %.0fmm | Pelvic Setback: %.0fmm | Hardware Setback: %.1fmm (Sagged Post)",
-			saddleHeight, sitBoneSetback, postSetback)
-		t2Headers := []string{
-			"Fit Checkpoint",
-			fmt.Sprintf("Baseline (%s)", sourceSaddle.Name),
-			"Naive BRP Swap",
-			"True Pelvic Swap",
-			"Naive Fit Error",
-			"Pelvic Fit Error",
-		}
-
-		naiveFeas30Str := "FEASIBLE"
-		if !report.Naive.IsFeasible {
-			naiveFeas30Str = fmt.Sprintf("INFEASIBLE (%.1fmm)", report.Naive.RequiredClampOffsetMm)
-		}
-		pelvicFeas30Str := "FEASIBLE"
-		if !report.Pelvic.IsFeasible {
-			pelvicFeas30Str = fmt.Sprintf("INFEASIBLE (%.1fmm)", report.Pelvic.RequiredClampOffsetMm)
-		}
-
-		t2Rows := [][]string{
-			{
-				"Pelvic Sit Bone Setback (X)",
-				fmt.Sprintf("%.1f mm", sitBoneSetback),
-				fmt.Sprintf("%.1f mm", report.Naive.AchievedSitBoneMm),
-				fmt.Sprintf("%.1f mm", report.Pelvic.AchievedSitBoneMm),
-				fmt.Sprintf("%+.1f mm (REARWARD)", report.Naive.SitBoneDeltaMm),
-				"0.0 mm (IDENTICAL)",
-			},
-			{
-				"Pelvic Sit Bone Height (Y)",
-				fmt.Sprintf("%.1f mm", report.SourceSitBoneHeightMm),
-				fmt.Sprintf("%.1f mm", report.Naive.AchievedSitBoneHeightMm),
-				fmt.Sprintf("%.1f mm", report.Pelvic.AchievedSitBoneHeightMm),
-				fmt.Sprintf("%+.1f mm (TOO LOW)", report.Naive.SitBoneDeltaYMm),
-				"0.0 mm (IDENTICAL)",
-			},
-			{
-				"Pelvic Coordinates (X, Y)",
-				fmt.Sprintf("(-%.1f, %.1f) mm", sitBoneSetback, report.SourceSitBoneHeightMm),
-				fmt.Sprintf("(-%.1f, %.1f) mm", report.Naive.AchievedSitBoneMm, report.Naive.AchievedSitBoneHeightMm),
-				fmt.Sprintf("(-%.1f, %.1f) mm", report.Pelvic.AchievedSitBoneMm, report.Pelvic.AchievedSitBoneHeightMm),
-				fmt.Sprintf("(%+.1f, %+.1f) mm", -report.Naive.SitBoneDeltaMm, report.Naive.SitBoneDeltaYMm),
-				"(0.0, 0.0) mm (IDENTICAL)",
-			},
-			{
-				"Target BRP Setback (behind BB)",
-				fmt.Sprintf("%.1f mm", report.SourceBrpSetbackMm),
-				fmt.Sprintf("%.1f mm", report.Naive.TargetBrpSetbackMm),
-				fmt.Sprintf("%.1f mm", report.Pelvic.TargetBrpSetbackMm),
-				"0.0 mm (unmoved BRP)",
-				fmt.Sprintf("%+.1f mm (MOVES FORWARD)", report.BrpSetbackShiftMm),
-			},
-			{
-				"Target BRP Height (above BB)",
-				fmt.Sprintf("%.1f mm", report.SourceBrpHeightMm),
-				fmt.Sprintf("%.1f mm", report.Naive.TargetBrpHeightMm),
-				fmt.Sprintf("%.1f mm", report.Pelvic.TargetBrpHeightMm),
-				"0.0 mm (unmoved BRP)",
-				fmt.Sprintf("%+.1f mm (MOVES UPWARD)", report.BrpHeightShiftMm),
-			},
-			{
-				"BRP Spatial Coordinates (X, Y)",
-				fmt.Sprintf("(%.1f, %.1f) mm", report.SourceBrpX, report.SourceBrpY),
-				fmt.Sprintf("(%.1f, %.1f) mm", report.Naive.BrpXMm, report.Naive.BrpYMm),
-				fmt.Sprintf("(%.1f, %.1f) mm", report.Pelvic.BrpXMm, report.Pelvic.BrpYMm),
-				"(0.0, 0.0) mm (unmoved)",
-				fmt.Sprintf("(%+.1f, %+.1f) mm", report.BrpDeltaXMm, report.BrpDeltaYMm),
-			},
-			{
-				"Saddle Height to BRP (Radial)",
-				fmt.Sprintf("%.1f mm", saddleHeight),
-				fmt.Sprintf("%.1f mm", report.Naive.TargetSaddleHeightMm),
-				fmt.Sprintf("%.1f mm", report.Pelvic.TargetSaddleHeightMm),
-				"0.0 mm (unmoved)",
-				fmt.Sprintf("%+.1f mm (MUST RAISE)", report.BrpSaddleHeightShiftMm),
-			},
-			{
-				"BRP Polar Angle from BB",
-				fmt.Sprintf("%.2f°", report.SourceBrpAngleDeg),
-				fmt.Sprintf("%.2f°", report.Naive.BrpAngleDeg),
-				fmt.Sprintf("%.2f°", report.Pelvic.BrpAngleDeg),
-				"0.00° (unmoved)",
-				fmt.Sprintf("%+.2f° (steeper to BRP)", report.BrpDeltaAngleDeg),
-			},
-			{
-				"Effective Pelvic STA",
-				fmt.Sprintf("%.1f°", report.Pelvic.EffectiveStaDeg),
-				fmt.Sprintf("%.1f°", report.Naive.EffectiveStaDeg),
-				fmt.Sprintf("%.1f°", report.Pelvic.EffectiveStaDeg),
-				fmt.Sprintf("%+.1f° (SLACKER)", report.Naive.EffectiveStaDeg-report.Pelvic.EffectiveStaDeg),
-				"0.0° (IDENTICAL)",
-			},
-			{
-				"Cockpit Reach (Sit Bone -> Bar)",
-				fmt.Sprintf("%.1f mm", report.BaselineCockpitReachMm),
-				fmt.Sprintf("%.1f mm", report.Naive.CockpitReachMm),
-				fmt.Sprintf("%.1f mm", report.Pelvic.CockpitReachMm),
-				fmt.Sprintf("%+.1f mm (OVER-REACH)", report.Naive.CockpitDeltaMm),
-				"0.0 mm (IDENTICAL)",
-			},
-			{
-				"Leg Extension (BB -> Sit Bone)",
-				fmt.Sprintf("%.1f mm", report.BaselineLegExtensionMm),
-				fmt.Sprintf("%.1f mm", report.Naive.LegExtensionMm),
-				fmt.Sprintf("%.1f mm", report.Pelvic.LegExtensionMm),
-				fmt.Sprintf("%+.1f mm (TOO SHORT)", report.Naive.LegExtensionDeltaMm),
-				"0.0 mm (IDENTICAL)",
-			},
-			{
-				"Required Rail Clamp Offset",
-				"0.0 mm (dead center)",
-				fmt.Sprintf("%+.1f mm", report.Naive.RequiredClampOffsetMm),
+				"Rail Clamp Position",
+				"0.0 mm (Centered)",
 				fmt.Sprintf("%+.1f mm", report.Pelvic.RequiredClampOffsetMm),
-				fmt.Sprintf("%+.1f mm from center", report.Naive.RequiredClampOffsetMm),
-				fmt.Sprintf("%+.1f mm from center", report.Pelvic.RequiredClampOffsetMm),
+				clampDiff,
 			},
-			{
-				"Physical Clamp Feasibility (30mm)",
-				fmt.Sprintf("FEASIBLE (±%.1fmm)", srcMax30),
-				naiveFeas30Str,
-				pelvicFeas30Str,
-				fmt.Sprintf("Exceeds rail window by %.1fmm", math.Abs(report.Naive.MarginFromLimitMm)),
-				fmt.Sprintf("Safe with %.1fmm margin", report.Pelvic.MarginFromLimitMm),
-			},
-		}
-
-		if err := RenderOutput(a.Out, a.Format, t2Title, t2Subtitle, t2Headers, t2Rows); err != nil {
-			fmt.Fprintf(a.Err, "Error: %v\n", err)
-			return 1
-		}
-		if a.Format != FormatCSV {
-			fmt.Fprintln(a.Out)
-		}
-
-		// Table 3: Hardware Compatibility Across Seatposts
-		t3Title := fmt.Sprintf("Hardware Compatibility Across Seatposts: %s", targetSaddle.Name)
-		t3Subtitle := fmt.Sprintf("Saddle Height (to BRP): %.0fmm | Target Sit Bone Setback: %.0fmm behind BB", saddleHeight, sitBoneSetback)
-		t3Headers := []string{
-			"Seatpost Hardware",
-			"Hardware Setback",
-			"Seat Tube Setback",
-			fmt.Sprintf("%s Ideal STA", sourceSaddle.Name),
-			fmt.Sprintf("%s Ideal STA", targetSaddle.Name),
-			"STA Delta",
-			"Target Rail Offset",
-			"30mm Clamp",
-			"45mm Clamp",
-		}
-
-		var t3Rows [][]string
-		for _, row := range report.SeatpostRows {
-			c30 := "Feasible"
-			if !row.IsFeasible30Mm {
-				c30 = "Infeasible"
-			}
-			c45 := "Feasible"
-			if !row.IsFeasible45Mm {
-				c45 = "Infeasible"
-			}
-
-			t3Rows = append(t3Rows, []string{
-				row.PostName,
-				fmt.Sprintf("%.1f mm", row.PostSetbackMm),
-				fmt.Sprintf("%.1f mm", row.SeatTubeSetbackMm),
-				fmt.Sprintf("%.1f°", row.SourceIdealStaDeg),
-				fmt.Sprintf("%.1f°", row.TargetIdealStaDeg),
-				fmt.Sprintf("%+.2f°", row.StaDeltaDeg),
-				fmt.Sprintf("%+.1f mm", row.TargetRailOffsetMm),
-				c30,
-				c45,
-			})
-		}
-
-		var clampAction string
-		railShift := math.Abs(report.RailCenterToSitBonesDeltaMm)
-		if report.RailCenterToSitBonesDeltaMm > 0 {
-			clampAction = fmt.Sprintf("Slide saddle forward %.1fmm on rails", railShift)
-		} else if report.RailCenterToSitBonesDeltaMm < 0 {
-			clampAction = fmt.Sprintf("Slide saddle rearward %.1fmm on rails", railShift)
-		} else {
-			clampAction = "Keep saddle clamp centered on rails"
-		}
-
-		feasibilityStr := "Feasible"
-		if !report.Pelvic.IsFeasible {
-			feasibilityStr = fmt.Sprintf("Infeasible on %.1fmm post; requires different setback post", postSetback)
-		}
-
-		var heightAction string
-		shShift := report.BrpSaddleHeightShiftMm
-		if shShift > 0 {
-			heightAction = fmt.Sprintf("raise seatpost collar by +%.1fmm", shShift)
-		} else if shShift < 0 {
-			heightAction = fmt.Sprintf("lower seatpost collar by %.1fmm", math.Abs(shShift))
-		} else {
-			heightAction = "keep seatpost collar height unchanged"
 		}
 
 		var footers []FooterSection
 		footers = append(footers, FooterSection{
-			Title: "Workshop Setup & Fit Equivalence",
+			Title: "Note",
 			Lines: []string{
-				fmt.Sprintf("Target BRP: (-%.1f, %.1f) mm [Setback: %.1fmm, Height: %.1fmm] (ΔX: %+.1fmm, ΔY: %+.1fmm from baseline)",
-					report.TargetEquivalentBrpSetbackMm, report.TargetEquivalentBrpHeightMm, report.TargetEquivalentBrpSetbackMm, report.TargetEquivalentBrpHeightMm, report.BrpDeltaXMm, report.BrpDeltaYMm),
-				fmt.Sprintf("Target Saddle Height (to BRP): %.1fmm (%+.1fmm vs %.0fmm baseline)",
-					report.TargetEquivalentSaddleHeightMm, report.BrpSaddleHeightShiftMm, saddleHeight),
-				fmt.Sprintf("Workshop Action: %s (%s; offset %+.1fmm), and %s.",
-					clampAction, feasibilityStr, report.Pelvic.RequiredClampOffsetMm, heightAction),
+				fmt.Sprintf("Naively matching 70mm BRP coordinates would misplace pelvis by %+.1fmm setback and %+.1fmm height.",
+					report.Naive.SitBoneDeltaMm, report.Naive.SitBoneDeltaYMm),
 			},
 		})
 
-		// Table 4: Optional Frame-Specific Evaluation
+		if frameSpec != "" {
+			if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, swapRows); err != nil {
+				fmt.Fprintf(a.Err, "Error: %v\n", err)
+				return 1
+			}
+			if a.Format != FormatCSV {
+				fmt.Fprintln(a.Out)
+			}
+		} else {
+			if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, swapRows, footers); err != nil {
+				fmt.Fprintf(a.Err, "Error: %v\n", err)
+				return 1
+			}
+		}
+
+		// Optional Frame-Specific Evaluation
 		if frameSpec != "" {
 			allFrames := frames.AllFrames()
 			framePtr, impSz, err := ResolveFrameByToken(allFrames, frameSpec)
@@ -610,18 +413,10 @@ func (a *App) runSaddleSwap(args []string) int {
 				},
 			}
 
-			if err := RenderOutput(a.Out, a.Format, t4Title, t4Subtitle, t4Headers, t4Rows); err != nil {
+			if err := RenderOutputWithFooter(a.Out, a.Format, t4Title, t4Subtitle, t4Headers, t4Rows, footers); err != nil {
 				fmt.Fprintf(a.Err, "Error: %v\n", err)
 				return 1
 			}
-			if a.Format != FormatCSV {
-				fmt.Fprintln(a.Out)
-			}
-		}
-
-		if err := RenderOutputWithFooter(a.Out, a.Format, t3Title, t3Subtitle, t3Headers, t3Rows, footers); err != nil {
-			fmt.Fprintf(a.Err, "Error: %v\n", err)
-			return 1
 		}
 	}
 
@@ -637,10 +432,17 @@ Usage:
 Overview:
   The saddle-swap command analyzes transferring a rider's bike fit between different
   saddle models (e.g. from an ergonomic stepped saddle to a traditional leather touring
-  saddle). It directly compares two fit transfer paradigms:
-    1. Naive BRP Alignment: Matching the 70mm Biomechanical Reference Point (BRP)
-       coordinates directly in space.
-    2. True Pelvic Alignment: Holding the rider's pelvic sit-bone setback invariant.
+  saddle).
+
+  When swapping saddles to preserve an identical fit, two primary things happen:
+    1. The 70mm Biomechanical Reference Point (BRP) moves in space (both setback and height),
+       because saddles differ in nose taper and vertical step profiles.
+    2. The rider's pelvic sit position remains invariant (BB-to-sit-bones leg extension,
+       pelvic setback, and pelvic height are strictly preserved).
+
+  Preserving the fit requires adjusting the saddle position on the bike:
+    - Sliding the rails through the seatpost clamp (fore/aft offset).
+    - Raising or lowering the seatpost collar to achieve the target saddle height.
 
   SADDLE HEIGHT CONVENTION & 2D SPATIAL FIT:
   In this tool, "saddle height" is strictly measured to the saddle's 70mm Biomechanical

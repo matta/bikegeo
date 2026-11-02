@@ -612,22 +612,40 @@ func TestSaddleSwapCommand(t *testing.T) {
 		}
 		expectedStrings := []string{
 			"SQlab 610 Ergolux Active 2.1 → Berthoud Aspin Open",
-			"Checkpoint 1: Saddle Physical Dimensions & 2D Step Profile",
-			"Fit Outcome: Naive BRP Alignment vs. True Pelvic Alignment",
-			"Hardware Compatibility Across Seatposts: Berthoud Aspin Open",
-			"+15.0 mm",   // BRP Skew
-			"-20.5 mm",   // Naive clamp offset
-			"+5.5 mm",    // Pelvic clamp offset
-			"INFEASIBLE", // Naive clamp status
-			"FEASIBLE",   // Pelvic clamp status
-			"Workshop Setup & Fit Equivalence",
-			"204.0mm", // Target BRP for Berthoud
-			"Pelvic Sit Bone Height (Y)",
-			"Target Saddle Height (BB to BRP)",
+			"Active Seatpost Setback: 11.0mm (sagged)",
+			"Fit Dimension / Checkpoint",
+			"Difference / Workshop Action",
+			"BB to Sit Bones Distance",
+			"Sit Bone Point (X, Y)",
+			"Saddle Height (BB to 70mm BRP)",
+			"70mm BRP Point (X, Y)",
+			"Rail Clamp Position",
+			"0.0 mm (Preserved)",
+			"(0.0, 0.0) mm (Preserved)",
+			"(-219.0, 713.1) mm",
+			"(-204.0, 723.1) mm",
+			"(+15.0, +10.0) mm (Forward & upward)",
+			"+5.4 mm (Raise seatpost collar)",
+			"Slide 5.5 mm forward (Safe, margin 11.5mm)",
+			"Note:",
+			"Naively matching 70mm BRP coordinates would misplace pelvis by +15.0mm setback and -10.0mm height",
 		}
 		for _, exp := range expectedStrings {
 			if !strings.Contains(out, exp) {
 				t.Errorf("expected output to contain %q, got:\n%s", exp, out)
+			}
+		}
+
+		forbiddenStrings := []string{
+			"Checkpoint 1",
+			"Fit Outcome: Naive BRP Alignment vs. True Pelvic Alignment",
+			"Hardware Compatibility Across Seatposts",
+			"Workshop Setup & Fit Equivalence",
+			"Seatpost Collar Height",
+		}
+		for _, forbidden := range forbiddenStrings {
+			if strings.Contains(out, forbidden) {
+				t.Errorf("expected output NOT to contain %q, got:\n%s", forbidden, out)
 			}
 		}
 	})
@@ -687,11 +705,11 @@ func TestSaddleSwapCommand(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Saddle Height (to BRP): 750mm") {
-			t.Errorf("expected output to reflect 750mm saddle height to BRP, got:\n%s", out)
+		if !strings.Contains(out, "750.0 mm") {
+			t.Errorf("expected output to reflect 750.0 mm saddle height to BRP, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Sit Bone Setback: 290mm") {
-			t.Errorf("expected output to reflect 290mm sit bone setback, got:\n%s", out)
+		if !strings.Contains(out, "-290.0") {
+			t.Errorf("expected output to reflect -290.0 sit bone X coordinate, got:\n%s", out)
 		}
 	})
 
@@ -702,9 +720,8 @@ func TestSaddleSwapCommand(t *testing.T) {
 		}
 		expectedStrings := []string{
 			"SQlab 610 Ergolux Active 2.1 → Selle Italia SLR Boost Superflow",
-			"-15.3 mm", // Pelvic rail delta
-			"+10.0 mm", // BRP skew
-			"Infeasible",
+			"-15.3 mm",
+			"Infeasible (exceeds rails by 10.3 mm)",
 		}
 		for _, exp := range expectedStrings {
 			if !strings.Contains(out, exp) {
@@ -754,15 +771,18 @@ func TestSaddleSwapCommand(t *testing.T) {
 		if codeMD != 0 {
 			t.Fatalf("expected md exit code 0, got %d", codeMD)
 		}
-		if !strings.Contains(outMD, "| Dimension / Checkpoint |") {
+		if !strings.Contains(outMD, "| Fit Dimension / Checkpoint |") {
 			t.Errorf("expected markdown table header in -f md output, got:\n%s", outMD)
+		}
+		if !strings.Contains(outMD, "| 70mm BRP Point (X, Y) |") {
+			t.Errorf("expected 70mm BRP Point (X, Y) in markdown table, got:\n%s", outMD)
 		}
 
 		outCSV, _, codeCSV := runCLI(t, "saddle-swap", "-f", "csv")
 		if codeCSV != 0 {
 			t.Fatalf("expected csv exit code 0, got %d", codeCSV)
 		}
-		if !strings.Contains(outCSV, "Straight Rail Clamping Length") {
+		if !strings.Contains(outCSV, "70mm BRP Point (X, Y)") {
 			t.Errorf("expected csv content in -f csv output, got:\n%s", outCSV)
 		}
 	})
