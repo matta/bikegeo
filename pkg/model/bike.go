@@ -1198,6 +1198,7 @@ type BikeFitAnalysis struct {
 	ActualSetback       float64
 	SpareVerticalStack  float64
 	SpareAxialSteerer   float64
+	SeatpostExtensionMm float64
 	DeltaAngleDeg       float64
 	DeltaReach          float64
 	DeltaStack          float64
@@ -1240,6 +1241,7 @@ type BaselineMetrics struct {
 	ActualSetback      float64
 	SpareVerticalStack float64
 	SpareAxialSteerer  float64
+	SeatpostExtension  float64
 	Chainstay          float64
 	SeatToRearCenter   float64
 	SaddleHbMm         float64

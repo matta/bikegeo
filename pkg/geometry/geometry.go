@@ -417,6 +417,16 @@ func CalculateSteererStack(stack, staDeg, htaDeg, seatHeight float64) (verticalS
 	return verticalStack, axialLength
 }
 
+// CalculateSeatpostExtension computes the axial extension from the top of the seat tube
+// collar to the saddle reference point along the seat tube axis.
+// Returns 0 if either seatHeight or seatTubeLength is non-positive.
+func CalculateSeatpostExtension(seatHeight, seatTubeLength float64) float64 {
+	if seatHeight <= 0 || seatTubeLength <= 0 {
+		return 0
+	}
+	return Round(seatHeight-seatTubeLength, 1)
+}
+
 // CalculateGeometricA2c reverse-engineers the geometric Structural Axle-to-Crown (A2C) length
 // that CAD software assumed to generate the Stack number.
 //
@@ -797,6 +807,7 @@ func AnalyzeBikeFitWithSaddle(
 	aett := CalculateAett(activeReach, activeStack, activeHta, activeSta, seatHeight)
 	actualSetback := CalculateActualSetback(activeSta, seatHeight)
 	verticalStack, axialLength := CalculateSteererStack(activeStack, activeSta, activeHta, seatHeight)
+	seatpostExtension := CalculateSeatpostExtension(seatHeight, bike.SeatTubeLength)
 
 	// 4. Infer CAD publish mode
 	inferredPublishMode := "Unspecified"
@@ -894,6 +905,7 @@ func AnalyzeBikeFitWithSaddle(
 		ActualSetback:       actualSetback,
 		SpareVerticalStack:  Round(verticalStack, 1),
 		SpareAxialSteerer:   Round(axialLength, 1),
+		SeatpostExtensionMm: seatpostExtension,
 		DeltaAngleDeg:       Round(deltaAngle, 2),
 		DeltaReach:          Round(deltaReach, 1),
 		DeltaStack:          Round(deltaStack, 1),

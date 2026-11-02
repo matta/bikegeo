@@ -427,6 +427,7 @@ func CanonicalizeBikes(
 			ActualSetback:      baselineSetback,
 			SpareVerticalStack: geometry.Round(verticalStack, 1),
 			SpareAxialSteerer:  geometry.Round(axialLength, 1),
+			SeatpostExtension:  geometry.CalculateSeatpostExtension(seatHeight, bike.SeatTubeLength),
 			Chainstay:          geometry.Round(activeCS, 1),
 			SeatToRearCenter:   geometry.Round(baseRearCenter-baselineSetback, 1),
 			SaddleHbMm:         baseHB.SaddleHbMm,

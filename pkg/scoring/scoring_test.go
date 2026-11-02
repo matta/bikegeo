@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 )
@@ -806,5 +807,81 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	fenrirRes := ScoreRow(fenrirRow, prof)
 	if fenrirRes.Total > 50.0 {
 		t.Errorf("Expected score < 50 for Otso Fenrir on Redshift post alone (cannot reach 219mm), got %.1f", fenrirRes.Total)
+	}
+}
+
+func TestScoreRow_SeatpostExtension(t *testing.T) {
+	prof, err := ideal.GetProfile("idmatch")
+	if err != nil {
+		t.Fatalf("Failed to load idmatch profile: %v", err)
+	}
+
+	buildRow := func(seatTubeLength float64) model.CanonicalComparisonRow {
+		seatHeight := 746.0
+		ext := geometry.CalculateSeatpostExtension(seatHeight, seatTubeLength)
+		return model.CanonicalComparisonRow{
+			Bike: model.BikeGeometry{
+				SeatTubeLength: seatTubeLength,
+			},
+			Canonical: model.BikeFitAnalysis{
+				SeatpostExtensionMm: ext,
+			},
+		}
+	}
+
+	// 1. Ideal extension: seat tube 466mm -> extension = 280mm (within ideal [250, 310])
+	rowIdeal := buildRow(466.0)
+	resIdeal := ScoreRow(rowIdeal, prof)
+	var critIdeal *CriterionResult
+	for i := range resIdeal.Criteria {
+		if resIdeal.Criteria[i].ID == "seatpost_extension" {
+			critIdeal = &resIdeal.Criteria[i]
+			break
+		}
+	}
+	if critIdeal == nil {
+		t.Fatalf("seatpost_extension criterion not found in idmatch results")
+	}
+	if critIdeal.SubScore != 100.0 {
+		t.Errorf("Expected subscore 100.0 for 280mm extension, got %.1f", critIdeal.SubScore)
+	}
+	if critIdeal.Zone != string(ideal.ZoneIdeal) {
+		t.Errorf("Expected ZoneIdeal for 280mm extension, got %s", critIdeal.Zone)
+	}
+
+	// 2. Acceptable low extension: seat tube 526mm -> extension = 220mm (within acceptable [210, 340], ideal min 250)
+	// Ratio: (220 - 210) / (250 - 210) = 10 / 40 = 0.25 -> 75 + 25*0.25 = 81.25
+	rowAcc := buildRow(526.0)
+	resAcc := ScoreRow(rowAcc, prof)
+	var critAcc *CriterionResult
+	for i := range resAcc.Criteria {
+		if resAcc.Criteria[i].ID == "seatpost_extension" {
+			critAcc = &resAcc.Criteria[i]
+			break
+		}
+	}
+	if critAcc == nil || math.Abs(critAcc.SubScore-81.25) > 0.5 {
+		t.Errorf("Expected subscore ~81.25 for 220mm extension, got %+v", critAcc)
+	}
+	if critAcc.Zone != string(ideal.ZoneAcceptable) {
+		t.Errorf("Expected ZoneAcceptable for 220mm extension, got %s", critAcc.Zone)
+	}
+
+	// 3. Severely short extension: Fargo XL (seat tube 558.8mm) -> extension = 187.2mm
+	// 22.8mm below acceptable min (210mm) -> with 25mm falloff, slope 75/25=3 -> subscore = 75 - 22.8*3 = 6.6
+	rowFargoXL := buildRow(558.8)
+	resFargoXL := ScoreRow(rowFargoXL, prof)
+	var critFargoXL *CriterionResult
+	for i := range resFargoXL.Criteria {
+		if resFargoXL.Criteria[i].ID == "seatpost_extension" {
+			critFargoXL = &resFargoXL.Criteria[i]
+			break
+		}
+	}
+	if critFargoXL == nil || critFargoXL.SubScore > 15.0 {
+		t.Errorf("Expected severe penalty (< 15 subscore) for Fargo XL 187.2mm extension, got %+v", critFargoXL)
+	}
+	if critFargoXL.Zone != string(ideal.ZoneOutside) {
+		t.Errorf("Expected ZoneOutside for Fargo XL 187.2mm extension, got %s", critFargoXL.Zone)
 	}
 }

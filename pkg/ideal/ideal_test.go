@@ -16,8 +16,21 @@ func TestDefaultProfileValid(t *testing.T) {
 	if p.Name != "default" {
 		t.Errorf("Expected profile name 'default', got %q", p.Name)
 	}
-	if len(p.Attributes) != 12 {
-		t.Fatalf("Expected 12 attributes in default profile, got %d", len(p.Attributes))
+	if len(p.Attributes) != 13 {
+		t.Fatalf("Expected 13 attributes in default profile, got %d", len(p.Attributes))
+	}
+}
+
+func TestLookupAttribute_SeatpostExtension(t *testing.T) {
+	for _, variant := range []string{"seatpost_extension", "seatpost-extension", "seatpostextension", "seatpost_ext", "seatpost-ext", "seatpostext", "seatpost", "post_ext", "post-ext", "postext", "post_extension"} {
+		meta, ok := LookupAttribute(variant)
+		if !ok {
+			t.Errorf("LookupAttribute(%q) failed", variant)
+			continue
+		}
+		if meta.Label != "Seatpost Ext" || meta.Unit != "mm" {
+			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
+		}
 	}
 }
 

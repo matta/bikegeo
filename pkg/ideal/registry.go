@@ -58,6 +58,21 @@ var registry = []AttributeMeta{
 		},
 	},
 	{
+		ID:       "seatpost_extension",
+		Label:    "Seatpost Ext",
+		Unit:     "mm",
+		Decimals: 0,
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.SeatpostExtensionMm > 0 {
+				return row.Canonical.SeatpostExtensionMm, true
+			}
+			if row.Baseline.SeatpostExtension > 0 {
+				return row.Baseline.SeatpostExtension, true
+			}
+			return 0, false
+		},
+	},
+	{
 		ID:       "seat_to_rc",
 		Label:    "Seat-RC",
 		Unit:     "mm",
@@ -297,9 +312,12 @@ func LookupAttribute(id string) (AttributeMeta, bool) {
 	if norm == "idealsta" {
 		norm = "ideal_sta"
 	}
+	cleaned := strings.ReplaceAll(strings.ReplaceAll(norm, "_", ""), "-", "")
+	if cleaned == "seatpostext" || cleaned == "seatpost" || cleaned == "postext" || cleaned == "postextension" {
+		norm = "seatpost_extension"
+	}
 	meta, ok := registryMap[norm]
 	if !ok {
-		cleaned := strings.ReplaceAll(strings.ReplaceAll(norm, "_", ""), "-", "")
 		meta, ok = registryMap[cleaned]
 	}
 	return meta, ok

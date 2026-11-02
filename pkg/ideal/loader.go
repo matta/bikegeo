@@ -41,6 +41,15 @@ func DefaultProfile() *Profile {
 				Floor:      Float(-100),
 			},
 			{
+				ID:         "seatpost_extension",
+				Weight:     4,
+				Ideal:      Between(260, 320),
+				Acceptable: Between(220, 350),
+				EdgeScore:  Float(75),
+				Falloff:    FalloffBoth(25, 25),
+				Floor:      Float(-100),
+			},
+			{
 				ID:         "seat_to_rc",
 				Weight:     4,
 				Ideal:      AtLeast(235),
@@ -118,6 +127,15 @@ func IdmatchProfile() *Profile {
 				Acceptable: Between(0, 26),
 				EdgeScore:  Float(75),
 				Falloff:    FalloffBoth(10, 10),
+				Floor:      Float(-100),
+			},
+			{
+				ID:         "seatpost_extension",
+				Weight:     4,
+				Ideal:      Between(250, 310),
+				Acceptable: Between(210, 340),
+				EdgeScore:  Float(75),
+				Falloff:    FalloffBoth(25, 25),
 				Floor:      Float(-100),
 			},
 			{

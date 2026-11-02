@@ -612,3 +612,30 @@ func TestSelectBestHBWithDrop_Hierarchy(t *testing.T) {
 			best.SaddleHbMm, best.SaddleHbDropMm)
 	}
 }
+
+func TestCalculateSeatpostExtension(t *testing.T) {
+	tests := []struct {
+		name           string
+		seatHeight     float64
+		seatTubeLength float64
+		expected       float64
+	}{
+		{"Valid 746mm saddle with 450mm seat tube", 746.0, 450.0, 296.0},
+		{"Valid 746mm saddle with 558.8mm seat tube (Fargo XL)", 746.0, 558.8, 187.2},
+		{"Valid 780mm saddle with 480mm seat tube", 780.0, 480.0, 300.0},
+		{"Zero seat height", 0.0, 450.0, 0.0},
+		{"Negative seat height", -50.0, 450.0, 0.0},
+		{"Zero seat tube length", 746.0, 0.0, 0.0},
+		{"Negative seat tube length", 746.0, -400.0, 0.0},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := geometry.CalculateSeatpostExtension(tc.seatHeight, tc.seatTubeLength)
+			if math.Abs(got-tc.expected) > 0.05 {
+				t.Errorf("CalculateSeatpostExtension(%.1f, %.1f) = %.1f; expected %.1f",
+					tc.seatHeight, tc.seatTubeLength, got, tc.expected)
+			}
+		})
+	}
+}

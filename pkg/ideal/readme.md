@@ -78,6 +78,12 @@ Built directly around the idmatch Bikelab report:
 - `brp_setback`: Target `219 mm` (`ideal: 219, acceptable: 214–224, edge_score: 75, falloff: 20`)
 - `saddle_hb`: Target `700 mm` (`ideal: 695–705, acceptable: 685–715, edge_score: 75, falloff: 15`)
 - `saddle_hb_drop`: Target `13 mm` (`ideal: 8–18, acceptable: 0–26, edge_score: 75, falloff: 10`)
+- `seatpost_extension`: Target `250–310 mm` (`acceptable: 210–340, edge_score: 75, falloff: 25`, weight: 4) — Proxy for standover clearance and seatpost/dropper fitment: `SaddleHeightMm - SeatTubeLength`.
+- `bbdrop`: Target `70 mm` (`acceptable: 60–80, edge_score: 75, falloff: 10`, weight: 3)
+- `hta`: Target `68.0–69.0°` (`acceptable: 67.5–69.5°, edge_score: 75, falloff: 0.5`, weight: 2)
+- `frontwt`: Target `≥38.0%` (weight: 1)
 
 ### `data/ideals/default.json` (Legacy Profile)
-Retained for 100% backwards compatibility with previous test suites and baselines. Legacy seat-tube metrics (`setback`, `aett`, `sparevert`, `spareaxial`, `seat_to_rc`) measure to the bare seat tube centerline and are deprecated in favor of BRP-referenced metrics.
+Approximation of baseline scoring:
+- `saddle_height_mm`: `780`
+- Includes `seatpost_extension`: Target `260–320 mm` (`acceptable: 220–350, edge_score: 75, falloff: 25`, weight: 4). Legacy seat-tube metrics (`setback`, `aett`, `sparevert`, `spareaxial`, `seat_to_rc`) measure to the bare seat tube centerline and are deprecated in favor of BRP-referenced metrics.
