@@ -608,10 +608,13 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	var brpMin, brpMax *float64
 	var distMin, distMax *float64
 	var dropMin, dropMax *float64
+	var hasClampFit bool
 
 	for _, spec := range prof.Attributes {
 		lowID := strings.ToLower(spec.ID)
-		if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && spec.Ideal != nil {
+		if lowID == "handlebar_clamp_fit" || lowID == "cockpit_fit" || lowID == "clamp_fit" {
+			hasClampFit = true
+		} else if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && spec.Ideal != nil {
 			brpMin = spec.Ideal.Min
 			brpMax = spec.Ideal.Max
 		} else if (lowID == "saddle_hb" || lowID == "saddlehb") && spec.Ideal != nil {
@@ -653,7 +656,9 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 		can.PossibleHBs = geometry.MapPossibleHBs(row.Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP)
 	}
 	if len(can.PossibleHBs) > 0 {
-		if bestHB, ok := geometry.SelectBestHBWithDrop(can.PossibleHBs, row.Bike.GetCanonicalStem(), distMin, distMax, dropMin, dropMax); ok {
+		if hasClampFit && (distMin != nil || distMax != nil) {
+			geometry.ApplyCockpitFit(can, row.Bike, row.Bike.GetCanonicalStem(), distMin, distMax, dropMin, dropMax)
+		} else if bestHB, ok := geometry.SelectBestHBWithDrop(can.PossibleHBs, row.Bike.GetCanonicalStem(), distMin, distMax, dropMin, dropMax); ok {
 			can.SelectedHB = &bestHB
 			can.SaddleHbMm = bestHB.SaddleHbMm
 			can.SaddleHbDropMm = bestHB.SaddleHbDropMm
@@ -802,6 +807,29 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 	}
 
 	switch lowID {
+	case "handlebar_clamp_fit":
+		if row != nil && row.Canonical.CockpitFitResult != nil {
+			cfr := row.Canonical.CockpitFitResult
+			hb := cfr.SelectedHB
+			sign := "+"
+			if hb.SpacerMm < 0 {
+				sign = ""
+			}
+			if cfr.CountInside == 0 {
+				return fmt.Sprintf("Handlebar Clamp Fit: 0 valid setups in fit window (closest is %.0fmm %.0f° %s%.0fmm, R=%.2f outside oval; -25 penalty)",
+					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR)
+			}
+			plural := "s"
+			if cfr.CountInside == 1 {
+				plural = ""
+			}
+			if cfr.VersatilityBonus > 0 {
+				return fmt.Sprintf("Handlebar Clamp Fit: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f, %d valid setup%s, +%.0f bonus)",
+					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, cfr.CountInside, plural, cfr.VersatilityBonus)
+			}
+			return fmt.Sprintf("Handlebar Clamp Fit: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f, %d valid setup%s in fit window)",
+				hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, cfr.CountInside, plural)
+		}
 	case "hta", "sta":
 		target := 68.0
 		if dist < 0 {

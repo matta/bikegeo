@@ -401,6 +401,216 @@ func SelectBestHB(
 	return SelectBestHBWithDrop(possible, canonicalStem, targetMin, targetMax, nil, nil)
 }
 
+// DefaultFitOval creates a FitOval with standard defaults (a = 10mm horizontal, b = 20mm vertical, 30° clockwise).
+func DefaultFitOval(centerX, centerY float64) model.FitOval {
+	return model.FitOval{
+		CenterX:    centerX,
+		CenterY:    centerY,
+		SemiMinorA: 10.0,
+		SemiMajorB: 20.0,
+		AngleDeg:   30.0,
+	}
+}
+
+// EvaluateFitOval evaluates a single (x, y) point against a FitOval.
+// Returns:
+// - r: normalized elliptical radius (r <= 1.0 is inside)
+// - isInside: true if point is on or within the oval boundary
+func EvaluateFitOval(oval model.FitOval, x, y float64) (float64, bool) {
+	dx := x - oval.CenterX
+	dy := y - oval.CenterY
+
+	rad := ToRad(oval.AngleDeg)
+	sinT := math.Sin(rad)
+	cosT := math.Cos(rad)
+
+	// Rotated projections: clockwise rotation by theta tilts major axis (+dy) into (+dx)
+	pMajor := dx*sinT + dy*cosT
+	pMinor := dx*cosT - dy*sinT
+
+	a := oval.SemiMinorA
+	if a <= 0 {
+		a = 10.0
+	}
+	b := oval.SemiMajorB
+	if b <= 0 {
+		b = 20.0
+	}
+
+	r := math.Hypot(pMinor/a, pMajor/b)
+	return r, r <= 1.0+1e-9
+}
+
+// CalculateCockpitBaseScore calculates the base proximity score for a normalized radius R.
+// - Inside oval (R <= 1.0): Quadratic plateau from 100 (center) to 75 (edge).
+// - Outside oval (R > 1.0): Steep quadratic roll-off dropping from 75 to 0 at R = 1.25, with a -200 floor.
+func CalculateCockpitBaseScore(r float64) float64 {
+	if r <= 1.0 {
+		return 100.0 - 25.0*r*r
+	}
+	score := 75.0 - 1200.0*(r-1.0)*(r-1.0)
+	if score < -200.0 {
+		return -200.0
+	}
+	return score
+}
+
+// EvaluateCockpitFit evaluates candidate HB points against a FitOval.
+// It selects the representative HB point, counts valid setups inside the oval,
+// and computes the final sub-score including versatility bonus or zero-fit penalty.
+func EvaluateCockpitFit(
+	possible []model.HBPoint,
+	canonicalStem model.StemSpec,
+	oval model.FitOval,
+) model.CockpitFitResult {
+	if len(possible) == 0 {
+		return model.CockpitFitResult{
+			BestR:          999,
+			CountInside:    0,
+			BaseScore:      -200.0,
+			ZeroFitPenalty: 25.0,
+			FinalSubScore:  -200.0,
+			HasFit:         false,
+		}
+	}
+
+	type evaluatedPoint struct {
+		pt       model.HBPoint
+		r        float64
+		isInside bool
+	}
+
+	evaluated := make([]evaluatedPoint, len(possible))
+	countInside := 0
+
+	for i, pt := range possible {
+		r, inside := EvaluateFitOval(oval, pt.HbX, pt.HbY)
+		evaluated[i] = evaluatedPoint{pt: pt, r: r, isInside: inside}
+		if inside {
+			countInside++
+		}
+	}
+
+	better := func(a, b evaluatedPoint) bool {
+		diffR := a.r - b.r
+		if math.Abs(diffR) > 0.001 {
+			return a.r < b.r
+		}
+
+		lenDiffA := math.Abs(a.pt.Stem.LengthMm - canonicalStem.LengthMm)
+		lenDiffB := math.Abs(b.pt.Stem.LengthMm - canonicalStem.LengthMm)
+		if math.Abs(lenDiffA-lenDiffB) > 0.001 {
+			return lenDiffA < lenDiffB
+		}
+
+		angDiffA := math.Abs(a.pt.Stem.AngleDeg - canonicalStem.AngleDeg)
+		angDiffB := math.Abs(b.pt.Stem.AngleDeg - canonicalStem.AngleDeg)
+		if math.Abs(angDiffA-angDiffB) > 0.001 {
+			return angDiffA < angDiffB
+		}
+
+		if math.Abs(a.pt.SpacerMm-b.pt.SpacerMm) > 0.001 {
+			return a.pt.SpacerMm < b.pt.SpacerMm
+		}
+
+		return a.r < b.r
+	}
+
+	best := evaluated[0]
+	for _, ep := range evaluated[1:] {
+		if better(ep, best) {
+			best = ep
+		}
+	}
+
+	baseScore := CalculateCockpitBaseScore(best.r)
+	var bonus, penalty, finalScore float64
+
+	if countInside >= 1 {
+		if countInside >= 4 {
+			bonus = 10.0
+		} else if countInside >= 2 {
+			bonus = 5.0
+		} else {
+			bonus = 0.0
+		}
+		finalScore = math.Min(100.0, baseScore+bonus)
+	} else {
+		penalty = 25.0
+		finalScore = baseScore - penalty
+		if finalScore < -200.0 {
+			finalScore = -200.0
+		}
+	}
+
+	return model.CockpitFitResult{
+		SelectedHB:       best.pt,
+		BestR:            Round(best.r, 3),
+		CountInside:      countInside,
+		BaseScore:        Round(baseScore, 1),
+		VersatilityBonus: bonus,
+		ZeroFitPenalty:   penalty,
+		FinalSubScore:    Round(finalScore, 1),
+		HasFit:           countInside > 0,
+	}
+}
+
+// ApplyCockpitFit evaluates candidate HB points against target distance and drop ranges.
+// When distance targets are provided, it constructs the 30° rotated FitOval relative to active BRP,
+// evaluates candidate stems, and populates CockpitFitResult, SelectedHB, SaddleHbMm, and SaddleHbDropMm.
+// When no distance target is present, it falls back to SelectBestHBWithDrop.
+func ApplyCockpitFit(
+	can *model.BikeFitAnalysis,
+	bike model.BikeGeometry,
+	canonicalStem model.StemSpec,
+	distMin, distMax, dropMin, dropMax *float64,
+) {
+	if len(can.PossibleHBs) == 0 {
+		return
+	}
+
+	hasDistTarget := distMin != nil || distMax != nil
+	if hasDistTarget {
+		calcMid := func(minVal, maxVal *float64) float64 {
+			if minVal != nil && maxVal != nil {
+				return (*minVal + *maxVal) / 2.0
+			}
+			if minVal != nil {
+				return *minVal
+			}
+			if maxVal != nil {
+				return *maxVal
+			}
+			return 0
+		}
+
+		distMid := calcMid(distMin, distMax)
+		dropMid := calcMid(dropMin, dropMax)
+
+		activeBRP := can.DeadCenterBRP
+		if can.SelectedBRP != nil {
+			activeBRP = *can.SelectedBRP
+		}
+
+		dx0 := math.Sqrt(math.Max(0, distMid*distMid-dropMid*dropMid))
+		dy0 := dropMid
+
+		oval := DefaultFitOval(activeBRP.BrpX+dx0, activeBRP.BrpY+dy0)
+		fitRes := EvaluateCockpitFit(can.PossibleHBs, canonicalStem, oval)
+		can.CockpitFitResult = &fitRes
+		can.SelectedHB = &fitRes.SelectedHB
+		can.SaddleHbMm = fitRes.SelectedHB.SaddleHbMm
+		can.SaddleHbDropMm = fitRes.SelectedHB.SaddleHbDropMm
+		return
+	}
+
+	if bestHB, ok := SelectBestHBWithDrop(can.PossibleHBs, canonicalStem, distMin, distMax, dropMin, dropMax); ok {
+		can.SelectedHB = &bestHB
+		can.SaddleHbMm = bestHB.SaddleHbMm
+		can.SaddleHbDropMm = bestHB.SaddleHbDropMm
+	}
+}
+
 // CalculateSteererStack calculates the 'spare' steerer tube required to bring
 // the handlebars level with the saddle.
 // Returns:

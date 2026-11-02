@@ -282,6 +282,38 @@ var registry = []AttributeMeta{
 			return row.Canonical.IdealStaDeg, true
 		},
 	},
+	{
+		ID:       "handlebar_clamp_fit",
+		Label:    "Handlebar Clamp Fit",
+		Unit:     "",
+		Decimals: 0,
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.CockpitFitResult == nil {
+				return 0, false
+			}
+			return row.Canonical.CockpitFitResult.FinalSubScore, true
+		},
+		FormatVal: func(val float64, row *model.CanonicalComparisonRow) string {
+			if row != nil && row.Canonical.CockpitFitResult != nil {
+				cfr := row.Canonical.CockpitFitResult
+				hb := cfr.SelectedHB
+				sign := "+"
+				if hb.SpacerMm < 0 {
+					sign = ""
+				}
+				dropSign := ""
+				if hb.SaddleHbDropMm > 0 {
+					dropSign = "+"
+				}
+				return fmt.Sprintf("%.0f (%s%.0f) [%.0fmm %.0f° %s%.0fmm] (%d in oval)",
+					hb.SaddleHbMm, dropSign, hb.SaddleHbDropMm,
+					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm,
+					cfr.CountInside,
+				)
+			}
+			return fmt.Sprintf("%.0f", val)
+		},
+	},
 }
 
 var registryMap = func() map[string]AttributeMeta {
@@ -311,6 +343,9 @@ func LookupAttribute(id string) (AttributeMeta, bool) {
 	}
 	if norm == "idealsta" {
 		norm = "ideal_sta"
+	}
+	if norm == "cockpit_fit" || norm == "cockpit" || norm == "hb_fit_area" || norm == "clamp_fit" || norm == "hbclampfit" || norm == "clampfit" {
+		norm = "handlebar_clamp_fit"
 	}
 	cleaned := strings.ReplaceAll(strings.ReplaceAll(norm, "_", ""), "-", "")
 	if cleaned == "seatpostext" || cleaned == "seatpost" || cleaned == "postext" || cleaned == "postextension" {

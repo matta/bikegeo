@@ -639,3 +639,109 @@ func TestCalculateSeatpostExtension(t *testing.T) {
 		})
 	}
 }
+
+func TestFitOval_Geometry(t *testing.T) {
+	centerX := 500.0
+	centerY := 700.0
+	oval := geometry.DefaultFitOval(centerX, centerY)
+
+	// 1. Center point
+	rCenter, inCenter := geometry.EvaluateFitOval(oval, centerX, centerY)
+	if math.Abs(rCenter) > 1e-6 || !inCenter {
+		t.Errorf("Center expected R=0 and inside=true, got R=%.4f, in=%v", rCenter, inCenter)
+	}
+
+	// 2. Major axis boundary (tilted 30° clockwise: +X=20*sin(30°)=10, +Y=20*cos(30°)=17.3205)
+	xMajor := centerX + 20.0*math.Sin(30.0*math.Pi/180.0)
+	yMajor := centerY + 20.0*math.Cos(30.0*math.Pi/180.0)
+	rMajor, inMajor := geometry.EvaluateFitOval(oval, xMajor, yMajor)
+	if math.Abs(rMajor-1.0) > 0.001 || !inMajor {
+		t.Errorf("Major axis boundary expected R=1.0 and inside=true, got R=%.4f, in=%v", rMajor, inMajor)
+	}
+
+	// 3. Minor axis boundary (+X=10*cos(30°)=8.6603, -Y=10*sin(30°)=-5.0)
+	xMinor := centerX + 10.0*math.Cos(30.0*math.Pi/180.0)
+	yMinor := centerY - 10.0*math.Sin(30.0*math.Pi/180.0)
+	rMinor, inMinor := geometry.EvaluateFitOval(oval, xMinor, yMinor)
+	if math.Abs(rMinor-1.0) > 0.001 || !inMinor {
+		t.Errorf("Minor axis boundary expected R=1.0 and inside=true, got R=%.4f, in=%v", rMinor, inMinor)
+	}
+
+	// 4. Outside point
+	xOut := centerX + 30.0
+	yOut := centerY
+	rOut, inOut := geometry.EvaluateFitOval(oval, xOut, yOut)
+	if rOut <= 1.0 || inOut {
+		t.Errorf("Outside point expected R > 1.0 and inside=false, got R=%.4f, in=%v", rOut, inOut)
+	}
+}
+
+func TestCockpitBaseScore_RollOff(t *testing.T) {
+	// Center: 100
+	if s := geometry.CalculateCockpitBaseScore(0.0); s != 100.0 {
+		t.Errorf("R=0 expected 100, got %.1f", s)
+	}
+	// Mid-oval: R=0.5 -> 100 - 25*(0.25) = 93.75
+	if s := geometry.CalculateCockpitBaseScore(0.5); math.Abs(s-93.75) > 0.01 {
+		t.Errorf("R=0.5 expected 93.75, got %.2f", s)
+	}
+	// Boundary: R=1.0 -> 75
+	if s := geometry.CalculateCockpitBaseScore(1.0); s != 75.0 {
+		t.Errorf("R=1.0 expected 75, got %.1f", s)
+	}
+	// Steep roll-off: R=1.25 -> 75 - 1200*(0.25)^2 = 0
+	if s := geometry.CalculateCockpitBaseScore(1.25); math.Abs(s) > 0.01 {
+		t.Errorf("R=1.25 expected 0.0, got %.1f", s)
+	}
+	// Steep roll-off floor: R=1.50 -> 75 - 1200*(0.5)^2 = -225 clamped to -200
+	if s := geometry.CalculateCockpitBaseScore(1.50); s != -200.0 {
+		t.Errorf("R=1.50 expected floor -200, got %.1f", s)
+	}
+}
+
+func TestEvaluateCockpitFit(t *testing.T) {
+	oval := geometry.DefaultFitOval(500.0, 700.0)
+	canonicalStem := model.StemSpec{LengthMm: 70, AngleDeg: -6}
+
+	// Scenario 1: Multiple setups inside (diminishing returns versatility bonus)
+	setupsInside := []model.HBPoint{
+		{Stem: model.StemSpec{LengthMm: 70, AngleDeg: -6}, SpacerMm: 10, HbX: 500.0, HbY: 700.0},  // R=0 (Center)
+		{Stem: model.StemSpec{LengthMm: 80, AngleDeg: -6}, SpacerMm: 15, HbX: 505.0, HbY: 708.66}, // inside
+		{Stem: model.StemSpec{LengthMm: 60, AngleDeg: -6}, SpacerMm: 5, HbX: 495.0, HbY: 691.34},  // inside
+	}
+	resMulti := geometry.EvaluateCockpitFit(setupsInside, canonicalStem, oval)
+	if resMulti.CountInside != 3 {
+		t.Errorf("Expected 3 inside, got %d", resMulti.CountInside)
+	}
+	if resMulti.BestR != 0.0 {
+		t.Errorf("Expected BestR 0.0, got %.3f", resMulti.BestR)
+	}
+	if resMulti.VersatilityBonus != 5.0 {
+		t.Errorf("Expected +5 bonus for 3 setups, got %.1f", resMulti.VersatilityBonus)
+	}
+	if resMulti.FinalSubScore != 100.0 {
+		t.Errorf("Expected final score capped at 100.0, got %.1f", resMulti.FinalSubScore)
+	}
+
+	// Scenario 2: 0 setups inside (missing-fit penalty: BaseScore - 25)
+	// Closest is at R=1.10: BaseScore = 75 - 1200*(0.1)^2 = 63.0. Final = 63 - 25 = 38.0
+	// For R=1.10 along minor axis: dx = 11*cos(30) = 9.526, dy = -11*sin(30) = -5.5
+	dx := 11.0 * math.Cos(30.0*math.Pi/180.0)
+	dy := -11.0 * math.Sin(30.0*math.Pi/180.0)
+	setupsOutside := []model.HBPoint{
+		{Stem: model.StemSpec{LengthMm: 90, AngleDeg: 0}, SpacerMm: 0, HbX: 500.0 + dx, HbY: 700.0 + dy},
+	}
+	resZero := geometry.EvaluateCockpitFit(setupsOutside, canonicalStem, oval)
+	if resZero.CountInside != 0 {
+		t.Errorf("Expected 0 inside, got %d", resZero.CountInside)
+	}
+	if math.Abs(resZero.BaseScore-63.0) > 0.1 {
+		t.Errorf("Expected BaseScore ~63.0, got %.1f", resZero.BaseScore)
+	}
+	if resZero.ZeroFitPenalty != 25.0 {
+		t.Errorf("Expected ZeroFitPenalty 25.0, got %.1f", resZero.ZeroFitPenalty)
+	}
+	if math.Abs(resZero.FinalSubScore-38.0) > 0.1 {
+		t.Errorf("Expected FinalSubScore ~38.0, got %.1f", resZero.FinalSubScore)
+	}
+}

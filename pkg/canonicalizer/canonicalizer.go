@@ -470,10 +470,13 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 	var brpMin, brpMax *float64
 	var distMin, distMax *float64
 	var dropMin, dropMax *float64
+	var hasClampFit bool
 
 	for _, attr := range prof.Attributes {
 		lowID := strings.ToLower(attr.ID)
-		if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && attr.Ideal != nil {
+		if lowID == "handlebar_clamp_fit" || lowID == "cockpit_fit" || lowID == "clamp_fit" {
+			hasClampFit = true
+		} else if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && attr.Ideal != nil {
 			brpMin = attr.Ideal.Min
 			brpMax = attr.Ideal.Max
 		} else if (lowID == "saddle_hb" || lowID == "saddlehb") && attr.Ideal != nil {
@@ -519,8 +522,10 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 			can.PossibleHBs = geometry.MapPossibleHBs(rows[i].Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP)
 		}
 
-		// 3. Select best HB point (saddle_hb primary, saddle_hb_drop secondary)
-		if len(can.PossibleHBs) > 0 {
+		// 3. Evaluate Cockpit Fit
+		if hasClampFit && (distMin != nil || distMax != nil) {
+			geometry.ApplyCockpitFit(can, rows[i].Bike, rows[i].Bike.GetCanonicalStem(), distMin, distMax, dropMin, dropMax)
+		} else if len(can.PossibleHBs) > 0 {
 			if bestHB, ok := geometry.SelectBestHBWithDrop(can.PossibleHBs, rows[i].Bike.GetCanonicalStem(), distMin, distMax, dropMin, dropMax); ok {
 				can.SelectedHB = &bestHB
 				can.SaddleHbMm = bestHB.SaddleHbMm

@@ -71,6 +71,18 @@ func DisplayOnly(id string) AttributeSpec {
 	return AttributeSpec{ID: id}
 }
 
+// DisplayOnlyWithTarget returns an unscored AttributeSpec that displays target ranges without contributing to the score.
+func DisplayOnlyWithTarget(id string, ideal, acceptable *Range, edgeScore *float64, falloff *Falloff) AttributeSpec {
+	return AttributeSpec{
+		ID:         id,
+		Weight:     0,
+		Ideal:      ideal,
+		Acceptable: acceptable,
+		EdgeScore:  edgeScore,
+		Falloff:    falloff,
+	}
+}
+
 // Profile represents an idealized frame definition with sweet-spot ranges across attributes.
 type Profile struct {
 	Name           string

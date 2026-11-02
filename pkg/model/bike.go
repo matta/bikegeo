@@ -319,15 +319,17 @@ func (e StemCatalogEntry) Expand() []StemSpec {
 	return stems
 }
 
-// SaddleSpec defines a saddle's longitudinal geometry in the Canonical Saddle Coordinate System,
+// SaddleSpec defines a saddle's 2D geometry in the Canonical Saddle Coordinate System,
 // where the origin (0.0mm) is the midpoint of the nominal straight rail clamping section,
-// positive (+) is forward toward the nose, and negative (-) is rearward toward the tail.
+// positive X (+) is forward toward the nose, and negative X (-) is rearward toward the tail.
+// Vertical elevation (Y) is measured upward from the 70mm BRP horizontal reference plane.
 type SaddleSpec struct {
 	ID                     string
 	Name                   string
 	RailLengthMm           float64 // Total straight clamping length on rails (e.g. 60mm for SQlab [-30 to +30])
 	RailCenterToBrpMm      float64 // Forward distance from rail center to 70mm BRP (+mm toward nose)
 	RailCenterToSitBonesMm float64 // Distance from rail center to sit bones (-mm toward tail)
+	SitBonesElevationMm    float64 // Vertical elevation of sit bones above the 70mm BRP horizontal plane (+mm upward, e.g. 10.0mm for SQlab Ergolux step)
 }
 
 // DeltaBrpToSitBonesMm returns the longitudinal distance from the 70mm BRP back to the sit bone line:
@@ -405,6 +407,7 @@ func ReferenceIdmatchSaddle() SaddleSpec {
 		RailLengthMm:           60.0,
 		RailCenterToBrpMm:      23.0,
 		RailCenterToSitBonesMm: -50.0,
+		SitBonesElevationMm:    10.0,
 	}
 }
 
@@ -543,6 +546,27 @@ type HBPoint struct {
 	HbY            float64
 	SaddleHbMm     float64
 	SaddleHbDropMm float64
+}
+
+// FitOval defines an elliptical area of reasonable fit centered on an ideal cockpit target.
+type FitOval struct {
+	CenterX    float64 // Absolute X coordinate of ideal center (mm)
+	CenterY    float64 // Absolute Y coordinate of ideal center (mm)
+	SemiMinorA float64 // Semi-minor horizontal radius (default: 10.0 mm)
+	SemiMajorB float64 // Semi-major vertical radius (default: 20.0 mm)
+	AngleDeg   float64 // Clockwise rotation angle in degrees (default: 30.0 deg)
+}
+
+// CockpitFitResult captures the fit assessment of a bike's candidate handlebar positions against a FitOval.
+type CockpitFitResult struct {
+	SelectedHB       HBPoint
+	BestR            float64
+	CountInside      int
+	BaseScore        float64
+	VersatilityBonus float64
+	ZeroFitPenalty   float64
+	FinalSubScore    float64
+	HasFit           bool
 }
 
 func (b BikeGeometry) GetMaxSpacerMm() float64 {
@@ -1228,6 +1252,7 @@ type BikeFitAnalysis struct {
 	SaddleHbDropMm      float64
 	SelectedHB          *HBPoint
 	PossibleHBs         []HBPoint
+	CockpitFitResult    *CockpitFitResult
 }
 
 type BaselineMetrics struct {

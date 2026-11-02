@@ -603,3 +603,167 @@ func TestCompare_WithSaddleFlag(t *testing.T) {
 		t.Errorf("expected Berthoud Aspin Open in subtitle, got:\n%s", out)
 	}
 }
+
+func TestSaddleSwapCommand(t *testing.T) {
+	t.Run("DefaultInvocation", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "saddle-swap")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+		expectedStrings := []string{
+			"SQlab 610 Ergolux Active 2.1 → Berthoud Aspin Open",
+			"Checkpoint 1: Saddle Physical Dimensions & 2D Step Profile",
+			"Fit Outcome: Naive BRP Alignment vs. True Pelvic Alignment",
+			"Hardware Compatibility Across Seatposts: Berthoud Aspin Open",
+			"+15.0 mm",   // BRP Skew
+			"-20.5 mm",   // Naive clamp offset
+			"+5.5 mm",    // Pelvic clamp offset
+			"INFEASIBLE", // Naive clamp status
+			"FEASIBLE",   // Pelvic clamp status
+			"Workshop Setup & Fit Equivalence",
+			"204.0mm", // Target BRP for Berthoud
+			"Pelvic Sit Bone Height (Y)",
+			"Target Saddle Height (BB to BRP)",
+		}
+		for _, exp := range expectedStrings {
+			if !strings.Contains(out, exp) {
+				t.Errorf("expected output to contain %q, got:\n%s", exp, out)
+			}
+		}
+	})
+
+	t.Run("NoAliasesAllowed", func(t *testing.T) {
+		for _, alias := range []string{"swap", "saddle-transfer", "transfer"} {
+			_, errOut, code := runCLI(t, alias)
+			if code != 2 {
+				t.Fatalf("expected alias %q exit code 2, got %d; stderr: %s", alias, code, errOut)
+			}
+			if !strings.Contains(errOut, "unknown command") {
+				t.Errorf("expected alias %q to produce unknown command error, got: %s", alias, errOut)
+			}
+		}
+	})
+
+	t.Run("HelpOption", func(t *testing.T) {
+		for _, helpFlag := range []string{"--help", "-h"} {
+			out, errOut, code := runCLI(t, "saddle-swap", helpFlag)
+			if code != 0 {
+				t.Fatalf("expected exit code 0 for %s, got %d; stderr: %s", helpFlag, code, errOut)
+			}
+			expectedHelpSnippets := []string{
+				"Usage:\n  bikegeo saddle-swap [flags] [source-saddle] [target-saddle]",
+				"Positional Arguments:",
+				"[source-saddle]",
+				"[target-saddle]",
+				"Argument Resolution Modes:",
+				"bikegeo saddle-swap <target-saddle>",
+				"bikegeo saddle-swap <source-saddle> <target-saddle>",
+				"Flags:",
+				"--saddle-height",
+				"to BRP",
+				"--sit-bone-setback",
+				"--brp-setback",
+				"--seatpost",
+				"--clamp-length",
+				"--cockpit-dist",
+				"--cockpit-drop",
+				"--all",
+				"--frame",
+				"Samples:",
+				"bikegeo saddle-swap berthoud-aspin-open",
+				"bikegeo saddle-swap sqlab-610-ergolux selle-italia-slr-boost-superflow-l3",
+				"bikegeo saddle-swap --frame otso-fenrir-stainless:L",
+			}
+			for _, snippet := range expectedHelpSnippets {
+				if !strings.Contains(out, snippet) {
+					t.Errorf("expected %s output to contain %q, got:\n%s", helpFlag, snippet, out)
+				}
+			}
+		}
+	})
+
+	t.Run("CanonicalFlagsOnly", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "saddle-swap", "--saddle-height", "750", "--sit-bone-setback", "290")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+		if !strings.Contains(out, "Saddle Height (to BRP): 750mm") {
+			t.Errorf("expected output to reflect 750mm saddle height to BRP, got:\n%s", out)
+		}
+		if !strings.Contains(out, "Sit Bone Setback: 290mm") {
+			t.Errorf("expected output to reflect 290mm sit bone setback, got:\n%s", out)
+		}
+	})
+
+	t.Run("CustomPairing_SLRBoost", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "saddle-swap", "sqlab", "slr")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+		expectedStrings := []string{
+			"SQlab 610 Ergolux Active 2.1 → Selle Italia SLR Boost Superflow",
+			"-15.3 mm", // Pelvic rail delta
+			"+10.0 mm", // BRP skew
+			"Infeasible",
+		}
+		for _, exp := range expectedStrings {
+			if !strings.Contains(out, exp) {
+				t.Errorf("expected output to contain %q, got:\n%s", exp, out)
+			}
+		}
+	})
+
+	t.Run("CompareAll", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "saddle-swap", "--all")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+		expectedStrings := []string{
+			"Saddle Swap Catalog Overview (Baseline: SQlab 610 Ergolux Active 2.1)",
+			"Berthoud Aspin Open",
+			"Selle Italia SLR Boost Superflow (L3 145mm)",
+			"Compatibility Verdict",
+		}
+		for _, exp := range expectedStrings {
+			if !strings.Contains(out, exp) {
+				t.Errorf("expected output to contain %q, got:\n%s", exp, out)
+			}
+		}
+	})
+
+	t.Run("WithFrame", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "saddle-swap", "--frame", "otso-fenrir-stainless:L")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+		expectedStrings := []string{
+			"Frame-Specific Saddle Swap: Otso Fenrir (Size L)",
+			"Required Rail Clamp Offset",
+			"Physical Clamp Feasibility",
+			"Achieved Sit Bone Setback",
+		}
+		for _, exp := range expectedStrings {
+			if !strings.Contains(out, exp) {
+				t.Errorf("expected output to contain %q, got:\n%s", exp, out)
+			}
+		}
+	})
+
+	t.Run("Formats_MarkdownAndCSV", func(t *testing.T) {
+		outMD, _, codeMD := runCLI(t, "saddle-swap", "-f", "md")
+		if codeMD != 0 {
+			t.Fatalf("expected md exit code 0, got %d", codeMD)
+		}
+		if !strings.Contains(outMD, "| Dimension / Checkpoint |") {
+			t.Errorf("expected markdown table header in -f md output, got:\n%s", outMD)
+		}
+
+		outCSV, _, codeCSV := runCLI(t, "saddle-swap", "-f", "csv")
+		if codeCSV != 0 {
+			t.Fatalf("expected csv exit code 0, got %d", codeCSV)
+		}
+		if !strings.Contains(outCSV, "Straight Rail Clamping Length") {
+			t.Errorf("expected csv content in -f csv output, got:\n%s", outCSV)
+		}
+	})
+}

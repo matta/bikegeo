@@ -885,3 +885,124 @@ func TestScoreRow_SeatpostExtension(t *testing.T) {
 		t.Errorf("Expected ZoneOutside for Fargo XL 187.2mm extension, got %s", critFargoXL.Zone)
 	}
 }
+
+func TestScoreRow_HandlebarClampFit(t *testing.T) {
+	// Profile with handlebar_clamp_fit, saddle_hb target (700mm), and saddle_hb_drop target (13mm)
+	prof := &ideal.Profile{
+		Name:           "test-clamp-fit",
+		SaddleHeightMm: floatPtr(746),
+		Attributes: []ideal.AttributeSpec{
+			{
+				ID:         "handlebar_clamp_fit",
+				Weight:     15,
+				Ideal:      ideal.AtLeast(100),
+				Acceptable: ideal.AtLeast(75),
+				EdgeScore:  floatPtr(75),
+				Falloff:    ideal.FalloffBelow(75),
+				Floor:      floatPtr(-200),
+			},
+			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), floatPtr(75), ideal.FalloffBoth(15, 15)),
+			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), floatPtr(75), ideal.FalloffBoth(10, 10)),
+		},
+	}
+
+	brp := model.BRPPoint{
+		BrpX:         -219.0,
+		BrpY:         713.0,
+		BrpSetbackMm: 219.0,
+	}
+
+	canonicalStem := model.StemSpec{LengthMm: 70, AngleDeg: -6}
+
+	// 1. Exact Center & Multiple Setups inside oval
+	// Ideal center:
+	// dx0 = sqrt(700^2 - 13^2) = 699.879 -> Target HbX = -219 + 699.879 = 480.879
+	// dy0 = 13 -> Target HbY = 713 + 13 = 726.0
+	targetHbX := -219.0 + math.Sqrt(700.0*700.0-13.0*13.0)
+	targetHbY := 713.0 + 13.0
+
+	possibleHBs := []model.HBPoint{
+		{
+			Stem:           canonicalStem,
+			SpacerMm:       10,
+			HbX:            targetHbX,
+			HbY:            targetHbY,
+			SaddleHbMm:     700.0,
+			SaddleHbDropMm: 13.0,
+		},
+		{
+			Stem:           model.StemSpec{LengthMm: 80, AngleDeg: -6},
+			SpacerMm:       15,
+			HbX:            targetHbX + 5.0,
+			HbY:            targetHbY + 5.0,
+			SaddleHbMm:     707.0,
+			SaddleHbDropMm: 18.0,
+		},
+		{
+			Stem:           model.StemSpec{LengthMm: 60, AngleDeg: -6},
+			SpacerMm:       5,
+			HbX:            targetHbX - 5.0,
+			HbY:            targetHbY - 5.0,
+			SaddleHbMm:     693.0,
+			SaddleHbDropMm: 8.0,
+		},
+	}
+
+	rowMulti := model.CanonicalComparisonRow{
+		Bike: model.BikeGeometry{
+			CanonicalStem: canonicalStem,
+		},
+		Canonical: model.BikeFitAnalysis{
+			DeadCenterBRP: brp,
+			PossibleHBs:   possibleHBs,
+		},
+	}
+
+	resMulti := ScoreRow(rowMulti, prof)
+	if resMulti.Total != 100.0 {
+		t.Errorf("Expected total score 100 for exact center with multi-setup bonus, got %.1f", resMulti.Total)
+	}
+
+	var critClamp *CriterionResult
+	for i := range resMulti.Criteria {
+		if resMulti.Criteria[i].ID == "handlebar_clamp_fit" {
+			critClamp = &resMulti.Criteria[i]
+			break
+		}
+	}
+	if critClamp == nil {
+		t.Fatalf("Expected handlebar_clamp_fit criterion")
+	}
+	if !strings.Contains(critClamp.FormattedCell, "3 in oval") {
+		t.Errorf("Expected cell to show '3 in oval', got %q", critClamp.FormattedCell)
+	}
+
+	// 2. Zero setups inside oval (steep roll-off + -25 penalty)
+	// Place single stem outside oval at R = 1.10 along minor axis
+	dx := 11.0 * math.Cos(30.0*math.Pi/180.0)
+	dy := -11.0 * math.Sin(30.0*math.Pi/180.0)
+	possibleZero := []model.HBPoint{
+		{
+			Stem:           model.StemSpec{LengthMm: 90, AngleDeg: 0},
+			SpacerMm:       0,
+			HbX:            targetHbX + dx,
+			HbY:            targetHbY + dy,
+			SaddleHbMm:     720.0,
+			SaddleHbDropMm: 7.5,
+		},
+	}
+	rowZero := model.CanonicalComparisonRow{
+		Bike: model.BikeGeometry{
+			CanonicalStem: canonicalStem,
+		},
+		Canonical: model.BikeFitAnalysis{
+			DeadCenterBRP: brp,
+			PossibleHBs:   possibleZero,
+		},
+	}
+	resZero := ScoreRow(rowZero, prof)
+	// BaseScore = 75 - 1200*(0.1)^2 = 63.0. Final = 63.0 - 25.0 = 38.0
+	if math.Abs(resZero.Total-38.0) > 0.5 {
+		t.Errorf("Expected score ~38.0 for R=1.10 with zero-fit penalty, got %.1f", resZero.Total)
+	}
+}

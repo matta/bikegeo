@@ -59,6 +59,8 @@ func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 		return app.runIdeals(subArgs)
 	case "saddles", "saddle":
 		return app.runSaddles(subArgs)
+	case "saddle-swap":
+		return app.runSaddleSwap(subArgs)
 	case "compare", "cmp":
 		return app.runCompare(subArgs)
 	case "validate", "val", "check":
@@ -106,6 +108,7 @@ Core Commands:
   forks                   List standard 29er fork presets and travel-to-A2C mappings
   stems                   List standard stem presets and length/angle envelopes
   saddles [show <id>]     List saddle catalog, translate pelvic fit, and solve ideal custom STA
+  saddle-swap [from] [to] Analyze saddle swap, contrasting naive BRP vs true pelvic fit
   ideals [show <name>]    List or inspect ideal frame profiles
 
 Global Flags:
@@ -130,6 +133,10 @@ Examples:
   # Validate a frame's CAD math and cross-configuration coherence:
   bikegeo validate chumba-sendero
   bikegeo validate --all
+
+  # Analyze swapping from reference SQlab 610 to Berthoud Aspin:
+  bikegeo saddle-swap
+  bikegeo saddle-swap sqlab slr
 `)
 }
 

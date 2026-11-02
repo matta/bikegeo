@@ -52,7 +52,7 @@ When a target setback is specified (e.g. `219 mm` in `idmatch`), `SelectBestBRP`
 
 ---
 
-## Front Cockpit Optimization (`HBPoint`)
+## Front Cockpit Optimization (`HBPoint`) & Area of Reasonable Fit
 
 The steerer tube extends upward and rearward at polar angle `180° - HTA`. With stem clamp thickness of 40 mm and steerer spacers `s` (`0..max_spacer_mm` in 5 mm steps):
 - `SteererX = Reach - (s + 20.0) * cos(HTA)`
@@ -60,7 +60,18 @@ The steerer tube extends upward and rearward at polar angle `180° - HTA`. With 
 - `HbX = SteererX + LengthMm * cos((90° - HTA) + AngleDeg)`
 - `HbY = SteererY + LengthMm * sin((90° - HTA) + AngleDeg)`
 
-When targets are present, `SelectBestHBWithDrop` selects the optimal stem and spacer combination using strict hierarchy:
+### Handlebar Clamp Fit (`handlebar_clamp_fit`)
+When scoring cockpits against biomechanical profiles, handlebar positions are assessed against an **Area of Reasonable Fit** oval:
+- **Ideal Center**: `(BrpX + ΔX_0, BrpY + ΔY_0)` where `ΔX_0 = √(d_0² - c_0²)` and `ΔY_0 = c_0` from target `saddle_hb` distance `d_0` and drop `c_0`.
+- **Dimensions**: Semi-minor axis `a = 10.0 mm` (±1 cm horizontal) and semi-major axis `b = 20.0 mm` (±2 cm vertical).
+- **Rotation**: 30° clockwise tilt, matching frame sizing geometry where longer reach requires taller stack.
+- **Normalized Radius `R`**: `R = √((p_minor / 10)² + (p_major / 20)²)`
+  - `R ≤ 1.0`: Inside oval (`BaseScore = 100 - 25 * R²`).
+  - `R > 1.0`: Steep roll-off (`BaseScore = 75 - 1200 * (R - 1.0)²`, reaching 0 at `R = 1.25` and floor of -200).
+- **Versatility Bonus**: Diminishing returns scheme (`+0` for 1 valid setup, `+5` for 2–3, `+10` for 4+ setups inside oval).
+- **Missing-Fit Penalty**: Flat `-25 point` penalty if 0 setups land inside the oval.
+
+When targets are present in legacy profiles without `handlebar_clamp_fit`, `SelectBestHBWithDrop` selects the optimal stem and spacer combination using strict hierarchy:
 1. **Primary (`saddle_hb`)**: Minimum rounded mm distance to the distance target range `(d)`.
 2. **Secondary (`saddle_hb_drop`)**: Minimum rounded mm distance to the drop target range `(c)`.
 3. **Tie-breaker 1**: Closest stem length to `canonical_stem`.
@@ -72,12 +83,13 @@ When targets are present, `SelectBestHBWithDrop` selects the optimal stem and sp
 
 ## Ideal Profiles & Deprecation Strategy
 
-### `data/ideals/idmatch.json`
+### `idmatch` Profile
 Built directly around the idmatch Bikelab report:
 - `saddle_height_mm`: `746`
-- `brp_setback`: Target `219 mm` (`ideal: 219, acceptable: 214–224, edge_score: 75, falloff: 20`)
-- `saddle_hb`: Target `700 mm` (`ideal: 695–705, acceptable: 685–715, edge_score: 75, falloff: 15`)
-- `saddle_hb_drop`: Target `13 mm` (`ideal: 8–18, acceptable: 0–26, edge_score: 75, falloff: 10`)
+- `brp_setback`: Target `219 mm` (`ideal: 219, acceptable: 214–224, edge_score: 75, falloff: 20`, weight: 10)
+- `handlebar_clamp_fit`: Target `≥100 pts` (`acceptable: ≥75, edge_score: 75, falloff: 75, floor: -200`, weight: 15)
+- `saddle_hb`: Display-only with target `700 mm` (`ideal: 695–705, acceptable: 685–715`)
+- `saddle_hb_drop`: Display-only with target `13 mm` (`ideal: 8–18, acceptable: 0–26`)
 - `seatpost_extension`: Target `250–310 mm` (`acceptable: 210–340, edge_score: 75, falloff: 25`, weight: 4) — Proxy for standover clearance and seatpost/dropper fitment: `SaddleHeightMm - SeatTubeLength`.
 - `bbdrop`: Target `70 mm` (`acceptable: 60–80, edge_score: 75, falloff: 10`, weight: 3)
 - `hta`: Target `68.0–69.0°` (`acceptable: 67.5–69.5°, edge_score: 75, falloff: 0.5`, weight: 2)

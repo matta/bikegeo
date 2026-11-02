@@ -3,6 +3,7 @@ package ideal
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"bikegeo/pkg/model"
 )
@@ -10,6 +11,51 @@ import (
 // Evaluate evaluates a metric value against an AttributeSpec and returns an Evaluation.
 // row can be nil if evaluating abstract test values.
 func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.CanonicalComparisonRow) Evaluation {
+	if strings.EqualFold(spec.ID, "handlebar_clamp_fit") && row != nil && row.Canonical.CockpitFitResult != nil {
+		cfr := row.Canonical.CockpitFitResult
+		hb := cfr.SelectedHB
+		dropSign := ""
+		if hb.SaddleHbDropMm > 0 {
+			dropSign = "+"
+		}
+		stemSign := "+"
+		if hb.SpacerMm < 0 {
+			stemSign = ""
+		}
+		baseValStr := fmt.Sprintf("%.0f (%s%.0f) [%.0fmm %.0f° %s%.0fmm] (%d in oval)",
+			hb.SaddleHbMm, dropSign, hb.SaddleHbDropMm,
+			hb.Stem.LengthMm, hb.Stem.AngleDeg, stemSign, hb.SpacerMm,
+			cfr.CountInside,
+		)
+
+		subScore := cfr.FinalSubScore
+		zone := ZoneOutside
+		sym := SymbolOutside
+		if cfr.HasFit {
+			if subScore >= 95.0 {
+				zone = ZoneIdeal
+				sym = SymbolIdeal
+			} else {
+				zone = ZoneAcceptable
+				sym = SymbolAcceptable
+			}
+		}
+
+		formatted := fmt.Sprintf("%s %s", baseValStr, sym)
+		if subScore < 100.0 {
+			lost := 100.0 - subScore
+			formatted = fmt.Sprintf("%s -%.0f", formatted, lost)
+		}
+
+		return Evaluation{
+			Value:           subScore,
+			Zone:            zone,
+			DistanceToIdeal: cfr.BestR,
+			SubScore:        subScore,
+			FormattedCell:   formatted,
+		}
+	}
+
 	baseValStr := fmt.Sprintf("%.*f", meta.Decimals, val)
 	if meta.FormatVal != nil {
 		baseValStr = meta.FormatVal(val, row)

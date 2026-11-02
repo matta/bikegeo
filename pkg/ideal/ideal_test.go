@@ -75,6 +75,18 @@ func TestLookupAttribute_BrpSetbackAndDrop(t *testing.T) {
 			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
 		}
 	}
+
+	// Handlebar Clamp Fit lookup and variants
+	for _, variant := range []string{"handlebar_clamp_fit", "handlebar-clamp-fit", "cockpit_fit", "cockpit", "clamp_fit", "hb_fit_area"} {
+		meta, ok := LookupAttribute(variant)
+		if !ok {
+			t.Errorf("LookupAttribute(%q) failed", variant)
+			continue
+		}
+		if meta.Label != "Handlebar Clamp Fit" {
+			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
+		}
+	}
 }
 
 func TestIdmatchProfileValid(t *testing.T) {

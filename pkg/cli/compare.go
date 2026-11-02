@@ -748,6 +748,15 @@ func (a *App) renderComparisonMatrix(
 				}
 
 				lowID := strings.ToLower(id)
+				if (lowID == "handlebar_clamp_fit" || lowID == "clamp_fit") && item.row.Canonical.CockpitFitResult != nil {
+					cfr := item.row.Canonical.CockpitFitResult
+					hb := cfr.SelectedHB
+					sign := "+"
+					if hb.SpacerMm < 0 {
+						sign = ""
+					}
+					return fmt.Sprintf("%s [%.0fmm %.0f° %s%.0fmm] (%d in oval)", scorePart, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.CountInside)
+				}
 				if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && item.row.Canonical.SelectedBRP != nil {
 					brp := item.row.Canonical.SelectedBRP
 					sign := "+"
@@ -1106,7 +1115,7 @@ func (a *App) renderComparisonMatrix(
 			evalAttr := adaptProfileAttributeForSaddle(attr, state.Saddle)
 			meta, _ := ideal.LookupAttribute(evalAttr.ID)
 			label := meta.Label
-			if strings.EqualFold(evalAttr.ID, "aett") || strings.EqualFold(evalAttr.ID, "setback") || strings.EqualFold(evalAttr.ID, "saddle_hb") || strings.EqualFold(evalAttr.ID, "brp_setback") || strings.EqualFold(evalAttr.ID, "saddle_hb_drop") {
+			if strings.EqualFold(evalAttr.ID, "aett") || strings.EqualFold(evalAttr.ID, "setback") || strings.EqualFold(evalAttr.ID, "saddle_hb") || strings.EqualFold(evalAttr.ID, "brp_setback") || strings.EqualFold(evalAttr.ID, "saddle_hb_drop") || strings.EqualFold(evalAttr.ID, "handlebar_clamp_fit") {
 				label = fmt.Sprintf("%s @ %.0fmm", meta.Label, state.SaddleHeightMm)
 			}
 			idealStr := ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals)

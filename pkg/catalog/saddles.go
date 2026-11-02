@@ -14,6 +14,7 @@ var CommonSaddleCatalog = []model.SaddleSpec{
 		RailLengthMm:           60.0,
 		RailCenterToBrpMm:      23.0,
 		RailCenterToSitBonesMm: -50.0,
+		SitBonesElevationMm:    10.0, // SQlab Ergolux step: rear sit bone platform is elevated 10mm above the 70mm BRP horizontal plane
 	},
 	{
 		ID:                     "berthoud-aspin-open",
@@ -21,6 +22,7 @@ var CommonSaddleCatalog = []model.SaddleSpec{
 		RailLengthMm:           64.0,
 		RailCenterToBrpMm:      43.5,
 		RailCenterToSitBonesMm: -44.5,
+		SitBonesElevationMm:    0.0, // Traditional flat/hammock leather touring profile (coplanar sit surface at BRP)
 	},
 	// SelleItaliaSlrBoostSuperflowL3 represents the 145x248mm L3 model with 7mm Manganese/TI316 rails.
 	// Photogrammetrically derived from 2000x2000 orthogonal views (scale: ~6.38-6.40 px/mm).
@@ -34,6 +36,7 @@ var CommonSaddleCatalog = []model.SaddleSpec{
 		RailLengthMm:           40.0,  // 8 x 5mm printed graduations between rear tick and front STOP mark [-20.0 to +20.0]
 		RailCenterToBrpMm:      17.7,  // BRP (114.0mm from nose) is 17.7mm forward of rail scale center (131.7mm from nose)
 		RailCenterToSitBonesMm: -65.3, // Sit bone line (197.0mm from nose) is 65.3mm rearward of rail scale center (83.0mm behind BRP)
+		SitBonesElevationMm:    0.0,   // Flat racing profile (coplanar sit surface at BRP)
 	},
 }
 
