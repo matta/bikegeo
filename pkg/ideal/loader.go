@@ -168,12 +168,8 @@ func IdmatchProfile() *Profile {
 			DisplayOnly("stack"),
 			DisplayOnly("sta"),
 			DisplayOnly("chainstay"),
-			DisplayOnly("setback"),
-			DisplayOnly("aett"),
-			DisplayOnly("sparevert"),
 			DisplayOnly("seat_to_rc"),
-			DisplayOnly("sit_bone_setback"),
-			DisplayOnly("ideal_sta"),
+			DisplayOnly("sparevert"),
 		},
 	}
 	_, _ = NormalizeAndValidate(p)

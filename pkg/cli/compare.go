@@ -805,87 +805,259 @@ func (a *App) renderComparisonMatrix(
 	}
 
 	if state.Transpose {
-		headers := []string{
-			"#",
-			"Frame (Size)",
-		}
-		if scoringEnabled {
-			headers = append(headers, "Score")
-		}
-		headers = append(headers, "Fork & Eff A2C")
-
-		for _, attr := range prof.Attributes {
-			meta, _ := ideal.LookupAttribute(attr.ID)
-			headers = append(headers, meta.Label)
-		}
-
-		var tableRows [][]string
-
-		// Row 0: Ideal
-		idealRow := make([]string, len(headers))
-		idealRow[1] = "Ideal"
-
-		// Row 1: Acceptable
-		accRow := make([]string, len(headers))
-		accRow[1] = "Acceptable"
-
-		attrOffset := 2
-		if scoringEnabled {
-			attrOffset = 3
-		}
-		attrOffset++ // past Fork & Eff A2C
-
-		for idx, attr := range prof.Attributes {
-			evalAttr := adaptProfileAttributeForSaddle(attr, state.Saddle)
-			meta, _ := ideal.LookupAttribute(evalAttr.ID)
-			idealRow[attrOffset+idx] = ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals)
-			accRow[attrOffset+idx] = ideal.FormatRange(evalAttr.Acceptable, meta.Unit, meta.Decimals)
-		}
-
-		tableRows = append(tableRows, idealRow, accRow)
-
-		for _, item := range scoredItems {
-			r := item.row
-			i := item.origIdx
-
-			idxStr := fmt.Sprintf("%d", i+1)
-			setupStr := canonicalizer.FormatForkEffA2c(r)
-
-			rowCells := []string{
-				idxStr,
-				item.displayName,
+		if a.Format == FormatCSV {
+			headers := []string{
+				"#",
+				"Frame (Size)",
 			}
 			if scoringEnabled {
-				scoreStr := fmt.Sprintf("%.0f (#%d)", math.Round(item.score.Total), item.score.Rank)
-				rowCells = append(rowCells, scoreStr)
+				headers = append(headers, "Score")
 			}
-			rowCells = append(rowCells, setupStr)
-
-			critMap := make(map[string]scoring.CriterionResult)
-			for _, cr := range item.score.Criteria {
-				critMap[cr.ID] = cr
-			}
+			headers = append(headers, "Fork & Eff A2C")
 
 			for _, attr := range prof.Attributes {
 				meta, _ := ideal.LookupAttribute(attr.ID)
-				if cr, ok := critMap[attr.ID]; ok {
-					rowCells = append(rowCells, cr.FormattedCell)
-				} else {
-					val, ok := meta.Extract(r)
-					if !ok {
-						rowCells = append(rowCells, "— (no data)")
-					} else {
-						ev := ideal.Evaluate(attr, meta, val, &r)
-						rowCells = append(rowCells, ev.FormattedCell)
-					}
-				}
+				headers = append(headers, meta.Label)
 			}
 
-			tableRows = append(tableRows, rowCells)
-		}
+			var tableRows [][]string
 
-		if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, tableRows, primaryFooters); err != nil {
-			return err
+			// Row 0: Ideal
+			idealRow := make([]string, len(headers))
+			idealRow[1] = "Ideal"
+
+			// Row 1: Acceptable
+			accRow := make([]string, len(headers))
+			accRow[1] = "Acceptable"
+
+			attrOffset := 2
+			if scoringEnabled {
+				attrOffset = 3
+			}
+			attrOffset++ // past Fork & Eff A2C
+
+			for idx, attr := range prof.Attributes {
+				evalAttr := adaptProfileAttributeForSaddle(attr, state.Saddle)
+				meta, _ := ideal.LookupAttribute(evalAttr.ID)
+				idealRow[attrOffset+idx] = ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals)
+				accRow[attrOffset+idx] = ideal.FormatRange(evalAttr.Acceptable, meta.Unit, meta.Decimals)
+			}
+
+			tableRows = append(tableRows, idealRow, accRow)
+
+			for _, item := range scoredItems {
+				r := item.row
+				i := item.origIdx
+
+				idxStr := fmt.Sprintf("%d", i+1)
+				setupStr := canonicalizer.FormatForkEffA2c(r)
+
+				rowCells := []string{
+					idxStr,
+					item.displayName,
+				}
+				if scoringEnabled {
+					scoreStr := fmt.Sprintf("%.0f (#%d)", math.Round(item.score.Total), item.score.Rank)
+					rowCells = append(rowCells, scoreStr)
+				}
+				rowCells = append(rowCells, setupStr)
+
+				critMap := make(map[string]scoring.CriterionResult)
+				for _, cr := range item.score.Criteria {
+					critMap[cr.ID] = cr
+				}
+
+				for _, attr := range prof.Attributes {
+					meta, _ := ideal.LookupAttribute(attr.ID)
+					if cr, ok := critMap[attr.ID]; ok {
+						rowCells = append(rowCells, cr.FormattedCell)
+					} else {
+						val, ok := meta.Extract(r)
+						if !ok {
+							rowCells = append(rowCells, "— (no data)")
+						} else {
+							ev := ideal.Evaluate(attr, meta, val, &r)
+							rowCells = append(rowCells, ev.FormattedCell)
+						}
+					}
+				}
+
+				tableRows = append(tableRows, rowCells)
+			}
+
+			if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, tableRows, primaryFooters); err != nil {
+				return err
+			}
+		} else {
+			// Split into Table 1 (Fit & Cockpit) and Table 2 (Frame & Chassis Specifications)
+			var fitAttrs []ideal.AttributeSpec
+			for _, attr := range prof.Attributes {
+				if attr.Ideal != nil && attr.Weight > 0 {
+					fitAttrs = append(fitAttrs, attr)
+				}
+			}
+			if len(fitAttrs) == 0 {
+				fitAttrs = prof.Attributes
+			}
+
+			table1Title := title + " - Fit & Cockpit"
+			headers1 := []string{
+				"#",
+				"Frame (Size)",
+			}
+			if scoringEnabled {
+				headers1 = append(headers1, "Score")
+			}
+			headers1 = append(headers1, wrapHeader("Fork & Eff A2C"))
+
+			for _, attr := range fitAttrs {
+				meta, _ := ideal.LookupAttribute(attr.ID)
+				headers1 = append(headers1, wrapHeader(meta.Label))
+			}
+
+			var table1Rows [][]string
+
+			// Row 0: Ideal
+			idealRow := make([]string, len(headers1))
+			idealRow[1] = "Ideal"
+
+			// Row 1: Acceptable
+			accRow := make([]string, len(headers1))
+			accRow[1] = "Acceptable"
+
+			attrOffset := 2
+			if scoringEnabled {
+				attrOffset = 3
+			}
+			attrOffset++ // past Fork & Eff A2C
+
+			for idx, attr := range fitAttrs {
+				evalAttr := adaptProfileAttributeForSaddle(attr, state.Saddle)
+				meta, _ := ideal.LookupAttribute(evalAttr.ID)
+				idealRow[attrOffset+idx] = ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals)
+				accRow[attrOffset+idx] = ideal.FormatRange(evalAttr.Acceptable, meta.Unit, meta.Decimals)
+			}
+
+			table1Rows = append(table1Rows, idealRow, accRow)
+
+			for _, item := range scoredItems {
+				r := item.row
+				i := item.origIdx
+
+				idxStr := fmt.Sprintf("%d", i+1)
+				setupStr := canonicalizer.FormatForkEffA2c(r)
+
+				rowCells := []string{
+					idxStr,
+					item.displayName,
+				}
+				if scoringEnabled {
+					scoreStr := fmt.Sprintf("%.0f (#%d)", math.Round(item.score.Total), item.score.Rank)
+					rowCells = append(rowCells, scoreStr)
+				}
+				rowCells = append(rowCells, setupStr)
+
+				critMap := make(map[string]scoring.CriterionResult)
+				for _, cr := range item.score.Criteria {
+					critMap[cr.ID] = cr
+				}
+
+				for _, attr := range fitAttrs {
+					meta, _ := ideal.LookupAttribute(attr.ID)
+					if cr, ok := critMap[attr.ID]; ok {
+						rowCells = append(rowCells, cr.FormattedCell)
+					} else {
+						val, ok := meta.Extract(r)
+						if !ok {
+							rowCells = append(rowCells, "— (no data)")
+						} else {
+							ev := ideal.Evaluate(attr, meta, val, &r)
+							rowCells = append(rowCells, ev.FormattedCell)
+						}
+					}
+				}
+
+				table1Rows = append(table1Rows, rowCells)
+			}
+
+			if err := RenderOutputWithFooter(a.Out, a.Format, table1Title, subtitle, headers1, table1Rows, nil); err != nil {
+				return err
+			}
+
+			fmt.Fprintln(a.Out)
+
+			geoTitle := "Frame & Chassis Specifications"
+			geoHeaders := []string{
+				"#",
+				"Frame (Size)",
+				"Reach",
+				"Stack",
+				"HTA",
+				"STA",
+				wrapHeader("BB Drop"),
+				wrapHeader("Chainstay"),
+				wrapHeader("Seat-RC"),
+				wrapHeader("Spare Vert"),
+			}
+
+			var geoRows [][]string
+			csMeta, _ := ideal.LookupAttribute("chainstay")
+
+			for _, item := range scoredItems {
+				r := item.row
+				i := item.origIdx
+
+				reachStr := "—"
+				if r.Canonical.ActiveReach > 0 {
+					reachStr = fmt.Sprintf("%.0f", r.Canonical.ActiveReach)
+				}
+				stackStr := "—"
+				if r.Canonical.ActiveStack > 0 {
+					stackStr = fmt.Sprintf("%.0f", r.Canonical.ActiveStack)
+				}
+				htaStr := "—"
+				if r.Canonical.ActiveHta > 0 {
+					htaStr = fmt.Sprintf("%.1f°", r.Canonical.ActiveHta)
+				}
+				staStr := "—"
+				if r.Canonical.ActiveSta > 0 {
+					staStr = fmt.Sprintf("%.1f°", r.Canonical.ActiveSta)
+				}
+				bbStr := "—"
+				if r.Canonical.ActiveBbDrop != 0 {
+					bbStr = fmt.Sprintf("%.0f", r.Canonical.ActiveBbDrop)
+				}
+				csStr := "—"
+				if val, ok := csMeta.Extract(r); ok {
+					csStr = csMeta.FormatVal(val, &r)
+				}
+				seatRcStr := "—"
+				if r.Canonical.SeatToRearCenter > 0 {
+					seatRcStr = fmt.Sprintf("%.0f", r.Canonical.SeatToRearCenter)
+				}
+				spareStr := "—"
+				if r.Canonical.SpareVerticalStack != 0 {
+					spareStr = fmt.Sprintf("%.0f", r.Canonical.SpareVerticalStack)
+				}
+
+				geoRow := []string{
+					fmt.Sprintf("%d", i+1),
+					item.displayName,
+					reachStr,
+					stackStr,
+					htaStr,
+					staStr,
+					bbStr,
+					csStr,
+					seatRcStr,
+					spareStr,
+				}
+				geoRows = append(geoRows, geoRow)
+			}
+
+			if err := RenderOutputWithFooter(a.Out, a.Format, geoTitle, "", geoHeaders, geoRows, primaryFooters); err != nil {
+				return err
+			}
 		}
 	} else {
 		// Default orientation: Metrics as rows, Bike Setups as columns
@@ -1029,4 +1201,29 @@ func disambiguateFrameNames(rows []model.CanonicalComparisonRow) []string {
 	}
 
 	return names
+}
+
+func wrapHeader(h string) string {
+	switch h {
+	case "Fork & Eff A2C":
+		return "Fork &\nEff A2C"
+	case "BRP Setback":
+		return "BRP\nSetback"
+	case "Saddle-HB Drop":
+		return "HB\nDrop"
+	case "Seatpost Ext":
+		return "Seatpost\nExt"
+	case "BB Drop":
+		return "BB\nDrop"
+	case "Front Wt":
+		return "Front\nWt"
+	case "Chainstay":
+		return "Chain\nstay"
+	case "Seat-RC":
+		return "Seat-\nRC"
+	case "Spare Vert":
+		return "Spare\nVert"
+	default:
+		return h
+	}
 }

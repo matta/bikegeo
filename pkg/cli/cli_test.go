@@ -251,6 +251,12 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "92 (#1)") {
 			t.Errorf("expected '92 (#1)' in transposed output, got:\n%s", out)
 		}
+		if !strings.Contains(out, "Fit & Cockpit") {
+			t.Errorf("expected Table 1 'Fit & Cockpit' in transposed output, got:\n%s", out)
+		}
+		if !strings.Contains(out, "Frame & Chassis Specifications") {
+			t.Errorf("expected Table 2 'Frame & Chassis Specifications' in transposed output, got:\n%s", out)
+		}
 	})
 
 	t.Run("NoScoreFlag", func(t *testing.T) {
