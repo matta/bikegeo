@@ -69,8 +69,9 @@ var CommonForkCatalog = []model.ForkCatalogEntry{
 		Standard: true,
 		Options: []model.ForkCatalogOption{
 			{A2cMm: 541, RakeMm: 44},
+			{A2cMm: 544, RakeMm: 44},
 		},
-		Description: "Trail hardtail benchmark (static 541mm, 44mm rake)",
+		Description: "Trail hardtail benchmark (static 541mm / 544mm, 44mm rake)",
 	},
 	{
 		ID:       "pike_140",

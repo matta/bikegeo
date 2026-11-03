@@ -33,6 +33,8 @@ func CalculateDynamicWheelbaseTolerance(bike model.BikeGeometry, structuralA2c f
 		deltaHtaDeg = 0.5
 	} else if bike.HtaDeg*2 == math.Floor(bike.HtaDeg*2) {
 		deltaHtaDeg = 0.25
+	} else if bike.HtaDeg*4 == math.Floor(bike.HtaDeg*4) {
+		deltaHtaDeg = 0.125
 	} else {
 		deltaHtaDeg = 0.05
 	}
@@ -342,10 +344,22 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		1,
 	)
 
+	// Horizontal front-center implied by published Front Center or Wheelbase, used to
+	// emit a single sag-convention hint if either cross-check fails.
+	var sagHintRefFcHoriz float64
+	var sagHintSource string
+
 	var fcDiff *float64
 	fcSlop := slop.GetFrontCenter()
 	if bike.FrontCenter > 0 {
-		diff := geometry.Round(math.Abs(bike.FrontCenter-calculatedFc3D), 1)
+		// Manufacturers publish Front Center either as the 3D BB-to-front-axle distance or
+		// as its horizontal projection; accept whichever convention the chart matches.
+		diff3D := geometry.Round(math.Abs(bike.FrontCenter-calculatedFc3D), 1)
+		diffHoriz := geometry.Round(math.Abs(bike.FrontCenter-calculatedFcHoriz), 1)
+		diff, convention, calculatedFc := diff3D, "3D", calculatedFc3D
+		if diffHoriz < diff3D {
+			diff, convention, calculatedFc = diffHoriz, "horizontal", geometry.Round(calculatedFcHoriz, 1)
+		}
 		fcDiff = &diff
 		if diff > fcSlop {
 			issues = append(issues, model.ValidationIssue{
@@ -353,18 +367,24 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 				Field:      "front_center",
 				Severity:   model.SeverityError,
 				Title:      "Front Center Inconsistency",
-				Message:    fmt.Sprintf("Published Front Center (%.1fmm) differs from geometrically calculated 3D FC (%.1fmm) by %.1fmm (allowed slop ±%.1fmm).", bike.FrontCenter, calculatedFc3D, diff, fcSlop),
+				Message:    fmt.Sprintf("Published Front Center (%.1fmm) differs from geometrically calculated FC (3D: %.1fmm, Horiz: %.1fmm) by %.1fmm, closest to %s convention (allowed slop ±%.1fmm).", bike.FrontCenter, calculatedFc3D, calculatedFcHoriz, diff, convention, fcSlop),
 				Details:    "Check if Reach, HTA, BB Drop, or Fork Rake is inconsistent in published geometry.",
-				Expected:   fmt.Sprintf("%.1f mm (calculated)", calculatedFc3D),
+				Expected:   fmt.Sprintf("%.1f mm (calculated, %s)", calculatedFc, convention),
 				Actual:     fmt.Sprintf("%.1f mm (published)", bike.FrontCenter),
 				Difference: diff,
 			})
+
+			sagHintRefFcHoriz = bike.FrontCenter
+			if convention == "3D" && bike.FrontCenter > bike.BbDrop {
+				sagHintRefFcHoriz = math.Sqrt(bike.FrontCenter*bike.FrontCenter - bike.BbDrop*bike.BbDrop)
+			}
+			sagHintSource = "Front Center"
 		} else {
 			issues = append(issues, model.ValidationIssue{
 				ID:       "front_center_ok",
 				Severity: model.SeveritySuccess,
 				Title:    "Front Center Geometrically Coherent",
-				Message:  fmt.Sprintf("Published Front Center matches calculated point-to-point vector within %.1fmm (tolerance ±%.1fmm).", diff, fcSlop),
+				Message:  fmt.Sprintf("Published Front Center matches calculated %s front-axle vector within %.1fmm (tolerance ±%.1fmm).", convention, diff, fcSlop),
 			})
 		}
 	}
@@ -389,6 +409,11 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 				Actual:     fmt.Sprintf("%.1f mm (published)", bike.Wheelbase),
 				Difference: wbDiff,
 			})
+
+			if sagHintSource == "" {
+				sagHintRefFcHoriz = bike.Wheelbase - csHorizontal
+				sagHintSource = "Wheelbase"
+			}
 		} else {
 			issues = append(issues, model.ValidationIssue{
 				ID:       "wheelbase_ok",
@@ -396,6 +421,12 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 				Title:    "Wheelbase Geometrically Coherent",
 				Message:  fmt.Sprintf("Published Wheelbase matches horizontal Rear Center + Front Center within %.1fmm (tolerance ±%.1fmm).", wbDiff, wbSlop),
 			})
+		}
+	}
+
+	if sagHintSource != "" {
+		if hint, ok := stackReachSagHint(bike, structuralA2c, sagHintRefFcHoriz, sagHintSource); ok {
+			issues = append(issues, hint)
 		}
 	}
 
@@ -888,4 +919,46 @@ func ValidateForkRef(frameID string, fieldName string, fref model.ForkRef) []mod
 	}
 
 	return issues
+}
+
+// minSagHintA2cOffsetMm is the smallest equivalent A2C offset worth attributing to a sag
+// convention mismatch. Typical design sag (15–30% of 100–160mm travel) moves A2C by ~15–50mm;
+// smaller residuals are more likely rounding, rake, or chart typos.
+const minSagHintA2cOffsetMm = 10.0
+
+// stackReachSagHint diagnoses a failed Front Center / Wheelbase cross-check whose residual is
+// large enough to be consistent with Stack and Reach having been published at different fork
+// sag states. refFcHoriz is the horizontal front-center implied by the published source.
+//
+// The reported A2C offset is a first-order equivalent (HTA and BB drop held fixed), not a
+// physical sag simulation: real sag also rotates the frame, steepening HTA and changing BB drop.
+func stackReachSagHint(bike model.BikeGeometry, structuralA2c, refFcHoriz float64, source string) (model.ValidationIssue, bool) {
+	if bike.Reach <= 0 || bike.HtaDeg <= 0 {
+		return model.ValidationIssue{}, false
+	}
+	cosHta := math.Cos(geometry.ToRad(bike.HtaDeg))
+	sinHta := math.Sin(geometry.ToRad(bike.HtaDeg))
+	if cosHta <= 0.05 {
+		return model.ValidationIssue{}, false
+	}
+
+	expectedReach := refFcHoriz - (structuralA2c+bike.Htl)*cosHta - bike.ForkRake*sinHta
+	reachOffset := bike.Reach - expectedReach
+	equivA2cOffset := reachOffset / cosHta
+	if math.Abs(equivA2cOffset) < minSagHintA2cOffsetMm {
+		return model.ValidationIssue{}, false
+	}
+
+	return model.ValidationIssue{
+		ID:       "stack_reach_sag_hint",
+		Field:    "reach",
+		Severity: model.SeverityWarning,
+		Title:    "Possible Stack / Reach Sag Convention Mismatch",
+		Message: fmt.Sprintf("Published Reach (%.1fmm) differs from the Reach implied by Stack and %s (%.1fmm) by %+.1fmm, equivalent to a %+.1fmm A2C offset at fixed HTA. This is consistent with Stack and Reach being published at different fork sag states.",
+			bike.Reach, source, geometry.Round(expectedReach, 1), geometry.Round(reachOffset, 1), geometry.Round(-equivA2cOffset, 1)),
+		Details:    "Other causes (wrong fork rake, chainstay convention, or a chart typo) can produce the same residual; confirm against the manufacturer's CAD before correcting Reach.",
+		Expected:   fmt.Sprintf("%.1f mm (Reach consistent with Stack + %s)", geometry.Round(expectedReach, 1), source),
+		Actual:     fmt.Sprintf("%.1f mm (published Reach)", bike.Reach),
+		Difference: geometry.Round(math.Abs(reachOffset), 1),
+	}, true
 }

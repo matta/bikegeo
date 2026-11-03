@@ -523,3 +523,86 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 		t.Errorf("Expected Unknown Stem Set error, got: %s", rep.ErrorSummary())
 	}
 }
+
+func TestValidateStackReachSagHint(t *testing.T) {
+	// Raw Seven Cycles Sola Slang 2924 published geometry (Size S 57cm). Stack (650mm) matches a
+	// 544mm static fork with a 12mm EC44 cup, but Reach (411mm) is ~19mm longer than Stack,
+	// HTA, and the published horizontal Front Center (711mm) / Wheelbase (1158mm) allow.
+	rawSeven := model.BikeGeometry{
+		ID:                 "seven-sola-slang-raw-s57",
+		Manufacturer:       "Seven",
+		Model:              "Sola Slang 2924",
+		Size:               "S 57cm",
+		Reach:              411.0,
+		Stack:              650.0,
+		HtaDeg:             65.0,
+		StaDeg:             76.75,
+		Htl:                104.0,
+		BbDrop:             70.0,
+		ForkA2c:            544.0,
+		ForkRake:           44.0,
+		HeadsetCupType:     model.CupEC44,
+		GeoHeadsetSpacerMm: 12.0,
+		FrontCenter:        711.0, // Horizontal convention
+		Wheelbase:          1158.0,
+		ChainstayLength:    452.0,
+	}
+
+	countIssues := func(rep model.ValidationReport, id string, sev model.Severity) int {
+		n := 0
+		for _, issue := range rep.Issues {
+			if issue.ID == id && issue.Severity == sev {
+				n++
+			}
+		}
+		return n
+	}
+
+	// Both Front Center and Wheelbase fail; the sag hint is emitted exactly once, as a warning.
+	report := validator.ValidateBikeGeometry(rawSeven)
+	if report.IsValid {
+		t.Fatalf("Expected raw mixed-sag geometry to fail validation, but it passed")
+	}
+	if countIssues(report, "front_center_mismatch", model.SeverityError) != 1 {
+		t.Errorf("Expected front_center_mismatch error, got issues: %+v", report.Issues)
+	}
+	if countIssues(report, "wheelbase_discrepancy", model.SeverityError) != 1 {
+		t.Errorf("Expected wheelbase_discrepancy error, got issues: %+v", report.Issues)
+	}
+	if n := countIssues(report, "stack_reach_sag_hint", model.SeverityWarning); n != 1 {
+		t.Errorf("Expected exactly one stack_reach_sag_hint warning, got %d: %+v", n, report.Issues)
+	}
+
+	// Without Front Center, the hint is derived from the Wheelbase residual instead.
+	rawSevenNoFc := rawSeven
+	rawSevenNoFc.FrontCenter = 0
+	repNoFc := validator.ValidateBikeGeometry(rawSevenNoFc)
+	if repNoFc.IsValid {
+		t.Fatalf("Expected raw mixed-sag geometry without FrontCenter to fail via Wheelbase discrepancy")
+	}
+	if countIssues(repNoFc, "stack_reach_sag_hint", model.SeverityWarning) != 1 {
+		t.Errorf("Expected stack_reach_sag_hint warning from Wheelbase residual, got issues: %+v", repNoFc.Issues)
+	}
+
+	// A small residual (equivalent A2C offset < 10mm) still fails, but is not attributed to sag.
+	smallResidual := rawSeven
+	smallResidual.Reach = 394.0
+	repSmall := validator.ValidateBikeGeometry(smallResidual)
+	if repSmall.IsValid {
+		t.Fatalf("Expected 2mm Reach residual to fail Front Center validation")
+	}
+	if countIssues(repSmall, "stack_reach_sag_hint", model.SeverityWarning) != 0 {
+		t.Errorf("Did not expect stack_reach_sag_hint for small residual, got issues: %+v", repSmall.Issues)
+	}
+
+	// Internally consistent Reach passes, with the horizontal Front Center convention accepted.
+	correctedSeven := rawSeven
+	correctedSeven.Reach = 392.2
+	correctedReport := validator.ValidateBikeGeometry(correctedSeven)
+	if !correctedReport.IsValid {
+		t.Fatalf("Expected corrected internally consistent geometry to pass validation, got issues: %+v", correctedReport.Issues)
+	}
+	if countIssues(correctedReport, "stack_reach_sag_hint", model.SeverityWarning) != 0 {
+		t.Errorf("Did not expect stack_reach_sag_hint for consistent geometry, got issues: %+v", correctedReport.Issues)
+	}
+}
