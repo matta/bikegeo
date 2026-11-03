@@ -3,6 +3,7 @@ package geometry
 import (
 	"math"
 
+	"bikegeo/pkg/geom2d"
 	"bikegeo/pkg/model"
 )
 
@@ -126,33 +127,40 @@ func AnalyzeSaddleSwap(
 
 	// 1. Baseline Coordinates (Source Saddle clamped at dead-center 0.0mm)
 	srcBrpSetback := source.BrpSetbackFromSitBones(sitBoneSetbackMm)
-	srcBrpX := -srcBrpSetback
 	srcBrpY := math.Sqrt(math.Max(0, saddleHeightMm*saddleHeightMm-srcBrpSetback*srcBrpSetback))
-	srcBrpAngle := math.Atan2(srcBrpY, srcBrpSetback) * 180.0 / math.Pi
+	srcBrp := geom2d.Point2{X: -srcBrpSetback, Y: srcBrpY}
+	srcBrpAngle := geom2d.Point2{X: srcBrpSetback, Y: srcBrpY}.PolarAngleDeg()
 
 	// Pelvic Coordinates in Sagittal 2D Plane:
 	// Sit position accounts for source saddle step elevation above the 70mm BRP horizontal plane.
-	baseSitBoneX := -sitBoneSetbackMm
-	baseSitBoneY := srcBrpY + source.SitBonesElevationMm
-	baseLegExt := math.Hypot(baseSitBoneX, baseSitBoneY)
-	baseStaDeg := math.Atan2(baseSitBoneY, sitBoneSetbackMm) * 180.0 / math.Pi
+	baseSitBone := geom2d.Point2{
+		X: -sitBoneSetbackMm,
+		Y: srcBrp.Y + source.SitBonesElevationMm,
+	}
+	baseLegExt := baseSitBone.DistanceToOrigin()
+	baseStaDeg := geom2d.Point2{X: sitBoneSetbackMm, Y: baseSitBone.Y}.PolarAngleDeg()
 
-	hbY := srcBrpY + hbDropMm
 	hbDeltaX := math.Sqrt(math.Max(0, hbDistanceMm*hbDistanceMm-hbDropMm*hbDropMm))
-	hbX := srcBrpX + hbDeltaX
-	baseCockpit := math.Hypot(hbX-baseSitBoneX, hbY-baseSitBoneY)
+	hb := geom2d.Point2{
+		X: srcBrp.X + hbDeltaX,
+		Y: srcBrp.Y + hbDropMm,
+	}
+	baseCockpit := hb.DistanceTo(baseSitBone)
 
 	// 2. Target Saddle Equivalent Coordinates (Preserving Exact 2D Pelvic Position):
-	// To hold the rider's pelvis invariant at (baseSitBoneX, baseSitBoneY):
-	tgtEquivBrpX := baseSitBoneX + targetSpan
-	tgtEquivBrpSetback := -tgtEquivBrpX // = target.BrpSetbackFromSitBones(sitBoneSetbackMm)
-	tgtEquivBrpY := baseSitBoneY - target.SitBonesElevationMm
-	tgtEquivSaddleHeight := math.Hypot(tgtEquivBrpX, tgtEquivBrpY)
-	tgtEquivBrpAngle := math.Atan2(tgtEquivBrpY, tgtEquivBrpSetback) * 180.0 / math.Pi
+	// To hold the rider's pelvis invariant at (baseSitBone.X, baseSitBone.Y):
+	tgtEquivBrp := geom2d.Point2{
+		X: baseSitBone.X + targetSpan,
+		Y: baseSitBone.Y - target.SitBonesElevationMm,
+	}
+	tgtEquivBrpSetback := -tgtEquivBrp.X
+	tgtEquivSaddleHeight := tgtEquivBrp.DistanceToOrigin()
+	tgtEquivBrpAngle := geom2d.Point2{X: tgtEquivBrpSetback, Y: tgtEquivBrp.Y}.PolarAngleDeg()
 
 	brpSetbackShift := tgtEquivBrpSetback - srcBrpSetback
-	brpDeltaX := tgtEquivBrpX - srcBrpX
-	brpDeltaY := tgtEquivBrpY - srcBrpY
+	brpDelta := tgtEquivBrp.Sub(srcBrp)
+	brpDeltaX := brpDelta.X
+	brpDeltaY := brpDelta.Y
 	brpHeightShift := brpDeltaY
 	brpSaddleHeightShift := tgtEquivSaddleHeight - saddleHeightMm
 	brpDeltaAngle := tgtEquivBrpAngle - srcBrpAngle
@@ -164,18 +172,17 @@ func AnalyzeSaddleSwap(
 	// 3. Naive BRP Alignment:
 	// Naively matches 70mm BRP caliper setback and radial saddle height:
 	naiveBrpSetback := srcBrpSetback
-	naiveBrpX := srcBrpX
-	naiveBrpY := srcBrpY
-	naiveSaddleHeight := saddleHeightMm
 	naiveSitBoneSetback := target.SitBoneSetbackFromBrp(naiveBrpSetback)
 	naiveSitBoneDelta := naiveSitBoneSetback - sitBoneSetbackMm
 
-	naiveSitBoneX := -naiveSitBoneSetback
-	naiveSitBoneY := naiveBrpY + target.SitBonesElevationMm
-	naiveSitBoneDeltaY := naiveSitBoneY - baseSitBoneY
-	naiveLegExt := math.Hypot(naiveSitBoneX, naiveSitBoneY)
-	naiveStaDeg := math.Atan2(naiveSitBoneY, naiveSitBoneSetback) * 180.0 / math.Pi
-	naiveCockpit := math.Hypot(hbX-naiveSitBoneX, hbY-naiveSitBoneY)
+	naiveSitBone := geom2d.Point2{
+		X: -naiveSitBoneSetback,
+		Y: srcBrp.Y + target.SitBonesElevationMm,
+	}
+	naiveSitBoneDeltaY := naiveSitBone.Y - baseSitBone.Y
+	naiveLegExt := naiveSitBone.DistanceToOrigin()
+	naiveStaDeg := geom2d.Point2{X: naiveSitBoneSetback, Y: naiveSitBone.Y}.PolarAngleDeg()
+	naiveCockpit := hb.DistanceTo(naiveSitBone)
 
 	// Required clamp offset to put Target BRP at sourceBrpSetback:
 	// Rail center setback on target = naiveBrpSetback + target.RailCenterToBrpMm.
@@ -199,13 +206,13 @@ func AnalyzeSaddleSwap(
 		Mode:                    "Naive BRP Alignment",
 		TargetBrpSetbackMm:      Round(naiveBrpSetback, 1),
 		BrpSetbackShiftMm:       0.0,
-		TargetBrpHeightMm:       Round(naiveBrpY, 1),
-		TargetSaddleHeightMm:    Round(naiveSaddleHeight, 1),
-		BrpXMm:                  Round(naiveBrpX, 1),
-		BrpYMm:                  Round(naiveBrpY, 1),
+		TargetBrpHeightMm:       Round(srcBrp.Y, 1),
+		TargetSaddleHeightMm:    Round(saddleHeightMm, 1),
+		BrpXMm:                  Round(srcBrp.X, 1),
+		BrpYMm:                  Round(srcBrp.Y, 1),
 		BrpAngleDeg:             Round(srcBrpAngle, 1),
 		AchievedSitBoneMm:       Round(naiveSitBoneSetback, 1),
-		AchievedSitBoneHeightMm: Round(naiveSitBoneY, 1),
+		AchievedSitBoneHeightMm: Round(naiveSitBone.Y, 1),
 		SitBoneDeltaMm:          Round(naiveSitBoneDelta, 1),
 		SitBoneDeltaYMm:         Round(naiveSitBoneDeltaY, 1),
 		EffectiveStaDeg:         Round(naiveStaDeg, 1),
@@ -221,7 +228,7 @@ func AnalyzeSaddleSwap(
 	}
 
 	// 4. True Pelvic Alignment:
-	// Target Sit Bone Setback and Height are held invariant at (baseSitBoneX, baseSitBoneY):
+	// Target Sit Bone Setback and Height are held invariant at (baseSitBone.X, baseSitBone.Y):
 	pelvicClampOffset := source.TranslateClampOffset(0.0, target)
 	pelvicFeasible := pelvicClampOffset >= tMinClamp-0.001 && pelvicClampOffset <= tMaxClamp+0.001
 	var pelvicMargin float64
@@ -239,13 +246,13 @@ func AnalyzeSaddleSwap(
 		Mode:                    "True Pelvic Alignment",
 		TargetBrpSetbackMm:      Round(tgtEquivBrpSetback, 1),
 		BrpSetbackShiftMm:       Round(brpSetbackShift, 1),
-		TargetBrpHeightMm:       Round(tgtEquivBrpY, 1),
+		TargetBrpHeightMm:       Round(tgtEquivBrp.Y, 1),
 		TargetSaddleHeightMm:    Round(tgtEquivSaddleHeight, 1),
-		BrpXMm:                  Round(tgtEquivBrpX, 1),
-		BrpYMm:                  Round(tgtEquivBrpY, 1),
+		BrpXMm:                  Round(tgtEquivBrp.X, 1),
+		BrpYMm:                  Round(tgtEquivBrp.Y, 1),
 		BrpAngleDeg:             Round(tgtEquivBrpAngle, 1),
 		AchievedSitBoneMm:       Round(sitBoneSetbackMm, 1),
-		AchievedSitBoneHeightMm: Round(baseSitBoneY, 1),
+		AchievedSitBoneHeightMm: Round(baseSitBone.Y, 1),
 		SitBoneDeltaMm:          0.0,
 		SitBoneDeltaYMm:         0.0,
 		EffectiveStaDeg:         Round(baseStaDeg, 1),
@@ -306,22 +313,22 @@ func AnalyzeSaddleSwap(
 		SaddleHeightMm:                 Round(saddleHeightMm, 1),
 		SitBoneSetbackMm:               Round(sitBoneSetbackMm, 1),
 		SourceBrpSetbackMm:             Round(srcBrpSetback, 1),
-		SourceBrpHeightMm:              Round(srcBrpY, 1),
-		SourceBrpX:                     Round(srcBrpX, 1),
-		SourceBrpY:                     Round(srcBrpY, 1),
+		SourceBrpHeightMm:              Round(srcBrp.Y, 1),
+		SourceBrpX:                     Round(srcBrp.X, 1),
+		SourceBrpY:                     Round(srcBrp.Y, 1),
 		SourceBrpAngleDeg:              Round(srcBrpAngle, 2),
-		SourceSitBoneHeightMm:          Round(baseSitBoneY, 1),
+		SourceSitBoneHeightMm:          Round(baseSitBone.Y, 1),
 		SourceStepElevationMm:          Round(source.SitBonesElevationMm, 1),
 		TargetStepElevationMm:          Round(target.SitBonesElevationMm, 1),
 		StepElevationDeltaMm:           Round(stepElevationDelta, 1),
 		TargetEquivalentBrpSetbackMm:   Round(tgtEquivBrpSetback, 1),
-		TargetEquivalentBrpHeightMm:    Round(tgtEquivBrpY, 1),
+		TargetEquivalentBrpHeightMm:    Round(tgtEquivBrp.Y, 1),
 		TargetEquivalentSaddleHeightMm: Round(tgtEquivSaddleHeight, 1),
 		BrpSetbackShiftMm:              Round(brpSetbackShift, 1),
 		BrpHeightShiftMm:               Round(brpHeightShift, 1),
 		BrpSaddleHeightShiftMm:         Round(brpSaddleHeightShift, 1),
-		TargetEquivalentBrpX:           Round(tgtEquivBrpX, 1),
-		TargetEquivalentBrpY:           Round(tgtEquivBrpY, 1),
+		TargetEquivalentBrpX:           Round(tgtEquivBrp.X, 1),
+		TargetEquivalentBrpY:           Round(tgtEquivBrp.Y, 1),
 		TargetEquivalentBrpAngleDeg:    Round(tgtEquivBrpAngle, 2),
 		BrpDeltaXMm:                    Round(brpDeltaX, 1),
 		BrpDeltaYMm:                    Round(brpDeltaY, 1),

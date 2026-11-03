@@ -52,14 +52,17 @@ func SizeResiduals(frame model.FrameModel) ([]SizeResidual, error) {
 		valReport := ValidateBikeGeometry(bike)
 
 		geoSpacer := bike.GetGeoHeadsetSpacerMm()
-		structuralA2c, calculatedForkA2c := geometry.CalculateGeometricA2c(
+		structuralA2c, err := geometry.CalculateGeometricA2c(
 			bike.Stack,
 			bike.BbDrop,
 			bike.Htl,
 			bike.HtaDeg,
 			bike.ForkRake,
-			geoSpacer,
 		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate geometric A2C for size %s: %w", sz, err)
+		}
+		calculatedForkA2c := structuralA2c - geoSpacer
 
 		expectedForkA2c := bike.GetCadA2c()
 

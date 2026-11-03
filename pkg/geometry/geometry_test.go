@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"bikegeo/pkg/geom2d"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 )
@@ -32,14 +33,17 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 	}
 
 	// Step 1: Geometric A2C
-	baseA2c, baseForkA2c := geometry.CalculateGeometricA2c(
+	baseA2c, err := geometry.CalculateGeometricA2c(
 		binaryHavok.Stack,
 		binaryHavok.BbDrop,
 		binaryHavok.Htl,
 		binaryHavok.HtaDeg,
 		binaryHavok.ForkRake,
-		binaryHavok.HeadsetCupType.CupStackMm(),
 	)
+	if err != nil {
+		t.Fatalf("unexpected error in CalculateGeometricA2c: %v", err)
+	}
+	baseForkA2c := baseA2c - binaryHavok.HeadsetCupType.CupStackMm()
 
 	if math.Abs(geometry.Round(baseA2c, 2)-494.58) > 0.05 {
 		t.Errorf("Expected baseA2c ~494.58, got %.2f", baseA2c)
@@ -743,5 +747,53 @@ func TestEvaluateCockpitFit(t *testing.T) {
 	}
 	if math.Abs(resZero.FinalSubScore-38.0) > 0.1 {
 		t.Errorf("Expected FinalSubScore ~38.0, got %.1f", resZero.FinalSubScore)
+	}
+}
+
+func TestTubeAxisHelpers(t *testing.T) {
+	// SeatTubeAxis for STA 74° starting at origin (0,0)
+	seatAxis := geometry.SeatTubeAxis(geom2d.Origin, 74.0)
+	seatDir := geometry.SeatTubeDir(74.0)
+
+	expectedX := -math.Cos(74.0 * math.Pi / 180.0)
+	expectedY := math.Sin(74.0 * math.Pi / 180.0)
+
+	if math.Abs(seatDir.X-expectedX) > 1e-9 || math.Abs(seatDir.Y-expectedY) > 1e-9 {
+		t.Errorf("SeatTubeDir(74) = (%v, %v), expected (%v, %v)", seatDir.X, seatDir.Y, expectedX, expectedY)
+	}
+	if math.Abs(seatAxis.Direction.X-expectedX) > 1e-9 || math.Abs(seatAxis.Direction.Y-expectedY) > 1e-9 {
+		t.Errorf("SeatTubeAxis(74).Direction = (%v, %v), expected (%v, %v)", seatAxis.Direction.X, seatAxis.Direction.Y, expectedX, expectedY)
+	}
+
+	// SteererTubeAxis for HTA 68° starting at head tube top (420, 640)
+	headTubeTop := geom2d.Point2{X: 420.0, Y: 640.0}
+	steererAxis := geometry.SteererTubeAxis(headTubeTop, 68.0)
+	steererDir := geometry.SteererTubeDir(68.0)
+
+	expectedHtaX := -math.Cos(68.0 * math.Pi / 180.0)
+	expectedHtaY := math.Sin(68.0 * math.Pi / 180.0)
+
+	if math.Abs(steererDir.X-expectedHtaX) > 1e-9 || math.Abs(steererDir.Y-expectedHtaY) > 1e-9 {
+		t.Errorf("SteererTubeDir(68) = (%v, %v), expected (%v, %v)", steererDir.X, steererDir.Y, expectedHtaX, expectedHtaY)
+	}
+	if math.Abs(steererAxis.Direction.X-expectedHtaX) > 1e-9 || math.Abs(steererAxis.Direction.Y-expectedHtaY) > 1e-9 {
+		t.Errorf("SteererTubeAxis(68).Direction = (%v, %v), expected (%v, %v)", steererAxis.Direction.X, steererAxis.Direction.Y, expectedHtaX, expectedHtaY)
+	}
+	if steererAxis.Origin != headTubeTop {
+		t.Errorf("SteererTubeAxis origin = %v, expected %v", steererAxis.Origin, headTubeTop)
+	}
+}
+
+func TestCalculateGeometricA2c_Errors(t *testing.T) {
+	// Non-positive head tube length
+	_, err := geometry.CalculateGeometricA2c(600, 70, 0, 68, 44)
+	if err == nil {
+		t.Errorf("expected error for headTubeLength = 0, got nil")
+	}
+
+	// Negative head tube length
+	_, err = geometry.CalculateGeometricA2c(600, 70, -100, 68, 44)
+	if err == nil {
+		t.Errorf("expected error for headTubeLength < 0, got nil")
 	}
 }

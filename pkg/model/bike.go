@@ -5,6 +5,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
+
+	"bikegeo/pkg/geom2d"
 )
 
 // Float64Ptr returns a pointer to v, used for optional numeric fields where nil means unset.
@@ -478,7 +480,7 @@ type BRPPoint struct {
 func (s SaddleSpec) CalculatePoint(
 	staDeg, seatHeight, seatpostSetbackMm, railOffsetMm float64,
 ) BRPPoint {
-	sta := staDeg * math.Pi / 180.0
+	seatAxis := geom2d.NewAxisFromPolar(geom2d.Origin, geom2d.FromDeg(180.0-staDeg))
 
 	// clampPerp is the perpendicular rearward offset of the seatpost clamp center from the seat tube axis.
 	// Positive railOffsetMm pushes the saddle body rearward relative to the clamp (clamp moves forward on rails).
@@ -492,17 +494,15 @@ func (s SaddleSpec) CalculatePoint(
 
 	axial := math.Sqrt(math.Max(0, seatHeight*seatHeight-brpPerp*brpPerp))
 
-	brpX := -axial*math.Cos(sta) - brpPerp*math.Sin(sta)
-	brpY := axial*math.Sin(sta) - brpPerp*math.Cos(sta)
+	brpPoint := seatAxis.PointWithOffset(axial, brpPerp, geom2d.CounterClockwise)
+	sitBonePoint := seatAxis.PointWithOffset(axial, sitBonePerp, geom2d.CounterClockwise)
 
-	sitBoneX := -axial*math.Cos(sta) - sitBonePerp*math.Sin(sta)
-
-	setback := -brpX
-	sitBoneSetback := -sitBoneX
+	setback := -brpPoint.X
+	sitBoneSetback := -sitBonePoint.X
 
 	angleFromBb := 0.0
-	if setback > 0 && brpY > 0 {
-		angleFromBb = math.Atan2(brpY, setback) * 180.0 / math.Pi
+	if setback > 0 && brpPoint.Y > 0 {
+		angleFromBb = geom2d.Point2{X: setback, Y: brpPoint.Y}.PolarAngleDeg()
 	}
 
 	return BRPPoint{
@@ -512,8 +512,8 @@ func (s SaddleSpec) CalculatePoint(
 		RailOffsetMm:          railOffsetMm,
 		AchievedClampOffsetMm: railOffsetMm,
 		TotalPerpOffsetMm:     math.Round(brpPerp*10) / 10,
-		BrpX:                  math.Round(brpX*10) / 10,
-		BrpY:                  math.Round(brpY*10) / 10,
+		BrpX:                  math.Round(brpPoint.X*10) / 10,
+		BrpY:                  math.Round(brpPoint.Y*10) / 10,
 		BrpSetbackMm:          math.Round(setback*10) / 10,
 		SitBoneSetbackMm:      math.Round(sitBoneSetback*10) / 10,
 		BrpAngleFromBbDeg:     math.Round(angleFromBb*10) / 10,

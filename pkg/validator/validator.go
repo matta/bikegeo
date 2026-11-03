@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"bikegeo/pkg/catalog"
+	"bikegeo/pkg/geom2d"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 )
@@ -35,11 +36,11 @@ func CalculateDynamicWheelbaseTolerance(bike model.BikeGeometry, structuralA2c f
 	} else {
 		deltaHtaDeg = 0.05
 	}
-	deltaHtaRad := deltaHtaDeg * math.Pi / 180.0
+	deltaHta := geom2d.FromDeg(deltaHtaDeg)
 
 	frontEndLength := structuralA2c + bike.Htl
-	htaRad := bike.HtaDeg * math.Pi / 180.0
-	deltaFcHta := math.Abs(-frontEndLength*math.Sin(htaRad)+bike.ForkRake*math.Cos(htaRad)) * deltaHtaRad
+	hta := geom2d.FromDeg(bike.HtaDeg)
+	deltaFcHta := math.Abs(-frontEndLength*hta.Sin()+bike.ForkRake*hta.Cos()) * deltaHta.Rad()
 
 	propagated := math.Sqrt(deltaReach*deltaReach + deltaCs*deltaCs + deltaWb*deltaWb + deltaFcHta*deltaFcHta)
 	const floor = 2.0
@@ -250,14 +251,23 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 	}
 
 	// 4. Reverse-Engineering Geometric Axle-to-Crown (Master Stack Equation Check)
-	structuralA2c, calculatedForkA2c := geometry.CalculateGeometricA2c(
+	structuralA2c, a2cErr := geometry.CalculateGeometricA2c(
 		bike.Stack,
 		bike.BbDrop,
 		bike.Htl,
 		bike.HtaDeg,
 		bike.ForkRake,
-		geoSpacerMm,
 	)
+	if a2cErr != nil {
+		issues = append(issues, model.ValidationIssue{
+			ID:       "invalid_steerer_geometry",
+			Field:    "hta_deg",
+			Severity: model.SeverityError,
+			Title:    "Invalid Steerer Geometry",
+			Message:  a2cErr.Error(),
+		})
+	}
+	calculatedForkA2c := structuralA2c - geoSpacerMm
 
 	expectedForkA2c := bike.GetCadA2c()
 	statedStaticA2c := staticA2c
