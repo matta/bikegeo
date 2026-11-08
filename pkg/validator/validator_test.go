@@ -260,42 +260,7 @@ func TestValidateForkRef_ValidAndSuggestions(t *testing.T) {
 }
 
 func TestValidateRevelElJefe(t *testing.T) {
-	jefe := model.FrameModel{
-		ID:                 "revel-el-jefe",
-		Manufacturer:       "Revel",
-		Model:              "El Jefe",
-		HeadsetCupType:     model.CupIS52,
-		GeoHeadsetSpacerMm: 0.0,
-		GeoSlopMm: &model.GeoSlopMm{
-			A2c:       model.Float64Ptr(6.0),
-			Wheelbase: model.Float64Ptr(6.5),
-		},
-		ActualStaDeg:     73.3,
-		ChainstayRangeMm: []float64{420, 435},
-		Sizes:            []string{"S", "M", "L", "XL"},
-		DefaultSize:      "L",
-		CadFork: model.ForkRef{
-			Fork:   "sid_120",
-			SagPct: 20.0,
-			A2cMm:  510.0,
-			RakeMm: 44.0,
-		},
-		Forks: []model.ForkRef{
-			{Fork: "sid_120", A2cMm: 530.0, RakeMm: 44.0},
-			{Fork: "rigid_510", A2cMm: 510.0, RakeMm: 44.0},
-			{Fork: "sid_100", A2cMm: 506.0, RakeMm: 44.0},
-			{Fork: "fox34_130", A2cMm: 541.0, RakeMm: 44.0},
-		},
-		MaxSpacerMm:   40.0,
-		CanonicalStem: model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0},
-		Stems:         []string{"mtb"},
-		Geometries: map[string]model.SizeGeometry{
-			"S":  {Reach: 435, Stack: 599, HtaDeg: 67.5, StaDeg: 75.0, Htl: 86, BbDrop: 68, Wheelbase: 1121, ChainstayLength: 420, SeatTubeLength: 374, StandoverHeight: 700},
-			"M":  {Reach: 455, Stack: 607, HtaDeg: 67.5, StaDeg: 75.0, Htl: 96, BbDrop: 68, Wheelbase: 1146, ChainstayLength: 420, SeatTubeLength: 420, StandoverHeight: 735},
-			"L":  {Reach: 474, Stack: 615, HtaDeg: 67.5, StaDeg: 75.0, Htl: 106, BbDrop: 68, Wheelbase: 1167, ChainstayLength: 420, SeatTubeLength: 455, StandoverHeight: 770},
-			"XL": {Reach: 499, Stack: 627, HtaDeg: 67.5, StaDeg: 75.0, Htl: 116, BbDrop: 68, Wheelbase: 1199, ChainstayLength: 420, SeatTubeLength: 460, StandoverHeight: 790},
-		},
-	}
+	jefe := frames.RevelElJefe.Clone()
 
 	report := validator.ValidateFrame(jefe)
 	if !report.IsValid {
