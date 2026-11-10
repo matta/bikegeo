@@ -367,20 +367,24 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 			if hb.SpacerMm < 0 {
 				sign = ""
 			}
+			stemNote := ""
+			if cfr.StemPenalty > 0 {
+				stemNote = fmt.Sprintf(", -%.0f stem penalty", cfr.StemPenalty)
+			}
 			if cfr.CountInside == 0 {
-				return fmt.Sprintf("Handlebar Clamp Fit: 0 valid setups in fit window (closest is %.0fmm %.0f° %s%.0fmm, R=%.2f outside oval; -25 penalty)",
-					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR)
+				return fmt.Sprintf("Handlebar Clamp Fit: 0 valid setups in fit window (closest is %.0fmm %.0f° %s%.0fmm, R=%.2f outside oval; -25 penalty%s)",
+					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, stemNote)
 			}
 			plural := "s"
 			if cfr.CountInside == 1 {
 				plural = ""
 			}
 			if cfr.VersatilityBonus > 0 {
-				return fmt.Sprintf("Handlebar Clamp Fit: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f, %d valid setup%s, +%.0f bonus)",
-					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, cfr.CountInside, plural, cfr.VersatilityBonus)
+				return fmt.Sprintf("Handlebar Clamp Fit: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f, %d valid setup%s%s, +%.0f bonus)",
+					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, cfr.CountInside, plural, stemNote, cfr.VersatilityBonus)
 			}
-			return fmt.Sprintf("Handlebar Clamp Fit: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f, %d valid setup%s in fit window)",
-				hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, cfr.CountInside, plural)
+			return fmt.Sprintf("Handlebar Clamp Fit: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f, %d valid setup%s in fit window%s)",
+				hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, cfr.CountInside, plural, stemNote)
 		}
 	case "hta", "sta":
 		target := 68.0

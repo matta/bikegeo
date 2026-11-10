@@ -1158,7 +1158,11 @@ func (a *App) renderComparisonMatrix(
 					if hb.SpacerMm < 0 {
 						sign = ""
 					}
-					return fmt.Sprintf("%s [%.0fmm %.0f° %s%.0fmm] (%d in oval)", scorePart, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.CountInside)
+					stemPenStr := ""
+					if cfr.StemPenalty > 0 {
+						stemPenStr = fmt.Sprintf(" [-%.0f stem]", cfr.StemPenalty)
+					}
+					return fmt.Sprintf("%s [%.0fmm %.0f° %s%.0fmm]%s (%d in oval)", scorePart, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, stemPenStr, cfr.CountInside)
 				}
 				if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && item.row.Canonical.SelectedBRP != nil {
 					brp := item.row.Canonical.SelectedBRP

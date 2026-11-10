@@ -464,13 +464,42 @@ func CalculateCockpitBaseScore(r float64) float64 {
 	return score
 }
 
+// CalculateStemPenalty computes the fit penalty (in points) and normalized deviation u
+// for a stem length relative to the frame's expected stem length range [minLen, maxLen].
+// At the midpoint L_mid, u = 0.0 and penalty = 0.0.
+// At the boundaries (minLen or maxLen), u = 1.0 and penalty = MaxStemPenalty (15.0).
+// Beyond the boundaries, the penalty grows steeply.
+func CalculateStemPenalty(stemLen, minLen, maxLen float64) (penalty float64, u float64) {
+	if minLen <= 0 || maxLen <= minLen {
+		return 0.0, 0.0
+	}
+	mid := (minLen + maxLen) / 2.0
+	halfSpan := (maxLen - minLen) / 2.0
+	if halfSpan <= 0 {
+		return 0.0, 0.0
+	}
+
+	u = math.Abs(stemLen-mid) / halfSpan
+
+	const maxPenalty = 15.0
+	if u <= 1.0 {
+		penalty = maxPenalty * u * u
+	} else {
+		// Beyond the expected boundary: full boundary penalty + steep slope
+		penalty = maxPenalty * (1.0 + 2.0*(u-1.0)*(u-1.0) + (u - 1.0))
+	}
+	return Round(penalty, 1), Round(u, 2)
+}
+
 // EvaluateCockpitFit evaluates candidate HB points against a FitOval.
 // It selects the representative HB point, counts valid setups inside the oval,
+// down-weights stems at the extremes of the expected stem range,
 // and computes the final sub-score including versatility bonus or zero-fit penalty.
 func EvaluateCockpitFit(
 	possible []model.HBPoint,
 	canonicalStem model.StemSpec,
 	oval model.FitOval,
+	expectedStemRange ...[]float64,
 ) model.CockpitFitResult {
 	if len(possible) == 0 {
 		return model.CockpitFitResult{
@@ -483,10 +512,21 @@ func EvaluateCockpitFit(
 		}
 	}
 
+	var minStem, maxStem float64
+	hasRange := false
+	if len(expectedStemRange) > 0 && len(expectedStemRange[0]) == 2 && expectedStemRange[0][0] > 0 && expectedStemRange[0][1] > expectedStemRange[0][0] {
+		minStem = expectedStemRange[0][0]
+		maxStem = expectedStemRange[0][1]
+		hasRange = true
+	}
+
 	type evaluatedPoint struct {
-		pt       model.HBPoint
-		r        float64
-		isInside bool
+		pt          model.HBPoint
+		r           float64
+		isInside    bool
+		baseScore   float64
+		stemPenalty float64
+		compScore   float64
 	}
 
 	evaluated := make([]evaluatedPoint, len(possible))
@@ -494,30 +534,71 @@ func EvaluateCockpitFit(
 
 	for i, pt := range possible {
 		r, inside := EvaluateFitOval(oval, pt.HbX, pt.HbY)
-		evaluated[i] = evaluatedPoint{pt: pt, r: r, isInside: inside}
+		baseScore := CalculateCockpitBaseScore(r)
+		var stemPenalty float64
+		if hasRange {
+			stemPenalty, _ = CalculateStemPenalty(pt.Stem.LengthMm, minStem, maxStem)
+		}
+		compScore := baseScore - stemPenalty
+		evaluated[i] = evaluatedPoint{
+			pt:          pt,
+			r:           r,
+			isInside:    inside,
+			baseScore:   baseScore,
+			stemPenalty: stemPenalty,
+			compScore:   compScore,
+		}
 		if inside {
 			countInside++
 		}
 	}
 
 	better := func(a, b evaluatedPoint) bool {
-		diffR := a.r - b.r
-		if math.Abs(diffR) > 0.001 {
-			return a.r < b.r
+		// Inside oval is always better than outside oval
+		if a.isInside != b.isInside {
+			return a.isInside
 		}
 
-		lenDiffA := math.Abs(a.pt.Stem.LengthMm - canonicalStem.LengthMm)
-		lenDiffB := math.Abs(b.pt.Stem.LengthMm - canonicalStem.LengthMm)
+		if a.isInside {
+			// Both inside oval: choose setup with highest composite score (BaseScore - StemPenalty)
+			diffScore := a.compScore - b.compScore
+			if math.Abs(diffScore) > 0.001 {
+				return a.compScore > b.compScore
+			}
+		} else {
+			// Both outside oval: prefer significantly closer to oval boundary
+			diffR := a.r - b.r
+			if math.Abs(diffR) > 0.05 {
+				return a.r < b.r
+			}
+			diffScore := a.compScore - b.compScore
+			if math.Abs(diffScore) > 0.001 {
+				return a.compScore > b.compScore
+			}
+			if math.Abs(diffR) > 0.001 {
+				return a.r < b.r
+			}
+		}
+
+		// Tie-breaker 1: closest stem length to stem range midpoint (or canonical)
+		targetLen := canonicalStem.LengthMm
+		if hasRange {
+			targetLen = (minStem + maxStem) / 2.0
+		}
+		lenDiffA := math.Abs(a.pt.Stem.LengthMm - targetLen)
+		lenDiffB := math.Abs(b.pt.Stem.LengthMm - targetLen)
 		if math.Abs(lenDiffA-lenDiffB) > 0.001 {
 			return lenDiffA < lenDiffB
 		}
 
+		// Tie-breaker 2: closest stem angle to canonical
 		angDiffA := math.Abs(a.pt.Stem.AngleDeg - canonicalStem.AngleDeg)
 		angDiffB := math.Abs(b.pt.Stem.AngleDeg - canonicalStem.AngleDeg)
 		if math.Abs(angDiffA-angDiffB) > 0.001 {
 			return angDiffA < angDiffB
 		}
 
+		// Tie-breaker 3: smallest spacer stack
 		if math.Abs(a.pt.SpacerMm-b.pt.SpacerMm) > 0.001 {
 			return a.pt.SpacerMm < b.pt.SpacerMm
 		}
@@ -533,6 +614,11 @@ func EvaluateCockpitFit(
 	}
 
 	baseScore := CalculateCockpitBaseScore(best.r)
+	var stemPenalty, stemDevU float64
+	if hasRange {
+		stemPenalty, stemDevU = CalculateStemPenalty(best.pt.Stem.LengthMm, minStem, maxStem)
+	}
+
 	var bonus, penalty, finalScore float64
 
 	if countInside >= 1 {
@@ -543,24 +629,29 @@ func EvaluateCockpitFit(
 		} else {
 			bonus = 0.0
 		}
-		finalScore = math.Min(100.0, baseScore+bonus)
+		finalScore = math.Min(100.0, baseScore+bonus) - stemPenalty
+		if finalScore < -200.0 {
+			finalScore = -200.0
+		}
 	} else {
 		penalty = 25.0
-		finalScore = baseScore - penalty
+		finalScore = baseScore - penalty - stemPenalty
 		if finalScore < -200.0 {
 			finalScore = -200.0
 		}
 	}
 
 	return model.CockpitFitResult{
-		SelectedHB:       best.pt,
-		BestR:            Round(best.r, 3),
-		CountInside:      countInside,
-		BaseScore:        Round(baseScore, 1),
-		VersatilityBonus: bonus,
-		ZeroFitPenalty:   penalty,
-		FinalSubScore:    Round(finalScore, 1),
-		HasFit:           countInside > 0,
+		SelectedHB:        best.pt,
+		BestR:             Round(best.r, 3),
+		CountInside:       countInside,
+		BaseScore:         Round(baseScore, 1),
+		VersatilityBonus:  bonus,
+		ZeroFitPenalty:    penalty,
+		StemPenalty:       stemPenalty,
+		StemNormalizedDev: stemDevU,
+		FinalSubScore:     Round(finalScore, 1),
+		HasFit:            countInside > 0,
 	}
 }
 
@@ -608,7 +699,11 @@ func ApplyCockpitFit(
 		dx0 := math.Sqrt(math.Max(0, distMid*distMid-dyBrp*dyBrp))
 
 		oval := DefaultFitOval(brpPt.X+dx0, hbY)
-		fitRes := EvaluateCockpitFit(can.PossibleHBs, canonicalStem, oval)
+		var expectedRangeOpt [][]float64
+		if minStem, maxStem, ok := bike.GetExpectedStemRangeMm(); ok {
+			expectedRangeOpt = append(expectedRangeOpt, []float64{minStem, maxStem})
+		}
+		fitRes := EvaluateCockpitFit(can.PossibleHBs, canonicalStem, oval, expectedRangeOpt...)
 		can.CockpitFitResult = &fitRes
 		can.SelectedHB = &fitRes.SelectedHB
 		can.SaddleHbMm = fitRes.SelectedHB.SaddleHbMm
@@ -1220,36 +1315,37 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string) (model.BikeGeo
 	}
 
 	return model.BikeGeometry{
-		ID:                 bikeID,
-		Manufacturer:       frame.Manufacturer,
-		Model:              frame.Model,
-		Size:               size,
-		Year:               frame.Year,
-		Category:           frame.Category,
-		Notes:              frame.Notes,
-		WheelSize:          frame.WheelSize,
-		HeadsetCupType:     frame.HeadsetCupType,
-		GeoHeadsetSpacerMm: frame.GeoHeadsetSpacerMm,
-		GeoSlopMm:          frame.GeoSlopMm,
-		ActualStaDeg:       frame.ActualStaDeg,
-		SeatTubeOffsetXMm:  frame.SeatTubeOffsetXMm,
-		CadFork:            frame.CadFork,
-		ForkA2c:            cadA2c,
-		ForkRake:           cadRake,
-		Reach:              geo.Reach,
-		Stack:              geo.Stack,
-		HtaDeg:             geo.HtaDeg,
-		StaDeg:             geo.StaDeg,
-		Htl:                geo.Htl,
-		BbDrop:             geo.BbDrop,
-		Wheelbase:          geo.Wheelbase,
-		ChainstayLength:    geo.ChainstayLength,
-		FrontCenter:        geo.FrontCenter,
-		SeatTubeLength:     geo.SeatTubeLength,
-		StandoverHeight:    geo.StandoverHeight,
-		ChainstayRangeMm:   frame.ChainstayRangeMm,
-		MaxSpacerMm:        frame.MaxSpacerMm,
-		CanonicalStem:      frame.CanonicalStem,
-		Stems:              catalog.ExpandStemSets(frame.Stems),
+		ID:                  bikeID,
+		Manufacturer:        frame.Manufacturer,
+		Model:               frame.Model,
+		Size:                size,
+		Year:                frame.Year,
+		Category:            frame.Category,
+		Notes:               frame.Notes,
+		WheelSize:           frame.WheelSize,
+		HeadsetCupType:      frame.HeadsetCupType,
+		GeoHeadsetSpacerMm:  frame.GeoHeadsetSpacerMm,
+		GeoSlopMm:           frame.GeoSlopMm,
+		ActualStaDeg:        frame.ActualStaDeg,
+		SeatTubeOffsetXMm:   frame.SeatTubeOffsetXMm,
+		CadFork:             frame.CadFork,
+		ForkA2c:             cadA2c,
+		ForkRake:            cadRake,
+		Reach:               geo.Reach,
+		Stack:               geo.Stack,
+		HtaDeg:              geo.HtaDeg,
+		StaDeg:              geo.StaDeg,
+		Htl:                 geo.Htl,
+		BbDrop:              geo.BbDrop,
+		Wheelbase:           geo.Wheelbase,
+		ChainstayLength:     geo.ChainstayLength,
+		FrontCenter:         geo.FrontCenter,
+		SeatTubeLength:      geo.SeatTubeLength,
+		StandoverHeight:     geo.StandoverHeight,
+		ChainstayRangeMm:    frame.ChainstayRangeMm,
+		MaxSpacerMm:         frame.MaxSpacerMm,
+		CanonicalStem:       frame.CanonicalStem,
+		Stems:               catalog.ExpandStemSets(frame.Stems),
+		ExpectedStemRangeMm: frame.ExpectedStemRangeMm,
 	}, nil
 }

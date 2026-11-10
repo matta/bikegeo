@@ -888,3 +888,85 @@ func TestSaddleElevationAndTranslationMethods(t *testing.T) {
 		t.Errorf("Expected translated Aspin HB dist ~684.89mm, got %.2fmm", tDist)
 	}
 }
+
+func TestCalculateStemPenalty(t *testing.T) {
+	minLen, maxLen := 60.0, 100.0 // Mid = 80mm, HalfSpan = 20mm
+
+	// Midpoint: 80mm -> u = 0, penalty = 0
+	pen, u := geometry.CalculateStemPenalty(80.0, minLen, maxLen)
+	if pen != 0.0 || u != 0.0 {
+		t.Errorf("At midpoint 80mm: expected pen=0, u=0; got pen=%.1f, u=%.2f", pen, u)
+	}
+
+	// Quarter-deviation: 70mm or 90mm -> u = 0.5, penalty = 15 * 0.25 = 3.8
+	pen70, u70 := geometry.CalculateStemPenalty(70.0, minLen, maxLen)
+	if math.Abs(pen70-3.8) > 0.1 || u70 != 0.5 {
+		t.Errorf("At 70mm: expected pen=3.8, u=0.5; got pen=%.1f, u=%.2f", pen70, u70)
+	}
+	pen90, u90 := geometry.CalculateStemPenalty(90.0, minLen, maxLen)
+	if math.Abs(pen90-3.8) > 0.1 || u90 != 0.5 {
+		t.Errorf("At 90mm: expected pen=3.8, u=0.5; got pen=%.1f, u=%.2f", pen90, u90)
+	}
+
+	// Boundary: 60mm or 100mm -> u = 1.0, penalty = 15.0
+	pen60, u60 := geometry.CalculateStemPenalty(60.0, minLen, maxLen)
+	if pen60 != 15.0 || u60 != 1.0 {
+		t.Errorf("At 60mm: expected pen=15.0, u=1.0; got pen=%.1f, u=%.2f", pen60, u60)
+	}
+	pen100, u100 := geometry.CalculateStemPenalty(100.0, minLen, maxLen)
+	if pen100 != 15.0 || u100 != 1.0 {
+		t.Errorf("At 100mm: expected pen=15.0, u=1.0; got pen=%.1f, u=%.2f", pen100, u100)
+	}
+
+	// Beyond boundary: 110mm -> u = 1.5, penalty = 30.0
+	pen110, u110 := geometry.CalculateStemPenalty(110.0, minLen, maxLen)
+	if pen110 != 30.0 || u110 != 1.5 {
+		t.Errorf("At 110mm: expected pen=30.0, u=1.5; got pen=%.1f, u=%.2f", pen110, u110)
+	}
+}
+
+func TestEvaluateCockpitFit_StemExtremityPreference(t *testing.T) {
+	oval := geometry.DefaultFitOval(500.0, 700.0)
+	canonicalStem := model.StemSpec{LengthMm: 80, AngleDeg: -6}
+	expectedRange := []float64{60.0, 100.0} // Midpoint 80mm
+
+	// Candidate A: 80mm stem (midpoint, penalty=0), slightly off-center inside oval (R=0.25)
+	// BaseScore = 100 - 25*(0.25)^2 = 98.44, StemPenalty = 0.0 -> CompScore = 98.44
+	// Candidate B: 100mm stem (extreme, penalty=15), closer to center inside oval (R=0.10)
+	// BaseScore = 100 - 25*(0.10)^2 = 99.75, StemPenalty = 15.0 -> CompScore = 84.75
+	dxA := 2.5 * math.Cos(30.0*math.Pi/180.0)
+	dyA := -2.5 * math.Sin(30.0*math.Pi/180.0)
+	dxB := 1.0 * math.Cos(30.0*math.Pi/180.0)
+	dyB := -1.0 * math.Sin(30.0*math.Pi/180.0)
+
+	candidates := []model.HBPoint{
+		{Stem: model.StemSpec{LengthMm: 100, AngleDeg: -6}, SpacerMm: 0, HbX: 500.0 + dxB, HbY: 700.0 + dyB},
+		{Stem: model.StemSpec{LengthMm: 80, AngleDeg: -6}, SpacerMm: 10, HbX: 500.0 + dxA, HbY: 700.0 + dyA},
+	}
+
+	res := geometry.EvaluateCockpitFit(candidates, canonicalStem, oval, expectedRange)
+
+	// Verify 80mm stem was preferred over 100mm stem
+	if res.SelectedHB.Stem.LengthMm != 80.0 {
+		t.Errorf("Expected 80mm stem to be selected due to stem extremity down-weighting of 100mm, got %.0fmm", res.SelectedHB.Stem.LengthMm)
+	}
+	if res.StemPenalty != 0.0 {
+		t.Errorf("Expected StemPenalty 0.0 for 80mm stem, got %.1f", res.StemPenalty)
+	}
+	if res.CountInside != 2 {
+		t.Errorf("Expected 2 inside oval, got %d", res.CountInside)
+	}
+
+	// Now evaluate only candidate B (100mm stem alone)
+	resOnly100 := geometry.EvaluateCockpitFit([]model.HBPoint{candidates[0]}, canonicalStem, oval, expectedRange)
+	if resOnly100.SelectedHB.Stem.LengthMm != 100.0 {
+		t.Fatalf("Expected 100mm stem selected, got %.0fmm", resOnly100.SelectedHB.Stem.LengthMm)
+	}
+	if resOnly100.StemPenalty != 15.0 {
+		t.Errorf("Expected 15.0 stem penalty for 100mm stem, got %.1f", resOnly100.StemPenalty)
+	}
+	// Final score should reflect down-weighting: BaseScore (~99.8) - StemPenalty (15.0) = ~84.8
+	if math.Abs(resOnly100.FinalSubScore-84.8) > 0.2 {
+		t.Errorf("Expected FinalSubScore ~84.8 for 100mm stem, got %.1f", resOnly100.FinalSubScore)
+	}
+}

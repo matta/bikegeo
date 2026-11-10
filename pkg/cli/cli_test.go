@@ -229,14 +229,14 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Score") {
 			t.Errorf("expected 'Score' row in default output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "80 (#1)") {
-			t.Errorf("expected '80 (#1)' in output, got:\n%s", out)
+		if !strings.Contains(out, "76 (#1)") {
+			t.Errorf("expected '76 (#1)' in output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "77 (#2)") {
-			t.Errorf("expected '77 (#2)' in output, got:\n%s", out)
+		if !strings.Contains(out, "74 (#2)") {
+			t.Errorf("expected '74 (#2)' in output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "73 (#3)") {
-			t.Errorf("expected '73 (#3)' in output, got:\n%s", out)
+		if !strings.Contains(out, "71 (#3)") {
+			t.Errorf("expected '71 (#3)' in output, got:\n%s", out)
 		}
 	})
 
@@ -249,8 +249,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Score") {
 			t.Errorf("expected 'Score' column in transposed output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "80 (#1)") {
-			t.Errorf("expected '80 (#1)' in transposed output, got:\n%s", out)
+		if !strings.Contains(out, "76 (#1)") {
+			t.Errorf("expected '76 (#1)' in transposed output, got:\n%s", out)
 		}
 		if !strings.Contains(out, "Fit & Cockpit") {
 			t.Errorf("expected Table 1 'Fit & Cockpit' in transposed output, got:\n%s", out)
@@ -291,7 +291,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Score,,,80 (#1),77 (#2),73 (#3)") {
+		if !strings.Contains(out, "Score,,,76 (#1),74 (#2),71 (#3)") {
 			t.Errorf("expected CSV Score row, got:\n%s", out)
 		}
 	})
@@ -302,7 +302,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "| Score |  |  | 80 (#1) | 77 (#2) | 73 (#3) |") {
+		if !strings.Contains(out, "| Score |  |  | 76 (#1) | 74 (#2) | 71 (#3) |") {
 			t.Errorf("expected Markdown Score row, got:\n%s", out)
 		}
 	})

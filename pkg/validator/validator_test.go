@@ -487,6 +487,31 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "not defined in data/stems.json") {
 		t.Errorf("Expected Unknown Stem Set error, got: %s", rep.ErrorSummary())
 	}
+
+	// 7. Invalid ExpectedStemRangeMm
+	fBadRange := validFrame.Clone()
+	fBadRange.ExpectedStemRangeMm = []float64{100, 60}
+	rep = validator.ValidateFrame(fBadRange)
+	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Invalid Expected Stem Range") {
+		t.Errorf("Expected Invalid Expected Stem Range error, got: %s", rep.ErrorSummary())
+	}
+
+	// 8. CanonicalStem outside ExpectedStemRangeMm
+	fCanonOutsideRange := validFrame.Clone()
+	fCanonOutsideRange.ExpectedStemRangeMm = []float64{70, 100}
+	// validFrame has CanonicalStem 60mm
+	rep = validator.ValidateFrame(fCanonOutsideRange)
+	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Canonical Stem Outside Expected Range") {
+		t.Errorf("Expected Canonical Stem Outside Expected Range error, got: %s", rep.ErrorSummary())
+	}
+
+	// 9. Valid ExpectedStemRangeMm
+	fValidRange := validFrame.Clone()
+	fValidRange.ExpectedStemRangeMm = []float64{50, 90}
+	rep = validator.ValidateFrame(fValidRange)
+	if !rep.IsValid {
+		t.Errorf("Expected valid frame with ExpectedStemRangeMm [50, 90], got: %s", rep.ErrorSummary())
+	}
 }
 
 func TestValidateStackReachSagHint(t *testing.T) {

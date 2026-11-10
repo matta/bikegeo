@@ -595,6 +595,30 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 		})
 	}
 
+	if len(frame.ExpectedStemRangeMm) > 0 {
+		if len(frame.ExpectedStemRangeMm) != 2 || frame.ExpectedStemRangeMm[0] <= 0 || frame.ExpectedStemRangeMm[1] <= frame.ExpectedStemRangeMm[0] {
+			report.IsValid = false
+			report.Issues = append(report.Issues, model.ValidationIssue{
+				ID:       "invalid_expected_stem_range",
+				Field:    "expected_stem_range_mm",
+				Severity: model.SeverityError,
+				Title:    "Invalid Expected Stem Range",
+				Message:  fmt.Sprintf("expected_stem_range_mm must contain exactly 2 positive values [min, max] where max > min, got %v.", frame.ExpectedStemRangeMm),
+			})
+		} else if frame.CanonicalStem.LengthMm > 0 {
+			if frame.CanonicalStem.LengthMm < frame.ExpectedStemRangeMm[0] || frame.CanonicalStem.LengthMm > frame.ExpectedStemRangeMm[1] {
+				report.IsValid = false
+				report.Issues = append(report.Issues, model.ValidationIssue{
+					ID:       "canonical_stem_outside_expected_range",
+					Field:    "canonical_stem",
+					Severity: model.SeverityError,
+					Title:    "Canonical Stem Outside Expected Range",
+					Message:  fmt.Sprintf("canonical_stem length (%.0fmm) is outside expected_stem_range_mm [%.0f, %.0f].", frame.CanonicalStem.LengthMm, frame.ExpectedStemRangeMm[0], frame.ExpectedStemRangeMm[1]),
+				})
+			}
+		}
+	}
+
 	if len(frame.Stems) == 0 {
 		report.IsValid = false
 		report.Issues = append(report.Issues, model.ValidationIssue{

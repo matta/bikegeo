@@ -70,6 +70,11 @@ When scoring cockpits against biomechanical profiles, handlebar positions are as
   - `R > 1.0`: Steep roll-off (`BaseScore = 75 - 1200 * (R - 1.0)²`, reaching 0 at `R = 1.25` and floor of -200).
 - **Versatility Bonus**: Diminishing returns scheme (`+0` for 1 valid setup, `+5` for 2–3, `+10` for 4+ setups inside oval).
 - **Missing-Fit Penalty**: Flat `-25 point` penalty if 0 setups land inside the oval.
+- **Stem Extremity Penalty**: When evaluating setups against the frame's expected stem range `[L_min, L_max]` (midpoint `L_mid`, half-span `H`):
+  - Normalized deviation: `u = |L - L_mid| / H`.
+  - For `u ≤ 1.0`: `StemPenalty = 15.0 * u²` (steeper beyond bounds).
+  - Candidates inside the oval are selected to maximize `CompositeScore = BaseScore - StemPenalty`, preferring sweet-spot stems (e.g., 80mm on a 60–100mm frame) over boundary stems (60mm or 100mm) that leave little room for fit adjustments.
+  - Boundary stems incur up to a 15-point deduction (`FinalScore = min(100, BaseScore + Bonus) - StemPenalty`).
 
 When targets are present in legacy profiles without `handlebar_clamp_fit`, `SelectBestHBWithDrop` selects the optimal stem and spacer combination using strict hierarchy:
 1. **Primary (`saddle_hb`)**: Minimum rounded mm distance to the distance target range `(d)`.

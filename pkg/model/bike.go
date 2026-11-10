@@ -193,9 +193,10 @@ type BikeGeometry struct {
 	SeatTubeOffsetXMm *float64
 
 	// Cockpit & Stem/Spacer Envelope
-	MaxSpacerMm   float64
-	CanonicalStem StemSpec
-	Stems         []StemSpec
+	MaxSpacerMm         float64
+	CanonicalStem       StemSpec
+	Stems               []StemSpec
+	ExpectedStemRangeMm []float64
 }
 
 func (b BikeGeometry) GetCadA2c() float64 {
@@ -699,14 +700,16 @@ type FitOval struct {
 
 // CockpitFitResult captures the fit assessment of a bike's candidate handlebar positions against a FitOval.
 type CockpitFitResult struct {
-	SelectedHB       HBPoint
-	BestR            float64
-	CountInside      int
-	BaseScore        float64
-	VersatilityBonus float64
-	ZeroFitPenalty   float64
-	FinalSubScore    float64
-	HasFit           bool
+	SelectedHB        HBPoint
+	BestR             float64
+	CountInside       int
+	BaseScore         float64
+	VersatilityBonus  float64
+	ZeroFitPenalty    float64
+	StemPenalty       float64 // Penalty points for using stem near/at extreme of expected range
+	StemNormalizedDev float64 // Normalized deviation u = |L - L_mid| / HalfSpan
+	FinalSubScore     float64
+	HasFit            bool
 }
 
 func (b BikeGeometry) GetMaxSpacerMm() float64 {
@@ -727,6 +730,32 @@ func (b BikeGeometry) GetSpacersMm() []float64 {
 
 func (b BikeGeometry) GetCanonicalStem() StemSpec {
 	return b.CanonicalStem
+}
+
+// GetExpectedStemRangeMm returns the [min, max] expected stem length in mm for this frame,
+// and a boolean indicating whether an expected range is available.
+// If ExpectedStemRangeMm is explicitly set with 2 positive elements (min < max), it is returned.
+// Otherwise, it computes the min and max lengths from the bike's expanded Stems slice.
+func (b BikeGeometry) GetExpectedStemRangeMm() (float64, float64, bool) {
+	if len(b.ExpectedStemRangeMm) == 2 && b.ExpectedStemRangeMm[0] > 0 && b.ExpectedStemRangeMm[1] > b.ExpectedStemRangeMm[0] {
+		return b.ExpectedStemRangeMm[0], b.ExpectedStemRangeMm[1], true
+	}
+	if len(b.Stems) > 0 {
+		minLen := b.Stems[0].LengthMm
+		maxLen := b.Stems[0].LengthMm
+		for _, s := range b.Stems[1:] {
+			if s.LengthMm < minLen {
+				minLen = s.LengthMm
+			}
+			if s.LengthMm > maxLen {
+				maxLen = s.LengthMm
+			}
+		}
+		if maxLen > minLen && minLen > 0 {
+			return minLen, maxLen, true
+		}
+	}
+	return 0, 0, false
 }
 
 // ForkCatalogOption specifies an available (A2C, rake) pair for a catalog fork.
@@ -828,9 +857,10 @@ type FrameModel struct {
 	Geometries         map[string]SizeGeometry
 
 	// Cockpit & Stem/Spacer Envelope
-	MaxSpacerMm   float64
-	CanonicalStem StemSpec
-	Stems         []string
+	MaxSpacerMm         float64
+	CanonicalStem       StemSpec
+	Stems               []string
+	ExpectedStemRangeMm []float64
 }
 
 // Clone returns a deep copy of the FrameModel.
@@ -872,6 +902,9 @@ func (fm FrameModel) Clone() FrameModel {
 	if fm.Stems != nil {
 		out.Stems = append([]string(nil), fm.Stems...)
 	}
+	if fm.ExpectedStemRangeMm != nil {
+		out.ExpectedStemRangeMm = append([]float64(nil), fm.ExpectedStemRangeMm...)
+	}
 	if fm.Geometries != nil {
 		out.Geometries = make(map[string]SizeGeometry, len(fm.Geometries))
 		for k, v := range fm.Geometries {
@@ -879,6 +912,13 @@ func (fm FrameModel) Clone() FrameModel {
 		}
 	}
 	return out
+}
+
+func (fm *FrameModel) GetExpectedStemRangeMm() (float64, float64, bool) {
+	if len(fm.ExpectedStemRangeMm) == 2 && fm.ExpectedStemRangeMm[0] > 0 && fm.ExpectedStemRangeMm[1] > fm.ExpectedStemRangeMm[0] {
+		return fm.ExpectedStemRangeMm[0], fm.ExpectedStemRangeMm[1], true
+	}
+	return 0, 0, false
 }
 
 func (fm *FrameModel) GetMaxSpacerMm() float64 {
