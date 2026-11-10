@@ -81,7 +81,7 @@ When targets are present in legacy profiles without `handlebar_clamp_fit`, `Sele
 
 ---
 
-## Ideal Profiles & Deprecation Strategy
+## Ideal Profile
 
 ### `idmatch` Profile
 Built directly around the idmatch Bikelab report:
@@ -96,11 +96,3 @@ Built directly around the idmatch Bikelab report:
 - `trail`: Target `98–106 mm` (`acceptable: 92–109 mm, edge_score: 75, falloff: 10`, weight: 2) — Steering feel ground trail based on active HTA, fork rake, and 29x2.4" baseline tires (372mm wheel radius).
 - `hta`: Display-only (`ActiveHta`)
 - `seat_to_rc`: Display-only (deprecated in favor of `frontwt`)
-
-### `default` (Legacy Profile)
-Approximation of baseline scoring:
-- `saddle_height_mm`: `780`
-- Includes `seatpost_extension`: Target `260–320 mm` (`acceptable: 220–350, edge_score: 75, falloff: 25`, weight: 4).
-- `frontwt`: Target `35.8–38.2%` (`acceptable: 34.8–39.2%, edge_score: 75, falloff: 2.0`, weight: 4).
-- `trail`: Target `98–106 mm` (`acceptable: 92–109 mm, edge_score: 75, falloff: 10`, weight: 2).
-- Legacy seat-tube metrics (`setback`, `aett`, `sparevert`, `spareaxial`, `seat_to_rc`) measure to the bare seat tube centerline and are deprecated in favor of BRP-referenced metrics.

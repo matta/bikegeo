@@ -8,19 +8,6 @@ import (
 
 func floatPtr(v float64) *float64 { return &v }
 
-func TestDefaultProfileValid(t *testing.T) {
-	p := DefaultProfile()
-	if err := ValidateProfile(p); err != nil {
-		t.Fatalf("DefaultProfile failed validation: %v", err)
-	}
-	if p.Name != "default" {
-		t.Errorf("Expected profile name 'default', got %q", p.Name)
-	}
-	if len(p.Attributes) != 14 {
-		t.Fatalf("Expected 14 attributes in default profile, got %d", len(p.Attributes))
-	}
-}
-
 func TestLookupAttribute_Trail(t *testing.T) {
 	for _, variant := range []string{"trail", "trail_mm", "trail-mm", "TRAIL"} {
 		meta, ok := LookupAttribute(variant)
@@ -343,13 +330,21 @@ func TestGetProfile_Default(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected default profile, got: %v", err)
 	}
-	if p.Name != "default" {
-		t.Errorf("Expected profile name 'default', got %q", p.Name)
+	if p.Name != "idmatch" {
+		t.Errorf("Expected profile name 'idmatch', got %q", p.Name)
+	}
+
+	pDef, err := GetProfile("default")
+	if err != nil {
+		t.Fatalf("Expected profile for 'default', got: %v", err)
+	}
+	if pDef.Name != "idmatch" {
+		t.Errorf("Expected 'default' to resolve to 'idmatch', got %q", pDef.Name)
 	}
 }
 
 func TestEvaluate_DirectionalWordsAndBoundaryRounding(t *testing.T) {
-	p := DefaultProfile()
+	p := IdmatchProfile()
 	attrMap := make(map[string]AttributeSpec)
 	for _, a := range p.Attributes {
 		attrMap[a.ID] = a
@@ -360,16 +355,13 @@ func TestEvaluate_DirectionalWordsAndBoundaryRounding(t *testing.T) {
 		val      float64
 		expected string
 	}{
-		{"setback", 219, "219 ✗ 11 fwd"},
-		{"setback", 235, "235 ~ 5 aft"},
-		{"aett", 617, "617 ~ 8 sht"},
-		{"aett", 652, "652 ✗ 16 lng"},
-		{"sparevert", 60, "60 ✗ 10 lo"},
-		{"sparevert", 115, "115 ~ 15 hi"},
-		{"sparevert", 100.4, "100 ✓"}, // Unrounded 0.4 above 100 rounds to 0 delta -> ✓
-		{"seatpost_extension", 221, "221 ~ 39 sht"},
-		{"seatpost_extension", 335, "335 ~ 15 lng"},
+		{"brp_setback", 204, "204 ✗ 15 fwd"},
+		{"brp_setback", 221, "221 ~ 2 aft"},
+		{"seatpost_extension", 221, "221 ~ 29 sht"},
+		{"seatpost_extension", 335, "335 ~ 25 lng"},
 		{"seat_to_rc", 221, "221"}, // DisplayOnly attribute
+		{"sparevert", 60, "60"},    // DisplayOnly attribute
+		{"sparevert", 60, "60"},     // DisplayOnly attribute
 		{"bbdrop", 66, "66 ~ 4 hi"},
 		{"bbdrop", 77, "77 ~ 7 lo"},
 		{"hta", 67.7, "67.7"}, // DisplayOnly attribute

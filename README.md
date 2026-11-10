@@ -34,14 +34,14 @@ All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs
    - `bikegeo fit <frame>` automatically solves for candidate physical fork/spacer/sag combinations when ingesting new frames.
 
 5. **Ideal Frame Profiles & Sweet-Spot Scoring (`pkg/ideal`, `pkg/scoring`)**:
-   - Frames are evaluated against parameterized sweet-spot ranges defined in [`pkg/ideal/loader.go`](pkg/ideal/loader.go) (`default` and `idmatch` profiles).
+   - Frames are evaluated against parameterized sweet-spot ranges defined in [`pkg/ideal/loader.go`](pkg/ideal/loader.go) (`idmatch` biomechanical fit profile).
    - Evaluates criteria across nested ranges:
-     - **Ideal (`✓`)**: Scores 100.0 (e.g. Setback 230mm, AETT 625–636mm, Spare Vert 70–100mm, Seat-RC ≥235mm).
-     - **Acceptable (`~`)**: Scores `EdgeScore` (typically 75–80) to 100 with linear ramp towards ideal. Cell displays offset to ideal (e.g. `225 ~ −5`).
-     - **Outside (`✗`)**: Soft falloff beyond acceptable to 0 (or floor). Cell displays offset to ideal (e.g. `213 ✗ −17`).
+     - **Ideal (`✓`)**: Scores 100.0 (e.g. BRP Setback 219mm, Handlebar Clamp Fit ≥100 pts, BB Drop 70mm, Trail 98–106mm).
+     - **Acceptable (`~`)**: Scores `EdgeScore` (typically 75–80) to 100 with linear ramp towards ideal. Cell displays offset to ideal (e.g. `221 ~ 2 aft`).
+     - **Outside (`✗`)**: Soft falloff beyond acceptable to 0 (or floor). Cell displays offset to ideal (e.g. `204 ✗ 15 fwd`).
    - Tables are automatically sorted by score descending (with original `[#]` identifiers preserved).
    - Generates plain-English footer explanations (`Biggest Losses vs. Ideal` and `Head-to-Head Deciding Factors`).
-   - Switch profiles using `--ideal <name>`, disable scoring with `--no-score`, or inspect sub-scores with `--score-detail`.
+   - Disable scoring with `--no-score`, or inspect sub-scores with `--score-detail`.
 
 6. **Ideal Profile Inspection (`bikegeo ideals`)**:
    - `bikegeo ideals list`: List compiled ideal profiles.
@@ -69,13 +69,13 @@ make build
 
 # List available ideal frame profiles:
 ./bin/bikegeo ideals list
-./bin/bikegeo ideals show default
+./bin/bikegeo ideals show idmatch
 
 # Compare frames against an ideal profile (auto-transposed when >4 columns):
 ./bin/bikegeo compare havok@110mm@20% hayduke:S3@110mm@20% fenrir:L@rigid
 
-# Compare using a specific ideal profile:
-./bin/bikegeo compare --ideal idmatch fenrir:all@120mm
+# Run comparison on all configurations of a frame:
+./bin/bikegeo compare fenrir:all@120mm
 
 # Run the default baseline comparison:
 ./bin/bikegeo compare

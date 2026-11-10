@@ -19,12 +19,12 @@ func (a *App) runIdeals(args []string) int {
 		return a.listIdeals()
 	case "show", "view", "get":
 		if len(args) < 2 {
-			fmt.Fprintf(a.Err, "Error: 'ideals show' requires a profile name (e.g. 'default')\n")
+			fmt.Fprintf(a.Err, "Error: 'ideals show' requires a profile name (e.g. 'idmatch')\n")
 			return 2
 		}
 		return a.showIdeal(args[1])
 	default:
-		// Shorthand: 'bikegeo ideals default' -> show default
+		// Shorthand: 'bikegeo ideals idmatch' -> show idmatch
 		return a.showIdeal(args[0])
 	}
 }

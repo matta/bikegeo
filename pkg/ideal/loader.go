@@ -2,92 +2,8 @@ package ideal
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 )
-
-// DefaultProfile returns the default ideal frame profile.
-func DefaultProfile() *Profile {
-	p := &Profile{
-		Name:           "default",
-		Description:    "Approximation of pre-profile hard-coded scoring",
-		SaddleHeightMm: Float(780),
-		Attributes: []AttributeSpec{
-			{
-				ID:         "setback",
-				Weight:     10,
-				Ideal:      Exact(230),
-				Acceptable: Between(220, 240),
-				EdgeScore:  Float(80),
-				Falloff:    FalloffBoth(10, 10),
-				Floor:      Float(-200),
-			},
-			{
-				ID:         "aett",
-				Weight:     10,
-				Ideal:      Between(625, 636),
-				Acceptable: Between(604.5, 648),
-				EdgeScore:  Float(75),
-				Falloff:    FalloffBoth(20.5, 12),
-				Floor:      Float(-200),
-			},
-			{
-				ID:         "sparevert",
-				Weight:     5,
-				Ideal:      Between(70, 100),
-				Acceptable: Between(62.5, 117.5),
-				EdgeScore:  Float(75),
-				Falloff:    FalloffBoth(7.5, 17.5),
-				Floor:      Float(-100),
-			},
-			{
-				ID:         "seatpost_extension",
-				Weight:     4,
-				Ideal:      Between(260, 320),
-				Acceptable: Between(220, 350),
-				EdgeScore:  Float(75),
-				Falloff:    FalloffBoth(25, 25),
-				Floor:      Float(-100),
-			},
-			{
-				ID:         "frontwt",
-				Weight:     4,
-				Ideal:      Between(35.8, 38.2),
-				Acceptable: Between(34.8, 39.2),
-				EdgeScore:  Float(75),
-				Falloff:    FalloffBoth(2.0, 2.0),
-				Floor:      Float(-100),
-			},
-			{
-				ID:         "bbdrop",
-				Weight:     3,
-				Ideal:      Exact(70),
-				Acceptable: Between(60, 80),
-				EdgeScore:  Float(75),
-				Falloff:    FalloffBoth(10, 10),
-				Floor:      Float(-100),
-			},
-			{
-				ID:         "trail",
-				Weight:     2,
-				Ideal:      Between(98, 106),
-				Acceptable: Between(92, 109),
-				EdgeScore:  Float(75),
-				Falloff:    FalloffBoth(10, 10),
-				Floor:      Float(-100),
-			},
-			DisplayOnly("hta"),
-			DisplayOnly("seat_to_rc"),
-			DisplayOnly("reach"),
-			DisplayOnly("stack"),
-			DisplayOnly("sta"),
-			DisplayOnly("chainstay"),
-			DisplayOnly("saddle_hb"),
-		},
-	}
-	_, _ = NormalizeAndValidate(p)
-	return p
-}
 
 // IdmatchProfile returns the idmatch biomechanical fit profile (BRP -> HB).
 func IdmatchProfile() *Profile {
@@ -168,14 +84,9 @@ func IdmatchProfile() *Profile {
 
 // AllProfiles returns all compiled ideal profiles in alphabetical order.
 func AllProfiles() []*Profile {
-	profiles := []*Profile{
-		DefaultProfile(),
+	return []*Profile{
 		IdmatchProfile(),
 	}
-	sort.SliceStable(profiles, func(i, j int) bool {
-		return profiles[i].Name < profiles[j].Name
-	})
-	return profiles
 }
 
 // NormalizeAndValidate populates default Acceptable and Floor fields on a Profile and validates it.
@@ -203,11 +114,11 @@ func NormalizeAndValidate(p *Profile) (*Profile, error) {
 	return p, nil
 }
 
-// GetProfile looks up a compiled ideal profile by name (defaults to "default" when empty).
+// GetProfile looks up a compiled ideal profile by name (defaults to "idmatch" when empty).
 func GetProfile(name string) (*Profile, error) {
 	cleanName := strings.TrimSuffix(strings.TrimSpace(name), ".json")
-	if cleanName == "" {
-		cleanName = "default"
+	if cleanName == "" || strings.EqualFold(cleanName, "default") {
+		cleanName = "idmatch"
 	}
 
 	for _, p := range AllProfiles() {

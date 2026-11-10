@@ -229,14 +229,14 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Score") {
 			t.Errorf("expected 'Score' row in default output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "90 (#1)") {
-			t.Errorf("expected '90 (#1)' in output, got:\n%s", out)
+		if !strings.Contains(out, "80 (#1)") {
+			t.Errorf("expected '80 (#1)' in output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "79 (#2)") {
-			t.Errorf("expected '79 (#2)' in output, got:\n%s", out)
+		if !strings.Contains(out, "77 (#2)") {
+			t.Errorf("expected '77 (#2)' in output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "66 (#3)") {
-			t.Errorf("expected '66 (#3)' in output, got:\n%s", out)
+		if !strings.Contains(out, "73 (#3)") {
+			t.Errorf("expected '73 (#3)' in output, got:\n%s", out)
 		}
 	})
 
@@ -249,8 +249,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Score") {
 			t.Errorf("expected 'Score' column in transposed output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "90 (#1)") {
-			t.Errorf("expected '90 (#1)' in transposed output, got:\n%s", out)
+		if !strings.Contains(out, "80 (#1)") {
+			t.Errorf("expected '80 (#1)' in transposed output, got:\n%s", out)
 		}
 		if !strings.Contains(out, "Fit & Cockpit") {
 			t.Errorf("expected Table 1 'Fit & Cockpit' in transposed output, got:\n%s", out)
@@ -280,7 +280,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Scoring Breakdown") {
 			t.Errorf("expected 'Scoring Breakdown' table when --score-detail is set, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Setback") || !strings.Contains(out, "AETT") {
+		if !strings.Contains(out, "BRP Setback") || !strings.Contains(out, "Oval Fits") {
 			t.Errorf("expected metric labels in score breakdown, got:\n%s", out)
 		}
 	})
@@ -291,7 +291,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Score,,,90 (#1),79 (#2),66 (#3)") {
+		if !strings.Contains(out, "Score,,,80 (#1),77 (#2),73 (#3)") {
 			t.Errorf("expected CSV Score row, got:\n%s", out)
 		}
 	})
@@ -302,7 +302,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "| Score |  |  | 90 (#1) | 79 (#2) | 66 (#3) |") {
+		if !strings.Contains(out, "| Score |  |  | 80 (#1) | 77 (#2) | 73 (#3) |") {
 			t.Errorf("expected Markdown Score row, got:\n%s", out)
 		}
 	})
@@ -443,7 +443,6 @@ func TestCompare_HelpOutputDocumentsSemantics(t *testing.T) {
 		"Incremental Addition ('+spec'):",
 		"Incremental Removal ('-spec' or '-col_num'):",
 		"-score-detail",
-		"--ideal",
 	}
 	for _, exp := range expectedSections {
 		if !strings.Contains(out, exp) {
@@ -457,16 +456,16 @@ func TestIdealsCLI(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0 for ideals list, got %d; stderr: %s", code, errOut)
 	}
-	if !strings.Contains(out, "default") || !strings.Contains(out, "idmatch") {
-		t.Errorf("expected default and idmatch in ideals list, got:\n%s", out)
+	if !strings.Contains(out, "idmatch") {
+		t.Errorf("expected idmatch in ideals list, got:\n%s", out)
 	}
 
-	out, errOut, code = runCLI(t, "ideals", "show", "default")
+	out, errOut, code = runCLI(t, "ideals", "show", "idmatch")
 	if code != 0 {
-		t.Fatalf("expected exit code 0 for ideals show default, got %d; stderr: %s", code, errOut)
+		t.Fatalf("expected exit code 0 for ideals show idmatch, got %d; stderr: %s", code, errOut)
 	}
-	if !strings.Contains(out, "Ideal Profile: default") || !strings.Contains(out, "Setback (setback)") {
-		t.Errorf("expected default profile details, got:\n%s", out)
+	if !strings.Contains(out, "Ideal Profile: idmatch") || !strings.Contains(out, "BRP Setback (brp_setback)") {
+		t.Errorf("expected idmatch profile details, got:\n%s", out)
 	}
 
 	_, errOut, code = runCLI(t, "ideals", "show", "nonexistent")
@@ -525,8 +524,8 @@ func TestCompare_SaddleHbMetric(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
-	if !strings.Contains(out, "Saddle-HB @ 780mm") {
-		t.Errorf("expected 'Saddle-HB @ 780mm' row in compare output, got:\n%s", out)
+	if !strings.Contains(out, "Saddle-HB @ 746mm") {
+		t.Errorf("expected 'Saddle-HB @ 746mm' row in compare output, got:\n%s", out)
 	}
 }
 
@@ -596,7 +595,7 @@ func TestSaddlesCommand(t *testing.T) {
 }
 
 func TestCompare_WithSaddleFlag(t *testing.T) {
-	out, errOut, code := runCLI(t, "compare", "--ideal", "idmatch", "--saddle", "berthoud-aspin-open", "havok:L@110mm@20%")
+	out, errOut, code := runCLI(t, "compare", "--saddle", "berthoud-aspin-open", "havok:L@110mm@20%")
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}

@@ -29,7 +29,6 @@ func (a *App) runCompare(args []string) int {
 	var compactFlag bool
 	var noScoreFlag bool
 	var scoreDetailFlag bool
-	var idealFlag string
 	var saddleFlag string
 	var allFlag bool
 	var allConfigsFlag bool
@@ -40,7 +39,6 @@ func (a *App) runCompare(args []string) int {
 	fs.BoolVar(&compactFlag, "compact", false, "Compact/transposed table view (alias for --transpose)")
 	fs.BoolVar(&noScoreFlag, "no-score", false, "Disable scoring and ranking display")
 	fs.BoolVar(&scoreDetailFlag, "score-detail", false, "Display detailed scoring breakdown table")
-	fs.StringVar(&idealFlag, "ideal", "", "Ideal frame profile name (default: 'default')")
 	fs.StringVar(&saddleFlag, "saddle", "", "Saddle model from catalog (default: 'sqlab-610-ergolux')")
 	fs.BoolVar(&allFlag, "all", false, "Compare all registered frames across all sizes and plausible configurations")
 	fs.BoolVar(&allFlag, "a", false, "Alias for --all")
@@ -255,16 +253,7 @@ func (a *App) runCompare(args []string) int {
 		state.Transpose = true
 	}
 
-	idealName := idealFlag
-	if idealName == "" {
-		if state.IdealProfile != "" {
-			idealName = state.IdealProfile
-		} else {
-			idealName = "default"
-		}
-	}
-
-	prof, err := ideal.GetProfile(idealName)
+	prof, err := ideal.GetProfile("idmatch")
 	if err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
@@ -435,7 +424,6 @@ Flags:
   --top-per-frame <N>          Maximum manifestations kept per frame (default: 1 for --all, 5 for @all, 0=all)
   --per-frame <N>              Alias for --top-per-frame
   --top <M>, --limit <M>       Maximum total comparison setups to display after ranking (0 for unlimited)
-  --ideal <name>               Select ideal profile ('default' or 'idmatch')
   --saddle <name>              Select saddle model from catalog ('sqlab-610-ergolux' or 'berthoud-aspin-open')
   -compact, --compact          Render compact/transposed table (Columns as rows, Metrics as columns)
   -transpose, --transpose      Alias for --compact
@@ -900,7 +888,7 @@ func DefaultComparisonState() model.SavedComparisonState {
 		RiderProfile: model.DefaultRiderProfile(),
 		Transpose:    true,
 		RefIndex:     1,
-		IdealProfile: "default",
+		IdealProfile: "idmatch",
 		SaddleID:     defSaddle.ID,
 		Saddle:       defSaddle,
 		Columns: []model.ComparisonSetup{
@@ -981,7 +969,7 @@ func (a *App) renderComparisonMatrix(
 	}
 
 	if prof == nil {
-		def, err := ideal.GetProfile("default")
+		def, err := ideal.GetProfile("idmatch")
 		if err != nil {
 			return err
 		}
