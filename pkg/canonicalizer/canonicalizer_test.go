@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"bikegeo/pkg/canonicalizer"
+	"bikegeo/pkg/frames"
 	"bikegeo/pkg/model"
 )
 
@@ -150,4 +151,108 @@ func TestCanonicalizeBikesRequiresPositiveSeatHeight(t *testing.T) {
 	if _, err := canonicalizer.CanonicalizeBikes(bikes, cfgNegative, 44.0, "130mm"); err == nil {
 		t.Errorf("Expected error for negative SaddleHeightMm, got nil")
 	}
+}
+
+func TestExpandPlausibleForkSetups(t *testing.T) {
+	t.Run("RigidOnlyFrame", func(t *testing.T) {
+		frame, err := frames.GetFrameByID("tumbleweed-sunliner")
+		if err != nil {
+			t.Fatalf("failed to get frame: %v", err)
+		}
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, nil)
+		if err != nil {
+			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
+		}
+		if len(setups) != 1 {
+			t.Fatalf("expected 1 setup for rigid-only Sunliner, got %d", len(setups))
+		}
+		if setups[0].DisplayLabel != "Rigid (440mm)" || setups[0].A2cMm != 440 || setups[0].SagPct != 0 {
+			t.Errorf("unexpected setup: %+v", setups[0])
+		}
+		if !setups[0].AutoExpanded {
+			t.Errorf("expected AutoExpanded to be true")
+		}
+	})
+
+	t.Run("SuspensionOnlyFrame", func(t *testing.T) {
+		frame, err := frames.GetFrameByID("fairlight-holt-2")
+		if err != nil {
+			t.Fatalf("failed to get frame: %v", err)
+		}
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, nil)
+		if err != nil {
+			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
+		}
+		// Fairlight Holt 2 supports 100mm to 120mm forks (100, 110, 120mm) across 4 sags = 12 setups
+		if len(setups) != 12 {
+			t.Fatalf("expected 12 setups for Holt 2, got %d", len(setups))
+		}
+		for _, s := range setups {
+			if canonicalizer.IsRigidFork(s.DisplayLabel) {
+				t.Errorf("did not expect rigid fork on suspension-only frame: %+v", s)
+			}
+		}
+	})
+
+	t.Run("HybridFrameWithRigidAndSuspension", func(t *testing.T) {
+		frame, err := frames.GetFrameByID("otso-fenrir-stainless")
+		if err != nil {
+			t.Fatalf("failed to get frame: %v", err)
+		}
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, nil)
+		if err != nil {
+			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
+		}
+		// 1 rigid (495mm) + 100, 110, 120mm across 4 sags (12) = 13 setups
+		if len(setups) != 13 {
+			t.Fatalf("expected 13 setups for Fenrir, got %d", len(setups))
+		}
+		hasRigid := false
+		for _, s := range setups {
+			if s.DisplayLabel == "Rigid (495mm)" && s.RakeMm == 54.0 {
+				hasRigid = true
+			}
+		}
+		if !hasRigid {
+			t.Errorf("expected Lithic Rigid (495mm) fork with 54mm rake in Fenrir setups")
+		}
+	})
+
+	t.Run("FrameWithSpecificRakePreserved", func(t *testing.T) {
+		frame, err := frames.GetFrameByID("salsa-fargo")
+		if err != nil {
+			t.Fatalf("failed to get frame: %v", err)
+		}
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, nil)
+		if err != nil {
+			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
+		}
+		// Salsa Fargo has 51mm rake for its rigid and 100mm suspension fork
+		for _, s := range setups {
+			if s.RakeMm != 51.0 {
+				t.Errorf("expected 51mm rake preserved on Salsa Fargo setups, got %.1f in %+v", s.RakeMm, s)
+			}
+		}
+	})
+
+	t.Run("SagOverrideFiltersForks", func(t *testing.T) {
+		frame, err := frames.GetFrameByID("otso-fenrir-stainless")
+		if err != nil {
+			t.Fatalf("failed to get frame: %v", err)
+		}
+		sag20 := 20.0
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, &sag20)
+		if err != nil {
+			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
+		}
+		// Rigid fork is excluded when sagOverride > 0, 3 suspension travels at 20% sag = 3 setups
+		if len(setups) != 3 {
+			t.Fatalf("expected 3 setups for sagOverride=20%%, got %d", len(setups))
+		}
+		for _, s := range setups {
+			if s.SagPct != 20.0 {
+				t.Errorf("expected SagPct 20.0, got %.1f", s.SagPct)
+			}
+		}
+	})
 }

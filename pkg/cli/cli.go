@@ -118,6 +118,9 @@ Examples:
   # Run the default comparison matrix:
   bikegeo compare
 
+  # Compare all registered frames across all plausible configurations (top 1 per frame):
+  bikegeo compare --all
+
   # Compare the same frame at 20% sag, 30% sag, and with its rigid fork:
   bikegeo compare sendero@20% sendero@30% sendero@rigid
 

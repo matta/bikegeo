@@ -34,6 +34,162 @@ func FindForkSuggestions(targetA2c, targetRake float64) []ForkSuggestion {
 	return catalog.FindForkSuggestions(targetA2c, targetRake)
 }
 
+// PlausibleSagPcts defines the standard suspension fork sag percentages evaluated during combinatorial sweeps.
+var PlausibleSagPcts = []float64{15.0, 20.0, 25.0, 30.0}
+
+// ExpandPlausibleForkSetups generates all candidate fork and sag setups for a frame.
+// Rigid forks are included at 0% sag (unless sagOverride > 0).
+// Supported suspension forks are enumerated across 10mm travel steps and plausible sag points.
+func ExpandPlausibleForkSetups(
+	frame model.FrameModel,
+	sagOverride *float64,
+) ([]model.ComparisonSetup, error) {
+	var setups []model.ComparisonSetup
+	seen := make(map[string]bool)
+
+	addSetup := func(s model.ComparisonSetup) {
+		key := fmt.Sprintf("%.1f|%.1f|%.1f|%s", s.A2cMm, s.RakeMm, s.SagPct, s.DisplayLabel)
+		if !seen[key] {
+			seen[key] = true
+			setups = append(setups, s)
+		}
+	}
+
+	minA2c, maxA2c, hasRange := frame.EffectiveA2cRange()
+
+	// 1. Rigid forks (if supported and sagOverride <= 0)
+	if sagOverride == nil || *sagOverride == 0 {
+		var rigidForks []model.ForkRef
+		for _, f := range frame.Forks {
+			if f.ForkTravel() == 0 && f.A2cMm > 0 {
+				rigidForks = append(rigidForks, f)
+			}
+		}
+		if len(rigidForks) == 0 && frame.CadFork.ForkTravel() == 0 && frame.CadFork.A2cMm > 0 {
+			rigidForks = append(rigidForks, frame.CadFork)
+		}
+
+		for _, rf := range rigidForks {
+			rake := rf.RakeMm
+			if rake <= 0 {
+				rake = frame.CadFork.RakeMm
+			}
+			if rake <= 0 {
+				rake = 44.0
+			}
+			if hasRange && (rf.A2cMm < minA2c-0.1 || rf.A2cMm > maxA2c+0.1) {
+				continue
+			}
+			addSetup(model.ComparisonSetup{
+				FrameID:      frame.ID,
+				A2cMm:        rf.A2cMm,
+				RakeMm:       rake,
+				DisplayLabel: FormatRigidFork(rf.A2cMm),
+				SagPct:       0.0,
+				AutoExpanded: true,
+			})
+		}
+	}
+
+	// 2. Suspension forks (if frame supports suspension)
+	if !frame.IsFixedRigidOnly() {
+		var minTr, maxTr float64
+		for _, f := range frame.Forks {
+			tr := f.ForkTravel()
+			if tr >= 60 {
+				if minTr == 0 || tr < minTr {
+					minTr = tr
+				}
+				if tr > maxTr {
+					maxTr = tr
+				}
+			}
+		}
+		if minTr == 0 && frame.CadFork.ForkTravel() >= 60 {
+			minTr = frame.CadFork.ForkTravel()
+			maxTr = minTr
+		}
+
+		if minTr >= 60 && maxTr >= minTr {
+			sags := PlausibleSagPcts
+			if sagOverride != nil {
+				sags = []float64{*sagOverride}
+			}
+
+			for tr := minTr; tr <= maxTr+0.1; tr += 10.0 {
+				var stdFork model.ForkCatalogEntry
+				var preferredRake float64
+				found := false
+
+				// Check frame.Forks first
+				for _, fRef := range frame.Forks {
+					if fRef.Fork != "" {
+						if entry, ok := GetCatalogFork(fRef.Fork); ok && entry.TravelMm == tr && len(entry.Options) > 0 {
+							stdFork = entry
+							preferredRake = fRef.RakeMm
+							found = true
+							break
+						}
+					}
+				}
+				// Check frame.CadFork
+				if !found && frame.CadFork.Fork != "" {
+					if entry, ok := GetCatalogFork(frame.CadFork.Fork); ok && entry.TravelMm == tr && len(entry.Options) > 0 {
+						stdFork = entry
+						preferredRake = frame.CadFork.RakeMm
+						found = true
+					}
+				}
+				// Catalog standard fork fallback
+				if !found {
+					if f, ok := GetStandardForkForTravel(tr); ok && len(f.Options) > 0 {
+						stdFork = f
+						found = true
+					}
+				}
+
+				if !found || len(stdFork.Options) == 0 {
+					continue
+				}
+
+				opt := stdFork.Options[0]
+				if preferredRake > 0 {
+					for _, o := range stdFork.Options {
+						if math.Abs(o.RakeMm-preferredRake) < 0.1 {
+							opt = o
+							break
+						}
+					}
+				}
+
+				staticA2c := opt.A2cMm
+				rake := opt.RakeMm
+
+				for _, sag := range sags {
+					effA2c := geometry.Round(staticA2c-tr*(sag/100.0), 1)
+					if hasRange && (effA2c < minA2c-0.1 || effA2c > maxA2c+0.1) {
+						continue
+					}
+					addSetup(model.ComparisonSetup{
+						FrameID:      frame.ID,
+						A2cMm:        effA2c,
+						RakeMm:       rake,
+						DisplayLabel: FormatSuspensionFork(tr, sag),
+						SagPct:       sag,
+						AutoExpanded: true,
+					})
+				}
+			}
+		}
+	}
+
+	if len(setups) == 0 {
+		return nil, fmt.Errorf("no plausible fork configurations found for frame %q", frame.ID)
+	}
+
+	return setups, nil
+}
+
 // ResolveForkToken resolves a user comparison modifier (e.g. "120mm", "rigid", "stock", "a2c=506/44")
 // against the fork catalog and frame constraints.
 func ResolveForkToken(
@@ -153,18 +309,22 @@ func ResolveForkToken(
 		}
 		var stdFork model.ForkCatalogEntry
 		foundFrameFork := false
-		if def := frame.GetDefaultFork(); def.Fork != "" {
-			if entry, ok := GetCatalogFork(def.Fork); ok && entry.TravelMm == travelVal && len(entry.Options) > 0 {
-				stdFork = entry
-				foundFrameFork = true
+		var frameRake float64
+		for _, fRef := range frame.Forks {
+			if fRef.Fork != "" {
+				if entry, ok := GetCatalogFork(fRef.Fork); ok && entry.TravelMm == travelVal && len(entry.Options) > 0 {
+					stdFork = entry
+					frameRake = fRef.RakeMm
+					foundFrameFork = true
+					break
+				}
 			}
 		}
-		if !foundFrameFork {
-			if def := frame.CadFork; def.Fork != "" {
-				if entry, ok := GetCatalogFork(def.Fork); ok && entry.TravelMm == travelVal && len(entry.Options) > 0 {
-					stdFork = entry
-					foundFrameFork = true
-				}
+		if !foundFrameFork && frame.CadFork.Fork != "" {
+			if entry, ok := GetCatalogFork(frame.CadFork.Fork); ok && entry.TravelMm == travelVal && len(entry.Options) > 0 {
+				stdFork = entry
+				frameRake = frame.CadFork.RakeMm
+				foundFrameFork = true
 			}
 		}
 		if !foundFrameFork {
@@ -178,6 +338,14 @@ func ResolveForkToken(
 			return 0, 0, 0, "", fmt.Errorf("fork %s has no configured options", stdFork.ID)
 		}
 		opt := stdFork.Options[0]
+		if frameRake > 0 {
+			for _, o := range stdFork.Options {
+				if math.Abs(o.RakeMm-frameRake) < 0.1 {
+					opt = o
+					break
+				}
+			}
+		}
 		staticA2c = opt.A2cMm
 		targetRake = opt.RakeMm
 		sag := 20.0
@@ -338,6 +506,8 @@ func ResolveFrameForkSetupWithSaddle(
 		A2cMm:        targetA2c,
 		RakeMm:       targetRake,
 		DisplayLabel: displayLabel,
+		SagPct:       setup.SagPct,
+		AutoExpanded: setup.AutoExpanded,
 	}
 	row.DisplayLabel = displayLabel
 	row.EffectiveA2c = targetA2c

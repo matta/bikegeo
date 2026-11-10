@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -784,6 +785,189 @@ func TestSaddleSwapCommand(t *testing.T) {
 		}
 		if !strings.Contains(outCSV, "70mm BRP Point (X, Y)") {
 			t.Errorf("expected csv content in -f csv output, got:\n%s", outCSV)
+		}
+	})
+}
+
+func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
+	t.Run("CompareAllFlag_DefaultTop1PerFrame", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "compare", "--all", "--format", "csv")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+
+		lines := strings.Split(strings.TrimSpace(out), "\n")
+		// Header + Ideal + Acceptable = 3 rows, followed by 18 frame rows
+		var dataLines []string
+		for _, l := range lines[3:] {
+			if strings.TrimSpace(l) != "" {
+				dataLines = append(dataLines, l)
+			}
+		}
+
+		if len(dataLines) != 18 {
+			t.Fatalf("expected 18 frame rows, got %d:\n%s", len(dataLines), out)
+		}
+
+		// Verify ranks 1..18 appear in order
+		seenFrames := make(map[string]bool)
+		for rankIdx, l := range dataLines {
+			parts := strings.Split(l, ",")
+			expectedRank := rankIdx + 1
+			if parts[0] != strconv.Itoa(expectedRank) {
+				t.Errorf("line %d: expected rank %d, got %s", rankIdx, expectedRank, parts[0])
+			}
+			frameName := parts[1]
+			if seenFrames[frameName] {
+				t.Errorf("duplicate frame %s in --all output", frameName)
+			}
+			seenFrames[frameName] = true
+		}
+	})
+
+	t.Run("CompareAllToken_MatchesFlag", func(t *testing.T) {
+		outFlag, _, codeFlag := runCLI(t, "compare", "--all", "--format", "csv")
+		outToken, _, codeToken := runCLI(t, "compare", "all", "--format", "csv")
+
+		if codeFlag != 0 || codeToken != 0 {
+			t.Fatalf("expected exit code 0, got %d and %d", codeFlag, codeToken)
+		}
+		if outFlag != outToken {
+			t.Errorf("expected 'compare all' to match 'compare --all'\nflag:\n%s\ntoken:\n%s", outFlag, outToken)
+		}
+	})
+
+	t.Run("CompareAll_GlobalTopLimit", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "compare", "--all", "--top", "5", "--format", "csv")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+
+		lines := strings.Split(strings.TrimSpace(out), "\n")
+		var dataLines []string
+		for _, l := range lines[3:] {
+			if strings.TrimSpace(l) != "" {
+				dataLines = append(dataLines, l)
+			}
+		}
+		if len(dataLines) != 5 {
+			t.Fatalf("expected 5 data rows for --top 5, got %d", len(dataLines))
+		}
+	})
+
+	t.Run("CompareAll_TopPerFrame2", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "compare", "--all", "--top-per-frame", "2", "--format", "csv")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+
+		lines := strings.Split(strings.TrimSpace(out), "\n")
+		frameCounts := make(map[string]int)
+		for _, l := range lines[3:] {
+			parts := strings.Split(l, ",")
+			if len(parts) > 1 {
+				// Base frame name without (Size) or @ modifier
+				name := strings.TrimSpace(strings.Split(parts[1], "(")[0])
+				frameCounts[name]++
+			}
+		}
+
+		for frame, count := range frameCounts {
+			if count > 2 {
+				t.Errorf("frame %q appeared %d times (expected at most 2)", frame, count)
+			}
+		}
+	})
+
+	t.Run("CompareAllRigid_ExcludesSuspensionOnly", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "compare", "all@rigid", "--format", "csv")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+
+		lines := strings.Split(strings.TrimSpace(out), "\n")
+		var dataLines []string
+		for _, l := range lines[3:] {
+			if strings.TrimSpace(l) != "" {
+				dataLines = append(dataLines, l)
+			}
+		}
+		// 15 registered frames support rigid forks
+		if len(dataLines) != 15 {
+			t.Fatalf("expected 15 rigid frame rows, got %d:\n%s", len(dataLines), out)
+		}
+
+		for _, l := range dataLines {
+			parts := strings.Split(l, ",")
+			forkCol := parts[3]
+			if !strings.HasPrefix(forkCol, "Rigid") {
+				t.Errorf("expected rigid fork, got %q in line: %s", forkCol, l)
+			}
+		}
+
+		// Ensure suspension-only frames are excluded
+		if strings.Contains(out, "Fairlight Holt") || strings.Contains(out, "Turner Venn") || strings.Contains(out, "Moots Mountaineer") {
+			t.Errorf("suspension-only frame appeared in all@rigid output:\n%s", out)
+		}
+	})
+
+	t.Run("CompareSingleFrameAllConfigs_DedupesSags", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "compare", "otso-fenrir-stainless:all@all", "--format", "csv")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+
+		lines := strings.Split(strings.TrimSpace(out), "\n")
+		var dataLines []string
+		for _, l := range lines[3:] {
+			if strings.TrimSpace(l) != "" {
+				dataLines = append(dataLines, l)
+			}
+		}
+		// Default top-per-frame for single frame @all is 5
+		if len(dataLines) != 5 {
+			t.Fatalf("expected 5 setups for Fenrir all@all, got %d:\n%s", len(dataLines), out)
+		}
+
+		// Ensure no duplicate (Size, ForkType) among the 5 rows
+		seenCombinations := make(map[string]bool)
+		for _, l := range dataLines {
+			parts := strings.Split(l, ",")
+			// Column 1 is Name with Size and ForkType e.g. "Otso Fenrir (XL) @ 120mm"
+			name := parts[1]
+			if seenCombinations[name] {
+				t.Errorf("duplicate (Size, ForkType) combination %q found in all@all output", name)
+			}
+			seenCombinations[name] = true
+		}
+	})
+
+	t.Run("IncrementalRemovalAllColumns", func(t *testing.T) {
+		_, errOut, code := runCLI(t, "compare", "--", "-all")
+		if code == 0 {
+			t.Fatalf("expected non-zero exit code when removing all columns")
+		}
+		if !strings.Contains(errOut, "no columns selected for comparison") {
+			t.Errorf("expected 'no columns selected for comparison' error, got: %s", errOut)
+		}
+	})
+
+	t.Run("HelpTextDocumentsFlags", func(t *testing.T) {
+		out, _, code := runCLI(t, "compare", "-h")
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d", code)
+		}
+		for _, exp := range []string{
+			"--all",
+			"--all-configs",
+			"--top-per-frame",
+			"--top",
+			"All-Frames & All-Configurations Expansion:",
+			"Two-Stage Ranking & Pruning Funnel:",
+		} {
+			if !strings.Contains(out, exp) {
+				t.Errorf("expected compare -h to contain %q", exp)
+			}
 		}
 	})
 }

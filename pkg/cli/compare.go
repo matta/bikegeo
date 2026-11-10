@@ -31,6 +31,10 @@ func (a *App) runCompare(args []string) int {
 	var scoreDetailFlag bool
 	var idealFlag string
 	var saddleFlag string
+	var allFlag bool
+	var allConfigsFlag bool
+	var topPerFrameFlag int
+	var topLimitFlag int
 
 	fs.BoolVar(&transposeFlag, "transpose", false, "Transpose table (Columns as rows, Metrics as columns)")
 	fs.BoolVar(&compactFlag, "compact", false, "Compact/transposed table view (alias for --transpose)")
@@ -38,12 +42,22 @@ func (a *App) runCompare(args []string) int {
 	fs.BoolVar(&scoreDetailFlag, "score-detail", false, "Display detailed scoring breakdown table")
 	fs.StringVar(&idealFlag, "ideal", "", "Ideal frame profile name (default: 'default')")
 	fs.StringVar(&saddleFlag, "saddle", "", "Saddle model from catalog (default: 'sqlab-610-ergolux')")
+	fs.BoolVar(&allFlag, "all", false, "Compare all registered frames across all sizes and plausible configurations")
+	fs.BoolVar(&allFlag, "a", false, "Alias for --all")
+	fs.BoolVar(&allConfigsFlag, "all-configs", false, "Expand all sizes and plausible fork/sag configurations for target frame(s)")
+	fs.IntVar(&topPerFrameFlag, "top-per-frame", -1, "Maximum manifestations kept per frame (default: 1 for --all, 5 for specific frame @all, 0 for unlimited)")
+	fs.IntVar(&topPerFrameFlag, "per-frame", -1, "Alias for --top-per-frame")
+	fs.IntVar(&topLimitFlag, "top", 0, "Maximum total comparison setups to display after ranking (0 for unlimited)")
+	fs.IntVar(&topLimitFlag, "limit", 0, "Alias for --top")
 
 	boolFlags := map[string]bool{
 		"transpose":    true,
 		"compact":      true,
 		"no-score":     true,
 		"score-detail": true,
+		"all":          true,
+		"a":            true,
+		"all-configs":  true,
 	}
 	reordered := reorderFlagsForStdlib(fs, args, boolFlags)
 	if err := fs.Parse(reordered); err != nil {
@@ -74,6 +88,60 @@ func (a *App) runCompare(args []string) int {
 	if len(posArgs) == 1 && (posArgs[0] == "help" || posArgs[0] == "-h" || posArgs[0] == "--help") {
 		a.printCompareUsage(a.Out)
 		return 0
+	}
+
+	if allFlag && len(posArgs) == 0 {
+		posArgs = []string{"all:all@all"}
+	} else if allConfigsFlag && len(posArgs) == 0 {
+		posArgs = []string{"all:all@all"}
+	} else if len(posArgs) == 1 && strings.EqualFold(posArgs[0], "all") {
+		posArgs = []string{"all:all@all"}
+	}
+
+	if allConfigsFlag && len(posArgs) > 0 {
+		var rewritten []string
+		for _, arg := range posArgs {
+			if !strings.Contains(arg, "@all") && !strings.Contains(arg, "@forks") && !strings.Contains(arg, "@all-forks") {
+				if strings.Contains(arg, ":") {
+					arg = arg + "@all"
+				} else {
+					arg = arg + ":all@all"
+				}
+			}
+			rewritten = append(rewritten, arg)
+		}
+		posArgs = rewritten
+	}
+
+	isAllFrames := allFlag
+	hasAllForksExpansion := allConfigsFlag
+	for _, arg := range posArgs {
+		clean := strings.TrimPrefix(strings.TrimPrefix(arg, "+"), "-")
+		parts := strings.Split(clean, "@")
+		framePart := strings.Split(parts[0], ":")[0]
+		if strings.EqualFold(framePart, "all") {
+			isAllFrames = true
+		}
+		for _, p := range parts[1:] {
+			low := strings.ToLower(strings.TrimSpace(p))
+			if low == "all" || low == "all-forks" || low == "forks" || low == "all-configs" {
+				hasAllForksExpansion = true
+			}
+		}
+	}
+
+	topPerFrame := topPerFrameFlag
+	if !explicitFlags["top-per-frame"] && !explicitFlags["per-frame"] {
+		if isAllFrames {
+			topPerFrame = 1
+		} else if hasAllForksExpansion {
+			topPerFrame = 5
+		} else {
+			topPerFrame = 0
+		}
+	}
+	if topPerFrame < 0 {
+		topPerFrame = 0
 	}
 
 	if len(posArgs) > 0 {
@@ -121,6 +189,8 @@ func (a *App) runCompare(args []string) int {
 							kept = append(kept, c)
 						}
 						state.Columns = kept
+					} else if strings.EqualFold(rmToken, "all") {
+						state.Columns = nil
 					} else {
 						f, sz, err := ResolveFrameByToken(allFrames, rmToken)
 						if err != nil {
@@ -226,6 +296,24 @@ func (a *App) runCompare(args []string) int {
 	}
 	state.Columns = normalizedCols
 
+	// Two-stage ranking and pruning for combinatorial sanity
+	rows = pruneComparisonRows(allFrames, rows, prof, topPerFrame, topLimitFlag)
+	if len(rows) == 0 {
+		fmt.Fprintf(a.Err, "Error: no valid setups found for comparison\n")
+		return 1
+	}
+	var prunedCols []model.ComparisonSetup
+	for _, r := range rows {
+		prunedCols = append(prunedCols, r.Setup)
+	}
+	state.Columns = prunedCols
+	if state.RefIndex >= len(state.Columns) {
+		state.RefIndex = 0
+	}
+	if !explicitFlags["transpose"] && !explicitFlags["compact"] && len(state.Columns) > 4 {
+		state.Transpose = true
+	}
+
 	if err := a.renderComparisonMatrix(rows, state, prof, !noScoreFlag, scoreDetailFlag); err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
@@ -239,6 +327,7 @@ func (a *App) printCompareUsage(w io.Writer) {
 
 Usage:
   bikegeo compare [flags] [spec...]
+  bikegeo compare --all [flags]
   bikegeo compare [flags] +<spec> ...
   bikegeo compare [flags] -<spec|col_num> ...
 
@@ -259,6 +348,8 @@ Comparison Specs:
   Frame Identifier:
     - Exact frame ID (e.g. "seven-expedition-926f", "binary-havok")
     - Model name or unique substring match (e.g. "expedition", "fenrir", "krampus")
+    - All frames ("all"): Expands comparison across all registered frames in memory.
+      Frames that do not support a requested size or fork modifier are gracefully skipped.
 
   Size Specifier:
     - Specific size (e.g. ":L", ":XL", ":S3", ":S 60cm"): Must match one of the
@@ -276,6 +367,9 @@ Comparison Specs:
       Only permitted if the frame supports rigid forks. Rigid forks require 0% sag.
     - Fork preset ID (e.g. "@enve_472", "@stock"):
       Selects a known preset fork from the catalog.
+    - All plausible forks ("@all", "@all-forks", or "@forks"):
+      Expands the frame across all supported rigid forks and all 10mm suspension travel
+      steps in its supported range, across plausible sags (15%, 20%, 25%, 30%).
     - Sag percentage (e.g. "@20%", "@sag=25", or "@20"):
       Suspension sag percent. Pure numbers < 60 are treated as sag %; numbers >= 60
       are treated as fork travel in mm. If omitted, uses the frame's default sag.
@@ -285,6 +379,22 @@ Comparison Specs:
 Comparison State & Column Management:
   Default Comparison Baseline:
     - Running 'bikegeo compare' with no arguments evaluates the compiled default comparison setups.
+
+  All-Frames & All-Configurations Expansion:
+    - 'bikegeo compare --all' (or 'bikegeo compare all'):
+      Compares all registered frames across all sizes and plausible fork/sag configurations,
+      automatically selecting the #1 highest-scoring manifestation per frame (18 rows).
+    - 'bikegeo compare <frame>:all@all' (or 'bikegeo compare --all-configs <frame>'):
+      Compares all sizes and plausible fork/sag configurations for that frame (default: top 5).
+    - 'bikegeo compare all@rigid':
+      Compares all registered frames supporting rigid forks (default size, rigid fork).
+
+  Two-Stage Ranking & Pruning Funnel:
+    - Stage 1 (Optimal Sag): When expanding plausible forks and sags, each (Frame, Size, Fork)
+      selects its single highest-scoring sag point (breaking score ties toward 20% sag).
+    - Stage 2 (Top N per Frame): Keeps at most N manifestations per frame (--top-per-frame).
+      Defaults to 1 for all-frames comparison and 5 for specific frame @all sweeps.
+    - Stage 3 (Global Top Limit): Optionally restricts output to top M setups overall (--top).
 
   Full Replacement (Bare Specs):
     - Specifying arguments without '+' or '-' replaces all columns for that run.
@@ -299,6 +409,7 @@ Comparison State & Column Management:
     - By frame ID / substring: '-fenrir' or '-fenrir:all' removes all columns of that frame.
     - By frame size: '-fenrir:L' removes all columns of that frame in size L.
     - By specific fork/sag: '-fenrir:L@110mm' removes only that matching setup.
+    - All columns: '-all' removes all columns.
 
 Table Layout & Auto-Transposition:
   - Standard View (Columns): Each bike is a vertical column; metrics are rows.
@@ -307,7 +418,7 @@ Table Layout & Auto-Transposition:
     Ideal and Acceptable ranges appear as top header rows.
     Enabled with --transpose or --compact.
   - Automatic Transposition: When a comparison has more than 4 columns (such as
-    expanding ':all'), the table automatically renders in transposed mode unless
+    expanding ':all' or '--all'), the table automatically renders in transposed mode unless
     explicitly disabled with --transpose=false or --compact=false.
 
 Scoring & Ranking:
@@ -319,6 +430,11 @@ Scoring & Ranking:
   - Use --no-score to disable scoring and view columns in their original configuration order.
 
 Flags:
+  --all, -a                    Compare all registered frames across all plausible configurations
+  --all-configs                Expand all sizes and plausible fork/sag configurations for target frame(s)
+  --top-per-frame <N>          Maximum manifestations kept per frame (default: 1 for --all, 5 for @all, 0=all)
+  --per-frame <N>              Alias for --top-per-frame
+  --top <M>, --limit <M>       Maximum total comparison setups to display after ranking (0 for unlimited)
   --ideal <name>               Select ideal profile ('default' or 'idmatch')
   --saddle <name>              Select saddle model from catalog ('sqlab-610-ergolux' or 'berthoud-aspin-open')
   -compact, --compact          Render compact/transposed table (Columns as rows, Metrics as columns)
@@ -332,8 +448,9 @@ Global Flags:
 }
 
 // ParseComparisonSpecs parses a CLI token of the form "frame[:size][@mod1][@mod2]..."
-// If the size is specified as "all" (e.g. "frame:all" or "frame@all"), it expands to a ComparisonSetup
-// for every size in frame.GetSizes(). Otherwise, it returns a single-element slice.
+// If the frame token is "all", it expands across all registered frames in memory.
+// If the size is specified as "all", it expands across all declared sizes.
+// If the fork modifier is "@all", it expands across all plausible forks and sags.
 func ParseComparisonSpecs(
 	frames []model.FrameModel,
 	spec string,
@@ -341,24 +458,76 @@ func ParseComparisonSpecs(
 	parts := strings.Split(spec, "@")
 	frameToken := strings.TrimSpace(parts[0])
 
+	var explicitSize string
+	if strings.Contains(frameToken, ":") {
+		subParts := strings.SplitN(frameToken, ":", 2)
+		frameToken = subParts[0]
+		explicitSize = subParts[1]
+	}
+
+	if strings.EqualFold(frameToken, "all") {
+		var allSetups []model.ComparisonSetup
+		mods := parts[1:]
+		if len(mods) == 0 && (explicitSize == "" || strings.EqualFold(explicitSize, "all")) {
+			explicitSize = "all"
+			mods = []string{"all"}
+		}
+
+		for _, f := range frames {
+			setups, err := parseFrameSetups(f, explicitSize, mods)
+			if err != nil {
+				// Frame did not support the requested size or fork modifier; skip gracefully
+				continue
+			}
+			allSetups = append(allSetups, setups...)
+		}
+		if len(allSetups) == 0 {
+			return nil, fmt.Errorf("no frames matched comparison specification %q", spec)
+		}
+		return allSetups, nil
+	}
+
 	frame, implicitSize, err := ResolveFrameByToken(frames, frameToken)
 	if err != nil {
 		return nil, err
 	}
+	if explicitSize == "" {
+		explicitSize = implicitSize
+	}
+	return parseFrameSetups(*frame, explicitSize, parts[1:])
+}
 
+func parseFrameSetups(
+	frame model.FrameModel,
+	explicitSize string,
+	rawMods []string,
+) ([]model.ComparisonSetup, error) {
 	var forkToken string
 	var sagOverride *float64
-	sizeToken := implicitSize
+	var allForks bool
+	sizeToken := explicitSize
 
-	for _, rawMod := range parts[1:] {
+	for _, rawMod := range rawMods {
 		mod := strings.TrimSpace(rawMod)
 		if mod == "" {
 			continue
 		}
 		low := strings.ToLower(mod)
 
-		// 0. "all" modifier representing all sizes
+		// 0. "all", "all-forks", "all-sizes", "forks"
 		if low == "all" {
+			if sizeToken != "" {
+				allForks = true
+			} else {
+				sizeToken = "all"
+			}
+			continue
+		}
+		if low == "all-forks" || low == "forks" || low == "all-configs" {
+			allForks = true
+			continue
+		}
+		if low == "all-sizes" {
 			sizeToken = "all"
 			continue
 		}
@@ -374,7 +543,7 @@ func ParseComparisonSpecs(
 			clean := strings.TrimSuffix(strings.TrimPrefix(low, "sag="), "%")
 			val, err := strconv.ParseFloat(clean, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid sag modifier %q in %q", mod, spec)
+				return nil, fmt.Errorf("invalid sag modifier %q in %q", mod, frame.ID)
 			}
 			sagOverride = &val
 			continue
@@ -435,34 +604,245 @@ func ParseComparisonSpecs(
 		)
 	}
 
-	targetA2c, targetRake, _, displayLabel, err := canonicalizer.ResolveForkToken(forkToken, sagOverride, *frame)
-	if err != nil {
-		return nil, err
-	}
-
-	setup := model.ComparisonSetup{
-		FrameID:      frame.ID,
-		Size:         sizeToken,
-		A2cMm:        targetA2c,
-		RakeMm:       targetRake,
-		DisplayLabel: displayLabel,
-	}
-
-	if strings.EqualFold(setup.Size, "all") {
-		sizes := frame.GetSizes()
+	// Determine sizes
+	var sizes []string
+	if strings.EqualFold(sizeToken, "all") {
+		sizes = frame.GetSizes()
 		if len(sizes) == 0 {
 			return nil, fmt.Errorf("frame %q has no declared sizes", frame.ID)
 		}
-		var setups []model.ComparisonSetup
-		for _, sz := range sizes {
-			s := setup
+	} else if sizeToken != "" {
+		matched := ""
+		for _, sz := range frame.GetSizes() {
+			if strings.EqualFold(sz, sizeToken) {
+				matched = sz
+				break
+			}
+		}
+		if matched == "" {
+			return nil, fmt.Errorf(
+				"frame \"%s %s\" (%s) does not have size %q (available sizes: %s)",
+				frame.Manufacturer, frame.Model, frame.ID, sizeToken, strings.Join(frame.GetSizes(), ", "),
+			)
+		}
+		sizes = []string{matched}
+	} else {
+		sizes = []string{frame.GetDefaultSize()}
+	}
+
+	// Determine fork setups
+	var forkSetups []model.ComparisonSetup
+	if allForks {
+		expForks, err := canonicalizer.ExpandPlausibleForkSetups(frame, sagOverride)
+		if err != nil {
+			return nil, err
+		}
+		forkSetups = expForks
+	} else {
+		targetA2c, targetRake, _, displayLabel, err := canonicalizer.ResolveForkToken(forkToken, sagOverride, frame)
+		if err != nil {
+			return nil, err
+		}
+		sagVal := 0.0
+		if sagOverride != nil {
+			sagVal = *sagOverride
+		}
+		forkSetups = []model.ComparisonSetup{
+			{
+				FrameID:      frame.ID,
+				A2cMm:        targetA2c,
+				RakeMm:       targetRake,
+				DisplayLabel: displayLabel,
+				SagPct:       sagVal,
+				AutoExpanded: false,
+			},
+		}
+	}
+
+	var setups []model.ComparisonSetup
+	for _, sz := range sizes {
+		for _, fs := range forkSetups {
+			s := fs
 			s.Size = sz
 			setups = append(setups, s)
 		}
-		return setups, nil
 	}
 
-	return []model.ComparisonSetup{setup}, nil
+	return setups, nil
+}
+
+func pruneComparisonRows(
+	allFrames []model.FrameModel,
+	rows []model.CanonicalComparisonRow,
+	prof *ideal.Profile,
+	topPerFrame int,
+	topLimit int,
+) []model.CanonicalComparisonRow {
+	if len(rows) <= 1 {
+		return rows
+	}
+
+	frameMap := make(map[string]model.FrameModel, len(allFrames))
+	for _, f := range allFrames {
+		frameMap[strings.ToLower(f.ID)] = f
+	}
+
+	canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+
+	type scoredCandidate struct {
+		row   model.CanonicalComparisonRow
+		score scoring.Result
+		index int
+	}
+
+	candidates := make([]scoredCandidate, len(rows))
+	for i, r := range rows {
+		candidates[i] = scoredCandidate{
+			row:   r,
+			score: scoring.ScoreRow(r, prof),
+			index: i,
+		}
+	}
+
+	// Stage 1: For AutoExpanded rows, keep the optimal sag per (FrameID, Size, ForkType)
+	var stage1 []scoredCandidate
+	type sagGroupKey struct {
+		frameID  string
+		size     string
+		forkType string
+	}
+	sagGroups := make(map[sagGroupKey][]scoredCandidate)
+	var sagGroupOrder []sagGroupKey
+
+	for _, c := range candidates {
+		if !c.row.Setup.AutoExpanded {
+			stage1 = append(stage1, c)
+			continue
+		}
+		ft := strings.ToLower(canonicalizer.FormatForkType(c.row))
+		key := sagGroupKey{
+			frameID:  strings.ToLower(c.row.Setup.FrameID),
+			size:     strings.ToLower(c.row.Setup.Size),
+			forkType: ft,
+		}
+		if _, exists := sagGroups[key]; !exists {
+			sagGroupOrder = append(sagGroupOrder, key)
+		}
+		sagGroups[key] = append(sagGroups[key], c)
+	}
+
+	for _, k := range sagGroupOrder {
+		group := sagGroups[k]
+		if len(group) == 1 {
+			stage1 = append(stage1, group[0])
+			continue
+		}
+		best := group[0]
+		for _, cand := range group[1:] {
+			if cand.score.Total > best.score.Total+1e-4 {
+				best = cand
+			} else if math.Abs(cand.score.Total-best.score.Total) <= 1e-4 {
+				// Score tie-break:
+				// 1. Closest to 20% sag
+				distCand := math.Abs(cand.row.Setup.SagPct - 20.0)
+				distBest := math.Abs(best.row.Setup.SagPct - 20.0)
+				if distCand < distBest-1e-4 {
+					best = cand
+				} else if math.Abs(distCand-distBest) <= 1e-4 {
+					// 2. Lower sag (e.g. 15% before 25%)
+					if cand.row.Setup.SagPct < best.row.Setup.SagPct {
+						best = cand
+					}
+				}
+			}
+		}
+		stage1 = append(stage1, best)
+	}
+
+	// Stage 2: Top N manifestations per frame
+	stage2 := stage1
+	if topPerFrame > 0 {
+		frameGroups := make(map[string][]scoredCandidate)
+		var frameOrder []string
+		for _, c := range stage1 {
+			fid := strings.ToLower(c.row.Setup.FrameID)
+			if _, exists := frameGroups[fid]; !exists {
+				frameOrder = append(frameOrder, fid)
+			}
+			frameGroups[fid] = append(frameGroups[fid], c)
+		}
+
+		var filtered []scoredCandidate
+		for _, fid := range frameOrder {
+			group := frameGroups[fid]
+			f := frameMap[fid]
+			defSize := f.GetDefaultSize()
+			defFork := f.GetDefaultFork()
+
+			sort.SliceStable(group, func(i, j int) bool {
+				a, b := group[i], group[j]
+				if math.Abs(a.score.Total-b.score.Total) > 1e-4 {
+					return a.score.Total > b.score.Total
+				}
+				// Tie-breaking:
+				// 1. Frame's default size
+				aIsDefSize := strings.EqualFold(a.row.Setup.Size, defSize)
+				bIsDefSize := strings.EqualFold(b.row.Setup.Size, defSize)
+				if aIsDefSize != bIsDefSize {
+					return aIsDefSize
+				}
+				// 2. Frame's default fork A2C (within 1mm)
+				if defFork.A2cMm > 0 {
+					aIsDefFork := math.Abs(a.row.EffectiveA2c-defFork.A2cMm) < 1.0
+					bIsDefFork := math.Abs(b.row.EffectiveA2c-defFork.A2cMm) < 1.0
+					if aIsDefFork != bIsDefFork {
+						return aIsDefFork
+					}
+				}
+				// 3. Cockpit fit: smaller BestR
+				if a.row.Canonical.CockpitFitResult != nil && b.row.Canonical.CockpitFitResult != nil {
+					diffR := a.row.Canonical.CockpitFitResult.BestR - b.row.Canonical.CockpitFitResult.BestR
+					if math.Abs(diffR) > 1e-4 {
+						return diffR < 0
+					}
+				}
+				// 4. Rail offset: smaller absolute rail offset
+				if a.row.Canonical.SelectedBRP != nil && b.row.Canonical.SelectedBRP != nil {
+					diffRail := math.Abs(a.row.Canonical.SelectedBRP.RailOffsetMm) - math.Abs(b.row.Canonical.SelectedBRP.RailOffsetMm)
+					if math.Abs(diffRail) > 1e-4 {
+						return diffRail < 0
+					}
+				}
+				return a.index < b.index
+			})
+
+			limit := topPerFrame
+			if limit > len(group) {
+				limit = len(group)
+			}
+			filtered = append(filtered, group[:limit]...)
+		}
+		stage2 = filtered
+	}
+
+	// Always sort surviving candidates globally descending by total score
+	sort.SliceStable(stage2, func(i, j int) bool {
+		if math.Abs(stage2[i].score.Total-stage2[j].score.Total) > 1e-4 {
+			return stage2[i].score.Total > stage2[j].score.Total
+		}
+		return stage2[i].index < stage2[j].index
+	})
+
+	// Stage 3: Global Top Limit
+	if topLimit > 0 && len(stage2) > topLimit {
+		stage2 = stage2[:topLimit]
+	}
+
+	result := make([]model.CanonicalComparisonRow, len(stage2))
+	for i, c := range stage2 {
+		result[i] = c.row
+	}
+	return result
 }
 
 // ParseComparisonSpec parses a CLI token of the form "frame[:size][@mod1][@mod2]..."

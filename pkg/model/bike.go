@@ -1147,6 +1147,8 @@ type ComparisonSetup struct {
 	A2cMm        float64
 	RakeMm       float64
 	DisplayLabel string
+	SagPct       float64
+	AutoExpanded bool
 }
 
 // SavedComparisonState holds the active comparison configuration.
