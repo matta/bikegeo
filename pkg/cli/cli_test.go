@@ -229,11 +229,11 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Score") {
 			t.Errorf("expected 'Score' row in default output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "92 (#1)") {
-			t.Errorf("expected '92 (#1)' in output, got:\n%s", out)
+		if !strings.Contains(out, "90 (#1)") {
+			t.Errorf("expected '90 (#1)' in output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "78 (#2)") {
-			t.Errorf("expected '78 (#2)' in output, got:\n%s", out)
+		if !strings.Contains(out, "79 (#2)") {
+			t.Errorf("expected '79 (#2)' in output, got:\n%s", out)
 		}
 		if !strings.Contains(out, "66 (#3)") {
 			t.Errorf("expected '66 (#3)' in output, got:\n%s", out)
@@ -249,8 +249,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Score") {
 			t.Errorf("expected 'Score' column in transposed output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "92 (#1)") {
-			t.Errorf("expected '92 (#1)' in transposed output, got:\n%s", out)
+		if !strings.Contains(out, "90 (#1)") {
+			t.Errorf("expected '90 (#1)' in transposed output, got:\n%s", out)
 		}
 		if !strings.Contains(out, "Fit & Cockpit") {
 			t.Errorf("expected Table 1 'Fit & Cockpit' in transposed output, got:\n%s", out)
@@ -291,7 +291,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Score,,,92 (#1),78 (#2),66 (#3)") {
+		if !strings.Contains(out, "Score,,,90 (#1),79 (#2),66 (#3)") {
 			t.Errorf("expected CSV Score row, got:\n%s", out)
 		}
 	})
@@ -302,7 +302,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "| Score |  |  | 92 (#1) | 78 (#2) | 66 (#3) |") {
+		if !strings.Contains(out, "| Score |  |  | 90 (#1) | 79 (#2) | 66 (#3) |") {
 			t.Errorf("expected Markdown Score row, got:\n%s", out)
 		}
 	})

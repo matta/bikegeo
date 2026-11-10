@@ -84,6 +84,8 @@ var registry = []AttributeMeta{
 			return 0, false
 		},
 	},
+	// Deprecated: Seat-RC only measures horizontal distance from rear axle to bare seat tube, ignoring front-center.
+	// Use frontwt for fore/aft rider weight distribution and wheel centering.
 	{
 		ID:        "seat_to_rc",
 		Label:     "Seat-RC",
@@ -133,6 +135,23 @@ var registry = []AttributeMeta{
 		AboveWord: "stp",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.ActiveHta, true
+		},
+	},
+	{
+		ID:        "trail",
+		Label:     "Trail",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "qck",
+		AboveWord: "slw",
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.TrailMm > 0 {
+				return row.Canonical.TrailMm, true
+			}
+			if row.Baseline.TrailMm > 0 {
+				return row.Baseline.TrailMm, true
+			}
+			return 0, false
 		},
 	},
 	{
@@ -374,6 +393,9 @@ func LookupAttribute(id string) (AttributeMeta, bool) {
 	}
 	if norm == "idealsta" {
 		norm = "ideal_sta"
+	}
+	if norm == "trail_mm" || norm == "trail-mm" || norm == "trailmm" {
+		norm = "trail"
 	}
 	if norm == "cockpit_fit" || norm == "cockpit" || norm == "hb_fit_area" || norm == "clamp_fit" || norm == "hbclampfit" || norm == "clampfit" || norm == "oval_fits" || norm == "ovalfits" {
 		norm = "handlebar_clamp_fit"

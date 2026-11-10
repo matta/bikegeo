@@ -1,6 +1,7 @@
 package scoring
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -181,22 +182,31 @@ func TestDefaultCriteriaCurves(t *testing.T) {
 		t.Errorf("SpareVert(160) expected -100, got %f", sv.Eval(160))
 	}
 
-	// 4. Seat-RC
-	src := critMap["seat_to_rc"].Curve
-	if src.Eval(170) != -100 {
-		t.Errorf("Seat-RC(170) expected -100, got %f", src.Eval(170))
+	// 4. Front Wt %
+	fw := critMap["frontwt"].Curve
+	if fw.Eval(30) != -100 {
+		t.Errorf("FrontWt(30) expected -100, got %f", fw.Eval(30))
 	}
-	if src.Eval(200) != 0 {
-		t.Errorf("Seat-RC(200) expected 0, got %f", src.Eval(200))
+	if fw.Eval(32.8) != -100 {
+		t.Errorf("FrontWt(32.8) expected -100, got %f", fw.Eval(32.8))
 	}
-	if src.Eval(220) != 70 {
-		t.Errorf("Seat-RC(220) expected 70, got %f", src.Eval(220))
+	if fw.Eval(34.8) != 75 {
+		t.Errorf("FrontWt(34.8) expected 75, got %f", fw.Eval(34.8))
 	}
-	if src.Eval(235) != 100 {
-		t.Errorf("Seat-RC(235) expected 100, got %f", src.Eval(235))
+	if fw.Eval(35.8) != 100 {
+		t.Errorf("FrontWt(35.8) expected 100, got %f", fw.Eval(35.8))
 	}
-	if src.Eval(250) != 100 {
-		t.Errorf("Seat-RC(250) expected 100, got %f", src.Eval(250))
+	if fw.Eval(37.0) != 100 {
+		t.Errorf("FrontWt(37.0) expected 100, got %f", fw.Eval(37.0))
+	}
+	if fw.Eval(38.2) != 100 {
+		t.Errorf("FrontWt(38.2) expected 100, got %f", fw.Eval(38.2))
+	}
+	if fw.Eval(39.2) != 75 {
+		t.Errorf("FrontWt(39.2) expected 75, got %f", fw.Eval(39.2))
+	}
+	if fw.Eval(41.2) != -100 {
+		t.Errorf("FrontWt(41.2) expected -100, got %f", fw.Eval(41.2))
 	}
 
 	// 5. BB Drop
@@ -222,38 +232,96 @@ func TestDefaultCriteriaCurves(t *testing.T) {
 		t.Errorf("BBDrop(75) expected 93.75, got %f", bb.Eval(75))
 	}
 
-	// 6. HTA
-	hta := critMap["hta"].Curve
-	if hta.Eval(65) != -200 {
-		t.Errorf("HTA(65) expected -200, got %f", hta.Eval(65))
+	// 6. Trail
+	tr := critMap["trail"].Curve
+	if tr.Eval(70) != -100 {
+		t.Errorf("Trail(70) expected -100, got %f", tr.Eval(70))
 	}
-	if math.Abs(hta.Eval(67)-0) > 0.001 {
-		t.Errorf("HTA(67) expected 0, got %f", hta.Eval(67))
+	if tr.Eval(82) != -100 {
+		t.Errorf("Trail(82) expected -100, got %f", tr.Eval(82))
 	}
-	if hta.Eval(68) != 100 {
-		t.Errorf("HTA(68) expected 100, got %f", hta.Eval(68))
+	if tr.Eval(92) != 75 {
+		t.Errorf("Trail(92) expected 75, got %f", tr.Eval(92))
 	}
-	if math.Abs(hta.Eval(69)-0) > 0.001 {
-		t.Errorf("HTA(69) expected 0, got %f", hta.Eval(69))
+	if tr.Eval(98) != 100 {
+		t.Errorf("Trail(98) expected 100, got %f", tr.Eval(98))
 	}
-	if hta.Eval(70) != -200 {
-		t.Errorf("HTA(70) expected -200, got %f", hta.Eval(70))
+	if tr.Eval(102) != 100 {
+		t.Errorf("Trail(102) expected 100, got %f", tr.Eval(102))
 	}
+	if tr.Eval(106) != 100 {
+		t.Errorf("Trail(106) expected 100, got %f", tr.Eval(106))
+	}
+	if tr.Eval(109) != 75 {
+		t.Errorf("Trail(109) expected 75, got %f", tr.Eval(109))
+	}
+	if tr.Eval(119) != -100 {
+		t.Errorf("Trail(119) expected -100, got %f", tr.Eval(119))
+	}
+}
 
-	// 7. Front Wt %
-	fw := critMap["frontwt"].Curve
-	if fw.Eval(25) != -100 {
-		t.Errorf("FrontWt(25) expected -100, got %f", fw.Eval(25))
-	}
-	if fw.Eval(33) != 0 {
-		t.Errorf("FrontWt(33) expected 0, got %f", fw.Eval(33))
-	}
-	if fw.Eval(38) != 100 {
-		t.Errorf("FrontWt(38) expected 100, got %f", fw.Eval(38))
-	}
-	if fw.Eval(45) != 100 {
-		t.Errorf("FrontWt(45) expected 100, got %f", fw.Eval(45))
-	}
+// interviewCriteria preserves the historical criteria from the initial scoring interview.
+var interviewCriteria = []Criterion{
+	DefaultCriteria[0], // setback
+	DefaultCriteria[1], // aett
+	DefaultCriteria[2], // sparevert
+	{
+		ID:     "seat_to_rc",
+		Label:  "Seat-RC",
+		Unit:   "mm",
+		Weight: 4,
+		Metric: func(a model.BikeFitAnalysis) float64 { return a.SeatToRearCenter },
+		Curve: Curve{
+			{X: 200.0 - 200.0/7.0, Y: -100},
+			{X: 200, Y: 0},
+			{X: 220, Y: 70},
+			{X: 235, Y: 100},
+		},
+		Describe: func(v float64) string {
+			return fmt.Sprintf("Seat-RC %.0fmm", v)
+		},
+	},
+	DefaultCriteria[4], // bbdrop
+	{
+		ID:     "hta",
+		Label:  "HTA",
+		Unit:   "°",
+		Weight: 2,
+		Metric: func(a model.BikeFitAnalysis) float64 { return a.ActiveHta },
+		Curve: QuadraticCurve{
+			Low:   68,
+			High:  68,
+			WLow:  1.0,
+			WHigh: 1.0,
+			Floor: -200,
+			Peak:  100,
+		},
+		Describe: func(v float64) string {
+			d := v - 68.0
+			if math.Abs(d) < 0.25 {
+				return fmt.Sprintf("HTA %.1f° is on target", v)
+			}
+			if d > 0 {
+				return fmt.Sprintf("HTA %.1f° is %.1f° steeper than 68", v, d)
+			}
+			return fmt.Sprintf("HTA %.1f° is %.1f° slacker than 68", v, -d)
+		},
+	},
+	{
+		ID:     "frontwt",
+		Label:  "front weight",
+		Unit:   "%",
+		Weight: 1,
+		Metric: func(a model.BikeFitAnalysis) float64 { return a.WeightDistFrontPct },
+		Curve: Curve{
+			{X: 28, Y: -100},
+			{X: 33, Y: 0},
+			{X: 38, Y: 100},
+		},
+		Describe: func(v float64) string {
+			return fmt.Sprintf("front weight %.1f%%", v)
+		},
+	},
 }
 
 func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
@@ -396,7 +464,7 @@ func TestScoreAll_MatchesInterviewExpected(t *testing.T) {
 		input = append(input, item.a)
 	}
 
-	results := ScoreAll(input, DefaultCriteria)
+	results := ScoreAll(input, interviewCriteria)
 	for i, r := range results {
 		rounded := math.Round(r.Total)
 		if rounded != analyses[i].expected {
@@ -422,7 +490,7 @@ func TestExplain_GeneratesReadableOutput(t *testing.T) {
 				ActiveBbDrop:       65.9,
 				ActiveHta:          67.62,
 				WeightDistFrontPct: 35.4,
-			}, DefaultCriteria),
+			}, interviewCriteria),
 		},
 		{
 			Name: "Ritchey Ultra (XL)",
@@ -435,11 +503,11 @@ func TestExplain_GeneratesReadableOutput(t *testing.T) {
 				ActiveBbDrop:       59.0,
 				ActiveHta:          68.62,
 				WeightDistFrontPct: 35.2,
-			}, DefaultCriteria),
+			}, interviewCriteria),
 		},
 	}
 
-	expl := Explain(frames, DefaultCriteria)
+	expl := Explain(frames, interviewCriteria)
 	if len(expl.Losses) != 2 {
 		t.Fatalf("Expected 2 loss entries, got %d", len(expl.Losses))
 	}
@@ -466,6 +534,7 @@ func TestScore_PointsLost(t *testing.T) {
 		ActiveBbDrop:       70.0,
 		ActiveHta:          68.0,
 		WeightDistFrontPct: 38.0,
+		TrailMm:            102.0,
 	}
 	res := Score(analysis, DefaultCriteria)
 	for _, c := range res.Criteria {

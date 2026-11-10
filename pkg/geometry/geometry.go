@@ -752,6 +752,18 @@ func CalculateFrontCenter3D(reach, htl, htaDeg, rake, structuralA2c, bbDrop floa
 	return geom2d.Point2{X: fcHoriz, Y: -bbDrop}.DistanceToOrigin()
 }
 
+// CalculateTrail calculates ground trail in mm from head tube angle (deg),
+// fork rake/offset (mm), and loaded wheel radius (mm):
+//
+//	Trail = (wheelRadiusMm * cos(HTA) - rakeMm) / sin(HTA)
+func CalculateTrail(htaDeg, rakeMm, wheelRadiusMm float64) float64 {
+	if htaDeg <= 0 || htaDeg >= 90 || wheelRadiusMm <= 0 {
+		return 0
+	}
+	rad := ToRad(htaDeg)
+	return (wheelRadiusMm*math.Cos(rad) - rakeMm) / math.Sin(rad)
+}
+
 // BiomechanicalPosture models the rider's contact points and upper body posture on a baseline bike.
 type BiomechanicalPosture struct {
 	BackAngleDeg float64 // Torso angle from horizontal in degrees (hip to shoulder)
@@ -1163,6 +1175,7 @@ func AnalyzeBikeFitWithSaddle(
 		WheelbaseCalc:      weightDist.WheelbaseCalc,
 		ActiveChainstay:    Round(activeCS, 1),
 		ChainstayDesc:      csDesc,
+		TrailMm:            Round(CalculateTrail(activeHta, rake, bike.WheelRadiusMm()), 1),
 
 		Saddle:              saddle,
 		SitBoneSetbackMm:    deadCenterBRP.SitBoneSetbackMm,

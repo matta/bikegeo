@@ -1380,6 +1380,7 @@ func (a *App) renderComparisonMatrix(
 				"Reach",
 				"Stack",
 				"HTA",
+				"Trail",
 				"STA",
 				wrapHeader("BB Drop"),
 				wrapHeader("Chainstay"),
@@ -1405,6 +1406,10 @@ func (a *App) renderComparisonMatrix(
 				htaStr := "—"
 				if r.Canonical.ActiveHta > 0 {
 					htaStr = fmt.Sprintf("%.1f°", r.Canonical.ActiveHta)
+				}
+				trailStr := "—"
+				if r.Canonical.TrailMm > 0 {
+					trailStr = fmt.Sprintf("%.0f", r.Canonical.TrailMm)
 				}
 				staStr := "—"
 				if r.Canonical.ActiveSta > 0 {
@@ -1433,6 +1438,7 @@ func (a *App) renderComparisonMatrix(
 					reachStr,
 					stackStr,
 					htaStr,
+					trailStr,
 					staStr,
 					bbStr,
 					csStr,

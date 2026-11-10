@@ -16,8 +16,21 @@ func TestDefaultProfileValid(t *testing.T) {
 	if p.Name != "default" {
 		t.Errorf("Expected profile name 'default', got %q", p.Name)
 	}
-	if len(p.Attributes) != 13 {
-		t.Fatalf("Expected 13 attributes in default profile, got %d", len(p.Attributes))
+	if len(p.Attributes) != 14 {
+		t.Fatalf("Expected 14 attributes in default profile, got %d", len(p.Attributes))
+	}
+}
+
+func TestLookupAttribute_Trail(t *testing.T) {
+	for _, variant := range []string{"trail", "trail_mm", "trail-mm", "TRAIL"} {
+		meta, ok := LookupAttribute(variant)
+		if !ok {
+			t.Errorf("LookupAttribute(%q) failed", variant)
+			continue
+		}
+		if meta.Label != "Trail" || meta.Unit != "mm" {
+			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
+		}
 	}
 }
 
@@ -356,13 +369,15 @@ func TestEvaluate_DirectionalWordsAndBoundaryRounding(t *testing.T) {
 		{"sparevert", 100.4, "100 ✓"}, // Unrounded 0.4 above 100 rounds to 0 delta -> ✓
 		{"seatpost_extension", 221, "221 ~ 39 sht"},
 		{"seatpost_extension", 335, "335 ~ 15 lng"},
-		{"seat_to_rc", 221, "221 ~ 14 sht"},
+		{"seat_to_rc", 221, "221"}, // DisplayOnly attribute
 		{"bbdrop", 66, "66 ~ 4 hi"},
 		{"bbdrop", 77, "77 ~ 7 lo"},
-		{"hta", 67.7, "67.7 ~ 0.3° slk"},
-		{"hta", 69.7, "69.7 ✗ 0.7° stp"},
-		{"hta", 67.98, "68.0 ✓"}, // Unrounded -0.02° rounds to 0.0° -> ✓
-		{"frontwt", 35.0, "35.0 ✗ 3.0% lo"},
+		{"hta", 67.7, "67.7"}, // DisplayOnly attribute
+		{"frontwt", 35.0, "35.0 ~ 0.8% lo"},
+		{"trail", 83, "83 ✗ 15 qck"},
+		{"trail", 101, "101 ✓"},
+		{"trail", 108, "108 ~ 2 slw"},
+		{"trail", 115, "115 ✗ 9 slw"},
 	}
 
 	for _, tc := range cases {

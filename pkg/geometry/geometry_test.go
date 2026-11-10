@@ -797,3 +797,28 @@ func TestCalculateGeometricA2c_Errors(t *testing.T) {
 		t.Errorf("expected error for headTubeLength < 0, got nil")
 	}
 }
+
+func TestCalculateTrail(t *testing.T) {
+	// Formula: Trail = (R * cos(HTA) - rake) / sin(HTA)
+	// Example 1: 29x2.4" tire (R = 372.0mm), 68.0° HTA, 44.0mm rake
+	// cos(68°) ≈ 0.37460659, sin(68°) ≈ 0.92718385
+	// R * cos(68°) = 372 * 0.37460659 = 139.35365
+	// Numerator = 139.35365 - 44 = 95.35365
+	// Trail = 95.35365 / 0.92718385 = 102.84 mm
+	trail := geometry.CalculateTrail(68.0, 44.0, 372.0)
+	if math.Abs(trail-102.84) > 0.05 {
+		t.Errorf("Expected trail ~102.84, got %.2f", trail)
+	}
+
+	// Example 2: Fenrir rigid baseline (HTA = 67.7°, rake = 54.0mm, R = 372.0mm)
+	fenrirRigidTrail := geometry.CalculateTrail(67.7, 54.0, 372.0)
+	if math.Abs(fenrirRigidTrail-94.20) > 0.05 {
+		t.Errorf("Expected fenrir rigid trail ~94.20, got %.2f", fenrirRigidTrail)
+	}
+
+	// Example 3: Invalid input (0 or negative HTA)
+	zeroTrail := geometry.CalculateTrail(0.0, 44.0, 372.0)
+	if zeroTrail != 0.0 {
+		t.Errorf("Expected 0.0 for 0 HTA, got %.2f", zeroTrail)
+	}
+}

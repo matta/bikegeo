@@ -84,6 +84,13 @@ const (
 // DefaultGeoSlopMm is the default maximum allowed discrepancy (in mm) for geometric consistency checks.
 const DefaultGeoSlopMm = 1.0
 
+// DefaultTireWidthIn is the baseline tire width in inches for steering trail calculations.
+const DefaultTireWidthIn = 2.4
+
+// DefaultWheelRadius29Mm is the standard loaded radius (in mm) for a 29" wheel with a 2.4" tire
+// (ISO 622 bead seat radius 311.0mm + 2.4 * 25.4mm section height 60.96mm ≈ 372.0mm).
+const DefaultWheelRadius29Mm = 372.0
+
 // GeoSlopMm defines optional measure-specific validation tolerances (in mm) for a frame.
 // Any nil field defaults to DefaultGeoSlopMm (1.0mm).
 type GeoSlopMm struct {
@@ -280,6 +287,18 @@ func (b BikeGeometry) GetMaxChainstay() float64 {
 		return b.ChainstayRangeMm[1]
 	}
 	return 0
+}
+
+// WheelRadiusMm returns the wheel radius in mm based on frame WheelSize and baseline 2.4" tires.
+func (b BikeGeometry) WheelRadiusMm() float64 {
+	switch strings.TrimSpace(b.WheelSize) {
+	case "27.5", "650b", "650B":
+		return 353.0
+	case "26":
+		return 340.0
+	default:
+		return DefaultWheelRadius29Mm
+	}
 }
 
 // StemThicknessMm is the fixed axial height (in mm) of the stem clamp on the steerer tube.
@@ -1241,6 +1260,7 @@ type BikeFitAnalysis struct {
 	WheelbaseCalc      float64
 	ActiveChainstay    float64
 	ChainstayDesc      string
+	TrailMm            float64
 
 	// Cockpit BRP & HB Points and Saddle-Handlebar Metrics
 	Saddle              SaddleSpec
@@ -1272,6 +1292,7 @@ type BaselineMetrics struct {
 	Chainstay          float64
 	SeatToRearCenter   float64
 	SaddleHbMm         float64
+	TrailMm            float64
 }
 
 type CanonicalComparisonRow struct {

@@ -213,19 +213,21 @@ var DefaultCriteria = []Criterion{
 		},
 	},
 	{
-		ID:     "seat_to_rc",
-		Label:  "Seat-RC",
-		Unit:   "mm",
+		ID:     "frontwt",
+		Label:  "front weight",
+		Unit:   "%",
 		Weight: 4,
-		Metric: func(a model.BikeFitAnalysis) float64 { return a.SeatToRearCenter },
+		Metric: func(a model.BikeFitAnalysis) float64 { return a.WeightDistFrontPct },
 		Curve: Curve{
-			{X: 200.0 - 200.0/7.0, Y: -100},
-			{X: 200, Y: 0},
-			{X: 220, Y: 70},
-			{X: 235, Y: 100},
+			{X: 32.8, Y: -100},
+			{X: 34.8, Y: 75},
+			{X: 35.8, Y: 100},
+			{X: 38.2, Y: 100},
+			{X: 39.2, Y: 75},
+			{X: 41.2, Y: -100},
 		},
 		Describe: func(v float64) string {
-			return fmt.Sprintf("Seat-RC %.0fmm", v)
+			return fmt.Sprintf("front weight %.1f%%", v)
 		},
 	},
 	{
@@ -254,43 +256,21 @@ var DefaultCriteria = []Criterion{
 		},
 	},
 	{
-		ID:     "hta",
-		Label:  "HTA",
-		Unit:   "°",
+		ID:     "trail",
+		Label:  "trail",
+		Unit:   "mm",
 		Weight: 2,
-		Metric: func(a model.BikeFitAnalysis) float64 { return a.ActiveHta },
-		Curve: QuadraticCurve{
-			Low:   68,
-			High:  68,
-			WLow:  1.0,
-			WHigh: 1.0,
-			Floor: -200,
-			Peak:  100,
-		},
-		Describe: func(v float64) string {
-			d := v - 68.0
-			if math.Abs(d) < 0.25 {
-				return fmt.Sprintf("HTA %.1f° is on target", v)
-			}
-			if d > 0 {
-				return fmt.Sprintf("HTA %.1f° is %.1f° steeper than 68", v, d)
-			}
-			return fmt.Sprintf("HTA %.1f° is %.1f° slacker than 68", v, -d)
-		},
-	},
-	{
-		ID:     "frontwt",
-		Label:  "front weight",
-		Unit:   "%",
-		Weight: 1,
-		Metric: func(a model.BikeFitAnalysis) float64 { return a.WeightDistFrontPct },
+		Metric: func(a model.BikeFitAnalysis) float64 { return a.TrailMm },
 		Curve: Curve{
-			{X: 28, Y: -100},
-			{X: 33, Y: 0},
-			{X: 38, Y: 100},
+			{X: 82, Y: -100},
+			{X: 92, Y: 75},
+			{X: 98, Y: 100},
+			{X: 106, Y: 100},
+			{X: 109, Y: 75},
+			{X: 119, Y: -100},
 		},
 		Describe: func(v float64) string {
-			return fmt.Sprintf("front weight %.1f%%", v)
+			return fmt.Sprintf("trail %.0fmm", v)
 		},
 	},
 }
@@ -842,6 +822,20 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 			target = *spec.Ideal.Max
 		}
 		return fmt.Sprintf("%s %.1f° is %.1f° steeper than %.1f", label, val, dist, target)
+
+	case "trail":
+		if dist < 0 {
+			target := 98.0
+			if spec.Ideal != nil && spec.Ideal.Min != nil {
+				target = *spec.Ideal.Min
+			}
+			return fmt.Sprintf("Trail %.0fmm is %.0fmm quicker than the %.0fmm ideal", val, -dist, target)
+		}
+		target := 106.0
+		if spec.Ideal != nil && spec.Ideal.Max != nil {
+			target = *spec.Ideal.Max
+		}
+		return fmt.Sprintf("Trail %.0fmm is %.0fmm slower than the %.0fmm ideal", val, dist, target)
 
 	case "bbdrop":
 		if dist < 0 {

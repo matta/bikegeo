@@ -601,6 +601,7 @@ func CanonicalizeBikes(
 			Chainstay:          geometry.Round(activeCS, 1),
 			SeatToRearCenter:   geometry.Round(baseRearCenter-baselineSetback, 1),
 			SaddleHbMm:         baseHB.SaddleHbMm,
+			TrailMm:            geometry.Round(geometry.CalculateTrail(bike.HtaDeg, bike.GetCadRake(), bike.WheelRadiusMm()), 1),
 		}
 
 		canonical, err := geometry.AnalyzeBikeFitWithSaddle(

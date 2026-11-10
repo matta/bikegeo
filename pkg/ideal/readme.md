@@ -91,11 +91,16 @@ Built directly around the idmatch Bikelab report:
 - `saddle_hb`: Display-only with target `700 mm` (`ideal: 695–705, acceptable: 685–715`)
 - `saddle_hb_drop`: Display-only with target `13 mm` (`ideal: 8–18, acceptable: 0–26`)
 - `seatpost_extension`: Target `250–310 mm` (`acceptable: 210–340, edge_score: 75, falloff: 25`, weight: 4) — Proxy for standover clearance and seatpost/dropper fitment: `SaddleHeightMm - SeatTubeLength`.
+- `frontwt`: Target `35.8–38.2%` (`acceptable: 34.8–39.2%, edge_score: 75, falloff: 2.0`, weight: 4) — Fore/aft rider centering between axles based on modeled target pedaling CoG relative to BB.
 - `bbdrop`: Target `70 mm` (`acceptable: 60–80, edge_score: 75, falloff: 10`, weight: 3)
-- `hta`: Target `68.0–69.0°` (`acceptable: 67.5–69.5°, edge_score: 75, falloff: 0.5`, weight: 2)
-- `frontwt`: Target `≥38.0%` (weight: 1)
+- `trail`: Target `98–106 mm` (`acceptable: 92–109 mm, edge_score: 75, falloff: 10`, weight: 2) — Steering feel ground trail based on active HTA, fork rake, and 29x2.4" baseline tires (372mm wheel radius).
+- `hta`: Display-only (`ActiveHta`)
+- `seat_to_rc`: Display-only (deprecated in favor of `frontwt`)
 
-### `data/ideals/default.json` (Legacy Profile)
+### `default` (Legacy Profile)
 Approximation of baseline scoring:
 - `saddle_height_mm`: `780`
-- Includes `seatpost_extension`: Target `260–320 mm` (`acceptable: 220–350, edge_score: 75, falloff: 25`, weight: 4). Legacy seat-tube metrics (`setback`, `aett`, `sparevert`, `spareaxial`, `seat_to_rc`) measure to the bare seat tube centerline and are deprecated in favor of BRP-referenced metrics.
+- Includes `seatpost_extension`: Target `260–320 mm` (`acceptable: 220–350, edge_score: 75, falloff: 25`, weight: 4).
+- `frontwt`: Target `35.8–38.2%` (`acceptable: 34.8–39.2%, edge_score: 75, falloff: 2.0`, weight: 4).
+- `trail`: Target `98–106 mm` (`acceptable: 92–109 mm, edge_score: 75, falloff: 10`, weight: 2).
+- Legacy seat-tube metrics (`setback`, `aett`, `sparevert`, `spareaxial`, `seat_to_rc`) measure to the bare seat tube centerline and are deprecated in favor of BRP-referenced metrics.
