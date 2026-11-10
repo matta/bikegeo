@@ -49,10 +49,15 @@ func (a *App) runSaddles(args []string) int {
 		"Rail -> BRP (70mm)",
 		"Rail -> Sit Bones",
 		"BRP -> Sit Bones",
+		"Step Elevation",
 	}
 	var rows [][]string
 
 	for _, s := range saddles {
+		stepStr := "0.0 mm"
+		if s.SitBonesElevationMm > 0 {
+			stepStr = fmt.Sprintf("+%.1f mm", s.SitBonesElevationMm)
+		}
 		rows = append(rows, []string{
 			s.ID,
 			s.Name,
@@ -60,6 +65,7 @@ func (a *App) runSaddles(args []string) int {
 			fmt.Sprintf("+%.1f mm", s.RailCenterToBrpMm),
 			fmt.Sprintf("%.1f mm", s.RailCenterToSitBonesMm),
 			fmt.Sprintf("%.1f mm", s.DeltaBrpToSitBonesMm()),
+			stepStr,
 		})
 	}
 
@@ -132,9 +138,13 @@ func (a *App) runSaddles(args []string) int {
 		var compRows [][]string
 
 		for _, p := range posts {
-			resSQ := geometry.CalculateIdealSeatTubeAngle(sqlab, sitBoneSetback, saddleHeight, p.setback, p.name, p.clamp)
-			resAspin := geometry.CalculateIdealSeatTubeAngle(aspin, sitBoneSetback, saddleHeight, p.setback, p.name, p.clamp)
-			resSLR := geometry.CalculateIdealSeatTubeAngle(slr, sitBoneSetback, saddleHeight, p.setback, p.name, p.clamp)
+			shSQ := sqlab.TranslateSaddleHeightFromRef(sqlab, saddleHeight, 219.0)
+			shAspin := aspin.TranslateSaddleHeightFromRef(sqlab, saddleHeight, 219.0)
+			shSLR := slr.TranslateSaddleHeightFromRef(sqlab, saddleHeight, 219.0)
+
+			resSQ := geometry.CalculateIdealSeatTubeAngle(sqlab, sitBoneSetback, shSQ, p.setback, p.name, p.clamp)
+			resAspin := geometry.CalculateIdealSeatTubeAngle(aspin, sitBoneSetback, shAspin, p.setback, p.name, p.clamp)
+			resSLR := geometry.CalculateIdealSeatTubeAngle(slr, sitBoneSetback, shSLR, p.setback, p.name, p.clamp)
 
 			safeSLR := fmt.Sprintf("%.1f°–%.1f°", resSLR.MinStaDeg, resSLR.MaxStaDeg)
 			if p.clamp > slr.RailLengthMm {
@@ -261,11 +271,12 @@ func (a *App) runSaddles(args []string) int {
 		}
 		var staRows [][]string
 
+		sh := s.TranslateSaddleHeightFromRef(sqlab, saddleHeight, 219.0)
 		for _, p := range posts {
 			res := geometry.CalculateIdealSeatTubeAngle(
 				s,
 				sitBoneSetback,
-				saddleHeight,
+				sh,
 				p.setback,
 				p.name,
 				p.clamp,
@@ -282,8 +293,8 @@ func (a *App) runSaddles(args []string) int {
 		}
 
 		staTitle := fmt.Sprintf("Ideal Seat Tube Angle: %s", s.Name)
-		staSubtitle := fmt.Sprintf("Saddle Height: %.0fmm | Target Sit Bone Setback: %.0fmm behind BB (BRP Setback: %.0fmm)",
-			saddleHeight, sitBoneSetback, s.BrpSetbackFromSitBones(sitBoneSetback))
+		staSubtitle := fmt.Sprintf("Equivalent Saddle Height: %.0fmm | Target Sit Bone Setback: %.0fmm behind BB (BRP Setback: %.0fmm)",
+			sh, sitBoneSetback, s.BrpSetbackFromSitBones(sitBoneSetback))
 
 		if err := RenderOutput(a.Out, a.Format, staTitle, staSubtitle, staHeaders, staRows); err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)

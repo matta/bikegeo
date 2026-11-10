@@ -551,8 +551,8 @@ func TestSaddlesCommand(t *testing.T) {
 			"SLR Boost Ideal STA",
 			"Safe Range (SLR Boost)",
 			"72.3°",
-			"71.8°",
-			"73.5°",
+			"71.7°",
+			"73.3°",
 			"72.7°",
 			"±10.4 mm",
 		}

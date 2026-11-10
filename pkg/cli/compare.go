@@ -924,9 +924,12 @@ type scoredRowItem struct {
 }
 
 func adaptProfileAttributeForSaddle(attr ideal.AttributeSpec, saddle model.SaddleSpec) ideal.AttributeSpec {
+	if saddle.ID == "" || saddle.ID == "sqlab-610-ergolux" {
+		return attr
+	}
+	refSQ := model.ReferenceIdmatchSaddle()
 	lowID := strings.ToLower(attr.ID)
-	if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && saddle.ID != "" && saddle.ID != "sqlab-610-ergolux" {
-		refSQ := model.ReferenceIdmatchSaddle()
+	if lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" {
 		copied := attr
 		if attr.Ideal != nil {
 			idCopy := *attr.Ideal
@@ -949,6 +952,38 @@ func adaptProfileAttributeForSaddle(attr ideal.AttributeSpec, saddle model.Saddl
 			if accCopy.Max != nil {
 				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*accCopy.Max))
 				accCopy.Max = &val
+			}
+			copied.Acceptable = &accCopy
+		}
+		return copied
+	}
+	if lowID == "saddle_hb" || lowID == "saddlehb" {
+		copied := attr
+		if attr.Ideal != nil {
+			idCopy := *attr.Ideal
+			if idCopy.Min != nil {
+				tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *idCopy.Min, 3.0)
+				tDist = math.Round(tDist*10) / 10
+				idCopy.Min = &tDist
+			}
+			if idCopy.Max != nil {
+				tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *idCopy.Max, 3.0)
+				tDist = math.Round(tDist*10) / 10
+				idCopy.Max = &tDist
+			}
+			copied.Ideal = &idCopy
+		}
+		if attr.Acceptable != nil {
+			accCopy := *attr.Acceptable
+			if accCopy.Min != nil {
+				tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *accCopy.Min, 3.0)
+				tDist = math.Round(tDist*10) / 10
+				accCopy.Min = &tDist
+			}
+			if accCopy.Max != nil {
+				tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *accCopy.Max, 3.0)
+				tDist = math.Round(tDist*10) / 10
+				accCopy.Max = &tDist
 			}
 			copied.Acceptable = &accCopy
 		}

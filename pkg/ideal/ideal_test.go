@@ -361,7 +361,7 @@ func TestEvaluate_DirectionalWordsAndBoundaryRounding(t *testing.T) {
 		{"seatpost_extension", 335, "335 ~ 25 lng"},
 		{"seat_to_rc", 221, "221"}, // DisplayOnly attribute
 		{"sparevert", 60, "60"},    // DisplayOnly attribute
-		{"sparevert", 60, "60"},     // DisplayOnly attribute
+		{"sparevert", 60, "60"},    // DisplayOnly attribute
 		{"bbdrop", 66, "66 ~ 4 hi"},
 		{"bbdrop", 77, "77 ~ 7 lo"},
 		{"hta", 67.7, "67.7"}, // DisplayOnly attribute

@@ -1,10 +1,13 @@
 package canonicalizer_test
 
 import (
+	"math"
 	"testing"
 
 	"bikegeo/pkg/canonicalizer"
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/frames"
+	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 )
 
@@ -255,4 +258,63 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestPelvicAndCockpitInvarianceAcrossSaddles(t *testing.T) {
+	frame, err := frames.GetFrameByID("salsa-fargo")
+	if err != nil {
+		t.Fatalf("failed to get frame: %v", err)
+	}
+
+	setup := model.ComparisonSetup{
+		FrameID: frame.ID,
+		Size:    "L",
+		A2cMm:   483,
+		RakeMm:  51,
+	}
+	prof := ideal.IdmatchProfile()
+
+	sqlab, _ := catalog.GetSaddle("sqlab-610-ergolux")
+	aspin, _ := catalog.GetSaddle("berthoud-aspin-open")
+
+	// 1. Resolve row with SQlab 610
+	riderSQ := model.DefaultRiderProfile()
+	riderSQ.SaddleHeightMm = 746.0
+	rowSQ, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, setup, riderSQ, sqlab)
+	if err != nil {
+		t.Fatalf("Failed to resolve SQlab row: %v", err)
+	}
+	rowsSQ := []model.CanonicalComparisonRow{rowSQ}
+	canonicalizer.ApplyIdealCockpitTargets(rowsSQ, prof)
+
+	// 2. Resolve row with Berthoud Aspin
+	riderAspin := model.DefaultRiderProfile()
+	riderAspin.SaddleHeightMm = 746.0 // Reference idmatch SH
+	rowAspin, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, setup, riderAspin, aspin)
+	if err != nil {
+		t.Fatalf("Failed to resolve Aspin row: %v", err)
+	}
+	rowsAspin := []model.CanonicalComparisonRow{rowAspin}
+	canonicalizer.ApplyIdealCockpitTargets(rowsAspin, prof)
+
+	// Verify Sit Bone Setback is invariant
+	if math.Abs(rowsSQ[0].Canonical.SitBoneSetbackMm-rowsAspin[0].Canonical.SitBoneSetbackMm) > 1.5 {
+		t.Errorf("Expected identical sit bone setback across saddles: SQlab=%.1f, Aspin=%.1f",
+			rowsSQ[0].Canonical.SitBoneSetbackMm, rowsAspin[0].Canonical.SitBoneSetbackMm)
+	}
+
+	// Verify Selected HB point (HbX, HbY) and sit-bone-relative SaddleHbDropMm are invariant in space
+	if rowsSQ[0].Canonical.SelectedHB == nil || rowsAspin[0].Canonical.SelectedHB == nil {
+		t.Fatalf("Expected non-nil SelectedHB")
+	}
+	hbSQ := *rowsSQ[0].Canonical.SelectedHB
+	hbAspin := *rowsAspin[0].Canonical.SelectedHB
+	if math.Abs(hbSQ.HbX-hbAspin.HbX) > 1.0 || math.Abs(hbSQ.HbY-hbAspin.HbY) > 1.0 {
+		t.Errorf("Expected identical SelectedHB (HbX, HbY): SQlab=(%.1f, %.1f), Aspin=(%.1f, %.1f)",
+			hbSQ.HbX, hbSQ.HbY, hbAspin.HbX, hbAspin.HbY)
+	}
+	if math.Abs(hbSQ.SaddleHbDropMm-hbAspin.SaddleHbDropMm) > 0.5 {
+		t.Errorf("Expected identical sit-bone-relative SaddleHbDropMm across saddles: SQlab=%.1f, Aspin=%.1f",
+			hbSQ.SaddleHbDropMm, hbAspin.SaddleHbDropMm)
+	}
 }

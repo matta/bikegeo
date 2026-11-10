@@ -127,18 +127,15 @@ func AnalyzeSaddleSwap(
 
 	// 1. Baseline Coordinates (Source Saddle clamped at dead-center 0.0mm)
 	srcBrpSetback := source.BrpSetbackFromSitBones(sitBoneSetbackMm)
-	srcBrpY := math.Sqrt(math.Max(0, saddleHeightMm*saddleHeightMm-srcBrpSetback*srcBrpSetback))
-	srcBrp := geom2d.Point2{X: -srcBrpSetback, Y: srcBrpY}
+	srcBrp := source.BrpPointAtHeightAndSetback(saddleHeightMm, srcBrpSetback)
+	srcBrpY := srcBrp.Y
 	srcBrpAngle := geom2d.Point2{X: srcBrpSetback, Y: srcBrpY}.PolarAngleDeg()
 
 	// Pelvic Coordinates in Sagittal 2D Plane:
-	// Sit position accounts for source saddle step elevation above the 70mm BRP horizontal plane.
-	baseSitBone := geom2d.Point2{
-		X: -sitBoneSetbackMm,
-		Y: srcBrp.Y + source.SitBonesElevationMm,
-	}
+	// Sit position is translated from BRP via source saddle's 2D BRP-to-SitBones vector.
+	baseSitBone := source.SitBonePointFromBrp(srcBrp)
 	baseLegExt := baseSitBone.DistanceToOrigin()
-	baseStaDeg := geom2d.Point2{X: sitBoneSetbackMm, Y: baseSitBone.Y}.PolarAngleDeg()
+	baseStaDeg := geom2d.Point2{X: -baseSitBone.X, Y: baseSitBone.Y}.PolarAngleDeg()
 
 	hbDeltaX := math.Sqrt(math.Max(0, hbDistanceMm*hbDistanceMm-hbDropMm*hbDropMm))
 	hb := geom2d.Point2{
@@ -148,11 +145,8 @@ func AnalyzeSaddleSwap(
 	baseCockpit := hb.DistanceTo(baseSitBone)
 
 	// 2. Target Saddle Equivalent Coordinates (Preserving Exact 2D Pelvic Position):
-	// To hold the rider's pelvis invariant at (baseSitBone.X, baseSitBone.Y):
-	tgtEquivBrp := geom2d.Point2{
-		X: baseSitBone.X + targetSpan,
-		Y: baseSitBone.Y - target.SitBonesElevationMm,
-	}
+	// To hold the rider's pelvis invariant at baseSitBone:
+	tgtEquivBrp := target.BrpPointFromSitBones(baseSitBone)
 	tgtEquivBrpSetback := -tgtEquivBrp.X
 	tgtEquivSaddleHeight := tgtEquivBrp.DistanceToOrigin()
 	tgtEquivBrpAngle := geom2d.Point2{X: tgtEquivBrpSetback, Y: tgtEquivBrp.Y}.PolarAngleDeg()
@@ -164,21 +158,17 @@ func AnalyzeSaddleSwap(
 	brpHeightShift := brpDeltaY
 	brpSaddleHeightShift := tgtEquivSaddleHeight - saddleHeightMm
 	brpDeltaAngle := tgtEquivBrpAngle - srcBrpAngle
-	stepElevationDelta := target.SitBonesElevationMm - source.SitBonesElevationMm
+	stepElevationDelta := target.BrpToSitBonesVec().Y - source.BrpToSitBonesVec().Y
 
 	// Clamp window for target saddle
 	tMinClamp, tMaxClamp := target.ClampWindowMm(clampLengthMm)
 
 	// 3. Naive BRP Alignment:
-	// Naively matches 70mm BRP caliper setback and radial saddle height:
+	// Naively matches 70mm BRP caliper setback and radial saddle height (target BRP placed at srcBrp):
+	naiveSitBone := target.SitBonePointFromBrp(srcBrp)
 	naiveBrpSetback := srcBrpSetback
-	naiveSitBoneSetback := target.SitBoneSetbackFromBrp(naiveBrpSetback)
+	naiveSitBoneSetback := -naiveSitBone.X
 	naiveSitBoneDelta := naiveSitBoneSetback - sitBoneSetbackMm
-
-	naiveSitBone := geom2d.Point2{
-		X: -naiveSitBoneSetback,
-		Y: srcBrp.Y + target.SitBonesElevationMm,
-	}
 	naiveSitBoneDeltaY := naiveSitBone.Y - baseSitBone.Y
 	naiveLegExt := naiveSitBone.DistanceToOrigin()
 	naiveStaDeg := geom2d.Point2{X: naiveSitBoneSetback, Y: naiveSitBone.Y}.PolarAngleDeg()
@@ -240,7 +230,7 @@ func AnalyzeSaddleSwap(
 		pelvicMargin = math.Min(pelvicClampOffset-tMinClamp, tMaxClamp-pelvicClampOffset)
 	}
 
-	targetIdealSTA := target.IdealSeatTubeAngle(sitBoneSetbackMm, saddleHeightMm, seatpostSetbackMm)
+	targetIdealSTA := target.IdealSeatTubeAngle(sitBoneSetbackMm, tgtEquivSaddleHeight, seatpostSetbackMm)
 
 	pelvicOutcome := SwapFitOutcome{
 		Mode:                    "True Pelvic Alignment",
@@ -288,7 +278,7 @@ func AnalyzeSaddleSwap(
 	var hwRows []HardwareSwapRow
 	for _, p := range posts {
 		resSrc := CalculateIdealSeatTubeAngle(source, sitBoneSetbackMm, saddleHeightMm, p.setback, p.name, model.DefaultSeatpostClampLengthMm)
-		resTgt := CalculateIdealSeatTubeAngle(target, sitBoneSetbackMm, saddleHeightMm, p.setback, p.name, model.DefaultSeatpostClampLengthMm)
+		resTgt := CalculateIdealSeatTubeAngle(target, sitBoneSetbackMm, tgtEquivSaddleHeight, p.setback, p.name, model.DefaultSeatpostClampLengthMm)
 
 		feasible30 := pelvicClampOffset >= tMin30-0.001 && pelvicClampOffset <= tMax30+0.001
 		feasible45 := target.RailLengthMm >= model.DropBestClampLengthMm &&

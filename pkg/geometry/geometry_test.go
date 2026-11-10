@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geom2d"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
@@ -820,5 +821,70 @@ func TestCalculateTrail(t *testing.T) {
 	zeroTrail := geometry.CalculateTrail(0.0, 44.0, 372.0)
 	if zeroTrail != 0.0 {
 		t.Errorf("Expected 0.0 for 0 HTA, got %.2f", zeroTrail)
+	}
+}
+
+func TestSaddleElevationAndTranslationMethods(t *testing.T) {
+	sqlab, _ := catalog.GetSaddle("sqlab-610-ergolux")
+	aspin, _ := catalog.GetSaddle("berthoud-aspin-open")
+	slr, _ := catalog.GetSaddle("selle-italia-slr-boost-superflow-l3")
+
+	// 1. SitSurfaceHeightFromBrpHeight
+	// SQlab 610: at 746mm SH and 219mm setback:
+	// brpY = sqrt(746^2 - 219^2) = 713.147mm
+	// sitPlaneY = 713.147 + 10.0 = 723.147mm
+	// sitSurfaceHeight = hypot(219, 723.147) = 755.56mm
+	sitSurfSQ := sqlab.SitSurfaceHeightFromBrpHeight(746.0, 219.0)
+	if math.Abs(sitSurfSQ-755.56) > 0.1 {
+		t.Errorf("Expected SQlab sit surface height ~755.56mm, got %.2fmm", sitSurfSQ)
+	}
+
+	// Flat saddle (Aspin): at 751.37mm and 204mm setback, step is 0:
+	// sitSurfaceHeight == 751.37mm
+	sitSurfAspin := aspin.SitSurfaceHeightFromBrpHeight(751.37, 204.0)
+	if math.Abs(sitSurfAspin-751.37) > 0.1 {
+		t.Errorf("Expected Aspin sit surface height ~751.37mm, got %.2fmm", sitSurfAspin)
+	}
+
+	// 2. TranslateSaddleHeightFromRef
+	// SQlab (ref) -> Berthoud Aspin
+	shAspin := aspin.TranslateSaddleHeightFromRef(sqlab, 746.0, 219.0)
+	if math.Abs(shAspin-751.37) > 0.1 {
+		t.Errorf("Expected translated Aspin SH ~751.37mm, got %.2fmm", shAspin)
+	}
+
+	// SQlab (ref) -> SLR Boost
+	shSLR := slr.TranslateSaddleHeightFromRef(sqlab, 746.0, 219.0)
+	if math.Abs(shSLR-752.73) > 0.1 {
+		t.Errorf("Expected translated SLR Boost SH ~752.73mm, got %.2fmm", shSLR)
+	}
+
+	// 3. 2D Vector Translation (BrpToSitBonesVec, SitBonePointFromBrp, BrpPointFromSitBones, TranslateBrpFromRef)
+	sqVec := sqlab.BrpToSitBonesVec()
+	if sqVec.X != -73.0 || sqVec.Y != 10.0 {
+		t.Errorf("Expected SQlab BrpToSitBonesVec (-73.0, 10.0), got (%.1f, %.1f)", sqVec.X, sqVec.Y)
+	}
+	aspinVec := aspin.BrpToSitBonesVec()
+	if aspinVec.X != -88.0 || aspinVec.Y != 0.0 {
+		t.Errorf("Expected Aspin BrpToSitBonesVec (-88.0, 0.0), got (%.1f, %.1f)", aspinVec.X, aspinVec.Y)
+	}
+	refBrp := sqlab.BrpPointAtHeightAndSetback(746.0, 219.0)
+	sitBonePt := sqlab.SitBonePointFromBrp(refBrp)
+	if math.Abs(sitBonePt.X-(-292.0)) > 0.1 || math.Abs(sitBonePt.Y-723.15) > 0.1 {
+		t.Errorf("Expected SitBonePoint (-292.0, 723.15), got (%.2f, %.2f)", sitBonePt.X, sitBonePt.Y)
+	}
+	aspinBrp := aspin.TranslateBrpFromRef(sqlab, refBrp)
+	if math.Abs(aspinBrp.X-(-204.0)) > 0.1 || math.Abs(aspinBrp.Y-723.15) > 0.1 {
+		t.Errorf("Expected translated Aspin BRP (-204.0, 723.15), got (%.2f, %.2f)", aspinBrp.X, aspinBrp.Y)
+	}
+
+	// 4. TranslateHbDistanceFromRef & Sit-Bone-Relative HB Rise
+	// From SQlab at 746mm SH, 219mm setback, 700mm HB dist, +3mm rise from sit bones (+13mm from SQlab BRP):
+	// Invariant HB target in space is (+480.9mm, 726.1mm).
+	// Aspin BRP is at (-204.0mm, 723.1mm).
+	// Distance = hypot(480.88 - (-204.0), 726.15 - 723.15) = hypot(684.88, 3.0) = 684.89mm.
+	tDist := aspin.TranslateHbDistanceFromRef(sqlab, 746.0, 219.0, 700.0, 3.0)
+	if math.Abs(tDist-684.89) > 0.1 {
+		t.Errorf("Expected translated Aspin HB dist ~684.89mm, got %.2fmm", tDist)
 	}
 }

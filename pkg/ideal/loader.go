@@ -22,7 +22,7 @@ func IdmatchProfile() *Profile {
 				Floor:      Float(-200),
 			},
 			DisplayOnlyWithTarget("saddle_hb", Between(695, 705), Between(685, 715), Float(75), FalloffBoth(15, 15)),
-			DisplayOnlyWithTarget("saddle_hb_drop", Between(8, 18), Between(0, 26), Float(75), FalloffBoth(10, 10)),
+			DisplayOnlyWithTarget("saddle_hb_drop", Between(-2, 8), Between(-10, 16), Float(75), FalloffBoth(10, 10)),
 			DisplayOnly("best_stem"),
 			{
 				ID:         "handlebar_clamp_fit",

@@ -139,8 +139,8 @@ func TestAnalyzeSaddleSwap_SQlabToBerthoudAspin(t *testing.T) {
 	if !saggedRow.IsFeasible30Mm {
 		t.Errorf("Expected 30mm clamp to be feasible for Aspin pelvic fit on 11mm post")
 	}
-	if math.Abs(saggedRow.StaDeltaDeg-(-0.44)) > 0.05 && math.Abs(saggedRow.StaDeltaDeg-(-0.45)) > 0.05 {
-		t.Errorf("Expected STA delta ~ -0.44° or -0.45°, got %.2f°", saggedRow.StaDeltaDeg)
+	if math.Abs(saggedRow.StaDeltaDeg-(-0.31)) > 0.05 {
+		t.Errorf("Expected STA delta ~ -0.31°, got %.2f°", saggedRow.StaDeltaDeg)
 	}
 }
 

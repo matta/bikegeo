@@ -89,7 +89,7 @@ Built directly around the idmatch Bikelab report:
 - `brp_setback`: Target `219 mm` (`ideal: 219, acceptable: 214–224, edge_score: 75, falloff: 20`, weight: 10)
 - `handlebar_clamp_fit`: Target `≥100 pts` (`acceptable: ≥75, edge_score: 75, falloff: 75, floor: -200`, weight: 15)
 - `saddle_hb`: Display-only with target `700 mm` (`ideal: 695–705, acceptable: 685–715`)
-- `saddle_hb_drop`: Display-only with target `13 mm` (`ideal: 8–18, acceptable: 0–26`)
+- `saddle_hb_drop`: Display-only with target `+3 mm` relative to sit-bone position (`ideal: -2–8, acceptable: -10–16`; corresponds to `+13 mm` above the lowered SQlab 70 mm BRP plane)
 - `seatpost_extension`: Target `250–310 mm` (`acceptable: 210–340, edge_score: 75, falloff: 25`, weight: 4) — Proxy for standover clearance and seatpost/dropper fitment: `SaddleHeightMm - SeatTubeLength`.
 - `frontwt`: Target `35.8–38.2%` (`acceptable: 34.8–39.2%, edge_score: 75, falloff: 2.0`, weight: 4) — Fore/aft rider centering between axles based on modeled target pedaling CoG relative to BB.
 - `bbdrop`: Target `70 mm` (`acceptable: 60–80, edge_score: 75, falloff: 10`, weight: 3)

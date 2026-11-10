@@ -241,10 +241,10 @@ func SelectBestBRP(
 //	HbX = SteererX + stem.LengthMm * cos(theta_stem)
 //	HbY = SteererY + stem.LengthMm * sin(theta_stem)
 //
-// Distance & Drop from BRP:
+// Distance from BRP & Rise/Drop from Sit Bones:
 //
 //	SaddleHbMm = hypot(HbX - brp.BrpX, HbY - brp.BrpY)
-//	SaddleHbDropMm = HbY - brp.BrpY
+//	SaddleHbDropMm = HbY - brp.SitBonePoint().Y
 func CalculateHBPoint(
 	reach, stack, htaDeg float64,
 	brp model.BRPPoint,
@@ -261,9 +261,10 @@ func CalculateHBPoint(
 	stemDir := steererAxis.Normal(geom2d.Clockwise).RotateDeg(stem.AngleDeg)
 	hbPoint := stemClamp.Add(stemDir.Scale(stem.LengthMm))
 
-	brpPoint := geom2d.Point2{X: brp.BrpX, Y: brp.BrpY}
+	brpPoint := brp.BrpPoint()
+	sitBonePoint := brp.SitBonePoint()
 	dist := hbPoint.DistanceTo(brpPoint)
-	drop := hbPoint.Y - brpPoint.Y
+	drop := hbPoint.Y - sitBonePoint.Y
 
 	return model.HBPoint{
 		Stem:           stem,
@@ -600,10 +601,13 @@ func ApplyCockpitFit(
 			activeBRP = *can.SelectedBRP
 		}
 
-		dx0 := math.Sqrt(math.Max(0, distMid*distMid-dropMid*dropMid))
-		dy0 := dropMid
+		brpPt := activeBRP.BrpPoint()
+		sitBonePt := activeBRP.SitBonePoint()
+		hbY := sitBonePt.Y + dropMid
+		dyBrp := hbY - brpPt.Y
+		dx0 := math.Sqrt(math.Max(0, distMid*distMid-dyBrp*dyBrp))
 
-		oval := DefaultFitOval(activeBRP.BrpX+dx0, activeBRP.BrpY+dy0)
+		oval := DefaultFitOval(brpPt.X+dx0, hbY)
 		fitRes := EvaluateCockpitFit(can.PossibleHBs, canonicalStem, oval)
 		can.CockpitFitResult = &fitRes
 		can.SelectedHB = &fitRes.SelectedHB
@@ -989,6 +993,8 @@ func AnalyzeBikeFitWithSaddle(
 	}
 
 	seatHeight := profile.SaddleHeightMm
+	refSQ := model.ReferenceIdmatchSaddle()
+	brpSeatHeight := saddle.TranslateSaddleHeightFromRef(refSQ, seatHeight, 219.0)
 
 	cupStack := bike.HeadsetCupType.CupStackMm()
 	geoSpacer := bike.GeoHeadsetSpacerMm
@@ -1011,7 +1017,7 @@ func AnalyzeBikeFitWithSaddle(
 	activeHta := bike.HtaDeg
 	activeSta := bike.StaDeg
 	if bike.HasBentSeatTube() {
-		activeSta = bike.CalculateEffectiveSta(seatHeight, bike.Stack, bike.StaDeg)
+		activeSta = bike.CalculateEffectiveSta(brpSeatHeight, bike.Stack, bike.StaDeg)
 	}
 	activeBbDrop := bike.BbDrop
 	activeStructuralA2c := baseStructuralA2c
@@ -1058,10 +1064,10 @@ func AnalyzeBikeFitWithSaddle(
 	}
 
 	// 3. Derived cockpit metrics
-	aett := CalculateAett(activeReach, activeStack, activeHta, activeSta, seatHeight)
-	actualSetback := CalculateActualSetback(activeSta, seatHeight)
-	verticalStack, axialLength := CalculateSteererStack(activeStack, activeSta, activeHta, seatHeight)
-	seatpostExtension := CalculateSeatpostExtension(seatHeight, bike.SeatTubeLength)
+	aett := CalculateAett(activeReach, activeStack, activeHta, activeSta, brpSeatHeight)
+	actualSetback := CalculateActualSetback(activeSta, brpSeatHeight)
+	verticalStack, axialLength := CalculateSteererStack(activeStack, activeSta, activeHta, brpSeatHeight)
+	seatpostExtension := CalculateSeatpostExtension(brpSeatHeight, bike.SeatTubeLength)
 
 	// 4. Infer CAD publish mode
 	inferredPublishMode := "Unspecified"
@@ -1122,14 +1128,14 @@ func AnalyzeBikeFitWithSaddle(
 	// 6. Cockpit BRP & HB Points and Saddle-Handlebar Distance
 	deadCenterBRP := CalculateSaddleBRPPoint(
 		activeSta,
-		seatHeight,
+		brpSeatHeight,
 		model.DefaultSeatpostSetbackMm,
 		saddle,
 		0.0,
 	)
 	possibleBRPs := MapPossibleSaddleBRPs(
 		activeSta,
-		seatHeight,
+		brpSeatHeight,
 		model.DefaultSeatpostSetbackMm,
 		saddle,
 		model.DefaultSeatpostClampLengthMm,
@@ -1146,7 +1152,7 @@ func AnalyzeBikeFitWithSaddle(
 		saddleHbDropMm = best.SaddleHbDropMm
 	}
 
-	idealSTA := saddle.IdealSeatTubeAngle(292.0, seatHeight, model.DefaultSeatpostSetbackMm)
+	idealSTA := saddle.IdealSeatTubeAngle(292.0, brpSeatHeight, model.DefaultSeatpostSetbackMm)
 
 	return model.BikeFitAnalysis{
 		StructuralA2c:       Round(activeStructuralA2c, 1),

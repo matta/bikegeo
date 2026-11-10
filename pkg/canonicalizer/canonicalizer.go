@@ -662,9 +662,11 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 	for i := range rows {
 		can := &rows[i].Canonical
 
-		// Derive row-specific BRP target from primary pelvic sit bone setback (anchored by reference SQlab saddle)
+		// Derive row-specific targets anchored by reference SQlab saddle
 		rowBrpMin, rowBrpMax := brpMin, brpMax
-		if can.Saddle.ID != "" && (brpMin != nil || brpMax != nil) {
+		rowDistMin, rowDistMax := distMin, distMax
+		rowDropMin, rowDropMax := dropMin, dropMax
+		if can.Saddle.ID != "" && can.Saddle.ID != "sqlab-610-ergolux" {
 			refSQ := model.ReferenceIdmatchSaddle()
 			if brpMin != nil {
 				pelvicMin := refSQ.SitBoneSetbackFromBrp(*brpMin)
@@ -675,6 +677,20 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 				pelvicMax := refSQ.SitBoneSetbackFromBrp(*brpMax)
 				trMax := can.Saddle.TargetBrpForPelvicSetback(pelvicMax)
 				rowBrpMax = &trMax
+			}
+			refRise := 3.0
+			if dropMin != nil && dropMax != nil {
+				refRise = (*dropMin + *dropMax) / 2.0
+			} else if dropMin != nil {
+				refRise = *dropMin
+			}
+			if distMin != nil {
+				tDist := can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *distMin, refRise)
+				rowDistMin = &tDist
+			}
+			if distMax != nil {
+				tDist := can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *distMax, refRise)
+				rowDistMax = &tDist
 			}
 		}
 
@@ -694,10 +710,10 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 		}
 
 		// 3. Evaluate Cockpit Fit
-		if hasClampFit && (distMin != nil || distMax != nil) {
-			geometry.ApplyCockpitFit(can, rows[i].Bike, rows[i].Bike.GetCanonicalStem(), distMin, distMax, dropMin, dropMax)
+		if hasClampFit && (rowDistMin != nil || rowDistMax != nil) {
+			geometry.ApplyCockpitFit(can, rows[i].Bike, rows[i].Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax)
 		} else if len(can.PossibleHBs) > 0 {
-			if bestHB, ok := geometry.SelectBestHBWithDrop(can.PossibleHBs, rows[i].Bike.GetCanonicalStem(), distMin, distMax, dropMin, dropMax); ok {
+			if bestHB, ok := geometry.SelectBestHBWithDrop(can.PossibleHBs, rows[i].Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax); ok {
 				can.SelectedHB = &bestHB
 				can.SaddleHbMm = bestHB.SaddleHbMm
 				can.SaddleHbDropMm = bestHB.SaddleHbDropMm

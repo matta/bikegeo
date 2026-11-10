@@ -254,8 +254,8 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 			{
 				ID:         "saddle_hb_drop",
 				Weight:     5,
-				Ideal:      &ideal.Range{Min: floatPtr(8), Max: floatPtr(18)},
-				Acceptable: &ideal.Range{Min: floatPtr(0), Max: floatPtr(26)},
+				Ideal:      &ideal.Range{Min: floatPtr(-2), Max: floatPtr(8)},
+				Acceptable: &ideal.Range{Min: floatPtr(-10), Max: floatPtr(16)},
 				EdgeScore:  floatPtr(75),
 				Falloff:    &ideal.Falloff{Below: floatPtr(10), Above: floatPtr(10)},
 			},

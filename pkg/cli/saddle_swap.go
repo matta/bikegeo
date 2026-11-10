@@ -341,13 +341,14 @@ func (a *App) runSaddleSwap(args []string) int {
 
 			frameSta := canonRow.Canonical.ActiveSta
 			stSetback := geometry.Round(saddleHeight*math.Cos(frameSta*math.Pi/180.0), 1)
+			tgtStSetback := geometry.Round(report.TargetEquivalentSaddleHeightMm*math.Cos(frameSta*math.Pi/180.0), 1)
 
 			// Required rail offsets on this frame:
 			// clampPerp = stSetback + postSetback
 			// targetRailCenterSetback = sb + target.RailCenterToSitBonesMm
 			// requiredOffset = targetRailCenterSetback - (stSetback + postSetback)
 			srcRailOffset := (sitBoneSetback + sourceSaddle.RailCenterToSitBonesMm) - (stSetback + postSetback)
-			tgtPelvicRailOffset := (sitBoneSetback + targetSaddle.RailCenterToSitBonesMm) - (stSetback + postSetback)
+			tgtPelvicRailOffset := (sitBoneSetback + targetSaddle.RailCenterToSitBonesMm) - (tgtStSetback + postSetback)
 			tgtNaiveRailOffset := (report.SourceBrpSetbackMm + targetSaddle.RailCenterToBrpMm) - (stSetback + postSetback)
 
 			sMin, sMax := sourceSaddle.ClampWindowMm(clampLength)

@@ -353,22 +353,74 @@ type SaddleSpec struct {
 	SitBonesElevationMm    float64 // Vertical elevation of sit bones above the 70mm BRP horizontal plane (+mm upward, e.g. 10.0mm for SQlab Ergolux step)
 }
 
+// BrpToSitBonesVec returns the 2D displacement vector from the saddle's 70mm BRP
+// to the rider's sit-bone support point in the canonical sagittal plane (+X forward, +Y upward):
+//
+//	X = RailCenterToSitBonesMm - RailCenterToBrpMm (negative, rearward toward tail)
+//	Y = SitBonesElevationMm (positive, upward step above 70mm BRP plane)
+func (s SaddleSpec) BrpToSitBonesVec() geom2d.Vec2 {
+	return geom2d.Vec2{
+		X: s.RailCenterToSitBonesMm - s.RailCenterToBrpMm,
+		Y: s.SitBonesElevationMm,
+	}
+}
+
+// SitBonesToBrpVec returns the 2D displacement vector from the sit-bone support point
+// to the saddle's 70mm BRP in the canonical sagittal plane (+X forward, +Y upward):
+//
+//	SitBonesToBrpVec = -BrpToSitBonesVec()
+func (s SaddleSpec) SitBonesToBrpVec() geom2d.Vec2 {
+	return s.BrpToSitBonesVec().Scale(-1)
+}
+
+// SitBonePointFromBrp translates a 2D BRP coordinate into the saddle's 2D sit-bone support coordinate:
+//
+//	SitBonePoint = brp + BrpToSitBonesVec()
+func (s SaddleSpec) SitBonePointFromBrp(brp geom2d.Point2) geom2d.Point2 {
+	return brp.Add(s.BrpToSitBonesVec())
+}
+
+// BrpPointFromSitBones translates a 2D sit-bone support coordinate into the saddle's 2D BRP coordinate:
+//
+//	BrpPoint = sitBones + SitBonesToBrpVec()
+func (s SaddleSpec) BrpPointFromSitBones(sitBones geom2d.Point2) geom2d.Point2 {
+	return sitBones.Add(s.SitBonesToBrpVec())
+}
+
+// TranslateBrpFromRef translates a 2D BRP coordinate measured on a reference saddle
+// into the equivalent 2D BRP coordinate on this saddle that preserves the exact 2D sit-bone position:
+//
+//	TargetBrp = BrpPointFromSitBones(ref.SitBonePointFromBrp(refBrp))
+func (s SaddleSpec) TranslateBrpFromRef(ref SaddleSpec, refBrp geom2d.Point2) geom2d.Point2 {
+	if s.ID != "" && ref.ID != "" && s.ID == ref.ID {
+		return refBrp
+	}
+	return s.BrpPointFromSitBones(ref.SitBonePointFromBrp(refBrp))
+}
+
+// BrpPointAtHeightAndSetback returns the 2D BRP coordinate in the sagittal plane
+// for a given radial saddle height (BB to BRP) and horizontal BRP setback behind the BB.
+func (s SaddleSpec) BrpPointAtHeightAndSetback(saddleHeightMm, brpSetbackMm float64) geom2d.Point2 {
+	brpY := math.Sqrt(math.Max(0, saddleHeightMm*saddleHeightMm-brpSetbackMm*brpSetbackMm))
+	return geom2d.Point2{X: -brpSetbackMm, Y: brpY}
+}
+
 // DeltaBrpToSitBonesMm returns the longitudinal distance from the 70mm BRP back to the sit bone line:
-// Delta_BRP_to_SitBones = RailCenterToBrpMm - RailCenterToSitBonesMm.
+// Delta_BRP_to_SitBones = SitBonesToBrpVec().X.
 func (s SaddleSpec) DeltaBrpToSitBonesMm() float64 {
-	return s.RailCenterToBrpMm - s.RailCenterToSitBonesMm
+	return s.SitBonesToBrpVec().X
 }
 
-// SitBoneSetbackFromBrp converts a BRP setback behind the bottom bracket into the rider's sit bone setback:
-// SitBoneSetback = brpSetback + (RailCenterToBrpMm - RailCenterToSitBonesMm).
+// SitBoneSetbackFromBrp converts a BRP setback behind the bottom bracket into the rider's sit bone setback
+// using the saddle's 2D BRP-to-SitBones translation vector.
 func (s SaddleSpec) SitBoneSetbackFromBrp(brpSetbackMm float64) float64 {
-	return brpSetbackMm + (s.RailCenterToBrpMm - s.RailCenterToSitBonesMm)
+	return -s.SitBonePointFromBrp(geom2d.Point2{X: -brpSetbackMm}).X
 }
 
-// BrpSetbackFromSitBones converts a desired sit bone setback into the BRP caliper reading for this specific saddle:
-// BrpSetback = sitBoneSetback - (RailCenterToBrpMm - RailCenterToSitBonesMm).
+// BrpSetbackFromSitBones converts a desired sit bone setback into the BRP caliper reading for this specific saddle
+// using the saddle's 2D SitBones-to-BRP translation vector.
 func (s SaddleSpec) BrpSetbackFromSitBones(sitBoneSetbackMm float64) float64 {
-	return sitBoneSetbackMm - (s.RailCenterToBrpMm - s.RailCenterToSitBonesMm)
+	return -s.BrpPointFromSitBones(geom2d.Point2{X: -sitBoneSetbackMm}).X
 }
 
 // RailCenterSetbackFromBrp converts a BRP setback into the setback of the saddle's 0.0mm rail center mark:
@@ -444,6 +496,58 @@ func (s SaddleSpec) TargetBrpForPelvicSetback(pelvicSitBoneSetbackMm float64) fl
 	return s.BrpSetbackFromSitBones(pelvicSitBoneSetbackMm)
 }
 
+// SitSurfaceHeightFromBrpHeight calculates the radial distance from BB (0,0) to the sit-bone horizontal plane
+// at X = -brpSetbackMm, using the saddle's 2D BRP-to-SitBones translation vector.
+func (s SaddleSpec) SitSurfaceHeightFromBrpHeight(brpSaddleHeightMm, brpSetbackMm float64) float64 {
+	if brpSaddleHeightMm <= 0 {
+		return 0
+	}
+	brp := s.BrpPointAtHeightAndSetback(brpSaddleHeightMm, brpSetbackMm)
+	sitBone := s.SitBonePointFromBrp(brp)
+	return geom2d.Point2{X: brp.X, Y: sitBone.Y}.DistanceToOrigin()
+}
+
+// TranslateSaddleHeightFromRef calculates the equivalent radial saddle height (BB to BRP)
+// for this saddle to keep the rider's 2D pelvic position (SitBoneX, SitBoneY) identical
+// to that of the reference saddle (e.g. SQlab 610 at refSaddleHeightMm and refBrpSetbackMm).
+func (s SaddleSpec) TranslateSaddleHeightFromRef(ref SaddleSpec, refSaddleHeightMm, refBrpSetbackMm float64) float64 {
+	if refSaddleHeightMm <= 0 {
+		return 0
+	}
+	if s.ID != "" && ref.ID != "" && s.ID == ref.ID {
+		return refSaddleHeightMm
+	}
+	refBrp := ref.BrpPointAtHeightAndSetback(refSaddleHeightMm, refBrpSetbackMm)
+	return s.TranslateBrpFromRef(ref, refBrp).DistanceToOrigin()
+}
+
+// TranslateHbDistanceFromRef translates the target Saddle-HB Euclidean distance (BRP -> HB)
+// from a reference saddle (e.g. SQlab 610 at refSaddleHeightMm and refBrpSetbackMm)
+// to this saddle's BRP reference point, keeping the 2D handlebar point (HbX, HbY) and
+// sit-bone-relative HB rise (hbRiseFromSitBonesMm) invariant in space.
+func (s SaddleSpec) TranslateHbDistanceFromRef(
+	ref SaddleSpec,
+	refSaddleHeightMm, refBrpSetbackMm float64,
+	refHbDistMm, hbRiseFromSitBonesMm float64,
+) float64 {
+	if refHbDistMm <= 0 {
+		return 0
+	}
+	if s.ID != "" && ref.ID != "" && s.ID == ref.ID {
+		return refHbDistMm
+	}
+	refBrp := ref.BrpPointAtHeightAndSetback(refSaddleHeightMm, refBrpSetbackMm)
+	sitBone := ref.SitBonePointFromBrp(refBrp)
+
+	hbY := sitBone.Y + hbRiseFromSitBonesMm
+	dyRef := hbY - refBrp.Y
+	dxRef := math.Sqrt(math.Max(0, refHbDistMm*refHbDistMm-dyRef*dyRef))
+	hb := geom2d.Point2{X: refBrp.X + dxRef, Y: hbY}
+
+	targetBrp := s.TranslateBrpFromRef(ref, refBrp)
+	return hb.DistanceTo(targetBrp)
+}
+
 // DefaultSeatpostStaticSetbackMm is the perpendicular rearward offset (in mm) of the static Redshift ShockStop post.
 const DefaultSeatpostStaticSetbackMm = 7.0
 
@@ -478,7 +582,8 @@ const SaddleRailMaxAdjustmentMm = 20.0
 const SaddleRailStepMm = 1.0
 
 // BRPPoint represents a saddle Biomechanical Reference Point (70mm width mark)
-// for a specific fore-aft rail offset along the constant-radius SaddleHeightMm arc.
+// and its associated 2D sit-bone support point for a specific fore-aft rail offset
+// along the constant-radius SaddleHeightMm arc.
 type BRPPoint struct {
 	Saddle                SaddleSpec
 	SeatpostSetbackMm     float64
@@ -488,12 +593,29 @@ type BRPPoint struct {
 	TotalPerpOffsetMm     float64
 	BrpX                  float64
 	BrpY                  float64
+	SitBoneX              float64
+	SitBoneY              float64
 	BrpSetbackMm          float64
 	SitBoneSetbackMm      float64
 	BrpAngleFromBbDeg     float64
 }
 
-// CalculatePoint computes the Cartesian coordinates for BRP, Sit Bones, and Rail Center
+// BrpPoint returns the 2D BRP coordinate (BrpX, BrpY).
+func (p BRPPoint) BrpPoint() geom2d.Point2 {
+	return geom2d.Point2{X: p.BrpX, Y: p.BrpY}
+}
+
+// SitBonePoint returns the 2D sit-bone support coordinate (SitBoneX, SitBoneY).
+// If SitBoneX and SitBoneY were not explicitly populated (e.g. in a struct literal),
+// it translates BrpPoint() via Saddle.SitBonePointFromBrp.
+func (p BRPPoint) SitBonePoint() geom2d.Point2 {
+	if p.SitBoneX != 0 || p.SitBoneY != 0 {
+		return geom2d.Point2{X: p.SitBoneX, Y: p.SitBoneY}
+	}
+	return p.Saddle.SitBonePointFromBrp(p.BrpPoint())
+}
+
+// CalculatePoint computes the Cartesian coordinates for BRP and Sit Bones
 // for a frame with the given effective STA at radial seatHeight, with perpendicular seatpost setback
 // and fore-aft rail clamp offset.
 func (s SaddleSpec) CalculatePoint(
@@ -508,13 +630,10 @@ func (s SaddleSpec) CalculatePoint(
 	// Forward offset toward nose reduces rearward perpendicular offset from seat tube axis:
 	brpPerp := clampPerp - s.RailCenterToBrpMm
 
-	// Sit bones are rearward toward the tail (increases rearward perpendicular offset):
-	sitBonePerp := clampPerp - s.RailCenterToSitBonesMm
-
 	axial := math.Sqrt(math.Max(0, seatHeight*seatHeight-brpPerp*brpPerp))
 
 	brpPoint := seatAxis.PointWithOffset(axial, brpPerp, geom2d.CounterClockwise)
-	sitBonePoint := seatAxis.PointWithOffset(axial, sitBonePerp, geom2d.CounterClockwise)
+	sitBonePoint := s.SitBonePointFromBrp(brpPoint)
 
 	setback := -brpPoint.X
 	sitBoneSetback := -sitBonePoint.X
@@ -533,6 +652,8 @@ func (s SaddleSpec) CalculatePoint(
 		TotalPerpOffsetMm:     math.Round(brpPerp*10) / 10,
 		BrpX:                  math.Round(brpPoint.X*10) / 10,
 		BrpY:                  math.Round(brpPoint.Y*10) / 10,
+		SitBoneX:              math.Round(sitBonePoint.X*10) / 10,
+		SitBoneY:              math.Round(sitBonePoint.Y*10) / 10,
 		BrpSetbackMm:          math.Round(setback*10) / 10,
 		SitBoneSetbackMm:      math.Round(sitBoneSetback*10) / 10,
 		BrpAngleFromBbDeg:     math.Round(angleFromBb*10) / 10,
