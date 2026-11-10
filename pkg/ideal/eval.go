@@ -13,21 +13,6 @@ import (
 func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.CanonicalComparisonRow) Evaluation {
 	if strings.EqualFold(spec.ID, "handlebar_clamp_fit") && row != nil && row.Canonical.CockpitFitResult != nil {
 		cfr := row.Canonical.CockpitFitResult
-		hb := cfr.SelectedHB
-		dropSign := ""
-		if hb.SaddleHbDropMm > 0 {
-			dropSign = "+"
-		}
-		stemSign := "+"
-		if hb.SpacerMm < 0 {
-			stemSign = ""
-		}
-		baseValStr := fmt.Sprintf("%.0f (%s%.0f) [%.0fmm %.0f° %s%.0fmm] (%d in oval)",
-			hb.SaddleHbMm, dropSign, hb.SaddleHbDropMm,
-			hb.Stem.LengthMm, hb.Stem.AngleDeg, stemSign, hb.SpacerMm,
-			cfr.CountInside,
-		)
-
 		subScore := cfr.FinalSubScore
 		zone := ZoneOutside
 		sym := SymbolOutside
@@ -41,11 +26,7 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 			}
 		}
 
-		formatted := fmt.Sprintf("%s %s", baseValStr, sym)
-		if subScore < 100.0 {
-			lost := 100.0 - subScore
-			formatted = fmt.Sprintf("%s -%.0f", formatted, lost)
-		}
+		formatted := fmt.Sprintf("%d %s", cfr.CountInside, sym)
 
 		return Evaluation{
 			Value:           subScore,
@@ -118,7 +99,7 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 				Zone:            ZoneAcceptable,
 				DistanceToIdeal: distToIdeal,
 				SubScore:        sub,
-				FormattedCell:   fmt.Sprintf("%s %s %s", baseValStr, SymbolAcceptable, formatDeltaVal(distToIdeal, meta.Decimals)),
+				FormattedCell:   formatCellWithDelta(baseValStr, SymbolAcceptable, distToIdeal, meta),
 			}
 		}
 
@@ -149,7 +130,7 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 			Zone:            ZoneOutside,
 			DistanceToIdeal: distToIdeal,
 			SubScore:        sub,
-			FormattedCell:   fmt.Sprintf("%s %s %s", baseValStr, SymbolOutside, formatDeltaVal(distToIdeal, meta.Decimals)),
+			FormattedCell:   formatCellWithDelta(baseValStr, SymbolOutside, distToIdeal, meta),
 		}
 	}
 
@@ -182,7 +163,7 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 			Zone:            ZoneAcceptable,
 			DistanceToIdeal: distToIdeal,
 			SubScore:        sub,
-			FormattedCell:   fmt.Sprintf("%s %s %s", baseValStr, SymbolAcceptable, formatDeltaVal(distToIdeal, meta.Decimals)),
+			FormattedCell:   formatCellWithDelta(baseValStr, SymbolAcceptable, distToIdeal, meta),
 		}
 	}
 
@@ -213,8 +194,35 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 		Zone:            ZoneOutside,
 		DistanceToIdeal: distToIdeal,
 		SubScore:        sub,
-		FormattedCell:   fmt.Sprintf("%s %s %s", baseValStr, SymbolOutside, formatDeltaVal(distToIdeal, meta.Decimals)),
+		FormattedCell:   formatCellWithDelta(baseValStr, SymbolOutside, distToIdeal, meta),
 	}
+}
+
+func formatCellWithDelta(baseValStr, symbol string, delta float64, meta AttributeMeta) string {
+	factor := math.Pow(10, float64(meta.Decimals))
+	absRounded := math.Round(math.Abs(delta)*factor) / factor
+	if absRounded == 0 {
+		if symbol == SymbolAcceptable {
+			symbol = SymbolIdeal
+		}
+		return fmt.Sprintf("%s %s", baseValStr, symbol)
+	}
+
+	unitSuffix := ""
+	if meta.Unit == "°" || meta.Unit == "%" {
+		unitSuffix = meta.Unit
+	}
+
+	word := meta.AboveWord
+	if delta < 0 {
+		word = meta.BelowWord
+	}
+
+	if word != "" {
+		return fmt.Sprintf("%s %s %.*f%s %s", baseValStr, symbol, meta.Decimals, absRounded, unitSuffix, word)
+	}
+
+	return fmt.Sprintf("%s %s %s", baseValStr, symbol, formatDeltaVal(delta, meta.Decimals))
 }
 
 func formatDeltaVal(delta float64, decimals int) string {

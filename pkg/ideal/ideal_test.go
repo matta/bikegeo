@@ -64,26 +64,38 @@ func TestLookupAttribute_BrpSetbackAndDrop(t *testing.T) {
 		}
 	}
 
-	// Saddle-HB Drop lookup and variants
-	for _, variant := range []string{"saddle_hb_drop", "saddle-hb-drop", "saddlehbdrop", "hb_drop", "drop", "SADDLE_HB_DROP"} {
+	// Saddle-HB Drop / HB Rise lookup and variants
+	for _, variant := range []string{"saddle_hb_drop", "saddle-hb-drop", "saddlehbdrop", "hb_drop", "drop", "SADDLE_HB_DROP", "hb_rise", "rise"} {
 		meta, ok := LookupAttribute(variant)
 		if !ok {
 			t.Errorf("LookupAttribute(%q) failed", variant)
 			continue
 		}
-		if meta.Label != "Saddle-HB Drop" || meta.Unit != "mm" {
+		if meta.Label != "HB Rise" || meta.Unit != "mm" {
 			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
 		}
 	}
 
-	// Handlebar Clamp Fit lookup and variants
-	for _, variant := range []string{"handlebar_clamp_fit", "handlebar-clamp-fit", "cockpit_fit", "cockpit", "clamp_fit", "hb_fit_area"} {
+	// Best Stem lookup and variants
+	for _, variant := range []string{"best_stem", "best-stem", "beststem", "stem"} {
 		meta, ok := LookupAttribute(variant)
 		if !ok {
 			t.Errorf("LookupAttribute(%q) failed", variant)
 			continue
 		}
-		if meta.Label != "Handlebar Clamp Fit" {
+		if meta.Label != "Best Stem" {
+			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
+		}
+	}
+
+	// Handlebar Clamp Fit / Oval Fits lookup and variants
+	for _, variant := range []string{"handlebar_clamp_fit", "handlebar-clamp-fit", "cockpit_fit", "cockpit", "clamp_fit", "hb_fit_area", "oval_fits", "ovalfits"} {
+		meta, ok := LookupAttribute(variant)
+		if !ok {
+			t.Errorf("LookupAttribute(%q) failed", variant)
+			continue
+		}
+		if meta.Label != "Oval Fits" {
 			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
 		}
 	}
@@ -165,15 +177,15 @@ func TestEvaluate_DesignDocTable(t *testing.T) {
 		expectedSub  float64
 		expectedCell string
 	}{
-		{596, ZoneOutside, 0, "596 ✗ −34"},
-		{601, ZoneOutside, 30, "601 ✗ −29"},
-		{606, ZoneAcceptable, 60, "606 ~ −24"},
-		{618, ZoneAcceptable, 80, "618 ~ −12"},
+		{596, ZoneOutside, 0, "596 ✗ 34 sht"},
+		{601, ZoneOutside, 30, "601 ✗ 29 sht"},
+		{606, ZoneAcceptable, 60, "606 ~ 24 sht"},
+		{618, ZoneAcceptable, 80, "618 ~ 12 sht"},
 		{630, ZoneIdeal, 100, "630 ✓"},
 		{635, ZoneIdeal, 100, "635 ✓"},
 		{642, ZoneIdeal, 100, "642 ✓"},
-		{645, ZoneOutside, 40, "645 ✗ +3"},
-		{647, ZoneOutside, 0, "647 ✗ +5"},
+		{645, ZoneOutside, 40, "645 ✗ 3 lng"},
+		{647, ZoneOutside, 0, "647 ✗ 5 lng"},
 	}
 
 	for _, tc := range testCases {
@@ -320,5 +332,48 @@ func TestGetProfile_Default(t *testing.T) {
 	}
 	if p.Name != "default" {
 		t.Errorf("Expected profile name 'default', got %q", p.Name)
+	}
+}
+
+func TestEvaluate_DirectionalWordsAndBoundaryRounding(t *testing.T) {
+	p := DefaultProfile()
+	attrMap := make(map[string]AttributeSpec)
+	for _, a := range p.Attributes {
+		attrMap[a.ID] = a
+	}
+
+	cases := []struct {
+		id       string
+		val      float64
+		expected string
+	}{
+		{"setback", 219, "219 ✗ 11 fwd"},
+		{"setback", 235, "235 ~ 5 aft"},
+		{"aett", 617, "617 ~ 8 sht"},
+		{"aett", 652, "652 ✗ 16 lng"},
+		{"sparevert", 60, "60 ✗ 10 lo"},
+		{"sparevert", 115, "115 ~ 15 hi"},
+		{"sparevert", 100.4, "100 ✓"}, // Unrounded 0.4 above 100 rounds to 0 delta -> ✓
+		{"seatpost_extension", 221, "221 ~ 39 sht"},
+		{"seatpost_extension", 335, "335 ~ 15 lng"},
+		{"seat_to_rc", 221, "221 ~ 14 sht"},
+		{"bbdrop", 66, "66 ~ 4 hi"},
+		{"bbdrop", 77, "77 ~ 7 lo"},
+		{"hta", 67.7, "67.7 ~ 0.3° slk"},
+		{"hta", 69.7, "69.7 ✗ 0.7° stp"},
+		{"hta", 67.98, "68.0 ✓"}, // Unrounded -0.02° rounds to 0.0° -> ✓
+		{"frontwt", 35.0, "35.0 ✗ 3.0% lo"},
+	}
+
+	for _, tc := range cases {
+		spec := attrMap[tc.id]
+		meta, ok := LookupAttribute(tc.id)
+		if !ok {
+			t.Fatalf("LookupAttribute(%q) failed", tc.id)
+		}
+		ev := Evaluate(spec, meta, tc.val, nil)
+		if ev.FormattedCell != tc.expected {
+			t.Errorf("%s(%.2f): expected %q, got %q", tc.id, tc.val, tc.expected, ev.FormattedCell)
+		}
 	}
 }

@@ -13,6 +13,8 @@ type AttributeMeta struct {
 	Label     string
 	Unit      string
 	Decimals  int
+	BelowWord string
+	AboveWord string
 	Extract   func(row model.CanonicalComparisonRow) (float64, bool)
 	FormatVal func(val float64, row *model.CanonicalComparisonRow) string
 }
@@ -21,47 +23,57 @@ var registry = []AttributeMeta{
 	// Deprecated: setback measures horizontal distance to the bare seat tube centerline (SaddleHeight * cos(STA)),
 	// ignoring seatpost setback and saddle rails. Use brp_setback for BRP-referenced saddle setback.
 	{
-		ID:       "setback",
-		Label:    "Setback",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "setback",
+		Label:     "Setback",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "fwd",
+		AboveWord: "aft",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.ActualSetback, true
 		},
 	},
 	// Deprecated: aett measures top-tube reach from the bare seat tube centerline.
 	{
-		ID:       "aett",
-		Label:    "AETT",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "aett",
+		Label:     "AETT",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "sht",
+		AboveWord: "lng",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.Aett, true
 		},
 	},
 	{
-		ID:       "sparevert",
-		Label:    "Spare Vert",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "sparevert",
+		Label:     "Spare Vert",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "lo",
+		AboveWord: "hi",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.SpareVerticalStack, true
 		},
 	},
 	{
-		ID:       "spareaxial",
-		Label:    "Spare Axial",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "spareaxial",
+		Label:     "Spare Axial",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "lo",
+		AboveWord: "hi",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.SpareAxialSteerer, true
 		},
 	},
 	{
-		ID:       "seatpost_extension",
-		Label:    "Seatpost Ext",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "seatpost_extension",
+		Label:     "Seatpost Ext",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "sht",
+		AboveWord: "lng",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			if row.Canonical.SeatpostExtensionMm > 0 {
 				return row.Canonical.SeatpostExtensionMm, true
@@ -73,19 +85,23 @@ var registry = []AttributeMeta{
 		},
 	},
 	{
-		ID:       "seat_to_rc",
-		Label:    "Seat-RC",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "seat_to_rc",
+		Label:     "Seat-RC",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "sht",
+		AboveWord: "lng",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.SeatToRearCenter, true
 		},
 	},
 	{
-		ID:       "chainstay",
-		Label:    "Chainstay",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "chainstay",
+		Label:     "Chainstay",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "sht",
+		AboveWord: "lng",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.ActiveChainstay, true
 		},
@@ -98,82 +114,100 @@ var registry = []AttributeMeta{
 		},
 	},
 	{
-		ID:       "bbdrop",
-		Label:    "BB Drop",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "bbdrop",
+		Label:     "BB Drop",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "hi",
+		AboveWord: "lo",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.ActiveBbDrop, true
 		},
 	},
 	{
-		ID:       "hta",
-		Label:    "HTA",
-		Unit:     "°",
-		Decimals: 1,
+		ID:        "hta",
+		Label:     "HTA",
+		Unit:      "°",
+		Decimals:  1,
+		BelowWord: "slk",
+		AboveWord: "stp",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.ActiveHta, true
 		},
 	},
 	{
-		ID:       "sta",
-		Label:    "STA",
-		Unit:     "°",
-		Decimals: 1,
+		ID:        "sta",
+		Label:     "STA",
+		Unit:      "°",
+		Decimals:  1,
+		BelowWord: "slk",
+		AboveWord: "stp",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.ActiveSta, true
 		},
 	},
 	{
-		ID:       "reach",
-		Label:    "Reach",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "reach",
+		Label:     "Reach",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "sht",
+		AboveWord: "lng",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.ActiveReach, true
 		},
 	},
 	{
-		ID:       "stack",
-		Label:    "Stack",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "stack",
+		Label:     "Stack",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "lo",
+		AboveWord: "hi",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.ActiveStack, true
 		},
 	},
 	{
-		ID:       "wheelbase",
-		Label:    "Wheelbase",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "wheelbase",
+		Label:     "Wheelbase",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "sht",
+		AboveWord: "lng",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.WheelbaseCalc, true
 		},
 	},
 	{
-		ID:       "frontwt",
-		Label:    "Front Wt",
-		Unit:     "%",
-		Decimals: 1,
+		ID:        "frontwt",
+		Label:     "Front Wt",
+		Unit:      "%",
+		Decimals:  1,
+		BelowWord: "lo",
+		AboveWord: "hi",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.WeightDistFrontPct, true
 		},
 	},
 	{
-		ID:       "backangle",
-		Label:    "Back Angle",
-		Unit:     "°",
-		Decimals: 1,
+		ID:        "backangle",
+		Label:     "Back Angle",
+		Unit:      "°",
+		Decimals:  1,
+		BelowWord: "lo",
+		AboveWord: "hi",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.BackAngleDeg, true
 		},
 	},
 	{
-		ID:       "seattube",
-		Label:    "Seat Tube",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "seattube",
+		Label:     "Seat Tube",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "sht",
+		AboveWord: "lng",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			if row.Bike.SeatTubeLength <= 0 {
 				return 0, false
@@ -182,10 +216,12 @@ var registry = []AttributeMeta{
 		},
 	},
 	{
-		ID:       "standover",
-		Label:    "Standover",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "standover",
+		Label:     "Standover",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "lo",
+		AboveWord: "hi",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			if row.Bike.StandoverHeight <= 0 {
 				return 0, false
@@ -194,38 +230,57 @@ var registry = []AttributeMeta{
 		},
 	},
 	{
-		ID:       "brp_setback",
-		Label:    "BRP Setback",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "brp_setback",
+		Label:     "BRP Setback",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "fwd",
+		AboveWord: "aft",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			if row.Canonical.DeadCenterBRP.BrpSetbackMm <= 0 {
 				return 0, false
 			}
 			return row.Canonical.DeadCenterBRP.BrpSetbackMm, true
 		},
-		FormatVal: func(val float64, row *model.CanonicalComparisonRow) string {
-			if row != nil && row.Canonical.SelectedBRP != nil {
-				brp := row.Canonical.SelectedBRP
-				sign := "+"
-				if brp.RailOffsetMm < 0 {
-					sign = ""
-				}
-				return fmt.Sprintf("%.0f (rail %s%.0fmm)", brp.BrpSetbackMm, sign, brp.RailOffsetMm)
-			}
-			return fmt.Sprintf("%.0f", val)
-		},
 	},
 	{
-		ID:       "saddle_hb",
-		Label:    "Saddle-HB",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "saddle_hb",
+		Label:     "Saddle-HB",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "sht",
+		AboveWord: "lng",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			if row.Canonical.SaddleHbMm <= 0 {
 				return 0, false
 			}
 			return row.Canonical.SaddleHbMm, true
+		},
+	},
+	{
+		ID:        "saddle_hb_drop",
+		Label:     "HB Rise",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "lo",
+		AboveWord: "hi",
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.SelectedHB == nil {
+				return 0, false
+			}
+			return row.Canonical.SelectedHB.SaddleHbDropMm, true
+		},
+	},
+	{
+		ID:       "best_stem",
+		Label:    "Best Stem",
+		Unit:     "",
+		Decimals: 0,
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.SelectedHB == nil || row.Canonical.SelectedHB.Stem.LengthMm <= 0 {
+				return 0, false
+			}
+			return row.Canonical.SelectedHB.Stem.LengthMm, true
 		},
 		FormatVal: func(val float64, row *model.CanonicalComparisonRow) string {
 			if row != nil && row.Canonical.SelectedHB != nil && row.Canonical.SelectedHB.Stem.LengthMm > 0 {
@@ -234,35 +289,18 @@ var registry = []AttributeMeta{
 				if hb.SpacerMm < 0 {
 					sign = ""
 				}
-				return fmt.Sprintf("%.0f (%.0fmm %.0f° %s%.0fmm)", val, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm)
+				return fmt.Sprintf("%.0fmm %.0f° %s%.0fmm", hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm)
 			}
-			return fmt.Sprintf("%.0f", val)
+			return fmt.Sprintf("%.0fmm", val)
 		},
 	},
 	{
-		ID:       "saddle_hb_drop",
-		Label:    "Saddle-HB Drop",
-		Unit:     "mm",
-		Decimals: 0,
-		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
-			if row.Canonical.SelectedHB == nil {
-				return 0, false
-			}
-			return row.Canonical.SelectedHB.SaddleHbDropMm, true
-		},
-		FormatVal: func(val float64, row *model.CanonicalComparisonRow) string {
-			sign := ""
-			if val > 0 {
-				sign = "+"
-			}
-			return fmt.Sprintf("%s%.0f", sign, val)
-		},
-	},
-	{
-		ID:       "sit_bone_setback",
-		Label:    "Sit Bones",
-		Unit:     "mm",
-		Decimals: 0,
+		ID:        "sit_bone_setback",
+		Label:     "Sit Bones",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "fwd",
+		AboveWord: "aft",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			if row.Canonical.SitBoneSetbackMm <= 0 {
 				return 0, false
@@ -271,10 +309,12 @@ var registry = []AttributeMeta{
 		},
 	},
 	{
-		ID:       "ideal_sta",
-		Label:    "Ideal STA",
-		Unit:     "°",
-		Decimals: 1,
+		ID:        "ideal_sta",
+		Label:     "Ideal STA",
+		Unit:      "°",
+		Decimals:  1,
+		BelowWord: "slk",
+		AboveWord: "stp",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			if row.Canonical.IdealStaDeg <= 0 {
 				return 0, false
@@ -283,10 +323,12 @@ var registry = []AttributeMeta{
 		},
 	},
 	{
-		ID:       "handlebar_clamp_fit",
-		Label:    "Handlebar Clamp Fit",
-		Unit:     "",
-		Decimals: 0,
+		ID:        "handlebar_clamp_fit",
+		Label:     "Oval Fits",
+		Unit:      "",
+		Decimals:  0,
+		BelowWord: "lo",
+		AboveWord: "hi",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			if row.Canonical.CockpitFitResult == nil {
 				return 0, false
@@ -295,21 +337,7 @@ var registry = []AttributeMeta{
 		},
 		FormatVal: func(val float64, row *model.CanonicalComparisonRow) string {
 			if row != nil && row.Canonical.CockpitFitResult != nil {
-				cfr := row.Canonical.CockpitFitResult
-				hb := cfr.SelectedHB
-				sign := "+"
-				if hb.SpacerMm < 0 {
-					sign = ""
-				}
-				dropSign := ""
-				if hb.SaddleHbDropMm > 0 {
-					dropSign = "+"
-				}
-				return fmt.Sprintf("%.0f (%s%.0f) [%.0fmm %.0f° %s%.0fmm] (%d in oval)",
-					hb.SaddleHbMm, dropSign, hb.SaddleHbDropMm,
-					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm,
-					cfr.CountInside,
-				)
+				return fmt.Sprintf("%d", row.Canonical.CockpitFitResult.CountInside)
 			}
 			return fmt.Sprintf("%.0f", val)
 		},
@@ -335,8 +363,11 @@ func LookupAttribute(id string) (AttributeMeta, bool) {
 	if norm == "brp" {
 		norm = "brp_setback"
 	}
-	if norm == "hb_drop" || norm == "drop" {
+	if norm == "hb_drop" || norm == "drop" || norm == "hb_rise" || norm == "rise" || norm == "saddle_hb_rise" || norm == "hbrise" {
 		norm = "saddle_hb_drop"
+	}
+	if norm == "stem" || norm == "beststem" || norm == "best-stem" {
+		norm = "best_stem"
 	}
 	if norm == "sit_bones" || norm == "sitbones" || norm == "sitbone" || norm == "sit_bone" {
 		norm = "sit_bone_setback"
@@ -344,7 +375,7 @@ func LookupAttribute(id string) (AttributeMeta, bool) {
 	if norm == "idealsta" {
 		norm = "ideal_sta"
 	}
-	if norm == "cockpit_fit" || norm == "cockpit" || norm == "hb_fit_area" || norm == "clamp_fit" || norm == "hbclampfit" || norm == "clampfit" {
+	if norm == "cockpit_fit" || norm == "cockpit" || norm == "hb_fit_area" || norm == "clamp_fit" || norm == "hbclampfit" || norm == "clampfit" || norm == "oval_fits" || norm == "ovalfits" {
 		norm = "handlebar_clamp_fit"
 	}
 	cleaned := strings.ReplaceAll(strings.ReplaceAll(norm, "_", ""), "-", "")

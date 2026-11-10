@@ -2,7 +2,6 @@ package scoring
 
 import (
 	"math"
-	"strings"
 	"testing"
 
 	"bikegeo/pkg/geometry"
@@ -691,8 +690,8 @@ func TestScoreRow_SaddleHb(t *testing.T) {
 	if crit.ID != "saddle_hb" {
 		t.Errorf("Expected criterion ID 'saddle_hb', got %s", crit.ID)
 	}
-	if !strings.Contains(crit.FormattedCell, "700") || !strings.Contains(crit.FormattedCell, "70mm") {
-		t.Errorf("Expected formatted cell to reflect selected HB (700, 70mm stem), got %q", crit.FormattedCell)
+	if crit.FormattedCell != "700 ✓" {
+		t.Errorf("Expected formatted cell '700 ✓', got %q", crit.FormattedCell)
 	}
 }
 
@@ -775,8 +774,8 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	// Verify criteria results for 72.0° frame
 	for _, c := range res.Criteria {
 		if c.ID == "brp_setback" {
-			if !strings.Contains(c.FormattedCell, "219") || !strings.Contains(c.FormattedCell, "rail") {
-				t.Errorf("Expected brp_setback to reflect rail adjustment to 219mm, got %q", c.FormattedCell)
+			if c.FormattedCell != "219 ✓" {
+				t.Errorf("Expected brp_setback cell '219 ✓', got %q", c.FormattedCell)
 			}
 		}
 		if c.ID == "saddle_hb" {
@@ -973,8 +972,8 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 	if critClamp == nil {
 		t.Fatalf("Expected handlebar_clamp_fit criterion")
 	}
-	if !strings.Contains(critClamp.FormattedCell, "3 in oval") {
-		t.Errorf("Expected cell to show '3 in oval', got %q", critClamp.FormattedCell)
+	if critClamp.FormattedCell != "3 ✓" {
+		t.Errorf("Expected cell to show '3 ✓', got %q", critClamp.FormattedCell)
 	}
 
 	// 2. Zero setups inside oval (steep roll-off + -25 penalty)

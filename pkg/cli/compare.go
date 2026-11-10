@@ -1228,8 +1228,7 @@ func (a *App) renderComparisonMatrix(
 			for idx, attr := range prof.Attributes {
 				evalAttr := adaptProfileAttributeForSaddle(attr, state.Saddle)
 				meta, _ := ideal.LookupAttribute(evalAttr.ID)
-				idealRow[attrOffset+idx] = ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals)
-				accRow[attrOffset+idx] = ideal.FormatRange(evalAttr.Acceptable, meta.Unit, meta.Decimals)
+				idealRow[attrOffset+idx], accRow[attrOffset+idx] = formatCompareAttrRanges(evalAttr, meta)
 			}
 
 			tableRows = append(tableRows, idealRow, accRow)
@@ -1281,7 +1280,7 @@ func (a *App) renderComparisonMatrix(
 			// Split into Table 1 (Fit & Cockpit) and Table 2 (Frame & Chassis Specifications)
 			var fitAttrs []ideal.AttributeSpec
 			for _, attr := range prof.Attributes {
-				if attr.Ideal != nil && attr.Weight > 0 {
+				if attr.Ideal != nil || strings.EqualFold(attr.ID, "best_stem") {
 					fitAttrs = append(fitAttrs, attr)
 				}
 			}
@@ -1323,8 +1322,7 @@ func (a *App) renderComparisonMatrix(
 			for idx, attr := range fitAttrs {
 				evalAttr := adaptProfileAttributeForSaddle(attr, state.Saddle)
 				meta, _ := ideal.LookupAttribute(evalAttr.ID)
-				idealRow[attrOffset+idx] = ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals)
-				accRow[attrOffset+idx] = ideal.FormatRange(evalAttr.Acceptable, meta.Unit, meta.Decimals)
+				idealRow[attrOffset+idx], accRow[attrOffset+idx] = formatCompareAttrRanges(evalAttr, meta)
 			}
 
 			table1Rows = append(table1Rows, idealRow, accRow)
@@ -1498,8 +1496,7 @@ func (a *App) renderComparisonMatrix(
 			if strings.EqualFold(evalAttr.ID, "aett") || strings.EqualFold(evalAttr.ID, "setback") || strings.EqualFold(evalAttr.ID, "saddle_hb") || strings.EqualFold(evalAttr.ID, "brp_setback") || strings.EqualFold(evalAttr.ID, "saddle_hb_drop") || strings.EqualFold(evalAttr.ID, "handlebar_clamp_fit") {
 				label = fmt.Sprintf("%s @ %.0fmm", meta.Label, state.SaddleHeightMm)
 			}
-			idealStr := ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals)
-			accStr := ideal.FormatRange(evalAttr.Acceptable, meta.Unit, meta.Decimals)
+			idealStr, accStr := formatCompareAttrRanges(evalAttr, meta)
 
 			attrID := evalAttr.ID
 			tableRows = append(tableRows, buildRow(label, idealStr, accStr, func(colIdx int, item scoredRowItem) string {
@@ -1592,14 +1589,27 @@ func disambiguateFrameNames(rows []model.CanonicalComparisonRow) []string {
 	return names
 }
 
+func formatCompareAttrRanges(evalAttr ideal.AttributeSpec, meta ideal.AttributeMeta) (string, string) {
+	if strings.EqualFold(evalAttr.ID, "handlebar_clamp_fit") {
+		return "≥4", "1–3"
+	}
+	return ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals), ideal.FormatRange(evalAttr.Acceptable, meta.Unit, meta.Decimals)
+}
+
 func wrapHeader(h string) string {
 	switch h {
 	case "Fork & Eff A2C":
 		return "Fork &\nEff A2C"
 	case "BRP Setback":
 		return "BRP\nSetback"
-	case "Saddle-HB Drop":
-		return "HB\nDrop"
+	case "Saddle-HB":
+		return "Saddle-\nHB"
+	case "HB Rise", "Saddle-HB Drop":
+		return "HB\nRise"
+	case "Best Stem":
+		return "Best\nStem"
+	case "Oval Fits", "Handlebar Clamp Fit":
+		return "Oval\nFits"
 	case "Seatpost Ext":
 		return "Seatpost\nExt"
 	case "BB Drop":

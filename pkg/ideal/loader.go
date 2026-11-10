@@ -111,6 +111,9 @@ func IdmatchProfile() *Profile {
 				Falloff:    FalloffBoth(20, 20),
 				Floor:      Float(-200),
 			},
+			DisplayOnlyWithTarget("saddle_hb", Between(695, 705), Between(685, 715), Float(75), FalloffBoth(15, 15)),
+			DisplayOnlyWithTarget("saddle_hb_drop", Between(8, 18), Between(0, 26), Float(75), FalloffBoth(10, 10)),
+			DisplayOnly("best_stem"),
 			{
 				ID:         "handlebar_clamp_fit",
 				Weight:     15,
@@ -155,8 +158,6 @@ func IdmatchProfile() *Profile {
 				Falloff:    FalloffBelow(5),
 				Floor:      Float(-100),
 			},
-			DisplayOnlyWithTarget("saddle_hb", Between(695, 705), Between(685, 715), Float(75), FalloffBoth(15, 15)),
-			DisplayOnlyWithTarget("saddle_hb_drop", Between(8, 18), Between(0, 26), Float(75), FalloffBoth(10, 10)),
 			DisplayOnly("reach"),
 			DisplayOnly("stack"),
 			DisplayOnly("sta"),

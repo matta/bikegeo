@@ -855,16 +855,22 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 	distStr := formatValue(meta.Unit, distVal)
 
 	if dist < 0 {
-		if spec.Acceptable != nil && spec.Acceptable.Min != nil && val < *spec.Acceptable.Min {
-			accStr := formatValue(meta.Unit, *spec.Acceptable.Min)
-			return fmt.Sprintf("%s %s is %s short of the %s sweet spot", label, valStr, distStr, accStr)
+		if spec.Ideal != nil && spec.Ideal.Min != nil {
+			idealStr := formatValue(meta.Unit, *spec.Ideal.Min)
+			if lowID == "setback" || lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" || lowID == "sit_bone_setback" {
+				return fmt.Sprintf("%s %s is %s forward of the %s ideal", label, valStr, distStr, idealStr)
+			}
+			return fmt.Sprintf("%s %s is %s short of the %s ideal", label, valStr, distStr, idealStr)
 		}
 		return fmt.Sprintf("%s %s is %s short of ideal", label, valStr, distStr)
 	}
 
-	if spec.Acceptable != nil && spec.Acceptable.Max != nil && val > *spec.Acceptable.Max {
-		accStr := formatValue(meta.Unit, *spec.Acceptable.Max)
-		return fmt.Sprintf("%s %s is %s past the %s sweet spot", label, valStr, distStr, accStr)
+	if spec.Ideal != nil && spec.Ideal.Max != nil {
+		idealStr := formatValue(meta.Unit, *spec.Ideal.Max)
+		if lowID == "setback" || lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" || lowID == "sit_bone_setback" {
+			return fmt.Sprintf("%s %s is %s aft of the %s ideal", label, valStr, distStr, idealStr)
+		}
+		return fmt.Sprintf("%s %s is %s past the %s ideal", label, valStr, distStr, idealStr)
 	}
 	return fmt.Sprintf("%s %s is %s past ideal", label, valStr, distStr)
 }
