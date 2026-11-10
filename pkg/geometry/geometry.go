@@ -227,7 +227,29 @@ func SelectBestBRP(
 	return best, true
 }
 
-// CalculateHBPoint calculates the HB reference point (center of the stem handlebar clamp)
+// CalculateHandlebarOffset calculates the 2D offset vector (rearward X, upward Y)
+// from the stem clamp center to the rider's hand contact position.
+// It models an 800mm wide bar with the specified rise and sweep, accounting for the
+// central clamp/riser section and inboard palm grip center.
+func CalculateHandlebarOffset(riseMm, sweepDeg, widthMm float64) geom2d.Vec2 {
+	if widthMm <= 0 {
+		widthMm = 800.0
+	}
+	halfWidth := widthMm / 2.0
+	sweptSpan := math.Max(0, halfWidth-model.DefaultBarClampAndRiseSpanMm-model.DefaultBarGripInboardOffsetMm)
+	return geom2d.Vec2{
+		X: -sweptSpan * geom2d.FromDeg(sweepDeg).Sin(),
+		Y: riseMm,
+	}
+}
+
+// DefaultHandlebarOffset returns the default handlebar offset (50mm rise, 20° backsweep on an 800mm bar).
+func DefaultHandlebarOffset() geom2d.Vec2 {
+	def := model.DefaultRiderProfile()
+	return CalculateHandlebarOffset(def.BaselineBarRiseMm, def.BaselineBarSweepDeg, def.BaselineBarWidthMm)
+}
+
+// CalculateHBPoint calculates the HB reference point (effective hand/handlebar position)
 // and the Saddle-Handlebar distance and drop from the saddle BRP reference point.
 // Steerer tube extends upward and rearward at polar angle (180° - HTA).
 // Stem clamp center sits at d_steerer = spacerMm + StemThicknessMm/2.0 along the steerer axis:
@@ -238,8 +260,12 @@ func SelectBestBRP(
 // Stem angle is rotated 90° clockwise from the upward steerer axis, then rotated AngleDeg:
 //
 //	theta_stem = (180° - HTA) - 90° + AngleDeg = (90° - HTA) + AngleDeg
-//	HbX = SteererX + stem.LengthMm * cos(theta_stem)
-//	HbY = SteererY + stem.LengthMm * sin(theta_stem)
+//	ClampX = SteererX + stem.LengthMm * cos(theta_stem)
+//	ClampY = SteererY + stem.LengthMm * sin(theta_stem)
+//
+// The effective handlebar position (HbX, HbY) applies the handlebar sweep and rise offset:
+//
+//	HbPoint = ClampPoint + DefaultHandlebarOffset()
 //
 // Distance from BRP & Rise/Drop from Sit Bones:
 //
@@ -259,7 +285,8 @@ func CalculateHBPoint(
 
 	// Stem angle is rotated 90° clockwise from upward steerer axis, then rotated AngleDeg:
 	stemDir := steererAxis.Normal(geom2d.Clockwise).RotateDeg(stem.AngleDeg)
-	hbPoint := stemClamp.Add(stemDir.Scale(stem.LengthMm))
+	clampPoint := stemClamp.Add(stemDir.Scale(stem.LengthMm))
+	hbPoint := clampPoint.Add(DefaultHandlebarOffset())
 
 	brpPoint := brp.BrpPoint()
 	sitBonePoint := brp.SitBonePoint()
@@ -269,6 +296,8 @@ func CalculateHBPoint(
 	return model.HBPoint{
 		Stem:           stem,
 		SpacerMm:       spacerMm,
+		ClampX:         Round(clampPoint.X, 1),
+		ClampY:         Round(clampPoint.Y, 1),
 		HbX:            Round(hbPoint.X, 1),
 		HbY:            Round(hbPoint.Y, 1),
 		SaddleHbMm:     Round(dist, 1),
@@ -953,14 +982,7 @@ func CalculateBaselinePosture(
 	clamp := headTubeTop.Add(stemDir.Scale(profile.BaselineStemMm))
 
 	// Bar sweep & rise
-	halfWidth := profile.BaselineBarWidthMm / 2.0
-	if halfWidth <= 0 {
-		halfWidth = 400.0
-	}
-	sweepOffset := geom2d.Vec2{
-		X: -halfWidth * geom2d.FromDeg(profile.BaselineBarSweepDeg).Sin(),
-		Y: profile.BaselineBarRiseMm,
-	}
+	sweepOffset := CalculateHandlebarOffset(profile.BaselineBarRiseMm, profile.BaselineBarSweepDeg, profile.BaselineBarWidthMm)
 	grip := clamp.Add(sweepOffset)
 
 	// 3. Biomechanical Triangle: Hip, Shoulder, Grip
@@ -968,6 +990,10 @@ func CalculateBaselinePosture(
 	torsoLen := 0.288 * heightMm // Hip to shoulder (~541mm for 74")
 	armLen := 0.380 * heightMm   // Shoulder to hand (~714mm for 74")
 
+	halfWidth := profile.BaselineBarWidthMm / 2.0
+	if halfWidth <= 0 {
+		halfWidth = 400.0
+	}
 	// 3D lateral arm spread to 800mm wide bar:
 	// Shoulder half-breadth ~200mm, grip half-breadth ~390mm -> lateral offset ~190mm
 	lateralOffset := math.Max(0, halfWidth-200.0)

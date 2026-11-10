@@ -679,10 +679,22 @@ func (s SaddleSpec) MapPossibleBRPs(
 	return points
 }
 
-// HBPoint represents a mapped handlebar-stem intersection point (HB) and its resulting Saddle-Handlebar distance and drop.
+// DefaultBarClampAndRiseSpanMm is the lateral distance (in mm) from the stem centerline across the
+// 31.8mm clamp section and upward riser bends before handlebar backsweep begins.
+const DefaultBarClampAndRiseSpanMm = 190.0
+
+// DefaultBarGripInboardOffsetMm is the distance (in mm) from the outer bar tip to the center of the
+// rider's palm (3rd metacarpal) on standard ~135mm grips.
+const DefaultBarGripInboardOffsetMm = 70.0
+
+// HBPoint represents a mapped handlebar position (HB) and its resulting Saddle-Handlebar distance and drop.
+// ClampX and ClampY represent the center of the physical stem clamp, while HbX and HbY represent
+// the effective hand contact position after accounting for handlebar sweep and rise.
 type HBPoint struct {
 	Stem           StemSpec
 	SpacerMm       float64
+	ClampX         float64
+	ClampY         float64
 	HbX            float64
 	HbY            float64
 	SaddleHbMm     float64

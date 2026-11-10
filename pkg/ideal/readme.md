@@ -54,11 +54,21 @@ When a target setback is specified (e.g. `219 mm` in `idmatch`), `SelectBestBRP`
 
 ## Front Cockpit Optimization (`HBPoint`) & Area of Reasonable Fit
 
-The steerer tube extends upward and rearward at polar angle `180° - HTA`. With stem clamp thickness of 40 mm and steerer spacers `s` (`0..max_spacer_mm` in 5 mm steps):
+The steerer tube extends upward and rearward at polar angle `180° - HTA`. With stem clamp thickness of 40 mm and steerer spacers `s` (`0..max_spacer_mm` in 5 mm steps), the center of the stem handlebar clamp sits at:
 - `SteererX = Reach - (s + 20.0) * cos(HTA)`
 - `SteererY = Stack + (s + 20.0) * sin(HTA)`
-- `HbX = SteererX + LengthMm * cos((90° - HTA) + AngleDeg)`
-- `HbY = SteererY + LengthMm * sin((90° - HTA) + AngleDeg)`
+- `ClampX = SteererX + LengthMm * cos((90° - HTA) + AngleDeg)`
+- `ClampY = SteererY + LengthMm * sin((90° - HTA) + AngleDeg)`
+
+### Handlebar Component Geometry & Contact Point Offset
+A handlebar component with 50 mm rise, 20° backsweep, and 800 mm width (such as the Tumbleweed Persuader in `DefaultRiderProfile`) translates the rider's palm grip coordinates relative to the stem clamp:
+- `swept_span = max(0, (800 / 2) - 190.0 - 70.0) = 140.0 mm` (accounting for the 190 mm central clamp/riser section and 70 mm inboard grip center).
+- `Offset_X = -swept_span * sin(20°) = -47.88 mm` (rearward pullback)
+- `Offset_Y = +50.0 mm` (upward riser)
+- `HbX = ClampX + Offset_X`
+- `HbY = ClampY + Offset_Y`
+
+To place the rider's hands at the target `(HbX, HbY)` from an idmatch report, the physical stem clamp center must sit downward (`-50.0 mm`) and forward (`+47.9 mm`), correctly driving frame selection toward models with appropriate reach and stack.
 
 ### Handlebar Clamp Fit (`handlebar_clamp_fit`)
 When scoring cockpits against biomechanical profiles, handlebar positions are assessed against an **Area of Reasonable Fit** oval:

@@ -274,8 +274,8 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	maxSpacer := 30.0
 
 	bike := model.BikeGeometry{
-		Reach:         425.0,
-		Stack:         645.0,
+		Reach:         465.0,
+		Stack:         625.0,
 		HtaDeg:        68.0,
 		StaDeg:        staDeg,
 		MaxSpacerMm:   maxSpacer,
@@ -291,8 +291,8 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	row := model.CanonicalComparisonRow{
 		Bike: bike,
 		Canonical: model.BikeFitAnalysis{
-			ActiveReach:   425.0,
-			ActiveStack:   645.0,
+			ActiveReach:   465.0,
+			ActiveStack:   625.0,
 			ActiveHta:     68.0,
 			ActiveSta:     staDeg,
 			Saddle:        saddle,
@@ -329,8 +329,8 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	fenrirRow := model.CanonicalComparisonRow{
 		Bike: fenrirBike,
 		Canonical: model.BikeFitAnalysis{
-			ActiveReach:   425.0,
-			ActiveStack:   645.0,
+			ActiveReach:   465.0,
+			ActiveStack:   625.0,
 			ActiveHta:     68.0,
 			ActiveSta:     fenrirSTA,
 			Saddle:        saddle,

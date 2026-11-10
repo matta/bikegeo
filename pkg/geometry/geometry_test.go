@@ -330,6 +330,20 @@ func TestAnalyzeBikeFitRequiresPositiveRake(t *testing.T) {
 	}
 }
 
+func TestCalculateHandlebarOffset(t *testing.T) {
+	offset := geometry.DefaultHandlebarOffset()
+	// 800mm bar, halfWidth = 400.
+	// sweptSpan = 400 - 190 - 70 = 140 mm.
+	// OffsetX = -140 * sin(20°) = -140 * 0.342020... = -47.88...
+	// OffsetY = 50.0 mm
+	if math.Abs(offset.X-(-47.88)) > 0.05 {
+		t.Errorf("Expected offset.X ~ -47.88mm, got %.2fmm", offset.X)
+	}
+	if math.Abs(offset.Y-50.0) > 0.001 {
+		t.Errorf("Expected offset.Y = 50.0mm, got %.2fmm", offset.Y)
+	}
+}
+
 func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	reach := 450.0
 	stack := 620.0
@@ -338,21 +352,32 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 
 	// BRP point with 0 offset matches bare seat tube top coordinates
 	brp := geometry.CalculateBRPPoint(staDeg, seatHeight, 0.0, 0.0, 0.0)
+	barOffset := geometry.DefaultHandlebarOffset()
 
 	// Case 1: HTA = 73°, stem -17° (90° - 73° - 17° = 0° => stem extends strictly horizontally forward)
 	// spacer = 0 mm => d_steerer = 0 + 40/2 = 20 mm
 	// steererX = reach - 20 * cos(73°)
 	// steererY = stack + 20 * sin(73°)
-	// HbX = steererX + length * cos(0°) = steererX + 100
-	// HbY = steererY + length * sin(0°) = steererY
+	// ClampX = steererX + length * cos(0°) = steererX + 100
+	// ClampY = steererY + length * sin(0°) = steererY
+	// HbX = ClampX + barOffset.X
+	// HbY = ClampY + barOffset.Y
 	stem1 := model.StemSpec{LengthMm: 100.0, AngleDeg: -17.0}
 	hb1 := geometry.CalculateHBPoint(reach, stack, 73.0, brp, stem1, 0.0)
 
 	expectedSteererX1 := reach - 20.0*math.Cos(73.0*math.Pi/180.0)
 	expectedSteererY1 := stack + 20.0*math.Sin(73.0*math.Pi/180.0)
-	expectedHbX1 := expectedSteererX1 + 100.0
-	expectedHbY1 := expectedSteererY1
+	expectedClampX1 := expectedSteererX1 + 100.0
+	expectedClampY1 := expectedSteererY1
+	expectedHbX1 := expectedClampX1 + barOffset.X
+	expectedHbY1 := expectedClampY1 + barOffset.Y
 
+	if math.Abs(hb1.ClampX-expectedClampX1) > 0.1 {
+		t.Errorf("hb1.ClampX expected %.2f, got %.2f", expectedClampX1, hb1.ClampX)
+	}
+	if math.Abs(hb1.ClampY-expectedClampY1) > 0.1 {
+		t.Errorf("hb1.ClampY expected %.2f, got %.2f", expectedClampY1, hb1.ClampY)
+	}
 	if math.Abs(hb1.HbX-expectedHbX1) > 0.1 {
 		t.Errorf("hb1.HbX expected %.2f, got %.2f", expectedHbX1, hb1.HbX)
 	}
@@ -376,10 +401,18 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 
 	expectedSteererX2 := reach - 30.0*math.Cos(70.0*math.Pi/180.0)
 	expectedSteererY2 := stack + 30.0*math.Sin(70.0*math.Pi/180.0)
-	expectedHbX2 := expectedSteererX2 + 80.0*math.Cos(14.0*math.Pi/180.0)
-	expectedHbY2 := expectedSteererY2 + 80.0*math.Sin(14.0*math.Pi/180.0)
+	expectedClampX2 := expectedSteererX2 + 80.0*math.Cos(14.0*math.Pi/180.0)
+	expectedClampY2 := expectedSteererY2 + 80.0*math.Sin(14.0*math.Pi/180.0)
+	expectedHbX2 := expectedClampX2 + barOffset.X
+	expectedHbY2 := expectedClampY2 + barOffset.Y
 	expectedDist2 := math.Hypot(expectedHbX2-seatX, expectedHbY2-seatY)
 
+	if math.Abs(hb2.ClampX-expectedClampX2) > 0.1 {
+		t.Errorf("hb2.ClampX expected %.2f, got %.2f", expectedClampX2, hb2.ClampX)
+	}
+	if math.Abs(hb2.ClampY-expectedClampY2) > 0.1 {
+		t.Errorf("hb2.ClampY expected %.2f, got %.2f", expectedClampY2, hb2.ClampY)
+	}
 	if math.Abs(hb2.HbX-expectedHbX2) > 0.1 {
 		t.Errorf("hb2.HbX expected %.2f, got %.2f", expectedHbX2, hb2.HbX)
 	}
@@ -516,13 +549,26 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 		BrpY:         713.0,
 		BrpSetbackMm: 219.0,
 	}
-	// Place steerer and stem such that HbX=481.0, HbY=726.0
-	// For HTA=90°, stem length=81mm at angle 0°: steererX = 400, steererY = 726 => HbX=481, HbY=726
+	// To achieve target hand position (HbX=481.0, HbY=726.0) with a 50mm rise / 20° sweep bar,
+	// the stem clamp center must sit downward and forward:
+	// ClampX = HbX - OffsetX = 481.0 - (-47.88) = 528.88
+	// ClampY = HbY - OffsetY = 726.0 - 50.00 = 676.00
+	// For HTA=90°, steererX = 400: stem length = 528.88 - 400 = 128.88, stack = 676 - 20 = 656
+	barOffset := geometry.DefaultHandlebarOffset()
+	clampX := 481.0 - barOffset.X
+	clampY := 726.0 - barOffset.Y
+
 	reach := 400.0 + 20.0*math.Cos(90.0*math.Pi/180.0) // 400
-	stack := 726.0 - 20.0*math.Sin(90.0*math.Pi/180.0) // 706
-	stem := model.StemSpec{LengthMm: 81.0, AngleDeg: 0.0}
+	stack := clampY - 20.0*math.Sin(90.0*math.Pi/180.0)
+	stem := model.StemSpec{LengthMm: clampX - 400.0, AngleDeg: 0.0}
 	hb := geometry.CalculateHBPoint(reach, stack, 90.0, brpReport, stem, 0.0)
 
+	if math.Abs(hb.HbX-481.0) > 0.1 {
+		t.Errorf("Expected HbX ~ 481.0, got %.1f", hb.HbX)
+	}
+	if math.Abs(hb.HbY-726.0) > 0.1 {
+		t.Errorf("Expected HbY ~ 726.0, got %.1f", hb.HbY)
+	}
 	if math.Abs(hb.SaddleHbMm-700.1) > 0.2 {
 		t.Errorf("Expected SaddleHbMm ~ 700.1mm, got %.1fmm", hb.SaddleHbMm)
 	}
