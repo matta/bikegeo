@@ -90,8 +90,8 @@ func TestValidateOtsoFenrirSpacerNoAutoDetection(t *testing.T) {
 	// Explicitly relaxing geo_slop_mm allows the sloppy geometry to pass
 	fenrirRelaxed := fenrirSloppy
 	fenrirRelaxed.GeoSlopMm = &model.GeoSlopMm{
-		A2c:       model.Float64Ptr(5.0),
-		Wheelbase: model.Float64Ptr(6.0),
+		A2c:       new(5.0),
+		Wheelbase: new(6.0),
 	}
 	if !validator.ValidateBikeGeometry(fenrirRelaxed).IsValid {
 		t.Errorf("Expected relaxed geo_slop_mm (a2c=5.0, wheelbase=6.0) to pass validation")
@@ -144,8 +144,8 @@ func TestValidateGeoSlopMmAnd3DFrontCenter(t *testing.T) {
 
 	// With geo_slop_mm {a2c: 1.5, wheelbase: 1.5} (leaving front_center at default 1.0mm), it passes
 	havokM.GeoSlopMm = &model.GeoSlopMm{
-		A2c:       model.Float64Ptr(1.5),
-		Wheelbase: model.Float64Ptr(1.5),
+		A2c:       new(1.5),
+		Wheelbase: new(1.5),
 	}
 	repRelaxed := validator.ValidateBikeGeometry(havokM)
 	if !repRelaxed.IsValid {

@@ -111,7 +111,7 @@ func (a *App) runCompare(args []string) int {
 	for _, arg := range posArgs {
 		clean := strings.TrimPrefix(strings.TrimPrefix(arg, "+"), "-")
 		parts := strings.Split(clean, "@")
-		framePart := strings.Split(parts[0], ":")[0]
+		framePart, _, _ := strings.Cut(parts[0], ":")
 		if strings.EqualFold(framePart, "all") {
 			isAllFrames = true
 		}
@@ -149,16 +149,16 @@ func (a *App) runCompare(args []string) int {
 
 		if isIncremental {
 			for _, arg := range posArgs {
-				if strings.HasPrefix(arg, "+") {
-					specStr := strings.TrimPrefix(arg, "+")
+				if after, ok := strings.CutPrefix(arg, "+"); ok {
+					specStr := after
 					cols, err := ParseComparisonSpecs(allFrames, specStr)
 					if err != nil {
 						fmt.Fprintf(a.Err, "Error: %v\n", err)
 						return 1
 					}
 					state.Columns = append(state.Columns, cols...)
-				} else if strings.HasPrefix(arg, "-") {
-					rmToken := strings.TrimPrefix(arg, "-")
+				} else if after, ok := strings.CutPrefix(arg, "-"); ok {
+					rmToken := after
 					if idx, err := strconv.Atoi(rmToken); err == nil {
 						colIdx := idx - 1
 						if colIdx < 0 || colIdx >= len(state.Columns) {
@@ -819,10 +819,7 @@ func pruneComparisonRows(
 				return a.index < b.index
 			})
 
-			limit := topPerFrame
-			if limit > len(group) {
-				limit = len(group)
-			}
+			limit := min(topPerFrame, len(group))
 			filtered = append(filtered, group[:limit]...)
 		}
 		stage2 = filtered

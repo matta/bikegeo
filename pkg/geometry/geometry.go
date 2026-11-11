@@ -513,6 +513,7 @@ func EvaluateCockpitFit(
 ) model.CockpitFitResult {
 	if len(possible) == 0 {
 		return model.CockpitFitResult{
+			TargetOval:     oval,
 			BestR:          999,
 			CountInside:    0,
 			BaseScore:      -200.0,
@@ -652,6 +653,7 @@ func EvaluateCockpitFit(
 	}
 
 	return model.CockpitFitResult{
+		TargetOval:        oval,
 		SelectedHB:        best.pt,
 		BestR:             Round(best.r, 3),
 		CountInside:       countInside,

@@ -12,7 +12,7 @@ var TurnerVennTI = model.FrameModel{
 	HeadsetCupType:     model.CupZS56,
 	GeoHeadsetSpacerMm: 0,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c:       model.Float64Ptr(2.5),
+		A2c:       new(2.5),
 		Wheelbase: model.Float64Ptr(2),
 	},
 	MaxSpacerMm:   40,

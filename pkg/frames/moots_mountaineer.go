@@ -12,7 +12,7 @@ var MootsMountaineer = model.FrameModel{
 	HeadsetCupType:     model.CupEC44,
 	GeoHeadsetSpacerMm: 12,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c:    model.Float64Ptr(1.5),
+		A2c:    new(1.5),
 		Reason: "Moots publishes integer Stack values (612, 622, 635, 645mm) creating up to 1.4mm residual relative to the 120mm fork at 20% sag baseline.",
 	},
 	MaxSpacerMm:   40,

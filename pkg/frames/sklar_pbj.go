@@ -12,7 +12,7 @@ var SklarPBJ = model.FrameModel{
 	HeadsetCupType:     model.CupEC44,
 	GeoHeadsetSpacerMm: 12,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c:         model.Float64Ptr(3.5),
+		A2c:         new(3.5),
 		FrontCenter: model.Float64Ptr(3),
 		Wheelbase:   model.Float64Ptr(5),
 	},

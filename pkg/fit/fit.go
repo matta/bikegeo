@@ -163,23 +163,23 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 	var targetSize string
 	fieldKey := key
 
-	if colonIdx := strings.Index(key, ":"); colonIdx != -1 {
-		prefix := strings.TrimSpace(key[:colonIdx])
-		fieldKey = strings.TrimSpace(key[colonIdx+1:])
+	if before, after, ok := strings.Cut(key, ":"); ok {
+		prefix := strings.TrimSpace(before)
+		fieldKey = strings.TrimSpace(after)
 		matched := matchSize(frame.GetSizes(), prefix)
 		if matched == "" {
 			return fmt.Errorf("unknown size %q in assignment %q (available: %s)", prefix, assignment, strings.Join(frame.GetSizes(), ", "))
 		}
 		targetSize = matched
-	} else if dotIdx := strings.Index(key, "."); dotIdx != -1 {
-		prefix := strings.TrimSpace(key[:dotIdx])
+	} else if before, after, ok := strings.Cut(key, "."); ok {
+		prefix := strings.TrimSpace(before)
 		// Only treat as size prefix if prefix is NOT a known domain group (fork, cad_fork, default_fork, slop, geo_slop_mm)
 		lowerPrefix := strings.ToLower(prefix)
 		if lowerPrefix != "fork" && lowerPrefix != "cad_fork" && lowerPrefix != "default_fork" && lowerPrefix != "slop" && lowerPrefix != "geo_slop_mm" {
 			matched := matchSize(frame.GetSizes(), prefix)
 			if matched != "" {
 				targetSize = matched
-				fieldKey = strings.TrimSpace(key[dotIdx+1:])
+				fieldKey = strings.TrimSpace(after)
 			}
 		}
 	}
@@ -290,7 +290,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if frame.GeoSlopMm == nil {
 			frame.GeoSlopMm = &model.GeoSlopMm{}
 		}
-		frame.GeoSlopMm.A2c = model.Float64Ptr(v)
+		frame.GeoSlopMm.A2c = new(v)
 		return nil
 	case "geo_slop_mm.front_center", "slop.front_center", "slop.fc":
 		v, err := parseFloat()
@@ -300,7 +300,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if frame.GeoSlopMm == nil {
 			frame.GeoSlopMm = &model.GeoSlopMm{}
 		}
-		frame.GeoSlopMm.FrontCenter = model.Float64Ptr(v)
+		frame.GeoSlopMm.FrontCenter = new(v)
 		return nil
 	case "geo_slop_mm.wheelbase", "slop.wheelbase", "slop.wb":
 		v, err := parseFloat()
@@ -310,7 +310,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if frame.GeoSlopMm == nil {
 			frame.GeoSlopMm = &model.GeoSlopMm{}
 		}
-		frame.GeoSlopMm.Wheelbase = model.Float64Ptr(v)
+		frame.GeoSlopMm.Wheelbase = new(v)
 		return nil
 	case "geo_slop_mm.cross_config", "slop.cross_config":
 		v, err := parseFloat()
@@ -320,7 +320,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if frame.GeoSlopMm == nil {
 			frame.GeoSlopMm = &model.GeoSlopMm{}
 		}
-		frame.GeoSlopMm.CrossConfig = model.Float64Ptr(v)
+		frame.GeoSlopMm.CrossConfig = new(v)
 		return nil
 	case "geo_slop_mm.reason", "slop.reason":
 		if frame.GeoSlopMm == nil {
@@ -340,7 +340,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if err != nil || v < 0 || v > 100.0 {
 			return fmt.Errorf("seat_tube_offset_x_mm must be between 0.0 and 100.0 mm")
 		}
-		frame.SeatTubeOffsetXMm = model.Float64Ptr(v)
+		frame.SeatTubeOffsetXMm = new(v)
 		return nil
 	case "rigid_a2c_mm", "rigid_a2c":
 		v, err := parseFloat()
@@ -379,7 +379,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		return nil
 	case "stems":
 		var parsedStemIDs []string
-		for _, part := range strings.Split(val, ",") {
+		for part := range strings.SplitSeq(val, ",") {
 			part = strings.TrimSpace(part)
 			if part == "" {
 				continue

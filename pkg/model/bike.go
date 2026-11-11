@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"strconv"
 	"strings"
@@ -10,8 +11,10 @@ import (
 )
 
 // Float64Ptr returns a pointer to v, used for optional numeric fields where nil means unset.
+//
+//go:fix inline
 func Float64Ptr(v float64) *float64 {
-	return &v
+	return new(v)
 }
 
 type HeadsetCupType string
@@ -821,6 +824,7 @@ type FitOval struct {
 
 // CockpitFitResult captures the fit assessment of a bike's candidate handlebar positions against a FitOval.
 type CockpitFitResult struct {
+	TargetOval        FitOval
 	SelectedHB        HBPoint
 	BestR             float64
 	CountInside       int
@@ -911,8 +915,8 @@ func (r ForkRef) GetSagPct() float64 {
 }
 
 func (r ForkRef) ForkTravel() float64 {
-	parts := strings.Split(r.Fork, "_")
-	for _, p := range parts {
+	parts := strings.SplitSeq(r.Fork, "_")
+	for p := range parts {
 		if v, err := strconv.ParseFloat(strings.TrimSuffix(p, "mm"), 64); err == nil && v >= 60 && v <= 200 {
 			return v
 		}
@@ -1028,9 +1032,7 @@ func (fm FrameModel) Clone() FrameModel {
 	}
 	if fm.Geometries != nil {
 		out.Geometries = make(map[string]SizeGeometry, len(fm.Geometries))
-		for k, v := range fm.Geometries {
-			out.Geometries[k] = v
-		}
+		maps.Copy(out.Geometries, fm.Geometries)
 	}
 	return out
 }

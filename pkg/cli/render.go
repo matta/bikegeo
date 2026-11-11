@@ -164,7 +164,7 @@ func RenderBoxTable(w io.Writer, headers []string, rows [][]string) {
 
 	colWidths := make([]int, numCols)
 	for c, h := range headers {
-		for _, line := range strings.Split(h, "\n") {
+		for line := range strings.SplitSeq(h, "\n") {
 			if l := utf8.RuneCountInString(line); l > colWidths[c] {
 				colWidths[c] = l
 			}
@@ -173,7 +173,7 @@ func RenderBoxTable(w io.Writer, headers []string, rows [][]string) {
 
 	for _, r := range rows {
 		for c := 0; c < numCols && c < len(r); c++ {
-			for _, line := range strings.Split(r[c], "\n") {
+			for line := range strings.SplitSeq(r[c], "\n") {
 				if l := utf8.RuneCountInString(line); l > colWidths[c] {
 					colWidths[c] = l
 				}
@@ -197,7 +197,7 @@ func RenderBoxTable(w io.Writer, headers []string, rows [][]string) {
 	printMultilineRow := func(cells []string) {
 		splitCells := make([][]string, numCols)
 		maxLines := 1
-		for c := 0; c < numCols; c++ {
+		for c := range numCols {
 			val := ""
 			if c < len(cells) {
 				val = cells[c]
@@ -212,15 +212,12 @@ func RenderBoxTable(w io.Writer, headers []string, rows [][]string) {
 		for lineIdx := 0; lineIdx < maxLines; lineIdx++ {
 			var sb strings.Builder
 			sb.WriteString("│")
-			for c := 0; c < numCols; c++ {
+			for c := range numCols {
 				text := ""
 				if lineIdx < len(splitCells[c]) {
 					text = splitCells[c][lineIdx]
 				}
-				pad := colWidths[c] - utf8.RuneCountInString(text)
-				if pad < 0 {
-					pad = 0
-				}
+				pad := max(colWidths[c]-utf8.RuneCountInString(text), 0)
 				sb.WriteString(" ")
 				sb.WriteString(text)
 				sb.WriteString(strings.Repeat(" ", pad+1))

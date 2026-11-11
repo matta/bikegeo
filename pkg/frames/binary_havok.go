@@ -12,8 +12,8 @@ var BinaryHavok = model.FrameModel{
 	HeadsetCupType:     model.CupEC44,
 	GeoHeadsetSpacerMm: 10,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c:       model.Float64Ptr(1.5),
-		Wheelbase: model.Float64Ptr(1.5),
+		A2c:       new(1.5),
+		Wheelbase: new(1.5),
 	},
 	ChainstayRangeMm: []float64{445, 460},
 	MaxSpacerMm:      40,

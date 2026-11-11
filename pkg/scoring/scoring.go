@@ -341,6 +341,34 @@ func DescribeLoss(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val float6
 	return DescribeLossWithRow(spec, meta, val, dist, zone, nil)
 }
 
+func formatCockpitOffset(hb model.HBPoint, oval model.FitOval) string {
+	if oval.CenterX == 0 && oval.CenterY == 0 {
+		return ""
+	}
+	dx := math.Round(hb.HbX - oval.CenterX)
+	dy := math.Round(hb.HbY - oval.CenterY)
+
+	var reachStr string
+	if dx < 0 {
+		reachStr = fmt.Sprintf("reach: %.0fmm short", -dx)
+	} else if dx > 0 {
+		reachStr = fmt.Sprintf("reach: %.0fmm long", dx)
+	} else {
+		reachStr = "reach: 0mm"
+	}
+
+	var stackStr string
+	if dy < 0 {
+		stackStr = fmt.Sprintf("stack: %.0fmm low", -dy)
+	} else if dy > 0 {
+		stackStr = fmt.Sprintf("stack: %.0fmm high", dy)
+	} else {
+		stackStr = "stack: 0mm"
+	}
+
+	return fmt.Sprintf("%s, %s", reachStr, stackStr)
+}
+
 // DescribeLossWithRow generates plain-English explanation for why points were lost on an attribute,
 // incorporating cockpit setup context (such as rail offset or stem/spacer configuration) if available.
 func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val float64, dist float64, zone ideal.ZoneType, row *model.CanonicalComparisonRow) string {
@@ -376,20 +404,25 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 			if cfr.StemPenalty > 0 {
 				stemNote = fmt.Sprintf(", -%.0f stem penalty", cfr.StemPenalty)
 			}
+			offsetStr := formatCockpitOffset(hb, cfr.TargetOval)
+			offsetPart := ""
+			if offsetStr != "" && (cfr.CountInside == 0 || cfr.BestR > 0) {
+				offsetPart = ", " + offsetStr
+			}
 			if cfr.CountInside == 0 {
-				return fmt.Sprintf("Handlebar Clamp Fit: 0 valid setups in fit window (closest is %.0fmm %.0f° %s%.0fmm, R=%.2f outside oval; -25 penalty%s)",
-					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, stemNote)
+				return fmt.Sprintf("Handlebar Clamp Fit: 0 valid setups in fit window (closest is %.0fmm %.0f° %s%.0fmm, R=%.2f%s; -25 penalty%s)",
+					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, stemNote)
 			}
 			plural := "s"
 			if cfr.CountInside == 1 {
 				plural = ""
 			}
 			if cfr.VersatilityBonus > 0 {
-				return fmt.Sprintf("Handlebar Clamp Fit: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f, %d valid setup%s%s, +%.0f bonus)",
-					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, cfr.CountInside, plural, stemNote, cfr.VersatilityBonus)
+				return fmt.Sprintf("Handlebar Clamp Fit: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f%s, %d valid setup%s%s, +%.0f bonus)",
+					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, cfr.CountInside, plural, stemNote, cfr.VersatilityBonus)
 			}
-			return fmt.Sprintf("Handlebar Clamp Fit: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f, %d valid setup%s in fit window%s)",
-				hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, cfr.CountInside, plural, stemNote)
+			return fmt.Sprintf("Handlebar Clamp Fit: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f%s, %d valid setup%s in fit window%s)",
+				hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, cfr.CountInside, plural, stemNote)
 		}
 	case "hta", "sta":
 		target := 68.0

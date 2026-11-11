@@ -610,11 +610,77 @@ func TestScoreRow_HandlebarClampFit_StemExtremityPenalty(t *testing.T) {
 		t.Errorf("Expected subscore 85.0 due to 15pt stem penalty, got %.1f", critClamp.SubScore)
 	}
 
-	// Verify loss explanation mentions stem penalty
+	// Verify loss explanation mentions stem penalty and omits reach/stack offset when R=0.00
 	meta, _ := ideal.LookupAttribute("handlebar_clamp_fit")
 	spec := prof.Attributes[0]
 	lossDesc := DescribeLossWithRow(spec, meta, critClamp.Value, critClamp.DistanceToIdeal, ideal.ZoneAcceptable, &row100)
 	if !strings.Contains(lossDesc, "-15 stem penalty") {
 		t.Errorf("Expected loss explanation to mention '-15 stem penalty', got: %s", lossDesc)
+	}
+	if strings.Contains(lossDesc, "reach:") || strings.Contains(lossDesc, "stack:") {
+		t.Errorf("Expected loss explanation to omit reach and stack offsets when R=0.0, got: %s", lossDesc)
+	}
+}
+
+func TestDescribeLoss_CockpitFitOffset_InsideOval(t *testing.T) {
+	spec := ideal.AttributeSpec{ID: "handlebar_clamp_fit"}
+	meta, _ := ideal.LookupAttribute("handlebar_clamp_fit")
+
+	row := model.CanonicalComparisonRow{
+		Canonical: model.BikeFitAnalysis{
+			CockpitFitResult: &model.CockpitFitResult{
+				TargetOval: model.FitOval{
+					CenterX: 500.0,
+					CenterY: 700.0,
+				},
+				SelectedHB: model.HBPoint{
+					Stem:     model.StemSpec{LengthMm: 100, AngleDeg: -6},
+					SpacerMm: 0,
+					HbX:      489.0, // 11mm short
+					HbY:      698.0, // 2mm low
+				},
+				BestR:       0.97,
+				CountInside: 1,
+				StemPenalty: 15.0,
+			},
+		},
+	}
+
+	desc := DescribeLossWithRow(spec, meta, 85, 0.97, ideal.ZoneAcceptable, &row)
+	expected := "Handlebar Clamp Fit: closest stem is 100mm -6° +0mm (R=0.97, reach: 11mm short, stack: 2mm low, 1 valid setup in fit window, -15 stem penalty)"
+	if desc != expected {
+		t.Errorf("\nExpected: %s\nGot:      %s", expected, desc)
+	}
+}
+
+func TestDescribeLoss_CockpitFitOffset_ZeroFits(t *testing.T) {
+	spec := ideal.AttributeSpec{ID: "handlebar_clamp_fit"}
+	meta, _ := ideal.LookupAttribute("handlebar_clamp_fit")
+
+	row := model.CanonicalComparisonRow{
+		Canonical: model.BikeFitAnalysis{
+			CockpitFitResult: &model.CockpitFitResult{
+				TargetOval: model.FitOval{
+					CenterX: 500.0,
+					CenterY: 700.0,
+				},
+				SelectedHB: model.HBPoint{
+					Stem:     model.StemSpec{LengthMm: 100, AngleDeg: -6},
+					SpacerMm: 0,
+					HbX:      474.0, // 26mm short
+					HbY:      756.0, // 56mm high
+				},
+				BestR:          5.37,
+				CountInside:    0,
+				ZeroFitPenalty: 25.0,
+				StemPenalty:    15.0,
+			},
+		},
+	}
+
+	desc := DescribeLossWithRow(spec, meta, -200, 5.37, ideal.ZoneOutside, &row)
+	expected := "Handlebar Clamp Fit: 0 valid setups in fit window (closest is 100mm -6° +0mm, R=5.37, reach: 26mm short, stack: 56mm high; -25 penalty, -15 stem penalty)"
+	if desc != expected {
+		t.Errorf("\nExpected: %s\nGot:      %s", expected, desc)
 	}
 }

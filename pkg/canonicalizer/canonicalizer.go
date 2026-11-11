@@ -287,8 +287,8 @@ func ResolveForkToken(
 	}
 
 	// 3. Direct A2C syntax: a2c=NNN/MM or a2c=NNN
-	if strings.HasPrefix(lower, "a2c=") {
-		valPart := strings.TrimPrefix(lower, "a2c=")
+	if after, ok := strings.CutPrefix(lower, "a2c="); ok {
+		valPart := after
 		if strings.Contains(valPart, "/") {
 			parts := strings.SplitN(valPart, "/", 2)
 			a2cVal, err := strconv.ParseFloat(parts[0], 64)

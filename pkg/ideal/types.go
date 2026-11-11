@@ -1,8 +1,10 @@
 package ideal
 
 // Float returns a pointer to v.
+//
+//go:fix inline
 func Float(v float64) *float64 {
-	return &v
+	return new(v)
 }
 
 // Range specifies an inclusive numeric interval [Min, Max].
@@ -15,22 +17,22 @@ type Range struct {
 
 // Between returns a Range with inclusive [min, max] bounds.
 func Between(min, max float64) *Range {
-	return &Range{Min: Float(min), Max: Float(max)}
+	return &Range{Min: new(min), Max: new(max)}
 }
 
 // Exact returns a single-point Range [val, val].
 func Exact(val float64) *Range {
-	return &Range{Min: Float(val), Max: Float(val)}
+	return &Range{Min: new(val), Max: new(val)}
 }
 
 // AtLeast returns a lower-bounded Range [min, +inf).
 func AtLeast(min float64) *Range {
-	return &Range{Min: Float(min)}
+	return &Range{Min: new(min)}
 }
 
 // AtMost returns an upper-bounded Range (-inf, max].
 func AtMost(max float64) *Range {
-	return &Range{Max: Float(max)}
+	return &Range{Max: new(max)}
 }
 
 // Falloff specifies the drop-off distance outside the acceptable range
@@ -42,17 +44,17 @@ type Falloff struct {
 
 // FalloffBoth returns a Falloff with both Below and Above drop-off distances.
 func FalloffBoth(below, above float64) *Falloff {
-	return &Falloff{Below: Float(below), Above: Float(above)}
+	return &Falloff{Below: new(below), Above: new(above)}
 }
 
 // FalloffBelow returns a Falloff with only a Below drop-off distance.
 func FalloffBelow(below float64) *Falloff {
-	return &Falloff{Below: Float(below)}
+	return &Falloff{Below: new(below)}
 }
 
 // FalloffAbove returns a Falloff with only an Above drop-off distance.
 func FalloffAbove(above float64) *Falloff {
-	return &Falloff{Above: Float(above)}
+	return &Falloff{Above: new(above)}
 }
 
 // AttributeSpec describes the scoring and display configuration for a single geometry or fit metric.
