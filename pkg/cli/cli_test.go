@@ -315,6 +315,31 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 			t.Errorf("expected Markdown Score row, got:\n%s", out)
 		}
 	})
+
+	t.Run("DisambiguatedMetricLabelsAndDefinitions", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "compare", "krampus:xl", "pbj:l")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+		if !strings.Contains(out, "Saddle-Rear Axle @") {
+			t.Errorf("expected 'Saddle-Rear Axle @' in standard compare output, got:\n%s", out)
+		}
+		if !strings.Contains(out, "Saddle-HT Drop @") {
+			t.Errorf("expected 'Saddle-HT Drop @' in standard compare output, got:\n%s", out)
+		}
+		if !strings.Contains(out, "Reference Metric Definitions:") {
+			t.Errorf("expected 'Reference Metric Definitions:' footer, got:\n%s", out)
+		}
+		if !strings.Contains(out, "Saddle-Rear Axle: Horizontal distance from saddle to rear axle") {
+			t.Errorf("expected Saddle-Rear Axle definition in footer, got:\n%s", out)
+		}
+		if !strings.Contains(out, "Saddle-HT Drop: Vertical drop from saddle to head tube top") {
+			t.Errorf("expected Saddle-HT Drop definition in footer, got:\n%s", out)
+		}
+		if !strings.Contains(out, "Seatpost Ext: Exposed seatpost length from collar to saddle rails") {
+			t.Errorf("expected Seatpost Ext definition in footer, got:\n%s", out)
+		}
+	})
 }
 
 func TestCompare_TumbleweedSunlinerFixedForkConstraints(t *testing.T) {

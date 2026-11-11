@@ -336,7 +336,7 @@ Overview:
   rake, headset cup spacers, and suspension sag. Each setup is evaluated against
   the rider's biomechanical profile (saddle height, back angle, arm reach, and
   center of mass), computing key fit metrics (effective reach/stack, actual setback,
-  AETT, spare vertical travel, front weight distribution) and scoring each setup
+  AETT, saddle-to-headtube drop, front weight distribution) and scoring each setup
   against ideal fit criteria.
 
 Comparison Specs:
@@ -1061,6 +1061,15 @@ func (a *App) renderComparisonMatrix(
 	var footers []FooterSection
 	missingNotes := scoring.CollectMissingDataNotes(scoredFramesForExplain)
 
+	refDefFooter := FooterSection{
+		Title: "Reference Metric Definitions",
+		Lines: []string{
+			"Saddle-Rear Axle: Horizontal distance from saddle to rear axle (Rear Center minus Saddle Setback).",
+			"Saddle-HT Drop: Vertical drop from saddle to head tube top (Saddle Height * sin(STA) - Stack; steerer spacer/stem rise needed for level bars).",
+			"Seatpost Ext: Exposed seatpost length from collar to saddle rails (available vertical height for dropper post fitment).",
+		},
+	}
+
 	if scoringEnabled && len(rows) > 0 {
 		expl = scoring.ExplainProfile(scoredFramesForExplain, prof)
 
@@ -1080,6 +1089,8 @@ func (a *App) renderComparisonMatrix(
 				},
 			})
 		}
+
+		footers = append(footers, refDefFooter)
 
 		footers = append(footers, FooterSection{
 			Title: "Biggest Losses vs. Ideal",
@@ -1103,11 +1114,14 @@ func (a *App) renderComparisonMatrix(
 		sort.SliceStable(scoredItems, func(i, j int) bool {
 			return scoredItems[i].score.Total > scoredItems[j].score.Total
 		})
-	} else if len(missingNotes) > 0 {
-		footers = append(footers, FooterSection{
-			Title: "Data Notes",
-			Lines: missingNotes,
-		})
+	} else {
+		footers = append(footers, refDefFooter)
+		if len(missingNotes) > 0 {
+			footers = append(footers, FooterSection{
+				Title: "Data Notes",
+				Lines: missingNotes,
+			})
+		}
 	}
 
 	backAngle := 0.0
@@ -1440,8 +1454,8 @@ func (a *App) renderComparisonMatrix(
 				"STA",
 				wrapHeader("BB Drop"),
 				wrapHeader("Chainstay"),
-				wrapHeader("Seat-RC"),
-				wrapHeader("Spare Vert"),
+				wrapHeader("Saddle-Rear Axle"),
+				wrapHeader("Saddle-HT Drop"),
 			}
 
 			var geoRows [][]string
@@ -1555,7 +1569,7 @@ func (a *App) renderComparisonMatrix(
 			evalAttr := adaptProfileAttributeForSaddle(attr, state.Saddle)
 			meta, _ := ideal.LookupAttribute(evalAttr.ID)
 			label := meta.Label
-			if strings.EqualFold(evalAttr.ID, "aett") || strings.EqualFold(evalAttr.ID, "setback") || strings.EqualFold(evalAttr.ID, "saddle_hb") || strings.EqualFold(evalAttr.ID, "brp_setback") || strings.EqualFold(evalAttr.ID, "saddle_hb_drop") || strings.EqualFold(evalAttr.ID, "handlebar_clamp_fit") {
+			if strings.EqualFold(evalAttr.ID, "aett") || strings.EqualFold(evalAttr.ID, "setback") || strings.EqualFold(evalAttr.ID, "saddle_hb") || strings.EqualFold(evalAttr.ID, "brp_setback") || strings.EqualFold(evalAttr.ID, "saddle_hb_drop") || strings.EqualFold(evalAttr.ID, "handlebar_clamp_fit") || strings.EqualFold(evalAttr.ID, "seat_to_rc") || strings.EqualFold(evalAttr.ID, "sparevert") {
 				label = fmt.Sprintf("%s @ %.0fmm", meta.Label, state.SaddleHeightMm)
 			}
 			idealStr, accStr := formatCompareAttrRanges(evalAttr, meta)
@@ -1680,10 +1694,10 @@ func wrapHeader(h string) string {
 		return "Front\nWt"
 	case "Chainstay":
 		return "Chain\nstay"
-	case "Seat-RC":
-		return "Seat-\nRC"
-	case "Spare Vert":
-		return "Spare\nVert"
+	case "Saddle-Rear Axle", "Saddle-to-Axle", "Saddle-RC", "Seat-RC":
+		return "Saddle-\nRear Axle"
+	case "Saddle-HT Drop", "Spare Vert":
+		return "Saddle-HT\nDrop"
 	default:
 		return h
 	}

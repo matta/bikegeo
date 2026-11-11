@@ -47,7 +47,7 @@ var registry = []AttributeMeta{
 	},
 	{
 		ID:        "sparevert",
-		Label:     "Spare Vert",
+		Label:     "Saddle-HT Drop",
 		Unit:      "mm",
 		Decimals:  0,
 		BelowWord: "lo",
@@ -84,11 +84,11 @@ var registry = []AttributeMeta{
 			return 0, false
 		},
 	},
-	// Deprecated: Seat-RC only measures horizontal distance from rear axle to bare seat tube, ignoring front-center.
+	// Deprecated: seat_to_rc (Saddle-Rear Axle) only measures horizontal distance from rear axle to bare seat tube, ignoring front-center.
 	// Use frontwt for fore/aft rider weight distribution and wheel centering.
 	{
 		ID:        "seat_to_rc",
-		Label:     "Seat-RC",
+		Label:     "Saddle-Rear Axle",
 		Unit:      "mm",
 		Decimals:  0,
 		BelowWord: "sht",
@@ -399,6 +399,12 @@ func LookupAttribute(id string) (AttributeMeta, bool) {
 	}
 	if norm == "cockpit_fit" || norm == "cockpit" || norm == "hb_fit_area" || norm == "clamp_fit" || norm == "hbclampfit" || norm == "clampfit" || norm == "oval_fits" || norm == "ovalfits" {
 		norm = "handlebar_clamp_fit"
+	}
+	if norm == "seat_to_rc" || norm == "seat-rc" || norm == "seat_rc" || norm == "seatrc" || norm == "saddle_rc" || norm == "saddle-rc" || norm == "saddle_rear_axle" || norm == "saddle-rear-axle" || norm == "saddlerearaxle" || norm == "saddle_axle" || norm == "saddle-axle" || norm == "saddle_to_axle" || norm == "saddle-to-axle" {
+		norm = "seat_to_rc"
+	}
+	if norm == "sparevert" || norm == "spare_vert" || norm == "spare-vert" || norm == "saddle_ht_drop" || norm == "saddle-ht-drop" || norm == "saddlehtdrop" || norm == "saddle_to_ht_drop" || norm == "steerer_stack" {
+		norm = "sparevert"
 	}
 	cleaned := strings.ReplaceAll(strings.ReplaceAll(norm, "_", ""), "-", "")
 	if cleaned == "seatpostext" || cleaned == "seatpost" || cleaned == "postext" || cleaned == "postextension" {
