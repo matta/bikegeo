@@ -577,12 +577,19 @@ func CanonicalizeBikes(
 			0.0,
 		)
 
-		baseHB := geometry.CalculateHBPoint(
+		bar := config.RiderProfile.Handlebar
+		if bar.ID == "" {
+			bar = catalog.DefaultHandlebar()
+		}
+		baseHB := geometry.CalculateHBPointWithHandlebar(
 			bike.Reach,
 			bike.Stack,
 			bike.HtaDeg,
 			baseBRP,
 			bike.GetCanonicalStem(),
+			0.0,
+			bar,
+			model.DefaultGripInsetMm,
 			0.0,
 		)
 
@@ -705,8 +712,12 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 			if can.SelectedBRP != nil {
 				activeBRP = *can.SelectedBRP
 			}
-			// 2. Re-map PossibleHBs referencing the selected BRP
-			can.PossibleHBs = geometry.MapPossibleHBs(rows[i].Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP)
+			// 2. Re-map PossibleHBs referencing the selected BRP and configured handlebar
+			bar := can.Handlebar
+			if bar.ID == "" {
+				bar = catalog.DefaultHandlebar()
+			}
+			can.PossibleHBs = geometry.MapPossibleHBsWithHandlebar(rows[i].Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP, bar, model.DefaultGripInsetMm, 0.0)
 		}
 
 		// 3. Evaluate Cockpit Fit

@@ -91,7 +91,7 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 		binaryHavok,
 		&saggedFork,
 		nil,
-		model.DefaultRiderProfile(),
+		catalog.DefaultRiderProfile(),
 	)
 	if err != nil {
 		t.Fatalf("AnalyzeBikeFit failed: %v", err)
@@ -129,7 +129,7 @@ func TestCalculateActualSetback(t *testing.T) {
 }
 
 func TestBiomechanicalPostureAndWeightDistribution(t *testing.T) {
-	profile := model.DefaultRiderProfile()
+	profile := catalog.DefaultRiderProfile()
 	baselineBike := geometry.GetDefaultBaselineBike()
 
 	posture, err := geometry.CalculateBaselinePosture(baselineBike, profile)
@@ -267,7 +267,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 		t.Fatalf("Expected elJefeLarge.HasBentSeatTube() to be true")
 	}
 
-	fit, err := geometry.AnalyzeBikeFit(elJefeLarge, nil, nil, model.DefaultRiderProfile())
+	fit, err := geometry.AnalyzeBikeFit(elJefeLarge, nil, nil, catalog.DefaultRiderProfile())
 	if err != nil {
 		t.Fatalf("AnalyzeBikeFit failed: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 func TestAnalyzeBikeFitRequiresPositiveSeatHeight(t *testing.T) {
 	bike := geometry.GetDefaultBaselineBike()
 
-	badProf := model.DefaultRiderProfile()
+	badProf := catalog.DefaultRiderProfile()
 	badProf.SaddleHeightMm = 0
 	if _, err := geometry.AnalyzeBikeFit(bike, nil, nil, badProf); err == nil {
 		t.Errorf("Expected error for SaddleHeightMm <= 0 in AnalyzeBikeFit, got nil")
@@ -302,7 +302,7 @@ func TestAnalyzeBikeFitRequiresPositiveSeatHeight(t *testing.T) {
 
 func TestAnalyzeBikeFitRequiresPositiveRake(t *testing.T) {
 	bike := geometry.GetDefaultBaselineBike()
-	prof := model.DefaultRiderProfile()
+	prof := catalog.DefaultRiderProfile()
 
 	// 1. Zero bike ForkRake
 	badBike := bike
@@ -332,15 +332,15 @@ func TestAnalyzeBikeFitRequiresPositiveRake(t *testing.T) {
 
 func TestCalculateHandlebarOffset(t *testing.T) {
 	offset := geometry.DefaultHandlebarOffset()
-	// 800mm bar, halfWidth = 400.
-	// sweptSpan = 400 - 190 - 70 = 140 mm.
-	// OffsetX = -140 * sin(20°) = -140 * 0.342020... = -47.88...
-	// OffsetY = 50.0 mm
-	if math.Abs(offset.X-(-47.88)) > 0.05 {
-		t.Errorf("Expected offset.X ~ -47.88mm, got %.2fmm", offset.X)
+	// Tumbleweed Persuader 20° (800mm):
+	// zb = 135mm, zHand = 400 - 65 = 335mm, Lz = 200mm.
+	// OffsetX = -200 * tan(20°) = -72.8 mm
+	// OffsetY = 50 - (400 - 135)*tan(4°) + 200*tan(4°) = +45.5 mm
+	if math.Abs(offset.X-(-72.8)) > 0.05 {
+		t.Errorf("Expected offset.X ~ -72.8mm, got %.2fmm", offset.X)
 	}
-	if math.Abs(offset.Y-50.0) > 0.001 {
-		t.Errorf("Expected offset.Y = 50.0mm, got %.2fmm", offset.Y)
+	if math.Abs(offset.Y-45.5) > 0.05 {
+		t.Errorf("Expected offset.Y ~ 45.5mm, got %.2fmm", offset.Y)
 	}
 }
 

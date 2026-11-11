@@ -329,7 +329,7 @@ func (a *App) runSaddleSwap(args []string) int {
 				FrameID: frame.ID,
 				Size:    targetSize,
 			}
-			riderProfile := model.DefaultRiderProfile()
+			riderProfile := catalog.DefaultRiderProfile()
 			riderProfile.SaddleHeightMm = saddleHeight
 
 			// Canonicalize with source saddle

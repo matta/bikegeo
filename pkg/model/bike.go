@@ -1409,28 +1409,8 @@ type RiderProfile struct {
 	BikeWeightLbs                 float64
 	BaselineStemMm                float64
 	BaselineStemAngleDeg          float64
-	BaselineBarRiseMm             float64
-	BaselineBarSweepDeg           float64
-	BaselineBarWidthMm            float64
+	Handlebar                     HandlebarSpec
 	BaselineSaddleSetbackOffsetMm float64
-}
-
-// DefaultRiderProfile returns default anthropometric and cockpit parameters
-// based on a 6'2" rider (35" inseam) on the Otso Fenrir Large baseline build.
-func DefaultRiderProfile() RiderProfile {
-	return RiderProfile{
-		HeightIn:                      74.0, // 6'2"
-		InseamIn:                      35.0, // 35"
-		SaddleHeightMm:                780.0,
-		RiderWeightLbs:                190.0,
-		BikeWeightLbs:                 28.0,
-		BaselineStemMm:                110.0,
-		BaselineStemAngleDeg:          -6.0,
-		BaselineBarRiseMm:             50.0,
-		BaselineBarSweepDeg:           20.0,
-		BaselineBarWidthMm:            800.0,
-		BaselineSaddleSetbackOffsetMm: 30.0,
-	}
 }
 
 type CanonicalConfig struct {
@@ -1438,6 +1418,7 @@ type CanonicalConfig struct {
 	SagPercent   float64
 	Name         string
 	Saddle       SaddleSpec
+	Handlebar    HandlebarSpec
 	RiderProfile RiderProfile
 }
 
@@ -1460,45 +1441,9 @@ type SavedComparisonState struct {
 	IdealProfile string
 	SaddleID     string
 	Saddle       SaddleSpec
+	HandlebarID  string
+	Handlebar    HandlebarSpec
 	Columns      []ComparisonSetup
-}
-
-// NormalizeRiderProfile fills any zero values in RiderProfile with standard defaults.
-func (s *SavedComparisonState) NormalizeRiderProfile() {
-	def := DefaultRiderProfile()
-	if s.HeightIn <= 0 {
-		s.HeightIn = def.HeightIn
-	}
-	if s.InseamIn <= 0 {
-		s.InseamIn = def.InseamIn
-	}
-	if s.SaddleHeightMm <= 0 {
-		s.SaddleHeightMm = def.SaddleHeightMm
-	}
-	if s.RiderWeightLbs <= 0 {
-		s.RiderWeightLbs = def.RiderWeightLbs
-	}
-	if s.BikeWeightLbs <= 0 {
-		s.BikeWeightLbs = def.BikeWeightLbs
-	}
-	if s.BaselineStemMm <= 0 {
-		s.BaselineStemMm = def.BaselineStemMm
-	}
-	if s.BaselineStemAngleDeg == 0 {
-		s.BaselineStemAngleDeg = def.BaselineStemAngleDeg
-	}
-	if s.BaselineBarRiseMm <= 0 {
-		s.BaselineBarRiseMm = def.BaselineBarRiseMm
-	}
-	if s.BaselineBarSweepDeg <= 0 {
-		s.BaselineBarSweepDeg = def.BaselineBarSweepDeg
-	}
-	if s.BaselineBarWidthMm <= 0 {
-		s.BaselineBarWidthMm = def.BaselineBarWidthMm
-	}
-	if s.BaselineSaddleSetbackOffsetMm <= 0 {
-		s.BaselineSaddleSetbackOffsetMm = def.BaselineSaddleSetbackOffsetMm
-	}
 }
 
 type DynamicGeometryResult struct {
@@ -1546,6 +1491,7 @@ type BikeFitAnalysis struct {
 
 	// Cockpit BRP & HB Points and Saddle-Handlebar Metrics
 	Saddle              SaddleSpec
+	Handlebar           HandlebarSpec
 	SitBoneSetbackMm    float64
 	IdealStaDeg         float64
 	AchievedClampOffset float64

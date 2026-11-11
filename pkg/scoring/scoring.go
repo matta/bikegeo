@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
@@ -206,7 +207,11 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 		if can.SelectedBRP != nil {
 			activeBRP = *can.SelectedBRP
 		}
-		can.PossibleHBs = geometry.MapPossibleHBs(row.Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP)
+		bar := can.Handlebar
+		if bar.ID == "" {
+			bar = catalog.DefaultHandlebar()
+		}
+		can.PossibleHBs = geometry.MapPossibleHBsWithHandlebar(row.Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP, bar, model.DefaultGripInsetMm, 0.0)
 	}
 	if len(can.PossibleHBs) > 0 {
 		if hasClampFit && (rowDistMin != nil || rowDistMax != nil) {

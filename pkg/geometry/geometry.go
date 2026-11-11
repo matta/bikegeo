@@ -229,89 +229,70 @@ func SelectBestBRP(
 
 // CalculateHandlebarOffset calculates the 2D offset vector (rearward X, upward Y)
 // from the stem clamp center to the rider's hand contact position.
-// It models an 800mm wide bar with the specified rise and sweep, accounting for the
-// central clamp/riser section and inboard palm grip center.
+// It uses the kinematic transformation model for a handlebar with the specified rise, backsweep, and width.
 func CalculateHandlebarOffset(riseMm, sweepDeg, widthMm float64) geom2d.Vec2 {
 	if widthMm <= 0 {
 		widthMm = 800.0
 	}
-	halfWidth := widthMm / 2.0
-	sweptSpan := math.Max(0, halfWidth-model.DefaultBarClampAndRiseSpanMm-model.DefaultBarGripInboardOffsetMm)
+	spec := model.HandlebarSpec{
+		StockWidthMm:         widthMm,
+		CurrentWidthMm:       widthMm,
+		StatedRiseMm:         riseMm,
+		BacksweepDeg:         sweepDeg,
+		UpsweepDeg:           4.0,
+		EffectiveBendStartMm: 135.0,
+		RiseMode:             model.RiseModeBarEndCenter,
+	}
+	off := GetHandlebarOffset(spec, model.DefaultGripInsetMm, 0.0)
 	return geom2d.Vec2{
-		X: -sweptSpan * geom2d.FromDeg(sweepDeg).Sin(),
-		Y: riseMm,
+		X: Round(off.X, 1),
+		Y: Round(off.Y, 1),
 	}
 }
 
-// DefaultHandlebarOffset returns the default handlebar offset (50mm rise, 20° backsweep on an 800mm bar).
+// DefaultHandlebarOffset returns the default handlebar offset for the reference baseline handlebar
+// (Tumbleweed Persuader 20° 800mm at neutral roll: X = -72.8mm, Y = +45.5mm).
 func DefaultHandlebarOffset() geom2d.Vec2 {
-	def := model.DefaultRiderProfile()
-	return CalculateHandlebarOffset(def.BaselineBarRiseMm, def.BaselineBarSweepDeg, def.BaselineBarWidthMm)
+	off := GetHandlebarOffset(catalog.DefaultHandlebar(), model.DefaultGripInsetMm, 0.0)
+	return geom2d.Vec2{
+		X: Round(off.X, 1),
+		Y: Round(off.Y, 1),
+	}
 }
 
 // CalculateHBPoint calculates the HB reference point (effective hand/handlebar position)
-// and the Saddle-Handlebar distance and drop from the saddle BRP reference point.
-// Steerer tube extends upward and rearward at polar angle (180° - HTA).
-// Stem clamp center sits at d_steerer = spacerMm + StemThicknessMm/2.0 along the steerer axis:
-//
-//	SteererX = reach - d_steerer * cos(HTA)
-//	SteererY = stack + d_steerer * sin(HTA)
-//
-// Stem angle is rotated 90° clockwise from the upward steerer axis, then rotated AngleDeg:
-//
-//	theta_stem = (180° - HTA) - 90° + AngleDeg = (90° - HTA) + AngleDeg
-//	ClampX = SteererX + stem.LengthMm * cos(theta_stem)
-//	ClampY = SteererY + stem.LengthMm * sin(theta_stem)
-//
-// The effective handlebar position (HbX, HbY) applies the handlebar sweep and rise offset:
-//
-//	HbPoint = ClampPoint + DefaultHandlebarOffset()
-//
-// Distance from BRP & Rise/Drop from Sit Bones:
-//
-//	SaddleHbMm = hypot(HbX - brp.BrpX, HbY - brp.BrpY)
-//	SaddleHbDropMm = HbY - brp.SitBonePoint().Y
+// and the Saddle-Handlebar distance and drop from the saddle BRP reference point using the baseline handlebar.
 func CalculateHBPoint(
 	reach, stack, htaDeg float64,
 	brp model.BRPPoint,
 	stem model.StemSpec,
 	spacerMm float64,
 ) model.HBPoint {
-	headTubeTop := geom2d.Point2{X: reach, Y: stack}
-	steererAxis := SteererTubeAxis(headTubeTop, htaDeg)
-
-	dSteerer := spacerMm + model.StemThicknessMm/2.0
-	stemClamp := steererAxis.PointAt(dSteerer)
-
-	// Stem angle is rotated 90° clockwise from upward steerer axis, then rotated AngleDeg:
-	stemDir := steererAxis.Normal(geom2d.Clockwise).RotateDeg(stem.AngleDeg)
-	clampPoint := stemClamp.Add(stemDir.Scale(stem.LengthMm))
-	hbPoint := clampPoint.Add(DefaultHandlebarOffset())
-
-	brpPoint := brp.BrpPoint()
-	sitBonePoint := brp.SitBonePoint()
-	dist := hbPoint.DistanceTo(brpPoint)
-	drop := hbPoint.Y - sitBonePoint.Y
-
-	return model.HBPoint{
-		Stem:           stem,
-		SpacerMm:       spacerMm,
-		ClampX:         Round(clampPoint.X, 1),
-		ClampY:         Round(clampPoint.Y, 1),
-		HbX:            Round(hbPoint.X, 1),
-		HbY:            Round(hbPoint.Y, 1),
-		SaddleHbMm:     Round(dist, 1),
-		SaddleHbDropMm: Round(drop, 1),
-	}
+	return CalculateHBPointWithHandlebar(reach, stack, htaDeg, brp, stem, spacerMm, catalog.DefaultHandlebar(), model.DefaultGripInsetMm, 0.0)
 }
 
 // MapPossibleHBs maps all possible HB points for a bike across its allowed stems and spacer stack heights,
-// referencing distance and drop from the given BRP reference point.
+// referencing distance and drop from the given BRP reference point using the baseline handlebar.
 func MapPossibleHBs(
 	bike model.BikeGeometry,
 	activeReach, activeStack, activeHta float64,
 	brp model.BRPPoint,
 ) []model.HBPoint {
+	return MapPossibleHBsWithHandlebar(bike, activeReach, activeStack, activeHta, brp, catalog.DefaultHandlebar(), model.DefaultGripInsetMm, 0.0)
+}
+
+// MapPossibleHBsWithHandlebar maps all possible HB points for a bike across its allowed stems and spacer stack heights
+// using the specified handlebar, grip inset, and roll angle.
+func MapPossibleHBsWithHandlebar(
+	bike model.BikeGeometry,
+	activeReach, activeStack, activeHta float64,
+	brp model.BRPPoint,
+	bar model.HandlebarSpec,
+	gripInsetMm, rollDeg float64,
+) []model.HBPoint {
+	if bar.ID == "" {
+		bar = catalog.DefaultHandlebar()
+	}
 	stems := bike.Stems
 	if len(stems) == 0 && bike.CanonicalStem.LengthMm > 0 {
 		stems = []model.StemSpec{bike.CanonicalStem}
@@ -321,7 +302,7 @@ func MapPossibleHBs(
 	var points []model.HBPoint
 	for _, st := range stems {
 		for _, sp := range spacers {
-			pt := CalculateHBPoint(activeReach, activeStack, activeHta, brp, st, sp)
+			pt := CalculateHBPointWithHandlebar(activeReach, activeStack, activeHta, brp, st, sp, bar, gripInsetMm, rollDeg)
 			points = append(points, pt)
 		}
 	}
@@ -981,16 +962,20 @@ func CalculateBaselinePosture(
 	stemDir := steererDir.Perpendicular(geom2d.Clockwise).RotateDeg(profile.BaselineStemAngleDeg)
 	clamp := headTubeTop.Add(stemDir.Scale(profile.BaselineStemMm))
 
-	// Bar sweep & rise
-	sweepOffset := CalculateHandlebarOffset(profile.BaselineBarRiseMm, profile.BaselineBarSweepDeg, profile.BaselineBarWidthMm)
-	grip := clamp.Add(sweepOffset)
+	// Bar sweep & rise from configured handlebar
+	bar := profile.Handlebar
+	if bar.ID == "" {
+		bar = catalog.DefaultHandlebar()
+	}
+	sweepOffset := GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
+	grip := clamp.Add(geom2d.Vec2{X: sweepOffset.X, Y: sweepOffset.Y})
 
 	// 3. Biomechanical Triangle: Hip, Shoulder, Grip
 	heightMm := profile.HeightIn * 25.4
 	torsoLen := 0.288 * heightMm // Hip to shoulder (~541mm for 74")
 	armLen := 0.380 * heightMm   // Shoulder to hand (~714mm for 74")
 
-	halfWidth := profile.BaselineBarWidthMm / 2.0
+	halfWidth := bar.EffectiveWidthMm() / 2.0
 	if halfWidth <= 0 {
 		halfWidth = 400.0
 	}
@@ -1263,7 +1248,11 @@ func AnalyzeBikeFitWithSaddle(
 	)
 	selectedBRP := deadCenterBRP
 
-	possibleHBs := MapPossibleHBs(bike, activeReach, activeStack, activeHta, selectedBRP)
+	bar := profile.Handlebar
+	if bar.ID == "" {
+		bar = catalog.DefaultHandlebar()
+	}
+	possibleHBs := MapPossibleHBsWithHandlebar(bike, activeReach, activeStack, activeHta, selectedBRP, bar, model.DefaultGripInsetMm, 0.0)
 	var selectedHB *model.HBPoint
 	var saddleHbMm float64
 	var saddleHbDropMm float64
@@ -1305,6 +1294,7 @@ func AnalyzeBikeFitWithSaddle(
 		TrailMm:            Round(CalculateTrail(activeHta, rake, bike.WheelRadiusMm()), 1),
 
 		Saddle:              saddle,
+		Handlebar:           bar,
 		SitBoneSetbackMm:    deadCenterBRP.SitBoneSetbackMm,
 		IdealStaDeg:         Round(idealSTA, 1),
 		AchievedClampOffset: deadCenterBRP.AchievedClampOffsetMm,

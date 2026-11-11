@@ -274,7 +274,7 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	maxSpacer := 30.0
 
 	bike := model.BikeGeometry{
-		Reach:         465.0,
+		Reach:         490.0,
 		Stack:         625.0,
 		HtaDeg:        68.0,
 		StaDeg:        staDeg,
@@ -291,7 +291,7 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	row := model.CanonicalComparisonRow{
 		Bike: bike,
 		Canonical: model.BikeFitAnalysis{
-			ActiveReach:   465.0,
+			ActiveReach:   490.0,
 			ActiveStack:   625.0,
 			ActiveHta:     68.0,
 			ActiveSta:     staDeg,

@@ -26,35 +26,30 @@ func (a *App) runCompare(args []string) int {
 	}
 
 	var transposeFlag bool
-	var compactFlag bool
 	var noScoreFlag bool
 	var scoreDetailFlag bool
 	var saddleFlag string
+	var handlebarFlag string
 	var allFlag bool
 	var allConfigsFlag bool
 	var topPerFrameFlag int
 	var topLimitFlag int
 
 	fs.BoolVar(&transposeFlag, "transpose", false, "Transpose table (Columns as rows, Metrics as columns)")
-	fs.BoolVar(&compactFlag, "compact", false, "Compact/transposed table view (alias for --transpose)")
 	fs.BoolVar(&noScoreFlag, "no-score", false, "Disable scoring and ranking display")
 	fs.BoolVar(&scoreDetailFlag, "score-detail", false, "Display detailed scoring breakdown table")
 	fs.StringVar(&saddleFlag, "saddle", "", "Saddle model from catalog (default: 'sqlab-610-ergolux')")
+	fs.StringVar(&handlebarFlag, "handlebar", "", "Handlebar model from catalog (default: 'persuader20_800')")
 	fs.BoolVar(&allFlag, "all", false, "Compare all registered frames across all sizes and plausible configurations")
-	fs.BoolVar(&allFlag, "a", false, "Alias for --all")
 	fs.BoolVar(&allConfigsFlag, "all-configs", false, "Expand all sizes and plausible fork/sag configurations for target frame(s)")
 	fs.IntVar(&topPerFrameFlag, "top-per-frame", -1, "Maximum manifestations kept per frame (default: 1 for --all, 5 for specific frame @all, 0 for unlimited)")
-	fs.IntVar(&topPerFrameFlag, "per-frame", -1, "Alias for --top-per-frame")
 	fs.IntVar(&topLimitFlag, "top", 0, "Maximum total comparison setups to display after ranking (0 for unlimited)")
-	fs.IntVar(&topLimitFlag, "limit", 0, "Alias for --top")
 
 	boolFlags := map[string]bool{
 		"transpose":    true,
-		"compact":      true,
 		"no-score":     true,
 		"score-detail": true,
 		"all":          true,
-		"a":            true,
 		"all-configs":  true,
 	}
 	reordered := reorderFlagsForStdlib(fs, args, boolFlags)
@@ -78,8 +73,8 @@ func (a *App) runCompare(args []string) int {
 
 	state := DefaultComparisonState()
 
-	if explicitFlags["transpose"] || explicitFlags["compact"] {
-		state.Transpose = transposeFlag || compactFlag
+	if explicitFlags["transpose"] {
+		state.Transpose = transposeFlag
 	}
 
 	posArgs := fs.Args()
@@ -227,7 +222,7 @@ func (a *App) runCompare(args []string) int {
 			}
 			state.Columns = newCols
 			state.RefIndex = 0
-			if !explicitFlags["transpose"] && !explicitFlags["compact"] {
+			if !explicitFlags["transpose"] {
 				state.Transpose = len(state.Columns) > 4
 			}
 
@@ -248,8 +243,8 @@ func (a *App) runCompare(args []string) int {
 		return 1
 	}
 
-	// Automatically enable compact/transpose view if more than 4 columns and not explicitly overridden
-	if !explicitFlags["transpose"] && !explicitFlags["compact"] && len(state.Columns) > 4 {
+	// Automatically enable transposed view if more than 4 columns and not explicitly overridden
+	if !explicitFlags["transpose"] && len(state.Columns) > 4 {
 		state.Transpose = true
 	}
 
@@ -275,6 +270,21 @@ func (a *App) runCompare(args []string) int {
 	} else if state.Saddle.ID == "" {
 		state.Saddle = catalog.DefaultSaddle()
 		state.SaddleID = state.Saddle.ID
+	}
+
+	if handlebarFlag != "" {
+		b, ok := catalog.GetHandlebar(handlebarFlag)
+		if !ok {
+			fmt.Fprintf(a.Err, "Error: unrecognized handlebar %q (see 'bikegeo handlebars' for catalog)\n", handlebarFlag)
+			return 1
+		}
+		state.HandlebarID = b.ID
+		state.Handlebar = b
+		state.RiderProfile.Handlebar = b
+	} else if state.Handlebar.ID == "" {
+		state.Handlebar = catalog.DefaultHandlebar()
+		state.HandlebarID = state.Handlebar.ID
+		state.RiderProfile.Handlebar = state.Handlebar
 	}
 
 	// Resolve and validate all columns against frame constraints
@@ -405,10 +415,10 @@ Table Layout & Auto-Transposition:
     Ideal and Acceptable ranges appear as reference columns.
   - Transposed View (Rows): Each bike is a row; metrics are columns.
     Ideal and Acceptable ranges appear as top header rows.
-    Enabled with --transpose or --compact.
+    Enabled with --transpose.
   - Automatic Transposition: When a comparison has more than 4 columns (such as
     expanding ':all' or '--all'), the table automatically renders in transposed mode unless
-    explicitly disabled with --transpose=false or --compact=false.
+    explicitly disabled with --transpose=false.
 
 Scoring & Ranking:
   - Setups are scored against sweet-spot curves defined in an Ideal Profile (default: 'default').
@@ -419,16 +429,15 @@ Scoring & Ranking:
   - Use --no-score to disable scoring and view columns in their original configuration order.
 
 Flags:
-  --all, -a                    Compare all registered frames across all plausible configurations
+  --all                        Compare all registered frames across all plausible configurations
   --all-configs                Expand all sizes and plausible fork/sag configurations for target frame(s)
   --top-per-frame <N>          Maximum manifestations kept per frame (default: 1 for --all, 5 for @all, 0=all)
-  --per-frame <N>              Alias for --top-per-frame
-  --top <M>, --limit <M>       Maximum total comparison setups to display after ranking (0 for unlimited)
+  --top <M>                    Maximum total comparison setups to display after ranking (0 for unlimited)
   --saddle <name>              Select saddle model from catalog ('sqlab-610-ergolux' or 'berthoud-aspin-open')
-  -compact, --compact          Render compact/transposed table (Columns as rows, Metrics as columns)
-  -transpose, --transpose      Alias for --compact
-  -score-detail                Display detailed scoring breakdown table for each criterion
-  -no-score                    Disable scoring and ranking display
+  --handlebar <name>           Select handlebar model from catalog (default: 'persuader20_800')
+  --transpose                  Render transposed table (Columns as rows, Metrics as columns)
+  --score-detail               Display detailed scoring breakdown table for each criterion
+  --no-score                   Disable scoring and ranking display
 
 Global Flags:
   -f, --format <format>     Output format: table (default), md, csv
@@ -884,13 +893,16 @@ func resolveAllColumns(
 // DefaultComparisonState returns the compiled baseline comparison configuration.
 func DefaultComparisonState() model.SavedComparisonState {
 	defSaddle := catalog.DefaultSaddle()
+	defBar := catalog.DefaultHandlebar()
 	return model.SavedComparisonState{
-		RiderProfile: model.DefaultRiderProfile(),
+		RiderProfile: catalog.DefaultRiderProfile(),
 		Transpose:    true,
 		RefIndex:     1,
 		IdealProfile: "idmatch",
 		SaddleID:     defSaddle.ID,
 		Saddle:       defSaddle,
+		HandlebarID:  defBar.ID,
+		Handlebar:    defBar,
 		Columns: []model.ComparisonSetup{
 			{FrameID: "binary-havok", Size: "XL", A2cMm: 491, RakeMm: 44, DisplayLabel: "100mm @ 15% sag"},
 			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
@@ -1104,10 +1116,24 @@ func (a *App) renderComparisonMatrix(
 	if saddleName == "" {
 		saddleName = catalog.DefaultSaddle().Name
 	}
-	subtitle := fmt.Sprintf(
-		"Saddle Height: %.0fmm | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Modeled Back Angle: %.1f° | Ideal Profile: %s (*max stay position)",
-		state.SaddleHeightMm, saddleName, backAngle, prof.Name,
+	bar := state.Handlebar
+	if bar.ID == "" {
+		bar = catalog.DefaultHandlebar()
+	}
+	baseBarName := bar.Name
+	if idx := strings.Index(baseBarName, " ("); idx != -1 {
+		baseBarName = baseBarName[:idx]
+	}
+
+	line1 := fmt.Sprintf(
+		"Saddle Height: %.0fmm | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Modeled Back Angle: %.1f°",
+		state.SaddleHeightMm, saddleName, backAngle,
 	)
+	line2 := fmt.Sprintf(
+		"Handlebar: %s (%.0fmm, %.0fmm rise, %.0f° sweep, %.0f° upsweep) | Ideal Profile: %s (*max stay position)",
+		baseBarName, bar.EffectiveWidthMm(), bar.StatedRiseMm, bar.BacksweepDeg, bar.UpsweepDeg, prof.Name,
+	)
+	subtitle := fmt.Sprintf("%s\n%s", line1, line2)
 
 	// Prepare detail table if requested
 	var detailHeaders []string

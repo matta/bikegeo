@@ -30,7 +30,7 @@ func TestCanonicalizeBikes(t *testing.T) {
 		},
 	}
 
-	prof := model.DefaultRiderProfile()
+	prof := catalog.DefaultRiderProfile()
 	prof.SaddleHeightMm = 760.0
 	config := model.CanonicalConfig{
 		TargetA2c:    515.0,
@@ -93,7 +93,7 @@ func TestCanonicalizeBentSeatTube(t *testing.T) {
 
 	config := model.CanonicalConfig{
 		TargetA2c:    510.0,
-		RiderProfile: model.DefaultRiderProfile(),
+		RiderProfile: catalog.DefaultRiderProfile(),
 		SagPercent:   20.0,
 	}
 
@@ -141,14 +141,14 @@ func TestCanonicalizeBikesRequiresPositiveSeatHeight(t *testing.T) {
 		},
 	}
 
-	badZero := model.DefaultRiderProfile()
+	badZero := catalog.DefaultRiderProfile()
 	badZero.SaddleHeightMm = 0
 	cfgZero := model.CanonicalConfig{TargetA2c: 515.0, RiderProfile: badZero}
 	if _, err := canonicalizer.CanonicalizeBikes(bikes, cfgZero, 44.0, "130mm"); err == nil {
 		t.Errorf("Expected error for SaddleHeightMm=0, got nil")
 	}
 
-	badNeg := model.DefaultRiderProfile()
+	badNeg := catalog.DefaultRiderProfile()
 	badNeg.SaddleHeightMm = -50
 	cfgNegative := model.CanonicalConfig{TargetA2c: 515.0, RiderProfile: badNeg}
 	if _, err := canonicalizer.CanonicalizeBikes(bikes, cfgNegative, 44.0, "130mm"); err == nil {
@@ -278,7 +278,7 @@ func TestPelvicAndCockpitInvarianceAcrossSaddles(t *testing.T) {
 	aspin, _ := catalog.GetSaddle("berthoud-aspin-open")
 
 	// 1. Resolve row with SQlab 610
-	riderSQ := model.DefaultRiderProfile()
+	riderSQ := catalog.DefaultRiderProfile()
 	riderSQ.SaddleHeightMm = 746.0
 	rowSQ, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, setup, riderSQ, sqlab)
 	if err != nil {
@@ -288,7 +288,7 @@ func TestPelvicAndCockpitInvarianceAcrossSaddles(t *testing.T) {
 	canonicalizer.ApplyIdealCockpitTargets(rowsSQ, prof)
 
 	// 2. Resolve row with Berthoud Aspin
-	riderAspin := model.DefaultRiderProfile()
+	riderAspin := catalog.DefaultRiderProfile()
 	riderAspin.SaddleHeightMm = 746.0 // Reference idmatch SH
 	rowAspin, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, setup, riderAspin, aspin)
 	if err != nil {

@@ -229,14 +229,14 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Score") {
 			t.Errorf("expected 'Score' row in default output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "77 (#1)") {
-			t.Errorf("expected '77 (#1)' in output, got:\n%s", out)
+		if !strings.Contains(out, "4 (#1)") {
+			t.Errorf("expected '4 (#1)' in output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "-42 (#2)") {
-			t.Errorf("expected '-42 (#2)' in output, got:\n%s", out)
+		if !strings.Contains(out, "-41 (#2)") {
+			t.Errorf("expected '-41 (#2)' in output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "-47 (#3)") {
-			t.Errorf("expected '-47 (#3)' in output, got:\n%s", out)
+		if !strings.Contains(out, "-46 (#3)") {
+			t.Errorf("expected '-46 (#3)' in output, got:\n%s", out)
 		}
 	})
 
@@ -249,8 +249,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Score") {
 			t.Errorf("expected 'Score' column in transposed output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "77 (#1)") {
-			t.Errorf("expected '77 (#1)' in transposed output, got:\n%s", out)
+		if !strings.Contains(out, "4 (#1)") {
+			t.Errorf("expected '4 (#1)' in transposed output, got:\n%s", out)
 		}
 		if !strings.Contains(out, "Fit & Cockpit") {
 			t.Errorf("expected Table 1 'Fit & Cockpit' in transposed output, got:\n%s", out)
@@ -291,7 +291,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Score,,,77 (#1),-42 (#2),-47 (#3)") {
+		if !strings.Contains(out, "Score,,,4 (#1),-41 (#2),-46 (#3)") {
 			t.Errorf("expected CSV Score row, got:\n%s", out)
 		}
 	})
@@ -302,7 +302,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "| Score |  |  | 77 (#1) | -42 (#2) | -47 (#3) |") {
+		if !strings.Contains(out, "| Score |  |  | 4 (#1) | -41 (#2) | -46 (#3) |") {
 			t.Errorf("expected Markdown Score row, got:\n%s", out)
 		}
 	})
@@ -1058,6 +1058,45 @@ func TestHandlebarsCLI(t *testing.T) {
 		}
 		if !strings.Contains(out, "handlebars") {
 			t.Errorf("expected help output to mention handlebars, got:\n%s", out)
+		}
+	})
+}
+
+func TestCompare_ConfiguredHandlebar(t *testing.T) {
+	t.Run("DefaultPersuaderHeader", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "compare")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+		expectedLines := []string{
+			"Saddle Height: 746mm | Saddle: SQlab 610 Ergolux Active 2.1 | Seatpost: Redshift ShockStop (sagged 11mm)",
+			"Handlebar: Tumbleweed Persuader 20° (800mm, 50mm rise, 20° sweep, 4° upsweep) | Ideal Profile: idmatch",
+		}
+		for _, exp := range expectedLines {
+			if !strings.Contains(out, exp) {
+				t.Errorf("expected compare output to contain header %q, got:\n%s", exp, out)
+			}
+		}
+	})
+
+	t.Run("CustomBarFlag", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "compare", "--handlebar", "sqlab3OX_16_30")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
+		}
+		expectedHeader := "Handlebar: SQlab 3OX 16° (780mm, 30mm rise, 16° sweep, 4° upsweep)"
+		if !strings.Contains(out, expectedHeader) {
+			t.Errorf("expected compare output to contain custom handlebar header %q, got:\n%s", expectedHeader, out)
+		}
+	})
+
+	t.Run("UnrecognizedBarFlag", func(t *testing.T) {
+		_, errOut, code := runCLI(t, "compare", "--handlebar", "not_a_valid_bar")
+		if code != 1 {
+			t.Fatalf("expected exit code 1, got %d", code)
+		}
+		if !strings.Contains(errOut, "unrecognized handlebar") {
+			t.Errorf("expected 'unrecognized handlebar' error, got: %s", errOut)
 		}
 	})
 }

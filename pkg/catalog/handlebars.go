@@ -253,4 +253,3 @@ func normalizeHandlebarKey(k string) string {
 	s = strings.ReplaceAll(s, " ", "_")
 	return s
 }
-

@@ -309,4 +309,3 @@ func TestCalculateHBPointWithHandlebar(t *testing.T) {
 		t.Errorf("HbY mismatch: expected %.1f, got %.1f", expectedHbY, hb.HbY)
 	}
 }
-
