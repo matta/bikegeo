@@ -34,8 +34,21 @@ func FindForkSuggestions(targetA2c, targetRake float64) []ForkSuggestion {
 	return catalog.FindForkSuggestions(targetA2c, targetRake)
 }
 
+// AllowedSagPcts defines the standard allowed suspension fork sag percentages (20%, 25%, 30%).
+var AllowedSagPcts = []float64{20.0, 25.0, 30.0}
+
 // PlausibleSagPcts defines the standard suspension fork sag percentages evaluated during combinatorial sweeps.
-var PlausibleSagPcts = []float64{15.0, 20.0, 25.0, 30.0}
+var PlausibleSagPcts = AllowedSagPcts
+
+// IsAllowedSag reports whether a sag percentage is in the allowed set (20%, 25%, 30%).
+func IsAllowedSag(sag float64) bool {
+	for _, s := range AllowedSagPcts {
+		if math.Abs(s-sag) < 0.01 {
+			return true
+		}
+	}
+	return false
+}
 
 // ExpandPlausibleForkSetups generates all candidate fork and sag setups for a frame.
 // Rigid forks are included at 0% sag (unless sagOverride > 0).
@@ -113,6 +126,9 @@ func ExpandPlausibleForkSetups(
 		if minTr >= 60 && maxTr >= minTr {
 			sags := PlausibleSagPcts
 			if sagOverride != nil {
+				if !IsAllowedSag(*sagOverride) {
+					return nil, fmt.Errorf("invalid sag %.0f%%; allowed sags are 20%%, 25%%, 30%%", *sagOverride)
+				}
 				sags = []float64{*sagOverride}
 			}
 
@@ -197,6 +213,9 @@ func ResolveForkToken(
 	sagOverride *float64,
 	frame model.FrameModel,
 ) (targetA2c float64, targetRake float64, staticA2c float64, displayLabel string, err error) {
+	if sagOverride != nil && *sagOverride > 0 && !IsAllowedSag(*sagOverride) {
+		return 0, 0, 0, "", fmt.Errorf("invalid sag %.0f%%; allowed sags are 20%%, 25%%, 30%%", *sagOverride)
+	}
 	clean := strings.TrimSpace(token)
 	lower := strings.ToLower(clean)
 

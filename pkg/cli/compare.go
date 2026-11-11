@@ -368,7 +368,7 @@ Comparison Specs:
       Selects a known preset fork from the catalog.
     - All plausible forks ("@all", "@all-forks", or "@forks"):
       Expands the frame across all supported rigid forks and all 10mm suspension travel
-      steps in its supported range, across plausible sags (15%, 20%, 25%, 30%).
+      steps in its supported range, across plausible sags (20%, 25%, 30%).
     - Sag percentage (e.g. "@20%", "@sag=25", or "@20"):
       Suspension sag percent. Pure numbers < 60 are treated as sag %; numbers >= 60
       are treated as fork travel in mm. If omitted, uses the frame's default sag.
@@ -542,12 +542,15 @@ func parseFrameSetups(
 			if err != nil {
 				return nil, fmt.Errorf("invalid sag modifier %q in %q", mod, frame.ID)
 			}
+			if val > 0 && !canonicalizer.IsAllowedSag(val) {
+				return nil, fmt.Errorf("invalid sag modifier %q in %q; allowed sags are 20%%, 25%%, 30%%", mod, frame.ID)
+			}
 			sagOverride = &val
 			continue
 		}
 
 		// 3. Rigid fork modifier
-		if low == "rigid" || low == "0mm" || strings.HasPrefix(low, "rigid") {
+		if low == "rigid" || low == "0mm" || low == "0" || strings.HasPrefix(low, "rigid") {
 			forkToken = "rigid"
 			continue
 		}
@@ -576,6 +579,9 @@ func parseFrameSetups(
 			if val >= 60 {
 				forkToken = fmt.Sprintf("%.0fmm", val)
 			} else {
+				if val > 0 && !canonicalizer.IsAllowedSag(val) {
+					return nil, fmt.Errorf("invalid sag modifier %q in %q; allowed sags are 20%%, 25%%, 30%%", mod, frame.ID)
+				}
 				sagOverride = &val
 			}
 			continue
@@ -746,7 +752,7 @@ func pruneComparisonRows(
 				if distCand < distBest-1e-4 {
 					best = cand
 				} else if math.Abs(distCand-distBest) <= 1e-4 {
-					// 2. Lower sag (e.g. 15% before 25%)
+					// 2. Lower sag (e.g. 20% before 25%)
 					if cand.row.Setup.SagPct < best.row.Setup.SagPct {
 						best = cand
 					}
@@ -904,7 +910,7 @@ func DefaultComparisonState() model.SavedComparisonState {
 		HandlebarID:  defBar.ID,
 		Handlebar:    defBar,
 		Columns: []model.ComparisonSetup{
-			{FrameID: "binary-havok", Size: "XL", A2cMm: 491, RakeMm: 44, DisplayLabel: "100mm @ 15% sag"},
+			{FrameID: "binary-havok", Size: "XL", A2cMm: 486, RakeMm: 44, DisplayLabel: "100mm @ 20% sag"},
 			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
 			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 495, RakeMm: 54, DisplayLabel: "Rigid (495mm)"},
 			{FrameID: "otso-fenrir-stainless", Size: "XL", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},

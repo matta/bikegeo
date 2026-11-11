@@ -47,7 +47,7 @@ When adding or editing frame files in `pkg/frames/*.go`:
    - Wheelbase validation incorporates dynamic propagation of input rounding uncertainty with a 2.0mm physical precision floor, eliminating the need for custom wheelbase slop from normal rounding noise.
    - If a custom `GeoSlopMm` override is genuinely necessary, it requires an explicit `Reason` field on `model.GeoSlopMm` documenting the manufacturer discrepancy.
 4. **Use `bikegeo fit` as Primary Tool & Automated Solver**:
-   - Run `bikegeo fit <frame>` to diagnose geometry. If validation fails or A2C slop > 1.0mm, `bikegeo fit` automatically runs the physical solver exploring candidate fork travels, standard sag points (0%, 15%, 20%, 25%, 30%), static A2C values, rakes (including 44, 51, and 55mm), and headset spacers, presenting the solved Go struct fields.
+   - Run `bikegeo fit <frame>` to diagnose geometry. If validation fails or A2C slop > 1.0mm, `bikegeo fit` automatically runs the physical solver exploring candidate fork travels, standard sag points (0%, 20%, 25%, 30%), static A2C values, rakes (including 44, 51, and 55mm), and headset spacers, presenting the solved Go struct fields.
    - Use `bikegeo fit <frame> --try ...` to sweep candidate parameters manually when exploring non-standard options.
    - Ad-hoc scripts are acceptable for source data wrangling (unit conversions, table parsing) or investigating unmodeled frame quirks, but routine CAD back-solving belongs in `fit`.
    - See the workspace skill [ingest-frame](file:///.agents/skills/ingest-frame/SKILL.md) for the complete 5-step recipe.

@@ -186,9 +186,9 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
 		}
-		// Fairlight Holt 2 supports 100mm to 120mm forks (100, 110, 120mm) across 4 sags = 12 setups
-		if len(setups) != 12 {
-			t.Fatalf("expected 12 setups for Holt 2, got %d", len(setups))
+		// Fairlight Holt 2 supports 100mm to 120mm forks (100, 110, 120mm) across 3 sags = 9 setups
+		if len(setups) != 9 {
+			t.Fatalf("expected 9 setups for Holt 2, got %d", len(setups))
 		}
 		for _, s := range setups {
 			if canonicalizer.IsRigidFork(s.DisplayLabel) {
@@ -206,9 +206,9 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
 		}
-		// 1 rigid (495mm) + 100, 110, 120mm across 4 sags (12) = 13 setups
-		if len(setups) != 13 {
-			t.Fatalf("expected 13 setups for Fenrir, got %d", len(setups))
+		// 1 rigid (495mm) + 100, 110, 120mm across 3 sags (9) = 10 setups
+		if len(setups) != 10 {
+			t.Fatalf("expected 10 setups for Fenrir, got %d", len(setups))
 		}
 		hasRigid := false
 		for _, s := range setups {
@@ -316,5 +316,37 @@ func TestPelvicAndCockpitInvarianceAcrossSaddles(t *testing.T) {
 	if math.Abs(hbSQ.SaddleHbDropMm-hbAspin.SaddleHbDropMm) > 0.5 {
 		t.Errorf("Expected identical sit-bone-relative SaddleHbDropMm across saddles: SQlab=%.1f, Aspin=%.1f",
 			hbSQ.SaddleHbDropMm, hbAspin.SaddleHbDropMm)
+	}
+}
+
+func TestAllowedSagPercentages(t *testing.T) {
+	// 20, 25, 30 must be allowed
+	for _, sag := range []float64{20.0, 25.0, 30.0} {
+		if !canonicalizer.IsAllowedSag(sag) {
+			t.Errorf("expected %.0f%% to be an allowed sag", sag)
+		}
+	}
+
+	// 15% and others must not be allowed
+	for _, sag := range []float64{0.0, 10.0, 15.0, 18.0, 35.0} {
+		if canonicalizer.IsAllowedSag(sag) {
+			t.Errorf("expected %.0f%% to NOT be an allowed sag", sag)
+		}
+	}
+
+	frame, err := frames.GetFrameByID("otso-fenrir-stainless")
+	if err != nil {
+		t.Fatalf("failed to get frame: %v", err)
+	}
+
+	// ExpandPlausibleForkSetups with unallowed 15% sag should error
+	sag15 := 15.0
+	if _, err := canonicalizer.ExpandPlausibleForkSetups(*frame, &sag15); err == nil {
+		t.Errorf("expected ExpandPlausibleForkSetups to error for 15%% sag override")
+	}
+
+	// ResolveForkToken with unallowed 15% sag should error
+	if _, _, _, _, err := canonicalizer.ResolveForkToken("110mm", &sag15, *frame); err == nil {
+		t.Errorf("expected ResolveForkToken to error for 15%% sag override")
 	}
 }

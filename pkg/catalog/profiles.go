@@ -17,4 +17,3 @@ func DefaultRiderProfile() model.RiderProfile {
 		BaselineSaddleSetbackOffsetMm: 30.0,
 	}
 }
-

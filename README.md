@@ -10,7 +10,7 @@ All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs
 
 1. **Unified Per-Column Comparison Model (`Frame + Size + Fork + Sag`)**:
    - Every column in `bikegeo compare` is an independent setup (`frame[@size][@fork][@sag%]`).
-   - Compare the **exact same frame** across different sag points (`havok:L@110mm@15% havok:L@110mm@25%`) or across its supported forks (`havok:L@110mm@20% havok:L@rigid`).
+   - Compare the **exact same frame** across different sag points (`havok:L@110mm@20% havok:L@110mm@25%`) or across its supported forks (`havok:L@110mm@20% havok:L@rigid`).
    - Compare **different frames** at different sag points and fork capacities (`havok:L@110mm@20% hayduke:S3@110mm@20% fenrir:L@rigid`).
 
 2. **Strict Frame-Level Fork & Sag Constraint Enforcement**:

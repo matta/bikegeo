@@ -1196,7 +1196,7 @@ func (fm *FrameModel) GetSizeGeometry(size string) (SizeGeometry, bool) {
 
 // EffectiveA2cRange derives the frame's valid operating A2C range [min, max] in mm
 // purely from the mathematical union of each fork in Forks.
-// Suspension forks expand across standard sag (15% to 30%), with the upper bound extending
+// Suspension forks expand across standard sag (20% to 30%), with the upper bound extending
 // to static A2C (0% sag). Rigid forks contribute a ±5.0mm tolerance window.
 func (fm *FrameModel) EffectiveA2cRange() (minA2c float64, maxA2c float64, ok bool) {
 	minA2c = math.Inf(1)

@@ -48,7 +48,7 @@ Review the output:
 - **Implied spacer**: the exact spacer height implied by the declared fork A2C.
 - **Implied static fork A2C**: the static fork A2C implied if the declared spacer is held fixed.
 - **Minimum passing slop**: minimum `GeoSlopMm` required for all sizes to pass.
-- **Candidate Physical Solutions**: If the frame is invalid or requires A2C slop > 1.0mm, `bikegeo fit` automatically solves for candidate fork travels, standard sags (0%, 15%, 20%, 25%, 30%), static A2Cs, rakes (including 44, 51, and 55mm), and spacers, presenting the solved Go struct fields (`CadFork`, `GeoHeadsetSpacerMm`, etc.).
+- **Candidate Physical Solutions**: If the frame is invalid or requires A2C slop > 1.0mm, `bikegeo fit` automatically solves for candidate fork travels, standard sags (0%, 20%, 25%, 30%), static A2Cs, rakes (including 44, 51, and 55mm), and spacers, presenting the solved Go struct fields (`CadFork`, `GeoHeadsetSpacerMm`, etc.).
 
 ### Step 3: Sweep Unknowns with `--try` (if needed)
 If the configuration requires exploring specific parameters beyond standard candidates, sweep candidate combinations:
@@ -57,7 +57,7 @@ go run ./cmd/bikegeo fit <frame-id> --try fork.a2c=470,472 --try fork.rake=44,51
 ```
 For sagged charts:
 ```bash
-go run ./cmd/bikegeo fit <frame-id> --try sag=0,15,20,25
+go run ./cmd/bikegeo fit <frame-id> --try sag=0,20,25,30
 ```
 Use `--detail` to print the full per-size residual table for each combination.
 

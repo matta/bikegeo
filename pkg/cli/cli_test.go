@@ -22,7 +22,7 @@ func runCLI(t *testing.T, args ...string) (string, string, int) {
 func TestCompare_SameFrameDifferentSagsAndRigid(t *testing.T) {
 	out, errOut, code := runCLI(t,
 		"compare", "--format", "csv",
-		"havok:L@110mm@15%",
+		"havok:L@110mm@20%",
 		"havok:L@110mm@25%",
 		"havok:L@rigid",
 	)
@@ -55,9 +55,9 @@ func TestCompare_SameFrameDifferentSagsAndRigid(t *testing.T) {
 		}
 	}
 
-	assertRow("Fork & Eff. A2C", "110mm @ 15% sag -> 505mm A2C", "110mm @ 25% sag -> 494mm A2C", "Rigid (485mm)")
+	assertRow("Fork & Eff. A2C", "110mm @ 20% sag -> 499mm A2C", "110mm @ 25% sag -> 494mm A2C", "Rigid (485mm)")
 
-	// Verify Reach increases monotonically as effective A2C drops (505 -> 494 -> 485)
+	// Verify Reach increases monotonically as effective A2C drops (499 -> 494 -> 485)
 	reachRow := rowByLabel["Reach"]
 	if len(reachRow) < 6 {
 		t.Fatalf("missing Reach columns: %v", reachRow)
@@ -72,7 +72,7 @@ func TestCompare_MixedFramesForksAndSags(t *testing.T) {
 		"compare",
 		"otso-fenrir-stainless:L@rigid",
 		"havok:L@110mm@25%",
-		"revel-el-jefe:L@120mm@15%",
+		"revel-el-jefe:L@120mm@20%",
 	)
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
@@ -84,7 +84,7 @@ func TestCompare_MixedFramesForksAndSags(t *testing.T) {
 		"Revel El Jefe",
 		"Rigid (495mm)",
 		"110mm @ 25% sag",
-		"120mm @ 15% sag",
+		"120mm @ 20% sag",
 		"Stack",
 		"Reach",
 		"Fork & Eff. A2C",
@@ -122,6 +122,15 @@ func TestCompare_EnforcesFrameForkSagAndValidationConstraints(t *testing.T) {
 	}
 	if !strings.Contains(errOut, `does not support suspension fork "100mm"`) {
 		t.Errorf("expected error mentioning suspension fork not supported, got: %s", errOut)
+	}
+
+	// 4. Unallowed sag percentage (15% on suspension fork)
+	_, errOut, code = runCLI(t, "compare", "havok:L@110mm@15%")
+	if code == 0 {
+		t.Fatalf("expected failure for unallowed 15%% sag")
+	}
+	if !strings.Contains(errOut, "allowed sags are 20%, 25%, 30%") {
+		t.Errorf("expected error mentioning allowed sags, got: %s", errOut)
 	}
 }
 

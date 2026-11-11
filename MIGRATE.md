@@ -351,7 +351,7 @@ Before writing Rust code, freeze the reference Go binary and record golden outpu
    - Run ported [pkg/canonicalizer/canonicalizer_test.go](file:///Users/matt/src/bikegeo/pkg/canonicalizer/canonicalizer_test.go).
 4. **Physical Fit Solver (`src/fit/`):**
    - Port [pkg/fit/fit.go](file:///Users/matt/src/bikegeo/pkg/fit/fit.go) parameter sweep:
-     - Fork travels, standard sag points (`0%, 15%, 20%, 25%, 30%`), static A2C values, rakes (`44, 51, 55mm`), and headset spacers (`0, 10, 12mm`).
+     - Fork travels, standard sag points (`0%, 20%, 25%, 30%`), static A2C values, rakes (`44, 51, 55mm`), and headset spacers (`0, 10, 12mm`).
    - Run ported [pkg/fit/fit_test.go](file:///Users/matt/src/bikegeo/pkg/fit/fit_test.go).
 
 #### Track 2B: Sweet-Spot Scoring & Ideals (Parallel with Track 2A)

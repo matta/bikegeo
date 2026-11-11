@@ -700,7 +700,7 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 		if travel == 0 {
 			sags = []float64{0}
 		} else {
-			sags = []float64{0, 15, 20, 25, 30}
+			sags = []float64{0, 20, 25, 30}
 		}
 
 		for _, sag := range sags {
