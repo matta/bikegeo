@@ -330,6 +330,12 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Reference Metric Definitions:") {
 			t.Errorf("expected 'Reference Metric Definitions:' footer, got:\n%s", out)
 		}
+		if !strings.Contains(out, "Chainstay (*): Asterisk indicates adjustable/sliding dropouts; displayed at maximum stay position") {
+			t.Errorf("expected Chainstay (*) definition in footer, got:\n%s", out)
+		}
+		if !strings.Contains(out, "Sliding Dropout Ranges: Sklar PBJ: 432–452mm (max 452mm).") {
+			t.Errorf("expected Sliding Dropout Ranges for PBJ, got:\n%s", out)
+		}
 		if !strings.Contains(out, "Saddle-Rear Axle: Horizontal distance from saddle to rear axle") {
 			t.Errorf("expected Saddle-Rear Axle definition in footer, got:\n%s", out)
 		}

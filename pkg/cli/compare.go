@@ -1061,13 +1061,32 @@ func (a *App) renderComparisonMatrix(
 	var footers []FooterSection
 	missingNotes := scoring.CollectMissingDataNotes(scoredFramesForExplain)
 
+	refDefLines := []string{
+		"Chainstay (*): Asterisk indicates adjustable/sliding dropouts; displayed at maximum stay position (longest wheelbase, most rearward axle). Front Wt %, Wheelbase, and Saddle-Rear Axle are calculated at this exact position.",
+		"Saddle-Rear Axle: Horizontal distance from saddle to rear axle (Rear Center minus Saddle Setback).",
+		"Saddle-HT Drop: Vertical drop from saddle to head tube top (Saddle Height * sin(STA) - Stack; steerer spacer/stem rise needed for level bars).",
+		"Seatpost Ext: Exposed seatpost length from collar to saddle rails (available vertical height for dropper post fitment).",
+	}
+
+	var adjustableStayLines []string
+	seenAdjustable := make(map[string]bool)
+	for _, item := range scoredItems {
+		b := item.row.Bike
+		if b.HasAdjustableChainstay() {
+			key := fmt.Sprintf("%s %s (%.0f-%.0f)", b.Manufacturer, b.Model, b.GetMinChainstay(), b.GetMaxChainstay())
+			if !seenAdjustable[key] {
+				seenAdjustable[key] = true
+				adjustableStayLines = append(adjustableStayLines, fmt.Sprintf("%s %s: %.0f–%.0fmm (max %.0fmm)", b.Manufacturer, b.Model, b.GetMinChainstay(), b.GetMaxChainstay(), b.GetMaxChainstay()))
+			}
+		}
+	}
+	if len(adjustableStayLines) > 0 {
+		refDefLines = append(refDefLines, fmt.Sprintf("Sliding Dropout Ranges: %s.", strings.Join(adjustableStayLines, "; ")))
+	}
+
 	refDefFooter := FooterSection{
 		Title: "Reference Metric Definitions",
-		Lines: []string{
-			"Saddle-Rear Axle: Horizontal distance from saddle to rear axle (Rear Center minus Saddle Setback).",
-			"Saddle-HT Drop: Vertical drop from saddle to head tube top (Saddle Height * sin(STA) - Stack; steerer spacer/stem rise needed for level bars).",
-			"Seatpost Ext: Exposed seatpost length from collar to saddle rails (available vertical height for dropper post fitment).",
-		},
+		Lines: refDefLines,
 	}
 
 	if scoringEnabled && len(rows) > 0 {
