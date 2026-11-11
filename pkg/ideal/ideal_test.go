@@ -6,9 +6,6 @@ import (
 	"testing"
 )
 
-//go:fix inline
-func floatPtr(v float64) *float64 { return new(v) }
-
 func TestLookupAttribute_Trail(t *testing.T) {
 	for _, variant := range []string{"trail", "trail_mm", "trail-mm", "TRAIL"} {
 		meta, ok := LookupAttribute(variant)

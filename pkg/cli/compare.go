@@ -1062,6 +1062,7 @@ func (a *App) renderComparisonMatrix(
 	missingNotes := scoring.CollectMissingDataNotes(scoredFramesForExplain)
 
 	refDefLines := []string{
+		"Frame & Chassis Specs: Reach, Stack, HTA, STA, BB Drop, and Trail reflect the dynamic, rotated frame attitude at the effective fork A2C and sag specified for each setup.",
 		"Chainstay (*): Asterisk indicates adjustable/sliding dropouts; displayed at maximum stay position (longest wheelbase, most rearward axle). Front Wt %, Wheelbase, and Saddle-Rear Axle are calculated at this exact position.",
 		"Saddle-Rear Axle: Horizontal distance from saddle to rear axle (Rear Center minus Saddle Setback).",
 		"Saddle-HT Drop: Vertical drop from saddle to head tube top (Saddle Height * sin(STA) - Stack; steerer spacer/stem rise needed for level bars).",
@@ -1462,7 +1463,7 @@ func (a *App) renderComparisonMatrix(
 
 			fmt.Fprintln(a.Out)
 
-			geoTitle := "Frame & Chassis Specifications"
+			geoTitle := "Frame & Chassis Specifications (Dynamic / At-Sag Geometry)"
 			geoHeaders := []string{
 				"#",
 				"Frame (Size)",

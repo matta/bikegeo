@@ -264,8 +264,11 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Fit & Cockpit") {
 			t.Errorf("expected Table 1 'Fit & Cockpit' in transposed output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Frame & Chassis Specifications") {
-			t.Errorf("expected Table 2 'Frame & Chassis Specifications' in transposed output, got:\n%s", out)
+		if !strings.Contains(out, "Frame & Chassis Specifications (Dynamic / At-Sag Geometry)") {
+			t.Errorf("expected Table 2 'Frame & Chassis Specifications (Dynamic / At-Sag Geometry)' in transposed output, got:\n%s", out)
+		}
+		if !strings.Contains(out, "Frame & Chassis Specs: Reach, Stack, HTA, STA, BB Drop, and Trail reflect the dynamic, rotated frame attitude") {
+			t.Errorf("expected dynamic geometry explanation in reference definitions footer, got:\n%s", out)
 		}
 	})
 
