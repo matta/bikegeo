@@ -61,8 +61,24 @@ The steerer tube extends upward and rearward at polar angle `180° - HTA`. With 
 - `ClampY = SteererY + LengthMm * sin((90° - HTA) + AngleDeg)`
 
 ### Handlebar Component Geometry & Contact Point Offset
-A handlebar component with 50 mm rise, 20° backsweep, and 800 mm width (such as the Tumbleweed Persuader in `DefaultRiderProfile`) translates the rider's palm grip coordinates relative to the stem clamp:
-- `swept_span = max(0, (800 / 2) - 190.0 - 70.0) = 140.0 mm` (accounting for the 190 mm central clamp/riser section and 70 mm inboard grip center).
+A handlebar component translates the stem clamp center (`P_HB`) to the hand grip center (`P_Grip`) and vice versa. Rather than relying solely on naive trigonometry (`Width/2 * tan(sweep)`), `bikegeo` implements a complete 3D piecewise linear kinematic transformation model (`pkg/geometry/handlebar.go`, `pkg/catalog/handlebars.go`):
+
+1. **Lateral Hand Coordinate**: `z_hand = W / 2 - d_grip` (with standard `d_grip = 65 mm` inboard of bar tip, or `70 mm` for wing grips).
+2. **Swept Lever Arm**: `L_z = max(0, z_hand - z_b)`, where `z_b` is the effective lateral bend start.
+   - For **SQlab bars** (3OX, 311 2.0, 311 FL-X): `z_b = 55 + 0.9 * R_spec` because higher rise consumes more lateral run in the 45°–50° riser transition.
+   - For **Tumbleweed Persuader**: `z_b = 135 mm` (wide 200 mm center clamping zone + riser bend).
+3. **Rise Measurement Traps**:
+   - **Standard Knuckle (SQlab / DIN)**: Rise `R_spec` is measured to the knuckle; outboard upsweep adds height on top (`y_k = R_spec`).
+   - **Bar-End Center (Tumbleweed Persuader)**: Rise is measured from clamp center to bar-end tip; upsweep is baked in, so knuckle base rise is `y_k = R_spec - (W_0/2 - z_b) * tan(alpha)`.
+4. **Neutral & Rolled Vectors**:
+   - `Δx_0 = -L_z * tan(beta)`
+   - `Δy_0 = y_k + L_z * tan(alpha)`
+   - `ΔX_bar = Δx_0 * cos(theta_roll) + Δy_0 * sin(theta_roll)`
+   - `ΔY_bar = -Δx_0 * sin(theta_roll) + Δy_0 * cos(theta_roll)`
+   - `ΔZ_bar = z_hand`
+
+Legacy 2D baseline calculation:
+- `swept_span = max(0, (800 / 2) - 190.0 - 70.0) = 140.0 mm`
 - `Offset_X = -swept_span * sin(20°) = -47.88 mm` (rearward pullback)
 - `Offset_Y = +50.0 mm` (upward riser)
 - `HbX = ClampX + Offset_X`

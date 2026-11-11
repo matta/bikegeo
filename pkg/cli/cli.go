@@ -61,6 +61,8 @@ func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 		return app.runSaddles(subArgs)
 	case "saddle-swap":
 		return app.runSaddleSwap(subArgs)
+	case "handlebars", "handlebar", "bars":
+		return app.runHandlebars(subArgs)
 	case "compare", "cmp":
 		return app.runCompare(subArgs)
 	case "validate", "val", "check":
@@ -109,6 +111,7 @@ Core Commands:
   stems                   List standard stem presets and length/angle envelopes
   saddles [show <id>]     List saddle catalog, translate pelvic fit, and solve ideal custom STA
   saddle-swap [from] [to] Analyze saddle swap, contrasting naive BRP vs true pelvic fit
+  handlebars [id] [cmp]   List handlebar catalog, inspect 3D kinematic model, and compare hand offsets
   ideals [show <name>]    List or inspect ideal frame profiles
 
 Global Flags:

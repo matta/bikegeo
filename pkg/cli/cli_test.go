@@ -970,3 +970,94 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 		}
 	})
 }
+
+func TestHandlebarsCLI(t *testing.T) {
+	t.Run("ListTable", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "handlebars")
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d; stderr: %s", code, errOut)
+		}
+		for _, exp := range []string{
+			"Canonical Handlebar Catalog",
+			"Tumbleweed Persuader 20° (800mm)",
+			"SQlab 3OX 16° (30mm Rise)",
+			"SQlab 311 2.0 Alloy 16° (25mm Rise)",
+			"-72.8 mm",
+			"+45.5 mm",
+			"-69.7 mm",
+			"+47.0 mm",
+			"Rise Measurement Traps",
+			"Key Kinematic Insights",
+		} {
+			if !strings.Contains(out, exp) {
+				t.Errorf("expected handlebars output to contain %q, got:\n%s", exp, out)
+			}
+		}
+	})
+
+	t.Run("ListCSV", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "handlebars", "--format", "csv")
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d; stderr: %s", code, errOut)
+		}
+		if !strings.Contains(out, "persuader20_800") || !strings.Contains(out, "sqlab3OX_16_30") {
+			t.Errorf("expected CSV to contain bar IDs, got:\n%s", out)
+		}
+	})
+
+	t.Run("ShowDetail", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "handlebars", "sqlab3OX_16_30", "--roll", "2.5")
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d; stderr: %s", code, errOut)
+		}
+		for _, exp := range []string{
+			"Handlebar Detail: SQlab 3OX 16° (30mm Rise)",
+			"Roll Angle Sensitivity for SQlab 3OX 16° (30mm Rise)",
+			"Effective Bend Start (z_b)",
+			"82.0 mm",
+		} {
+			if !strings.Contains(out, exp) {
+				t.Errorf("expected detail output to contain %q, got:\n%s", exp, out)
+			}
+		}
+	})
+
+	t.Run("CompareTwoBars", func(t *testing.T) {
+		out, errOut, code := runCLI(t, "handlebars", "persuader20_800", "sqlab3OX_16_30")
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d; stderr: %s", code, errOut)
+		}
+		for _, exp := range []string{
+			"Handlebar Fit Translation: Tumbleweed Persuader 20° (800mm) -> SQlab 3OX 16° (30mm Rise)",
+			"Delta (Bar 2 - Bar 1)",
+			"+3.1 mm",
+			"+1.5 mm",
+			"Required Stem Clamp Adjustment to Maintain Identical Hand Position",
+			"-3.1 mm Reach and -1.5 mm Stack",
+		} {
+			if !strings.Contains(out, exp) {
+				t.Errorf("expected comparison output to contain %q, got:\n%s", exp, out)
+			}
+		}
+	})
+
+	t.Run("UnrecognizedBar", func(t *testing.T) {
+		_, errOut, code := runCLI(t, "handlebars", "non_existent_handlebar")
+		if code != 1 {
+			t.Fatalf("expected exit code 1, got %d", code)
+		}
+		if !strings.Contains(errOut, "unrecognized handlebar") {
+			t.Errorf("expected 'unrecognized handlebar' error, got: %s", errOut)
+		}
+	})
+
+	t.Run("HelpMentionsHandlebars", func(t *testing.T) {
+		out, _, code := runCLI(t, "help")
+		if code != 0 {
+			t.Fatalf("expected exit code 0, got %d", code)
+		}
+		if !strings.Contains(out, "handlebars") {
+			t.Errorf("expected help output to mention handlebars, got:\n%s", out)
+		}
+	})
+}

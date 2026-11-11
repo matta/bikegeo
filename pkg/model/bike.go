@@ -687,6 +687,115 @@ const DefaultBarClampAndRiseSpanMm = 190.0
 // rider's palm (3rd metacarpal) on standard ~135mm grips.
 const DefaultBarGripInboardOffsetMm = 70.0
 
+// DefaultGripInsetMm is the standard inboard distance along the lateral (Z) axis from the bar end
+// to the functional center of the hand grip (typically 65mm for 130mm grips).
+const DefaultGripInsetMm = 65.0
+
+// WingGripInsetMm is the inboard distance for ergonomic wing grips (e.g. SQlab 710/7OX).
+const WingGripInsetMm = 70.0
+
+// Point3D represents a 3D coordinate or vector in millimeters within a right-handed coordinate frame:
+//   - X: Reach / Longitudinal axis (+ forward, horizontal)
+//   - Y: Stack / Vertical axis (+ upward, vertical)
+//   - Z: Lateral axis (+ right of centerline, symmetric for left)
+type Point3D struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	Z float64 `json:"z"`
+}
+
+// Add returns the vector sum p + other.
+func (p Point3D) Add(other Point3D) Point3D {
+	return Point3D{X: p.X + other.X, Y: p.Y + other.Y, Z: p.Z + other.Z}
+}
+
+// Sub returns the vector difference p - other.
+func (p Point3D) Sub(other Point3D) Point3D {
+	return Point3D{X: p.X - other.X, Y: p.Y - other.Y, Z: p.Z - other.Z}
+}
+
+// Scale multiplies p by scalar s.
+func (p Point3D) Scale(s float64) Point3D {
+	return Point3D{X: p.X * s, Y: p.Y * s, Z: p.Z * s}
+}
+
+// DistanceTo returns the 3D Euclidean distance between p and other.
+func (p Point3D) DistanceTo(other Point3D) float64 {
+	dx := p.X - other.X
+	dy := p.Y - other.Y
+	dz := p.Z - other.Z
+	return math.Sqrt(dx*dx + dy*dy + dz*dz)
+}
+
+// Distance2D returns the 2D Euclidean distance in the sagittal (X-Y) plane.
+func (p Point3D) Distance2D(other Point3D) float64 {
+	dx := p.X - other.X
+	dy := p.Y - other.Y
+	return math.Sqrt(dx*dx + dy*dy)
+}
+
+// RiseMeasurementMode specifies how a manufacturer measures handlebar rise.
+type RiseMeasurementMode string
+
+const (
+	// RiseModeStandardKnuckle indicates rise is measured from the clamp axis to the post-rise bend knuckle.
+	// Outboard upsweep adds vertical height on top of the stated rise. Used by SQlab and standard DIN/MTB.
+	RiseModeStandardKnuckle RiseMeasurementMode = "standard_knuckle"
+
+	// RiseModeBarEndCenter indicates rise is measured from the clamp center to the center of the bar end tip.
+	// Outboard upsweep is already baked into the stated rise figure. Used by Tumbleweed Persuader.
+	RiseModeBarEndCenter RiseMeasurementMode = "bar_end_center"
+)
+
+// HandlebarSpec defines the geometric specification and measurement standard for a handlebar.
+type HandlebarSpec struct {
+	ID                   string              `json:"id,omitempty"`
+	Name                 string              `json:"name"`
+	StockWidthMm         float64             `json:"stock_width_mm"`
+	CurrentWidthMm       float64             `json:"current_width_mm"`
+	StatedRiseMm         float64             `json:"stated_rise_mm"`
+	BacksweepDeg         float64             `json:"backsweep_deg"`
+	UpsweepDeg           float64             `json:"upsweep_deg"`
+	EffectiveBendStartMm float64             `json:"effective_bend_start_mm"` // z_b (lateral bend start from centerline)
+	RiseMode             RiseMeasurementMode `json:"rise_mode"`
+}
+
+// EffectiveWidthMm returns CurrentWidthMm if positive, or StockWidthMm.
+func (h HandlebarSpec) EffectiveWidthMm() float64 {
+	if h.CurrentWidthMm > 0 {
+		return h.CurrentWidthMm
+	}
+	return h.StockWidthMm
+}
+
+// HandLateralMm returns the lateral distance from centerline to hand grip center:
+//
+//	z_hand = EffectiveWidth / 2.0 - gripInsetMm
+func (h HandlebarSpec) HandLateralMm(gripInsetMm float64) float64 {
+	if gripInsetMm <= 0 {
+		gripInsetMm = DefaultGripInsetMm
+	}
+	return h.EffectiveWidthMm()/2.0 - gripInsetMm
+}
+
+// BaseRiseAtBend returns the base vertical rise y_k at the bend intersection z_b.
+// For standard knuckle measurement, y_k = statedRise.
+// For bar-end center measurement, y_k = statedRise - (stockWidth/2 - z_b) * tan(upsweep).
+func (h HandlebarSpec) BaseRiseAtBend() float64 {
+	if h.RiseMode == RiseModeBarEndCenter {
+		alpha := h.UpsweepDeg * math.Pi / 180.0
+		stockTipSpan := h.StockWidthMm/2.0 - h.EffectiveBendStartMm
+		return h.StatedRiseMm - stockTipSpan*math.Tan(alpha)
+	}
+	return h.StatedRiseMm
+}
+
+// SQlabEffectiveBendStartMm computes the effective lateral bend intersection point (z_b)
+// for SQlab handlebars: z_b = 55 + 0.9 * statedRiseMm.
+func SQlabEffectiveBendStartMm(statedRiseMm float64) float64 {
+	return 55.0 + 0.9*statedRiseMm
+}
+
 // HBPoint represents a mapped handlebar position (HB) and its resulting Saddle-Handlebar distance and drop.
 // ClampX and ClampY represent the center of the physical stem clamp, while HbX and HbY represent
 // the effective hand contact position after accounting for handlebar sweep and rise.

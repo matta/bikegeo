@@ -69,3 +69,63 @@ func TestGetCatalogFork(t *testing.T) {
 		})
 	}
 }
+
+func TestHandlebarCatalog(t *testing.T) {
+	// Test DefaultHandlebar
+	def := DefaultHandlebar()
+	if def.ID != "persuader20_800" {
+		t.Errorf("DefaultHandlebar ID: expected 'persuader20_800', got %q", def.ID)
+	}
+
+	// Test AllHandlebars returns non-empty slice
+	all := AllHandlebars()
+	if len(all) < 8 {
+		t.Errorf("AllHandlebars: expected at least 8 entries, got %d", len(all))
+	}
+
+	// Test GetHandlebarPreset with exact and normalized keys
+	presetKeys := []string{
+		"persuader20_800",
+		"persuader20_840",
+		"sqlab3OX_16_30",
+		"sqlab3OX_16_45",
+		"sqlab3OX_12_30",
+		"sqlab311_20_16_25",
+		"sqlab311_20_16_50",
+		"sqlab311_FLX_16_30",
+	}
+
+	for _, k := range presetKeys {
+		spec, found := GetHandlebarPreset(k)
+		if !found {
+			t.Errorf("GetHandlebarPreset(%q) not found", k)
+		}
+		if spec.ID != k {
+			t.Errorf("GetHandlebarPreset(%q) ID mismatch: got %q", k, spec.ID)
+		}
+	}
+
+	// Test normalized lookup (dashes, case-insensitivity)
+	spec, found := GetHandlebar("sqlab3ox-16-30")
+	if !found || spec.ID != "sqlab3OX_16_30" {
+		t.Errorf("GetHandlebar('sqlab3ox-16-30') failed, got %+v, found=%t", spec, found)
+	}
+
+	// Test substring lookup
+	specSub, foundSub := GetHandlebar("Persuader 20° (840mm)")
+	if !foundSub || specSub.ID != "persuader20_840" {
+		t.Errorf("GetHandlebar substring match failed, got %+v, found=%t", specSub, foundSub)
+	}
+
+	// Test fallback on empty string returns default
+	specEmpty, foundEmpty := GetHandlebar("")
+	if !foundEmpty || specEmpty.ID != def.ID {
+		t.Errorf("GetHandlebar('') expected default, got %+v", specEmpty)
+	}
+
+	// Test non-existent handlebar
+	_, foundNone := GetHandlebar("non_existent_handlebar_12345")
+	if foundNone {
+		t.Errorf("Expected not found for non_existent_handlebar_12345")
+	}
+}
