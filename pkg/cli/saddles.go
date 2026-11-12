@@ -99,7 +99,7 @@ func (a *App) runSaddles(args []string) int {
 		})
 	}
 
-	if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, rows, footers); err != nil {
+	if err := a.renderFooters(title, subtitle, headers, rows, footers); err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
 	}
@@ -177,7 +177,7 @@ func (a *App) runSaddles(args []string) int {
 			},
 		}
 
-		if err := RenderOutputWithFooter(a.Out, a.Format, compTitle, compSubtitle, compHeaders, compRows, compFooters); err != nil {
+		if err := a.renderFooters(compTitle, compSubtitle, compHeaders, compRows, compFooters); err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}
@@ -242,7 +242,7 @@ func (a *App) runSaddles(args []string) int {
 			},
 		}
 
-		if err := RenderOutputWithFooter(a.Out, a.Format, compromiseTitle, compromiseSubtitle, compromiseHeaders, compromiseRows, compromiseFooters); err != nil {
+		if err := a.renderFooters(compromiseTitle, compromiseSubtitle, compromiseHeaders, compromiseRows, compromiseFooters); err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}
@@ -296,7 +296,7 @@ func (a *App) runSaddles(args []string) int {
 		staSubtitle := fmt.Sprintf("Equivalent Saddle Height: %.0fmm | Target Sit Bone Setback: %.0fmm behind BB (BRP Setback: %.0fmm)",
 			sh, sitBoneSetback, s.BrpSetbackFromSitBones(sitBoneSetback))
 
-		if err := RenderOutput(a.Out, a.Format, staTitle, staSubtitle, staHeaders, staRows); err != nil {
+		if err := a.render(staTitle, staSubtitle, staHeaders, staRows); err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}

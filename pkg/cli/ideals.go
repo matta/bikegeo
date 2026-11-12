@@ -54,7 +54,7 @@ func (a *App) listIdeals() int {
 
 	title := "Ideal Frame Profiles"
 	subtitle := "Use 'bikegeo ideals show <name>' to view details"
-	if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, rows); err != nil {
+	if err := a.render(title, subtitle, headers, rows); err != nil {
 		fmt.Fprintf(a.Err, "Error rendering output: %v\n", err)
 		return 1
 	}
@@ -148,7 +148,7 @@ func (a *App) showIdeal(name string) int {
 		})
 	}
 
-	if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, rows); err != nil {
+	if err := a.render(title, subtitle, headers, rows); err != nil {
 		fmt.Fprintf(a.Err, "Error rendering output: %v\n", err)
 		return 1
 	}
@@ -180,7 +180,7 @@ func (a *App) showIdeal(name string) int {
 
 		if len(sampleRows) > 0 {
 			fmt.Fprintln(a.Out)
-			_ = RenderOutput(a.Out, a.Format, "Sample Evaluation Points", "Key checkpoints across ideal, acceptable, and falloff zones", sampleHeaders, sampleRows)
+			_ = a.render("Sample Evaluation Points", "Key checkpoints across ideal, acceptable, and falloff zones", sampleHeaders, sampleRows)
 		}
 	}
 

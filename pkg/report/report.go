@@ -27,6 +27,16 @@ type Document struct {
 	Tables  []Table
 	Notes   []string
 	Footers []Footer // document-level footers (HTML); CLI output attaches footers to tables instead
+
+	// Sections is an ordered mix of tables and preformatted text, used by
+	// commands that interleave prose with tables.
+	Sections []Section
+}
+
+// Section is either a table or a block of preformatted text.
+type Section struct {
+	Table *Table
+	Text  string
 }
 
 // Column describes one table column.

@@ -141,7 +141,7 @@ func (a *App) listHandlebars(gripInset, rollDeg, cutWidth float64) int {
 		},
 	}
 
-	if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, rows, footers); err != nil {
+	if err := a.renderFooters(title, subtitle, headers, rows, footers); err != nil {
 		fmt.Fprintf(a.Err, "Error rendering output: %v\n", err)
 		return 1
 	}
@@ -197,7 +197,7 @@ func (a *App) showHandlebarDetail(b model.HandlebarSpec, gripInset, rollDeg floa
 		})
 	}
 
-	if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, rows); err != nil {
+	if err := a.render(title, subtitle, headers, rows); err != nil {
 		fmt.Fprintf(a.Err, "Error rendering output: %v\n", err)
 		return 1
 	}
@@ -205,7 +205,7 @@ func (a *App) showHandlebarDetail(b model.HandlebarSpec, gripInset, rollDeg floa
 	fmt.Fprintln(a.Out)
 	rollTitle := fmt.Sprintf("Roll Angle Sensitivity for %s", b.Name)
 	rollSubtitle := "Positive roll rotates the bar top forward (trading stack for reach); negative roll rotates backward"
-	if err := RenderOutput(a.Out, a.Format, rollTitle, rollSubtitle, rollHeaders, rollRows); err != nil {
+	if err := a.render(rollTitle, rollSubtitle, rollHeaders, rollRows); err != nil {
 		fmt.Fprintf(a.Err, "Error rendering roll table: %v\n", err)
 		return 1
 	}
@@ -261,7 +261,7 @@ func (a *App) compareHandlebars(bar1, bar2 model.HandlebarSpec, gripInset, rollD
 		},
 	}
 
-	if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, rows, footers); err != nil {
+	if err := a.renderFooters(title, subtitle, headers, rows, footers); err != nil {
 		fmt.Fprintf(a.Err, "Error rendering comparison: %v\n", err)
 		return 1
 	}

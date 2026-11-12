@@ -112,7 +112,7 @@ func (a *App) runFit(args []string) int {
 			})
 		}
 
-		if err := RenderOutput(a.Out, a.Format, title, "", headers, rows); err != nil {
+		if err := a.render(title, "", headers, rows); err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}
@@ -222,7 +222,7 @@ func (a *App) runFit(args []string) int {
 					strings.Join(c.Assignments, ", "),
 				})
 			}
-			_ = RenderOutput(a.Out, a.Format, "", "", candHeaders, candRows)
+			_ = a.render("", "", candHeaders, candRows)
 		}
 	}
 
@@ -270,5 +270,5 @@ func (a *App) renderResidualsTable(title string, fitRes *fit.FitResult) {
 		})
 	}
 
-	_ = RenderOutput(a.Out, a.Format, title, "", headers, rows)
+	_ = a.render(title, "", headers, rows)
 }

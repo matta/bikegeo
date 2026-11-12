@@ -13,6 +13,10 @@ type App struct {
 	In     io.Reader
 	Out    io.Writer
 	Err    io.Writer
+
+	// collect, when non-nil, records tables and text as a report.Document
+	// instead of printing them (see RunDocument).
+	collect *collector
 }
 
 // Run executes the bikegeo CLI with the provided arguments and I/O streams, returning an exit code.
@@ -35,6 +39,12 @@ func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 		return 2
 	}
 
+	return app.dispatch(remaining)
+}
+
+// dispatch routes the remaining (global-flag-free) arguments to a subcommand.
+func (app *App) dispatch(remaining []string) int {
+	errOut := app.Err
 	if len(remaining) == 0 {
 		app.printUsage()
 		return 0

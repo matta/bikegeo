@@ -171,7 +171,7 @@ func (a *App) runSaddleSwap(args []string) int {
 		sumSub := fmt.Sprintf("Source Saddle Height (to BRP): %.0fmm | Sit Bone Setback: %.0fmm behind BB | Post Setback: %.1fmm",
 			saddleHeight, sitBoneSetback, postSetback)
 
-		if err := RenderOutput(a.Out, a.Format, sumTitle, sumSub, summaryHeaders, summaryRows); err != nil {
+		if err := a.render(sumTitle, sumSub, summaryHeaders, summaryRows); err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}
@@ -297,7 +297,7 @@ func (a *App) runSaddleSwap(args []string) int {
 		})
 
 		if frameSpec != "" {
-			if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, swapRows); err != nil {
+			if err := a.render(title, subtitle, headers, swapRows); err != nil {
 				fmt.Fprintf(a.Err, "Error: %v\n", err)
 				return 1
 			}
@@ -305,7 +305,7 @@ func (a *App) runSaddleSwap(args []string) int {
 				fmt.Fprintln(a.Out)
 			}
 		} else {
-			if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, swapRows, footers); err != nil {
+			if err := a.renderFooters(title, subtitle, headers, swapRows, footers); err != nil {
 				fmt.Fprintf(a.Err, "Error: %v\n", err)
 				return 1
 			}
@@ -414,7 +414,7 @@ func (a *App) runSaddleSwap(args []string) int {
 				},
 			}
 
-			if err := RenderOutputWithFooter(a.Out, a.Format, t4Title, t4Subtitle, t4Headers, t4Rows, footers); err != nil {
+			if err := a.renderFooters(t4Title, t4Subtitle, t4Headers, t4Rows, footers); err != nil {
 				fmt.Fprintf(a.Err, "Error: %v\n", err)
 				return 1
 			}
