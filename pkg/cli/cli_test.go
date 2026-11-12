@@ -17,7 +17,7 @@ func runCLIRows(t *testing.T, args ...string) (string, string, int) {
 	t.Helper()
 	out, errOut, code := runCLI(t, args...)
 	var rows []string
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if !strings.HasPrefix(line, "|") {
 			continue
 		}
