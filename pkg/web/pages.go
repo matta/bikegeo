@@ -11,6 +11,7 @@ import (
 	"bikegeo/pkg/frames"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/report"
+	"bikegeo/pkg/validator"
 )
 
 // Control is one form input on a generic page.
@@ -28,6 +29,9 @@ type page struct {
 	Controls           func(v url.Values) []Control
 	// Args maps the query to subcommand arguments; ready=false shows only the form.
 	Args func(v url.Values) (args []string, ready bool)
+	// Build, when set, produces the document directly instead of running Args
+	// through the CLI. Args is then used only for the equivalent-command echo.
+	Build func(v url.Values) (doc report.Document, errText string)
 	// Link maps a column label to a URL prefix; cells in that column link to
 	// prefix + escaped cell text.
 	Link map[string]string
@@ -100,6 +104,14 @@ func pages() []page {
 					args = append(args, "--all-sizes")
 				}
 				return args, true
+			},
+			Build: func(v url.Values) (report.Document, string) {
+				return compare.BuildFrameListDocument(compare.ListFilter{
+					Query:    v.Get("q"),
+					Category: v.Get("category"),
+					Size:     v.Get("size"),
+					AllSizes: isTrue(v.Get("all-sizes")),
+				}), ""
 			},
 			Link: map[string]string{"Frame ID": "/validate?frame=", "ID": "/validate?frame="},
 		},
@@ -217,6 +229,21 @@ func pages() []page {
 				}
 				return args, true
 			},
+			Build: func(v url.Values) (report.Document, string) {
+				var tokens []string
+				if f := strings.TrimSpace(v.Get("frame")); f != "" {
+					tokens = []string{f}
+				}
+				targets, err := compare.ResolveValidationTargets(tokens, strings.TrimSpace(v.Get("size")))
+				if err != nil {
+					return report.Document{}, err.Error()
+				}
+				doc, _, err := validator.BuildValidationDocument(targets)
+				if err != nil {
+					return doc, err.Error()
+				}
+				return doc, ""
+			},
 			Link: map[string]string{"Frame ID": "/validate?frame=", "Frame": "/validate?frame="},
 		},
 		{
@@ -263,7 +290,17 @@ func (s *server) page(p page) http.HandlerFunc {
 		args, ready := p.Args(v)
 		d.Ready = ready
 		if ready {
-			doc, errText, code := cli.RunDocument(args)
+			var doc report.Document
+			var errText string
+			code := 0
+			if p.Build != nil {
+				doc, errText = p.Build(v)
+				if errText != "" {
+					code = 1
+				}
+			} else {
+				doc, errText, code = cli.RunDocument(args)
+			}
 			if code != 0 {
 				status = http.StatusBadRequest
 				d.Banner = errText
