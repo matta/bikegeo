@@ -20,11 +20,11 @@ type AttributeMeta struct {
 }
 
 var registry = []AttributeMeta{
-	// Deprecated: setback measures horizontal distance to the bare seat tube centerline (SaddleHeight * cos(STA)),
+	// Deprecated: setback measures horizontal distance to the Seat Axis Point (H * cos(STA)),
 	// ignoring seatpost setback and saddle rails. Use brp_setback for BRP-referenced saddle setback.
 	{
 		ID:        "setback",
-		Label:     "Setback",
+		Label:     "Seat Axis Setback",
 		Unit:      "mm",
 		Decimals:  0,
 		BelowWord: "fwd",
@@ -33,7 +33,19 @@ var registry = []AttributeMeta{
 			return row.Canonical.ActualSetback, true
 		},
 	},
-	// Deprecated: aett measures top-tube reach from the bare seat tube centerline.
+	// ett is the industry-standard effective top tube: head-tube top center back to the seat-tube axis at stack height.
+	{
+		ID:        "ett",
+		Label:     "ETT",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "sht",
+		AboveWord: "lng",
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			return row.Canonical.Ett, row.Canonical.Ett > 0
+		},
+	},
+	// aett measures top-tube reach from the Seat Axis Point at height H (frame-only; independent of saddle, stem, bar).
 	{
 		ID:        "aett",
 		Label:     "AETT",
@@ -47,7 +59,7 @@ var registry = []AttributeMeta{
 	},
 	{
 		ID:        "sparevert",
-		Label:     "Saddle-HT Drop",
+		Label:     "Seat Axis–HT Drop",
 		Unit:      "mm",
 		Decimals:  0,
 		BelowWord: "lo",
@@ -84,11 +96,11 @@ var registry = []AttributeMeta{
 			return 0, false
 		},
 	},
-	// Deprecated: seat_to_rc (Saddle-Rear Axle) only measures horizontal distance from rear axle to bare seat tube, ignoring front-center.
+	// Deprecated: seat_to_rc (Seat Axis–Rear Axle) only measures horizontal distance from rear axle to the Seat Axis Point, ignoring front-center.
 	// Use frontwt for fore/aft rider weight distribution and wheel centering.
 	{
 		ID:        "seat_to_rc",
-		Label:     "Saddle-Rear Axle",
+		Label:     "Seat Axis–Rear Axle",
 		Unit:      "mm",
 		Decimals:  0,
 		BelowWord: "sht",
@@ -264,7 +276,7 @@ var registry = []AttributeMeta{
 	},
 	{
 		ID:        "saddle_hb",
-		Label:     "Saddle-HB",
+		Label:     "BRP–HB",
 		Unit:      "mm",
 		Decimals:  0,
 		BelowWord: "sht",
@@ -400,10 +412,10 @@ func LookupAttribute(id string) (AttributeMeta, bool) {
 	if norm == "cockpit_fit" || norm == "cockpit" || norm == "hb_fit_area" || norm == "clamp_fit" || norm == "hbclampfit" || norm == "clampfit" || norm == "oval_fits" || norm == "ovalfits" {
 		norm = "handlebar_clamp_fit"
 	}
-	if norm == "seat_to_rc" || norm == "seat-rc" || norm == "seat_rc" || norm == "seatrc" || norm == "saddle_rc" || norm == "saddle-rc" || norm == "saddle_rear_axle" || norm == "saddle-rear-axle" || norm == "saddlerearaxle" || norm == "saddle_axle" || norm == "saddle-axle" || norm == "saddle_to_axle" || norm == "saddle-to-axle" {
+	if norm == "seat_to_rc" || norm == "seat_axis_rear_axle" || norm == "seat-axis-rear-axle" || norm == "seat-rc" || norm == "seat_rc" || norm == "seatrc" || norm == "saddle_rc" || norm == "saddle-rc" || norm == "saddle_rear_axle" || norm == "saddle-rear-axle" || norm == "saddlerearaxle" || norm == "saddle_axle" || norm == "saddle-axle" || norm == "saddle_to_axle" || norm == "saddle-to-axle" {
 		norm = "seat_to_rc"
 	}
-	if norm == "sparevert" || norm == "spare_vert" || norm == "spare-vert" || norm == "saddle_ht_drop" || norm == "saddle-ht-drop" || norm == "saddlehtdrop" || norm == "saddle_to_ht_drop" || norm == "steerer_stack" {
+	if norm == "sparevert" || norm == "seat_axis_ht_drop" || norm == "seat-axis-ht-drop" || norm == "spare_vert" || norm == "spare-vert" || norm == "saddle_ht_drop" || norm == "saddle-ht-drop" || norm == "saddlehtdrop" || norm == "saddle_to_ht_drop" || norm == "steerer_stack" {
 		norm = "sparevert"
 	}
 	cleaned := strings.ReplaceAll(strings.ReplaceAll(norm, "_", ""), "-", "")

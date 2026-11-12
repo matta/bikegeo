@@ -11,6 +11,28 @@ import (
 	"bikegeo/pkg/validator"
 )
 
+// runCLIRows runs the CLI and flattens its Markdown tables to comma-joined
+// rows, so tests can address cells without caring about Markdown padding.
+func runCLIRows(t *testing.T, args ...string) (string, string, int) {
+	t.Helper()
+	out, errOut, code := runCLI(t, args...)
+	var rows []string
+	for line := range strings.SplitSeq(out, "\n") {
+		if !strings.HasPrefix(line, "|") {
+			continue
+		}
+		cells := strings.Split(strings.TrimSuffix(strings.TrimPrefix(line, "| "), " |"), " | ")
+		if cells[0] == "---" {
+			continue
+		}
+		for i, c := range cells {
+			cells[i] = strings.ReplaceAll(c, "<br>", " | ")
+		}
+		rows = append(rows, strings.Join(cells, ","))
+	}
+	return strings.Join(rows, "\n") + "\n", errOut, code
+}
+
 func runCLI(t *testing.T, args ...string) (string, string, int) {
 	t.Helper()
 
@@ -20,8 +42,8 @@ func runCLI(t *testing.T, args ...string) (string, string, int) {
 }
 
 func TestCompare_SameFrameDifferentSagsAndRigid(t *testing.T) {
-	out, errOut, code := runCLI(t,
-		"compare", "--format", "csv",
+	out, errOut, code := runCLIRows(t,
+		"compare",
 		"havok:L@110mm@20%",
 		"havok:L@110mm@25%",
 		"havok:L@rigid",
@@ -196,32 +218,6 @@ func TestValidate_CoherentFrames(t *testing.T) {
 	}
 }
 
-func TestListForksAndStems(t *testing.T) {
-	out, errOut, code := runCLI(t, "list", "-q", "havok", "--format", "md")
-	if code != 0 {
-		t.Fatalf("expected list to succeed, got %d; stderr: %s", code, errOut)
-	}
-	if !strings.Contains(out, "| binary-havok |") {
-		t.Errorf("expected markdown row for binary-havok, got:\n%s", out)
-	}
-
-	out, errOut, code = runCLI(t, "forks", "--format", "csv")
-	if code != 0 {
-		t.Fatalf("expected forks to succeed, got %d; stderr: %s", code, errOut)
-	}
-	if !strings.Contains(out, "sid_110,RockShox SID 110mm,110 mm,yes,521/44") {
-		t.Errorf("expected sid_110 in forks CSV, got:\n%s", out)
-	}
-
-	out, errOut, code = runCLI(t, "stems")
-	if code != 0 {
-		t.Fatalf("expected stems to succeed, got %d; stderr: %s", code, errOut)
-	}
-	if !strings.Contains(out, "mtb") || !strings.Contains(out, "gravel") {
-		t.Errorf("expected mtb and gravel in stems output, got:\n%s", out)
-	}
-}
-
 func TestCompare_ScoringAndFlags(t *testing.T) {
 	specs := []string{
 		"binary-havok:L@110mm@20%",
@@ -261,11 +257,13 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "4 (#1)") {
 			t.Errorf("expected '4 (#1)' in transposed output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Fit & Cockpit") {
-			t.Errorf("expected Table 1 'Fit & Cockpit' in transposed output, got:\n%s", out)
+		// The CLI keeps a transposed comparison as one wide table (the web
+		// splits it into Fit & Cockpit and Chassis tables).
+		if got := strings.Count(out, "| # | Frame (Size) |"); got != 1 {
+			t.Errorf("expected exactly one matrix table in transposed output, got %d:\n%s", got, out)
 		}
-		if !strings.Contains(out, "Frame & Chassis Specifications (Dynamic / At-Sag Geometry)") {
-			t.Errorf("expected Table 2 'Frame & Chassis Specifications (Dynamic / At-Sag Geometry)' in transposed output, got:\n%s", out)
+		if !strings.Contains(out, "Seat Axis–Rear Axle") || !strings.Contains(out, "Reach") {
+			t.Errorf("expected cockpit and chassis columns in one table, got:\n%s", out)
 		}
 		if !strings.Contains(out, "Frame & Chassis Specs: Reach, Stack, HTA, STA, BB Drop, and Trail reflect the dynamic, rotated frame attitude") {
 			t.Errorf("expected dynamic geometry explanation in reference definitions footer, got:\n%s", out)
@@ -297,9 +295,9 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		}
 	})
 
-	t.Run("FormatCSV", func(t *testing.T) {
-		args := append([]string{"compare", "--format", "csv"}, specs...)
-		out, errOut, code := runCLI(t, args...)
+	t.Run("ScoreRowAsRows", func(t *testing.T) {
+		args := append([]string{"compare"}, specs...)
+		out, errOut, code := runCLIRows(t, args...)
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
@@ -308,8 +306,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		}
 	})
 
-	t.Run("FormatMD", func(t *testing.T) {
-		args := append([]string{"compare", "--format", "md"}, specs...)
+	t.Run("ScoreRowAsMarkdown", func(t *testing.T) {
+		args := append([]string{"compare"}, specs...)
 		out, errOut, code := runCLI(t, args...)
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
@@ -324,14 +322,14 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Saddle-Rear Axle @") {
-			t.Errorf("expected 'Saddle-Rear Axle @' in standard compare output, got:\n%s", out)
+		if !strings.Contains(out, "Seat Axis–Rear Axle @") {
+			t.Errorf("expected 'Seat Axis–Rear Axle @' in standard compare output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Saddle-HT Drop @") {
-			t.Errorf("expected 'Saddle-HT Drop @' in standard compare output, got:\n%s", out)
+		if !strings.Contains(out, "Seat Axis–HT Drop @") {
+			t.Errorf("expected 'Seat Axis–HT Drop @' in standard compare output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Reference Metric Definitions:") {
-			t.Errorf("expected 'Reference Metric Definitions:' footer, got:\n%s", out)
+		if !strings.Contains(out, "#### Reference Metric Definitions") {
+			t.Errorf("expected Reference Metric Definitions footer, got:\n%s", out)
 		}
 		if !strings.Contains(out, "Chainstay (*): Asterisk indicates adjustable/sliding dropouts; displayed at maximum stay position") {
 			t.Errorf("expected Chainstay (*) definition in footer, got:\n%s", out)
@@ -339,11 +337,11 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Sliding Dropout Ranges: Sklar PBJ: 432–452mm (max 452mm).") {
 			t.Errorf("expected Sliding Dropout Ranges for PBJ, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Saddle-Rear Axle: Horizontal distance from saddle to rear axle") {
-			t.Errorf("expected Saddle-Rear Axle definition in footer, got:\n%s", out)
+		if !strings.Contains(out, "Seat Axis–Rear Axle: horizontal distance from the Seat Axis Point to the rear axle") {
+			t.Errorf("expected Seat Axis–Rear Axle definition in footer, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Saddle-HT Drop: Vertical drop from saddle to head tube top") {
-			t.Errorf("expected Saddle-HT Drop definition in footer, got:\n%s", out)
+		if !strings.Contains(out, "Seat Axis–HT Drop: vertical drop from the Seat Axis Point to head tube top") {
+			t.Errorf("expected Seat Axis–HT Drop definition in footer, got:\n%s", out)
 		}
 		if !strings.Contains(out, "Seatpost Ext: Exposed seatpost length from collar to saddle rails") {
 			t.Errorf("expected Seatpost Ext definition in footer, got:\n%s", out)
@@ -353,8 +351,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 
 func TestCompare_TumbleweedSunlinerFixedForkConstraints(t *testing.T) {
 	t.Run("AcceptsDefaultAndExplicitRigid", func(t *testing.T) {
-		out, errOut, code := runCLI(t,
-			"compare", "--format", "csv",
+		out, errOut, code := runCLIRows(t,
+			"compare",
 			"tumbleweed-sunliner:M",
 			"tumbleweed-sunliner:L@rigid",
 		)
@@ -437,7 +435,7 @@ func TestCompare_DisambiguateDuplicateFrameSize(t *testing.T) {
 
 func TestCompare_AllSizesExpansion(t *testing.T) {
 	// 1. Fresh comparison with :all and fork override
-	out, errOut, code := runCLI(t, "compare", "--format", "csv", "seven-expedition-926f:all@120mm")
+	out, errOut, code := runCLIRows(t, "compare", "seven-expedition-926f:all@120mm")
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
@@ -446,7 +444,7 @@ func TestCompare_AllSizesExpansion(t *testing.T) {
 	}
 
 	// 2. Incremental addition with +frame:all
-	out, errOut, code = runCLI(t, "compare", "--format", "csv", "+revel-el-jefe:all@120mm")
+	out, errOut, code = runCLIRows(t, "compare", "+revel-el-jefe:all@120mm")
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
@@ -455,7 +453,7 @@ func TestCompare_AllSizesExpansion(t *testing.T) {
 	}
 
 	// 3. Incremental removal with -frame:all (Salsa Fargo is in DefaultComparisonState)
-	out, errOut, code = runCLI(t, "compare", "--format", "csv", "-salsa-fargo:all")
+	out, errOut, code = runCLIRows(t, "compare", "-salsa-fargo:all")
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
@@ -464,7 +462,7 @@ func TestCompare_AllSizesExpansion(t *testing.T) {
 	}
 
 	// 4. Default fork expansion with frame:all
-	out, errOut, code = runCLI(t, "compare", "--format", "csv", "revel-el-jefe:all")
+	out, errOut, code = runCLIRows(t, "compare", "revel-el-jefe:all")
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
@@ -491,32 +489,6 @@ func TestCompare_HelpOutputDocumentsSemantics(t *testing.T) {
 		if !strings.Contains(out, exp) {
 			t.Errorf("expected compare -h output to contain %q, got:\n%s", exp, out)
 		}
-	}
-}
-
-func TestIdealsCLI(t *testing.T) {
-	out, errOut, code := runCLI(t, "ideals", "list")
-	if code != 0 {
-		t.Fatalf("expected exit code 0 for ideals list, got %d; stderr: %s", code, errOut)
-	}
-	if !strings.Contains(out, "idmatch") {
-		t.Errorf("expected idmatch in ideals list, got:\n%s", out)
-	}
-
-	out, errOut, code = runCLI(t, "ideals", "show", "idmatch")
-	if code != 0 {
-		t.Fatalf("expected exit code 0 for ideals show idmatch, got %d; stderr: %s", code, errOut)
-	}
-	if !strings.Contains(out, "Ideal Profile: idmatch") || !strings.Contains(out, "BRP Setback (brp_setback)") {
-		t.Errorf("expected idmatch profile details, got:\n%s", out)
-	}
-
-	_, errOut, code = runCLI(t, "ideals", "show", "nonexistent")
-	if code == 0 {
-		t.Fatalf("expected non-zero exit code for nonexistent profile")
-	}
-	if !strings.Contains(errOut, "not found") {
-		t.Errorf("expected not found error, got: %s", errOut)
 	}
 }
 
@@ -567,74 +539,9 @@ func TestCompare_SaddleHbMetric(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
-	if !strings.Contains(out, "Saddle-HB @ 746mm") {
-		t.Errorf("expected 'Saddle-HB @ 746mm' row in compare output, got:\n%s", out)
+	if !strings.Contains(out, "BRP–HB @ 746mm") {
+		t.Errorf("expected 'BRP–HB @ 746mm' row in compare output, got:\n%s", out)
 	}
-}
-
-func TestSaddlesCommand(t *testing.T) {
-	t.Run("CatalogAndTranslationTable", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "saddles")
-		if code != 0 {
-			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
-		}
-		expectedStrings := []string{
-			"SQlab 610 Ergolux Active 2.1",
-			"Berthoud Aspin Open",
-			"Selle Italia SLR Boost Superflow (L3 145mm)",
-			"Cross-Saddle Fit Translation",
-			"Ideal Seat Tube Angle",
-			"Universal Compromise Seat Tube Angle (All Saddles)",
-			"Compromise STA",
-			"Max Rail Offset",
-			"Universal ±5mm Window",
-			"Individual Saddle Offsets",
-			"SQlab 610 Ideal STA",
-			"Aspin Ideal STA",
-			"SLR Boost Ideal STA",
-			"Safe Range (SLR Boost)",
-			"72.3°",
-			"71.7°",
-			"73.3°",
-			"72.7°",
-			"±10.4 mm",
-		}
-		for _, exp := range expectedStrings {
-			if !strings.Contains(out, exp) {
-				t.Errorf("expected output to contain %q, got:\n%s", exp, out)
-			}
-		}
-	})
-
-	t.Run("SpecificSaddleArgument", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "saddles", "aspin")
-		if code != 0 {
-			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
-		}
-		if !strings.Contains(out, "Berthoud Aspin Open") {
-			t.Errorf("expected Berthoud Aspin Open in output, got:\n%s", out)
-		}
-	})
-
-	t.Run("SpecificSaddleArgument_SLR", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "saddles", "slr")
-		if code != 0 {
-			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
-		}
-		if !strings.Contains(out, "Selle Italia SLR Boost Superflow") {
-			t.Errorf("expected Selle Italia SLR Boost in output, got:\n%s", out)
-		}
-	})
-
-	t.Run("UnrecognizedSaddle", func(t *testing.T) {
-		_, errOut, code := runCLI(t, "saddles", "nonexistent-saddle")
-		if code == 0 {
-			t.Fatalf("expected non-zero exit code for unrecognized saddle")
-		}
-		if !strings.Contains(errOut, "unrecognized saddle") {
-			t.Errorf("expected unrecognized saddle error, got: %s", errOut)
-		}
-	})
 }
 
 func TestCompare_WithSaddleFlag(t *testing.T) {
@@ -647,193 +554,9 @@ func TestCompare_WithSaddleFlag(t *testing.T) {
 	}
 }
 
-func TestSaddleSwapCommand(t *testing.T) {
-	t.Run("DefaultInvocation", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "saddle-swap")
-		if code != 0 {
-			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
-		}
-		expectedStrings := []string{
-			"SQlab 610 Ergolux Active 2.1 → Berthoud Aspin Open",
-			"Active Seatpost Setback: 11.0mm (sagged)",
-			"Fit Dimension / Checkpoint",
-			"Difference / Workshop Action",
-			"BB to Sit Bones Distance",
-			"Sit Bone Point (X, Y)",
-			"Saddle Height (BB to 70mm BRP)",
-			"70mm BRP Point (X, Y)",
-			"Rail Clamp Position",
-			"0.0 mm (Preserved)",
-			"(0.0, 0.0) mm (Preserved)",
-			"(-219.0, 713.1) mm",
-			"(-204.0, 723.1) mm",
-			"(+15.0, +10.0) mm (Forward & upward)",
-			"+5.4 mm (Raise seatpost collar)",
-			"Slide 5.5 mm forward (Safe, margin 11.5mm)",
-			"Note:",
-			"Naively matching 70mm BRP coordinates would misplace pelvis by +15.0mm setback and -10.0mm height",
-		}
-		for _, exp := range expectedStrings {
-			if !strings.Contains(out, exp) {
-				t.Errorf("expected output to contain %q, got:\n%s", exp, out)
-			}
-		}
-
-		forbiddenStrings := []string{
-			"Checkpoint 1",
-			"Fit Outcome: Naive BRP Alignment vs. True Pelvic Alignment",
-			"Hardware Compatibility Across Seatposts",
-			"Workshop Setup & Fit Equivalence",
-			"Seatpost Collar Height",
-		}
-		for _, forbidden := range forbiddenStrings {
-			if strings.Contains(out, forbidden) {
-				t.Errorf("expected output NOT to contain %q, got:\n%s", forbidden, out)
-			}
-		}
-	})
-
-	t.Run("NoAliasesAllowed", func(t *testing.T) {
-		for _, alias := range []string{"swap", "saddle-transfer", "transfer"} {
-			_, errOut, code := runCLI(t, alias)
-			if code != 2 {
-				t.Fatalf("expected alias %q exit code 2, got %d; stderr: %s", alias, code, errOut)
-			}
-			if !strings.Contains(errOut, "unknown command") {
-				t.Errorf("expected alias %q to produce unknown command error, got: %s", alias, errOut)
-			}
-		}
-	})
-
-	t.Run("HelpOption", func(t *testing.T) {
-		for _, helpFlag := range []string{"--help", "-h"} {
-			out, errOut, code := runCLI(t, "saddle-swap", helpFlag)
-			if code != 0 {
-				t.Fatalf("expected exit code 0 for %s, got %d; stderr: %s", helpFlag, code, errOut)
-			}
-			expectedHelpSnippets := []string{
-				"Usage:\n  bikegeo saddle-swap [flags] [source-saddle] [target-saddle]",
-				"Positional Arguments:",
-				"[source-saddle]",
-				"[target-saddle]",
-				"Argument Resolution Modes:",
-				"bikegeo saddle-swap <target-saddle>",
-				"bikegeo saddle-swap <source-saddle> <target-saddle>",
-				"Flags:",
-				"--saddle-height",
-				"to BRP",
-				"--sit-bone-setback",
-				"--brp-setback",
-				"--seatpost",
-				"--clamp-length",
-				"--cockpit-dist",
-				"--cockpit-drop",
-				"--all",
-				"--frame",
-				"Samples:",
-				"bikegeo saddle-swap berthoud-aspin-open",
-				"bikegeo saddle-swap sqlab-610-ergolux selle-italia-slr-boost-superflow-l3",
-				"bikegeo saddle-swap --frame otso-fenrir-stainless:L",
-			}
-			for _, snippet := range expectedHelpSnippets {
-				if !strings.Contains(out, snippet) {
-					t.Errorf("expected %s output to contain %q, got:\n%s", helpFlag, snippet, out)
-				}
-			}
-		}
-	})
-
-	t.Run("CanonicalFlagsOnly", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "saddle-swap", "--saddle-height", "750", "--sit-bone-setback", "290")
-		if code != 0 {
-			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
-		}
-		if !strings.Contains(out, "750.0 mm") {
-			t.Errorf("expected output to reflect 750.0 mm saddle height to BRP, got:\n%s", out)
-		}
-		if !strings.Contains(out, "-290.0") {
-			t.Errorf("expected output to reflect -290.0 sit bone X coordinate, got:\n%s", out)
-		}
-	})
-
-	t.Run("CustomPairing_SLRBoost", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "saddle-swap", "sqlab", "slr")
-		if code != 0 {
-			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
-		}
-		expectedStrings := []string{
-			"SQlab 610 Ergolux Active 2.1 → Selle Italia SLR Boost Superflow",
-			"-15.3 mm",
-			"Infeasible (exceeds rails by 10.3 mm)",
-		}
-		for _, exp := range expectedStrings {
-			if !strings.Contains(out, exp) {
-				t.Errorf("expected output to contain %q, got:\n%s", exp, out)
-			}
-		}
-	})
-
-	t.Run("CompareAll", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "saddle-swap", "--all")
-		if code != 0 {
-			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
-		}
-		expectedStrings := []string{
-			"Saddle Swap Catalog Overview (Baseline: SQlab 610 Ergolux Active 2.1)",
-			"Berthoud Aspin Open",
-			"Selle Italia SLR Boost Superflow (L3 145mm)",
-			"Compatibility Verdict",
-		}
-		for _, exp := range expectedStrings {
-			if !strings.Contains(out, exp) {
-				t.Errorf("expected output to contain %q, got:\n%s", exp, out)
-			}
-		}
-	})
-
-	t.Run("WithFrame", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "saddle-swap", "--frame", "otso-fenrir-stainless:L")
-		if code != 0 {
-			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
-		}
-		expectedStrings := []string{
-			"Frame-Specific Saddle Swap: Otso Fenrir (Size L)",
-			"Required Rail Clamp Offset",
-			"Physical Clamp Feasibility",
-			"Achieved Sit Bone Setback",
-		}
-		for _, exp := range expectedStrings {
-			if !strings.Contains(out, exp) {
-				t.Errorf("expected output to contain %q, got:\n%s", exp, out)
-			}
-		}
-	})
-
-	t.Run("Formats_MarkdownAndCSV", func(t *testing.T) {
-		outMD, _, codeMD := runCLI(t, "saddle-swap", "-f", "md")
-		if codeMD != 0 {
-			t.Fatalf("expected md exit code 0, got %d", codeMD)
-		}
-		if !strings.Contains(outMD, "| Fit Dimension / Checkpoint |") {
-			t.Errorf("expected markdown table header in -f md output, got:\n%s", outMD)
-		}
-		if !strings.Contains(outMD, "| 70mm BRP Point (X, Y) |") {
-			t.Errorf("expected 70mm BRP Point (X, Y) in markdown table, got:\n%s", outMD)
-		}
-
-		outCSV, _, codeCSV := runCLI(t, "saddle-swap", "-f", "csv")
-		if codeCSV != 0 {
-			t.Fatalf("expected csv exit code 0, got %d", codeCSV)
-		}
-		if !strings.Contains(outCSV, "70mm BRP Point (X, Y)") {
-			t.Errorf("expected csv content in -f csv output, got:\n%s", outCSV)
-		}
-	})
-}
-
 func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	t.Run("CompareAllFlag_DefaultTop1PerFrame", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "compare", "--all", "--format", "csv")
+		out, errOut, code := runCLIRows(t, "compare", "--all")
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
@@ -847,8 +570,9 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 			}
 		}
 
-		if len(dataLines) != 18 {
-			t.Fatalf("expected 18 frame rows, got %d:\n%s", len(dataLines), out)
+		wantFrames := len(frames.AllFrames())
+		if len(dataLines) != wantFrames {
+			t.Fatalf("expected %d frame rows, got %d:\n%s", wantFrames, len(dataLines), out)
 		}
 
 		// Verify ranks 1..18 appear in order
@@ -868,8 +592,8 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	})
 
 	t.Run("CompareAllToken_MatchesFlag", func(t *testing.T) {
-		outFlag, _, codeFlag := runCLI(t, "compare", "--all", "--format", "csv")
-		outToken, _, codeToken := runCLI(t, "compare", "all", "--format", "csv")
+		outFlag, _, codeFlag := runCLIRows(t, "compare", "--all")
+		outToken, _, codeToken := runCLIRows(t, "compare", "all")
 
 		if codeFlag != 0 || codeToken != 0 {
 			t.Fatalf("expected exit code 0, got %d and %d", codeFlag, codeToken)
@@ -880,7 +604,7 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	})
 
 	t.Run("CompareAll_GlobalTopLimit", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "compare", "--all", "--top", "5", "--format", "csv")
+		out, errOut, code := runCLIRows(t, "compare", "--all", "--top", "5")
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
@@ -898,7 +622,7 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	})
 
 	t.Run("CompareAll_TopPerFrame2", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "compare", "--all", "--top-per-frame", "2", "--format", "csv")
+		out, errOut, code := runCLIRows(t, "compare", "--all", "--top-per-frame", "2")
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
@@ -922,7 +646,7 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	})
 
 	t.Run("CompareAllRigid_ExcludesSuspensionOnly", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "compare", "all@rigid", "--format", "csv")
+		out, errOut, code := runCLIRows(t, "compare", "all@rigid")
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
@@ -934,9 +658,10 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 				dataLines = append(dataLines, l)
 			}
 		}
-		// 15 registered frames support rigid forks
-		if len(dataLines) != 15 {
-			t.Fatalf("expected 15 rigid frame rows, got %d:\n%s", len(dataLines), out)
+		// All registered frames except the 3 suspension-only frames support rigid forks
+		wantRigid := len(frames.AllFrames()) - 3
+		if len(dataLines) != wantRigid {
+			t.Fatalf("expected %d rigid frame rows, got %d:\n%s", wantRigid, len(dataLines), out)
 		}
 
 		for _, l := range dataLines {
@@ -954,7 +679,7 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	})
 
 	t.Run("CompareSingleFrameAllConfigs_DedupesSags", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "compare", "otso-fenrir-stainless:all@all", "--format", "csv")
+		out, errOut, code := runCLIRows(t, "compare", "otso-fenrir-stainless:all@all")
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
@@ -1014,97 +739,6 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	})
 }
 
-func TestHandlebarsCLI(t *testing.T) {
-	t.Run("ListTable", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "handlebars")
-		if code != 0 {
-			t.Fatalf("expected code 0, got %d; stderr: %s", code, errOut)
-		}
-		for _, exp := range []string{
-			"Canonical Handlebar Catalog",
-			"Tumbleweed Persuader 20° (800mm)",
-			"SQlab 3OX 16° (30mm Rise)",
-			"SQlab 311 2.0 Alloy 16° (25mm Rise)",
-			"-72.8 mm",
-			"+45.5 mm",
-			"-69.7 mm",
-			"+47.0 mm",
-			"Rise Measurement Traps",
-			"Key Kinematic Insights",
-		} {
-			if !strings.Contains(out, exp) {
-				t.Errorf("expected handlebars output to contain %q, got:\n%s", exp, out)
-			}
-		}
-	})
-
-	t.Run("ListCSV", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "handlebars", "--format", "csv")
-		if code != 0 {
-			t.Fatalf("expected code 0, got %d; stderr: %s", code, errOut)
-		}
-		if !strings.Contains(out, "persuader20_800") || !strings.Contains(out, "sqlab3OX_16_30") {
-			t.Errorf("expected CSV to contain bar IDs, got:\n%s", out)
-		}
-	})
-
-	t.Run("ShowDetail", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "handlebars", "sqlab3OX_16_30", "--roll", "2.5")
-		if code != 0 {
-			t.Fatalf("expected code 0, got %d; stderr: %s", code, errOut)
-		}
-		for _, exp := range []string{
-			"Handlebar Detail: SQlab 3OX 16° (30mm Rise)",
-			"Roll Angle Sensitivity for SQlab 3OX 16° (30mm Rise)",
-			"Effective Bend Start (z_b)",
-			"82.0 mm",
-		} {
-			if !strings.Contains(out, exp) {
-				t.Errorf("expected detail output to contain %q, got:\n%s", exp, out)
-			}
-		}
-	})
-
-	t.Run("CompareTwoBars", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "handlebars", "persuader20_800", "sqlab3OX_16_30")
-		if code != 0 {
-			t.Fatalf("expected code 0, got %d; stderr: %s", code, errOut)
-		}
-		for _, exp := range []string{
-			"Handlebar Fit Translation: Tumbleweed Persuader 20° (800mm) -> SQlab 3OX 16° (30mm Rise)",
-			"Delta (Bar 2 - Bar 1)",
-			"+3.1 mm",
-			"+1.5 mm",
-			"Required Stem Clamp Adjustment to Maintain Identical Hand Position",
-			"-3.1 mm Reach and -1.5 mm Stack",
-		} {
-			if !strings.Contains(out, exp) {
-				t.Errorf("expected comparison output to contain %q, got:\n%s", exp, out)
-			}
-		}
-	})
-
-	t.Run("UnrecognizedBar", func(t *testing.T) {
-		_, errOut, code := runCLI(t, "handlebars", "non_existent_handlebar")
-		if code != 1 {
-			t.Fatalf("expected exit code 1, got %d", code)
-		}
-		if !strings.Contains(errOut, "unrecognized handlebar") {
-			t.Errorf("expected 'unrecognized handlebar' error, got: %s", errOut)
-		}
-	})
-
-	t.Run("HelpMentionsHandlebars", func(t *testing.T) {
-		out, _, code := runCLI(t, "help")
-		if code != 0 {
-			t.Fatalf("expected exit code 0, got %d", code)
-		}
-		if !strings.Contains(out, "handlebars") {
-			t.Errorf("expected help output to mention handlebars, got:\n%s", out)
-		}
-	})
-}
-
 func TestCompare_ConfiguredHandlebar(t *testing.T) {
 	t.Run("DefaultPersuaderHeader", func(t *testing.T) {
 		out, errOut, code := runCLI(t, "compare")
@@ -1112,7 +746,7 @@ func TestCompare_ConfiguredHandlebar(t *testing.T) {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
 		expectedLines := []string{
-			"Saddle Height: 746mm | Saddle: SQlab 610 Ergolux Active 2.1 | Seatpost: Redshift ShockStop (sagged 11mm)",
+			"H (saddle height): 746mm | Saddle: SQlab 610 Ergolux Active 2.1 | Seatpost: Redshift ShockStop (sagged 11mm)",
 			"Handlebar: Tumbleweed Persuader 20° (800mm, 50mm rise, 20° sweep, 4° upsweep) | Ideal Profile: idmatch",
 		}
 		for _, exp := range expectedLines {
@@ -1142,4 +776,23 @@ func TestCompare_ConfiguredHandlebar(t *testing.T) {
 			t.Errorf("expected 'unrecognized handlebar' error, got: %s", errOut)
 		}
 	})
+}
+
+func TestList_FilterByQuery(t *testing.T) {
+	out, errOut, code := runCLI(t, "list", "-q", "havok")
+	if code != 0 {
+		t.Fatalf("expected list to succeed, got %d; stderr: %s", code, errOut)
+	}
+	if !strings.Contains(out, "| binary-havok |") {
+		t.Errorf("expected markdown row for binary-havok, got:\n%s", out)
+	}
+}
+
+func TestRemovedCommandsAreUnknown(t *testing.T) {
+	for _, cmd := range []string{"forks", "stems", "ideals", "saddles", "saddle-swap", "handlebars"} {
+		_, errOut, code := runCLI(t, cmd)
+		if code == 0 || !strings.Contains(errOut, "unknown command") {
+			t.Errorf("%s: code %d, stderr %q; want unknown command", cmd, code, errOut)
+		}
+	}
 }

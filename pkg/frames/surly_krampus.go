@@ -12,7 +12,7 @@ var SurlyKrampus = model.FrameModel{
 	HeadsetCupType:     model.CupEC44,
 	GeoHeadsetSpacerMm: 12,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c: model.Float64Ptr(2),
+		A2c: new(float64(2)),
 	},
 	MaxSpacerMm:   40,
 	CanonicalStem: model.StemSpec{LengthMm: 60, AngleDeg: -6},

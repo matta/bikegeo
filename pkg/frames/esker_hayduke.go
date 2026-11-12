@@ -12,8 +12,8 @@ var EskerHayduke = model.FrameModel{
 	HeadsetCupType:     model.CupEC44,
 	GeoHeadsetSpacerMm: 12,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c:       model.Float64Ptr(3),
-		Wheelbase: model.Float64Ptr(6),
+		A2c:       new(float64(3)),
+		Wheelbase: new(float64(6)),
 	},
 	ChainstayRangeMm: []float64{440, 454},
 	MaxSpacerMm:      40,

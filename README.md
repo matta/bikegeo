@@ -1,8 +1,8 @@
 # BikeGeo Analyst CLI 🚲
 
-A zero-dependency Go command-line application for **bicycle geometry validation and apples-to-apples frame comparisons**.
+A zero-dependency Go application for **bicycle geometry validation and apples-to-apples frame comparisons**, with two interfaces, each used for what it suits: a **local web app** (`bikegeo serve`) for people, and a **Markdown command line** for agents and scripts.
 
-All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs ([`pkg/catalog/catalog.go`](pkg/catalog/catalog.go)), ideal fit profiles ([`pkg/ideal/loader.go`](pkg/ideal/loader.go)), and the baseline comparison state ([`pkg/cli/compare.go`](pkg/cli/compare.go)) are compiled directly into Go structs with zero external dependencies or JSON configuration files.
+All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs ([`pkg/catalog/catalog.go`](pkg/catalog/catalog.go)), ideal fit profiles ([`pkg/ideal/loader.go`](pkg/ideal/loader.go)), and the baseline comparison state ([`pkg/compare/specs.go`](pkg/compare/specs.go)) are compiled directly into Go structs with zero external dependencies or JSON configuration files.
 
 ---
 
@@ -22,7 +22,7 @@ All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs
      - Enforces fixed-fork frame constraints seamlessly.
 
 3. **Compiled Baseline Comparison & Incremental Tweaks**:
-   - Running bare `bikegeo compare` evaluates the compiled default comparison baseline (`cli.DefaultComparisonState()`).
+   - Running bare `bikegeo compare` evaluates the compiled default comparison baseline (`compare.DefaultComparisonState()`).
    - Use `+spec` / `-spec` / `-col_num` to incrementally add or remove columns against the baseline in memory.
 
 4. **Master Stack Equation & CAD Reverse-Engineering (`bikegeo validate` & `bikegeo fit`)**:
@@ -43,12 +43,11 @@ All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs
    - Generates plain-English footer explanations (`Biggest Losses vs. Ideal` and `Head-to-Head Deciding Factors`).
    - Disable scoring with `--no-score`, or inspect sub-scores with `--score-detail`.
 
-6. **Ideal Profile Inspection (`bikegeo ideals`)**:
-   - `bikegeo ideals list`: List compiled ideal profiles.
-   - `bikegeo ideals show <name>`: Display profile attribute weights, sweet-spot ranges, falloff configuration, and sample evaluation points.
+6. **Catalogs and Analysis in the Web UI**:
+   - Ideal profiles, forks, stems, saddles, saddle swap and handlebars are browsed and tuned in the web app only (see [docs/WEB.md](docs/WEB.md)).
 
-7. **Multiple Output Formats**:
-   - Supports `--format table` (Unicode box tables, default), `--format md` (Markdown), and `--format csv`.
+7. **Agent-Friendly CLI Output**:
+   - Every command prints Markdown (no `--format` flag). `compare` keeps a many-bike comparison as one wide table.
 
 ---
 
@@ -60,32 +59,24 @@ make build
 ./bin/bikegeo help
 ```
 
-### Usage Examples
+### CLI (for agents and scripts)
+
+`compare`, `validate`, `list` and `fit` print Markdown.
 
 ```bash
-# List all compiled frames, sizes, and supported fork capacities:
+./bin/bikegeo help
+
+# List compiled frames, sizes, and supported fork capacities:
 ./bin/bikegeo list
 ./bin/bikegeo list --all-sizes
 
-# List available ideal frame profiles:
-./bin/bikegeo ideals list
-./bin/bikegeo ideals show idmatch
-
-# Compare frames against an ideal profile (auto-transposed when >4 columns):
+# Compare setups (auto-transposed when >4 columns):
 ./bin/bikegeo compare havok@110mm@20% hayduke:S3@110mm@20% fenrir:L@rigid
-
-# Run comparison on all configurations of a frame:
 ./bin/bikegeo compare fenrir:all@120mm
-
-# Run the default baseline comparison:
-./bin/bikegeo compare
-
-# Incrementally add or remove columns from the default baseline:
-./bin/bikegeo compare +surly-ecr:XL
+./bin/bikegeo compare                      # the default baseline
+./bin/bikegeo compare +surly-ecr:XL        # add to / remove from the baseline
 ./bin/bikegeo compare -salsa-fargo:all
-
-# View detailed sub-score loss breakdown:
-./bin/bikegeo compare --score-detail
+./bin/bikegeo compare --score-detail       # sub-score loss breakdown
 
 # Validate frame CAD math across all sizes and configurations:
 ./bin/bikegeo validate binary-havok
@@ -95,6 +86,15 @@ make build
 ./bin/bikegeo fit surly-ecr
 ./bin/bikegeo fit seven-expedition-926f --try fork.a2c=511,531 --try sag=0,20,25
 ```
+
+### Web (for people)
+
+```bash
+make serve                           # build, serve on http://127.0.0.1:8080, open the browser
+./bin/bikegeo serve --port 0 --open  # or choose a free port
+```
+
+Compare matrices with zone-coloured cells, sticky headers and linked metric definitions; frame and validation pages; and catalog and analysis pages for ideals, forks, stems, saddles, saddle swap and handlebars, each with a form for every input. Everything is a plain `GET` URL (`/?col=fenrir:L@110mm@20%25&col=hayduke:S3@110mm@20%25`) that you can bookmark or share. It listens on `127.0.0.1` only and uses no JavaScript. See [docs/WEB.md](docs/WEB.md).
 
 ---
 

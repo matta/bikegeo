@@ -13,8 +13,8 @@ var SklarPBJ = model.FrameModel{
 	GeoHeadsetSpacerMm: 12,
 	GeoSlopMm: &model.GeoSlopMm{
 		A2c:         new(3.5),
-		FrontCenter: model.Float64Ptr(3),
-		Wheelbase:   model.Float64Ptr(5),
+		FrontCenter: new(float64(3)),
+		Wheelbase:   new(float64(5)),
 	},
 	ChainstayRangeMm: []float64{432, 452},
 	MaxSpacerMm:      40,

@@ -1,4 +1,4 @@
-package cli
+package web
 
 import (
 	"fmt"
@@ -8,33 +8,15 @@ import (
 	"bikegeo/pkg/ideal"
 )
 
-func (a *App) runIdeals(args []string) int {
-	if len(args) == 0 {
-		return a.listIdeals()
+func (db *docb) ideals(name string) int {
+	if name == "" {
+		return db.listIdeals()
 	}
-
-	sub := strings.ToLower(args[0])
-	switch sub {
-	case "list", "ls":
-		return a.listIdeals()
-	case "show", "view", "get":
-		if len(args) < 2 {
-			fmt.Fprintf(a.Err, "Error: 'ideals show' requires a profile name (e.g. 'idmatch')\n")
-			return 2
-		}
-		return a.showIdeal(args[1])
-	default:
-		// Shorthand: 'bikegeo ideals idmatch' -> show idmatch
-		return a.showIdeal(args[0])
-	}
+	return db.showIdeal(name)
 }
 
-func (a *App) listIdeals() int {
-	summaries, err := ideal.ListProfiles()
-	if err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
-		return 1
-	}
+func (db *docb) listIdeals() int {
+	summaries := ideal.ListProfiles()
 
 	headers := []string{"Name", "Description", "Saddle Height", "Attributes"}
 	var rows [][]string
@@ -54,18 +36,18 @@ func (a *App) listIdeals() int {
 
 	title := "Ideal Frame Profiles"
 	subtitle := "Use 'bikegeo ideals show <name>' to view details"
-	if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, rows); err != nil {
-		fmt.Fprintf(a.Err, "Error rendering output: %v\n", err)
+	if err := db.render(title, subtitle, headers, rows); err != nil {
+		db.fail("Error rendering output: %v", err)
 		return 1
 	}
 
 	return 0
 }
 
-func (a *App) showIdeal(name string) int {
+func (db *docb) showIdeal(name string) int {
 	p, err := ideal.GetProfile(name)
 	if err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
+		db.fail("Error: %v", err)
 		return 1
 	}
 
@@ -148,13 +130,13 @@ func (a *App) showIdeal(name string) int {
 		})
 	}
 
-	if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, rows); err != nil {
-		fmt.Fprintf(a.Err, "Error rendering output: %v\n", err)
+	if err := db.render(title, subtitle, headers, rows); err != nil {
+		db.fail("Error rendering output: %v", err)
 		return 1
 	}
 
 	// In table or markdown mode, also render sample evaluation points
-	if a.Format != FormatCSV {
+	{
 		sampleHeaders := []string{"Attribute", "Test Value", "Zone", "Score", "Table Display"}
 		var sampleRows [][]string
 
@@ -179,8 +161,7 @@ func (a *App) showIdeal(name string) int {
 		}
 
 		if len(sampleRows) > 0 {
-			fmt.Fprintln(a.Out)
-			_ = RenderOutput(a.Out, a.Format, "Sample Evaluation Points", "Key checkpoints across ideal, acceptable, and falloff zones", sampleHeaders, sampleRows)
+			_ = db.render("Sample Evaluation Points", "Key checkpoints across ideal, acceptable, and falloff zones", sampleHeaders, sampleRows)
 		}
 	}
 

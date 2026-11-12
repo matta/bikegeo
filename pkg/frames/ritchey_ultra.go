@@ -12,7 +12,7 @@ var RitcheyUltra = model.FrameModel{
 	HeadsetCupType:     model.CupIS52,
 	GeoHeadsetSpacerMm: 0,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c: model.Float64Ptr(3),
+		A2c: new(float64(3)),
 	},
 	MaxSpacerMm:   40,
 	CanonicalStem: model.StemSpec{LengthMm: 60, AngleDeg: -6},

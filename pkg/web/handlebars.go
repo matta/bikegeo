@@ -1,41 +1,33 @@
-package cli
+package web
 
 import (
-	"flag"
 	"fmt"
 	"math"
+	"net/url"
+	"strings"
 
 	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
+	"bikegeo/pkg/report"
 )
 
-func (a *App) runHandlebars(args []string) int {
-	fs := flag.NewFlagSet("handlebars", flag.ContinueOnError)
-	fs.SetOutput(a.Err)
-
-	var gripInset float64
-	var rollDeg float64
-	var cutWidth float64
-	var compareID string
-
-	fs.Float64Var(&gripInset, "grip-inset", model.DefaultGripInsetMm, "Inboard distance from bar tip to hand center in mm (default: 65mm)")
-	fs.Float64Var(&gripInset, "gi", model.DefaultGripInsetMm, "Alias for --grip-inset")
-	fs.Float64Var(&rollDeg, "roll", 0.0, "Handlebar roll angle in clamp in degrees (+ rolls top forward, default: 0°)")
-	fs.Float64Var(&rollDeg, "r", 0.0, "Alias for --roll")
-	fs.Float64Var(&cutWidth, "width", 0.0, "Custom trimmed handlebar width in mm (optional)")
-	fs.Float64Var(&cutWidth, "w", 0.0, "Alias for --width")
-	fs.StringVar(&compareID, "compare", "", "Compare with another handlebar ID")
-	fs.StringVar(&compareID, "c", "", "Alias for --compare")
-
-	reordered := reorderFlagsForStdlib(fs, args, nil)
-	if err := fs.Parse(reordered); err != nil {
-		return 2
+func (db *docb) handlebars(v url.Values) int {
+	fl := &floats{v: v}
+	gripInset := fl.get("grip-inset", model.DefaultGripInsetMm)
+	rollDeg := fl.get("roll", 0.0)
+	cutWidth := fl.get("width", 0.0)
+	if fl.err != nil {
+		db.fail("%v", fl.err)
+		return 1
 	}
-
-	posArgs := fs.Args()
+	compareID := strings.TrimSpace(v.Get("compare"))
+	var posArgs []string
+	if id := strings.TrimSpace(v.Get("id")); id != "" {
+		posArgs = []string{id}
+	}
 	if len(posArgs) == 0 && compareID == "" {
-		return a.listHandlebars(gripInset, rollDeg, cutWidth)
+		return db.listHandlebars(gripInset, rollDeg, cutWidth)
 	}
 
 	primaryQuery := ""
@@ -50,7 +42,7 @@ func (a *App) runHandlebars(args []string) int {
 
 	bar1, ok := catalog.GetHandlebar(primaryQuery)
 	if !ok {
-		fmt.Fprintf(a.Err, "Error: unrecognized handlebar %q\n", primaryQuery)
+		db.fail("Error: unrecognized handlebar %q", primaryQuery)
 		return 1
 	}
 
@@ -59,19 +51,19 @@ func (a *App) runHandlebars(args []string) int {
 	}
 
 	if secondaryQuery == "" {
-		return a.showHandlebarDetail(bar1, gripInset, rollDeg)
+		return db.showHandlebarDetail(bar1, gripInset, rollDeg)
 	}
 
 	bar2, ok := catalog.GetHandlebar(secondaryQuery)
 	if !ok {
-		fmt.Fprintf(a.Err, "Error: unrecognized comparison handlebar %q\n", secondaryQuery)
+		db.fail("Error: unrecognized comparison handlebar %q", secondaryQuery)
 		return 1
 	}
 
-	return a.compareHandlebars(bar1, bar2, gripInset, rollDeg)
+	return db.compareHandlebars(bar1, bar2, gripInset, rollDeg)
 }
 
-func (a *App) listHandlebars(gripInset, rollDeg, cutWidth float64) int {
+func (db *docb) listHandlebars(gripInset, rollDeg, cutWidth float64) int {
 	bars := catalog.AllHandlebars()
 	headers := []string{
 		"Handlebar ID",
@@ -123,7 +115,7 @@ func (a *App) listHandlebars(gripInset, rollDeg, cutWidth float64) int {
 	title := fmt.Sprintf("Canonical Handlebar Catalog (%d)%s", len(bars), rollNote)
 	subtitle := fmt.Sprintf("Origin (0,0,0) is 31.8mm clamp center; (+X) forward reach, (+Y) upward stack, (+Z) lateral hand center (d_grip = %.0fmm)", gripInset)
 
-	footers := []FooterSection{
+	footers := []report.Footer{
 		{
 			Title: "Rise Measurement Traps: Knuckle vs. Bar-End Tip",
 			Lines: []string{
@@ -141,14 +133,14 @@ func (a *App) listHandlebars(gripInset, rollDeg, cutWidth float64) int {
 		},
 	}
 
-	if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, rows, footers); err != nil {
-		fmt.Fprintf(a.Err, "Error rendering output: %v\n", err)
+	if err := db.renderFooters(title, subtitle, headers, rows, footers); err != nil {
+		db.fail("Error rendering output: %v", err)
 		return 1
 	}
 	return 0
 }
 
-func (a *App) showHandlebarDetail(b model.HandlebarSpec, gripInset, rollDeg float64) int {
+func (db *docb) showHandlebarDetail(b model.HandlebarSpec, gripInset, rollDeg float64) int {
 	offset := geometry.GetHandlebarOffset(b, gripInset, rollDeg)
 	yk := b.BaseRiseAtBend()
 	zHand := b.HandLateralMm(gripInset)
@@ -197,23 +189,22 @@ func (a *App) showHandlebarDetail(b model.HandlebarSpec, gripInset, rollDeg floa
 		})
 	}
 
-	if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, rows); err != nil {
-		fmt.Fprintf(a.Err, "Error rendering output: %v\n", err)
+	if err := db.render(title, subtitle, headers, rows); err != nil {
+		db.fail("Error rendering output: %v", err)
 		return 1
 	}
 
-	fmt.Fprintln(a.Out)
 	rollTitle := fmt.Sprintf("Roll Angle Sensitivity for %s", b.Name)
 	rollSubtitle := "Positive roll rotates the bar top forward (trading stack for reach); negative roll rotates backward"
-	if err := RenderOutput(a.Out, a.Format, rollTitle, rollSubtitle, rollHeaders, rollRows); err != nil {
-		fmt.Fprintf(a.Err, "Error rendering roll table: %v\n", err)
+	if err := db.render(rollTitle, rollSubtitle, rollHeaders, rollRows); err != nil {
+		db.fail("Error rendering roll table: %v", err)
 		return 1
 	}
 
 	return 0
 }
 
-func (a *App) compareHandlebars(bar1, bar2 model.HandlebarSpec, gripInset, rollDeg float64) int {
+func (db *docb) compareHandlebars(bar1, bar2 model.HandlebarSpec, gripInset, rollDeg float64) int {
 	off1 := geometry.GetHandlebarOffset(bar1, gripInset, rollDeg)
 	off2 := geometry.GetHandlebarOffset(bar2, gripInset, rollDeg)
 	deltaGrip := geometry.HandlebarDelta(bar1, bar2, gripInset, rollDeg)
@@ -244,7 +235,7 @@ func (a *App) compareHandlebars(bar1, bar2 model.HandlebarSpec, gripInset, rollD
 		stackDir = "lower (downward)"
 	}
 
-	footers := []FooterSection{
+	footers := []report.Footer{
 		{
 			Title: "Resulting Hand Grip Position Shift (Fixed Stem Clamp)",
 			Lines: []string{
@@ -261,8 +252,8 @@ func (a *App) compareHandlebars(bar1, bar2 model.HandlebarSpec, gripInset, rollD
 		},
 	}
 
-	if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, rows, footers); err != nil {
-		fmt.Fprintf(a.Err, "Error rendering comparison: %v\n", err)
+	if err := db.renderFooters(title, subtitle, headers, rows, footers); err != nil {
+		db.fail("Error rendering comparison: %v", err)
 		return 1
 	}
 	return 0

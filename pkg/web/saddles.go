@@ -1,40 +1,35 @@
-package cli
+package web
 
 import (
-	"flag"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
+	"bikegeo/pkg/report"
 )
 
-func (a *App) runSaddles(args []string) int {
-	fs := flag.NewFlagSet("saddles", flag.ContinueOnError)
-	fs.SetOutput(a.Err)
-
-	var saddleHeight float64
-	var sitBoneSetback float64
-
-	fs.Float64Var(&saddleHeight, "saddle-height", 746.0, "Rider radial saddle height from BB in mm (default: 746mm)")
-	fs.Float64Var(&saddleHeight, "sh", 746.0, "Alias for --saddle-height")
-	fs.Float64Var(&sitBoneSetback, "sit-bone-setback", 292.0, "Target sit bone setback behind BB in mm (default: 292mm)")
-	fs.Float64Var(&sitBoneSetback, "sb", 292.0, "Alias for --sit-bone-setback")
-
-	reordered := reorderFlagsForStdlib(fs, args, nil)
-	if err := fs.Parse(reordered); err != nil {
-		return 2
+func (db *docb) saddles(v url.Values) int {
+	fl := &floats{v: v}
+	saddleHeight := fl.get("saddle-height", 746.0)
+	sitBoneSetback := fl.get("sit-bone-setback", 292.0)
+	if fl.err != nil {
+		db.fail("%v", fl.err)
+		return 1
 	}
-
-	posArgs := fs.Args()
+	var posArgs []string
+	if id := strings.TrimSpace(v.Get("id")); id != "" {
+		posArgs = []string{id}
+	}
 	var selectedSaddle model.SaddleSpec
 	if len(posArgs) > 0 {
 		query := strings.TrimSpace(posArgs[0])
 		if s, ok := catalog.GetSaddle(query); ok {
 			selectedSaddle = s
 		} else {
-			fmt.Fprintf(a.Err, "Error: unrecognized saddle %q\n", query)
+			db.fail("Error: unrecognized saddle %q", query)
 			return 1
 		}
 	} else {
@@ -72,7 +67,7 @@ func (a *App) runSaddles(args []string) int {
 	title := fmt.Sprintf("Canonical Saddle Catalog (%d)", len(saddles))
 	subtitle := "Origin (0.0mm) is the midpoint of the straight rail clamping zone; (+) forward toward nose, (-) rearward toward tail"
 
-	var footers []FooterSection
+	var footers []report.Footer
 
 	// 1. Cross-Saddle Translation Section (SQlab 610 vs Berthoud Aspin & Selle Italia SLR Boost)
 	sqlab, hasSQ := catalog.GetSaddle("sqlab-610-ergolux")
@@ -84,7 +79,7 @@ func (a *App) runSaddles(args []string) int {
 		transSlrDropBest := geometry.TranslateSaddleFit(sqlab, -15.0, slr, model.DropBestClampLengthMm)
 		transSlrStd := geometry.TranslateSaddleFit(sqlab, 0.0, slr, model.DefaultSeatpostClampLengthMm)
 
-		footers = append(footers, FooterSection{
+		footers = append(footers, report.Footer{
 			Title: "Cross-Saddle Fit Translation: SQlab 610 Ergolux vs. Catalog Saddles",
 			Lines: []string{
 				fmt.Sprintf("Pelvic Fit Equivalence (Aspin): Rail-to-sit-bone delta is only %.1f mm (Aspin -44.5mm vs SQlab -50.0mm), slackening STA by ~0.44° at %.0fmm SH.", transAspinDropBest.SitBoneDeltaMm, saddleHeight),
@@ -99,8 +94,8 @@ func (a *App) runSaddles(args []string) int {
 		})
 	}
 
-	if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, rows, footers); err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
+	if err := db.renderFooters(title, subtitle, headers, rows, footers); err != nil {
+		db.fail("Error: %v", err)
 		return 1
 	}
 
@@ -121,9 +116,6 @@ func (a *App) runSaddles(args []string) int {
 
 	// 2. Consolidated Comparison Table across all catalog saddles (when no specific saddle argument is given)
 	if len(posArgs) == 0 && hasSQ && hasAspin && hasSLR {
-		if a.Format != FormatCSV {
-			fmt.Fprintln(a.Out)
-		}
 
 		compHeaders := []string{
 			"Seatpost Hardware",
@@ -165,7 +157,7 @@ func (a *App) runSaddles(args []string) int {
 
 		compTitle := "Ideal Seat Tube Angle"
 		compSubtitle := fmt.Sprintf("Saddle Height: %.0fmm | Target Sit Bone Setback: %.0fmm behind BB", saddleHeight, sitBoneSetback)
-		compFooters := []FooterSection{
+		compFooters := []report.Footer{
 			{
 				Title: "Seat Tube Angle Interpretation & Comparison",
 				Lines: []string{
@@ -177,15 +169,12 @@ func (a *App) runSaddles(args []string) int {
 			},
 		}
 
-		if err := RenderOutputWithFooter(a.Out, a.Format, compTitle, compSubtitle, compHeaders, compRows, compFooters); err != nil {
-			fmt.Fprintf(a.Err, "Error: %v\n", err)
+		if err := db.renderFooters(compTitle, compSubtitle, compHeaders, compRows, compFooters); err != nil {
+			db.fail("Error: %v", err)
 			return 1
 		}
 
 		// Emit Universal Compromise Seat Tube Angle table across all catalog saddles
-		if a.Format != FormatCSV {
-			fmt.Fprintln(a.Out)
-		}
 
 		compromiseHeaders := []string{
 			"Seatpost Hardware",
@@ -231,7 +220,7 @@ func (a *App) runSaddles(args []string) int {
 
 		compromiseTitle := "Universal Compromise Seat Tube Angle (All Saddles)"
 		compromiseSubtitle := fmt.Sprintf("Saddle Height: %.0fmm | Target Sit Bone Setback: %.0fmm behind BB", saddleHeight, sitBoneSetback)
-		compromiseFooters := []FooterSection{
+		compromiseFooters := []report.Footer{
 			{
 				Title: "Framebuilder Compromise Recommendations",
 				Lines: []string{
@@ -242,8 +231,8 @@ func (a *App) runSaddles(args []string) int {
 			},
 		}
 
-		if err := RenderOutputWithFooter(a.Out, a.Format, compromiseTitle, compromiseSubtitle, compromiseHeaders, compromiseRows, compromiseFooters); err != nil {
-			fmt.Fprintf(a.Err, "Error: %v\n", err)
+		if err := db.renderFooters(compromiseTitle, compromiseSubtitle, compromiseHeaders, compromiseRows, compromiseFooters); err != nil {
+			db.fail("Error: %v", err)
 			return 1
 		}
 	}
@@ -257,9 +246,6 @@ func (a *App) runSaddles(args []string) int {
 	}
 
 	for _, s := range targetSaddles {
-		if a.Format != FormatCSV {
-			fmt.Fprintln(a.Out)
-		}
 
 		staHeaders := []string{
 			"Seatpost Hardware",
@@ -296,8 +282,8 @@ func (a *App) runSaddles(args []string) int {
 		staSubtitle := fmt.Sprintf("Equivalent Saddle Height: %.0fmm | Target Sit Bone Setback: %.0fmm behind BB (BRP Setback: %.0fmm)",
 			sh, sitBoneSetback, s.BrpSetbackFromSitBones(sitBoneSetback))
 
-		if err := RenderOutput(a.Out, a.Format, staTitle, staSubtitle, staHeaders, staRows); err != nil {
-			fmt.Fprintf(a.Err, "Error: %v\n", err)
+		if err := db.render(staTitle, staSubtitle, staHeaders, staRows); err != nil {
+			db.fail("Error: %v", err)
 			return 1
 		}
 	}

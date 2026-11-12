@@ -6,37 +6,30 @@ import (
 	"io"
 	"strings"
 
-	"bikegeo/pkg/model"
+	"bikegeo/pkg/web"
 )
 
 // App encapsulates the CLI runtime configuration and I/O streams.
 type App struct {
-	Format string
-	In     io.Reader
-	Out    io.Writer
-	Err    io.Writer
+	In  io.Reader
+	Out io.Writer
+	Err io.Writer
 }
 
 // Run executes the bikegeo CLI with the provided arguments and I/O streams, returning an exit code.
 func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 	app := &App{
-		Format: FormatTable,
-		In:     in,
-		Out:    out,
-		Err:    errOut,
+		In:  in,
+		Out: out,
+		Err: errOut,
 	}
 
-	remaining, err := app.extractGlobalFlags(args)
-	if err != nil {
-		fmt.Fprintf(errOut, "Error: %v\n", err)
-		return 2
-	}
+	return app.dispatch(args)
+}
 
-	if _, err := NormalizeFormat(app.Format); err != nil {
-		fmt.Fprintf(errOut, "Error: %v\n", err)
-		return 2
-	}
-
+// dispatch routes the remaining (global-flag-free) arguments to a subcommand.
+func (app *App) dispatch(remaining []string) int {
+	errOut := app.Err
 	if len(remaining) == 0 {
 		app.printUsage()
 		return 0
@@ -51,49 +44,19 @@ func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 		return 0
 	case "list", "ls", "bikes", "frames":
 		return app.runList(subArgs)
-	case "forks":
-		return app.runForks(subArgs)
-	case "stems":
-		return app.runStems(subArgs)
-	case "ideals", "ideal":
-		return app.runIdeals(subArgs)
-	case "saddles", "saddle":
-		return app.runSaddles(subArgs)
-	case "saddle-swap":
-		return app.runSaddleSwap(subArgs)
-	case "handlebars", "handlebar", "bars":
-		return app.runHandlebars(subArgs)
 	case "compare", "cmp":
 		return app.runCompare(subArgs)
 	case "validate", "val", "check":
 		return app.runValidate(subArgs)
 	case "fit":
 		return app.runFit(subArgs)
+	case "serve":
+		return web.RunServe(subArgs, app.Out, app.Err)
 	default:
 		fmt.Fprintf(errOut, "Error: unknown command %q\n\n", subcmd)
 		app.printUsage()
 		return 2
 	}
-}
-
-func (a *App) extractGlobalFlags(args []string) ([]string, error) {
-	var remaining []string
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		switch {
-		case arg == "--format" || arg == "-f":
-			if i+1 >= len(args) {
-				return nil, fmt.Errorf("%s requires a format argument (table, md, csv)", arg)
-			}
-			a.Format = args[i+1]
-			i++
-		case strings.HasPrefix(arg, "--format="):
-			a.Format = strings.TrimPrefix(arg, "--format=")
-		default:
-			remaining = append(remaining, arg)
-		}
-	}
-	return remaining, nil
 }
 
 func (a *App) printUsage() {
@@ -107,15 +70,8 @@ Core Commands:
   validate [frame...]     Verify CAD Master Stack Equation, publish mode, and multi-config coherence
   fit <frame[:size]>      Analyze CAD residuals, solve minimax A2C/spacer, and sweep parameter trials
   list                    List all bike frames, sizes, and supported fork capacities
-  forks                   List standard 29er fork presets and travel-to-A2C mappings
-  stems                   List standard stem presets and length/angle envelopes
-  saddles [show <id>]     List saddle catalog, translate pelvic fit, and solve ideal custom STA
-  saddle-swap [from] [to] Analyze saddle swap, contrasting naive BRP vs true pelvic fit
-  handlebars [id] [cmp]   List handlebar catalog, inspect 3D kinematic model, and compare hand offsets
-  ideals [show <name>]    List or inspect ideal frame profiles
-
-Global Flags:
-  -f, --format <fmt>      Output format: table (default), md, csv
+  serve [--port N] [--open]
+                          Serve the human-facing web UI on 127.0.0.1 (default port 8080)
 
 Examples:
   # Run the default comparison matrix:
@@ -187,76 +143,4 @@ func reorderFlagsForStdlib(fs *flag.FlagSet, args []string, boolFlags map[string
 		return append(append(flags, "--"), pos...)
 	}
 	return flags
-}
-
-// ResolveFrameByToken finds a FrameModel by exact ID, legacy size-suffixed ID, or unique substring match.
-// If the token included a size suffix (e.g. "chumba-sendero-l" or "chumba-sendero:L"), inferredSize is returned.
-func ResolveFrameByToken(frames []model.FrameModel, token string) (*model.FrameModel, string, error) {
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return nil, "", fmt.Errorf("empty frame identifier")
-	}
-
-	var explicitSize string
-	if strings.Contains(token, ":") {
-		parts := strings.SplitN(token, ":", 2)
-		token = parts[0]
-		explicitSize = parts[1]
-	}
-
-	lower := strings.ToLower(token)
-
-	// 1. Exact frame ID match
-	for i := range frames {
-		if strings.ToLower(frames[i].ID) == lower {
-			return &frames[i], explicitSize, nil
-		}
-	}
-
-	// 2. Exact match on frame ID + "-<size>"
-	for i := range frames {
-		for _, sz := range frames[i].GetSizes() {
-			cand := strings.ToLower(fmt.Sprintf("%s-%s", frames[i].ID, sz))
-			if cand == lower {
-				if explicitSize == "" {
-					explicitSize = sz
-				}
-				return &frames[i], explicitSize, nil
-			}
-		}
-	}
-
-	// 3. Exact match on Model or Manufacturer + Model
-	for i := range frames {
-		full := strings.ToLower(fmt.Sprintf("%s %s", frames[i].Manufacturer, frames[i].Model))
-		if strings.ToLower(frames[i].Model) == lower || full == lower {
-			return &frames[i], explicitSize, nil
-		}
-	}
-
-	// 4. Substring match across ID, Manufacturer, Model
-	var matches []*model.FrameModel
-	for i := range frames {
-		haystack := strings.ToLower(fmt.Sprintf("%s %s %s", frames[i].ID, frames[i].Manufacturer, frames[i].Model))
-		if strings.Contains(haystack, lower) {
-			matches = append(matches, &frames[i])
-		}
-	}
-
-	if len(matches) == 1 {
-		return matches[0], explicitSize, nil
-	}
-	if len(matches) > 1 {
-		var ids []string
-		for _, m := range matches {
-			ids = append(ids, m.ID)
-		}
-		return nil, "", fmt.Errorf("ambiguous frame %q matches multiple frames: %s", token, strings.Join(ids, ", "))
-	}
-
-	var available []string
-	for _, f := range frames {
-		available = append(available, f.ID)
-	}
-	return nil, "", fmt.Errorf("frame %q not found (available: %s)", token, strings.Join(available, ", "))
 }
