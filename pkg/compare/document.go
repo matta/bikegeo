@@ -120,9 +120,16 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 
 	refDefLines := []string{
 		"Frame & Chassis Specs: Reach, Stack, HTA, STA, BB Drop, and Trail reflect the dynamic, rotated frame attitude at the effective fork A2C and sag specified for each setup.",
-		"Chainstay (*): Asterisk indicates adjustable/sliding dropouts; displayed at maximum stay position (longest wheelbase, most rearward axle). Front Wt %, Wheelbase, and Saddle-Rear Axle are calculated at this exact position.",
-		"Saddle-Rear Axle: Horizontal distance from saddle to rear axle (Rear Center minus Saddle Setback).",
-		"Saddle-HT Drop: Vertical drop from saddle to head tube top (Saddle Height * sin(STA) - Stack; steerer spacer/stem rise needed for level bars).",
+		"Chainstay (*): Asterisk indicates adjustable/sliding dropouts; displayed at maximum stay position (longest wheelbase, most rearward axle). Front Wt %, Wheelbase, and Seat Axis–Rear Axle are calculated at this exact position.",
+		"H: the saddle height entered for the comparison. It is used both as the length along the seat-tube axis (Seat Axis Point) and as the radial BB-to-BRP distance (Saddle BRP).",
+		"Seat Axis Point: the point H mm from the BB center along the effective seat-tube axis (at-sag attitude). Frame-only: independent of saddle model, seatpost setback, rail position, stem and handlebar.",
+		"Saddle BRP: the selected saddle's 70mm Biomechanical Reference Point, placed H mm (radial) from the BB using seatpost setback and rail position. Depends on saddle and seatpost.",
+		"ETT: horizontal distance from the head-tube top center (Reach/Stack point) back to the seat-tube axis at stack height; the industry-standard effective top tube. Independent of H, saddle, seatpost, stem and bar.",
+		"AETT: horizontal distance from the Seat Axis Point forward to the steering axis (ETT measured at H instead of at stack height). Independent of saddle, seatpost, stem and bar.",
+		"Seat Axis Setback: horizontal distance from the BB center back to the Seat Axis Point (H * cos(STA)).",
+		"Seat Axis–Rear Axle: horizontal distance from the Seat Axis Point to the rear axle (Rear Center minus Seat Axis Setback).",
+		"Seat Axis–HT Drop: vertical drop from the Seat Axis Point to head tube top (H * sin(STA) - Stack; steerer spacer/stem rise needed for level bars).",
+		"BRP Setback: horizontal distance from the BB center back to the Saddle BRP. BRP–HB: distance from the Saddle BRP to the handlebar reference point; HB Rise: handlebar height relative to the Saddle BRP (both depend on saddle, stem and bar).",
 		"Seatpost Ext: Exposed seatpost length from collar to saddle rails (available vertical height for dropper post fitment).",
 	}
 
@@ -200,7 +207,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 	}
 
 	line1 := fmt.Sprintf(
-		"Saddle Height: %.0fmm | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Modeled Back Angle: %.1f°",
+		"H (saddle height): %.0fmm | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Modeled Back Angle: %.1f°",
 		state.SaddleHeightMm, saddleName, backAngle,
 	)
 	line2 := fmt.Sprintf(
@@ -280,10 +287,11 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 				{ID: "hta", Label: "HTA", Numeric: true},
 				{ID: "trail", Label: "Trail", Numeric: true},
 				{ID: "sta", Label: "STA", Numeric: true},
+				{ID: "ett", Label: "ETT", Numeric: true},
 				{ID: "bb_drop", Label: "BB Drop", Numeric: true},
 				{ID: "chainstay", Label: "Chainstay", Numeric: true},
-				{ID: "seat_to_rc", Label: "Saddle-Rear Axle", Numeric: true},
-				{ID: "sparevert", Label: "Saddle-HT Drop", Numeric: true},
+				{ID: "seat_to_rc", Label: "Seat Axis–Rear Axle", Numeric: true},
+				{ID: "sparevert", Label: "Seat Axis–HT Drop", Numeric: true},
 			}
 			csMeta, _ := ideal.LookupAttribute("chainstay")
 			for _, item := range scoredItems {
@@ -301,6 +309,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 					plain(dashIf(c.ActiveHta > 0, fmt.Sprintf("%.1f°", c.ActiveHta))),
 					plain(dashIf(c.TrailMm > 0, fmt.Sprintf("%.0f", c.TrailMm))),
 					plain(dashIf(c.ActiveSta > 0, fmt.Sprintf("%.1f°", c.ActiveSta))),
+					plain(dashIf(c.Ett > 0, fmt.Sprintf("%.0f", c.Ett))),
 					plain(dashIf(c.ActiveBbDrop != 0, fmt.Sprintf("%.0f", c.ActiveBbDrop))),
 					plain(csStr),
 					plain(dashIf(c.SeatToRearCenter > 0, fmt.Sprintf("%.0f", c.SeatToRearCenter))),

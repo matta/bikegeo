@@ -262,7 +262,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if got := strings.Count(out, "| # | Frame (Size) |"); got != 1 {
 			t.Errorf("expected exactly one matrix table in transposed output, got %d:\n%s", got, out)
 		}
-		if !strings.Contains(out, "Saddle-Rear Axle") || !strings.Contains(out, "Reach") {
+		if !strings.Contains(out, "Seat Axis–Rear Axle") || !strings.Contains(out, "Reach") {
 			t.Errorf("expected cockpit and chassis columns in one table, got:\n%s", out)
 		}
 		if !strings.Contains(out, "Frame & Chassis Specs: Reach, Stack, HTA, STA, BB Drop, and Trail reflect the dynamic, rotated frame attitude") {
@@ -322,11 +322,11 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Saddle-Rear Axle @") {
-			t.Errorf("expected 'Saddle-Rear Axle @' in standard compare output, got:\n%s", out)
+		if !strings.Contains(out, "Seat Axis–Rear Axle @") {
+			t.Errorf("expected 'Seat Axis–Rear Axle @' in standard compare output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Saddle-HT Drop @") {
-			t.Errorf("expected 'Saddle-HT Drop @' in standard compare output, got:\n%s", out)
+		if !strings.Contains(out, "Seat Axis–HT Drop @") {
+			t.Errorf("expected 'Seat Axis–HT Drop @' in standard compare output, got:\n%s", out)
 		}
 		if !strings.Contains(out, "#### Reference Metric Definitions") {
 			t.Errorf("expected Reference Metric Definitions footer, got:\n%s", out)
@@ -337,11 +337,11 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Sliding Dropout Ranges: Sklar PBJ: 432–452mm (max 452mm).") {
 			t.Errorf("expected Sliding Dropout Ranges for PBJ, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Saddle-Rear Axle: Horizontal distance from saddle to rear axle") {
-			t.Errorf("expected Saddle-Rear Axle definition in footer, got:\n%s", out)
+		if !strings.Contains(out, "Seat Axis–Rear Axle: horizontal distance from the Seat Axis Point to the rear axle") {
+			t.Errorf("expected Seat Axis–Rear Axle definition in footer, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Saddle-HT Drop: Vertical drop from saddle to head tube top") {
-			t.Errorf("expected Saddle-HT Drop definition in footer, got:\n%s", out)
+		if !strings.Contains(out, "Seat Axis–HT Drop: vertical drop from the Seat Axis Point to head tube top") {
+			t.Errorf("expected Seat Axis–HT Drop definition in footer, got:\n%s", out)
 		}
 		if !strings.Contains(out, "Seatpost Ext: Exposed seatpost length from collar to saddle rails") {
 			t.Errorf("expected Seatpost Ext definition in footer, got:\n%s", out)
@@ -539,8 +539,8 @@ func TestCompare_SaddleHbMetric(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
-	if !strings.Contains(out, "Saddle-HB @ 746mm") {
-		t.Errorf("expected 'Saddle-HB @ 746mm' row in compare output, got:\n%s", out)
+	if !strings.Contains(out, "BRP–HB @ 746mm") {
+		t.Errorf("expected 'BRP–HB @ 746mm' row in compare output, got:\n%s", out)
 	}
 }
 
@@ -746,7 +746,7 @@ func TestCompare_ConfiguredHandlebar(t *testing.T) {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
 		expectedLines := []string{
-			"Saddle Height: 746mm | Saddle: SQlab 610 Ergolux Active 2.1 | Seatpost: Redshift ShockStop (sagged 11mm)",
+			"H (saddle height): 746mm | Saddle: SQlab 610 Ergolux Active 2.1 | Seatpost: Redshift ShockStop (sagged 11mm)",
 			"Handlebar: Tumbleweed Persuader 20° (800mm, 50mm rise, 20° sweep, 4° upsweep) | Ideal Profile: idmatch",
 		}
 		for _, exp := range expectedLines {

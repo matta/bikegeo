@@ -37,7 +37,7 @@ func TestLookupAttribute_SaddleHb(t *testing.T) {
 	if !ok {
 		t.Fatalf("LookupAttribute('saddle_hb') failed")
 	}
-	if meta.Label != "Saddle-HB" || meta.Unit != "mm" {
+	if meta.Label != "BRP–HB" || meta.Unit != "mm" {
 		t.Errorf("Unexpected meta: %+v", meta)
 	}
 

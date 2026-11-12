@@ -1462,6 +1462,7 @@ type BikeFitAnalysis struct {
 	ActiveSta           float64
 	ActiveBbDrop        float64
 	Aett                float64
+	Ett                 float64
 	ActualSetback       float64
 	SpareVerticalStack  float64
 	SpareAxialSteerer   float64

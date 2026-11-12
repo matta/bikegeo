@@ -126,5 +126,5 @@ Built directly around the idmatch Bikelab report:
 - `bbdrop`: Target `70 mm` (`acceptable: 60–80, edge_score: 75, falloff: 10`, weight: 3)
 - `trail`: Target `98–106 mm` (`acceptable: 92–109 mm, edge_score: 75, falloff: 10`, weight: 2) — Steering feel ground trail based on active HTA, fork rake, and 29x2.4" baseline tires (372mm wheel radius).
 - `hta`: Display-only (`ActiveHta`)
-- `seat_to_rc`: Display-only Saddle-Rear Axle (`Saddle-Rear Axle`: horizontal distance from saddle to rear axle, deprecated in favor of `frontwt`)
-- `sparevert`: Display-only Saddle-HT Drop (`Saddle-HT Drop`: vertical drop from saddle to head tube top `SaddleHeight * sin(STA) - Stack`)
+- `seat_to_rc`: Display-only Seat Axis–Rear Axle (horizontal distance from the Seat Axis Point to rear axle, deprecated in favor of `frontwt`)
+- `sparevert`: Display-only Seat Axis–HT Drop (vertical drop from the Seat Axis Point to head tube top `SaddleHeight * sin(STA) - Stack`)

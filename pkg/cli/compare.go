@@ -121,7 +121,7 @@ Overview:
   rake, headset cup spacers, and suspension sag. Each setup is evaluated against
   the rider's biomechanical profile (saddle height, back angle, arm reach, and
   center of mass), computing key fit metrics (effective reach/stack, actual setback,
-  AETT, saddle-to-headtube drop, front weight distribution) and scoring each setup
+  AETT, seat-axis-to-head-tube drop, front weight distribution) and scoring each setup
   against ideal fit criteria.
 
 Comparison Specs:

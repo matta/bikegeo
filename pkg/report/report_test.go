@@ -23,10 +23,10 @@ func TestFromStringsRoundTrip(t *testing.T) {
 
 func TestSlug(t *testing.T) {
 	cases := map[string]string{
-		"Saddle-HT Drop":   "saddle-ht-drop",
-		"  Fork & Eff A2C": "fork-eff-a2c",
-		"BB\nDrop":         "bb-drop",
-		"":                 "",
+		"Seat Axis–HT Drop": "seat-axis-ht-drop",
+		"  Fork & Eff A2C":  "fork-eff-a2c",
+		"BB\nDrop":          "bb-drop",
+		"":                  "",
 	}
 	for in, want := range cases {
 		if got := Slug(in); got != want {

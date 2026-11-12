@@ -78,8 +78,10 @@ func SteererTubeDir(htaDeg float64) geom2d.Vec2 {
 }
 
 // CalculateAett calculates the Actual Effective Top Tube (AETT) length in mm.
-// AETT is the horizontal projection from the center of the seat tube
-// (at the specified rider saddle height) forward to the steering axis.
+// AETT is the horizontal distance from the Seat Axis Point (the point seatHeight
+// mm from the BB center along the seat-tube axis) forward to the steering axis
+// at that same elevation. It depends only on the frame and seatHeight: it is
+// independent of saddle model, seatpost setback, rail position, stem and bar.
 func CalculateAett(reach, stack, htaDeg, staDeg, seatHeight float64) float64 {
 	seatAxis := SeatTubeAxis(geom2d.Origin, staDeg)
 	saddlePoint := seatAxis.PointAt(seatHeight)
@@ -91,6 +93,18 @@ func CalculateAett(reach, stack, htaDeg, staDeg, seatHeight float64) float64 {
 	}
 
 	return intersect.X - saddlePoint.X
+}
+
+// CalculateEtt calculates the industry-standard Effective Top Tube (ETT) length
+// in mm: the horizontal distance from the head-tube top center (reach, stack)
+// back to the seat-tube axis at stack height, reach + stack/tan(STA). It is
+// AETT measured at stack height instead of at the rider's seat height.
+func CalculateEtt(reach, stack, htaDeg, staDeg float64) float64 {
+	sinSta := math.Sin(staDeg * math.Pi / 180.0)
+	if sinSta <= 0 || stack <= 0 {
+		return 0
+	}
+	return CalculateAett(reach, stack, htaDeg, staDeg, stack/sinSta)
 }
 
 // CalculateActualSetback calculates the horizontal setback distance in mm from the bottom bracket center (0,0)
@@ -1127,6 +1141,12 @@ func AnalyzeBikeFitWithSaddle(
 	if bike.HasBentSeatTube() {
 		activeSta = bike.CalculateEffectiveSta(brpSeatHeight, bike.Stack, bike.StaDeg)
 	}
+	// Frame-only seat-axis angles. seatAxisSta is the effective STA at the raw
+	// height H (not translated for the selected saddle), so AETT and the other
+	// Seat Axis metrics do not change when the saddle model changes. ettSta is
+	// the nominal STA, which for a bent seat tube is exact at stack height.
+	seatAxisSta := bike.CalculateEffectiveSta(seatHeight, bike.Stack, bike.StaDeg)
+	ettSta := bike.StaDeg
 	activeBbDrop := bike.BbDrop
 	activeStructuralA2c := baseStructuralA2c
 	deltaAngle := 0.0
@@ -1147,6 +1167,7 @@ func AnalyzeBikeFitWithSaddle(
 			cs = 430.0
 		}
 
+		staBeforePitch := activeSta
 		dyn := CalculateDynamicGeometry(
 			bike.Reach,
 			bike.Stack,
@@ -1163,6 +1184,8 @@ func AnalyzeBikeFitWithSaddle(
 		activeStack = dyn.NewStack
 		activeHta = dyn.NewHta
 		activeSta = dyn.NewSta
+		seatAxisSta = Round(seatAxisSta-(staBeforePitch-dyn.NewSta), 2)
+		ettSta = Round(ettSta-(staBeforePitch-dyn.NewSta), 2)
 		activeBbDrop = dyn.NewBbDrop
 		activeStructuralA2c = dyn.TotalNewA2c
 		deltaAngle = dyn.DeltaAngleDeg
@@ -1172,9 +1195,14 @@ func AnalyzeBikeFitWithSaddle(
 	}
 
 	// 3. Derived cockpit metrics
-	aett := CalculateAett(activeReach, activeStack, activeHta, activeSta, brpSeatHeight)
-	actualSetback := CalculateActualSetback(activeSta, brpSeatHeight)
-	verticalStack, axialLength := CalculateSteererStack(activeStack, activeSta, activeHta, brpSeatHeight)
+	// Seat Axis metrics use the raw H; only BRP/HB metrics depend on the saddle.
+	if !bike.HasBentSeatTube() {
+		seatAxisSta = activeSta
+	}
+	aett := CalculateAett(activeReach, activeStack, activeHta, seatAxisSta, seatHeight)
+	ett := CalculateEtt(activeReach, activeStack, activeHta, ettSta)
+	actualSetback := CalculateActualSetback(seatAxisSta, seatHeight)
+	verticalStack, axialLength := CalculateSteererStack(activeStack, seatAxisSta, activeHta, seatHeight)
 	seatpostExtension := CalculateSeatpostExtension(brpSeatHeight, bike.SeatTubeLength)
 
 	// 4. Infer CAD publish mode
@@ -1274,6 +1302,7 @@ func AnalyzeBikeFitWithSaddle(
 		ActiveSta:           Round(activeSta, 2),
 		ActiveBbDrop:        Round(activeBbDrop, 1),
 		Aett:                Round(aett, 1),
+		Ett:                 Round(ett, 1),
 		ActualSetback:       actualSetback,
 		SpareVerticalStack:  Round(verticalStack, 1),
 		SpareAxialSteerer:   Round(axialLength, 1),
