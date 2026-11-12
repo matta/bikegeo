@@ -1,0 +1,17 @@
+{{template "head" .}}
+<h1>{{.Title}}</h1>
+{{if .Blurb}}<p class="blurb">{{.Blurb}}</p>{{end}}
+{{if .Controls}}<form method="get" action="{{.Action}}" class="controls inline">
+{{range .Controls}}<label>{{.Label}}
+{{if eq .Kind "select"}}<select name="{{.Name}}">{{range .Options}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select>
+{{else if eq .Kind "checkbox"}}<input type="checkbox" name="{{.Name}}" value="1"{{if .Value}} checked{{end}}>
+{{else}}<input type="text" name="{{.Name}}" value="{{.Value}}"{{if .Hint}} placeholder="{{.Hint}}"{{end}}>
+{{end}}</label>
+{{end}}<button type="submit">Show</button> <a href="{{.Action}}">Reset</a>
+</form>{{end}}
+{{if .Banner}}<div class="banner error" role="alert"><pre>{{.Banner}}</pre></div>{{end}}
+{{if .CLI}}<p class="cli">Equivalent terminal command: <code>{{.CLI}}</code></p>{{end}}
+{{if not .Ready}}<p class="blurb">Choose a frame above to run this analysis.</p>{{end}}
+{{range .Sections}}{{if .Table}}{{template "table" .Table}}{{else}}<pre class="note">{{.Text}}</pre>
+{{end}}{{end}}
+{{template "foot" .}}

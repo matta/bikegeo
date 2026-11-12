@@ -122,9 +122,9 @@ func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
 		Weight:     4,
 		Ideal:      AtLeast(235),
 		Acceptable: AtLeast(220),
-		EdgeScore:  Float(70),
+		EdgeScore:  new(float64(70)),
 		Falloff:    FalloffBelow(20),
-		Floor:      Float(-100),
+		Floor:      new(float64(-100)),
 	}
 	meta, ok := LookupAttribute("seat_to_rc")
 	if !ok {
@@ -160,9 +160,9 @@ func TestEvaluate_DesignDocTable(t *testing.T) {
 		Weight:     10,
 		Ideal:      Between(630, 642),
 		Acceptable: Between(606, 642),
-		EdgeScore:  Float(60),
+		EdgeScore:  new(float64(60)),
 		Falloff:    FalloffBoth(10, 5),
-		Floor:      Float(-200),
+		Floor:      new(float64(-200)),
 	}
 	meta, ok := LookupAttribute("aett")
 	if !ok {
@@ -207,9 +207,9 @@ func TestEvaluate_OneSidedChainstay(t *testing.T) {
 		Weight:     4,
 		Ideal:      AtLeast(470),
 		Acceptable: AtLeast(445),
-		EdgeScore:  Float(70),
+		EdgeScore:  new(float64(70)),
 		Falloff:    FalloffBelow(25),
-		Floor:      Float(-100),
+		Floor:      new(float64(-100)),
 	}
 	meta, ok := LookupAttribute("chainstay")
 	if !ok {
@@ -315,7 +315,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 	pBadFloor := &Profile{
 		Name: "test",
 		Attributes: []AttributeSpec{
-			{ID: "hta", Weight: 2, Ideal: Exact(68), Falloff: FalloffBoth(1, 1), Floor: Float(10)},
+			{ID: "hta", Weight: 2, Ideal: Exact(68), Falloff: FalloffBoth(1, 1), Floor: new(float64(10))},
 		},
 	}
 	if _, err := NormalizeAndValidate(pBadFloor); err == nil || !strings.Contains(err.Error(), "floor (10.0) must be negative") {

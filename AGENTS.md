@@ -12,17 +12,28 @@ go vet ./... && go test ./...
 
 ## Final Verification & Cleanup
 
-Formatting is not part of the fast feedback loop, but is part of the final cleanup stages of code modification. Before completing a task or submitting changes, format all Go source files and verify the full check suite:
+Formatting and modernization are not part of the fast feedback loop, but are part of the final cleanup stages of code modification. Before completing a task or submitting changes, apply the toolchain's automatic modernizations, format all Go source files, and verify the full check suite:
 
 ```bash
-go fmt ./... && make check
+go fix ./... && go fmt ./... && make check
 ```
+
+- `go fix` rewrites code to current language and library idioms (for example `new(expr)` for pointer literals, `strings.FieldsSeq`, `maps.Copy`). Run it with the Go version pinned in `go.mod`, and re-run it until it reports no further changes.
+- Review its diff before committing. Its rewrites must be semantically neutral: if a change touches `pkg/frames/*.go`, confirm only idioms changed and no published geometry value did (see the chart-immutability rule below). Commit `go fix` output separately from feature work so it stays reviewable.
+- If a rewrite produces an awkward result (such as an aliased import like `maps0` caused by a shadowing variable), fix the cause (rename the variable) rather than keeping the workaround.
 
 ## Architectural Guidelines
 
-- **Zero External Dependencies & Pure-Go Data**:
-  - Uses only the Go standard library (`flag`, `encoding/csv`) with custom Unicode box-drawing, Markdown, and CSV table formatting in `pkg/cli/render.go`.
-  - All bike frames (`pkg/frames/*.go`), fork and stem catalogs (`pkg/catalog/catalog.go`), ideal fit profiles (`pkg/ideal/loader.go`), and the default comparison baseline (`cli.DefaultComparisonState()` in `pkg/cli/compare.go`) are compiled directly as Go structs. There are no JSON data files or runtime persistence files.
+- **Zero Runtime Dependencies & Pure-Go Data**:
+  - The shipped binary uses only the Go standard library (`flag`, `encoding/csv`, `net/http`, `html/template`, `embed`) with custom Unicode box-drawing, Markdown, and CSV table formatting in `pkg/cli/render.go`.
+  - The single exception is `github.com/PuerkitoBio/goquery`, allowed **only** in `_test.go` files for DOM assertions. Never import it (or any third-party package) from non-test code; verify with `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo`, which must list only `bikegeo/...`.
+  - All bike frames (`pkg/frames/*.go`), fork and stem catalogs (`pkg/catalog/catalog.go`), ideal fit profiles (`pkg/ideal/loader.go`), and the default comparison baseline (`compare.DefaultComparisonState()` in `pkg/compare/specs.go`, also reachable as `compare.DefaultComparisonState()`) are compiled directly as Go structs. There are no JSON data files or runtime persistence files.
+- **CLI and Web Share One Engine** (see [docs/WEB.md](docs/WEB.md)):
+  - `pkg/compare` holds spec parsing, `Run(Options)`, ranking/pruning and `BuildDocument`; `pkg/report` holds the presentation-neutral `Document`/`Table`/`Cell` types (cells carry `Zone` and `MetricID`); `pkg/cli` parses flags and prints; `pkg/web` serves HTML.
+  - Command table output goes through `App.render` / `App.renderFooters` so it prints in the CLI and is collected by `cli.RunDocument` for the web. Do not call `RenderOutput*` directly from commands.
+  - `bikegeo serve` is dispatched in `cmd/bikegeo/main.go` (`pkg/web` imports `pkg/cli`, never the reverse).
+  - The web is strictly Web 1.0: `GET` forms, URL query as the only state, full-page responses, no JavaScript, no cookies. Controls must be populated from the parsed query.
+  - CLI output must remain byte-identical when refactoring; `pkg/cli/cli_test.go` is the guard. `bikegeo fit` can list tied candidate solutions in a varying order between runs; that is pre-existing.
 - **Per-Column Comparison Model (`ComparisonSetup`)**:
   - Every comparison column specifies `FrameID + Size + Fork (travel in mm or "rigid") + Sag %`.
   - Allows comparing the same frame across multiple sag points or fork capacities alongside different frames.
@@ -30,7 +41,7 @@ go fmt ./... && make check
   - Frames define `CadFork` and `Forks` (supported fork refs with `ID`, `A2cMm`, `RakeMm`, `SagPct`) in `pkg/frames/*.go`.
   - `pkg/canonicalizer` strictly enforces these constraints, rejecting unsupported travel sizes, rigid forks on suspension-only frames, or non-zero sag on rigid forks.
 - **Default Comparison Baseline**:
-  - Running `bikegeo compare` with no arguments evaluates `cli.DefaultComparisonState()`. Incremental `+spec` and `-spec` / `-col_num` flags add or remove columns against that baseline in memory.
+  - Running `bikegeo compare` with no arguments evaluates `compare.DefaultComparisonState()`. Incremental `+spec` and `-spec` / `-col_num` flags add or remove columns against that baseline in memory.
 
 ## Adding or Modifying Bike Frame Datasets
 
@@ -61,6 +72,7 @@ When adding or editing frame files in `pkg/frames/*.go`:
 
 - **Unit & Integration Tests**:
   - Domain math, validation, canonicalization, ideal profiles, scoring, fit solver, and CLI subcommands (`compare`, `validate`, `list`, `forks`, `stems`, `ideals`, `fit`) are tested in `pkg/*/*_test.go`.
+  - HTTP handlers and templates are tested browserlessly in `pkg/web/web_test.go`: `httptest.NewRequest` (set `req.Host = "127.0.0.1:8080"`) → `web.New().ServeHTTP` → `goquery` selectors such as `tr[data-frame-id="..."] td[data-metric="..."]`. No Playwright, Selenium, or other browser automation.
 - **Command**:
   ```bash
   go vet ./... && go test -v ./...

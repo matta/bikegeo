@@ -9,9 +9,11 @@ import (
 
 	"bikegeo/pkg/canonicalizer"
 	"bikegeo/pkg/catalog"
+	"bikegeo/pkg/compare"
 	"bikegeo/pkg/frames"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
+	"bikegeo/pkg/report"
 )
 
 func (a *App) runSaddleSwap(args []string) int {
@@ -171,7 +173,7 @@ func (a *App) runSaddleSwap(args []string) int {
 		sumSub := fmt.Sprintf("Source Saddle Height (to BRP): %.0fmm | Sit Bone Setback: %.0fmm behind BB | Post Setback: %.1fmm",
 			saddleHeight, sitBoneSetback, postSetback)
 
-		if err := RenderOutput(a.Out, a.Format, sumTitle, sumSub, summaryHeaders, summaryRows); err != nil {
+		if err := a.render(sumTitle, sumSub, summaryHeaders, summaryRows); err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}
@@ -186,7 +188,7 @@ func (a *App) runSaddleSwap(args []string) int {
 			fmt.Fprintln(a.Out)
 		}
 
-		report := geometry.AnalyzeSaddleSwap(
+		swap := geometry.AnalyzeSaddleSwap(
 			sourceSaddle,
 			targetSaddle,
 			saddleHeight,
@@ -209,95 +211,95 @@ func (a *App) runSaddleSwap(args []string) int {
 
 		// Saddle height delta to BRP
 		var shAction string
-		if report.BrpSaddleHeightShiftMm > 0 {
-			shAction = fmt.Sprintf("%+.1f mm (Raise seatpost collar)", report.BrpSaddleHeightShiftMm)
-		} else if report.BrpSaddleHeightShiftMm < 0 {
-			shAction = fmt.Sprintf("%.1f mm (Lower seatpost collar)", report.BrpSaddleHeightShiftMm)
+		if swap.BrpSaddleHeightShiftMm > 0 {
+			shAction = fmt.Sprintf("%+.1f mm (Raise seatpost collar)", swap.BrpSaddleHeightShiftMm)
+		} else if swap.BrpSaddleHeightShiftMm < 0 {
+			shAction = fmt.Sprintf("%.1f mm (Lower seatpost collar)", swap.BrpSaddleHeightShiftMm)
 		} else {
 			shAction = "0.0 mm (Keep collar unchanged)"
 		}
 
 		// 70mm BRP 2D point shift direction
 		var brpDir string
-		if report.BrpDeltaXMm > 0 && report.BrpDeltaYMm > 0 {
+		if swap.BrpDeltaXMm > 0 && swap.BrpDeltaYMm > 0 {
 			brpDir = "Forward & upward"
-		} else if report.BrpDeltaXMm > 0 && report.BrpDeltaYMm < 0 {
+		} else if swap.BrpDeltaXMm > 0 && swap.BrpDeltaYMm < 0 {
 			brpDir = "Forward & downward"
-		} else if report.BrpDeltaXMm > 0 && report.BrpDeltaYMm == 0 {
+		} else if swap.BrpDeltaXMm > 0 && swap.BrpDeltaYMm == 0 {
 			brpDir = "Forward"
-		} else if report.BrpDeltaXMm < 0 && report.BrpDeltaYMm > 0 {
+		} else if swap.BrpDeltaXMm < 0 && swap.BrpDeltaYMm > 0 {
 			brpDir = "Rearward & upward"
-		} else if report.BrpDeltaXMm < 0 && report.BrpDeltaYMm < 0 {
+		} else if swap.BrpDeltaXMm < 0 && swap.BrpDeltaYMm < 0 {
 			brpDir = "Rearward & downward"
-		} else if report.BrpDeltaXMm < 0 && report.BrpDeltaYMm == 0 {
+		} else if swap.BrpDeltaXMm < 0 && swap.BrpDeltaYMm == 0 {
 			brpDir = "Rearward"
-		} else if report.BrpDeltaXMm == 0 && report.BrpDeltaYMm > 0 {
+		} else if swap.BrpDeltaXMm == 0 && swap.BrpDeltaYMm > 0 {
 			brpDir = "Upward"
-		} else if report.BrpDeltaXMm == 0 && report.BrpDeltaYMm < 0 {
+		} else if swap.BrpDeltaXMm == 0 && swap.BrpDeltaYMm < 0 {
 			brpDir = "Downward"
 		} else {
 			brpDir = "Unmoved"
 		}
-		brpDiff := fmt.Sprintf("(%+.1f, %+.1f) mm (%s)", report.BrpDeltaXMm, report.BrpDeltaYMm, brpDir)
+		brpDiff := fmt.Sprintf("(%+.1f, %+.1f) mm (%s)", swap.BrpDeltaXMm, swap.BrpDeltaYMm, brpDir)
 
 		// Clamp adjustment
 		var clampDiff string
-		if report.Pelvic.IsFeasible {
-			if report.RailCenterToSitBonesDeltaMm > 0 {
-				clampDiff = fmt.Sprintf("Slide %.1f mm forward (Safe, margin %.1fmm)", math.Abs(report.RailCenterToSitBonesDeltaMm), report.Pelvic.MarginFromLimitMm)
-			} else if report.RailCenterToSitBonesDeltaMm < 0 {
-				clampDiff = fmt.Sprintf("Slide %.1f mm rearward (Safe, margin %.1fmm)", math.Abs(report.RailCenterToSitBonesDeltaMm), report.Pelvic.MarginFromLimitMm)
+		if swap.Pelvic.IsFeasible {
+			if swap.RailCenterToSitBonesDeltaMm > 0 {
+				clampDiff = fmt.Sprintf("Slide %.1f mm forward (Safe, margin %.1fmm)", math.Abs(swap.RailCenterToSitBonesDeltaMm), swap.Pelvic.MarginFromLimitMm)
+			} else if swap.RailCenterToSitBonesDeltaMm < 0 {
+				clampDiff = fmt.Sprintf("Slide %.1f mm rearward (Safe, margin %.1fmm)", math.Abs(swap.RailCenterToSitBonesDeltaMm), swap.Pelvic.MarginFromLimitMm)
 			} else {
-				clampDiff = fmt.Sprintf("Centered (Safe, margin %.1fmm)", report.Pelvic.MarginFromLimitMm)
+				clampDiff = fmt.Sprintf("Centered (Safe, margin %.1fmm)", swap.Pelvic.MarginFromLimitMm)
 			}
 		} else {
-			clampDiff = fmt.Sprintf("Infeasible (exceeds rails by %.1f mm)", math.Abs(report.Pelvic.MarginFromLimitMm))
+			clampDiff = fmt.Sprintf("Infeasible (exceeds rails by %.1f mm)", math.Abs(swap.Pelvic.MarginFromLimitMm))
 		}
 
 		swapRows := [][]string{
 			{
 				"BB to Sit Bones Distance",
-				fmt.Sprintf("%.1f mm", report.BaselineLegExtensionMm),
-				fmt.Sprintf("%.1f mm", report.Pelvic.LegExtensionMm),
+				fmt.Sprintf("%.1f mm", swap.BaselineLegExtensionMm),
+				fmt.Sprintf("%.1f mm", swap.Pelvic.LegExtensionMm),
 				"0.0 mm (Preserved)",
 			},
 			{
 				"Sit Bone Point (X, Y)",
-				fmt.Sprintf("(-%.1f, %.1f) mm", sitBoneSetback, report.SourceSitBoneHeightMm),
-				fmt.Sprintf("(-%.1f, %.1f) mm", report.Pelvic.AchievedSitBoneMm, report.Pelvic.AchievedSitBoneHeightMm),
+				fmt.Sprintf("(-%.1f, %.1f) mm", sitBoneSetback, swap.SourceSitBoneHeightMm),
+				fmt.Sprintf("(-%.1f, %.1f) mm", swap.Pelvic.AchievedSitBoneMm, swap.Pelvic.AchievedSitBoneHeightMm),
 				"(0.0, 0.0) mm (Preserved)",
 			},
 			{
 				"Saddle Height (BB to 70mm BRP)",
 				fmt.Sprintf("%.1f mm", saddleHeight),
-				fmt.Sprintf("%.1f mm", report.TargetEquivalentSaddleHeightMm),
+				fmt.Sprintf("%.1f mm", swap.TargetEquivalentSaddleHeightMm),
 				shAction,
 			},
 			{
 				"70mm BRP Point (X, Y)",
-				fmt.Sprintf("(-%.1f, %.1f) mm", report.SourceBrpSetbackMm, report.SourceBrpHeightMm),
-				fmt.Sprintf("(-%.1f, %.1f) mm", report.TargetEquivalentBrpSetbackMm, report.TargetEquivalentBrpHeightMm),
+				fmt.Sprintf("(-%.1f, %.1f) mm", swap.SourceBrpSetbackMm, swap.SourceBrpHeightMm),
+				fmt.Sprintf("(-%.1f, %.1f) mm", swap.TargetEquivalentBrpSetbackMm, swap.TargetEquivalentBrpHeightMm),
 				brpDiff,
 			},
 			{
 				"Rail Clamp Position",
 				"0.0 mm (Centered)",
-				fmt.Sprintf("%+.1f mm", report.Pelvic.RequiredClampOffsetMm),
+				fmt.Sprintf("%+.1f mm", swap.Pelvic.RequiredClampOffsetMm),
 				clampDiff,
 			},
 		}
 
-		var footers []FooterSection
-		footers = append(footers, FooterSection{
+		var footers []report.Footer
+		footers = append(footers, report.Footer{
 			Title: "Note",
 			Lines: []string{
 				fmt.Sprintf("Naively matching 70mm BRP coordinates would misplace pelvis by %+.1fmm setback and %+.1fmm height.",
-					report.Naive.SitBoneDeltaMm, report.Naive.SitBoneDeltaYMm),
+					swap.Naive.SitBoneDeltaMm, swap.Naive.SitBoneDeltaYMm),
 			},
 		})
 
 		if frameSpec != "" {
-			if err := RenderOutput(a.Out, a.Format, title, subtitle, headers, swapRows); err != nil {
+			if err := a.render(title, subtitle, headers, swapRows); err != nil {
 				fmt.Fprintf(a.Err, "Error: %v\n", err)
 				return 1
 			}
@@ -305,7 +307,7 @@ func (a *App) runSaddleSwap(args []string) int {
 				fmt.Fprintln(a.Out)
 			}
 		} else {
-			if err := RenderOutputWithFooter(a.Out, a.Format, title, subtitle, headers, swapRows, footers); err != nil {
+			if err := a.renderFooters(title, subtitle, headers, swapRows, footers); err != nil {
 				fmt.Fprintf(a.Err, "Error: %v\n", err)
 				return 1
 			}
@@ -314,7 +316,7 @@ func (a *App) runSaddleSwap(args []string) int {
 		// Optional Frame-Specific Evaluation
 		if frameSpec != "" {
 			allFrames := frames.AllFrames()
-			framePtr, impSz, err := ResolveFrameByToken(allFrames, frameSpec)
+			framePtr, impSz, err := compare.ResolveFrameByToken(allFrames, frameSpec)
 			if err != nil {
 				fmt.Fprintf(a.Err, "Error resolving frame %q: %v\n", frameSpec, err)
 				return 1
@@ -341,7 +343,7 @@ func (a *App) runSaddleSwap(args []string) int {
 
 			frameSta := canonRow.Canonical.ActiveSta
 			stSetback := geometry.Round(saddleHeight*math.Cos(frameSta*math.Pi/180.0), 1)
-			tgtStSetback := geometry.Round(report.TargetEquivalentSaddleHeightMm*math.Cos(frameSta*math.Pi/180.0), 1)
+			tgtStSetback := geometry.Round(swap.TargetEquivalentSaddleHeightMm*math.Cos(frameSta*math.Pi/180.0), 1)
 
 			// Required rail offsets on this frame:
 			// clampPerp = stSetback + postSetback
@@ -349,7 +351,7 @@ func (a *App) runSaddleSwap(args []string) int {
 			// requiredOffset = targetRailCenterSetback - (stSetback + postSetback)
 			srcRailOffset := (sitBoneSetback + sourceSaddle.RailCenterToSitBonesMm) - (stSetback + postSetback)
 			tgtPelvicRailOffset := (sitBoneSetback + targetSaddle.RailCenterToSitBonesMm) - (tgtStSetback + postSetback)
-			tgtNaiveRailOffset := (report.SourceBrpSetbackMm + targetSaddle.RailCenterToBrpMm) - (stSetback + postSetback)
+			tgtNaiveRailOffset := (swap.SourceBrpSetbackMm + targetSaddle.RailCenterToBrpMm) - (stSetback + postSetback)
 
 			sMin, sMax := sourceSaddle.ClampWindowMm(clampLength)
 			tMin, tMax := targetSaddle.ClampWindowMm(clampLength)
@@ -409,12 +411,12 @@ func (a *App) runSaddleSwap(args []string) int {
 					"Achieved Sit Bone Setback",
 					fmt.Sprintf("%.1f mm", sitBoneSetback),
 					fmt.Sprintf("%.1f mm", sitBoneSetback),
-					fmt.Sprintf("%.1f mm", sitBoneSetback+report.Naive.SitBoneDeltaMm),
+					fmt.Sprintf("%.1f mm", sitBoneSetback+swap.Naive.SitBoneDeltaMm),
 					"Pelvic fit preserves exact target setback",
 				},
 			}
 
-			if err := RenderOutputWithFooter(a.Out, a.Format, t4Title, t4Subtitle, t4Headers, t4Rows, footers); err != nil {
+			if err := a.renderFooters(t4Title, t4Subtitle, t4Headers, t4Rows, footers); err != nil {
 				fmt.Fprintf(a.Err, "Error: %v\n", err)
 				return 1
 			}

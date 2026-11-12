@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-
-	"bikegeo/pkg/model"
 )
 
 // App encapsulates the CLI runtime configuration and I/O streams.
@@ -15,6 +13,10 @@ type App struct {
 	In     io.Reader
 	Out    io.Writer
 	Err    io.Writer
+
+	// collect, when non-nil, records tables and text as a report.Document
+	// instead of printing them (see RunDocument).
+	collect *collector
 }
 
 // Run executes the bikegeo CLI with the provided arguments and I/O streams, returning an exit code.
@@ -37,6 +39,12 @@ func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 		return 2
 	}
 
+	return app.dispatch(remaining)
+}
+
+// dispatch routes the remaining (global-flag-free) arguments to a subcommand.
+func (app *App) dispatch(remaining []string) int {
+	errOut := app.Err
 	if len(remaining) == 0 {
 		app.printUsage()
 		return 0
@@ -113,6 +121,8 @@ Core Commands:
   saddle-swap [from] [to] Analyze saddle swap, contrasting naive BRP vs true pelvic fit
   handlebars [id] [cmp]   List handlebar catalog, inspect 3D kinematic model, and compare hand offsets
   ideals [show <name>]    List or inspect ideal frame profiles
+  serve [--port N] [--open]
+                          Serve every report as local web pages on 127.0.0.1 (default port 8080)
 
 Global Flags:
   -f, --format <fmt>      Output format: table (default), md, csv
@@ -187,76 +197,4 @@ func reorderFlagsForStdlib(fs *flag.FlagSet, args []string, boolFlags map[string
 		return append(append(flags, "--"), pos...)
 	}
 	return flags
-}
-
-// ResolveFrameByToken finds a FrameModel by exact ID, legacy size-suffixed ID, or unique substring match.
-// If the token included a size suffix (e.g. "chumba-sendero-l" or "chumba-sendero:L"), inferredSize is returned.
-func ResolveFrameByToken(frames []model.FrameModel, token string) (*model.FrameModel, string, error) {
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return nil, "", fmt.Errorf("empty frame identifier")
-	}
-
-	var explicitSize string
-	if strings.Contains(token, ":") {
-		parts := strings.SplitN(token, ":", 2)
-		token = parts[0]
-		explicitSize = parts[1]
-	}
-
-	lower := strings.ToLower(token)
-
-	// 1. Exact frame ID match
-	for i := range frames {
-		if strings.ToLower(frames[i].ID) == lower {
-			return &frames[i], explicitSize, nil
-		}
-	}
-
-	// 2. Exact match on frame ID + "-<size>"
-	for i := range frames {
-		for _, sz := range frames[i].GetSizes() {
-			cand := strings.ToLower(fmt.Sprintf("%s-%s", frames[i].ID, sz))
-			if cand == lower {
-				if explicitSize == "" {
-					explicitSize = sz
-				}
-				return &frames[i], explicitSize, nil
-			}
-		}
-	}
-
-	// 3. Exact match on Model or Manufacturer + Model
-	for i := range frames {
-		full := strings.ToLower(fmt.Sprintf("%s %s", frames[i].Manufacturer, frames[i].Model))
-		if strings.ToLower(frames[i].Model) == lower || full == lower {
-			return &frames[i], explicitSize, nil
-		}
-	}
-
-	// 4. Substring match across ID, Manufacturer, Model
-	var matches []*model.FrameModel
-	for i := range frames {
-		haystack := strings.ToLower(fmt.Sprintf("%s %s %s", frames[i].ID, frames[i].Manufacturer, frames[i].Model))
-		if strings.Contains(haystack, lower) {
-			matches = append(matches, &frames[i])
-		}
-	}
-
-	if len(matches) == 1 {
-		return matches[0], explicitSize, nil
-	}
-	if len(matches) > 1 {
-		var ids []string
-		for _, m := range matches {
-			ids = append(ids, m.ID)
-		}
-		return nil, "", fmt.Errorf("ambiguous frame %q matches multiple frames: %s", token, strings.Join(ids, ", "))
-	}
-
-	var available []string
-	for _, f := range frames {
-		available = append(available, f.ID)
-	}
-	return nil, "", fmt.Errorf("frame %q not found (available: %s)", token, strings.Join(available, ", "))
 }

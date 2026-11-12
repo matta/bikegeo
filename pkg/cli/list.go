@@ -94,7 +94,7 @@ func (a *App) runList(args []string) int {
 		}
 
 		title := fmt.Sprintf("Stored Bikes (%d sizes across %d frames)", len(rows), len(filteredFrames))
-		if err := RenderOutput(a.Out, a.Format, title, "", headers, rows); err != nil {
+		if err := a.render(title, "", headers, rows); err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}
@@ -132,7 +132,7 @@ func (a *App) runList(args []string) int {
 	}
 
 	title := fmt.Sprintf("Stored Frame Models (%d)", len(filteredFrames))
-	if err := RenderOutput(a.Out, a.Format, title, "", headers, rows); err != nil {
+	if err := a.render(title, "", headers, rows); err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
 	}
@@ -173,7 +173,7 @@ func (a *App) runForks(args []string) int {
 	}
 
 	title := fmt.Sprintf("Standard Fork Catalog (%d)", len(forks))
-	if err := RenderOutput(a.Out, a.Format, title, "", headers, rows); err != nil {
+	if err := a.render(title, "", headers, rows); err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
 	}
@@ -210,7 +210,7 @@ func (a *App) runStems(args []string) int {
 	}
 
 	title := fmt.Sprintf("Standard Stem Catalog (%d)", len(stems))
-	if err := RenderOutput(a.Out, a.Format, title, "", headers, rows); err != nil {
+	if err := a.render(title, "", headers, rows); err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
 	}

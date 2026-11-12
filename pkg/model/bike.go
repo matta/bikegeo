@@ -10,13 +10,6 @@ import (
 	"bikegeo/pkg/geom2d"
 )
 
-// Float64Ptr returns a pointer to v, used for optional numeric fields where nil means unset.
-//
-//go:fix inline
-func Float64Ptr(v float64) *float64 {
-	return new(v)
-}
-
 type HeadsetCupType string
 
 const (

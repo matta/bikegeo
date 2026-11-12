@@ -1,0 +1,22 @@
+{{define "cell"}}{{if .Scope}}<th scope="{{.Scope}}"{{if .Class}} class="{{.Class}}"{{end}}{{.Attrs}}>{{else}}<td{{if .Class}} class="{{.Class}}"{{end}}{{.Attrs}}>{{end}}{{if .Href}}<a href="{{.Href}}">{{end}}{{range $i, $l := .Lines}}{{if $i}}<br>{{end}}{{$l}}{{end}}{{if .Href}}</a>{{end}}{{if .Scope}}</th>{{else}}</td>{{end}}{{end}}
+{{define "table"}}<section class="report" id="{{.ID}}">
+{{if .Title}}<h2>{{.Title}}</h2>{{end}}
+{{range .Subtitle}}<p class="subtitle">{{.}}</p>
+{{end}}<div class="scroll">
+<table data-table="{{.ID}}">
+<thead>
+{{range .Head}}<tr{{if .Class}} class="{{.Class}}"{{end}}{{.Attrs}}>{{range .Cells}}{{template "cell" .}}{{end}}</tr>
+{{end}}</thead>
+<tbody>
+{{range .Body}}<tr{{.Attrs}}>{{range .Cells}}{{template "cell" .}}{{end}}</tr>
+{{end}}</tbody>
+</table>
+</div>
+{{range .Footers}}{{template "footer" .}}{{end}}
+</section>
+{{end}}
+{{define "footer"}}{{if .Lines}}<section class="notes">
+{{if .Title}}<h3>{{.Title}}</h3>{{end}}
+<ul>{{range .Lines}}<li>{{.}}</li>{{end}}</ul>
+</section>
+{{end}}{{end}}

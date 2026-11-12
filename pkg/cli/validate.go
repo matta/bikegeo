@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"bikegeo/pkg/compare"
 	"bikegeo/pkg/frames"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
@@ -70,7 +71,7 @@ func (a *App) runValidate(args []string) int {
 		}
 	} else {
 		for _, tok := range posArgs {
-			f, impSz, err := ResolveFrameByToken(allFrames, tok)
+			f, impSz, err := compare.ResolveFrameByToken(allFrames, tok)
 			if err != nil {
 				fmt.Fprintf(a.Err, "Error: %v\n", err)
 				return 1
@@ -165,7 +166,7 @@ func (a *App) runValidate(args []string) int {
 		}
 
 		title := fmt.Sprintf("CAD Geometry Validation Summary (%d Frames)", len(bundles))
-		if err := RenderOutput(a.Out, a.Format, title, "", headers, rows); err != nil {
+		if err := a.render(title, "", headers, rows); err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}
@@ -228,7 +229,7 @@ func (a *App) renderDetailedValidation(b ValidationResultBundle) {
 		fmt.Sprintf("%.1f mm", b.Bike.ForkRake),
 		fmt.Sprintf("%.1f mm", b.Bike.Wheelbase),
 	}
-	_ = RenderOutput(a.Out, a.Format, title, subtitle, specHeaders, [][]string{specRow})
+	_ = a.render(title, subtitle, specHeaders, [][]string{specRow})
 
 	// 2. Master Stack Equation & Headset Proof
 	fmt.Fprintln(a.Out, "\nMaster Stack Equation & Headset Proof:")
@@ -276,7 +277,7 @@ func (a *App) renderDetailedValidation(b ValidationResultBundle) {
 	if b.Bike.FrontCenter > 0 {
 		proofRows = append(proofRows, []string{"Published Front Center", fmt.Sprintf("%.1f mm", b.Bike.FrontCenter)})
 	}
-	_ = RenderOutput(a.Out, a.Format, "", "", proofHeaders, proofRows)
+	_ = a.render("", "", proofHeaders, proofRows)
 
 	if slop.HasCustomSlop() || slop.Reason != "" {
 		fmt.Fprintln(a.Out, "\nActive Geo Slop Overrides (geo_slop_mm):")

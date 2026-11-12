@@ -1,12 +1,5 @@
 package ideal
 
-// Float returns a pointer to v.
-//
-//go:fix inline
-func Float(v float64) *float64 {
-	return new(v)
-}
-
 // Range specifies an inclusive numeric interval [Min, Max].
 // If Min is nil, the range is unbounded below.
 // If Max is nil, the range is unbounded above.

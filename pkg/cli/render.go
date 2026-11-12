@@ -6,6 +6,8 @@ import (
 	"io"
 	"strings"
 	"unicode/utf8"
+
+	"bikegeo/pkg/report"
 )
 
 const (
@@ -28,24 +30,6 @@ func NormalizeFormat(f string) (string, error) {
 	}
 }
 
-// FooterSection defines a named section of text lines rendered beneath a table.
-type FooterSection struct {
-	Title string
-	Lines []string
-}
-
-// RenderOutput renders structured tabular data in the requested format (table, md, csv).
-func RenderOutput(
-	w io.Writer,
-	format string,
-	title string,
-	subtitle string,
-	headers []string,
-	rows [][]string,
-) error {
-	return RenderOutputWithFooter(w, format, title, subtitle, headers, rows, nil)
-}
-
 // RenderOutputWithFooter renders structured tabular data with optional footer sections.
 func RenderOutputWithFooter(
 	w io.Writer,
@@ -54,7 +38,7 @@ func RenderOutputWithFooter(
 	subtitle string,
 	headers []string,
 	rows [][]string,
-	footers []FooterSection,
+	footers []report.Footer,
 ) error {
 	norm, err := NormalizeFormat(format)
 	if err != nil {

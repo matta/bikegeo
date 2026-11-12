@@ -1,0 +1,30 @@
+{{template "head" .}}
+<h1>Help and glossary</h1>
+
+<section id="specs">
+<h2>Comparison specs</h2>
+<p>Each compared bike is <code>frame[:size][@fork][@sag%]</code>. The form builds these for you; you can also write them straight into the URL as repeated <code>col</code> parameters, and they mean exactly what they do on the command line.</p>
+<ul>
+<li><code>fenrir:L@110mm@20%</code> – Otso Fenrir, size L, 110&nbsp;mm fork at 20% sag.</li>
+<li><code>hayduke@rigid</code> – the frame's default size with its rigid fork (no sag).</li>
+<li><code>seven-expedition-926f:all@120mm</code> – every size of a frame.</li>
+<li>Allowed sag is 20%, 25% or 30%. Frames only accept forks inside their supported A2C range.</li>
+</ul>
+<p>Example: <a href="/?col=fenrir:L@110mm@20%25&amp;col=hayduke:S3@110mm@20%25">/?col=fenrir:L@110mm@20%25&amp;col=hayduke:S3@110mm@20%25</a></p>
+</section>
+
+<section id="zones">
+<h2>Reading the colours</h2>
+<p>Every scored cell shows its value plus <span class="zone-ideal key">✓ inside the ideal range</span>, <span class="zone-acceptable key">~ acceptable</span> or <span class="zone-outside key">✗ outside</span>, with the distance to the ideal. Scores run from +100 (ideal) down to -200; a bike's total is the weighted average of its sub-scores. The ranges below are the default <em>idmatch</em> profile.</p>
+</section>
+
+<section id="metrics">
+<h2>Metrics</h2>
+<div class="scroll"><table data-table="glossary">
+<thead><tr><th scope="col">Metric</th><th scope="col">ID</th><th scope="col">Unit</th><th scope="col">Ideal</th><th scope="col">Acceptable</th><th scope="col">Weight</th></tr></thead>
+<tbody>
+{{range .Metrics}}<tr id="metric-{{.ID}}" data-metric="{{.ID}}"><th scope="row" class="sticky">{{.Label}}</th><td><code>{{.ID}}</code></td><td>{{.Unit}}</td><td class="num">{{.Ideal}}</td><td class="num">{{.Acceptable}}</td><td class="num">{{if .Scored}}{{.Weight}}{{else}}display only{{end}}</td></tr>
+{{end}}</tbody>
+</table></div>
+</section>
+{{template "foot" .}}

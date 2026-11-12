@@ -1,4 +1,4 @@
-.PHONY: all fmt vet test check build run clean watch
+.PHONY: all fmt vet test check build run serve clean watch
 
 export PATH := $(HOME)/go/bin:$(PATH)
 
@@ -24,6 +24,9 @@ build:
 
 run: build
 	./bin/bikegeo compare
+
+serve: build
+	./bin/bikegeo serve --open
 
 clean:
 	rm -rf bin/
