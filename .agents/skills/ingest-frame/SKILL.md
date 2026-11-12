@@ -38,7 +38,7 @@ Create `pkg/frames/<id>.go`:
 - Enter literal, exact published numbers without altering them.
 
 ### Step 2: Run `bikegeo fit` to Diagnose Geometry & Review Automated Recommendations
-Run:
+Output is Markdown (tables plus indented text). Run:
 ```bash
 go run ./cmd/bikegeo fit <frame-id>
 ```

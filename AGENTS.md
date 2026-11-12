@@ -28,12 +28,21 @@ go fix ./... && go fmt ./... && make check
   - The shipped binary uses only the Go standard library (`flag`, `encoding/csv`, `net/http`, `html/template`, `embed`) with custom Unicode box-drawing, Markdown, and CSV table formatting in `pkg/cli/render.go`.
   - The single exception is `github.com/PuerkitoBio/goquery`, allowed **only** in `_test.go` files for DOM assertions. Never import it (or any third-party package) from non-test code; verify with `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo`, which must list only `bikegeo/...`.
   - All bike frames (`pkg/frames/*.go`), fork and stem catalogs (`pkg/catalog/catalog.go`), ideal fit profiles (`pkg/ideal/loader.go`), and the default comparison baseline (`compare.DefaultComparisonState()` in `pkg/compare/specs.go`, also reachable as `compare.DefaultComparisonState()`) are compiled directly as Go structs. There are no JSON data files or runtime persistence files.
-- **CLI and Web Share One Engine** (see [docs/WEB.md](docs/WEB.md)):
-  - `pkg/compare` holds spec parsing, `Run(Options)`, ranking/pruning and `BuildDocument`; `pkg/report` holds the presentation-neutral `Document`/`Table`/`Cell` types (cells carry `Zone` and `MetricID`); `pkg/cli` parses flags and prints; `pkg/web` serves HTML.
-  - Command table output goes through `App.render` / `App.renderFooters` so it prints in the CLI and is collected by `cli.RunDocument` for the web. Do not call `RenderOutput*` directly from commands.
-  - `bikegeo serve` is dispatched in `cmd/bikegeo/main.go` (`pkg/web` imports `pkg/cli`, never the reverse).
+- **Each Interface Lives Where It Is Used** (see [docs/WEB.md](docs/WEB.md)):
+  - The web (`bikegeo serve`) is for people; the CLI is for agents and scripts. A capability gets a surface only for a real audience, never by default.
+
+    | Capability | CLI (agents) | Web (people) |
+    | --- | --- | --- |
+    | `compare`, `validate`, `list` | yes | yes (`/`, `/validate`, `/frames`) |
+    | `fit` | yes | no |
+    | forks, stems, ideals, saddles, saddle-swap, handlebars | no | yes |
+
+  - Presentation lives in a **builder** that returns a `report.Document`: `compare.BuildDocument`, `validator.BuildValidationDocument`, `compare.BuildFrameListDocument`, `fit.BuildSweepDocument` / `fit.BuildAnalysisDocument`, and the web-only builders in `pkg/web` (`docb`). `pkg/report` holds the presentation-neutral `Document` (ordered `Sections` of tables and text), `Table` and `Cell` (cells carry `Zone` and `MetricID`). Builders set zones explicitly; never infer them from strings.
+  - The CLI (`pkg/cli`) parses flags, calls a builder and prints Markdown (`App.printDocument`). There is no `--format`: Markdown is the only output. `compare` keeps a many-bike comparison as one wide table (`DocOptions.Flat`) so programs can parse it.
+  - The web (`pkg/web`) turns the URL query into a builder call and renders HTML. `pkg/web` never imports `pkg/cli`; `pkg/cli` imports `pkg/web` only to dispatch `bikegeo serve`.
+  - Do not add a CLI subcommand for a human-browsing feature, or a web page for an agent-only tool. If both audiences need it, share a builder.
   - The web is strictly Web 1.0: `GET` forms, URL query as the only state, full-page responses, no JavaScript, no cookies. Controls must be populated from the parsed query.
-  - CLI output must remain byte-identical when refactoring; `pkg/cli/cli_test.go` is the guard. `bikegeo fit` can list tied candidate solutions in a varying order between runs; that is pre-existing.
+  - `bikegeo fit` can list tied candidate solutions in a varying order between runs; that is pre-existing.
 - **Per-Column Comparison Model (`ComparisonSetup`)**:
   - Every comparison column specifies `FrameID + Size + Fork (travel in mm or "rigid") + Sag %`.
   - Allows comparing the same frame across multiple sag points or fork capacities alongside different frames.
@@ -71,7 +80,7 @@ When adding or editing frame files in `pkg/frames/*.go`:
 ## Testing Strategy & Conventions
 
 - **Unit & Integration Tests**:
-  - Domain math, validation, canonicalization, ideal profiles, scoring, fit solver, and CLI subcommands (`compare`, `validate`, `list`, `forks`, `stems`, `ideals`, `fit`) are tested in `pkg/*/*_test.go`.
+  - Domain math, validation, canonicalization, ideal profiles, scoring, fit solver, and CLI subcommands (`compare`, `validate`, `list`, `fit`) are tested in `pkg/*/*_test.go`. CLI tests assert on cell values (`runCLIRows` flattens Markdown tables), not on padding.
   - HTTP handlers and templates are tested browserlessly in `pkg/web/web_test.go`: `httptest.NewRequest` (set `req.Host = "127.0.0.1:8080"`) → `web.New().ServeHTTP` → `goquery` selectors such as `tr[data-frame-id="..."] td[data-metric="..."]`. No Playwright, Selenium, or other browser automation.
 - **Command**:
   ```bash
