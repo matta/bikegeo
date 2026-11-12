@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"bikegeo/pkg/catalog"
+	"bikegeo/pkg/curve"
 	"bikegeo/pkg/geom2d"
 	"bikegeo/pkg/model"
 )
@@ -474,45 +475,24 @@ func EvaluateFitOval(oval model.FitOval, x, y float64) (float64, bool) {
 	return e.Evaluate(geom2d.Point2{X: x, Y: y})
 }
 
-// CalculateCockpitBaseScore calculates the base proximity score for a normalized radius R.
-// - Inside oval (R <= 1.0): Quadratic plateau from 100 (center) to 75 (edge).
-// - Outside oval (R > 1.0): Steep quadratic roll-off dropping from 75 to 0 at R = 1.25, with a -200 floor.
+// cockpitProximity scores a handlebar position by its normalized elliptical radius R
+// from the fit oval's center: 100 at the center, 75 at the oval edge (R = 1), 0 at
+// R = 2, and an asymptotic tail towards -200 beyond that. Defined with package curve so
+// it cannot contain flats or jumps.
+var cockpitProximity = curve.MustFalloff([]curve.Knot{{D: 1.0, Score: 75.0}}, 2.0, -200.0)
+
+// Versatility bonus tuning: spare setups near the oval center add up to
+// maxVersatilityShare of the remaining headroom to 100, reaching half of that
+// share at versatilityHalfCapacity of spare capacity.
+const (
+	maxVersatilityShare     = 0.4
+	versatilityHalfCapacity = 2.0
+)
+
+// CalculateCockpitBaseScore returns the base proximity score for a normalized radius R.
+// It is continuous and strictly decreasing for all R >= 0 (see pkg/curve).
 func CalculateCockpitBaseScore(r float64) float64 {
-	if r <= 1.0 {
-		return 100.0 - 25.0*r*r
-	}
-	score := 75.0 - 1200.0*(r-1.0)*(r-1.0)
-	if score < -200.0 {
-		return -200.0
-	}
-	return score
-}
-
-// CalculateStemPenalty computes the fit penalty (in points) and normalized deviation u
-// for a stem length relative to the frame's expected stem length range [minLen, maxLen].
-// At the midpoint L_mid, u = 0.0 and penalty = 0.0.
-// At the boundaries (minLen or maxLen), u = 1.0 and penalty = MaxStemPenalty (15.0).
-// Beyond the boundaries, the penalty grows steeply.
-func CalculateStemPenalty(stemLen, minLen, maxLen float64) (penalty float64, u float64) {
-	if minLen <= 0 || maxLen <= minLen {
-		return 0.0, 0.0
-	}
-	mid := (minLen + maxLen) / 2.0
-	halfSpan := (maxLen - minLen) / 2.0
-	if halfSpan <= 0 {
-		return 0.0, 0.0
-	}
-
-	u = math.Abs(stemLen-mid) / halfSpan
-
-	const maxPenalty = 15.0
-	if u <= 1.0 {
-		penalty = maxPenalty * u * u
-	} else {
-		// Beyond the expected boundary: full boundary penalty + steep slope
-		penalty = maxPenalty * (1.0 + 2.0*(u-1.0)*(u-1.0) + (u - 1.0))
-	}
-	return Round(penalty, 1), Round(u, 2)
+	return cockpitProximity.Score(r)
 }
 
 // EvaluateCockpitFit evaluates candidate HB points against a FitOval.
@@ -527,13 +507,12 @@ func EvaluateCockpitFit(
 ) model.CockpitFitResult {
 	if len(possible) == 0 {
 		return model.CockpitFitResult{
-			TargetOval:     oval,
-			BestR:          999,
-			CountInside:    0,
-			BaseScore:      -200.0,
-			ZeroFitPenalty: 25.0,
-			FinalSubScore:  -200.0,
-			HasFit:         false,
+			TargetOval:    oval,
+			BestR:         999,
+			CountInside:   0,
+			BaseScore:     -200.0,
+			FinalSubScore: -200.0,
+			HasFit:        false,
 		}
 	}
 
@@ -548,61 +527,51 @@ func EvaluateCockpitFit(
 	type evaluatedPoint struct {
 		pt          model.HBPoint
 		r           float64
-		isInside    bool
+		membership  float64 // 1 - R inside the oval, 0 outside
 		baseScore   float64
 		stemPenalty float64
-		compScore   float64
+		stemDevU    float64
+		bonus       float64
+		finalScore  float64
 	}
 
 	evaluated := make([]evaluatedPoint, len(possible))
 	countInside := 0
+	totalMembership := 0.0
 
 	for i, pt := range possible {
 		r, inside := EvaluateFitOval(oval, pt.HbX, pt.HbY)
-		baseScore := CalculateCockpitBaseScore(r)
-		var stemPenalty float64
-		if hasRange {
-			stemPenalty, _ = CalculateStemPenalty(pt.Stem.LengthMm, minStem, maxStem)
+		ep := evaluatedPoint{
+			pt:         pt,
+			r:          r,
+			membership: math.Max(0, 1.0-r),
+			baseScore:  CalculateCockpitBaseScore(r),
 		}
-		compScore := baseScore - stemPenalty
-		evaluated[i] = evaluatedPoint{
-			pt:          pt,
-			r:           r,
-			isInside:    inside,
-			baseScore:   baseScore,
-			stemPenalty: stemPenalty,
-			compScore:   compScore,
+		if hasRange {
+			ep.stemPenalty, ep.stemDevU = curve.StemPenalty(pt.Stem.LengthMm, minStem, maxStem)
 		}
 		if inside {
 			countInside++
 		}
+		totalMembership += ep.membership
+		evaluated[i] = ep
+	}
+
+	// Score every candidate as if it were the one chosen. The versatility bonus
+	// rewards the spare setups (all the others) sitting near the oval center,
+	// filling part of the headroom above the base score. Each candidate's score is
+	// a continuous function of the inputs, and the result is their maximum, so the
+	// final score is continuous no matter which candidate wins.
+	for i := range evaluated {
+		ep := &evaluated[i]
+		spare := totalMembership - ep.membership
+		ep.bonus = (curve.Peak - ep.baseScore) * curve.Saturating(maxVersatilityShare, versatilityHalfCapacity, spare)
+		ep.finalScore = ep.baseScore + ep.bonus - ep.stemPenalty
 	}
 
 	better := func(a, b evaluatedPoint) bool {
-		// Inside oval is always better than outside oval
-		if a.isInside != b.isInside {
-			return a.isInside
-		}
-
-		if a.isInside {
-			// Both inside oval: choose setup with highest composite score (BaseScore - StemPenalty)
-			diffScore := a.compScore - b.compScore
-			if math.Abs(diffScore) > 0.001 {
-				return a.compScore > b.compScore
-			}
-		} else {
-			// Both outside oval: prefer significantly closer to oval boundary
-			diffR := a.r - b.r
-			if math.Abs(diffR) > 0.05 {
-				return a.r < b.r
-			}
-			diffScore := a.compScore - b.compScore
-			if math.Abs(diffScore) > 0.001 {
-				return a.compScore > b.compScore
-			}
-			if math.Abs(diffR) > 0.001 {
-				return a.r < b.r
-			}
+		if diff := a.finalScore - b.finalScore; math.Abs(diff) > 0.001 {
+			return diff > 0
 		}
 
 		// Tie-breaker 1: closest stem length to stem range midpoint (or canonical)
@@ -638,45 +607,16 @@ func EvaluateCockpitFit(
 		}
 	}
 
-	baseScore := CalculateCockpitBaseScore(best.r)
-	var stemPenalty, stemDevU float64
-	if hasRange {
-		stemPenalty, stemDevU = CalculateStemPenalty(best.pt.Stem.LengthMm, minStem, maxStem)
-	}
-
-	var bonus, penalty, finalScore float64
-
-	if countInside >= 1 {
-		if countInside >= 4 {
-			bonus = 10.0
-		} else if countInside >= 2 {
-			bonus = 5.0
-		} else {
-			bonus = 0.0
-		}
-		finalScore = math.Min(100.0, baseScore+bonus) - stemPenalty
-		if finalScore < -200.0 {
-			finalScore = -200.0
-		}
-	} else {
-		penalty = 25.0
-		finalScore = baseScore - penalty - stemPenalty
-		if finalScore < -200.0 {
-			finalScore = -200.0
-		}
-	}
-
 	return model.CockpitFitResult{
 		TargetOval:        oval,
 		SelectedHB:        best.pt,
 		BestR:             Round(best.r, 3),
 		CountInside:       countInside,
-		BaseScore:         Round(baseScore, 1),
-		VersatilityBonus:  bonus,
-		ZeroFitPenalty:    penalty,
-		StemPenalty:       stemPenalty,
-		StemNormalizedDev: stemDevU,
-		FinalSubScore:     Round(finalScore, 1),
+		BaseScore:         best.baseScore,
+		VersatilityBonus:  best.bonus,
+		StemPenalty:       best.stemPenalty,
+		StemNormalizedDev: best.stemDevU,
+		FinalSubScore:     best.finalScore,
 		HasFit:            countInside > 0,
 	}
 }

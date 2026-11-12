@@ -823,7 +823,6 @@ type CockpitFitResult struct {
 	CountInside       int
 	BaseScore         float64
 	VersatilityBonus  float64
-	ZeroFitPenalty    float64
 	StemPenalty       float64 // Penalty points for using stem near/at extreme of expected range
 	StemNormalizedDev float64 // Normalized deviation u = |L - L_mid| / HalfSpan
 	FinalSubScore     float64

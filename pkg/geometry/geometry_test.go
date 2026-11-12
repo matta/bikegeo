@@ -728,25 +728,39 @@ func TestFitOval_Geometry(t *testing.T) {
 }
 
 func TestCockpitBaseScore_RollOff(t *testing.T) {
-	// Center: 100
-	if s := geometry.CalculateCockpitBaseScore(0.0); s != 100.0 {
-		t.Errorf("R=0 expected 100, got %.1f", s)
+	checks := []struct{ r, want float64 }{
+		{0.0, 100.0}, // center
+		{0.5, 87.5},  // mid-oval: linear between 100 and 75
+		{1.0, 75.0},  // oval edge
+		{2.0, 0.0},   // one oval radius past the edge
 	}
-	// Mid-oval: R=0.5 -> 100 - 25*(0.25) = 93.75
-	if s := geometry.CalculateCockpitBaseScore(0.5); math.Abs(s-93.75) > 0.01 {
-		t.Errorf("R=0.5 expected 93.75, got %.2f", s)
+	for _, c := range checks {
+		if s := geometry.CalculateCockpitBaseScore(c.r); math.Abs(s-c.want) > 1e-9 {
+			t.Errorf("R=%.2f expected %.2f, got %.4f", c.r, c.want, s)
+		}
 	}
-	// Boundary: R=1.0 -> 75
-	if s := geometry.CalculateCockpitBaseScore(1.0); s != 75.0 {
-		t.Errorf("R=1.0 expected 75, got %.1f", s)
+}
+
+// The cockpit proximity score must never go flat or jump, however far the bars are.
+func TestCockpitBaseScore_StrictlyDecreasingAndContinuous(t *testing.T) {
+	prev := geometry.CalculateCockpitBaseScore(0)
+	for i := 1; i <= 100000; i++ {
+		r := float64(i) * 0.001
+		cur := geometry.CalculateCockpitBaseScore(r)
+		if !(cur < prev) {
+			t.Fatalf("not strictly decreasing at R=%.3f: %.6f then %.6f", r, prev, cur)
+		}
+		if !(cur > -200.0) {
+			t.Fatalf("R=%.3f reached the -200 asymptote: %.6f", r, cur)
+		}
+		if prev-cur > 0.5 {
+			t.Fatalf("jump of %.3f at R=%.3f", prev-cur, r)
+		}
+		prev = cur
 	}
-	// Steep roll-off: R=1.25 -> 75 - 1200*(0.25)^2 = 0
-	if s := geometry.CalculateCockpitBaseScore(1.25); math.Abs(s) > 0.01 {
-		t.Errorf("R=1.25 expected 0.0, got %.1f", s)
-	}
-	// Steep roll-off floor: R=1.50 -> 75 - 1200*(0.5)^2 = -225 clamped to -200
-	if s := geometry.CalculateCockpitBaseScore(1.50); s != -200.0 {
-		t.Errorf("R=1.50 expected floor -200, got %.1f", s)
+	// Far out, two different distances still score differently.
+	if !(geometry.CalculateCockpitBaseScore(8.15) < geometry.CalculateCockpitBaseScore(5.55)) {
+		t.Error("R=8.15 should score lower than R=5.55")
 	}
 }
 
@@ -767,15 +781,27 @@ func TestEvaluateCockpitFit(t *testing.T) {
 	if resMulti.BestR != 0.0 {
 		t.Errorf("Expected BestR 0.0, got %.3f", resMulti.BestR)
 	}
-	if resMulti.VersatilityBonus != 5.0 {
-		t.Errorf("Expected +5 bonus for 3 setups, got %.1f", resMulti.VersatilityBonus)
+	// The bonus fills headroom above the base score; a perfectly centered setup has none.
+	if resMulti.VersatilityBonus != 0.0 {
+		t.Errorf("Expected no bonus headroom at the oval center, got %.1f", resMulti.VersatilityBonus)
 	}
 	if resMulti.FinalSubScore != 100.0 {
-		t.Errorf("Expected final score capped at 100.0, got %.1f", resMulti.FinalSubScore)
+		t.Errorf("Expected final score 100.0, got %.1f", resMulti.FinalSubScore)
 	}
 
-	// Scenario 2: 0 setups inside (missing-fit penalty: BaseScore - 25)
-	// Closest is at R=1.10: BaseScore = 75 - 1200*(0.1)^2 = 63.0. Final = 63 - 25 = 38.0
+	// Spare setups lift an off-center selection, without ever exceeding 100.
+	offCenterAlone := geometry.EvaluateCockpitFit(setupsInside[1:2], canonicalStem, oval)
+	offCenterWithSpares := geometry.EvaluateCockpitFit(setupsInside[1:], canonicalStem, oval)
+	if !(offCenterWithSpares.FinalSubScore > offCenterAlone.FinalSubScore) {
+		t.Errorf("Expected spare setups to raise the score: alone %.2f, with spares %.2f", offCenterAlone.FinalSubScore, offCenterWithSpares.FinalSubScore)
+	}
+	if offCenterWithSpares.FinalSubScore >= 100.0 {
+		t.Errorf("Expected score below 100, got %.2f", offCenterWithSpares.FinalSubScore)
+	}
+
+	// Scenario 2: 0 setups inside. There is no separate missing-fit penalty: the score
+	// continues smoothly past the oval edge (75 at R=1). At R=1.10 it is just below 75:
+	// BaseScore = -200 + 275*h/(h+0.1), h = 200/75 -> ~65.1, and Final equals BaseScore.
 	// For R=1.10 along minor axis: dx = 11*cos(30) = 9.526, dy = -11*sin(30) = -5.5
 	dx := 11.0 * math.Cos(30.0*math.Pi/180.0)
 	dy := -11.0 * math.Sin(30.0*math.Pi/180.0)
@@ -786,14 +812,11 @@ func TestEvaluateCockpitFit(t *testing.T) {
 	if resZero.CountInside != 0 {
 		t.Errorf("Expected 0 inside, got %d", resZero.CountInside)
 	}
-	if math.Abs(resZero.BaseScore-63.0) > 0.1 {
-		t.Errorf("Expected BaseScore ~63.0, got %.1f", resZero.BaseScore)
+	if math.Abs(resZero.BaseScore-65.1) > 0.1 {
+		t.Errorf("Expected BaseScore ~65.1, got %.2f", resZero.BaseScore)
 	}
-	if resZero.ZeroFitPenalty != 25.0 {
-		t.Errorf("Expected ZeroFitPenalty 25.0, got %.1f", resZero.ZeroFitPenalty)
-	}
-	if math.Abs(resZero.FinalSubScore-38.0) > 0.1 {
-		t.Errorf("Expected FinalSubScore ~38.0, got %.1f", resZero.FinalSubScore)
+	if math.Abs(resZero.FinalSubScore-resZero.BaseScore) > 1e-9 {
+		t.Errorf("Expected FinalSubScore == BaseScore with a single outside setup, got %.2f vs %.2f", resZero.FinalSubScore, resZero.BaseScore)
 	}
 }
 
@@ -935,42 +958,6 @@ func TestSaddleElevationAndTranslationMethods(t *testing.T) {
 	}
 }
 
-func TestCalculateStemPenalty(t *testing.T) {
-	minLen, maxLen := 60.0, 100.0 // Mid = 80mm, HalfSpan = 20mm
-
-	// Midpoint: 80mm -> u = 0, penalty = 0
-	pen, u := geometry.CalculateStemPenalty(80.0, minLen, maxLen)
-	if pen != 0.0 || u != 0.0 {
-		t.Errorf("At midpoint 80mm: expected pen=0, u=0; got pen=%.1f, u=%.2f", pen, u)
-	}
-
-	// Quarter-deviation: 70mm or 90mm -> u = 0.5, penalty = 15 * 0.25 = 3.8
-	pen70, u70 := geometry.CalculateStemPenalty(70.0, minLen, maxLen)
-	if math.Abs(pen70-3.8) > 0.1 || u70 != 0.5 {
-		t.Errorf("At 70mm: expected pen=3.8, u=0.5; got pen=%.1f, u=%.2f", pen70, u70)
-	}
-	pen90, u90 := geometry.CalculateStemPenalty(90.0, minLen, maxLen)
-	if math.Abs(pen90-3.8) > 0.1 || u90 != 0.5 {
-		t.Errorf("At 90mm: expected pen=3.8, u=0.5; got pen=%.1f, u=%.2f", pen90, u90)
-	}
-
-	// Boundary: 60mm or 100mm -> u = 1.0, penalty = 15.0
-	pen60, u60 := geometry.CalculateStemPenalty(60.0, minLen, maxLen)
-	if pen60 != 15.0 || u60 != 1.0 {
-		t.Errorf("At 60mm: expected pen=15.0, u=1.0; got pen=%.1f, u=%.2f", pen60, u60)
-	}
-	pen100, u100 := geometry.CalculateStemPenalty(100.0, minLen, maxLen)
-	if pen100 != 15.0 || u100 != 1.0 {
-		t.Errorf("At 100mm: expected pen=15.0, u=1.0; got pen=%.1f, u=%.2f", pen100, u100)
-	}
-
-	// Beyond boundary: 110mm -> u = 1.5, penalty = 30.0
-	pen110, u110 := geometry.CalculateStemPenalty(110.0, minLen, maxLen)
-	if pen110 != 30.0 || u110 != 1.5 {
-		t.Errorf("At 110mm: expected pen=30.0, u=1.5; got pen=%.1f, u=%.2f", pen110, u110)
-	}
-}
-
 func TestEvaluateCockpitFit_StemExtremityPreference(t *testing.T) {
 	oval := geometry.DefaultFitOval(500.0, 700.0)
 	canonicalStem := model.StemSpec{LengthMm: 80, AngleDeg: -6}
@@ -1011,8 +998,45 @@ func TestEvaluateCockpitFit_StemExtremityPreference(t *testing.T) {
 	if resOnly100.StemPenalty != 15.0 {
 		t.Errorf("Expected 15.0 stem penalty for 100mm stem, got %.1f", resOnly100.StemPenalty)
 	}
-	// Final score should reflect down-weighting: BaseScore (~99.8) - StemPenalty (15.0) = ~84.8
-	if math.Abs(resOnly100.FinalSubScore-84.8) > 0.2 {
-		t.Errorf("Expected FinalSubScore ~84.8 for 100mm stem, got %.1f", resOnly100.FinalSubScore)
+	// Final score should reflect down-weighting: BaseScore (97.5 at R=0.1) - StemPenalty (15.0) = 82.5
+	if math.Abs(resOnly100.FinalSubScore-82.5) > 0.2 {
+		t.Errorf("Expected FinalSubScore ~82.5 for 100mm stem, got %.1f", resOnly100.FinalSubScore)
+	}
+}
+
+// Moving one candidate across the oval edge must not make the final score jump.
+func TestEvaluateCockpitFit_ContinuousAcrossOvalEdge(t *testing.T) {
+	oval := geometry.DefaultFitOval(500.0, 700.0)
+	canonicalStem := model.StemSpec{LengthMm: 80, AngleDeg: -6}
+	expectedRange := []float64{60.0, 100.0}
+	cos30, sin30 := math.Cos(30.0*math.Pi/180.0), math.Sin(30.0*math.Pi/180.0)
+
+	// A second, fixed candidate sits comfortably inside; the first slides along the minor axis.
+	fixed := model.HBPoint{Stem: model.StemSpec{LengthMm: 90, AngleDeg: -6}, SpacerMm: 5, HbX: 500 + 4*cos30, HbY: 700 - 4*sin30}
+
+	prev := math.NaN()
+	for i := 0; i <= 400; i++ {
+		rr := 0.5 + float64(i)*0.0025 // R from 0.5 to 1.5, crossing the oval edge at 1.0
+		moving := model.HBPoint{Stem: model.StemSpec{LengthMm: 80, AngleDeg: -6}, SpacerMm: 0, HbX: 500 + rr*10*cos30, HbY: 700 - rr*10*sin30}
+		res := geometry.EvaluateCockpitFit([]model.HBPoint{moving, fixed}, canonicalStem, oval, expectedRange)
+		if !math.IsNaN(prev) && math.Abs(res.FinalSubScore-prev) > 1.0 {
+			t.Fatalf("final score jumps from %.3f to %.3f near R=%.4f", prev, res.FinalSubScore, rr)
+		}
+		prev = res.FinalSubScore
+	}
+}
+
+// Candidates that are all hopelessly outside the oval must still be told apart.
+func TestEvaluateCockpitFit_FarOutsideStillRanksByDistance(t *testing.T) {
+	oval := geometry.DefaultFitOval(500.0, 700.0)
+	stem := model.StemSpec{LengthMm: 100, AngleDeg: -6}
+	var prev float64
+	for i, off := range []float64{50, 63, 74, 87, 103} {
+		pt := model.HBPoint{Stem: stem, HbX: 500 - off, HbY: 700}
+		res := geometry.EvaluateCockpitFit([]model.HBPoint{pt}, stem, oval)
+		if i > 0 && !(res.FinalSubScore < prev) {
+			t.Errorf("offset %vmm scored %.3f, not below the nearer offset's %.3f", off, res.FinalSubScore, prev)
+		}
+		prev = res.FinalSubScore
 	}
 }

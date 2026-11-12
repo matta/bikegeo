@@ -43,6 +43,9 @@ go fix ./... && go fmt ./... && make check
   - Do not add a CLI subcommand for a human-browsing feature, or a web page for an agent-only tool. If both audiences need it, share a builder.
   - The web is strictly Web 1.0: `GET` forms, URL query as the only state, full-page responses, no JavaScript, no cookies. Controls must be populated from the parsed query.
   - `bikegeo fit` can list tied candidate solutions in a varying order between runs; that is pre-existing.
+- **Score Curves Live in `pkg/curve`**:
+  - Every scoring shape (attribute falloffs, cockpit proximity, stem penalty, versatility bonus) is built from `pkg/curve`, which cannot express flat stretches or jumps: curves are continuous, strictly decreasing and approach their floor asymptotically, so two different failures never tie.
+  - Never clamp, round, or add stepped (count-based or fixed) bonuses and penalties to a score in scoring code. If a new curve shape is needed, add it to `pkg/curve` with property tests.
 - **Per-Column Comparison Model (`ComparisonSetup`)**:
   - Every comparison column specifies `FrameID + Size + Fork (travel in mm or "rigid") + Sag %`.
   - Allows comparing the same frame across multiple sag points or fork capacities alongside different frames.

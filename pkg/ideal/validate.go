@@ -112,21 +112,15 @@ func ValidateProfile(p *Profile) error {
 				}
 			}
 
-			// Falloff validation for each bounded side
-			if attr.Ideal.Min != nil {
-				if attr.Falloff == nil || attr.Falloff.Below == nil || *attr.Falloff.Below <= 0 {
-					return fmt.Errorf("profile %q attribute %q must define positive falloff.below", p.Name, attr.ID)
-				}
-			}
-			if attr.Ideal.Max != nil {
-				if attr.Falloff == nil || attr.Falloff.Above == nil || *attr.Falloff.Above <= 0 {
-					return fmt.Errorf("profile %q attribute %q must define positive falloff.above", p.Name, attr.ID)
-				}
-			}
-
 			// Floor validation
 			if attr.Floor != nil && *attr.Floor >= 0 {
 				return fmt.Errorf("profile %q attribute %q floor (%.1f) must be negative", p.Name, attr.ID, *attr.Floor)
+			}
+
+			// Compile the score curves: rejects missing falloffs and any shape
+			// that would be flat, rising or discontinuous.
+			if _, err := attr.compileCurves(); err != nil {
+				return fmt.Errorf("profile %q %w", p.Name, err)
 			}
 		}
 	}

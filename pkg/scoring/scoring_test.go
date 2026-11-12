@@ -509,7 +509,7 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 		t.Errorf("Expected cell to show '3 ✓', got %q", critClamp.FormattedCell)
 	}
 
-	// 2. Zero setups inside oval (steep roll-off + -25 penalty)
+	// 2. Zero setups inside oval (continuous roll-off past the oval edge)
 	// Place single stem outside oval at R = 1.10 along minor axis
 	dx := 11.0 * math.Cos(30.0*math.Pi/180.0)
 	dy := -11.0 * math.Sin(30.0*math.Pi/180.0)
@@ -533,9 +533,9 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 		},
 	}
 	resZero := ScoreRow(rowZero, prof)
-	// BaseScore = 75 - 1200*(0.1)^2 = 63.0. Final = 63.0 - 25.0 = 38.0
-	if math.Abs(resZero.Total-38.0) > 0.5 {
-		t.Errorf("Expected score ~38.0 for R=1.10 with zero-fit penalty, got %.1f", resZero.Total)
+	// BaseScore at R=1.10 is ~65.1 (continuous past the oval edge, no flat penalty).
+	if math.Abs(resZero.Total-65.1) > 0.5 {
+		t.Errorf("Expected score ~65.1 for R=1.10, got %.1f", resZero.Total)
 	}
 }
 
@@ -668,17 +668,71 @@ func TestDescribeLoss_CockpitFitOffset_ZeroFits(t *testing.T) {
 					HbX:      474.0, // 26mm short
 					HbY:      756.0, // 56mm high
 				},
-				BestR:          5.37,
-				CountInside:    0,
-				ZeroFitPenalty: 25.0,
-				StemPenalty:    15.0,
+				BestR:       5.37,
+				CountInside: 0,
+				StemPenalty: 15.0,
 			},
 		},
 	}
 
 	desc := DescribeLossWithRow(spec, meta, -200, 5.37, ideal.ZoneOutside, &row)
-	expected := "Handlebar Clamp Fit: 0 valid setups in fit window (closest is 100mm -6° +0mm, R=5.37, reach: 26mm short, stack: 56mm high; -25 penalty, -15 stem penalty)"
+	expected := "Handlebar Clamp Fit: 0 valid setups in fit window (closest is 100mm -6° +0mm, R=5.37, reach: 26mm short, stack: 56mm high, -15 stem penalty)"
 	if desc != expected {
 		t.Errorf("\nExpected: %s\nGot:      %s", expected, desc)
+	}
+}
+
+// Regression: three setups identical except for how far short the bars fall must
+// rank by that distance, however far outside the fit oval they all are. A hard
+// floor on the cockpit curve once made them tie, letting minor criteria decide.
+func TestScoreAllRows_FarOutsideCockpitStillRanksByDistance(t *testing.T) {
+	prof := &ideal.Profile{
+		Name:           "test-far-cockpit",
+		SaddleHeightMm: new(float64(746)),
+		Attributes: []ideal.AttributeSpec{
+			{
+				ID:         "handlebar_clamp_fit",
+				Weight:     15,
+				Ideal:      ideal.AtLeast(100),
+				Acceptable: ideal.AtLeast(75),
+				EdgeScore:  new(float64(75)),
+				Falloff:    ideal.FalloffBelow(75),
+				Floor:      new(float64(-200)),
+			},
+			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), new(float64(75)), ideal.FalloffBoth(15, 15)),
+			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), new(float64(75)), ideal.FalloffBoth(10, 10)),
+		},
+	}
+
+	brp := model.BRPPoint{BrpX: -219.0, BrpY: 713.0, BrpSetbackMm: 219.0}
+	stem := model.StemSpec{LengthMm: 100, AngleDeg: -6}
+	targetHbX := -219.0 + math.Sqrt(700.0*700.0-13.0*13.0)
+	targetHbY := 713.0 + 13.0
+
+	// Reach shortfalls (mm) from the target, listed from worst to best.
+	shortfalls := []float64{103, 87, 74, 63, 50}
+	var rows []model.CanonicalComparisonRow
+	for _, short := range shortfalls {
+		rows = append(rows, model.CanonicalComparisonRow{
+			Bike: model.BikeGeometry{CanonicalStem: stem},
+			Canonical: model.BikeFitAnalysis{
+				DeadCenterBRP: brp,
+				PossibleHBs: []model.HBPoint{
+					{Stem: stem, HbX: targetHbX - short, HbY: targetHbY, SaddleHbMm: 700 - short, SaddleHbDropMm: 13},
+				},
+			},
+		})
+	}
+
+	results := ScoreAllRows(rows, prof)
+	for i := 1; i < len(results); i++ {
+		if !(results[i].Total > results[i-1].Total) {
+			t.Errorf("shortfall %.0fmm scored %.3f, not above shortfall %.0fmm at %.3f",
+				shortfalls[i], results[i].Total, shortfalls[i-1], results[i-1].Total)
+		}
+		if results[i].Rank >= results[i-1].Rank {
+			t.Errorf("shortfall %.0fmm ranked %d, not better than shortfall %.0fmm at %d",
+				shortfalls[i], results[i].Rank, shortfalls[i-1], results[i-1].Rank)
+		}
 	}
 }

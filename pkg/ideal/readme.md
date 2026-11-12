@@ -92,15 +92,14 @@ When scoring cockpits against biomechanical profiles, handlebar positions are as
 - **Dimensions**: Semi-minor axis `a = 10.0 mm` (±1 cm horizontal) and semi-major axis `b = 20.0 mm` (±2 cm vertical).
 - **Rotation**: 30° clockwise tilt, matching frame sizing geometry where longer reach requires taller stack.
 - **Normalized Radius `R`**: `R = √((p_minor / 10)² + (p_major / 20)²)`
-  - `R ≤ 1.0`: Inside oval (`BaseScore = 100 - 25 * R²`).
-  - `R > 1.0`: Steep roll-off (`BaseScore = 75 - 1200 * (R - 1.0)²`, reaching 0 at `R = 1.25` and floor of -200).
-- **Versatility Bonus**: Diminishing returns scheme (`+0` for 1 valid setup, `+5` for 2–3, `+10` for 4+ setups inside oval).
-- **Missing-Fit Penalty**: Flat `-25 point` penalty if 0 setups land inside the oval.
+  - Proximity is a single `curve.Falloff` over R: `BaseScore = 100 - 25 * R` inside the oval (`R ≤ 1.0`, 75 at the edge), reaching 0 at `R = 2`, then an asymptotic tail towards -200 that is approached but never reached. It is continuous and strictly decreasing, so two setups far outside the oval always score differently.
+- **Versatility Bonus**: Spare setups near the oval center fill part of the headroom above the base score: `Bonus = (100 - BaseScore) * 0.4 * E / (E + 2)`, where `E = Σ max(0, 1 - R_i)` over every other candidate. There are no stepped bonuses and no cap is needed.
+- **No missing-fit penalty**: The score is continuous across the oval edge; there is no flat deduction for having zero setups inside.
 - **Stem Extremity Penalty**: When evaluating setups against the frame's expected stem range `[L_min, L_max]` (midpoint `L_mid`, half-span `H`):
   - Normalized deviation: `u = |L - L_mid| / H`.
   - For `u ≤ 1.0`: `StemPenalty = 15.0 * u²` (steeper beyond bounds).
-  - Candidates inside the oval are selected to maximize `CompositeScore = BaseScore - StemPenalty`, preferring sweet-spot stems (e.g., 80mm on a 60–100mm frame) over boundary stems (60mm or 100mm) that leave little room for fit adjustments.
-  - Boundary stems incur up to a 15-point deduction (`FinalScore = min(100, BaseScore + Bonus) - StemPenalty`).
+  - The selected setup maximizes `FinalScore = BaseScore + Bonus - StemPenalty` across all candidates, preferring sweet-spot stems (e.g., 80mm on a 60–100mm frame) over boundary stems that leave little room for fit adjustments. For setups that are all far outside the oval this can favor a mid-range stem over a slightly closer boundary stem.
+  - Boundary stems incur up to a 15-point deduction.
 
 When targets are present in legacy profiles without `handlebar_clamp_fit`, `SelectBestHBWithDrop` selects the optimal stem and spacer combination using strict hierarchy:
 1. **Primary (`saddle_hb`)**: Minimum rounded mm distance to the distance target range `(d)`.
@@ -118,7 +117,7 @@ When targets are present in legacy profiles without `handlebar_clamp_fit`, `Sele
 Built directly around the idmatch Bikelab report:
 - `saddle_height_mm`: `746`
 - `brp_setback`: Target `219 mm` (`ideal: 219, acceptable: 214–224, edge_score: 75, falloff: 20`, weight: 10)
-- `handlebar_clamp_fit`: Target `≥100 pts` (`acceptable: ≥75, edge_score: 75, falloff: 75, floor: -200`, weight: 15)
+- `handlebar_clamp_fit`: Target `≥100 pts` (`acceptable: ≥75, edge_score: 75, falloff: 75, floor: -200` (asymptote), weight: 15)
 - `saddle_hb`: Display-only with target `700 mm` (`ideal: 695–705, acceptable: 685–715`)
 - `saddle_hb_drop`: Display-only with target `+3 mm` relative to sit-bone position (`ideal: -2–8, acceptable: -10–16`; corresponds to `+13 mm` above the lowered SQlab 70 mm BRP plane)
 - `seatpost_extension`: Target `250–310 mm` (`acceptable: 210–340, edge_score: 75, falloff: 25`, weight: 4) — Proxy for standover clearance and seatpost/dropper fitment: `SaddleHeightMm - SeatTubeLength`.
@@ -128,3 +127,12 @@ Built directly around the idmatch Bikelab report:
 - `hta`: Display-only (`ActiveHta`)
 - `seat_to_rc`: Display-only Seat Axis–Rear Axle (horizontal distance from the Seat Axis Point to rear axle, deprecated in favor of `frontwt`)
 - `sparevert`: Display-only Seat Axis–HT Drop (vertical drop from the Seat Axis Point to head tube top `SaddleHeight * sin(STA) - Stack`)
+
+## Score Curves (`pkg/curve`)
+
+Every score shape comes from `pkg/curve`; scoring code never clamps, rounds, or adds stepped bonuses.
+
+- An attribute's `Ideal`, `Acceptable`, `EdgeScore` and `Falloff` compile (`AttributeSpec.compileCurves`) into one `curve.Falloff` per bounded side, measuring distance outside the ideal range: straight from 100 to `EdgeScore` across the acceptable band, then from there a hyperbolic tail that crosses 0 at `Falloff` past the acceptable edge and approaches `Floor` without reaching it.
+- `curve.NewFalloff` rejects anything that could be flat, rising or discontinuous, and `ValidateProfile` compiles every attribute, so a profile with such a curve fails to load. In particular a non-empty acceptable band needs `edge_score < 100`.
+- The only plateau is the ideal range itself.
+- The curves are tested on their own in `pkg/curve/curve_test.go` (continuity, strict monotonicity, floor never reached).

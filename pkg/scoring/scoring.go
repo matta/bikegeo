@@ -410,7 +410,7 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 				offsetPart = ", " + offsetStr
 			}
 			if cfr.CountInside == 0 {
-				return fmt.Sprintf("Handlebar Clamp Fit: 0 valid setups in fit window (closest is %.0fmm %.0f° %s%.0fmm, R=%.2f%s; -25 penalty%s)",
+				return fmt.Sprintf("Handlebar Clamp Fit: 0 valid setups in fit window (closest is %.0fmm %.0f° %s%.0fmm, R=%.2f%s%s)",
 					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, stemNote)
 			}
 			plural := "s"

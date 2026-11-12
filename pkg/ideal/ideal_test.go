@@ -147,10 +147,8 @@ func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
 	if res := Evaluate(spec, meta, 200, nil); res.Zone != ZoneOutside || math.Abs(res.SubScore-0) > 0.001 {
 		t.Errorf("Seat-RC 200 expected ZoneOutside / 0, got %v / %.1f", res.Zone, res.SubScore)
 	}
-	// 150 -> Below floor (-100 clamped)
-	if res := Evaluate(spec, meta, 150, nil); res.SubScore != -100 {
-		t.Errorf("Seat-RC 150 expected clamped to -100, got %.1f", res.SubScore)
-	}
+	// Far below: keeps losing points, approaching but never reaching the -100 floor.
+	assertStrictlyDecreasingAboveFloor(t, spec, meta, []float64{199, 180, 150, 100, 0, -1000, -1e6}, -100)
 }
 
 func TestEvaluate_DesignDocTable(t *testing.T) {
@@ -176,13 +174,13 @@ func TestEvaluate_DesignDocTable(t *testing.T) {
 		expectedCell string
 	}{
 		{596, ZoneOutside, 0, "596 ✗ 34 sht"},
-		{601, ZoneOutside, 30, "601 ✗ 29 sht"},
+		{601, ZoneOutside, 26.1, "601 ✗ 29 sht"},
 		{606, ZoneAcceptable, 60, "606 ~ 24 sht"},
 		{618, ZoneAcceptable, 80, "618 ~ 12 sht"},
 		{630, ZoneIdeal, 100, "630 ✓"},
 		{635, ZoneIdeal, 100, "635 ✓"},
 		{642, ZoneIdeal, 100, "642 ✓"},
-		{645, ZoneOutside, 40, "645 ✗ 3 lng"},
+		{645, ZoneOutside, 30.8, "645 ✗ 3 lng"},
 		{647, ZoneOutside, 0, "647 ✗ 5 lng"},
 	}
 
@@ -191,7 +189,7 @@ func TestEvaluate_DesignDocTable(t *testing.T) {
 		if res.Zone != tc.expectedZone {
 			t.Errorf("val %.0f: expected zone %v, got %v", tc.val, tc.expectedZone, res.Zone)
 		}
-		if math.Abs(res.SubScore-tc.expectedSub) > 0.001 {
+		if math.Abs(res.SubScore-tc.expectedSub) > 0.05 {
 			t.Errorf("val %.0f: expected sub-score %.1f, got %.1f", tc.val, tc.expectedSub, res.SubScore)
 		}
 		if res.FormattedCell != tc.expectedCell {
@@ -232,10 +230,8 @@ func TestEvaluate_OneSidedChainstay(t *testing.T) {
 	if res := Evaluate(spec, meta, 420, nil); res.Zone != ZoneOutside || math.Abs(res.SubScore-0) > 0.001 {
 		t.Errorf("Chainstay 420 expected ZoneOutside / 0, got %v / %.1f", res.Zone, res.SubScore)
 	}
-	// 350 -> Below floor (-100 clamped)
-	if res := Evaluate(spec, meta, 350, nil); res.SubScore != -100 {
-		t.Errorf("Chainstay 350 expected clamped to -100, got %.1f", res.SubScore)
-	}
+	// Far below: keeps losing points, approaching but never reaching the -100 floor.
+	assertStrictlyDecreasingAboveFloor(t, spec, meta, []float64{419, 400, 350, 200, 0, -1000, -1e6}, -100)
 }
 
 func TestEvaluate_DisplayOnly(t *testing.T) {
@@ -380,5 +376,73 @@ func TestEvaluate_DirectionalWordsAndBoundaryRounding(t *testing.T) {
 		if ev.FormattedCell != tc.expected {
 			t.Errorf("%s(%.2f): expected %q, got %q", tc.id, tc.val, tc.expected, ev.FormattedCell)
 		}
+	}
+}
+
+// assertStrictlyDecreasingAboveFloor checks that each successive value (ordered
+// from least to most extreme) scores strictly lower, and always above floor.
+func assertStrictlyDecreasingAboveFloor(t *testing.T, spec AttributeSpec, meta AttributeMeta, vals []float64, floor float64) {
+	t.Helper()
+	prev := math.Inf(1)
+	for _, v := range vals {
+		got := Evaluate(spec, meta, v, nil).SubScore
+		if !(got < prev) {
+			t.Errorf("%s at %v: score %.4f is not below the previous %.4f", spec.ID, v, got, prev)
+		}
+		if !(got > floor) {
+			t.Errorf("%s at %v: score %.4f reached floor %.1f", spec.ID, v, got, floor)
+		}
+		prev = got
+	}
+}
+
+// TestIdmatchProfile_CurvesHaveNoFlatsOrJumps sweeps every scored attribute of the
+// compiled profile far beyond its acceptable range on both sides.
+func TestIdmatchProfile_CurvesHaveNoFlatsOrJumps(t *testing.T) {
+	for _, spec := range IdmatchProfile().Attributes {
+		if spec.Ideal == nil {
+			continue
+		}
+		meta, ok := LookupAttribute(spec.ID)
+		if !ok {
+			t.Fatalf("unknown attribute %q", spec.ID)
+		}
+		floor := *spec.Floor
+
+		sweep := func(start, dir float64) {
+			prev := Evaluate(spec, meta, start, nil).SubScore
+			for i := 1; i <= 20000; i++ {
+				v := start + dir*float64(i)*0.05
+				got := Evaluate(spec, meta, v, nil).SubScore
+				if !(got < prev) {
+					t.Fatalf("%s: score not strictly decreasing at %v: %v then %v", spec.ID, v, prev, got)
+				}
+				if !(got > floor) {
+					t.Fatalf("%s: score %v at %v reached floor %v", spec.ID, got, v, floor)
+				}
+				if prev-got > 5 {
+					t.Fatalf("%s: jump of %v at %v", spec.ID, prev-got, v)
+				}
+				prev = got
+			}
+		}
+		if spec.Ideal.Min != nil {
+			sweep(*spec.Ideal.Min, -1)
+		}
+		if spec.Ideal.Max != nil {
+			sweep(*spec.Ideal.Max, 1)
+		}
+	}
+}
+
+func TestValidateProfile_RejectsFlatCurve(t *testing.T) {
+	p := &Profile{
+		Name: "flat",
+		Attributes: []AttributeSpec{
+			{ID: "hta", Weight: 2, Ideal: Exact(68), Acceptable: Between(66, 70), EdgeScore: new(float64(100)), Falloff: FalloffBoth(1, 1)},
+		},
+	}
+	if _, err := NormalizeAndValidate(p); err == nil {
+		t.Fatal("expected an edge_score of 100 on a non-empty acceptable band to be rejected as a flat curve")
 	}
 }

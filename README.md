@@ -38,7 +38,7 @@ All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs
    - Evaluates criteria across nested ranges:
      - **Ideal (`✓`)**: Scores 100.0 (e.g. BRP Setback 219mm, Handlebar Clamp Fit ≥100 pts, BB Drop 70mm, Trail 98–106mm).
      - **Acceptable (`~`)**: Scores `EdgeScore` (typically 75–80) to 100 with linear ramp towards ideal. Cell displays offset to ideal (e.g. `221 ~ 2 aft`).
-     - **Outside (`✗`)**: Soft falloff beyond acceptable to 0 (or floor). Cell displays offset to ideal (e.g. `204 ✗ 15 fwd`).
+     - **Outside (`✗`)**: Falloff beyond acceptable crosses 0 at the profile's falloff distance, then keeps losing points on an asymptotic tail towards the floor without ever reaching it, so two different failures never tie. Cell displays offset to ideal (e.g. `204 ✗ 15 fwd`).
    - Tables are automatically sorted by score descending (with original `[#]` identifiers preserved).
    - Generates plain-English footer explanations (`Biggest Losses vs. Ideal` and `Head-to-Head Deciding Factors`).
    - Disable scoring with `--no-score`, or inspect sub-scores with `--score-detail`.

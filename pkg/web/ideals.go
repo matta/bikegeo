@@ -68,7 +68,7 @@ func (db *docb) showIdeal(name string) int {
 		"Acceptable Range",
 		"Edge Score",
 		"Falloff (Below / Above)",
-		"Floor",
+		"Floor (asymptote)",
 	}
 
 	var rows [][]string

@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"bikegeo/pkg/curve"
 	"bikegeo/pkg/model"
 )
 
@@ -50,151 +51,42 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 		}
 	}
 
-	floor := -200.0
-	if spec.Floor != nil {
-		floor = *spec.Floor
+	curves, err := spec.compileCurves()
+	if err != nil {
+		panic(fmt.Sprintf("ideal: cannot evaluate invalid attribute spec: %v", err))
 	}
 
-	// 1. Inside Ideal Range
-	belowIdeal := spec.Ideal.Min != nil && val < *spec.Ideal.Min
-	aboveIdeal := spec.Ideal.Max != nil && val > *spec.Ideal.Max
-
-	if !belowIdeal && !aboveIdeal {
+	// Signed distance to the ideal range: negative below, positive above, 0 inside.
+	var distToIdeal float64
+	var side *sideCurve
+	switch {
+	case spec.Ideal.Min != nil && val < *spec.Ideal.Min:
+		distToIdeal = val - *spec.Ideal.Min
+		side = curves.below
+	case spec.Ideal.Max != nil && val > *spec.Ideal.Max:
+		distToIdeal = val - *spec.Ideal.Max
+		side = curves.above
+	default:
 		return Evaluation{
 			Value:           val,
 			Zone:            ZoneIdeal,
 			DistanceToIdeal: 0.0,
-			SubScore:        100.0,
+			SubScore:        curve.Peak,
 			FormattedCell:   fmt.Sprintf("%s %s", baseValStr, SymbolIdeal),
 		}
 	}
 
-	// 2. Below Ideal Range
-	if belowIdeal {
-		minI := *spec.Ideal.Min
-		distToIdeal := val - minI // negative
-
-		inAcceptable := false
-		if spec.Acceptable != nil && spec.Acceptable.Min != nil {
-			if val >= *spec.Acceptable.Min {
-				inAcceptable = true
-			}
-		}
-
-		if inAcceptable {
-			minA := *spec.Acceptable.Min
-			edgeScore := 100.0
-			if spec.EdgeScore != nil {
-				edgeScore = *spec.EdgeScore
-			}
-
-			sub := 100.0
-			if minI > minA {
-				ratio := (val - minA) / (minI - minA)
-				sub = edgeScore + (100.0-edgeScore)*ratio
-			}
-
-			return Evaluation{
-				Value:           val,
-				Zone:            ZoneAcceptable,
-				DistanceToIdeal: distToIdeal,
-				SubScore:        sub,
-				FormattedCell:   formatCellWithDelta(baseValStr, SymbolAcceptable, distToIdeal, meta),
-			}
-		}
-
-		// Outside Acceptable (Low side)
-		minA := minI
-		startScore := 100.0
-		if spec.Acceptable != nil && spec.Acceptable.Min != nil {
-			minA = *spec.Acceptable.Min
-			if *spec.Acceptable.Min < minI && spec.EdgeScore != nil {
-				startScore = *spec.EdgeScore
-			}
-		}
-
-		distBelow := minA - val
-		falloff := 1.0
-		if spec.Falloff != nil && spec.Falloff.Below != nil && *spec.Falloff.Below > 0 {
-			falloff = *spec.Falloff.Below
-		}
-
-		slope := startScore / falloff
-		sub := startScore - distBelow*slope
-		if sub < floor {
-			sub = floor
-		}
-
-		return Evaluation{
-			Value:           val,
-			Zone:            ZoneOutside,
-			DistanceToIdeal: distToIdeal,
-			SubScore:        sub,
-			FormattedCell:   formatCellWithDelta(baseValStr, SymbolOutside, distToIdeal, meta),
-		}
-	}
-
-	// 3. Above Ideal Range
-	maxI := *spec.Ideal.Max
-	distToIdeal := val - maxI // positive
-
-	inAcceptable := false
-	if spec.Acceptable != nil && spec.Acceptable.Max != nil {
-		if val <= *spec.Acceptable.Max {
-			inAcceptable = true
-		}
-	}
-
-	if inAcceptable {
-		maxA := *spec.Acceptable.Max
-		edgeScore := 100.0
-		if spec.EdgeScore != nil {
-			edgeScore = *spec.EdgeScore
-		}
-
-		sub := 100.0
-		if maxA > maxI {
-			ratio := (maxA - val) / (maxA - maxI)
-			sub = edgeScore + (100.0-edgeScore)*ratio
-		}
-
-		return Evaluation{
-			Value:           val,
-			Zone:            ZoneAcceptable,
-			DistanceToIdeal: distToIdeal,
-			SubScore:        sub,
-			FormattedCell:   formatCellWithDelta(baseValStr, SymbolAcceptable, distToIdeal, meta),
-		}
-	}
-
-	// Outside Acceptable (High side)
-	maxA := maxI
-	startScore := 100.0
-	if spec.Acceptable != nil && spec.Acceptable.Max != nil {
-		maxA = *spec.Acceptable.Max
-		if *spec.Acceptable.Max > maxI && spec.EdgeScore != nil {
-			startScore = *spec.EdgeScore
-		}
-	}
-
-	distAbove := val - maxA
-	falloff := 1.0
-	if spec.Falloff != nil && spec.Falloff.Above != nil && *spec.Falloff.Above > 0 {
-		falloff = *spec.Falloff.Above
-	}
-
-	slope := startScore / falloff
-	sub := startScore - distAbove*slope
-	if sub < floor {
-		sub = floor
+	zone, symbol := ZoneOutside, SymbolOutside
+	if math.Abs(distToIdeal) <= side.acceptableDist {
+		zone, symbol = ZoneAcceptable, SymbolAcceptable
 	}
 
 	return Evaluation{
 		Value:           val,
-		Zone:            ZoneOutside,
+		Zone:            zone,
 		DistanceToIdeal: distToIdeal,
-		SubScore:        sub,
-		FormattedCell:   formatCellWithDelta(baseValStr, SymbolOutside, distToIdeal, meta),
+		SubScore:        side.falloff.Score(math.Abs(distToIdeal)),
+		FormattedCell:   formatCellWithDelta(baseValStr, symbol, distToIdeal, meta),
 	}
 }
 
