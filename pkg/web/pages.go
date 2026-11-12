@@ -118,12 +118,12 @@ func pages() []page {
 		{
 			Path: "/forks", Title: "Forks",
 			Blurb: "Standard 29er fork presets and their travel-to-A2C mappings.",
-			Args:  func(url.Values) ([]string, bool) { return []string{"forks"}, true },
+			Build: run(func(db *docb, _ url.Values) int { return db.forks() }),
 		},
 		{
 			Path: "/stems", Title: "Stems",
 			Blurb: "Stem presets and their length / angle envelopes.",
-			Args:  func(url.Values) ([]string, bool) { return []string{"stems"}, true },
+			Build: run(func(db *docb, _ url.Values) int { return db.stems() }),
 		},
 		{
 			Path: "/ideals", Title: "Ideals",
@@ -135,27 +135,21 @@ func pages() []page {
 				}
 				return []Control{{Name: "name", Label: "Profile", Kind: "select", Value: v.Get("name"), Options: options(names, v.Get("name"), "All profiles")}}
 			},
-			Args: func(v url.Values) ([]string, bool) {
-				if n := strings.TrimSpace(v.Get("name")); n != "" {
-					return []string{"ideals", "show", n}, true
-				}
-				return []string{"ideals"}, true
-			},
-			Link: map[string]string{"Name": "/ideals?name="},
+			Build: run(func(db *docb, v url.Values) int { return db.ideals(strings.TrimSpace(v.Get("name"))) }),
+			Link:  map[string]string{"Name": "/ideals?name="},
 		},
 		{
 			Path: "/saddles", Title: "Saddles",
 			Blurb: "Saddle catalog with pelvic-fit translation between saddles.",
 			Controls: func(v url.Values) []Control {
-				return []Control{{Name: "id", Label: "Saddle", Kind: "select", Value: v.Get("id"), Options: saddleOptions(v.Get("id"), "Whole catalog")}}
-			},
-			Args: func(v url.Values) ([]string, bool) {
-				if id := strings.TrimSpace(v.Get("id")); id != "" {
-					return []string{"saddles", id}, true
+				return []Control{
+					{Name: "id", Label: "Saddle", Kind: "select", Value: v.Get("id"), Options: saddleOptions(v.Get("id"), "Whole catalog")},
+					numberControl(v, "saddle-height", "Saddle height (mm)", "BB to BRP, default 746"),
+					numberControl(v, "sit-bone-setback", "Sit-bone setback (mm)", "behind BB, default 292"),
 				}
-				return []string{"saddles"}, true
 			},
-			Link: map[string]string{"Saddle ID": "/saddles?id="},
+			Build: run(func(db *docb, v url.Values) int { return db.saddles(v) }),
+			Link:  map[string]string{"Saddle ID": "/saddles?id="},
 		},
 		{
 			Path: "/saddle-swap", Title: "Saddle swap",
@@ -164,29 +158,18 @@ func pages() []page {
 				return []Control{
 					{Name: "from", Label: "From", Kind: "select", Value: v.Get("from"), Options: saddleOptions(v.Get("from"), "Reference saddle")},
 					{Name: "to", Label: "To", Kind: "select", Value: v.Get("to"), Options: saddleOptions(v.Get("to"), "Default target")},
+					{Name: "all", Label: "Compare against every saddle", Kind: "checkbox", Value: v.Get("all")},
 					{Name: "frame", Label: "On frame", Kind: "select", Value: v.Get("frame"), Options: frameOptions(v.Get("frame"), "No frame")},
+					numberControl(v, "saddle-height", "Saddle height (mm)", "BB to BRP, default 746"),
+					numberControl(v, "sit-bone-setback", "Sit-bone setback (mm)", "behind BB, default 292"),
+					numberControl(v, "brp-setback", "BRP setback (mm)", "derives sit-bone setback"),
+					numberControl(v, "seatpost", "Seatpost setback (mm)", "default 11"),
+					numberControl(v, "clamp-length", "Clamp length (mm)", "default 30"),
+					numberControl(v, "cockpit-dist", "Cockpit distance (mm)", "saddle to bars, default 700"),
+					numberControl(v, "cockpit-drop", "Cockpit drop (mm)", "default 13"),
 				}
 			},
-			Args: func(v url.Values) ([]string, bool) {
-				args := []string{"saddle-swap"}
-				from, to := strings.TrimSpace(v.Get("from")), strings.TrimSpace(v.Get("to"))
-				if to != "" && from == "" {
-					from = catalog.DefaultSaddle().ID
-				}
-				if from != "" && to == "" {
-					to = "berthoud-aspin-open"
-				}
-				if from != "" {
-					args = append(args, from)
-				}
-				if to != "" {
-					args = append(args, to)
-				}
-				if f := strings.TrimSpace(v.Get("frame")); f != "" {
-					args = append(args, "--frame", f)
-				}
-				return args, true
-			},
+			Build: run(func(db *docb, v url.Values) int { return db.saddleSwap(v) }),
 		},
 		{
 			Path: "/handlebars", Title: "Handlebars",
@@ -195,19 +178,13 @@ func pages() []page {
 				return []Control{
 					{Name: "id", Label: "Handlebar", Kind: "select", Value: v.Get("id"), Options: handlebarOptions(v.Get("id"), "Whole catalog")},
 					{Name: "compare", Label: "Compare with", Kind: "select", Value: v.Get("compare"), Options: handlebarOptions(v.Get("compare"), "Nothing")},
+					numberControl(v, "grip-inset", "Grip inset (mm)", "tip to hand centre, default 65"),
+					numberControl(v, "roll", "Roll (°)", "+ rolls top forward"),
+					numberControl(v, "width", "Trimmed width (mm)", "optional"),
 				}
 			},
-			Args: func(v url.Values) ([]string, bool) {
-				args := []string{"handlebars"}
-				if id := strings.TrimSpace(v.Get("id")); id != "" {
-					args = append(args, id)
-				}
-				if c := strings.TrimSpace(v.Get("compare")); c != "" {
-					args = append(args, "--compare", c)
-				}
-				return args, true
-			},
-			Link: map[string]string{"Handlebar ID": "/handlebars?id="},
+			Build: run(func(db *docb, v url.Values) int { return db.handlebars(v) }),
+			Link:  map[string]string{"Handlebar ID": "/handlebars?id="},
 		},
 		{
 			Path: "/validate", Title: "Validate",
@@ -258,7 +235,11 @@ func (s *server) page(p page) http.HandlerFunc {
 		}
 
 		status := http.StatusOK
-		args, ready := p.Args(v)
+		var args []string
+		ready := true
+		if p.Args != nil {
+			args, ready = p.Args(v)
+		}
 		d.Ready = ready
 		if ready {
 			var doc report.Document
@@ -288,7 +269,9 @@ func (s *server) page(p page) http.HandlerFunc {
 					d.Sections = append(d.Sections, sectionView{Text: sec.Text})
 				}
 			}
-			d.CLI = "bikegeo " + strings.Join(quoteAll(args), " ")
+			if p.Args != nil {
+				d.CLI = "bikegeo " + strings.Join(quoteAll(args), " ")
+			}
 		}
 		s.render(w, status, "page.html", d)
 	}
@@ -360,4 +343,17 @@ func (s *server) help(w http.ResponseWriter, _ *http.Request) {
 		d.Metrics = append(d.Metrics, hm)
 	}
 	s.render(w, http.StatusOK, "help.html", d)
+}
+
+// run adapts a docb-based builder to page.Build.
+func run(fn func(db *docb, v url.Values) int) func(url.Values) (report.Document, string) {
+	return func(v url.Values) (report.Document, string) {
+		db := &docb{}
+		fn(db, v)
+		return db.doc, db.err
+	}
+}
+
+func numberControl(v url.Values, name, label, hint string) Control {
+	return Control{Name: name, Label: label, Kind: "text", Value: v.Get(name), Hint: hint}
 }

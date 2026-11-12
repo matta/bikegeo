@@ -485,13 +485,14 @@ func TestPages_ValidateLinksFrameIDs(t *testing.T) {
 	}
 }
 
-func TestPages_SaddleSwapFromOnlyPreservesDirection(t *testing.T) {
-	rec, doc := do(t, "/saddle-swap?from=berthoud-aspin-open")
+func TestPages_SaddleSwapFromOnlyKeepsSourceSaddle(t *testing.T) {
+	rec, doc := do(t, "/saddle-swap?from=selle-italia-slr-boost-superflow-l3")
 	mustStatus(t, rec, http.StatusOK)
-	cliText := text(doc.Find("p.cli code"))
-	want := "bikegeo saddle-swap berthoud-aspin-open berthoud-aspin-open"
-	if cliText != want {
-		t.Errorf("CLI = %q, want %q", cliText, want)
+	if got, _ := doc.Find(`select[name="from"] option[selected]`).Attr("value"); got != "selle-italia-slr-boost-superflow-l3" {
+		t.Errorf("from select = %q, want the chosen source saddle", got)
+	}
+	if doc.Find("table[data-table]").Length() == 0 {
+		t.Error("expected swap tables")
 	}
 }
 
@@ -585,5 +586,60 @@ func TestRunServe_FlagValidationAndShutdown(t *testing.T) {
 	cancel()
 	if err := <-errCh; err != nil {
 		t.Errorf("Serve returned %v, want nil", err)
+	}
+}
+
+func TestPages_SaddleHeightParameterReachesTheEngine(t *testing.T) {
+	rec, doc := do(t, "/saddles?saddle-height=760")
+	mustStatus(t, rec, http.StatusOK)
+	if !strings.Contains(doc.Text(), "760mm SH") {
+		t.Error("saddle-height=760 should appear in the translation footers")
+	}
+	if got, _ := doc.Find(`input[name="saddle-height"]`).Attr("value"); got != "760" {
+		t.Errorf("saddle-height control = %q, want 760", got)
+	}
+}
+
+func TestPages_SaddleSwapAllComparesEverySaddle(t *testing.T) {
+	rec, doc := do(t, "/saddle-swap?all=1")
+	mustStatus(t, rec, http.StatusOK)
+	if doc.Find("table[data-table]").Length() < 2 {
+		t.Error("--all equivalent should render a summary plus per-saddle tables")
+	}
+}
+
+func TestPages_HandlebarControlsChangeTheResult(t *testing.T) {
+	_, base := do(t, "/handlebars?id=persuader20_800")
+	rec, rolled := do(t, "/handlebars?id=persuader20_800&roll=8&grip-inset=80&width=760")
+	mustStatus(t, rec, http.StatusOK)
+	if base.Find("table[data-table]").Text() == rolled.Find("table[data-table]").Text() {
+		t.Error("roll, grip-inset and width should change the detail tables")
+	}
+}
+
+func TestPages_NonNumericParameterIs400WithBanner(t *testing.T) {
+	rec, doc := do(t, "/saddles?saddle-height=tall")
+	mustStatus(t, rec, http.StatusBadRequest)
+	if !strings.Contains(text(doc.Find(".banner")), "saddle-height") {
+		t.Errorf("banner = %q", text(doc.Find(".banner")))
+	}
+}
+
+func TestPages_UnknownIDsAre400(t *testing.T) {
+	for _, target := range []string{"/saddles?id=nope", "/handlebars?id=nope", "/ideals?name=nope"} {
+		rec, _ := do(t, target)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: status %d, want 400", target, rec.Code)
+		}
+	}
+}
+
+func TestPages_ForksAndStemsCatalogs(t *testing.T) {
+	for _, target := range []string{"/forks", "/stems"} {
+		rec, doc := do(t, target)
+		mustStatus(t, rec, http.StatusOK)
+		if doc.Find("table[data-table] tbody tr").Length() == 0 {
+			t.Errorf("%s: no rows", target)
+		}
 	}
 }
