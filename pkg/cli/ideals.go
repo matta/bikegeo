@@ -30,11 +30,7 @@ func (a *App) runIdeals(args []string) int {
 }
 
 func (a *App) listIdeals() int {
-	summaries, err := ideal.ListProfiles()
-	if err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
-		return 1
-	}
+	summaries := ideal.ListProfiles()
 
 	headers := []string{"Name", "Description", "Saddle Height", "Attributes"}
 	var rows [][]string

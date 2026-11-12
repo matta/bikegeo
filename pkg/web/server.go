@@ -7,13 +7,16 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
 	"net"
 	"net/http"
 	"strings"
+	"time"
 )
 
 //go:embed templates/*.html static/*
@@ -106,7 +109,32 @@ func (s *server) render(w http.ResponseWriter, status int, name string, data any
 	_, _ = w.Write(buf.Bytes())
 }
 
-// Serve serves the application on ln until it fails.
-func Serve(ln net.Listener) error {
-	return (&http.Server{Handler: New()}).Serve(ln)
+// Serve serves the application on ln until ctx is cancelled or serving fails.
+func Serve(ctx context.Context, ln net.Listener) error {
+	srv := &http.Server{
+		Handler:           New(),
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.Serve(ln)
+	}()
+
+	select {
+	case err := <-errCh:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case <-ctx.Done():
+		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutCtx)
+		err := <-errCh
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	}
 }

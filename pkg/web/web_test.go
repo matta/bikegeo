@@ -1,7 +1,11 @@
 package web
 
 import (
+	"bufio"
+	"bytes"
+	"context"
 	"encoding/csv"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -480,5 +484,117 @@ func TestServer_OnlyGETAndStaticAssets(t *testing.T) {
 	rec, _ = do(t, "/nope")
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("unknown path -> %d, want 404", rec.Code)
+	}
+}
+
+func TestPages_ValidateLinksFrameIDs(t *testing.T) {
+	rec, doc := do(t, "/validate")
+	mustStatus(t, rec, http.StatusOK)
+	href := doc.Find(`table[data-table] tbody td a`).First().AttrOr("href", "")
+	if !strings.HasPrefix(href, "/validate?frame=") {
+		t.Errorf("/validate Frame ID link = %q, want /validate?frame=...", href)
+	}
+}
+
+func TestPages_SaddleSwapFromOnlyPreservesDirection(t *testing.T) {
+	rec, doc := do(t, "/saddle-swap?from=berthoud-aspin-open")
+	mustStatus(t, rec, http.StatusOK)
+	cliText := text(doc.Find("p.cli code"))
+	want := "bikegeo saddle-swap berthoud-aspin-open berthoud-aspin-open"
+	if cliText != want {
+		t.Errorf("CLI = %q, want %q", cliText, want)
+	}
+}
+
+func TestHelp_HandlebarClampFitShowsCount(t *testing.T) {
+	_, help := do(t, "/help")
+	row := help.Find(`tr#metric-handlebar_clamp_fit`)
+	if row.Length() != 1 {
+		t.Fatal("missing handlebar_clamp_fit row")
+	}
+	rowText := text(row)
+	if !strings.Contains(rowText, "≥4") || !strings.Contains(rowText, "1–3") {
+		t.Errorf("handlebar_clamp_fit row = %q, want ≥4 and 1–3", rowText)
+	}
+}
+
+func TestRunDocument_PopulatesTablesAndSections(t *testing.T) {
+	doc, errText, code := cli.RunDocument([]string{"forks"})
+	if code != 0 || errText != "" {
+		t.Fatalf("RunDocument(forks) code=%d err=%q", code, errText)
+	}
+	if len(doc.Tables) != 1 || len(doc.Sections) != 1 {
+		t.Errorf("Tables=%d Sections=%d, want 1 and 1", len(doc.Tables), len(doc.Sections))
+	}
+}
+
+type pipeListener struct {
+	conns  chan net.Conn
+	closed chan struct{}
+}
+
+func (l *pipeListener) Accept() (net.Conn, error) {
+	select {
+	case c := <-l.conns:
+		return c, nil
+	case <-l.closed:
+		return nil, net.ErrClosed
+	}
+}
+
+func (l *pipeListener) Close() error {
+	select {
+	case <-l.closed:
+	default:
+		close(l.closed)
+	}
+	return nil
+}
+
+func (l *pipeListener) Addr() net.Addr {
+	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 8080}
+}
+
+func TestRunServe_FlagValidationAndShutdown(t *testing.T) {
+	for _, args := range [][]string{
+		{"--port", "-1"},
+		{"--port", "70000"},
+		{"--unknown-flag"},
+	} {
+		var out, errOut bytes.Buffer
+		if code := RunServe(args, &out, &errOut); code != 2 {
+			t.Errorf("RunServe(%v) = %d, want 2", args, code)
+		}
+	}
+
+	ln := &pipeListener{conns: make(chan net.Conn, 1), closed: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- Serve(ctx, ln)
+	}()
+
+	client, serverConn := net.Pipe()
+	ln.conns <- serverConn
+
+	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1:8080/forks", nil)
+	if err := req.Write(client); err != nil {
+		cancel()
+		t.Fatalf("write request: %v", err)
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(client), req)
+	if err != nil {
+		cancel()
+		t.Fatalf("read response: %v", err)
+	}
+	resp.Body.Close()
+	client.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /forks status = %d, want 200", resp.StatusCode)
+	}
+
+	cancel()
+	if err := <-errCh; err != nil {
+		t.Errorf("Serve returned %v, want nil", err)
 	}
 }

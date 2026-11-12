@@ -200,6 +200,9 @@ func (q CompareQuery) CLI() string {
 }
 
 func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
 	if strings.ContainsAny(s, " \t%&|;<>()$`\\\"'*?[]#~=!{}") {
 		return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 	}

@@ -71,4 +71,7 @@ func TestCompareQueryCLI(t *testing.T) {
 	if got := q.CLI(); got != want {
 		t.Errorf("CLI() = %q, want %q", got, want)
 	}
+	if got := shellQuote(""); got != "''" {
+		t.Errorf("shellQuote(\"\") = %q, want ''", got)
+	}
 }

@@ -1,13 +1,17 @@
 package web
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"strconv"
+	"syscall"
 )
 
 // RunServe implements `bikegeo serve [--port N] [--open]` and returns an exit code.
@@ -37,7 +41,9 @@ func RunServe(args []string, out, errOut io.Writer) int {
 			fmt.Fprintf(errOut, "Warning: could not open browser: %v\n", err)
 		}
 	}
-	if err := Serve(ln); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := Serve(ctx, ln); err != nil {
 		fmt.Fprintf(errOut, "Error: %v\n", err)
 		return 1
 	}

@@ -7,6 +7,7 @@ import (
 
 	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/cli"
+	"bikegeo/pkg/compare"
 	"bikegeo/pkg/frames"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/report"
@@ -117,10 +118,8 @@ func pages() []page {
 			Blurb: "Ideal frame profiles: the target and acceptable ranges every setup is scored against.",
 			Controls: func(v url.Values) []Control {
 				var names []string
-				if ps, err := ideal.ListProfiles(); err == nil {
-					for _, p := range ps {
-						names = append(names, p.Name)
-					}
+				for _, p := range ideal.ListProfiles() {
+					names = append(names, p.Name)
 				}
 				return []Control{{Name: "name", Label: "Profile", Kind: "select", Value: v.Get("name"), Options: options(names, v.Get("name"), "All profiles")}}
 			},
@@ -161,6 +160,9 @@ func pages() []page {
 				from, to := strings.TrimSpace(v.Get("from")), strings.TrimSpace(v.Get("to"))
 				if to != "" && from == "" {
 					from = catalog.DefaultSaddle().ID
+				}
+				if from != "" && to == "" {
+					to = "berthoud-aspin-open"
 				}
 				if from != "" {
 					args = append(args, from)
@@ -215,7 +217,7 @@ func pages() []page {
 				}
 				return args, true
 			},
-			Link: map[string]string{"Frame": "/validate?frame="},
+			Link: map[string]string{"Frame ID": "/validate?frame=", "Frame": "/validate?frame="},
 		},
 		{
 			Path: "/fit", Title: "Fit",
@@ -343,8 +345,7 @@ func (s *server) help(w http.ResponseWriter, _ *http.Request) {
 	for _, m := range ideal.AllAttributes() {
 		hm := helpMetric{ID: m.ID, Label: m.Label, Unit: m.Unit}
 		if sp, ok := specs[m.ID]; ok {
-			hm.Ideal = ideal.FormatRange(sp.Ideal, m.Unit, m.Decimals)
-			hm.Acceptable = ideal.FormatRange(sp.Acceptable, m.Unit, m.Decimals)
+			hm.Ideal, hm.Acceptable = compare.FormatAttrRanges(sp, m)
 			hm.Weight = sp.Weight
 			hm.Scored = sp.Weight > 0 && sp.Ideal != nil
 		}

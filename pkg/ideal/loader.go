@@ -131,12 +131,12 @@ func GetProfile(name string) (*Profile, error) {
 }
 
 // ListProfiles returns summaries of all compiled ideal profiles.
-func ListProfiles() ([]ProfileSummary, error) {
+func ListProfiles() []ProfileSummary {
 	var summaries []ProfileSummary
 	for _, p := range AllProfiles() {
 		summaries = append(summaries, summarizeProfile(p))
 	}
-	return summaries, nil
+	return summaries
 }
 
 func summarizeProfile(p *Profile) ProfileSummary {
