@@ -37,7 +37,6 @@ var nav = []NavItem{
 	{"/saddle-swap", "Saddle swap"},
 	{"/handlebars", "Handlebars"},
 	{"/validate", "Validate"},
-	{"/fit", "Fit"},
 	{"/help", "Help"},
 }
 

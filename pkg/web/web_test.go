@@ -360,7 +360,7 @@ func TestPages_AllRoutesRender(t *testing.T) {
 		"/ideals", "/ideals?name=idmatch", "/saddles", "/saddles?id=berthoud-aspin-open",
 		"/saddle-swap", "/saddle-swap?from=sqlab-610-ergolux&to=berthoud-aspin-open",
 		"/handlebars", "/handlebars?id=persuader20_800",
-		"/validate", "/validate?frame=binary-havok", "/fit?frame=binary-havok", "/help",
+		"/validate", "/validate?frame=binary-havok", "/help",
 	}
 	for _, target := range targets {
 		t.Run(target, func(t *testing.T) {
@@ -419,17 +419,6 @@ func TestPages_FailingCommandIs400WithMessage(t *testing.T) {
 	mustStatus(t, rec, http.StatusBadRequest)
 	if got := text(doc.Find(".banner")); !strings.Contains(got, "not found") {
 		t.Errorf("banner = %q", got)
-	}
-}
-
-func TestPages_FitNeedsAFrame(t *testing.T) {
-	rec, doc := do(t, "/fit")
-	mustStatus(t, rec, http.StatusOK)
-	if doc.Find("table[data-table]").Length() != 0 {
-		t.Error("no tables expected before a frame is chosen")
-	}
-	if !strings.Contains(text(doc.Find("p.blurb").Last()), "Choose a frame") {
-		t.Error("expected prompt to choose a frame")
 	}
 }
 

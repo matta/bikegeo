@@ -246,35 +246,6 @@ func pages() []page {
 			},
 			Link: map[string]string{"Frame ID": "/validate?frame=", "Frame": "/validate?frame="},
 		},
-		{
-			Path: "/fit", Title: "Fit",
-			Blurb: "Back-solve a frame's CAD residuals into fork A2C, spacer and sag, and sweep trial parameters.",
-			Controls: func(v url.Values) []Control {
-				return []Control{
-					{Name: "frame", Label: "Frame", Kind: "select", Value: v.Get("frame"), Options: frameOptions(v.Get("frame"), "Choose a frame…")},
-					{Name: "size", Label: "Size", Kind: "text", Value: v.Get("size"), Hint: "default size if blank"},
-					{Name: "try", Label: "Trials", Kind: "text", Value: v.Get("try"), Hint: "e.g. fork.a2c=470,472 spacer=10,12"},
-					{Name: "detail", Label: "Per-size detail", Kind: "checkbox", Value: v.Get("detail")},
-				}
-			},
-			Args: func(v url.Values) ([]string, bool) {
-				f := strings.TrimSpace(v.Get("frame"))
-				if f == "" {
-					return nil, false
-				}
-				if sz := strings.TrimSpace(v.Get("size")); sz != "" {
-					f += ":" + sz
-				}
-				args := []string{"fit", f}
-				for t := range strings.FieldsSeq(v.Get("try")) {
-					args = append(args, "--try", t)
-				}
-				if isTrue(v.Get("detail")) {
-					args = append(args, "--detail")
-				}
-				return args, true
-			},
-		},
 	}
 }
 
