@@ -6,6 +6,8 @@ import (
 	"io"
 	"strings"
 	"unicode/utf8"
+
+	"bikegeo/pkg/report"
 )
 
 const (
@@ -29,10 +31,7 @@ func NormalizeFormat(f string) (string, error) {
 }
 
 // FooterSection defines a named section of text lines rendered beneath a table.
-type FooterSection struct {
-	Title string
-	Lines []string
-}
+type FooterSection = report.Footer
 
 // RenderOutput renders structured tabular data in the requested format (table, md, csv).
 func RenderOutput(

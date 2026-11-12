@@ -23,16 +23,18 @@ const (
 
 // Document is the full output of one command or page.
 type Document struct {
-	Title  string
-	Tables []Table
-	Notes  []string
+	Title   string
+	Tables  []Table
+	Notes   []string
+	Footers []Footer // document-level footers (HTML); CLI output attaches footers to tables instead
 }
 
 // Column describes one table column.
 type Column struct {
 	ID      string
-	Label   string // may contain "\n" for terminal wrapping
+	Label   string // may contain "\n" for line breaks
 	Numeric bool
+	Attrs   map[string]string // data-* attributes shared by every cell in the column
 }
 
 // Cell is a single table cell with optional semantic metadata.
