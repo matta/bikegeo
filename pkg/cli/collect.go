@@ -33,7 +33,6 @@ func (c *collector) addTable(t report.Table) {
 		t.ID = "table-" + strconv.Itoa(len(c.doc.Sections)+1)
 	}
 	c.doc.Sections = append(c.doc.Sections, report.Section{Table: &t})
-	c.doc.Tables = append(c.doc.Tables, t)
 }
 
 // RunDocument executes a subcommand (without global flags) and returns its
@@ -45,9 +44,6 @@ func RunDocument(args []string) (doc report.Document, errText string, code int) 
 	app := &App{Format: FormatTable, In: strings.NewReader(""), Out: col, Err: &errBuf, collect: col}
 	code = app.dispatch(args)
 	col.flushText()
-	if len(args) > 0 {
-		col.doc.Title = args[0]
-	}
 	return col.doc, strings.TrimSpace(errBuf.String()), code
 }
 
@@ -57,7 +53,7 @@ func (a *App) render(title, subtitle string, headers []string, rows [][]string) 
 }
 
 // renderFooters is render with footer sections.
-func (a *App) renderFooters(title, subtitle string, headers []string, rows [][]string, footers []FooterSection) error {
+func (a *App) renderFooters(title, subtitle string, headers []string, rows [][]string, footers []report.Footer) error {
 	if a.collect != nil {
 		t := report.FromStrings(report.Slug(title), title, subtitle, headers, rows, footers...)
 		annotateZones(&t)

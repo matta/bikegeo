@@ -8,6 +8,7 @@ import (
 	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
+	"bikegeo/pkg/report"
 )
 
 func (a *App) runSaddles(args []string) int {
@@ -72,7 +73,7 @@ func (a *App) runSaddles(args []string) int {
 	title := fmt.Sprintf("Canonical Saddle Catalog (%d)", len(saddles))
 	subtitle := "Origin (0.0mm) is the midpoint of the straight rail clamping zone; (+) forward toward nose, (-) rearward toward tail"
 
-	var footers []FooterSection
+	var footers []report.Footer
 
 	// 1. Cross-Saddle Translation Section (SQlab 610 vs Berthoud Aspin & Selle Italia SLR Boost)
 	sqlab, hasSQ := catalog.GetSaddle("sqlab-610-ergolux")
@@ -84,7 +85,7 @@ func (a *App) runSaddles(args []string) int {
 		transSlrDropBest := geometry.TranslateSaddleFit(sqlab, -15.0, slr, model.DropBestClampLengthMm)
 		transSlrStd := geometry.TranslateSaddleFit(sqlab, 0.0, slr, model.DefaultSeatpostClampLengthMm)
 
-		footers = append(footers, FooterSection{
+		footers = append(footers, report.Footer{
 			Title: "Cross-Saddle Fit Translation: SQlab 610 Ergolux vs. Catalog Saddles",
 			Lines: []string{
 				fmt.Sprintf("Pelvic Fit Equivalence (Aspin): Rail-to-sit-bone delta is only %.1f mm (Aspin -44.5mm vs SQlab -50.0mm), slackening STA by ~0.44° at %.0fmm SH.", transAspinDropBest.SitBoneDeltaMm, saddleHeight),
@@ -165,7 +166,7 @@ func (a *App) runSaddles(args []string) int {
 
 		compTitle := "Ideal Seat Tube Angle"
 		compSubtitle := fmt.Sprintf("Saddle Height: %.0fmm | Target Sit Bone Setback: %.0fmm behind BB", saddleHeight, sitBoneSetback)
-		compFooters := []FooterSection{
+		compFooters := []report.Footer{
 			{
 				Title: "Seat Tube Angle Interpretation & Comparison",
 				Lines: []string{
@@ -231,7 +232,7 @@ func (a *App) runSaddles(args []string) int {
 
 		compromiseTitle := "Universal Compromise Seat Tube Angle (All Saddles)"
 		compromiseSubtitle := fmt.Sprintf("Saddle Height: %.0fmm | Target Sit Bone Setback: %.0fmm behind BB", saddleHeight, sitBoneSetback)
-		compromiseFooters := []FooterSection{
+		compromiseFooters := []report.Footer{
 			{
 				Title: "Framebuilder Compromise Recommendations",
 				Lines: []string{

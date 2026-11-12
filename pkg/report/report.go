@@ -23,9 +23,7 @@ const (
 
 // Document is the full output of one command or page.
 type Document struct {
-	Title   string
 	Tables  []Table
-	Notes   []string
 	Footers []Footer // document-level footers (HTML); CLI output attaches footers to tables instead
 
 	// Sections is an ordered mix of tables and preformatted text, used by

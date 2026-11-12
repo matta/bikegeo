@@ -8,6 +8,7 @@ import (
 	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
+	"bikegeo/pkg/report"
 )
 
 func (a *App) runHandlebars(args []string) int {
@@ -123,7 +124,7 @@ func (a *App) listHandlebars(gripInset, rollDeg, cutWidth float64) int {
 	title := fmt.Sprintf("Canonical Handlebar Catalog (%d)%s", len(bars), rollNote)
 	subtitle := fmt.Sprintf("Origin (0,0,0) is 31.8mm clamp center; (+X) forward reach, (+Y) upward stack, (+Z) lateral hand center (d_grip = %.0fmm)", gripInset)
 
-	footers := []FooterSection{
+	footers := []report.Footer{
 		{
 			Title: "Rise Measurement Traps: Knuckle vs. Bar-End Tip",
 			Lines: []string{
@@ -244,7 +245,7 @@ func (a *App) compareHandlebars(bar1, bar2 model.HandlebarSpec, gripInset, rollD
 		stackDir = "lower (downward)"
 	}
 
-	footers := []FooterSection{
+	footers := []report.Footer{
 		{
 			Title: "Resulting Hand Grip Position Shift (Fixed Stem Clamp)",
 			Lines: []string{

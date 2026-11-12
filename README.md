@@ -22,7 +22,7 @@ All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs
      - Enforces fixed-fork frame constraints seamlessly.
 
 3. **Compiled Baseline Comparison & Incremental Tweaks**:
-   - Running bare `bikegeo compare` evaluates the compiled default comparison baseline (`cli.DefaultComparisonState()`).
+   - Running bare `bikegeo compare` evaluates the compiled default comparison baseline (`compare.DefaultComparisonState()`).
    - Use `+spec` / `-spec` / `-col_num` to incrementally add or remove columns against the baseline in memory.
 
 4. **Master Stack Equation & CAD Reverse-Engineering (`bikegeo validate` & `bikegeo fit`)**:

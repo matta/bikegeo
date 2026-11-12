@@ -23,9 +23,6 @@ func searchSubstr(s, substr string) bool {
 	return false
 }
 
-//go:fix inline
-func floatPtr(v float64) *float64 { return new(v) }
-
 func TestScoreRow_MissingDataRenormalization(t *testing.T) {
 	prof := &ideal.Profile{
 		Name: "test-missing",

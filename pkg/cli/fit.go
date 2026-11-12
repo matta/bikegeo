@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"bikegeo/pkg/compare"
 	"bikegeo/pkg/fit"
 	"bikegeo/pkg/frames"
 )
@@ -44,7 +45,7 @@ func (a *App) runFit(args []string) int {
 	}
 
 	allFrames := frames.AllFrames()
-	framePtr, impSz, err := ResolveFrameByToken(allFrames, posArgs[0])
+	framePtr, impSz, err := compare.ResolveFrameByToken(allFrames, posArgs[0])
 	if err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1

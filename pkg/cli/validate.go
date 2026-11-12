@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"bikegeo/pkg/compare"
 	"bikegeo/pkg/frames"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
@@ -70,7 +71,7 @@ func (a *App) runValidate(args []string) int {
 		}
 	} else {
 		for _, tok := range posArgs {
-			f, impSz, err := ResolveFrameByToken(allFrames, tok)
+			f, impSz, err := compare.ResolveFrameByToken(allFrames, tok)
 			if err != nil {
 				fmt.Fprintf(a.Err, "Error: %v\n", err)
 				return 1

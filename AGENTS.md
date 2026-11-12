@@ -27,7 +27,7 @@ go fix ./... && go fmt ./... && make check
 - **Zero Runtime Dependencies & Pure-Go Data**:
   - The shipped binary uses only the Go standard library (`flag`, `encoding/csv`, `net/http`, `html/template`, `embed`) with custom Unicode box-drawing, Markdown, and CSV table formatting in `pkg/cli/render.go`.
   - The single exception is `github.com/PuerkitoBio/goquery`, allowed **only** in `_test.go` files for DOM assertions. Never import it (or any third-party package) from non-test code; verify with `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo`, which must list only `bikegeo/...`.
-  - All bike frames (`pkg/frames/*.go`), fork and stem catalogs (`pkg/catalog/catalog.go`), ideal fit profiles (`pkg/ideal/loader.go`), and the default comparison baseline (`compare.DefaultComparisonState()` in `pkg/compare/specs.go`, also reachable as `cli.DefaultComparisonState()`) are compiled directly as Go structs. There are no JSON data files or runtime persistence files.
+  - All bike frames (`pkg/frames/*.go`), fork and stem catalogs (`pkg/catalog/catalog.go`), ideal fit profiles (`pkg/ideal/loader.go`), and the default comparison baseline (`compare.DefaultComparisonState()` in `pkg/compare/specs.go`, also reachable as `compare.DefaultComparisonState()`) are compiled directly as Go structs. There are no JSON data files or runtime persistence files.
 - **CLI and Web Share One Engine** (see [docs/WEB.md](docs/WEB.md)):
   - `pkg/compare` holds spec parsing, `Run(Options)`, ranking/pruning and `BuildDocument`; `pkg/report` holds the presentation-neutral `Document`/`Table`/`Cell` types (cells carry `Zone` and `MetricID`); `pkg/cli` parses flags and prints; `pkg/web` serves HTML.
   - Command table output goes through `App.render` / `App.renderFooters` so it prints in the CLI and is collected by `cli.RunDocument` for the web. Do not call `RenderOutput*` directly from commands.
@@ -41,7 +41,7 @@ go fix ./... && go fmt ./... && make check
   - Frames define `CadFork` and `Forks` (supported fork refs with `ID`, `A2cMm`, `RakeMm`, `SagPct`) in `pkg/frames/*.go`.
   - `pkg/canonicalizer` strictly enforces these constraints, rejecting unsupported travel sizes, rigid forks on suspension-only frames, or non-zero sag on rigid forks.
 - **Default Comparison Baseline**:
-  - Running `bikegeo compare` with no arguments evaluates `cli.DefaultComparisonState()`. Incremental `+spec` and `-spec` / `-col_num` flags add or remove columns against that baseline in memory.
+  - Running `bikegeo compare` with no arguments evaluates `compare.DefaultComparisonState()`. Incremental `+spec` and `-spec` / `-col_num` flags add or remove columns against that baseline in memory.
 
 ## Adding or Modifying Bike Frame Datasets
 
