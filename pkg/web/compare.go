@@ -185,6 +185,7 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 		rest = append(rest, cols[:i]...)
 		rest = append(rest, cols[i+1:]...)
 		v := q.Values()
+		v.Del("all")
 		for _, c := range rest {
 			v.Add("frame", c.frame)
 			v.Add("size", c.size)
@@ -202,11 +203,13 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	pv := q.Values()
-	for _, c := range cols {
-		pv.Add("frame", c.frame)
-		pv.Add("size", c.size)
-		pv.Add("fork", c.fork)
-		pv.Add("sag", c.sag)
+	if !q.All {
+		for _, c := range cols {
+			pv.Add("frame", c.frame)
+			pv.Add("size", c.size)
+			pv.Add("fork", c.fork)
+			pv.Add("sag", c.sag)
+		}
 	}
 	d.Permalink = "/?" + pv.Encode()
 	d.Count = len(res.Rows)

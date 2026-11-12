@@ -51,28 +51,33 @@ func ParseCompareQuery(v url.Values) (CompareQuery, []FieldError) {
 		All:       isTrue(v.Get("all")),
 	}
 
-	for _, s := range v["col"] {
-		if s = strings.TrimSpace(s); s != "" {
-			q.Specs = append(q.Specs, s)
+	// "All frames" supersedes any column inputs echoed by the form; otherwise
+	// submitting the default view with "all" checked would keep the baseline
+	// columns and prevent compare.Run from expanding all registered frames.
+	if !q.All {
+		for _, s := range v["col"] {
+			if s = strings.TrimSpace(s); s != "" {
+				q.Specs = append(q.Specs, s)
+			}
 		}
-	}
-	frames := v["frame"]
-	for i, f := range frames {
-		f = strings.TrimSpace(f)
-		if f == "" {
-			continue
+		frames := v["frame"]
+		for i, f := range frames {
+			f = strings.TrimSpace(f)
+			if f == "" {
+				continue
+			}
+			spec := f
+			if sz := at(v["size"], i); sz != "" {
+				spec += ":" + sz
+			}
+			if fk := at(v["fork"], i); fk != "" {
+				spec += "@" + fk
+			}
+			if sg := at(v["sag"], i); sg != "" {
+				spec += "@" + strings.TrimSuffix(sg, "%") + "%"
+			}
+			q.Specs = append(q.Specs, spec)
 		}
-		spec := f
-		if sz := at(v["size"], i); sz != "" {
-			spec += ":" + sz
-		}
-		if fk := at(v["fork"], i); fk != "" {
-			spec += "@" + fk
-		}
-		if sg := at(v["sag"], i); sg != "" {
-			spec += "@" + strings.TrimSuffix(sg, "%") + "%"
-		}
-		q.Specs = append(q.Specs, spec)
 	}
 
 	switch l := strings.ToLower(strings.TrimSpace(v.Get("layout"))); l {

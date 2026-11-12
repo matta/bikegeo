@@ -570,8 +570,9 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 			}
 		}
 
-		if len(dataLines) != 18 {
-			t.Fatalf("expected 18 frame rows, got %d:\n%s", len(dataLines), out)
+		wantFrames := len(frames.AllFrames())
+		if len(dataLines) != wantFrames {
+			t.Fatalf("expected %d frame rows, got %d:\n%s", wantFrames, len(dataLines), out)
 		}
 
 		// Verify ranks 1..18 appear in order
@@ -657,9 +658,10 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 				dataLines = append(dataLines, l)
 			}
 		}
-		// 15 registered frames support rigid forks
-		if len(dataLines) != 15 {
-			t.Fatalf("expected 15 rigid frame rows, got %d:\n%s", len(dataLines), out)
+		// All registered frames except the 3 suspension-only frames support rigid forks
+		wantRigid := len(frames.AllFrames()) - 3
+		if len(dataLines) != wantRigid {
+			t.Fatalf("expected %d rigid frame rows, got %d:\n%s", wantRigid, len(dataLines), out)
 		}
 
 		for _, l := range dataLines {

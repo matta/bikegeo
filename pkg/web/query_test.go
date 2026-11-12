@@ -38,6 +38,11 @@ func TestParseCompareQuery(t *testing.T) {
 			},
 		},
 		{
+			name:  "all=1 ignores echoed column fields",
+			query: "frame=fenrir&size=L&fork=110mm&sag=20&col=hayduke&all=1",
+			want:  CompareQuery{Layout: LayoutAuto, All: true},
+		},
+		{
 			name:     "bad numbers and layout are reported and ignored",
 			query:    "top=abc&top_per_frame=-2&layout=zigzag",
 			want:     CompareQuery{Layout: LayoutAuto},

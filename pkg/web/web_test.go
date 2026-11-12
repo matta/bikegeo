@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"bikegeo/pkg/frames"
+
 	"github.com/PuerkitoBio/goquery"
 )
 
@@ -195,6 +197,50 @@ func TestCompare_FormRoundTripReproducesDefaultView(t *testing.T) {
 		if a[i] != b[i] {
 			t.Errorf("row %d differs:\n default: %s\n  round-trip: %s", i+1, a[i], b[i])
 		}
+	}
+}
+
+func TestCompare_AllFramesCheckboxFromDefaultForm(t *testing.T) {
+	_, first := do(t, "/")
+
+	// Simulate checking "All frames, best configuration each" on the default page
+	// and clicking Calculate / Update, which submits all 20 default column fields
+	// alongside all=1.
+	v := url.Values{}
+	first.Find(`table.editor tbody tr[data-col]`).Each(func(_ int, s *goquery.Selection) {
+		v.Add("frame", s.Find(`input[name="frame"]`).AttrOr("value", ""))
+		v.Add("size", s.Find(`select[name="size"] option[selected]`).AttrOr("value", ""))
+		v.Add("fork", s.Find(`select[name="fork"] option[selected]`).AttrOr("value", ""))
+		v.Add("sag", s.Find(`select[name="sag"] option[selected]`).AttrOr("value", ""))
+	})
+	v.Set("all", "1")
+
+	rec, doc := do(t, "/?"+v.Encode())
+	mustStatus(t, rec, http.StatusOK)
+
+	seen := map[string]bool{}
+	doc.Find(`table.editor tbody tr[data-col]`).Each(func(_ int, s *goquery.Selection) {
+		if id := s.AttrOr("data-frame-id", ""); id != "" {
+			seen[id] = true
+		}
+	})
+	for _, f := range frames.AllFrames() {
+		if !seen[f.ID] {
+			t.Errorf("frame %q missing from all-frames comparison", f.ID)
+		}
+	}
+	for _, id := range []string{"seven-expedition-926d", "seven-expedition-926f", "seven-custom"} {
+		if !seen[id] {
+			t.Errorf("Seven Cycles frame %q missing from all-frames comparison", id)
+		}
+	}
+	if got := doc.Find(`table[data-table="fit-cockpit"] tbody tr[data-frame-id]`).Length(); got != len(frames.AllFrames()) {
+		t.Errorf("fit-cockpit rows = %d, want %d", got, len(frames.AllFrames()))
+	}
+	// Clicking Remove on a row from the all-frames view should drop all=1 and remove that row.
+	removeHref, ok := doc.Find(`table.editor tbody tr[data-col] a[href]`).First().Attr("href")
+	if !ok || strings.Contains(removeHref, "all=1") {
+		t.Errorf("RemoveHref = %q (ok=%v), want no all=1", removeHref, ok)
 	}
 }
 

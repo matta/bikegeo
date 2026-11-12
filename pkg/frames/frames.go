@@ -19,6 +19,7 @@ var registry = []model.FrameModel{
 	RitcheyUltra,
 	SalsaCutthroat,
 	SalsaFargo,
+	SevenCustom,
 	SevenExpedition926d,
 	SevenExpedition926f,
 	SklarPBJ,
