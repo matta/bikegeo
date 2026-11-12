@@ -38,4 +38,3 @@ var SevenCustom = model.FrameModel{
 		},
 	},
 }
-
