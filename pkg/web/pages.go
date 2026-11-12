@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"bikegeo/pkg/catalog"
-	"bikegeo/pkg/cli"
 	"bikegeo/pkg/compare"
 	"bikegeo/pkg/frames"
 	"bikegeo/pkg/ideal"
@@ -22,16 +21,17 @@ type Control struct {
 	Hint              string
 }
 
-// page describes a generic page that wraps one CLI subcommand. The subcommand
-// is run through cli.RunDocument, so the web and terminal output always agree.
+// page describes a generic page: query controls, a Build that turns the query
+// into a report.Document, and optional links from cell text to other pages.
 type page struct {
 	Path, Title, Blurb string
 	Controls           func(v url.Values) []Control
-	// Args maps the query to subcommand arguments; ready=false shows only the form.
-	Args func(v url.Values) (args []string, ready bool)
-	// Build, when set, produces the document directly instead of running Args
-	// through the CLI. Args is then used only for the equivalent-command echo.
+	// Build produces the page's document; a non-empty errText becomes the 400 banner.
 	Build func(v url.Values) (doc report.Document, errText string)
+	// Args, when set, maps the query to the equivalent `bikegeo` command line,
+	// shown on the page. Only pages with a CLI counterpart set it; ready=false
+	// shows only the form.
+	Args func(v url.Values) (args []string, ready bool)
 	// Link maps a column label to a URL prefix; cells in that column link to
 	// prefix + escaped cell text.
 	Link map[string]string
@@ -242,23 +242,10 @@ func (s *server) page(p page) http.HandlerFunc {
 		}
 		d.Ready = ready
 		if ready {
-			var doc report.Document
-			var errText string
-			code := 0
-			if p.Build != nil {
-				doc, errText = p.Build(v)
-				if errText != "" {
-					code = 1
-				}
-			} else {
-				doc, errText, code = cli.RunDocument(args)
-			}
-			if code != 0 {
+			doc, errText := p.Build(v)
+			if errText != "" {
 				status = http.StatusBadRequest
 				d.Banner = errText
-				if d.Banner == "" {
-					d.Banner = "The request could not be completed."
-				}
 			}
 			linkTables(&doc, p.Link)
 			for _, sec := range doc.Sections {

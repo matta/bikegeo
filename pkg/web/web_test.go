@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/csv"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -13,8 +12,6 @@ import (
 	"testing"
 
 	"github.com/PuerkitoBio/goquery"
-
-	"bikegeo/pkg/cli"
 )
 
 const twoBikes = "/?layout=rows&col=otso-fenrir-stainless:L@110mm@20%25&col=esker-hayduke:S3@110mm@20%25"
@@ -252,54 +249,6 @@ func TestCompare_ColumnsLayoutTagsCellsByFrame(t *testing.T) {
 	}
 }
 
-// Every value the web page shows must equal what the CLI prints.
-func TestCompare_MatchesCLICSV(t *testing.T) {
-	specs := []string{"otso-fenrir-stainless:L@110mm@20%", "esker-hayduke:S3@110mm@20%"}
-
-	var out, errOut strings.Builder
-	args := append([]string{"compare", "-f", "csv", "--transpose"}, specs...)
-	if code := cli.Run(args, strings.NewReader(""), &out, &errOut); code != 0 {
-		t.Fatalf("cli exit %d: %s", code, errOut.String())
-	}
-	records, err := csv.NewReader(strings.NewReader(out.String())).ReadAll()
-	if err != nil {
-		t.Fatal(err)
-	}
-	header := records[0]
-	byFrame := map[string][]string{}
-	for _, r := range records[1:] {
-		byFrame[r[1]] = r
-	}
-
-	q := url.Values{"col": specs}
-	q.Set("layout", "rows")
-	_, doc := do(t, "/?"+q.Encode())
-
-	checked := 0
-	doc.Find(`table[data-table="fit-cockpit"] tbody tr[data-frame-id]`).Each(func(_ int, tr *goquery.Selection) {
-		name := text(tr.Children().Eq(1))
-		want, ok := byFrame[name]
-		if !ok {
-			t.Errorf("web row %q not in CLI output", name)
-			return
-		}
-		tr.Children().Each(func(i int, td *goquery.Selection) {
-			label := text(doc.Find(`table[data-table="fit-cockpit"] thead tr.labels th`).Eq(i))
-			for ci, h := range header {
-				if h == label {
-					if got := text(td); got != strings.Join(strings.Fields(want[ci]), " ") {
-						t.Errorf("%s / %s: web %q, cli %q", name, label, got, want[ci])
-					}
-					checked++
-				}
-			}
-		})
-	})
-	if checked < 20 {
-		t.Errorf("only %d cells compared", checked)
-	}
-}
-
 func TestCompare_InvalidInputGives400WithBanner(t *testing.T) {
 	tests := []struct {
 		name, target, field string
@@ -505,16 +454,6 @@ func TestHelp_HandlebarClampFitShowsCount(t *testing.T) {
 	rowText := text(row)
 	if !strings.Contains(rowText, "≥4") || !strings.Contains(rowText, "1–3") {
 		t.Errorf("handlebar_clamp_fit row = %q, want ≥4 and 1–3", rowText)
-	}
-}
-
-func TestRunDocument_PopulatesTablesAndSections(t *testing.T) {
-	doc, errText, code := cli.RunDocument([]string{"forks"})
-	if code != 0 || errText != "" {
-		t.Fatalf("RunDocument(forks) code=%d err=%q", code, errText)
-	}
-	if len(doc.Tables()) != 1 || len(doc.Sections) != 1 {
-		t.Errorf("Tables=%d Sections=%d, want 1 and 1", len(doc.Tables()), len(doc.Sections))
 	}
 }
 

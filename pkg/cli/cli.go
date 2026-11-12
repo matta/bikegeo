@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"bikegeo/pkg/web"
 )
 
 // App encapsulates the CLI runtime configuration and I/O streams.
@@ -13,10 +15,6 @@ type App struct {
 	In     io.Reader
 	Out    io.Writer
 	Err    io.Writer
-
-	// collect, when non-nil, records tables and text as a report.Document
-	// instead of printing them (see RunDocument).
-	collect *collector
 }
 
 // Run executes the bikegeo CLI with the provided arguments and I/O streams, returning an exit code.
@@ -59,24 +57,14 @@ func (app *App) dispatch(remaining []string) int {
 		return 0
 	case "list", "ls", "bikes", "frames":
 		return app.runList(subArgs)
-	case "forks":
-		return app.runForks(subArgs)
-	case "stems":
-		return app.runStems(subArgs)
-	case "ideals", "ideal":
-		return app.runIdeals(subArgs)
-	case "saddles", "saddle":
-		return app.runSaddles(subArgs)
-	case "saddle-swap":
-		return app.runSaddleSwap(subArgs)
-	case "handlebars", "handlebar", "bars":
-		return app.runHandlebars(subArgs)
 	case "compare", "cmp":
 		return app.runCompare(subArgs)
 	case "validate", "val", "check":
 		return app.runValidate(subArgs)
 	case "fit":
 		return app.runFit(subArgs)
+	case "serve":
+		return web.RunServe(subArgs, app.Out, app.Err)
 	default:
 		fmt.Fprintf(errOut, "Error: unknown command %q\n\n", subcmd)
 		app.printUsage()
