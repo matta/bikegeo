@@ -66,13 +66,6 @@ func metricCell(item scoredRowItem, attr ideal.AttributeSpec, meta ideal.Attribu
 
 func plain(s string) report.Cell { return report.Cell{Text: s} }
 
-func dashIf(ok bool, s string) string {
-	if ok {
-		return s
-	}
-	return "—"
-}
-
 // BuildDocument lays out a resolved comparison as structured tables.
 func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 	rows := res.Rows
@@ -237,92 +230,38 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 
 	if state.Transpose {
 		if o.Flat {
-			attrs := prof.Attributes
-			t := report.Table{ID: TableMatrix, Title: title, Subtitle: subtitle, Footers: primaryFooters}
-			t.Columns = append(t.Columns,
-				report.Column{ID: "col", Label: "#"},
-				report.Column{ID: "frame", Label: "Frame (Size)"})
-			if scoringEnabled {
-				t.Columns = append(t.Columns, report.Column{ID: "score", Label: "Score", Numeric: true})
-			}
-			t.Columns = append(t.Columns, report.Column{ID: "fork", Label: "Fork & Eff A2C"})
-			for _, attr := range attrs {
-				meta, _ := ideal.LookupAttribute(attr.ID)
-				t.Columns = append(t.Columns, report.Column{ID: attr.ID, Label: meta.Label, Numeric: true})
-			}
-			t.Rows = transposedRows(t.Columns, attrs, state, scoredItems, scoringEnabled, colAttrs)
-			doc.AddTable(t)
+			doc.AddTable(buildTransposedTable(
+				TableMatrix, title, subtitle, primaryFooters,
+				prof.Attributes, state, scoredItems, scoringEnabled, true, true, colAttrs,
+			))
 		} else {
-			var fitAttrs []ideal.AttributeSpec
+			var fitAttrs, chassisAttrs []ideal.AttributeSpec
 			for _, attr := range prof.Attributes {
 				if attr.Ideal != nil || strings.EqualFold(attr.ID, "best_stem") {
 					fitAttrs = append(fitAttrs, attr)
+				} else {
+					chassisAttrs = append(chassisAttrs, attr)
 				}
 			}
 			if len(fitAttrs) == 0 {
 				fitAttrs = prof.Attributes
+				chassisAttrs = nil
 			}
 
-			t1 := report.Table{ID: TableFitCockpit, Title: title + " - Fit & Cockpit", Subtitle: subtitle}
-			t1.Columns = append(t1.Columns,
-				report.Column{ID: "col", Label: "#"},
-				report.Column{ID: "frame", Label: "Frame (Size)"})
-			if scoringEnabled {
-				t1.Columns = append(t1.Columns, report.Column{ID: "score", Label: "Score", Numeric: true})
+			var fitFooters []report.Footer
+			if len(chassisAttrs) == 0 {
+				fitFooters = primaryFooters
 			}
-			t1.Columns = append(t1.Columns, report.Column{ID: "fork", Label: "Fork & Eff A2C"})
-			for _, attr := range fitAttrs {
-				meta, _ := ideal.LookupAttribute(attr.ID)
-				t1.Columns = append(t1.Columns, report.Column{ID: attr.ID, Label: meta.Label, Numeric: true})
+			doc.AddTable(buildTransposedTable(
+				TableFitCockpit, title+" - Fit & Cockpit", subtitle, fitFooters,
+				fitAttrs, state, scoredItems, scoringEnabled, true, true, colAttrs,
+			))
+			if len(chassisAttrs) > 0 {
+				doc.AddTable(buildTransposedTable(
+					TableChassis, "Frame & Chassis Specifications (Dynamic / At-Sag Geometry)", "", primaryFooters,
+					chassisAttrs, state, scoredItems, false, false, false, colAttrs,
+				))
 			}
-			t1.Rows = transposedRows(t1.Columns, fitAttrs, state, scoredItems, scoringEnabled, colAttrs)
-			doc.AddTable(t1)
-
-			t2 := report.Table{ID: TableChassis, Title: "Frame & Chassis Specifications (Dynamic / At-Sag Geometry)", Footers: primaryFooters}
-			t2.Columns = []report.Column{
-				{ID: "col", Label: "#"},
-				{ID: "frame", Label: "Frame (Size)"},
-				{ID: "reach", Label: "Reach", Numeric: true},
-				{ID: "stack", Label: "Stack", Numeric: true},
-				{ID: "hta", Label: "HTA", Numeric: true},
-				{ID: "trail", Label: "Trail", Numeric: true},
-				{ID: "sta", Label: "STA", Numeric: true},
-				{ID: "ett", Label: "ETT", Numeric: true},
-				{ID: "aett", Label: "AETT", Numeric: true},
-				{ID: "bb_drop", Label: "BB Drop", Numeric: true},
-				{ID: "chainstay", Label: "Chainstay", Numeric: true},
-				{ID: "seat_to_rc", Label: "Seat Axis–Rear Axle", Numeric: true},
-				{ID: "sparevert", Label: "Seat Axis–HT Drop", Numeric: true},
-			}
-			csMeta, _ := ideal.LookupAttribute("chainstay")
-			for _, item := range scoredItems {
-				r := item.row
-				c := r.Canonical
-				csStr := "—"
-				if val, ok := csMeta.Extract(r); ok {
-					csStr = csMeta.FormatVal(val, &r)
-				}
-				cells := []report.Cell{
-					plain(strconv.Itoa(item.origIdx + 1)),
-					plain(item.displayName),
-					plain(dashIf(c.ActiveReach > 0, fmt.Sprintf("%.0f", c.ActiveReach))),
-					plain(dashIf(c.ActiveStack > 0, fmt.Sprintf("%.0f", c.ActiveStack))),
-					plain(dashIf(c.ActiveHta > 0, fmt.Sprintf("%.1f°", c.ActiveHta))),
-					plain(dashIf(c.TrailMm > 0, fmt.Sprintf("%.0f", c.TrailMm))),
-					plain(dashIf(c.ActiveSta > 0, fmt.Sprintf("%.1f°", c.ActiveSta))),
-					plain(dashIf(c.Ett > 0, fmt.Sprintf("%.0f", c.Ett))),
-					plain(dashIf(c.Aett > 0, fmt.Sprintf("%.0f", c.Aett))),
-					plain(dashIf(c.ActiveBbDrop != 0, fmt.Sprintf("%.0f", c.ActiveBbDrop))),
-					plain(csStr),
-					plain(dashIf(c.SeatToRearCenter > 0, fmt.Sprintf("%.0f", c.SeatToRearCenter))),
-					plain(dashIf(c.SpareVerticalStack != 0, fmt.Sprintf("%.0f", c.SpareVerticalStack))),
-				}
-				for i := range cells[2:] {
-					cells[i+2].MetricID = t2.Columns[i+2].ID
-				}
-				t2.Rows = append(t2.Rows, report.Row{ID: strconv.Itoa(item.origIdx + 1), Kind: report.KindData, Attrs: colAttrs(item), Cells: cells})
-			}
-			doc.AddTable(t2)
 		}
 	} else {
 		// Default orientation: Metrics as rows, Bike Setups as columns
@@ -382,45 +321,63 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 	return doc, nil
 }
 
-// transposedRows builds the Ideal / Acceptable reference rows followed by one
-// data row per setup, for tables whose metric columns follow the fixed prefix.
-func transposedRows(
-	cols []report.Column,
+// buildTransposedTable constructs a bike-as-row comparison table for the given
+// attributes, optionally including Score/Fork columns and Ideal/Acceptable reference rows.
+func buildTransposedTable(
+	id, title, subtitle string,
+	footers []report.Footer,
 	attrs []ideal.AttributeSpec,
 	state model.SavedComparisonState,
 	items []scoredRowItem,
-	scoringEnabled bool,
+	scoringEnabled, withScoreAndFork, withRefRows bool,
 	rowAttrs func(scoredRowItem) map[string]string,
-) []report.Row {
-	offset := 3
-	if scoringEnabled {
-		offset = 4
+) report.Table {
+	t := report.Table{ID: id, Title: title, Subtitle: subtitle, Footers: footers}
+	t.Columns = []report.Column{
+		{ID: "col", Label: "#"},
+		{ID: "frame", Label: "Frame (Size)"},
+	}
+	if withScoreAndFork {
+		if scoringEnabled {
+			t.Columns = append(t.Columns, report.Column{ID: "score", Label: "Score", Numeric: true})
+		}
+		t.Columns = append(t.Columns, report.Column{ID: "fork", Label: "Fork & Eff A2C"})
+	}
+	offset := len(t.Columns)
+
+	evalAttrs := make([]ideal.AttributeSpec, len(attrs))
+	metas := make([]ideal.AttributeMeta, len(attrs))
+	for i, attr := range attrs {
+		evalAttrs[i] = AdaptProfileAttributeForSaddle(attr, state.Saddle)
+		metas[i], _ = ideal.LookupAttribute(evalAttrs[i].ID)
+		t.Columns = append(t.Columns, report.Column{ID: attr.ID, Label: metas[i].Label, Numeric: true})
 	}
 
-	idealRow := report.Row{ID: "ideal", Kind: report.KindIdeal, Cells: make([]report.Cell, len(cols))}
-	accRow := report.Row{ID: "acceptable", Kind: report.KindAcceptable, Cells: make([]report.Cell, len(cols))}
-	idealRow.Cells[1].Text = "Ideal"
-	accRow.Cells[1].Text = "Acceptable"
-	for idx, attr := range attrs {
-		evalAttr := AdaptProfileAttributeForSaddle(attr, state.Saddle)
-		meta, _ := ideal.LookupAttribute(evalAttr.ID)
-		idealRow.Cells[offset+idx].Text, accRow.Cells[offset+idx].Text = FormatAttrRanges(evalAttr, meta)
+	if withRefRows {
+		idealRow := report.Row{ID: "ideal", Kind: report.KindIdeal, Cells: make([]report.Cell, len(t.Columns))}
+		accRow := report.Row{ID: "acceptable", Kind: report.KindAcceptable, Cells: make([]report.Cell, len(t.Columns))}
+		idealRow.Cells[1].Text = "Ideal"
+		accRow.Cells[1].Text = "Acceptable"
+		for idx := range evalAttrs {
+			idealRow.Cells[offset+idx].Text, accRow.Cells[offset+idx].Text = FormatAttrRanges(evalAttrs[idx], metas[idx])
+		}
+		t.Rows = append(t.Rows, idealRow, accRow)
 	}
-	out := []report.Row{idealRow, accRow}
 
 	for _, item := range items {
 		cells := []report.Cell{plain(strconv.Itoa(item.origIdx + 1)), plain(item.displayName)}
-		if scoringEnabled {
-			cells = append(cells, plain(fmt.Sprintf("%.0f (#%d)", math.Round(item.score.Total), item.score.Rank)))
+		if withScoreAndFork {
+			if scoringEnabled {
+				cells = append(cells, plain(fmt.Sprintf("%.0f (#%d)", math.Round(item.score.Total), item.score.Rank)))
+			}
+			cells = append(cells, plain(canonicalizer.FormatForkEffA2c(item.row)))
 		}
-		cells = append(cells, plain(canonicalizer.FormatForkEffA2c(item.row)))
-		for _, attr := range attrs {
-			meta, _ := ideal.LookupAttribute(attr.ID)
-			cells = append(cells, metricCell(item, attr, meta))
+		for idx := range evalAttrs {
+			cells = append(cells, metricCell(item, evalAttrs[idx], metas[idx]))
 		}
-		out = append(out, report.Row{ID: strconv.Itoa(item.origIdx + 1), Kind: report.KindData, Attrs: rowAttrs(item), Cells: cells})
+		t.Rows = append(t.Rows, report.Row{ID: strconv.Itoa(item.origIdx + 1), Kind: report.KindData, Attrs: rowAttrs(item), Cells: cells})
 	}
-	return out
+	return t
 }
 
 func buildBreakdown(

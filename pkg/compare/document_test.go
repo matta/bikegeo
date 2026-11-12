@@ -120,3 +120,49 @@ func TestBuildDocumentColumnLayoutHasColumnAttrs(t *testing.T) {
 		t.Errorf("columns with frame-id = %d, want 2", withAttrs)
 	}
 }
+
+func TestBuildDocumentIncludesAETTInAllLayouts(t *testing.T) {
+	hasCol := func(tb report.Table, id string) bool {
+		for _, c := range tb.Columns {
+			if c.ID == id {
+				return true
+			}
+		}
+		return false
+	}
+	hasRow := func(tb report.Table, id string) bool {
+		for _, r := range tb.Rows {
+			if r.ID == id {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Split transposed layout (web rows)
+	splitDoc, err := BuildDocument(mustRun(t, Options{}), DocOptions{Scoring: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasCol(splitDoc.Tables()[1], "aett") {
+		t.Errorf("split chassis table missing aett column")
+	}
+
+	// Flat transposed layout (CLI)
+	flatDoc, err := BuildDocument(mustRun(t, Options{}), DocOptions{Scoring: true, Flat: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasCol(flatDoc.Tables()[0], "aett") {
+		t.Errorf("flat matrix table missing aett column")
+	}
+
+	// Non-transposed column layout
+	colDoc, err := BuildDocument(mustRun(t, Options{Specs: []string{"fenrir:L@110mm", "hayduke:S3@110mm"}}), DocOptions{Scoring: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasRow(colDoc.Tables()[0], "aett") {
+		t.Errorf("column matrix table missing aett row")
+	}
+}

@@ -74,6 +74,7 @@ func IdmatchProfile() *Profile {
 			DisplayOnly("stack"),
 			DisplayOnly("sta"),
 			DisplayOnly("ett"),
+			DisplayOnly("aett"),
 			DisplayOnly("chainstay"),
 			DisplayOnly("seat_to_rc"),
 			DisplayOnly("sparevert"),
