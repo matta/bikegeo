@@ -1,8 +1,8 @@
 # BikeGeo Analyst CLI 🚲
 
-A zero-dependency Go command-line application for **bicycle geometry validation and apples-to-apples frame comparisons**.
+A zero-dependency Go application for **bicycle geometry validation and apples-to-apples frame comparisons**, usable as a command-line tool or as a local web app (`bikegeo serve`).
 
-All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs ([`pkg/catalog/catalog.go`](pkg/catalog/catalog.go)), ideal fit profiles ([`pkg/ideal/loader.go`](pkg/ideal/loader.go)), and the baseline comparison state ([`pkg/cli/compare.go`](pkg/cli/compare.go)) are compiled directly into Go structs with zero external dependencies or JSON configuration files.
+All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs ([`pkg/catalog/catalog.go`](pkg/catalog/catalog.go)), ideal fit profiles ([`pkg/ideal/loader.go`](pkg/ideal/loader.go)), and the baseline comparison state ([`pkg/compare/specs.go`](pkg/compare/specs.go)) are compiled directly into Go structs with zero external dependencies or JSON configuration files.
 
 ---
 
@@ -95,6 +95,15 @@ make build
 ./bin/bikegeo fit surly-ecr
 ./bin/bikegeo fit seven-expedition-926f --try fork.a2c=511,531 --try sag=0,20,25
 ```
+
+### Web Interface
+
+```bash
+make serve                           # build, serve on http://127.0.0.1:8080, open the browser
+./bin/bikegeo serve --port 0 --open  # or choose a free port
+```
+
+The same reports, rendered as HTML tables with zone-coloured cells, sticky headers, linked metric definitions and a form for every input. Everything is a plain `GET` URL (`/?col=fenrir:L@110mm@20%25&col=hayduke:S3@110mm@20%25`) that you can bookmark or share; each page shows the equivalent terminal command. It listens on `127.0.0.1` only and uses no JavaScript. See [docs/WEB.md](docs/WEB.md).
 
 ---
 

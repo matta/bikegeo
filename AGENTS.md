@@ -20,9 +20,16 @@ go fmt ./... && make check
 
 ## Architectural Guidelines
 
-- **Zero External Dependencies & Pure-Go Data**:
-  - Uses only the Go standard library (`flag`, `encoding/csv`) with custom Unicode box-drawing, Markdown, and CSV table formatting in `pkg/cli/render.go`.
-  - All bike frames (`pkg/frames/*.go`), fork and stem catalogs (`pkg/catalog/catalog.go`), ideal fit profiles (`pkg/ideal/loader.go`), and the default comparison baseline (`cli.DefaultComparisonState()` in `pkg/cli/compare.go`) are compiled directly as Go structs. There are no JSON data files or runtime persistence files.
+- **Zero Runtime Dependencies & Pure-Go Data**:
+  - The shipped binary uses only the Go standard library (`flag`, `encoding/csv`, `net/http`, `html/template`, `embed`) with custom Unicode box-drawing, Markdown, and CSV table formatting in `pkg/cli/render.go`.
+  - The single exception is `github.com/PuerkitoBio/goquery`, allowed **only** in `_test.go` files for DOM assertions. Never import it (or any third-party package) from non-test code; verify with `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo`, which must list only `bikegeo/...`.
+  - All bike frames (`pkg/frames/*.go`), fork and stem catalogs (`pkg/catalog/catalog.go`), ideal fit profiles (`pkg/ideal/loader.go`), and the default comparison baseline (`compare.DefaultComparisonState()` in `pkg/compare/specs.go`, also reachable as `cli.DefaultComparisonState()`) are compiled directly as Go structs. There are no JSON data files or runtime persistence files.
+- **CLI and Web Share One Engine** (see [docs/WEB.md](docs/WEB.md)):
+  - `pkg/compare` holds spec parsing, `Run(Options)`, ranking/pruning and `BuildDocument`; `pkg/report` holds the presentation-neutral `Document`/`Table`/`Cell` types (cells carry `Zone` and `MetricID`); `pkg/cli` parses flags and prints; `pkg/web` serves HTML.
+  - Command table output goes through `App.render` / `App.renderFooters` so it prints in the CLI and is collected by `cli.RunDocument` for the web. Do not call `RenderOutput*` directly from commands.
+  - `bikegeo serve` is dispatched in `cmd/bikegeo/main.go` (`pkg/web` imports `pkg/cli`, never the reverse).
+  - The web is strictly Web 1.0: `GET` forms, URL query as the only state, full-page responses, no JavaScript, no cookies. Controls must be populated from the parsed query.
+  - CLI output must remain byte-identical when refactoring; `pkg/cli/cli_test.go` is the guard. `bikegeo fit` can list tied candidate solutions in a varying order between runs; that is pre-existing.
 - **Per-Column Comparison Model (`ComparisonSetup`)**:
   - Every comparison column specifies `FrameID + Size + Fork (travel in mm or "rigid") + Sag %`.
   - Allows comparing the same frame across multiple sag points or fork capacities alongside different frames.
@@ -61,6 +68,7 @@ When adding or editing frame files in `pkg/frames/*.go`:
 
 - **Unit & Integration Tests**:
   - Domain math, validation, canonicalization, ideal profiles, scoring, fit solver, and CLI subcommands (`compare`, `validate`, `list`, `forks`, `stems`, `ideals`, `fit`) are tested in `pkg/*/*_test.go`.
+  - HTTP handlers and templates are tested browserlessly in `pkg/web/web_test.go`: `httptest.NewRequest` (set `req.Host = "127.0.0.1:8080"`) → `web.New().ServeHTTP` → `goquery` selectors such as `tr[data-frame-id="..."] td[data-metric="..."]`. No Playwright, Selenium, or other browser automation.
 - **Command**:
   ```bash
   go vet ./... && go test -v ./...
