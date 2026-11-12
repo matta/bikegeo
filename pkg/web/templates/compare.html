@@ -1,0 +1,60 @@
+{{template "head" .}}
+<h1>Geometry comparison</h1>
+<p class="cli">Equivalent terminal command: <code>{{.CLI}}</code></p>
+{{if .Banner}}<div class="banner error" role="alert" id="errors">
+<strong>Please fix the following:</strong>
+<ul>{{range .Banner}}<li>{{.}}</li>{{end}}</ul>
+</div>{{end}}
+
+<form method="get" action="/#results" class="controls">
+<fieldset id="columns">
+<legend>Bikes to compare</legend>
+<table class="editor">
+<thead><tr><th scope="col">#</th><th scope="col">Frame</th><th scope="col">Size</th><th scope="col">Fork</th><th scope="col">Sag %</th><th scope="col"><span class="sr">Remove</span></th></tr></thead>
+<tbody>
+{{range .Rows}}{{if .Raw}}<tr data-col="{{.N}}"><td>{{.N}}</td><td colspan="4"><input type="text" name="col" value="{{.Spec}}" aria-label="Comparison spec {{.N}}" class="spec"></td><td></td></tr>
+{{else}}<tr data-col="{{.N}}" data-frame-id="{{.Frame}}">
+<td>{{.N}}</td>
+<td><input type="hidden" name="frame" value="{{.Frame}}">{{.FrameName}}</td>
+<td><select name="size" aria-label="Size for column {{.N}}">{{range .Sizes}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select></td>
+<td><select name="fork" aria-label="Fork for column {{.N}}">{{range .Forks}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select></td>
+<td><select name="sag" aria-label="Sag for column {{.N}}">{{range .Sags}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select></td>
+<td><a class="remove" href="{{.RemoveHref}}" title="Remove this column">Remove</a></td>
+</tr>
+{{end}}{{end}}
+{{if not .RawMode}}<tr class="add">
+<td>+</td>
+<td colspan="5"><select name="frame" aria-label="Add a frame"><option value="">Add a frame…</option>{{range .AddFrames}}<option value="{{.Value}}">{{.Label}}</option>{{end}}</select><input type="hidden" name="size" value=""><input type="hidden" name="fork" value=""><input type="hidden" name="sag" value=""> <span class="hint">size, fork and sag default to the frame's own; adjust them after updating</span></td>
+</tr>{{end}}
+</tbody>
+</table>
+{{with index .FieldErr "col"}}<p class="field-error">{{.}}</p>{{end}}
+</fieldset>
+
+<fieldset class="settings">
+<legend>Rider and ranking</legend>
+<label>Saddle <select name="saddle"><option value="">Default</option>{{range .Saddles}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select></label>
+<label>Handlebar <select name="handlebar"><option value="">Default</option>{{range .Handlebars}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select></label>
+<label>Layout <select name="layout">{{range .Layouts}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select></label>
+{{with index .FieldErr "layout"}}<span class="field-error">{{.}}</span>{{end}}
+<label>Scoring <select name="score">{{range .Scores}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select></label>
+<label><input type="checkbox" name="all" value="1"{{if .Q.All}} checked{{end}}> All frames, best configuration each</label>
+<label>Show top <input type="number" name="top" min="0" value="{{if .Q.Top}}{{.Q.Top}}{{end}}" placeholder="all"></label>
+{{with index .FieldErr "top"}}<span class="field-error">{{.}}</span>{{end}}
+<label>Per frame <input type="number" name="top_per_frame" min="0" value="{{if .Q.TopPerFrame}}{{.Q.TopPerFrame}}{{end}}" placeholder="auto"></label>
+{{with index .FieldErr "top_per_frame"}}<span class="field-error">{{.}}</span>{{end}}
+</fieldset>
+
+<p class="actions"><button type="submit">Calculate / Update</button> <a href="/">Reset to Defaults</a></p>
+</form>
+
+{{if .Tables}}
+<section id="results">
+<p class="summary">{{.Count}} setups. <a href="{{.Permalink}}">Permalink to this exact view</a>. Cells are coloured by how far each value is from the ideal range: <span class="zone-ideal key">✓ ideal</span> <span class="zone-acceptable key">~ acceptable</span> <span class="zone-outside key">✗ outside</span>. Metric headers link to their definitions.</p>
+{{range .Tables}}{{if eq .ID "breakdown"}}<details class="breakdown" open><summary>Scoring breakdown</summary>{{template "table" .}}</details>
+{{else}}{{template "table" .}}
+{{end}}{{end}}
+{{range .Footers}}{{template "footer" .}}{{end}}
+</section>
+{{end}}
+{{template "foot" .}}

@@ -121,6 +121,8 @@ Core Commands:
   saddle-swap [from] [to] Analyze saddle swap, contrasting naive BRP vs true pelvic fit
   handlebars [id] [cmp]   List handlebar catalog, inspect 3D kinematic model, and compare hand offsets
   ideals [show <name>]    List or inspect ideal frame profiles
+  serve [--port N] [--open]
+                          Serve every report as local web pages on 127.0.0.1 (default port 8080)
 
 Global Flags:
   -f, --format <fmt>      Output format: table (default), md, csv
