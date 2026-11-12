@@ -751,17 +751,3 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 		}
 	}
 }
-
-// ApplyIdealHBTarget is retained for backward compatibility, optimizing HB points against a distance target.
-func ApplyIdealHBTarget(rows []model.CanonicalComparisonRow, targetMin, targetMax *float64) {
-	for i := range rows {
-		can := &rows[i].Canonical
-		if len(can.PossibleHBs) > 0 {
-			if best, ok := geometry.SelectBestHB(can.PossibleHBs, rows[i].Bike.GetCanonicalStem(), targetMin, targetMax); ok {
-				can.SelectedHB = &best
-				can.SaddleHbMm = best.SaddleHbMm
-				can.SaddleHbDropMm = best.SaddleHbDropMm
-			}
-		}
-	}
-}

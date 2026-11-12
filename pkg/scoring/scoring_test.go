@@ -91,7 +91,7 @@ func TestScoreRow_MissingDataRenormalization(t *testing.T) {
 }
 
 func TestExplainProfile_LossesAndH2H(t *testing.T) {
-	prof, err := ideal.LoadProfile("", "idmatch")
+	prof, err := ideal.GetProfile("idmatch")
 	if err != nil {
 		t.Fatalf("Failed to load idmatch profile: %v", err)
 	}

@@ -130,13 +130,8 @@ func GetProfile(name string) (*Profile, error) {
 	return nil, fmt.Errorf("ideal profile %q not found", cleanName)
 }
 
-// LoadProfile is a compatibility wrapper for GetProfile.
-func LoadProfile(_ string, name string) (*Profile, error) {
-	return GetProfile(name)
-}
-
 // ListProfiles returns summaries of all compiled ideal profiles.
-func ListProfiles(_ ...string) ([]ProfileSummary, error) {
+func ListProfiles() ([]ProfileSummary, error) {
 	var summaries []ProfileSummary
 	for _, p := range AllProfiles() {
 		summaries = append(summaries, summarizeProfile(p))
