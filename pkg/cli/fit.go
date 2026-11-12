@@ -78,9 +78,6 @@ func (a *App) runFit(args []string) int {
 			return 1
 		}
 	}
-	if err := a.printDocument(doc, nil); err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
-		return 1
-	}
+	a.printDocument(doc)
 	return 0
 }

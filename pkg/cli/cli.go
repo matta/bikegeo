@@ -11,33 +11,20 @@ import (
 
 // App encapsulates the CLI runtime configuration and I/O streams.
 type App struct {
-	Format string
-	In     io.Reader
-	Out    io.Writer
-	Err    io.Writer
+	In  io.Reader
+	Out io.Writer
+	Err io.Writer
 }
 
 // Run executes the bikegeo CLI with the provided arguments and I/O streams, returning an exit code.
 func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 	app := &App{
-		Format: FormatTable,
-		In:     in,
-		Out:    out,
-		Err:    errOut,
+		In:  in,
+		Out: out,
+		Err: errOut,
 	}
 
-	remaining, err := app.extractGlobalFlags(args)
-	if err != nil {
-		fmt.Fprintf(errOut, "Error: %v\n", err)
-		return 2
-	}
-
-	if _, err := NormalizeFormat(app.Format); err != nil {
-		fmt.Fprintf(errOut, "Error: %v\n", err)
-		return 2
-	}
-
-	return app.dispatch(remaining)
+	return app.dispatch(args)
 }
 
 // dispatch routes the remaining (global-flag-free) arguments to a subcommand.
@@ -72,26 +59,6 @@ func (app *App) dispatch(remaining []string) int {
 	}
 }
 
-func (a *App) extractGlobalFlags(args []string) ([]string, error) {
-	var remaining []string
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		switch {
-		case arg == "--format" || arg == "-f":
-			if i+1 >= len(args) {
-				return nil, fmt.Errorf("%s requires a format argument (table, md, csv)", arg)
-			}
-			a.Format = args[i+1]
-			i++
-		case strings.HasPrefix(arg, "--format="):
-			a.Format = strings.TrimPrefix(arg, "--format=")
-		default:
-			remaining = append(remaining, arg)
-		}
-	}
-	return remaining, nil
-}
-
 func (a *App) printUsage() {
 	fmt.Fprint(a.Out, `BikeGeo Analyst CLI - Bicycle Geometry Validation & Apples-to-Apples Comparison
 
@@ -103,17 +70,8 @@ Core Commands:
   validate [frame...]     Verify CAD Master Stack Equation, publish mode, and multi-config coherence
   fit <frame[:size]>      Analyze CAD residuals, solve minimax A2C/spacer, and sweep parameter trials
   list                    List all bike frames, sizes, and supported fork capacities
-  forks                   List standard 29er fork presets and travel-to-A2C mappings
-  stems                   List standard stem presets and length/angle envelopes
-  saddles [show <id>]     List saddle catalog, translate pelvic fit, and solve ideal custom STA
-  saddle-swap [from] [to] Analyze saddle swap, contrasting naive BRP vs true pelvic fit
-  handlebars [id] [cmp]   List handlebar catalog, inspect 3D kinematic model, and compare hand offsets
-  ideals [show <name>]    List or inspect ideal frame profiles
   serve [--port N] [--open]
-                          Serve every report as local web pages on 127.0.0.1 (default port 8080)
-
-Global Flags:
-  -f, --format <fmt>      Output format: table (default), md, csv
+                          Serve the human-facing web UI on 127.0.0.1 (default port 8080)
 
 Examples:
   # Run the default comparison matrix:

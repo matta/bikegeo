@@ -2,7 +2,6 @@ package cli
 
 import (
 	"flag"
-	"fmt"
 	"strings"
 
 	"bikegeo/pkg/compare"
@@ -26,9 +25,6 @@ func (a *App) runList(args []string) int {
 	if f.Query == "" && fs.NArg() > 0 {
 		f.Query = strings.Join(fs.Args(), " ")
 	}
-	if err := a.printDocument(compare.BuildFrameListDocument(f), nil); err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
-		return 1
-	}
+	a.printDocument(compare.BuildFrameListDocument(f))
 	return 0
 }

@@ -11,6 +11,28 @@ import (
 	"bikegeo/pkg/validator"
 )
 
+// runCLIRows runs the CLI and flattens its Markdown tables to comma-joined
+// rows, so tests can address cells without caring about Markdown padding.
+func runCLIRows(t *testing.T, args ...string) (string, string, int) {
+	t.Helper()
+	out, errOut, code := runCLI(t, args...)
+	var rows []string
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.HasPrefix(line, "|") {
+			continue
+		}
+		cells := strings.Split(strings.TrimSuffix(strings.TrimPrefix(line, "| "), " |"), " | ")
+		if cells[0] == "---" {
+			continue
+		}
+		for i, c := range cells {
+			cells[i] = strings.ReplaceAll(c, "<br>", " | ")
+		}
+		rows = append(rows, strings.Join(cells, ","))
+	}
+	return strings.Join(rows, "\n") + "\n", errOut, code
+}
+
 func runCLI(t *testing.T, args ...string) (string, string, int) {
 	t.Helper()
 
@@ -20,8 +42,8 @@ func runCLI(t *testing.T, args ...string) (string, string, int) {
 }
 
 func TestCompare_SameFrameDifferentSagsAndRigid(t *testing.T) {
-	out, errOut, code := runCLI(t,
-		"compare", "--format", "csv",
+	out, errOut, code := runCLIRows(t,
+		"compare",
 		"havok:L@110mm@20%",
 		"havok:L@110mm@25%",
 		"havok:L@rigid",
@@ -235,11 +257,13 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "4 (#1)") {
 			t.Errorf("expected '4 (#1)' in transposed output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Fit & Cockpit") {
-			t.Errorf("expected Table 1 'Fit & Cockpit' in transposed output, got:\n%s", out)
+		// The CLI keeps a transposed comparison as one wide table (the web
+		// splits it into Fit & Cockpit and Chassis tables).
+		if got := strings.Count(out, "| # | Frame (Size) |"); got != 1 {
+			t.Errorf("expected exactly one matrix table in transposed output, got %d:\n%s", got, out)
 		}
-		if !strings.Contains(out, "Frame & Chassis Specifications (Dynamic / At-Sag Geometry)") {
-			t.Errorf("expected Table 2 'Frame & Chassis Specifications (Dynamic / At-Sag Geometry)' in transposed output, got:\n%s", out)
+		if !strings.Contains(out, "Saddle-Rear Axle") || !strings.Contains(out, "Reach") {
+			t.Errorf("expected cockpit and chassis columns in one table, got:\n%s", out)
 		}
 		if !strings.Contains(out, "Frame & Chassis Specs: Reach, Stack, HTA, STA, BB Drop, and Trail reflect the dynamic, rotated frame attitude") {
 			t.Errorf("expected dynamic geometry explanation in reference definitions footer, got:\n%s", out)
@@ -271,9 +295,9 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		}
 	})
 
-	t.Run("FormatCSV", func(t *testing.T) {
-		args := append([]string{"compare", "--format", "csv"}, specs...)
-		out, errOut, code := runCLI(t, args...)
+	t.Run("ScoreRowAsRows", func(t *testing.T) {
+		args := append([]string{"compare"}, specs...)
+		out, errOut, code := runCLIRows(t, args...)
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
@@ -282,8 +306,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		}
 	})
 
-	t.Run("FormatMD", func(t *testing.T) {
-		args := append([]string{"compare", "--format", "md"}, specs...)
+	t.Run("ScoreRowAsMarkdown", func(t *testing.T) {
+		args := append([]string{"compare"}, specs...)
 		out, errOut, code := runCLI(t, args...)
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
@@ -304,8 +328,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Saddle-HT Drop @") {
 			t.Errorf("expected 'Saddle-HT Drop @' in standard compare output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Reference Metric Definitions:") {
-			t.Errorf("expected 'Reference Metric Definitions:' footer, got:\n%s", out)
+		if !strings.Contains(out, "#### Reference Metric Definitions") {
+			t.Errorf("expected Reference Metric Definitions footer, got:\n%s", out)
 		}
 		if !strings.Contains(out, "Chainstay (*): Asterisk indicates adjustable/sliding dropouts; displayed at maximum stay position") {
 			t.Errorf("expected Chainstay (*) definition in footer, got:\n%s", out)
@@ -327,8 +351,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 
 func TestCompare_TumbleweedSunlinerFixedForkConstraints(t *testing.T) {
 	t.Run("AcceptsDefaultAndExplicitRigid", func(t *testing.T) {
-		out, errOut, code := runCLI(t,
-			"compare", "--format", "csv",
+		out, errOut, code := runCLIRows(t,
+			"compare",
 			"tumbleweed-sunliner:M",
 			"tumbleweed-sunliner:L@rigid",
 		)
@@ -411,7 +435,7 @@ func TestCompare_DisambiguateDuplicateFrameSize(t *testing.T) {
 
 func TestCompare_AllSizesExpansion(t *testing.T) {
 	// 1. Fresh comparison with :all and fork override
-	out, errOut, code := runCLI(t, "compare", "--format", "csv", "seven-expedition-926f:all@120mm")
+	out, errOut, code := runCLIRows(t, "compare", "seven-expedition-926f:all@120mm")
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
@@ -420,7 +444,7 @@ func TestCompare_AllSizesExpansion(t *testing.T) {
 	}
 
 	// 2. Incremental addition with +frame:all
-	out, errOut, code = runCLI(t, "compare", "--format", "csv", "+revel-el-jefe:all@120mm")
+	out, errOut, code = runCLIRows(t, "compare", "+revel-el-jefe:all@120mm")
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
@@ -429,7 +453,7 @@ func TestCompare_AllSizesExpansion(t *testing.T) {
 	}
 
 	// 3. Incremental removal with -frame:all (Salsa Fargo is in DefaultComparisonState)
-	out, errOut, code = runCLI(t, "compare", "--format", "csv", "-salsa-fargo:all")
+	out, errOut, code = runCLIRows(t, "compare", "-salsa-fargo:all")
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
@@ -438,7 +462,7 @@ func TestCompare_AllSizesExpansion(t *testing.T) {
 	}
 
 	// 4. Default fork expansion with frame:all
-	out, errOut, code = runCLI(t, "compare", "--format", "csv", "revel-el-jefe:all")
+	out, errOut, code = runCLIRows(t, "compare", "revel-el-jefe:all")
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
@@ -532,7 +556,7 @@ func TestCompare_WithSaddleFlag(t *testing.T) {
 
 func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	t.Run("CompareAllFlag_DefaultTop1PerFrame", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "compare", "--all", "--format", "csv")
+		out, errOut, code := runCLIRows(t, "compare", "--all")
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
@@ -567,8 +591,8 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	})
 
 	t.Run("CompareAllToken_MatchesFlag", func(t *testing.T) {
-		outFlag, _, codeFlag := runCLI(t, "compare", "--all", "--format", "csv")
-		outToken, _, codeToken := runCLI(t, "compare", "all", "--format", "csv")
+		outFlag, _, codeFlag := runCLIRows(t, "compare", "--all")
+		outToken, _, codeToken := runCLIRows(t, "compare", "all")
 
 		if codeFlag != 0 || codeToken != 0 {
 			t.Fatalf("expected exit code 0, got %d and %d", codeFlag, codeToken)
@@ -579,7 +603,7 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	})
 
 	t.Run("CompareAll_GlobalTopLimit", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "compare", "--all", "--top", "5", "--format", "csv")
+		out, errOut, code := runCLIRows(t, "compare", "--all", "--top", "5")
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
@@ -597,7 +621,7 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	})
 
 	t.Run("CompareAll_TopPerFrame2", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "compare", "--all", "--top-per-frame", "2", "--format", "csv")
+		out, errOut, code := runCLIRows(t, "compare", "--all", "--top-per-frame", "2")
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
@@ -621,7 +645,7 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	})
 
 	t.Run("CompareAllRigid_ExcludesSuspensionOnly", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "compare", "all@rigid", "--format", "csv")
+		out, errOut, code := runCLIRows(t, "compare", "all@rigid")
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
@@ -653,7 +677,7 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 	})
 
 	t.Run("CompareSingleFrameAllConfigs_DedupesSags", func(t *testing.T) {
-		out, errOut, code := runCLI(t, "compare", "otso-fenrir-stainless:all@all", "--format", "csv")
+		out, errOut, code := runCLIRows(t, "compare", "otso-fenrir-stainless:all@all")
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
@@ -753,7 +777,7 @@ func TestCompare_ConfiguredHandlebar(t *testing.T) {
 }
 
 func TestList_FilterByQuery(t *testing.T) {
-	out, errOut, code := runCLI(t, "list", "-q", "havok", "--format", "md")
+	out, errOut, code := runCLI(t, "list", "-q", "havok")
 	if code != 0 {
 		t.Fatalf("expected list to succeed, got %d; stderr: %s", code, errOut)
 	}

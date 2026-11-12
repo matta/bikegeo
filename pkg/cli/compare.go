@@ -7,7 +7,6 @@ import (
 	"io"
 
 	"bikegeo/pkg/compare"
-	"bikegeo/pkg/report"
 )
 
 func (a *App) runCompare(args []string) int {
@@ -93,42 +92,17 @@ func (a *App) runCompare(args []string) int {
 
 // renderComparison lays out res as a report document and prints it in a.Format.
 func (a *App) renderComparison(res *compare.Result, scoringEnabled, scoreDetail bool) error {
-	isCSV := a.Format == FormatCSV
+	// Flat keeps a many-bike comparison as one wide table, which is the
+	// easiest layout for a program to parse.
 	doc, err := compare.BuildDocument(res, compare.DocOptions{
 		Scoring: scoringEnabled,
-		Detail:  scoreDetail && !isCSV,
-		Flat:    isCSV,
+		Detail:  scoreDetail,
+		Flat:    true,
 	})
 	if err != nil {
 		return err
 	}
-	return a.printDocument(doc, func(id string) bool {
-		return id == compare.TableFitCockpit || id == compare.TableChassis
-	})
-}
-
-// printDocument renders each section of doc separated by blank lines. Tables
-// for which wrap(id) is true get terminal header wrapping applied.
-func (a *App) printDocument(doc report.Document, wrap func(id string) bool) error {
-	for i, sec := range doc.Sections {
-		if i > 0 {
-			fmt.Fprintln(a.Out)
-		}
-		if sec.Table == nil {
-			fmt.Fprintln(a.Out, sec.Text)
-			continue
-		}
-		t := *sec.Table
-		headers := t.Headers()
-		if wrap != nil && wrap(t.ID) {
-			for j, h := range headers {
-				headers[j] = wrapHeader(h)
-			}
-		}
-		if err := RenderOutputWithFooter(a.Out, a.Format, t.Title, t.Subtitle, headers, t.StringRows(), t.Footers); err != nil {
-			return err
-		}
-	}
+	a.printDocument(doc)
 	return nil
 }
 
@@ -249,39 +223,5 @@ Flags:
   --transpose                  Render transposed table (Columns as rows, Metrics as columns)
   --score-detail               Display detailed scoring breakdown table for each criterion
   --no-score                   Disable scoring and ranking display
-
-Global Flags:
-  -f, --format <format>     Output format: table (default), md, csv
 `)
-}
-
-func wrapHeader(h string) string {
-	switch h {
-	case "Fork & Eff A2C":
-		return "Fork &\nEff A2C"
-	case "BRP Setback":
-		return "BRP\nSetback"
-	case "Saddle-HB":
-		return "Saddle-\nHB"
-	case "HB Rise", "Saddle-HB Drop":
-		return "HB\nRise"
-	case "Best Stem":
-		return "Best\nStem"
-	case "Oval Fits", "Handlebar Clamp Fit":
-		return "Oval\nFits"
-	case "Seatpost Ext":
-		return "Seatpost\nExt"
-	case "BB Drop":
-		return "BB\nDrop"
-	case "Front Wt":
-		return "Front\nWt"
-	case "Chainstay":
-		return "Chain\nstay"
-	case "Saddle-Rear Axle", "Saddle-to-Axle", "Saddle-RC", "Seat-RC":
-		return "Saddle-\nRear Axle"
-	case "Saddle-HT Drop", "Spare Vert":
-		return "Saddle-HT\nDrop"
-	default:
-		return h
-	}
 }

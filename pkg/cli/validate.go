@@ -39,10 +39,7 @@ func (a *App) runValidate(args []string) int {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
 	}
-	if err := a.printDocument(doc, nil); err != nil {
-		fmt.Fprintf(a.Err, "Error: %v\n", err)
-		return 1
-	}
+	a.printDocument(doc)
 	if !allValid {
 		return 1
 	}
