@@ -237,7 +237,7 @@ func pages() []page {
 					f += ":" + sz
 				}
 				args := []string{"fit", f}
-				for _, t := range strings.Fields(v.Get("try")) {
+				for t := range strings.FieldsSeq(v.Get("try")) {
 					args = append(args, "--try", t)
 				}
 				if isTrue(v.Get("detail")) {

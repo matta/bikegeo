@@ -12,11 +12,15 @@ go vet ./... && go test ./...
 
 ## Final Verification & Cleanup
 
-Formatting is not part of the fast feedback loop, but is part of the final cleanup stages of code modification. Before completing a task or submitting changes, format all Go source files and verify the full check suite:
+Formatting and modernization are not part of the fast feedback loop, but are part of the final cleanup stages of code modification. Before completing a task or submitting changes, apply the toolchain's automatic modernizations, format all Go source files, and verify the full check suite:
 
 ```bash
-go fmt ./... && make check
+go fix ./... && go fmt ./... && make check
 ```
+
+- `go fix` rewrites code to current language and library idioms (for example `new(expr)` for pointer literals, `strings.FieldsSeq`, `maps.Copy`). Run it with the Go version pinned in `go.mod`, and re-run it until it reports no further changes.
+- Review its diff before committing. Its rewrites must be semantically neutral: if a change touches `pkg/frames/*.go`, confirm only idioms changed and no published geometry value did (see the chart-immutability rule below). Commit `go fix` output separately from feature work so it stays reviewable.
+- If a rewrite produces an awkward result (such as an aliased import like `maps0` caused by a shadowing variable), fix the cause (rename the variable) rather than keeping the workaround.
 
 ## Architectural Guidelines
 

@@ -23,7 +23,8 @@ func searchSubstr(s, substr string) bool {
 	return false
 }
 
-func floatPtr(v float64) *float64 { return &v }
+//go:fix inline
+func floatPtr(v float64) *float64 { return new(v) }
 
 func TestScoreRow_MissingDataRenormalization(t *testing.T) {
 	prof := &ideal.Profile{
@@ -32,16 +33,16 @@ func TestScoreRow_MissingDataRenormalization(t *testing.T) {
 			{
 				ID:        "setback",
 				Weight:    10,
-				Ideal:     &ideal.Range{Min: floatPtr(230), Max: floatPtr(230)},
-				EdgeScore: floatPtr(80),
-				Falloff:   &ideal.Falloff{Below: floatPtr(10), Above: floatPtr(10)},
+				Ideal:     &ideal.Range{Min: new(float64(230)), Max: new(float64(230))},
+				EdgeScore: new(float64(80)),
+				Falloff:   &ideal.Falloff{Below: new(float64(10)), Above: new(float64(10))},
 			},
 			{
 				ID:        "standover",
 				Weight:    10,
-				Ideal:     &ideal.Range{Min: floatPtr(700), Max: floatPtr(750)},
-				EdgeScore: floatPtr(80),
-				Falloff:   &ideal.Falloff{Below: floatPtr(50), Above: floatPtr(50)},
+				Ideal:     &ideal.Range{Min: new(float64(700)), Max: new(float64(750))},
+				EdgeScore: new(float64(80)),
+				Falloff:   &ideal.Falloff{Below: new(float64(50)), Above: new(float64(50))},
 			},
 		},
 	}
@@ -164,9 +165,9 @@ func TestScoreRow_SaddleHb(t *testing.T) {
 			{
 				ID:        "saddle_hb",
 				Weight:    10,
-				Ideal:     &ideal.Range{Min: floatPtr(695), Max: floatPtr(705)},
-				EdgeScore: floatPtr(80),
-				Falloff:   &ideal.Falloff{Below: floatPtr(50), Above: floatPtr(50)},
+				Ideal:     &ideal.Range{Min: new(float64(695)), Max: new(float64(705))},
+				EdgeScore: new(float64(80)),
+				Falloff:   &ideal.Falloff{Below: new(float64(50)), Above: new(float64(50))},
 			},
 		},
 	}
@@ -234,31 +235,31 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	// Ideal profile with BRP Setback (target 219mm), Saddle-HB (target 700mm), and Saddle-HB Drop (target 13mm)
 	prof := &ideal.Profile{
 		Name:           "test-idmatch",
-		SaddleHeightMm: floatPtr(746),
+		SaddleHeightMm: new(float64(746)),
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "brp_setback",
 				Weight:     10,
-				Ideal:      &ideal.Range{Min: floatPtr(219), Max: floatPtr(219)}, // target 219mm
-				Acceptable: &ideal.Range{Min: floatPtr(214), Max: floatPtr(224)}, // within ±5mm of rail center
-				EdgeScore:  floatPtr(75),
-				Falloff:    &ideal.Falloff{Below: floatPtr(20), Above: floatPtr(20)},
+				Ideal:      &ideal.Range{Min: new(float64(219)), Max: new(float64(219))}, // target 219mm
+				Acceptable: &ideal.Range{Min: new(float64(214)), Max: new(float64(224))}, // within ±5mm of rail center
+				EdgeScore:  new(float64(75)),
+				Falloff:    &ideal.Falloff{Below: new(float64(20)), Above: new(float64(20))},
 			},
 			{
 				ID:         "saddle_hb",
 				Weight:     10,
-				Ideal:      &ideal.Range{Min: floatPtr(695), Max: floatPtr(705)},
-				Acceptable: &ideal.Range{Min: floatPtr(685), Max: floatPtr(715)},
-				EdgeScore:  floatPtr(75),
-				Falloff:    &ideal.Falloff{Below: floatPtr(15), Above: floatPtr(15)},
+				Ideal:      &ideal.Range{Min: new(float64(695)), Max: new(float64(705))},
+				Acceptable: &ideal.Range{Min: new(float64(685)), Max: new(float64(715))},
+				EdgeScore:  new(float64(75)),
+				Falloff:    &ideal.Falloff{Below: new(float64(15)), Above: new(float64(15))},
 			},
 			{
 				ID:         "saddle_hb_drop",
 				Weight:     5,
-				Ideal:      &ideal.Range{Min: floatPtr(-2), Max: floatPtr(8)},
-				Acceptable: &ideal.Range{Min: floatPtr(-10), Max: floatPtr(16)},
-				EdgeScore:  floatPtr(75),
-				Falloff:    &ideal.Falloff{Below: floatPtr(10), Above: floatPtr(10)},
+				Ideal:      &ideal.Range{Min: new(float64(-2)), Max: new(float64(8))},
+				Acceptable: &ideal.Range{Min: new(float64(-10)), Max: new(float64(16))},
+				EdgeScore:  new(float64(75)),
+				Falloff:    &ideal.Falloff{Below: new(float64(10)), Above: new(float64(10))},
 			},
 		},
 	}
@@ -424,19 +425,19 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 	// Profile with handlebar_clamp_fit, saddle_hb target (700mm), and saddle_hb_drop target (13mm)
 	prof := &ideal.Profile{
 		Name:           "test-clamp-fit",
-		SaddleHeightMm: floatPtr(746),
+		SaddleHeightMm: new(float64(746)),
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "handlebar_clamp_fit",
 				Weight:     15,
 				Ideal:      ideal.AtLeast(100),
 				Acceptable: ideal.AtLeast(75),
-				EdgeScore:  floatPtr(75),
+				EdgeScore:  new(float64(75)),
 				Falloff:    ideal.FalloffBelow(75),
-				Floor:      floatPtr(-200),
+				Floor:      new(float64(-200)),
 			},
-			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), floatPtr(75), ideal.FalloffBoth(15, 15)),
-			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), floatPtr(75), ideal.FalloffBoth(10, 10)),
+			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), new(float64(75)), ideal.FalloffBoth(15, 15)),
+			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), new(float64(75)), ideal.FalloffBoth(10, 10)),
 		},
 	}
 
@@ -544,19 +545,19 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 func TestScoreRow_HandlebarClampFit_StemExtremityPenalty(t *testing.T) {
 	prof := &ideal.Profile{
 		Name:           "test-stem-extreme",
-		SaddleHeightMm: floatPtr(746),
+		SaddleHeightMm: new(float64(746)),
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "handlebar_clamp_fit",
 				Weight:     15,
 				Ideal:      ideal.AtLeast(100),
 				Acceptable: ideal.AtLeast(75),
-				EdgeScore:  floatPtr(75),
+				EdgeScore:  new(float64(75)),
 				Falloff:    ideal.FalloffBelow(75),
-				Floor:      floatPtr(-200),
+				Floor:      new(float64(-200)),
 			},
-			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), floatPtr(75), ideal.FalloffBoth(15, 15)),
-			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), floatPtr(75), ideal.FalloffBoth(10, 10)),
+			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), new(float64(75)), ideal.FalloffBoth(15, 15)),
+			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), new(float64(75)), ideal.FalloffBoth(10, 10)),
 		},
 	}
 

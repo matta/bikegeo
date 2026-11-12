@@ -3,6 +3,7 @@ package web
 import (
 	"html"
 	"html/template"
+	"maps"
 	"net/url"
 	"sort"
 	"strings"
@@ -40,12 +41,10 @@ type TableView struct {
 
 // attrString renders m as data-* attributes with escaped values. Keys that are
 // not simple lowercase words are dropped.
-func attrString(maps ...map[string]string) template.HTMLAttr {
+func attrString(sets ...map[string]string) template.HTMLAttr {
 	merged := map[string]string{}
-	for _, m := range maps {
-		for k, v := range m {
-			merged[k] = v
-		}
+	for _, m := range sets {
+		maps.Copy(merged, m)
 	}
 	keys := make([]string, 0, len(merged))
 	for k := range merged {

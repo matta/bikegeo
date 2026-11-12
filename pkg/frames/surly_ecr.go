@@ -12,8 +12,8 @@ var SurlyECR = model.FrameModel{
 	HeadsetCupType:     model.CupEC34,
 	GeoHeadsetSpacerMm: 12,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c:       model.Float64Ptr(1),
-		Wheelbase: model.Float64Ptr(1),
+		A2c:       new(float64(1)),
+		Wheelbase: new(float64(1)),
 	},
 	MaxSpacerMm:   40,
 	CanonicalStem: model.StemSpec{LengthMm: 60, AngleDeg: -6},
