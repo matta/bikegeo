@@ -107,13 +107,18 @@ func (a *App) renderComparison(res *compare.Result, scoringEnabled, scoreDetail 
 	})
 }
 
-// printDocument renders each table of doc separated by blank lines. Tables for
-// which wrap(id) is true get terminal header wrapping applied.
+// printDocument renders each section of doc separated by blank lines. Tables
+// for which wrap(id) is true get terminal header wrapping applied.
 func (a *App) printDocument(doc report.Document, wrap func(id string) bool) error {
-	for i, t := range doc.Tables {
+	for i, sec := range doc.Sections {
 		if i > 0 {
 			fmt.Fprintln(a.Out)
 		}
+		if sec.Table == nil {
+			fmt.Fprintln(a.Out, sec.Text)
+			continue
+		}
+		t := *sec.Table
 		headers := t.Headers()
 		if wrap != nil && wrap(t.ID) {
 			for j, h := range headers {

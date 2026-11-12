@@ -47,7 +47,7 @@ func TestBuildDocumentSplitLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	var ids []string
-	for _, tb := range doc.Tables {
+	for _, tb := range doc.Tables() {
 		ids = append(ids, tb.ID)
 	}
 	if got := strings.Join(ids, ","); got != "fit-cockpit,chassis,breakdown" {
@@ -56,13 +56,13 @@ func TestBuildDocumentSplitLayout(t *testing.T) {
 	if len(doc.Footers) == 0 {
 		t.Error("expected document-level footers")
 	}
-	for _, tb := range doc.Tables {
+	for _, tb := range doc.Tables() {
 		if len(tb.Footers) != 0 {
 			t.Errorf("table %s has footers despite DocFooters", tb.ID)
 		}
 	}
 
-	fit := doc.Tables[0]
+	fit := doc.Tables()[0]
 	if fit.Rows[0].Kind != report.KindIdeal || fit.Rows[1].Kind != report.KindAcceptable {
 		t.Error("first two rows should be ideal/acceptable references")
 	}
@@ -89,14 +89,14 @@ func TestBuildDocumentFooterPlacement(t *testing.T) {
 	res := mustRun(t, Options{Specs: []string{"fenrir:L@110mm", "hayduke:S3@110mm"}})
 
 	withDetail, _ := BuildDocument(res, DocOptions{Scoring: true, Detail: true})
-	last := withDetail.Tables[len(withDetail.Tables)-1]
+	last := withDetail.Tables()[len(withDetail.Tables())-1]
 	if last.ID != TableBreakdown || len(last.Footers) == 0 {
 		t.Errorf("footers should follow the breakdown table, got %s with %d", last.ID, len(last.Footers))
 	}
 
 	flat, _ := BuildDocument(mustRun(t, Options{}), DocOptions{Scoring: true, Flat: true})
-	if len(flat.Tables) != 1 || flat.Tables[0].ID != TableMatrix {
-		t.Errorf("flat layout should be one matrix table, got %d", len(flat.Tables))
+	if len(flat.Tables()) != 1 || flat.Tables()[0].ID != TableMatrix {
+		t.Errorf("flat layout should be one matrix table, got %d", len(flat.Tables()))
 	}
 }
 
@@ -106,7 +106,7 @@ func TestBuildDocumentColumnLayoutHasColumnAttrs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tb := doc.Tables[0]
+	tb := doc.Tables()[0]
 	if tb.ID != TableMatrix {
 		t.Fatalf("table ID = %s", tb.ID)
 	}

@@ -221,7 +221,7 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 		s.render(w, http.StatusInternalServerError, "compare.html", d)
 		return
 	}
-	for _, t := range doc.Tables {
+	for _, t := range doc.Tables() {
 		d.Tables = append(d.Tables, toView(t))
 	}
 	d.Footers = doc.Footers

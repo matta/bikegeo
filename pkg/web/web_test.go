@@ -523,8 +523,8 @@ func TestRunDocument_PopulatesTablesAndSections(t *testing.T) {
 	if code != 0 || errText != "" {
 		t.Fatalf("RunDocument(forks) code=%d err=%q", code, errText)
 	}
-	if len(doc.Tables) != 1 || len(doc.Sections) != 1 {
-		t.Errorf("Tables=%d Sections=%d, want 1 and 1", len(doc.Tables), len(doc.Sections))
+	if len(doc.Tables()) != 1 || len(doc.Sections) != 1 {
+		t.Errorf("Tables=%d Sections=%d, want 1 and 1", len(doc.Tables()), len(doc.Sections))
 	}
 }
 

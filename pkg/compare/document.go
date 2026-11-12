@@ -244,7 +244,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 				t.Columns = append(t.Columns, report.Column{ID: attr.ID, Label: meta.Label, Numeric: true})
 			}
 			t.Rows = transposedRows(t.Columns, attrs, state, scoredItems, scoringEnabled, colAttrs)
-			doc.Tables = append(doc.Tables, t)
+			doc.AddTable(t)
 		} else {
 			var fitAttrs []ideal.AttributeSpec
 			for _, attr := range prof.Attributes {
@@ -269,7 +269,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 				t1.Columns = append(t1.Columns, report.Column{ID: attr.ID, Label: meta.Label, Numeric: true})
 			}
 			t1.Rows = transposedRows(t1.Columns, fitAttrs, state, scoredItems, scoringEnabled, colAttrs)
-			doc.Tables = append(doc.Tables, t1)
+			doc.AddTable(t1)
 
 			t2 := report.Table{ID: TableChassis, Title: "Frame & Chassis Specifications (Dynamic / At-Sag Geometry)", Footers: primaryFooters}
 			t2.Columns = []report.Column{
@@ -311,7 +311,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 				}
 				t2.Rows = append(t2.Rows, report.Row{ID: strconv.Itoa(item.origIdx + 1), Kind: report.KindData, Attrs: colAttrs(item), Cells: cells})
 			}
-			doc.Tables = append(doc.Tables, t2)
+			doc.AddTable(t2)
 		}
 	} else {
 		// Default orientation: Metrics as rows, Bike Setups as columns
@@ -361,11 +361,11 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 				return metricCell(item, evalAttr, meta)
 			})
 		}
-		doc.Tables = append(doc.Tables, t)
+		doc.AddTable(t)
 	}
 
 	if o.Detail && scoringEnabled {
-		doc.Tables = append(doc.Tables, buildBreakdown(prof, scoredItems, colAttrs, footers, footersOnDetail))
+		doc.AddTable(buildBreakdown(prof, scoredItems, colAttrs, footers, footersOnDetail))
 	}
 
 	return doc, nil

@@ -32,8 +32,7 @@ func (c *collector) addTable(t report.Table) {
 	if t.ID == "" {
 		t.ID = "table-" + strconv.Itoa(len(c.doc.Sections)+1)
 	}
-	c.doc.Tables = append(c.doc.Tables, t)
-	c.doc.Sections = append(c.doc.Sections, report.Section{Table: &t})
+	c.doc.AddTable(t)
 }
 
 // RunDocument executes a subcommand (without global flags) and returns its

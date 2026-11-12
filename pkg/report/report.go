@@ -23,12 +23,26 @@ const (
 
 // Document is the full output of one command or page.
 type Document struct {
-	Tables  []Table
-	Footers []Footer // document-level footers (HTML); CLI output attaches footers to tables instead
-
-	// Sections is an ordered mix of tables and preformatted text, used by
-	// commands that interleave prose with tables.
+	// Sections is the ordered mix of tables and preformatted text.
 	Sections []Section
+	Footers  []Footer // document-level footers (HTML); CLI output attaches footers to tables instead
+}
+
+// AddTable appends t as a table section.
+func (d *Document) AddTable(t Table) { d.Sections = append(d.Sections, Section{Table: &t}) }
+
+// AddText appends preformatted text as a text section.
+func (d *Document) AddText(s string) { d.Sections = append(d.Sections, Section{Text: s}) }
+
+// Tables returns the table sections in order.
+func (d Document) Tables() []Table {
+	var out []Table
+	for _, s := range d.Sections {
+		if s.Table != nil {
+			out = append(out, *s.Table)
+		}
+	}
+	return out
 }
 
 // Section is either a table or a block of preformatted text.
