@@ -158,18 +158,14 @@ func addDetail(doc *report.Document, b Bundle) {
 		diff = fmt.Sprintf("%+.1f mm", *b.Report.A2cDifference)
 	}
 	slop := b.Bike.GetGeoSlopMm()
-	var wb string
-	if slop.Wheelbase != nil {
-		wb = fmt.Sprintf("wb: ±%.1fmm", slop.GetWheelbase())
-	} else {
-		dynWb := CalculateDynamicWheelbaseTolerance(b.Bike, b.Report.TotalStructuralA2c)
-		if dynWb <= model.DefaultWheelbaseFloorMm {
-			wb = fmt.Sprintf("wb: ±%.1fmm (dynamic precision floor)", dynWb)
-		} else {
-			wb = fmt.Sprintf("wb: ±%.1fmm (dynamic rounding propagation)", dynWb)
-		}
+	checks := []struct {
+		label  string
+		budget *model.ErrorBudget
+	}{
+		{"Stack / A2C", b.Report.A2cBudget},
+		{"Front Center", b.Report.FrontCenterBudget},
+		{"Wheelbase", b.Report.WheelbaseBudget},
 	}
-	slopStr := fmt.Sprintf("a2c: ±%.1fmm, fc: ±%.1fmm, %s", slop.GetA2c(), slop.GetFrontCenter(), wb)
 
 	proof := [][]string{
 		{"Published Fork A2C (Static)", stated},
@@ -178,32 +174,39 @@ func addDetail(doc *report.Document, b Bundle) {
 		{"CAD Convention", PublishModeShort(b.Report.InferredPublishMode)},
 		{"CAD Headset Spacer (geo_headset_spacer_mm)", fmt.Sprintf("%.1f mm", b.Report.GeoHeadsetSpacerMm)},
 		{"Physical Headset Cup (headset_cup_type)", fmt.Sprintf("%s (%.1f mm)", b.Bike.HeadsetCupType, b.Report.CupStack)},
-		{"Allowed Slop Tolerances (geo_slop_mm)", slopStr},
-		{"Calculated Front Center (3D)", fmt.Sprintf("%.1f mm", b.Report.FrontCenterCalc)},
 	}
+	for _, c := range checks {
+		if c.budget != nil {
+			proof = append(proof, []string{"Rounding Budget: " + c.label, budgetCell(*c.budget)})
+		}
+	}
+	proof = append(proof,
+		[]string{"Declared Allowance (geo_slop_mm)", slop.String()},
+		[]string{"Calculated Front Center (3D)", fmt.Sprintf("%.1f mm", b.Report.FrontCenterCalc)},
+	)
 	if b.Bike.FrontCenter > 0 {
 		proof = append(proof, []string{"Published Front Center", fmt.Sprintf("%.1f mm", b.Bike.FrontCenter)})
 	}
 	doc.AddTable(report.FromStrings("validation-proof", "", "", []string{"Metric", "Value"}, proof))
 
+	var bd strings.Builder
+	bd.WriteString("Rounding Budget Breakdown (worst-case effect of each published input's rounding):")
+	for _, c := range checks {
+		if c.budget == nil {
+			continue
+		}
+		fmt.Fprintf(&bd, "\n  %s: %s", c.label, topBudgetTerms(*c.budget, len(c.budget.Terms)))
+	}
+	doc.AddText(bd.String())
+
 	if slop.HasCustomSlop() || slop.Reason != "" {
 		var sb strings.Builder
-		sb.WriteString("Active Geo Slop Overrides (geo_slop_mm):")
+		sb.WriteString("Declared Chart-Error Allowance (geo_slop_mm):")
 		if slop.Reason != "" {
 			fmt.Fprintf(&sb, "\n  Reason: %s", slop.Reason)
 		}
-		var o []string
-		if slop.A2c != nil {
-			o = append(o, fmt.Sprintf("a2c: ±%.1fmm", *slop.A2c))
-		}
-		if slop.FrontCenter != nil {
-			o = append(o, fmt.Sprintf("fc: ±%.1fmm", *slop.FrontCenter))
-		}
-		if slop.Wheelbase != nil {
-			o = append(o, fmt.Sprintf("wb: ±%.1fmm", *slop.Wheelbase))
-		}
-		if len(o) > 0 {
-			fmt.Fprintf(&sb, "\n  Overrides: %s", strings.Join(o, ", "))
+		if slop.HasCustomSlop() {
+			fmt.Fprintf(&sb, "\n  Allowance beyond rounding: %s", slop.String())
 		}
 		doc.AddText(sb.String())
 	}
@@ -220,4 +223,34 @@ func addDetail(doc *report.Document, b Bundle) {
 		}
 		doc.AddText(sb.String())
 	}
+}
+
+// budgetTierLabel names the part of a budget a residual needs.
+func budgetTierLabel(t model.BudgetTier) string {
+	switch t {
+	case model.TierLengthRounding:
+		return "explained by length rounding"
+	case model.TierAngleRounding:
+		return "needs head angle rounding"
+	case model.TierAllowance:
+		return "needs declared allowance"
+	default:
+		return "exceeds rounding"
+	}
+}
+
+// budgetCell renders a budget for the validation proof table, for example
+// "Δ -1.7 mm vs ±2.9 mm (lengths ±1.6 + HTA ±1.3), 59% used — needs head angle rounding".
+func budgetCell(b model.ErrorBudget) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Δ %+.1f mm vs ±%.1f mm (lengths ±%.1f", b.Residual, b.RoundingTol(), b.LengthTol)
+	if b.AngleTol > 0 {
+		fmt.Fprintf(&sb, " + HTA ±%.1f", b.AngleTol)
+	}
+	fmt.Fprintf(&sb, "), %.0f%% used", 100*b.Saturation())
+	if b.Allowance > 0 {
+		fmt.Fprintf(&sb, ", +%.1f mm allowance", b.Allowance)
+	}
+	fmt.Fprintf(&sb, " — %s", budgetTierLabel(b.Tier()))
+	return sb.String()
 }

@@ -77,12 +77,6 @@ const (
 	SeveritySuccess Severity = "success"
 )
 
-// DefaultGeoSlopMm is the default maximum allowed discrepancy (in mm) for geometric consistency checks.
-const DefaultGeoSlopMm = 1.0
-
-// DefaultWheelbaseFloorMm is the minimum physical precision floor (in mm) for wheelbase validation.
-const DefaultWheelbaseFloorMm = 2.0
-
 // DefaultTireWidthIn is the baseline tire width in inches for steering trail calculations.
 const DefaultTireWidthIn = 2.4
 
@@ -90,9 +84,10 @@ const DefaultTireWidthIn = 2.4
 // (ISO 622 bead seat radius 311.0mm + 2.4 * 25.4mm section height 60.96mm ≈ 372.0mm).
 const DefaultWheelRadius29Mm = 372.0
 
-// GeoSlopMm defines optional measure-specific validation tolerances (in mm) for a frame.
-// Any nil field defaults to DefaultGeoSlopMm (1.0mm), except Wheelbase which uses dynamic error
-// propagation with a 2.0mm physical precision floor.
+// GeoSlopMm declares chart error that rounding cannot explain, in mm, for a frame.
+// Each field is an allowance added on top of the propagated rounding budget of
+// that closure check (see ErrorBudget); nil means no allowance. It exists only
+// for genuine manufacturer discrepancies and requires a Reason.
 type GeoSlopMm struct {
 	A2c         *float64
 	FrontCenter *float64
@@ -104,42 +99,141 @@ func (s GeoSlopMm) HasCustomSlop() bool {
 	return s.A2c != nil || s.FrontCenter != nil || s.Wheelbase != nil
 }
 
-func (s GeoSlopMm) GetA2c() float64 {
-	if s.A2c != nil {
-		return *s.A2c
+func slopValue(v *float64) float64 {
+	if v == nil {
+		return 0
 	}
-	return DefaultGeoSlopMm
+	return *v
 }
 
-func (s GeoSlopMm) GetFrontCenter() float64 {
-	if s.FrontCenter != nil {
-		return *s.FrontCenter
-	}
-	return DefaultGeoSlopMm
-}
+// GetA2c returns the declared A2C allowance beyond rounding (0 when unset).
+func (s GeoSlopMm) GetA2c() float64 { return slopValue(s.A2c) }
 
-func (s GeoSlopMm) GetWheelbase() float64 {
-	if s.Wheelbase != nil {
-		return math.Max(DefaultWheelbaseFloorMm, *s.Wheelbase)
-	}
-	return DefaultWheelbaseFloorMm
-}
+// GetFrontCenter returns the declared Front Center allowance beyond rounding (0 when unset).
+func (s GeoSlopMm) GetFrontCenter() float64 { return slopValue(s.FrontCenter) }
+
+// GetWheelbase returns the declared Wheelbase allowance beyond rounding (0 when unset).
+func (s GeoSlopMm) GetWheelbase() float64 { return slopValue(s.Wheelbase) }
 
 func (s GeoSlopMm) String() string {
 	var parts []string
 	if s.A2c != nil {
-		parts = append(parts, fmt.Sprintf("a2c: ±%.1fmm", *s.A2c))
+		parts = append(parts, fmt.Sprintf("a2c: +%.1fmm", *s.A2c))
 	}
 	if s.FrontCenter != nil {
-		parts = append(parts, fmt.Sprintf("fc: ±%.1fmm", *s.FrontCenter))
+		parts = append(parts, fmt.Sprintf("fc: +%.1fmm", *s.FrontCenter))
 	}
 	if s.Wheelbase != nil {
-		parts = append(parts, fmt.Sprintf("wb: ±%.1fmm", *s.Wheelbase))
+		parts = append(parts, fmt.Sprintf("wb: +%.1fmm", *s.Wheelbase))
 	}
 	if len(parts) == 0 {
-		return "defaults (a2c: ±1.0mm, fc: ±1.0mm, wb: dynamic)"
+		return "none (rounding budget only)"
 	}
 	return strings.Join(parts, ", ")
+}
+
+// ChartPrecision holds the rounding half-width of each published chart column:
+// a value printed as 627 could be anything in 627 ± 0.5 before the manufacturer
+// rounded it. Lengths are in mm, HtaDeg in degrees. A zero field means "not yet
+// inferred"; geometry.InferChartPrecision derives it from a frame's size chart.
+type ChartPrecision struct {
+	ReachMm       float64
+	StackMm       float64
+	HtaDeg        float64
+	HtlMm         float64
+	BbDropMm      float64
+	ChainstayMm   float64
+	WheelbaseMm   float64
+	FrontCenterMm float64
+}
+
+// BudgetTier classifies how much of an ErrorBudget a residual consumes.
+type BudgetTier string
+
+const (
+	// TierLengthRounding: explained by rounding of published lengths alone.
+	TierLengthRounding BudgetTier = "length_rounding"
+	// TierAngleRounding: explained only if the published head angle is also rounded.
+	TierAngleRounding BudgetTier = "angle_rounding"
+	// TierAllowance: beyond rounding, covered only by the frame's declared GeoSlopMm allowance.
+	TierAllowance BudgetTier = "allowance"
+	// TierExceeds: not explained by rounding plus any declared allowance.
+	TierExceeds BudgetTier = "exceeds"
+)
+
+// budgetEpsilonMm absorbs floating-point noise when a residual sits exactly on a budget boundary.
+const budgetEpsilonMm = 1e-9
+
+// BudgetTerm is the worst-case contribution (in mm) that rounding of one published
+// chart input can make to a residual.
+type BudgetTerm struct {
+	Name           string
+	HalfWidth      float64 // rounding half-width of the input, in its own unit
+	IsAngle        bool    // true when HalfWidth is in degrees rather than mm
+	ContributionMm float64
+}
+
+// ErrorBudget is the worst-case discrepancy that rounding of the published chart
+// inputs can produce in one geometric closure check, broken down per input.
+// Each term is the first-order sensitivity of the residual to that input times
+// the input's rounding half-width, so inputs that appear several times in an
+// equation (BB drop, head angle) contribute coherently rather than being
+// double-counted.
+type ErrorBudget struct {
+	Residual  float64      // signed, unrounded discrepancy in mm
+	Terms     []BudgetTerm // largest contribution first
+	LengthTol float64      // sum of the length terms
+	AngleTol  float64      // sum of the angle terms
+	Allowance float64      // declared GeoSlopMm allowance beyond rounding
+}
+
+// RoundingTol is the largest discrepancy that rounding alone can explain.
+func (b ErrorBudget) RoundingTol() float64 {
+	return b.LengthTol + b.AngleTol
+}
+
+// Tol is the largest discrepancy that passes: rounding plus any declared allowance.
+func (b ErrorBudget) Tol() float64 {
+	return b.RoundingTol() + b.Allowance
+}
+
+// Saturation is |Residual| as a fraction of RoundingTol: at most 1.0 means the
+// discrepancy can be explained entirely by rounding of the published inputs.
+func (b ErrorBudget) Saturation() float64 {
+	abs := math.Abs(b.Residual)
+	tol := b.RoundingTol()
+	if tol <= 0 {
+		if abs <= budgetEpsilonMm {
+			return 0
+		}
+		return math.Inf(1)
+	}
+	return abs / tol
+}
+
+// Tier reports which part of the budget the residual needs.
+func (b ErrorBudget) Tier() BudgetTier {
+	abs := math.Abs(b.Residual)
+	switch {
+	case abs <= b.LengthTol+budgetEpsilonMm:
+		return TierLengthRounding
+	case abs <= b.RoundingTol()+budgetEpsilonMm:
+		return TierAngleRounding
+	case abs <= b.Tol()+budgetEpsilonMm:
+		return TierAllowance
+	default:
+		return TierExceeds
+	}
+}
+
+// Within reports whether the residual passes (any tier but TierExceeds).
+func (b ErrorBudget) Within() bool {
+	return b.Tier() != TierExceeds
+}
+
+// NeededAllowance is how far the residual lies beyond rounding (0 when rounding suffices).
+func (b ErrorBudget) NeededAllowance() float64 {
+	return math.Max(0, math.Abs(b.Residual)-b.RoundingTol())
 }
 
 // BikeGeometry represents materialized bicycle frame geometry for a single size.
@@ -176,6 +270,10 @@ type BikeGeometry struct {
 	HeadsetCupType     HeadsetCupType
 	GeoHeadsetSpacerMm float64
 	GeoSlopMm          *GeoSlopMm
+	// ChartPrecision is the rounding half-width of each published column, inferred
+	// from the whole size chart when materialized from a FrameModel. Zero fields
+	// are inferred from this size's own values.
+	ChartPrecision ChartPrecision
 
 	// Bent / Offset Seat Tube
 	ActualStaDeg      float64
@@ -1373,6 +1471,10 @@ type ValidationReport struct {
 	InferredPublishMode PublishMode
 	FrontCenterCalc     float64
 	FrontCenterDiff     *float64
+	// Rounding budgets of the three closure checks; nil when a check did not run.
+	A2cBudget         *ErrorBudget
+	FrontCenterBudget *ErrorBudget
+	WheelbaseBudget   *ErrorBudget
 }
 
 // FrameValidationReport holds the complete validation result across all sizes of a FrameModel.

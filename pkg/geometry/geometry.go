@@ -724,6 +724,19 @@ func CalculateGeometricA2c(stack, bbDrop, headTubeLength, htaDeg, rake float64) 
 		return 0, fmt.Errorf("headTubeLength must be positive, got %.1f mm", headTubeLength)
 	}
 
+	frontEnd, ok := frontEndLength(stack, bbDrop, htaDeg, rake)
+	if !ok {
+		return 0, fmt.Errorf("steerer axis is horizontal (HTA %.2f°)", htaDeg)
+	}
+
+	structuralA2c = frontEnd - headTubeLength
+	return structuralA2c, nil
+}
+
+// frontEndLength is the total axial length along the steerer axis from the front
+// axle's projection onto that axis up to the head tube top (structural A2C plus
+// head tube length). ok is false when the steerer axis is horizontal.
+func frontEndLength(stack, bbDrop, htaDeg, rake float64) (length float64, ok bool) {
 	steererDir := SteererTubeDir(htaDeg)
 	rakeDir := steererDir.Perpendicular(geom2d.Clockwise)
 
@@ -737,14 +750,10 @@ func CalculateGeometricA2c(stack, bbDrop, headTubeLength, htaDeg, rake float64) 
 	// Intersect with the horizontal at Y = stack:
 	htTop, ok := steererAxis.IntersectHorizontalLine(stack)
 	if !ok {
-		return 0, fmt.Errorf("steerer axis is horizontal (HTA %.2f°)", htaDeg)
+		return 0, false
 	}
 
-	// Total axial length along steerer axis from axle projection to head tube top:
-	frontEndLength := htTop.DistanceTo(steererBase)
-
-	structuralA2c = frontEndLength - headTubeLength
-	return structuralA2c, nil
+	return htTop.DistanceTo(steererBase), true
 }
 
 // CalculateDynamicGeometry calculates new frame geometry when fork A2C is changed,
@@ -1100,7 +1109,8 @@ func AnalyzeBikeFitWithSaddle(
 		baselineStructuralA2c := baseStructuralA2c
 		if bike.CadFork.A2cMm > 0 {
 			baselineStructuralA2c = bike.CadFork.A2cMm + geoSpacer
-		} else if bike.ForkA2c > 0 && math.Abs(bike.ForkA2c-baseForkA2c) <= bike.GetGeoSlopMm().GetA2c()+2.0 {
+		} else if budget, ok := A2cBudget(bike); ok && bike.ForkA2c > 0 && budget.Within() {
+			// ForkA2c agrees with the published Stack within its rounding budget.
 			baselineStructuralA2c = bike.ForkA2c + geoSpacer
 		}
 		totalNewA2c := *targetA2c + geoSpacer
@@ -1157,8 +1167,7 @@ func AnalyzeBikeFitWithSaddle(
 	cadA2c := bike.GetCadA2c()
 	if cadA2c > 0 {
 		diff := cadA2c - baseForkA2c
-		a2cSlop := bike.GetGeoSlopMm().GetA2c()
-		if math.Abs(diff) <= a2cSlop {
+		if budget, ok := A2cBudget(bike); ok && budget.Within() {
 			inferredPublishMode = "Static Fork (0% Sag CAD)"
 		} else if diff >= 15.0 && diff <= 35.0 {
 			inferredPublishMode = fmt.Sprintf("Sagged (~20%% Sag CAD, ~%dmm sag)", int(math.Round(diff)))
@@ -1320,6 +1329,7 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string) (model.BikeGeo
 		HeadsetCupType:      frame.HeadsetCupType,
 		GeoHeadsetSpacerMm:  frame.GeoHeadsetSpacerMm,
 		GeoSlopMm:           frame.GeoSlopMm,
+		ChartPrecision:      InferChartPrecision(frame),
 		ActualStaDeg:        frame.ActualStaDeg,
 		SeatTubeOffsetXMm:   frame.SeatTubeOffsetXMm,
 		CadFork:             frame.CadFork,

@@ -27,17 +27,30 @@ type FitResult struct {
 	DeclaredStaticForkA2c float64
 	DeclaredRake          float64
 	DeclaredSagPct        float64
-	MinPassingSlopA2c     float64
-	MinPassingSlopFc      float64
-	MinPassingSlopWb      float64
-	HasPublishedFc        bool
-	HasPublishedWb        bool
-	IsValid               bool
-	FrameReport           model.FrameValidationReport
+	// MaxAbsDelta* are the largest per-size residuals (A2C and WB/FC at the declared fork).
+	MaxAbsDeltaA2c float64
+	MaxAbsDeltaFc  float64
+	MaxAbsDeltaWb  float64
+	// MinPassingSlop* are the geo_slop_mm allowances needed beyond each check's
+	// rounding budget for every size to pass (0 when rounding explains all sizes).
+	MinPassingSlopA2c float64
+	MinPassingSlopFc  float64
+	MinPassingSlopWb  float64
+	// MaxSaturation* are the largest fractions of a check's rounding budget used by any size.
+	MaxSaturationA2c float64
+	MaxSaturationFc  float64
+	MaxSaturationWb  float64
+	// BeyondLengthRounding is true when some size needs more than rounding of the
+	// published lengths (head angle rounding, an allowance, or a failure) to pass a check.
+	BeyondLengthRounding bool
+	HasPublishedFc       bool
+	HasPublishedWb       bool
+	IsValid              bool
+	FrameReport          model.FrameValidationReport
 }
 
 // AnalyzeFit computes the minimax best-fit structural A2C, implied spacer, implied static fork A2C,
-// per-size residuals, and minimum passing slop tolerances.
+// per-size residuals, rounding-budget usage, and the allowance each check needs beyond rounding.
 func AnalyzeFit(frame model.FrameModel, configID string) (*FitResult, error) {
 	residuals, err := validator.SizeResiduals(frame)
 	if err != nil {
@@ -88,6 +101,24 @@ func AnalyzeFit(frame model.FrameModel, configID string) (*FitResult, error) {
 		}
 	}
 
+	var needA2c, needFc, needWb, satA2c, satFc, satWb float64
+	beyondLength := false
+	track := func(b *model.ErrorBudget, need, sat *float64) {
+		if b == nil {
+			return
+		}
+		*need = math.Max(*need, b.NeededAllowance())
+		*sat = math.Max(*sat, b.Saturation())
+		if b.Tier() != model.TierLengthRounding {
+			beyondLength = true
+		}
+	}
+	for _, r := range residuals {
+		track(r.ValidationReport.A2cBudget, &needA2c, &satA2c)
+		track(r.ValidationReport.FrontCenterBudget, &needFc, &satFc)
+		track(r.ValidationReport.WheelbaseBudget, &needWb, &satWb)
+	}
+
 	bestFit := geometry.Round((minStruct+maxStruct)/2.0, 2)
 	spread := geometry.Round(maxStruct-minStruct, 2)
 	mean := geometry.Round(sumStruct/float64(len(residuals)), 2)
@@ -124,9 +155,16 @@ func AnalyzeFit(frame model.FrameModel, configID string) (*FitResult, error) {
 		DeclaredStaticForkA2c: statedForkA2c,
 		DeclaredRake:          frame.CadFork.RakeMm,
 		DeclaredSagPct:        sagPct,
-		MinPassingSlopA2c:     geometry.Round(maxAbsDeltaA2c, 1),
-		MinPassingSlopFc:      geometry.Round(maxAbsDeltaFc, 1),
-		MinPassingSlopWb:      geometry.Round(maxAbsDeltaWb, 1),
+		MaxAbsDeltaA2c:        geometry.Round(maxAbsDeltaA2c, 1),
+		MaxAbsDeltaFc:         geometry.Round(maxAbsDeltaFc, 1),
+		MaxAbsDeltaWb:         geometry.Round(maxAbsDeltaWb, 1),
+		MinPassingSlopA2c:     ceilTenth(needA2c),
+		MinPassingSlopFc:      ceilTenth(needFc),
+		MinPassingSlopWb:      ceilTenth(needWb),
+		MaxSaturationA2c:      satA2c,
+		MaxSaturationFc:       satFc,
+		MaxSaturationWb:       satWb,
+		BeyondLengthRounding:  beyondLength,
 		HasPublishedFc:        hasFc,
 		HasPublishedWb:        hasWb,
 		IsValid:               frameReport.IsValid,
@@ -304,8 +342,8 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		return nil
 	case "geo_slop_mm.wheelbase", "slop.wheelbase", "slop.wb":
 		v, err := parseFloat()
-		if err != nil || v < model.DefaultWheelbaseFloorMm || v > 10.0 {
-			return fmt.Errorf("geo_slop_mm.wheelbase must be between %.1f and 10 mm", model.DefaultWheelbaseFloorMm)
+		if err != nil || v < 0 || v > 10.0 {
+			return fmt.Errorf("geo_slop_mm.wheelbase must be between 0 and 10 mm")
 		}
 		if frame.GeoSlopMm == nil {
 			frame.GeoSlopMm = &model.GeoSlopMm{}
@@ -596,9 +634,9 @@ func RunSweeps(frame model.FrameModel, configID, defaultSize string, tryFlags []
 		results = append(results, ComboResult{
 			Description:       desc,
 			Assignments:       assigns,
-			MaxAbsDeltaA2c:    fitRes.MinPassingSlopA2c,
-			MaxAbsDeltaFc:     fitRes.MinPassingSlopFc,
-			MaxAbsDeltaWb:     fitRes.MinPassingSlopWb,
+			MaxAbsDeltaA2c:    fitRes.MaxAbsDeltaA2c,
+			MaxAbsDeltaFc:     fitRes.MaxAbsDeltaFc,
+			MaxAbsDeltaWb:     fitRes.MaxAbsDeltaWb,
 			MinPassingSlopA2c: fitRes.MinPassingSlopA2c,
 			MinPassingSlopFc:  fitRes.MinPassingSlopFc,
 			MinPassingSlopWb:  fitRes.MinPassingSlopWb,
@@ -780,9 +818,9 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 		results = append(results, ComboResult{
 			Description:       desc,
 			Assignments:       assigns,
-			MaxAbsDeltaA2c:    fitRes.MinPassingSlopA2c,
-			MaxAbsDeltaFc:     fitRes.MinPassingSlopFc,
-			MaxAbsDeltaWb:     fitRes.MinPassingSlopWb,
+			MaxAbsDeltaA2c:    fitRes.MaxAbsDeltaA2c,
+			MaxAbsDeltaFc:     fitRes.MaxAbsDeltaFc,
+			MaxAbsDeltaWb:     fitRes.MaxAbsDeltaWb,
 			MinPassingSlopA2c: fitRes.MinPassingSlopA2c,
 			MinPassingSlopFc:  fitRes.MinPassingSlopFc,
 			MinPassingSlopWb:  fitRes.MinPassingSlopWb,
@@ -865,4 +903,13 @@ func parseStemSpec(s string) (model.StemSpec, error) {
 		return model.StemSpec{LengthMm: l, AngleDeg: a}, nil
 	}
 	return model.StemSpec{}, fmt.Errorf("invalid stem format %q, expected 'length' or 'length/angle'", s)
+}
+
+// ceilTenth rounds an allowance up to the next 0.1 mm, so declaring the printed
+// value is always enough to pass.
+func ceilTenth(v float64) float64 {
+	if v <= 0 {
+		return 0
+	}
+	return math.Ceil(v*10-1e-9) / 10
 }

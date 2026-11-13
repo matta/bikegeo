@@ -12,10 +12,8 @@ var SklarPBJ = model.FrameModel{
 	HeadsetCupType:     model.CupEC44,
 	GeoHeadsetSpacerMm: 12,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c:         new(3.5),
-		FrontCenter: new(float64(3)),
-		Wheelbase:   new(float64(5)),
-		Reason:      "Sklar's published chart has rounding and convention discrepancies against the 485mm rigid fork and 12mm EC44 spacer (up to 3.3mm A2C and 4.7mm Wheelbase residual on size L, and 2.7mm Front Center residual on size XL).",
+		A2c:    new(0.5),
+		Reason: "Size L's published Stack (641mm) implies a 481.7mm fork A2C with the 12mm EC44 CAD spacer, 3.3mm short of the 485mm rigid fork and 0.4mm beyond its ±2.9mm rounding budget. Every other size, and every Front Center and Wheelbase value, is within rounding.",
 	},
 	ChainstayRangeMm: []float64{432, 452},
 	MaxSpacerMm:      40,
