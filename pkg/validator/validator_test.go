@@ -1,6 +1,7 @@
 package validator_test
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -136,29 +137,30 @@ func TestValidateGeoSlopMmAnd3DFrontCenter(t *testing.T) {
 		GeoHeadsetSpacerMm: 10.0,
 	}
 
-	// Without geo_slop_mm, default 1.0mm A2C slop rejects size M's 1.4mm A2C discrepancy
+	// Size M's 1.4mm A2C residual comes from the integer Stack (627mm): rounding of Stack,
+	// BB drop and HTL alone can produce ±1.6mm, so it passes with no geo_slop_mm at all.
 	repDefault := validator.ValidateBikeGeometry(havokM)
-	if repDefault.IsValid {
-		t.Errorf("Expected Havok M to fail default 1.0mm A2C slop without geo_slop_mm override")
+	if !repDefault.IsValid {
+		t.Fatalf("Expected Havok M to pass within its rounding budget, got issues: %+v", repDefault.Issues)
+	}
+	if b := repDefault.A2cBudget; b == nil || b.Tier() != model.TierLengthRounding {
+		t.Errorf("Expected Havok M A2C residual to be explained by length rounding, got %+v", b)
 	}
 
-	// With geo_slop_mm {a2c: 1.5} (leaving front_center at default 1.0mm and wheelbase at dynamic 2.0mm floor), it passes
-	havokM.GeoSlopMm = &model.GeoSlopMm{
-		A2c: new(1.5),
-	}
+	// A declared allowance adds to the rounding budget rather than replacing it.
+	havokM.GeoSlopMm = &model.GeoSlopMm{A2c: new(1.5)}
 	repRelaxed := validator.ValidateBikeGeometry(havokM)
 	if !repRelaxed.IsValid {
 		t.Errorf("Expected Havok M with geo_slop_mm={a2c:1.5} to be valid, got issues: %+v", repRelaxed.Issues)
 	}
-
-	// Wheelbase slop overrides below the 2.0mm physical precision floor are rejected
-	havokM.GeoSlopMm = &model.GeoSlopMm{
-		A2c:       new(1.5),
-		Wheelbase: new(1.5),
+	if b := repRelaxed.A2cBudget; b == nil || b.Allowance != 1.5 || math.Abs(b.Tol()-(b.RoundingTol()+1.5)) > 1e-12 {
+		t.Errorf("Expected a2c allowance 1.5 added to the rounding budget, got %+v", b)
 	}
-	repUnderFloor := validator.ValidateBikeGeometry(havokM)
-	if repUnderFloor.IsValid {
-		t.Errorf("Expected Havok M with geo_slop_mm.wheelbase=1.5 (< 2.0mm floor) to fail validation")
+
+	// Negative allowances are rejected.
+	havokM.GeoSlopMm = &model.GeoSlopMm{Wheelbase: new(-0.5)}
+	if validator.ValidateBikeGeometry(havokM).IsValid {
+		t.Errorf("Expected Havok M with geo_slop_mm.wheelbase=-0.5 to fail validation")
 	}
 }
 
@@ -595,15 +597,33 @@ func TestValidateStackReachSagHint(t *testing.T) {
 		t.Errorf("Expected stack_reach_sag_hint warning from Wheelbase residual, got issues: %+v", repNoFc.Issues)
 	}
 
-	// A small residual (equivalent A2C offset < 10mm) still fails, but is not attributed to sag.
+	// A 2mm Reach residual on an integer-degree chart (HTA 65 → ±0.5°, worth about ±6mm of
+	// Front Center) is within what rounding can produce: it passes, but only by assuming the
+	// head angle is rounded, and says so. This is the documented limit of a worst-case budget.
 	smallResidual := rawSeven
 	smallResidual.Reach = 394.0
 	repSmall := validator.ValidateBikeGeometry(smallResidual)
-	if repSmall.IsValid {
-		t.Fatalf("Expected 2mm Reach residual to fail Front Center validation")
+	if !repSmall.IsValid {
+		t.Fatalf("Expected 2mm Reach residual to pass within the integer-degree rounding budget, got: %+v", repSmall.Issues)
 	}
-	if countIssues(repSmall, "stack_reach_sag_hint", model.SeverityWarning) != 0 {
-		t.Errorf("Did not expect stack_reach_sag_hint for small residual, got issues: %+v", repSmall.Issues)
+	if countIssues(repSmall, "front_center_needs_angle_rounding", model.SeverityInfo) != 1 {
+		t.Errorf("Expected front_center_needs_angle_rounding notice for 2mm Reach residual, got issues: %+v", repSmall.Issues)
+	}
+
+	// On a quarter-degree chart (as Seven publishes) a 3.5mm Reach residual exceeds the budget
+	// and fails, but its equivalent A2C offset (< 10mm) is too small to attribute to sag.
+	quarterDeg := rawSeven
+	quarterDeg.Reach = 395.7
+	quarterDeg.ChartPrecision.HtaDeg = 0.125
+	repQuarter := validator.ValidateBikeGeometry(quarterDeg)
+	if repQuarter.IsValid {
+		t.Fatalf("Expected 3.5mm Reach residual on a quarter-degree chart to fail Front Center validation")
+	}
+	if countIssues(repQuarter, "front_center_mismatch", model.SeverityError) != 1 {
+		t.Errorf("Expected front_center_mismatch error, got issues: %+v", repQuarter.Issues)
+	}
+	if countIssues(repQuarter, "stack_reach_sag_hint", model.SeverityWarning) != 0 {
+		t.Errorf("Did not expect stack_reach_sag_hint for small residual, got issues: %+v", repQuarter.Issues)
 	}
 
 	// Internally consistent Reach passes under the 3D Front Center convention.
@@ -668,7 +688,7 @@ func TestFrontCenterConventionConsistent(t *testing.T) {
 	}
 	rep := validator.ValidateBikeGeometry(bike)
 	if !rep.IsValid {
-		t.Fatalf("Expected sklar-pbj:XL to pass with GeoSlopMm.FrontCenter=3.0, got: %+v", rep.Issues)
+		t.Fatalf("Expected sklar-pbj:XL to pass, got: %+v", rep.Issues)
 	}
 	if rep.FrontCenterDiff == nil || *rep.FrontCenterDiff != 2.7 {
 		t.Fatalf("Expected FrontCenterDiff 2.7mm for sklar-pbj:XL, got %v", rep.FrontCenterDiff)
@@ -683,61 +703,69 @@ func TestFrontCenterConventionConsistent(t *testing.T) {
 		t.Errorf("Expected 3D Front Center notice within 2.7mm, got: %q", fcNotice)
 	}
 
-	// Without the FrontCenter slop override, XL must fail with the 2.7mm 3D residual.
-	bike.GeoSlopMm = &model.GeoSlopMm{A2c: new(3.5), Wheelbase: new(5.0)}
-	repTight := validator.ValidateBikeGeometry(bike)
-	if repTight.IsValid {
-		t.Fatalf("Expected sklar-pbj:XL without FrontCenter slop override to fail 2.7mm 3D FC residual")
+	// The 2.7mm 3D residual is within the Front Center rounding budget (half-degree HTA column),
+	// so it needs no Front Center allowance.
+	bike.GeoSlopMm = nil
+	repNoAllowance := validator.ValidateBikeGeometry(bike)
+	if b := repNoAllowance.FrontCenterBudget; b == nil || !b.Within() || b.Saturation() > 1 {
+		t.Fatalf("Expected sklar-pbj:XL 2.7mm 3D FC residual within its rounding budget, got %+v", b)
 	}
 }
 
-func TestDynamicWbFloorLabel(t *testing.T) {
-	// F-p4d-3: "(dynamic precision floor)" appears only when dynamic WB tolerance == 2.0mm;
-	// tolerances > 2.0mm say "(dynamic rounding propagation)"; "cross:" is absent; < 2.0mm WB overrides fail.
-	getSlopStr := func(f model.FrameModel) string {
+func TestRoundingBudgetRows(t *testing.T) {
+	// The validation proof reports each closure check's propagated rounding budget and the
+	// declared allowance; there is no fixed wheelbase floor and no "cross:" tolerance.
+	rowsOf := func(f model.FrameModel) map[string]string {
 		t.Helper()
 		doc, valid, err := validator.BuildValidationDocument([]validator.Target{{Frame: f, Size: f.DefaultSize}})
 		if err != nil || !valid {
 			t.Fatalf("BuildValidationDocument(%s) failed: valid=%v err=%v", f.ID, valid, err)
 		}
+		rows := map[string]string{}
 		for _, row := range doc.Tables()[1].Rows {
-			if row.Cells[0].Text == "Allowed Slop Tolerances (geo_slop_mm)" {
-				return row.Cells[1].Text
+			rows[row.Cells[0].Text] = row.Cells[1].Text
+		}
+		return rows
+	}
+
+	for _, f := range []model.FrameModel{frames.SevenExpedition926d, frames.SurlyECR, frames.MootsMountaineer} {
+		rows := rowsOf(f)
+		for _, label := range []string{"Rounding Budget: Stack / A2C", "Rounding Budget: Wheelbase"} {
+			v, ok := rows[label]
+			if !ok {
+				t.Errorf("%s: missing %q row", f.ID, label)
+				continue
+			}
+			if !strings.Contains(v, "% used") || strings.Contains(v, "cross:") {
+				t.Errorf("%s: unexpected %q value %q", f.ID, label, v)
 			}
 		}
-		t.Fatalf("Missing Allowed Slop Tolerances row for %s", f.ID)
-		return ""
+		if _, ok := rows["Allowed Slop Tolerances (geo_slop_mm)"]; ok {
+			t.Errorf("%s: obsolete Allowed Slop Tolerances row present", f.ID)
+		}
+	}
+	if got := rowsOf(frames.SurlyECR)["Declared Allowance (geo_slop_mm)"]; got != "none (rounding budget only)" {
+		t.Errorf("surly-ecr declared allowance = %q, want none", got)
 	}
 
-	sevenSlop := getSlopStr(frames.SevenExpedition926d)
-	if !strings.Contains(sevenSlop, "wb: ±2.0mm (dynamic precision floor)") {
-		t.Errorf("Expected seven-expedition-926d to use (dynamic precision floor), got: %q", sevenSlop)
-	}
-	if strings.Contains(sevenSlop, "cross:") {
-		t.Errorf("Expected cross: to be absent from slop output, got: %q", sevenSlop)
-	}
-
-	ecrSlop := getSlopStr(frames.SurlyECR)
-	if !strings.Contains(ecrSlop, "wb: ±4.9mm (dynamic rounding propagation)") {
-		t.Errorf("Expected surly-ecr to use (dynamic rounding propagation), got: %q", ecrSlop)
-	}
-	if strings.Contains(ecrSlop, "cross:") {
-		t.Errorf("Expected cross: to be absent from slop output, got: %q", ecrSlop)
+	// Quarter-degree HTA (Seven) gives a much tighter wheelbase budget than integer HTA (ECR).
+	sevenWb := rowsOf(frames.SevenExpedition926d)["Rounding Budget: Wheelbase"]
+	ecrWb := rowsOf(frames.SurlyECR)["Rounding Budget: Wheelbase"]
+	if !strings.Contains(sevenWb, "HTA ±1.") || !strings.Contains(ecrWb, "HTA ±5.") {
+		t.Errorf("expected quarter-degree vs integer-degree HTA terms, got seven=%q ecr=%q", sevenWb, ecrWb)
 	}
 
-	mootsSlop := getSlopStr(frames.MootsMountaineer)
-	if !strings.Contains(mootsSlop, "(dynamic rounding propagation)") || strings.Contains(mootsSlop, "(dynamic precision floor)") {
-		t.Errorf("Expected moots-mountaineer (> 2.0mm) to use (dynamic rounding propagation), got: %q", mootsSlop)
+	for _, v := range []float64{-1.5, 10.5} {
+		badFrame := frames.SurlyECR.Clone()
+		badFrame.GeoSlopMm = &model.GeoSlopMm{Wheelbase: new(v), Reason: "out of range"}
+		if validator.ValidateFrame(badFrame).IsValid {
+			t.Errorf("Expected ValidateFrame to reject GeoSlopMm.Wheelbase=%.1f", v)
+		}
 	}
-	if strings.Contains(mootsSlop, "cross:") {
-		t.Errorf("Expected cross: to be absent from slop output, got: %q", mootsSlop)
-	}
-
-	badFrame := frames.SurlyECR.Clone()
-	badFrame.GeoSlopMm = &model.GeoSlopMm{Wheelbase: new(1.5), Reason: "below floor"}
-	rep := validator.ValidateFrame(badFrame)
-	if rep.IsValid {
-		t.Errorf("Expected ValidateFrame to reject GeoSlopMm.Wheelbase=1.5 below 2.0mm floor")
+	okFrame := frames.SurlyECR.Clone()
+	okFrame.GeoSlopMm = &model.GeoSlopMm{Wheelbase: new(1.5), Reason: "small allowance"}
+	if rep := validator.ValidateFrame(okFrame); !rep.IsValid {
+		t.Errorf("Expected GeoSlopMm.Wheelbase=1.5 to be accepted now that there is no floor: %s", rep.ErrorSummary())
 	}
 }
 
@@ -791,5 +819,50 @@ func TestSizeResidualsUsesDeclaredCadFork(t *testing.T) {
 	}
 	if m.DeltaWb == nil || *m.DeltaWb != 0.7 {
 		t.Errorf("binary-havok:M DeltaWb = %v, want +0.7", m.DeltaWb)
+	}
+}
+
+// TestDeclaredAllowancesAreNecessary keeps geo_slop_mm a last resort: every declared
+// allowance must be needed by at least one size (the frame fails without it), and must
+// not exceed the largest need beyond rounding by more than the 0.5mm rounding-up step.
+func TestDeclaredAllowancesAreNecessary(t *testing.T) {
+	type field struct {
+		name   string
+		ptr    func(*model.GeoSlopMm) **float64
+		budget func(model.ValidationReport) *model.ErrorBudget
+	}
+	fields := []field{
+		{"a2c", func(s *model.GeoSlopMm) **float64 { return &s.A2c }, func(r model.ValidationReport) *model.ErrorBudget { return r.A2cBudget }},
+		{"front_center", func(s *model.GeoSlopMm) **float64 { return &s.FrontCenter }, func(r model.ValidationReport) *model.ErrorBudget { return r.FrontCenterBudget }},
+		{"wheelbase", func(s *model.GeoSlopMm) **float64 { return &s.Wheelbase }, func(r model.ValidationReport) *model.ErrorBudget { return r.WheelbaseBudget }},
+	}
+	for _, frame := range frames.AllFrames() {
+		if frame.GeoSlopMm == nil {
+			continue
+		}
+		for _, f := range fields {
+			declared := *f.ptr(frame.GeoSlopMm)
+			if declared == nil {
+				continue
+			}
+			without := frame.Clone()
+			slop := *frame.GeoSlopMm
+			*f.ptr(&slop) = nil
+			without.GeoSlopMm = &slop
+			rep := validator.ValidateFrame(without)
+			if rep.IsValid {
+				t.Errorf("%s: geo_slop_mm.%s = %.1fmm is unnecessary; every size passes within its rounding budget", frame.ID, f.name, *declared)
+				continue
+			}
+			need := 0.0
+			for _, sr := range rep.SizeReports {
+				if b := f.budget(sr); b != nil {
+					need = math.Max(need, b.NeededAllowance())
+				}
+			}
+			if *declared > need+0.5+1e-9 {
+				t.Errorf("%s: geo_slop_mm.%s = %.1fmm exceeds the %.2fmm needed beyond rounding by more than 0.5mm", frame.ID, f.name, *declared, need)
+			}
+		}
 	}
 }

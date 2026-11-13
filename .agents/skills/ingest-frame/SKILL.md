@@ -18,7 +18,8 @@ When ingesting a new bicycle frame geometry chart and spec into the `bikegeo` co
    - Steel/aluminum frames with external cups (`EC34`/`EC44`) physically add 10–14mm stack below the headtube; `GeoHeadsetSpacerMm` explicitly sets the CAD spacer (typically 10–12mm if drawn with cups, or 0.0mm if drawn to the bare headtube).
 3. **`GeoSlopMm` is an Absolute Last Resort**:
    - `GeoSlopMm` must **never** be used to mask modeling errors (such as using the bike's sold rigid fork rather than the suspension fork the CAD chart was drawn around, ignoring CAD sag, or assuming the wrong headset standard).
-   - Wheelbase validation automatically propagates input rounding uncertainty (HTA, Reach, Chainstay Length) with a 2.0mm physical precision floor, eliminating the need for custom wheelbase slop from normal rounding noise.
+   - Validation needs no slop for ordinary rounding. Each closure check (Stack ↔ fork A2C, Front Center, Wheelbase) propagates the rounding half-width of every published input through its equation (`geometry.A2cBudget`, `FrontCenterBudget`, `WheelbaseBudget`) and fails only when the residual exceeds that worst case. Precision is inferred per chart column: a head-angle column of 68, 68.5, 69 is on a half-degree grid (±0.25°). A pass that holds only because the head angle is assumed rounded is reported as an `*_needs_angle_rounding` notice.
+   - `GeoSlopMm` is an allowance **added** to the rounding budget, for chart error that rounding cannot explain. It must be needed (some size fails without it) and no larger than `bikegeo fit`'s "Allowance needed beyond rounding" rounded up to 0.5mm; `TestDeclaredAllowancesAreNecessary` enforces both.
    - If a custom `GeoSlopMm` override is genuinely necessary, it requires an explicit `Reason` field on `model.GeoSlopMm` documenting the manufacturer discrepancy.
 4. **Use `bikegeo fit` as Primary Tool**:
    - Always use `bikegeo fit` and `bikegeo fit --try` as your primary diagnostic for solving CAD assumptions (A2C, spacers, slop, sag, and residuals).
@@ -47,8 +48,9 @@ Review the output:
 - **Minimax structural A2C**: the optimal midpoint minimizing worst-case deviation.
 - **Implied spacer**: the exact spacer height implied by the declared fork A2C.
 - **Implied static fork A2C**: the static fork A2C implied if the declared spacer is held fixed.
-- **Minimum passing slop**: minimum `GeoSlopMm` required for all sizes to pass.
-- **Candidate Physical Solutions**: If the frame is invalid or requires A2C slop > 1.0mm, `bikegeo fit` automatically solves for candidate fork travels, standard sags (0%, 20%, 25%, 30%), static A2Cs, rakes (including 44, 51, and 55mm), and spacers, presenting the solved Go struct fields (`CadFork`, `GeoHeadsetSpacerMm`, etc.).
+- **Budget used (a2c/fc/wb)**: per size, the share of each check's rounding budget the residual uses. `*` means it fits only if the head angle is rounded, `+` means it needs the declared allowance, `!` means it fails.
+- **Allowance needed beyond rounding**: the `GeoSlopMm` each check needs for all sizes to pass; `+0.0` means rounding explains everything and no override belongs in the frame file.
+- **Candidate Physical Solutions**: If the frame is invalid or any size needs more than length rounding to pass, `bikegeo fit` automatically solves for candidate fork travels, standard sags (0%, 20%, 25%, 30%), static A2Cs, rakes (including 44, 51, and 55mm), and spacers, presenting the solved Go struct fields (`CadFork`, `GeoHeadsetSpacerMm`, etc.).
 
 ### Step 3: Sweep Unknowns with `--try` (if needed)
 If the configuration requires exploring specific parameters beyond standard candidates, sweep candidate combinations:
@@ -65,7 +67,7 @@ Use `--detail` to print the full per-size residual table for each combination.
 Update `HeadsetCupType`, `GeoHeadsetSpacerMm`, `CadFork`, and `Forks` in `pkg/frames/<id>.go` with the solved physical parameters.
 
 ### Step 5: Validate and Verify Test Suite
-Verify that CAD validation passes with default tolerances:
+Verify that CAD validation passes within the rounding budgets, without a `GeoSlopMm` override unless `fit` showed one is needed:
 ```bash
 go run ./cmd/bikegeo validate <frame-id>
 ```
