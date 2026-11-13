@@ -146,25 +146,25 @@ func TestCalculateIdealSeatTubeAngle(t *testing.T) {
 	// 1. Redshift + Drop Best sagged (39mm hardware setback)
 	// Exact 2D inverse of CalculatePoint: acos(219/746) + asin((39-23)/746) = 74.16°
 	resFenrir := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 39.0, "Redshift + Drop Best (sagged)", model.DropBestClampLengthMm)
-	if math.Abs(resFenrir.IdealStaDeg-74.16) > 0.05 {
+	if math.Abs(float64(resFenrir.IdealStaDeg-74.16)) > 0.05 {
 		t.Errorf("Expected IdealStaDeg ~ 74.16°, got %.2f°", resFenrir.IdealStaDeg)
 	}
 
 	// 2. Standard 15mm setback post
 	res15 := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 15.0, "15mm Setback", model.DefaultSeatpostClampLengthMm)
-	if math.Abs(res15.IdealStaDeg-72.3) > 0.3 {
+	if math.Abs(float64(res15.IdealStaDeg-72.3)) > 0.3 {
 		t.Errorf("Expected IdealStaDeg ~ 72.3° for 15mm post, got %.2f°", res15.IdealStaDeg)
 	}
 
 	// 3. Standard 25mm setback post
 	res25 := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 25.0, "25mm Setback", model.DefaultSeatpostClampLengthMm)
-	if math.Abs(res25.IdealStaDeg-73.1) > 0.3 {
+	if math.Abs(float64(res25.IdealStaDeg-73.1)) > 0.3 {
 		t.Errorf("Expected IdealStaDeg ~ 73.1° for 25mm post, got %.2f°", res25.IdealStaDeg)
 	}
 
 	// 4. Redshift suspension post sagged (11mm setback)
 	resRedshiftSag := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 11.0, "Redshift ShockStop (sagged)", model.DefaultSeatpostClampLengthMm)
-	if math.Abs(resRedshiftSag.IdealStaDeg-72.0) > 0.3 {
+	if math.Abs(float64(resRedshiftSag.IdealStaDeg-72.0)) > 0.3 {
 		t.Errorf("Expected IdealStaDeg ~ 72.0° for Redshift sagged, got %.2f°", resRedshiftSag.IdealStaDeg)
 	}
 }
@@ -179,7 +179,7 @@ func TestCalculateUniversalCompromiseSTA(t *testing.T) {
 
 	// 1. Standard 15mm setback post across 2 reference saddles (SQlab @ 746mm & Aspin @ 751.35mm eqSH)
 	res15_2 := geometry.CalculateUniversalCompromiseSTA(saddles2, targetSitBoneSetback, saddleHeight, 15.0, "Standard 15mm Setback", model.DefaultSeatpostClampLengthMm)
-	if math.Abs(res15_2.CompromiseStaDeg-72.19) > 0.1 {
+	if math.Abs(float64(res15_2.CompromiseStaDeg-72.19)) > 0.1 {
 		t.Errorf("Expected 2-saddle CompromiseStaDeg ~ 72.19°, got %.2f°", res15_2.CompromiseStaDeg)
 	}
 	if math.Abs(res15_2.MaxRailOffsetMm-1.58) > 0.1 {
@@ -194,7 +194,7 @@ func TestCalculateUniversalCompromiseSTA(t *testing.T) {
 
 	// 2. Full 3-saddle catalog across 15mm post
 	res15_3 := geometry.CalculateUniversalCompromiseSTA(saddles3, targetSitBoneSetback, saddleHeight, 15.0, "Standard 15mm Setback", model.DefaultSeatpostClampLengthMm)
-	if math.Abs(res15_3.CompromiseStaDeg-72.87) > 0.1 {
+	if math.Abs(float64(res15_3.CompromiseStaDeg-72.87)) > 0.1 {
 		t.Errorf("Expected 3-saddle CompromiseStaDeg ~ 72.87°, got %.2f°", res15_3.CompromiseStaDeg)
 	}
 	if math.Abs(res15_3.MaxRailOffsetMm-10.4) > 0.2 {
@@ -209,7 +209,7 @@ func TestCalculateUniversalCompromiseSTA(t *testing.T) {
 
 	// 3. Redshift + Drop Best sagged (39mm hardware setback) across 2 saddles vs 3 saddles
 	res39_2 := geometry.CalculateUniversalCompromiseSTA(saddles2, targetSitBoneSetback, saddleHeight, 39.0, "Redshift + Drop Best (sagged 39mm)", model.DropBestClampLengthMm)
-	if math.Abs(res39_2.CompromiseStaDeg-74.03) > 0.1 {
+	if math.Abs(float64(res39_2.CompromiseStaDeg-74.03)) > 0.1 {
 		t.Errorf("Expected CompromiseStaDeg ~ 74.03° for 39mm hardware setback, got %.2f°", res39_2.CompromiseStaDeg)
 	}
 	if math.Abs(res39_2.MaxRailOffsetMm-1.66) > 0.1 {
@@ -217,7 +217,7 @@ func TestCalculateUniversalCompromiseSTA(t *testing.T) {
 	}
 
 	res39_3 := geometry.CalculateUniversalCompromiseSTA(saddles3, targetSitBoneSetback, saddleHeight, 39.0, "Redshift + Drop Best (sagged 39mm)", model.DropBestClampLengthMm)
-	if math.Abs(res39_3.CompromiseStaDeg-74.71) > 0.15 {
+	if math.Abs(float64(res39_3.CompromiseStaDeg-74.71)) > 0.15 {
 		t.Errorf("Expected 3-saddle CompromiseStaDeg ~ 74.71° for 39mm hardware setback, got %.2f°", res39_3.CompromiseStaDeg)
 	}
 	if math.Abs(res39_3.MaxRailOffsetMm-10.4) > 0.2 {
@@ -253,7 +253,7 @@ func TestSaddleSpec_CalculatePoint_And_PelvicDerivation(t *testing.T) {
 	if math.Abs(pt72.BrpSetbackMm-219.1) > 0.3 {
 		t.Errorf("Expected 72.0° STA dead-center BRP ~219.1mm, got %.1fmm", pt72.BrpSetbackMm)
 	}
-	if math.Abs(pt72.BrpAngleFromBbDeg-72.9) > 0.2 {
+	if math.Abs(float64(pt72.BrpAngleFromBbDeg-72.9)) > 0.2 {
 		t.Errorf("Expected 72.0° STA BRP angle ~72.9°, got %.1f°", pt72.BrpAngleFromBbDeg)
 	}
 

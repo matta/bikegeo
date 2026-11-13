@@ -323,7 +323,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if err != nil || v < 60.0 || v > 85.0 {
 			return fmt.Errorf("actual_sta_deg must be between 60.0 and 85.0 degrees")
 		}
-		frame.ActualStaDeg = v
+		frame.ActualStaDeg = model.Deg(v)
 		return nil
 	case "seat_tube_offset_x_mm", "seat_tube_offset":
 		v, err := parseFloat()
@@ -418,13 +418,13 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if err != nil || v <= 0 {
 			return fmt.Errorf("hta_deg must be a positive number")
 		}
-		geo.HtaDeg = v
+		geo.HtaDeg = model.Deg(v)
 	case "sta", "sta_deg":
 		v, err := parseFloat()
 		if err != nil || v <= 0 {
 			return fmt.Errorf("sta_deg must be a positive number")
 		}
-		geo.StaDeg = v
+		geo.StaDeg = model.Deg(v)
 	case "htl":
 		v, err := parseFloat()
 		if err != nil || v < 0 {
@@ -862,7 +862,7 @@ func parseStemSpec(s string) (model.StemSpec, error) {
 		if err != nil {
 			return model.StemSpec{}, fmt.Errorf("invalid stem angle: %q", parts[1])
 		}
-		return model.StemSpec{LengthMm: l, AngleDeg: a}, nil
+		return model.StemSpec{LengthMm: l, AngleDeg: model.Deg(a)}, nil
 	}
 	return model.StemSpec{}, fmt.Errorf("invalid stem format %q, expected 'length' or 'length/angle'", s)
 }

@@ -15,7 +15,7 @@ import (
 func (db *docb) handlebars(v url.Values) int {
 	fl := &floats{v: v}
 	gripInset := fl.get("grip-inset", model.DefaultGripInsetMm)
-	rollDeg := fl.get("roll", 0.0)
+	rollIn := fl.get("roll", 0.0)
 	cutWidth := fl.get("width", 0.0)
 	if fl.err != nil {
 		db.fail("%v", fl.err)
@@ -26,10 +26,11 @@ func (db *docb) handlebars(v url.Values) int {
 		db.fail("Error: grip-inset must be positive (got %g)", gripInset)
 		return 1
 	}
-	if math.IsNaN(rollDeg) || math.IsInf(rollDeg, 0) {
-		db.fail("Error: roll must be finite (got %g)", rollDeg)
+	if math.IsNaN(rollIn) || math.IsInf(rollIn, 0) {
+		db.fail("Error: roll must be finite (got %g)", rollIn)
 		return 1
 	}
+	rollDeg := model.Deg(rollIn)
 	if hasWidth && (!(cutWidth > 0) || math.IsInf(cutWidth, 0)) {
 		db.fail("Error: width must be positive (got %g)", cutWidth)
 		return 1
@@ -93,7 +94,7 @@ func (db *docb) handlebars(v url.Values) int {
 	return db.compareHandlebars(bar1, bar2, gripInset, rollDeg)
 }
 
-func (db *docb) listHandlebars(gripInset, rollDeg, cutWidth float64, hasWidth bool) int {
+func (db *docb) listHandlebars(gripInset float64, rollDeg model.Deg, cutWidth float64, hasWidth bool) int {
 	bars := catalog.AllHandlebars()
 	maxStock := 0.0
 	for _, b := range bars {
@@ -152,7 +153,7 @@ func (db *docb) listHandlebars(gripInset, rollDeg, cutWidth float64, hasWidth bo
 	}
 
 	rollNote := ""
-	if math.Abs(rollDeg) > 0.001 {
+	if math.Abs(float64(rollDeg)) > 0.001 {
 		rollNote = fmt.Sprintf(" (Roll: %+.1f°)", rollDeg)
 	}
 	title := fmt.Sprintf("Canonical Handlebar Catalog (%d)%s", len(bars), rollNote)
@@ -217,7 +218,7 @@ func (db *docb) listHandlebars(gripInset, rollDeg, cutWidth float64, hasWidth bo
 	return 0
 }
 
-func (db *docb) showHandlebarDetail(b model.HandlebarSpec, gripInset, rollDeg float64) int {
+func (db *docb) showHandlebarDetail(b model.HandlebarSpec, gripInset float64, rollDeg model.Deg) int {
 	offset := geometry.GetHandlebarOffset(b, gripInset, rollDeg)
 	yk := b.BaseRiseAtBend()
 	zHand := b.HandLateralMm(gripInset)
@@ -249,12 +250,12 @@ func (db *docb) showHandlebarDetail(b model.HandlebarSpec, gripInset, rollDeg fl
 	var rollRows [][]string
 	neutralOff := geometry.GetHandlebarOffset(b, gripInset, 0.0)
 
-	for r := -10.0; r <= 10.001; r += 2.5 {
+	for r := model.Deg(-10.0); r <= 10.001; r += 2.5 {
 		rOff := geometry.GetHandlebarOffset(b, gripInset, r)
 		diffX := rOff.X - neutralOff.X
 		diffY := rOff.Y - neutralOff.Y
 		marker := ""
-		if math.Abs(r-rollDeg) < 0.001 {
+		if math.Abs(float64(r-rollDeg)) < 0.001 {
 			marker = " *"
 		}
 		rollRows = append(rollRows, []string{
@@ -281,7 +282,7 @@ func (db *docb) showHandlebarDetail(b model.HandlebarSpec, gripInset, rollDeg fl
 	return 0
 }
 
-func (db *docb) compareHandlebars(bar1, bar2 model.HandlebarSpec, gripInset, rollDeg float64) int {
+func (db *docb) compareHandlebars(bar1, bar2 model.HandlebarSpec, gripInset float64, rollDeg model.Deg) int {
 	off1 := geometry.GetHandlebarOffset(bar1, gripInset, rollDeg)
 	off2 := geometry.GetHandlebarOffset(bar2, gripInset, rollDeg)
 	deltaGrip := geometry.HandlebarDelta(bar1, bar2, gripInset, rollDeg)

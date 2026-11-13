@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"bikegeo/pkg/catalog"
-	"bikegeo/pkg/geom2d"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 )
@@ -28,20 +27,20 @@ func CalculateDynamicWheelbaseTolerance(bike model.BikeGeometry, structuralA2c f
 		deltaWb = 0.05
 	}
 
-	deltaHtaDeg := 0.25
-	if bike.HtaDeg == math.Floor(bike.HtaDeg) {
+	deltaHtaDeg := model.Deg(0.25)
+	if htaDeg := float64(bike.HtaDeg); htaDeg == math.Floor(htaDeg) {
 		deltaHtaDeg = 0.5
-	} else if bike.HtaDeg*2 == math.Floor(bike.HtaDeg*2) {
+	} else if htaDeg*2 == math.Floor(htaDeg*2) {
 		deltaHtaDeg = 0.25
-	} else if bike.HtaDeg*4 == math.Floor(bike.HtaDeg*4) {
+	} else if htaDeg*4 == math.Floor(htaDeg*4) {
 		deltaHtaDeg = 0.125
 	} else {
 		deltaHtaDeg = 0.05
 	}
-	deltaHta := geom2d.FromDeg(deltaHtaDeg)
+	deltaHta := deltaHtaDeg.Angle()
 
 	frontEndLength := structuralA2c + bike.Htl
-	hta := geom2d.FromDeg(bike.HtaDeg)
+	hta := bike.HtaDeg.Angle()
 	deltaFcHta := math.Abs(-frontEndLength*hta.Sin()+bike.ForkRake*hta.Cos()) * deltaHta.Rad()
 
 	propagated := math.Sqrt(deltaReach*deltaReach + deltaCs*deltaCs + deltaWb*deltaWb + deltaFcHta*deltaFcHta)
@@ -63,8 +62,8 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 	required := []reqField{
 		{name: "reach", label: "Reach", val: bike.Reach},
 		{name: "stack", label: "Stack", val: bike.Stack},
-		{name: "hta_deg", label: "Head Tube Angle (HTA)", val: bike.HtaDeg},
-		{name: "sta_deg", label: "Seat Tube Angle (STA)", val: bike.StaDeg},
+		{name: "hta_deg", label: "Head Tube Angle (HTA)", val: float64(bike.HtaDeg)},
+		{name: "sta_deg", label: "Seat Tube Angle (STA)", val: float64(bike.StaDeg)},
 		{name: "htl", label: "Head Tube Length (HTL)", val: bike.Htl},
 		{name: "bb_drop", label: "Bottom Bracket Drop", val: bike.BbDrop},
 		{name: "fork_rake", label: "Fork Rake / Offset", val: bike.ForkRake},
@@ -662,7 +661,7 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 		if frame.CanonicalStem.LengthMm > 0 {
 			hasCanonical := false
 			for _, s := range expandedStems {
-				if math.Abs(s.LengthMm-frame.CanonicalStem.LengthMm) < 0.001 && math.Abs(s.AngleDeg-frame.CanonicalStem.AngleDeg) < 0.001 {
+				if math.Abs(s.LengthMm-frame.CanonicalStem.LengthMm) < 0.001 && math.Abs(float64(s.AngleDeg-frame.CanonicalStem.AngleDeg)) < 0.001 {
 					hasCanonical = true
 					break
 				}
@@ -951,8 +950,9 @@ func stackReachSagHint(bike model.BikeGeometry, structuralA2c, refFcHoriz float6
 	if bike.Reach <= 0 || bike.HtaDeg <= 0 {
 		return model.ValidationIssue{}, false
 	}
-	cosHta := math.Cos(geometry.ToRad(bike.HtaDeg))
-	sinHta := math.Sin(geometry.ToRad(bike.HtaDeg))
+	hta := bike.HtaDeg.Angle()
+	cosHta := hta.Cos()
+	sinHta := hta.Sin()
 	if cosHta <= 0.05 {
 		return model.ValidationIssue{}, false
 	}

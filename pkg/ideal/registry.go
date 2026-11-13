@@ -146,7 +146,7 @@ var registry = []AttributeMeta{
 		BelowWord: "slk",
 		AboveWord: "stp",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
-			return row.Canonical.ActiveHta, true
+			return float64(row.Canonical.ActiveHta), true
 		},
 	},
 	{
@@ -174,7 +174,7 @@ var registry = []AttributeMeta{
 		BelowWord: "slk",
 		AboveWord: "stp",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
-			return row.Canonical.ActiveSta, true
+			return float64(row.Canonical.ActiveSta), true
 		},
 	},
 	{
@@ -229,7 +229,7 @@ var registry = []AttributeMeta{
 		BelowWord: "lo",
 		AboveWord: "hi",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
-			return row.Canonical.BackAngleDeg, true
+			return float64(row.Canonical.BackAngleDeg), true
 		},
 	},
 	{
@@ -354,7 +354,7 @@ var registry = []AttributeMeta{
 			if row.Canonical.IdealStaDeg <= 0 {
 				return 0, false
 			}
-			return row.Canonical.IdealStaDeg, true
+			return float64(row.Canonical.IdealStaDeg), true
 		},
 	},
 	{

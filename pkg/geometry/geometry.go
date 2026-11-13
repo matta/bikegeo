@@ -11,71 +11,60 @@ import (
 	"bikegeo/pkg/model"
 )
 
-// ToRad converts degrees to radians.
-func ToRad(deg float64) float64 {
-	return (deg * math.Pi) / 180.0
-}
-
-// ToDeg converts radians to degrees.
-func ToDeg(rad float64) float64 {
-	return (rad * 180.0) / math.Pi
-}
-
-// Round rounds a float to the specified decimal precision.
-func Round(val float64, decimals int) float64 {
+// Round rounds a float (a length in mm, or a model.Deg) to the specified decimal precision.
+func Round[T ~float64](val T, decimals int) T {
 	factor := math.Pow(10, float64(decimals))
-	return math.Round(val*factor) / factor
+	return T(math.Round(float64(val)*factor) / factor)
 }
 
 // CalculateBentSeatTubeOffset derives the horizontal bottom bracket forward offset (Ox) in mm
 // for a bent or offset seat tube using the Stack plane (Method A).
-func CalculateBentSeatTubeOffset(stack, actualStaDeg, nominalStaDeg float64) float64 {
+func CalculateBentSeatTubeOffset(stack float64, actualStaDeg, nominalStaDeg model.Deg) float64 {
 	if actualStaDeg <= 0 || nominalStaDeg <= 0 || stack <= 0 {
 		return 0
 	}
-	cotAct := 1.0 / math.Tan(ToRad(actualStaDeg))
-	cotNom := 1.0 / math.Tan(ToRad(nominalStaDeg))
+	cotAct := 1.0 / actualStaDeg.Angle().Tan()
+	cotNom := 1.0 / nominalStaDeg.Angle().Tan()
 	return stack * (cotAct - cotNom)
 }
 
 // CalculateEffectiveSta computes the true effective seat tube angle in degrees for a rider at
 // radial saddle height L (distance from BB spindle center to saddle along the effective angle).
 // Law of Sines: alpha = asin((Ox * sin(theta_act)) / L), theta_eff = theta_act + alpha.
-func CalculateEffectiveSta(actualStaDeg, offsetXMm, saddleDistanceL float64) float64 {
+func CalculateEffectiveSta(actualStaDeg model.Deg, offsetXMm, saddleDistanceL float64) model.Deg {
 	if saddleDistanceL <= 0 || actualStaDeg <= 0 {
 		return actualStaDeg
 	}
-	actRad := ToRad(actualStaDeg)
-	sinVal := (offsetXMm * math.Sin(actRad)) / saddleDistanceL
+	sinVal := (offsetXMm * actualStaDeg.Angle().Sin()) / saddleDistanceL
 	if sinVal > 1.0 {
 		sinVal = 1.0
 	} else if sinVal < -1.0 {
 		sinVal = -1.0
 	}
 	alphaRad := math.Asin(sinVal)
-	return actualStaDeg + ToDeg(alphaRad)
+	return actualStaDeg + model.DegOf(geom2d.FromRad(alphaRad))
 }
 
 // SeatTubeAxis returns a directional Axis2 along the seat tube starting at origin (typically BB spindle at 0,0).
 // In bicycle frame geometry, STA is measured from the rear horizontal ground line, sweeping clockwise.
-func SeatTubeAxis(origin geom2d.Point2, staDeg float64) geom2d.Axis2 {
-	return geom2d.NewAxisFromPolar(origin, geom2d.FromDeg(180.0-staDeg))
+func SeatTubeAxis(origin geom2d.Point2, staDeg model.Deg) geom2d.Axis2 {
+	return geom2d.NewAxisFromPolar(origin, (180.0 - staDeg).Angle())
 }
 
 // SeatTubeDir returns a unit vector pointing upward along the seat tube axis.
-func SeatTubeDir(staDeg float64) geom2d.Vec2 {
-	return geom2d.FromPolar(1.0, geom2d.FromDeg(180.0-staDeg))
+func SeatTubeDir(staDeg model.Deg) geom2d.Vec2 {
+	return geom2d.FromPolar(1.0, (180.0 - staDeg).Angle())
 }
 
 // SteererTubeAxis returns a directional Axis2 along the steerer tube starting at origin (typically head tube top).
 // In bicycle frame geometry, HTA is measured as an acute angle from the horizontal ground line, sweeping clockwise.
-func SteererTubeAxis(origin geom2d.Point2, htaDeg float64) geom2d.Axis2 {
-	return geom2d.NewAxisFromPolar(origin, geom2d.FromDeg(180.0-htaDeg))
+func SteererTubeAxis(origin geom2d.Point2, htaDeg model.Deg) geom2d.Axis2 {
+	return geom2d.NewAxisFromPolar(origin, (180.0 - htaDeg).Angle())
 }
 
 // SteererTubeDir returns a unit vector pointing upward along the steerer tube axis.
-func SteererTubeDir(htaDeg float64) geom2d.Vec2 {
-	return geom2d.FromPolar(1.0, geom2d.FromDeg(180.0-htaDeg))
+func SteererTubeDir(htaDeg model.Deg) geom2d.Vec2 {
+	return geom2d.FromPolar(1.0, (180.0 - htaDeg).Angle())
 }
 
 // CalculateAett calculates the Actual Effective Top Tube (AETT) length in mm.
@@ -83,7 +72,7 @@ func SteererTubeDir(htaDeg float64) geom2d.Vec2 {
 // mm from the BB center along the seat-tube axis) forward to the steering axis
 // at that same elevation. It depends only on the frame and seatHeight: it is
 // independent of saddle model, seatpost setback, rail position, stem and bar.
-func CalculateAett(reach, stack, htaDeg, staDeg, seatHeight float64) float64 {
+func CalculateAett(reach, stack float64, htaDeg, staDeg model.Deg, seatHeight float64) float64 {
 	seatAxis := SeatTubeAxis(geom2d.Origin, staDeg)
 	saddlePoint := seatAxis.PointAt(seatHeight)
 
@@ -100,8 +89,8 @@ func CalculateAett(reach, stack, htaDeg, staDeg, seatHeight float64) float64 {
 // in mm: the horizontal distance from the head-tube top center (reach, stack)
 // back to the seat-tube axis at stack height, reach + stack/tan(STA). It is
 // AETT measured at stack height instead of at the rider's seat height.
-func CalculateEtt(reach, stack, htaDeg, staDeg float64) float64 {
-	sinSta := math.Sin(staDeg * math.Pi / 180.0)
+func CalculateEtt(reach, stack float64, htaDeg, staDeg model.Deg) float64 {
+	sinSta := staDeg.Angle().Sin()
 	if sinSta <= 0 || stack <= 0 {
 		return 0
 	}
@@ -110,7 +99,7 @@ func CalculateEtt(reach, stack, htaDeg, staDeg float64) float64 {
 
 // CalculateActualSetback calculates the horizontal setback distance in mm from the bottom bracket center (0,0)
 // to the center of the seat tube / seatpost at the specified saddle height.
-func CalculateActualSetback(staDeg, seatHeight float64) float64 {
+func CalculateActualSetback(staDeg model.Deg, seatHeight float64) float64 {
 	seatAxis := SeatTubeAxis(geom2d.Origin, staDeg)
 	saddlePoint := seatAxis.PointAt(seatHeight)
 	return -saddlePoint.X
@@ -120,7 +109,7 @@ func CalculateActualSetback(staDeg, seatHeight float64) float64 {
 // horizontal setback, and angle from BB at radial distance seatHeight from BB (0,0)
 // with perpendicular offset behind the seat tube axis.
 func CalculateBRPPoint(
-	staDeg, seatHeight, seatpostSetbackMm, saddleBrpOffsetMm, railOffsetMm float64,
+	staDeg model.Deg, seatHeight, seatpostSetbackMm, saddleBrpOffsetMm, railOffsetMm float64,
 ) model.BRPPoint {
 	seatAxis := SeatTubeAxis(geom2d.Origin, staDeg)
 	clampPerp := seatpostSetbackMm + railOffsetMm
@@ -131,9 +120,9 @@ func CalculateBRPPoint(
 	brpPoint := seatAxis.PointWithOffset(axial, brpPerp, geom2d.CounterClockwise)
 
 	setback := -brpPoint.X
-	angleFromBb := 0.0
+	angleFromBb := model.Deg(0.0)
 	if setback > 0 && brpPoint.Y > 0 {
-		angleFromBb = geom2d.Point2{X: setback, Y: brpPoint.Y}.PolarAngleDeg()
+		angleFromBb = model.DegOf(geom2d.Point2{X: setback, Y: brpPoint.Y}.PolarAngle())
 	}
 
 	return model.BRPPoint{
@@ -151,7 +140,7 @@ func CalculateBRPPoint(
 
 // MapPossibleBRPs maps candidate BRP points across the usable rail adjustment range
 // for the default reference saddle (SQlab 610) with the default seatpost setback.
-func MapPossibleBRPs(staDeg, seatHeight float64) []model.BRPPoint {
+func MapPossibleBRPs(staDeg model.Deg, seatHeight float64) []model.BRPPoint {
 	return model.ReferenceIdmatchSaddle().MapPossibleBRPs(
 		staDeg,
 		seatHeight,
@@ -243,7 +232,7 @@ func SelectBestBRP(
 // CalculateHandlebarOffset calculates the 2D offset vector (rearward X, upward Y)
 // from the stem clamp center to the rider's hand contact position.
 // It uses the kinematic transformation model for a handlebar with the specified rise, backsweep, and width.
-func CalculateHandlebarOffset(riseMm, sweepDeg, widthMm float64) geom2d.Vec2 {
+func CalculateHandlebarOffset(riseMm float64, sweepDeg model.Deg, widthMm float64) geom2d.Vec2 {
 	if widthMm <= 0 {
 		widthMm = 800.0
 	}
@@ -276,7 +265,7 @@ func DefaultHandlebarOffset() geom2d.Vec2 {
 // CalculateHBPoint calculates the HB reference point (effective hand/handlebar position)
 // and the Saddle-Handlebar distance and drop from the saddle BRP reference point using the baseline handlebar.
 func CalculateHBPoint(
-	reach, stack, htaDeg float64,
+	reach, stack float64, htaDeg model.Deg,
 	brp model.BRPPoint,
 	stem model.StemSpec,
 	spacerMm float64,
@@ -288,7 +277,7 @@ func CalculateHBPoint(
 // referencing distance and drop from the given BRP reference point using the baseline handlebar.
 func MapPossibleHBs(
 	bike model.BikeGeometry,
-	activeReach, activeStack, activeHta float64,
+	activeReach, activeStack float64, activeHta model.Deg,
 	brp model.BRPPoint,
 ) []model.HBPoint {
 	return MapPossibleHBsWithHandlebar(bike, activeReach, activeStack, activeHta, brp, catalog.DefaultHandlebar(), model.DefaultGripInsetMm, 0.0)
@@ -298,10 +287,10 @@ func MapPossibleHBs(
 // using the specified handlebar, grip inset, and roll angle.
 func MapPossibleHBsWithHandlebar(
 	bike model.BikeGeometry,
-	activeReach, activeStack, activeHta float64,
+	activeReach, activeStack float64, activeHta model.Deg,
 	brp model.BRPPoint,
 	bar model.HandlebarSpec,
-	gripInsetMm, rollDeg float64,
+	gripInsetMm float64, rollDeg model.Deg,
 ) []model.HBPoint {
 	if bar.ID == "" {
 		bar = catalog.DefaultHandlebar()
@@ -400,8 +389,8 @@ func SelectBestHBWithDrop(
 		}
 
 		// Tie-breaker 2: closest stem angle to canonical
-		angDiffA := math.Abs(a.Stem.AngleDeg - canonicalStem.AngleDeg)
-		angDiffB := math.Abs(b.Stem.AngleDeg - canonicalStem.AngleDeg)
+		angDiffA := math.Abs(float64(a.Stem.AngleDeg - canonicalStem.AngleDeg))
+		angDiffB := math.Abs(float64(b.Stem.AngleDeg - canonicalStem.AngleDeg))
 		if math.Abs(angDiffA-angDiffB) > 0.001 {
 			return angDiffA < angDiffB
 		}
@@ -468,7 +457,7 @@ func EvaluateFitOval(oval model.FitOval, x, y float64) (float64, bool) {
 		Center:     geom2d.Point2{X: oval.CenterX, Y: oval.CenterY},
 		SemiMinorA: oval.SemiMinorA,
 		SemiMajorB: oval.SemiMajorB,
-		Angle:      geom2d.FromDeg(oval.AngleDeg),
+		Angle:      oval.AngleDeg.Angle(),
 	}
 	return e.Evaluate(geom2d.Point2{X: x, Y: y})
 }
@@ -584,8 +573,8 @@ func EvaluateCockpitFit(
 		}
 
 		// Tie-breaker 2: closest stem angle to canonical
-		angDiffA := math.Abs(a.pt.Stem.AngleDeg - canonicalStem.AngleDeg)
-		angDiffB := math.Abs(b.pt.Stem.AngleDeg - canonicalStem.AngleDeg)
+		angDiffA := math.Abs(float64(a.pt.Stem.AngleDeg - canonicalStem.AngleDeg))
+		angDiffB := math.Abs(float64(b.pt.Stem.AngleDeg - canonicalStem.AngleDeg))
 		if math.Abs(angDiffA-angDiffB) > 0.001 {
 			return angDiffA < angDiffB
 		}
@@ -687,7 +676,7 @@ func ApplyCockpitFit(
 // Returns:
 // - verticalStack: Pure vertical distance from head tube top to saddle horizontal line (mm).
 // - axialLength: Physical length along the angled steerer tube to achieve that height (mm).
-func CalculateSteererStack(stack, staDeg, htaDeg, seatHeight float64) (verticalStack float64, axialLength float64) {
+func CalculateSteererStack(stack float64, staDeg, htaDeg model.Deg, seatHeight float64) (verticalStack float64, axialLength float64) {
 	seatAxis := SeatTubeAxis(geom2d.Origin, staDeg)
 	saddlePoint := seatAxis.PointAt(seatHeight)
 
@@ -719,7 +708,7 @@ func CalculateSeatpostExtension(seatHeight, seatTubeLength float64) float64 {
 // Returns the structural A2C (total length beneath the head tube, including bare fork plus any lower cup stack).
 // Callers needing bare fork A2C can subtract their lower cup stack or spacer from this value.
 // Returns an error if the steerer axis is horizontal or if headTubeLength is non-positive.
-func CalculateGeometricA2c(stack, bbDrop, headTubeLength, htaDeg, rake float64) (structuralA2c float64, err error) {
+func CalculateGeometricA2c(stack, bbDrop, headTubeLength float64, htaDeg model.Deg, rake float64) (structuralA2c float64, err error) {
 	if headTubeLength <= 0 {
 		return 0, fmt.Errorf("headTubeLength must be positive, got %.1f mm", headTubeLength)
 	}
@@ -750,7 +739,7 @@ func CalculateGeometricA2c(stack, bbDrop, headTubeLength, htaDeg, rake float64) 
 // CalculateDynamicGeometry calculates new frame geometry when fork A2C is changed,
 // simulating pitching of the frame around the rear axle.
 func CalculateDynamicGeometry(
-	baseReach, baseStack, baseHta, baseSta, baseBbDrop, baseStructuralA2c, newStructuralA2c float64,
+	baseReach, baseStack float64, baseHta, baseSta model.Deg, baseBbDrop, baseStructuralA2c, newStructuralA2c float64,
 	wheelbase, chainstayLength float64,
 ) model.DynamicGeometryResult {
 	if wheelbase <= 0 {
@@ -771,7 +760,7 @@ func CalculateDynamicGeometry(
 	// Exact 2D rear-axle pitch angle needed to bring the front axle back to axle level.
 	// Use deltaA2c * steererDir.Y for the positive lift component so deltaA2c == 0 gives +0.0.
 	pitchAngle := geom2d.AngleFromSlope(axleVec.X, deltaA2c*steererDir.Y)
-	thetaDeg := pitchAngle.Deg()
+	thetaDeg := model.DegOf(pitchAngle)
 
 	newHta := baseHta - thetaDeg
 	newSta := baseSta - thetaDeg
@@ -805,7 +794,7 @@ func CalculateDynamicGeometry(
 }
 
 // CalculateFrontCenter calculates theoretical horizontal Front-Center from frame geometry.
-func CalculateFrontCenter(reach, htl, htaDeg, rake, structuralA2c float64) float64 {
+func CalculateFrontCenter(reach, htl float64, htaDeg model.Deg, rake, structuralA2c float64) float64 {
 	steererDir := SteererTubeDir(htaDeg)
 	downSteerer := steererDir.Scale(-(structuralA2c + htl))
 	rakeOffset := steererDir.Perpendicular(geom2d.Clockwise).Scale(rake)
@@ -813,7 +802,7 @@ func CalculateFrontCenter(reach, htl, htaDeg, rake, structuralA2c float64) float
 }
 
 // CalculateFrontCenter3D calculates direct point-to-point Front-Center from the bottom bracket spindle to the front axle.
-func CalculateFrontCenter3D(reach, htl, htaDeg, rake, structuralA2c, bbDrop float64) float64 {
+func CalculateFrontCenter3D(reach, htl float64, htaDeg model.Deg, rake, structuralA2c, bbDrop float64) float64 {
 	fcHoriz := CalculateFrontCenter(reach, htl, htaDeg, rake, structuralA2c)
 	return geom2d.Point2{X: fcHoriz, Y: -bbDrop}.DistanceToOrigin()
 }
@@ -822,35 +811,35 @@ func CalculateFrontCenter3D(reach, htl, htaDeg, rake, structuralA2c, bbDrop floa
 // fork rake/offset (mm), and loaded wheel radius (mm):
 //
 //	Trail = (wheelRadiusMm * cos(HTA) - rakeMm) / sin(HTA)
-func CalculateTrail(htaDeg, rakeMm, wheelRadiusMm float64) float64 {
+func CalculateTrail(htaDeg model.Deg, rakeMm, wheelRadiusMm float64) float64 {
 	if htaDeg <= 0 || htaDeg >= 90 || wheelRadiusMm <= 0 {
 		return 0
 	}
-	rad := ToRad(htaDeg)
-	return (wheelRadiusMm*math.Cos(rad) - rakeMm) / math.Sin(rad)
+	hta := htaDeg.Angle()
+	return (wheelRadiusMm*hta.Cos() - rakeMm) / hta.Sin()
 }
 
 // BiomechanicalPosture models the rider's contact points and upper body posture on a baseline bike.
 type BiomechanicalPosture struct {
-	BackAngleDeg float64 // Torso angle from horizontal in degrees (hip to shoulder)
-	HipX         float64 // Hip joint X coordinate relative to BB (mm)
-	HipY         float64 // Hip joint Y coordinate relative to BB (mm)
-	GripX        float64 // Grip center X coordinate relative to BB (mm)
-	GripY        float64 // Grip center Y coordinate relative to BB (mm)
-	RiderCgX     float64 // Rider center of gravity X relative to BB (mm)
-	RiderCgY     float64 // Rider center of gravity Y relative to BB (mm)
-	SystemCgX    float64 // Combined rider + bike center of gravity X relative to BB (mm)
-	SystemCgY    float64 // Combined rider + bike center of gravity Y relative to BB (mm)
+	BackAngleDeg model.Deg // Torso angle from horizontal in degrees (hip to shoulder)
+	HipX         float64   // Hip joint X coordinate relative to BB (mm)
+	HipY         float64   // Hip joint Y coordinate relative to BB (mm)
+	GripX        float64   // Grip center X coordinate relative to BB (mm)
+	GripY        float64   // Grip center Y coordinate relative to BB (mm)
+	RiderCgX     float64   // Rider center of gravity X relative to BB (mm)
+	RiderCgY     float64   // Rider center of gravity Y relative to BB (mm)
+	SystemCgX    float64   // Combined rider + bike center of gravity X relative to BB (mm)
+	SystemCgY    float64   // Combined rider + bike center of gravity Y relative to BB (mm)
 }
 
 // WeightDistributionResult holds the static weight distribution on front and rear axles.
 type WeightDistributionResult struct {
-	FrontPct        float64 // Percentage of system weight on front axle
-	RearPct         float64 // Percentage of system weight on rear axle
-	FrontCenterCalc float64 // Horizontal distance from BB to front axle (mm)
-	RearCenterCalc  float64 // Horizontal distance from BB to rear axle (mm)
-	WheelbaseCalc   float64 // Total horizontal wheelbase (mm)
-	BackAngleDeg    float64 // Estimated back angle in degrees
+	FrontPct        float64   // Percentage of system weight on front axle
+	RearPct         float64   // Percentage of system weight on rear axle
+	FrontCenterCalc float64   // Horizontal distance from BB to front axle (mm)
+	RearCenterCalc  float64   // Horizontal distance from BB to rear axle (mm)
+	WheelbaseCalc   float64   // Total horizontal wheelbase (mm)
+	BackAngleDeg    model.Deg // Estimated back angle in degrees
 }
 
 // GetDefaultBaselineBike returns the canonical Otso Fenrir Stainless Large baseline build
@@ -916,7 +905,7 @@ func CalculateBaselinePosture(
 	headTubeTop := geom2d.Point2{X: reach, Y: stack}
 
 	steererDir := SteererTubeDir(htaDeg)
-	stemDir := steererDir.Perpendicular(geom2d.Clockwise).RotateDeg(profile.BaselineStemAngleDeg)
+	stemDir := steererDir.Perpendicular(geom2d.Clockwise).Rotate(profile.BaselineStemAngleDeg.Angle())
 	clamp := headTubeTop.Add(stemDir.Scale(profile.BaselineStemMm))
 
 	// Bar sweep & rise from configured handlebar
@@ -952,7 +941,7 @@ func CalculateBaselinePosture(
 	}
 
 	backAngle := alpha.Add(beta)
-	backAngleDeg := backAngle.Deg()
+	backAngleDeg := model.DegOf(backAngle)
 
 	// 4. Rider Center of Gravity
 	torsoDir := geom2d.FromPolar(1.0, backAngle)
@@ -998,7 +987,7 @@ func CalculateBaselinePosture(
 
 // CalculateWeightDistribution calculates static weight distribution between the axles for an active frame setup.
 func CalculateWeightDistribution(
-	activeReach, activeStack, activeHta, activeHtl, activeBbDrop, forkRake, structuralA2c, chainstayLength float64,
+	activeReach, activeStack float64, activeHta model.Deg, activeHtl, activeBbDrop, forkRake, structuralA2c, chainstayLength float64,
 	posture BiomechanicalPosture,
 ) WeightDistributionResult {
 	if chainstayLength <= 0 {
@@ -1089,7 +1078,7 @@ func AnalyzeBikeFitWithSaddle(
 	ettSta := bike.StaDeg
 	activeBbDrop := bike.BbDrop
 	activeStructuralA2c := baseStructuralA2c
-	deltaAngle := 0.0
+	deltaAngle := model.Deg(0.0)
 	deltaReach := 0.0
 	deltaStack := 0.0
 	deltaBbDrop := 0.0

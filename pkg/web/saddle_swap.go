@@ -360,7 +360,7 @@ func (db *docb) saddleSwap(v url.Values) int {
 			}
 
 			frameSta := canonRow.Canonical.ActiveSta
-			stSetback := saddleHeight * math.Cos(frameSta*math.Pi/180.0)
+			stSetback := saddleHeight * frameSta.Angle().Cos()
 			srcBrpSetback := sourceSaddle.BrpSetbackFromSitBones(sitBoneSetback)
 			tgtBrpSetback := targetSaddle.BrpSetbackFromSitBones(sitBoneSetback)
 			tgtEquivSH := saddleHeight
