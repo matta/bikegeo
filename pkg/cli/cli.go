@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -31,7 +32,7 @@ func Run(args []string, in io.Reader, out, errOut io.Writer) int {
 func (app *App) dispatch(remaining []string) int {
 	errOut := app.Err
 	if len(remaining) == 0 {
-		app.printUsage()
+		app.printUsage(app.Out)
 		return 0
 	}
 
@@ -39,8 +40,33 @@ func (app *App) dispatch(remaining []string) int {
 	subArgs := remaining[1:]
 
 	switch subcmd {
-	case "help", "-h", "--help":
-		app.printUsage()
+	case "help":
+		if len(subArgs) == 0 {
+			app.printUsage(app.Out)
+			return 0
+		}
+		target := strings.ToLower(subArgs[0])
+		switch target {
+		case "help", "-h", "--help":
+			app.printUsage(app.Out)
+			return 0
+		case "list", "ls", "bikes", "frames":
+			return app.runList([]string{"--help"})
+		case "compare", "cmp":
+			return app.runCompare([]string{"--help"})
+		case "validate", "val", "check":
+			return app.runValidate([]string{"--help"})
+		case "fit":
+			return app.runFit([]string{"--help"})
+		case "serve":
+			return web.RunServe([]string{"--help"}, app.Out, app.Err)
+		default:
+			fmt.Fprintf(errOut, "Error: unknown command %q\n\n", subArgs[0])
+			app.printUsage(errOut)
+			return 2
+		}
+	case "-h", "--help":
+		app.printUsage(app.Out)
 		return 0
 	case "list", "ls", "bikes", "frames":
 		return app.runList(subArgs)
@@ -54,13 +80,13 @@ func (app *App) dispatch(remaining []string) int {
 		return web.RunServe(subArgs, app.Out, app.Err)
 	default:
 		fmt.Fprintf(errOut, "Error: unknown command %q\n\n", subcmd)
-		app.printUsage()
+		app.printUsage(errOut)
 		return 2
 	}
 }
 
-func (a *App) printUsage() {
-	fmt.Fprint(a.Out, `BikeGeo Analyst CLI - Bicycle Geometry Validation & Apples-to-Apples Comparison
+func (a *App) printUsage(w io.Writer) {
+	fmt.Fprint(w, `BikeGeo Analyst CLI - Bicycle Geometry Validation & Apples-to-Apples Comparison
 
 Usage:
   bikegeo <command> [flags] [arguments]
@@ -81,10 +107,10 @@ Examples:
   bikegeo compare --all
 
   # Compare the same frame at 20% sag, 30% sag, and with its rigid fork:
-  bikegeo compare sendero@20% sendero@30% sendero@rigid
+  bikegeo compare hayduke@20% hayduke@30% hayduke@rigid
 
   # Compare different frames at different sag points and fork capacities:
-  bikegeo compare sendero@120mm@20% chameleon@130mm@30% fenrir@rigid
+  bikegeo compare revel-el-jefe@120mm@20% hayduke@130mm@30% fenrir@rigid
 
   # Compare all sizes of a frame against each other with a specified fork:
   bikegeo compare seven-expedition-926f:all@120mm
@@ -93,19 +119,40 @@ Examples:
   bikegeo compare +seven-expedition-926f:all@120mm
 
   # Validate a frame's CAD math and cross-configuration coherence:
-  bikegeo validate chumba-sendero
+  bikegeo validate otso-fenrir-stainless
   bikegeo validate --all
 
-  # Analyze swapping from reference SQlab 610 to Berthoud Aspin:
-  bikegeo saddle-swap
-  bikegeo saddle-swap sqlab slr
+  # Launch the web UI (catalogs, saddle swap, handlebar and comparison tools):
+  bikegeo serve --open
 `)
+}
+
+func (a *App) parseSubcommandFlags(
+	fs *flag.FlagSet,
+	args []string,
+	boolFlags map[string]bool,
+	allowRemovalTokens bool,
+	helpUsage, errUsage func(io.Writer),
+) (bool, int) {
+	fs.SetOutput(a.Err)
+	fs.Usage = func() {}
+	reordered := reorderFlagsForStdlib(fs, args, boolFlags, allowRemovalTokens)
+	if err := fs.Parse(reordered); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			helpUsage(a.Out)
+			return false, 0
+		}
+		errUsage(a.Err)
+		return false, 2
+	}
+	return true, 0
 }
 
 // reorderFlagsForStdlib moves flag arguments ahead of positional arguments so stdlib flag.FlagSet
 // parses flags regardless of whether they appear before or after positional arguments.
-// Notice that negative numbers or "-<col_num>" incremental remove tokens are treated as positional args if not registered as flags.
-func reorderFlagsForStdlib(fs *flag.FlagSet, args []string, boolFlags map[string]bool) []string {
+// When allowRemovalTokens is true (compare), single-dash tokens other than "-h" (e.g., "-2",
+// "-sendero", "-all") are treated as positional removal specs rather than flags.
+func reorderFlagsForStdlib(fs *flag.FlagSet, args []string, boolFlags map[string]bool, allowRemovalTokens bool) []string {
 	var flags []string
 	var pos []string
 
@@ -120,20 +167,21 @@ func reorderFlagsForStdlib(fs *flag.FlagSet, args []string, boolFlags map[string
 			continue
 		}
 
-		name := strings.TrimLeft(arg, "-")
-		hasEq := strings.Contains(name, "=")
-		if hasEq {
-			name = strings.SplitN(name, "=", 2)[0]
+		isDoubleDash := strings.HasPrefix(arg, "--")
+		rawName := strings.TrimPrefix(arg, "-")
+		if isDoubleDash {
+			rawName = strings.TrimPrefix(arg, "--")
 		}
+		name, _, hasEq := strings.Cut(rawName, "=")
 
-		if fs.Lookup(name) == nil && name != "h" && name != "help" {
-			// Not a known flag (e.g., "-2" or "-sendero" column removal token)
+		if allowRemovalTokens && !isDoubleDash && name != "h" {
+			// Single-dash token in compare (e.g., "-2", "-sendero", "-all") is a column removal spec.
 			pos = append(pos, arg)
 			continue
 		}
 
 		flags = append(flags, arg)
-		if !hasEq && !boolFlags[name] && name != "h" && name != "help" && i+1 < len(args) {
+		if fs.Lookup(name) != nil && !hasEq && !boolFlags[name] && name != "h" && name != "help" && i+1 < len(args) {
 			flags = append(flags, args[i+1])
 			i++
 		}

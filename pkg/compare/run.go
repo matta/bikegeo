@@ -219,7 +219,12 @@ func Run(opts Options) (*Result, error) {
 	if opts.Saddle != "" {
 		s, ok := catalog.GetSaddle(opts.Saddle)
 		if !ok {
-			return nil, fmt.Errorf("unrecognized saddle %q (see 'bikegeo saddles' for catalog)", opts.Saddle)
+			saddles := catalog.AllSaddles()
+			ids := make([]string, len(saddles))
+			for i, item := range saddles {
+				ids[i] = item.ID
+			}
+			return nil, fmt.Errorf("unrecognized saddle %q (available: %s)", opts.Saddle, strings.Join(ids, ", "))
 		}
 		state.SaddleID = s.ID
 		state.Saddle = s
@@ -231,7 +236,12 @@ func Run(opts Options) (*Result, error) {
 	if opts.Handlebar != "" {
 		b, ok := catalog.GetHandlebar(opts.Handlebar)
 		if !ok {
-			return nil, fmt.Errorf("unrecognized handlebar %q (see 'bikegeo handlebars' for catalog)", opts.Handlebar)
+			bars := catalog.AllHandlebars()
+			ids := make([]string, len(bars))
+			for i, item := range bars {
+				ids[i] = item.ID
+			}
+			return nil, fmt.Errorf("unrecognized handlebar %q (available: %s)", opts.Handlebar, strings.Join(ids, ", "))
 		}
 		state.HandlebarID = b.ID
 		state.Handlebar = b

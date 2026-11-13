@@ -270,12 +270,14 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 
 		if item.eval.IsDisplayOnly || item.spec.Weight <= 0 {
 			results = append(results, CriterionResult{
-				ID:            item.spec.ID,
-				Label:         item.meta.Label,
-				Unit:          item.meta.Unit,
-				Value:         item.val,
-				IsDisplayOnly: true,
-				FormattedCell: item.eval.FormattedCell,
+				ID:              item.spec.ID,
+				Label:           item.meta.Label,
+				Unit:            item.meta.Unit,
+				Value:           item.val,
+				Zone:            string(item.eval.Zone),
+				DistanceToIdeal: item.eval.DistanceToIdeal,
+				IsDisplayOnly:   true,
+				FormattedCell:   item.eval.FormattedCell,
 			})
 			continue
 		}
@@ -391,6 +393,14 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 		label = fmt.Sprintf("%s (%.0fmm %.0f° %s%.0fmm)", meta.Label, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm)
 	}
 
+	printedVal := ideal.RoundPrinted(val, meta.Decimals)
+	printedDist := ideal.RoundPrinted(dist, meta.Decimals)
+	if spec.Ideal != nil {
+		printedDist = ideal.PrintedDistanceToIdeal(spec.Ideal, printedVal, meta.Decimals)
+	}
+	isBelow := printedDist < 0 || (printedDist == 0 && dist < 0)
+	absDist := math.Abs(printedDist)
+
 	switch lowID {
 	case "handlebar_clamp_fit":
 		if row != nil && row.Canonical.CockpitFitResult != nil {
@@ -410,61 +420,60 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 				offsetPart = ", " + offsetStr
 			}
 			if cfr.CountInside == 0 {
-				return fmt.Sprintf("Handlebar Clamp Fit: 0 valid setups in fit window (closest is %.0fmm %.0f° %s%.0fmm, R=%.2f%s%s)",
-					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, stemNote)
+				return fmt.Sprintf("%s: 0 valid setups in fit window (closest is %.0fmm %.0f° %s%.0fmm, R=%.2f%s%s)",
+					label, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, stemNote)
 			}
 			plural := "s"
 			if cfr.CountInside == 1 {
 				plural = ""
 			}
 			if cfr.VersatilityBonus > 0 {
-				return fmt.Sprintf("Handlebar Clamp Fit: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f%s, %d valid setup%s%s, +%.0f bonus)",
-					hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, cfr.CountInside, plural, stemNote, cfr.VersatilityBonus)
+				return fmt.Sprintf("%s: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f%s, %d valid setup%s%s, +%.0f bonus)",
+					label, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, cfr.CountInside, plural, stemNote, cfr.VersatilityBonus)
 			}
-			return fmt.Sprintf("Handlebar Clamp Fit: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f%s, %d valid setup%s in fit window%s)",
-				hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, cfr.CountInside, plural, stemNote)
+			return fmt.Sprintf("%s: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f%s, %d valid setup%s in fit window%s)",
+				label, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, cfr.CountInside, plural, stemNote)
 		}
 	case "hta", "sta":
 		target := 68.0
-		if dist < 0 {
+		if isBelow {
 			if spec.Ideal != nil && spec.Ideal.Min != nil {
-				target = *spec.Ideal.Min
+				target = ideal.RoundPrinted(*spec.Ideal.Min, meta.Decimals)
 			}
-			return fmt.Sprintf("%s %.1f° is %.1f° slacker than %.1f", label, val, -dist, target)
+			return fmt.Sprintf("%s %.1f° is %.1f° slacker than %.1f", label, printedVal, absDist, target)
 		}
 		if spec.Ideal != nil && spec.Ideal.Max != nil {
-			target = *spec.Ideal.Max
+			target = ideal.RoundPrinted(*spec.Ideal.Max, meta.Decimals)
 		}
-		return fmt.Sprintf("%s %.1f° is %.1f° steeper than %.1f", label, val, dist, target)
+		return fmt.Sprintf("%s %.1f° is %.1f° steeper than %.1f", label, printedVal, absDist, target)
 
 	case "trail":
-		if dist < 0 {
+		if isBelow {
 			target := 98.0
 			if spec.Ideal != nil && spec.Ideal.Min != nil {
-				target = *spec.Ideal.Min
+				target = ideal.RoundPrinted(*spec.Ideal.Min, meta.Decimals)
 			}
-			return fmt.Sprintf("Trail %.0fmm is %.0fmm quicker than the %.0fmm ideal", val, -dist, target)
+			return fmt.Sprintf("Trail %.0fmm is %.0fmm quicker than the %.0fmm ideal", printedVal, absDist, target)
 		}
 		target := 106.0
 		if spec.Ideal != nil && spec.Ideal.Max != nil {
-			target = *spec.Ideal.Max
+			target = ideal.RoundPrinted(*spec.Ideal.Max, meta.Decimals)
 		}
-		return fmt.Sprintf("Trail %.0fmm is %.0fmm slower than the %.0fmm ideal", val, dist, target)
+		return fmt.Sprintf("Trail %.0fmm is %.0fmm slower than the %.0fmm ideal", printedVal, absDist, target)
 
 	case "bbdrop":
-		if dist < 0 {
-			return fmt.Sprintf("BB drop %.0fmm sits %.0fmm higher than ideal", val, -dist)
+		if isBelow {
+			return fmt.Sprintf("BB drop %.0fmm sits %.0fmm higher than ideal", printedVal, absDist)
 		}
-		return fmt.Sprintf("BB drop %.0fmm sits %.0fmm lower than ideal", val, dist)
+		return fmt.Sprintf("BB drop %.0fmm sits %.0fmm lower than ideal", printedVal, absDist)
 	}
 
-	valStr := formatValue(meta.Unit, val)
-	distVal := math.Abs(dist)
-	distStr := formatValue(meta.Unit, distVal)
+	valStr := formatValue(meta.Unit, printedVal)
+	distStr := formatValue(meta.Unit, absDist)
 
-	if dist < 0 {
+	if isBelow {
 		if spec.Ideal != nil && spec.Ideal.Min != nil {
-			idealStr := formatValue(meta.Unit, *spec.Ideal.Min)
+			idealStr := formatValue(meta.Unit, ideal.RoundPrinted(*spec.Ideal.Min, meta.Decimals))
 			if lowID == "setback" || lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" || lowID == "sit_bone_setback" {
 				return fmt.Sprintf("%s %s is %s forward of the %s ideal", label, valStr, distStr, idealStr)
 			}
@@ -474,7 +483,7 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 	}
 
 	if spec.Ideal != nil && spec.Ideal.Max != nil {
-		idealStr := formatValue(meta.Unit, *spec.Ideal.Max)
+		idealStr := formatValue(meta.Unit, ideal.RoundPrinted(*spec.Ideal.Max, meta.Decimals))
 		if lowID == "setback" || lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" || lowID == "sit_bone_setback" {
 			return fmt.Sprintf("%s %s is %s aft of the %s ideal", label, valStr, distStr, idealStr)
 		}
@@ -516,6 +525,9 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 			spec, ok := attrSpecMap[strings.ToLower(cr.ID)]
 			if !ok {
 				continue
+			}
+			if f.Row.Canonical.Saddle.ID != "" {
+				spec = translateAttributeSpecForSaddle(spec, f.Row.Canonical.Saddle)
 			}
 			meta, ok := ideal.LookupAttribute(cr.ID)
 			if !ok {
@@ -565,6 +577,7 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 		}
 
 		type diffItem struct {
+			id    string
 			diff  float64
 			label string
 			unit  string
@@ -590,6 +603,7 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 
 			diff := ca.Points - cb.Points
 			item := diffItem{
+				id:    ca.ID,
 				diff:  diff,
 				label: ca.Label,
 				unit:  ca.Unit,
@@ -610,11 +624,20 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 			return con[i].diff < con[j].diff
 		})
 
+		formatH2H := func(d diffItem) string {
+			// Oval Fits matrix cells show setup count, while CriterionResult.Value
+			// stores the sub-score; label it explicitly so the two aren't conflated.
+			valKind := ""
+			if strings.EqualFold(d.id, "handlebar_clamp_fit") {
+				valKind = "sub-score "
+			}
+			return fmt.Sprintf("%s %s%s vs %s (%+.0f)",
+				d.label, valKind, formatValue(d.unit, d.valA), formatValue(d.unit, d.valB), math.Round(d.diff))
+		}
+
 		var whyParts []string
 		for i := 0; i < len(pro) && i < 2; i++ {
-			p := pro[i]
-			whyParts = append(whyParts, fmt.Sprintf("%s %s vs %s (+%.0f)",
-				p.label, formatValue(p.unit, p.valA), formatValue(p.unit, p.valB), math.Round(p.diff)))
+			whyParts = append(whyParts, formatH2H(pro[i]))
 		}
 
 		line := head
@@ -623,9 +646,7 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 		}
 
 		if len(con) > 0 {
-			c := con[0]
-			line += fmt.Sprintf("; offset by %s %s vs %s (%.0f)",
-				c.label, formatValue(c.unit, c.valA), formatValue(c.unit, c.valB), math.Round(c.diff))
+			line += "; offset by " + formatH2H(con[0])
 		}
 
 		h2hList = append(h2hList, line)

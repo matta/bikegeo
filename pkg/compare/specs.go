@@ -5,6 +5,7 @@ package compare
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -12,6 +13,20 @@ import (
 	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/model"
 )
+
+// ResolveFrameSize matches size case-insensitively against frame's declared sizes,
+// returning the canonical size label or a consistent unknown-size error.
+func ResolveFrameSize(frame model.FrameModel, size string) (string, error) {
+	for _, s := range frame.GetSizes() {
+		if strings.EqualFold(s, size) {
+			return s, nil
+		}
+	}
+	return "", fmt.Errorf(
+		"frame \"%s %s\" (%s) does not have size %q (available sizes: %s)",
+		frame.Manufacturer, frame.Model, frame.ID, size, strings.Join(frame.GetSizes(), ", "),
+	)
+}
 
 // ResolveFrameByToken finds a FrameModel by exact ID, legacy size-suffixed ID, or unique substring match.
 // If the token included a size suffix (e.g. "chumba-sendero-l" or "chumba-sendero:L"), inferredSize is returned.
@@ -180,7 +195,7 @@ func parseFrameSetups(
 		if strings.HasSuffix(low, "%") || strings.HasPrefix(low, "sag=") {
 			clean := strings.TrimSuffix(strings.TrimPrefix(low, "sag="), "%")
 			val, err := strconv.ParseFloat(clean, 64)
-			if err != nil {
+			if err != nil || math.IsNaN(val) || math.IsInf(val, 0) || val < 0 || math.Signbit(val) {
 				return nil, fmt.Errorf("invalid sag modifier %q in %q", mod, frame.ID)
 			}
 			if val > 0 && !canonicalizer.IsAllowedSag(val) {
@@ -190,8 +205,12 @@ func parseFrameSetups(
 			continue
 		}
 
-		// 3. Rigid fork modifier
-		if low == "rigid" || low == "0mm" || low == "0" || strings.HasPrefix(low, "rigid") {
+		// 3. Rigid / stock fork modifier
+		if low == "stock" || low == "default" {
+			forkToken = low
+			continue
+		}
+		if low == "rigid" || low == "0mm" || low == "0" || strings.HasPrefix(low, "rigid_") {
 			forkToken = "rigid"
 			continue
 		}
@@ -217,6 +236,9 @@ func parseFrameSetups(
 
 		// 6. Pure numeric modifier: >= 60 is fork travel (mm); < 60 is sag (%)
 		if val, err := strconv.ParseFloat(low, 64); err == nil {
+			if math.IsNaN(val) || math.IsInf(val, 0) || val < 0 || math.Signbit(val) {
+				return nil, fmt.Errorf("invalid numeric modifier %q in %q", mod, frame.ID)
+			}
 			if val >= 60 {
 				forkToken = fmt.Sprintf("%.0fmm", val)
 			} else {
@@ -256,18 +278,9 @@ func parseFrameSetups(
 			return nil, fmt.Errorf("frame %q has no declared sizes", frame.ID)
 		}
 	} else if sizeToken != "" {
-		matched := ""
-		for _, sz := range frame.GetSizes() {
-			if strings.EqualFold(sz, sizeToken) {
-				matched = sz
-				break
-			}
-		}
-		if matched == "" {
-			return nil, fmt.Errorf(
-				"frame \"%s %s\" (%s) does not have size %q (available sizes: %s)",
-				frame.Manufacturer, frame.Model, frame.ID, sizeToken, strings.Join(frame.GetSizes(), ", "),
-			)
+		matched, err := ResolveFrameSize(frame, sizeToken)
+		if err != nil {
+			return nil, err
 		}
 		sizes = []string{matched}
 	} else {

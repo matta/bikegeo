@@ -233,7 +233,7 @@ func TestFormatForkTypeAndSag(t *testing.T) {
 	if got := canonicalizer.FormatForkType(suspRow); got != "110mm" {
 		t.Errorf("FormatForkType(susp) = %q, want %q", got, "110mm")
 	}
-	if got := canonicalizer.FormatForkSag(suspRow); got != "110mm @ 20%" {
-		t.Errorf("FormatForkSag(susp) = %q, want %q", got, "110mm @ 20%")
+	if got := canonicalizer.FormatForkSag(suspRow); got != "110mm @ 20% sag" {
+		t.Errorf("FormatForkSag(susp) = %q, want %q", got, "110mm @ 20% sag")
 	}
 }

@@ -3,6 +3,7 @@ package cli
 import (
 	"flag"
 	"fmt"
+	"io"
 	"strings"
 
 	"bikegeo/pkg/compare"
@@ -24,24 +25,26 @@ func (s *stringSliceFlag) Set(val string) error {
 
 func (a *App) runFit(args []string) int {
 	fs := flag.NewFlagSet("fit", flag.ContinueOnError)
-	fs.SetOutput(a.Err)
 
-	var configFlag string
 	var detailFlag bool
 	var tryFlags stringSliceFlag
 
-	fs.StringVar(&configFlag, "config", "", "Specific frame configuration ID to analyze (defaults to baseline)")
 	fs.BoolVar(&detailFlag, "detail", false, "Show detailed per-size residual table for each combination in --try sweeps")
 	fs.Var(&tryFlags, "try", "Combinatorial trial parameter, e.g. --try fork.a2c=470,472 or --try XL:stack=655,660 (repeatable)")
 
-	reordered := reorderFlagsForStdlib(fs, args, map[string]bool{"detail": true})
-	if err := fs.Parse(reordered); err != nil {
-		return 2
+	usage := func(w io.Writer) {
+		fmt.Fprintln(w, "Usage: bikegeo fit <frame[:size]> [--try key=v1,v2,...] [--detail]")
+		fmt.Fprintln(w, "Analyzes CAD residuals across all sizes; optional :size sets the default target size for unqualified --try fields.")
+		fs.SetOutput(w)
+		fs.PrintDefaults()
+	}
+	if ok, code := a.parseSubcommandFlags(fs, args, map[string]bool{"detail": true}, false, usage, usage); !ok {
+		return code
 	}
 
 	posArgs := fs.Args()
 	if len(posArgs) < 1 {
-		fmt.Fprintln(a.Err, "Usage: bikegeo fit <frame[:size]> [--try key=v1,v2,...] [--detail] [--config id]")
+		usage(a.Err)
 		return 2
 	}
 
@@ -53,15 +56,17 @@ func (a *App) runFit(args []string) int {
 	}
 	frame := *framePtr
 
-	targetSize := impSz
-	if targetSize == "" {
-		targetSize = frame.GetDefaultSize()
+	targetSize := frame.GetDefaultSize()
+	if impSz != "" {
+		matchedSz, err := compare.ResolveFrameSize(frame, impSz)
+		if err != nil {
+			fmt.Fprintf(a.Err, "Error: %v\n", err)
+			return 1
+		}
+		targetSize = matchedSz
 	}
 
-	configID := configFlag
-	if configID == "" {
-		configID = "stock"
-	}
+	const configID = "stock"
 
 	var doc report.Document
 	if len(tryFlags) > 0 {

@@ -2,9 +2,11 @@ package scoring
 
 import (
 	"math"
+	"regexp"
 	"strings"
 	"testing"
 
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
@@ -645,7 +647,7 @@ func TestDescribeLoss_CockpitFitOffset_InsideOval(t *testing.T) {
 	}
 
 	desc := DescribeLossWithRow(spec, meta, 85, 0.97, ideal.ZoneAcceptable, &row)
-	expected := "Handlebar Clamp Fit: closest stem is 100mm -6° +0mm (R=0.97, reach: 11mm short, stack: 2mm low, 1 valid setup in fit window, -15 stem penalty)"
+	expected := "Oval Fits: closest stem is 100mm -6° +0mm (R=0.97, reach: 11mm short, stack: 2mm low, 1 valid setup in fit window, -15 stem penalty)"
 	if desc != expected {
 		t.Errorf("\nExpected: %s\nGot:      %s", expected, desc)
 	}
@@ -676,7 +678,7 @@ func TestDescribeLoss_CockpitFitOffset_ZeroFits(t *testing.T) {
 	}
 
 	desc := DescribeLossWithRow(spec, meta, -200, 5.37, ideal.ZoneOutside, &row)
-	expected := "Handlebar Clamp Fit: 0 valid setups in fit window (closest is 100mm -6° +0mm, R=5.37, reach: 26mm short, stack: 56mm high, -15 stem penalty)"
+	expected := "Oval Fits: 0 valid setups in fit window (closest is 100mm -6° +0mm, R=5.37, reach: 26mm short, stack: 56mm high, -15 stem penalty)"
 	if desc != expected {
 		t.Errorf("\nExpected: %s\nGot:      %s", expected, desc)
 	}
@@ -734,5 +736,224 @@ func TestScoreAllRows_FarOutsideCockpitStillRanksByDistance(t *testing.T) {
 			t.Errorf("shortfall %.0fmm ranked %d, not better than shortfall %.0fmm at %d",
 				shortfalls[i], results[i].Rank, shortfalls[i-1], results[i-1].Rank)
 		}
+	}
+}
+
+func TestLossDeltaMatchesCell(t *testing.T) {
+	prof := ideal.IdmatchProfile()
+	specs := []ideal.AttributeSpec{}
+	for _, a := range prof.Attributes {
+		if a.Ideal == nil || a.ID == "handlebar_clamp_fit" {
+			continue
+		}
+		specs = append(specs, a)
+	}
+	// Include saddle-translated BRP setback and BRP-HB specs, plus synthetic HTA/STA specs.
+	berthoud, ok := catalog.GetSaddle("berthoud-aspin-open")
+	if !ok {
+		t.Fatal("missing berthoud-aspin-open saddle")
+	}
+	for _, a := range prof.Attributes {
+		if a.ID == "brp_setback" || a.ID == "saddle_hb" {
+			specs = append(specs, translateAttributeSpecForSaddle(a, berthoud))
+		}
+	}
+	specs = append(specs,
+		ideal.AttributeSpec{
+			ID:         "hta",
+			Weight:     2,
+			Ideal:      ideal.Between(67.5, 68.5),
+			Acceptable: ideal.Between(66.5, 69.5),
+			EdgeScore:  new(75.0),
+			Falloff:    ideal.FalloffBoth(2.0, 2.0),
+			Floor:      new(-100.0),
+		},
+		ideal.AttributeSpec{
+			ID:         "sta",
+			Weight:     2,
+			Ideal:      ideal.Between(73.0, 74.5),
+			Acceptable: ideal.Between(72.0, 75.5),
+			EdgeScore:  new(75.0),
+			Falloff:    ideal.FalloffBoth(2.0, 2.0),
+			Floor:      new(-100.0),
+		},
+	)
+
+	numUnitRe := regexp.MustCompile(`(-?[0-9]+(?:\.[0-9]+)?)(?:mm|%|°)`)
+
+	for _, spec := range specs {
+		meta, ok := ideal.LookupAttribute(spec.ID)
+		if !ok {
+			t.Fatalf("unknown attribute %q", spec.ID)
+		}
+
+		// Probe points around lower and upper bounds including .5 and .05 ties.
+		var testVals []float64
+		if spec.Ideal.Min != nil {
+			base := math.Floor(*spec.Ideal.Min) - 35
+			for i := 0; i <= 360; i++ {
+				testVals = append(testVals, math.Round((base+float64(i)*0.1)*1000)/1000)
+			}
+			if meta.Decimals > 0 {
+				for i := -30; i <= 10; i++ {
+					testVals = append(testVals, math.Round((*spec.Ideal.Min+float64(i)*0.05)*1000)/1000)
+				}
+			}
+		}
+		if spec.Ideal.Max != nil {
+			base := math.Ceil(*spec.Ideal.Max)
+			for i := 0; i <= 360; i++ {
+				testVals = append(testVals, math.Round((base+float64(i)*0.1)*1000)/1000)
+			}
+			if meta.Decimals > 0 {
+				for i := -10; i <= 30; i++ {
+					testVals = append(testVals, math.Round((*spec.Ideal.Max+float64(i)*0.05)*1000)/1000)
+				}
+			}
+		}
+
+		for _, v := range testVals {
+			ev := ideal.Evaluate(spec, meta, v, nil)
+			fields := strings.Fields(ev.FormattedCell)
+			if len(fields) != 4 {
+				continue // ideal (no delta)
+			}
+			cellVal := fields[0]
+			cellDelta := strings.TrimSuffix(fields[2], meta.Unit)
+
+			// Test both printed DistanceToIdeal and unrounded raw distance.
+			rawDist := 0.0
+			if spec.Ideal.Min != nil && v < *spec.Ideal.Min {
+				rawDist = v - *spec.Ideal.Min
+			} else if spec.Ideal.Max != nil && v > *spec.Ideal.Max {
+				rawDist = v - *spec.Ideal.Max
+			}
+			for _, distArg := range []float64{ev.DistanceToIdeal, rawDist} {
+				desc := DescribeLossWithRow(spec, meta, v, distArg, ev.Zone, nil)
+				matches := numUnitRe.FindAllStringSubmatch(desc, -1)
+				if len(matches) < 2 {
+					t.Fatalf("%s(%.3f): unexpected DescribeLossWithRow %q", spec.ID, v, desc)
+				}
+				lossVal := matches[0][1]
+				lossDelta := matches[1][1]
+				if lossVal != cellVal || lossDelta != cellDelta {
+					t.Fatalf("%s(%.3f) dist=%.3f: cell=%q (val=%s delta=%s) vs loss=%q (val=%s delta=%s)",
+						spec.ID, v, distArg, ev.FormattedCell, cellVal, cellDelta, desc, lossVal, lossDelta)
+				}
+			}
+		}
+	}
+
+	// Verify ExplainProfile on the Pilot .5-tie cases (183.5 -> 184 & 35, 188.5 -> 188 & 31).
+	buildTieRow := func(brpSetback float64) model.CanonicalComparisonRow {
+		return model.CanonicalComparisonRow{
+			Canonical: model.BikeFitAnalysis{
+				DeadCenterBRP: model.BRPPoint{BrpSetbackMm: brpSetback},
+				SelectedBRP:   &model.BRPPoint{BrpSetbackMm: brpSetback, RailOffsetMm: 15},
+				CockpitFitResult: &model.CockpitFitResult{
+					HasFit:        true,
+					FinalSubScore: 100,
+					CountInside:   4,
+				},
+				ActiveBbDrop:       70.0,
+				WeightDistFrontPct: 37.0,
+				TrailMm:            102.0,
+			},
+		}
+	}
+	rowElJefe := buildTieRow(183.5)
+	rowVenn := buildTieRow(188.5)
+	expl := ExplainProfile([]ScoredFrame{
+		{Name: "El Jefe (XL)", Row: rowElJefe, Score: ScoreRow(rowElJefe, prof)},
+		{Name: "Venn Ti (L)", Row: rowVenn, Score: ScoreRow(rowVenn, prof)},
+	}, prof)
+	joined := strings.Join(expl.Losses, "\n")
+	if !strings.Contains(joined, "184mm is 35mm forward of the 219mm ideal") {
+		t.Errorf("El Jefe loss text missing expected 184/35: %s", joined)
+	}
+	if !strings.Contains(joined, "188mm is 31mm forward of the 219mm ideal") {
+		t.Errorf("Venn Ti loss text missing expected 188/31: %s", joined)
+	}
+}
+
+func TestScoreRow_DisplayOnlyWithTargetCarriesZone(t *testing.T) {
+	prof := ideal.IdmatchProfile()
+	row := model.CanonicalComparisonRow{
+		Canonical: model.BikeFitAnalysis{
+			DeadCenterBRP: model.BRPPoint{BrpSetbackMm: 219},
+			PossibleHBs: []model.HBPoint{
+				{
+					Stem:           model.StemSpec{LengthMm: 90, AngleDeg: -6},
+					SaddleHbMm:     685.0, // acceptable for [695,705] / [685,715]
+					SaddleHbDropMm: 2.0,   // ideal for [-2,8]
+				},
+			},
+			ActiveReach:        465,
+			ActiveStack:        630,
+			ActiveBbDrop:       70,
+			WeightDistFrontPct: 37.0,
+			TrailMm:            102,
+		},
+	}
+	res := ScoreRow(row, prof)
+	byID := map[string]CriterionResult{}
+	for _, c := range res.Criteria {
+		byID[c.ID] = c
+	}
+	if c := byID["saddle_hb"]; !c.IsDisplayOnly || c.Zone != string(ideal.ZoneAcceptable) {
+		t.Errorf("saddle_hb = %+v, want IsDisplayOnly=true Zone=acceptable", c)
+	}
+	if c := byID["saddle_hb_drop"]; !c.IsDisplayOnly || c.Zone != string(ideal.ZoneIdeal) {
+		t.Errorf("saddle_hb_drop = %+v, want IsDisplayOnly=true Zone=ideal", c)
+	}
+	if c := byID["reach"]; !c.IsDisplayOnly || c.Zone != "" {
+		t.Errorf("reach = %+v, want IsDisplayOnly=true Zone=\"\"", c)
+	}
+}
+
+func TestLossAndHeadToHeadUseRegistryLabel(t *testing.T) {
+	prof := ideal.IdmatchProfile()
+	meta, ok := ideal.LookupAttribute("handlebar_clamp_fit")
+	if !ok {
+		t.Fatal("missing handlebar_clamp_fit meta")
+	}
+
+	makeRow := func(name string, bestR float64, count int) ScoredFrame {
+		row := model.CanonicalComparisonRow{
+			Canonical: model.BikeFitAnalysis{
+				DeadCenterBRP: model.BRPPoint{BrpSetbackMm: 219},
+				SelectedHB:    &model.HBPoint{Stem: model.StemSpec{LengthMm: 90, AngleDeg: -6}, SaddleHbMm: 690, SaddleHbDropMm: 3},
+				CockpitFitResult: &model.CockpitFitResult{
+					TargetOval:    model.FitOval{CenterX: 500, CenterY: 700},
+					SelectedHB:    model.HBPoint{Stem: model.StemSpec{LengthMm: 90, AngleDeg: -6}, HbX: 480, HbY: 700},
+					BestR:         bestR,
+					CountInside:   count,
+					FinalSubScore: 50 - bestR*10,
+				},
+				ActiveReach:        460,
+				ActiveStack:        620,
+				ActiveBbDrop:       70,
+				WeightDistFrontPct: 37,
+				TrailMm:            102,
+			},
+		}
+		return ScoredFrame{Name: name, Row: row, Score: ScoreRow(row, prof)}
+	}
+
+	fa := makeRow("Frame A", 1.2, 0)
+	fb := makeRow("Frame B", 3.5, 0)
+	expl := ExplainProfile([]ScoredFrame{fa, fb}, prof)
+
+	lossesJoined := strings.Join(expl.Losses, "\n")
+	if strings.Contains(lossesJoined, "Handlebar Clamp Fit") {
+		t.Errorf("losses still use stale name 'Handlebar Clamp Fit': %s", lossesJoined)
+	}
+	if !strings.Contains(lossesJoined, meta.Label+":") {
+		t.Errorf("losses missing registry label %q: %s", meta.Label, lossesJoined)
+	}
+
+	h2hJoined := strings.Join(expl.HeadToHead, "\n")
+	if !strings.Contains(h2hJoined, meta.Label+" sub-score ") {
+		t.Errorf("head-to-head should label Oval Fits values as sub-score: %s", h2hJoined)
 	}
 }

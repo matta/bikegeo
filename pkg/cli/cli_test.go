@@ -2,10 +2,12 @@ package cli_test
 
 import (
 	"bytes"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
 
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/cli"
 	"bikegeo/pkg/frames"
 	"bikegeo/pkg/validator"
@@ -77,7 +79,7 @@ func TestCompare_SameFrameDifferentSagsAndRigid(t *testing.T) {
 		}
 	}
 
-	assertRow("Fork & Eff. A2C", "110mm @ 20% sag -> 499mm A2C", "110mm @ 25% sag -> 494mm A2C", "Rigid (485mm)")
+	assertRow("Fork & Eff A2C", "110mm @ 20% sag (499mm)", "110mm @ 25% sag (494mm)", "Rigid (485mm)")
 
 	// Verify Reach increases monotonically as effective A2C drops (499 -> 494 -> 485)
 	reachRow := rowByLabel["Reach"]
@@ -109,7 +111,7 @@ func TestCompare_MixedFramesForksAndSags(t *testing.T) {
 		"120mm @ 20% sag",
 		"Stack",
 		"Reach",
-		"Fork & Eff. A2C",
+		"Fork & Eff A2C",
 	}
 	for _, exp := range expectedStrings {
 		if !strings.Contains(out, exp) {
@@ -322,11 +324,11 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Seat Axis–Rear Axle @") {
-			t.Errorf("expected 'Seat Axis–Rear Axle @' in standard compare output, got:\n%s", out)
+		if !strings.Contains(out, "| Seat Axis–Rear Axle |") {
+			t.Errorf("expected 'Seat Axis–Rear Axle' in standard compare output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Seat Axis–HT Drop @") {
-			t.Errorf("expected 'Seat Axis–HT Drop @' in standard compare output, got:\n%s", out)
+		if !strings.Contains(out, "| Seat Axis–HT Drop |") {
+			t.Errorf("expected 'Seat Axis–HT Drop' in standard compare output, got:\n%s", out)
 		}
 		if !strings.Contains(out, "#### Reference Metric Definitions") {
 			t.Errorf("expected Reference Metric Definitions footer, got:\n%s", out)
@@ -359,7 +361,7 @@ func TestCompare_TumbleweedSunlinerFixedForkConstraints(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Fork & Eff. A2C,,,Rigid (440mm),Rigid (440mm)") {
+		if !strings.Contains(out, "Fork & Eff A2C,,,Rigid (440mm),Rigid (440mm)") {
 			t.Errorf("expected Rigid (440mm) in CSV output, got:\n%s", out)
 		}
 	})
@@ -539,8 +541,8 @@ func TestCompare_SaddleHbMetric(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
-	if !strings.Contains(out, "BRP–HB @ 746mm") {
-		t.Errorf("expected 'BRP–HB @ 746mm' row in compare output, got:\n%s", out)
+	if !strings.Contains(out, "| BRP–HB |") {
+		t.Errorf("expected 'BRP–HB' row in compare output, got:\n%s", out)
 	}
 }
 
@@ -794,5 +796,177 @@ func TestRemovedCommandsAreUnknown(t *testing.T) {
 		if code == 0 || !strings.Contains(errOut, "unknown command") {
 			t.Errorf("%s: code %d, stderr %q; want unknown command", cmd, code, errOut)
 		}
+	}
+}
+
+func TestCLI_ExitCodesAndErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		wantCode int
+		wantErr  string
+	}{
+		// F-p1-1: unknown flags exit 2
+		{"compare unknown flag", []string{"compare", "--bogus"}, 2, "flag provided but not defined"},
+		{"compare unknown flag=val", []string{"compare", "--bogus=1"}, 2, "flag provided but not defined"},
+		{"compare frame then unknown flag", []string{"compare", "fenrir", "--bogus"}, 2, "flag provided but not defined"},
+		{"validate unknown flag", []string{"validate", "--bogus"}, 2, "flag provided but not defined"},
+		{"list unknown flag", []string{"list", "--bogus"}, 2, "flag provided but not defined"},
+		{"list unknown flag=val", []string{"list", "--bogus=1"}, 2, "flag provided but not defined"},
+		{"fit unknown flag", []string{"fit", "fenrir", "--bogus"}, 2, "flag provided but not defined"},
+		{"serve unknown flag", []string{"serve", "--bogus"}, 2, "flag provided but not defined"},
+		{"top-level unknown command", []string{"bogus"}, 2, "unknown command"},
+
+		// F-p1-3: removed --config flags exit 2
+		{"validate --config removed", []string{"validate", "fenrir", "--config", "zzz"}, 2, "flag provided but not defined"},
+		{"fit --config removed", []string{"fit", "fenrir", "--config", "zzz"}, 2, "flag provided but not defined"},
+
+		// F-p1-4 / F-p1-5: fit unknown size exits 1 with unified wording
+		{"fit unknown size", []string{"fit", "fenrir:ZZ"}, 1, `frame "Otso Fenrir" (otso-fenrir-stainless) does not have size "ZZ"`},
+		{"validate unknown size", []string{"validate", "fenrir", "--size", "ZZ"}, 1, `frame "Otso Fenrir" (otso-fenrir-stainless) does not have size "ZZ"`},
+		{"compare unknown size", []string{"compare", "fenrir:ZZ"}, 1, `frame "Otso Fenrir" (otso-fenrir-stainless) does not have size "ZZ"`},
+
+		// F-p1-6: list unknown category / size exit 1
+		{"list unknown category", []string{"list", "--category", "bogus"}, 1, "unknown category"},
+		{"list unpopulated full-suspension", []string{"list", "--category", "full-suspension"}, 1, "unknown category"},
+		{"list unknown size", []string{"list", "--size", "ZZ"}, 1, "unknown size"},
+
+		// F-p5-1: compare -all removes all columns instead of running --all
+		{"compare -all removes all", []string{"compare", "-all"}, 1, "no columns selected for comparison"},
+		{"compare +fenrir -all removes all", []string{"compare", "+fenrir", "-all"}, 1, "no columns selected for comparison"},
+
+		// F-p5-2: NaN and negative sag rejected
+		{"compare NaN sag", []string{"compare", "fenrir@NaN"}, 1, "invalid"},
+		{"compare negative sag", []string{"compare", "fenrir@-5"}, 1, "invalid"},
+		{"compare negative pct sag", []string{"compare", "fenrir@110mm@-5%"}, 1, "invalid sag"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			out, errOut, code := runCLIRows(t, tc.args...)
+			if code != tc.wantCode {
+				t.Errorf("runCLIRows(%v) code = %d, want %d; stdout=%q stderr=%q", tc.args, code, tc.wantCode, out, errOut)
+			}
+			if !strings.Contains(errOut, tc.wantErr) {
+				t.Errorf("runCLIRows(%v) stderr = %q, want substring %q", tc.args, errOut, tc.wantErr)
+			}
+			if tc.wantCode == 2 && strings.TrimSpace(out) != "" {
+				t.Errorf("runCLIRows(%v) exit 2 wrote to stdout: %q", tc.args, out)
+			}
+		})
+	}
+}
+
+func TestCLI_HelpOutputsToStdoutWithExit0(t *testing.T) {
+	cases := []struct {
+		args        []string
+		wantContain string
+	}{
+		{[]string{"--help"}, "BikeGeo Analyst CLI"},
+		{[]string{"-h"}, "BikeGeo Analyst CLI"},
+		{[]string{"help"}, "BikeGeo Analyst CLI"},
+		{[]string{"compare", "--help"}, "Comparison Specs:"},
+		{[]string{"help", "compare"}, "Comparison Specs:"},
+		{[]string{"validate", "--help"}, "Usage: bikegeo validate"},
+		{[]string{"help", "validate"}, "Usage: bikegeo validate"},
+		{[]string{"list", "--help"}, "Usage: bikegeo list"},
+		{[]string{"help", "list"}, "Usage: bikegeo list"},
+		{[]string{"fit", "--help"}, "Usage: bikegeo fit"},
+		{[]string{"help", "fit"}, "Usage: bikegeo fit"},
+		{[]string{"serve", "--help"}, "Usage: bikegeo serve"},
+		{[]string{"help", "serve"}, "Usage: bikegeo serve"},
+	}
+	for _, tc := range cases {
+		t.Run(strings.Join(tc.args, "_"), func(t *testing.T) {
+			out, errOut, code := runCLI(t, tc.args...)
+			if code != 0 {
+				t.Errorf("runCLI(%v) code = %d, want 0; stderr=%q", tc.args, code, errOut)
+			}
+			if errOut != "" {
+				t.Errorf("runCLI(%v) wrote to stderr: %q", tc.args, errOut)
+			}
+			if !strings.Contains(out, tc.wantContain) {
+				t.Errorf("runCLI(%v) stdout missing %q; got:\n%s", tc.args, tc.wantContain, out)
+			}
+		})
+	}
+}
+
+func TestCompare_RemoveAllTokenDiffersFromFlag(t *testing.T) {
+	allOut, _, allCode := runCLI(t, "compare", "--all")
+	if allCode != 0 {
+		t.Fatalf("compare --all exited %d", allCode)
+	}
+	remOut, errOut, remCode := runCLI(t, "compare", "+fenrir", "-all")
+	if remCode != 1 {
+		t.Fatalf("compare +fenrir -all code = %d, want 1; stderr=%q", remCode, errOut)
+	}
+	if remOut == allOut {
+		t.Error("compare +fenrir -all produced identical output to compare --all")
+	}
+}
+
+func TestCLI_HelpAndErrorsCoherence(t *testing.T) {
+	// L1: top-level help must not advertise unknown commands or unregistered frames,
+	// and every non-serve example invocation must execute cleanly.
+	topOut, _, code := runCLI(t, "--help")
+	if code != 0 {
+		t.Fatalf("--help code = %d", code)
+	}
+	for _, bad := range []string{"saddle-swap", "sendero", "chameleon", "chumba-sendero"} {
+		if strings.Contains(topOut, bad) {
+			t.Errorf("top-level help still contains stale reference %q", bad)
+		}
+	}
+	for line := range strings.SplitSeq(topOut, "\n") {
+		trim := strings.TrimSpace(line)
+		if !strings.HasPrefix(trim, "bikegeo ") {
+			continue
+		}
+		fields := strings.Fields(trim)
+		if len(fields) < 2 || fields[1] == "<command>" || fields[1] == "serve" {
+			continue
+		}
+		_, errOut, exCode := runCLI(t, fields[1:]...)
+		if exCode != 0 {
+			t.Errorf("top-level help example %q failed (code %d): %s", trim, exCode, errOut)
+		}
+	}
+
+	// L2: compare --help has accurate frame count, 'idmatch' profile, and all catalog saddles.
+	cmpHelp, _, code := runCLI(t, "compare", "--help")
+	if code != 0 {
+		t.Fatalf("compare --help code = %d", code)
+	}
+	wantRows := fmt.Sprintf("(%d rows)", len(frames.AllFrames()))
+	if !strings.Contains(cmpHelp, wantRows) {
+		t.Errorf("compare --help missing %q", wantRows)
+	}
+	if !strings.Contains(cmpHelp, "default: 'idmatch'") {
+		t.Errorf("compare --help missing \"default: 'idmatch'\"")
+	}
+	for _, s := range catalog.AllSaddles() {
+		if !strings.Contains(cmpHelp, s.ID) {
+			t.Errorf("compare --help missing saddle %q", s.ID)
+		}
+	}
+
+	// L3: unrecognized saddle/handlebar errors must not point to non-existent CLI commands.
+	_, errSaddle, codeS := runCLI(t, "compare", "--saddle", "bogus")
+	if codeS != 1 || strings.Contains(errSaddle, "bikegeo saddles") {
+		t.Errorf("compare --saddle bogus = (%d, %q), must exit 1 without 'bikegeo saddles'", codeS, errSaddle)
+	}
+	_, errBar, codeB := runCLI(t, "compare", "--handlebar", "bogus")
+	if codeB != 1 || strings.Contains(errBar, "bikegeo handlebars") {
+		t.Errorf("compare --handlebar bogus = (%d, %q), must exit 1 without 'bikegeo handlebars'", codeB, errBar)
+	}
+
+	// F-p2a-3: suspension disambiguator keeps "sag".
+	disambigOut, _, codeD := runCLI(t, "compare", "havok:L@110mm@20%", "havok:L@110mm@25%")
+	if codeD != 0 {
+		t.Fatalf("compare disambiguated sags failed: code %d", codeD)
+	}
+	if !strings.Contains(disambigOut, "Binary Havok (L) @ 110mm @ 20% sag") || !strings.Contains(disambigOut, "Binary Havok (L) @ 110mm @ 25% sag") {
+		t.Errorf("expected disambiguated names to retain 'sag', got:\n%s", disambigOut)
 	}
 }

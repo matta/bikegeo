@@ -2,7 +2,6 @@ package compare
 
 import (
 	"fmt"
-	"strings"
 
 	"bikegeo/pkg/frames"
 	"bikegeo/pkg/validator"
@@ -39,15 +38,9 @@ func ResolveValidationTargets(tokens []string, size string) ([]validator.Target,
 		if sz == "" {
 			sz = f.GetDefaultSize()
 		}
-		matched := ""
-		for _, s := range f.GetSizes() {
-			if strings.EqualFold(s, sz) {
-				matched = s
-				break
-			}
-		}
-		if matched == "" {
-			return nil, fmt.Errorf("frame %q does not have size %q (available: %s)", f.ID, sz, strings.Join(f.GetSizes(), ", "))
+		matched, err := ResolveFrameSize(*f, sz)
+		if err != nil {
+			return nil, err
 		}
 		targets = append(targets, validator.Target{Frame: *f, Size: matched})
 	}

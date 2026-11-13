@@ -90,13 +90,13 @@ func FormatForkType(r model.CanonicalComparisonRow) string {
 	return fmt.Sprintf("%.0fmm A2C", math.Round(r.EffectiveA2c))
 }
 
-// FormatForkSag extracts a fork+sag identifier (e.g. "rigid", "120mm @ 20%") for frame name disambiguation.
+// FormatForkSag extracts a fork+sag identifier (e.g. "rigid", "120mm @ 20% sag") for frame name disambiguation.
 func FormatForkSag(r model.CanonicalComparisonRow) string {
 	lbl := GetEffectiveForkLabel(r)
 	if IsRigidFork(lbl) {
 		return "rigid"
 	}
-	clean := strings.TrimSpace(strings.TrimSuffix(lbl, " sag"))
+	clean := strings.TrimSpace(lbl)
 	if clean != "" {
 		return clean
 	}

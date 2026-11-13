@@ -3,6 +3,7 @@ package cli
 import (
 	"flag"
 	"fmt"
+	"io"
 
 	"bikegeo/pkg/compare"
 	"bikegeo/pkg/validator"
@@ -10,19 +11,20 @@ import (
 
 func (a *App) runValidate(args []string) int {
 	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
-	fs.SetOutput(a.Err)
 
 	var sizeFlag string
-	var configFlag string
 	var allFlag bool
 
 	fs.StringVar(&sizeFlag, "size", "", "Specific frame size to validate (default: frame's default_size)")
-	fs.StringVar(&configFlag, "config", "", "Specific frame configuration ID to validate")
 	fs.BoolVar(&allFlag, "all", false, "Validate all frames")
 
-	reordered := reorderFlagsForStdlib(fs, args, map[string]bool{"all": true})
-	if err := fs.Parse(reordered); err != nil {
-		return 2
+	usage := func(w io.Writer) {
+		fmt.Fprintln(w, "Usage: bikegeo validate [flags] [frame[:size]...]")
+		fs.SetOutput(w)
+		fs.PrintDefaults()
+	}
+	if ok, code := a.parseSubcommandFlags(fs, args, map[string]bool{"all": true}, false, usage, usage); !ok {
+		return code
 	}
 
 	tokens := fs.Args()

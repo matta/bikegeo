@@ -34,8 +34,8 @@ func (db *docb) listIdeals() int {
 		})
 	}
 
-	title := "Ideal Frame Profiles"
-	subtitle := "Use 'bikegeo ideals show <name>' to view details"
+	title := fmt.Sprintf("Ideal Frame Profiles (%d)", len(summaries))
+	subtitle := "Select a profile above or follow a profile link to view attribute weights, ranges, and sample evaluations"
 	if err := db.render(title, subtitle, headers, rows); err != nil {
 		db.fail("Error rendering output: %v", err)
 		return 1

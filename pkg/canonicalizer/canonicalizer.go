@@ -126,8 +126,8 @@ func ExpandPlausibleForkSetups(
 		if minTr >= 60 && maxTr >= minTr {
 			sags := PlausibleSagPcts
 			if sagOverride != nil {
-				if !IsAllowedSag(*sagOverride) {
-					return nil, fmt.Errorf("invalid sag %.0f%%; allowed sags are 20%%, 25%%, 30%%", *sagOverride)
+				if math.IsNaN(*sagOverride) || math.IsInf(*sagOverride, 0) || *sagOverride < 0 || math.Signbit(*sagOverride) || (*sagOverride > 0 && !IsAllowedSag(*sagOverride)) {
+					return nil, fmt.Errorf("invalid sag %v%%; allowed sags are 20%%, 25%%, 30%%", *sagOverride)
 				}
 				sags = []float64{*sagOverride}
 			}
@@ -213,8 +213,13 @@ func ResolveForkToken(
 	sagOverride *float64,
 	frame model.FrameModel,
 ) (targetA2c float64, targetRake float64, staticA2c float64, displayLabel string, err error) {
-	if sagOverride != nil && *sagOverride > 0 && !IsAllowedSag(*sagOverride) {
-		return 0, 0, 0, "", fmt.Errorf("invalid sag %.0f%%; allowed sags are 20%%, 25%%, 30%%", *sagOverride)
+	if sagOverride != nil {
+		if math.IsNaN(*sagOverride) || math.IsInf(*sagOverride, 0) || *sagOverride < 0 || math.Signbit(*sagOverride) {
+			return 0, 0, 0, "", fmt.Errorf("invalid sag %v%%; allowed sags are 20%%, 25%%, 30%%", *sagOverride)
+		}
+		if *sagOverride > 0 && !IsAllowedSag(*sagOverride) {
+			return 0, 0, 0, "", fmt.Errorf("invalid sag %.0f%%; allowed sags are 20%%, 25%%, 30%%", *sagOverride)
+		}
 	}
 	clean := strings.TrimSpace(token)
 	lower := strings.ToLower(clean)
@@ -260,10 +265,10 @@ func ResolveForkToken(
 				}
 			}
 		}
-		if frame.IsFixedRigidOnly() && sagOverride != nil && *sagOverride > 0 {
+		if (frame.IsFixedRigidOnly() || def.ForkTravel() == 0) && sagOverride != nil && *sagOverride > 0 {
 			return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", *sagOverride, frame.Manufacturer, frame.Model)
 		}
-		if frame.IsFixedRigidOnly() {
+		if frame.IsFixedRigidOnly() || def.ForkTravel() == 0 {
 			displayLabel = FormatRigidFork(targetA2c)
 		} else {
 			displayLabel = FormatStockFork()
@@ -292,19 +297,19 @@ func ResolveForkToken(
 		if strings.Contains(valPart, "/") {
 			parts := strings.SplitN(valPart, "/", 2)
 			a2cVal, err := strconv.ParseFloat(parts[0], 64)
-			if err != nil {
-				return 0, 0, 0, "", fmt.Errorf("invalid A2C in %q: %w", token, err)
+			if err != nil || math.IsNaN(a2cVal) || math.IsInf(a2cVal, 0) || a2cVal <= 0 {
+				return 0, 0, 0, "", fmt.Errorf("invalid A2C in %q", token)
 			}
 			rakeVal, err := strconv.ParseFloat(parts[1], 64)
-			if err != nil {
-				return 0, 0, 0, "", fmt.Errorf("invalid rake in %q: %w", token, err)
+			if err != nil || math.IsNaN(rakeVal) || math.IsInf(rakeVal, 0) || rakeVal <= 0 {
+				return 0, 0, 0, "", fmt.Errorf("invalid rake in %q", token)
 			}
 			targetA2c = a2cVal
 			targetRake = rakeVal
 		} else {
 			a2cVal, err := strconv.ParseFloat(valPart, 64)
-			if err != nil {
-				return 0, 0, 0, "", fmt.Errorf("invalid A2C in %q: %w", token, err)
+			if err != nil || math.IsNaN(a2cVal) || math.IsInf(a2cVal, 0) || a2cVal <= 0 {
+				return 0, 0, 0, "", fmt.Errorf("invalid A2C in %q", token)
 			}
 			targetA2c = a2cVal
 			targetRake = frame.CadFork.RakeMm
@@ -314,6 +319,27 @@ func ResolveForkToken(
 		}
 		staticA2c = targetA2c
 		displayLabel = FormatCustomA2cFork(targetA2c, targetRake)
+		// If the explicit A2C and rake match one of the frame's declared rigid forks,
+		// use the canonical rigid label so identical physical setups label identically.
+		rigidRefs := frame.Forks
+		if len(rigidRefs) == 0 {
+			rigidRefs = []model.ForkRef{frame.CadFork}
+		}
+		for _, f := range rigidRefs {
+			if f.ForkTravel() == 0 && f.A2cMm > 0 {
+				rk := f.RakeMm
+				if rk <= 0 {
+					rk = frame.CadFork.RakeMm
+				}
+				if rk <= 0 {
+					rk = 44.0
+				}
+				if math.Abs(targetA2c-f.A2cMm) < 0.05 && math.Abs(targetRake-rk) < 0.05 {
+					displayLabel = FormatRigidFork(targetA2c)
+					break
+				}
+			}
+		}
 		if err := checkA2cRange(targetA2c); err != nil {
 			return 0, 0, 0, "", err
 		}
@@ -322,7 +348,7 @@ func ResolveForkToken(
 
 	// 4. Suspension travel token (e.g. "120mm", "120")
 	travelStr := strings.TrimSuffix(lower, "mm")
-	if travelVal, err := strconv.ParseFloat(travelStr, 64); err == nil && travelVal >= 60 {
+	if travelVal, err := strconv.ParseFloat(travelStr, 64); err == nil && !math.IsNaN(travelVal) && !math.IsInf(travelVal, 0) && travelVal >= 60 {
 		if frame.IsFixedRigidOnly() {
 			return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" has a fixed rigid fork (%.0fmm A2C) and does not support suspension fork %q", frame.Manufacturer, frame.Model, frame.GetRigidA2c(), token)
 		}

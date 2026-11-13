@@ -1,20 +1,18 @@
 package cli
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"strings"
 
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/compare"
+	"bikegeo/pkg/frames"
 )
 
 func (a *App) runCompare(args []string) int {
 	fs := flag.NewFlagSet("compare", flag.ContinueOnError)
-	fs.SetOutput(a.Err)
-	fs.Usage = func() {
-		a.printCompareUsage(a.Out)
-	}
 
 	var transposeFlag bool
 	var noScoreFlag bool
@@ -43,12 +41,13 @@ func (a *App) runCompare(args []string) int {
 		"all":          true,
 		"all-configs":  true,
 	}
-	reordered := reorderFlagsForStdlib(fs, args, boolFlags)
-	if err := fs.Parse(reordered); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
-		}
-		return 2
+	errUsage := func(w io.Writer) {
+		fmt.Fprintln(w, "Usage: bikegeo compare [flags] [spec...]")
+		fs.SetOutput(w)
+		fs.PrintDefaults()
+	}
+	if ok, code := a.parseSubcommandFlags(fs, args, boolFlags, true, a.printCompareUsage, errUsage); !ok {
+		return code
 	}
 
 	explicitFlags := make(map[string]bool)
@@ -57,7 +56,7 @@ func (a *App) runCompare(args []string) int {
 	})
 
 	posArgs := fs.Args()
-	if len(posArgs) == 1 && (posArgs[0] == "help" || posArgs[0] == "-h" || posArgs[0] == "--help") {
+	if len(posArgs) == 1 && posArgs[0] == "help" {
 		a.printCompareUsage(a.Out)
 		return 0
 	}
@@ -107,7 +106,11 @@ func (a *App) renderComparison(res *compare.Result, scoringEnabled, scoreDetail 
 }
 
 func (a *App) printCompareUsage(w io.Writer) {
-	fmt.Fprint(w, `BikeGeo Analyst CLI - Compare Geometry & Fit Scoring
+	var saddleIDs []string
+	for _, s := range catalog.AllSaddles() {
+		saddleIDs = append(saddleIDs, "'"+s.ID+"'")
+	}
+	fmt.Fprintf(w, `BikeGeo Analyst CLI - Compare Geometry & Fit Scoring
 
 Usage:
   bikegeo compare [flags] [spec...]
@@ -148,14 +151,14 @@ Comparison Specs:
       Suspension travel in millimeters. Must be within the frame's supported forks.
     - Rigid fork ("@rigid" or "@0mm"):
       Configures the frame with its declared rigid fork.
-      Only permitted if the frame supports rigid forks. Rigid forks require 0% sag.
-    - Fork preset ID (e.g. "@enve_472", "@stock"):
+      Only permitted if the frame supports rigid forks. Rigid forks require 0%% sag.
+    - Fork preset ID (e.g. "@enve_mountain_472", "@stock"):
       Selects a known preset fork from the catalog.
     - All plausible forks ("@all", "@all-forks", or "@forks"):
       Expands the frame across all supported rigid forks and all 10mm suspension travel
-      steps in its supported range, across plausible sags (20%, 25%, 30%).
-    - Sag percentage (e.g. "@20%", "@sag=25", or "@20"):
-      Suspension sag percent. Pure numbers < 60 are treated as sag %; numbers >= 60
+      steps in its supported range, across plausible sags (20%%, 25%%, 30%%).
+    - Sag percentage (e.g. "@20%%", "@sag=25", or "@20"):
+      Suspension sag percent. Pure numbers < 60 are treated as sag %%; numbers >= 60
       are treated as fork travel in mm. If omitted, uses the frame's default sag.
     - Default fork (omitted fork):
       If no fork is specified, the frame's default fork (first entry in forks) is used.
@@ -167,7 +170,7 @@ Comparison State & Column Management:
   All-Frames & All-Configurations Expansion:
     - 'bikegeo compare --all' (or 'bikegeo compare all'):
       Compares all registered frames across all sizes and plausible fork/sag configurations,
-      automatically selecting the #1 highest-scoring manifestation per frame (18 rows).
+      automatically selecting the #1 highest-scoring manifestation per frame (%d rows).
     - 'bikegeo compare <frame>:all@all' (or 'bikegeo compare --all-configs <frame>'):
       Compares all sizes and plausible fork/sag configurations for that frame (default: top 5).
     - 'bikegeo compare all@rigid':
@@ -175,7 +178,7 @@ Comparison State & Column Management:
 
   Two-Stage Ranking & Pruning Funnel:
     - Stage 1 (Optimal Sag): When expanding plausible forks and sags, each (Frame, Size, Fork)
-      selects its single highest-scoring sag point (breaking score ties toward 20% sag).
+      selects its single highest-scoring sag point (breaking score ties toward 20%% sag).
     - Stage 2 (Top N per Frame): Keeps at most N manifestations per frame (--top-per-frame).
       Defaults to 1 for all-frames comparison and 5 for specific frame @all sweeps.
     - Stage 3 (Global Top Limit): Optionally restricts output to top M setups overall (--top).
@@ -206,7 +209,7 @@ Table Layout & Auto-Transposition:
     explicitly disabled with --transpose=false.
 
 Scoring & Ranking:
-  - Setups are scored against sweet-spot curves defined in an Ideal Profile (default: 'default').
+  - Setups are scored against sweet-spot curves defined in an Ideal Profile (default: 'idmatch').
   - Metrics display their evaluated zone (✓ ideal, ~ acceptable, ✗ outside) and distance to ideal.
   - Displayed rows are sorted descending by total score, placing the top-match #1 at the top.
   - Explanations section highlights Biggest Losses vs. Ideal and Head-to-Head Deciding Factors.
@@ -218,10 +221,10 @@ Flags:
   --all-configs                Expand all sizes and plausible fork/sag configurations for target frame(s)
   --top-per-frame <N>          Maximum manifestations kept per frame (default: 1 for --all, 5 for @all, 0=all)
   --top <M>                    Maximum total comparison setups to display after ranking (0 for unlimited)
-  --saddle <name>              Select saddle model from catalog ('sqlab-610-ergolux' or 'berthoud-aspin-open')
+  --saddle <name>              Select saddle model from catalog (%s)
   --handlebar <name>           Select handlebar model from catalog (default: 'persuader20_800')
   --transpose                  Render transposed table (Columns as rows, Metrics as columns)
   --score-detail               Display detailed scoring breakdown table for each criterion
   --no-score                   Disable scoring and ranking display
-`)
+`, len(frames.AllFrames()), strings.Join(saddleIDs, ", "))
 }

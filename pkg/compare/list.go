@@ -2,6 +2,8 @@ package compare
 
 import (
 	"fmt"
+	"slices"
+	"sort"
 	"strings"
 
 	"bikegeo/pkg/frames"
@@ -16,16 +18,69 @@ type ListFilter struct {
 	AllSizes              bool
 }
 
+// AvailableCategories returns the sorted unique categories present across all registered frames.
+func AvailableCategories() []string {
+	seen := make(map[string]bool)
+	var cats []string
+	for _, fm := range frames.AllFrames() {
+		c := strings.ToLower(strings.TrimSpace(string(fm.Category)))
+		if c != "" && !seen[c] {
+			seen[c] = true
+			cats = append(cats, c)
+		}
+	}
+	sort.Strings(cats)
+	return cats
+}
+
+// AvailableSizes returns the unique size labels offered across all registered frames, in catalog encounter order.
+func AvailableSizes() []string {
+	seen := make(map[string]bool)
+	var sizes []string
+	for _, fm := range frames.AllFrames() {
+		for _, sz := range fm.GetSizes() {
+			low := strings.ToLower(sz)
+			if !seen[low] {
+				seen[low] = true
+				sizes = append(sizes, sz)
+			}
+		}
+	}
+	return sizes
+}
+
 // BuildFrameListDocument lays the filtered frame catalog out as one table:
 // one row per frame, or one row per size with headline geometry when
-// f.AllSizes is set.
-func BuildFrameListDocument(f ListFilter) report.Document {
+// f.AllSizes is set. Returns an error if f.Category or f.Size does not match
+// any registered category or size.
+func BuildFrameListDocument(f ListFilter) (report.Document, error) {
 	q := strings.ToLower(strings.TrimSpace(f.Query))
 	cat := strings.ToLower(strings.TrimSpace(f.Category))
 	szF := strings.ToLower(strings.TrimSpace(f.Size))
 
+	if cat != "" {
+		availCats := AvailableCategories()
+		if !slices.Contains(availCats, cat) {
+			return report.Document{}, fmt.Errorf("unknown category %q (available: %s)", strings.TrimSpace(f.Category), strings.Join(availCats, ", "))
+		}
+	}
+
+	allFrames := frames.AllFrames()
+	if szF != "" {
+		foundSize := false
+		for _, fm := range allFrames {
+			if hasSize(fm, szF) {
+				foundSize = true
+				break
+			}
+		}
+		if !foundSize {
+			return report.Document{}, fmt.Errorf("unknown size %q (available: %s)", strings.TrimSpace(f.Size), strings.Join(AvailableSizes(), ", "))
+		}
+	}
+
 	var kept []model.FrameModel
-	for _, fm := range frames.AllFrames() {
+	for _, fm := range allFrames {
 		if q != "" {
 			hay := strings.ToLower(fmt.Sprintf("%s %s %s %s", fm.ID, fm.Manufacturer, fm.Model, strings.Join(fm.GetSizes(), " ")))
 			if !strings.Contains(hay, q) {
@@ -67,7 +122,7 @@ func BuildFrameListDocument(f ListFilter) report.Document {
 		}
 		title := fmt.Sprintf("Stored Bikes (%d sizes across %d frames)", len(rows), len(kept))
 		doc.AddTable(report.FromStrings(report.Slug(title), title, "", headers, rows))
-		return doc
+		return doc, nil
 	}
 
 	headers := []string{"ID", "Manufacturer & Model", "Category", "Sizes (Default)", "Supported Forks", "Default Fork", "Headset"}
@@ -95,7 +150,7 @@ func BuildFrameListDocument(f ListFilter) report.Document {
 	}
 	title := fmt.Sprintf("Stored Frame Models (%d)", len(kept))
 	doc.AddTable(report.FromStrings(report.Slug(title), title, "", headers, rows))
-	return doc
+	return doc, nil
 }
 
 func hasSize(fm model.FrameModel, lowerSize string) bool {

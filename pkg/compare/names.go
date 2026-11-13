@@ -139,8 +139,5 @@ func DisambiguateFrameNames(rows []model.CanonicalComparisonRow) []string {
 }
 
 func FormatAttrRanges(evalAttr ideal.AttributeSpec, meta ideal.AttributeMeta) (string, string) {
-	if strings.EqualFold(evalAttr.ID, "handlebar_clamp_fit") {
-		return "≥4", "1–3"
-	}
 	return ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals), ideal.FormatRange(evalAttr.Acceptable, meta.Unit, meta.Decimals)
 }

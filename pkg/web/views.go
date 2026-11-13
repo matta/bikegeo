@@ -99,8 +99,8 @@ func toView(t report.Table) TableView {
 			Attrs: attrString(map[string]string{"column": c.ID}, c.Attrs),
 			Scope: "col",
 		}
-		if _, ok := ideal.LookupAttribute(c.ID); ok {
-			cv.Href = "/help#metric-" + url.PathEscape(c.ID)
+		if meta, ok := ideal.LookupAttribute(c.ID); ok {
+			cv.Href = "/help#metric-" + url.PathEscape(meta.ID)
 		}
 		if fid := c.Attrs["frame-id"]; fid != "" {
 			cv.Href = "/validate?frame=" + url.QueryEscape(fid)

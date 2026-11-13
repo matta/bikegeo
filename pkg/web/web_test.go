@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"bikegeo/pkg/compare"
 	"bikegeo/pkg/frames"
 
 	"github.com/PuerkitoBio/goquery"
@@ -491,15 +492,48 @@ func TestPages_SaddleSwapFromOnlyKeepsSourceSaddle(t *testing.T) {
 	}
 }
 
-func TestHelp_HandlebarClampFitShowsCount(t *testing.T) {
+func TestHelp_HandlebarClampFitMatchesIdeals(t *testing.T) {
 	_, help := do(t, "/help")
 	row := help.Find(`tr#metric-handlebar_clamp_fit`)
 	if row.Length() != 1 {
 		t.Fatal("missing handlebar_clamp_fit row")
 	}
 	rowText := text(row)
-	if !strings.Contains(rowText, "≥4") || !strings.Contains(rowText, "1–3") {
-		t.Errorf("handlebar_clamp_fit row = %q, want ≥4 and 1–3", rowText)
+	if !strings.Contains(rowText, "≥100") || !strings.Contains(rowText, "≥75") {
+		t.Errorf("handlebar_clamp_fit row = %q, want ≥100 and ≥75", rowText)
+	}
+	if strings.Contains(rowText, "≥4") || strings.Contains(rowText, "1–3") {
+		t.Errorf("handlebar_clamp_fit row = %q still shows old count thresholds", rowText)
+	}
+
+	// Verify /ideals?name=idmatch and / compare reference rows match /help.
+	_, ideals := do(t, "/ideals?name=idmatch")
+	var idealCells []string
+	ideals.Find("table[data-table] tbody tr").Each(func(_ int, tr *goquery.Selection) {
+		if strings.Contains(tr.Find("td").First().Text(), "handlebar_clamp_fit") {
+			tr.Find("td").Each(func(_ int, td *goquery.Selection) {
+				idealCells = append(idealCells, text(td))
+			})
+		}
+	})
+	if len(idealCells) < 4 || idealCells[2] != "≥100" || idealCells[3] != "≥75" {
+		t.Errorf("/ideals Oval Fits row = %v, want ≥100 and ≥75", idealCells)
+	}
+
+	_, cmp := do(t, "/")
+	clampIdx := -1
+	cmp.Find(`table[data-table="fit-cockpit"] thead tr.labels th`).Each(func(i int, th *goquery.Selection) {
+		if th.AttrOr("data-column", "") == "handlebar_clamp_fit" {
+			clampIdx = i
+		}
+	})
+	if clampIdx < 0 {
+		t.Fatal("missing handlebar_clamp_fit header on /")
+	}
+	cmpIdeal := text(cmp.Find(`table[data-table="fit-cockpit"] thead tr.ref.ideal td, table[data-table="fit-cockpit"] thead tr.ref.ideal th`).Eq(clampIdx))
+	cmpAcc := text(cmp.Find(`table[data-table="fit-cockpit"] thead tr.ref.acceptable td, table[data-table="fit-cockpit"] thead tr.ref.acceptable th`).Eq(clampIdx))
+	if cmpIdeal != "≥100" || cmpAcc != "≥75" {
+		t.Errorf("/ Oval Fits reference = (%q, %q), want (≥100, ≥75)", cmpIdeal, cmpAcc)
 	}
 }
 
@@ -626,5 +660,181 @@ func TestPages_ForksAndStemsCatalogs(t *testing.T) {
 		if doc.Find("table[data-table] tbody tr").Length() == 0 {
 			t.Errorf("%s: no rows", target)
 		}
+	}
+}
+
+func TestMarkedCellsHaveZone(t *testing.T) {
+	markerZone := []struct {
+		sym  string
+		zone string
+	}{
+		{"✓", "ideal"},
+		{"~", "acceptable"},
+		{"✗", "outside"},
+	}
+
+	checkPage := func(target string) {
+		t.Helper()
+		rec, doc := do(t, target)
+		mustStatus(t, rec, http.StatusOK)
+
+		seenMetric := map[string]int{}
+		doc.Find(`td[data-metric]`).Each(func(_ int, td *goquery.Selection) {
+			txt := text(td)
+			metric := td.AttrOr("data-metric", "")
+			for _, mz := range markerZone {
+				if strings.Contains(txt, mz.sym) {
+					seenMetric[metric]++
+					gotZone := td.AttrOr("data-zone", "")
+					if gotZone != mz.zone {
+						t.Errorf("%s metric=%s cell=%q: data-zone=%q, want %q", target, metric, txt, gotZone, mz.zone)
+					}
+					if !td.HasClass("zone-" + mz.zone) {
+						t.Errorf("%s metric=%s cell=%q: class=%q missing zone-%s", target, metric, txt, td.AttrOr("class", ""), mz.zone)
+					}
+				}
+			}
+		})
+		if seenMetric["saddle_hb"] == 0 || seenMetric["saddle_hb_drop"] == 0 {
+			t.Errorf("%s: expected marked saddle_hb and saddle_hb_drop cells, got counts=%v", target, seenMetric)
+		}
+	}
+
+	checkPage("/")
+	checkPage("/?layout=columns&col=otso-fenrir-stainless:L@110mm@20%25&col=salsa-fargo:XL@rigid")
+
+	// Specifically verify F-p4c-3 case: Otso Fenrir (L) @ 110mm Trail is "106 ✓" with zone-ideal.
+	_, doc := do(t, "/")
+	var fenrir110Trail *goquery.Selection
+	doc.Find(`table[data-table="fit-cockpit"] tbody tr[data-frame-id="otso-fenrir-stainless"][data-size="L"]`).Each(func(_ int, tr *goquery.Selection) {
+		if strings.Contains(text(tr), "110mm") {
+			fenrir110Trail = tr.Find(`td[data-metric="trail"]`)
+		}
+	})
+	if fenrir110Trail == nil || fenrir110Trail.Length() != 1 {
+		t.Fatal("missing Fenrir L @ 110mm trail cell")
+	}
+	if got := text(fenrir110Trail); got != "106 ✓" {
+		t.Errorf("Fenrir L @ 110mm trail = %q, want %q", got, "106 ✓")
+	}
+	if got := fenrir110Trail.AttrOr("data-zone", ""); got != "ideal" || !fenrir110Trail.HasClass("zone-ideal") {
+		t.Errorf("Fenrir L @ 110mm trail zone=%q class=%q, want ideal / zone-ideal", got, fenrir110Trail.AttrOr("class", ""))
+	}
+}
+
+func TestHelp_AllMetricAnchorsResolveAcrossPages(t *testing.T) {
+	rec, helpDoc := do(t, "/help")
+	mustStatus(t, rec, http.StatusOK)
+
+	anchors := map[string]bool{}
+	helpDoc.Find("[id]").Each(func(_ int, s *goquery.Selection) {
+		if id := s.AttrOr("id", ""); id != "" {
+			anchors[id] = true
+		}
+	})
+
+	routes := []string{
+		"/",
+		"/?layout=columns&col=otso-fenrir-stainless:L@110mm@20%25&col=esker-hayduke:S3@110mm@20%25",
+		"/frames",
+		"/frames?all-sizes=1",
+		"/forks",
+		"/stems",
+		"/ideals",
+		"/ideals?name=idmatch",
+		"/saddles",
+		"/saddles?id=berthoud-aspin-open",
+		"/saddle-swap",
+		"/handlebars",
+		"/validate",
+		"/validate?frame=otso-fenrir-stainless",
+	}
+
+	var checked int
+	for _, route := range routes {
+		rec, doc := do(t, route)
+		mustStatus(t, rec, http.StatusOK)
+		doc.Find(`a[href^="/help#"]`).Each(func(_ int, a *goquery.Selection) {
+			href := a.AttrOr("href", "")
+			frag := strings.TrimPrefix(href, "/help#")
+			checked++
+			if !anchors[frag] {
+				t.Errorf("%s has broken glossary link %q (id %q not in /help)", route, href, frag)
+			}
+		})
+	}
+	if checked == 0 {
+		t.Fatal("expected to verify at least one /help# link across routes")
+	}
+
+	// Specifically verify the two previously broken F-p1-7 links.
+	_, saddlesDoc := do(t, "/saddles")
+	if saddlesDoc.Find(`a[href="/help#metric-ideal_sta"]`).Length() == 0 {
+		t.Error("/saddles missing /help#metric-ideal_sta link")
+	}
+	_, valDoc := do(t, "/validate?frame=otso-fenrir-stainless")
+	if valDoc.Find(`a[href="/help#metric-bbdrop"]`).Length() == 0 {
+		t.Error("/validate?frame=otso-fenrir-stainless missing /help#metric-bbdrop link")
+	}
+}
+
+func TestFrames_RejectsUnknownCategoryAndSize(t *testing.T) {
+	for _, target := range []string{
+		"/frames?category=bogus",
+		"/frames?category=full-suspension",
+		"/frames?size=ZZ",
+	} {
+		rec, doc := do(t, target)
+		mustStatus(t, rec, http.StatusBadRequest)
+		if doc.Find(`#errors[role="alert"], .banner`).Length() == 0 || text(doc.Find(".banner")) == "" {
+			t.Errorf("%s: expected error banner on 400 page", target)
+		}
+	}
+
+	// Category dropdown only advertises populated categories.
+	rec, doc := do(t, "/frames")
+	mustStatus(t, rec, http.StatusOK)
+	var opts []string
+	doc.Find(`select[name="category"] option`).Each(func(_ int, o *goquery.Selection) {
+		if v := o.AttrOr("value", ""); v != "" {
+			opts = append(opts, v)
+		}
+	})
+	want := compare.AvailableCategories()
+	if strings.Join(opts, ",") != strings.Join(want, ",") {
+		t.Errorf("/frames category options = %v, want %v", opts, want)
+	}
+}
+
+func TestRunServe_HelpAndUnexpectedArgs(t *testing.T) {
+	for _, args := range [][]string{{"--help"}, {"-h"}, {"help"}} {
+		var out, errOut bytes.Buffer
+		code := RunServe(args, &out, &errOut)
+		if code != 0 {
+			t.Errorf("RunServe(%v) = %d, want 0; stderr=%q", args, code, errOut.String())
+		}
+		if errOut.Len() != 0 {
+			t.Errorf("RunServe(%v) wrote to stderr: %q", args, errOut.String())
+		}
+		if !strings.Contains(out.String(), "Usage: bikegeo serve") {
+			t.Errorf("RunServe(%v) stdout = %q, want usage", args, out.String())
+		}
+	}
+
+	var out, errOut bytes.Buffer
+	if code := RunServe([]string{"extra-arg"}, &out, &errOut); code != 2 {
+		t.Errorf("RunServe([extra-arg]) = %d, want 2", code)
+	}
+}
+
+func TestIdeals_NoBrokenCommandHint(t *testing.T) {
+	rec, doc := do(t, "/ideals")
+	mustStatus(t, rec, http.StatusOK)
+	body := text(doc.Find("body"))
+	if strings.Contains(body, "bikegeo ideals show") {
+		t.Errorf("/ideals still references non-existent 'bikegeo ideals show'")
+	}
+	if !strings.Contains(text(doc.Find("h2").First()), "Ideal Frame Profiles (") {
+		t.Errorf("/ideals title = %q, want profile count in title", text(doc.Find("h2").First()))
 	}
 }

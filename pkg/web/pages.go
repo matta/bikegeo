@@ -88,7 +88,7 @@ func pages() []page {
 			Controls: func(v url.Values) []Control {
 				return []Control{
 					{Name: "q", Label: "Search", Kind: "text", Value: v.Get("q"), Hint: "manufacturer, model or ID"},
-					{Name: "category", Label: "Category", Kind: "select", Value: v.Get("category"), Options: options([]string{"hardtail", "rigid", "gravel", "full-suspension"}, v.Get("category"), "Any")},
+					{Name: "category", Label: "Category", Kind: "select", Value: v.Get("category"), Options: options(compare.AvailableCategories(), v.Get("category"), "Any")},
 					{Name: "size", Label: "Size", Kind: "text", Value: v.Get("size"), Hint: "e.g. L"},
 					{Name: "all-sizes", Label: "One row per size", Kind: "checkbox", Value: v.Get("all-sizes")},
 				}
@@ -106,12 +106,16 @@ func pages() []page {
 				return args, true
 			},
 			Build: func(v url.Values) (report.Document, string) {
-				return compare.BuildFrameListDocument(compare.ListFilter{
+				doc, err := compare.BuildFrameListDocument(compare.ListFilter{
 					Query:    v.Get("q"),
 					Category: v.Get("category"),
 					Size:     v.Get("size"),
 					AllSizes: isTrue(v.Get("all-sizes")),
-				}), ""
+				})
+				if err != nil {
+					return report.Document{}, err.Error()
+				}
+				return doc, ""
 			},
 			Link: map[string]string{"Frame ID": "/validate?frame=", "ID": "/validate?frame="},
 		},

@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -19,9 +21,29 @@ import (
 func RunServe(args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	fs.SetOutput(errOut)
+	fs.Usage = func() {}
 	port := fs.Int("port", 8080, "TCP port to listen on (0 picks a free port)")
 	open := fs.Bool("open", false, "Open the default browser once the server is listening")
+	printUsage := func(w io.Writer) {
+		fmt.Fprintln(w, "Usage: bikegeo serve [--port N] [--open]")
+		fs.SetOutput(w)
+		fs.PrintDefaults()
+	}
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			printUsage(out)
+			return 0
+		}
+		printUsage(errOut)
+		return 2
+	}
+	if fs.NArg() > 0 {
+		if fs.NArg() == 1 && fs.Arg(0) == "help" {
+			printUsage(out)
+			return 0
+		}
+		fmt.Fprintf(errOut, "Error: unexpected arguments: %s\n", strings.Join(fs.Args(), " "))
+		printUsage(errOut)
 		return 2
 	}
 	if *port < 0 || *port > 65535 {
