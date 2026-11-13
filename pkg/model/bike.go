@@ -142,6 +142,110 @@ func (s GeoSlopMm) String() string {
 	return strings.Join(parts, ", ")
 }
 
+// ChartPrecision holds the rounding half-width of each published chart column:
+// a value printed as 627 could be anything in 627 ± 0.5 before the manufacturer
+// rounded it. Lengths are in mm, HtaDeg in degrees. A zero field means "not yet
+// inferred"; geometry.InferChartPrecision derives it from a frame's size chart.
+type ChartPrecision struct {
+	ReachMm       float64
+	StackMm       float64
+	HtaDeg        float64
+	HtlMm         float64
+	BbDropMm      float64
+	ChainstayMm   float64
+	WheelbaseMm   float64
+	FrontCenterMm float64
+}
+
+// BudgetTier classifies how much of an ErrorBudget a residual consumes.
+type BudgetTier string
+
+const (
+	// TierLengthRounding: explained by rounding of published lengths alone.
+	TierLengthRounding BudgetTier = "length_rounding"
+	// TierAngleRounding: explained only if the published head angle is also rounded.
+	TierAngleRounding BudgetTier = "angle_rounding"
+	// TierAllowance: beyond rounding, covered only by the frame's declared GeoSlopMm allowance.
+	TierAllowance BudgetTier = "allowance"
+	// TierExceeds: not explained by rounding plus any declared allowance.
+	TierExceeds BudgetTier = "exceeds"
+)
+
+// budgetEpsilonMm absorbs floating-point noise when a residual sits exactly on a budget boundary.
+const budgetEpsilonMm = 1e-9
+
+// BudgetTerm is the worst-case contribution (in mm) that rounding of one published
+// chart input can make to a residual.
+type BudgetTerm struct {
+	Name           string
+	HalfWidth      float64 // rounding half-width of the input, in its own unit
+	IsAngle        bool    // true when HalfWidth is in degrees rather than mm
+	ContributionMm float64
+}
+
+// ErrorBudget is the worst-case discrepancy that rounding of the published chart
+// inputs can produce in one geometric closure check, broken down per input.
+// Each term is the first-order sensitivity of the residual to that input times
+// the input's rounding half-width, so inputs that appear several times in an
+// equation (BB drop, head angle) contribute coherently rather than being
+// double-counted.
+type ErrorBudget struct {
+	Residual  float64      // signed, unrounded discrepancy in mm
+	Terms     []BudgetTerm // largest contribution first
+	LengthTol float64      // sum of the length terms
+	AngleTol  float64      // sum of the angle terms
+	Allowance float64      // declared GeoSlopMm allowance beyond rounding
+}
+
+// RoundingTol is the largest discrepancy that rounding alone can explain.
+func (b ErrorBudget) RoundingTol() float64 {
+	return b.LengthTol + b.AngleTol
+}
+
+// Tol is the largest discrepancy that passes: rounding plus any declared allowance.
+func (b ErrorBudget) Tol() float64 {
+	return b.RoundingTol() + b.Allowance
+}
+
+// Saturation is |Residual| as a fraction of RoundingTol: at most 1.0 means the
+// discrepancy can be explained entirely by rounding of the published inputs.
+func (b ErrorBudget) Saturation() float64 {
+	abs := math.Abs(b.Residual)
+	tol := b.RoundingTol()
+	if tol <= 0 {
+		if abs <= budgetEpsilonMm {
+			return 0
+		}
+		return math.Inf(1)
+	}
+	return abs / tol
+}
+
+// Tier reports which part of the budget the residual needs.
+func (b ErrorBudget) Tier() BudgetTier {
+	abs := math.Abs(b.Residual)
+	switch {
+	case abs <= b.LengthTol+budgetEpsilonMm:
+		return TierLengthRounding
+	case abs <= b.RoundingTol()+budgetEpsilonMm:
+		return TierAngleRounding
+	case abs <= b.Tol()+budgetEpsilonMm:
+		return TierAllowance
+	default:
+		return TierExceeds
+	}
+}
+
+// Within reports whether the residual passes (any tier but TierExceeds).
+func (b ErrorBudget) Within() bool {
+	return b.Tier() != TierExceeds
+}
+
+// NeededAllowance is how far the residual lies beyond rounding (0 when rounding suffices).
+func (b ErrorBudget) NeededAllowance() float64 {
+	return math.Max(0, math.Abs(b.Residual)-b.RoundingTol())
+}
+
 // BikeGeometry represents materialized bicycle frame geometry for a single size.
 type BikeGeometry struct {
 	ID           string
@@ -176,6 +280,10 @@ type BikeGeometry struct {
 	HeadsetCupType     HeadsetCupType
 	GeoHeadsetSpacerMm float64
 	GeoSlopMm          *GeoSlopMm
+	// ChartPrecision is the rounding half-width of each published column, inferred
+	// from the whole size chart when materialized from a FrameModel. Zero fields
+	// are inferred from this size's own values.
+	ChartPrecision ChartPrecision
 
 	// Bent / Offset Seat Tube
 	ActualStaDeg      float64

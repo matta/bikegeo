@@ -724,6 +724,19 @@ func CalculateGeometricA2c(stack, bbDrop, headTubeLength, htaDeg, rake float64) 
 		return 0, fmt.Errorf("headTubeLength must be positive, got %.1f mm", headTubeLength)
 	}
 
+	frontEnd, ok := frontEndLength(stack, bbDrop, htaDeg, rake)
+	if !ok {
+		return 0, fmt.Errorf("steerer axis is horizontal (HTA %.2f°)", htaDeg)
+	}
+
+	structuralA2c = frontEnd - headTubeLength
+	return structuralA2c, nil
+}
+
+// frontEndLength is the total axial length along the steerer axis from the front
+// axle's projection onto that axis up to the head tube top (structural A2C plus
+// head tube length). ok is false when the steerer axis is horizontal.
+func frontEndLength(stack, bbDrop, htaDeg, rake float64) (length float64, ok bool) {
 	steererDir := SteererTubeDir(htaDeg)
 	rakeDir := steererDir.Perpendicular(geom2d.Clockwise)
 
@@ -737,14 +750,10 @@ func CalculateGeometricA2c(stack, bbDrop, headTubeLength, htaDeg, rake float64) 
 	// Intersect with the horizontal at Y = stack:
 	htTop, ok := steererAxis.IntersectHorizontalLine(stack)
 	if !ok {
-		return 0, fmt.Errorf("steerer axis is horizontal (HTA %.2f°)", htaDeg)
+		return 0, false
 	}
 
-	// Total axial length along steerer axis from axle projection to head tube top:
-	frontEndLength := htTop.DistanceTo(steererBase)
-
-	structuralA2c = frontEndLength - headTubeLength
-	return structuralA2c, nil
+	return htTop.DistanceTo(steererBase), true
 }
 
 // CalculateDynamicGeometry calculates new frame geometry when fork A2C is changed,
@@ -1320,6 +1329,7 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string) (model.BikeGeo
 		HeadsetCupType:      frame.HeadsetCupType,
 		GeoHeadsetSpacerMm:  frame.GeoHeadsetSpacerMm,
 		GeoSlopMm:           frame.GeoSlopMm,
+		ChartPrecision:      InferChartPrecision(frame),
 		ActualStaDeg:        frame.ActualStaDeg,
 		SeatTubeOffsetXMm:   frame.SeatTubeOffsetXMm,
 		CadFork:             frame.CadFork,
