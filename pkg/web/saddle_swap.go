@@ -15,8 +15,13 @@ import (
 	"bikegeo/pkg/report"
 )
 
-// defaultSwapTarget is the target used when only a source saddle is chosen.
-const defaultSwapTarget = "berthoud-aspin-open"
+const (
+	// defaultSwapTarget is the target used when only a source saddle is chosen.
+	defaultSwapTarget = "berthoud-aspin-open"
+	// AnalyzeSaddleSwap takes nominal cockpit dimensions (unused by /saddle-swap tables).
+	defaultSwapHbDistance = 700.0
+	defaultSwapHbDrop     = 13.0
+)
 
 func (db *docb) saddleSwap(v url.Values) int {
 	fl := &floats{v: v}
@@ -25,12 +30,38 @@ func (db *docb) saddleSwap(v url.Values) int {
 	brpSetback := fl.get("brp-setback", 0.0)
 	postSetback := fl.get("seatpost", model.DefaultSeatpostSetbackMm)
 	clampLength := fl.get("clamp-length", model.DefaultSeatpostClampLengthMm)
-	hbDistance := fl.get("cockpit-dist", 700.0)
-	hbDrop := fl.get("cockpit-drop", 13.0)
 	if fl.err != nil {
 		db.fail("%v", fl.err)
 		return 1
 	}
+	hasSitBone := strings.TrimSpace(v.Get("sit-bone-setback")) != ""
+	hasBrp := strings.TrimSpace(v.Get("brp-setback")) != ""
+	if hasSitBone && hasBrp {
+		db.fail("Error: cannot specify both brp-setback and sit-bone-setback")
+		return 1
+	}
+	if !(saddleHeight > 0) || math.IsInf(saddleHeight, 0) {
+		db.fail("Error: saddle-height must be positive (got %g)", saddleHeight)
+		return 1
+	}
+	if hasSitBone && (!(sitBoneSetback > 0) || math.IsInf(sitBoneSetback, 0)) {
+		db.fail("Error: sit-bone-setback must be positive (got %g)", sitBoneSetback)
+		return 1
+	}
+	if hasBrp && (!(brpSetback > 0) || math.IsInf(brpSetback, 0)) {
+		db.fail("Error: brp-setback must be positive (got %g)", brpSetback)
+		return 1
+	}
+	if math.IsNaN(postSetback) || math.IsInf(postSetback, 0) || postSetback < 0 {
+		db.fail("Error: seatpost setback must be non-negative (got %g)", postSetback)
+		return 1
+	}
+	if !(clampLength > 0) || math.IsInf(clampLength, 0) {
+		db.fail("Error: clamp-length must be positive (got %g)", clampLength)
+		return 1
+	}
+	hbDistance := defaultSwapHbDistance
+	hbDrop := defaultSwapHbDrop
 	compareAll := isTrue(v.Get("all"))
 	frameSpec := strings.TrimSpace(v.Get("frame"))
 	var posArgs []string
@@ -94,8 +125,12 @@ func (db *docb) saddleSwap(v url.Values) int {
 		}
 	}
 
-	if brpSetback > 0 {
+	if hasBrp {
 		sitBoneSetback = sourceSaddle.SitBoneSetbackFromBrp(brpSetback)
+		if !(sitBoneSetback > 0) {
+			db.fail("Error: brp-setback %.1fmm yields non-positive sit-bone setback %.1fmm", brpSetback, sitBoneSetback)
+			return 1
+		}
 	}
 
 	// 1. Optional Summary Matrix if --all
@@ -325,16 +360,18 @@ func (db *docb) saddleSwap(v url.Values) int {
 			}
 
 			frameSta := canonRow.Canonical.ActiveSta
-			stSetback := geometry.Round(saddleHeight*math.Cos(frameSta*math.Pi/180.0), 1)
-			tgtStSetback := geometry.Round(swap.TargetEquivalentSaddleHeightMm*math.Cos(frameSta*math.Pi/180.0), 1)
+			stSetback := saddleHeight * math.Cos(frameSta*math.Pi/180.0)
+			srcBrpSetback := sourceSaddle.BrpSetbackFromSitBones(sitBoneSetback)
+			tgtBrpSetback := targetSaddle.BrpSetbackFromSitBones(sitBoneSetback)
+			tgtEquivSH := saddleHeight
+			if targetSaddle.ID != sourceSaddle.ID {
+				tgtEquivSH = targetSaddle.TranslateSaddleHeightFromRef(sourceSaddle, saddleHeight, srcBrpSetback)
+			}
 
-			// Required rail offsets on this frame:
-			// clampPerp = stSetback + postSetback
-			// targetRailCenterSetback = sb + target.RailCenterToSitBonesMm
-			// requiredOffset = targetRailCenterSetback - (stSetback + postSetback)
-			srcRailOffset := (sitBoneSetback + sourceSaddle.RailCenterToSitBonesMm) - (stSetback + postSetback)
-			tgtPelvicRailOffset := (sitBoneSetback + targetSaddle.RailCenterToSitBonesMm) - (tgtStSetback + postSetback)
-			tgtNaiveRailOffset := (swap.SourceBrpSetbackMm + targetSaddle.RailCenterToBrpMm) - (stSetback + postSetback)
+			// Required rail offsets on this frame via exact 2D CalculatePoint inverse:
+			srcRailOffset := sourceSaddle.RailOffsetForBrpAtSta(frameSta, srcBrpSetback, saddleHeight, postSetback)
+			tgtPelvicRailOffset := targetSaddle.RailOffsetForBrpAtSta(frameSta, tgtBrpSetback, tgtEquivSH, postSetback)
+			tgtNaiveRailOffset := targetSaddle.RailOffsetForBrpAtSta(frameSta, srcBrpSetback, saddleHeight, postSetback)
 
 			sMin, sMax := sourceSaddle.ClampWindowMm(clampLength)
 			tMin, tMax := targetSaddle.ClampWindowMm(clampLength)

@@ -61,69 +61,107 @@ func CalculateUniversalCompromiseSTA(
 		clampLengthMm = model.DefaultSeatpostClampLengthMm
 	}
 
-	staForSetback := func(sb float64) float64 {
-		ratio := sb / saddleHeightMm
-		if ratio < -1.0 {
-			ratio = -1.0
-		} else if ratio > 1.0 {
-			ratio = 1.0
-		}
-		return Round(ToDeg(math.Acos(ratio)), 2)
-	}
+	ref := model.ReferenceIdmatchSaddle()
+	refBrpSetback := ref.BrpSetbackFromSitBones(targetSitBoneSetbackMm)
 
-	var minST, maxST float64
-	var maxSTMinus5, minSTPlus5 float64
+	type saddleFit struct {
+		spec      model.SaddleSpec
+		eqSH      float64
+		targetBrp float64
+	}
+	fits := make([]saddleFit, len(saddles))
+	var minSta0, maxSta0 float64
+	var univMarginMin, univMarginMax float64
+	marginInit := false
 
 	for i, s := range saddles {
-		st := (targetSitBoneSetbackMm + s.RailCenterToSitBonesMm) - seatpostSetbackMm
-		stMinus5 := st - model.SaddleRailIdealMarginMm
-		stPlus5 := st + model.SaddleRailIdealMarginMm
+		eqSH := saddleHeightMm
+		if s.ID != ref.ID {
+			eqSH = s.TranslateSaddleHeightFromRef(ref, saddleHeightMm, refBrpSetback)
+		}
+		targetBrp := s.BrpSetbackFromSitBones(targetSitBoneSetbackMm)
+		fits[i] = saddleFit{spec: s, eqSH: eqSH, targetBrp: targetBrp}
+
+		sta0 := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, 0.0)
+		mMin := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, model.SaddleRailIdealMarginMm)
+		mMax := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, -model.SaddleRailIdealMarginMm)
+		if mMin > mMax {
+			mMin, mMax = mMax, mMin
+		}
 
 		if i == 0 {
-			minST = st
-			maxST = st
-			maxSTMinus5 = stMinus5
-			minSTPlus5 = stPlus5
+			minSta0 = sta0
+			maxSta0 = sta0
 		} else {
-			if st < minST {
-				minST = st
+			if sta0 < minSta0 {
+				minSta0 = sta0
 			}
-			if st > maxST {
-				maxST = st
+			if sta0 > maxSta0 {
+				maxSta0 = sta0
 			}
-			if stMinus5 > maxSTMinus5 {
-				maxSTMinus5 = stMinus5
+		}
+
+		if !marginInit {
+			univMarginMin = mMin
+			univMarginMax = mMax
+			marginInit = true
+		} else {
+			if mMin > univMarginMin {
+				univMarginMin = mMin
 			}
-			if stPlus5 < minSTPlus5 {
-				minSTPlus5 = stPlus5
+			if mMax < univMarginMax {
+				univMarginMax = mMax
 			}
 		}
 	}
 
-	compST := (minST + maxST) / 2.0
-	maxOffset := (maxST - minST) / 2.0
-	compSTA := staForSetback(compST)
+	// Solve for the minimax compromise STA where max(railOffset) + min(railOffset) == 0.
+	offsetBounds := func(sta float64) (float64, float64) {
+		var lo, hi float64
+		for i, sf := range fits {
+			r := sf.spec.RailOffsetForBrpAtSta(sta, sf.targetBrp, sf.eqSH, seatpostSetbackMm)
+			if i == 0 {
+				lo, hi = r, r
+			} else {
+				if r < lo {
+					lo = r
+				}
+				if r > hi {
+					hi = r
+				}
+			}
+		}
+		return lo, hi
+	}
 
-	hasUnivMargin := maxSTMinus5 <= minSTPlus5
+	loSTA, hiSTA := minSta0, maxSta0
+	for range 64 {
+		midSTA := 0.5 * (loSTA + hiSTA)
+		loR, hiR := offsetBounds(midSTA)
+		if loR+hiR < 0 {
+			loSTA = midSTA
+		} else {
+			hiSTA = midSTA
+		}
+	}
+	compSTA := 0.5 * (loSTA + hiSTA)
+	loR, hiR := offsetBounds(compSTA)
+	maxOffset := math.Max(math.Abs(loR), math.Abs(hiR))
+
+	hasUnivMargin := marginInit && univMarginMin <= univMarginMax
 	var uMinSTA, uMaxSTA float64
 	if hasUnivMargin {
-		sta1 := staForSetback(minSTPlus5)
-		sta2 := staForSetback(maxSTMinus5)
-		uMinSTA = math.Min(sta1, sta2)
-		uMaxSTA = math.Max(sta1, sta2)
+		uMinSTA = univMarginMin
+		uMaxSTA = univMarginMax
 	}
 
 	var offsets []SaddleClampOffset
-	for _, s := range saddles {
-		st := (targetSitBoneSetbackMm + s.RailCenterToSitBonesMm) - seatpostSetbackMm
-		// ClampOffset = RailCenterSetback - (SeatTubeSetback + SeatpostSetback)
-		// = (targetSitBoneSetbackMm + s.RailCenterToSitBonesMm) - (compST + seatpostSetbackMm)
-		// = st - compST
-		offset := st - compST
+	for _, sf := range fits {
+		offset := sf.spec.RailOffsetForBrpAtSta(compSTA, sf.targetBrp, sf.eqSH, seatpostSetbackMm)
 		offsets = append(offsets, SaddleClampOffset{
-			SaddleID:   s.ID,
-			SaddleName: s.Name,
-			OffsetMm:   Round(offset, 1),
+			SaddleID:   sf.spec.ID,
+			SaddleName: sf.spec.Name,
+			OffsetMm:   offset,
 		})
 	}
 
@@ -131,7 +169,7 @@ func CalculateUniversalCompromiseSTA(
 		SeatpostDesc:          seatpostDesc,
 		SeatpostSetbackMm:     Round(seatpostSetbackMm, 1),
 		CompromiseStaDeg:      compSTA,
-		MaxRailOffsetMm:       Round(maxOffset, 1),
+		MaxRailOffsetMm:       maxOffset,
 		UniversalMarginMinSta: uMinSTA,
 		UniversalMarginMaxSta: uMaxSTA,
 		HasUniversalMargin:    hasUnivMargin,
@@ -157,39 +195,30 @@ func CalculateIdealSeatTubeAngle(
 		clampLengthMm = model.DefaultSeatpostClampLengthMm
 	}
 
-	// 1. Dead-center rail center setback:
+	// 1. Dead-center target BRP setback & seat-tube setback projection (nominal geometric reference):
 	railCenterSetback := targetSitBoneSetbackMm + saddle.RailCenterToSitBonesMm
 	stSetback := railCenterSetback - seatpostSetbackMm
+	targetBrpSetback := saddle.BrpSetbackFromSitBones(targetSitBoneSetbackMm)
 
-	staForSetback := func(sb float64) float64 {
-		ratio := sb / saddleHeightMm
-		if ratio < -1.0 {
-			ratio = -1.0
-		} else if ratio > 1.0 {
-			ratio = 1.0
-		}
-		return Round(ToDeg(math.Acos(ratio)), 2)
+	staForOffset := func(railOffset float64) float64 {
+		return saddle.StaForBrpAndOffset(targetBrpSetback, saddleHeightMm, seatpostSetbackMm, railOffset)
 	}
 
-	idealSTA := staForSetback(stSetback)
+	idealSTA := staForOffset(0.0)
 
 	// 2. Clamp window bounds:
-	// Clamping forward on rails (positive X_clamp) moves saddle rearward relative to clamp,
-	// meaning for the same target setback, the seat tube must sit further forward (smaller ST setback -> steeper STA).
-	// Clamping rearward on rails (negative X_clamp) moves saddle forward, requiring seat tube further back (larger ST setback -> slacker STA).
+	// Clamping forward on rails (positive rail offset) pushes saddle body rearward relative to clamp,
+	// requiring steeper STA to keep BRP setback unchanged.
 	minClamp, maxClamp := saddle.ClampWindowMm(clampLengthMm)
-	stSetbackForwardClamp := stSetback - maxClamp // steeper STA
-	stSetbackRearClamp := stSetback - minClamp    // slacker STA
-
-	sta1 := staForSetback(stSetbackRearClamp)
-	sta2 := staForSetback(stSetbackForwardClamp)
+	sta1 := staForOffset(minClamp)
+	sta2 := staForOffset(maxClamp)
 	slackestSTA := math.Min(sta1, sta2)
 	steepestSTA := math.Max(sta1, sta2)
 
 	marginMinClamp := -model.SaddleRailIdealMarginMm
 	marginMaxClamp := model.SaddleRailIdealMarginMm
-	mSta1 := staForSetback(stSetback - marginMinClamp)
-	mSta2 := staForSetback(stSetback - marginMaxClamp)
+	mSta1 := staForOffset(marginMinClamp)
+	mSta2 := staForOffset(marginMaxClamp)
 	marginSlackSTA := math.Min(mSta1, mSta2)
 	marginSteepSTA := math.Max(mSta1, mSta2)
 

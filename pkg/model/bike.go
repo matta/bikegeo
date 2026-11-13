@@ -80,6 +80,9 @@ const (
 // DefaultGeoSlopMm is the default maximum allowed discrepancy (in mm) for geometric consistency checks.
 const DefaultGeoSlopMm = 1.0
 
+// DefaultWheelbaseFloorMm is the minimum physical precision floor (in mm) for wheelbase validation.
+const DefaultWheelbaseFloorMm = 2.0
+
 // DefaultTireWidthIn is the baseline tire width in inches for steering trail calculations.
 const DefaultTireWidthIn = 2.4
 
@@ -88,17 +91,17 @@ const DefaultTireWidthIn = 2.4
 const DefaultWheelRadius29Mm = 372.0
 
 // GeoSlopMm defines optional measure-specific validation tolerances (in mm) for a frame.
-// Any nil field defaults to DefaultGeoSlopMm (1.0mm).
+// Any nil field defaults to DefaultGeoSlopMm (1.0mm), except Wheelbase which uses dynamic error
+// propagation with a 2.0mm physical precision floor.
 type GeoSlopMm struct {
 	A2c         *float64
 	FrontCenter *float64
 	Wheelbase   *float64
-	CrossConfig *float64
 	Reason      string
 }
 
 func (s GeoSlopMm) HasCustomSlop() bool {
-	return s.A2c != nil || s.FrontCenter != nil || s.Wheelbase != nil || s.CrossConfig != nil
+	return s.A2c != nil || s.FrontCenter != nil || s.Wheelbase != nil
 }
 
 func (s GeoSlopMm) GetA2c() float64 {
@@ -117,16 +120,9 @@ func (s GeoSlopMm) GetFrontCenter() float64 {
 
 func (s GeoSlopMm) GetWheelbase() float64 {
 	if s.Wheelbase != nil {
-		return *s.Wheelbase
+		return math.Max(DefaultWheelbaseFloorMm, *s.Wheelbase)
 	}
-	return DefaultGeoSlopMm
-}
-
-func (s GeoSlopMm) GetCrossConfig() float64 {
-	if s.CrossConfig != nil {
-		return *s.CrossConfig
-	}
-	return DefaultGeoSlopMm
+	return DefaultWheelbaseFloorMm
 }
 
 func (s GeoSlopMm) String() string {
@@ -140,11 +136,8 @@ func (s GeoSlopMm) String() string {
 	if s.Wheelbase != nil {
 		parts = append(parts, fmt.Sprintf("wb: ±%.1fmm", *s.Wheelbase))
 	}
-	if s.CrossConfig != nil {
-		parts = append(parts, fmt.Sprintf("cross: ±%.1fmm", *s.CrossConfig))
-	}
 	if len(parts) == 0 {
-		return "defaults (a2c: ±1.0mm, fc: ±1.0mm, wb: dynamic, cross: ±1.0mm)"
+		return "defaults (a2c: ±1.0mm, fc: ±1.0mm, wb: dynamic)"
 	}
 	return strings.Join(parts, ", ")
 }
@@ -433,21 +426,45 @@ func (s SaddleSpec) ClampOffsetFromBrp(brpSetbackMm, seatTubeSetbackMm, seatpost
 	return s.RailCenterSetbackFromBrp(brpSetbackMm) - (seatTubeSetbackMm + seatpostSetbackMm)
 }
 
+func clampUnit(v float64) float64 {
+	if v < -1.0 {
+		return -1.0
+	}
+	if v > 1.0 {
+		return 1.0
+	}
+	return v
+}
+
+// StaForBrpAndOffset returns the exact effective Seat Tube Angle (degrees) such that
+// CalculatePoint(staDeg, saddleHeightMm, seatpostSetbackMm, railOffsetMm).BrpSetbackMm equals brpSetbackMm.
+func (s SaddleSpec) StaForBrpAndOffset(brpSetbackMm, saddleHeightMm, seatpostSetbackMm, railOffsetMm float64) float64 {
+	if saddleHeightMm <= 0 {
+		return 0
+	}
+	brpPerp := seatpostSetbackMm + railOffsetMm - s.RailCenterToBrpMm
+	rad := math.Acos(clampUnit(brpSetbackMm/saddleHeightMm)) + math.Asin(clampUnit(brpPerp/saddleHeightMm))
+	return rad * 180.0 / math.Pi
+}
+
+// RailOffsetForBrpAtSta returns the exact rail clamp offset (mm) such that
+// CalculatePoint(staDeg, saddleHeightMm, seatpostSetbackMm, railOffsetMm).BrpSetbackMm equals brpSetbackMm.
+func (s SaddleSpec) RailOffsetForBrpAtSta(staDeg, brpSetbackMm, saddleHeightMm, seatpostSetbackMm float64) float64 {
+	if saddleHeightMm <= 0 {
+		return 0
+	}
+	staRad := staDeg * math.Pi / 180.0
+	delta := staRad - math.Acos(clampUnit(brpSetbackMm/saddleHeightMm))
+	return saddleHeightMm*math.Sin(delta) - seatpostSetbackMm + s.RailCenterToBrpMm
+}
+
 // IdealSeatTubeAngle computes the exact effective Seat Tube Angle required to mount this saddle
-// with its clamp dead-center (0.0mm) on the rails for a given sit bone setback and saddle height:
+// with its clamp dead-center (0.0mm) on the rails for a given sit bone setback and saddle height.
 func (s SaddleSpec) IdealSeatTubeAngle(sitBoneSetbackMm, saddleHeightMm, seatpostSetbackMm float64) float64 {
 	if saddleHeightMm <= 0 {
 		return 0
 	}
-	railCenterSetback := sitBoneSetbackMm + s.RailCenterToSitBonesMm
-	stSetback := railCenterSetback - seatpostSetbackMm
-	ratio := stSetback / saddleHeightMm
-	if ratio < -1.0 {
-		ratio = -1.0
-	} else if ratio > 1.0 {
-		ratio = 1.0
-	}
-	return math.Acos(ratio) * 180.0 / math.Pi
+	return s.StaForBrpAndOffset(s.BrpSetbackFromSitBones(sitBoneSetbackMm), saddleHeightMm, seatpostSetbackMm, 0.0)
 }
 
 // TranslateClampOffset converts a clamp position from this saddle to targetSaddle to keep sit bones in the identical position:
@@ -646,14 +663,14 @@ func (s SaddleSpec) CalculatePoint(
 		SaddleBrpOffsetMm:     s.RailCenterToBrpMm,
 		RailOffsetMm:          railOffsetMm,
 		AchievedClampOffsetMm: railOffsetMm,
-		TotalPerpOffsetMm:     math.Round(brpPerp*10) / 10,
-		BrpX:                  math.Round(brpPoint.X*10) / 10,
-		BrpY:                  math.Round(brpPoint.Y*10) / 10,
-		SitBoneX:              math.Round(sitBonePoint.X*10) / 10,
-		SitBoneY:              math.Round(sitBonePoint.Y*10) / 10,
-		BrpSetbackMm:          math.Round(setback*10) / 10,
-		SitBoneSetbackMm:      math.Round(sitBoneSetback*10) / 10,
-		BrpAngleFromBbDeg:     math.Round(angleFromBb*10) / 10,
+		TotalPerpOffsetMm:     brpPerp,
+		BrpX:                  brpPoint.X,
+		BrpY:                  brpPoint.Y,
+		SitBoneX:              sitBonePoint.X,
+		SitBoneY:              sitBonePoint.Y,
+		BrpSetbackMm:          setback,
+		SitBoneSetbackMm:      sitBoneSetback,
+		BrpAngleFromBbDeg:     angleFromBb,
 	}
 }
 
@@ -997,10 +1014,6 @@ func (fm FrameModel) Clone() FrameModel {
 			v := *fm.GeoSlopMm.Wheelbase
 			slop.Wheelbase = &v
 		}
-		if fm.GeoSlopMm.CrossConfig != nil {
-			v := *fm.GeoSlopMm.CrossConfig
-			slop.CrossConfig = &v
-		}
 		out.GeoSlopMm = &slop
 	}
 	if fm.SeatTubeOffsetXMm != nil {
@@ -1341,7 +1354,7 @@ type PublishMode string
 
 const (
 	ModeStaticCad     PublishMode = "static_cad"
-	ModeSaggedCad     PublishMode = "sagged_cad_15_25"
+	ModeSaggedCad     PublishMode = "sagged_cad"
 	ModeMismatchedCad PublishMode = "mismatched_cad"
 	ModeUnspecified   PublishMode = "unspecified"
 )

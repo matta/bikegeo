@@ -113,7 +113,7 @@ func CalculateEtt(reach, stack, htaDeg, staDeg float64) float64 {
 func CalculateActualSetback(staDeg, seatHeight float64) float64 {
 	seatAxis := SeatTubeAxis(geom2d.Origin, staDeg)
 	saddlePoint := seatAxis.PointAt(seatHeight)
-	return Round(-saddlePoint.X, 1)
+	return -saddlePoint.X
 }
 
 // CalculateBRPPoint computes the saddle Biomechanical Reference Point (BRP) coordinates,
@@ -141,11 +141,11 @@ func CalculateBRPPoint(
 		SaddleBrpOffsetMm:     saddleBrpOffsetMm,
 		RailOffsetMm:          railOffsetMm,
 		AchievedClampOffsetMm: railOffsetMm,
-		TotalPerpOffsetMm:     Round(brpPerp, 1),
-		BrpX:                  Round(brpPoint.X, 1),
-		BrpY:                  Round(brpPoint.Y, 1),
-		BrpSetbackMm:          Round(setback, 1),
-		BrpAngleFromBbDeg:     Round(angleFromBb, 1),
+		TotalPerpOffsetMm:     brpPerp,
+		BrpX:                  brpPoint.X,
+		BrpY:                  brpPoint.Y,
+		BrpSetbackMm:          setback,
+		BrpAngleFromBbDeg:     angleFromBb,
 	}
 }
 
@@ -162,7 +162,7 @@ func MapPossibleBRPs(staDeg, seatHeight float64) []model.BRPPoint {
 
 // SelectBestBRP selects the best BRP point from candidate points for a target setback range.
 // Ranking hierarchy:
-// 1. Min rounded mm distance to target setback range (0 if inside or if target is nil)
+// 1. Min distance to target setback range (0 if inside or if target is nil)
 // 2. Smallest absolute rail offset (|RailOffsetMm|, closest to dead center 0mm on rails)
 // 3. Min exact unrounded distance to target midpoint
 func SelectBestBRP(
@@ -207,10 +207,8 @@ func SelectBestBRP(
 		if hasTarget {
 			distA := rangeDist(a.BrpSetbackMm)
 			distB := rangeDist(b.BrpSetbackMm)
-			roundDistA := math.Round(distA)
-			roundDistB := math.Round(distB)
-			if roundDistA != roundDistB {
-				return roundDistA < roundDistB
+			if math.Abs(distA-distB) > 0.001 {
+				return distA < distB
 			}
 		}
 
@@ -707,7 +705,7 @@ func CalculateSeatpostExtension(seatHeight, seatTubeLength float64) float64 {
 	if seatHeight <= 0 || seatTubeLength <= 0 {
 		return 0
 	}
-	return Round(seatHeight-seatTubeLength, 1)
+	return seatHeight - seatTubeLength
 }
 
 // CalculateGeometricA2c reverse-engineers the geometric Structural Axle-to-Crown (A2C) length
@@ -764,12 +762,15 @@ func CalculateDynamicGeometry(
 
 	deltaA2c := newStructuralA2c - baseStructuralA2c
 
-	// Vertical lift at the front axle
+	// Rigid-body displacement of the front axle in unrotated BB coordinates along the
+	// downward-forward steerer axis: SteererTubeDir(baseHta) points up-rearward (-cos, +sin),
+	// so lengthening structural A2C moves the front axle by SteererTubeDir.Scale(-deltaA2c).
 	steererDir := SteererTubeDir(baseHta)
-	deltaY := deltaA2c * steererDir.Y
+	axleVec := geom2d.Vec2{X: wheelbase, Y: 0}.Add(steererDir.Scale(-deltaA2c))
 
-	// Rotation angle around the rear axle
-	pitchAngle, _ := geom2d.AngleFromLift(wheelbase, deltaY)
+	// Exact 2D rear-axle pitch angle needed to bring the front axle back to axle level.
+	// Use deltaA2c * steererDir.Y for the positive lift component so deltaA2c == 0 gives +0.0.
+	pitchAngle := geom2d.AngleFromSlope(axleVec.X, deltaA2c*steererDir.Y)
 	thetaDeg := pitchAngle.Deg()
 
 	newHta := baseHta - thetaDeg
@@ -790,16 +791,16 @@ func CalculateDynamicGeometry(
 	newBbDrop := -newPBB.Y
 
 	return model.DynamicGeometryResult{
-		NewHta:        Round(newHta, 2),
-		NewSta:        Round(newSta, 2),
-		NewReach:      Round(newReach, 1),
-		NewStack:      Round(newStack, 1),
-		NewBbDrop:     Round(newBbDrop, 1),
-		DeltaAngleDeg: Round(thetaDeg, 2),
-		DeltaReach:    Round(newReach-baseReach, 1),
-		DeltaStack:    Round(newStack-baseStack, 1),
-		DeltaBbDrop:   Round(newBbDrop-baseBbDrop, 1),
-		TotalNewA2c:   Round(newStructuralA2c, 1),
+		NewHta:        newHta,
+		NewSta:        newSta,
+		NewReach:      newReach,
+		NewStack:      newStack,
+		NewBbDrop:     newBbDrop,
+		DeltaAngleDeg: thetaDeg,
+		DeltaReach:    newReach - baseReach,
+		DeltaStack:    newStack - baseStack,
+		DeltaBbDrop:   newBbDrop - baseBbDrop,
+		TotalNewA2c:   newStructuralA2c,
 	}
 }
 
@@ -1018,12 +1019,12 @@ func CalculateWeightDistribution(
 	rearPct := 100.0 - frontPct
 
 	return WeightDistributionResult{
-		FrontPct:        Round(frontPct, 1),
-		RearPct:         Round(rearPct, 1),
-		FrontCenterCalc: Round(frontCenter, 1),
-		RearCenterCalc:  Round(rearCenter, 1),
-		WheelbaseCalc:   Round(wheelbase, 1),
-		BackAngleDeg:    Round(posture.BackAngleDeg, 1),
+		FrontPct:        frontPct,
+		RearPct:         rearPct,
+		FrontCenterCalc: frontCenter,
+		RearCenterCalc:  rearCenter,
+		WheelbaseCalc:   wheelbase,
+		BackAngleDeg:    posture.BackAngleDeg,
 	}
 }
 
@@ -1058,7 +1059,6 @@ func AnalyzeBikeFitWithSaddle(
 	refSQ := model.ReferenceIdmatchSaddle()
 	brpSeatHeight := saddle.TranslateSaddleHeightFromRef(refSQ, seatHeight, 219.0)
 
-	cupStack := bike.HeadsetCupType.CupStackMm()
 	geoSpacer := bike.GeoHeadsetSpacerMm
 
 	// 1. Reverse engineer baseline CAD geometric A2C
@@ -1094,9 +1094,16 @@ func AnalyzeBikeFitWithSaddle(
 	deltaStack := 0.0
 	deltaBbDrop := 0.0
 
-	// 2. If target A2C provided, apply dynamic pitching using physical headset_cup_type stack
+	// 2. If target A2C provided, normalize CAD baseline vs headset cup/spacer convention
+	// so evaluating at the declared CAD fork matches the published CAD chart exactly, then pitch.
 	if targetA2c != nil {
-		totalNewA2c := *targetA2c + cupStack
+		baselineStructuralA2c := baseStructuralA2c
+		if bike.CadFork.A2cMm > 0 {
+			baselineStructuralA2c = bike.CadFork.A2cMm + geoSpacer
+		} else if bike.ForkA2c > 0 && math.Abs(bike.ForkA2c-baseForkA2c) <= bike.GetGeoSlopMm().GetA2c()+2.0 {
+			baselineStructuralA2c = bike.ForkA2c + geoSpacer
+		}
+		totalNewA2c := *targetA2c + geoSpacer
 
 		wb := bike.Wheelbase
 		if wb <= 0 {
@@ -1114,7 +1121,7 @@ func AnalyzeBikeFitWithSaddle(
 			bike.HtaDeg,
 			activeSta,
 			bike.BbDrop,
-			baseStructuralA2c,
+			baselineStructuralA2c,
 			totalNewA2c,
 			wb,
 			cs,
@@ -1124,8 +1131,8 @@ func AnalyzeBikeFitWithSaddle(
 		activeStack = dyn.NewStack
 		activeHta = dyn.NewHta
 		activeSta = dyn.NewSta
-		seatAxisSta = Round(seatAxisSta-(staBeforePitch-dyn.NewSta), 2)
-		ettSta = Round(ettSta-(staBeforePitch-dyn.NewSta), 2)
+		seatAxisSta -= staBeforePitch - dyn.NewSta
+		ettSta -= staBeforePitch - dyn.NewSta
 		activeBbDrop = dyn.NewBbDrop
 		activeStructuralA2c = dyn.TotalNewA2c
 		deltaAngle = dyn.DeltaAngleDeg
@@ -1235,22 +1242,22 @@ func AnalyzeBikeFitWithSaddle(
 	idealSTA := saddle.IdealSeatTubeAngle(292.0, brpSeatHeight, model.DefaultSeatpostSetbackMm)
 
 	return model.BikeFitAnalysis{
-		StructuralA2c:       Round(activeStructuralA2c, 1),
-		ActiveReach:         Round(activeReach, 1),
-		ActiveStack:         Round(activeStack, 1),
-		ActiveHta:           Round(activeHta, 2),
-		ActiveSta:           Round(activeSta, 2),
-		ActiveBbDrop:        Round(activeBbDrop, 1),
-		Aett:                Round(aett, 1),
-		Ett:                 Round(ett, 1),
+		StructuralA2c:       activeStructuralA2c,
+		ActiveReach:         activeReach,
+		ActiveStack:         activeStack,
+		ActiveHta:           activeHta,
+		ActiveSta:           activeSta,
+		ActiveBbDrop:        activeBbDrop,
+		Aett:                aett,
+		Ett:                 ett,
 		ActualSetback:       actualSetback,
-		SpareVerticalStack:  Round(verticalStack, 1),
-		SpareAxialSteerer:   Round(axialLength, 1),
+		SpareVerticalStack:  verticalStack,
+		SpareAxialSteerer:   axialLength,
 		SeatpostExtensionMm: seatpostExtension,
-		DeltaAngleDeg:       Round(deltaAngle, 2),
-		DeltaReach:          Round(deltaReach, 1),
-		DeltaStack:          Round(deltaStack, 1),
-		DeltaBbDrop:         Round(deltaBbDrop, 1),
+		DeltaAngleDeg:       deltaAngle,
+		DeltaReach:          deltaReach,
+		DeltaStack:          deltaStack,
+		DeltaBbDrop:         deltaBbDrop,
 		InferredPublishMode: inferredPublishMode,
 
 		WeightDistFrontPct: weightDist.FrontPct,
@@ -1258,11 +1265,11 @@ func AnalyzeBikeFitWithSaddle(
 		BackAngleDeg:       weightDist.BackAngleDeg,
 		FrontCenterCalc:    weightDist.FrontCenterCalc,
 		RearCenterCalc:     weightDist.RearCenterCalc,
-		SeatToRearCenter:   Round(weightDist.RearCenterCalc-actualSetback, 1),
+		SeatToRearCenter:   weightDist.RearCenterCalc - actualSetback,
 		WheelbaseCalc:      weightDist.WheelbaseCalc,
-		ActiveChainstay:    Round(activeCS, 1),
+		ActiveChainstay:    activeCS,
 		ChainstayDesc:      csDesc,
-		TrailMm:            Round(CalculateTrail(activeHta, rake, bike.WheelRadiusMm()), 1),
+		TrailMm:            CalculateTrail(activeHta, rake, bike.WheelRadiusMm()),
 
 		Saddle:              saddle,
 		Handlebar:           bar,

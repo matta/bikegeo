@@ -532,3 +532,111 @@ func TestFooterDefinesOnlyShownMetrics(t *testing.T) {
 		}
 	}
 }
+
+func TestCompare_BrpSetbackUsesSelectedBRPAndFooterUsesSitBones(t *testing.T) {
+	res := mustRun(t, Options{Specs: []string{"surly-ecr:L@rigid"}})
+	doc, err := BuildDocument(res, DocOptions{Scoring: true, DocFooters: true, Flat: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// F-p4ab-1: Surly ECR L reaches 219 ✓ BRP Setback on rails (+6mm) rather than DeadCenterBRP (213mm).
+	brpCell := ""
+	for _, r := range doc.Tables()[0].Rows {
+		if r.Kind == report.KindData && r.Attrs["metric"] == "brp_setback" {
+			brpCell = r.Cells[3].Text
+		}
+	}
+	if brpCell != "219 ✓" {
+		t.Errorf("surly-ecr:L brp_setback cell = %q, want %q", brpCell, "219 ✓")
+	}
+
+	// F-p4ab-2: Footer defines HB Rise relative to Sit Bones, not Saddle BRP.
+	var refLines []string
+	for _, f := range doc.Footers {
+		if f.Title == "Reference Metric Definitions" {
+			refLines = f.Lines
+		}
+	}
+	joined := strings.Join(refLines, "\n")
+	if !strings.Contains(joined, "HB Rise: handlebar height relative to the Sit Bones") {
+		t.Errorf("footer should define HB Rise relative to Sit Bones:\n%s", joined)
+	}
+	if strings.Contains(joined, "HB Rise: handlebar height relative to the Saddle BRP") {
+		t.Errorf("footer still contains stale HB Rise vs Saddle BRP text:\n%s", joined)
+	}
+}
+
+func TestCompare_SingleStepIntegerRounding(t *testing.T) {
+	topPerFrame := 0
+	res := mustRun(t, Options{
+		Specs:       []string{"sklar-pbj:M", "fairlight-holt-2:S", "surly-ecr:L", "sklar-pbj:L", "surly-ecr:M"},
+		TopPerFrame: &topPerFrame,
+	})
+	doc, err := BuildDocument(res, DocOptions{Flat: true})
+	if err != nil {
+		t.Fatalf("BuildDocument: %v", err)
+	}
+	tables := doc.Tables()
+	if len(tables) == 0 {
+		t.Fatalf("expected comparison table")
+	}
+	tbl := tables[0]
+	colIdx := map[string]int{}
+	for i, h := range tbl.Headers() {
+		colIdx[h] = i
+	}
+	findVal := func(framePrefix, col string) string {
+		ci, ok := colIdx[col]
+		if !ok {
+			t.Fatalf("missing header %q", col)
+		}
+		for _, r := range tbl.Rows {
+			if strings.HasPrefix(r.Cells[colIdx["Frame (Size)"]].Text, framePrefix) {
+				return r.Cells[ci].Text
+			}
+		}
+		t.Fatalf("missing row %q", framePrefix)
+		return ""
+	}
+
+	if got := findVal("Sklar PBJ (M)", "Trail"); !strings.HasPrefix(got, "87 ") {
+		t.Errorf("Sklar PBJ (M) Trail = %q, want 87 ... (single-step from ~87.45mm)", got)
+	}
+	if got := findVal("Fairlight Holt 2.0 (S)", "ETT"); got != "587" {
+		t.Errorf("Fairlight Holt 2.0 (S) ETT = %q, want 587 (single-step from ~586.55mm)", got)
+	}
+	if got := findVal("Surly ECR (L)", "BRP–HB"); !strings.HasPrefix(got, "657 ") {
+		t.Errorf("Surly ECR (L) BRP–HB = %q, want 657 ... (single-step from ~656.52mm)", got)
+	}
+}
+
+func TestCompare_BreakdownSubtitleAndTranslatedH(t *testing.T) {
+	res := mustRun(t, Options{
+		Specs:  []string{"sklar-pbj:L"},
+		Saddle: "berthoud-aspin-open",
+	})
+	doc, err := BuildDocument(res, DocOptions{Scoring: true, Detail: true})
+	if err != nil {
+		t.Fatalf("BuildDocument: %v", err)
+	}
+
+	tables := doc.Tables()
+	if len(tables) < 2 {
+		t.Fatalf("expected matrix + breakdown tables, got %d", len(tables))
+	}
+	matSub := tables[0].Subtitle
+	if !strings.Contains(matSub, "H (saddle height): 751.4mm (translated from 746mm)") {
+		t.Errorf("matrix subtitle should report translated H for Berthoud Aspin Open:\n%s", matSub)
+	}
+
+	bdSub := tables[len(tables)-1].Subtitle
+	for _, want := range []string{
+		"-100 or -200",
+		"> -166 to +100",
+		"±1–2",
+	} {
+		if !strings.Contains(bdSub, want) {
+			t.Errorf("breakdown subtitle missing %q:\n%s", want, bdSub)
+		}
+	}
+}

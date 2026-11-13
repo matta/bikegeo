@@ -124,11 +124,11 @@ func CalculateHBPointWithHandlebar(
 	return model.HBPoint{
 		Stem:           stem,
 		SpacerMm:       spacerMm,
-		ClampX:         Round(clampPoint.X, 1),
-		ClampY:         Round(clampPoint.Y, 1),
-		HbX:            Round(hbPoint.X, 1),
-		HbY:            Round(hbPoint.Y, 1),
-		SaddleHbMm:     Round(dist, 1),
-		SaddleHbDropMm: Round(drop, 1),
+		ClampX:         clampPoint.X,
+		ClampY:         clampPoint.Y,
+		HbX:            hbPoint.X,
+		HbY:            hbPoint.Y,
+		SaddleHbMm:     dist,
+		SaddleHbDropMm: drop,
 	}
 }

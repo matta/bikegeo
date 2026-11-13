@@ -136,20 +136,29 @@ func TestValidateGeoSlopMmAnd3DFrontCenter(t *testing.T) {
 		GeoHeadsetSpacerMm: 10.0,
 	}
 
-	// Without geo_slop_mm, default 1.0mm slop rejects size M's 1.4mm A2C and 1.2mm Wheelbase discrepancy
+	// Without geo_slop_mm, default 1.0mm A2C slop rejects size M's 1.4mm A2C discrepancy
 	repDefault := validator.ValidateBikeGeometry(havokM)
 	if repDefault.IsValid {
-		t.Errorf("Expected Havok M to fail default 1.0mm slop without geo_slop_mm override")
+		t.Errorf("Expected Havok M to fail default 1.0mm A2C slop without geo_slop_mm override")
 	}
 
-	// With geo_slop_mm {a2c: 1.5, wheelbase: 1.5} (leaving front_center at default 1.0mm), it passes
+	// With geo_slop_mm {a2c: 1.5} (leaving front_center at default 1.0mm and wheelbase at dynamic 2.0mm floor), it passes
+	havokM.GeoSlopMm = &model.GeoSlopMm{
+		A2c: new(1.5),
+	}
+	repRelaxed := validator.ValidateBikeGeometry(havokM)
+	if !repRelaxed.IsValid {
+		t.Errorf("Expected Havok M with geo_slop_mm={a2c:1.5} to be valid, got issues: %+v", repRelaxed.Issues)
+	}
+
+	// Wheelbase slop overrides below the 2.0mm physical precision floor are rejected
 	havokM.GeoSlopMm = &model.GeoSlopMm{
 		A2c:       new(1.5),
 		Wheelbase: new(1.5),
 	}
-	repRelaxed := validator.ValidateBikeGeometry(havokM)
-	if !repRelaxed.IsValid {
-		t.Errorf("Expected Havok M with geo_slop_mm={a2c:1.5, wheelbase:1.5} to be valid, got issues: %+v", repRelaxed.Issues)
+	repUnderFloor := validator.ValidateBikeGeometry(havokM)
+	if repUnderFloor.IsValid {
+		t.Errorf("Expected Havok M with geo_slop_mm.wheelbase=1.5 (< 2.0mm floor) to fail validation")
 	}
 }
 
@@ -545,7 +554,7 @@ func TestValidateStackReachSagHint(t *testing.T) {
 		ForkRake:           44.0,
 		HeadsetCupType:     model.CupEC44,
 		GeoHeadsetSpacerMm: 12.0,
-		FrontCenter:        711.0, // Horizontal convention
+		FrontCenter:        714.4, // 3D BB-to-front-axle equivalent of 711.0mm horizontal
 		Wheelbase:          1158.0,
 		ChainstayLength:    452.0,
 	}
@@ -597,7 +606,7 @@ func TestValidateStackReachSagHint(t *testing.T) {
 		t.Errorf("Did not expect stack_reach_sag_hint for small residual, got issues: %+v", repSmall.Issues)
 	}
 
-	// Internally consistent Reach passes, with the horizontal Front Center convention accepted.
+	// Internally consistent Reach passes under the 3D Front Center convention.
 	correctedSeven := rawSeven
 	correctedSeven.Reach = 392.2
 	correctedReport := validator.ValidateBikeGeometry(correctedSeven)
@@ -606,5 +615,181 @@ func TestValidateStackReachSagHint(t *testing.T) {
 	}
 	if countIssues(correctedReport, "stack_reach_sag_hint", model.SeverityWarning) != 0 {
 		t.Errorf("Did not expect stack_reach_sag_hint for consistent geometry, got issues: %+v", correctedReport.Issues)
+	}
+}
+
+func TestValidateSaggedFrameStaticA2cLabel(t *testing.T) {
+	// F-p4d-1: Sagged-CAD frames must display their true static A2C (e.g. 530 mm for Revel El Jefe)
+	// in both the summary table ("Stated A2C") and detail table ("Published Fork A2C (Static)").
+	doc, allValid, err := validator.BuildValidationDocument([]validator.Target{
+		{Frame: frames.RevelElJefe, Size: frames.RevelElJefe.DefaultSize},
+		{Frame: frames.SurlyECR, Size: frames.SurlyECR.DefaultSize},
+	})
+	if err != nil {
+		t.Fatalf("BuildValidationDocument failed: %v", err)
+	}
+	if !allValid {
+		t.Fatalf("Expected all frames valid")
+	}
+
+	var summaryStated string
+	for _, row := range doc.Tables()[0].Rows {
+		if row.Cells[0].Text == "revel-el-jefe" {
+			summaryStated = row.Cells[4].Text
+		}
+	}
+	if summaryStated != "530 mm" {
+		t.Errorf("Summary Stated A2C for revel-el-jefe = %q, want %q", summaryStated, "530 mm")
+	}
+
+	detailDoc, valid, err := validator.BuildValidationDocument([]validator.Target{
+		{Frame: frames.RevelElJefe, Size: frames.RevelElJefe.DefaultSize},
+	})
+	if err != nil || !valid {
+		t.Fatalf("BuildValidationDocument detail failed: valid=%v err=%v", valid, err)
+	}
+	var detailStated string
+	for _, row := range detailDoc.Tables()[1].Rows {
+		if row.Cells[0].Text == "Published Fork A2C (Static)" {
+			detailStated = row.Cells[1].Text
+		}
+	}
+	if detailStated != "530 mm" {
+		t.Errorf("Detail Published Fork A2C (Static) for revel-el-jefe = %q, want %q", detailStated, "530 mm")
+	}
+}
+
+func TestFrontCenterConventionConsistent(t *testing.T) {
+	// F-p4d-2: Front Center validation must always use 3D convention (matching Calculated Front Center (3D)
+	// and fit), never silently flipping to horizontal on sklar-pbj:XL (3D residual = 2.7mm).
+	bike, err := geometry.MaterializeBikeGeometry(frames.SklarPBJ, "XL")
+	if err != nil {
+		t.Fatalf("MaterializeBikeGeometry failed: %v", err)
+	}
+	rep := validator.ValidateBikeGeometry(bike)
+	if !rep.IsValid {
+		t.Fatalf("Expected sklar-pbj:XL to pass with GeoSlopMm.FrontCenter=3.0, got: %+v", rep.Issues)
+	}
+	if rep.FrontCenterDiff == nil || *rep.FrontCenterDiff != 2.7 {
+		t.Fatalf("Expected FrontCenterDiff 2.7mm for sklar-pbj:XL, got %v", rep.FrontCenterDiff)
+	}
+	var fcNotice string
+	for _, iss := range rep.Issues {
+		if iss.ID == "front_center_ok" {
+			fcNotice = iss.Message
+		}
+	}
+	if !strings.Contains(fcNotice, "3D") || !strings.Contains(fcNotice, "2.7mm") {
+		t.Errorf("Expected 3D Front Center notice within 2.7mm, got: %q", fcNotice)
+	}
+
+	// Without the FrontCenter slop override, XL must fail with the 2.7mm 3D residual.
+	bike.GeoSlopMm = &model.GeoSlopMm{A2c: new(3.5), Wheelbase: new(5.0)}
+	repTight := validator.ValidateBikeGeometry(bike)
+	if repTight.IsValid {
+		t.Fatalf("Expected sklar-pbj:XL without FrontCenter slop override to fail 2.7mm 3D FC residual")
+	}
+}
+
+func TestDynamicWbFloorLabel(t *testing.T) {
+	// F-p4d-3: "(dynamic precision floor)" appears only when dynamic WB tolerance == 2.0mm;
+	// tolerances > 2.0mm say "(dynamic rounding propagation)"; "cross:" is absent; < 2.0mm WB overrides fail.
+	getSlopStr := func(f model.FrameModel) string {
+		t.Helper()
+		doc, valid, err := validator.BuildValidationDocument([]validator.Target{{Frame: f, Size: f.DefaultSize}})
+		if err != nil || !valid {
+			t.Fatalf("BuildValidationDocument(%s) failed: valid=%v err=%v", f.ID, valid, err)
+		}
+		for _, row := range doc.Tables()[1].Rows {
+			if row.Cells[0].Text == "Allowed Slop Tolerances (geo_slop_mm)" {
+				return row.Cells[1].Text
+			}
+		}
+		t.Fatalf("Missing Allowed Slop Tolerances row for %s", f.ID)
+		return ""
+	}
+
+	sevenSlop := getSlopStr(frames.SevenExpedition926d)
+	if !strings.Contains(sevenSlop, "wb: ±2.0mm (dynamic precision floor)") {
+		t.Errorf("Expected seven-expedition-926d to use (dynamic precision floor), got: %q", sevenSlop)
+	}
+	if strings.Contains(sevenSlop, "cross:") {
+		t.Errorf("Expected cross: to be absent from slop output, got: %q", sevenSlop)
+	}
+
+	ecrSlop := getSlopStr(frames.SurlyECR)
+	if !strings.Contains(ecrSlop, "wb: ±4.9mm (dynamic rounding propagation)") {
+		t.Errorf("Expected surly-ecr to use (dynamic rounding propagation), got: %q", ecrSlop)
+	}
+	if strings.Contains(ecrSlop, "cross:") {
+		t.Errorf("Expected cross: to be absent from slop output, got: %q", ecrSlop)
+	}
+
+	mootsSlop := getSlopStr(frames.MootsMountaineer)
+	if !strings.Contains(mootsSlop, "(dynamic rounding propagation)") || strings.Contains(mootsSlop, "(dynamic precision floor)") {
+		t.Errorf("Expected moots-mountaineer (> 2.0mm) to use (dynamic rounding propagation), got: %q", mootsSlop)
+	}
+	if strings.Contains(mootsSlop, "cross:") {
+		t.Errorf("Expected cross: to be absent from slop output, got: %q", mootsSlop)
+	}
+
+	badFrame := frames.SurlyECR.Clone()
+	badFrame.GeoSlopMm = &model.GeoSlopMm{Wheelbase: new(1.5), Reason: "below floor"}
+	rep := validator.ValidateFrame(badFrame)
+	if rep.IsValid {
+		t.Errorf("Expected ValidateFrame to reject GeoSlopMm.Wheelbase=1.5 below 2.0mm floor")
+	}
+}
+
+func TestDeclaredModeLabel(t *testing.T) {
+	// F-p4d-4: Detail table uses "CAD Convention" matching the summary table rather than "Inferred Published Mode".
+	doc, valid, err := validator.BuildValidationDocument([]validator.Target{
+		{Frame: frames.EskerHayduke, Size: frames.EskerHayduke.DefaultSize},
+	})
+	if err != nil || !valid {
+		t.Fatalf("BuildValidationDocument(esker-hayduke) failed: valid=%v err=%v", valid, err)
+	}
+	var modeVal string
+	for _, row := range doc.Tables()[1].Rows {
+		if row.Cells[0].Text == "Inferred Published Mode" {
+			t.Errorf("Unexpected legacy label 'Inferred Published Mode' in detail table")
+		}
+		if row.Cells[0].Text == "CAD Convention" {
+			modeVal = row.Cells[1].Text
+		}
+	}
+	if modeVal != "Sagged CAD" {
+		t.Errorf("CAD Convention for esker-hayduke = %q, want %q", modeVal, "Sagged CAD")
+	}
+}
+
+func TestSizeResidualsUsesDeclaredCadFork(t *testing.T) {
+	// F-p4ab-5: SizeResiduals must evaluate FC calc and WB calc at the declared CAD fork + spacer
+	// (502mm structural A2C on binary-havok) rather than Stack-implied A2C.
+	residuals, err := validator.SizeResiduals(frames.BinaryHavok)
+	if err != nil {
+		t.Fatalf("SizeResiduals(binary-havok) failed: %v", err)
+	}
+	var m *validator.SizeResidual
+	for i := range residuals {
+		if residuals[i].Size == "M" {
+			m = &residuals[i]
+			break
+		}
+	}
+	if m == nil {
+		t.Fatalf("size M not found in binary-havok residuals")
+	}
+	if m.FcCalc != 657.0 {
+		t.Errorf("binary-havok:M FcCalc = %.1f, want 657.0 (declared CAD fork 502mm)", m.FcCalc)
+	}
+	if m.WbCalc != 1092.7 {
+		t.Errorf("binary-havok:M WbCalc = %.1f, want 1092.7 (declared CAD fork 502mm)", m.WbCalc)
+	}
+	if m.DeltaFc == nil || *m.DeltaFc != 0.0 {
+		t.Errorf("binary-havok:M DeltaFc = %v, want 0.0", m.DeltaFc)
+	}
+	if m.DeltaWb == nil || *m.DeltaWb != 0.7 {
+		t.Errorf("binary-havok:M DeltaWb = %v, want +0.7", m.DeltaWb)
 	}
 }

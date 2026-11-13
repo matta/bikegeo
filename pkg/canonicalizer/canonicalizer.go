@@ -645,15 +645,15 @@ func CanonicalizeBikes(
 			StaDeg:             bike.StaDeg,
 			BbDrop:             bike.BbDrop,
 			A2c:                baseA2c,
-			Aett:               geometry.Round(baselineAett, 1),
+			Aett:               baselineAett,
 			ActualSetback:      baselineSetback,
-			SpareVerticalStack: geometry.Round(verticalStack, 1),
-			SpareAxialSteerer:  geometry.Round(axialLength, 1),
+			SpareVerticalStack: verticalStack,
+			SpareAxialSteerer:  axialLength,
 			SeatpostExtension:  geometry.CalculateSeatpostExtension(seatHeight, bike.SeatTubeLength),
-			Chainstay:          geometry.Round(activeCS, 1),
-			SeatToRearCenter:   geometry.Round(baseRearCenter-baselineSetback, 1),
+			Chainstay:          activeCS,
+			SeatToRearCenter:   baseRearCenter - baselineSetback,
 			SaddleHbMm:         baseHB.SaddleHbMm,
-			TrailMm:            geometry.Round(geometry.CalculateTrail(bike.HtaDeg, bike.GetCadRake(), bike.WheelRadiusMm()), 1),
+			TrailMm:            geometry.CalculateTrail(bike.HtaDeg, bike.GetCadRake(), bike.WheelRadiusMm()),
 		}
 
 		canonical, err := geometry.AnalyzeBikeFitWithSaddle(

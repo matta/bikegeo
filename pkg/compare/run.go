@@ -90,16 +90,19 @@ func Run(opts Options) (*Result, error) {
 		}
 	}
 
+	if opts.Top < 0 {
+		return nil, fmt.Errorf("--top must be a non-negative integer, got %d", opts.Top)
+	}
 	topPerFrame := 0
 	if opts.TopPerFrame != nil {
+		if *opts.TopPerFrame < 0 {
+			return nil, fmt.Errorf("--top-per-frame must be a non-negative integer, got %d", *opts.TopPerFrame)
+		}
 		topPerFrame = *opts.TopPerFrame
 	} else if isAllFrames {
 		topPerFrame = 1
 	} else if hasAllForksExpansion {
 		topPerFrame = 5
-	}
-	if topPerFrame < 0 {
-		topPerFrame = 0
 	}
 
 	if len(posArgs) > 0 {

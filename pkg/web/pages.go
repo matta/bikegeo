@@ -169,8 +169,6 @@ func pages() []page {
 					numberControl(v, "brp-setback", "BRP setback (mm)", "derives sit-bone setback"),
 					numberControl(v, "seatpost", "Seatpost setback (mm)", "default 11"),
 					numberControl(v, "clamp-length", "Clamp length (mm)", "default 30"),
-					numberControl(v, "cockpit-dist", "Cockpit distance (mm)", "saddle to bars, default 700"),
-					numberControl(v, "cockpit-drop", "Cockpit drop (mm)", "default 13"),
 				}
 			},
 			Build: run(func(db *docb, v url.Values) int { return db.saddleSwap(v) }),

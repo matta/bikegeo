@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"math"
 	"net/url"
 	"strings"
 
@@ -17,6 +18,14 @@ func (db *docb) saddles(v url.Values) int {
 	sitBoneSetback := fl.get("sit-bone-setback", 292.0)
 	if fl.err != nil {
 		db.fail("%v", fl.err)
+		return 1
+	}
+	if !(saddleHeight > 0) || math.IsInf(saddleHeight, 0) {
+		db.fail("Error: saddle-height must be positive (got %g)", saddleHeight)
+		return 1
+	}
+	if !(sitBoneSetback > 0) || math.IsInf(sitBoneSetback, 0) {
+		db.fail("Error: sit-bone-setback must be positive (got %g)", sitBoneSetback)
 		return 1
 	}
 	var posArgs []string
@@ -37,6 +46,10 @@ func (db *docb) saddles(v url.Values) int {
 	}
 
 	saddles := catalog.AllSaddles()
+	catalogSaddles := saddles
+	if len(posArgs) > 0 {
+		catalogSaddles = []model.SaddleSpec{selectedSaddle}
+	}
 	headers := []string{
 		"Saddle ID",
 		"Name",
@@ -48,7 +61,7 @@ func (db *docb) saddles(v url.Values) int {
 	}
 	var rows [][]string
 
-	for _, s := range saddles {
+	for _, s := range catalogSaddles {
 		stepStr := "0.0 mm"
 		if s.SitBonesElevationMm > 0 {
 			stepStr = fmt.Sprintf("+%.1f mm", s.SitBonesElevationMm)
@@ -64,7 +77,7 @@ func (db *docb) saddles(v url.Values) int {
 		})
 	}
 
-	title := fmt.Sprintf("Canonical Saddle Catalog (%d)", len(saddles))
+	title := fmt.Sprintf("Canonical Saddle Catalog (%d)", len(catalogSaddles))
 	subtitle := "Origin (0.0mm) is the midpoint of the straight rail clamping zone; (+) forward toward nose, (-) rearward toward tail"
 
 	var footers []report.Footer
@@ -73,23 +86,47 @@ func (db *docb) saddles(v url.Values) int {
 	sqlab, hasSQ := catalog.GetSaddle("sqlab-610-ergolux")
 	aspin, hasAspin := catalog.GetSaddle("berthoud-aspin-open")
 	slr, hasSLR := catalog.GetSaddle("selle-italia-slr-boost-superflow-l3")
-	if hasSQ && hasAspin && hasSLR {
+	var refBrpSetback float64
+	if hasSQ {
+		refBrpSetback = sqlab.BrpSetbackFromSitBones(sitBoneSetback)
+	}
+	if len(posArgs) == 0 && hasSQ && hasAspin && hasSLR {
 		transAspinDropBest := geometry.TranslateSaddleFit(sqlab, -15.0, aspin, model.DropBestClampLengthMm)
 		transAspinStd := geometry.TranslateSaddleFit(sqlab, 0.0, aspin, model.DefaultSeatpostClampLengthMm)
 		transSlrDropBest := geometry.TranslateSaddleFit(sqlab, -15.0, slr, model.DropBestClampLengthMm)
 		transSlrStd := geometry.TranslateSaddleFit(sqlab, 0.0, slr, model.DefaultSeatpostClampLengthMm)
 
+		shSQ11 := sqlab.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
+		shAspin11 := aspin.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
+		shSLR11 := slr.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
+		resSQ11 := geometry.CalculateIdealSeatTubeAngle(sqlab, sitBoneSetback, shSQ11, model.DefaultSeatpostSetbackMm, "11mm", model.DefaultSeatpostClampLengthMm)
+		resAspin11 := geometry.CalculateIdealSeatTubeAngle(aspin, sitBoneSetback, shAspin11, model.DefaultSeatpostSetbackMm, "11mm", model.DefaultSeatpostClampLengthMm)
+		resSLR11 := geometry.CalculateIdealSeatTubeAngle(slr, sitBoneSetback, shSLR11, model.DefaultSeatpostSetbackMm, "11mm", model.DefaultSeatpostClampLengthMm)
+		deltaAspin11 := resAspin11.IdealStaDeg - resSQ11.IdealStaDeg
+		deltaSlr11 := resSLR11.IdealStaDeg - resSQ11.IdealStaDeg
+		aspinDir := "slackening STA by"
+		if deltaAspin11 >= 0 {
+			aspinDir = "steepening STA by"
+		}
+		slrDir := "steepening STA by"
+		if deltaSlr11 < 0 {
+			slrDir = "slackening STA by"
+		}
+
 		footers = append(footers, report.Footer{
 			Title: "Cross-Saddle Fit Translation: SQlab 610 Ergolux vs. Catalog Saddles",
 			Lines: []string{
-				fmt.Sprintf("Pelvic Fit Equivalence (Aspin): Rail-to-sit-bone delta is only %.1f mm (Aspin -44.5mm vs SQlab -50.0mm), slackening STA by ~0.44° at %.0fmm SH.", transAspinDropBest.SitBoneDeltaMm, saddleHeight),
-				fmt.Sprintf("Pelvic Fit Equivalence (SLR Boost): Sit bones sit 15.3 mm further rearward (SLR -65.3mm vs SQlab -50.0mm), steepening STA by ~1.20° at %.0fmm SH.", saddleHeight),
-				"BRP Caliper Discrepancy: BRP lines vary widely due to nose taper (Aspin 88mm vs SQlab 73mm vs SLR Boost 83mm from sit bones), proving raw BRP misleads without resolving sit bones.",
-				fmt.Sprintf("Clamp Translation to Aspin: Clamping SQlab at -15.0mm translates to %.1fmm on Aspin (window [%.1f, +%.1f] mm; feasible: %t); dead-center translates to +%.1fmm (window [%.1f, +%.1f] mm).",
+				fmt.Sprintf("Pelvic Fit Equivalence (Aspin): Rail-to-sit-bone delta is only %.1f mm (Aspin %.1fmm vs SQlab %.1fmm), %s ~%.2f° at %.0fmm SH / %.0fmm sit-bone setback (11mm post).",
+					transAspinDropBest.SitBoneDeltaMm, aspin.RailCenterToSitBonesMm, sqlab.RailCenterToSitBonesMm, aspinDir, math.Abs(deltaAspin11), saddleHeight, sitBoneSetback),
+				fmt.Sprintf("Pelvic Fit Equivalence (SLR Boost): Sit bones sit %.1f mm further rearward (SLR %.1fmm vs SQlab %.1fmm), %s ~%.2f° at %.0fmm SH / %.0fmm sit-bone setback (11mm post).",
+					math.Abs(transSlrDropBest.SitBoneDeltaMm), slr.RailCenterToSitBonesMm, sqlab.RailCenterToSitBonesMm, slrDir, math.Abs(deltaSlr11), saddleHeight, sitBoneSetback),
+				fmt.Sprintf("BRP Caliper Discrepancy: BRP lines vary widely due to nose taper (Aspin %.0fmm vs SQlab %.0fmm vs SLR Boost %.0fmm from sit bones), proving raw BRP misleads without resolving sit bones.",
+					aspin.DeltaBrpToSitBonesMm(), sqlab.DeltaBrpToSitBonesMm(), slr.DeltaBrpToSitBonesMm()),
+				fmt.Sprintf("Clamp Translation to Aspin: Clamping SQlab at -15.0mm translates to %+.1fmm on Aspin (window [%.1f, %+.1f] mm; feasible: %t); dead-center translates to %+.1fmm (window [%.1f, %+.1f] mm).",
 					transAspinDropBest.TargetClampOffset, transAspinDropBest.TargetClampMin, transAspinDropBest.TargetClampMax, transAspinDropBest.IsFeasible,
 					transAspinStd.TargetClampOffset, transAspinStd.TargetClampMin, transAspinStd.TargetClampMax),
-				fmt.Sprintf("Clamp Translation to SLR Boost: Clamping SQlab at dead-center (0.0mm) translates to %+.1fmm on SLR Boost (30mm clamp window [%.1f, +%.1f] mm; feasible: %t; 45mm clamp feasible: %t due to 40mm rail).",
-					transSlrStd.TargetClampOffset, transSlrStd.TargetClampMin, transSlrStd.TargetClampMax, transSlrStd.IsFeasible, transSlrDropBest.IsFeasible),
+				fmt.Sprintf("Clamp Translation to SLR Boost: Clamping SQlab at dead-center (0.0mm) translates to %+.1fmm on SLR Boost (30mm clamp window [%.1f, %+.1f] mm; feasible: %t; 45mm clamp feasible: %t due to %.0fmm rail).",
+					transSlrStd.TargetClampOffset, transSlrStd.TargetClampMin, transSlrStd.TargetClampMax, transSlrStd.IsFeasible, transSlrDropBest.IsFeasible, slr.RailLengthMm),
 			},
 		})
 	}
@@ -128,15 +165,34 @@ func (db *docb) saddles(v url.Values) int {
 			"Safe Range (SLR Boost)",
 		}
 		var compRows [][]string
+		maxSQAspinDiff := 0.0
+		minSLRDelta := math.Inf(1)
+		maxSLRDelta := math.Inf(-1)
+		var aspin39, sq39 float64
 
 		for _, p := range posts {
-			shSQ := sqlab.TranslateSaddleHeightFromRef(sqlab, saddleHeight, 219.0)
-			shAspin := aspin.TranslateSaddleHeightFromRef(sqlab, saddleHeight, 219.0)
-			shSLR := slr.TranslateSaddleHeightFromRef(sqlab, saddleHeight, 219.0)
+			shSQ := sqlab.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
+			shAspin := aspin.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
+			shSLR := slr.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
 
 			resSQ := geometry.CalculateIdealSeatTubeAngle(sqlab, sitBoneSetback, shSQ, p.setback, p.name, p.clamp)
 			resAspin := geometry.CalculateIdealSeatTubeAngle(aspin, sitBoneSetback, shAspin, p.setback, p.name, p.clamp)
 			resSLR := geometry.CalculateIdealSeatTubeAngle(slr, sitBoneSetback, shSLR, p.setback, p.name, p.clamp)
+
+			if d := math.Abs(resSQ.IdealStaDeg - resAspin.IdealStaDeg); d > maxSQAspinDiff {
+				maxSQAspinDiff = d
+			}
+			slrDiff := resSLR.IdealStaDeg - resSQ.IdealStaDeg
+			if slrDiff < minSLRDelta {
+				minSLRDelta = slrDiff
+			}
+			if slrDiff > maxSLRDelta {
+				maxSLRDelta = slrDiff
+			}
+			if p.setback == 39.0 {
+				sq39 = resSQ.IdealStaDeg
+				aspin39 = resAspin.IdealStaDeg
+			}
 
 			safeSLR := fmt.Sprintf("%.1f°–%.1f°", resSLR.MinStaDeg, resSLR.MaxStaDeg)
 			if p.clamp > slr.RailLengthMm {
@@ -155,6 +211,8 @@ func (db *docb) saddles(v url.Values) int {
 			})
 		}
 
+		min39 := math.Min(aspin39, sq39)
+		max39 := math.Max(aspin39, sq39)
 		compTitle := "Ideal Seat Tube Angle"
 		compSubtitle := fmt.Sprintf("Saddle Height: %.0fmm | Target Sit Bone Setback: %.0fmm behind BB", saddleHeight, sitBoneSetback)
 		compFooters := []report.Footer{
@@ -162,9 +220,12 @@ func (db *docb) saddles(v url.Values) int {
 				Title: "Seat Tube Angle Interpretation & Comparison",
 				Lines: []string{
 					"At a given saddle height and seatpost setback, the Ideal STA directly reflects the saddle's rail-to-sit-bone geometry.",
-					"SQlab 610 (-50.0mm) and Berthoud Aspin (-44.5mm) track within 0.45° of each other across all seatposts.",
-					"Selle Italia SLR Boost (-65.3mm) places sit bones 15.3mm further rearward, requiring a ~1.2° steeper STA (or ~15mm less seatpost setback) to achieve the same pelvic position.",
-					"With a 39mm sagged setup (Redshift + Drop Best), the Ideal STA is ~74.2°–74.5° for SQlab/Aspin (explaining why the Otso Fenrir L at 74.53° requires the Drop Best). Note: 45mm clamps exceed the SLR Boost's 40mm straight rail.",
+					fmt.Sprintf("SQlab 610 (%.1fmm) and Berthoud Aspin (%.1fmm) track within %.2f° of each other across all listed seatposts.",
+						sqlab.RailCenterToSitBonesMm, aspin.RailCenterToSitBonesMm, maxSQAspinDiff),
+					fmt.Sprintf("Selle Italia SLR Boost (%.1fmm) places sit bones %.1fmm further rearward than SQlab 610, requiring a %.2f°–%.2f° steeper STA to achieve the same pelvic position.",
+						slr.RailCenterToSitBonesMm, math.Abs(slr.RailCenterToSitBonesMm-sqlab.RailCenterToSitBonesMm), minSLRDelta, maxSLRDelta),
+					fmt.Sprintf("With a 39mm sagged setup (Redshift + Drop Best), the Ideal STA is %.1f°–%.1f° for Aspin/SQlab at %.0fmm SH and %.0fmm sit-bone setback (note: 45mm clamps exceed the SLR Boost's %.0fmm straight rail).",
+						min39, max39, saddleHeight, sitBoneSetback, slr.RailLengthMm),
 				},
 			},
 		}
@@ -257,7 +318,10 @@ func (db *docb) saddles(v url.Values) int {
 		}
 		var staRows [][]string
 
-		sh := s.TranslateSaddleHeightFromRef(sqlab, saddleHeight, 219.0)
+		sh := saddleHeight
+		if hasSQ {
+			sh = s.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
+		}
 		for _, p := range posts {
 			res := geometry.CalculateIdealSeatTubeAngle(
 				s,
@@ -268,13 +332,19 @@ func (db *docb) saddles(v url.Values) int {
 				p.clamp,
 			)
 
+			safeRange := fmt.Sprintf("%.1f°–%.1f°", res.MinStaDeg, res.MaxStaDeg)
+			marginRange := fmt.Sprintf("%.1f°–%.1f°", res.IdealMarginMinStaDeg, res.IdealMarginMaxStaDeg)
+			if p.clamp > s.RailLengthMm {
+				safeRange = "N/A (clamp > rail)"
+				marginRange = "N/A (clamp > rail)"
+			}
 			staRows = append(staRows, []string{
 				p.name,
 				fmt.Sprintf("%.1f mm", p.setback),
 				fmt.Sprintf("%.1f mm", res.SeatTubeSetbackMm),
 				fmt.Sprintf("%.1f°", res.IdealStaDeg),
-				fmt.Sprintf("%.1f°–%.1f°", res.MinStaDeg, res.MaxStaDeg),
-				fmt.Sprintf("%.1f°–%.1f°", res.IdealMarginMinStaDeg, res.IdealMarginMaxStaDeg),
+				safeRange,
+				marginRange,
 			})
 		}
 

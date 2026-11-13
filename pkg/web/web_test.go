@@ -344,9 +344,24 @@ func TestCompare_FieldErrorBesideInput(t *testing.T) {
 	if got := text(doc.Find(".field-error")); !strings.Contains(got, `"abc"`) {
 		t.Errorf("field error = %q", got)
 	}
-	// Valid parts of the request still render.
-	if doc.Find(`table[data-table="fit-cockpit"]`).Length() != 1 {
-		t.Error("results should still render for the valid parts of the query")
+	if doc.Find(`#results, table[data-table]`).Length() != 0 {
+		t.Error("result tables should be omitted on HTTP 400")
+	}
+}
+
+func TestCompareInvalidTopOmitsResults(t *testing.T) {
+	for _, target := range []string{"/?top=-1", "/?top_per_frame=-1"} {
+		rec, doc := do(t, target)
+		mustStatus(t, rec, http.StatusBadRequest)
+		if doc.Find(`#errors[role="alert"]`).Length() != 1 {
+			t.Errorf("%s: missing alert banner", target)
+		}
+		if doc.Find(`#results, table[data-table]`).Length() != 0 {
+			t.Errorf("%s: expected result tables omitted on HTTP 400", target)
+		}
+		if doc.Find("form.controls").Length() != 1 {
+			t.Errorf("%s: form must still render", target)
+		}
 	}
 }
 
@@ -703,7 +718,7 @@ func TestMarkedCellsHaveZone(t *testing.T) {
 	checkPage("/")
 	checkPage("/?layout=columns&col=otso-fenrir-stainless:L@110mm@20%25&col=salsa-fargo:XL@rigid")
 
-	// Specifically verify F-p4c-3 case: Otso Fenrir (L) @ 110mm Trail is "106 ✓" with zone-ideal.
+	// Verify Otso Fenrir (L) @ 110mm Trail cell has ideal zone marker matching normalized CAD baseline.
 	_, doc := do(t, "/")
 	var fenrir110Trail *goquery.Selection
 	doc.Find(`table[data-table="fit-cockpit"] tbody tr[data-frame-id="otso-fenrir-stainless"][data-size="L"]`).Each(func(_ int, tr *goquery.Selection) {
@@ -714,8 +729,8 @@ func TestMarkedCellsHaveZone(t *testing.T) {
 	if fenrir110Trail == nil || fenrir110Trail.Length() != 1 {
 		t.Fatal("missing Fenrir L @ 110mm trail cell")
 	}
-	if got := text(fenrir110Trail); got != "106 ✓" {
-		t.Errorf("Fenrir L @ 110mm trail = %q, want %q", got, "106 ✓")
+	if got := text(fenrir110Trail); got != "102 ✓" {
+		t.Errorf("Fenrir L @ 110mm trail = %q, want %q", got, "102 ✓")
 	}
 	if got := fenrir110Trail.AttrOr("data-zone", ""); got != "ideal" || !fenrir110Trail.HasClass("zone-ideal") {
 		t.Errorf("Fenrir L @ 110mm trail zone=%q class=%q, want ideal / zone-ideal", got, fenrir110Trail.AttrOr("class", ""))
@@ -903,4 +918,145 @@ func TestRunServe_RenderInMemory(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestHelp_StatesPerCriterionFloorsAndTotalRange(t *testing.T) {
+	rec, doc := do(t, "/help")
+	mustStatus(t, rec, http.StatusOK)
+
+	body := doc.Find("#zones").Text()
+	for _, want := range []string{"-100 or -200", "> -166 to +100"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("/help #zones missing %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "down to -200") {
+		t.Errorf("/help #zones still claims scores run down to -200:\n%s", body)
+	}
+}
+
+func TestSaddlesDetailClampExceedsRailAndSingleRounding(t *testing.T) {
+	rec, doc := do(t, "/saddles")
+	mustStatus(t, rec, http.StatusOK)
+
+	// Per-saddle SLR Boost detail table is the last table; 35mm and 39mm Drop Best (45mm clamp)
+	// exceed 40mm rail length and must report N/A (clamp > rail).
+	slrTable := doc.Find("table").Last()
+	if !strings.Contains(slrTable.Text(), "N/A (clamp > rail)") {
+		t.Errorf("SLR Boost detail table missing N/A (clamp > rail):\n%s", slrTable.Text())
+	}
+
+	// SQlab 0mm post exact 2D inverse STA is 71.161° -> 71.2° (flat acos was 71.07° -> 71.1°),
+	// and unrounded IdealStaDeg must not snap to a 0.01° grid.
+	sqTable := doc.Find("table").Eq(3)
+	if !strings.Contains(sqTable.Text(), "71.2°") {
+		t.Errorf("SQlab 0mm Ideal STA should reflect exact 2D inverse 71.2°:\n%s", sqTable.Text())
+	}
+}
+
+func TestSaddlesAndHandlebarsProseMatchesTables(t *testing.T) {
+	// Vary saddle-height and sit-bone-setback on /saddles: prose must update rather than stay hardcoded.
+	rec, doc800 := do(t, "/saddles?saddle-height=800&sit-bone-setback=320")
+	mustStatus(t, rec, http.StatusOK)
+	body800 := text(doc800.Find("body"))
+	for _, stale := range []string{"~0.44°", "~1.20°", "~74.2°–74.5°", "within 0.45°"} {
+		if strings.Contains(body800, stale) {
+			t.Errorf("/saddles?saddle-height=800&sit-bone-setback=320 kept stale hardcoded prose %q", stale)
+		}
+	}
+
+	// Dynamic refBrpSetback shifts Aspin equivalent saddle height when sit-bone-setback changes.
+	rec260, doc260 := do(t, "/saddles?saddle-height=746&sit-bone-setback=260")
+	mustStatus(t, rec260, http.StatusOK)
+	rec320, doc320 := do(t, "/saddles?saddle-height=746&sit-bone-setback=320")
+	mustStatus(t, rec320, http.StatusOK)
+	if text(doc260.Find("body")) == text(doc320.Find("body")) {
+		t.Error("/saddles output did not vary between sit-bone-setback=260 and 320")
+	}
+	if !strings.Contains(text(doc260.Find("body")), "Equivalent Saddle Height: 752mm") {
+		t.Errorf("expected dynamic Aspin Equivalent Saddle Height 752mm at SB=260")
+	}
+
+	// /saddles?id= must filter catalog to a single row and omit cross-saddle footer.
+	recID, docID := do(t, "/saddles?id=sqlab-610-ergolux")
+	mustStatus(t, recID, http.StatusOK)
+	if got := docID.Find("table[data-table]").First().Find("tbody tr").Length(); got != 1 {
+		t.Errorf("/saddles?id=sqlab-610-ergolux catalog rows = %d, want 1", got)
+	}
+	if strings.Contains(text(docID.Find("body")), "Cross-Saddle Fit Translation") {
+		t.Error("/saddles?id=sqlab-610-ergolux should omit Cross-Saddle Fit Translation footer")
+	}
+
+	// /handlebars default Key Kinematic Insights uses exact -3.7mm / -6.3mm rotation delta and updates on params.
+	recHBDef, docHBDef := do(t, "/handlebars")
+	mustStatus(t, recHBDef, http.StatusOK)
+	hbDefBody := text(docHBDef.Find("body"))
+	for _, want := range []string{"-3.7mm Reach", "-6.3mm Stack"} {
+		if !strings.Contains(hbDefBody, want) {
+			t.Errorf("/handlebars default prose missing exact 2D roll sensitivity %q", want)
+		}
+	}
+	for _, stale := range []string{"-4.0mm", "-6.1mm"} {
+		if strings.Contains(hbDefBody, stale) {
+			t.Errorf("/handlebars default prose still contains inaccurate rotation %q", stale)
+		}
+	}
+
+	recHBMod, docHBMod := do(t, "/handlebars?grip-inset=50&roll=-5")
+	mustStatus(t, recHBMod, http.StatusOK)
+	if strings.Contains(text(docHBMod.Find("body")), "-72.8mm vs -69.7mm") {
+		t.Error("/handlebars?grip-inset=50&roll=-5 kept hardcoded default Insight numbers")
+	}
+}
+
+func TestHandlebarsCompareFooterSignAndWidth(t *testing.T) {
+	rec, doc := do(t, "/handlebars?id=persuader20_840&compare=sqlab311_FLX_12_15")
+	mustStatus(t, rec, http.StatusOK)
+	body := text(doc.Find("body"))
+	if strings.Contains(body, "+13.9 mm lower") || strings.Contains(body, "+-") {
+		t.Errorf("/handlebars compare footer has erroneous '+' before magnitude:\n%s", body)
+	}
+	if !strings.Contains(body, "13.9 mm lower (downward)") {
+		t.Errorf("/handlebars compare footer missing '13.9 mm lower (downward)':\n%s", body)
+	}
+
+	// width= must be rejected during two-bar comparison.
+	recW, docW := do(t, "/handlebars?id=persuader20_800&compare=persuader20_800&width=720")
+	mustStatus(t, recW, http.StatusBadRequest)
+	if docW.Find(".banner").Length() == 0 {
+		t.Error("/handlebars compare with width= missing error banner")
+	}
+}
+
+func TestWebAnalysisInputValidation(t *testing.T) {
+	badRoutes := []string{
+		"/saddles?saddle-height=0",
+		"/saddles?saddle-height=-5",
+		"/saddles?sit-bone-setback=-10",
+		"/saddle-swap?saddle-height=0",
+		"/saddle-swap?saddle-height=-5",
+		"/saddle-swap?brp-setback=230&sit-bone-setback=350",
+		"/saddle-swap?clamp-length=0",
+		"/handlebars?id=persuader20_800&width=100",
+		"/handlebars?id=persuader20_800&width=0",
+		"/handlebars?id=persuader20_800&width=-50",
+		"/handlebars?id=persuader20_800&width=900",
+		"/handlebars?id=persuader20_800&grip-inset=0",
+		"/handlebars?id=persuader20_800&grip-inset=-10",
+		"/handlebars?width=900",
+	}
+	for _, route := range badRoutes {
+		rec, doc := do(t, route)
+		mustStatus(t, rec, http.StatusBadRequest)
+		if text(doc.Find(".banner")) == "" {
+			t.Errorf("%s: expected non-empty error banner on HTTP 400", route)
+		}
+	}
+
+	// /saddle-swap must no longer expose unused cockpit-dist / cockpit-drop form controls.
+	recSwap, docSwap := do(t, "/saddle-swap")
+	mustStatus(t, recSwap, http.StatusOK)
+	if docSwap.Find(`input[name="cockpit-dist"], input[name="cockpit-drop"]`).Length() != 0 {
+		t.Error("/saddle-swap still exposes unused cockpit-dist/cockpit-drop controls")
+	}
 }

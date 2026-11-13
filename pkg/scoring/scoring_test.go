@@ -957,3 +957,78 @@ func TestLossAndHeadToHeadUseRegistryLabel(t *testing.T) {
 		t.Errorf("head-to-head should label Oval Fits values as sub-score: %s", h2hJoined)
 	}
 }
+
+func TestBrpSetbackExtractMatchesSelectedBRP(t *testing.T) {
+	meta, ok := ideal.LookupAttribute("brp_setback")
+	if !ok {
+		t.Fatal("missing brp_setback attribute")
+	}
+	row := model.CanonicalComparisonRow{
+		Canonical: model.BikeFitAnalysis{
+			DeadCenterBRP: model.BRPPoint{BrpSetbackMm: 185.0},
+			SelectedBRP:   &model.BRPPoint{BrpSetbackMm: 200.0, RailOffsetMm: 15.0},
+		},
+	}
+	val, valid := meta.Extract(row)
+	if !valid || val != 200.0 {
+		t.Errorf("brp_setback Extract = (%.1f, %v), want (200.0, true)", val, valid)
+	}
+}
+
+func TestExplainProfile_HeadToHeadReconcilesAllFactors(t *testing.T) {
+	prof, err := ideal.GetProfile("idmatch")
+	if err != nil {
+		t.Fatalf("GetProfile(idmatch): %v", err)
+	}
+
+	// Build two frames differing in 3 positive factors (+5, +4, +2), 2 negative
+	// factors (-3, -2), and a <1 pt factor (+0.4): total gap = 65 - 59 = 6.
+	makeCrit := func(id, label, unit string, val, pts float64) CriterionResult {
+		return CriterionResult{ID: id, Label: label, Unit: unit, Value: val, Points: pts, Weight: 1}
+	}
+	fa := ScoredFrame{
+		Name: "Frame A (L)",
+		Score: Result{
+			Total: 65.4,
+			Criteria: []CriterionResult{
+				makeCrit("brp_setback", "BRP Setback", "mm", 215, 25),
+				makeCrit("handlebar_clamp_fit", "Oval Fits", "", 80, 34),
+				makeCrit("seatpost_extension", "Seatpost Ext", "mm", 270, 12),
+				makeCrit("frontwt", "Front Wt", "%", 35.0, 5),
+				makeCrit("bbdrop", "BB Drop", "mm", 62, 5),
+				makeCrit("trail", "Trail", "mm", 102, 10.4),
+			},
+		},
+	}
+	fb := ScoredFrame{
+		Name: "Frame B (L)",
+		Score: Result{
+			Total: 59.0,
+			Criteria: []CriterionResult{
+				makeCrit("brp_setback", "BRP Setback", "mm", 205, 20),
+				makeCrit("handlebar_clamp_fit", "Oval Fits", "", 65, 30),
+				makeCrit("seatpost_extension", "Seatpost Ext", "mm", 250, 10),
+				makeCrit("frontwt", "Front Wt", "%", 37.0, 8),
+				makeCrit("bbdrop", "BB Drop", "mm", 70, 7),
+				makeCrit("trail", "Trail", "mm", 101, 10.0),
+			},
+		},
+	}
+
+	expl := ExplainProfile([]ScoredFrame{fa, fb}, prof)
+	if len(expl.HeadToHead) != 1 {
+		t.Fatalf("HeadToHead count = %d, want 1", len(expl.HeadToHead))
+	}
+	line := expl.HeadToHead[0]
+	for _, want := range []string{
+		"BRP Setback 215mm vs 205mm (+5)",
+		"Oval Fits sub-score 80 vs 65 (+4)",
+		"Seatpost Ext 270mm vs 250mm (+2)",
+		"Front Wt 35.0% vs 37.0% (-3)",
+		"BB Drop 62mm vs 70mm (-2)",
+	} {
+		if !strings.Contains(line, want) {
+			t.Errorf("H2H line missing %q:\n%s", want, line)
+		}
+	}
+}

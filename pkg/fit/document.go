@@ -15,18 +15,82 @@ func passFail(ok bool) report.Cell {
 	return report.Cell{Text: "FAIL", Zone: report.ZoneOutside}
 }
 
+// collectErrorNotices extracts frame-level and per-size [ERROR] notices in deterministic order.
+func collectErrorNotices(res *FitResult) []string {
+	if res == nil || res.IsValid {
+		return nil
+	}
+	var notices []string
+	for _, iss := range res.FrameReport.Issues {
+		if iss.Severity == model.SeverityError {
+			notices = append(notices, fmt.Sprintf("[ERROR] %s: %s", iss.Title, iss.Message))
+		}
+	}
+	for _, sz := range res.Frame.GetSizes() {
+		rep, ok := res.FrameReport.SizeReports[sz]
+		if !ok {
+			continue
+		}
+		for _, iss := range rep.Issues {
+			if iss.Severity == model.SeverityError {
+				notices = append(notices, fmt.Sprintf("[ERROR] [Size %s] %s: %s", sz, iss.Title, iss.Message))
+			}
+		}
+	}
+	return notices
+}
+
+func summarizeFailureReason(res *FitResult) string {
+	notices := collectErrorNotices(res)
+	if len(notices) == 0 {
+		if res != nil && !res.IsValid {
+			return "Validation failed"
+		}
+		return "—"
+	}
+	first := strings.ReplaceAll(strings.TrimPrefix(notices[0], "[ERROR] "), "\n", " ")
+	if len(notices) > 1 {
+		return fmt.Sprintf("%s (+%d more)", first, len(notices)-1)
+	}
+	return first
+}
+
+func candidatesTable(cands []ComboResult) report.Table {
+	t := report.Table{
+		ID:    "fit-candidates",
+		Title: "Candidate Physical Solutions (Geo slop is an absolute last resort)",
+	}
+	for _, h := range []string{"Physical Configuration", "max|ΔA2C|", "max|ΔWB|", "Valid?", "Solved Go Fields"} {
+		t.Columns = append(t.Columns, report.Column{ID: report.Slug(h), Label: h})
+	}
+	for _, c := range cands {
+		t.Rows = append(t.Rows, report.Row{Kind: report.KindData, Cells: []report.Cell{
+			{Text: c.Description},
+			{Text: fmt.Sprintf("%.1f mm", c.MaxAbsDeltaA2c)},
+			{Text: fmt.Sprintf("%.1f mm", c.MaxAbsDeltaWb)},
+			passFail(c.IsValid),
+			{Text: strings.Join(c.Assignments, ", ")},
+		}})
+	}
+	return t
+}
+
 // BuildSweepDocument lays out the results of RunSweeps. With detail it follows
-// the summary with each combination's per-size residual table.
+// the summary with each combination's per-size residual table and error notices.
 func BuildSweepDocument(frame model.FrameModel, combos []ComboResult, detail bool) report.Document {
 	var doc report.Document
 	t := report.Table{
 		ID:    "fit-sweep",
 		Title: fmt.Sprintf("Fit Sweep: %s %s (%d combinations)", frame.Manufacturer, frame.Model, len(combos)),
 	}
-	for _, h := range []string{"Combo", "max|ΔA2C|", "max|ΔFC|", "max|ΔWB|", "Needed slop (a2c/fc/wb)", "Validate"} {
+	for _, h := range []string{"Combo", "max|ΔA2C|", "max|ΔFC|", "max|ΔWB|", "Needed slop (a2c/fc/wb)", "Validate", "Failure Reason"} {
 		t.Columns = append(t.Columns, report.Column{ID: report.Slug(h), Label: h})
 	}
+	anyValid := false
 	for _, c := range combos {
+		if c.IsValid {
+			anyValid = true
+		}
 		hasFc := c.FitResult != nil && c.FitResult.HasPublishedFc
 		hasWb := c.FitResult != nil && c.FitResult.HasPublishedWb
 		fc, wb := "—", "—"
@@ -39,6 +103,10 @@ func BuildSweepDocument(frame model.FrameModel, combos []ComboResult, detail boo
 			wb = fmt.Sprintf("%.1f mm", c.MaxAbsDeltaWb)
 			slop[2] = fmt.Sprintf("%.1f", c.MinPassingSlopWb)
 		}
+		reason := "—"
+		if !c.IsValid {
+			reason = summarizeFailureReason(c.FitResult)
+		}
 		t.Rows = append(t.Rows, report.Row{Kind: report.KindData, Cells: []report.Cell{
 			{Text: c.Description},
 			{Text: fmt.Sprintf("%.1f mm", c.MaxAbsDeltaA2c)},
@@ -46,12 +114,34 @@ func BuildSweepDocument(frame model.FrameModel, combos []ComboResult, detail boo
 			{Text: wb},
 			{Text: strings.Join(slop, " / ")},
 			passFail(c.IsValid),
+			{Text: reason},
 		}})
 	}
 	doc.AddTable(t)
 	if detail {
 		for _, c := range combos {
 			doc.AddTable(residualsTable("Combination: "+c.Description, c.FitResult))
+			if notices := collectErrorNotices(c.FitResult); len(notices) > 0 {
+				var sb strings.Builder
+				fmt.Fprintf(&sb, "Validation Errors (%d):", len(notices))
+				for _, n := range notices {
+					fmt.Fprintf(&sb, "\n  %s", n)
+				}
+				doc.AddText(sb.String())
+			}
+		}
+	}
+	if !anyValid && len(combos) > 0 {
+		solverFrame := frame
+		configID := "stock"
+		if combos[0].FitResult != nil {
+			solverFrame = combos[0].FitResult.Frame
+			if combos[0].FitResult.ConfigID != "" {
+				configID = combos[0].FitResult.ConfigID
+			}
+		}
+		if cands, err := SolveFit(solverFrame, configID, frame.GetDefaultSize()); err == nil && len(cands) > 0 {
+			doc.AddTable(candidatesTable(cands))
 		}
 	}
 	return doc
@@ -71,9 +161,10 @@ func BuildAnalysisDocument(frame model.FrameModel, configID, targetSize string) 
 	if frame.CadFork.Fork != "" {
 		forkDesc = fmt.Sprintf("%s (%s)", frame.CadFork.Fork, forkDesc)
 	}
+	structA2c := frame.CadFork.A2cMm + frame.GetGeoHeadsetSpacerMm()
 	doc.AddTable(residualsTable(fmt.Sprintf(
-		"%s %s — CAD Fork (%s, spacer %.1f mm, sag %.0f%%)",
-		frame.Manufacturer, frame.Model, forkDesc, frame.GetGeoHeadsetSpacerMm(), frame.CadFork.SagPct), res))
+		"%s %s — CAD Fork (%s, spacer %.1f mm, structural A2C %.1f mm, sag %.0f%%)",
+		frame.Manufacturer, frame.Model, forkDesc, frame.GetGeoHeadsetSpacerMm(), structA2c, frame.CadFork.SagPct), res))
 
 	req := []string{fmt.Sprintf("a2c ±%.1f", res.MinPassingSlopA2c)}
 	if res.HasPublishedFc {
@@ -124,23 +215,7 @@ func BuildAnalysisDocument(frame model.FrameModel, configID, targetSize string) 
 
 	if !res.IsValid || res.MinPassingSlopA2c > 1.0 {
 		if cands, err := SolveFit(frame, configID, targetSize); err == nil && len(cands) > 0 {
-			t := report.Table{
-				ID:    "fit-candidates",
-				Title: "Candidate Physical Solutions (Geo slop is an absolute last resort)",
-			}
-			for _, h := range []string{"Physical Configuration", "max|ΔA2C|", "max|ΔWB|", "Valid?", "Solved Go Fields"} {
-				t.Columns = append(t.Columns, report.Column{ID: report.Slug(h), Label: h})
-			}
-			for _, c := range cands {
-				t.Rows = append(t.Rows, report.Row{Kind: report.KindData, Cells: []report.Cell{
-					{Text: c.Description},
-					{Text: fmt.Sprintf("%.1f mm", c.MaxAbsDeltaA2c)},
-					{Text: fmt.Sprintf("%.1f mm", c.MaxAbsDeltaWb)},
-					passFail(c.IsValid),
-					{Text: strings.Join(c.Assignments, ", ")},
-				}})
-			}
-			doc.AddTable(t)
+			doc.AddTable(candidatesTable(cands))
 		}
 	}
 	return doc, nil

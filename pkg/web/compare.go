@@ -214,19 +214,21 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 	d.Permalink = "/?" + pv.Encode()
 	d.Count = len(res.Rows)
 
-	doc, err := compare.BuildDocument(res, compare.DocOptions{
-		Scoring:    !q.NoScore,
-		Detail:     !q.NoScore,
-		DocFooters: true,
-	})
-	if err != nil {
-		d.Banner = append(d.Banner, err.Error())
-		s.render(w, http.StatusInternalServerError, "compare.html", d)
-		return
+	if status == http.StatusOK {
+		doc, err := compare.BuildDocument(res, compare.DocOptions{
+			Scoring:    !q.NoScore,
+			Detail:     !q.NoScore,
+			DocFooters: true,
+		})
+		if err != nil {
+			d.Banner = append(d.Banner, err.Error())
+			s.render(w, http.StatusInternalServerError, "compare.html", d)
+			return
+		}
+		for _, t := range doc.Tables() {
+			d.Tables = append(d.Tables, toView(t))
+		}
+		d.Footers = doc.Footers
 	}
-	for _, t := range doc.Tables() {
-		d.Tables = append(d.Tables, toView(t))
-	}
-	d.Footers = doc.Footers
 	s.render(w, status, "compare.html", d)
 }

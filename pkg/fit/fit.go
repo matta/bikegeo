@@ -304,23 +304,13 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		return nil
 	case "geo_slop_mm.wheelbase", "slop.wheelbase", "slop.wb":
 		v, err := parseFloat()
-		if err != nil || v < 0 || v > 10.0 {
-			return fmt.Errorf("geo_slop_mm.wheelbase must be between 0 and 10 mm")
+		if err != nil || v < model.DefaultWheelbaseFloorMm || v > 10.0 {
+			return fmt.Errorf("geo_slop_mm.wheelbase must be between %.1f and 10 mm", model.DefaultWheelbaseFloorMm)
 		}
 		if frame.GeoSlopMm == nil {
 			frame.GeoSlopMm = &model.GeoSlopMm{}
 		}
 		frame.GeoSlopMm.Wheelbase = new(v)
-		return nil
-	case "geo_slop_mm.cross_config", "slop.cross_config":
-		v, err := parseFloat()
-		if err != nil || v < 0 || v > 10.0 {
-			return fmt.Errorf("geo_slop_mm.cross_config must be between 0 and 10 mm")
-		}
-		if frame.GeoSlopMm == nil {
-			frame.GeoSlopMm = &model.GeoSlopMm{}
-		}
-		frame.GeoSlopMm.CrossConfig = new(v)
 		return nil
 	case "geo_slop_mm.reason", "slop.reason":
 		if frame.GeoSlopMm == nil {
@@ -647,7 +637,7 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 	}
 	targetA2c := baseFit.BestFitStructuralA2c
 
-	// 1. Candidate Travels
+	// 1. Candidate Travels (sorted for deterministic iteration)
 	travelSet := make(map[float64]bool)
 	for _, t := range []float64{0, 100, 110, 120, 130, 140, 150} {
 		travelSet[t] = true
@@ -655,6 +645,11 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 	if tr := frame.CadFork.ForkTravel(); tr > 0 {
 		travelSet[tr] = true
 	}
+	var travels []float64
+	for t := range travelSet {
+		travels = append(travels, t)
+	}
+	sort.Float64s(travels)
 
 	// 2. Candidate Rakes: declared rake, 44, 51, 55 mm
 	rakeSet := make(map[float64]bool)
@@ -695,12 +690,12 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 
 	var forkCombos []forkCandidate
 
-	for travel := range travelSet {
+	for _, travel := range travels {
 		var sags []float64
 		if travel == 0 {
 			sags = []float64{0}
 		} else {
-			sags = []float64{0, 20, 25, 30}
+			sags = []float64{0, 15, 20, 25, 30}
 		}
 
 		for _, sag := range sags {
@@ -709,16 +704,30 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 				if frame.SupportsRigid() {
 					staticA2cs = append(staticA2cs, frame.GetRigidA2c())
 				}
-				if frame.CadFork.A2cMm > 0 {
+				if frame.CadFork.ForkTravel() == 0 && frame.CadFork.A2cMm > 0 {
 					staticA2cs = append(staticA2cs, frame.CadFork.A2cMm)
 				}
-				for _, a := range []float64{440, 470, 480, 483, 485, 490, 495, 500, 510} {
+				for _, a := range []float64{440, 468, 470, 472, 480, 483, 485, 490, 492, 495, 500, 510} {
 					staticA2cs = append(staticA2cs, a)
 				}
+				for _, f := range catalog.CommonForkCatalog {
+					if f.TravelMm == 0 {
+						for _, opt := range f.Options {
+							staticA2cs = append(staticA2cs, opt.A2cMm)
+						}
+					}
+				}
 			} else {
-				staticA2cs = []float64{travel + 406, travel + 410, travel + 412, travel + 420}
-				if frame.CadFork.StaticA2c() > 0 {
-					staticA2cs = append(staticA2cs, frame.CadFork.StaticA2c())
+				staticA2cs = []float64{travel + 406, travel + 410, travel + 411, travel + 412, travel + 414, travel + 420}
+				for _, f := range catalog.CommonForkCatalog {
+					if math.Abs(f.TravelMm-travel) < 0.1 {
+						for _, opt := range f.Options {
+							staticA2cs = append(staticA2cs, opt.A2cMm)
+						}
+					}
+				}
+				if st := frame.CadFork.StaticA2c(); st > 0 && math.Abs(frame.CadFork.ForkTravel()-travel) < 0.1 {
+					staticA2cs = append(staticA2cs, st)
 				}
 			}
 
@@ -751,49 +760,55 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 	var results []ComboResult
 	seenCombos := make(map[string]bool)
 
+	evalAssignments := func(assigns []string) {
+		desc := strings.Join(assigns, " ")
+		if seenCombos[desc] {
+			return
+		}
+		seenCombos[desc] = true
+
+		clone := CloneFrame(frame)
+		for _, a := range assigns {
+			_ = ApplyAssignment(&clone, configID, defaultSize, a)
+		}
+
+		fitRes, err := AnalyzeFit(clone, configID)
+		if err != nil {
+			return
+		}
+
+		results = append(results, ComboResult{
+			Description:       desc,
+			Assignments:       assigns,
+			MaxAbsDeltaA2c:    fitRes.MinPassingSlopA2c,
+			MaxAbsDeltaFc:     fitRes.MinPassingSlopFc,
+			MaxAbsDeltaWb:     fitRes.MinPassingSlopWb,
+			MinPassingSlopA2c: fitRes.MinPassingSlopA2c,
+			MinPassingSlopFc:  fitRes.MinPassingSlopFc,
+			MinPassingSlopWb:  fitRes.MinPassingSlopWb,
+			IsValid:           fitRes.IsValid,
+			FitResult:         fitRes,
+		})
+	}
+
 	for _, fc := range forkCombos {
 		for _, rake := range rakes {
-			var assigns []string
-			assigns = append(assigns, fmt.Sprintf("cad_fork.a2c=%.0f", fc.effA2c))
-			assigns = append(assigns, fmt.Sprintf("cad_fork.rake=%.0f", rake))
-			if fc.travel > 0 {
-				assigns = append(assigns, fmt.Sprintf("cad_fork.sag=%.0f", fc.sag))
+			baseAssigns := []string{
+				fmt.Sprintf("cad_fork.a2c=%s", formatFitNum(fc.effA2c)),
+				fmt.Sprintf("cad_fork.rake=%s", formatFitNum(rake)),
+				fmt.Sprintf("cad_fork.sag=%s", formatFitNum(fc.sag)),
+				fmt.Sprintf("spacer=%s", formatFitNum(fc.spacer)),
 			}
-			assigns = append(assigns, fmt.Sprintf("spacer=%.0f", fc.spacer))
 
 			suggs := catalog.FindForkSuggestions(fc.effA2c, rake)
 			if len(suggs) > 0 {
-				assigns = append(assigns, fmt.Sprintf("cad_fork.fork=%s", suggs[0].ForkID))
+				for _, s := range suggs {
+					assigns := append(append([]string(nil), baseAssigns...), fmt.Sprintf("cad_fork.fork=%s", s.ForkID))
+					evalAssignments(assigns)
+				}
+			} else {
+				evalAssignments(baseAssigns)
 			}
-
-			desc := strings.Join(assigns, " ")
-			if seenCombos[desc] {
-				continue
-			}
-			seenCombos[desc] = true
-
-			clone := CloneFrame(frame)
-			for _, a := range assigns {
-				_ = ApplyAssignment(&clone, configID, defaultSize, a)
-			}
-
-			fitRes, err := AnalyzeFit(clone, configID)
-			if err != nil {
-				continue
-			}
-
-			results = append(results, ComboResult{
-				Description:       desc,
-				Assignments:       assigns,
-				MaxAbsDeltaA2c:    fitRes.MinPassingSlopA2c,
-				MaxAbsDeltaFc:     fitRes.MinPassingSlopFc,
-				MaxAbsDeltaWb:     fitRes.MinPassingSlopWb,
-				MinPassingSlopA2c: fitRes.MinPassingSlopA2c,
-				MinPassingSlopFc:  fitRes.MinPassingSlopFc,
-				MinPassingSlopWb:  fitRes.MinPassingSlopWb,
-				IsValid:           fitRes.IsValid,
-				FitResult:         fitRes,
-			})
 		}
 	}
 
@@ -807,7 +822,10 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 		if math.Abs(results[i].MaxAbsDeltaWb-results[j].MaxAbsDeltaWb) > 0.001 {
 			return results[i].MaxAbsDeltaWb < results[j].MaxAbsDeltaWb
 		}
-		return results[i].MaxAbsDeltaFc < results[j].MaxAbsDeltaFc
+		if math.Abs(results[i].MaxAbsDeltaFc-results[j].MaxAbsDeltaFc) > 0.001 {
+			return results[i].MaxAbsDeltaFc < results[j].MaxAbsDeltaFc
+		}
+		return results[i].Description < results[j].Description
 	})
 
 	if len(results) > 10 {
@@ -815,6 +833,13 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 	}
 
 	return results, nil
+}
+
+func formatFitNum(v float64) string {
+	if math.Abs(v-math.Round(v)) < 1e-6 {
+		return fmt.Sprintf("%.0f", math.Round(v))
+	}
+	return fmt.Sprintf("%.1f", v)
 }
 
 func parseStemSpec(s string) (model.StemSpec, error) {

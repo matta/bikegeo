@@ -236,14 +236,14 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Score") {
 			t.Errorf("expected 'Score' row in default output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "50 (#1)") {
-			t.Errorf("expected '50 (#1)' in output, got:\n%s", out)
+		if !strings.Contains(out, "64 (#1)") {
+			t.Errorf("expected '64 (#1)' in output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "-17 (#2)") {
-			t.Errorf("expected '-17 (#2)' in output, got:\n%s", out)
+		if !strings.Contains(out, "-1 (#2)") {
+			t.Errorf("expected '-1 (#2)' in output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "-22 (#3)") {
-			t.Errorf("expected '-22 (#3)' in output, got:\n%s", out)
+		if !strings.Contains(out, "-7 (#3)") {
+			t.Errorf("expected '-7 (#3)' in output, got:\n%s", out)
 		}
 	})
 
@@ -256,8 +256,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Score") {
 			t.Errorf("expected 'Score' column in transposed output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "50 (#1)") {
-			t.Errorf("expected '50 (#1)' in transposed output, got:\n%s", out)
+		if !strings.Contains(out, "64 (#1)") {
+			t.Errorf("expected '64 (#1)' in transposed output, got:\n%s", out)
 		}
 		// The CLI keeps a transposed comparison as one wide table (the web
 		// splits it into Fit & Cockpit and Chassis tables).
@@ -303,7 +303,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Score,,,50 (#1),-17 (#2),-22 (#3)") {
+		if !strings.Contains(out, "Score,,,64 (#1),-1 (#2),-7 (#3)") {
 			t.Errorf("expected CSV Score row, got:\n%s", out)
 		}
 	})
@@ -314,7 +314,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "| Score |  |  | 50 (#1) | -17 (#2) | -22 (#3) |") {
+		if !strings.Contains(out, "| Score |  |  | 64 (#1) | -1 (#2) | -7 (#3) |") {
 			t.Errorf("expected Markdown Score row, got:\n%s", out)
 		}
 	})
@@ -839,6 +839,10 @@ func TestCLI_ExitCodesAndErrors(t *testing.T) {
 		{"compare NaN sag", []string{"compare", "fenrir@NaN"}, 1, "invalid"},
 		{"compare negative sag", []string{"compare", "fenrir@-5"}, 1, "invalid"},
 		{"compare negative pct sag", []string{"compare", "fenrir@110mm@-5%"}, 1, "invalid sag"},
+
+		// F-p4c-7: negative --top and --top-per-frame rejected
+		{"compare negative top", []string{"compare", "--top", "-1"}, 1, "--top must be a non-negative integer"},
+		{"compare negative top-per-frame", []string{"compare", "--top-per-frame", "-1"}, 1, "--top-per-frame must be a non-negative integer"},
 	}
 
 	for _, tc := range tests {

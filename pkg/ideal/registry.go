@@ -268,10 +268,14 @@ var registry = []AttributeMeta{
 		BelowWord: "fwd",
 		AboveWord: "aft",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
-			if row.Canonical.DeadCenterBRP.BrpSetbackMm <= 0 {
+			brp := row.Canonical.DeadCenterBRP
+			if row.Canonical.SelectedBRP != nil {
+				brp = *row.Canonical.SelectedBRP
+			}
+			if brp.BrpSetbackMm <= 0 {
 				return 0, false
 			}
-			return row.Canonical.DeadCenterBRP.BrpSetbackMm, true
+			return brp.BrpSetbackMm, true
 		},
 	},
 	{

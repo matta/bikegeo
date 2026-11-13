@@ -586,6 +586,7 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 		}
 		var pro []diffItem
 		var con []diffItem
+		var smallCount int
 
 		critBMap := make(map[string]CriterionResult)
 		for _, c := range fb.Score.Criteria {
@@ -614,6 +615,8 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 				pro = append(pro, item)
 			} else if diff <= -1.0 {
 				con = append(con, item)
+			} else if math.Abs(diff) > 1e-6 {
+				smallCount++
 			}
 		}
 
@@ -624,6 +627,7 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 			return con[i].diff < con[j].diff
 		})
 
+		shownSum := 0
 		formatH2H := func(d diffItem) string {
 			// Oval Fits matrix cells show setup count, while CriterionResult.Value
 			// stores the sub-score; label it explicitly so the two aren't conflated.
@@ -631,22 +635,40 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 			if strings.EqualFold(d.id, "handlebar_clamp_fit") {
 				valKind = "sub-score "
 			}
-			return fmt.Sprintf("%s %s%s vs %s (%+.0f)",
-				d.label, valKind, formatValue(d.unit, d.valA), formatValue(d.unit, d.valB), math.Round(d.diff))
+			roundedDiff := int(math.Round(d.diff))
+			shownSum += roundedDiff
+			return fmt.Sprintf("%s %s%s vs %s (%+d)",
+				d.label, valKind, formatValue(d.unit, d.valA), formatValue(d.unit, d.valB), roundedDiff)
 		}
 
-		var whyParts []string
-		for i := 0; i < len(pro) && i < 2; i++ {
-			whyParts = append(whyParts, formatH2H(pro[i]))
+		var proParts []string
+		for _, item := range pro {
+			proParts = append(proParts, formatH2H(item))
+		}
+		var conParts []string
+		for _, item := range con {
+			conParts = append(conParts, formatH2H(item))
+		}
+
+		rem := gap - shownSum
+		var clauses []string
+		if len(proParts) > 0 {
+			clauses = append(clauses, strings.Join(proParts, "; "))
+		}
+		if len(conParts) > 0 {
+			clauses = append(clauses, "offset by "+strings.Join(conParts, "; "))
+		}
+		if rem != 0 && (len(proParts) > 0 || len(conParts) > 0 || gap != 0) {
+			if smallCount > 0 {
+				clauses = append(clauses, fmt.Sprintf("smaller (<1 pt) factors (%+d)", rem))
+			} else {
+				clauses = append(clauses, fmt.Sprintf("rounding (%+d)", rem))
+			}
 		}
 
 		line := head
-		if len(whyParts) > 0 {
-			line = head + ": " + strings.Join(whyParts, "; ")
-		}
-
-		if len(con) > 0 {
-			line += "; offset by " + formatH2H(con[0])
+		if len(clauses) > 0 {
+			line = head + ": " + strings.Join(clauses, "; ")
 		}
 
 		h2hList = append(h2hList, line)

@@ -67,23 +67,23 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 		430.0,
 	)
 
-	if dyn.NewHta != 72.06 {
-		t.Errorf("Expected NewHta 72.06, got %.2f", dyn.NewHta)
+	if geometry.Round(dyn.NewHta, 2) != 72.12 {
+		t.Errorf("Expected NewHta 72.12, got %.2f", dyn.NewHta)
 	}
-	if dyn.NewSta != 77.06 {
-		t.Errorf("Expected NewSta 77.06, got %.2f", dyn.NewSta)
+	if geometry.Round(dyn.NewSta, 2) != 77.12 {
+		t.Errorf("Expected NewSta 77.12, got %.2f", dyn.NewSta)
 	}
-	if dyn.NewReach != 432.5 {
-		t.Errorf("Expected NewReach 432.5, got %.1f", dyn.NewReach)
+	if geometry.Round(dyn.NewReach, 1) != 433.1 {
+		t.Errorf("Expected NewReach 433.1, got %.1f", dyn.NewReach)
 	}
-	if dyn.NewStack != 633.8 {
-		t.Errorf("Expected NewStack 633.8, got %.1f", dyn.NewStack)
+	if geometry.Round(dyn.NewStack, 1) != 633.4 {
+		t.Errorf("Expected NewStack 633.4, got %.1f", dyn.NewStack)
 	}
-	if dyn.NewBbDrop != 92.6 {
-		t.Errorf("Expected NewBbDrop 92.6, got %.1f", dyn.NewBbDrop)
+	if geometry.Round(dyn.NewBbDrop, 1) != 93.0 {
+		t.Errorf("Expected NewBbDrop 93.0, got %.1f", dyn.NewBbDrop)
 	}
-	if dyn.DeltaAngleDeg != -3.06 {
-		t.Errorf("Expected DeltaAngleDeg -3.06, got %.2f", dyn.DeltaAngleDeg)
+	if geometry.Round(dyn.DeltaAngleDeg, 2) != -3.12 {
+		t.Errorf("Expected DeltaAngleDeg -3.12, got %.2f", dyn.DeltaAngleDeg)
 	}
 
 	// Step 3: Master AnalyzeBikeFit pipeline
@@ -97,33 +97,33 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 		t.Fatalf("AnalyzeBikeFit failed: %v", err)
 	}
 
-	if fit.StructuralA2c != 428.8 {
+	if geometry.Round(fit.StructuralA2c, 1) != 428.8 {
 		t.Errorf("Expected StructuralA2c 428.8, got %.1f", fit.StructuralA2c)
 	}
-	if fit.ActiveReach != 432.5 {
-		t.Errorf("Expected ActiveReach 432.5, got %.1f", fit.ActiveReach)
+	if geometry.Round(fit.ActiveReach, 1) != 433.1 {
+		t.Errorf("Expected ActiveReach 433.1, got %.1f", fit.ActiveReach)
 	}
-	if fit.ActiveStack != 633.8 {
-		t.Errorf("Expected ActiveStack 633.8, got %.1f", fit.ActiveStack)
+	if geometry.Round(fit.ActiveStack, 1) != 633.4 {
+		t.Errorf("Expected ActiveStack 633.4, got %.1f", fit.ActiveStack)
 	}
-	if fit.Aett != 566.2 {
-		t.Errorf("Expected AETT 566.2, got %.1f", fit.Aett)
+	if geometry.Round(fit.Aett, 1) != 566.0 {
+		t.Errorf("Expected AETT 566.0, got %.1f", fit.Aett)
 	}
-	if fit.ActualSetback != 174.7 {
-		t.Errorf("Expected ActualSetback 174.7, got %.1f", fit.ActualSetback)
+	if geometry.Round(fit.ActualSetback, 1) != 173.9 {
+		t.Errorf("Expected ActualSetback 173.9, got %.1f", fit.ActualSetback)
 	}
-	if fit.SpareVerticalStack != 126.4 {
-		t.Errorf("Expected SpareVerticalStack 126.4, got %.1f", fit.SpareVerticalStack)
+	if geometry.Round(fit.SpareVerticalStack, 1) != 127.0 {
+		t.Errorf("Expected SpareVerticalStack 127.0, got %.1f", fit.SpareVerticalStack)
 	}
-	if fit.SpareAxialSteerer != 132.9 {
-		t.Errorf("Expected SpareAxialSteerer 132.9, got %.1f", fit.SpareAxialSteerer)
+	if geometry.Round(fit.SpareAxialSteerer, 1) != 133.5 {
+		t.Errorf("Expected SpareAxialSteerer 133.5, got %.1f", fit.SpareAxialSteerer)
 	}
 }
 
 func TestCalculateActualSetback(t *testing.T) {
 	// 760mm saddle height at 74.0 deg STA -> 760 * cos(74 deg) = 209.484... -> 209.5 mm
 	sb := geometry.CalculateActualSetback(74.0, 760.0)
-	if sb != 209.5 {
+	if geometry.Round(sb, 1) != 209.5 {
 		t.Errorf("Expected ActualSetback 209.5, got %.1f", sb)
 	}
 }
@@ -278,7 +278,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 	}
 
 	// Setback at 780mm: 780 * cos(74.688°) = 205.998 mm -> 206.0 mm
-	if fit.ActualSetback != 206.0 {
+	if geometry.Round(fit.ActualSetback, 1) != 206.0 {
 		t.Errorf("Expected ActualSetback 206.0mm, got %.1fmm", fit.ActualSetback)
 	}
 }
@@ -526,7 +526,7 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 	if math.Abs(brpZero.BrpY-713.0) > 0.5 {
 		t.Errorf("Expected BrpY ~ 713.0, got %.1f", brpZero.BrpY)
 	}
-	if brpZero.BrpSetbackMm != 219.0 {
+	if geometry.Round(brpZero.BrpSetbackMm, 1) != 219.0 {
 		t.Errorf("Expected BrpSetbackMm 219.0, got %.1f", brpZero.BrpSetbackMm)
 	}
 	if math.Abs(brpZero.BrpAngleFromBbDeg-72.9) > 0.1 {
@@ -1038,5 +1038,70 @@ func TestEvaluateCockpitFit_FarOutsideStillRanksByDistance(t *testing.T) {
 			t.Errorf("offset %vmm scored %.3f, not below the nearer offset's %.3f", off, res.FinalSubScore, prev)
 		}
 		prev = res.FinalSubScore
+	}
+}
+
+// F-p4ab-3: Exact 2D rigid-body rotation preserves distances and diverges from small-angle lift over ±50mm swaps.
+func TestCalculateDynamicGeometry_Exact2DRotation(t *testing.T) {
+	baseReach, baseStack := 428.0, 642.0
+	baseHta, baseSta, baseBbDrop := 68.25, 75.25, 72.0
+	wb, cs := 1158.0, 450.0
+	baseDist := math.Hypot(baseReach, baseStack)
+	baseRearDist := cs
+
+	for _, delta := range []float64{-50, -25, 0, 25, 50} {
+		dyn := geometry.CalculateDynamicGeometry(
+			baseReach, baseStack, baseHta, baseSta, baseBbDrop,
+			495.0, 495.0+delta, wb, cs,
+		)
+		newDist := math.Hypot(dyn.NewReach, dyn.NewStack)
+		if math.Abs(newDist-baseDist) > 0.2 {
+			t.Errorf("delta=%.0fmm: BB-to-HT distance %.2f drifted from %.2f", delta, newDist, baseDist)
+		}
+		if math.Abs((dyn.NewHta-dyn.NewSta)-(baseHta-baseSta)) > 0.02 {
+			t.Errorf("delta=%.0fmm: HTA-STA %.3f != %.3f", delta, dyn.NewHta-dyn.NewSta, baseHta-baseSta)
+		}
+		if delta == 0 && (dyn.DeltaAngleDeg != 0 || dyn.NewReach != baseReach || dyn.NewStack != baseStack) {
+			t.Errorf("delta=0: expected zero pitch, got %+v", dyn)
+		}
+		_ = baseRearDist
+	}
+
+	// Verify exact 2D pitch formula vs small-angle asin(dy/wb) at +50mm swap.
+	dyn50 := geometry.CalculateDynamicGeometry(baseReach, baseStack, baseHta, baseSta, baseBbDrop, 495.0, 545.0, wb, cs)
+	htaRad := baseHta * math.Pi / 180.0
+	wantDeg := math.Atan2(50.0*math.Sin(htaRad), wb+50.0*math.Cos(htaRad)) * 180.0 / math.Pi
+	if math.Abs(dyn50.DeltaAngleDeg-wantDeg) > 0.015 {
+		t.Errorf("+50mm DeltaAngleDeg = %.2f, want exact 2D %.4f", dyn50.DeltaAngleDeg, wantDeg)
+	}
+}
+
+// F-p4ab-3: Normalizing CAD baseline vs CupStackMm/GeoHeadsetSpacerMm avoids spurious pitch at the CAD fork.
+func TestAnalyzeBikeFit_NormalizesCadBaseline(t *testing.T) {
+	// Fenrir-like frame where CupEC44 (12mm) != GeoHeadsetSpacerMm (0mm) and Stack has slight slop vs 495mm CAD fork.
+	bike := model.BikeGeometry{
+		ID:                 "fenrir-xs",
+		Size:               "XS",
+		Reach:              387.0,
+		Stack:              595.0,
+		HtaDeg:             68.25,
+		StaDeg:             75.25,
+		Htl:                90.0,
+		BbDrop:             72.0,
+		ForkRake:           54.0,
+		Wheelbase:          1098.0,
+		ChainstayLength:    450.0,
+		HeadsetCupType:     model.CupEC44,
+		GeoHeadsetSpacerMm: 0.0,
+		CadFork:            model.ForkRef{Fork: "lithic_495", A2cMm: 495.0, RakeMm: 54.0},
+	}
+	cadA2c := 495.0
+	fit, err := geometry.AnalyzeBikeFit(bike, &cadA2c, nil, catalog.DefaultRiderProfile())
+	if err != nil {
+		t.Fatalf("AnalyzeBikeFit failed: %v", err)
+	}
+	if fit.DeltaAngleDeg != 0 || fit.ActiveReach != bike.Reach || fit.ActiveStack != bike.Stack || fit.ActiveHta != bike.HtaDeg || fit.ActiveBbDrop != bike.BbDrop {
+		t.Errorf("CAD fork evaluation should preserve published CAD chart: got Delta=%.2f Reach=%.1f Stack=%.1f HTA=%.2f BBD=%.1f",
+			fit.DeltaAngleDeg, fit.ActiveReach, fit.ActiveStack, fit.ActiveHta, fit.ActiveBbDrop)
 	}
 }

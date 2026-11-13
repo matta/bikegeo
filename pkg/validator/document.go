@@ -92,8 +92,8 @@ func summaryTable(bundles []Bundle) report.Table {
 			status = report.Cell{Text: "INVALID", Zone: report.ZoneOutside}
 		}
 		stated := "N/A"
-		if b.Report.ExpectedForkA2c > 0 {
-			stated = fmt.Sprintf("%.0f mm", b.Report.ExpectedForkA2c)
+		if b.Report.StatedA2c > 0 {
+			stated = fmt.Sprintf("%.0f mm", b.Report.StatedA2c)
 		}
 		diff := "N/A"
 		if b.Report.A2cDifference != nil {
@@ -147,8 +147,10 @@ func addDetail(doc *report.Document, b Bundle) {
 	))
 
 	stated := "Not specified"
-	if b.Bike.ForkA2c > 0 {
-		stated = fmt.Sprintf("%.0f mm", b.Bike.ForkA2c)
+	if b.Report.StatedA2c > 0 {
+		stated = fmt.Sprintf("%.0f mm", b.Report.StatedA2c)
+	} else if a2c := b.Bike.GetCadA2c(); a2c > 0 {
+		stated = fmt.Sprintf("%.0f mm", a2c)
 	}
 	diff := "N/A"
 	if b.Report.A2cDifference != nil {
@@ -157,17 +159,22 @@ func addDetail(doc *report.Document, b Bundle) {
 	slop := b.Bike.GetGeoSlopMm()
 	var wb string
 	if slop.Wheelbase != nil {
-		wb = fmt.Sprintf("wb: ±%.1fmm", *slop.Wheelbase)
+		wb = fmt.Sprintf("wb: ±%.1fmm", slop.GetWheelbase())
 	} else {
-		wb = fmt.Sprintf("wb: ±%.1fmm (dynamic precision floor)", CalculateDynamicWheelbaseTolerance(b.Bike, b.Report.TotalStructuralA2c))
+		dynWb := CalculateDynamicWheelbaseTolerance(b.Bike, b.Report.TotalStructuralA2c)
+		if dynWb <= model.DefaultWheelbaseFloorMm {
+			wb = fmt.Sprintf("wb: ±%.1fmm (dynamic precision floor)", dynWb)
+		} else {
+			wb = fmt.Sprintf("wb: ±%.1fmm (dynamic rounding propagation)", dynWb)
+		}
 	}
-	slopStr := fmt.Sprintf("a2c: ±%.1fmm, fc: ±%.1fmm, %s, cross: ±%.1fmm", slop.GetA2c(), slop.GetFrontCenter(), wb, slop.GetCrossConfig())
+	slopStr := fmt.Sprintf("a2c: ±%.1fmm, fc: ±%.1fmm, %s", slop.GetA2c(), slop.GetFrontCenter(), wb)
 
 	proof := [][]string{
 		{"Published Fork A2C (Static)", stated},
 		{"Reverse-Engineered CAD A2C", fmt.Sprintf("%.1f mm", b.Report.GeometricA2c)},
 		{"Axle-to-Crown Deviation (Δ)", diff},
-		{"Inferred Published Mode", PublishModeShort(b.Report.InferredPublishMode)},
+		{"CAD Convention", PublishModeShort(b.Report.InferredPublishMode)},
 		{"CAD Headset Spacer (geo_headset_spacer_mm)", fmt.Sprintf("%.1f mm", b.Report.GeoHeadsetSpacerMm)},
 		{"Physical Headset Cup (headset_cup_type)", fmt.Sprintf("%s (%.1f mm)", b.Bike.HeadsetCupType, b.Report.CupStack)},
 		{"Allowed Slop Tolerances (geo_slop_mm)", slopStr},
@@ -193,9 +200,6 @@ func addDetail(doc *report.Document, b Bundle) {
 		}
 		if slop.Wheelbase != nil {
 			o = append(o, fmt.Sprintf("wb: ±%.1fmm", *slop.Wheelbase))
-		}
-		if slop.CrossConfig != nil {
-			o = append(o, fmt.Sprintf("cross: ±%.1fmm", *slop.CrossConfig))
 		}
 		if len(o) > 0 {
 			fmt.Fprintf(&sb, "\n  Overrides: %s", strings.Join(o, ", "))

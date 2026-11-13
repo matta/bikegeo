@@ -45,8 +45,7 @@ func CalculateDynamicWheelbaseTolerance(bike model.BikeGeometry, structuralA2c f
 	deltaFcHta := math.Abs(-frontEndLength*hta.Sin()+bike.ForkRake*hta.Cos()) * deltaHta.Rad()
 
 	propagated := math.Sqrt(deltaReach*deltaReach + deltaCs*deltaCs + deltaWb*deltaWb + deltaFcHta*deltaFcHta)
-	const floor = 2.0
-	return math.Max(floor, geometry.Round(propagated, 1))
+	return math.Max(model.DefaultWheelbaseFloorMm, geometry.Round(propagated, 1))
 }
 
 // ValidateBikeGeometry validates a bike dataset for internal consistency,
@@ -352,14 +351,7 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 	var fcDiff *float64
 	fcSlop := slop.GetFrontCenter()
 	if bike.FrontCenter > 0 {
-		// Manufacturers publish Front Center either as the 3D BB-to-front-axle distance or
-		// as its horizontal projection; accept whichever convention the chart matches.
-		diff3D := geometry.Round(math.Abs(bike.FrontCenter-calculatedFc3D), 1)
-		diffHoriz := geometry.Round(math.Abs(bike.FrontCenter-calculatedFcHoriz), 1)
-		diff, convention, calculatedFc := diff3D, "3D", calculatedFc3D
-		if diffHoriz < diff3D {
-			diff, convention, calculatedFc = diffHoriz, "horizontal", geometry.Round(calculatedFcHoriz, 1)
-		}
+		diff := geometry.Round(math.Abs(bike.FrontCenter-calculatedFc3D), 1)
 		fcDiff = &diff
 		if diff > fcSlop {
 			issues = append(issues, model.ValidationIssue{
@@ -367,15 +359,15 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 				Field:      "front_center",
 				Severity:   model.SeverityError,
 				Title:      "Front Center Inconsistency",
-				Message:    fmt.Sprintf("Published Front Center (%.1fmm) differs from geometrically calculated FC (3D: %.1fmm, Horiz: %.1fmm) by %.1fmm, closest to %s convention (allowed slop ±%.1fmm).", bike.FrontCenter, calculatedFc3D, calculatedFcHoriz, diff, convention, fcSlop),
+				Message:    fmt.Sprintf("Published Front Center (%.1fmm) differs from geometrically calculated 3D FC (%.1fmm) by %.1fmm (allowed slop ±%.1fmm).", bike.FrontCenter, calculatedFc3D, diff, fcSlop),
 				Details:    "Check if Reach, HTA, BB Drop, or Fork Rake is inconsistent in published geometry.",
-				Expected:   fmt.Sprintf("%.1f mm (calculated, %s)", calculatedFc, convention),
+				Expected:   fmt.Sprintf("%.1f mm (calculated, 3D)", calculatedFc3D),
 				Actual:     fmt.Sprintf("%.1f mm (published)", bike.FrontCenter),
 				Difference: diff,
 			})
 
 			sagHintRefFcHoriz = bike.FrontCenter
-			if convention == "3D" && bike.FrontCenter > bike.BbDrop {
+			if bike.FrontCenter > bike.BbDrop {
 				sagHintRefFcHoriz = math.Sqrt(bike.FrontCenter*bike.FrontCenter - bike.BbDrop*bike.BbDrop)
 			}
 			sagHintSource = "Front Center"
@@ -384,7 +376,7 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 				ID:       "front_center_ok",
 				Severity: model.SeveritySuccess,
 				Title:    "Front Center Geometrically Coherent",
-				Message:  fmt.Sprintf("Published Front Center matches calculated %s front-axle vector within %.1fmm (tolerance ±%.1fmm).", convention, diff, fcSlop),
+				Message:  fmt.Sprintf("Published Front Center matches calculated 3D front-axle vector within %.1fmm (tolerance ±%.1fmm).", diff, fcSlop),
 			})
 		}
 	}
@@ -460,26 +452,25 @@ func validateGeoSlop(slop *model.GeoSlopMm) []model.ValidationIssue {
 		return nil
 	}
 	var issues []model.ValidationIssue
-	check := func(field string, val *float64) {
+	check := func(field string, val *float64, minVal float64) {
 		if val == nil {
 			return
 		}
-		if *val < 0 || *val > 10.0 {
+		if *val < minVal || *val > 10.0 {
 			issues = append(issues, model.ValidationIssue{
 				ID:       "invalid_geo_slop_mm",
 				Field:    "geo_slop_mm." + field,
 				Severity: model.SeverityError,
 				Title:    "Invalid Geometric Slop Tolerance",
-				Message:  fmt.Sprintf("geo_slop_mm.%s of %.1fmm is outside valid range (0mm - 10mm).", field, *val),
-				Expected: "0.0 - 10.0 mm",
+				Message:  fmt.Sprintf("geo_slop_mm.%s of %.1fmm is outside valid range (%.1fmm - 10.0mm).", field, *val, minVal),
+				Expected: fmt.Sprintf("%.1f - 10.0 mm", minVal),
 				Actual:   fmt.Sprintf("%.1f mm", *val),
 			})
 		}
 	}
-	check("a2c", slop.A2c)
-	check("front_center", slop.FrontCenter)
-	check("wheelbase", slop.Wheelbase)
-	check("cross_config", slop.CrossConfig)
+	check("a2c", slop.A2c, 0.0)
+	check("front_center", slop.FrontCenter, 0.0)
+	check("wheelbase", slop.Wheelbase, model.DefaultWheelbaseFloorMm)
 	return issues
 }
 

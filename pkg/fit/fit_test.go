@@ -1,9 +1,12 @@
 package fit_test
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"bikegeo/pkg/fit"
+	"bikegeo/pkg/frames"
 	"bikegeo/pkg/model"
 )
 
@@ -143,6 +146,12 @@ func TestApplyAssignment(t *testing.T) {
 	if err := fit.ApplyAssignment(&frame, "stock", "", "NonExistent:stack=600"); err == nil {
 		t.Errorf("Expected error for unknown size")
 	}
+	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.wb=1.0"); err == nil {
+		t.Errorf("Expected error for slop.wb below 2.0mm floor")
+	}
+	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.cross_config=1.0"); err == nil {
+		t.Errorf("Expected error for removed slop.cross_config")
+	}
 }
 
 func TestRunSweeps(t *testing.T) {
@@ -199,5 +208,124 @@ func TestSolveFit(t *testing.T) {
 	// Best candidate should have low delta A2C
 	if combos[0].MaxAbsDeltaA2c > 5.0 {
 		t.Errorf("Expected best candidate to have low delta A2C, got %.2f", combos[0].MaxAbsDeltaA2c)
+	}
+}
+
+func TestSweepDetailIncludesFailureReason(t *testing.T) {
+	// F-p4d-5: Sweep table includes Failure Reason and --detail prints frame+size [ERROR] notices.
+	combos, err := fit.RunSweeps(frames.OtsoFenrirStainless, "stock", "L", []string{"sag=0,20"})
+	if err != nil {
+		t.Fatalf("RunSweeps failed: %v", err)
+	}
+	doc := fit.BuildSweepDocument(frames.OtsoFenrirStainless, combos, true)
+
+	tables := doc.Tables()
+	if len(tables) == 0 {
+		t.Fatalf("expected sweep table")
+	}
+	sweep := tables[0]
+	reasonCol := -1
+	for i, col := range sweep.Columns {
+		if col.Label == "Failure Reason" {
+			reasonCol = i
+			break
+		}
+	}
+	if reasonCol < 0 {
+		t.Fatalf("expected Failure Reason column in sweep table")
+	}
+	sawFailReason := false
+	for _, r := range sweep.Rows {
+		if r.Cells[reasonCol-1].Text == "FAIL" && strings.Contains(r.Cells[reasonCol].Text, "cannot have sag_pct") {
+			sawFailReason = true
+		}
+	}
+	if !sawFailReason {
+		t.Errorf("expected sag=20 FAIL row to report ValidateForkRef error in Failure Reason column")
+	}
+
+	var allText strings.Builder
+	for _, s := range doc.Sections {
+		if s.Text != "" {
+			allText.WriteString(s.Text)
+			allText.WriteByte('\n')
+		}
+	}
+	if !strings.Contains(allText.String(), "[ERROR]") || !strings.Contains(allText.String(), "cannot have sag_pct") {
+		t.Errorf("expected --detail text to include [ERROR] notice for ValidateForkRef, got:\n%s", allText.String())
+	}
+
+	// Size-level failure (stack perturbation on Surly ECR:L)
+	stackCombos, err := fit.RunSweeps(frames.SurlyECR, "stock", "L", []string{"stack=604.5,633"})
+	if err != nil {
+		t.Fatalf("RunSweeps(surly-ecr stack) failed: %v", err)
+	}
+	stackDoc := fit.BuildSweepDocument(frames.SurlyECR, stackCombos, true)
+	var stackText strings.Builder
+	for _, s := range stackDoc.Sections {
+		if s.Text != "" {
+			stackText.WriteString(s.Text)
+			stackText.WriteByte('\n')
+		}
+	}
+	if !strings.Contains(stackText.String(), "[ERROR] [Size L]") {
+		t.Errorf("expected --detail text to include [ERROR] [Size L] notice, got:\n%s", stackText.String())
+	}
+}
+
+func TestSweepInvokesSolverWhenAllFail(t *testing.T) {
+	// F-p4d-6: When all --try perturbations fail, BuildSweepDocument invokes SolveFit.
+	combos, err := fit.RunSweeps(frames.SurlyECR, "stock", "L", []string{"spacer=0"})
+	if err != nil {
+		t.Fatalf("RunSweeps failed: %v", err)
+	}
+	doc := fit.BuildSweepDocument(frames.SurlyECR, combos, false)
+	foundCandidates := false
+	for _, tbl := range doc.Tables() {
+		if tbl.ID == "fit-candidates" {
+			foundCandidates = true
+			break
+		}
+	}
+	if !foundCandidates {
+		t.Errorf("expected fit-candidates table when all --try perturbations fail")
+	}
+}
+
+func TestSolveFitFindsDeclaredSaggedConfigs(t *testing.T) {
+	// F-p4d-6: SolveFit finds the declared CadFork + GeoHeadsetSpacerMm among PASS candidates.
+	targets := []model.FrameModel{
+		frames.MootsMountaineer,
+		frames.SourPastaParty,
+		frames.RevelElJefe,
+		frames.EskerHayduke,
+	}
+	for _, fr := range targets {
+		cands, err := fit.SolveFit(fr, "stock", fr.DefaultSize)
+		if err != nil {
+			t.Fatalf("SolveFit(%s) failed: %v", fr.ID, err)
+		}
+		wantA2c := fmt.Sprintf("cad_fork.a2c=%.0f", fr.CadFork.A2cMm)
+		wantSag := fmt.Sprintf("cad_fork.sag=%.0f", fr.CadFork.SagPct)
+		wantSpacer := fmt.Sprintf("spacer=%.0f", fr.GetGeoHeadsetSpacerMm())
+		wantFork := fmt.Sprintf("cad_fork.fork=%s", fr.CadFork.Fork)
+
+		found := false
+		for _, c := range cands {
+			if !c.IsValid {
+				continue
+			}
+			if strings.Contains(c.Description, wantA2c) &&
+				strings.Contains(c.Description, wantSag) &&
+				strings.Contains(c.Description, wantSpacer) &&
+				strings.Contains(c.Description, wantFork) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("%s: declared config (%s %s %s %s) not found among top-10 PASS candidates",
+				fr.ID, wantA2c, wantSag, wantSpacer, wantFork)
+		}
 	}
 }

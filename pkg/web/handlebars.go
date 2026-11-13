@@ -21,13 +21,31 @@ func (db *docb) handlebars(v url.Values) int {
 		db.fail("%v", fl.err)
 		return 1
 	}
+	hasWidth := strings.TrimSpace(v.Get("width")) != ""
+	if !(gripInset > 0) || math.IsInf(gripInset, 0) {
+		db.fail("Error: grip-inset must be positive (got %g)", gripInset)
+		return 1
+	}
+	if math.IsNaN(rollDeg) || math.IsInf(rollDeg, 0) {
+		db.fail("Error: roll must be finite (got %g)", rollDeg)
+		return 1
+	}
+	if hasWidth && (!(cutWidth > 0) || math.IsInf(cutWidth, 0)) {
+		db.fail("Error: width must be positive (got %g)", cutWidth)
+		return 1
+	}
+	if hasWidth && cutWidth <= 2*gripInset {
+		db.fail("Error: trimmed width %.1f mm must exceed 2 × grip-inset (%.1f mm) for positive hand lateral position", cutWidth, 2*gripInset)
+		return 1
+	}
+
 	compareID := strings.TrimSpace(v.Get("compare"))
 	var posArgs []string
 	if id := strings.TrimSpace(v.Get("id")); id != "" {
 		posArgs = []string{id}
 	}
 	if len(posArgs) == 0 && compareID == "" {
-		return db.listHandlebars(gripInset, rollDeg, cutWidth)
+		return db.listHandlebars(gripInset, rollDeg, cutWidth, hasWidth)
 	}
 
 	primaryQuery := ""
@@ -46,12 +64,24 @@ func (db *docb) handlebars(v url.Values) int {
 		return 1
 	}
 
-	if cutWidth > 0 {
-		bar1.CurrentWidthMm = cutWidth
+	if secondaryQuery == "" {
+		if hasWidth && cutWidth > bar1.StockWidthMm {
+			db.fail("Error: width %.1f mm exceeds %s stock width %.0f mm", cutWidth, bar1.Name, bar1.StockWidthMm)
+			return 1
+		}
+		if hasWidth {
+			bar1.CurrentWidthMm = cutWidth
+		}
+		if gripInset >= bar1.EffectiveWidthMm()/2 {
+			db.fail("Error: grip-inset %.1f mm must be less than half of bar width %.0f mm", gripInset, bar1.EffectiveWidthMm())
+			return 1
+		}
+		return db.showHandlebarDetail(bar1, gripInset, rollDeg)
 	}
 
-	if secondaryQuery == "" {
-		return db.showHandlebarDetail(bar1, gripInset, rollDeg)
+	if hasWidth {
+		db.fail("Error: width trimming is only supported on single-bar or catalog views, not two-bar comparison")
+		return 1
 	}
 
 	bar2, ok := catalog.GetHandlebar(secondaryQuery)
@@ -63,8 +93,19 @@ func (db *docb) handlebars(v url.Values) int {
 	return db.compareHandlebars(bar1, bar2, gripInset, rollDeg)
 }
 
-func (db *docb) listHandlebars(gripInset, rollDeg, cutWidth float64) int {
+func (db *docb) listHandlebars(gripInset, rollDeg, cutWidth float64, hasWidth bool) int {
 	bars := catalog.AllHandlebars()
+	maxStock := 0.0
+	for _, b := range bars {
+		if b.StockWidthMm > maxStock {
+			maxStock = b.StockWidthMm
+		}
+	}
+	if hasWidth && cutWidth > maxStock {
+		db.fail("Error: width %.1f mm exceeds maximum catalog stock width %.0f mm", cutWidth, maxStock)
+		return 1
+	}
+
 	headers := []string{
 		"Handlebar ID",
 		"Name",
@@ -80,10 +121,12 @@ func (db *docb) listHandlebars(gripInset, rollDeg, cutWidth float64) int {
 	}
 
 	var rows [][]string
+	byID := make(map[string]model.HandlebarSpec, len(bars))
 	for _, b := range bars {
-		if cutWidth > 0 {
+		if hasWidth && cutWidth < b.StockWidthMm {
 			b.CurrentWidthMm = cutWidth
 		}
+		byID[b.ID] = b
 		offset := geometry.GetHandlebarOffset(b, gripInset, rollDeg)
 		yk := b.BaseRiseAtBend()
 		zHand := b.HandLateralMm(gripInset)
@@ -115,6 +158,44 @@ func (db *docb) listHandlebars(gripInset, rollDeg, cutWidth float64) int {
 	title := fmt.Sprintf("Canonical Handlebar Catalog (%d)%s", len(bars), rollNote)
 	subtitle := fmt.Sprintf("Origin (0,0,0) is 31.8mm clamp center; (+X) forward reach, (+Y) upward stack, (+Z) lateral hand center (d_grip = %.0fmm)", gripInset)
 
+	var insightLines []string
+	if p800, ok := byID["persuader20_800"]; ok {
+		if s30, ok := byID["sqlab3OX_16_30"]; ok {
+			op := geometry.GetHandlebarOffset(p800, gripInset, rollDeg)
+			os := geometry.GetHandlebarOffset(s30, gripInset, rollDeg)
+			dx := op.X - os.X
+			reachPhrase := fmt.Sprintf("pulling grips %.1fmm further forward", dx)
+			if dx < 0 {
+				reachPhrase = fmt.Sprintf("pulling grips only %.1fmm further back", -dx)
+			}
+			insightLines = append(insightLines, fmt.Sprintf(
+				"1. Persuader 20° (%.0fmm) vs. SQlab 3OX 16° (30mm Rise): Even with 20° vs 16° sweep, Persuader's wide 200mm center section delays bend to z_b=%.0fmm, %s (%+.1fmm vs %+.1fmm) with stack within %.1fmm (%+.1fmm vs %+.1fmm).",
+				p800.EffectiveWidthMm(), p800.EffectiveBendStartMm, reachPhrase, op.X, os.X, math.Abs(op.Y-os.Y), op.Y, os.Y))
+		}
+	}
+	if b25, ok := byID["sqlab311_20_16_25"]; ok {
+		if b50, ok := byID["sqlab311_20_16_50"]; ok {
+			o25 := geometry.GetHandlebarOffset(b25, gripInset, rollDeg)
+			o50 := geometry.GetHandlebarOffset(b50, gripInset, rollDeg)
+			insightLines = append(insightLines, fmt.Sprintf(
+				"2. Higher Rise Reduces Backsweep Reach Loss: On SQlab bars, higher rise consumes more lateral run in the 45°-50° riser section (z_b = 55 + 0.9*Rise). On 311 2.0, stepping from 25mm to 50mm rise gives %+.1fmm reach delta (%+.1fmm vs %+.1fmm) alongside %+.1fmm stack increase.",
+				o50.X-o25.X, o50.X, o25.X, o50.Y-o25.Y))
+		}
+	}
+	if s30, ok := byID["sqlab3OX_16_30"]; ok {
+		os0 := geometry.GetHandlebarOffset(s30, gripInset, rollDeg)
+		osM5 := geometry.GetHandlebarOffset(s30, gripInset, rollDeg-5.0)
+		dRx := osM5.X - os0.X
+		dRy := osM5.Y - os0.Y
+		// Exact 2D rotation sensitivity at nominal (-70mm reach, +46mm stack) rolled from 0° to -5°.
+		ang := -5.0 * math.Pi / 180.0
+		nomDx := (-70.0*math.Cos(ang) + 46.0*math.Sin(ang)) - (-70.0)
+		nomDy := (70.0*math.Sin(ang) + 46.0*math.Cos(ang)) - 46.0
+		insightLines = append(insightLines, fmt.Sprintf(
+			"3. Bar Roll Sensitivity: On SQlab 3OX 16° (30mm Rise) (%+.1fmm reach, %+.1fmm stack at %.1f° roll), 5° of additional backward roll shifts grips %+.1fmm Reach and %+.1fmm Stack (at nominal -70mm/+46mm from 0° to -5°, exact 2D rotation gives %+.1fmm Reach and %+.1fmm Stack).",
+			os0.X, os0.Y, rollDeg, dRx, dRy, nomDx, nomDy))
+	}
+
 	footers := []report.Footer{
 		{
 			Title: "Rise Measurement Traps: Knuckle vs. Bar-End Tip",
@@ -125,11 +206,7 @@ func (db *docb) listHandlebars(gripInset, rollDeg, cutWidth float64) int {
 		},
 		{
 			Title: "Key Kinematic Insights",
-			Lines: []string{
-				"1. Persuader 20° (800mm) vs. SQlab 3OX 16° (30mm Rise): Even with 20° vs 16° sweep, Persuader's wide 200mm center section delays bend to z_b=135mm, pulling grips only 3.1mm further back (-72.8mm vs -69.7mm) with stack within 1.5mm (+45.5mm vs +47.0mm).",
-				"2. Higher Rise Reduces Backsweep Reach Loss: On SQlab bars, higher rise consumes more lateral run in the 45°-50° riser section (z_b = 55 + 0.9*Rise). On 311 2.0, stepping from 25mm to 50mm rise gives +6.4mm forward reach (-58.8mm vs -65.2mm) alongside +23.0mm stack increase.",
-				"3. Bar Roll Sensitivity: At ~70mm backsweep and ~46mm stack, every 5° of backward roll (-5° roll angle) shifts grips -4.0mm further back (reach loss) and -6.1mm lower (stack loss).",
-			},
+			Lines: insightLines,
 		},
 	}
 
@@ -239,7 +316,7 @@ func (db *docb) compareHandlebars(bar1, bar2 model.HandlebarSpec, gripInset, rol
 		{
 			Title: "Resulting Hand Grip Position Shift (Fixed Stem Clamp)",
 			Lines: []string{
-				fmt.Sprintf("Switching to %s shifts hand grips %+.1f mm %s (Reach) and %+.1f mm %s (Stack).",
+				fmt.Sprintf("Switching to %s shifts hand grips %.1f mm %s (Reach) and %.1f mm %s (Stack).",
 					bar2.Name, math.Abs(deltaGrip.X), reachDir, math.Abs(deltaGrip.Y), stackDir),
 			},
 		},

@@ -151,7 +151,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		refDefLines = append(refDefLines, "Seat Axis–HT Drop: vertical drop from the Seat Axis Point to head tube top (H * sin(STA) - Stack; steerer spacer/stem rise needed for level bars).")
 	}
 	if hasAttr("brp_setback", "saddle_hb", "saddle_hb_drop") {
-		refDefLines = append(refDefLines, "BRP Setback: horizontal distance from the BB center back to the Saddle BRP. BRP–HB: distance from the Saddle BRP to the handlebar reference point; HB Rise: handlebar height relative to the Saddle BRP (both depend on saddle, stem and bar).")
+		refDefLines = append(refDefLines, "BRP Setback: horizontal distance from the BB center back to the Saddle BRP. BRP–HB: distance from the Saddle BRP to the handlebar reference point; HB Rise: handlebar height relative to the Sit Bones (both depend on saddle, stem and bar).")
 	}
 	if hasAttr("seatpost_extension") {
 		refDefLines = append(refDefLines, "Seatpost Ext: Exposed seatpost length from collar to saddle rails (available vertical height for dropper post fitment).")
@@ -217,9 +217,16 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 
 	backAngle := rows[0].Canonical.BackAngleDeg
 	title := "Apples-to-Apples Geometry Comparison Matrix"
-	saddleName := state.Saddle.Name
-	if saddleName == "" {
-		saddleName = catalog.DefaultSaddle().Name
+	saddle := state.Saddle
+	if saddle.ID == "" {
+		saddle = catalog.DefaultSaddle()
+	}
+	saddleName := saddle.Name
+	refSaddle := catalog.DefaultSaddle()
+	activeBrpH := saddle.TranslateSaddleHeightFromRef(refSaddle, state.SaddleHeightMm, 219.0)
+	hText := fmt.Sprintf("%.0fmm", state.SaddleHeightMm)
+	if math.Abs(activeBrpH-state.SaddleHeightMm) >= 0.05 {
+		hText = fmt.Sprintf("%.1fmm (translated from %.0fmm)", activeBrpH, state.SaddleHeightMm)
 	}
 	bar := state.Handlebar
 	if bar.ID == "" {
@@ -231,8 +238,8 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 	}
 
 	line1 := fmt.Sprintf(
-		"H (saddle height): %.0fmm | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Modeled Back Angle: %.1f°",
-		state.SaddleHeightMm, saddleName, backAngle,
+		"H (saddle height): %s | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Modeled Back Angle: %.1f°",
+		hText, saddleName, backAngle,
 	)
 	line2 := fmt.Sprintf(
 		"Handlebar: %s (%.0fmm, %.0fmm rise, %.0f° sweep, %.0f° upsweep) | Ideal Profile: %s (*max stay position)",
@@ -417,16 +424,47 @@ func buildBreakdown(
 	t.Columns = []report.Column{{ID: "rank", Label: "Rank"}, {ID: "col", Label: "#"}, {ID: "frame", Label: "Frame"}}
 	var weightedAttrs []ideal.AttributeSpec
 	var weightParts []string
+	var totalWeight, weightedFloorSum float64
+	floorSeen := make(map[int]bool)
+	var floors []int
 	for _, attr := range prof.Attributes {
 		if attr.Weight > 0 && attr.Ideal != nil {
 			meta, _ := ideal.LookupAttribute(attr.ID)
 			t.Columns = append(t.Columns, report.Column{ID: attr.ID, Label: meta.Label, Numeric: true})
 			weightedAttrs = append(weightedAttrs, attr)
 			weightParts = append(weightParts, fmt.Sprintf("%s %.0f", meta.Label, attr.Weight))
+
+			fl := -200.0
+			if attr.Floor != nil {
+				fl = *attr.Floor
+			}
+			totalWeight += attr.Weight
+			weightedFloorSum += attr.Weight * fl
+			flInt := int(math.Round(fl))
+			if !floorSeen[flInt] {
+				floorSeen[flInt] = true
+				floors = append(floors, flInt)
+			}
 		}
 	}
+	sort.Sort(sort.Reverse(sort.IntSlice(floors)))
+	floorParts := make([]string, len(floors))
+	for i, f := range floors {
+		floorParts[i] = strconv.Itoa(f)
+	}
+	floorLabel := "per-criterion floor " + strings.Join(floorParts, " or ")
+	if len(floors) > 1 {
+		floorLabel = "per-criterion floors " + strings.Join(floorParts, " or ")
+	}
+	totalFloorBound := -200.0
+	if totalWeight > 0 {
+		totalFloorBound = math.Floor(weightedFloorSum / totalWeight)
+	}
 	t.Columns = append(t.Columns, report.Column{ID: "total", Label: "Total", Numeric: true})
-	t.Subtitle = fmt.Sprintf("Sub-scores (-200..+100) per criterion (points lost on total score in parens). Total = weighted average (weights: %s)", strings.Join(weightParts, ", "))
+	t.Subtitle = fmt.Sprintf(
+		"Sub-scores (%s to +100; points lost on total score in parens — criterion losses rounded independently, may differ from 100 - Total by ±1–2). Total = weighted average (> %.0f to +100; weights: %s)",
+		floorLabel, totalFloorBound, strings.Join(weightParts, ", "),
+	)
 	if withFooters {
 		t.Footers = footers
 	}
