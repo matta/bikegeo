@@ -19,8 +19,9 @@ Non-goals: HTMX/AJAX/partial updates, SPA routing, authentication, remote deploy
 ## Running
 
 ```bash
-make serve                              # builds, serves on 127.0.0.1:8080, opens the browser
-./bin/bikegeo serve --port 0 --open     # pick a free port
+make serve                                       # builds, serves on 127.0.0.1:8080, opens the browser
+./bin/bikegeo serve --port 0 --open              # pick a free port
+./bin/bikegeo serve --render /handlebars         # render one route to stdout with no TCP socket
 ```
 
 `serve` is dispatched from `pkg/cli`; `pkg/web` does not import `pkg/cli`.

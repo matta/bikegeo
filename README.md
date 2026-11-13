@@ -30,7 +30,7 @@ All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs
      `Stack = BB_drop - Rake * cos(HTA) + (A2C + cup_stack + HTL) * sin(HTA)`
    - Reverse-engineers geometric Axle-to-Crown:
      `A2C_geo = (Stack - BB_drop + Rake * cos(HTA)) / sin(HTA) - HTL - cup_stack`
-   - Detects whether the manufacturer published numbers at **0% static sag** or **15–25% sagged CAD**, or whether there is a published typo/inconsistency.
+   - Detects whether the manufacturer published numbers at **0% static sag** or **15–30% sagged CAD**, or whether there is a published typo/inconsistency.
    - `bikegeo fit <frame>` automatically solves for candidate physical fork/spacer/sag combinations when ingesting new frames.
 
 5. **Ideal Frame Profiles & Sweet-Spot Scoring (`pkg/ideal`, `pkg/scoring`)**:
