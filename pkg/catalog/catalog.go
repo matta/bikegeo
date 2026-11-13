@@ -250,12 +250,12 @@ var CommonStemCatalog = []model.StemCatalogEntry{
 	{
 		ID:            "mtb",
 		LengthRangeMm: []float64{40, 100},
-		AnglesDeg:     []float64{-6, 0, 6},
+		AnglesDeg:     []model.Deg{-6, 0, 6},
 	},
 	{
 		ID:            "gravel",
 		LengthRangeMm: []float64{60, 110},
-		AnglesDeg:     []float64{-6, 0, 6},
+		AnglesDeg:     []model.Deg{-6, 0, 6},
 	},
 }
 

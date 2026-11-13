@@ -73,6 +73,8 @@ func budgetTierNotice(id, field, label string, b model.ErrorBudget) (model.Valid
 			Message: fmt.Sprintf("The %.1fmm residual exceeds the ±%.1fmm rounding budget by %.1fmm and passes only with the declared geo_slop_mm allowance (+%.1fmm).",
 				abs(b.Residual), b.RoundingTol(), b.NeededAllowance(), b.Allowance),
 		}, true
+	case model.TierLengthRounding, model.TierExceeds:
+		// Length rounding needs no notice; a failure is reported as an error elsewhere.
 	}
 	return model.ValidationIssue{}, false
 }

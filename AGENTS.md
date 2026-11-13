@@ -55,6 +55,8 @@ go fix ./... && go fmt ./... && make check
   - `pkg/canonicalizer` strictly enforces these constraints, rejecting unsupported travel sizes, rigid forks on suspension-only frames, or non-zero sag on rigid forks.
 - **Default Comparison Baseline**:
   - Running `bikegeo compare` with no arguments evaluates `compare.DefaultComparisonState()`. Incremental `+spec` and `-spec` / `-col_num` flags add or remove columns against that baseline in memory.
+- **Angles Are `model.Deg`, Lengths Stay `float64`**:
+  - Angles in degrees are `model.Deg`; trigonometry goes through `Deg.Angle()` (`geom2d.Angle`) and results come back with `model.DegOf`, never a hand-written `math.Pi / 180`. Lengths stay `float64`.
 
 ## Adding or Modifying Bike Frame Datasets
 

@@ -22,7 +22,7 @@ import (
 //     min-max midpoint structural A2C across all sizes of the frame.
 type SizeResidual struct {
 	Size                 string
-	HtaDeg               float64
+	HtaDeg               model.Deg
 	Stack                float64
 	Reach                float64
 	Htl                  float64

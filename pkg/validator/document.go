@@ -234,9 +234,10 @@ func budgetTierLabel(t model.BudgetTier) string {
 		return "needs head angle rounding"
 	case model.TierAllowance:
 		return "needs declared allowance"
-	default:
-		return "exceeds rounding"
+	case model.TierExceeds:
 	}
+	// TierExceeds and any unknown tier.
+	return "exceeds rounding"
 }
 
 // budgetCell renders a budget for the validation proof table, for example

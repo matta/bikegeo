@@ -187,7 +187,7 @@ func TestKeyInsights(t *testing.T) {
 func TestForwardAndInverseTransforms(t *testing.T) {
 	spec := catalog.HandlebarPresets["sqlab3OX_16_30"]
 	gripInset := 65.0
-	rollDeg := 3.5
+	rollDeg := model.Deg(3.5)
 
 	hbOrigin := model.Point3D{X: 450.0, Y: 620.0, Z: 0.0}
 
@@ -278,7 +278,7 @@ func TestHandlebarStemCompensation(t *testing.T) {
 func TestCalculateHBPointWithHandlebar(t *testing.T) {
 	reach := 450.0
 	stack := 620.0
-	htaDeg := 73.0
+	htaDeg := model.Deg(73.0)
 	brp := model.BRPPoint{
 		BrpX:         -219.0,
 		BrpY:         713.0,

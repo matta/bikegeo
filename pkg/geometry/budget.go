@@ -72,7 +72,7 @@ func InferChartPrecision(frame model.FrameModel) model.ChartPrecision {
 	return model.ChartPrecision{
 		ReachMm:       gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.Reach }), lengthGridsMm),
 		StackMm:       gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.Stack }), lengthGridsMm),
-		HtaDeg:        gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.HtaDeg }), angleGridsDeg),
+		HtaDeg:        model.Deg(gridHalfWidth(col(func(g model.SizeGeometry) float64 { return float64(g.HtaDeg) }), angleGridsDeg)),
 		HtlMm:         gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.Htl }), lengthGridsMm),
 		BbDropMm:      gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.BbDrop }), lengthGridsMm),
 		ChainstayMm:   gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.ChainstayLength }), lengthGridsMm),
@@ -93,7 +93,9 @@ func ChartPrecisionFor(bike model.BikeGeometry) model.ChartPrecision {
 	}
 	fill(&p.ReachMm, bike.Reach, lengthGridsMm)
 	fill(&p.StackMm, bike.Stack, lengthGridsMm)
-	fill(&p.HtaDeg, bike.HtaDeg, angleGridsDeg)
+	if p.HtaDeg <= 0 {
+		p.HtaDeg = model.Deg(gridHalfWidth([]float64{float64(bike.HtaDeg)}, angleGridsDeg))
+	}
 	fill(&p.HtlMm, bike.Htl, lengthGridsMm)
 	fill(&p.BbDropMm, bike.BbDrop, lengthGridsMm)
 	fill(&p.ChainstayMm, bike.ChainstayLength, lengthGridsMm)
@@ -103,15 +105,19 @@ func ChartPrecisionFor(bike model.BikeGeometry) model.ChartPrecision {
 }
 
 // chartInputs are the published, rounded chart numbers a closure check depends on.
+// Every input is a plain float64, the head angle included, so that buildBudget can
+// perturb any of them through the same *float64; hta gives the angle its type back.
 type chartInputs struct {
 	reach, stack, htaDeg, htl, bbDrop, chainstay, wheelbase, frontCenter float64
 }
+
+func (c chartInputs) hta() model.Deg { return model.Deg(c.htaDeg) }
 
 func chartInputsOf(bike model.BikeGeometry) chartInputs {
 	return chartInputs{
 		reach:       bike.Reach,
 		stack:       bike.Stack,
-		htaDeg:      bike.HtaDeg,
+		htaDeg:      float64(bike.HtaDeg),
 		htl:         bike.Htl,
 		bbDrop:      bike.BbDrop,
 		chainstay:   bike.ChainstayLength,
@@ -130,7 +136,7 @@ type chartField struct {
 var chartFields = []chartField{
 	{"Reach", false, func(c *chartInputs) *float64 { return &c.reach }, func(p model.ChartPrecision) float64 { return p.ReachMm }},
 	{"Stack", false, func(c *chartInputs) *float64 { return &c.stack }, func(p model.ChartPrecision) float64 { return p.StackMm }},
-	{"HTA", true, func(c *chartInputs) *float64 { return &c.htaDeg }, func(p model.ChartPrecision) float64 { return p.HtaDeg }},
+	{"HTA", true, func(c *chartInputs) *float64 { return &c.htaDeg }, func(p model.ChartPrecision) float64 { return float64(p.HtaDeg) }},
 	{"HTL", false, func(c *chartInputs) *float64 { return &c.htl }, func(p model.ChartPrecision) float64 { return p.HtlMm }},
 	{"BB Drop", false, func(c *chartInputs) *float64 { return &c.bbDrop }, func(p model.ChartPrecision) float64 { return p.BbDropMm }},
 	{"Chainstay", false, func(c *chartInputs) *float64 { return &c.chainstay }, func(p model.ChartPrecision) float64 { return p.ChainstayMm }},
@@ -182,11 +188,11 @@ func buildBudget(in chartInputs, prec model.ChartPrecision, allowance float64, r
 // BB drop, HTA and rake. The head tube length cancels: the front end is as long
 // as the published Stack says it is.
 func impliedFrontCenterHoriz(in chartInputs, rake float64) float64 {
-	frontEnd, ok := frontEndLength(in.stack, in.bbDrop, in.htaDeg, rake)
+	frontEnd, ok := frontEndLength(in.stack, in.bbDrop, in.hta(), rake)
 	if !ok {
 		return math.NaN()
 	}
-	return CalculateFrontCenter(in.reach, in.htl, in.htaDeg, rake, frontEnd-in.htl)
+	return CalculateFrontCenter(in.reach, in.htl, in.hta(), rake, frontEnd-in.htl)
 }
 
 func allowanceOf(v *float64) float64 {
@@ -209,11 +215,11 @@ func A2cBudget(bike model.BikeGeometry) (budget model.ErrorBudget, ok bool) {
 	if forkA2c <= 0 || in.htl <= 0 {
 		return model.ErrorBudget{}, false
 	}
-	if _, ok := frontEndLength(in.stack, in.bbDrop, in.htaDeg, rake); !ok {
+	if _, ok := frontEndLength(in.stack, in.bbDrop, in.hta(), rake); !ok {
 		return model.ErrorBudget{}, false
 	}
 	resid := func(c chartInputs) float64 {
-		frontEnd, ok := frontEndLength(c.stack, c.bbDrop, c.htaDeg, rake)
+		frontEnd, ok := frontEndLength(c.stack, c.bbDrop, c.hta(), rake)
 		if !ok {
 			return math.NaN()
 		}

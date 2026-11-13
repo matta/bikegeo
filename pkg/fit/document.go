@@ -269,6 +269,8 @@ func sizeBudgetUsed(rep model.ValidationReport) string {
 			mark = "+"
 		case model.TierExceeds:
 			mark = "!"
+		case model.TierLengthRounding:
+			// Explained by length rounding alone: no mark.
 		}
 		return fmt.Sprintf("%.0f%%%s", 100*b.Saturation(), mark)
 	}

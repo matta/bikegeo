@@ -139,7 +139,7 @@ func (s GeoSlopMm) String() string {
 type ChartPrecision struct {
 	ReachMm       float64
 	StackMm       float64
-	HtaDeg        float64
+	HtaDeg        Deg
 	HtlMm         float64
 	BbDropMm      float64
 	ChainstayMm   float64
@@ -249,8 +249,8 @@ type BikeGeometry struct {
 	// Primary Frame Dimensions (mm / deg)
 	Reach     float64
 	Stack     float64
-	HtaDeg    float64
-	StaDeg    float64
+	HtaDeg    Deg
+	StaDeg    Deg
 	Htl       float64
 	BbDrop    float64
 	ForkRake  float64
@@ -276,7 +276,7 @@ type BikeGeometry struct {
 	ChartPrecision ChartPrecision
 
 	// Bent / Offset Seat Tube
-	ActualStaDeg      float64
+	ActualStaDeg      Deg
 	SeatTubeOffsetXMm *float64
 
 	// Cockpit & Stem/Spacer Envelope
@@ -301,17 +301,17 @@ func (b BikeGeometry) GetCadRake() float64 {
 }
 
 func (b BikeGeometry) HasBentSeatTube() bool {
-	return b.ActualStaDeg > 0 && math.Abs(b.ActualStaDeg-b.StaDeg) > 0.001
+	return b.ActualStaDeg > 0 && (b.ActualStaDeg-b.StaDeg).Abs() > 0.001
 }
 
-func (b BikeGeometry) GetActualStaDeg() float64 {
+func (b BikeGeometry) GetActualStaDeg() Deg {
 	if b.ActualStaDeg > 0 {
 		return b.ActualStaDeg
 	}
 	return b.StaDeg
 }
 
-func (b BikeGeometry) GetSeatTubeOffsetXMm(stack, nominalSta float64) float64 {
+func (b BikeGeometry) GetSeatTubeOffsetXMm(stack float64, nominalSta Deg) float64 {
 	if b.SeatTubeOffsetXMm != nil {
 		return *b.SeatTubeOffsetXMm
 	}
@@ -324,12 +324,12 @@ func (b BikeGeometry) GetSeatTubeOffsetXMm(stack, nominalSta float64) float64 {
 	if nominalSta <= 0 {
 		nominalSta = b.StaDeg
 	}
-	cotAct := 1.0 / math.Tan(b.ActualStaDeg*math.Pi/180.0)
-	cotNom := 1.0 / math.Tan(nominalSta*math.Pi/180.0)
+	cotAct := 1.0 / b.ActualStaDeg.Angle().Tan()
+	cotNom := 1.0 / nominalSta.Angle().Tan()
 	return stack * (cotAct - cotNom)
 }
 
-func (b BikeGeometry) CalculateEffectiveSta(seatHeight, stack, nominalSta float64) float64 {
+func (b BikeGeometry) CalculateEffectiveSta(seatHeight, stack float64, nominalSta Deg) Deg {
 	if !b.HasBentSeatTube() || seatHeight <= 0 {
 		if nominalSta > 0 {
 			return nominalSta
@@ -337,15 +337,14 @@ func (b BikeGeometry) CalculateEffectiveSta(seatHeight, stack, nominalSta float6
 		return b.StaDeg
 	}
 	ox := b.GetSeatTubeOffsetXMm(stack, nominalSta)
-	actRad := b.ActualStaDeg * math.Pi / 180.0
-	sinVal := (ox * math.Sin(actRad)) / seatHeight
+	sinVal := (ox * b.ActualStaDeg.Angle().Sin()) / seatHeight
 	if sinVal > 1.0 {
 		sinVal = 1.0
 	} else if sinVal < -1.0 {
 		sinVal = -1.0
 	}
 	alphaRad := math.Asin(sinVal)
-	return b.ActualStaDeg + (alphaRad * 180.0 / math.Pi)
+	return b.ActualStaDeg + DegOf(geom2d.FromRad(alphaRad))
 }
 
 func (b BikeGeometry) GetGeoHeadsetSpacerMm() float64 {
@@ -401,14 +400,14 @@ const StemLengthStepMm = 10.0
 // StemSpec represents a stem configuration (length in mm, angle in degrees).
 type StemSpec struct {
 	LengthMm float64
-	AngleDeg float64
+	AngleDeg Deg
 }
 
 // StemCatalogEntry encapsulates a stem set in pkg/catalog.
 type StemCatalogEntry struct {
 	ID            string
 	LengthRangeMm []float64
-	AnglesDeg     []float64
+	AnglesDeg     []Deg
 }
 
 // Expand generates the Cartesian product of stems across LengthRangeMm (in StemLengthStepMm steps) and AnglesDeg.
@@ -536,29 +535,29 @@ func clampUnit(v float64) float64 {
 
 // StaForBrpAndOffset returns the exact effective Seat Tube Angle (degrees) such that
 // CalculatePoint(staDeg, saddleHeightMm, seatpostSetbackMm, railOffsetMm).BrpSetbackMm equals brpSetbackMm.
-func (s SaddleSpec) StaForBrpAndOffset(brpSetbackMm, saddleHeightMm, seatpostSetbackMm, railOffsetMm float64) float64 {
+func (s SaddleSpec) StaForBrpAndOffset(brpSetbackMm, saddleHeightMm, seatpostSetbackMm, railOffsetMm float64) Deg {
 	if saddleHeightMm <= 0 {
 		return 0
 	}
 	brpPerp := seatpostSetbackMm + railOffsetMm - s.RailCenterToBrpMm
 	rad := math.Acos(clampUnit(brpSetbackMm/saddleHeightMm)) + math.Asin(clampUnit(brpPerp/saddleHeightMm))
-	return rad * 180.0 / math.Pi
+	return DegOf(geom2d.FromRad(rad))
 }
 
 // RailOffsetForBrpAtSta returns the exact rail clamp offset (mm) such that
 // CalculatePoint(staDeg, saddleHeightMm, seatpostSetbackMm, railOffsetMm).BrpSetbackMm equals brpSetbackMm.
-func (s SaddleSpec) RailOffsetForBrpAtSta(staDeg, brpSetbackMm, saddleHeightMm, seatpostSetbackMm float64) float64 {
+func (s SaddleSpec) RailOffsetForBrpAtSta(staDeg Deg, brpSetbackMm, saddleHeightMm, seatpostSetbackMm float64) float64 {
 	if saddleHeightMm <= 0 {
 		return 0
 	}
-	staRad := staDeg * math.Pi / 180.0
+	staRad := staDeg.Angle().Rad()
 	delta := staRad - math.Acos(clampUnit(brpSetbackMm/saddleHeightMm))
 	return saddleHeightMm*math.Sin(delta) - seatpostSetbackMm + s.RailCenterToBrpMm
 }
 
 // IdealSeatTubeAngle computes the exact effective Seat Tube Angle required to mount this saddle
 // with its clamp dead-center (0.0mm) on the rails for a given sit bone setback and saddle height.
-func (s SaddleSpec) IdealSeatTubeAngle(sitBoneSetbackMm, saddleHeightMm, seatpostSetbackMm float64) float64 {
+func (s SaddleSpec) IdealSeatTubeAngle(sitBoneSetbackMm, saddleHeightMm, seatpostSetbackMm float64) Deg {
 	if saddleHeightMm <= 0 {
 		return 0
 	}
@@ -709,7 +708,7 @@ type BRPPoint struct {
 	SitBoneY              float64
 	BrpSetbackMm          float64
 	SitBoneSetbackMm      float64
-	BrpAngleFromBbDeg     float64
+	BrpAngleFromBbDeg     Deg
 }
 
 // BrpPoint returns the 2D BRP coordinate (BrpX, BrpY).
@@ -731,9 +730,9 @@ func (p BRPPoint) SitBonePoint() geom2d.Point2 {
 // for a frame with the given effective STA at radial seatHeight, with perpendicular seatpost setback
 // and fore-aft rail clamp offset.
 func (s SaddleSpec) CalculatePoint(
-	staDeg, seatHeight, seatpostSetbackMm, railOffsetMm float64,
+	staDeg Deg, seatHeight, seatpostSetbackMm, railOffsetMm float64,
 ) BRPPoint {
-	seatAxis := geom2d.NewAxisFromPolar(geom2d.Origin, geom2d.FromDeg(180.0-staDeg))
+	seatAxis := geom2d.NewAxisFromPolar(geom2d.Origin, (180.0 - staDeg).Angle())
 
 	// clampPerp is the perpendicular rearward offset of the seatpost clamp center from the seat tube axis.
 	// Positive railOffsetMm pushes the saddle body rearward relative to the clamp (clamp moves forward on rails).
@@ -750,9 +749,9 @@ func (s SaddleSpec) CalculatePoint(
 	setback := -brpPoint.X
 	sitBoneSetback := -sitBonePoint.X
 
-	angleFromBb := 0.0
+	angleFromBb := Deg(0.0)
 	if setback > 0 && brpPoint.Y > 0 {
-		angleFromBb = geom2d.Point2{X: setback, Y: brpPoint.Y}.PolarAngleDeg()
+		angleFromBb = DegOf(geom2d.Point2{X: setback, Y: brpPoint.Y}.PolarAngle())
 	}
 
 	return BRPPoint{
@@ -775,7 +774,7 @@ func (s SaddleSpec) CalculatePoint(
 // MapPossibleBRPs generates all valid candidate BRP points within this saddle's
 // straight rail clamp window in 1mm steps.
 func (s SaddleSpec) MapPossibleBRPs(
-	staDeg, seatHeight, seatpostSetbackMm, clampLengthMm float64,
+	staDeg Deg, seatHeight, seatpostSetbackMm, clampLengthMm float64,
 ) []BRPPoint {
 	if clampLengthMm <= 0 {
 		clampLengthMm = DefaultSeatpostClampLengthMm
@@ -865,8 +864,8 @@ type HandlebarSpec struct {
 	StockWidthMm         float64             `json:"stock_width_mm"`
 	CurrentWidthMm       float64             `json:"current_width_mm"`
 	StatedRiseMm         float64             `json:"stated_rise_mm"`
-	BacksweepDeg         float64             `json:"backsweep_deg"`
-	UpsweepDeg           float64             `json:"upsweep_deg"`
+	BacksweepDeg         Deg                 `json:"backsweep_deg"`
+	UpsweepDeg           Deg                 `json:"upsweep_deg"`
 	EffectiveBendStartMm float64             `json:"effective_bend_start_mm"` // z_b (lateral bend start from centerline)
 	RiseMode             RiseMeasurementMode `json:"rise_mode"`
 }
@@ -894,9 +893,9 @@ func (h HandlebarSpec) HandLateralMm(gripInsetMm float64) float64 {
 // For bar-end center measurement, y_k = statedRise - (stockWidth/2 - z_b) * tan(upsweep).
 func (h HandlebarSpec) BaseRiseAtBend() float64 {
 	if h.RiseMode == RiseModeBarEndCenter {
-		alpha := h.UpsweepDeg * math.Pi / 180.0
+		alpha := h.UpsweepDeg.Angle()
 		stockTipSpan := h.StockWidthMm/2.0 - h.EffectiveBendStartMm
-		return h.StatedRiseMm - stockTipSpan*math.Tan(alpha)
+		return h.StatedRiseMm - stockTipSpan*alpha.Tan()
 	}
 	return h.StatedRiseMm
 }
@@ -927,7 +926,7 @@ type FitOval struct {
 	CenterY    float64 // Absolute Y coordinate of ideal center (mm)
 	SemiMinorA float64 // Semi-minor horizontal radius (default: 10.0 mm)
 	SemiMajorB float64 // Semi-major vertical radius (default: 20.0 mm)
-	AngleDeg   float64 // Clockwise rotation angle in degrees (default: 30.0 deg)
+	AngleDeg   Deg     // Clockwise rotation angle in degrees (default: 30.0 deg)
 }
 
 // CockpitFitResult captures the fit assessment of a bike's candidate handlebar positions against a FitOval.
@@ -1055,8 +1054,8 @@ type ForkSpec struct {
 type SizeGeometry struct {
 	Reach           float64
 	Stack           float64
-	HtaDeg          float64
-	StaDeg          float64
+	HtaDeg          Deg
+	StaDeg          Deg
 	Htl             float64
 	BbDrop          float64
 	Wheelbase       float64
@@ -1079,7 +1078,7 @@ type FrameModel struct {
 	HeadsetCupType     HeadsetCupType
 	GeoHeadsetSpacerMm float64
 	GeoSlopMm          *GeoSlopMm
-	ActualStaDeg       float64
+	ActualStaDeg       Deg
 	SeatTubeOffsetXMm  *float64
 	ChainstayRangeMm   []float64
 	Sizes              []string
@@ -1171,36 +1170,35 @@ func (fm *FrameModel) HasBentSeatTube() bool {
 	return fm.ActualStaDeg > 0
 }
 
-func (fm *FrameModel) GetActualStaDeg() float64 {
+func (fm *FrameModel) GetActualStaDeg() Deg {
 	return fm.ActualStaDeg
 }
 
-func (fm *FrameModel) GetSeatTubeOffsetXMm(stack, nominalSta float64) float64 {
+func (fm *FrameModel) GetSeatTubeOffsetXMm(stack float64, nominalSta Deg) float64 {
 	if fm.SeatTubeOffsetXMm != nil {
 		return *fm.SeatTubeOffsetXMm
 	}
 	if !fm.HasBentSeatTube() || stack <= 0 || nominalSta <= 0 {
 		return 0
 	}
-	cotAct := 1.0 / math.Tan(fm.ActualStaDeg*math.Pi/180.0)
-	cotNom := 1.0 / math.Tan(nominalSta*math.Pi/180.0)
+	cotAct := 1.0 / fm.ActualStaDeg.Angle().Tan()
+	cotNom := 1.0 / nominalSta.Angle().Tan()
 	return stack * (cotAct - cotNom)
 }
 
-func (fm *FrameModel) CalculateEffectiveSta(seatHeight, stack, nominalSta float64) float64 {
+func (fm *FrameModel) CalculateEffectiveSta(seatHeight, stack float64, nominalSta Deg) Deg {
 	if !fm.HasBentSeatTube() || seatHeight <= 0 || nominalSta <= 0 {
 		return nominalSta
 	}
 	ox := fm.GetSeatTubeOffsetXMm(stack, nominalSta)
-	actRad := fm.ActualStaDeg * math.Pi / 180.0
-	sinVal := (ox * math.Sin(actRad)) / seatHeight
+	sinVal := (ox * fm.ActualStaDeg.Angle().Sin()) / seatHeight
 	if sinVal > 1.0 {
 		sinVal = 1.0
 	} else if sinVal < -1.0 {
 		sinVal = -1.0
 	}
 	alphaRad := math.Asin(sinVal)
-	return fm.ActualStaDeg + (alphaRad * 180.0 / math.Pi)
+	return fm.ActualStaDeg + DegOf(geom2d.FromRad(alphaRad))
 }
 
 func (fm *FrameModel) HasAdjustableChainstay() bool {
@@ -1517,7 +1515,7 @@ type RiderProfile struct {
 	RiderWeightLbs                float64
 	BikeWeightLbs                 float64
 	BaselineStemMm                float64
-	BaselineStemAngleDeg          float64
+	BaselineStemAngleDeg          Deg
 	Handlebar                     HandlebarSpec
 	BaselineSaddleSetbackOffsetMm float64
 }
@@ -1556,12 +1554,12 @@ type SavedComparisonState struct {
 }
 
 type DynamicGeometryResult struct {
-	NewHta        float64
-	NewSta        float64
+	NewHta        Deg
+	NewSta        Deg
 	NewReach      float64
 	NewStack      float64
 	NewBbDrop     float64
-	DeltaAngleDeg float64
+	DeltaAngleDeg Deg
 	DeltaReach    float64
 	DeltaStack    float64
 	DeltaBbDrop   float64
@@ -1572,8 +1570,8 @@ type BikeFitAnalysis struct {
 	StructuralA2c       float64
 	ActiveReach         float64
 	ActiveStack         float64
-	ActiveHta           float64
-	ActiveSta           float64
+	ActiveHta           Deg
+	ActiveSta           Deg
 	ActiveBbDrop        float64
 	Aett                float64
 	Ett                 float64
@@ -1581,7 +1579,7 @@ type BikeFitAnalysis struct {
 	SpareVerticalStack  float64
 	SpareAxialSteerer   float64
 	SeatpostExtensionMm float64
-	DeltaAngleDeg       float64
+	DeltaAngleDeg       Deg
 	DeltaReach          float64
 	DeltaStack          float64
 	DeltaBbDrop         float64
@@ -1590,7 +1588,7 @@ type BikeFitAnalysis struct {
 	// Weight Distribution & Biomechanical Posture
 	WeightDistFrontPct float64
 	WeightDistRearPct  float64
-	BackAngleDeg       float64
+	BackAngleDeg       Deg
 	FrontCenterCalc    float64
 	RearCenterCalc     float64
 	SeatToRearCenter   float64
@@ -1603,7 +1601,7 @@ type BikeFitAnalysis struct {
 	Saddle              SaddleSpec
 	Handlebar           HandlebarSpec
 	SitBoneSetbackMm    float64
-	IdealStaDeg         float64
+	IdealStaDeg         Deg
 	AchievedClampOffset float64
 	DeadCenterBRP       BRPPoint
 	SelectedBRP         *BRPPoint
@@ -1618,8 +1616,8 @@ type BikeFitAnalysis struct {
 type BaselineMetrics struct {
 	Reach              float64
 	Stack              float64
-	HtaDeg             float64
-	StaDeg             float64
+	HtaDeg             Deg
+	StaDeg             Deg
 	BbDrop             float64
 	A2c                float64
 	Aett               float64

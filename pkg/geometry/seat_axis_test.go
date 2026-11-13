@@ -21,7 +21,7 @@ func seatAxisTestBike() model.BikeGeometry {
 func TestCalculateEttMatchesIndustryDefinition(t *testing.T) {
 	reach, stack, hta, sta := 398.0, 656.0, 69.0, 74.0
 	want := reach + stack/math.Tan(sta*math.Pi/180.0)
-	got := geometry.CalculateEtt(reach, stack, hta, sta)
+	got := geometry.CalculateEtt(reach, stack, model.Deg(hta), model.Deg(sta))
 	if math.Abs(got-want) > 0.01 {
 		t.Errorf("CalculateEtt = %.3f, want reach + stack/tan(STA) = %.3f", got, want)
 	}

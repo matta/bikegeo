@@ -108,12 +108,12 @@ func TestCanonicalizeBentSeatTube(t *testing.T) {
 	row := rows[0]
 	// Baseline effective STA at 780mm saddle height on Large (Ox ~ 19.72mm) is ~74.69°.
 	// Pitched with TargetA2c 510.0mm (vs CAD geometric 504.3mm), frame slacks by 0.26° -> 74.43°.
-	if math.Abs(row.Canonical.ActiveSta-74.43) > 0.01 {
+	if (row.Canonical.ActiveSta - 74.43).Abs() > 0.01 {
 		t.Errorf("Expected ActiveSta 74.43°, got %.2f°", row.Canonical.ActiveSta)
 	}
 
 	// Baseline STA in spec should preserve published 75.0°
-	if math.Abs(row.Baseline.StaDeg-75.0) > 0.05 {
+	if (row.Baseline.StaDeg - 75.0).Abs() > 0.05 {
 		t.Errorf("Expected Baseline.StaDeg 75.0, got %.1f", row.Baseline.StaDeg)
 	}
 

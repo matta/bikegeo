@@ -264,7 +264,7 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	}
 
 	// Frame geometry with ideal 72.0° STA at saddle height 746mm
-	staDeg := 72.0
+	staDeg := model.Deg(72.0)
 	seatHeight := 746.0
 	saddle := model.ReferenceIdmatchSaddle()
 	deadCenterBRP := saddle.CalculatePoint(staDeg, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
@@ -321,7 +321,7 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	}
 
 	// Verify that steep STA = 74.53° (Otso Fenrir) is properly penalized without a Drop Best
-	fenrirSTA := 74.53
+	fenrirSTA := model.Deg(74.53)
 	fenrirDeadCenter := saddle.CalculatePoint(fenrirSTA, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
 	fenrirPossible := saddle.MapPossibleBRPs(fenrirSTA, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
 	fenrirBike := bike

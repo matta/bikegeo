@@ -25,8 +25,8 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 	required := []reqField{
 		{name: "reach", label: "Reach", val: bike.Reach},
 		{name: "stack", label: "Stack", val: bike.Stack},
-		{name: "hta_deg", label: "Head Tube Angle (HTA)", val: bike.HtaDeg},
-		{name: "sta_deg", label: "Seat Tube Angle (STA)", val: bike.StaDeg},
+		{name: "hta_deg", label: "Head Tube Angle (HTA)", val: float64(bike.HtaDeg)},
+		{name: "sta_deg", label: "Seat Tube Angle (STA)", val: float64(bike.StaDeg)},
 		{name: "htl", label: "Head Tube Length (HTL)", val: bike.Htl},
 		{name: "bb_drop", label: "Bottom Bracket Drop", val: bike.BbDrop},
 		{name: "fork_rake", label: "Fork Rake / Offset", val: bike.ForkRake},
@@ -639,7 +639,7 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 		if frame.CanonicalStem.LengthMm > 0 {
 			hasCanonical := false
 			for _, s := range expandedStems {
-				if math.Abs(s.LengthMm-frame.CanonicalStem.LengthMm) < 0.001 && math.Abs(s.AngleDeg-frame.CanonicalStem.AngleDeg) < 0.001 {
+				if math.Abs(s.LengthMm-frame.CanonicalStem.LengthMm) < 0.001 && (s.AngleDeg-frame.CanonicalStem.AngleDeg).Abs() < 0.001 {
 					hasCanonical = true
 					break
 				}
@@ -928,8 +928,9 @@ func stackReachSagHint(bike model.BikeGeometry, structuralA2c, refFcHoriz float6
 	if bike.Reach <= 0 || bike.HtaDeg <= 0 {
 		return model.ValidationIssue{}, false
 	}
-	cosHta := math.Cos(geometry.ToRad(bike.HtaDeg))
-	sinHta := math.Sin(geometry.ToRad(bike.HtaDeg))
+	hta := bike.HtaDeg.Angle()
+	cosHta := hta.Cos()
+	sinHta := hta.Sin()
 	if cosHta <= 0.05 {
 		return model.ValidationIssue{}, false
 	}

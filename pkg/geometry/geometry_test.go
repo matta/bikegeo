@@ -174,8 +174,8 @@ func TestBiomechanicalPostureAndWeightDistribution(t *testing.T) {
 }
 
 func TestBentSeatTubeElJefe(t *testing.T) {
-	actualSta := 73.3
-	nominalSta := 75.0
+	actualSta := model.Deg(73.3)
+	nominalSta := model.Deg(75.0)
 
 	sizes := []struct {
 		name       string
@@ -200,7 +200,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 		sizeName    string
 		stack       float64
 		saddleL     float64
-		expectedSta float64
+		expectedSta model.Deg
 		expectedSb  float64
 	}{
 		// Small (Ox ~ 19.21mm)
@@ -237,7 +237,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 		effSta := geometry.CalculateEffectiveSta(actualSta, ox, tc.saddleL)
 		setback := geometry.CalculateActualSetback(effSta, tc.saddleL)
 
-		if math.Abs(effSta-tc.expectedSta) > 0.015 {
+		if (effSta - tc.expectedSta).Abs() > 0.015 {
 			t.Errorf("[%s at L=%.0f] expected effective STA %.2f°, got %.4f°", tc.sizeName, tc.saddleL, tc.expectedSta, effSta)
 		}
 		if math.Abs(setback-tc.expectedSb) > 0.15 {
@@ -273,7 +273,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 	}
 
 	// Effective STA at 780mm saddle height should be ~74.69°
-	if math.Abs(fit.ActiveSta-74.69) > 0.02 {
+	if (fit.ActiveSta - 74.69).Abs() > 0.02 {
 		t.Errorf("Expected ActiveSta ~ 74.69°, got %.2f°", fit.ActiveSta)
 	}
 
@@ -348,7 +348,7 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	reach := 450.0
 	stack := 620.0
 	seatHeight := 750.0
-	staDeg := 74.0
+	staDeg := model.Deg(74.0)
 
 	// BRP point with 0 offset matches bare seat tube top coordinates
 	brp := geometry.CalculateBRPPoint(staDeg, seatHeight, 0.0, 0.0, 0.0)
@@ -386,8 +386,8 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	}
 
 	// Verify Seatpost Top coordinates
-	seatX := -seatHeight * math.Cos(staDeg*math.Pi/180.0)
-	seatY := seatHeight * math.Sin(staDeg*math.Pi/180.0)
+	seatX := -seatHeight * math.Cos(float64(staDeg)*math.Pi/180.0)
+	seatY := seatHeight * math.Sin(float64(staDeg)*math.Pi/180.0)
 	expectedDist1 := math.Hypot(expectedHbX1-seatX, expectedHbY1-seatY)
 	if math.Abs(hb1.SaddleHbMm-expectedDist1) > 0.1 {
 		t.Errorf("hb1.SaddleHbMm expected %.2f, got %.2f", expectedDist1, hb1.SaddleHbMm)
@@ -427,8 +427,8 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 func TestMapPossibleHBs_And_SelectBestHB(t *testing.T) {
 	reach := 440.0
 	stack := 630.0
-	htaDeg := 68.0
-	staDeg := 74.0
+	htaDeg := model.Deg(68.0)
+	staDeg := model.Deg(74.0)
 	seatHeight := 750.0
 
 	maxSpacer := 20.0 // 0, 5, 10, 15, 20 mm (5 spacer points)
@@ -529,7 +529,7 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 	if geometry.Round(brpZero.BrpSetbackMm, 1) != 219.0 {
 		t.Errorf("Expected BrpSetbackMm 219.0, got %.1f", brpZero.BrpSetbackMm)
 	}
-	if math.Abs(brpZero.BrpAngleFromBbDeg-72.9) > 0.1 {
+	if (brpZero.BrpAngleFromBbDeg - 72.9).Abs() > 0.1 {
 		t.Errorf("Expected BrpAngleFromBbDeg 72.9°, got %.1f°", brpZero.BrpAngleFromBbDeg)
 	}
 
@@ -578,7 +578,7 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 }
 
 func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
-	staDeg := 72.0
+	staDeg := model.Deg(72.0)
 	seatHeight := 746.0
 
 	points := geometry.MapPossibleBRPs(staDeg, seatHeight)
@@ -1051,14 +1051,14 @@ func TestCalculateDynamicGeometry_Exact2DRotation(t *testing.T) {
 
 	for _, delta := range []float64{-50, -25, 0, 25, 50} {
 		dyn := geometry.CalculateDynamicGeometry(
-			baseReach, baseStack, baseHta, baseSta, baseBbDrop,
+			baseReach, baseStack, model.Deg(baseHta), model.Deg(baseSta), baseBbDrop,
 			495.0, 495.0+delta, wb, cs,
 		)
 		newDist := math.Hypot(dyn.NewReach, dyn.NewStack)
 		if math.Abs(newDist-baseDist) > 0.2 {
 			t.Errorf("delta=%.0fmm: BB-to-HT distance %.2f drifted from %.2f", delta, newDist, baseDist)
 		}
-		if math.Abs((dyn.NewHta-dyn.NewSta)-(baseHta-baseSta)) > 0.02 {
+		if math.Abs(float64(dyn.NewHta-dyn.NewSta)-(baseHta-baseSta)) > 0.02 {
 			t.Errorf("delta=%.0fmm: HTA-STA %.3f != %.3f", delta, dyn.NewHta-dyn.NewSta, baseHta-baseSta)
 		}
 		if delta == 0 && (dyn.DeltaAngleDeg != 0 || dyn.NewReach != baseReach || dyn.NewStack != baseStack) {
@@ -1068,10 +1068,10 @@ func TestCalculateDynamicGeometry_Exact2DRotation(t *testing.T) {
 	}
 
 	// Verify exact 2D pitch formula vs small-angle asin(dy/wb) at +50mm swap.
-	dyn50 := geometry.CalculateDynamicGeometry(baseReach, baseStack, baseHta, baseSta, baseBbDrop, 495.0, 545.0, wb, cs)
+	dyn50 := geometry.CalculateDynamicGeometry(baseReach, baseStack, model.Deg(baseHta), model.Deg(baseSta), baseBbDrop, 495.0, 545.0, wb, cs)
 	htaRad := baseHta * math.Pi / 180.0
 	wantDeg := math.Atan2(50.0*math.Sin(htaRad), wb+50.0*math.Cos(htaRad)) * 180.0 / math.Pi
-	if math.Abs(dyn50.DeltaAngleDeg-wantDeg) > 0.015 {
+	if math.Abs(float64(dyn50.DeltaAngleDeg)-wantDeg) > 0.015 {
 		t.Errorf("+50mm DeltaAngleDeg = %.2f, want exact 2D %.4f", dyn50.DeltaAngleDeg, wantDeg)
 	}
 }

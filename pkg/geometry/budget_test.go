@@ -105,7 +105,7 @@ func TestBudgetsEncloseRoundingPerturbations(t *testing.T) {
 	fieldsOf := func(b *model.BikeGeometry) []field {
 		p := b.ChartPrecision
 		return []field{
-			{&b.Reach, p.ReachMm}, {&b.Stack, p.StackMm}, {&b.HtaDeg, p.HtaDeg}, {&b.Htl, p.HtlMm},
+			{&b.Reach, p.ReachMm}, {&b.Stack, p.StackMm}, {(*float64)(&b.HtaDeg), float64(p.HtaDeg)}, {&b.Htl, p.HtlMm},
 			{&b.BbDrop, p.BbDropMm}, {&b.ChainstayLength, p.ChainstayMm}, {&b.Wheelbase, p.WheelbaseMm},
 			{&b.FrontCenter, p.FrontCenterMm},
 		}

@@ -15,11 +15,11 @@ type IdealStaResult struct {
 	SeatpostDesc              string
 	TargetRailCenterSetbackMm float64
 	SeatTubeSetbackMm         float64
-	IdealStaDeg               float64 // STA with saddle clamped dead-center (0.0mm)
-	MinStaDeg                 float64 // Slackest STA within clamp window
-	MaxStaDeg                 float64 // Steepest STA within clamp window
-	IdealMarginMinStaDeg      float64 // Slackest STA within ±5mm ideal rail margin
-	IdealMarginMaxStaDeg      float64 // Steepest STA within ±5mm ideal rail margin
+	IdealStaDeg               model.Deg // STA with saddle clamped dead-center (0.0mm)
+	MinStaDeg                 model.Deg // Slackest STA within clamp window
+	MaxStaDeg                 model.Deg // Steepest STA within clamp window
+	IdealMarginMinStaDeg      model.Deg // Slackest STA within ±5mm ideal rail margin
+	IdealMarginMaxStaDeg      model.Deg // Steepest STA within ±5mm ideal rail margin
 }
 
 // SaddleClampOffset represents the required rail clamp offset on a specific saddle to achieve target fit.
@@ -33,10 +33,10 @@ type SaddleClampOffset struct {
 type UniversalCompromiseStaResult struct {
 	SeatpostDesc          string
 	SeatpostSetbackMm     float64
-	CompromiseStaDeg      float64
+	CompromiseStaDeg      model.Deg
 	MaxRailOffsetMm       float64
-	UniversalMarginMinSta float64
-	UniversalMarginMaxSta float64
+	UniversalMarginMinSta model.Deg
+	UniversalMarginMaxSta model.Deg
 	HasUniversalMargin    bool
 	SaddleOffsets         []SaddleClampOffset
 }
@@ -70,8 +70,8 @@ func CalculateUniversalCompromiseSTA(
 		targetBrp float64
 	}
 	fits := make([]saddleFit, len(saddles))
-	var minSta0, maxSta0 float64
-	var univMarginMin, univMarginMax float64
+	var minSta0, maxSta0 model.Deg
+	var univMarginMin, univMarginMax model.Deg
 	marginInit := false
 
 	for i, s := range saddles {
@@ -116,7 +116,7 @@ func CalculateUniversalCompromiseSTA(
 	}
 
 	// Solve for the minimax compromise STA where max(railOffset) + min(railOffset) == 0.
-	offsetBounds := func(sta float64) (float64, float64) {
+	offsetBounds := func(sta model.Deg) (float64, float64) {
 		var lo, hi float64
 		for i, sf := range fits {
 			r := sf.spec.RailOffsetForBrpAtSta(sta, sf.targetBrp, sf.eqSH, seatpostSetbackMm)
@@ -149,7 +149,7 @@ func CalculateUniversalCompromiseSTA(
 	maxOffset := math.Max(math.Abs(loR), math.Abs(hiR))
 
 	hasUnivMargin := marginInit && univMarginMin <= univMarginMax
-	var uMinSTA, uMaxSTA float64
+	var uMinSTA, uMaxSTA model.Deg
 	if hasUnivMargin {
 		uMinSTA = univMarginMin
 		uMaxSTA = univMarginMax
@@ -200,7 +200,7 @@ func CalculateIdealSeatTubeAngle(
 	stSetback := railCenterSetback - seatpostSetbackMm
 	targetBrpSetback := saddle.BrpSetbackFromSitBones(targetSitBoneSetbackMm)
 
-	staForOffset := func(railOffset float64) float64 {
+	staForOffset := func(railOffset float64) model.Deg {
 		return saddle.StaForBrpAndOffset(targetBrpSetback, saddleHeightMm, seatpostSetbackMm, railOffset)
 	}
 
@@ -212,15 +212,15 @@ func CalculateIdealSeatTubeAngle(
 	minClamp, maxClamp := saddle.ClampWindowMm(clampLengthMm)
 	sta1 := staForOffset(minClamp)
 	sta2 := staForOffset(maxClamp)
-	slackestSTA := math.Min(sta1, sta2)
-	steepestSTA := math.Max(sta1, sta2)
+	slackestSTA := min(sta1, sta2)
+	steepestSTA := max(sta1, sta2)
 
 	marginMinClamp := -model.SaddleRailIdealMarginMm
 	marginMaxClamp := model.SaddleRailIdealMarginMm
 	mSta1 := staForOffset(marginMinClamp)
 	mSta2 := staForOffset(marginMaxClamp)
-	marginSlackSTA := math.Min(mSta1, mSta2)
-	marginSteepSTA := math.Max(mSta1, mSta2)
+	marginSlackSTA := min(mSta1, mSta2)
+	marginSteepSTA := max(mSta1, mSta2)
 
 	return IdealStaResult{
 		Saddle:                    saddle,
@@ -288,7 +288,7 @@ func TranslateSaddleFit(
 
 // CalculateSaddleBRPPoint computes saddle coordinates for a specific SaddleSpec.
 func CalculateSaddleBRPPoint(
-	staDeg, seatHeight, seatpostSetbackMm float64,
+	staDeg model.Deg, seatHeight, seatpostSetbackMm float64,
 	saddle model.SaddleSpec,
 	railOffsetMm float64,
 ) model.BRPPoint {
@@ -298,7 +298,7 @@ func CalculateSaddleBRPPoint(
 // MapPossibleSaddleBRPs maps candidate BRP points within the clamp window
 // of the given saddle and clamp length.
 func MapPossibleSaddleBRPs(
-	staDeg, seatHeight, seatpostSetbackMm float64,
+	staDeg model.Deg, seatHeight, seatpostSetbackMm float64,
 	saddle model.SaddleSpec,
 	clampLengthMm float64,
 ) []model.BRPPoint {
