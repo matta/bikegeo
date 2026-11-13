@@ -36,9 +36,10 @@ func PublishModeShort(mode model.PublishMode) string {
 		return "Sagged CAD"
 	case model.ModeMismatchedCad:
 		return "Invalid (Mismatched)"
-	default:
-		return "Unspecified"
+	case model.ModeUnspecified:
 	}
+	// ModeUnspecified, the zero value and any unknown mode.
+	return "Unspecified"
 }
 
 // BuildValidationDocument validates every target and lays the outcome out as a
