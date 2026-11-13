@@ -8,6 +8,8 @@ A stepwise plan for auditing the whole feature surface of `bikegeo` for three qu
 
 It is written for agents. Each step has an ID, a procedure, and an **oracle** (how to decide pass or fail without trusting the code under test). Steps inside a phase are independent unless stated. Baseline surveyed: commit `759311c`.
 
+**If you are an agent starting a session:** read section 0, then section 11 to find out what to do now and how to hand back to the owner when you finish. **If you are the owner:** section 10 says which model and effort to use for each session; `docs/qa/STATUS.md` (created by the first session) always says what to start next.
+
 ---
 
 ## 0. Ground rules
@@ -22,6 +24,8 @@ It is written for agents. Each step has an ID, a procedure, and an **oracle** (h
 4. **A lead is not a finding.** Section 8 lists things noticed during the survey. Reproduce each before filing it.
 5. **Regression tests follow the repo conventions**: `go test` only, `httptest` + `goquery` for web, `runCLIRows` for CLI cell values, no browser automation, no new non-test dependencies. Exploration may use `bikegeo serve` plus `curl`.
 6. **Determinism.** Every command except `fit` (documented tie-order variance) must be byte-identical across two runs. Check this once per command in Phase 1 and treat any other variance as a finding.
+7. **One session, one slice.** Do only the steps you were assigned. Do not drift into another slice, even if you see something there; note it as a lead in your findings file instead.
+8. **Always hand back.** End every session by updating `docs/qa/STATUS.md` and telling the owner exactly what to do next (section 11). The owner should never have to work out the next move from the plan.
 
 ### Setup (step S0)
 
@@ -124,7 +128,7 @@ Goal: every entry point runs, exits correctly, and is reachable. Cheap, do first
 
 Goal: fill the concept registry (section 2) and judge each concept. One agent can take C1–C5, another C6–C10, another C11–C18.
 
-- **P2.1 Harvest.** Capture the full output of a fixed corpus into a scratch directory: `compare` (default; `--transpose=false` with 2 specs; `--score-detail`; `--no-score`; `--all`; one frame `:all@all`), `validate` (summary and one detail), `list` (both modes), `fit` (analysis, sweep, sweep `--detail`), and every web route in every mode (catalog vs single item vs comparison). Keep the files; later phases reuse them.
+- **P2.1 Harvest.** Capture the full output of a fixed corpus into `docs/qa/corpus/` (a stable path every later session can read, not a per-session scratch directory; record the commit hash in `docs/qa/corpus/README.md`): `compare` (default; `--transpose=false` with 2 specs; `--score-detail`; `--no-score`; `--all`; one frame `:all@all`), `validate` (summary and one detail), `list` (both modes), `fit` (analysis, sweep, sweep `--detail`), and every web route in every mode (catalog vs single item vs comparison). Keep the files; later phases reuse them.
 - **P2.2 Label census.** Extract every column header, row label, table title, subtitle, footer title, form label and hint. Group by concept. *Oracle:* one concept → one label. Known variation that is by design must be explained on the page (for example a suffix that states the saddle height); anything else is a finding.
 - **P2.3 Format census.** For each metric and each physical quantity, list every rendered form (decimals, unit, spacing, sign). *Oracle:* rule C13. Pay special attention to quantities shown at different precision on different pages, since those produce apparent disagreements.
 - **P2.4 Same thing, two specs.** Specify one physical setup several ways (default fork, `@rigid`, preset ID, `a2c=<same>/<same>`, `@0%`, travel with and without `mm`). *Oracle:* identical metric cells, and an identical fork label unless the page explains the difference (C3).
@@ -261,14 +265,88 @@ Write findings to `docs/qa/findings-<phase>.md` (one file per phase, so parallel
 
 Rules: group by root cause, not by symptom (one finding for "delta is computed from unrounded values in cells and from rounded values in footers", listing all places). An S1 needs independent arithmetic shown. End each file with a coverage line per step: `done`, `partial (why)`, or `blocked (why)`.
 
-## 10. Order and parallelism
+## 10. Running the plan: order, models and effort
 
-1. **S0, then Phase 1** — one agent, short; blocks everything else only if the build or suite is broken.
-2. **P2.1 harvest** — one agent; its corpus is input to Phases 2 and 4.
-3. In parallel, each with its own findings file:
-   - Phase 2 (split C1–C5 / C6–C10 / C11–C18);
-   - Phase 3 (P3.3 only with the owner's approval for network access);
-   - Phase 4A+4B, Phase 4C, Phase 4D, Phase 4E as four agents;
-   - Phase 5.
-4. **Consolidation** — one agent merges findings by root cause, checks every lead in section 8 has a verdict (`confirmed`, `not reproduced`, `by design: where documented`), and produces a ranked list (S1 first).
-5. **Regression tests** — only after the owner triages: one test per accepted finding, following `AGENTS.md` conventions. Prefer property tests that encode the oracle (parity across layouts and surfaces, zone ↔ score agreement, aggregation sums, docs examples all run) over snapshot tests, so the same class of defect cannot return. Current statement coverage for orientation: catalog 36%, fit 47%, compare 55%, canonicalizer 56%, ideal 57%, scoring 64%, validator 69%; `frames` and `model` have no tests.
+### Sessions
+
+Run each row as its own session with the model and effort shown. Rows with the same wave number can run in parallel; each writes only its own findings file.
+
+| Wave | Session | Steps | Model | Effort | Findings file |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Smoke | S0, P1.1–P1.7 | Sonnet 5.5 | medium | `findings-p1.md` |
+| 1 | Harvest | P2.1 | Sonnet 5.5 | medium | (corpus only) |
+| 2 | **Pilot** | P4.14 (leads L12, L14, L15) | Fable 5.2 | high | `findings-p4c.md` |
+| 3 | Coherence A | P2.2–P2.5 for C1–C5 | Opus 5.5 | high | `findings-p2a.md` |
+| 3 | Coherence B | P2.2–P2.6 for C6–C10 | Opus 5.5 | high | `findings-p2b.md` |
+| 3 | Coherence C | P2.7–P2.11 for C11–C18 | Opus 5.5 | high | `findings-p2c.md` |
+| 3 | Data | P3.1, P3.2, P3.4–P3.6 | Sonnet 5.5 | medium | `findings-p3.md` |
+| 3 | Geometry and fit | P4.1–P4.12 | Fable 5.2 | high | `findings-p4ab.md` |
+| 3 | Scoring | P4.13, P4.15–P4.18 | Fable 5.2 | high | `findings-p4c.md` (append) |
+| 3 | Validation and solver | P4.19–P4.22 | Fable 5.2 | high | `findings-p4d.md` |
+| 3 | Web analyses | P4.23–P4.25 | Fable 5.2 | high | `findings-p4e.md` |
+| 3 | Robustness | P5.1–P5.7 | Opus 5.5 | high | `findings-p5.md` |
+| 3 | Chart audit (optional) | P3.3 | Opus 5.5 | high | `findings-p3-charts.md` |
+| 4 | Refutation | every S1 finding | Fable 5.2 | high | verdict added to each S1 |
+| 5 | Consolidation | all findings, all leads | Fable 5.2 | high | `findings-ranked.md` |
+| 6 | Regression tests | accepted findings only | Opus 5.5 | high | (code) |
+
+Why these choices:
+
+- **Mechanical sessions (Sonnet 5.5, medium):** running commands and tabulating exit codes, fields and outputs needs little judgment.
+- **Coherence and robustness (Opus 5.5, high):** heavy reading and "is this the same concept?" judgment. Opus 5.5 defaults to `medium`, so set `high` explicitly.
+- **Computation correctness, refutation and consolidation (Fable 5.2, high):** the agent must derive oracles independently and show arithmetic. A weaker model tends to read the Go code and re-implement it, which makes everything pass.
+- **Effort:** raise a Phase 4 session to `xhigh` only if its arithmetic at `high` came back shallow or wrong. Do not use `max`.
+- **Haiku:** not used. Nothing here is both large and judgment-free enough to justify it.
+
+### Rules for running it
+
+1. **Pilot before fanning out.** Wave 2 is one small Phase 4 slice. The owner reads its findings and decides whether the quality and cost justify wave 3, and whether the brief needs adjusting.
+2. **One session per row.** Do not merge rows into one long session. Brief each session with only: the path to this plan, its step IDs, and its findings file.
+3. **The corpus is shared.** Waves 2 and later read `docs/qa/corpus/`; they regenerate a file only if they need an invocation the harvest did not capture, and they add it to the corpus.
+4. **Refutation pass.** Before the owner reads any S1 ("wrong number or ranking"), a separate session tries to disprove it by redoing the arithmetic from scratch, and appends `Refutation: upheld | refuted (why) | unclear (what is missing)` to the finding. False positives are the main cost of this audit.
+5. **Consolidation.** One session merges findings by root cause, gives every lead in section 8 a verdict (`confirmed`, `not reproduced`, `by design: where documented`), and writes a ranked list, S1 first.
+6. **Owner decisions.** The owner decides "bug or by design" for every spec-versus-behaviour finding, approves network access before P3.3, and triages before wave 6. Agents never make these calls.
+7. **Regression tests** follow `AGENTS.md` conventions, one per accepted finding. Prefer property tests that encode the oracle (parity across layouts and surfaces, zone ↔ score agreement, aggregation sums, docs examples all run) over snapshot tests, so the same class of defect cannot return. Current statement coverage for orientation: catalog 36%, fit 47%, compare 55%, canonicalizer 56%, ideal 57%, scoring 64%, validator 69%; `frames` and `model` have no tests.
+
+---
+
+## 11. Session protocol and hand-off to the owner
+
+### At the start of a session
+
+1. Read `docs/qa/STATUS.md`. If it does not exist, you are the first session: create it from the table in section 10 with every row `not started`, then begin wave 1.
+2. If the owner named your slice, do that slice. If the owner only said "continue the QA plan", take the first row that is `not started` in the lowest unfinished wave, and say which one you picked before starting.
+3. Check that you are running as the model and effort the row asks for. If you are not, say so in one line and ask the owner whether to continue or restart with the right settings. Do not silently proceed.
+4. Mark your row `in progress` in `STATUS.md`.
+
+### `docs/qa/STATUS.md`
+
+One line per session row from section 10:
+
+```
+| Wave | Session | Status | Findings (S1/S2/S3/S4) | Notes |
+```
+
+Status is one of `not started`, `in progress`, `done`, `partial (why)`, `blocked (why)`. Below the table keep a short **Waiting on owner** list: every decision or approval that is currently blocking a row.
+
+### At the end of every session
+
+Update your row in `STATUS.md`, then finish your reply with a section headed **Next for you** that contains, in this order:
+
+1. **Result in two lines:** what you covered and the finding counts by severity.
+2. **Decisions you need from the owner now**, if any, each as a question with the options (for example "L9: is `@0%` meant to be accepted? yes, it is by design / no, it is a bug").
+3. **The single next action**, chosen by these rules:
+   - a row in the current wave is still `not started` → start it;
+   - the current wave is finished and it was wave 2 (the pilot) → read `findings-p4c.md` and decide go / adjust / stop before wave 3;
+   - the current wave is finished otherwise → start the next wave;
+   - wave 4 is next and there are no S1 findings → skip to wave 5;
+   - wave 5 is done → triage `findings-ranked.md` (mark each finding accept / reject / defer), then start wave 6.
+4. **How to do it:** the session name, the model and effort from section 10, whether it can run in parallel with others (list them), and a prompt the owner can paste as-is, in this form:
+
+   ```
+   Run the "<session name>" session of docs/QA_PLAN.md: steps <IDs>. Write findings to docs/qa/<file>. Follow sections 0 and 11.
+   ```
+
+5. **Anything that would change the plan:** steps that turned out impossible, oracles that were wrong, or new leads worth adding to section 8. Propose the edit; do not make it without the owner's yes.
+
+If you were stopped early or ran out of room, still write the hand-off: mark the row `partial`, list the steps not done, and make "resume this session" the next action.
