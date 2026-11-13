@@ -661,7 +661,7 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 		if frame.CanonicalStem.LengthMm > 0 {
 			hasCanonical := false
 			for _, s := range expandedStems {
-				if math.Abs(s.LengthMm-frame.CanonicalStem.LengthMm) < 0.001 && math.Abs(float64(s.AngleDeg-frame.CanonicalStem.AngleDeg)) < 0.001 {
+				if math.Abs(s.LengthMm-frame.CanonicalStem.LengthMm) < 0.001 && (s.AngleDeg-frame.CanonicalStem.AngleDeg).Abs() < 0.001 {
 					hasCanonical = true
 					break
 				}

@@ -237,7 +237,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 		effSta := geometry.CalculateEffectiveSta(actualSta, ox, tc.saddleL)
 		setback := geometry.CalculateActualSetback(effSta, tc.saddleL)
 
-		if math.Abs(float64(effSta-tc.expectedSta)) > 0.015 {
+		if (effSta - tc.expectedSta).Abs() > 0.015 {
 			t.Errorf("[%s at L=%.0f] expected effective STA %.2f°, got %.4f°", tc.sizeName, tc.saddleL, tc.expectedSta, effSta)
 		}
 		if math.Abs(setback-tc.expectedSb) > 0.15 {
@@ -273,7 +273,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 	}
 
 	// Effective STA at 780mm saddle height should be ~74.69°
-	if math.Abs(float64(fit.ActiveSta-74.69)) > 0.02 {
+	if (fit.ActiveSta - 74.69).Abs() > 0.02 {
 		t.Errorf("Expected ActiveSta ~ 74.69°, got %.2f°", fit.ActiveSta)
 	}
 
@@ -529,7 +529,7 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 	if geometry.Round(brpZero.BrpSetbackMm, 1) != 219.0 {
 		t.Errorf("Expected BrpSetbackMm 219.0, got %.1f", brpZero.BrpSetbackMm)
 	}
-	if math.Abs(float64(brpZero.BrpAngleFromBbDeg-72.9)) > 0.1 {
+	if (brpZero.BrpAngleFromBbDeg - 72.9).Abs() > 0.1 {
 		t.Errorf("Expected BrpAngleFromBbDeg 72.9°, got %.1f°", brpZero.BrpAngleFromBbDeg)
 	}
 

@@ -99,7 +99,7 @@ func TestAnalyzeSaddleSwap_SQlabToBerthoudAspin(t *testing.T) {
 	if math.Abs(report.BrpSaddleHeightShiftMm-5.4) > 0.2 {
 		t.Errorf("Expected target BRP saddle height shift ~ +5.4mm, got %.1fmm", report.BrpSaddleHeightShiftMm)
 	}
-	if math.Abs(float64(report.BrpDeltaAngleDeg-1.31)) > 0.05 {
+	if (report.BrpDeltaAngleDeg - 1.31).Abs() > 0.05 {
 		t.Errorf("Expected report.BrpDeltaAngleDeg ~ +1.31°, got %.2f°", report.BrpDeltaAngleDeg)
 	}
 	if pelvic.AchievedSitBoneMm != 292.0 {
@@ -139,7 +139,7 @@ func TestAnalyzeSaddleSwap_SQlabToBerthoudAspin(t *testing.T) {
 	if !saggedRow.IsFeasible30Mm {
 		t.Errorf("Expected 30mm clamp to be feasible for Aspin pelvic fit on 11mm post")
 	}
-	if math.Abs(float64(saggedRow.StaDeltaDeg-(-0.24))) > 0.05 {
+	if (saggedRow.StaDeltaDeg - (-0.24)).Abs() > 0.05 {
 		t.Errorf("Expected STA delta ~ -0.24°, got %.2f°", saggedRow.StaDeltaDeg)
 	}
 }

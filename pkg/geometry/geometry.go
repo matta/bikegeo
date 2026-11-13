@@ -389,9 +389,9 @@ func SelectBestHBWithDrop(
 		}
 
 		// Tie-breaker 2: closest stem angle to canonical
-		angDiffA := math.Abs(float64(a.Stem.AngleDeg - canonicalStem.AngleDeg))
-		angDiffB := math.Abs(float64(b.Stem.AngleDeg - canonicalStem.AngleDeg))
-		if math.Abs(angDiffA-angDiffB) > 0.001 {
+		angDiffA := (a.Stem.AngleDeg - canonicalStem.AngleDeg).Abs()
+		angDiffB := (b.Stem.AngleDeg - canonicalStem.AngleDeg).Abs()
+		if (angDiffA - angDiffB).Abs() > 0.001 {
 			return angDiffA < angDiffB
 		}
 
@@ -573,9 +573,9 @@ func EvaluateCockpitFit(
 		}
 
 		// Tie-breaker 2: closest stem angle to canonical
-		angDiffA := math.Abs(float64(a.pt.Stem.AngleDeg - canonicalStem.AngleDeg))
-		angDiffB := math.Abs(float64(b.pt.Stem.AngleDeg - canonicalStem.AngleDeg))
-		if math.Abs(angDiffA-angDiffB) > 0.001 {
+		angDiffA := (a.pt.Stem.AngleDeg - canonicalStem.AngleDeg).Abs()
+		angDiffB := (b.pt.Stem.AngleDeg - canonicalStem.AngleDeg).Abs()
+		if (angDiffA - angDiffB).Abs() > 0.001 {
 			return angDiffA < angDiffB
 		}
 

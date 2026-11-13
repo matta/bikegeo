@@ -153,7 +153,7 @@ func (db *docb) listHandlebars(gripInset float64, rollDeg model.Deg, cutWidth fl
 	}
 
 	rollNote := ""
-	if math.Abs(float64(rollDeg)) > 0.001 {
+	if rollDeg.Abs() > 0.001 {
 		rollNote = fmt.Sprintf(" (Roll: %+.1f°)", rollDeg)
 	}
 	title := fmt.Sprintf("Canonical Handlebar Catalog (%d)%s", len(bars), rollNote)
@@ -255,7 +255,7 @@ func (db *docb) showHandlebarDetail(b model.HandlebarSpec, gripInset float64, ro
 		diffX := rOff.X - neutralOff.X
 		diffY := rOff.Y - neutralOff.Y
 		marker := ""
-		if math.Abs(float64(r-rollDeg)) < 0.001 {
+		if (r - rollDeg).Abs() < 0.001 {
 			marker = " *"
 		}
 		rollRows = append(rollRows, []string{

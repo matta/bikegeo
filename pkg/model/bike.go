@@ -203,7 +203,7 @@ func (b BikeGeometry) GetCadRake() float64 {
 }
 
 func (b BikeGeometry) HasBentSeatTube() bool {
-	return b.ActualStaDeg > 0 && math.Abs(float64(b.ActualStaDeg-b.StaDeg)) > 0.001
+	return b.ActualStaDeg > 0 && (b.ActualStaDeg-b.StaDeg).Abs() > 0.001
 }
 
 func (b BikeGeometry) GetActualStaDeg() Deg {

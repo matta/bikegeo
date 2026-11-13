@@ -117,9 +117,9 @@ func (db *docb) saddles(v url.Values) int {
 			Title: "Cross-Saddle Fit Translation: SQlab 610 Ergolux vs. Catalog Saddles",
 			Lines: []string{
 				fmt.Sprintf("Pelvic Fit Equivalence (Aspin): Rail-to-sit-bone delta is only %.1f mm (Aspin %.1fmm vs SQlab %.1fmm), %s ~%.2f° at %.0fmm SH / %.0fmm sit-bone setback (11mm post).",
-					transAspinDropBest.SitBoneDeltaMm, aspin.RailCenterToSitBonesMm, sqlab.RailCenterToSitBonesMm, aspinDir, math.Abs(float64(deltaAspin11)), saddleHeight, sitBoneSetback),
+					transAspinDropBest.SitBoneDeltaMm, aspin.RailCenterToSitBonesMm, sqlab.RailCenterToSitBonesMm, aspinDir, deltaAspin11.Abs(), saddleHeight, sitBoneSetback),
 				fmt.Sprintf("Pelvic Fit Equivalence (SLR Boost): Sit bones sit %.1f mm further rearward (SLR %.1fmm vs SQlab %.1fmm), %s ~%.2f° at %.0fmm SH / %.0fmm sit-bone setback (11mm post).",
-					math.Abs(transSlrDropBest.SitBoneDeltaMm), slr.RailCenterToSitBonesMm, sqlab.RailCenterToSitBonesMm, slrDir, math.Abs(float64(deltaSlr11)), saddleHeight, sitBoneSetback),
+					math.Abs(transSlrDropBest.SitBoneDeltaMm), slr.RailCenterToSitBonesMm, sqlab.RailCenterToSitBonesMm, slrDir, deltaSlr11.Abs(), saddleHeight, sitBoneSetback),
 				fmt.Sprintf("BRP Caliper Discrepancy: BRP lines vary widely due to nose taper (Aspin %.0fmm vs SQlab %.0fmm vs SLR Boost %.0fmm from sit bones), proving raw BRP misleads without resolving sit bones.",
 					aspin.DeltaBrpToSitBonesMm(), sqlab.DeltaBrpToSitBonesMm(), slr.DeltaBrpToSitBonesMm()),
 				fmt.Sprintf("Clamp Translation to Aspin: Clamping SQlab at -15.0mm translates to %+.1fmm on Aspin (window [%.1f, %+.1f] mm; feasible: %t); dead-center translates to %+.1fmm (window [%.1f, %+.1f] mm).",
@@ -179,7 +179,7 @@ func (db *docb) saddles(v url.Values) int {
 			resAspin := geometry.CalculateIdealSeatTubeAngle(aspin, sitBoneSetback, shAspin, p.setback, p.name, p.clamp)
 			resSLR := geometry.CalculateIdealSeatTubeAngle(slr, sitBoneSetback, shSLR, p.setback, p.name, p.clamp)
 
-			if d := model.Deg(math.Abs(float64(resSQ.IdealStaDeg - resAspin.IdealStaDeg))); d > maxSQAspinDiff {
+			if d := (resSQ.IdealStaDeg - resAspin.IdealStaDeg).Abs(); d > maxSQAspinDiff {
 				maxSQAspinDiff = d
 			}
 			slrDiff := resSLR.IdealStaDeg - resSQ.IdealStaDeg
