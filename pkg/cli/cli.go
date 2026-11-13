@@ -96,8 +96,8 @@ Core Commands:
   validate [frame...]     Verify CAD Master Stack Equation, publish mode, and multi-config coherence
   fit <frame[:size]>      Analyze CAD residuals, solve minimax A2C/spacer, and sweep parameter trials
   list                    List all bike frames, sizes, and supported fork capacities
-  serve [--port N] [--open]
-                          Serve the human-facing web UI on 127.0.0.1 (default port 8080)
+  serve [--port N] [--open] | --render PATH [--include]
+                          Serve the human-facing web UI on 127.0.0.1 (or render one route to stdout)
 
 Examples:
   # Run the default comparison matrix:

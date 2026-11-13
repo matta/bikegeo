@@ -838,3 +838,69 @@ func TestIdeals_NoBrokenCommandHint(t *testing.T) {
 		t.Errorf("/ideals title = %q, want profile count in title", text(doc.Find("h2").First()))
 	}
 }
+
+func TestRunServe_RenderInMemory(t *testing.T) {
+	t.Run("flag errors", func(t *testing.T) {
+		for _, args := range [][]string{
+			{"--render", ""},
+			{"--render", "   "},
+			{"--render", "/", "--port", "8080"},
+			{"--render", "/", "--open"},
+			{"--render", "http://127.0.0.1/"},
+			{"--include"},
+		} {
+			var out, errOut bytes.Buffer
+			if code := RunServe(args, &out, &errOut); code != 2 {
+				t.Errorf("RunServe(%v) = %d, want 2 (stderr=%q)", args, code, errOut.String())
+			}
+		}
+	})
+
+	t.Run("routes match httptest byte-for-byte", func(t *testing.T) {
+		for _, tc := range []struct {
+			arg  string
+			path string
+		}{
+			{"/", "/"},
+			{"handlebars", "/handlebars"},
+			{"/saddle-swap?from=sqlab-610-ergolux&to=berthoud-aspin-open&frame=binary-havok", "/saddle-swap?from=sqlab-610-ergolux&to=berthoud-aspin-open&frame=binary-havok"},
+			{"/static/style.css", "/static/style.css"},
+		} {
+			var out, errOut bytes.Buffer
+			code := RunServe([]string{"--render", tc.arg}, &out, &errOut)
+			if code != 0 {
+				t.Fatalf("RunServe(--render %q) = %d, stderr=%q", tc.arg, code, errOut.String())
+			}
+			if errOut.Len() != 0 {
+				t.Errorf("RunServe(--render %q) wrote stderr=%q", tc.arg, errOut.String())
+			}
+			rec, _ := do(t, tc.path)
+			if out.String() != rec.Body.String() {
+				t.Errorf("RunServe(--render %q) body differs from httptest (len %d vs %d)", tc.arg, out.Len(), rec.Body.Len())
+			}
+		}
+	})
+
+	t.Run("include headers reports status codes", func(t *testing.T) {
+		for _, tc := range []struct {
+			route      string
+			wantStatus string
+		}{
+			{"/handlebars", "HTTP/1.1 200 OK\r\n"},
+			{"/?saddle=bogus", "HTTP/1.1 400 Bad Request\r\n"},
+			{"/no-such-route", "HTTP/1.1 404 Not Found\r\n"},
+		} {
+			var out, errOut bytes.Buffer
+			if code := RunServe([]string{"--render", tc.route, "--include"}, &out, &errOut); code != 0 {
+				t.Fatalf("RunServe(--render %q --include) = %d, stderr=%q", tc.route, code, errOut.String())
+			}
+			raw := out.String()
+			if !strings.HasPrefix(raw, tc.wantStatus) {
+				t.Errorf("--render %q --include prefix = %q, want %q", tc.route, strings.SplitN(raw, "\r\n", 2)[0], tc.wantStatus)
+			}
+			if !strings.Contains(raw, "\r\n\r\n") {
+				t.Errorf("--render %q --include missing header/body separator", tc.route)
+			}
+		}
+	})
+}
