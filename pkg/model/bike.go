@@ -77,12 +77,6 @@ const (
 	SeveritySuccess Severity = "success"
 )
 
-// DefaultGeoSlopMm is the default maximum allowed discrepancy (in mm) for geometric consistency checks.
-const DefaultGeoSlopMm = 1.0
-
-// DefaultWheelbaseFloorMm is the minimum physical precision floor (in mm) for wheelbase validation.
-const DefaultWheelbaseFloorMm = 2.0
-
 // DefaultTireWidthIn is the baseline tire width in inches for steering trail calculations.
 const DefaultTireWidthIn = 2.4
 
@@ -90,9 +84,10 @@ const DefaultTireWidthIn = 2.4
 // (ISO 622 bead seat radius 311.0mm + 2.4 * 25.4mm section height 60.96mm ≈ 372.0mm).
 const DefaultWheelRadius29Mm = 372.0
 
-// GeoSlopMm defines optional measure-specific validation tolerances (in mm) for a frame.
-// Any nil field defaults to DefaultGeoSlopMm (1.0mm), except Wheelbase which uses dynamic error
-// propagation with a 2.0mm physical precision floor.
+// GeoSlopMm declares chart error that rounding cannot explain, in mm, for a frame.
+// Each field is an allowance added on top of the propagated rounding budget of
+// that closure check (see ErrorBudget); nil means no allowance. It exists only
+// for genuine manufacturer discrepancies and requires a Reason.
 type GeoSlopMm struct {
 	A2c         *float64
 	FrontCenter *float64
@@ -104,40 +99,35 @@ func (s GeoSlopMm) HasCustomSlop() bool {
 	return s.A2c != nil || s.FrontCenter != nil || s.Wheelbase != nil
 }
 
-func (s GeoSlopMm) GetA2c() float64 {
-	if s.A2c != nil {
-		return *s.A2c
+func slopValue(v *float64) float64 {
+	if v == nil {
+		return 0
 	}
-	return DefaultGeoSlopMm
+	return *v
 }
 
-func (s GeoSlopMm) GetFrontCenter() float64 {
-	if s.FrontCenter != nil {
-		return *s.FrontCenter
-	}
-	return DefaultGeoSlopMm
-}
+// GetA2c returns the declared A2C allowance beyond rounding (0 when unset).
+func (s GeoSlopMm) GetA2c() float64 { return slopValue(s.A2c) }
 
-func (s GeoSlopMm) GetWheelbase() float64 {
-	if s.Wheelbase != nil {
-		return math.Max(DefaultWheelbaseFloorMm, *s.Wheelbase)
-	}
-	return DefaultWheelbaseFloorMm
-}
+// GetFrontCenter returns the declared Front Center allowance beyond rounding (0 when unset).
+func (s GeoSlopMm) GetFrontCenter() float64 { return slopValue(s.FrontCenter) }
+
+// GetWheelbase returns the declared Wheelbase allowance beyond rounding (0 when unset).
+func (s GeoSlopMm) GetWheelbase() float64 { return slopValue(s.Wheelbase) }
 
 func (s GeoSlopMm) String() string {
 	var parts []string
 	if s.A2c != nil {
-		parts = append(parts, fmt.Sprintf("a2c: ±%.1fmm", *s.A2c))
+		parts = append(parts, fmt.Sprintf("a2c: +%.1fmm", *s.A2c))
 	}
 	if s.FrontCenter != nil {
-		parts = append(parts, fmt.Sprintf("fc: ±%.1fmm", *s.FrontCenter))
+		parts = append(parts, fmt.Sprintf("fc: +%.1fmm", *s.FrontCenter))
 	}
 	if s.Wheelbase != nil {
-		parts = append(parts, fmt.Sprintf("wb: ±%.1fmm", *s.Wheelbase))
+		parts = append(parts, fmt.Sprintf("wb: +%.1fmm", *s.Wheelbase))
 	}
 	if len(parts) == 0 {
-		return "defaults (a2c: ±1.0mm, fc: ±1.0mm, wb: dynamic)"
+		return "none (rounding budget only)"
 	}
 	return strings.Join(parts, ", ")
 }
@@ -1481,6 +1471,10 @@ type ValidationReport struct {
 	InferredPublishMode PublishMode
 	FrontCenterCalc     float64
 	FrontCenterDiff     *float64
+	// Rounding budgets of the three closure checks; nil when a check did not run.
+	A2cBudget         *ErrorBudget
+	FrontCenterBudget *ErrorBudget
+	WheelbaseBudget   *ErrorBudget
 }
 
 // FrameValidationReport holds the complete validation result across all sizes of a FrameModel.

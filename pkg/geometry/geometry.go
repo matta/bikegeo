@@ -1109,7 +1109,8 @@ func AnalyzeBikeFitWithSaddle(
 		baselineStructuralA2c := baseStructuralA2c
 		if bike.CadFork.A2cMm > 0 {
 			baselineStructuralA2c = bike.CadFork.A2cMm + geoSpacer
-		} else if bike.ForkA2c > 0 && math.Abs(bike.ForkA2c-baseForkA2c) <= bike.GetGeoSlopMm().GetA2c()+2.0 {
+		} else if budget, ok := A2cBudget(bike); ok && bike.ForkA2c > 0 && budget.Within() {
+			// ForkA2c agrees with the published Stack within its rounding budget.
 			baselineStructuralA2c = bike.ForkA2c + geoSpacer
 		}
 		totalNewA2c := *targetA2c + geoSpacer
@@ -1166,8 +1167,7 @@ func AnalyzeBikeFitWithSaddle(
 	cadA2c := bike.GetCadA2c()
 	if cadA2c > 0 {
 		diff := cadA2c - baseForkA2c
-		a2cSlop := bike.GetGeoSlopMm().GetA2c()
-		if math.Abs(diff) <= a2cSlop {
+		if budget, ok := A2cBudget(bike); ok && budget.Within() {
 			inferredPublishMode = "Static Fork (0% Sag CAD)"
 		} else if diff >= 15.0 && diff <= 35.0 {
 			inferredPublishMode = fmt.Sprintf("Sagged (~20%% Sag CAD, ~%dmm sag)", int(math.Round(diff)))

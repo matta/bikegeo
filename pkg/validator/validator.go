@@ -6,47 +6,9 @@ import (
 	"strings"
 
 	"bikegeo/pkg/catalog"
-	"bikegeo/pkg/geom2d"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 )
-
-// CalculateDynamicWheelbaseTolerance computes the allowable wheelbase discrepancy based on
-// propagation of uncertainty from input measurements (Reach ±0.5mm, Chainstay ±0.5mm,
-// published Wheelbase ±0.5mm, and HTA precision step projection), with a standard minimum physical floor of 2.0mm.
-func CalculateDynamicWheelbaseTolerance(bike model.BikeGeometry, structuralA2c float64) float64 {
-	deltaReach := 0.5
-	if bike.Reach > 0 && bike.Reach != math.Floor(bike.Reach) {
-		deltaReach = 0.05
-	}
-	deltaCs := 0.5
-	if bike.ChainstayLength > 0 && bike.ChainstayLength != math.Floor(bike.ChainstayLength) {
-		deltaCs = 0.05
-	}
-	deltaWb := 0.5
-	if bike.Wheelbase > 0 && bike.Wheelbase != math.Floor(bike.Wheelbase) {
-		deltaWb = 0.05
-	}
-
-	deltaHtaDeg := 0.25
-	if bike.HtaDeg == math.Floor(bike.HtaDeg) {
-		deltaHtaDeg = 0.5
-	} else if bike.HtaDeg*2 == math.Floor(bike.HtaDeg*2) {
-		deltaHtaDeg = 0.25
-	} else if bike.HtaDeg*4 == math.Floor(bike.HtaDeg*4) {
-		deltaHtaDeg = 0.125
-	} else {
-		deltaHtaDeg = 0.05
-	}
-	deltaHta := geom2d.FromDeg(deltaHtaDeg)
-
-	frontEndLength := structuralA2c + bike.Htl
-	hta := geom2d.FromDeg(bike.HtaDeg)
-	deltaFcHta := math.Abs(-frontEndLength*hta.Sin()+bike.ForkRake*hta.Cos()) * deltaHta.Rad()
-
-	propagated := math.Sqrt(deltaReach*deltaReach + deltaCs*deltaCs + deltaWb*deltaWb + deltaFcHta*deltaFcHta)
-	return math.Max(model.DefaultWheelbaseFloorMm, geometry.Round(propagated, 1))
-}
 
 // ValidateBikeGeometry validates a bike dataset for internal consistency,
 // hardtail CAD conventions (static vs. sagged charts), headset cup requirements,
@@ -168,7 +130,6 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 
 	effectiveCupStack := bike.HeadsetCupType.CupStackMm()
 	geoSpacerMm := bike.GetGeoHeadsetSpacerMm()
-	slop := bike.GetGeoSlopMm()
 
 	if hasError {
 		return model.ValidationReport{
@@ -278,20 +239,23 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 
 	inferredMode := model.ModeUnspecified
 	var a2cDiff *float64
-	a2cSlop := slop.GetA2c()
+	var a2cBudgetPtr, fcBudgetPtr, wbBudgetPtr *model.ErrorBudget
 
-	if expectedForkA2c > 0 {
-		diff := geometry.Round(expectedForkA2c-calculatedForkA2c, 1)
+	a2cBudget, hasA2cBudget := geometry.A2cBudget(bike)
+	if expectedForkA2c > 0 && hasA2cBudget {
+		a2cBudgetPtr = &a2cBudget
+		diff := geometry.Round(a2cBudget.Residual, 1)
 		a2cDiff = &diff
+		budget := budgetSummary(a2cBudget)
 
-		if math.Abs(diff) <= a2cSlop {
+		if a2cBudget.Within() {
 			if bike.CadFork.SagPct > 0 {
 				inferredMode = model.ModeSaggedCad
 				issues = append(issues, model.ValidationIssue{
 					ID:       "stack_sagged_confirmed",
 					Severity: model.SeveritySuccess,
 					Title:    "Stack & Sagged Fork A2C Match",
-					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches published %.0f%% sagged fork A2C (%.1fmm) within %.1fmm (tolerance ±%.1fmm, %.1fmm CAD spacer).", calculatedForkA2c, bike.CadFork.SagPct, expectedForkA2c, math.Abs(diff), a2cSlop, geoSpacerMm),
+					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches published %.0f%% sagged fork A2C (%.1fmm) within %.1fmm (%s, %.1fmm CAD spacer).", calculatedForkA2c, bike.CadFork.SagPct, expectedForkA2c, math.Abs(diff), budget, geoSpacerMm),
 					Expected: fmt.Sprintf("%.1f mm", expectedForkA2c),
 					Actual:   fmt.Sprintf("%.1f mm", calculatedForkA2c),
 				})
@@ -301,11 +265,14 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 					ID:       "stack_static_confirmed",
 					Severity: model.SeveritySuccess,
 					Title:    "Stack & Fork A2C Match (Static CAD)",
-					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches stated fork A2C (%.1fmm) within %.1fmm (tolerance ±%.1fmm, %.1fmm CAD spacer).", calculatedForkA2c, expectedForkA2c, math.Abs(diff), a2cSlop, geoSpacerMm),
+					Message:  fmt.Sprintf("Geometric A2C (%.1fmm) matches stated fork A2C (%.1fmm) within %.1fmm (%s, %.1fmm CAD spacer).", calculatedForkA2c, expectedForkA2c, math.Abs(diff), budget, geoSpacerMm),
 					Details:  "The manufacturer published geometry measured with an unweighted (0% sag) fork and the explicitly stated CAD headset spacer.",
 					Expected: fmt.Sprintf("%.1f mm", expectedForkA2c),
 					Actual:   fmt.Sprintf("%.1f mm", calculatedForkA2c),
 				})
+			}
+			if notice, ok := budgetTierNotice("a2c", "stack", "Stack / Fork A2C", a2cBudget); ok {
+				issues = append(issues, notice)
 			}
 		} else {
 			inferredMode = model.ModeMismatchedCad
@@ -314,8 +281,8 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 				Field:      "stack",
 				Severity:   model.SeverityError,
 				Title:      "Geometric Inconsistency in Stack / A2C",
-				Message:    fmt.Sprintf("The geometric A2C required to produce Stack %.1fmm (with %.1fmm CAD spacer) is %.1fmm, diverging from stated fork %.1fmm by %.1fmm (allowed slop ±%.1fmm).", bike.Stack, geoSpacerMm, calculatedForkA2c, expectedForkA2c, diff, a2cSlop),
-				Details:    fmt.Sprintf("Published Stack, HTL, BB Drop, HTA, CAD Headset Spacer, and Fork A2C do not satisfy the Master Stack Equation within ±%.1fmm tolerance.", a2cSlop),
+				Message:    fmt.Sprintf("The geometric A2C required to produce Stack %.1fmm (with %.1fmm CAD spacer) is %.1fmm, diverging from stated fork %.1fmm by %.1fmm (%s).", bike.Stack, geoSpacerMm, calculatedForkA2c, expectedForkA2c, diff, budget),
+				Details:    fmt.Sprintf("Published Stack, HTL, BB Drop, HTA, CAD Headset Spacer, and Fork A2C do not satisfy the Master Stack Equation even with every published input at the edge of its rounding interval (largest contributors: %s).", topBudgetTerms(a2cBudget, 3)),
 				Expected:   fmt.Sprintf("%.1f mm", expectedForkA2c),
 				Actual:     fmt.Sprintf("%.1f mm", calculatedForkA2c),
 				Difference: diff,
@@ -349,18 +316,19 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 	var sagHintSource string
 
 	var fcDiff *float64
-	fcSlop := slop.GetFrontCenter()
-	if bike.FrontCenter > 0 {
-		diff := geometry.Round(math.Abs(bike.FrontCenter-calculatedFc3D), 1)
+	if fcBudget, ok := geometry.FrontCenterBudget(bike); ok {
+		fcBudgetPtr = &fcBudget
+		diff := geometry.Round(math.Abs(fcBudget.Residual), 1)
 		fcDiff = &diff
-		if diff > fcSlop {
+		budget := budgetSummary(fcBudget)
+		if !fcBudget.Within() {
 			issues = append(issues, model.ValidationIssue{
 				ID:         "front_center_mismatch",
 				Field:      "front_center",
 				Severity:   model.SeverityError,
 				Title:      "Front Center Inconsistency",
-				Message:    fmt.Sprintf("Published Front Center (%.1fmm) differs from geometrically calculated 3D FC (%.1fmm) by %.1fmm (allowed slop ±%.1fmm).", bike.FrontCenter, calculatedFc3D, diff, fcSlop),
-				Details:    "Check if Reach, HTA, BB Drop, or Fork Rake is inconsistent in published geometry.",
+				Message:    fmt.Sprintf("Published Front Center (%.1fmm) differs from geometrically calculated 3D FC (%.1fmm) by %.1fmm (%s).", bike.FrontCenter, calculatedFc3D, diff, budget),
+				Details:    fmt.Sprintf("Check if Reach, HTA, BB Drop, or Fork Rake is inconsistent in published geometry (largest rounding contributors: %s).", topBudgetTerms(fcBudget, 3)),
 				Expected:   fmt.Sprintf("%.1f mm (calculated, 3D)", calculatedFc3D),
 				Actual:     fmt.Sprintf("%.1f mm (published)", bike.FrontCenter),
 				Difference: diff,
@@ -376,27 +344,29 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 				ID:       "front_center_ok",
 				Severity: model.SeveritySuccess,
 				Title:    "Front Center Geometrically Coherent",
-				Message:  fmt.Sprintf("Published Front Center matches calculated 3D front-axle vector within %.1fmm (tolerance ±%.1fmm).", diff, fcSlop),
+				Message:  fmt.Sprintf("Published Front Center matches calculated 3D front-axle vector within %.1fmm (%s).", diff, budget),
 			})
+			if notice, ok := budgetTierNotice("front_center", "front_center", "Front Center", fcBudget); ok {
+				issues = append(issues, notice)
+			}
 		}
 	}
 
-	wbSlop := slop.GetWheelbase()
-	if slop.Wheelbase == nil {
-		wbSlop = CalculateDynamicWheelbaseTolerance(bike, structuralA2c)
-	}
-	if bike.Wheelbase > 0 && bike.ChainstayLength > 0 {
-		csHorizontal := math.Sqrt(math.Max(0, bike.ChainstayLength*bike.ChainstayLength-bike.BbDrop*bike.BbDrop))
+	if wbBudget, ok := geometry.WheelbaseBudget(bike); ok {
+		wbBudgetPtr = &wbBudget
+		csHorizontal := geometry.RearCenterHoriz(bike.ChainstayLength, bike.BbDrop)
 		estimatedWb := geometry.Round(csHorizontal+calculatedFcHoriz, 1)
-		wbDiff := geometry.Round(math.Abs(bike.Wheelbase-estimatedWb), 1)
+		wbDiff := geometry.Round(math.Abs(wbBudget.Residual), 1)
+		budget := budgetSummary(wbBudget)
 
-		if wbDiff > wbSlop {
+		if !wbBudget.Within() {
 			issues = append(issues, model.ValidationIssue{
 				ID:         "wheelbase_discrepancy",
 				Field:      "wheelbase",
 				Severity:   model.SeverityError,
 				Title:      "Wheelbase & Chainstay Discrepancy",
-				Message:    fmt.Sprintf("Wheelbase (%.1fmm) does not match Rear Center (%.1fmm) + Front Center Horiz (%.1fmm) = %.1fmm (Δ %.1fmm, allowed slop ±%.1fmm).", bike.Wheelbase, csHorizontal, calculatedFcHoriz, estimatedWb, wbDiff, wbSlop),
+				Message:    fmt.Sprintf("Wheelbase (%.1fmm) does not match Rear Center (%.1fmm) + Front Center Horiz (%.1fmm) = %.1fmm (Δ %.1fmm, %s).", bike.Wheelbase, csHorizontal, calculatedFcHoriz, estimatedWb, wbDiff, budget),
+				Details:    fmt.Sprintf("Largest rounding contributors: %s.", topBudgetTerms(wbBudget, 3)),
 				Expected:   fmt.Sprintf("%.1f mm (calculated)", estimatedWb),
 				Actual:     fmt.Sprintf("%.1f mm (published)", bike.Wheelbase),
 				Difference: wbDiff,
@@ -411,8 +381,11 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 				ID:       "wheelbase_ok",
 				Severity: model.SeveritySuccess,
 				Title:    "Wheelbase Geometrically Coherent",
-				Message:  fmt.Sprintf("Published Wheelbase matches horizontal Rear Center + Front Center within %.1fmm (tolerance ±%.1fmm).", wbDiff, wbSlop),
+				Message:  fmt.Sprintf("Published Wheelbase matches horizontal Rear Center + Front Center within %.1fmm (%s).", wbDiff, budget),
 			})
+			if notice, ok := budgetTierNotice("wheelbase", "wheelbase", "Wheelbase", wbBudget); ok {
+				issues = append(issues, notice)
+			}
 		}
 	}
 
@@ -444,6 +417,9 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		InferredPublishMode: inferredMode,
 		FrontCenterCalc:     calculatedFc3D,
 		FrontCenterDiff:     fcDiff,
+		A2cBudget:           a2cBudgetPtr,
+		FrontCenterBudget:   fcBudgetPtr,
+		WheelbaseBudget:     wbBudgetPtr,
 	}
 }
 
@@ -452,7 +428,8 @@ func validateGeoSlop(slop *model.GeoSlopMm) []model.ValidationIssue {
 		return nil
 	}
 	var issues []model.ValidationIssue
-	check := func(field string, val *float64, minVal float64) {
+	const minVal = 0.0
+	check := func(field string, val *float64) {
 		if val == nil {
 			return
 		}
@@ -468,9 +445,9 @@ func validateGeoSlop(slop *model.GeoSlopMm) []model.ValidationIssue {
 			})
 		}
 	}
-	check("a2c", slop.A2c, 0.0)
-	check("front_center", slop.FrontCenter, 0.0)
-	check("wheelbase", slop.Wheelbase, model.DefaultWheelbaseFloorMm)
+	check("a2c", slop.A2c)
+	check("front_center", slop.FrontCenter)
+	check("wheelbase", slop.Wheelbase)
 	return issues
 }
 

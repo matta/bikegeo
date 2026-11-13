@@ -60,7 +60,7 @@ func candidatesTable(cands []ComboResult) report.Table {
 		ID:    "fit-candidates",
 		Title: "Candidate Physical Solutions (Geo slop is an absolute last resort)",
 	}
-	for _, h := range []string{"Physical Configuration", "max|ΔA2C|", "max|ΔWB|", "Valid?", "Solved Go Fields"} {
+	for _, h := range []string{"Physical Configuration", "max|ΔA2C|", "max|ΔWB|", "Budget used (a2c/wb)", "Valid?", "Solved Go Fields"} {
 		t.Columns = append(t.Columns, report.Column{ID: report.Slug(h), Label: h})
 	}
 	for _, c := range cands {
@@ -68,6 +68,7 @@ func candidatesTable(cands []ComboResult) report.Table {
 			{Text: c.Description},
 			{Text: fmt.Sprintf("%.1f mm", c.MaxAbsDeltaA2c)},
 			{Text: fmt.Sprintf("%.1f mm", c.MaxAbsDeltaWb)},
+			{Text: budgetUsed(c.FitResult)},
 			passFail(c.IsValid),
 			{Text: strings.Join(c.Assignments, ", ")},
 		}})
@@ -83,7 +84,7 @@ func BuildSweepDocument(frame model.FrameModel, combos []ComboResult, detail boo
 		ID:    "fit-sweep",
 		Title: fmt.Sprintf("Fit Sweep: %s %s (%d combinations)", frame.Manufacturer, frame.Model, len(combos)),
 	}
-	for _, h := range []string{"Combo", "max|ΔA2C|", "max|ΔFC|", "max|ΔWB|", "Needed slop (a2c/fc/wb)", "Validate", "Failure Reason"} {
+	for _, h := range []string{"Combo", "max|ΔA2C|", "max|ΔFC|", "max|ΔWB|", "Needed allowance (a2c/fc/wb)", "Validate", "Failure Reason"} {
 		t.Columns = append(t.Columns, report.Column{ID: report.Slug(h), Label: h})
 	}
 	anyValid := false
@@ -166,25 +167,17 @@ func BuildAnalysisDocument(frame model.FrameModel, configID, targetSize string) 
 		"%s %s — CAD Fork (%s, spacer %.1f mm, structural A2C %.1f mm, sag %.0f%%)",
 		frame.Manufacturer, frame.Model, forkDesc, frame.GetGeoHeadsetSpacerMm(), structA2c, frame.CadFork.SagPct), res))
 
-	req := []string{fmt.Sprintf("a2c ±%.1f", res.MinPassingSlopA2c)}
+	req := []string{fmt.Sprintf("a2c +%.1f", res.MinPassingSlopA2c)}
+	used := []string{fmt.Sprintf("a2c %.0f%%", 100*res.MaxSaturationA2c)}
 	if res.HasPublishedFc {
-		req = append(req, fmt.Sprintf("fc ±%.1f", res.MinPassingSlopFc))
+		req = append(req, fmt.Sprintf("fc +%.1f", res.MinPassingSlopFc))
+		used = append(used, fmt.Sprintf("fc %.0f%%", 100*res.MaxSaturationFc))
 	}
 	if res.HasPublishedWb {
-		req = append(req, fmt.Sprintf("wb ±%.1f", res.MinPassingSlopWb))
+		req = append(req, fmt.Sprintf("wb +%.1f", res.MinPassingSlopWb))
+		used = append(used, fmt.Sprintf("wb %.0f%%", 100*res.MaxSaturationWb))
 	}
 	declared := frame.GetGeoSlopMm()
-	decl := []string{fmt.Sprintf("a2c ±%.1f", declared.GetA2c())}
-	if res.HasPublishedFc {
-		decl = append(decl, fmt.Sprintf("fc ±%.1f", declared.GetFrontCenter()))
-	}
-	if res.HasPublishedWb {
-		if declared.Wheelbase != nil {
-			decl = append(decl, fmt.Sprintf("wb ±%.1f", *declared.Wheelbase))
-		} else {
-			decl = append(decl, "wb dynamic")
-		}
-	}
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Best-fit structural A2C (minimax): %.2f mm  (mean %.2f, spread %.2f)\n",
@@ -193,9 +186,10 @@ func BuildAnalysisDocument(frame model.FrameModel, configID, targetSize string) 
 		res.DeclaredStaticForkA2c, res.ImpliedSpacerMm, res.DeclaredSpacerMm)
 	fmt.Fprintf(&sb, "  → implied static fork A2C @ declared spacer %.1f mm: %.2f mm  (declared %.0f)\n",
 		res.DeclaredSpacerMm, res.ImpliedStaticForkA2c, res.DeclaredStaticForkA2c)
-	fmt.Fprintf(&sb, "Minimum passing slop: %s   (declared: %s)\n", strings.Join(req, ", "), strings.Join(decl, ", "))
+	fmt.Fprintf(&sb, "Max rounding budget used: %s   (per-size marks: * needs head angle rounding, + needs declared allowance, ! exceeds)\n", strings.Join(used, ", "))
+	fmt.Fprintf(&sb, "Allowance needed beyond rounding: %s   (declared geo_slop_mm: %s)\n", strings.Join(req, ", "), declared.String())
 	if declared.HasCustomSlop() {
-		fmt.Fprintf(&sb, "\n[NOTE] Frame defines custom geo_slop_mm overrides: %s\n", declared.String())
+		fmt.Fprintf(&sb, "\n[NOTE] Frame declares a chart-error allowance beyond rounding: %s\n", declared.String())
 		if declared.Reason != "" {
 			fmt.Fprintf(&sb, "       Reason: %s\n", declared.Reason)
 		}
@@ -213,7 +207,7 @@ func BuildAnalysisDocument(frame model.FrameModel, configID, targetSize string) 
 	}
 	doc.AddText(sb.String())
 
-	if !res.IsValid || res.MinPassingSlopA2c > 1.0 {
+	if !res.IsValid || res.BeyondLengthRounding {
 		if cands, err := SolveFit(frame, configID, targetSize); err == nil && len(cands) > 0 {
 			doc.AddTable(candidatesTable(cands))
 		}
@@ -222,7 +216,7 @@ func BuildAnalysisDocument(frame model.FrameModel, configID, targetSize string) 
 }
 
 func residualsTable(title string, res *FitResult) report.Table {
-	headers := []string{"Size", "HTA", "Implied Struct A2C", "Δ vs Best", "FC pub", "FC calc", "ΔFC", "WB pub", "WB calc", "ΔWB"}
+	headers := []string{"Size", "HTA", "Implied Struct A2C", "Δ vs Best", "FC pub", "FC calc", "ΔFC", "WB pub", "WB calc", "ΔWB", "Budget used (a2c/fc/wb)"}
 	var rows [][]string
 	for _, r := range res.Residuals {
 		fcPub, fcCalc, dFc := "—", "—", "—"
@@ -242,7 +236,41 @@ func residualsTable(title string, res *FitResult) report.Table {
 		rows = append(rows, []string{
 			r.Size, fmt.Sprintf("%.1f°", r.HtaDeg), fmt.Sprintf("%.1f", r.ImpliedStructuralA2c),
 			fmt.Sprintf("%+.2f", r.DeltaVsBest), fcPub, fcCalc, dFc, wbPub, wbCalc, dWb,
+			sizeBudgetUsed(r.ValidationReport),
 		})
 	}
 	return report.FromStrings("fit-residuals-"+report.Slug(title), title, "", headers, rows)
+}
+
+// budgetUsed renders the largest share of the A2C and WB rounding budgets any size uses.
+func budgetUsed(res *FitResult) string {
+	if res == nil {
+		return "—"
+	}
+	wb := "—"
+	if res.HasPublishedWb {
+		wb = fmt.Sprintf("%.0f%%", 100*res.MaxSaturationWb)
+	}
+	return fmt.Sprintf("%.0f%% / %s", 100*res.MaxSaturationA2c, wb)
+}
+
+// sizeBudgetUsed renders the share of each rounding budget one size uses,
+// marking checks that need head angle rounding (*), an allowance (+) or fail (!).
+func sizeBudgetUsed(rep model.ValidationReport) string {
+	cell := func(b *model.ErrorBudget) string {
+		if b == nil {
+			return "—"
+		}
+		mark := ""
+		switch b.Tier() {
+		case model.TierAngleRounding:
+			mark = "*"
+		case model.TierAllowance:
+			mark = "+"
+		case model.TierExceeds:
+			mark = "!"
+		}
+		return fmt.Sprintf("%.0f%%%s", 100*b.Saturation(), mark)
+	}
+	return cell(rep.A2cBudget) + " / " + cell(rep.FrontCenterBudget) + " / " + cell(rep.WheelbaseBudget)
 }

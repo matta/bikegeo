@@ -146,8 +146,11 @@ func TestApplyAssignment(t *testing.T) {
 	if err := fit.ApplyAssignment(&frame, "stock", "", "NonExistent:stack=600"); err == nil {
 		t.Errorf("Expected error for unknown size")
 	}
-	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.wb=1.0"); err == nil {
-		t.Errorf("Expected error for slop.wb below 2.0mm floor")
+	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.wb=1.0"); err != nil {
+		t.Errorf("Expected slop.wb=1.0 to be accepted (allowances have no floor): %v", err)
+	}
+	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.wb=-1.0"); err == nil {
+		t.Errorf("Expected error for negative slop.wb")
 	}
 	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.cross_config=1.0"); err == nil {
 		t.Errorf("Expected error for removed slop.cross_config")
