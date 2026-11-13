@@ -410,6 +410,18 @@ func TestAllFrameData(t *testing.T) {
 				t.Errorf("Frame %s has invalid chainstay range [%.1f, %.1f]", frame.ID, frame.GetMinChainstay(), frame.GetMaxChainstay())
 			}
 		}
+
+		// 7. Verify custom GeoSlopMm overrides provide an explicit Reason
+		if frame.GeoSlopMm != nil && frame.GeoSlopMm.HasCustomSlop() && strings.TrimSpace(frame.GeoSlopMm.Reason) == "" {
+			t.Errorf("Frame %s sets custom GeoSlopMm without an explicit Reason", frame.ID)
+		}
+
+		// 8. Verify non-zero StandoverHeight is physically plausible (> 600 mm)
+		for _, sz := range frame.GetSizes() {
+			if geo, ok := frame.Geometries[sz]; ok && geo.StandoverHeight != 0 && geo.StandoverHeight <= 600.0 {
+				t.Errorf("Frame %s (size %s) has implausible StandoverHeight %.1f mm (expected > 600 mm or 0 if unpublished)", frame.ID, sz, geo.StandoverHeight)
+			}
+		}
 	}
 }
 

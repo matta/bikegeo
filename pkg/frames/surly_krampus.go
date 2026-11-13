@@ -12,7 +12,8 @@ var SurlyKrampus = model.FrameModel{
 	HeadsetCupType:     model.CupEC44,
 	GeoHeadsetSpacerMm: 12,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c: new(float64(2)),
+		A2c:    new(float64(2)),
+		Reason: "Surly's published Stack values imply a 493.2–494.0mm structural A2C across sizes, leaving a 1.0–1.8mm residual below the 483mm rigid fork plus 12mm EC44 CAD spacer (495mm).",
 	},
 	MaxSpacerMm:   40,
 	CanonicalStem: model.StemSpec{LengthMm: 60, AngleDeg: -6},

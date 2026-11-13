@@ -36,7 +36,7 @@ var MootsMountaineer = model.FrameModel{
 			Wheelbase:       1130.1,
 			ChainstayLength: 444.5,
 			SeatTubeLength:  469.9,
-			StandoverHeight: 444.5,
+			StandoverHeight: 782,
 		},
 		"M": {
 			Reach:           419,

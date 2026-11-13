@@ -15,6 +15,7 @@ var SklarPBJ = model.FrameModel{
 		A2c:         new(3.5),
 		FrontCenter: new(float64(3)),
 		Wheelbase:   new(float64(5)),
+		Reason:      "Sklar's published chart has rounding and convention discrepancies against the 485mm rigid fork and 12mm EC44 spacer (up to 3.3mm A2C and 4.7mm Wheelbase residual on size L, and 2.7mm Front Center residual on size XL).",
 	},
 	ChainstayRangeMm: []float64{432, 452},
 	MaxSpacerMm:      40,

@@ -12,8 +12,8 @@ var TurnerVennTI = model.FrameModel{
 	HeadsetCupType:     model.CupZS56,
 	GeoHeadsetSpacerMm: 0,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c:       new(2.5),
-		Wheelbase: new(float64(2)),
+		A2c:    new(2.5),
+		Reason: "Turner publishes unweighted integer Stack values around the 541mm 130mm fork with 0mm ZS56 lower cup stack; size M Stack (645mm) implies a 538.8mm A2C (2.2mm residual).",
 	},
 	MaxSpacerMm:   40,
 	CanonicalStem: model.StemSpec{LengthMm: 60, AngleDeg: -6},

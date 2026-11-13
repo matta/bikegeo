@@ -12,7 +12,8 @@ var RitcheyUltra = model.FrameModel{
 	HeadsetCupType:     model.CupIS52,
 	GeoHeadsetSpacerMm: 0,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c: new(float64(3)),
+		A2c:    new(float64(3)),
+		Reason: "Ritchey's published Stack values imply a consistent 508.1–508.9mm structural A2C across sizes, creating up to a 2.9mm residual vs the nominal 506mm sagged 120mm fork with 0mm IS52 lower cup stack.",
 	},
 	MaxSpacerMm:   40,
 	CanonicalStem: model.StemSpec{LengthMm: 60, AngleDeg: -6},
