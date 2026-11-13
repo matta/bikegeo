@@ -11,11 +11,6 @@ var EskerHayduke = model.FrameModel{
 	WheelSize:          "29",
 	HeadsetCupType:     model.CupEC44,
 	GeoHeadsetSpacerMm: 12,
-	GeoSlopMm: &model.GeoSlopMm{
-		A2c:       new(float64(3)),
-		Wheelbase: new(float64(6)),
-		Reason:    "Esker publishes rounded Stack and Wheelbase values around the 495mm (30% sagged 120mm) fork and 12mm EC44 CAD spacer, creating up to 2.8mm A2C residual (S3) and 5.0mm Wheelbase residual (S4).",
-	},
 	ChainstayRangeMm: []float64{440, 454},
 	MaxSpacerMm:      40,
 	CanonicalStem:    model.StemSpec{LengthMm: 60, AngleDeg: -6},

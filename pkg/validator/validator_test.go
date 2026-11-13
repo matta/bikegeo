@@ -688,7 +688,7 @@ func TestFrontCenterConventionConsistent(t *testing.T) {
 	}
 	rep := validator.ValidateBikeGeometry(bike)
 	if !rep.IsValid {
-		t.Fatalf("Expected sklar-pbj:XL to pass with GeoSlopMm.FrontCenter=3.0, got: %+v", rep.Issues)
+		t.Fatalf("Expected sklar-pbj:XL to pass, got: %+v", rep.Issues)
 	}
 	if rep.FrontCenterDiff == nil || *rep.FrontCenterDiff != 2.7 {
 		t.Fatalf("Expected FrontCenterDiff 2.7mm for sklar-pbj:XL, got %v", rep.FrontCenterDiff)
@@ -819,5 +819,50 @@ func TestSizeResidualsUsesDeclaredCadFork(t *testing.T) {
 	}
 	if m.DeltaWb == nil || *m.DeltaWb != 0.7 {
 		t.Errorf("binary-havok:M DeltaWb = %v, want +0.7", m.DeltaWb)
+	}
+}
+
+// TestDeclaredAllowancesAreNecessary keeps geo_slop_mm a last resort: every declared
+// allowance must be needed by at least one size (the frame fails without it), and must
+// not exceed the largest need beyond rounding by more than the 0.5mm rounding-up step.
+func TestDeclaredAllowancesAreNecessary(t *testing.T) {
+	type field struct {
+		name   string
+		ptr    func(*model.GeoSlopMm) **float64
+		budget func(model.ValidationReport) *model.ErrorBudget
+	}
+	fields := []field{
+		{"a2c", func(s *model.GeoSlopMm) **float64 { return &s.A2c }, func(r model.ValidationReport) *model.ErrorBudget { return r.A2cBudget }},
+		{"front_center", func(s *model.GeoSlopMm) **float64 { return &s.FrontCenter }, func(r model.ValidationReport) *model.ErrorBudget { return r.FrontCenterBudget }},
+		{"wheelbase", func(s *model.GeoSlopMm) **float64 { return &s.Wheelbase }, func(r model.ValidationReport) *model.ErrorBudget { return r.WheelbaseBudget }},
+	}
+	for _, frame := range frames.AllFrames() {
+		if frame.GeoSlopMm == nil {
+			continue
+		}
+		for _, f := range fields {
+			declared := *f.ptr(frame.GeoSlopMm)
+			if declared == nil {
+				continue
+			}
+			without := frame.Clone()
+			slop := *frame.GeoSlopMm
+			*f.ptr(&slop) = nil
+			without.GeoSlopMm = &slop
+			rep := validator.ValidateFrame(without)
+			if rep.IsValid {
+				t.Errorf("%s: geo_slop_mm.%s = %.1fmm is unnecessary; every size passes within its rounding budget", frame.ID, f.name, *declared)
+				continue
+			}
+			need := 0.0
+			for _, sr := range rep.SizeReports {
+				if b := f.budget(sr); b != nil {
+					need = math.Max(need, b.NeededAllowance())
+				}
+			}
+			if *declared > need+0.5+1e-9 {
+				t.Errorf("%s: geo_slop_mm.%s = %.1fmm exceeds the %.2fmm needed beyond rounding by more than 0.5mm", frame.ID, f.name, *declared, need)
+			}
+		}
 	}
 }

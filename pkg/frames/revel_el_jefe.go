@@ -11,10 +11,6 @@ var RevelElJefe = model.FrameModel{
 	WheelSize:          "29",
 	HeadsetCupType:     model.CupIS52,
 	GeoHeadsetSpacerMm: 0,
-	GeoSlopMm: &model.GeoSlopMm{
-		A2c:    new(1.7),
-		Reason: "Revel publishes integer Stack values (599, 607, 615, 627mm; stepping +8, +8, +12mm across 10mm HTL increments instead of 9.2mm), creating up to 1.7mm residual relative to the 530mm RockShox SID 120mm fork at 20% sag (506mm sagged A2C, listed nominally as 510mm).",
-	},
 	ActualStaDeg:     73.3,
 	ChainstayRangeMm: []float64{420, 435},
 	MaxSpacerMm:      40,

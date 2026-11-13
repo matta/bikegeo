@@ -11,10 +11,6 @@ var BinaryHavok = model.FrameModel{
 	WheelSize:          "29",
 	HeadsetCupType:     model.CupEC44,
 	GeoHeadsetSpacerMm: 10,
-	GeoSlopMm: &model.GeoSlopMm{
-		A2c:    new(1.5),
-		Reason: "Size M published integer Stack (627mm) implies a 486.4mm fork A2C with the 10mm EC44 CAD spacer, a 1.4mm residual vs the 485mm rigid fork (all other sizes are within 0.1mm).",
-	},
 	ChainstayRangeMm: []float64{445, 460},
 	MaxSpacerMm:      40,
 	CanonicalStem:    model.StemSpec{LengthMm: 60, AngleDeg: -6},

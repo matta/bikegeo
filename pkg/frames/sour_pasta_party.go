@@ -11,10 +11,6 @@ var SourPastaParty = model.FrameModel{
 	WheelSize:          "29",
 	HeadsetCupType:     model.CupEC44,
 	GeoHeadsetSpacerMm: 12,
-	GeoSlopMm: &model.GeoSlopMm{
-		A2c:    new(1.5),
-		Reason: "Sour publishes integer Stack values (607, 615, 619, 630mm) around a 120mm fork at 15% sag (512mm) and 12mm EC44 spacer, creating up to a 1.3mm A2C residual on size L.",
-	},
 	MaxSpacerMm:   40,
 	CanonicalStem: model.StemSpec{LengthMm: 60, AngleDeg: -6},
 	Stems:         []string{"mtb"},
