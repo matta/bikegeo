@@ -5,7 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	"bikegeo/pkg/canonicalizer"
+	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/frames"
+	"bikegeo/pkg/geom2d"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/validator"
@@ -865,4 +868,281 @@ func TestDeclaredAllowancesAreNecessary(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestRegistryGeometricInvariants(t *testing.T) {
+	profile := catalog.DefaultRiderProfile()
+	saddle := catalog.DefaultSaddle()
+
+	frameSetups := func(t *testing.T, frame model.FrameModel) []model.ComparisonSetup {
+		t.Helper()
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(frame, model.Opt[float64]{})
+		if err != nil {
+			t.Fatalf("ExpandPlausibleForkSetups(%s): %v", frame.ID, err)
+		}
+		cadRake := frame.CadFork.RakeMm
+		if cadRake <= 0 {
+			cadRake = 44.0
+		}
+		hasCad := false
+		for _, s := range setups {
+			if math.Abs(s.A2cMm-frame.CadFork.A2cMm) < 1e-6 && math.Abs(s.RakeMm-cadRake) < 1e-6 {
+				hasCad = true
+				break
+			}
+		}
+		if !hasCad {
+			setups = append(setups, model.ComparisonSetup{
+				FrameID:      frame.ID,
+				A2cMm:        frame.CadFork.A2cMm,
+				RakeMm:       cadRake,
+				SagPct:       frame.CadFork.SagPct,
+				DisplayLabel: "CAD fork",
+			})
+		}
+		return setups
+	}
+
+	t.Run("RigidDistancesInvariantUnderPitch", func(t *testing.T) {
+		for _, frame := range frames.AllFrames() {
+			setups := frameSetups(t, frame)
+			for _, sz := range frame.GetSizes() {
+				bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+				if err != nil {
+					t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frame.ID, sz, err)
+				}
+				bb := geom2d.Origin
+				u0 := geometry.SteererTubeDir(bike.HtaDeg)
+				ht0 := geom2d.Point2{X: bike.Reach, Y: bike.Stack}
+				htb0 := ht0.SubVec(u0.Scale(bike.Htl))
+				ra0 := geom2d.Point2{X: -geometry.RearCenterHoriz(bike.ChainstayLength, bike.BbDrop), Y: bike.BbDrop}
+
+				wantHtBb := ht0.DistanceTo(bb)
+				wantHtbBb := htb0.DistanceTo(bb)
+				wantBbRa := ra0.DistanceTo(bb)
+				wantHtHtb := ht0.DistanceTo(htb0)
+				wantNominalIncluded := bike.HtaDeg - bike.StaDeg
+
+				cadRes, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Some(bike.CadFork.A2cMm), model.Some(bike.CadFork.RakeMm), profile, saddle)
+				if err != nil {
+					t.Fatalf("AnalyzeBikeFitWithSaddle(%s %s CAD): %v", frame.ID, sz, err)
+				}
+				wantEffIncluded := cadRes.ActiveHta - cadRes.ActiveSta
+
+				for _, s := range setups {
+					for _, spacer := range []float64{bike.GeoHeadsetSpacerMm, bike.GeoHeadsetSpacerMm + 12.0} {
+						b := bike
+						b.GeoHeadsetSpacerMm = spacer
+						res, err := geometry.AnalyzeBikeFitWithSaddle(b, model.Some(s.A2cMm), model.Some(s.RakeMm), profile, saddle)
+						if err != nil {
+							t.Fatalf("AnalyzeBikeFitWithSaddle(%s %s %s spacer=%.1f): %v", frame.ID, sz, s.DisplayLabel, spacer, err)
+						}
+						uAct := geometry.SteererTubeDir(res.ActiveHta)
+						htAct := geom2d.Point2{X: res.ActiveReach, Y: res.ActiveStack}
+						htbAct := htAct.SubVec(uAct.Scale(bike.Htl))
+						raAct := geom2d.Point2{X: -geometry.RearCenterHoriz(bike.ChainstayLength, res.ActiveBbDrop), Y: res.ActiveBbDrop}
+
+						if d := math.Abs(htAct.DistanceTo(bb) - wantHtBb); d > 1e-6 {
+							t.Errorf("%s %s (%s): |HT-BB| drifted by %.9f mm", frame.ID, sz, s.DisplayLabel, d)
+						}
+						if d := math.Abs(htbAct.DistanceTo(bb) - wantHtbBb); d > 1e-6 {
+							t.Errorf("%s %s (%s): |HTB-BB| drifted by %.9f mm", frame.ID, sz, s.DisplayLabel, d)
+						}
+						if d := math.Abs(raAct.DistanceTo(bb) - wantBbRa); d > 1e-6 {
+							t.Errorf("%s %s (%s): |BB-RA| drifted by %.9f mm", frame.ID, sz, s.DisplayLabel, d)
+						}
+						if d := math.Abs(htAct.DistanceTo(htbAct) - wantHtHtb); d > 1e-6 {
+							t.Errorf("%s %s (%s): |HT-HTB| drifted by %.9f mm", frame.ID, sz, s.DisplayLabel, d)
+						}
+						if d := math.Abs(wantHtHtb - bike.Htl); d > 1e-9 {
+							t.Errorf("%s %s (%s): |HT-HTB| != HTL by %.9f mm", frame.ID, sz, s.DisplayLabel, d)
+						}
+						nominalStaAct := bike.StaDeg - res.DeltaAngleDeg
+						if d := ((res.ActiveHta - nominalStaAct) - wantNominalIncluded).Abs(); d > 1e-6 {
+							t.Errorf("%s %s (%s): nominal (HTA-STA) drifted by %.9f deg", frame.ID, sz, s.DisplayLabel, d)
+						}
+						if d := ((res.ActiveHta - res.ActiveSta) - wantEffIncluded).Abs(); d > 1e-6 {
+							t.Errorf("%s %s (%s): effective (HTA-STA) drifted by %.9f deg", frame.ID, sz, s.DisplayLabel, d)
+						}
+					}
+				}
+			}
+		}
+	})
+
+	t.Run("CADForkReproducesPublishedChart", func(t *testing.T) {
+		for _, frame := range frames.AllFrames() {
+			for _, sz := range frame.GetSizes() {
+				bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+				if err != nil {
+					t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frame.ID, sz, err)
+				}
+				res, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Some(bike.CadFork.A2cMm), model.Some(bike.CadFork.RakeMm), profile, saddle)
+				if err != nil {
+					t.Fatalf("AnalyzeBikeFitWithSaddle(%s %s): %v", frame.ID, sz, err)
+				}
+				if d := math.Abs(res.ActiveReach - bike.Reach); d > 1e-6 {
+					t.Errorf("%s %s: Reach diff %.9f mm", frame.ID, sz, d)
+				}
+				if d := math.Abs(res.ActiveStack - bike.Stack); d > 1e-6 {
+					t.Errorf("%s %s: Stack diff %.9f mm", frame.ID, sz, d)
+				}
+				if d := (res.ActiveHta - bike.HtaDeg).Abs(); d > 1e-6 {
+					t.Errorf("%s %s: HTA diff %.9f deg", frame.ID, sz, d)
+				}
+				nominalSta := bike.StaDeg - res.DeltaAngleDeg
+				if d := (nominalSta - bike.StaDeg).Abs(); d > 1e-6 {
+					t.Errorf("%s %s: nominal STA diff %.9f deg", frame.ID, sz, d)
+				}
+				if !bike.HasBentSeatTube() {
+					if d := (res.ActiveSta - bike.StaDeg).Abs(); d > 1e-6 {
+						t.Errorf("%s %s: ActiveSta diff %.9f deg", frame.ID, sz, d)
+					}
+				}
+				if d := math.Abs(res.ActiveBbDrop - bike.BbDrop); d > 1e-6 {
+					t.Errorf("%s %s: BbDrop diff %.9f mm", frame.ID, sz, d)
+				}
+
+				htaRad := bike.HtaDeg.Angle()
+				u := geometry.SteererTubeDir(bike.HtaDeg)
+				n := u.Perpendicular(geom2d.Clockwise)
+				lChart := (bike.Stack - bike.BbDrop + bike.CadFork.RakeMm*htaRad.Cos()) / htaRad.Sin()
+				faChart := geom2d.Point2{X: bike.Reach, Y: bike.Stack}.SubVec(u.Scale(lChart)).Add(n.Scale(bike.CadFork.RakeMm))
+				ra0 := geom2d.Point2{X: -geometry.RearCenterHoriz(bike.ChainstayLength, bike.BbDrop), Y: bike.BbDrop}
+
+				if d := math.Abs(faChart.Y - bike.BbDrop); d > 1e-9 {
+					t.Errorf("%s %s: FA_chart.Y=%.9f != BbDrop=%.9f", frame.ID, sz, faChart.Y, bike.BbDrop)
+				}
+
+				a2cBudget, ok := geometry.A2cBudget(bike)
+				if !ok || !a2cBudget.Within() {
+					t.Errorf("%s %s: A2cBudget ok=%v within=%v (%+v)", frame.ID, sz, ok, a2cBudget.Within(), a2cBudget)
+				} else {
+					lDecl := bike.CadFork.A2cMm + bike.GeoHeadsetSpacerMm + bike.Htl
+					if d := math.Abs((lDecl - lChart) - a2cBudget.Residual); d > 1e-9 {
+						t.Errorf("%s %s: declared-fork A2C residual %.9f != A2cBudget.Residual %.9f", frame.ID, sz, lDecl-lChart, a2cBudget.Residual)
+					}
+				}
+				if bike.FrontCenter > 0 {
+					fcBudget, ok := geometry.FrontCenterBudget(bike)
+					if !ok || !fcBudget.Within() {
+						t.Errorf("%s %s: FrontCenterBudget ok=%v within=%v (%+v)", frame.ID, sz, ok, fcBudget.Within(), fcBudget)
+					} else if d := math.Abs((faChart.DistanceToOrigin() - bike.FrontCenter) - fcBudget.Residual); d > 1e-9 {
+						t.Errorf("%s %s: chart FC residual %.9f != FrontCenterBudget.Residual %.9f", frame.ID, sz, faChart.DistanceToOrigin()-bike.FrontCenter, fcBudget.Residual)
+					}
+				}
+				if bike.Wheelbase > 0 {
+					wbBudget, ok := geometry.WheelbaseBudget(bike)
+					if !ok || !wbBudget.Within() {
+						t.Errorf("%s %s: WheelbaseBudget ok=%v within=%v (%+v)", frame.ID, sz, ok, wbBudget.Within(), wbBudget)
+					} else if d := math.Abs(((faChart.X - ra0.X) - bike.Wheelbase) - wbBudget.Residual); d > 1e-9 {
+						t.Errorf("%s %s: chart WB residual %.9f != WheelbaseBudget.Residual %.9f", frame.ID, sz, (faChart.X-ra0.X)-bike.Wheelbase, wbBudget.Residual)
+					}
+				}
+			}
+		}
+	})
+
+	t.Run("CupAndA2cAreInterchangeable", func(t *testing.T) {
+		const extraMm = 10.0
+		for _, frame := range frames.AllFrames() {
+			setups := frameSetups(t, frame)
+			for _, sz := range frame.GetSizes() {
+				bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+				if err != nil {
+					t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frame.ID, sz, err)
+				}
+				baseStruct := bike.CadFork.A2cMm + bike.GeoHeadsetSpacerMm
+				for _, s := range setups {
+					// Pre-BikeScene/C4: check cup vs A2C interchangeability on CalculateDynamicGeometry
+					// and strict monotonic slackening through AnalyzeBikeFitWithSaddle.
+					dynBase := geometry.CalculateDynamicGeometry(bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg, bike.BbDrop, baseStruct, s.A2cMm+bike.GeoHeadsetSpacerMm, bike.Wheelbase, bike.ChainstayLength)
+					dynCup := geometry.CalculateDynamicGeometry(bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg, bike.BbDrop, baseStruct, s.A2cMm+(bike.GeoHeadsetSpacerMm+extraMm), bike.Wheelbase, bike.ChainstayLength)
+					dynA2c := geometry.CalculateDynamicGeometry(bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg, bike.BbDrop, baseStruct, (s.A2cMm+extraMm)+bike.GeoHeadsetSpacerMm, bike.Wheelbase, bike.ChainstayLength)
+
+					if d := math.Abs(dynCup.NewReach - dynA2c.NewReach); d > 1e-9 {
+						t.Errorf("%s %s (%s): Reach cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
+					}
+					if d := math.Abs(dynCup.NewStack - dynA2c.NewStack); d > 1e-9 {
+						t.Errorf("%s %s (%s): Stack cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
+					}
+					if d := (dynCup.NewHta - dynA2c.NewHta).Abs(); d > 1e-9 {
+						t.Errorf("%s %s (%s): HTA cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
+					}
+					if d := (dynCup.NewSta - dynA2c.NewSta).Abs(); d > 1e-9 {
+						t.Errorf("%s %s (%s): STA cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
+					}
+					if d := math.Abs(dynCup.NewBbDrop - dynA2c.NewBbDrop); d > 1e-9 {
+						t.Errorf("%s %s (%s): BbDrop cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
+					}
+					if !(dynA2c.NewHta < dynBase.NewHta) {
+						t.Errorf("%s %s (%s): longer front end steepened/unchanged HTA: %.4f -> %.4f", frame.ID, sz, s.DisplayLabel, dynBase.NewHta, dynA2c.NewHta)
+					}
+
+					fitBase, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Some(s.A2cMm), model.Some(s.RakeMm), profile, saddle)
+					if err != nil {
+						t.Fatalf("AnalyzeBikeFitWithSaddle base (%s %s %s): %v", frame.ID, sz, s.DisplayLabel, err)
+					}
+					fitLonger, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Some(s.A2cMm+extraMm), model.Some(s.RakeMm), profile, saddle)
+					if err != nil {
+						t.Fatalf("AnalyzeBikeFitWithSaddle longer (%s %s %s): %v", frame.ID, sz, s.DisplayLabel, err)
+					}
+					if !(fitLonger.ActiveHta < fitBase.ActiveHta) {
+						t.Errorf("%s %s (%s): AnalyzeBikeFitWithSaddle longer front end did not slacken HTA: %.4f -> %.4f", frame.ID, sz, s.DisplayLabel, fitBase.ActiveHta, fitLonger.ActiveHta)
+					}
+				}
+			}
+		}
+	})
+
+	t.Run("AxlesStayLevel", func(t *testing.T) {
+		for _, frame := range frames.AllFrames() {
+			setups := frameSetups(t, frame)
+			for _, sz := range frame.GetSizes() {
+				bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+				if err != nil {
+					t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frame.ID, sz, err)
+				}
+				htaRad := bike.HtaDeg.Angle()
+				lChart := (bike.Stack - bike.BbDrop + bike.CadFork.RakeMm*htaRad.Cos()) / htaRad.Sin()
+
+				u0 := geometry.SteererTubeDir(bike.HtaDeg)
+				n0 := u0.Perpendicular(geom2d.Clockwise)
+				ht0 := geom2d.Point2{X: bike.Reach, Y: bike.Stack}
+				fa0 := ht0.SubVec(u0.Scale(lChart)).Add(n0.Scale(bike.CadFork.RakeMm))
+				ra0 := geom2d.Point2{X: -geometry.RearCenterHoriz(bike.ChainstayLength, bike.BbDrop), Y: bike.BbDrop}
+				wbChart := fa0.X - ra0.X
+
+				for _, s := range setups {
+					res, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Some(s.A2cMm), model.Some(s.RakeMm), profile, saddle)
+					if err != nil {
+						t.Fatalf("AnalyzeBikeFitWithSaddle(%s %s %s): %v", frame.ID, sz, s.DisplayLabel, err)
+					}
+					dL := s.A2cMm - bike.CadFork.A2cMm
+					uAct := geometry.SteererTubeDir(res.ActiveHta)
+					nAct := uAct.Perpendicular(geom2d.Clockwise)
+					htAct := geom2d.Point2{X: res.ActiveReach, Y: res.ActiveStack}
+					faAct := htAct.SubVec(uAct.Scale(lChart + dL)).Add(nAct.Scale(s.RakeMm))
+					raAct := geom2d.Point2{X: -geometry.RearCenterHoriz(bike.ChainstayLength, res.ActiveBbDrop), Y: res.ActiveBbDrop}
+					axleDelta := math.Abs(faAct.Y - raAct.Y)
+
+					if math.Abs(s.RakeMm-bike.CadFork.RakeMm) < 1e-6 {
+						// Pre-Commit-6: CalculateDynamicGeometry pitches using published bike.Wheelbase
+						// rather than wbChart, leaving |(wbChart - bike.Wheelbase) * sin(dHta)| (0 at dL == 0).
+						// Commit 6 (BikeScene) eliminates this drift so axleDelta < 1e-6 unconditionally.
+						dHta := (res.ActiveHta - bike.HtaDeg).Angle()
+						preCommit6WbDrift := math.Abs((wbChart - bike.Wheelbase) * dHta.Sin())
+						if math.Abs(axleDelta-preCommit6WbDrift) >= 1e-6 || axleDelta >= 0.1 {
+							t.Errorf("%s %s (%s, same rake %.1f): |FA.Y - RA.Y| = %.6f mm (expected pre-Commit-6 drift %.6f mm, want within 1e-6 and < 0.1)", frame.ID, sz, s.DisplayLabel, s.RakeMm, axleDelta, preCommit6WbDrift)
+						}
+					} else {
+						// Known C3 issue before Commit 6: AnalyzeBikeFitWithSaddle ignores Fork.Rake changes when pitching.
+						if axleDelta <= 0.1 || axleDelta >= 5.0 {
+							t.Errorf("%s %s (%s, rake %.1f vs CAD %.1f): unexpected pre-Commit-6 C3 |FA.Y - RA.Y| = %.3f mm", frame.ID, sz, s.DisplayLabel, s.RakeMm, bike.CadFork.RakeMm, axleDelta)
+						}
+					}
+				}
+			}
+		}
+	})
 }
