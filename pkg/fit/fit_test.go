@@ -97,8 +97,8 @@ func TestApplyAssignment(t *testing.T) {
 	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.a2c=2.0"); err != nil {
 		t.Fatalf("Failed to set slop: %v", err)
 	}
-	if frame.GeoSlopMm.GetA2c() != 2.0 {
-		t.Errorf("Expected slop.a2c 2.0, got %.1f", frame.GeoSlopMm.GetA2c())
+	if frame.GeoSlopMm.A2c.OrZero() != 2.0 {
+		t.Errorf("Expected slop.a2c 2.0, got %.1f", frame.GeoSlopMm.A2c.OrZero())
 	}
 
 	// 2. Fork-level attributes

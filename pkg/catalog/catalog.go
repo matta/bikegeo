@@ -319,7 +319,7 @@ func GetStandardForkForTravel(travelMm float64) (model.ForkCatalogEntry, bool) {
 type ForkSuggestion struct {
 	ForkID    string
 	ForkName  string
-	SagPct    *float64
+	SagPct    model.Opt[float64]
 	StaticA2c float64
 	Rake      float64
 	TravelMm  float64
@@ -354,7 +354,7 @@ func FindForkSuggestions(targetA2c, targetRake float64) []ForkSuggestion {
 					suggestions = append(suggestions, ForkSuggestion{
 						ForkID:    fork.ID,
 						ForkName:  fork.Name,
-						SagPct:    &sagPct,
+						SagPct:    model.Some(sagPct),
 						StaticA2c: opt.A2cMm,
 						Rake:      opt.RakeMm,
 						TravelMm:  fork.TravelMm,

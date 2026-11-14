@@ -30,14 +30,14 @@ func PrintedDistanceToIdeal(idealRange *Range, printedVal float64, decimals int)
 	if idealRange == nil {
 		return 0
 	}
-	if idealRange.Min != nil {
-		minP := RoundPrinted(*idealRange.Min, decimals)
+	if minV, ok := idealRange.Min.Get(); ok {
+		minP := RoundPrinted(minV, decimals)
 		if printedVal < minP {
 			return RoundPrinted(printedVal-minP, decimals)
 		}
 	}
-	if idealRange.Max != nil {
-		maxP := RoundPrinted(*idealRange.Max, decimals)
+	if maxV, ok := idealRange.Max.Get(); ok {
+		maxP := RoundPrinted(maxV, decimals)
 		if printedVal > maxP {
 			return RoundPrinted(printedVal-maxP, decimals)
 		}
@@ -53,12 +53,16 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 		subScore := cfr.FinalSubScore
 		printedSub := math.Round(subScore)
 		idealMin := 100.0
-		if spec.Ideal != nil && spec.Ideal.Min != nil {
-			idealMin = math.Round(*spec.Ideal.Min)
+		if spec.Ideal != nil {
+			if v, ok := spec.Ideal.Min.Get(); ok {
+				idealMin = math.Round(v)
+			}
 		}
 		accMin := 75.0
-		if spec.Acceptable != nil && spec.Acceptable.Min != nil {
-			accMin = math.Round(*spec.Acceptable.Min)
+		if spec.Acceptable != nil {
+			if v, ok := spec.Acceptable.Min.Get(); ok {
+				accMin = math.Round(v)
+			}
 		}
 		zone := ZoneOutside
 		sym := SymbolOutside
@@ -102,11 +106,10 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 
 	// Score keeps using the unrounded value so curves remain strictly decreasing.
 	subScore := curve.Peak
-	switch {
-	case spec.Ideal.Min != nil && val < *spec.Ideal.Min:
-		subScore = curves.below.falloff.Score(*spec.Ideal.Min - val)
-	case spec.Ideal.Max != nil && val > *spec.Ideal.Max:
-		subScore = curves.above.falloff.Score(val - *spec.Ideal.Max)
+	if minV, ok := spec.Ideal.Min.Get(); ok && val < minV {
+		subScore = curves.below.falloff.Score(minV - val)
+	} else if maxV, ok := spec.Ideal.Max.Get(); ok && val > maxV {
+		subScore = curves.above.falloff.Score(val - maxV)
 	}
 
 	// Zone, marker, and delta are decided from the value and bounds as printed.
@@ -124,11 +127,11 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 	zone, symbol := ZoneOutside, SymbolOutside
 	if spec.Acceptable != nil {
 		if printedDist < 0 {
-			if spec.Acceptable.Min == nil || printedVal >= RoundPrinted(*spec.Acceptable.Min, meta.Decimals) {
+			if accMin, ok := spec.Acceptable.Min.Get(); !ok || printedVal >= RoundPrinted(accMin, meta.Decimals) {
 				zone, symbol = ZoneAcceptable, SymbolAcceptable
 			}
 		} else {
-			if spec.Acceptable.Max == nil || printedVal <= RoundPrinted(*spec.Acceptable.Max, meta.Decimals) {
+			if accMax, ok := spec.Acceptable.Max.Get(); !ok || printedVal <= RoundPrinted(accMax, meta.Decimals) {
 				zone, symbol = ZoneAcceptable, SymbolAcceptable
 			}
 		}
@@ -184,17 +187,19 @@ func FormatRange(r *Range, unit string, decimals int) string {
 		unitSuffix = unit
 	}
 
-	if r.Min != nil && r.Max != nil {
-		if *r.Min == *r.Max {
-			return fmt.Sprintf("%.*f%s", decimals, *r.Min, unitSuffix)
+	minV, hasMin := r.Min.Get()
+	maxV, hasMax := r.Max.Get()
+	if hasMin && hasMax {
+		if minV == maxV {
+			return fmt.Sprintf("%.*f%s", decimals, minV, unitSuffix)
 		}
-		return fmt.Sprintf("%.*f–%.*f%s", decimals, *r.Min, decimals, *r.Max, unitSuffix)
+		return fmt.Sprintf("%.*f–%.*f%s", decimals, minV, decimals, maxV, unitSuffix)
 	}
-	if r.Min != nil {
-		return fmt.Sprintf("≥%.*f%s", decimals, *r.Min, unitSuffix)
+	if hasMin {
+		return fmt.Sprintf("≥%.*f%s", decimals, minV, unitSuffix)
 	}
-	if r.Max != nil {
-		return fmt.Sprintf("≤%.*f%s", decimals, *r.Max, unitSuffix)
+	if hasMax {
+		return fmt.Sprintf("≤%.*f%s", decimals, maxV, unitSuffix)
 	}
 	return ""
 }

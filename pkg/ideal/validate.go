@@ -12,8 +12,8 @@ func ValidateProfile(p *Profile) error {
 		return fmt.Errorf("profile name must not be empty")
 	}
 
-	if p.SaddleHeightMm != nil && *p.SaddleHeightMm <= 0 {
-		return fmt.Errorf("profile saddle_height_mm must be positive, got %.1f", *p.SaddleHeightMm)
+	if sh, ok := p.SaddleHeightMm.Get(); ok && sh <= 0 {
+		return fmt.Errorf("profile saddle_height_mm must be positive, got %.1f", sh)
 	}
 
 	if len(p.Attributes) == 0 {
@@ -49,72 +49,75 @@ func ValidateProfile(p *Profile) error {
 		}
 
 		if attr.Ideal != nil {
-			if attr.Ideal.Min == nil && attr.Ideal.Max == nil {
+			idealMin, hasIdealMin := attr.Ideal.Min.Get()
+			idealMax, hasIdealMax := attr.Ideal.Max.Get()
+			if !hasIdealMin && !hasIdealMax {
 				return fmt.Errorf("profile %q attribute %q ideal range must define min, max, or both", p.Name, attr.ID)
 			}
-			if attr.Ideal.Min != nil && attr.Ideal.Max != nil && *attr.Ideal.Min > *attr.Ideal.Max {
-				return fmt.Errorf("profile %q attribute %q ideal min (%.1f) exceeds max (%.1f)", p.Name, attr.ID, *attr.Ideal.Min, *attr.Ideal.Max)
+			if hasIdealMin && hasIdealMax && idealMin > idealMax {
+				return fmt.Errorf("profile %q attribute %q ideal min (%.1f) exceeds max (%.1f)", p.Name, attr.ID, idealMin, idealMax)
 			}
 
 			// Validate Acceptable range if present
+			isWider := false
 			if attr.Acceptable != nil {
-				if attr.Acceptable.Min == nil && attr.Acceptable.Max == nil {
+				accMin, hasAccMin := attr.Acceptable.Min.Get()
+				accMax, hasAccMax := attr.Acceptable.Max.Get()
+				if !hasAccMin && !hasAccMax {
 					return fmt.Errorf("profile %q attribute %q acceptable range must define min, max, or both", p.Name, attr.ID)
 				}
-				if attr.Acceptable.Min != nil && attr.Acceptable.Max != nil && *attr.Acceptable.Min > *attr.Acceptable.Max {
-					return fmt.Errorf("profile %q attribute %q acceptable min (%.1f) exceeds max (%.1f)", p.Name, attr.ID, *attr.Acceptable.Min, *attr.Acceptable.Max)
+				if hasAccMin && hasAccMax && accMin > accMax {
+					return fmt.Errorf("profile %q attribute %q acceptable min (%.1f) exceeds max (%.1f)", p.Name, attr.ID, accMin, accMax)
 				}
 
 				// One-sided consistency
-				if attr.Ideal.Min != nil && attr.Acceptable.Min == nil {
+				if hasIdealMin && !hasAccMin {
 					return fmt.Errorf("profile %q attribute %q ideal has min bound but acceptable is unbounded below", p.Name, attr.ID)
 				}
-				if attr.Ideal.Min == nil && attr.Acceptable.Min != nil {
+				if !hasIdealMin && hasAccMin {
 					return fmt.Errorf("profile %q attribute %q ideal is unbounded below but acceptable has min bound", p.Name, attr.ID)
 				}
-				if attr.Ideal.Max != nil && attr.Acceptable.Max == nil {
+				if hasIdealMax && !hasAccMax {
 					return fmt.Errorf("profile %q attribute %q ideal has max bound but acceptable is unbounded above", p.Name, attr.ID)
 				}
-				if attr.Ideal.Max == nil && attr.Acceptable.Max != nil {
+				if !hasIdealMax && hasAccMax {
 					return fmt.Errorf("profile %q attribute %q ideal is unbounded above but acceptable has max bound", p.Name, attr.ID)
 				}
 
 				// Subset check
-				if attr.Ideal.Min != nil && attr.Acceptable.Min != nil && *attr.Acceptable.Min > *attr.Ideal.Min {
-					return fmt.Errorf("profile %q attribute %q acceptable min (%.1f) must be <= ideal min (%.1f)", p.Name, attr.ID, *attr.Acceptable.Min, *attr.Ideal.Min)
+				if hasIdealMin && hasAccMin && accMin > idealMin {
+					return fmt.Errorf("profile %q attribute %q acceptable min (%.1f) must be <= ideal min (%.1f)", p.Name, attr.ID, accMin, idealMin)
 				}
-				if attr.Ideal.Max != nil && attr.Acceptable.Max != nil && *attr.Acceptable.Max < *attr.Ideal.Max {
-					return fmt.Errorf("profile %q attribute %q acceptable max (%.1f) must be >= ideal max (%.1f)", p.Name, attr.ID, *attr.Acceptable.Max, *attr.Ideal.Max)
+				if hasIdealMax && hasAccMax && accMax < idealMax {
+					return fmt.Errorf("profile %q attribute %q acceptable max (%.1f) must be >= ideal max (%.1f)", p.Name, attr.ID, accMax, idealMax)
 				}
-			}
 
-			// Check if acceptable is wider than ideal
-			isWider := false
-			if attr.Acceptable != nil {
-				if attr.Ideal.Min != nil && attr.Acceptable.Min != nil && *attr.Acceptable.Min < *attr.Ideal.Min {
+				// Check if acceptable is wider than ideal
+				if hasIdealMin && hasAccMin && accMin < idealMin {
 					isWider = true
 				}
-				if attr.Ideal.Max != nil && attr.Acceptable.Max != nil && *attr.Acceptable.Max > *attr.Ideal.Max {
+				if hasIdealMax && hasAccMax && accMax > idealMax {
 					isWider = true
 				}
 			}
 
+			edge, hasEdge := attr.EdgeScore.Get()
 			if isWider {
-				if attr.EdgeScore == nil {
+				if !hasEdge {
 					return fmt.Errorf("profile %q attribute %q acceptable range is wider than ideal, but edge_score is not defined", p.Name, attr.ID)
 				}
-				if *attr.EdgeScore <= 0 || *attr.EdgeScore > 100 {
-					return fmt.Errorf("profile %q attribute %q edge_score (%.1f) must be in (0, 100]", p.Name, attr.ID, *attr.EdgeScore)
+				if edge <= 0 || edge > 100 {
+					return fmt.Errorf("profile %q attribute %q edge_score (%.1f) must be in (0, 100]", p.Name, attr.ID, edge)
 				}
-			} else if attr.EdgeScore != nil {
-				if *attr.EdgeScore <= 0 || *attr.EdgeScore > 100 {
-					return fmt.Errorf("profile %q attribute %q edge_score (%.1f) must be in (0, 100]", p.Name, attr.ID, *attr.EdgeScore)
+			} else if hasEdge {
+				if edge <= 0 || edge > 100 {
+					return fmt.Errorf("profile %q attribute %q edge_score (%.1f) must be in (0, 100]", p.Name, attr.ID, edge)
 				}
 			}
 
 			// Floor validation
-			if attr.Floor != nil && *attr.Floor >= 0 {
-				return fmt.Errorf("profile %q attribute %q floor (%.1f) must be negative", p.Name, attr.ID, *attr.Floor)
+			if fl, ok := attr.Floor.Get(); ok && fl >= 0 {
+				return fmt.Errorf("profile %q attribute %q floor (%.1f) must be negative", p.Name, attr.ID, fl)
 			}
 
 			// Compile the score curves: rejects missing falloffs and any shape

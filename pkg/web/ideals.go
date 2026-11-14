@@ -22,8 +22,8 @@ func (db *docb) listIdeals() int {
 	var rows [][]string
 	for _, s := range summaries {
 		shStr := "—"
-		if s.SaddleHeightMm != nil {
-			shStr = fmt.Sprintf("%.0fmm", *s.SaddleHeightMm)
+		if sh, ok := s.SaddleHeightMm.Get(); ok {
+			shStr = fmt.Sprintf("%.0fmm", sh)
 		}
 		attrsStr := fmt.Sprintf("%d (%d scored)", s.AttributeCount, s.ScoredCount)
 		rows = append(rows, []string{
@@ -56,8 +56,8 @@ func (db *docb) showIdeal(name string) int {
 	if p.Description != "" {
 		subtitleParts = append(subtitleParts, p.Description)
 	}
-	if p.SaddleHeightMm != nil {
-		subtitleParts = append(subtitleParts, fmt.Sprintf("Designed for Saddle Height: %.0fmm", *p.SaddleHeightMm))
+	if sh, ok := p.SaddleHeightMm.Get(); ok {
+		subtitleParts = append(subtitleParts, fmt.Sprintf("Designed for Saddle Height: %.0fmm", sh))
 	}
 	subtitle := strings.Join(subtitleParts, " | ")
 
@@ -94,20 +94,20 @@ func (db *docb) showIdeal(name string) int {
 		}
 
 		edgeStr := "—"
-		if attr.EdgeScore != nil {
-			edgeStr = fmt.Sprintf("%.0f", *attr.EdgeScore)
+		if edge, ok := attr.EdgeScore.Get(); ok {
+			edgeStr = fmt.Sprintf("%.0f", edge)
 		}
 
 		falloffStr := "—"
 		if attr.Falloff != nil {
 			var parts []string
-			if attr.Falloff.Below != nil {
-				parts = append(parts, fmt.Sprintf("-%.1f%s", *attr.Falloff.Below, meta.Unit))
+			if below, ok := attr.Falloff.Below.Get(); ok {
+				parts = append(parts, fmt.Sprintf("-%.1f%s", below, meta.Unit))
 			} else {
 				parts = append(parts, "—")
 			}
-			if attr.Falloff.Above != nil {
-				parts = append(parts, fmt.Sprintf("+%.1f%s", *attr.Falloff.Above, meta.Unit))
+			if above, ok := attr.Falloff.Above.Get(); ok {
+				parts = append(parts, fmt.Sprintf("+%.1f%s", above, meta.Unit))
 			} else {
 				parts = append(parts, "—")
 			}
@@ -115,8 +115,8 @@ func (db *docb) showIdeal(name string) int {
 		}
 
 		floorStr := "—"
-		if attr.Floor != nil {
-			floorStr = fmt.Sprintf("%.0f", *attr.Floor)
+		if fl, ok := attr.Floor.Get(); ok {
+			floorStr = fmt.Sprintf("%.0f", fl)
 		}
 
 		rows = append(rows, []string{
@@ -180,34 +180,40 @@ func generateSampleValues(spec ideal.AttributeSpec) []float64 {
 	}
 
 	if spec.Ideal != nil {
-		if spec.Ideal.Min != nil && spec.Ideal.Max != nil {
-			add(*spec.Ideal.Min)
-			add((*spec.Ideal.Min + *spec.Ideal.Max) / 2.0)
-			add(*spec.Ideal.Max)
-		} else if spec.Ideal.Min != nil {
-			add(*spec.Ideal.Min)
-			add(*spec.Ideal.Min + 10)
-		} else if spec.Ideal.Max != nil {
-			add(*spec.Ideal.Max)
-			add(*spec.Ideal.Max - 10)
+		minVal, hasMin := spec.Ideal.Min.Get()
+		maxVal, hasMax := spec.Ideal.Max.Get()
+		if hasMin && hasMax {
+			add(minVal)
+			add((minVal + maxVal) / 2.0)
+			add(maxVal)
+		} else if hasMin {
+			add(minVal)
+			add(minVal + 10)
+		} else if hasMax {
+			add(maxVal)
+			add(maxVal - 10)
 		}
 	}
 
 	if spec.Acceptable != nil {
-		if spec.Acceptable.Min != nil {
-			add(*spec.Acceptable.Min)
+		if minVal, ok := spec.Acceptable.Min.Get(); ok {
+			add(minVal)
 		}
-		if spec.Acceptable.Max != nil {
-			add(*spec.Acceptable.Max)
+		if maxVal, ok := spec.Acceptable.Max.Get(); ok {
+			add(maxVal)
 		}
 	}
 
-	if spec.Falloff != nil {
-		if spec.Falloff.Below != nil && spec.Acceptable != nil && spec.Acceptable.Min != nil {
-			add(*spec.Acceptable.Min - *spec.Falloff.Below)
+	if spec.Falloff != nil && spec.Acceptable != nil {
+		if below, ok := spec.Falloff.Below.Get(); ok {
+			if minVal, ok := spec.Acceptable.Min.Get(); ok {
+				add(minVal - below)
+			}
 		}
-		if spec.Falloff.Above != nil && spec.Acceptable != nil && spec.Acceptable.Max != nil {
-			add(*spec.Acceptable.Max + *spec.Falloff.Above)
+		if above, ok := spec.Falloff.Above.Get(); ok {
+			if maxVal, ok := spec.Acceptable.Max.Get(); ok {
+				add(maxVal + above)
+			}
 		}
 	}
 

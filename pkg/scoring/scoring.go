@@ -57,6 +57,16 @@ func formatValue(unit string, v float64) string {
 	return fmt.Sprintf("%.0f%s", v, unit)
 }
 
+func translateRange(r *ideal.Range, fn func(float64) float64) *ideal.Range {
+	if r == nil {
+		return nil
+	}
+	return &ideal.Range{
+		Min: r.Min.Map(fn),
+		Max: r.Max.Map(fn),
+	}
+}
+
 func translateAttributeSpecForSaddle(spec ideal.AttributeSpec, saddle model.SaddleSpec) ideal.AttributeSpec {
 	if saddle.ID == "" || saddle.ID == "sqlab-610-ergolux" {
 		return spec
@@ -64,63 +74,22 @@ func translateAttributeSpecForSaddle(spec ideal.AttributeSpec, saddle model.Sadd
 	refSQ := model.ReferenceIdmatchSaddle()
 	lowID := strings.ToLower(spec.ID)
 	if lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" {
+		fn := func(v float64) float64 {
+			return saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(v))
+		}
 		copied := spec
-		if spec.Ideal != nil {
-			idCopy := *spec.Ideal
-			if idCopy.Min != nil {
-				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*idCopy.Min))
-				idCopy.Min = &val
-			}
-			if idCopy.Max != nil {
-				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*idCopy.Max))
-				idCopy.Max = &val
-			}
-			copied.Ideal = &idCopy
-		}
-		if spec.Acceptable != nil {
-			accCopy := *spec.Acceptable
-			if accCopy.Min != nil {
-				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*accCopy.Min))
-				accCopy.Min = &val
-			}
-			if accCopy.Max != nil {
-				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*accCopy.Max))
-				accCopy.Max = &val
-			}
-			copied.Acceptable = &accCopy
-		}
+		copied.Ideal = translateRange(spec.Ideal, fn)
+		copied.Acceptable = translateRange(spec.Acceptable, fn)
 		return copied
 	}
 	if lowID == "saddle_hb" || lowID == "saddlehb" {
+		fn := func(v float64) float64 {
+			tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, v, 3.0)
+			return math.Round(tDist*10) / 10
+		}
 		copied := spec
-		if spec.Ideal != nil {
-			idCopy := *spec.Ideal
-			if idCopy.Min != nil {
-				tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *idCopy.Min, 3.0)
-				tDist = math.Round(tDist*10) / 10
-				idCopy.Min = &tDist
-			}
-			if idCopy.Max != nil {
-				tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *idCopy.Max, 3.0)
-				tDist = math.Round(tDist*10) / 10
-				idCopy.Max = &tDist
-			}
-			copied.Ideal = &idCopy
-		}
-		if spec.Acceptable != nil {
-			accCopy := *spec.Acceptable
-			if accCopy.Min != nil {
-				tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *accCopy.Min, 3.0)
-				tDist = math.Round(tDist*10) / 10
-				accCopy.Min = &tDist
-			}
-			if accCopy.Max != nil {
-				tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *accCopy.Max, 3.0)
-				tDist = math.Round(tDist*10) / 10
-				accCopy.Max = &tDist
-			}
-			copied.Acceptable = &accCopy
-		}
+		copied.Ideal = translateRange(spec.Ideal, fn)
+		copied.Acceptable = translateRange(spec.Acceptable, fn)
 		return copied
 	}
 	return spec
@@ -143,9 +112,9 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	var evals []attrEval
 	totalActiveWeight := 0.0
 
-	var brpMin, brpMax *float64
-	var distMin, distMax *float64
-	var dropMin, dropMax *float64
+	var brpMin, brpMax model.Opt[float64]
+	var distMin, distMax model.Opt[float64]
+	var dropMin, dropMax model.Opt[float64]
 	var hasClampFit bool
 
 	for _, spec := range prof.Attributes {
@@ -171,30 +140,26 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	rowDropMin, rowDropMax := dropMin, dropMax
 	if can.Saddle.ID != "" && can.Saddle.ID != "sqlab-610-ergolux" {
 		refSQ := model.ReferenceIdmatchSaddle()
-		if brpMin != nil {
-			pelvicMin := refSQ.SitBoneSetbackFromBrp(*brpMin)
-			trMin := can.Saddle.TargetBrpForPelvicSetback(pelvicMin)
-			rowBrpMin = &trMin
-		}
-		if brpMax != nil {
-			pelvicMax := refSQ.SitBoneSetbackFromBrp(*brpMax)
-			trMax := can.Saddle.TargetBrpForPelvicSetback(pelvicMax)
-			rowBrpMax = &trMax
-		}
+		rowBrpMin = brpMin.Map(func(v float64) float64 {
+			return can.Saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(v))
+		})
+		rowBrpMax = brpMax.Map(func(v float64) float64 {
+			return can.Saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(v))
+		})
 		refRise := 3.0
-		if dropMin != nil && dropMax != nil {
-			refRise = (*dropMin + *dropMax) / 2.0
-		} else if dropMin != nil {
-			refRise = *dropMin
+		if dMin, ok := dropMin.Get(); ok {
+			if dMax, ok := dropMax.Get(); ok {
+				refRise = (dMin + dMax) / 2.0
+			} else {
+				refRise = dMin
+			}
 		}
-		if distMin != nil {
-			tDist := can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *distMin, refRise)
-			rowDistMin = &tDist
-		}
-		if distMax != nil {
-			tDist := can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *distMax, refRise)
-			rowDistMax = &tDist
-		}
+		rowDistMin = distMin.Map(func(v float64) float64 {
+			return can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, v, refRise)
+		})
+		rowDistMax = distMax.Map(func(v float64) float64 {
+			return can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, v, refRise)
+		})
 	}
 
 	if len(can.PossibleBRPs) > 0 {
@@ -214,7 +179,7 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 		can.PossibleHBs = geometry.MapPossibleHBsWithHandlebar(row.Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP, bar, model.DefaultGripInsetMm, 0.0)
 	}
 	if len(can.PossibleHBs) > 0 {
-		if hasClampFit && (rowDistMin != nil || rowDistMax != nil) {
+		if hasClampFit && (rowDistMin.IsSet() || rowDistMax.IsSet()) {
 			geometry.ApplyCockpitFit(can, row.Bike, row.Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax)
 		} else if bestHB, ok := geometry.SelectBestHBWithDrop(can.PossibleHBs, row.Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax); ok {
 			can.SelectedHB = &bestHB
@@ -437,27 +402,35 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 	case "hta", "sta":
 		target := 68.0
 		if isBelow {
-			if spec.Ideal != nil && spec.Ideal.Min != nil {
-				target = ideal.RoundPrinted(*spec.Ideal.Min, meta.Decimals)
+			if spec.Ideal != nil {
+				if minVal, ok := spec.Ideal.Min.Get(); ok {
+					target = ideal.RoundPrinted(minVal, meta.Decimals)
+				}
 			}
 			return fmt.Sprintf("%s %.1f° is %.1f° slacker than %.1f", label, printedVal, absDist, target)
 		}
-		if spec.Ideal != nil && spec.Ideal.Max != nil {
-			target = ideal.RoundPrinted(*spec.Ideal.Max, meta.Decimals)
+		if spec.Ideal != nil {
+			if maxVal, ok := spec.Ideal.Max.Get(); ok {
+				target = ideal.RoundPrinted(maxVal, meta.Decimals)
+			}
 		}
 		return fmt.Sprintf("%s %.1f° is %.1f° steeper than %.1f", label, printedVal, absDist, target)
 
 	case "trail":
 		if isBelow {
 			target := 98.0
-			if spec.Ideal != nil && spec.Ideal.Min != nil {
-				target = ideal.RoundPrinted(*spec.Ideal.Min, meta.Decimals)
+			if spec.Ideal != nil {
+				if minVal, ok := spec.Ideal.Min.Get(); ok {
+					target = ideal.RoundPrinted(minVal, meta.Decimals)
+				}
 			}
 			return fmt.Sprintf("Trail %.0fmm is %.0fmm quicker than the %.0fmm ideal", printedVal, absDist, target)
 		}
 		target := 106.0
-		if spec.Ideal != nil && spec.Ideal.Max != nil {
-			target = ideal.RoundPrinted(*spec.Ideal.Max, meta.Decimals)
+		if spec.Ideal != nil {
+			if maxVal, ok := spec.Ideal.Max.Get(); ok {
+				target = ideal.RoundPrinted(maxVal, meta.Decimals)
+			}
 		}
 		return fmt.Sprintf("Trail %.0fmm is %.0fmm slower than the %.0fmm ideal", printedVal, absDist, target)
 
@@ -472,22 +445,26 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 	distStr := formatValue(meta.Unit, absDist)
 
 	if isBelow {
-		if spec.Ideal != nil && spec.Ideal.Min != nil {
-			idealStr := formatValue(meta.Unit, ideal.RoundPrinted(*spec.Ideal.Min, meta.Decimals))
-			if lowID == "setback" || lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" || lowID == "sit_bone_setback" {
-				return fmt.Sprintf("%s %s is %s forward of the %s ideal", label, valStr, distStr, idealStr)
+		if spec.Ideal != nil {
+			if minVal, ok := spec.Ideal.Min.Get(); ok {
+				idealStr := formatValue(meta.Unit, ideal.RoundPrinted(minVal, meta.Decimals))
+				if lowID == "setback" || lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" || lowID == "sit_bone_setback" {
+					return fmt.Sprintf("%s %s is %s forward of the %s ideal", label, valStr, distStr, idealStr)
+				}
+				return fmt.Sprintf("%s %s is %s short of the %s ideal", label, valStr, distStr, idealStr)
 			}
-			return fmt.Sprintf("%s %s is %s short of the %s ideal", label, valStr, distStr, idealStr)
 		}
 		return fmt.Sprintf("%s %s is %s short of ideal", label, valStr, distStr)
 	}
 
-	if spec.Ideal != nil && spec.Ideal.Max != nil {
-		idealStr := formatValue(meta.Unit, ideal.RoundPrinted(*spec.Ideal.Max, meta.Decimals))
-		if lowID == "setback" || lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" || lowID == "sit_bone_setback" {
-			return fmt.Sprintf("%s %s is %s aft of the %s ideal", label, valStr, distStr, idealStr)
+	if spec.Ideal != nil {
+		if maxVal, ok := spec.Ideal.Max.Get(); ok {
+			idealStr := formatValue(meta.Unit, ideal.RoundPrinted(maxVal, meta.Decimals))
+			if lowID == "setback" || lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" || lowID == "sit_bone_setback" {
+				return fmt.Sprintf("%s %s is %s aft of the %s ideal", label, valStr, distStr, idealStr)
+			}
+			return fmt.Sprintf("%s %s is %s past the %s ideal", label, valStr, distStr, idealStr)
 		}
-		return fmt.Sprintf("%s %s is %s past the %s ideal", label, valStr, distStr, idealStr)
 	}
 	return fmt.Sprintf("%s %s is %s past ideal", label, valStr, distStr)
 }

@@ -41,7 +41,7 @@
 <label><input type="checkbox" name="all" value="1"{{if .Q.All}} checked{{end}}> All frames, best configuration each</label>
 <label>Show top <input type="number" name="top" min="0" value="{{if .Q.Top}}{{.Q.Top}}{{end}}" placeholder="all"></label>
 {{with index .FieldErr "top"}}<span class="field-error">{{.}}</span>{{end}}
-<label>Per frame <input type="number" name="top_per_frame" min="0" value="{{if .Q.TopPerFrame}}{{.Q.TopPerFrame}}{{end}}" placeholder="auto"></label>
+<label>Per frame <input type="number" name="top_per_frame" min="0" value="{{if .Q.TopPerFrame.IsSet}}{{.Q.TopPerFrame.OrZero}}{{end}}" placeholder="auto"></label>
 {{with index .FieldErr "top_per_frame"}}<span class="field-error">{{.}}</span>{{end}}
 </fieldset>
 

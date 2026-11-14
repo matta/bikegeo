@@ -8,6 +8,7 @@ import (
 
 	"bikegeo/pkg/frames"
 	"bikegeo/pkg/ideal"
+	"bikegeo/pkg/model"
 	"bikegeo/pkg/report"
 )
 
@@ -456,13 +457,13 @@ func TestSamePhysicalForkSameLabel(t *testing.T) {
 func TestMetricLabelsLayoutIndependent(t *testing.T) {
 	specs := []string{"sklar-pbj@110mm@20%", "revel-el-jefe@120mm@20%"}
 
-	colRes := mustRun(t, Options{Specs: specs, Transpose: new(false)})
+	colRes := mustRun(t, Options{Specs: specs, Transpose: model.Some(false)})
 	colDoc, err := BuildDocument(colRes, DocOptions{Scoring: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	rowRes := mustRun(t, Options{Specs: specs, Transpose: new(true)})
+	rowRes := mustRun(t, Options{Specs: specs, Transpose: model.Some(true)})
 	rowDoc, err := BuildDocument(rowRes, DocOptions{Scoring: true, Flat: true})
 	if err != nil {
 		t.Fatal(err)
@@ -567,10 +568,9 @@ func TestCompare_BrpSetbackUsesSelectedBRPAndFooterUsesSitBones(t *testing.T) {
 }
 
 func TestCompare_SingleStepIntegerRounding(t *testing.T) {
-	topPerFrame := 0
 	res := mustRun(t, Options{
 		Specs:       []string{"sklar-pbj:M", "fairlight-holt-2:S", "surly-ecr:L", "sklar-pbj:L", "surly-ecr:M"},
-		TopPerFrame: &topPerFrame,
+		TopPerFrame: model.Some(0),
 	})
 	doc, err := BuildDocument(res, DocOptions{Flat: true})
 	if err != nil {

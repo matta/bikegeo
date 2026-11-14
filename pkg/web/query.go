@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"bikegeo/pkg/compare"
+	"bikegeo/pkg/model"
 )
 
 // FieldError ties a validation message to a form field (or "" for the page).
@@ -36,7 +37,7 @@ type CompareQuery struct {
 	NoScore     bool
 	All         bool
 	Top         int
-	TopPerFrame *int
+	TopPerFrame model.Opt[int]
 }
 
 // ParseCompareQuery decodes v, applying defaults for anything missing and
@@ -101,7 +102,7 @@ func ParseCompareQuery(v url.Values) (CompareQuery, []FieldError) {
 		if err != nil || n < 0 {
 			errs = append(errs, FieldError{"top_per_frame", fmt.Sprintf("%q is not a non-negative whole number", s)})
 		} else {
-			q.TopPerFrame = &n
+			q.TopPerFrame = model.Some(n)
 		}
 	}
 	return q, errs
@@ -134,11 +135,9 @@ func (q CompareQuery) Options() compare.Options {
 	}
 	switch q.Layout {
 	case LayoutRows:
-		t := true
-		o.Transpose = &t
+		o.Transpose = model.Some(true)
 	case LayoutColumns:
-		t := false
-		o.Transpose = &t
+		o.Transpose = model.Some(false)
 	}
 	return o
 }
@@ -165,8 +164,8 @@ func (q CompareQuery) Values() url.Values {
 	if q.Top > 0 {
 		v.Set("top", strconv.Itoa(q.Top))
 	}
-	if q.TopPerFrame != nil {
-		v.Set("top_per_frame", strconv.Itoa(*q.TopPerFrame))
+	if tpf, ok := q.TopPerFrame.Get(); ok {
+		v.Set("top_per_frame", strconv.Itoa(tpf))
 	}
 	return v
 }
@@ -195,8 +194,8 @@ func (q CompareQuery) CLI() string {
 	if q.Top > 0 {
 		parts = append(parts, "--top", strconv.Itoa(q.Top))
 	}
-	if q.TopPerFrame != nil {
-		parts = append(parts, "--top-per-frame", strconv.Itoa(*q.TopPerFrame))
+	if tpf, ok := q.TopPerFrame.Get(); ok {
+		parts = append(parts, "--top-per-frame", strconv.Itoa(tpf))
 	}
 	for _, s := range q.Specs {
 		parts = append(parts, shellQuote(s))

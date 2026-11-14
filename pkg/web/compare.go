@@ -88,9 +88,9 @@ func forkToken(f model.FrameModel, r model.CanonicalComparisonRow) string {
 	if !canonicalizer.IsRigidFork(canonicalizer.GetEffectiveForkLabel(r)) {
 		tok = canonicalizer.FormatForkType(r)
 	}
-	var sag *float64
+	var sag model.Opt[float64]
 	if r.Setup.SagPct > 0 {
-		sag = &r.Setup.SagPct
+		sag = model.Some(r.Setup.SagPct)
 	}
 	a2c, rake, static, _, err := canonicalizer.ResolveForkToken(tok, sag, f)
 	exact := err == nil && math.Abs(rake-r.Setup.RakeMm) < 0.5 &&
@@ -103,7 +103,7 @@ func forkToken(f model.FrameModel, r model.CanonicalComparisonRow) string {
 
 // forkChoices lists the fork tokens a frame supports.
 func forkChoices(f model.FrameModel) []string {
-	setups, err := canonicalizer.ExpandPlausibleForkSetups(f, nil)
+	setups, err := canonicalizer.ExpandPlausibleForkSetups(f, model.Opt[float64]{})
 	if err != nil {
 		return nil
 	}

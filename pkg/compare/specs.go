@@ -156,7 +156,7 @@ func parseFrameSetups(
 	rawMods []string,
 ) ([]model.ComparisonSetup, error) {
 	var forkToken string
-	var sagOverride *float64
+	var sagOverride model.Opt[float64]
 	var allForks bool
 	sizeToken := explicitSize
 
@@ -201,7 +201,7 @@ func parseFrameSetups(
 			if val > 0 && !canonicalizer.IsAllowedSag(val) {
 				return nil, fmt.Errorf("invalid sag modifier %q in %q; allowed sags are 20%%, 25%%, 30%%", mod, frame.ID)
 			}
-			sagOverride = &val
+			sagOverride = model.Some(val)
 			continue
 		}
 
@@ -245,7 +245,7 @@ func parseFrameSetups(
 				if val > 0 && !canonicalizer.IsAllowedSag(val) {
 					return nil, fmt.Errorf("invalid sag modifier %q in %q; allowed sags are 20%%, 25%%, 30%%", mod, frame.ID)
 				}
-				sagOverride = &val
+				sagOverride = model.Some(val)
 			}
 			continue
 		}
@@ -300,10 +300,7 @@ func parseFrameSetups(
 		if err != nil {
 			return nil, err
 		}
-		sagVal := 0.0
-		if sagOverride != nil {
-			sagVal = *sagOverride
-		}
+		sagVal := sagOverride.OrZero()
 		forkSetups = []model.ComparisonSetup{
 			{
 				FrameID:      frame.ID,

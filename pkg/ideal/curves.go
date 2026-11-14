@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"bikegeo/pkg/curve"
+	"bikegeo/pkg/model"
 )
 
 // sideCurve is the compiled falloff for one side of an attribute's ideal range.
@@ -30,48 +31,51 @@ func (s AttributeSpec) compileCurves() (specCurves, error) {
 		return out, nil
 	}
 
-	floor := -200.0
-	if s.Floor != nil {
-		floor = *s.Floor
-	}
+	floor := s.Floor.Or(-200.0)
 
-	build := func(side string, acceptableDist float64, fall *float64) (*sideCurve, error) {
-		if fall == nil || *fall <= 0 {
+	build := func(side string, acceptableDist float64, fall model.Opt[float64]) (*sideCurve, error) {
+		fVal, ok := fall.Get()
+		if !ok || fVal <= 0 {
 			return nil, fmt.Errorf("attribute %q must define positive falloff.%s", s.ID, side)
 		}
 		var knots []curve.Knot
 		if acceptableDist > 0 {
-			if s.EdgeScore == nil {
+			edge, ok := s.EdgeScore.Get()
+			if !ok {
 				return nil, fmt.Errorf("attribute %q acceptable range is wider than ideal on the %s side, but edge_score is not defined", s.ID, side)
 			}
-			knots = append(knots, curve.Knot{D: acceptableDist, Score: *s.EdgeScore})
+			knots = append(knots, curve.Knot{D: acceptableDist, Score: edge})
 		}
-		f, err := curve.NewFalloff(knots, acceptableDist+*fall, floor)
+		f, err := curve.NewFalloff(knots, acceptableDist+fVal, floor)
 		if err != nil {
 			return nil, fmt.Errorf("attribute %q %s curve: %w", s.ID, side, err)
 		}
 		return &sideCurve{acceptableDist: acceptableDist, falloff: f}, nil
 	}
 
-	var falloffBelow, falloffAbove *float64
+	var falloffBelow, falloffAbove model.Opt[float64]
 	if s.Falloff != nil {
 		falloffBelow, falloffAbove = s.Falloff.Below, s.Falloff.Above
 	}
 
 	var err error
-	if s.Ideal.Min != nil {
+	if idealMin, ok := s.Ideal.Min.Get(); ok {
 		dist := 0.0
-		if s.Acceptable != nil && s.Acceptable.Min != nil && *s.Acceptable.Min < *s.Ideal.Min {
-			dist = *s.Ideal.Min - *s.Acceptable.Min
+		if s.Acceptable != nil {
+			if accMin, ok := s.Acceptable.Min.Get(); ok && accMin < idealMin {
+				dist = idealMin - accMin
+			}
 		}
 		if out.below, err = build("below", dist, falloffBelow); err != nil {
 			return specCurves{}, err
 		}
 	}
-	if s.Ideal.Max != nil {
+	if idealMax, ok := s.Ideal.Max.Get(); ok {
 		dist := 0.0
-		if s.Acceptable != nil && s.Acceptable.Max != nil && *s.Acceptable.Max > *s.Ideal.Max {
-			dist = *s.Acceptable.Max - *s.Ideal.Max
+		if s.Acceptable != nil {
+			if accMax, ok := s.Acceptable.Max.Get(); ok && accMax > idealMax {
+				dist = accMax - idealMax
+			}
 		}
 		if out.above, err = build("above", dist, falloffAbove); err != nil {
 			return specCurves{}, err

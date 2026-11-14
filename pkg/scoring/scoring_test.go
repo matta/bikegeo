@@ -32,16 +32,16 @@ func TestScoreRow_MissingDataRenormalization(t *testing.T) {
 			{
 				ID:        "setback",
 				Weight:    10,
-				Ideal:     &ideal.Range{Min: new(float64(230)), Max: new(float64(230))},
-				EdgeScore: new(float64(80)),
-				Falloff:   &ideal.Falloff{Below: new(float64(10)), Above: new(float64(10))},
+				Ideal:     &ideal.Range{Min: model.Some(230.0), Max: model.Some(230.0)},
+				EdgeScore: model.Some(80.0),
+				Falloff:   &ideal.Falloff{Below: model.Some(10.0), Above: model.Some(10.0)},
 			},
 			{
 				ID:        "standover",
 				Weight:    10,
-				Ideal:     &ideal.Range{Min: new(float64(700)), Max: new(float64(750))},
-				EdgeScore: new(float64(80)),
-				Falloff:   &ideal.Falloff{Below: new(float64(50)), Above: new(float64(50))},
+				Ideal:     &ideal.Range{Min: model.Some(700.0), Max: model.Some(750.0)},
+				EdgeScore: model.Some(80.0),
+				Falloff:   &ideal.Falloff{Below: model.Some(50.0), Above: model.Some(50.0)},
 			},
 		},
 	}
@@ -164,9 +164,9 @@ func TestScoreRow_SaddleHb(t *testing.T) {
 			{
 				ID:        "saddle_hb",
 				Weight:    10,
-				Ideal:     &ideal.Range{Min: new(float64(695)), Max: new(float64(705))},
-				EdgeScore: new(float64(80)),
-				Falloff:   &ideal.Falloff{Below: new(float64(50)), Above: new(float64(50))},
+				Ideal:     &ideal.Range{Min: model.Some(695.0), Max: model.Some(705.0)},
+				EdgeScore: model.Some(80.0),
+				Falloff:   &ideal.Falloff{Below: model.Some(50.0), Above: model.Some(50.0)},
 			},
 		},
 	}
@@ -234,31 +234,31 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	// Ideal profile with BRP Setback (target 219mm), Saddle-HB (target 700mm), and Saddle-HB Drop (target 13mm)
 	prof := &ideal.Profile{
 		Name:           "test-idmatch",
-		SaddleHeightMm: new(float64(746)),
+		SaddleHeightMm: model.Some(746.0),
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "brp_setback",
 				Weight:     10,
-				Ideal:      &ideal.Range{Min: new(float64(219)), Max: new(float64(219))}, // target 219mm
-				Acceptable: &ideal.Range{Min: new(float64(214)), Max: new(float64(224))}, // within ±5mm of rail center
-				EdgeScore:  new(float64(75)),
-				Falloff:    &ideal.Falloff{Below: new(float64(20)), Above: new(float64(20))},
+				Ideal:      &ideal.Range{Min: model.Some(219.0), Max: model.Some(219.0)}, // target 219mm
+				Acceptable: &ideal.Range{Min: model.Some(214.0), Max: model.Some(224.0)}, // within ±5mm of rail center
+				EdgeScore:  model.Some(75.0),
+				Falloff:    &ideal.Falloff{Below: model.Some(20.0), Above: model.Some(20.0)},
 			},
 			{
 				ID:         "saddle_hb",
 				Weight:     10,
-				Ideal:      &ideal.Range{Min: new(float64(695)), Max: new(float64(705))},
-				Acceptable: &ideal.Range{Min: new(float64(685)), Max: new(float64(715))},
-				EdgeScore:  new(float64(75)),
-				Falloff:    &ideal.Falloff{Below: new(float64(15)), Above: new(float64(15))},
+				Ideal:      &ideal.Range{Min: model.Some(695.0), Max: model.Some(705.0)},
+				Acceptable: &ideal.Range{Min: model.Some(685.0), Max: model.Some(715.0)},
+				EdgeScore:  model.Some(75.0),
+				Falloff:    &ideal.Falloff{Below: model.Some(15.0), Above: model.Some(15.0)},
 			},
 			{
 				ID:         "saddle_hb_drop",
 				Weight:     5,
-				Ideal:      &ideal.Range{Min: new(float64(-2)), Max: new(float64(8))},
-				Acceptable: &ideal.Range{Min: new(float64(-10)), Max: new(float64(16))},
-				EdgeScore:  new(float64(75)),
-				Falloff:    &ideal.Falloff{Below: new(float64(10)), Above: new(float64(10))},
+				Ideal:      &ideal.Range{Min: model.Some(-2.0), Max: model.Some(8.0)},
+				Acceptable: &ideal.Range{Min: model.Some(-10.0), Max: model.Some(16.0)},
+				EdgeScore:  model.Some(75.0),
+				Falloff:    &ideal.Falloff{Below: model.Some(10.0), Above: model.Some(10.0)},
 			},
 		},
 	}
@@ -424,19 +424,19 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 	// Profile with handlebar_clamp_fit, saddle_hb target (700mm), and saddle_hb_drop target (13mm)
 	prof := &ideal.Profile{
 		Name:           "test-clamp-fit",
-		SaddleHeightMm: new(float64(746)),
+		SaddleHeightMm: model.Some(746.0),
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "handlebar_clamp_fit",
 				Weight:     15,
 				Ideal:      ideal.AtLeast(100),
 				Acceptable: ideal.AtLeast(75),
-				EdgeScore:  new(float64(75)),
+				EdgeScore:  model.Some(75.0),
 				Falloff:    ideal.FalloffBelow(75),
-				Floor:      new(float64(-200)),
+				Floor:      model.Some(-200.0),
 			},
-			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), new(float64(75)), ideal.FalloffBoth(15, 15)),
-			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), new(float64(75)), ideal.FalloffBoth(10, 10)),
+			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), model.Some(75.0), ideal.FalloffBoth(15, 15)),
+			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), model.Some(75.0), ideal.FalloffBoth(10, 10)),
 		},
 	}
 
@@ -544,19 +544,19 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 func TestScoreRow_HandlebarClampFit_StemExtremityPenalty(t *testing.T) {
 	prof := &ideal.Profile{
 		Name:           "test-stem-extreme",
-		SaddleHeightMm: new(float64(746)),
+		SaddleHeightMm: model.Some(746.0),
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "handlebar_clamp_fit",
 				Weight:     15,
 				Ideal:      ideal.AtLeast(100),
 				Acceptable: ideal.AtLeast(75),
-				EdgeScore:  new(float64(75)),
+				EdgeScore:  model.Some(75.0),
 				Falloff:    ideal.FalloffBelow(75),
-				Floor:      new(float64(-200)),
+				Floor:      model.Some(-200.0),
 			},
-			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), new(float64(75)), ideal.FalloffBoth(15, 15)),
-			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), new(float64(75)), ideal.FalloffBoth(10, 10)),
+			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), model.Some(75.0), ideal.FalloffBoth(15, 15)),
+			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), model.Some(75.0), ideal.FalloffBoth(10, 10)),
 		},
 	}
 
@@ -591,8 +591,7 @@ func TestScoreRow_HandlebarClampFit_StemExtremityPenalty(t *testing.T) {
 		},
 	}
 
-	distVal, dropVal := 700.0, 13.0
-	geometry.ApplyCockpitFit(&row100.Canonical, row100.Bike, row100.Bike.GetCanonicalStem(), &distVal, &distVal, &dropVal, &dropVal)
+	geometry.ApplyCockpitFit(&row100.Canonical, row100.Bike, row100.Bike.GetCanonicalStem(), model.Some(700.0), model.Some(700.0), model.Some(13.0), model.Some(13.0))
 
 	res100 := ScoreRow(row100, prof)
 	// BaseScore = 100.0, bonus = 0 (1 setup). StemPenalty = 15.0 -> SubScore = 85.0
@@ -690,19 +689,19 @@ func TestDescribeLoss_CockpitFitOffset_ZeroFits(t *testing.T) {
 func TestScoreAllRows_FarOutsideCockpitStillRanksByDistance(t *testing.T) {
 	prof := &ideal.Profile{
 		Name:           "test-far-cockpit",
-		SaddleHeightMm: new(float64(746)),
+		SaddleHeightMm: model.Some(746.0),
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "handlebar_clamp_fit",
 				Weight:     15,
 				Ideal:      ideal.AtLeast(100),
 				Acceptable: ideal.AtLeast(75),
-				EdgeScore:  new(float64(75)),
+				EdgeScore:  model.Some(75.0),
 				Falloff:    ideal.FalloffBelow(75),
-				Floor:      new(float64(-200)),
+				Floor:      model.Some(-200.0),
 			},
-			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), new(float64(75)), ideal.FalloffBoth(15, 15)),
-			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), new(float64(75)), ideal.FalloffBoth(10, 10)),
+			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), model.Some(75.0), ideal.FalloffBoth(15, 15)),
+			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), model.Some(75.0), ideal.FalloffBoth(10, 10)),
 		},
 	}
 
@@ -764,18 +763,18 @@ func TestLossDeltaMatchesCell(t *testing.T) {
 			Weight:     2,
 			Ideal:      ideal.Between(67.5, 68.5),
 			Acceptable: ideal.Between(66.5, 69.5),
-			EdgeScore:  new(75.0),
+			EdgeScore:  model.Some(75.0),
 			Falloff:    ideal.FalloffBoth(2.0, 2.0),
-			Floor:      new(-100.0),
+			Floor:      model.Some(-100.0),
 		},
 		ideal.AttributeSpec{
 			ID:         "sta",
 			Weight:     2,
 			Ideal:      ideal.Between(73.0, 74.5),
 			Acceptable: ideal.Between(72.0, 75.5),
-			EdgeScore:  new(75.0),
+			EdgeScore:  model.Some(75.0),
 			Falloff:    ideal.FalloffBoth(2.0, 2.0),
-			Floor:      new(-100.0),
+			Floor:      model.Some(-100.0),
 		},
 	)
 
@@ -789,25 +788,25 @@ func TestLossDeltaMatchesCell(t *testing.T) {
 
 		// Probe points around lower and upper bounds including .5 and .05 ties.
 		var testVals []float64
-		if spec.Ideal.Min != nil {
-			base := math.Floor(*spec.Ideal.Min) - 35
+		if minVal, ok := spec.Ideal.Min.Get(); ok {
+			base := math.Floor(minVal) - 35
 			for i := 0; i <= 360; i++ {
 				testVals = append(testVals, math.Round((base+float64(i)*0.1)*1000)/1000)
 			}
 			if meta.Decimals > 0 {
 				for i := -30; i <= 10; i++ {
-					testVals = append(testVals, math.Round((*spec.Ideal.Min+float64(i)*0.05)*1000)/1000)
+					testVals = append(testVals, math.Round((minVal+float64(i)*0.05)*1000)/1000)
 				}
 			}
 		}
-		if spec.Ideal.Max != nil {
-			base := math.Ceil(*spec.Ideal.Max)
+		if maxVal, ok := spec.Ideal.Max.Get(); ok {
+			base := math.Ceil(maxVal)
 			for i := 0; i <= 360; i++ {
 				testVals = append(testVals, math.Round((base+float64(i)*0.1)*1000)/1000)
 			}
 			if meta.Decimals > 0 {
 				for i := -10; i <= 30; i++ {
-					testVals = append(testVals, math.Round((*spec.Ideal.Max+float64(i)*0.05)*1000)/1000)
+					testVals = append(testVals, math.Round((maxVal+float64(i)*0.05)*1000)/1000)
 				}
 			}
 		}
@@ -823,10 +822,10 @@ func TestLossDeltaMatchesCell(t *testing.T) {
 
 			// Test both printed DistanceToIdeal and unrounded raw distance.
 			rawDist := 0.0
-			if spec.Ideal.Min != nil && v < *spec.Ideal.Min {
-				rawDist = v - *spec.Ideal.Min
-			} else if spec.Ideal.Max != nil && v > *spec.Ideal.Max {
-				rawDist = v - *spec.Ideal.Max
+			if minVal, ok := spec.Ideal.Min.Get(); ok && v < minVal {
+				rawDist = v - minVal
+			} else if maxVal, ok := spec.Ideal.Max.Get(); ok && v > maxVal {
+				rawDist = v - maxVal
 			}
 			for _, distArg := range []float64{ev.DistanceToIdeal, rawDist} {
 				desc := DescribeLossWithRow(spec, meta, v, distArg, ev.Zone, nil)

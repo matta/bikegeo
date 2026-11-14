@@ -84,17 +84,17 @@ func AnalyzeFit(frame model.FrameModel, configID string) (*FitResult, error) {
 			maxAbsDeltaA2c = absA2c
 		}
 
-		if r.DeltaFc != nil {
+		if deltaFc, ok := r.DeltaFc.Get(); ok {
 			hasFc = true
-			absFc := math.Abs(*r.DeltaFc)
+			absFc := math.Abs(deltaFc)
 			if absFc > maxAbsDeltaFc {
 				maxAbsDeltaFc = absFc
 			}
 		}
 
-		if r.DeltaWb != nil {
+		if deltaWb, ok := r.DeltaWb.Get(); ok {
 			hasWb = true
-			absWb := math.Abs(*r.DeltaWb)
+			absWb := math.Abs(deltaWb)
 			if absWb > maxAbsDeltaWb {
 				maxAbsDeltaWb = absWb
 			}
@@ -328,7 +328,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if frame.GeoSlopMm == nil {
 			frame.GeoSlopMm = &model.GeoSlopMm{}
 		}
-		frame.GeoSlopMm.A2c = new(v)
+		frame.GeoSlopMm.A2c = model.Some(v)
 		return nil
 	case "geo_slop_mm.front_center", "slop.front_center", "slop.fc":
 		v, err := parseFloat()
@@ -338,7 +338,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if frame.GeoSlopMm == nil {
 			frame.GeoSlopMm = &model.GeoSlopMm{}
 		}
-		frame.GeoSlopMm.FrontCenter = new(v)
+		frame.GeoSlopMm.FrontCenter = model.Some(v)
 		return nil
 	case "geo_slop_mm.wheelbase", "slop.wheelbase", "slop.wb":
 		v, err := parseFloat()
@@ -348,7 +348,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if frame.GeoSlopMm == nil {
 			frame.GeoSlopMm = &model.GeoSlopMm{}
 		}
-		frame.GeoSlopMm.Wheelbase = new(v)
+		frame.GeoSlopMm.Wheelbase = model.Some(v)
 		return nil
 	case "geo_slop_mm.reason", "slop.reason":
 		if frame.GeoSlopMm == nil {
@@ -368,7 +368,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		if err != nil || v < 0 || v > 100.0 {
 			return fmt.Errorf("seat_tube_offset_x_mm must be between 0.0 and 100.0 mm")
 		}
-		frame.SeatTubeOffsetXMm = new(v)
+		frame.SeatTubeOffsetXMm = model.Some(v)
 		return nil
 	case "rigid_a2c_mm", "rigid_a2c":
 		v, err := parseFloat()

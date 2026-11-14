@@ -1,53 +1,55 @@
 package ideal
 
+import "bikegeo/pkg/model"
+
 // Range specifies an inclusive numeric interval [Min, Max].
-// If Min is nil, the range is unbounded below.
-// If Max is nil, the range is unbounded above.
+// If Min is unset, the range is unbounded below.
+// If Max is unset, the range is unbounded above.
 type Range struct {
-	Min *float64
-	Max *float64
+	Min model.Opt[float64]
+	Max model.Opt[float64]
 }
 
 // Between returns a Range with inclusive [min, max] bounds.
 func Between(min, max float64) *Range {
-	return &Range{Min: new(min), Max: new(max)}
+	return &Range{Min: model.Some(min), Max: model.Some(max)}
 }
 
 // Exact returns a single-point Range [val, val].
 func Exact(val float64) *Range {
-	return &Range{Min: new(val), Max: new(val)}
+	return &Range{Min: model.Some(val), Max: model.Some(val)}
 }
 
 // AtLeast returns a lower-bounded Range [min, +inf).
 func AtLeast(min float64) *Range {
-	return &Range{Min: new(min)}
+	return &Range{Min: model.Some(min)}
 }
 
 // AtMost returns an upper-bounded Range (-inf, max].
 func AtMost(max float64) *Range {
-	return &Range{Max: new(max)}
+	return &Range{Max: model.Some(max)}
 }
 
 // Falloff specifies the drop-off distance outside the acceptable range
 // where the sub-score drops from the edge score to 0.
 type Falloff struct {
-	Below *float64
-	Above *float64
+	Below model.Opt[float64]
+	Above model.Opt[float64]
 }
 
 // FalloffBoth returns a Falloff with both Below and Above drop-off distances.
 func FalloffBoth(below, above float64) *Falloff {
-	return &Falloff{Below: new(below), Above: new(above)}
+	return &Falloff{Below: model.Some(below), Above: model.Some(above)}
 }
 
 // FalloffBelow returns a Falloff with only a Below drop-off distance.
 func FalloffBelow(below float64) *Falloff {
-	return &Falloff{Below: new(below)}
+	return &Falloff{Below: model.Some(below)}
 }
 
 // FalloffAbove returns a Falloff with only an Above drop-off distance.
 func FalloffAbove(above float64) *Falloff {
-	return &Falloff{Above: new(above)}
+	return &Falloff{Above: model.Some(above)}
 }
 
 // AttributeSpec describes the scoring and display configuration for a single geometry or fit metric.
@@ -56,9 +58,9 @@ type AttributeSpec struct {
 	Weight     float64
 	Ideal      *Range
 	Acceptable *Range
-	EdgeScore  *float64
+	EdgeScore  model.Opt[float64]
 	Falloff    *Falloff
-	Floor      *float64
+	Floor      model.Opt[float64]
 }
 
 // DisplayOnly returns an unscored, display-only AttributeSpec for the given attribute ID.
@@ -67,7 +69,7 @@ func DisplayOnly(id string) AttributeSpec {
 }
 
 // DisplayOnlyWithTarget returns an unscored AttributeSpec that displays target ranges without contributing to the score.
-func DisplayOnlyWithTarget(id string, ideal, acceptable *Range, edgeScore *float64, falloff *Falloff) AttributeSpec {
+func DisplayOnlyWithTarget(id string, ideal, acceptable *Range, edgeScore model.Opt[float64], falloff *Falloff) AttributeSpec {
 	return AttributeSpec{
 		ID:         id,
 		Weight:     0,
@@ -82,7 +84,7 @@ func DisplayOnlyWithTarget(id string, ideal, acceptable *Range, edgeScore *float
 type Profile struct {
 	Name           string
 	Description    string
-	SaddleHeightMm *float64
+	SaddleHeightMm model.Opt[float64]
 	Attributes     []AttributeSpec
 }
 
@@ -90,7 +92,7 @@ type Profile struct {
 type ProfileSummary struct {
 	Name           string
 	Description    string
-	SaddleHeightMm *float64
+	SaddleHeightMm model.Opt[float64]
 	AttributeCount int
 	ScoredCount    int
 }

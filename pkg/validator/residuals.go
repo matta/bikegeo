@@ -38,10 +38,10 @@ type SizeResidual struct {
 	DeltaVsBest          float64
 	FcPub                float64
 	FcCalc               float64
-	DeltaFc              *float64 // Calc - Pub
+	DeltaFc              model.Opt[float64] // Calc - Pub
 	WbPub                float64
 	WbCalc               float64
-	DeltaWb              *float64 // Calc - Pub
+	DeltaWb              model.Opt[float64] // Calc - Pub
 	ValidationReport     model.ValidationReport
 }
 
@@ -91,7 +91,7 @@ func SizeResiduals(frame model.FrameModel) ([]SizeResidual, error) {
 			evalStructuralA2c = expectedForkA2c + geoSpacer
 		}
 
-		var deltaFc *float64
+		var deltaFc model.Opt[float64]
 		fcCalc := geometry.Round(
 			geometry.CalculateFrontCenter3D(
 				bike.Reach,
@@ -104,11 +104,10 @@ func SizeResiduals(frame model.FrameModel) ([]SizeResidual, error) {
 			1,
 		)
 		if bike.FrontCenter > 0 {
-			d := geometry.Round(fcCalc-bike.FrontCenter, 1)
-			deltaFc = &d
+			deltaFc = model.Some(geometry.Round(fcCalc-bike.FrontCenter, 1))
 		}
 
-		var deltaWb *float64
+		var deltaWb model.Opt[float64]
 		wbCalc := 0.0
 		if bike.Wheelbase > 0 && bike.ChainstayLength > 0 {
 			calculatedFcHoriz := geometry.CalculateFrontCenter(
@@ -120,8 +119,7 @@ func SizeResiduals(frame model.FrameModel) ([]SizeResidual, error) {
 			)
 			csHorizontal := math.Sqrt(math.Max(0, bike.ChainstayLength*bike.ChainstayLength-bike.BbDrop*bike.BbDrop))
 			wbCalc = geometry.Round(csHorizontal+calculatedFcHoriz, 1)
-			d := geometry.Round(wbCalc-bike.Wheelbase, 1)
-			deltaWb = &d
+			deltaWb = model.Some(geometry.Round(wbCalc-bike.Wheelbase, 1))
 		}
 
 		res := SizeResidual{

@@ -89,8 +89,8 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 	// Step 3: Master AnalyzeBikeFit pipeline
 	fit, err := geometry.AnalyzeBikeFit(
 		binaryHavok,
-		&saggedFork,
-		nil,
+		model.Some(saggedFork),
+		model.Opt[float64]{},
 		catalog.DefaultRiderProfile(),
 	)
 	if err != nil {
@@ -153,7 +153,7 @@ func TestBiomechanicalPostureAndWeightDistribution(t *testing.T) {
 	}
 
 	// Test weight distribution on Otso Fenrir Large
-	fit, err := geometry.AnalyzeBikeFit(baselineBike, nil, nil, profile)
+	fit, err := geometry.AnalyzeBikeFit(baselineBike, model.Opt[float64]{}, model.Opt[float64]{}, profile)
 	if err != nil {
 		t.Fatalf("AnalyzeBikeFit failed: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 		t.Fatalf("Expected elJefeLarge.HasBentSeatTube() to be true")
 	}
 
-	fit, err := geometry.AnalyzeBikeFit(elJefeLarge, nil, nil, catalog.DefaultRiderProfile())
+	fit, err := geometry.AnalyzeBikeFit(elJefeLarge, model.Opt[float64]{}, model.Opt[float64]{}, catalog.DefaultRiderProfile())
 	if err != nil {
 		t.Fatalf("AnalyzeBikeFit failed: %v", err)
 	}
@@ -288,11 +288,11 @@ func TestAnalyzeBikeFitRequiresPositiveSeatHeight(t *testing.T) {
 
 	badProf := catalog.DefaultRiderProfile()
 	badProf.SaddleHeightMm = 0
-	if _, err := geometry.AnalyzeBikeFit(bike, nil, nil, badProf); err == nil {
+	if _, err := geometry.AnalyzeBikeFit(bike, model.Opt[float64]{}, model.Opt[float64]{}, badProf); err == nil {
 		t.Errorf("Expected error for SaddleHeightMm <= 0 in AnalyzeBikeFit, got nil")
 	}
 	badProf.SaddleHeightMm = -100
-	if _, err := geometry.AnalyzeBikeFit(bike, nil, nil, badProf); err == nil {
+	if _, err := geometry.AnalyzeBikeFit(bike, model.Opt[float64]{}, model.Opt[float64]{}, badProf); err == nil {
 		t.Errorf("Expected error for negative SaddleHeightMm in AnalyzeBikeFit, got nil")
 	}
 	if _, err := geometry.CalculateBaselinePosture(bike, badProf); err == nil {
@@ -307,25 +307,23 @@ func TestAnalyzeBikeFitRequiresPositiveRake(t *testing.T) {
 	// 1. Zero bike ForkRake
 	badBike := bike
 	badBike.ForkRake = 0
-	if _, err := geometry.AnalyzeBikeFit(badBike, nil, nil, prof); err == nil {
+	if _, err := geometry.AnalyzeBikeFit(badBike, model.Opt[float64]{}, model.Opt[float64]{}, prof); err == nil {
 		t.Errorf("Expected error for ForkRake <= 0 in AnalyzeBikeFit, got nil")
 	}
 
 	// 2. Negative bike ForkRake
 	badBike.ForkRake = -44.0
-	if _, err := geometry.AnalyzeBikeFit(badBike, nil, nil, prof); err == nil {
+	if _, err := geometry.AnalyzeBikeFit(badBike, model.Opt[float64]{}, model.Opt[float64]{}, prof); err == nil {
 		t.Errorf("Expected error for negative ForkRake in AnalyzeBikeFit, got nil")
 	}
 
 	// 3. Zero targetRake
-	badRake := 0.0
-	if _, err := geometry.AnalyzeBikeFit(bike, nil, &badRake, prof); err == nil {
+	if _, err := geometry.AnalyzeBikeFit(bike, model.Opt[float64]{}, model.Some(0.0), prof); err == nil {
 		t.Errorf("Expected error for targetRake <= 0 in AnalyzeBikeFit, got nil")
 	}
 
 	// 4. Negative targetRake
-	badRake = -44.0
-	if _, err := geometry.AnalyzeBikeFit(bike, nil, &badRake, prof); err == nil {
+	if _, err := geometry.AnalyzeBikeFit(bike, model.Opt[float64]{}, model.Some(-44.0), prof); err == nil {
 		t.Errorf("Expected error for negative targetRake in AnalyzeBikeFit, got nil")
 	}
 }
@@ -456,8 +454,8 @@ func TestMapPossibleHBs_And_SelectBestHB(t *testing.T) {
 		t.Fatalf("Expected 15 possible HB points, got %d", len(points))
 	}
 
-	// 1. With nil target, SelectBestHB should select the canonical stem at 0 spacer
-	bestNoTarget, ok := geometry.SelectBestHB(points, canonical, nil, nil)
+	// 1. With unset target, SelectBestHB should select the canonical stem at 0 spacer
+	bestNoTarget, ok := geometry.SelectBestHB(points, canonical, model.Opt[float64]{}, model.Opt[float64]{})
 	if !ok {
 		t.Fatalf("SelectBestHB returned false")
 	}
@@ -479,7 +477,7 @@ func TestMapPossibleHBs_And_SelectBestHB(t *testing.T) {
 	}
 	targetMin := targetPt.SaddleHbMm - 0.5
 	targetMax := targetPt.SaddleHbMm + 0.5
-	bestTarget, ok := geometry.SelectBestHB(points, canonical, &targetMin, &targetMax)
+	bestTarget, ok := geometry.SelectBestHB(points, canonical, model.Some(targetMin), model.Some(targetMax))
 	if !ok {
 		t.Fatalf("SelectBestHB returned false")
 	}
@@ -503,7 +501,7 @@ func TestMapPossibleHBs_And_SelectBestHB(t *testing.T) {
 	}
 	minVal := math.Min(ptCanon.SaddleHbMm, ptOther.SaddleHbMm) - 2.0
 	maxVal := math.Max(ptCanon.SaddleHbMm, ptOther.SaddleHbMm) + 2.0
-	bestTie, ok := geometry.SelectBestHB(points, canonical, &minVal, &maxVal)
+	bestTie, ok := geometry.SelectBestHB(points, canonical, model.Some(minVal), model.Some(maxVal))
 	if !ok {
 		t.Fatalf("SelectBestHB returned false")
 	}
@@ -588,7 +586,7 @@ func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
 	}
 
 	// 1. Without target, should select dead-center (RailOffsetMm = 0)
-	bestNoTarget, ok := geometry.SelectBestBRP(points, nil, nil)
+	bestNoTarget, ok := geometry.SelectBestBRP(points, model.Opt[float64]{}, model.Opt[float64]{})
 	if !ok {
 		t.Fatalf("SelectBestBRP returned false")
 	}
@@ -599,7 +597,7 @@ func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
 	// 2. Target 219mm on STA=72.0° with Redshift sagged 11mm: dead-center setback is 219.1mm
 	tMin := 218.5
 	tMax := 219.5
-	bestTarget, ok := geometry.SelectBestBRP(points, &tMin, &tMax)
+	bestTarget, ok := geometry.SelectBestBRP(points, model.Some(tMin), model.Some(tMax))
 	if !ok {
 		t.Fatalf("SelectBestBRP returned false")
 	}
@@ -612,7 +610,7 @@ func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
 
 	// 3. Target 219mm on steep STA=75.0° (Binary Kinetik): dead center is ~181.5mm, requires +37.5mm (clamps to +15mm)
 	steepPoints := geometry.MapPossibleBRPs(75.0, seatHeight)
-	bestClamped, ok := geometry.SelectBestBRP(steepPoints, &tMin, &tMax)
+	bestClamped, ok := geometry.SelectBestBRP(steepPoints, model.Some(tMin), model.Some(tMax))
 	if !ok {
 		t.Fatalf("SelectBestBRP returned false for steep points")
 	}
@@ -654,7 +652,7 @@ func TestSelectBestHBWithDrop_Hierarchy(t *testing.T) {
 
 	// ptB must win over ptA because both are in distance target range [695, 705], but ptB is in drop target range [8, 18].
 	// ptB must win over ptC because distance is PRIMARY (ptC is outside distance range [695, 705]).
-	best, ok := geometry.SelectBestHBWithDrop(pts, canonicalStem, &distMin, &distMax, &dropMin, &dropMax)
+	best, ok := geometry.SelectBestHBWithDrop(pts, canonicalStem, model.Some(distMin), model.Some(distMax), model.Some(dropMin), model.Some(dropMax))
 	if !ok {
 		t.Fatalf("SelectBestHBWithDrop returned false")
 	}
@@ -1095,8 +1093,7 @@ func TestAnalyzeBikeFit_NormalizesCadBaseline(t *testing.T) {
 		GeoHeadsetSpacerMm: 0.0,
 		CadFork:            model.ForkRef{Fork: "lithic_495", A2cMm: 495.0, RakeMm: 54.0},
 	}
-	cadA2c := 495.0
-	fit, err := geometry.AnalyzeBikeFit(bike, &cadA2c, nil, catalog.DefaultRiderProfile())
+	fit, err := geometry.AnalyzeBikeFit(bike, model.Some(495.0), model.Opt[float64]{}, catalog.DefaultRiderProfile())
 	if err != nil {
 		t.Fatalf("AnalyzeBikeFit failed: %v", err)
 	}

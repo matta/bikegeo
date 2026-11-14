@@ -20,14 +20,14 @@ type Options struct {
 	// "-spec" / "-N" removes.
 	Specs []string
 
-	Saddle     string // saddle catalog ID; "" keeps the default
-	Handlebar  string // handlebar catalog ID; "" keeps the default
-	Transpose  *bool  // nil means automatic
+	Saddle     string          // saddle catalog ID; "" keeps the default
+	Handlebar  string          // handlebar catalog ID; "" keeps the default
+	Transpose  model.Opt[bool] // unset means automatic
 	All        bool
 	AllConfigs bool
 
-	TopPerFrame *int // nil means automatic
-	Top         int  // 0 means unlimited
+	TopPerFrame model.Opt[int] // unset means automatic
+	Top         int            // 0 means unlimited
 }
 
 // Result is a fully resolved, pruned comparison ready for scoring/rendering.
@@ -45,8 +45,8 @@ func Run(opts Options) (*Result, error) {
 	}
 
 	state := DefaultComparisonState()
-	if opts.Transpose != nil {
-		state.Transpose = *opts.Transpose
+	if transpose, ok := opts.Transpose.Get(); ok {
+		state.Transpose = transpose
 	}
 
 	posArgs := opts.Specs
@@ -94,11 +94,11 @@ func Run(opts Options) (*Result, error) {
 		return nil, fmt.Errorf("--top must be a non-negative integer, got %d", opts.Top)
 	}
 	topPerFrame := 0
-	if opts.TopPerFrame != nil {
-		if *opts.TopPerFrame < 0 {
-			return nil, fmt.Errorf("--top-per-frame must be a non-negative integer, got %d", *opts.TopPerFrame)
+	if tpf, ok := opts.TopPerFrame.Get(); ok {
+		if tpf < 0 {
+			return nil, fmt.Errorf("--top-per-frame must be a non-negative integer, got %d", tpf)
 		}
-		topPerFrame = *opts.TopPerFrame
+		topPerFrame = tpf
 	} else if isAllFrames {
 		topPerFrame = 1
 	} else if hasAllForksExpansion {
@@ -184,7 +184,7 @@ func Run(opts Options) (*Result, error) {
 			}
 			state.Columns = newCols
 			state.RefIndex = 0
-			if opts.Transpose == nil {
+			if !opts.Transpose.IsSet() {
 				state.Transpose = len(state.Columns) > 4
 			}
 
@@ -205,7 +205,7 @@ func Run(opts Options) (*Result, error) {
 	}
 
 	// Automatically enable transposed view if more than 4 columns and not explicitly overridden
-	if opts.Transpose == nil && len(state.Columns) > 4 {
+	if !opts.Transpose.IsSet() && len(state.Columns) > 4 {
 		state.Transpose = true
 	}
 
@@ -215,8 +215,8 @@ func Run(opts Options) (*Result, error) {
 	}
 	state.IdealProfile = prof.Name
 
-	if prof.SaddleHeightMm != nil && *prof.SaddleHeightMm > 0 {
-		state.SaddleHeightMm = *prof.SaddleHeightMm
+	if sh, ok := prof.SaddleHeightMm.Get(); ok && sh > 0 {
+		state.SaddleHeightMm = sh
 	}
 
 	if opts.Saddle != "" {
@@ -275,7 +275,7 @@ func Run(opts Options) (*Result, error) {
 	if state.RefIndex >= len(state.Columns) {
 		state.RefIndex = 0
 	}
-	if opts.Transpose == nil && len(state.Columns) > 4 {
+	if !opts.Transpose.IsSet() && len(state.Columns) > 4 {
 		state.Transpose = true
 	}
 

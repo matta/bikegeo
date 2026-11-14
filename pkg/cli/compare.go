@@ -9,6 +9,7 @@ import (
 	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/compare"
 	"bikegeo/pkg/frames"
+	"bikegeo/pkg/model"
 )
 
 func (a *App) runCompare(args []string) int {
@@ -70,10 +71,10 @@ func (a *App) runCompare(args []string) int {
 		Top:        topLimitFlag,
 	}
 	if explicitFlags["transpose"] {
-		opts.Transpose = &transposeFlag
+		opts.Transpose = model.Some(transposeFlag)
 	}
 	if explicitFlags["top-per-frame"] {
-		opts.TopPerFrame = &topPerFrameFlag
+		opts.TopPerFrame = model.Some(topPerFrameFlag)
 	}
 
 	res, err := compare.Run(opts)

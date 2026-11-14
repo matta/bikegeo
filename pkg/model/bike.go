@@ -86,45 +86,29 @@ const DefaultWheelRadius29Mm = 372.0
 
 // GeoSlopMm declares chart error that rounding cannot explain, in mm, for a frame.
 // Each field is an allowance added on top of the propagated rounding budget of
-// that closure check (see ErrorBudget); nil means no allowance. It exists only
+// that closure check (see ErrorBudget); unset means no allowance. It exists only
 // for genuine manufacturer discrepancies and requires a Reason.
 type GeoSlopMm struct {
-	A2c         *float64
-	FrontCenter *float64
-	Wheelbase   *float64
+	A2c         Opt[float64]
+	FrontCenter Opt[float64]
+	Wheelbase   Opt[float64]
 	Reason      string
 }
 
 func (s GeoSlopMm) HasCustomSlop() bool {
-	return s.A2c != nil || s.FrontCenter != nil || s.Wheelbase != nil
+	return s.A2c.IsSet() || s.FrontCenter.IsSet() || s.Wheelbase.IsSet()
 }
-
-func slopValue(v *float64) float64 {
-	if v == nil {
-		return 0
-	}
-	return *v
-}
-
-// GetA2c returns the declared A2C allowance beyond rounding (0 when unset).
-func (s GeoSlopMm) GetA2c() float64 { return slopValue(s.A2c) }
-
-// GetFrontCenter returns the declared Front Center allowance beyond rounding (0 when unset).
-func (s GeoSlopMm) GetFrontCenter() float64 { return slopValue(s.FrontCenter) }
-
-// GetWheelbase returns the declared Wheelbase allowance beyond rounding (0 when unset).
-func (s GeoSlopMm) GetWheelbase() float64 { return slopValue(s.Wheelbase) }
 
 func (s GeoSlopMm) String() string {
 	var parts []string
-	if s.A2c != nil {
-		parts = append(parts, fmt.Sprintf("a2c: +%.1fmm", *s.A2c))
+	if v, ok := s.A2c.Get(); ok {
+		parts = append(parts, fmt.Sprintf("a2c: +%.1fmm", v))
 	}
-	if s.FrontCenter != nil {
-		parts = append(parts, fmt.Sprintf("fc: +%.1fmm", *s.FrontCenter))
+	if v, ok := s.FrontCenter.Get(); ok {
+		parts = append(parts, fmt.Sprintf("fc: +%.1fmm", v))
 	}
-	if s.Wheelbase != nil {
-		parts = append(parts, fmt.Sprintf("wb: +%.1fmm", *s.Wheelbase))
+	if v, ok := s.Wheelbase.Get(); ok {
+		parts = append(parts, fmt.Sprintf("wb: +%.1fmm", v))
 	}
 	if len(parts) == 0 {
 		return "none (rounding budget only)"
@@ -277,7 +261,7 @@ type BikeGeometry struct {
 
 	// Bent / Offset Seat Tube
 	ActualStaDeg      Deg
-	SeatTubeOffsetXMm *float64
+	SeatTubeOffsetXMm Opt[float64]
 
 	// Cockpit & Stem/Spacer Envelope
 	MaxSpacerMm         float64
@@ -312,8 +296,8 @@ func (b BikeGeometry) GetActualStaDeg() Deg {
 }
 
 func (b BikeGeometry) GetSeatTubeOffsetXMm(stack float64, nominalSta Deg) float64 {
-	if b.SeatTubeOffsetXMm != nil {
-		return *b.SeatTubeOffsetXMm
+	if v, ok := b.SeatTubeOffsetXMm.Get(); ok {
+		return v
 	}
 	if !b.HasBentSeatTube() {
 		return 0
@@ -1079,7 +1063,7 @@ type FrameModel struct {
 	GeoHeadsetSpacerMm float64
 	GeoSlopMm          *GeoSlopMm
 	ActualStaDeg       Deg
-	SeatTubeOffsetXMm  *float64
+	SeatTubeOffsetXMm  Opt[float64]
 	ChainstayRangeMm   []float64
 	Sizes              []string
 	DefaultSize        string
@@ -1099,23 +1083,7 @@ func (fm FrameModel) Clone() FrameModel {
 	out := fm
 	if fm.GeoSlopMm != nil {
 		slop := *fm.GeoSlopMm
-		if fm.GeoSlopMm.A2c != nil {
-			v := *fm.GeoSlopMm.A2c
-			slop.A2c = &v
-		}
-		if fm.GeoSlopMm.FrontCenter != nil {
-			v := *fm.GeoSlopMm.FrontCenter
-			slop.FrontCenter = &v
-		}
-		if fm.GeoSlopMm.Wheelbase != nil {
-			v := *fm.GeoSlopMm.Wheelbase
-			slop.Wheelbase = &v
-		}
 		out.GeoSlopMm = &slop
-	}
-	if fm.SeatTubeOffsetXMm != nil {
-		v := *fm.SeatTubeOffsetXMm
-		out.SeatTubeOffsetXMm = &v
 	}
 	if fm.ChainstayRangeMm != nil {
 		out.ChainstayRangeMm = append([]float64(nil), fm.ChainstayRangeMm...)
@@ -1175,8 +1143,8 @@ func (fm *FrameModel) GetActualStaDeg() Deg {
 }
 
 func (fm *FrameModel) GetSeatTubeOffsetXMm(stack float64, nominalSta Deg) float64 {
-	if fm.SeatTubeOffsetXMm != nil {
-		return *fm.SeatTubeOffsetXMm
+	if v, ok := fm.SeatTubeOffsetXMm.Get(); ok {
+		return v
 	}
 	if !fm.HasBentSeatTube() || stack <= 0 || nominalSta <= 0 {
 		return 0
@@ -1465,10 +1433,10 @@ type ValidationReport struct {
 	GeoHeadsetSpacerMm  float64
 	CupStack            float64
 	TotalStructuralA2c  float64
-	A2cDifference       *float64
+	A2cDifference       Opt[float64]
 	InferredPublishMode PublishMode
 	FrontCenterCalc     float64
-	FrontCenterDiff     *float64
+	FrontCenterDiff     Opt[float64]
 	// Rounding budgets of the three closure checks; nil when a check did not run.
 	A2cBudget         *ErrorBudget
 	FrontCenterBudget *ErrorBudget

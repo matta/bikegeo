@@ -91,8 +91,8 @@ func TestValidateOtsoFenrirSpacerNoAutoDetection(t *testing.T) {
 	// Explicitly relaxing geo_slop_mm allows the sloppy geometry to pass
 	fenrirRelaxed := fenrirSloppy
 	fenrirRelaxed.GeoSlopMm = &model.GeoSlopMm{
-		A2c:       new(5.0),
-		Wheelbase: new(6.0),
+		A2c:       model.Some(5.0),
+		Wheelbase: model.Some(6.0),
 	}
 	if !validator.ValidateBikeGeometry(fenrirRelaxed).IsValid {
 		t.Errorf("Expected relaxed geo_slop_mm (a2c=5.0, wheelbase=6.0) to pass validation")
@@ -148,7 +148,7 @@ func TestValidateGeoSlopMmAnd3DFrontCenter(t *testing.T) {
 	}
 
 	// A declared allowance adds to the rounding budget rather than replacing it.
-	havokM.GeoSlopMm = &model.GeoSlopMm{A2c: new(1.5)}
+	havokM.GeoSlopMm = &model.GeoSlopMm{A2c: model.Some(1.5)}
 	repRelaxed := validator.ValidateBikeGeometry(havokM)
 	if !repRelaxed.IsValid {
 		t.Errorf("Expected Havok M with geo_slop_mm={a2c:1.5} to be valid, got issues: %+v", repRelaxed.Issues)
@@ -158,7 +158,7 @@ func TestValidateGeoSlopMmAnd3DFrontCenter(t *testing.T) {
 	}
 
 	// Negative allowances are rejected.
-	havokM.GeoSlopMm = &model.GeoSlopMm{Wheelbase: new(-0.5)}
+	havokM.GeoSlopMm = &model.GeoSlopMm{Wheelbase: model.Some(-0.5)}
 	if validator.ValidateBikeGeometry(havokM).IsValid {
 		t.Errorf("Expected Havok M with geo_slop_mm.wheelbase=-0.5 to fail validation")
 	}
@@ -690,7 +690,7 @@ func TestFrontCenterConventionConsistent(t *testing.T) {
 	if !rep.IsValid {
 		t.Fatalf("Expected sklar-pbj:XL to pass, got: %+v", rep.Issues)
 	}
-	if rep.FrontCenterDiff == nil || *rep.FrontCenterDiff != 2.7 {
+	if fcDiff, ok := rep.FrontCenterDiff.Get(); !ok || fcDiff != 2.7 {
 		t.Fatalf("Expected FrontCenterDiff 2.7mm for sklar-pbj:XL, got %v", rep.FrontCenterDiff)
 	}
 	var fcNotice string
@@ -757,13 +757,13 @@ func TestRoundingBudgetRows(t *testing.T) {
 
 	for _, v := range []float64{-1.5, 10.5} {
 		badFrame := frames.SurlyECR.Clone()
-		badFrame.GeoSlopMm = &model.GeoSlopMm{Wheelbase: new(v), Reason: "out of range"}
+		badFrame.GeoSlopMm = &model.GeoSlopMm{Wheelbase: model.Some(v), Reason: "out of range"}
 		if validator.ValidateFrame(badFrame).IsValid {
 			t.Errorf("Expected ValidateFrame to reject GeoSlopMm.Wheelbase=%.1f", v)
 		}
 	}
 	okFrame := frames.SurlyECR.Clone()
-	okFrame.GeoSlopMm = &model.GeoSlopMm{Wheelbase: new(1.5), Reason: "small allowance"}
+	okFrame.GeoSlopMm = &model.GeoSlopMm{Wheelbase: model.Some(1.5), Reason: "small allowance"}
 	if rep := validator.ValidateFrame(okFrame); !rep.IsValid {
 		t.Errorf("Expected GeoSlopMm.Wheelbase=1.5 to be accepted now that there is no floor: %s", rep.ErrorSummary())
 	}
@@ -814,10 +814,10 @@ func TestSizeResidualsUsesDeclaredCadFork(t *testing.T) {
 	if m.WbCalc != 1092.7 {
 		t.Errorf("binary-havok:M WbCalc = %.1f, want 1092.7 (declared CAD fork 502mm)", m.WbCalc)
 	}
-	if m.DeltaFc == nil || *m.DeltaFc != 0.0 {
+	if deltaFc, ok := m.DeltaFc.Get(); !ok || deltaFc != 0.0 {
 		t.Errorf("binary-havok:M DeltaFc = %v, want 0.0", m.DeltaFc)
 	}
-	if m.DeltaWb == nil || *m.DeltaWb != 0.7 {
+	if deltaWb, ok := m.DeltaWb.Get(); !ok || deltaWb != 0.7 {
 		t.Errorf("binary-havok:M DeltaWb = %v, want +0.7", m.DeltaWb)
 	}
 }
@@ -828,30 +828,30 @@ func TestSizeResidualsUsesDeclaredCadFork(t *testing.T) {
 func TestDeclaredAllowancesAreNecessary(t *testing.T) {
 	type field struct {
 		name   string
-		ptr    func(*model.GeoSlopMm) **float64
+		ptr    func(*model.GeoSlopMm) *model.Opt[float64]
 		budget func(model.ValidationReport) *model.ErrorBudget
 	}
 	fields := []field{
-		{"a2c", func(s *model.GeoSlopMm) **float64 { return &s.A2c }, func(r model.ValidationReport) *model.ErrorBudget { return r.A2cBudget }},
-		{"front_center", func(s *model.GeoSlopMm) **float64 { return &s.FrontCenter }, func(r model.ValidationReport) *model.ErrorBudget { return r.FrontCenterBudget }},
-		{"wheelbase", func(s *model.GeoSlopMm) **float64 { return &s.Wheelbase }, func(r model.ValidationReport) *model.ErrorBudget { return r.WheelbaseBudget }},
+		{"a2c", func(s *model.GeoSlopMm) *model.Opt[float64] { return &s.A2c }, func(r model.ValidationReport) *model.ErrorBudget { return r.A2cBudget }},
+		{"front_center", func(s *model.GeoSlopMm) *model.Opt[float64] { return &s.FrontCenter }, func(r model.ValidationReport) *model.ErrorBudget { return r.FrontCenterBudget }},
+		{"wheelbase", func(s *model.GeoSlopMm) *model.Opt[float64] { return &s.Wheelbase }, func(r model.ValidationReport) *model.ErrorBudget { return r.WheelbaseBudget }},
 	}
 	for _, frame := range frames.AllFrames() {
 		if frame.GeoSlopMm == nil {
 			continue
 		}
 		for _, f := range fields {
-			declared := *f.ptr(frame.GeoSlopMm)
-			if declared == nil {
+			declared, ok := (*f.ptr(frame.GeoSlopMm)).Get()
+			if !ok {
 				continue
 			}
 			without := frame.Clone()
 			slop := *frame.GeoSlopMm
-			*f.ptr(&slop) = nil
+			*f.ptr(&slop) = model.Opt[float64]{}
 			without.GeoSlopMm = &slop
 			rep := validator.ValidateFrame(without)
 			if rep.IsValid {
-				t.Errorf("%s: geo_slop_mm.%s = %.1fmm is unnecessary; every size passes within its rounding budget", frame.ID, f.name, *declared)
+				t.Errorf("%s: geo_slop_mm.%s = %.1fmm is unnecessary; every size passes within its rounding budget", frame.ID, f.name, declared)
 				continue
 			}
 			need := 0.0
@@ -860,8 +860,8 @@ func TestDeclaredAllowancesAreNecessary(t *testing.T) {
 					need = math.Max(need, b.NeededAllowance())
 				}
 			}
-			if *declared > need+0.5+1e-9 {
-				t.Errorf("%s: geo_slop_mm.%s = %.1fmm exceeds the %.2fmm needed beyond rounding by more than 0.5mm", frame.ID, f.name, *declared, need)
+			if declared > need+0.5+1e-9 {
+				t.Errorf("%s: geo_slop_mm.%s = %.1fmm exceeds the %.2fmm needed beyond rounding by more than 0.5mm", frame.ID, f.name, declared, need)
 			}
 		}
 	}

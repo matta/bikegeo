@@ -97,8 +97,8 @@ func summaryTable(bundles []Bundle) report.Table {
 			stated = fmt.Sprintf("%.0f mm", b.Report.StatedA2c)
 		}
 		diff := "N/A"
-		if b.Report.A2cDifference != nil {
-			diff = fmt.Sprintf("%+.1f mm", *b.Report.A2cDifference)
+		if a2cDiff, ok := b.Report.A2cDifference.Get(); ok {
+			diff = fmt.Sprintf("%+.1f mm", a2cDiff)
 		}
 		t.Rows = append(t.Rows, report.Row{Kind: report.KindData, Cells: []report.Cell{
 			{Text: b.Frame.ID},
@@ -154,8 +154,8 @@ func addDetail(doc *report.Document, b Bundle) {
 		stated = fmt.Sprintf("%.0f mm", a2c)
 	}
 	diff := "N/A"
-	if b.Report.A2cDifference != nil {
-		diff = fmt.Sprintf("%+.1f mm", *b.Report.A2cDifference)
+	if a2cDiff, ok := b.Report.A2cDifference.Get(); ok {
+		diff = fmt.Sprintf("%+.1f mm", a2cDiff)
 	}
 	slop := b.Bike.GetGeoSlopMm()
 	checks := []struct {

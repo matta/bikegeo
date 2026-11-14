@@ -434,10 +434,7 @@ func buildBreakdown(
 			weightedAttrs = append(weightedAttrs, attr)
 			weightParts = append(weightParts, fmt.Sprintf("%s %.0f", meta.Label, attr.Weight))
 
-			fl := -200.0
-			if attr.Floor != nil {
-				fl = *attr.Floor
-			}
+			fl := attr.Floor.Or(-200.0)
 			totalWeight += attr.Weight
 			weightedFloorSum += attr.Weight * fl
 			flInt := int(math.Round(fl))

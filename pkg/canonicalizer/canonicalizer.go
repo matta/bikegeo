@@ -55,7 +55,7 @@ func IsAllowedSag(sag float64) bool {
 // Supported suspension forks are enumerated across 10mm travel steps and plausible sag points.
 func ExpandPlausibleForkSetups(
 	frame model.FrameModel,
-	sagOverride *float64,
+	sagOverride model.Opt[float64],
 ) ([]model.ComparisonSetup, error) {
 	var setups []model.ComparisonSetup
 	seen := make(map[string]bool)
@@ -71,7 +71,7 @@ func ExpandPlausibleForkSetups(
 	minA2c, maxA2c, hasRange := frame.EffectiveA2cRange()
 
 	// 1. Rigid forks (if supported and sagOverride <= 0)
-	if sagOverride == nil || *sagOverride == 0 {
+	if sag, ok := sagOverride.Get(); !ok || sag == 0 {
 		var rigidForks []model.ForkRef
 		for _, f := range frame.Forks {
 			if f.ForkTravel() == 0 && f.A2cMm > 0 {
@@ -125,11 +125,11 @@ func ExpandPlausibleForkSetups(
 
 		if minTr >= 60 && maxTr >= minTr {
 			sags := PlausibleSagPcts
-			if sagOverride != nil {
-				if math.IsNaN(*sagOverride) || math.IsInf(*sagOverride, 0) || *sagOverride < 0 || math.Signbit(*sagOverride) || (*sagOverride > 0 && !IsAllowedSag(*sagOverride)) {
-					return nil, fmt.Errorf("invalid sag %v%%; allowed sags are 20%%, 25%%, 30%%", *sagOverride)
+			if sag, ok := sagOverride.Get(); ok {
+				if math.IsNaN(sag) || math.IsInf(sag, 0) || sag < 0 || math.Signbit(sag) || (sag > 0 && !IsAllowedSag(sag)) {
+					return nil, fmt.Errorf("invalid sag %v%%; allowed sags are 20%%, 25%%, 30%%", sag)
 				}
-				sags = []float64{*sagOverride}
+				sags = []float64{sag}
 			}
 
 			for tr := minTr; tr <= maxTr+0.1; tr += 10.0 {
@@ -210,15 +210,15 @@ func ExpandPlausibleForkSetups(
 // against the fork catalog and frame constraints.
 func ResolveForkToken(
 	token string,
-	sagOverride *float64,
+	sagOverride model.Opt[float64],
 	frame model.FrameModel,
 ) (targetA2c float64, targetRake float64, staticA2c float64, displayLabel string, err error) {
-	if sagOverride != nil {
-		if math.IsNaN(*sagOverride) || math.IsInf(*sagOverride, 0) || *sagOverride < 0 || math.Signbit(*sagOverride) {
-			return 0, 0, 0, "", fmt.Errorf("invalid sag %v%%; allowed sags are 20%%, 25%%, 30%%", *sagOverride)
+	if sag, ok := sagOverride.Get(); ok {
+		if math.IsNaN(sag) || math.IsInf(sag, 0) || sag < 0 || math.Signbit(sag) {
+			return 0, 0, 0, "", fmt.Errorf("invalid sag %v%%; allowed sags are 20%%, 25%%, 30%%", sag)
 		}
-		if *sagOverride > 0 && !IsAllowedSag(*sagOverride) {
-			return 0, 0, 0, "", fmt.Errorf("invalid sag %.0f%%; allowed sags are 20%%, 25%%, 30%%", *sagOverride)
+		if sag > 0 && !IsAllowedSag(sag) {
+			return 0, 0, 0, "", fmt.Errorf("invalid sag %.0f%%; allowed sags are 20%%, 25%%, 30%%", sag)
 		}
 	}
 	clean := strings.TrimSpace(token)
@@ -247,8 +247,8 @@ func ResolveForkToken(
 		staticA2c = def.A2cMm
 		if def.Fork != "" {
 			if entry, ok := GetCatalogFork(def.Fork); ok {
-				if entry.TravelMm == 0 && sagOverride != nil && *sagOverride > 0 {
-					return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", *sagOverride, frame.Manufacturer, frame.Model)
+				if entry.TravelMm == 0 && sagOverride.OrZero() > 0 {
+					return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
 				}
 				if entry.TravelMm > 0 && len(entry.Options) > 0 {
 					staticA2c = entry.Options[0].A2cMm
@@ -256,17 +256,15 @@ func ResolveForkToken(
 					if sag == 0 {
 						sag = 20.0
 					}
-					if sagOverride != nil {
-						sag = *sagOverride
-					}
+					sag = sagOverride.Or(sag)
 					targetA2c = geometry.Round(staticA2c-entry.TravelMm*(sag/100.0), 1)
 					displayLabel = FormatSuspensionFork(entry.TravelMm, sag)
 					return targetA2c, targetRake, staticA2c, displayLabel, nil
 				}
 			}
 		}
-		if (frame.IsFixedRigidOnly() || def.ForkTravel() == 0) && sagOverride != nil && *sagOverride > 0 {
-			return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", *sagOverride, frame.Manufacturer, frame.Model)
+		if (frame.IsFixedRigidOnly() || def.ForkTravel() == 0) && sagOverride.OrZero() > 0 {
+			return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
 		}
 		if frame.IsFixedRigidOnly() || def.ForkTravel() == 0 {
 			displayLabel = FormatRigidFork(targetA2c)
@@ -281,8 +279,8 @@ func ResolveForkToken(
 		if !frame.SupportsRigid() {
 			return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" (%s) does not support a rigid fork", frame.Manufacturer, frame.Model, frame.ID)
 		}
-		if sagOverride != nil && *sagOverride > 0 {
-			return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", *sagOverride, frame.Manufacturer, frame.Model)
+		if sagOverride.OrZero() > 0 {
+			return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
 		}
 		targetA2c = frame.GetRigidA2c()
 		targetRake = frame.GetRigidRake()
@@ -393,10 +391,7 @@ func ResolveForkToken(
 		}
 		staticA2c = opt.A2cMm
 		targetRake = opt.RakeMm
-		sag := 20.0
-		if sagOverride != nil {
-			sag = *sagOverride
-		}
+		sag := sagOverride.Or(20.0)
 		targetA2c = geometry.Round(staticA2c-stdFork.TravelMm*(sag/100.0), 1)
 		displayLabel = FormatSuspensionFork(travelVal, sag)
 		if err := checkA2cRange(targetA2c); err != nil {
@@ -414,8 +409,8 @@ func ResolveForkToken(
 		staticA2c = opt.A2cMm
 		targetRake = opt.RakeMm
 		if entry.TravelMm == 0 {
-			if sagOverride != nil && *sagOverride > 0 {
-				return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", *sagOverride, frame.Manufacturer, frame.Model)
+			if sagOverride.OrZero() > 0 {
+				return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
 			}
 			targetA2c = staticA2c
 			displayLabel = FormatRigidFork(targetA2c)
@@ -423,10 +418,7 @@ func ResolveForkToken(
 			if frame.IsFixedRigidOnly() {
 				return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" has a fixed rigid fork (%.0fmm A2C) and does not support suspension fork %q", frame.Manufacturer, frame.Model, frame.GetRigidA2c(), token)
 			}
-			sag := 20.0
-			if sagOverride != nil {
-				sag = *sagOverride
-			}
+			sag := sagOverride.Or(20.0)
 			targetA2c = geometry.Round(staticA2c-entry.TravelMm*(sag/100.0), 1)
 			displayLabel = FormatSuspensionFork(entry.TravelMm, sag)
 		}
@@ -496,7 +488,7 @@ func ResolveFrameForkSetupWithSaddle(
 
 	// If A2C is not pre-resolved, resolve default fork
 	if targetA2c <= 0 {
-		tA2c, tRake, _, dLabel, err := ResolveForkToken("", nil, frame)
+		tA2c, tRake, _, dLabel, err := ResolveForkToken("", model.Opt[float64]{}, frame)
 		if err != nil {
 			return model.CanonicalComparisonRow{}, err
 		}
@@ -658,8 +650,8 @@ func CanonicalizeBikes(
 
 		canonical, err := geometry.AnalyzeBikeFitWithSaddle(
 			bike,
-			&config.TargetA2c,
-			&targetRake,
+			model.Some(config.TargetA2c),
+			model.Some(targetRake),
 			config.RiderProfile,
 			config.Saddle,
 		)
@@ -690,9 +682,9 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 		return
 	}
 
-	var brpMin, brpMax *float64
-	var distMin, distMax *float64
-	var dropMin, dropMax *float64
+	var brpMin, brpMax model.Opt[float64]
+	var distMin, distMax model.Opt[float64]
+	var dropMin, dropMax model.Opt[float64]
 	var hasClampFit bool
 
 	for _, attr := range prof.Attributes {
@@ -720,30 +712,26 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 		rowDropMin, rowDropMax := dropMin, dropMax
 		if can.Saddle.ID != "" && can.Saddle.ID != "sqlab-610-ergolux" {
 			refSQ := model.ReferenceIdmatchSaddle()
-			if brpMin != nil {
-				pelvicMin := refSQ.SitBoneSetbackFromBrp(*brpMin)
-				trMin := can.Saddle.TargetBrpForPelvicSetback(pelvicMin)
-				rowBrpMin = &trMin
-			}
-			if brpMax != nil {
-				pelvicMax := refSQ.SitBoneSetbackFromBrp(*brpMax)
-				trMax := can.Saddle.TargetBrpForPelvicSetback(pelvicMax)
-				rowBrpMax = &trMax
-			}
+			rowBrpMin = brpMin.Map(func(v float64) float64 {
+				return can.Saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(v))
+			})
+			rowBrpMax = brpMax.Map(func(v float64) float64 {
+				return can.Saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(v))
+			})
 			refRise := 3.0
-			if dropMin != nil && dropMax != nil {
-				refRise = (*dropMin + *dropMax) / 2.0
-			} else if dropMin != nil {
-				refRise = *dropMin
+			if dMin, ok := dropMin.Get(); ok {
+				if dMax, ok := dropMax.Get(); ok {
+					refRise = (dMin + dMax) / 2.0
+				} else {
+					refRise = dMin
+				}
 			}
-			if distMin != nil {
-				tDist := can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *distMin, refRise)
-				rowDistMin = &tDist
-			}
-			if distMax != nil {
-				tDist := can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *distMax, refRise)
-				rowDistMax = &tDist
-			}
+			rowDistMin = distMin.Map(func(v float64) float64 {
+				return can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, v, refRise)
+			})
+			rowDistMax = distMax.Map(func(v float64) float64 {
+				return can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, v, refRise)
+			})
 		}
 
 		// 1. Optimize BRP on saddle rails if candidate BRPs exist
@@ -766,7 +754,7 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 		}
 
 		// 3. Evaluate Cockpit Fit
-		if hasClampFit && (rowDistMin != nil || rowDistMax != nil) {
+		if hasClampFit && (rowDistMin.IsSet() || rowDistMax.IsSet()) {
 			geometry.ApplyCockpitFit(can, rows[i].Bike, rows[i].Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax)
 		} else if len(can.PossibleHBs) > 0 {
 			if bestHB, ok := geometry.SelectBestHBWithDrop(can.PossibleHBs, rows[i].Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax); ok {

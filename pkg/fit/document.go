@@ -222,15 +222,15 @@ func residualsTable(title string, res *FitResult) report.Table {
 		fcPub, fcCalc, dFc := "—", "—", "—"
 		if r.FcPub > 0 {
 			fcPub, fcCalc = fmt.Sprintf("%.1f", r.FcPub), fmt.Sprintf("%.1f", r.FcCalc)
-			if r.DeltaFc != nil {
-				dFc = fmt.Sprintf("%+.1f", *r.DeltaFc)
+			if deltaFc, ok := r.DeltaFc.Get(); ok {
+				dFc = fmt.Sprintf("%+.1f", deltaFc)
 			}
 		}
 		wbPub, wbCalc, dWb := "—", "—", "—"
 		if r.WbPub > 0 && r.ChainstayLength > 0 {
 			wbPub, wbCalc = fmt.Sprintf("%.1f", r.WbPub), fmt.Sprintf("%.1f", r.WbCalc)
-			if r.DeltaWb != nil {
-				dWb = fmt.Sprintf("%+.1f", *r.DeltaWb)
+			if deltaWb, ok := r.DeltaWb.Get(); ok {
+				dWb = fmt.Sprintf("%+.1f", deltaWb)
 			}
 		}
 		rows = append(rows, []string{

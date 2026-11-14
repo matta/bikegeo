@@ -4,10 +4,11 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
+
+	"bikegeo/pkg/model"
 )
 
 func TestParseCompareQuery(t *testing.T) {
-	five := 5
 	tests := []struct {
 		name     string
 		query    string
@@ -34,7 +35,7 @@ func TestParseCompareQuery(t *testing.T) {
 			query: "saddle=berthoud-aspin-open&handlebar=x&layout=rows&score=0&all=1&top=3&top_per_frame=5",
 			want: CompareQuery{
 				Layout: LayoutRows, Saddle: "berthoud-aspin-open", Handlebar: "x",
-				NoScore: true, All: true, Top: 3, TopPerFrame: &five,
+				NoScore: true, All: true, Top: 3, TopPerFrame: model.Some(5),
 			},
 		},
 		{

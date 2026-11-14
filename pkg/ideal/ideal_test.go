@@ -110,7 +110,7 @@ func TestIdmatchProfileValid(t *testing.T) {
 	if p.Name != "idmatch" {
 		t.Errorf("Expected profile name 'idmatch', got %q", p.Name)
 	}
-	if p.SaddleHeightMm == nil || *p.SaddleHeightMm != 746.0 {
+	if p.SaddleHeightMm != model.Some(746.0) {
 		t.Errorf("Expected SaddleHeightMm 746, got %v", p.SaddleHeightMm)
 	}
 	if err := ValidateProfile(p); err != nil {
@@ -125,9 +125,9 @@ func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
 		Weight:     4,
 		Ideal:      AtLeast(235),
 		Acceptable: AtLeast(220),
-		EdgeScore:  new(float64(70)),
+		EdgeScore:  model.Some(70.0),
 		Falloff:    FalloffBelow(20),
-		Floor:      new(float64(-100)),
+		Floor:      model.Some(-100.0),
 	}
 	meta, ok := LookupAttribute("seat_to_rc")
 	if !ok {
@@ -161,9 +161,9 @@ func TestEvaluate_DesignDocTable(t *testing.T) {
 		Weight:     10,
 		Ideal:      Between(630, 642),
 		Acceptable: Between(606, 642),
-		EdgeScore:  new(float64(60)),
+		EdgeScore:  model.Some(60.0),
 		Falloff:    FalloffBoth(10, 5),
-		Floor:      new(float64(-200)),
+		Floor:      model.Some(-200.0),
 	}
 	meta, ok := LookupAttribute("aett")
 	if !ok {
@@ -208,9 +208,9 @@ func TestEvaluate_OneSidedChainstay(t *testing.T) {
 		Weight:     4,
 		Ideal:      AtLeast(470),
 		Acceptable: AtLeast(445),
-		EdgeScore:  new(float64(70)),
+		EdgeScore:  model.Some(70.0),
 		Falloff:    FalloffBelow(25),
-		Floor:      new(float64(-100)),
+		Floor:      model.Some(-100.0),
 	}
 	meta, ok := LookupAttribute("chainstay")
 	if !ok {
@@ -314,7 +314,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 	pBadFloor := &Profile{
 		Name: "test",
 		Attributes: []AttributeSpec{
-			{ID: "hta", Weight: 2, Ideal: Exact(68), Falloff: FalloffBoth(1, 1), Floor: new(float64(10))},
+			{ID: "hta", Weight: 2, Ideal: Exact(68), Falloff: FalloffBoth(1, 1), Floor: model.Some(10.0)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pBadFloor); err == nil || !strings.Contains(err.Error(), "floor (10.0) must be negative") {
@@ -410,7 +410,7 @@ func TestIdmatchProfile_CurvesHaveNoFlatsOrJumps(t *testing.T) {
 		if !ok {
 			t.Fatalf("unknown attribute %q", spec.ID)
 		}
-		floor := *spec.Floor
+		floor := spec.Floor.OrZero()
 
 		sweep := func(start, dir float64) {
 			prev := Evaluate(spec, meta, start, nil).SubScore
@@ -429,11 +429,11 @@ func TestIdmatchProfile_CurvesHaveNoFlatsOrJumps(t *testing.T) {
 				prev = got
 			}
 		}
-		if spec.Ideal.Min != nil {
-			sweep(*spec.Ideal.Min, -1)
+		if minV, ok := spec.Ideal.Min.Get(); ok {
+			sweep(minV, -1)
 		}
-		if spec.Ideal.Max != nil {
-			sweep(*spec.Ideal.Max, 1)
+		if maxV, ok := spec.Ideal.Max.Get(); ok {
+			sweep(maxV, 1)
 		}
 	}
 }
@@ -442,7 +442,7 @@ func TestValidateProfile_RejectsFlatCurve(t *testing.T) {
 	p := &Profile{
 		Name: "flat",
 		Attributes: []AttributeSpec{
-			{ID: "hta", Weight: 2, Ideal: Exact(68), Acceptable: Between(66, 70), EdgeScore: new(float64(100)), Falloff: FalloffBoth(1, 1)},
+			{ID: "hta", Weight: 2, Ideal: Exact(68), Acceptable: Between(66, 70), EdgeScore: model.Some(100.0), Falloff: FalloffBoth(1, 1)},
 		},
 	}
 	if _, err := NormalizeAndValidate(p); err == nil {
@@ -486,15 +486,15 @@ func testSpecsForSweep() []AttributeSpec {
 	// Include Berthoud-translated non-integer bounds (679.9-689.9 / 669.9-699.9)
 	// and an asymmetric non-integer BRP setback target.
 	specs = append(specs,
-		DisplayOnlyWithTarget("saddle_hb", Between(679.9, 689.9), Between(669.9, 699.9), new(75.0), FalloffBoth(15, 15)),
+		DisplayOnlyWithTarget("saddle_hb", Between(679.9, 689.9), Between(669.9, 699.9), model.Some(75.0), FalloffBoth(15, 15)),
 		AttributeSpec{
 			ID:         "brp_setback",
 			Weight:     10,
 			Ideal:      Exact(228.4),
 			Acceptable: Between(223.4, 233.4),
-			EdgeScore:  new(75.0),
+			EdgeScore:  model.Some(75.0),
 			Falloff:    FalloffBoth(20, 20),
-			Floor:      new(-200.0),
+			Floor:      model.Some(-200.0),
 		},
 	)
 	return specs
@@ -503,15 +503,15 @@ func testSpecsForSweep() []AttributeSpec {
 func sweepGridForSpec(spec AttributeSpec, meta AttributeMeta) []float64 {
 	lo := 0.0
 	hi := 0.0
-	if spec.Acceptable != nil && spec.Acceptable.Min != nil {
-		lo = *spec.Acceptable.Min - 20
-	} else if spec.Ideal.Min != nil {
-		lo = *spec.Ideal.Min - 20
+	if spec.Acceptable != nil && spec.Acceptable.Min.IsSet() {
+		lo = spec.Acceptable.Min.OrZero() - 20
+	} else if spec.Ideal.Min.IsSet() {
+		lo = spec.Ideal.Min.OrZero() - 20
 	}
-	if spec.Acceptable != nil && spec.Acceptable.Max != nil {
-		hi = *spec.Acceptable.Max + 20
-	} else if spec.Ideal.Max != nil {
-		hi = *spec.Ideal.Max + 20
+	if spec.Acceptable != nil && spec.Acceptable.Max.IsSet() {
+		hi = spec.Acceptable.Max.OrZero() + 20
+	} else if spec.Ideal.Max.IsSet() {
+		hi = spec.Ideal.Max.OrZero() + 20
 	}
 	step := 0.1
 	if meta.Decimals > 0 {
@@ -571,9 +571,9 @@ func TestCellDeltaMatchesDisplayedValue(t *testing.T) {
 		Weight:     1,
 		Ideal:      Exact(450),
 		Acceptable: Between(440, 460),
-		EdgeScore:  new(75.0),
+		EdgeScore:  model.Some(75.0),
 		Falloff:    FalloffBoth(10, 10),
-		Floor:      new(-100.0),
+		Floor:      model.Some(-100.0),
 	}
 	noWordMeta := AttributeMeta{ID: "reach", Label: "Reach", Unit: "mm", Decimals: 0}
 	if ev := Evaluate(noWordSpec, noWordMeta, 434.5, nil); ev.FormattedCell != "434 ✗ −16" {
@@ -606,12 +606,16 @@ func TestZoneMatchesDisplayedText(t *testing.T) {
 
 			// Verify Zone against printed Ideal and Acceptable bounds.
 			wantZone := ZoneIdeal
-			if spec.Ideal.Min != nil && shownVal < RoundPrinted(*spec.Ideal.Min, meta.Decimals) ||
-				spec.Ideal.Max != nil && shownVal > RoundPrinted(*spec.Ideal.Max, meta.Decimals) {
+			idealMin, hasIdealMin := spec.Ideal.Min.Get()
+			idealMax, hasIdealMax := spec.Ideal.Max.Get()
+			if hasIdealMin && shownVal < RoundPrinted(idealMin, meta.Decimals) ||
+				hasIdealMax && shownVal > RoundPrinted(idealMax, meta.Decimals) {
 				wantZone = ZoneOutside
 				if spec.Acceptable != nil {
-					inMin := spec.Acceptable.Min == nil || shownVal >= RoundPrinted(*spec.Acceptable.Min, meta.Decimals)
-					inMax := spec.Acceptable.Max == nil || shownVal <= RoundPrinted(*spec.Acceptable.Max, meta.Decimals)
+					accMin, hasAccMin := spec.Acceptable.Min.Get()
+					accMax, hasAccMax := spec.Acceptable.Max.Get()
+					inMin := !hasAccMin || shownVal >= RoundPrinted(accMin, meta.Decimals)
+					inMax := !hasAccMax || shownVal <= RoundPrinted(accMax, meta.Decimals)
 					if inMin && inMax {
 						wantZone = ZoneAcceptable
 					}

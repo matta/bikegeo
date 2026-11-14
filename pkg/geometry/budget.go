@@ -195,11 +195,8 @@ func impliedFrontCenterHoriz(in chartInputs, rake float64) float64 {
 	return CalculateFrontCenter(in.reach, in.htl, in.hta(), rake, frontEnd-in.htl)
 }
 
-func allowanceOf(v *float64) float64 {
-	if v == nil {
-		return 0
-	}
-	return math.Max(0, *v)
+func allowanceOf(v model.Opt[float64]) float64 {
+	return math.Max(0, v.OrZero())
 }
 
 // A2cBudget is the rounding budget for the Master Stack Equation check.

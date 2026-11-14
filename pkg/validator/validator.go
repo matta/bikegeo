@@ -106,16 +106,16 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		}
 	}
 
-	if bike.SeatTubeOffsetXMm != nil {
-		if *bike.SeatTubeOffsetXMm < 0 || *bike.SeatTubeOffsetXMm > 100.0 {
+	if seatTubeOffset, ok := bike.SeatTubeOffsetXMm.Get(); ok {
+		if seatTubeOffset < 0 || seatTubeOffset > 100.0 {
 			issues = append(issues, model.ValidationIssue{
 				ID:       "invalid_seat_tube_offset_x_mm",
 				Field:    "seat_tube_offset_x_mm",
 				Severity: model.SeverityError,
 				Title:    "Invalid Seat Tube Forward Offset",
-				Message:  fmt.Sprintf("seat_tube_offset_x_mm of %.1fmm is outside plausible range (0.0mm - 100.0mm).", *bike.SeatTubeOffsetXMm),
+				Message:  fmt.Sprintf("seat_tube_offset_x_mm of %.1fmm is outside plausible range (0.0mm - 100.0mm).", seatTubeOffset),
 				Expected: "0.0 - 100.0 mm",
-				Actual:   fmt.Sprintf("%.1f mm", *bike.SeatTubeOffsetXMm),
+				Actual:   fmt.Sprintf("%.1f mm", seatTubeOffset),
 			})
 		}
 	}
@@ -238,14 +238,14 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 	}
 
 	inferredMode := model.ModeUnspecified
-	var a2cDiff *float64
+	var a2cDiff model.Opt[float64]
 	var a2cBudgetPtr, fcBudgetPtr, wbBudgetPtr *model.ErrorBudget
 
 	a2cBudget, hasA2cBudget := geometry.A2cBudget(bike)
 	if expectedForkA2c > 0 && hasA2cBudget {
 		a2cBudgetPtr = &a2cBudget
 		diff := geometry.Round(a2cBudget.Residual, 1)
-		a2cDiff = &diff
+		a2cDiff = model.Some(diff)
 		budget := budgetSummary(a2cBudget)
 
 		if a2cBudget.Within() {
@@ -315,11 +315,11 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 	var sagHintRefFcHoriz float64
 	var sagHintSource string
 
-	var fcDiff *float64
+	var fcDiff model.Opt[float64]
 	if fcBudget, ok := geometry.FrontCenterBudget(bike); ok {
 		fcBudgetPtr = &fcBudget
 		diff := geometry.Round(math.Abs(fcBudget.Residual), 1)
-		fcDiff = &diff
+		fcDiff = model.Some(diff)
 		budget := budgetSummary(fcBudget)
 		if !fcBudget.Within() {
 			issues = append(issues, model.ValidationIssue{
@@ -429,19 +429,20 @@ func validateGeoSlop(slop *model.GeoSlopMm) []model.ValidationIssue {
 	}
 	var issues []model.ValidationIssue
 	const minVal = 0.0
-	check := func(field string, val *float64) {
-		if val == nil {
+	check := func(field string, opt model.Opt[float64]) {
+		val, ok := opt.Get()
+		if !ok {
 			return
 		}
-		if *val < minVal || *val > 10.0 {
+		if val < minVal || val > 10.0 {
 			issues = append(issues, model.ValidationIssue{
 				ID:       "invalid_geo_slop_mm",
 				Field:    "geo_slop_mm." + field,
 				Severity: model.SeverityError,
 				Title:    "Invalid Geometric Slop Tolerance",
-				Message:  fmt.Sprintf("geo_slop_mm.%s of %.1fmm is outside valid range (%.1fmm - 10.0mm).", field, *val, minVal),
+				Message:  fmt.Sprintf("geo_slop_mm.%s of %.1fmm is outside valid range (%.1fmm - 10.0mm).", field, val, minVal),
 				Expected: fmt.Sprintf("%.1f - 10.0 mm", minVal),
-				Actual:   fmt.Sprintf("%.1f mm", *val),
+				Actual:   fmt.Sprintf("%.1f mm", val),
 			})
 		}
 	}
@@ -525,17 +526,17 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 		}
 	}
 
-	if frame.SeatTubeOffsetXMm != nil {
-		if *frame.SeatTubeOffsetXMm < 0 || *frame.SeatTubeOffsetXMm > 100.0 {
+	if seatTubeOffset, ok := frame.SeatTubeOffsetXMm.Get(); ok {
+		if seatTubeOffset < 0 || seatTubeOffset > 100.0 {
 			report.IsValid = false
 			report.Issues = append(report.Issues, model.ValidationIssue{
 				ID:       "invalid_seat_tube_offset_x_mm",
 				Field:    "seat_tube_offset_x_mm",
 				Severity: model.SeverityError,
 				Title:    "Invalid Seat Tube Forward Offset",
-				Message:  fmt.Sprintf("seat_tube_offset_x_mm of %.1fmm is outside plausible range (0.0mm - 100.0mm).", *frame.SeatTubeOffsetXMm),
+				Message:  fmt.Sprintf("seat_tube_offset_x_mm of %.1fmm is outside plausible range (0.0mm - 100.0mm).", seatTubeOffset),
 				Expected: "0.0 - 100.0 mm",
-				Actual:   fmt.Sprintf("%.1f mm", *frame.SeatTubeOffsetXMm),
+				Actual:   fmt.Sprintf("%.1f mm", seatTubeOffset),
 			})
 		}
 	}
@@ -781,8 +782,8 @@ func ValidateForkRef(frameID string, fieldName string, fref model.ForkRef) []mod
 		if len(suggestions) > 0 {
 			var lines []string
 			for _, s := range suggestions {
-				if s.SagPct != nil {
-					lines = append(lines, fmt.Sprintf("  - fork: %q, sag_pct: %.1f (static A2C: %.1fmm, rake: %.1fmm, %s)", s.ForkID, *s.SagPct, s.StaticA2c, s.Rake, s.ForkName))
+				if sagPct, ok := s.SagPct.Get(); ok {
+					lines = append(lines, fmt.Sprintf("  - fork: %q, sag_pct: %.1f (static A2C: %.1fmm, rake: %.1fmm, %s)", s.ForkID, sagPct, s.StaticA2c, s.Rake, s.ForkName))
 				} else {
 					lines = append(lines, fmt.Sprintf("  - fork: %q (rigid A2C: %.1fmm, rake: %.1fmm, %s)", s.ForkID, s.StaticA2c, s.Rake, s.ForkName))
 				}

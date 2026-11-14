@@ -33,7 +33,7 @@ func TestSeatAxisMetricsIndependentOfSaddle(t *testing.T) {
 	var first *model.BikeFitAnalysis
 	brps := map[float64]bool{}
 	for _, s := range catalog.CommonSaddleCatalog {
-		fit, err := geometry.AnalyzeBikeFitWithSaddle(bike, nil, nil, profile, s)
+		fit, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Opt[float64]{}, model.Opt[float64]{}, profile, s)
 		if err != nil {
 			t.Fatalf("%s: %v", s.ID, err)
 		}

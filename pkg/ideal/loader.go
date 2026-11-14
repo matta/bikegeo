@@ -3,6 +3,8 @@ package ideal
 import (
 	"fmt"
 	"strings"
+
+	"bikegeo/pkg/model"
 )
 
 // IdmatchProfile returns the idmatch biomechanical fit profile (BRP -> HB).
@@ -10,64 +12,64 @@ func IdmatchProfile() *Profile {
 	p := &Profile{
 		Name:           "idmatch",
 		Description:    "Biomechanical fit profile based on idmatch Bikelab report (BRP -> HB)",
-		SaddleHeightMm: new(float64(746)),
+		SaddleHeightMm: model.Some(746.0),
 		Attributes: []AttributeSpec{
 			{
 				ID:         "brp_setback",
 				Weight:     10,
 				Ideal:      Exact(219),
 				Acceptable: Between(214, 224),
-				EdgeScore:  new(float64(75)),
+				EdgeScore:  model.Some(75.0),
 				Falloff:    FalloffBoth(20, 20),
-				Floor:      new(float64(-200)),
+				Floor:      model.Some(-200.0),
 			},
-			DisplayOnlyWithTarget("saddle_hb", Between(695, 705), Between(685, 715), new(float64(75)), FalloffBoth(15, 15)),
-			DisplayOnlyWithTarget("saddle_hb_drop", Between(-2, 8), Between(-10, 16), new(float64(75)), FalloffBoth(10, 10)),
+			DisplayOnlyWithTarget("saddle_hb", Between(695, 705), Between(685, 715), model.Some(75.0), FalloffBoth(15, 15)),
+			DisplayOnlyWithTarget("saddle_hb_drop", Between(-2, 8), Between(-10, 16), model.Some(75.0), FalloffBoth(10, 10)),
 			DisplayOnly("best_stem"),
 			{
 				ID:         "handlebar_clamp_fit",
 				Weight:     15,
 				Ideal:      AtLeast(100),
 				Acceptable: AtLeast(75),
-				EdgeScore:  new(float64(75)),
+				EdgeScore:  model.Some(75.0),
 				Falloff:    FalloffBelow(75),
-				Floor:      new(float64(-200)),
+				Floor:      model.Some(-200.0),
 			},
 			{
 				ID:         "seatpost_extension",
 				Weight:     4,
 				Ideal:      Between(250, 310),
 				Acceptable: Between(210, 340),
-				EdgeScore:  new(float64(75)),
+				EdgeScore:  model.Some(75.0),
 				Falloff:    FalloffBoth(25, 25),
-				Floor:      new(float64(-100)),
+				Floor:      model.Some(-100.0),
 			},
 			{
 				ID:         "frontwt",
 				Weight:     4,
 				Ideal:      Between(35.8, 38.2),
 				Acceptable: Between(34.8, 39.2),
-				EdgeScore:  new(float64(75)),
+				EdgeScore:  model.Some(75.0),
 				Falloff:    FalloffBoth(2.0, 2.0),
-				Floor:      new(float64(-100)),
+				Floor:      model.Some(-100.0),
 			},
 			{
 				ID:         "bbdrop",
 				Weight:     3,
 				Ideal:      Exact(70),
 				Acceptable: Between(60, 80),
-				EdgeScore:  new(float64(75)),
+				EdgeScore:  model.Some(75.0),
 				Falloff:    FalloffBoth(10, 10),
-				Floor:      new(float64(-100)),
+				Floor:      model.Some(-100.0),
 			},
 			{
 				ID:         "trail",
 				Weight:     2,
 				Ideal:      Between(98, 106),
 				Acceptable: Between(92, 109),
-				EdgeScore:  new(float64(75)),
+				EdgeScore:  model.Some(75.0),
 				Falloff:    FalloffBoth(10, 10),
-				Floor:      new(float64(-100)),
+				Floor:      model.Some(-100.0),
 			},
 			DisplayOnly("hta"),
 			DisplayOnly("reach"),
@@ -102,9 +104,8 @@ func NormalizeAndValidate(p *Profile) (*Profile, error) {
 					Max: attr.Ideal.Max,
 				}
 			}
-			if attr.Floor == nil {
-				fl := -200.0
-				attr.Floor = &fl
+			if !attr.Floor.IsSet() {
+				attr.Floor = model.Some(-200.0)
 			}
 		}
 	}

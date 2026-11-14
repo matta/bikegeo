@@ -12,7 +12,7 @@ var SklarPBJ = model.FrameModel{
 	HeadsetCupType:     model.CupEC44,
 	GeoHeadsetSpacerMm: 12,
 	GeoSlopMm: &model.GeoSlopMm{
-		A2c:    new(0.5),
+		A2c:    model.Some(0.5),
 		Reason: "Size L's published Stack (641mm) implies a 481.7mm fork A2C with the 12mm EC44 CAD spacer, 3.3mm short of the 485mm rigid fork and 0.4mm beyond its ±2.9mm rounding budget. Every other size, and every Front Center and Wheelbase value, is within rounding.",
 	},
 	ChainstayRangeMm: []float64{432, 452},

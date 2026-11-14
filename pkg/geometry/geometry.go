@@ -149,53 +149,52 @@ func MapPossibleBRPs(staDeg model.Deg, seatHeight float64) []model.BRPPoint {
 	)
 }
 
+func optRangeMid(minVal, maxVal model.Opt[float64]) float64 {
+	lo, hasLo := minVal.Get()
+	hi, hasHi := maxVal.Get()
+	switch {
+	case hasLo && hasHi:
+		return (lo + hi) / 2.0
+	case hasLo:
+		return lo
+	case hasHi:
+		return hi
+	default:
+		return 0
+	}
+}
+
+func optRangeDist(val float64, minVal, maxVal model.Opt[float64]) float64 {
+	if lo, ok := minVal.Get(); ok && val < lo {
+		return lo - val
+	}
+	if hi, ok := maxVal.Get(); ok && val > hi {
+		return val - hi
+	}
+	return 0
+}
+
 // SelectBestBRP selects the best BRP point from candidate points for a target setback range.
 // Ranking hierarchy:
-// 1. Min distance to target setback range (0 if inside or if target is nil)
+// 1. Min distance to target setback range (0 if inside or if target is unset)
 // 2. Smallest absolute rail offset (|RailOffsetMm|, closest to dead center 0mm on rails)
 // 3. Min exact unrounded distance to target midpoint
 func SelectBestBRP(
 	possible []model.BRPPoint,
-	targetMin, targetMax *float64,
+	targetMin, targetMax model.Opt[float64],
 ) (model.BRPPoint, bool) {
 	if len(possible) == 0 {
 		return model.BRPPoint{}, false
 	}
 
 	best := possible[0]
-	hasTarget := targetMin != nil || targetMax != nil
-
-	calcTargetMid := func() float64 {
-		if targetMin != nil && targetMax != nil {
-			return (*targetMin + *targetMax) / 2.0
-		}
-		if targetMin != nil {
-			return *targetMin
-		}
-		if targetMax != nil {
-			return *targetMax
-		}
-		return 0
-	}
-	targetMid := calcTargetMid()
-
-	rangeDist := func(val float64) float64 {
-		if !hasTarget {
-			return 0
-		}
-		if targetMin != nil && val < *targetMin {
-			return *targetMin - val
-		}
-		if targetMax != nil && val > *targetMax {
-			return val - *targetMax
-		}
-		return 0
-	}
+	hasTarget := targetMin.IsSet() || targetMax.IsSet()
+	targetMid := optRangeMid(targetMin, targetMax)
 
 	better := func(a, b model.BRPPoint) bool {
 		if hasTarget {
-			distA := rangeDist(a.BrpSetbackMm)
-			distB := rangeDist(b.BrpSetbackMm)
+			distA := optRangeDist(a.BrpSetbackMm, targetMin, targetMax)
+			distB := optRangeDist(b.BrpSetbackMm, targetMin, targetMax)
 			if math.Abs(distA-distB) > 0.001 {
 				return distA < distB
 			}
@@ -313,8 +312,8 @@ func MapPossibleHBsWithHandlebar(
 
 // SelectBestHBWithDrop selects the best HB point from candidate points for desired target distance and drop ranges.
 // Ranking hierarchy:
-// 1. Primary: Min rounded mm distance to distance target range (saddle_hb, 0 if inside or nil)
-// 2. Secondary: Min rounded mm distance to drop target range (saddle_hb_drop, 0 if inside or nil)
+// 1. Primary: Min rounded mm distance to distance target range (saddle_hb, 0 if inside or unset)
+// 2. Secondary: Min rounded mm distance to drop target range (saddle_hb_drop, 0 if inside or unset)
 // 3. Tie-breaker 1: Closest stem length to canonicalStem
 // 4. Tie-breaker 2: Closest stem angle to canonicalStem
 // 5. Tie-breaker 3: Smallest spacer stack (spacerMm)
@@ -322,47 +321,25 @@ func MapPossibleHBsWithHandlebar(
 func SelectBestHBWithDrop(
 	possible []model.HBPoint,
 	canonicalStem model.StemSpec,
-	distMin, distMax *float64,
-	dropMin, dropMax *float64,
+	distMin, distMax model.Opt[float64],
+	dropMin, dropMax model.Opt[float64],
 ) (model.HBPoint, bool) {
 	if len(possible) == 0 {
 		return model.HBPoint{}, false
 	}
 
 	best := possible[0]
-	hasDistTarget := distMin != nil || distMax != nil
-	hasDropTarget := dropMin != nil || dropMax != nil
+	hasDistTarget := distMin.IsSet() || distMax.IsSet()
+	hasDropTarget := dropMin.IsSet() || dropMax.IsSet()
 
-	calcMid := func(minVal, maxVal *float64) float64 {
-		if minVal != nil && maxVal != nil {
-			return (*minVal + *maxVal) / 2.0
-		}
-		if minVal != nil {
-			return *minVal
-		}
-		if maxVal != nil {
-			return *maxVal
-		}
-		return 0
-	}
-	distMid := calcMid(distMin, distMax)
-	dropMid := calcMid(dropMin, dropMax)
-
-	rangeDist := func(val float64, minVal, maxVal *float64) float64 {
-		if minVal != nil && val < *minVal {
-			return *minVal - val
-		}
-		if maxVal != nil && val > *maxVal {
-			return val - *maxVal
-		}
-		return 0
-	}
+	distMid := optRangeMid(distMin, distMax)
+	dropMid := optRangeMid(dropMin, dropMax)
 
 	better := func(a, b model.HBPoint) bool {
 		// 1. Primary: Saddle-HB distance range
 		if hasDistTarget {
-			distA := rangeDist(a.SaddleHbMm, distMin, distMax)
-			distB := rangeDist(b.SaddleHbMm, distMin, distMax)
+			distA := optRangeDist(a.SaddleHbMm, distMin, distMax)
+			distB := optRangeDist(b.SaddleHbMm, distMin, distMax)
 			roundDistA := math.Round(distA)
 			roundDistB := math.Round(distB)
 			if roundDistA != roundDistB {
@@ -372,8 +349,8 @@ func SelectBestHBWithDrop(
 
 		// 2. Secondary: Saddle-HB drop range
 		if hasDropTarget {
-			dropA := rangeDist(a.SaddleHbDropMm, dropMin, dropMax)
-			dropB := rangeDist(b.SaddleHbDropMm, dropMin, dropMax)
+			dropA := optRangeDist(a.SaddleHbDropMm, dropMin, dropMax)
+			dropB := optRangeDist(b.SaddleHbDropMm, dropMin, dropMax)
 			roundDropA := math.Round(dropA)
 			roundDropB := math.Round(dropB)
 			if roundDropA != roundDropB {
@@ -432,9 +409,9 @@ func SelectBestHBWithDrop(
 func SelectBestHB(
 	possible []model.HBPoint,
 	canonicalStem model.StemSpec,
-	targetMin, targetMax *float64,
+	targetMin, targetMax model.Opt[float64],
 ) (model.HBPoint, bool) {
-	return SelectBestHBWithDrop(possible, canonicalStem, targetMin, targetMax, nil, nil)
+	return SelectBestHBWithDrop(possible, canonicalStem, targetMin, targetMax, model.Opt[float64]{}, model.Opt[float64]{})
 }
 
 // DefaultFitOval creates a FitOval with standard defaults (a = 10mm horizontal, b = 20mm vertical, 30° clockwise).
@@ -616,29 +593,16 @@ func ApplyCockpitFit(
 	can *model.BikeFitAnalysis,
 	bike model.BikeGeometry,
 	canonicalStem model.StemSpec,
-	distMin, distMax, dropMin, dropMax *float64,
+	distMin, distMax, dropMin, dropMax model.Opt[float64],
 ) {
 	if len(can.PossibleHBs) == 0 {
 		return
 	}
 
-	hasDistTarget := distMin != nil || distMax != nil
+	hasDistTarget := distMin.IsSet() || distMax.IsSet()
 	if hasDistTarget {
-		calcMid := func(minVal, maxVal *float64) float64 {
-			if minVal != nil && maxVal != nil {
-				return (*minVal + *maxVal) / 2.0
-			}
-			if minVal != nil {
-				return *minVal
-			}
-			if maxVal != nil {
-				return *maxVal
-			}
-			return 0
-		}
-
-		distMid := calcMid(distMin, distMax)
-		dropMid := calcMid(dropMin, dropMax)
+		distMid := optRangeMid(distMin, distMax)
+		dropMid := optRangeMid(dropMin, dropMax)
 
 		activeBRP := can.DeadCenterBRP
 		if can.SelectedBRP != nil {
@@ -1031,8 +995,8 @@ func CalculateWeightDistribution(
 // and derives all final dynamic cockpit, frame, and weight distribution metrics.
 func AnalyzeBikeFit(
 	bike model.BikeGeometry,
-	targetA2c *float64,
-	targetRake *float64,
+	targetA2c model.Opt[float64],
+	targetRake model.Opt[float64],
 	profile model.RiderProfile,
 ) (model.BikeFitAnalysis, error) {
 	return AnalyzeBikeFitWithSaddle(bike, targetA2c, targetRake, profile, catalog.DefaultSaddle())
@@ -1041,8 +1005,8 @@ func AnalyzeBikeFit(
 // AnalyzeBikeFitWithSaddle runs the master analysis pipeline using an explicit SaddleSpec.
 func AnalyzeBikeFitWithSaddle(
 	bike model.BikeGeometry,
-	targetA2c *float64,
-	targetRake *float64,
+	targetA2c model.Opt[float64],
+	targetRake model.Opt[float64],
 	profile model.RiderProfile,
 	saddle model.SaddleSpec,
 ) (model.BikeFitAnalysis, error) {
@@ -1094,7 +1058,7 @@ func AnalyzeBikeFitWithSaddle(
 
 	// 2. If target A2C provided, normalize CAD baseline vs headset cup/spacer convention
 	// so evaluating at the declared CAD fork matches the published CAD chart exactly, then pitch.
-	if targetA2c != nil {
+	if tA2c, ok := targetA2c.Get(); ok {
 		baselineStructuralA2c := baseStructuralA2c
 		if bike.CadFork.A2cMm > 0 {
 			baselineStructuralA2c = bike.CadFork.A2cMm + geoSpacer
@@ -1102,7 +1066,7 @@ func AnalyzeBikeFitWithSaddle(
 			// ForkA2c agrees with the published Stack within its rounding budget.
 			baselineStructuralA2c = bike.ForkA2c + geoSpacer
 		}
-		totalNewA2c := *targetA2c + geoSpacer
+		totalNewA2c := tA2c + geoSpacer
 
 		wb := bike.Wheelbase
 		if wb <= 0 {
@@ -1186,10 +1150,7 @@ func AnalyzeBikeFitWithSaddle(
 	if htl <= 0 {
 		htl = 120.0
 	}
-	rake := bike.ForkRake
-	if targetRake != nil {
-		rake = *targetRake
-	}
+	rake := targetRake.Or(bike.ForkRake)
 	if rake <= 0 {
 		return model.BikeFitAnalysis{}, fmt.Errorf("fork rake must be positive, got %.1fmm", rake)
 	}
@@ -1231,7 +1192,7 @@ func AnalyzeBikeFitWithSaddle(
 	var selectedHB *model.HBPoint
 	var saddleHbMm float64
 	var saddleHbDropMm float64
-	if best, ok := SelectBestHB(possibleHBs, bike.GetCanonicalStem(), nil, nil); ok {
+	if best, ok := SelectBestHB(possibleHBs, bike.GetCanonicalStem(), model.Opt[float64]{}, model.Opt[float64]{}); ok {
 		selectedHB = &best
 		saddleHbMm = best.SaddleHbMm
 		saddleHbDropMm = best.SaddleHbDropMm

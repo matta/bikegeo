@@ -10,6 +10,16 @@ import (
 	"bikegeo/pkg/model"
 )
 
+func adaptRange(r *ideal.Range, fn func(float64) float64) *ideal.Range {
+	if r == nil {
+		return nil
+	}
+	return &ideal.Range{
+		Min: r.Min.Map(fn),
+		Max: r.Max.Map(fn),
+	}
+}
+
 func AdaptProfileAttributeForSaddle(attr ideal.AttributeSpec, saddle model.SaddleSpec) ideal.AttributeSpec {
 	if saddle.ID == "" || saddle.ID == "sqlab-610-ergolux" {
 		return attr
@@ -17,63 +27,22 @@ func AdaptProfileAttributeForSaddle(attr ideal.AttributeSpec, saddle model.Saddl
 	refSQ := model.ReferenceIdmatchSaddle()
 	lowID := strings.ToLower(attr.ID)
 	if lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" {
+		fn := func(v float64) float64 {
+			return saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(v))
+		}
 		copied := attr
-		if attr.Ideal != nil {
-			idCopy := *attr.Ideal
-			if idCopy.Min != nil {
-				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*idCopy.Min))
-				idCopy.Min = &val
-			}
-			if idCopy.Max != nil {
-				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*idCopy.Max))
-				idCopy.Max = &val
-			}
-			copied.Ideal = &idCopy
-		}
-		if attr.Acceptable != nil {
-			accCopy := *attr.Acceptable
-			if accCopy.Min != nil {
-				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*accCopy.Min))
-				accCopy.Min = &val
-			}
-			if accCopy.Max != nil {
-				val := saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(*accCopy.Max))
-				accCopy.Max = &val
-			}
-			copied.Acceptable = &accCopy
-		}
+		copied.Ideal = adaptRange(attr.Ideal, fn)
+		copied.Acceptable = adaptRange(attr.Acceptable, fn)
 		return copied
 	}
 	if lowID == "saddle_hb" || lowID == "saddlehb" {
+		fn := func(v float64) float64 {
+			tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, v, 3.0)
+			return math.Round(tDist*10) / 10
+		}
 		copied := attr
-		if attr.Ideal != nil {
-			idCopy := *attr.Ideal
-			if idCopy.Min != nil {
-				tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *idCopy.Min, 3.0)
-				tDist = math.Round(tDist*10) / 10
-				idCopy.Min = &tDist
-			}
-			if idCopy.Max != nil {
-				tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *idCopy.Max, 3.0)
-				tDist = math.Round(tDist*10) / 10
-				idCopy.Max = &tDist
-			}
-			copied.Ideal = &idCopy
-		}
-		if attr.Acceptable != nil {
-			accCopy := *attr.Acceptable
-			if accCopy.Min != nil {
-				tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *accCopy.Min, 3.0)
-				tDist = math.Round(tDist*10) / 10
-				accCopy.Min = &tDist
-			}
-			if accCopy.Max != nil {
-				tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, *accCopy.Max, 3.0)
-				tDist = math.Round(tDist*10) / 10
-				accCopy.Max = &tDist
-			}
-			copied.Acceptable = &accCopy
-		}
+		copied.Ideal = adaptRange(attr.Ideal, fn)
+		copied.Acceptable = adaptRange(attr.Acceptable, fn)
 		return copied
 	}
 	return attr

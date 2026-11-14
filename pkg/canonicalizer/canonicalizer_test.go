@@ -162,7 +162,7 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get frame: %v", err)
 		}
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, nil)
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Opt[float64]{})
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
 		}
@@ -182,7 +182,7 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get frame: %v", err)
 		}
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, nil)
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Opt[float64]{})
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
 		}
@@ -202,7 +202,7 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get frame: %v", err)
 		}
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, nil)
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Opt[float64]{})
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
 		}
@@ -226,7 +226,7 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get frame: %v", err)
 		}
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, nil)
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Opt[float64]{})
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
 		}
@@ -243,8 +243,7 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get frame: %v", err)
 		}
-		sag20 := 20.0
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, &sag20)
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Some(20.0))
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
 		}
@@ -340,13 +339,12 @@ func TestAllowedSagPercentages(t *testing.T) {
 	}
 
 	// ExpandPlausibleForkSetups with unallowed 15% sag should error
-	sag15 := 15.0
-	if _, err := canonicalizer.ExpandPlausibleForkSetups(*frame, &sag15); err == nil {
+	if _, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Some(15.0)); err == nil {
 		t.Errorf("expected ExpandPlausibleForkSetups to error for 15%% sag override")
 	}
 
 	// ResolveForkToken with unallowed 15% sag should error
-	if _, _, _, _, err := canonicalizer.ResolveForkToken("110mm", &sag15, *frame); err == nil {
+	if _, _, _, _, err := canonicalizer.ResolveForkToken("110mm", model.Some(15.0), *frame); err == nil {
 		t.Errorf("expected ResolveForkToken to error for 15%% sag override")
 	}
 }
