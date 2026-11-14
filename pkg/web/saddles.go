@@ -14,8 +14,8 @@ import (
 
 func (db *docb) saddles(v url.Values) int {
 	fl := &floats{v: v}
-	saddleHeight := fl.get("saddle-height", 746.0)
-	sitBoneSetback := fl.get("sit-bone-setback", 292.0)
+	saddleHeight := fl.get("saddle-height", model.DefaultIdmatchSaddleHeightMm)
+	sitBoneSetback := fl.get("sit-bone-setback", model.DefaultTargetSitBoneSetbackMm)
 	if fl.err != nil {
 		db.fail("%v", fl.err)
 		return 1
@@ -86,19 +86,16 @@ func (db *docb) saddles(v url.Values) int {
 	sqlab, hasSQ := catalog.GetSaddle("sqlab-610-ergolux")
 	aspin, hasAspin := catalog.GetSaddle("berthoud-aspin-open")
 	slr, hasSLR := catalog.GetSaddle("selle-italia-slr-boost-superflow-l3")
-	var refBrpSetback float64
-	if hasSQ {
-		refBrpSetback = sqlab.BrpSetbackFromSitBones(sitBoneSetback)
-	}
+	refSitBones := model.ReferenceSitBonePoint(saddleHeight, sitBoneSetback)
 	if len(posArgs) == 0 && hasSQ && hasAspin && hasSLR {
 		transAspinDropBest := geometry.TranslateSaddleFit(sqlab, -15.0, aspin, model.DropBestClampLengthMm)
 		transAspinStd := geometry.TranslateSaddleFit(sqlab, 0.0, aspin, model.DefaultSeatpostClampLengthMm)
 		transSlrDropBest := geometry.TranslateSaddleFit(sqlab, -15.0, slr, model.DropBestClampLengthMm)
 		transSlrStd := geometry.TranslateSaddleFit(sqlab, 0.0, slr, model.DefaultSeatpostClampLengthMm)
 
-		shSQ11 := sqlab.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
-		shAspin11 := aspin.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
-		shSLR11 := slr.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
+		shSQ11 := sqlab.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
+		shAspin11 := aspin.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
+		shSLR11 := slr.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 		resSQ11 := geometry.CalculateIdealSeatTubeAngle(sqlab, sitBoneSetback, shSQ11, model.DefaultSeatpostSetbackMm, "11mm", model.DefaultSeatpostClampLengthMm)
 		resAspin11 := geometry.CalculateIdealSeatTubeAngle(aspin, sitBoneSetback, shAspin11, model.DefaultSeatpostSetbackMm, "11mm", model.DefaultSeatpostClampLengthMm)
 		resSLR11 := geometry.CalculateIdealSeatTubeAngle(slr, sitBoneSetback, shSLR11, model.DefaultSeatpostSetbackMm, "11mm", model.DefaultSeatpostClampLengthMm)
@@ -171,9 +168,9 @@ func (db *docb) saddles(v url.Values) int {
 		var aspin39, sq39 model.Deg
 
 		for _, p := range posts {
-			shSQ := sqlab.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
-			shAspin := aspin.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
-			shSLR := slr.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
+			shSQ := sqlab.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
+			shAspin := aspin.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
+			shSLR := slr.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 
 			resSQ := geometry.CalculateIdealSeatTubeAngle(sqlab, sitBoneSetback, shSQ, p.setback, p.name, p.clamp)
 			resAspin := geometry.CalculateIdealSeatTubeAngle(aspin, sitBoneSetback, shAspin, p.setback, p.name, p.clamp)
@@ -320,7 +317,7 @@ func (db *docb) saddles(v url.Values) int {
 
 		sh := saddleHeight
 		if hasSQ {
-			sh = s.TranslateSaddleHeightFromRef(sqlab, saddleHeight, refBrpSetback)
+			sh = s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 		}
 		for _, p := range posts {
 			res := geometry.CalculateIdealSeatTubeAngle(

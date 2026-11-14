@@ -56,44 +56,6 @@ func formatValue(unit string, v float64) string {
 	return fmt.Sprintf("%.0f%s", v, unit)
 }
 
-func translateRange(r *ideal.Range, fn func(float64) float64) *ideal.Range {
-	if r == nil {
-		return nil
-	}
-	return &ideal.Range{
-		Min: r.Min.Map(fn),
-		Max: r.Max.Map(fn),
-	}
-}
-
-func translateAttributeSpecForSaddle(spec ideal.AttributeSpec, saddle model.SaddleSpec) ideal.AttributeSpec {
-	if saddle.ID == "" || saddle.ID == "sqlab-610-ergolux" {
-		return spec
-	}
-	refSQ := model.ReferenceIdmatchSaddle()
-	lowID := strings.ToLower(spec.ID)
-	if lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" {
-		fn := func(v float64) float64 {
-			return saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(v))
-		}
-		copied := spec
-		copied.Ideal = translateRange(spec.Ideal, fn)
-		copied.Acceptable = translateRange(spec.Acceptable, fn)
-		return copied
-	}
-	if lowID == "saddle_hb" || lowID == "saddlehb" {
-		fn := func(v float64) float64 {
-			tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, v, 3.0)
-			return math.Round(tDist*10) / 10
-		}
-		copied := spec
-		copied.Ideal = translateRange(spec.Ideal, fn)
-		copied.Acceptable = translateRange(spec.Acceptable, fn)
-		return copied
-	}
-	return spec
-}
-
 // ScoreRow scores a single CanonicalComparisonRow against an ideal profile.
 // Cockpit fit (SelectedBRP, SelectedHB, CockpitFitResult) must already be populated
 // on row.Canonical (e.g., via canonicalizer.ApplyIdealCockpitTargets).
@@ -101,6 +63,7 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	if prof == nil {
 		prof = ideal.IdmatchProfile()
 	}
+	prof = prof.ForSaddle(row.Canonical.Saddle)
 
 	type attrEval struct {
 		spec   ideal.AttributeSpec
@@ -112,7 +75,6 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 
 	var evals []attrEval
 	totalActiveWeight := 0.0
-	can := &row.Canonical
 
 	for _, spec := range prof.Attributes {
 		meta, ok := ideal.LookupAttribute(spec.ID)
@@ -121,9 +83,6 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 		}
 
 		evalSpec := spec
-		if can.Saddle.ID != "" {
-			evalSpec = translateAttributeSpecForSaddle(spec, can.Saddle)
-		}
 
 		val, ok := meta.Extract(row)
 		if !ok {
@@ -402,11 +361,6 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 		prof = ideal.IdmatchProfile()
 	}
 
-	attrSpecMap := make(map[string]ideal.AttributeSpec)
-	for _, a := range prof.Attributes {
-		attrSpecMap[strings.ToLower(a.ID)] = a
-	}
-
 	// Sort frames by total score descending (matching rank)
 	sorted := make([]ScoredFrame, len(frames))
 	copy(sorted, frames)
@@ -422,16 +376,19 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 		}
 		var losses []lossItem
 
+		rowProf := prof.ForSaddle(f.Row.Canonical.Saddle)
+		rowSpecMap := make(map[string]ideal.AttributeSpec, len(rowProf.Attributes))
+		for _, a := range rowProf.Attributes {
+			rowSpecMap[strings.ToLower(a.ID)] = a
+		}
+
 		for _, cr := range f.Score.Criteria {
 			if cr.Missing || cr.IsDisplayOnly || cr.Weight <= 0 {
 				continue
 			}
-			spec, ok := attrSpecMap[strings.ToLower(cr.ID)]
+			spec, ok := rowSpecMap[strings.ToLower(cr.ID)]
 			if !ok {
 				continue
-			}
-			if f.Row.Canonical.Saddle.ID != "" {
-				spec = translateAttributeSpecForSaddle(spec, f.Row.Canonical.Saddle)
 			}
 			meta, ok := ideal.LookupAttribute(cr.ID)
 			if !ok {

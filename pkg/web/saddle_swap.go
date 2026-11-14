@@ -25,8 +25,8 @@ const (
 
 func (db *docb) saddleSwap(v url.Values) int {
 	fl := &floats{v: v}
-	saddleHeight := fl.get("saddle-height", 746.0)
-	sitBoneSetback := fl.get("sit-bone-setback", 292.0)
+	saddleHeight := fl.get("saddle-height", model.DefaultIdmatchSaddleHeightMm)
+	sitBoneSetback := fl.get("sit-bone-setback", model.DefaultTargetSitBoneSetbackMm)
 	brpSetback := fl.get("brp-setback", 0.0)
 	postSetback := fl.get("seatpost", model.DefaultSeatpostSetbackMm)
 	clampLength := fl.get("clamp-length", model.DefaultSeatpostClampLengthMm)
@@ -363,10 +363,8 @@ func (db *docb) saddleSwap(v url.Values) int {
 			stSetback := saddleHeight * frameSta.Angle().Cos()
 			srcBrpSetback := sourceSaddle.BrpSetbackFromSitBones(sitBoneSetback)
 			tgtBrpSetback := targetSaddle.BrpSetbackFromSitBones(sitBoneSetback)
-			tgtEquivSH := saddleHeight
-			if targetSaddle.ID != sourceSaddle.ID {
-				tgtEquivSH = targetSaddle.TranslateSaddleHeightFromRef(sourceSaddle, saddleHeight, srcBrpSetback)
-			}
+			srcSitBones := sourceSaddle.SitBonePointFromBrp(sourceSaddle.BrpPointAtHeightAndSetback(saddleHeight, srcBrpSetback))
+			tgtEquivSH := targetSaddle.BrpPointFromSitBones(srcSitBones).DistanceToOrigin()
 
 			// Required rail offsets on this frame via exact 2D CalculatePoint inverse:
 			srcRailOffset := sourceSaddle.RailOffsetForBrpAtSta(frameSta, srcBrpSetback, saddleHeight, postSetback)

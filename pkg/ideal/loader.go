@@ -2,23 +2,32 @@ package ideal
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
+	"bikegeo/pkg/geom2d"
 	"bikegeo/pkg/model"
 )
 
 // IdmatchProfile returns the idmatch biomechanical fit profile (BRP -> HandGrip).
 func IdmatchProfile() *Profile {
+	refSaddle := model.ReferenceIdmatchSaddle()
+	refBrp := refSaddle.BrpPointAtHeightAndSetback(model.DefaultIdmatchSaddleHeightMm, model.DefaultIdmatchBrpSetbackMm)
+	refSitBones := refSaddle.SitBonePointFromBrp(refBrp)
 	p := &Profile{
-		Name:           "idmatch",
-		Description:    "Biomechanical fit profile based on idmatch Bikelab report (BRP -> HandGrip)",
-		SaddleHeightMm: model.Some(746.0),
-		TargetRef:      model.TargetHandGrip,
+		Name:                   "idmatch",
+		Description:            "Biomechanical fit profile based on idmatch Bikelab report (BRP -> HandGrip)",
+		SaddleHeightMm:         model.Some(model.DefaultIdmatchSaddleHeightMm),
+		TargetSitBoneSetbackMm: model.Some(-refSitBones.X),
+		ReferenceSitBones:      refSitBones,
+		ReferenceBrp:           refBrp,
+		ReferenceSaddle:        refSaddle,
+		TargetRef:              model.TargetHandGrip,
 		Attributes: []AttributeSpec{
 			{
 				ID:         "brp_setback",
 				Weight:     10,
-				Ideal:      Exact(219),
+				Ideal:      Exact(model.DefaultIdmatchBrpSetbackMm),
 				Acceptable: Between(214, 224),
 				EdgeScore:  model.Some(75.0),
 				Falloff:    FalloffBoth(20, 20),
@@ -96,6 +105,12 @@ func AllProfiles() []*Profile {
 
 // NormalizeAndValidate populates default Acceptable and Floor fields on a Profile and validates it.
 func NormalizeAndValidate(p *Profile) (*Profile, error) {
+	if p.ReferenceSaddle.ID == "" {
+		p.ReferenceSaddle = model.ReferenceIdmatchSaddle()
+	}
+	refSH := p.SaddleHeightMm.Or(model.DefaultIdmatchSaddleHeightMm)
+	refBrpSB := model.DefaultIdmatchBrpSetbackMm
+	var dropMin, dropMax model.Opt[float64]
 	for i := range p.Attributes {
 		attr := &p.Attributes[i]
 		if attr.Ideal != nil {
@@ -108,14 +123,117 @@ func NormalizeAndValidate(p *Profile) (*Profile, error) {
 			if !attr.Floor.IsSet() {
 				attr.Floor = model.Some(-200.0)
 			}
+			lowID := strings.ToLower(attr.ID)
+			if lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" {
+				if vMin, ok := attr.Ideal.Min.Get(); ok {
+					if vMax, ok := attr.Ideal.Max.Get(); ok {
+						refBrpSB = (vMin + vMax) / 2.0
+					} else {
+						refBrpSB = vMin
+					}
+				} else if vMax, ok := attr.Ideal.Max.Get(); ok {
+					refBrpSB = vMax
+				}
+			} else if lowID == "saddle_hb_drop" || lowID == "hb_drop" || lowID == "saddlehbdrop" {
+				dropMin = attr.Ideal.Min
+				dropMax = attr.Ideal.Max
+			}
 		}
 	}
+	if p.ReferenceBrp == (geom2d.Point2{}) {
+		p.ReferenceBrp = p.ReferenceSaddle.BrpPointAtHeightAndSetback(refSH, refBrpSB)
+	}
+	if p.ReferenceSitBones == (geom2d.Point2{}) {
+		p.ReferenceSitBones = p.ReferenceSaddle.SitBonePointFromBrp(p.ReferenceBrp)
+	}
+	if !p.TargetSitBoneSetbackMm.IsSet() {
+		p.TargetSitBoneSetbackMm = model.Some(-p.ReferenceSitBones.X)
+	}
+	_ = dropMin
+	_ = dropMax
 
 	if err := ValidateProfile(p); err != nil {
 		return nil, err
 	}
 
 	return p, nil
+}
+
+// ForSaddle returns a copy of p with brp_setback and saddle_hb attribute ranges
+// projected from p.ReferenceSitBones onto saddle's BRP point.
+func (p *Profile) ForSaddle(saddle model.SaddleSpec) *Profile {
+	if p == nil || saddle.ID == "" {
+		return p
+	}
+	ref := p.ReferenceSaddle
+	if ref.ID == "" {
+		ref = model.ReferenceIdmatchSaddle()
+	}
+	if saddle.ID == ref.ID {
+		return p
+	}
+	refBrp := p.ReferenceBrp
+	if refBrp == (geom2d.Point2{}) {
+		refBrp = ref.BrpPointAtHeightAndSetback(p.SaddleHeightMm.Or(model.DefaultIdmatchSaddleHeightMm), model.DefaultIdmatchBrpSetbackMm)
+	}
+	sitBones := p.ReferenceSitBones
+	if sitBones == (geom2d.Point2{}) {
+		sitBones = ref.SitBonePointFromBrp(refBrp)
+	}
+	targetBrp := saddle.BrpPointFromSitBones(sitBones)
+
+	refRise := 3.0
+	for _, attr := range p.Attributes {
+		lowID := strings.ToLower(attr.ID)
+		if (lowID == "saddle_hb_drop" || lowID == "hb_drop" || lowID == "saddlehbdrop") && attr.Ideal != nil {
+			if dMin, ok := attr.Ideal.Min.Get(); ok {
+				if dMax, ok := attr.Ideal.Max.Get(); ok {
+					refRise = (dMin + dMax) / 2.0
+				} else {
+					refRise = dMin
+				}
+			}
+		}
+	}
+
+	mapRange := func(r *Range, fn func(float64) float64) *Range {
+		if r == nil {
+			return nil
+		}
+		return &Range{
+			Min: r.Min.Map(fn),
+			Max: r.Max.Map(fn),
+		}
+	}
+
+	copied := *p
+	copied.Attributes = make([]AttributeSpec, len(p.Attributes))
+	for i, attr := range p.Attributes {
+		lowID := strings.ToLower(attr.ID)
+		switch lowID {
+		case "brp_setback", "brp", "brpsetback":
+			fn := func(v float64) float64 {
+				return saddle.BrpSetbackFromSitBones(ref.SitBoneSetbackFromBrp(v))
+			}
+			attr.Ideal = mapRange(attr.Ideal, fn)
+			attr.Acceptable = mapRange(attr.Acceptable, fn)
+		case "saddle_hb", "saddlehb":
+			fn := func(v float64) float64 {
+				if v <= 0 {
+					return 0
+				}
+				hbY := sitBones.Y + refRise
+				dyRef := hbY - refBrp.Y
+				dxRef := math.Sqrt(math.Max(0, v*v-dyRef*dyRef))
+				hb := geom2d.Point2{X: refBrp.X + dxRef, Y: hbY}
+				return math.Round(hb.DistanceTo(targetBrp)*10) / 10
+			}
+			attr.Ideal = mapRange(attr.Ideal, fn)
+			attr.Acceptable = mapRange(attr.Acceptable, fn)
+		}
+		copied.Attributes[i] = attr
+	}
+	return &copied
 }
 
 // GetProfile looks up a compiled ideal profile by name (defaults to "idmatch" when empty).

@@ -462,17 +462,6 @@ func (s SaddleSpec) BrpPointFromSitBones(sitBones geom2d.Point2) geom2d.Point2 {
 	return sitBones.Add(s.SitBonesToBrpVec())
 }
 
-// TranslateBrpFromRef translates a 2D BRP coordinate measured on a reference saddle
-// into the equivalent 2D BRP coordinate on this saddle that preserves the exact 2D sit-bone position:
-//
-//	TargetBrp = BrpPointFromSitBones(ref.SitBonePointFromBrp(refBrp))
-func (s SaddleSpec) TranslateBrpFromRef(ref SaddleSpec, refBrp geom2d.Point2) geom2d.Point2 {
-	if s.ID != "" && ref.ID != "" && s.ID == ref.ID {
-		return refBrp
-	}
-	return s.BrpPointFromSitBones(ref.SitBonePointFromBrp(refBrp))
-}
-
 // BrpPointAtHeightAndSetback returns the 2D BRP coordinate in the sagittal plane
 // for a given radial saddle height (BB to BRP) and horizontal BRP setback behind the BB.
 func (s SaddleSpec) BrpPointAtHeightAndSetback(saddleHeightMm, brpSetbackMm float64) geom2d.Point2 {
@@ -552,12 +541,6 @@ func (s SaddleSpec) IdealSeatTubeAngle(sitBoneSetbackMm, saddleHeightMm, seatpos
 	return s.StaForBrpAndOffset(s.BrpSetbackFromSitBones(sitBoneSetbackMm), saddleHeightMm, seatpostSetbackMm, 0.0)
 }
 
-// TranslateClampOffset converts a clamp position from this saddle to targetSaddle to keep sit bones in the identical position:
-// TargetClampOffset = thisClampOffset + (targetSaddle.RailCenterToSitBonesMm - s.RailCenterToSitBonesMm).
-func (s SaddleSpec) TranslateClampOffset(thisClampOffset float64, targetSaddle SaddleSpec) float64 {
-	return thisClampOffset + (targetSaddle.RailCenterToSitBonesMm - s.RailCenterToSitBonesMm)
-}
-
 // ClampWindowMm returns the clamp-center travel bounds [minX, maxX]
 // for a seatpost clamp of length clampLengthMm (L_clamp):
 // X_clamp_min = -((L_rail - L_clamp) / 2), X_clamp_max = +((L_rail - L_clamp) / 2).
@@ -569,9 +552,18 @@ func (s SaddleSpec) ClampWindowMm(clampLengthMm float64) (minX float64, maxX flo
 	return -half, half
 }
 
+// DefaultIdmatchBrpSetbackMm is the baseline BRP setback (in mm) from the idmatch fit report.
+const DefaultIdmatchBrpSetbackMm = 219.0
+
+// DefaultIdmatchSaddleHeightMm is the baseline radial saddle height (in mm) from BB to BRP in the idmatch fit report.
+const DefaultIdmatchSaddleHeightMm = 746.0
+
+// DefaultTargetSitBoneSetbackMm is the primary pelvic sit-bone setback (in mm) behind the BB.
+const DefaultTargetSitBoneSetbackMm = 292.0
+
 // ReferenceIdmatchSaddle returns the canonical reference saddle used during idmatch fitting (SQlab 610).
 // Since the idmatch protocol was conducted on an SQlab saddle (Delta BRP-to-SitBones = 73mm),
-// any idmatch BRP specification (e.g. 219mm) derives a primary pelvic Sit Bone Setback of 219 + 73 = 292mm.
+// any idmatch BRP specification derives a primary pelvic Sit Bone Setback via SitBonePointFromBrp.
 func ReferenceIdmatchSaddle() SaddleSpec {
 	return SaddleSpec{
 		ID:                     "sqlab-610-ergolux",
@@ -583,16 +575,12 @@ func ReferenceIdmatchSaddle() SaddleSpec {
 	}
 }
 
-// DerivePelvicSetbackFromIdmatchBrp derives the rider's primary pelvic Sit Bone Setback
-// from an idmatch BRP setback (e.g. 219mm) using the reference SQlab saddle (219 + 73 = 292mm).
-func DerivePelvicSetbackFromIdmatchBrp(idmatchBrpSetbackMm float64) float64 {
-	return ReferenceIdmatchSaddle().SitBoneSetbackFromBrp(idmatchBrpSetbackMm)
-}
-
-// TargetBrpForPelvicSetback derives the target BRP setback for this saddle given the primary pelvic Sit Bone Setback:
-// TargetBrp = pelvicSitBoneSetback - (RailCenterToBrpMm - RailCenterToSitBonesMm).
-func (s SaddleSpec) TargetBrpForPelvicSetback(pelvicSitBoneSetbackMm float64) float64 {
-	return s.BrpSetbackFromSitBones(pelvicSitBoneSetbackMm)
+// ReferenceSitBonePoint returns the 2D sit-bone coordinate in the sagittal plane
+// for the reference idmatch saddle at the given radial saddle height and sit-bone setback.
+func ReferenceSitBonePoint(refSaddleHeightMm, sitBoneSetbackMm float64) geom2d.Point2 {
+	ref := ReferenceIdmatchSaddle()
+	refBrp := ref.BrpPointAtHeightAndSetback(refSaddleHeightMm, ref.BrpSetbackFromSitBones(sitBoneSetbackMm))
+	return ref.SitBonePointFromBrp(refBrp)
 }
 
 // SitSurfaceHeightFromBrpHeight calculates the radial distance from BB (0,0) to the sit-bone horizontal plane
@@ -604,47 +592,6 @@ func (s SaddleSpec) SitSurfaceHeightFromBrpHeight(brpSaddleHeightMm, brpSetbackM
 	brp := s.BrpPointAtHeightAndSetback(brpSaddleHeightMm, brpSetbackMm)
 	sitBone := s.SitBonePointFromBrp(brp)
 	return geom2d.Point2{X: brp.X, Y: sitBone.Y}.DistanceToOrigin()
-}
-
-// TranslateSaddleHeightFromRef calculates the equivalent radial saddle height (BB to BRP)
-// for this saddle to keep the rider's 2D pelvic position (SitBoneX, SitBoneY) identical
-// to that of the reference saddle (e.g. SQlab 610 at refSaddleHeightMm and refBrpSetbackMm).
-func (s SaddleSpec) TranslateSaddleHeightFromRef(ref SaddleSpec, refSaddleHeightMm, refBrpSetbackMm float64) float64 {
-	if refSaddleHeightMm <= 0 {
-		return 0
-	}
-	if s.ID != "" && ref.ID != "" && s.ID == ref.ID {
-		return refSaddleHeightMm
-	}
-	refBrp := ref.BrpPointAtHeightAndSetback(refSaddleHeightMm, refBrpSetbackMm)
-	return s.TranslateBrpFromRef(ref, refBrp).DistanceToOrigin()
-}
-
-// TranslateHbDistanceFromRef translates the target Saddle-HB Euclidean distance (BRP -> HB)
-// from a reference saddle (e.g. SQlab 610 at refSaddleHeightMm and refBrpSetbackMm)
-// to this saddle's BRP reference point, keeping the 2D handlebar point (HbX, HbY) and
-// sit-bone-relative HB rise (hbRiseFromSitBonesMm) invariant in space.
-func (s SaddleSpec) TranslateHbDistanceFromRef(
-	ref SaddleSpec,
-	refSaddleHeightMm, refBrpSetbackMm float64,
-	refHbDistMm, hbRiseFromSitBonesMm float64,
-) float64 {
-	if refHbDistMm <= 0 {
-		return 0
-	}
-	if s.ID != "" && ref.ID != "" && s.ID == ref.ID {
-		return refHbDistMm
-	}
-	refBrp := ref.BrpPointAtHeightAndSetback(refSaddleHeightMm, refBrpSetbackMm)
-	sitBone := ref.SitBonePointFromBrp(refBrp)
-
-	hbY := sitBone.Y + hbRiseFromSitBonesMm
-	dyRef := hbY - refBrp.Y
-	dxRef := math.Sqrt(math.Max(0, refHbDistMm*refHbDistMm-dyRef*dyRef))
-	hb := geom2d.Point2{X: refBrp.X + dxRef, Y: hbY}
-
-	targetBrp := s.TranslateBrpFromRef(ref, refBrp)
-	return hb.DistanceTo(targetBrp)
 }
 
 // DefaultSeatpostStaticSetbackMm is the perpendicular rearward offset (in mm) of the static Redshift ShockStop post.

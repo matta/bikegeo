@@ -104,10 +104,10 @@ func AnalyzeSaddleSwap(
 	hbDropMm float64,
 ) SaddleSwapReport {
 	if saddleHeightMm <= 0 {
-		saddleHeightMm = 746.0
+		saddleHeightMm = model.DefaultIdmatchSaddleHeightMm
 	}
 	if sitBoneSetbackMm <= 0 {
-		sitBoneSetbackMm = 292.0
+		sitBoneSetbackMm = model.DefaultTargetSitBoneSetbackMm
 	}
 	if clampLengthMm <= 0 {
 		clampLengthMm = model.DefaultSeatpostClampLengthMm
@@ -219,7 +219,7 @@ func AnalyzeSaddleSwap(
 
 	// 4. True Pelvic Alignment:
 	// Target Sit Bone Setback and Height are held invariant at (baseSitBone.X, baseSitBone.Y):
-	pelvicClampOffset := source.TranslateClampOffset(0.0, target)
+	pelvicClampOffset := rcSitBoneDelta
 	pelvicFeasible := pelvicClampOffset >= tMinClamp-0.001 && pelvicClampOffset <= tMaxClamp+0.001
 	var pelvicMargin float64
 	if pelvicClampOffset < tMinClamp {

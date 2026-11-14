@@ -1,6 +1,9 @@
 package ideal
 
-import "bikegeo/pkg/model"
+import (
+	"bikegeo/pkg/geom2d"
+	"bikegeo/pkg/model"
+)
 
 // Range specifies an inclusive numeric interval [Min, Max].
 // If Min is unset, the range is unbounded below.
@@ -82,12 +85,16 @@ func DisplayOnlyWithTarget(id string, ideal, acceptable *Range, edgeScore model.
 
 // Profile represents an idealized frame definition with sweet-spot ranges across attributes.
 type Profile struct {
-	Name           string
-	Description    string
-	SaddleHeightMm model.Opt[float64]
-	TargetRef      model.TargetRef
-	ReferenceBar   model.Opt[model.HandlebarSpec]
-	Attributes     []AttributeSpec
+	Name                   string
+	Description            string
+	SaddleHeightMm         model.Opt[float64]
+	TargetSitBoneSetbackMm model.Opt[float64]
+	ReferenceSitBones      geom2d.Point2
+	ReferenceBrp           geom2d.Point2
+	ReferenceSaddle        model.SaddleSpec
+	TargetRef              model.TargetRef
+	ReferenceBar           model.Opt[model.HandlebarSpec]
+	Attributes             []AttributeSpec
 }
 
 // ProfileSummary provides high-level metadata for listing profiles.

@@ -61,8 +61,7 @@ func CalculateUniversalCompromiseSTA(
 		clampLengthMm = model.DefaultSeatpostClampLengthMm
 	}
 
-	ref := model.ReferenceIdmatchSaddle()
-	refBrpSetback := ref.BrpSetbackFromSitBones(targetSitBoneSetbackMm)
+	refSitBones := model.ReferenceSitBonePoint(saddleHeightMm, targetSitBoneSetbackMm)
 
 	type saddleFit struct {
 		spec      model.SaddleSpec
@@ -75,10 +74,7 @@ func CalculateUniversalCompromiseSTA(
 	marginInit := false
 
 	for i, s := range saddles {
-		eqSH := saddleHeightMm
-		if s.ID != ref.ID {
-			eqSH = s.TranslateSaddleHeightFromRef(ref, saddleHeightMm, refBrpSetback)
-		}
+		eqSH := s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 		targetBrp := s.BrpSetbackFromSitBones(targetSitBoneSetbackMm)
 		fits[i] = saddleFit{spec: s, eqSH: eqSH, targetBrp: targetBrp}
 
@@ -264,8 +260,8 @@ func TranslateSaddleFit(
 		clampLengthMm = model.DefaultSeatpostClampLengthMm
 	}
 
-	targetClamp := refSaddle.TranslateClampOffset(refClampOffset, targetSaddle)
 	sbDelta := targetSaddle.RailCenterToSitBonesMm - refSaddle.RailCenterToSitBonesMm
+	targetClamp := refClampOffset + sbDelta
 	brpDelta := targetSaddle.DeltaBrpToSitBonesMm() - refSaddle.DeltaBrpToSitBonesMm()
 
 	minClamp, maxClamp := targetSaddle.ClampWindowMm(clampLengthMm)

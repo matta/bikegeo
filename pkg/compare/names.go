@@ -2,51 +2,12 @@ package compare
 
 import (
 	"fmt"
-	"math"
 	"strings"
 
 	"bikegeo/pkg/canonicalizer"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 )
-
-func adaptRange(r *ideal.Range, fn func(float64) float64) *ideal.Range {
-	if r == nil {
-		return nil
-	}
-	return &ideal.Range{
-		Min: r.Min.Map(fn),
-		Max: r.Max.Map(fn),
-	}
-}
-
-func AdaptProfileAttributeForSaddle(attr ideal.AttributeSpec, saddle model.SaddleSpec) ideal.AttributeSpec {
-	if saddle.ID == "" || saddle.ID == "sqlab-610-ergolux" {
-		return attr
-	}
-	refSQ := model.ReferenceIdmatchSaddle()
-	lowID := strings.ToLower(attr.ID)
-	if lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" {
-		fn := func(v float64) float64 {
-			return saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(v))
-		}
-		copied := attr
-		copied.Ideal = adaptRange(attr.Ideal, fn)
-		copied.Acceptable = adaptRange(attr.Acceptable, fn)
-		return copied
-	}
-	if lowID == "saddle_hb" || lowID == "saddlehb" {
-		fn := func(v float64) float64 {
-			tDist := saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, v, 3.0)
-			return math.Round(tDist*10) / 10
-		}
-		copied := attr
-		copied.Ideal = adaptRange(attr.Ideal, fn)
-		copied.Acceptable = adaptRange(attr.Acceptable, fn)
-		return copied
-	}
-	return attr
-}
 
 // DisambiguateFrameNames returns a slice of display names corresponding to rows.
 // When a (FrameID, Size) appears multiple times in the comparison, each instance

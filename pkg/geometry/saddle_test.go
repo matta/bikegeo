@@ -231,20 +231,20 @@ func TestSaddleSpec_CalculatePoint_And_PelvicDerivation(t *testing.T) {
 	slr, _ := catalog.GetSaddle("selle-italia-slr-boost-superflow-l3")
 
 	// 1. Primary pelvic setback derivation from idmatch 219mm BRP via SQlab reference
-	pelvicSetback := model.DerivePelvicSetbackFromIdmatchBrp(219.0)
+	pelvicSetback := sqlab.SitBoneSetbackFromBrp(219.0)
 	if pelvicSetback != 292.0 {
 		t.Errorf("Expected pelvic setback 292.0mm, got %.1fmm", pelvicSetback)
 	}
 
 	// 2. Active saddle BRP targets derived from pelvic setback
-	if sqlab.TargetBrpForPelvicSetback(pelvicSetback) != 219.0 {
-		t.Errorf("Expected SQlab target BRP 219.0mm, got %.1fmm", sqlab.TargetBrpForPelvicSetback(pelvicSetback))
+	if sqlab.BrpSetbackFromSitBones(pelvicSetback) != 219.0 {
+		t.Errorf("Expected SQlab target BRP 219.0mm, got %.1fmm", sqlab.BrpSetbackFromSitBones(pelvicSetback))
 	}
-	if aspin.TargetBrpForPelvicSetback(pelvicSetback) != 204.0 {
-		t.Errorf("Expected Aspin target BRP 204.0mm, got %.1fmm", aspin.TargetBrpForPelvicSetback(pelvicSetback))
+	if aspin.BrpSetbackFromSitBones(pelvicSetback) != 204.0 {
+		t.Errorf("Expected Aspin target BRP 204.0mm, got %.1fmm", aspin.BrpSetbackFromSitBones(pelvicSetback))
 	}
-	if slr.TargetBrpForPelvicSetback(pelvicSetback) != 209.0 {
-		t.Errorf("Expected SLR Boost target BRP 209.0mm, got %.1fmm", slr.TargetBrpForPelvicSetback(pelvicSetback))
+	if slr.BrpSetbackFromSitBones(pelvicSetback) != 209.0 {
+		t.Errorf("Expected SLR Boost target BRP 209.0mm, got %.1fmm", slr.BrpSetbackFromSitBones(pelvicSetback))
 	}
 
 	// 3. Vector math on 72.0° STA with Redshift sagged (11mm setback)
@@ -272,18 +272,14 @@ func TestSaddleSpec_CalculatePoint_And_PelvicDerivation(t *testing.T) {
 }
 
 func TestIdealStaRoundTripsCalculatePoint(t *testing.T) {
-	ref := model.ReferenceIdmatchSaddle()
 	targetSB := 292.0
 	baseSH := 746.0
-	refBrp := ref.BrpSetbackFromSitBones(targetSB)
+	refSitBones := model.ReferenceSitBonePoint(baseSH, targetSB)
 	saddles := catalog.AllSaddles()
 
 	for _, postSetback := range []float64{0, 7, 11, 15, 25, 35, 39} {
 		for _, s := range saddles {
-			eqH := baseSH
-			if s.ID != ref.ID {
-				eqH = s.TranslateSaddleHeightFromRef(ref, baseSH, refBrp)
-			}
+			eqH := s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 			res := geometry.CalculateIdealSeatTubeAngle(s, targetSB, eqH, postSetback, "post", model.DefaultSeatpostClampLengthMm)
 			pt := s.CalculatePoint(res.IdealStaDeg, eqH, postSetback, 0.0)
 			if math.Abs(pt.SitBoneSetbackMm-targetSB) > 0.01 {
@@ -294,10 +290,7 @@ func TestIdealStaRoundTripsCalculatePoint(t *testing.T) {
 
 		comp := geometry.CalculateUniversalCompromiseSTA(saddles, targetSB, baseSH, postSetback, "post", model.DefaultSeatpostClampLengthMm)
 		for i, s := range saddles {
-			eqH := baseSH
-			if s.ID != ref.ID {
-				eqH = s.TranslateSaddleHeightFromRef(ref, baseSH, refBrp)
-			}
+			eqH := s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 			pt := s.CalculatePoint(comp.CompromiseStaDeg, eqH, postSetback, comp.SaddleOffsets[i].OffsetMm)
 			if math.Abs(pt.SitBoneSetbackMm-targetSB) > 0.01 {
 				t.Errorf("Compromise %s post=%.0f: SitBoneSetbackMm = %.4f, want %.1f",

@@ -96,8 +96,9 @@ func TestBuildScene_ParityWithCalculateDynamicGeometry_ConstantRake(t *testing.T
 					spacer := 10.0
 
 					// Test both reference saddle and non-reference saddle (different BRP height for bent STA check).
+					refSitBones := model.ReferenceSitBonePoint(746.0, 292.0)
 					for _, s := range []model.SaddleSpec{saddle, aspin} {
-						brpH := s.TranslateSaddleHeightFromRef(saddle, 746.0, 219.0)
+						brpH := s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 
 						build := geometry.BuildSpec{
 							Fork: geometry.Fork{
@@ -446,6 +447,37 @@ func TestBuildScene_TargetRefModes(t *testing.T) {
 		want := sc.TargetPoint.Sub(sc.EvaluatedCockpitPoint())
 		if d := math.Abs(got.X-want.X) + math.Abs(got.Y-want.Y); d > 1e-9 {
 			t.Errorf("%s: TargetPointError %+v != TargetPoint - EvaluatedCockpitPoint %+v", f.TargetRef, got, want)
+		}
+	}
+
+	// Verify RequiredRailOffsetMm and RailMarginMm directly on BikeScene across saddles.
+	for _, s := range catalog.AllSaddles() {
+		refSitBones := model.ReferenceSitBonePoint(746.0, 292.0)
+		seatS := seat
+		seatS.Saddle = s
+		seatS.RailOffsetMm = 0.0
+		fitS := baseFit
+		fitS.BrpHeightMm = s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
+		fitS.TargetSitBonesXMm = -292.0
+		sc0, err := geometry.BuildScene(frame, build, cockpit, seatS, fitS)
+		if err != nil {
+			t.Fatalf("BuildScene(%s): %v", s.ID, err)
+		}
+		seatSolved := seatS
+		seatSolved.RailOffsetMm = sc0.RequiredRailOffsetMm
+		scSolved, err := geometry.BuildScene(frame, build, cockpit, seatSolved, fitS)
+		if err != nil {
+			t.Fatalf("BuildScene solved(%s): %v", s.ID, err)
+		}
+		if d := math.Abs(scSolved.SitBones.X - (-292.0)); d > 1e-6 {
+			t.Errorf("%s: solved SitBones.X = %.6f, want -292.0", s.ID, scSolved.SitBones.X)
+		}
+		if d := math.Abs(scSolved.SitBones.Y - refSitBones.Y); d > 1e-6 {
+			t.Errorf("%s: solved SitBones.Y = %.6f, want %.6f", s.ID, scSolved.SitBones.Y, refSitBones.Y)
+		}
+		wantMargin := seatS.HalfRailWindowMm() - math.Abs(sc0.RequiredRailOffsetMm)
+		if d := math.Abs(sc0.RailMarginMm - wantMargin); d > 1e-9 {
+			t.Errorf("%s: RailMarginMm = %.9f, want %.9f", s.ID, sc0.RailMarginMm, wantMargin)
 		}
 	}
 }

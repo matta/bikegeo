@@ -682,56 +682,29 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 		return
 	}
 
-	var brpMin, brpMax model.Opt[float64]
-	var distMin, distMax model.Opt[float64]
-	var dropMin, dropMax model.Opt[float64]
-	var hasClampFit bool
-
-	for _, attr := range prof.Attributes {
-		lowID := strings.ToLower(attr.ID)
-		if lowID == "handlebar_clamp_fit" || lowID == "cockpit_fit" || lowID == "clamp_fit" {
-			hasClampFit = true
-		} else if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && attr.Ideal != nil {
-			brpMin = attr.Ideal.Min
-			brpMax = attr.Ideal.Max
-		} else if (lowID == "saddle_hb" || lowID == "saddlehb") && attr.Ideal != nil {
-			distMin = attr.Ideal.Min
-			distMax = attr.Ideal.Max
-		} else if (lowID == "saddle_hb_drop" || lowID == "hb_drop" || lowID == "saddlehbdrop") && attr.Ideal != nil {
-			dropMin = attr.Ideal.Min
-			dropMax = attr.Ideal.Max
-		}
-	}
-
 	for i := range rows {
 		can := &rows[i].Canonical
+		rowProf := prof.ForSaddle(can.Saddle)
 
-		// Derive row-specific targets anchored by reference SQlab saddle
-		rowBrpMin, rowBrpMax := brpMin, brpMax
-		rowDistMin, rowDistMax := distMin, distMax
-		rowDropMin, rowDropMax := dropMin, dropMax
-		if can.Saddle.ID != "" && can.Saddle.ID != "sqlab-610-ergolux" {
-			refSQ := model.ReferenceIdmatchSaddle()
-			rowBrpMin = brpMin.Map(func(v float64) float64 {
-				return can.Saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(v))
-			})
-			rowBrpMax = brpMax.Map(func(v float64) float64 {
-				return can.Saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(v))
-			})
-			refRise := 3.0
-			if dMin, ok := dropMin.Get(); ok {
-				if dMax, ok := dropMax.Get(); ok {
-					refRise = (dMin + dMax) / 2.0
-				} else {
-					refRise = dMin
-				}
+		var rowBrpMin, rowBrpMax model.Opt[float64]
+		var rowDistMin, rowDistMax model.Opt[float64]
+		var rowDropMin, rowDropMax model.Opt[float64]
+		var hasClampFit bool
+
+		for _, attr := range rowProf.Attributes {
+			lowID := strings.ToLower(attr.ID)
+			if lowID == "handlebar_clamp_fit" || lowID == "cockpit_fit" || lowID == "clamp_fit" {
+				hasClampFit = true
+			} else if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && attr.Ideal != nil {
+				rowBrpMin = attr.Ideal.Min
+				rowBrpMax = attr.Ideal.Max
+			} else if (lowID == "saddle_hb" || lowID == "saddlehb") && attr.Ideal != nil {
+				rowDistMin = attr.Ideal.Min
+				rowDistMax = attr.Ideal.Max
+			} else if (lowID == "saddle_hb_drop" || lowID == "hb_drop" || lowID == "saddlehbdrop") && attr.Ideal != nil {
+				rowDropMin = attr.Ideal.Min
+				rowDropMax = attr.Ideal.Max
 			}
-			rowDistMin = distMin.Map(func(v float64) float64 {
-				return can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, v, refRise)
-			})
-			rowDistMax = distMax.Map(func(v float64) float64 {
-				return can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, v, refRise)
-			})
 		}
 
 		// 1. Optimize BRP on saddle rails if candidate BRPs exist

@@ -769,9 +769,9 @@ func TestLossDeltaMatchesCell(t *testing.T) {
 	if !ok {
 		t.Fatal("missing berthoud-aspin-open saddle")
 	}
-	for _, a := range prof.Attributes {
+	for _, a := range prof.ForSaddle(berthoud).Attributes {
 		if a.ID == "brp_setback" || a.ID == "saddle_hb" {
-			specs = append(specs, translateAttributeSpecForSaddle(a, berthoud))
+			specs = append(specs, a)
 		}
 	}
 	specs = append(specs,

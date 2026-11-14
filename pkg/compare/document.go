@@ -183,8 +183,8 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 			if saddle.ID == "" {
 				saddle = catalog.DefaultSaddle()
 			}
-			targetSitBones := model.DerivePelvicSetbackFromIdmatchBrp(219.0)
-			targetBRP := saddle.TargetBrpForPelvicSetback(targetSitBones)
+			targetSitBones := prof.TargetSitBoneSetbackMm.Or(model.DefaultTargetSitBoneSetbackMm)
+			targetBRP := saddle.BrpSetbackFromSitBones(targetSitBones)
 			footers = append(footers, report.Footer{
 				Title: "Biomechanical Pelvic Fit & Seatpost Baseline",
 				Lines: []string{
@@ -222,8 +222,8 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		saddle = catalog.DefaultSaddle()
 	}
 	saddleName := saddle.Name
-	refSaddle := catalog.DefaultSaddle()
-	activeBrpH := saddle.TranslateSaddleHeightFromRef(refSaddle, state.SaddleHeightMm, 219.0)
+	refSitBones := model.ReferenceSitBonePoint(state.SaddleHeightMm, prof.TargetSitBoneSetbackMm.Or(model.DefaultTargetSitBoneSetbackMm))
+	activeBrpH := saddle.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 	hText := fmt.Sprintf("%.0fmm", state.SaddleHeightMm)
 	if math.Abs(activeBrpH-state.SaddleHeightMm) >= 0.05 {
 		hText = fmt.Sprintf("%.1fmm (translated from %.0fmm)", activeBrpH, state.SaddleHeightMm)
@@ -340,8 +340,8 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 			return plain(canonicalizer.FormatForkEffA2c(item.row))
 		})
 
-		for _, attr := range prof.Attributes {
-			evalAttr := AdaptProfileAttributeForSaddle(attr, state.Saddle)
+		activeProf := prof.ForSaddle(state.Saddle)
+		for _, evalAttr := range activeProf.Attributes {
 			meta, _ := ideal.LookupAttribute(evalAttr.ID)
 			idealStr, accStr := FormatAttrRanges(evalAttr, meta)
 			addRow(evalAttr.ID, meta.Label, idealStr, accStr, func(item scoredRowItem) report.Cell {
@@ -382,11 +382,11 @@ func buildTransposedTable(
 	}
 	offset := len(t.Columns)
 
-	evalAttrs := make([]ideal.AttributeSpec, len(attrs))
-	metas := make([]ideal.AttributeMeta, len(attrs))
-	for i, attr := range attrs {
-		evalAttrs[i] = AdaptProfileAttributeForSaddle(attr, state.Saddle)
-		metas[i], _ = ideal.LookupAttribute(evalAttrs[i].ID)
+	activeProf := (&ideal.Profile{Attributes: attrs}).ForSaddle(state.Saddle)
+	evalAttrs := activeProf.Attributes
+	metas := make([]ideal.AttributeMeta, len(evalAttrs))
+	for i, attr := range evalAttrs {
+		metas[i], _ = ideal.LookupAttribute(attr.ID)
 		t.Columns = append(t.Columns, report.Column{ID: attr.ID, Label: metas[i].Label, Numeric: true})
 	}
 

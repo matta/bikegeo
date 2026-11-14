@@ -1104,7 +1104,8 @@ func AnalyzeBikeFitWithSaddle(
 
 	seatHeight := profile.SaddleHeightMm
 	refSQ := model.ReferenceIdmatchSaddle()
-	brpSeatHeight := saddle.TranslateSaddleHeightFromRef(refSQ, seatHeight, 219.0)
+	refSitBones := model.ReferenceSitBonePoint(seatHeight, model.DefaultTargetSitBoneSetbackMm)
+	brpSeatHeight := saddle.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 
 	// 1. Validate rake and reverse-engineer baseline CAD geometric A2C for publish-mode inference.
 	rake := targetRake.Or(bike.ForkRake)
@@ -1194,7 +1195,7 @@ func AnalyzeBikeFitWithSaddle(
 	fitTarget := RiderFit{
 		FrameSeatAxisHeightMm: seatHeight,
 		BrpHeightMm:           brpSeatHeight,
-		TargetSitBonesXMm:     -292.0,
+		TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm,
 		TargetPoint:           geom2d.Point2{X: 480.9, Y: 726.1},
 		TargetRef:             targetRef,
 		ReferenceSaddle:       refSQ,
@@ -1333,7 +1334,7 @@ func AnalyzeBikeFitWithSaddle(
 		saddleHbDropMm = best.SaddleHbDropMm
 	}
 
-	idealSTA := saddle.IdealSeatTubeAngle(292.0, brpSeatHeight, model.DefaultSeatpostSetbackMm)
+	idealSTA := saddle.IdealSeatTubeAngle(model.DefaultTargetSitBoneSetbackMm, brpSeatHeight, model.DefaultSeatpostSetbackMm)
 
 	return model.BikeFitAnalysis{
 		StructuralA2c:       activeStructuralA2c,

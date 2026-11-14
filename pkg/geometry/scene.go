@@ -277,12 +277,14 @@ type BikeScene struct {
 	FrameSeatAxis     geom2d.Axis2
 	EffectiveSeatAxis geom2d.Axis2
 
-	// Leveled rear cockpit landmarks
-	SeatAxisPoint geom2d.Point2
-	SeatpostClamp geom2d.Point2
-	RailCenter    geom2d.Point2
-	BRP           geom2d.Point2
-	SitBones      geom2d.Point2
+	//Leveled rear cockpit landmarks
+	SeatAxisPoint        geom2d.Point2
+	SeatpostClamp        geom2d.Point2
+	RailCenter           geom2d.Point2
+	BRP                  geom2d.Point2
+	SitBones             geom2d.Point2
+	RequiredRailOffsetMm float64
+	RailMarginMm         float64
 
 	// Leveled front cockpit landmarks & explicit fit target
 	SteererClamp      geom2d.Point2
@@ -570,51 +572,60 @@ func BuildScene(
 	seatpostClamp := effSeatAxis.PointWithOffset(axial, seat.PostSetbackMm, geom2d.CounterClockwise)
 	railCenter := effSeatAxis.PointWithOffset(axial, seat.PostSetbackMm+seat.RailOffsetMm, geom2d.CounterClockwise)
 
+	reqRailOff := seat.RailOffsetMm
+	if fit.TargetSitBonesXMm < 0 {
+		targetBrpSetback := seat.Saddle.BrpSetbackFromSitBones(-fit.TargetSitBonesXMm)
+		reqRailOff = seat.Saddle.RailOffsetForBrpAtSta(effStaAct, targetBrpSetback, fit.BrpHeightMm, seat.PostSetbackMm)
+	}
+	railMargin := seat.HalfRailWindowMm() - math.Abs(reqRailOff)
+
 	// 5. Validation residuals from chart/declared points
 	resA2c := closure.ResidualA2cMm
 	resFc := closure.ResidualFcMm
 	resWb := closure.ResidualWbMm
 
 	return BikeScene{
-		Frame:             frame,
-		Build:             build,
-		Cockpit:           cockpit,
-		Seat:              seat,
-		Fit:               fit,
-		BB:                fr.BB,
-		RearAxle:          fr.RearAxle,
-		HeadTubeTop:       fr.HeadTubeTop,
-		HeadTubeBottom:    fr.HeadTubeBottom,
-		LowerCupBottom:    lowerCupBottom,
-		FrontAxle:         fr.FrontAxle,
-		ChartL:            chartL,
-		ChartFrontAxle:    faChart,
-		DeclFrontAxle:     faDecl,
-		ResidualA2cMm:     resA2c,
-		ResidualFcMm:      resFc,
-		ResidualWbMm:      resWb,
-		SteererAxis:       steererAxis,
-		NominalSeatAxis:   nominalSeatAxis,
-		FrameSeatAxis:     frameSeatAxis,
-		EffectiveSeatAxis: effSeatAxis,
-		SeatAxisPoint:     sa,
-		SeatpostClamp:     seatpostClamp,
-		RailCenter:        railCenter,
-		BRP:               brp,
-		SitBones:          sb,
-		SteererClamp:      cockpitPts.SteererClamp,
-		StemClamp:         cockpitPts.StemClamp,
-		HandGrip:          cockpitPts.HandGrip,
-		TargetPoint:       fit.TargetPoint,
-		TargetRef:         fit.TargetRef,
-		RequiredStemClamp: reqClamp,
-		PitchDeg:          leveled.PitchDeg,
-		HtaDeg:            fr.HtaDeg,
-		NominalStaDeg:     nominalStaAct,
-		SeatAxisStaDeg:    seatAxisStaAct,
-		EffectiveStaDeg:   effStaAct,
-		ForkEffA2cMm:      forkEffA2c,
-		StructuralA2cMm:   forkEffA2c + build.PhysicalLowerCupMm,
+		Frame:                frame,
+		Build:                build,
+		Cockpit:              cockpit,
+		Seat:                 seat,
+		Fit:                  fit,
+		BB:                   fr.BB,
+		RearAxle:             fr.RearAxle,
+		HeadTubeTop:          fr.HeadTubeTop,
+		HeadTubeBottom:       fr.HeadTubeBottom,
+		LowerCupBottom:       lowerCupBottom,
+		FrontAxle:            fr.FrontAxle,
+		ChartL:               chartL,
+		ChartFrontAxle:       faChart,
+		DeclFrontAxle:        faDecl,
+		ResidualA2cMm:        resA2c,
+		ResidualFcMm:         resFc,
+		ResidualWbMm:         resWb,
+		SteererAxis:          steererAxis,
+		NominalSeatAxis:      nominalSeatAxis,
+		FrameSeatAxis:        frameSeatAxis,
+		EffectiveSeatAxis:    effSeatAxis,
+		SeatAxisPoint:        sa,
+		SeatpostClamp:        seatpostClamp,
+		RailCenter:           railCenter,
+		BRP:                  brp,
+		SitBones:             sb,
+		RequiredRailOffsetMm: reqRailOff,
+		RailMarginMm:         railMargin,
+		SteererClamp:         cockpitPts.SteererClamp,
+		StemClamp:            cockpitPts.StemClamp,
+		HandGrip:             cockpitPts.HandGrip,
+		TargetPoint:          fit.TargetPoint,
+		TargetRef:            fit.TargetRef,
+		RequiredStemClamp:    reqClamp,
+		PitchDeg:             leveled.PitchDeg,
+		HtaDeg:               fr.HtaDeg,
+		NominalStaDeg:        nominalStaAct,
+		SeatAxisStaDeg:       seatAxisStaAct,
+		EffectiveStaDeg:      effStaAct,
+		ForkEffA2cMm:         forkEffA2c,
+		StructuralA2cMm:      forkEffA2c + build.PhysicalLowerCupMm,
 	}, nil
 }
 
@@ -741,11 +752,6 @@ func (s BikeScene) EvaluatedCockpitPoint() geom2d.Point2 {
 
 // TargetPointError returns RequiredStemClamp - StemClamp (equivalently TargetPoint - EvaluatedCockpitPoint).
 func (s BikeScene) TargetPointError() geom2d.Vec2 { return s.RequiredStemClamp.Sub(s.StemClamp) }
-
-// RailMarginMm returns the remaining straight saddle rail adjustment margin in mm (negative means past clamp stop).
-func (s BikeScene) RailMarginMm() float64 {
-	return s.Seat.HalfRailWindowMm() - math.Abs(s.Seat.RailOffsetMm)
-}
 
 // SeatpostExtensionMm returns BrpHeightMm minus nominal SeatTubeLengthMm if SeatTubeLengthMm was provided.
 func (s BikeScene) SeatpostExtensionMm() (float64, bool) {
