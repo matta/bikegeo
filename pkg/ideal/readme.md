@@ -12,17 +12,15 @@ The **BRP (Biomechanical Reference Point)** is the standardized anatomical point
 
 > *The BRP (Biomechanical Reference Point) is the point, common to all saddles currently on the market, where the saddle reaches a width of 70mm. Defining the BRP allows you to have a common denominator from which you can calculate all the setup measurements for your saddle.* (idmatch Bikelab)
 
-Canonical idmatch documentation defines the handlebar reference point (HB) as **`StemClamp`** (the intersection between the handlebar and the stem clamp center). By contrast, a fit session recorded with a tracking marker at the rider's hands on a straight test bar measures **`HandGrip`**, while subtracting stated bar rise without sweep compensation yields **`UnsweptBarTop`**.
+Canonical idmatch documentation defines the handlebar reference point (HB) as **`StemClamp`** (the intersection between the handlebar and the stem clamp center). By contrast, a fit session recorded with a tracking marker at the rider's hands on a straight test bar measures **`HandGrip`**.
 
-To prevent the ~70 mm clamp-vs-grip ambiguity hidden by bare `HB` / `HX` / `HY` labels, cockpit values and targets distinguish three explicit physical reference points:
+To prevent the ~70 mm clamp-vs-grip ambiguity hidden by bare `HB` / `HX` / `HY` labels, cockpit values and targets distinguish the two physical reference points:
 - **`StemClamp`** (`StemClampPoint`, `StemClampX`, `StemClampY`): Intersection of the handlebar and the stem clamp center (canonical idmatch `HB` / frame-CAD stem center).
-- **`UnsweptBarTop`** (`UnsweptBarTopPoint`, `UnsweptBarTopX`, `UnsweptBarTopY`): `StemClamp + (0, Bar.StatedRiseMm)` — the bar top at the stem clamp X coordinate before backsweep (matching Seven Cycles' reading of `(481, 726)`).
 - **`HandGrip`** (`GripPoint`, `GripX`, `GripY`): Rider's physical hand contact center after backsweep, upsweep, grip inset, and bar roll (`StemClamp + BarOffset(Bar, GripInset, Roll)`).
 
 Every cockpit fit target `TargetPoint` (or distance `d` and drop `c` from `BRP`) must declare an explicit **`TargetRef`** governing how it translates to the required stem clamp center `C*`:
 - **`TargetHandGrip`**: Target is the physical hand grip position (`HandGrip`); required stem clamp is `C* = TargetPoint - BarOffset(Bar, Roll)`.
-- **`TargetUnsweptBarTop`**: Target is at the stem clamp X coordinate with stated bar rise included (`UnsweptBarTop`); required stem clamp is `C* = TargetPoint - (0, Bar.StatedRiseMm)`.
-- **`TargetStemClamp`**: Target is the stem clamp center directly (`StemClamp`); required stem clamp is `C* = TargetPoint`.
+- **`TargetStemClamp`**: Target is the stem clamp center directly (`StemClamp`, e.g., Seven Cycles' stem-center fit-sheet coordinate `(482, 676)` after subtracting `50 mm` bar rise from `726`); required stem clamp is `C* = TargetPoint`.
 - **`TargetReferenceBarClamp`**: Target is the stem clamp of the fit bike's handlebar (`ReferenceBar`), reproducing hand position via `C* = TargetPoint + BarOffset(ReferenceBar) - BarOffset(Bar, Roll)`.
 
 ### Four Standard idmatch Cockpit Measurements & Provenance
@@ -34,7 +32,7 @@ From an idmatch Bikelab report (e.g. `206563 - Matt Armstrong - Report idmatch B
 4. **Saddle-Handlebar Drop `(c)`**: `+13 mm` — Vertical height difference from BRP to the target cockpit point: `TargetY - BrpY` (positive = target is higher than BRP, `+3 mm` above `SitBones` at `Y = 723.1`).
 5. **Saddle angle from BB `(g)`**: `72.9°` — Polar angle from the Bottom Bracket to the BRP: `atan2(713, 219) = 72.93°`. (Note: this is the angle to the BRP itself, not a frame's Seat Tube Angle).
 
-**Provenance (`TargetUnsweptBarTop` vs. `TargetHandGrip`)**: With `BRP = (-219.0, 713.1)`, the `700 mm` / `+13 mm` target sits at `(481, 726)`. Under Seven Cycles' `TargetUnsweptBarTop` reading for `seven-custom` (subtracting `50 mm` stated bar rise without backsweep compensation, matching Seven's fit-sheet targets of `74.6 cm` saddle height, `7.6 cm` saddle-nose setback, `24.5 cm` saddle length / `X_tail = -321 mm`, `3.7 cm` saddle-to-stem drop `StemClampY = 676 mm`, and `80.3 cm` saddle-tail-to-bar reach `StemClampX = 482 mm`), the required `StemClamp` is `(481, 676)`. Under a `TargetHandGrip` reading with the Tumbleweed Persuader 20° bar (`BarOffset = (-72.8, +45.5)`), placing `HandGrip` at `(481, 726)` instead requires `StemClamp` at `C* = (553.7, 680.6)` (`~73 mm` further forward).
+**Provenance (`TargetStemClamp` vs. `TargetHandGrip`)**: With `BRP = (-219.0, 713.1)`, the `700 mm` / `+13 mm` target sits at `(481, 726)`. Seven Cycles subtracted `50 mm` stated bar rise without backsweep compensation to produce their stem-center fit-sheet target (`StemClampX = 482 mm`, `StemClampY = 676 mm`, matching `TargetStemClamp` at `(481, 676)` alongside `74.6 cm` saddle height, `7.6 cm` saddle-nose setback, `24.5 cm` saddle length / `X_tail = -321 mm`, `3.7 cm` saddle-to-stem drop, and `80.3 cm` saddle-tail-to-bar reach). Under a `TargetHandGrip` reading with the Tumbleweed Persuader 20° bar (`BarOffset = (-72.8, +45.5)`), placing `HandGrip` at `(481, 726)` instead requires `StemClamp` at `C* = (553.7, 680.6)` (`~73 mm` further forward).
 
 ---
 
@@ -97,7 +95,7 @@ Legacy 2D baseline calculation:
 - `GripX = StemClampX + Offset_X`
 - `GripY = StemClampY + Offset_Y`
 
-Under `TargetHandGrip`, to place the rider's hands at `(GripX, GripY)` from an idmatch report, the physical stem clamp center (`StemClamp`) must sit downward (`-50.0 mm`) and forward (`+47.9 mm`), correctly driving frame selection toward models with appropriate reach and stack. Under `TargetUnsweptBarTop`, the stem clamp sits directly at `(TargetX, TargetY - StatedRiseMm)` without backsweep compensation.
+Under `TargetHandGrip`, to place the rider's hands at `(GripX, GripY)` from an idmatch report, the physical stem clamp center (`StemClamp`) must sit downward (`-50.0 mm`) and forward (`+47.9 mm`), correctly driving frame selection toward models with appropriate reach and stack. Under `TargetStemClamp`, the stem clamp target coordinate `(StemClampX, StemClampY)` (e.g., after subtracting `StatedRiseMm` without backsweep compensation on Seven's fit sheet) is targeted directly.
 
 ### Handlebar Clamp Fit (`handlebar_clamp_fit`)
 When scoring cockpits against biomechanical profiles, handlebar positions are assessed against an **Area of Reasonable Fit** oval:
