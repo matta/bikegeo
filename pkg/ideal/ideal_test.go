@@ -113,6 +113,9 @@ func TestIdmatchProfileValid(t *testing.T) {
 	if p.SaddleHeightMm != model.Some(746.0) {
 		t.Errorf("Expected SaddleHeightMm 746, got %v", p.SaddleHeightMm)
 	}
+	if p.TargetRef != model.TargetHandGrip {
+		t.Errorf("Expected idmatch TargetRef HandGrip (%q), got %q", model.TargetHandGrip, p.TargetRef)
+	}
 	if err := ValidateProfile(p); err != nil {
 		t.Fatalf("ValidateProfile failed on idmatch: %v", err)
 	}
@@ -319,6 +322,54 @@ func TestValidation_StrictRejections(t *testing.T) {
 	}
 	if _, err := NormalizeAndValidate(pBadFloor); err == nil || !strings.Contains(err.Error(), "floor (10.0) must be negative") {
 		t.Errorf("Expected negative floor error, got: %v", err)
+	}
+
+	// 7. Invalid non-empty TargetRef
+	pBadTargetRef := &Profile{
+		Name:      "test-bad-ref",
+		TargetRef: "hb",
+		Attributes: []AttributeSpec{
+			{ID: "hta", Weight: 2, Ideal: Exact(68), Falloff: FalloffBoth(1, 1)},
+		},
+	}
+	if _, err := NormalizeAndValidate(pBadTargetRef); err == nil || !strings.Contains(err.Error(), "target_ref") {
+		t.Errorf("Expected invalid target_ref error, got: %v", err)
+	}
+
+	// 8. Missing TargetRef on cockpit-targeted profile
+	pMissingTargetRef := &Profile{
+		Name: "test-missing-ref",
+		Attributes: []AttributeSpec{
+			{ID: "saddle_hb", Weight: 10, Ideal: Exact(700), Falloff: FalloffBoth(20, 20)},
+		},
+	}
+	if _, err := NormalizeAndValidate(pMissingTargetRef); err == nil || !strings.Contains(err.Error(), "target_ref") {
+		t.Errorf("Expected missing cockpit target_ref error, got: %v", err)
+	}
+
+	// 9. TargetReferenceBarClamp without valid ReferenceBar
+	pMissingRefBar := &Profile{
+		Name:      "test-missing-ref-bar",
+		TargetRef: model.TargetReferenceBarClamp,
+		Attributes: []AttributeSpec{
+			{ID: "saddle_hb", Weight: 10, Ideal: Exact(630), Falloff: FalloffBoth(20, 20)},
+		},
+	}
+	if _, err := NormalizeAndValidate(pMissingRefBar); err == nil || !strings.Contains(err.Error(), "reference_bar") {
+		t.Errorf("Expected missing reference_bar error, got: %v", err)
+	}
+
+	// 10. Valid TargetReferenceBarClamp with positive-width ReferenceBar
+	pValidRefBar := &Profile{
+		Name:         "test-valid-ref-bar",
+		TargetRef:    model.TargetReferenceBarClamp,
+		ReferenceBar: model.Some(model.HandlebarSpec{ID: "flat", StockWidthMm: 760, CurrentWidthMm: 760}),
+		Attributes: []AttributeSpec{
+			{ID: "saddle_hb", Weight: 10, Ideal: Exact(630), Falloff: FalloffBoth(20, 20)},
+		},
+	}
+	if _, err := NormalizeAndValidate(pValidRefBar); err != nil {
+		t.Errorf("Expected valid TargetReferenceBarClamp profile to pass, got: %v", err)
 	}
 }
 

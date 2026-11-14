@@ -15,5 +15,6 @@ func DefaultRiderProfile() model.RiderProfile {
 		BaselineStemAngleDeg:          -6.0,
 		Handlebar:                     DefaultHandlebar(),
 		BaselineSaddleSetbackOffsetMm: 30.0,
+		TargetRef:                     model.TargetHandGrip,
 	}
 }

@@ -85,6 +85,8 @@ type Profile struct {
 	Name           string
 	Description    string
 	SaddleHeightMm model.Opt[float64]
+	TargetRef      model.TargetRef
+	ReferenceBar   model.Opt[model.HandlebarSpec]
 	Attributes     []AttributeSpec
 }
 
@@ -93,6 +95,7 @@ type ProfileSummary struct {
 	Name           string
 	Description    string
 	SaddleHeightMm model.Opt[float64]
+	TargetRef      model.TargetRef
 	AttributeCount int
 	ScoredCount    int
 }

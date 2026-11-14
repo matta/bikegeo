@@ -162,15 +162,16 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 		})
 	}
 
+	activeBRP := can.DeadCenterBRP
+	if can.SelectedBRP != nil {
+		activeBRP = *can.SelectedBRP
+	}
 	if len(can.PossibleBRPs) > 0 {
 		if bestBRP, ok := geometry.SelectBestBRP(can.PossibleBRPs, rowBrpMin, rowBrpMax); ok {
 			can.SelectedBRP = &bestBRP
 			can.SitBoneSetbackMm = bestBRP.SitBoneSetbackMm
 			can.AchievedClampOffset = bestBRP.AchievedClampOffsetMm
-		}
-		activeBRP := can.DeadCenterBRP
-		if can.SelectedBRP != nil {
-			activeBRP = *can.SelectedBRP
+			activeBRP = bestBRP
 		}
 		bar := can.Handlebar
 		if bar.ID == "" {
@@ -180,8 +181,8 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	}
 	if len(can.PossibleHBs) > 0 {
 		if hasClampFit && (rowDistMin.IsSet() || rowDistMax.IsSet()) {
-			geometry.ApplyCockpitFit(can, row.Bike, row.Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax)
-		} else if bestHB, ok := geometry.SelectBestHBWithDrop(can.PossibleHBs, row.Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax); ok {
+			geometry.ApplyCockpitFitForTarget(can, row.Bike, row.Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax, prof.TargetRef, prof.ReferenceBar)
+		} else if bestHB, ok := geometry.SelectBestHBWithDropForTarget(can.PossibleHBs, row.Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax, activeBRP, prof.TargetRef, prof.ReferenceBar); ok {
 			can.SelectedHB = &bestHB
 			can.SaddleHbMm = bestHB.SaddleHbMm
 			can.SaddleHbDropMm = bestHB.SaddleHbDropMm
@@ -308,12 +309,13 @@ func DescribeLoss(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val float6
 	return DescribeLossWithRow(spec, meta, val, dist, zone, nil)
 }
 
-func formatCockpitOffset(hb model.HBPoint, oval model.FitOval) string {
+func formatCockpitOffset(hb model.HBPoint, oval model.FitOval, targetRef model.TargetRef, refBar model.Opt[model.HandlebarSpec]) string {
 	if oval.CenterX == 0 && oval.CenterY == 0 {
 		return ""
 	}
-	dx := math.Round(hb.HbX - oval.CenterX)
-	dy := math.Round(hb.HbY - oval.CenterY)
+	evalPt := geometry.EvaluatedPointForHB(hb, targetRef, refBar)
+	dx := math.Round(evalPt.X - oval.CenterX)
+	dy := math.Round(evalPt.Y - oval.CenterY)
 
 	var reachStr string
 	if dx < 0 {
@@ -379,7 +381,7 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 			if cfr.StemPenalty > 0 {
 				stemNote = fmt.Sprintf(", -%.0f stem penalty", cfr.StemPenalty)
 			}
-			offsetStr := formatCockpitOffset(hb, cfr.TargetOval)
+			offsetStr := formatCockpitOffset(hb, cfr.TargetOval, cfr.TargetRef, cfr.ReferenceBar)
 			offsetPart := ""
 			if offsetStr != "" && (cfr.CountInside == 0 || cfr.BestR > 0) {
 				offsetPart = ", " + offsetStr

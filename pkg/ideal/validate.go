@@ -3,7 +3,30 @@ package ideal
 import (
 	"fmt"
 	"strings"
+
+	"bikegeo/pkg/model"
 )
+
+// HasCockpitTargets reports whether the profile evaluates cockpit position attributes.
+func (p *Profile) HasCockpitTargets() bool {
+	if p == nil {
+		return false
+	}
+	for _, attr := range p.Attributes {
+		if attr.Ideal == nil {
+			continue
+		}
+		id := strings.ToLower(strings.TrimSpace(attr.ID))
+		if meta, ok := LookupAttribute(attr.ID); ok {
+			id = meta.ID
+		}
+		switch id {
+		case "handlebar_clamp_fit", "saddle_hb", "saddle_hb_drop":
+			return true
+		}
+	}
+	return false
+}
 
 // ValidateProfile strictly validates an idealized frame profile.
 // Returns an error describing the exact attribute and problem if invalid.
@@ -14,6 +37,18 @@ func ValidateProfile(p *Profile) error {
 
 	if sh, ok := p.SaddleHeightMm.Get(); ok && sh <= 0 {
 		return fmt.Errorf("profile saddle_height_mm must be positive, got %.1f", sh)
+	}
+	if p.TargetRef != "" && !p.TargetRef.IsValid() {
+		return fmt.Errorf("profile target_ref must be HandGrip, StemClamp, or ReferenceBarClamp, got %q", p.TargetRef)
+	}
+	if p.HasCockpitTargets() && !p.TargetRef.IsValid() {
+		return fmt.Errorf("profile with cockpit targets requires explicit target_ref (HandGrip, StemClamp, or ReferenceBarClamp)")
+	}
+	if p.TargetRef == model.TargetReferenceBarClamp {
+		refBar, ok := p.ReferenceBar.Get()
+		if !ok || refBar.EffectiveWidthMm() <= 0 {
+			return fmt.Errorf("profile with target_ref ReferenceBarClamp requires reference_bar with positive width")
+		}
 	}
 
 	if len(p.Attributes) == 0 {

@@ -14,7 +14,7 @@ func TestPages_ContentCarriedOverFromCLI(t *testing.T) {
 		want []string
 	}{
 		{"/ideals", []string{"idmatch"}},
-		{"/ideals?name=idmatch", []string{"Ideal Profile: idmatch", "BRP Setback (brp_setback)"}},
+		{"/ideals?name=idmatch", []string{"Ideal Profile: idmatch", "Cockpit Target: HandGrip", "BRP Setback (brp_setback)"}},
 		{"/saddles?id=berthoud-aspin-open", []string{"Berthoud Aspin Open"}},
 		{"/saddles?id=selle-italia-slr-boost-superflow-l3", []string{"Selle Italia SLR Boost Superflow"}},
 		{"/saddle-swap", []string{"70mm BRP Point (X, Y)", "Fit Dimension / Checkpoint"}},

@@ -59,6 +59,9 @@ func (db *docb) showIdeal(name string) int {
 	if sh, ok := p.SaddleHeightMm.Get(); ok {
 		subtitleParts = append(subtitleParts, fmt.Sprintf("Designed for Saddle Height: %.0fmm", sh))
 	}
+	if p.TargetRef.IsValid() {
+		subtitleParts = append(subtitleParts, fmt.Sprintf("Cockpit Target: %s", p.TargetRef.Label()))
+	}
 	subtitle := strings.Join(subtitleParts, " | ")
 
 	headers := []string{

@@ -159,7 +159,8 @@ func TestExplainProfile_LossesAndH2H(t *testing.T) {
 
 func TestScoreRow_SaddleHb(t *testing.T) {
 	prof := &ideal.Profile{
-		Name: "test-saddle-hb",
+		Name:      "test-saddle-hb",
+		TargetRef: model.TargetHandGrip,
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:        "saddle_hb",
@@ -235,6 +236,7 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	prof := &ideal.Profile{
 		Name:           "test-idmatch",
 		SaddleHeightMm: model.Some(746.0),
+		TargetRef:      model.TargetHandGrip,
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "brp_setback",
@@ -425,6 +427,7 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 	prof := &ideal.Profile{
 		Name:           "test-clamp-fit",
 		SaddleHeightMm: model.Some(746.0),
+		TargetRef:      model.TargetHandGrip,
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "handlebar_clamp_fit",
@@ -545,6 +548,7 @@ func TestScoreRow_HandlebarClampFit_StemExtremityPenalty(t *testing.T) {
 	prof := &ideal.Profile{
 		Name:           "test-stem-extreme",
 		SaddleHeightMm: model.Some(746.0),
+		TargetRef:      model.TargetHandGrip,
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "handlebar_clamp_fit",
@@ -690,6 +694,7 @@ func TestScoreAllRows_FarOutsideCockpitStillRanksByDistance(t *testing.T) {
 	prof := &ideal.Profile{
 		Name:           "test-far-cockpit",
 		SaddleHeightMm: model.Some(746.0),
+		TargetRef:      model.TargetHandGrip,
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "handlebar_clamp_fit",
@@ -1029,5 +1034,175 @@ func TestExplainProfile_HeadToHeadReconcilesAllFactors(t *testing.T) {
 		if !strings.Contains(line, want) {
 			t.Errorf("H2H line missing %q:\n%s", want, line)
 		}
+	}
+}
+
+func TestScoreRow_CockpitTargetRefModes(t *testing.T) {
+	bar := catalog.DefaultHandlebar()
+	barOff := geometry.GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
+	flatBar := model.HandlebarSpec{
+		ID:             "flat-zero-bar",
+		Name:           "Flat Zero",
+		StockWidthMm:   700,
+		CurrentWidthMm: 700,
+	}
+
+	brp := model.BRPPoint{
+		BrpX:     -219.0,
+		BrpY:     713.0,
+		SitBoneX: -219.0,
+		SitBoneY: 713.0,
+	}
+	targetDist := 700.0
+	targetDrop := 13.0
+	targetY := brp.SitBoneY + targetDrop
+	targetX := brp.BrpX + math.Sqrt(targetDist*targetDist-math.Pow(targetY-brp.BrpY, 2))
+
+	// candA places HandGrip dead-center at (targetX, targetY).
+	candA := model.HBPoint{
+		Stem:           model.StemSpec{LengthMm: 60, AngleDeg: 0},
+		ClampX:         targetX - barOff.X,
+		ClampY:         targetY - barOff.Y,
+		HbX:            targetX,
+		HbY:            targetY,
+		SaddleHbMm:     targetDist,
+		SaddleHbDropMm: targetDrop,
+	}
+	// candB places StemClamp dead-center at (targetX, targetY), so its physical HandGrip
+	// sits offset by barOff and has distinct SaddleHbMm / SaddleHbDropMm.
+	gripBX := targetX + barOff.X
+	gripBY := targetY + barOff.Y
+	candB := model.HBPoint{
+		Stem:           model.StemSpec{LengthMm: 80, AngleDeg: 0},
+		ClampX:         targetX,
+		ClampY:         targetY,
+		HbX:            gripBX,
+		HbY:            gripBY,
+		SaddleHbMm:     math.Hypot(gripBX-brp.BrpX, gripBY-brp.BrpY),
+		SaddleHbDropMm: gripBY - brp.SitBoneY,
+	}
+
+	makeRow := func() model.CanonicalComparisonRow {
+		return model.CanonicalComparisonRow{
+			Bike: model.BikeGeometry{
+				CanonicalStem: model.StemSpec{LengthMm: 70, AngleDeg: 0},
+			},
+			Canonical: model.BikeFitAnalysis{
+				DeadCenterBRP: brp,
+				PossibleHBs:   []model.HBPoint{candA, candB},
+			},
+		}
+	}
+
+	makeProf := func(ref model.TargetRef, refBar model.Opt[model.HandlebarSpec]) *ideal.Profile {
+		return &ideal.Profile{
+			Name:           "test-target-ref",
+			SaddleHeightMm: model.Some(746.0),
+			TargetRef:      ref,
+			ReferenceBar:   refBar,
+			Attributes: []ideal.AttributeSpec{
+				{
+					ID:         "handlebar_clamp_fit",
+					Weight:     10,
+					Ideal:      &ideal.Range{Min: model.Some(100.0)},
+					Acceptable: &ideal.Range{Min: model.Some(75.0)},
+				},
+				{
+					ID:        "saddle_hb",
+					Weight:    0,
+					Ideal:     ideal.Exact(targetDist),
+					EdgeScore: model.Some(80.0),
+					Falloff:   &ideal.Falloff{Below: model.Some(50.0), Above: model.Some(50.0)},
+				},
+				{
+					ID:        "saddle_hb_drop",
+					Weight:    0,
+					Ideal:     ideal.Exact(targetDrop),
+					EdgeScore: model.Some(80.0),
+					Falloff:   &ideal.Falloff{Below: model.Some(50.0), Above: model.Some(50.0)},
+				},
+				{
+					ID:     "best_stem",
+					Weight: 0,
+				},
+			},
+		}
+	}
+
+	bestStemLen := func(res Result) float64 {
+		for _, c := range res.Criteria {
+			if c.ID == "best_stem" {
+				return c.Value
+			}
+		}
+		return 0
+	}
+
+	// 1. TargetHandGrip selects candA (60mm).
+	resHand := ScoreRow(makeRow(), makeProf(model.TargetHandGrip, model.Opt[model.HandlebarSpec]{}))
+	if got := bestStemLen(resHand); got != 60 {
+		t.Errorf("TargetHandGrip selected stem = %.0fmm, want 60mm", got)
+	}
+	if math.Round(resHand.Total) != 100 {
+		t.Errorf("TargetHandGrip total = %.2f, want ~100", resHand.Total)
+	}
+
+	// 2. TargetStemClamp selects candB (80mm).
+	profClamp := makeProf(model.TargetStemClamp, model.Opt[model.HandlebarSpec]{})
+	resClamp := ScoreRow(makeRow(), profClamp)
+	if got := bestStemLen(resClamp); got != 80 {
+		t.Errorf("TargetStemClamp selected stem = %.0fmm, want 80mm", got)
+	}
+	if math.Round(resClamp.Total) != 100 {
+		t.Errorf("TargetStemClamp total = %.2f, want ~100", resClamp.Total)
+	}
+
+	// Verify ApplyCockpitFitForTarget preserves physical HandGrip SaddleHbMm/DropMm on SelectedHB
+	// and DescribeLossWithRow measures offset from StemClamp rather than HandGrip.
+	rowClamp := makeRow()
+	geometry.ApplyCockpitFitForTarget(&rowClamp.Canonical, rowClamp.Bike, rowClamp.Bike.GetCanonicalStem(),
+		model.Some(targetDist), model.Some(targetDist), model.Some(targetDrop), model.Some(targetDrop),
+		model.TargetStemClamp, model.Opt[model.HandlebarSpec]{})
+	if rowClamp.Canonical.CockpitFitResult == nil || rowClamp.Canonical.CockpitFitResult.TargetRef != model.TargetStemClamp {
+		t.Fatalf("ApplyCockpitFitForTarget TargetRef = %+v, want TargetStemClamp", rowClamp.Canonical.CockpitFitResult)
+	}
+	if math.Abs(rowClamp.Canonical.SelectedHB.SaddleHbMm-candB.SaddleHbMm) > 1e-9 {
+		t.Errorf("SelectedHB.SaddleHbMm = %.3f, want physical HandGrip %.3f", rowClamp.Canonical.SelectedHB.SaddleHbMm, candB.SaddleHbMm)
+	}
+	shiftedOval := rowClamp.Canonical.CockpitFitResult.TargetOval
+	shiftedOval.CenterX += 25.0
+	fitOut := geometry.EvaluateCockpitFitForTarget([]model.HBPoint{candB}, rowClamp.Bike.GetCanonicalStem(), shiftedOval,
+		model.TargetStemClamp, model.Opt[model.HandlebarSpec]{})
+	rowOut := makeRow()
+	rowOut.Canonical.CockpitFitResult = &fitOut
+	rowOut.Canonical.SelectedHB = &fitOut.SelectedHB
+	lossMsg := DescribeLossWithRow(profClamp.Attributes[0], ideal.AttributeMeta{Label: "Oval Fits"}, fitOut.FinalSubScore, 0, ideal.ZoneOutside, &rowOut)
+	if !strings.Contains(lossMsg, "reach: 25mm short, stack: 0mm") {
+		t.Errorf("DescribeLossWithRow TargetStemClamp offset = %q, want StemClamp delta (25mm short, stack: 0mm)", lossMsg)
+	}
+
+	// 3. TargetReferenceBarClamp with flat zero-offset bar matches TargetHandGrip.
+	resRefFlat := ScoreRow(makeRow(), makeProf(model.TargetReferenceBarClamp, model.Some(flatBar)))
+	if got := bestStemLen(resRefFlat); got != 60 {
+		t.Errorf("TargetReferenceBarClamp(flatBar) selected stem = %.0fmm, want 60mm", got)
+	}
+	if math.Abs(resRefFlat.Total-resHand.Total) > 1e-6 {
+		t.Errorf("TargetReferenceBarClamp(flatBar) total = %.6f, want %.6f (matching TargetHandGrip)", resRefFlat.Total, resHand.Total)
+	}
+
+	// 4. TargetReferenceBarClamp with ReferenceBar == Handlebar matches TargetStemClamp.
+	resRefSame := ScoreRow(makeRow(), makeProf(model.TargetReferenceBarClamp, model.Some(bar)))
+	if got := bestStemLen(resRefSame); got != 80 {
+		t.Errorf("TargetReferenceBarClamp(sameBar) selected stem = %.0fmm, want 80mm", got)
+	}
+	if math.Abs(resRefSame.Total-resClamp.Total) > 1e-6 {
+		t.Errorf("TargetReferenceBarClamp(sameBar) total = %.6f, want %.6f (matching TargetStemClamp)", resRefSame.Total, resClamp.Total)
+	}
+
+	// 5. Fallback selector without handlebar_clamp_fit also honors TargetRef.
+	if got, ok := geometry.SelectBestHBWithDropForTarget([]model.HBPoint{candA, candB}, rowClamp.Bike.GetCanonicalStem(),
+		model.Some(targetDist), model.Some(targetDist), model.Some(targetDrop), model.Some(targetDrop),
+		brp, model.TargetStemClamp, model.Opt[model.HandlebarSpec]{}); !ok || got.Stem.LengthMm != 80 {
+		t.Errorf("SelectBestHBWithDropForTarget(TargetStemClamp) selected %.0fmm (ok=%v), want 80mm", got.Stem.LengthMm, ok)
 	}
 }

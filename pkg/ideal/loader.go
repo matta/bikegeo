@@ -13,6 +13,7 @@ func IdmatchProfile() *Profile {
 		Name:           "idmatch",
 		Description:    "Biomechanical fit profile based on idmatch Bikelab report (BRP -> HandGrip)",
 		SaddleHeightMm: model.Some(746.0),
+		TargetRef:      model.TargetHandGrip,
 		Attributes: []AttributeSpec{
 			{
 				ID:         "brp_setback",
@@ -153,6 +154,7 @@ func summarizeProfile(p *Profile) ProfileSummary {
 		Name:           p.Name,
 		Description:    p.Description,
 		SaddleHeightMm: p.SaddleHeightMm,
+		TargetRef:      p.TargetRef,
 		AttributeCount: len(p.Attributes),
 		ScoredCount:    scoredCount,
 	}

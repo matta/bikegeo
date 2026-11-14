@@ -628,6 +628,9 @@ func TestCompare_BreakdownSubtitleAndTranslatedH(t *testing.T) {
 	if !strings.Contains(matSub, "H (saddle height): 751.4mm (translated from 746mm)") {
 		t.Errorf("matrix subtitle should report translated H for Berthoud Aspin Open:\n%s", matSub)
 	}
+	if !strings.Contains(matSub, "| Ideal Profile: idmatch | Cockpit Target: HandGrip") {
+		t.Errorf("matrix subtitle should disclose active Cockpit Target:\n%s", matSub)
+	}
 
 	bdSub := tables[len(tables)-1].Subtitle
 	for _, want := range []string{

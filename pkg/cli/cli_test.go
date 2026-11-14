@@ -749,7 +749,7 @@ func TestCompare_ConfiguredHandlebar(t *testing.T) {
 		}
 		expectedLines := []string{
 			"H (saddle height): 746mm | Saddle: SQlab 610 Ergolux Active 2.1 | Seatpost: Redshift ShockStop (sagged 11mm) | Headset Top Stack: 11mm",
-			"Handlebar: Tumbleweed Persuader 20° (800mm, 50mm rise, 20° sweep, 4° upsweep) | Ideal Profile: idmatch",
+			"Handlebar: Tumbleweed Persuader 20° (800mm, 50mm rise, 20° sweep, 4° upsweep) | Ideal Profile: idmatch | Cockpit Target: HandGrip",
 		}
 		for _, exp := range expectedLines {
 			if !strings.Contains(out, exp) {

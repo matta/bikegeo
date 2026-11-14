@@ -241,9 +241,13 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		"H (saddle height): %s | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Headset Top Stack: %.0fmm | Modeled Back Angle: %.1f°",
 		hText, saddleName, model.DefaultHeadsetTopStackMm, backAngle,
 	)
+	cockpitTargetPart := ""
+	if prof.TargetRef.IsValid() {
+		cockpitTargetPart = fmt.Sprintf(" | Cockpit Target: %s", prof.TargetRef.Label())
+	}
 	line2 := fmt.Sprintf(
-		"Handlebar: %s (%.0fmm, %.0fmm rise, %.0f° sweep, %.0f° upsweep) | Ideal Profile: %s (*max stay position)",
-		baseBarName, bar.EffectiveWidthMm(), bar.StatedRiseMm, bar.BacksweepDeg, bar.UpsweepDeg, prof.Name,
+		"Handlebar: %s (%.0fmm, %.0fmm rise, %.0f° sweep, %.0f° upsweep) | Ideal Profile: %s%s (*max stay position)",
+		baseBarName, bar.EffectiveWidthMm(), bar.StatedRiseMm, bar.BacksweepDeg, bar.UpsweepDeg, prof.Name, cockpitTargetPart,
 	)
 	subtitle := fmt.Sprintf("%s\n%s", line1, line2)
 

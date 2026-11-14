@@ -917,8 +917,50 @@ type FitOval struct {
 	AngleDeg   Deg     // Clockwise rotation angle in degrees (default: 30.0 deg)
 }
 
+// TargetRef names the physical cockpit point a fit target refers to.
+// Every fit target must declare one explicitly; bare or implicit "HB" targets
+// are not permitted.
+type TargetRef string
+
+const (
+	// TargetHandGrip indicates the fit target is the rider's physical hand contact center (HandGrip).
+	TargetHandGrip TargetRef = "hand_grip"
+	// TargetStemClamp indicates the fit target is the handlebar/stem clamp center directly (StemClamp).
+	TargetStemClamp TargetRef = "stem_clamp"
+	// TargetReferenceBarClamp indicates the fit target is the stem clamp center of ReferenceBar
+	// on the fit bike, reproducing hand position through ReferenceBar's sweep/rise offset.
+	// TODO: this this strictly necessary? It seems like a YAGNI thing.
+	TargetReferenceBarClamp TargetRef = "reference_bar_clamp"
+)
+
+// IsValid reports whether r is a recognized TargetRef mode.
+func (r TargetRef) IsValid() bool {
+	switch r {
+	case TargetHandGrip, TargetStemClamp, TargetReferenceBarClamp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Label returns a concise human-readable description of the TargetRef mode.
+func (r TargetRef) Label() string {
+	switch r {
+	case TargetHandGrip:
+		return "HandGrip"
+	case TargetStemClamp:
+		return "StemClamp"
+	case TargetReferenceBarClamp:
+		return "ReferenceBar StemClamp"
+	default:
+		return "Unknown"
+	}
+}
+
 // CockpitFitResult captures the fit assessment of a bike's candidate handlebar positions against a FitOval.
 type CockpitFitResult struct {
+	TargetRef         TargetRef
+	ReferenceBar      Opt[HandlebarSpec]
 	TargetOval        FitOval
 	SelectedHB        HBPoint
 	BestR             float64
@@ -1490,6 +1532,8 @@ type RiderProfile struct {
 	BaselineStemAngleDeg          Deg
 	Handlebar                     HandlebarSpec
 	BaselineSaddleSetbackOffsetMm float64
+	TargetRef                     TargetRef
+	ReferenceBar                  Opt[HandlebarSpec]
 }
 
 type CanonicalConfig struct {
