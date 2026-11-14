@@ -977,7 +977,9 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 				if err != nil {
 					t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frame.ID, sz, err)
 				}
-				res, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Some(bike.CadFork.A2cMm), model.Some(bike.CadFork.RakeMm), profile, saddle)
+				cadBike := bike
+				cadBike.GeoHeadsetSpacerMm = bike.HeadsetCupType.CupStackMm()
+				res, err := geometry.AnalyzeBikeFitWithSaddle(cadBike, model.Some(cadBike.CadFork.A2cMm), model.Some(cadBike.CadFork.RakeMm), profile, saddle)
 				if err != nil {
 					t.Fatalf("AnalyzeBikeFitWithSaddle(%s %s): %v", frame.ID, sz, err)
 				}
@@ -1001,6 +1003,16 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 				}
 				if d := math.Abs(res.ActiveBbDrop - bike.BbDrop); d > 1e-6 {
 					t.Errorf("%s %s: BbDrop diff %.9f mm", frame.ID, sz, d)
+				}
+				if bike.HeadsetCupType.CupStackMm() > bike.GeoHeadsetSpacerMm {
+					physRes, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Some(bike.CadFork.A2cMm), model.Some(bike.CadFork.RakeMm), profile, saddle)
+					if err != nil {
+						t.Fatalf("AnalyzeBikeFitWithSaddle(%s %s physical cup): %v", frame.ID, sz, err)
+					}
+					if !(physRes.ActiveHta < bike.HtaDeg) {
+						t.Errorf("%s %s: physical lower cup %.1fmm > CAD %.1fmm did not slacken HTA: %.4f -> %.4f",
+							frame.ID, sz, bike.HeadsetCupType.CupStackMm(), bike.GeoHeadsetSpacerMm, bike.HtaDeg, physRes.ActiveHta)
+					}
 				}
 
 				htaRad := bike.HtaDeg.Angle()
@@ -1090,6 +1102,29 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 					if !(fitLonger.ActiveHta < fitBase.ActiveHta) {
 						t.Errorf("%s %s (%s): AnalyzeBikeFitWithSaddle longer front end did not slacken HTA: %.4f -> %.4f", frame.ID, sz, s.DisplayLabel, fitBase.ActiveHta, fitLonger.ActiveHta)
 					}
+					if bike.GeoHeadsetSpacerMm >= extraMm {
+						cupBike := bike
+						cupBike.GeoHeadsetSpacerMm -= extraMm
+						fitCup, err := geometry.AnalyzeBikeFitWithSaddle(cupBike, model.Some(s.A2cMm), model.Some(s.RakeMm), profile, saddle)
+						if err != nil {
+							t.Fatalf("AnalyzeBikeFitWithSaddle cup (%s %s %s): %v", frame.ID, sz, s.DisplayLabel, err)
+						}
+						if d := math.Abs(fitCup.ActiveReach - fitLonger.ActiveReach); d > 1e-9 {
+							t.Errorf("%s %s (%s): AnalyzeBikeFit Reach cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
+						}
+						if d := math.Abs(fitCup.ActiveStack - fitLonger.ActiveStack); d > 1e-9 {
+							t.Errorf("%s %s (%s): AnalyzeBikeFit Stack cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
+						}
+						if d := (fitCup.ActiveHta - fitLonger.ActiveHta).Abs(); d > 1e-9 {
+							t.Errorf("%s %s (%s): AnalyzeBikeFit HTA cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
+						}
+						if d := (fitCup.ActiveSta - fitLonger.ActiveSta).Abs(); d > 1e-9 {
+							t.Errorf("%s %s (%s): AnalyzeBikeFit STA cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
+						}
+						if d := math.Abs(fitCup.ActiveBbDrop - fitLonger.ActiveBbDrop); d > 1e-9 {
+							t.Errorf("%s %s (%s): AnalyzeBikeFit BbDrop cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
+						}
+					}
 				}
 			}
 		}
@@ -1111,7 +1146,7 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 					if err != nil {
 						t.Fatalf("AnalyzeBikeFitWithSaddle(%s %s %s): %v", frame.ID, sz, s.DisplayLabel, err)
 					}
-					dL := s.A2cMm - bike.CadFork.A2cMm
+					dL := (s.A2cMm + bike.HeadsetCupType.CupStackMm()) - (bike.CadFork.A2cMm + bike.GeoHeadsetSpacerMm)
 					uAct := geometry.SteererTubeDir(res.ActiveHta)
 					nAct := uAct.Perpendicular(geom2d.Clockwise)
 					htAct := geom2d.Point2{X: res.ActiveReach, Y: res.ActiveStack}

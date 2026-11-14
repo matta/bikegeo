@@ -124,7 +124,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 
 	var refDefLines []string
 	if hasAttr("reach", "stack", "hta", "sta", "bbdrop", "trail") {
-		refDefLines = append(refDefLines, "Frame & Chassis Specs: Reach, Stack, HTA, STA, BB Drop, and Trail reflect the dynamic, rotated frame attitude at the effective fork A2C and sag specified for each setup.")
+		refDefLines = append(refDefLines, "Frame & Chassis Specs: Reach, Stack, HTA, STA, BB Drop, and Trail reflect the dynamic, rotated frame attitude at the effective fork A2C, sag, and physical lower headset cup stack specified for each setup.")
 	}
 	if hasAttr("chainstay") {
 		refDefLines = append(refDefLines, "Chainstay (*): Asterisk indicates adjustable/sliding dropouts; displayed at maximum stay position (most rearward axle). Front Wt % and Seat Axis–Rear Axle are calculated at this exact position.")

@@ -1034,8 +1034,7 @@ func AnalyzeBikeFitWithSaddle(
 	geoSpacer := bike.GeoHeadsetSpacerMm
 	baseForkA2c := baseStructuralA2c - geoSpacer
 
-	// 2. Construct BikeScene under Commit 7 baseline assumptions:
-	//    PhysicalLowerCupMm = CadLowerCupMm (C4 in Commit 8).
+	// 2. Construct BikeScene from frame, build, cockpit, seat, and fit inputs.
 	frame, err := FrameSizeFromBikeGeometry(bike)
 	if err != nil {
 		return model.BikeFitAnalysis{}, err
@@ -1047,16 +1046,20 @@ func AnalyzeBikeFitWithSaddle(
 	buildFork := frame.CadFork
 	buildFork.RakeMm = rake
 	buildSag := frame.CadSagPct
+	physicalLowerCup := frame.CadLowerCupMm
 	if tA2c, ok := targetA2c.Get(); ok {
 		if !(bike.CadFork.A2cMm > 0 && tA2c == bike.CadFork.A2cMm) {
 			buildFork = Fork{StaticA2cMm: tA2c, RakeMm: rake}
 			buildSag = 0
 		}
+		if bike.HeadsetCupType.IsValid() {
+			physicalLowerCup = bike.HeadsetCupType.CupStackMm()
+		}
 	}
 	build := BuildSpec{
 		Fork:               buildFork,
 		SagPct:             buildSag,
-		PhysicalLowerCupMm: frame.CadLowerCupMm,
+		PhysicalLowerCupMm: physicalLowerCup,
 		WheelRadiusFrontMm: bike.WheelRadiusMm(),
 		WheelRadiusRearMm:  bike.WheelRadiusMm(),
 	}

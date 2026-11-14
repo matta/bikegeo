@@ -718,7 +718,7 @@ func TestMarkedCellsHaveZone(t *testing.T) {
 	checkPage("/")
 	checkPage("/?layout=columns&col=otso-fenrir-stainless:L@110mm@20%25&col=salsa-fargo:XL@rigid")
 
-	// Verify Otso Fenrir (L) @ 110mm Trail cell has ideal zone marker matching normalized CAD baseline.
+	// Verify Otso Fenrir (L) @ 110mm Trail cell reflects 12mm EC44 physical lower cup (acceptable zone).
 	_, doc := do(t, "/")
 	var fenrir110Trail *goquery.Selection
 	doc.Find(`table[data-table="fit-cockpit"] tbody tr[data-frame-id="otso-fenrir-stainless"][data-size="L"]`).Each(func(_ int, tr *goquery.Selection) {
@@ -729,11 +729,11 @@ func TestMarkedCellsHaveZone(t *testing.T) {
 	if fenrir110Trail == nil || fenrir110Trail.Length() != 1 {
 		t.Fatal("missing Fenrir L @ 110mm trail cell")
 	}
-	if got := text(fenrir110Trail); got != "104 ✓" {
-		t.Errorf("Fenrir L @ 110mm trail = %q, want %q", got, "104 ✓")
+	if got := text(fenrir110Trail); got != "108 ~ 2 slw" {
+		t.Errorf("Fenrir L @ 110mm trail = %q, want %q", got, "108 ~ 2 slw")
 	}
-	if got := fenrir110Trail.AttrOr("data-zone", ""); got != "ideal" || !fenrir110Trail.HasClass("zone-ideal") {
-		t.Errorf("Fenrir L @ 110mm trail zone=%q class=%q, want ideal / zone-ideal", got, fenrir110Trail.AttrOr("class", ""))
+	if got := fenrir110Trail.AttrOr("data-zone", ""); got != "acceptable" || !fenrir110Trail.HasClass("zone-acceptable") {
+		t.Errorf("Fenrir L @ 110mm trail zone=%q class=%q, want acceptable / zone-acceptable", got, fenrir110Trail.AttrOr("class", ""))
 	}
 }
 

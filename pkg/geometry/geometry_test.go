@@ -1076,10 +1076,10 @@ func TestCalculateDynamicGeometry_Exact2DRotation(t *testing.T) {
 	}
 }
 
-// F-p4ab-3: Normalizing CAD baseline vs CupStackMm/GeoHeadsetSpacerMm avoids spurious pitch at the CAD fork.
+// C4: Physical lower headset cup (HeadsetCupType.CupStackMm()) is applied in comparisons when it
+// differs from the chart baseline (GeoHeadsetSpacerMm).
 func TestAnalyzeBikeFit_NormalizesCadBaseline(t *testing.T) {
-	// Fenrir-like frame where CupEC44 (12mm) != GeoHeadsetSpacerMm (0mm) and Stack has slight slop vs 495mm CAD fork.
-	bike := model.BikeGeometry{
+	baseBike := model.BikeGeometry{
 		ID:                 "fenrir-xs",
 		Size:               "XS",
 		Reach:              387.0,
@@ -1092,15 +1092,96 @@ func TestAnalyzeBikeFit_NormalizesCadBaseline(t *testing.T) {
 		Wheelbase:          1098.0,
 		ChainstayLength:    450.0,
 		HeadsetCupType:     model.CupEC44,
-		GeoHeadsetSpacerMm: 0.0,
+		GeoHeadsetSpacerMm: 12.0,
 		CadFork:            model.ForkRef{Fork: "lithic_495", A2cMm: 495.0, RakeMm: 54.0},
 	}
-	fit, err := geometry.AnalyzeBikeFit(bike, model.Some(495.0), model.Opt[float64]{}, catalog.DefaultRiderProfile())
+	profile := catalog.DefaultRiderProfile()
+
+	// 1. When GeoHeadsetSpacerMm matches CupEC44.CupStackMm() (12mm), evaluating at the 495mm CAD fork
+	// preserves the published CAD chart without spurious pitch from chart Stack rounding residuals.
+	fitMatched, err := geometry.AnalyzeBikeFit(baseBike, model.Some(495.0), model.Opt[float64]{}, profile)
 	if err != nil {
-		t.Fatalf("AnalyzeBikeFit failed: %v", err)
+		t.Fatalf("AnalyzeBikeFit matched cup failed: %v", err)
 	}
-	if fit.DeltaAngleDeg != 0 || fit.ActiveReach != bike.Reach || fit.ActiveStack != bike.Stack || fit.ActiveHta != bike.HtaDeg || fit.ActiveBbDrop != bike.BbDrop {
-		t.Errorf("CAD fork evaluation should preserve published CAD chart: got Delta=%.2f Reach=%.1f Stack=%.1f HTA=%.2f BBD=%.1f",
-			fit.DeltaAngleDeg, fit.ActiveReach, fit.ActiveStack, fit.ActiveHta, fit.ActiveBbDrop)
+	if fitMatched.DeltaAngleDeg != 0 || fitMatched.ActiveReach != baseBike.Reach || fitMatched.ActiveStack != baseBike.Stack ||
+		fitMatched.ActiveHta != baseBike.HtaDeg || fitMatched.ActiveBbDrop != baseBike.BbDrop {
+		t.Errorf("CAD fork evaluation with matched cup should preserve published CAD chart: got Delta=%.2f Reach=%.1f Stack=%.1f HTA=%.2f BBD=%.1f",
+			fitMatched.DeltaAngleDeg, fitMatched.ActiveReach, fitMatched.ActiveStack, fitMatched.ActiveHta, fitMatched.ActiveBbDrop)
+	}
+
+	// 2. When GeoHeadsetSpacerMm is 0mm while HeadsetCupType is CupEC44 (12mm), evaluating at 495mm
+	// pitches the frame by the +12mm physical lower cup difference and matches BuildScene to < 1e-9.
+	cupDiffBike := baseBike
+	cupDiffBike.GeoHeadsetSpacerMm = 0.0
+	fitDiff, err := geometry.AnalyzeBikeFit(cupDiffBike, model.Some(495.0), model.Opt[float64]{}, profile)
+	if err != nil {
+		t.Fatalf("AnalyzeBikeFit physical cup failed: %v", err)
+	}
+	if math.Abs(fitDiff.StructuralA2c-507.0) > 1e-9 {
+		t.Errorf("expected StructuralA2c 507.0mm (495 + 12mm EC44), got %.6f", fitDiff.StructuralA2c)
+	}
+	if fitDiff.DeltaAngleDeg <= 0.5 || !(fitDiff.ActiveHta < cupDiffBike.HtaDeg) ||
+		!(fitDiff.ActiveReach < cupDiffBike.Reach) || !(fitDiff.ActiveStack > cupDiffBike.Stack) {
+		t.Errorf("expected +12mm EC44 cup to pitch nose up: Delta=%.3f HTA=%.3f Reach=%.2f Stack=%.2f",
+			fitDiff.DeltaAngleDeg, fitDiff.ActiveHta, fitDiff.ActiveReach, fitDiff.ActiveStack)
+	}
+
+	frame, err := geometry.FrameSizeFromBikeGeometry(cupDiffBike)
+	if err != nil {
+		t.Fatalf("FrameSizeFromBikeGeometry: %v", err)
+	}
+	saddle := catalog.DefaultSaddle()
+	bar := profile.Handlebar
+	if bar.ID == "" {
+		bar = catalog.DefaultHandlebar()
+	}
+	scene, err := geometry.BuildScene(
+		frame,
+		geometry.BuildSpec{
+			Fork:               frame.CadFork,
+			SagPct:             0,
+			PhysicalLowerCupMm: 12.0,
+			WheelRadiusFrontMm: cupDiffBike.WheelRadiusMm(),
+			WheelRadiusRearMm:  cupDiffBike.WheelRadiusMm(),
+		},
+		geometry.CockpitSpec{
+			HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
+			SpacerMm:          0.0,
+			Stem:              model.StemSpec{LengthMm: 70.0},
+			StemClampHeightMm: model.StemThicknessMm,
+			Handlebar:         bar,
+			GripInsetMm:       model.DefaultGripInsetMm,
+		},
+		geometry.SeatSpec{
+			PostSetbackMm: model.DefaultSeatpostSetbackMm,
+			ClampLengthMm: model.DefaultSeatpostClampLengthMm,
+			Saddle:        saddle,
+		},
+		geometry.RiderFit{
+			FrameSeatAxisHeightMm: profile.SaddleHeightMm,
+			BrpHeightMm:           profile.SaddleHeightMm,
+			TargetSitBonesXMm:     -292.0,
+			TargetPoint:           geom2d.Point2{X: 480.9, Y: 726.1},
+			TargetRef:             geometry.TargetHandGrip,
+			ReferenceSaddle:       saddle,
+		},
+	)
+	if err != nil {
+		t.Fatalf("BuildScene: %v", err)
+	}
+	if d := math.Abs(fitDiff.ActiveReach - scene.Reach()); d > 1e-9 {
+		t.Errorf("Reach diff vs BuildScene: %.12f", d)
+	}
+	if d := math.Abs(fitDiff.ActiveStack - scene.Stack()); d > 1e-9 {
+		t.Errorf("Stack diff vs BuildScene: %.12f", d)
+	}
+	if d := (fitDiff.ActiveHta - scene.HtaDeg).Abs(); d > 1e-9 {
+		t.Errorf("HTA diff vs BuildScene: %.12f", d)
+	}
+	if d := math.Abs(fitDiff.ActiveBbDrop - scene.BbDrop()); d > 1e-9 {
+		t.Errorf("BbDrop diff vs BuildScene: %.12f", d)
+	}
+	if d := (fitDiff.DeltaAngleDeg - scene.PitchDeg).Abs(); d > 1e-9 {
+		t.Errorf("DeltaAngleDeg diff vs BuildScene: %.12f", d)
 	}
 }
