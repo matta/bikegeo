@@ -130,12 +130,18 @@ Provenance: the fit-session details and Seven's fit-sheet numbers used below are
   - Regardless of which point matches your intended posture (`~631–647 mm` Persuader `HandGrip` vs. `700 mm` `StemClamp`), **the codebase's `HB`/`HX`/`HY` terminology actively conceals what is being measured**:
     - [readme.md](pkg/ideal/readme.md#L15) defines `HB` as the **stem clamp center** (canonical idmatch terminology).
     - `HBPoint` ([bike.go](pkg/model/bike.go#L893-L905)), `SaddleHbMm`, `BRP–HB`, `HB Rise`, `PossibleHBs`, and `SelectBestHB*` instead store and score the swept **`HandGrip`** point (`HbX/HbY`), while naming the scored attribute **`handlebar_clamp_fit`** (literally calling a grip check a *clamp* fit!).
-- **Required code cleanup (eliminate `HB` / `HX` / `HY` everywhere)**:
-  1. **Retire the ambiguous `HB`, `HX`, `HY` names.** Rename what the user reads now: CLI/Web table headers, footers, attribute display names, and [readme.md](pkg/ideal/readme.md). Use the two names below in all new code (`BikeScene`, the fit solve, `/bike`). Do not mass-rename internal identifiers that later steps delete (`HBPoint`, `PossibleHBs`, `SelectBestHB*`, `handlebar_clamp_fit`); they go away with their structs. The two unambiguous physical names:
-     - **`StemClamp`** (`StemClampPoint`, `StemClampX`, `StemClampY`, `BrpToStemClampMm`, `StemClampDropMm`) — intersection of the handlebar and stem clamp center (canonical idmatch `HB` / bike-CAD `HX, HY`).
-     - **`HandGrip`** (`GripPoint`, `GripX`, `GripY`, `BrpToGripMm`, `GripRiseAboveSitBonesMm`, `grip_fit`) — rider's hand contact center after backsweep, upsweep, grip inset, and bar roll.
-  2. **Declare an explicit `TargetRef` on every fit target**: Require `RiderFit` to specify whether the target coordinate measures `TargetRef: TargetHandGrip` *(reading 2: the marker was at the hands, and the hand position is reproduced)*, `TargetRef: TargetStemClamp` *(reading 1: the clamp goes to the target X with bar rise subtracted)*, or `TargetRef: TargetReferenceBarClamp` *(reading 3: the target is the clamp of the fit bike's bar, so `RiderFit.ReferenceBar` is required and the hands are reproduced through `BarOffset(ReferenceBar)`)*.
-  3. **Display `TargetPoint`, `StemClamp`, and `HandGrip` side-by-side** in both the SVG blueprint and arithmetic ledger so a 50–73 mm clamp-vs-grip discrepancy cannot hide behind an overloaded label.
+- **Required code cleanup (eliminate `HB` / `HX` / `HY` everywhere and require explicit point types on every value)**:
+  1. **Every cockpit value in code must explicitly state what physical point it represents—retire ambiguous `HB`, `HX`, `HY` names.** Rename what the user reads now (CLI/Web table headers, footers, attribute display names, and [readme.md](pkg/ideal/readme.md)) and require all new and surviving code (`BikeScene`, `RiderFit`, the fit solve, `/bike`) to name the exact physical reference point on every type, field, constructor, and literal:
+     - **`StemClamp`** (`StemClampPoint`, `StemClampX`, `StemClampY`, `BrpToStemClampMm`, `StemClampDropMm`) — intersection of the handlebar and stem clamp center (canonical idmatch `HB` / bike-CAD stem center).
+     - **`UnsweptBarTop`** (`UnsweptBarTopPoint`, `UnsweptBarTopX`, `UnsweptBarTopY`) — `StemClamp + (0, Bar.StatedRiseMm)` (the bar top at the stem clamp X coordinate before backsweep, as used in Seven's reading of `(481, 726)`).
+     - **`HandGrip`** (`GripPoint`, `GripX`, `GripY`, `BrpToGripMm`, `GripRiseAboveSitBonesMm`, `grip_fit`) — rider's hand contact center after backsweep, upsweep, grip inset, and bar roll (`StemClamp + BarOffset(Bar, GripInset, Roll)`).
+     - Do not mass-rename internal identifiers that later steps delete (`HBPoint`, `PossibleHBs`, `SelectBestHB*`, `handlebar_clamp_fit`); they go away with their structs.
+  2. **Require an explicit `TargetRef` on every cockpit fit target (no default or implicit interpretation)**: Every cockpit target coordinate or distance/drop pair in `RiderFit` must declare its `TargetRef` explicitly:
+     - `TargetHandGrip` *(reading 2: target is the physical hand grip position; `C* = TargetPoint - BarOffset(Bar, Roll)`)*,
+     - `TargetUnsweptBarTop` *(reading 1: target is at the stem clamp X with stated bar rise included; `C* = TargetPoint - (0, Bar.StatedRiseMm)`)*,
+     - `TargetStemClamp` *(target is the stem clamp center directly; `C* = TargetPoint`)*, or
+     - `TargetReferenceBarClamp` *(reading 3: target is the stem clamp of the fit bike's bar `ReferenceBar`; `C* = TargetPoint + BarOffset(ReferenceBar) - BarOffset(Bar, Roll)`)*.
+  3. **Display `TargetPoint` (with its `TargetRef`), `StemClamp`, and `HandGrip` side-by-side** in both the SVG blueprint and arithmetic ledger so a 50–73 mm clamp-vs-grip discrepancy cannot hide behind an overloaded label.
 
 ---
 
@@ -305,7 +311,7 @@ Instead of passing loose floats between `DynamicGeometryResult`, `BikeFitAnalysi
 - `BuildSpec`: `Fork{ID, StaticA2c, Rake, Travel}`, `SagPct`, `PhysicalLowerCupMm`, `WheelRadiusFront`, `WheelRadiusRear`.
 - `CockpitSpec`: `HeadsetTopStackMm`, `SpacerMm`, `Stem{Length, Angle, ClampHeight}`, `Handlebar`, `BarRoll`, `GripInset`.
 - `SeatSpec`: `PostSetbackMm`, `Saddle`, `RailOffsetMm`.
-- `RiderFit`: `LegExtensionOrBrpHeight`, `SitBonesTargetX` (or `TargetBrpSetback`), `TargetPoint` + `TargetRef` (`TargetHandGrip`, `TargetStemClamp`, or `TargetReferenceBarClamp`; see C1), `ReferenceSaddle`, `ReferenceBar` (the bar on the fit bike; used only by `TargetReferenceBarClamp`, where the hand target is `TargetPoint + BarOffset(ReferenceBar)`).
+- `RiderFit`: `LegExtensionOrBrpHeight`, `SitBonesTargetX` (or `TargetBrpSetback`), `TargetPoint` + explicit required `TargetRef` (`TargetHandGrip`, `TargetUnsweptBarTop`, `TargetStemClamp`, or `TargetReferenceBarClamp`; see C1—no bare/implicit `HB` target is permitted), `ReferenceSaddle`, `ReferenceBar` (the bar on the fit bike; required when `TargetRef == TargetReferenceBarClamp`).
 - Lower-cup names: `CadLowerCupMm` is today's `GeoHeadsetSpacerMm`, and `PhysicalLowerCupMm` is today's `HeadsetCupType.CupStackMm()`. Only those two names are used below.
 
 **Exact 2D Construction (BB initially `(0,0)`, `+X` forward, `+Y` up)**:
@@ -313,7 +319,7 @@ Instead of passing loose floats between `DynamicGeometryResult`, `BikeFitAnalysi
 ```text
 u = (-cos HTA,  sin HTA)           // up the steerer
 n = ( sin HTA,  cos HTA)           // forward perpendicular to steerer (rake direction)
-s = (-cos STA,  sin STA)           // up the seat tube (uses bent ray if ActualSta present)
+s = (-cos STA,  sin STA)           // up the seat tube (uses EffectiveSta(H, Stack, Sta) if ActualSta present)
 r = (-sin STA, -cos STA)           // rearward perpendicular to seat tube
 
 // 1. Chart attitude landmarks (with active fork, sag, and lower headset cup)
@@ -330,6 +336,8 @@ L_chart  = (Stack - BbDrop + CadFork.Rake * cos HTA) / sin HTA   // HT -> axle, 
 FA_chart = HT_0 - L_chart * u + CadFork.Rake * n                 // FA_chart.Y == RA_0.Y == BbDrop
 
 // 1b. The setup contributes only its differences from the CAD configuration.
+//     (If CadFork.A2C_eff is unset in synthetic tests, fall back to ForkA2c + CadLowerCupMm
+//     when within A2cBudget, else L_chart - HTL.)
 dL    = (A2C_eff + PhysicalLowerCupMm) - (CadFork.A2C_eff + CadLowerCupMm)
 FA_0  = HT_0 - (L_chart + dL) * u + Fork.Rake * n
 // With CadFork and CadLowerCupMm: dL = 0, FA_0 == FA_chart, and theta == 0 below.
@@ -346,7 +354,8 @@ SC = HT + (HeadsetTopStackMm + SpacerMm + StemClampHeight/2) * u_act
 CL = SC + Stem.Length * rotate(n_act, Stem.Angle)
 GR = CL + BarOffset(Handlebar, GripInset, BarRoll)
 
-// 4. Rear cockpit on leveled frame (STA_act = STA - theta)
+// 4. Rear cockpit on leveled frame (STA_act = STA_eff - theta)
+SA  = H_frame * s_frame_act                  // frame-only seat-axis point at radial H_frame (746 mm)
 p   = PostSetbackMm + RailOffsetMm - Saddle.RailCenterToBRP
 BRP = sqrt(H^2 - p^2) * s_act + p * r_act   // exact intersection at target BB-to-BRP height H (or SitBones Y)
 SB  = BRP + Saddle.BRPToSitBones
@@ -362,7 +371,7 @@ SB  = BRP + Saddle.BRPToSitBones
 | `Hta`, `Sta`, `BbDrop` | `Hta_cad - theta`, `Sta_cad - theta`, `RA.Y` *(verified `== FA.Y`)* | `NewHta`, `NewSta`, `NewBbDrop` |
 | `FrontCenter`, `RearCenter`, `Wheelbase` | `FA.X`, `-RA.X`, `FA.X - RA.X` | `CalculateFrontCenter`, `CalculateWeightDistribution` splits |
 | `Trail` | `(WheelRadius * cos(HTA_act) - Rake) / sin(HTA_act)` | `CalculateTrail` |
-| `ETT`, `AETT` | `HT.X - SeatRay.AtY(HT.Y).X`, `SteererRay.AtY(SB.Y).X - SeatRay.AtY(SB.Y).X` | `CalculateEtt`, `CalculateAett` |
+| `ETT`, `AETT` | `HT.X - NominalSeatRay.AtY(HT.Y).X`, `SteererRay.AtY(SA.Y).X - SA.X` *(frame-only at radial `H_frame = 746 mm`, independent of saddle/rail)* | `CalculateEtt`, `CalculateAett` |
 | `SitBoneSetback`, `BRPSetback` | `-SB.X`, `-BRP.X` | `CalculateBRPPoint`, `TranslateBrp*` |
 | `GripDistFromBRP`, `GripRiseAboveSB` | `GR.DistanceTo(BRP)`, `GR.Y - SB.Y` | `HBPoint.SaddleHbMm`, `SaddleHbDropMm` |
 | `RailMarginMm` | `Saddle.HalfRailWindow - abs(RailOffsetMm)` | Hidden inside boolean checks |
@@ -373,9 +382,9 @@ SB  = BRP + Saddle.BRPToSitBones
 - `ResidualWb`: `(FA_chart.X - RA_0.X) - PublishedWheelbase`
 `pkg/geometry/budget.go` then perturbs inputs straight through this single constructor, and `residuals.go` reads the same three values instead of keeping its own closed forms. If `bikegeo fit` keeps declared-fork `ΔFC` / `ΔWB` columns as a diagnostic, they read `FA_decl` and are labelled as such.
 
-### 2. Sit-Bone-First & Grip-First Fit Normalization
+### 2. Sit-Bone-First & Explicit-Point Cockpit Fit Normalization
 
-Convert idmatch's `sqlab-610-ergolux` BRP coordinates (`BRP = (-219, 713.1)`, `SitBones = (-292, 723.1)`) and cockpit target (`TargetPoint` with an explicit `TargetRef` of `TargetHandGrip`, `TargetStemClamp` or `TargetReferenceBarClamp`, per C1) **once** at profile load into physical coordinates:
+Convert idmatch's `sqlab-610-ergolux` BRP coordinates (`BRP = (-219, 713.1)`, `SitBones = (-292, 723.1)`) and cockpit target (`TargetPoint` with an explicit required `TargetRef` of `TargetHandGrip`, `TargetUnsweptBarTop`, `TargetStemClamp`, or `TargetReferenceBarClamp`, per C1) **once** at profile load into physical coordinates:
 
 1. For any candidate saddle `S`, solve `TargetRailCenter = TargetSitBones - (S.RailCenterToSitBones)` and solve `RequiredRailOffsetMm` against the active seat tube + post offset line in one step. Clamp to `[-HalfWindow, +HalfWindow]` only to display physical limits; surface `RailMarginMm = HalfWindow - |RequiredRailOffsetMm|` directly.
 2. Compute `BRP` and `BB-to-BRP Saddle Height` as pure workshop outputs for the mechanic's calipers.
@@ -383,11 +392,12 @@ Convert idmatch's `sqlab-610-ergolux` BRP coordinates (`BRP = (-219, 713.1)`, `S
 
 ### 3. Closed-Form 2×2 Linear Algebra Fit Solve vs. Continuous Curve Scoring
 
-Notice a striking mathematical fact about front-cockpit fitting: once `TargetPoint` (`G*`, if `TargetHandGrip`) and handlebar (`Bar`, `Roll`) are known, the required `StemClamp` point is fixed:
+Notice a striking mathematical fact about front-cockpit fitting: once `TargetPoint` (with its explicit `TargetRef`) and handlebar (`Bar`, `Roll`) are known, the required `StemClamp` point `C*` is fixed:
 ```text
-C* = G* - BarOffset(Bar, Roll)     (TargetHandGrip: G* = TargetPoint)
-TargetReferenceBarClamp:  C* = TargetPoint + BarOffset(ReferenceBar) - BarOffset(Bar, Roll)
+TargetHandGrip:           C* = TargetPoint - BarOffset(Bar, Roll)
+TargetUnsweptBarTop:      C* = TargetPoint - (0, Bar.StatedRiseMm)
 TargetStemClamp:          C* = TargetPoint
+TargetReferenceBarClamp:  C* = TargetPoint + BarOffset(ReferenceBar) - BarOffset(Bar, Roll)
 ```
 For any stem angle `a` (e.g., `-6°`, `0°`, `+6°`, `+17°`), finding the exact continuous **stem length `L`** and **steerer distance `t`** (`t = HeadsetTopStack + SpacerMm + StemClampHeight/2`) that puts `StemClamp` at `C*` is just **two linear equations in two unknowns**:
 ```text
@@ -396,11 +406,11 @@ HT + t · u_steer + L · u_stem(a) = C*
 Solving that 2×2 system (`det(u_steer, u_stem(a)) != 0` whenever stem isn't parallel to steerer) takes **5 lines of exact arithmetic** and outputs what the rider actually buys (making any clamp-vs-grip discrepancy unmistakable):
 
 ```text
-Seven Custom (TargetRef = TargetStemClamp)  -6°:  70 mm stem,  0 mm spacers | rail +13 mm | within hardware range (exact solve: 69 mm, -1 mm)
-Seven Custom (TargetRef = TargetHandGrip)   -6°: 140 mm stem, -14 mm spacers | rail +13 mm | stem > 100 mm (+40 mm over), spacers < 0 (not buildable)
-Seven Custom (TargetRef = TargetHandGrip)  -17°: 145 mm stem, +14 mm spacers | rail +13 mm | stem > 100 mm (+45 mm over)
+Seven Custom (TargetRef = TargetUnsweptBarTop) -6°:  70 mm stem,   0 mm spacers | rail +13 mm | within hardware range (exact solve: 69 mm, -1 mm)
+Seven Custom (TargetRef = TargetHandGrip)      -6°: 140 mm stem, -14 mm spacers | rail +13 mm | stem > 100 mm (+40 mm over), spacers < 0 (not buildable)
+Seven Custom (TargetRef = TargetHandGrip)     -17°: 145 mm stem, +14 mm spacers | rail +13 mm | stem > 100 mm (+45 mm over)
 ```
-*(Computed by hand from the 2×2 system above, not yet by code. Inputs: `HT = (424, 631)`, `HTA = 70°`, `HeadsetTopStackMm = 11`, `StemClampHeight = 40`, clamp target `(480.9, 676.1)`, grip target `(480.9, 726.1)`, Persuader offset `(-72.8, +45.5)`. The rail offset is today's tool output. Exact stock rounding adds ±2.5 mm.)*
+*(Computed by hand from the 2×2 system above, not yet by code. Inputs: `HT = (424, 631)`, `HTA = 70°`, `HeadsetTopStackMm = 11`, `StemClampHeight = 40`, `TargetPoint = (480.9, 726.1)`, `Bar.StatedRiseMm = 50` giving `C* = (480.9, 676.1)` under `TargetUnsweptBarTop`, Persuader offset `(-72.8, +45.5)` giving `C* = (553.7, 680.6)` under `TargetHandGrip`. The rail offset is today's tool output. Exact stock rounding adds ±2.5 mm.)*
 
 This gives two clean architectural options for grading bikes:
 - **Radical Fit Solve (Recommended)**: Replace the Fit Oval, 3-pass stem grid search, `VersatilityBonus`, `StemPenalty`, and composite weighted score with the closed-form 2×2 solve + nearest stock `(Stem, Spacer)` hardware match + millimeter excesses outside hardware limits (`0 mm` = exact hardware fit; `+40 mm stem` = transparent gap). Cuts ~2,200 LOC while eliminating arbitrary weights and score-vs-display mismatches.
@@ -486,24 +496,77 @@ Every figure below is measured from `find/wc -l` on current non-test Go sources 
 2. **One home for each domain fact**: `RiderFit` owns fit targets; `Catalog` owns fork `TravelMm` and `StaticA2c`; `BuildScene` owns kinematics; `EffectiveSta` exists in one function; sizes live in one ordered slice rather than a `Sizes` slice + `Geometries` map that can drift.
 3. **Types over string parsing**: Replace attribute alias matching (~55 strings in `LookupAttribute`), `ForkTravel()` substring splitting, and `IsRigidFork` display parsing with typed fields and `exhaustive`-checked enums.
 4. **Declare precision and provenance, don't infer from floats**: Add optional declared `ChartPrecision` on `FrameModel` and treat `Wheelbase` as optional when manufacturers omit it.
-5. **State every normalization on the page**: Extend the comparison header's seatpost disclosure to state `HeadsetTopStackMm`, lower cup behavior (`CadLowerCupMm` vs `PhysicalLowerCupMm`), wheel radius (`372 mm`), grip inset (`65 mm`), and cockpit target convention (`TargetRef`: `TargetHandGrip`, `TargetStemClamp` or `TargetReferenceBarClamp`).
+5. **State every normalization on the page**: Extend the comparison header's seatpost disclosure to state `HeadsetTopStackMm`, lower cup behavior (`CadLowerCupMm` vs `PhysicalLowerCupMm`), wheel radius (`372 mm`), grip inset (`65 mm`), and cockpit target convention (`TargetRef`: `TargetHandGrip`, `TargetUnsweptBarTop`, `TargetStemClamp`, or `TargetReferenceBarClamp`).
 6. **Registry-wide invariants before formatted-string tests**: Keep the 4 property tests on `AllFrames()` as permanent guardrails against C3, C4, and C6 regressions.
 7. **Deterministic output everywhere**: Sort map keys before iterating (`FrameValidationReport.ErrorSummary()`, `fit` candidate tie-breaking).
-8. **Literal names matching physics—retire `HB` / `HX` / `HY`**: Never overload `HB`/`HX`/`HY` across stem clamps and grips. Use **`StemClamp`** (`StemClampX`, `StemClampY`, `BrpToStemClampMm`) vs. **`HandGrip`** (`GripX`, `GripY`, `BrpToGripMm`), rename `handlebar_clamp_fit` to `grip_fit` (or remove via fit solve), rename `"Seatpost Ext"` to `BB-to-BRP minus SeatTube`, and make `"Oval Fits"` report what is graded.
+8. **Literal names matching physics—retire `HB` / `HX` / `HY` and require explicit point types on every value**: Never overload `HB`/`HX`/`HY` across stem clamps, unswept bar tops, and grips. Every cockpit coordinate, distance, drop, or target in code must explicitly declare what physical point it is (`StemClamp`, `UnsweptBarTop`, `HandGrip`, or `ReferenceBarClamp` via `TargetRef`), rename `handlebar_clamp_fit` to `grip_fit` (or remove via fit solve), rename `"Seatpost Ext"` to `BB-to-BRP minus SeatTube`, and make `"Oval Fits"` report what is graded.
 9. **Enforce dead-code cleanliness**: Delete unreferenced exports and add `go tool deadcode ./...` to `make check`.
 
-### 3. Recommended 8-Step Incremental Execution Order
+### 3. Granular Commit-by-Commit Execution Plan (23 Atomic Commits Across 5 Phases)
 
-Each step is small, independently reviewable, and keeps `go vet ./... && go test ./...` passing. A step that changes a rule in [AGENTS.md](AGENTS.md) amends that rule in the same change (§4):
+Every commit below has a single responsibility, is independently reviewable, and keeps `go vet ./... && go test ./...` passing. Refactors are strictly separated from behavior-changing fixes so test diffs only appear on commits that intentionally change an equation or label. Any commit that changes a rule in [AGENTS.md](AGENTS.md) or [docs/WEB.md](docs/WEB.md) amends that document in the same commit (§4).
 
-1. **Decide C1 and C4 (no code is needed to decide)**: Using the three readings in C1, confirm against the idmatch report, the fitter and Seven which point the `700 mm` target names, and raise reading 2 or 3 with Seven while the 2026-11-11 CAD preview can still change. Confirm whether the Fenrir/Fargo published charts omit the physical `EC44` lower cup. Record the answers and their sources in the frame `Notes` and [readme.md](pkg/ideal/readme.md). The only code in this step is renaming user-facing labels and docs to **`StemClamp`** vs. **`HandGrip`**; internal `HB*` identifiers are left to be deleted with their structs in steps 5–6.
-2. **Land the 4 registry-wide invariant tests**: Pin `AxlesStayLevel`, `RigidDistancesInvariantUnderPitch`, `CADForkReproducesPublishedChart`, and `CupAndA2cAreInterchangeable` (expect `AxlesStayLevel` to expose C3 immediately).
-3. **Introduce `BikeScene` (`pkg/geometry/scene.go`) alongside existing code, with `RiderFit` as an explicit input from the start** (C7; `/bike`'s `saddle_h` depends on it): Assert exact agreement with existing Reach/Stack/HTA/BB Drop for constant-rake swaps. Then land the output-changing fixes as four separate commits, each stating its expected change in the message and tests: C3 (rake in the leveling; `2.1–3.6 mm`), C2 (`HeadsetTopStackMm`; ~4 mm X and ~10 mm Y on every cockpit), C4 (cup policy; Fenrir and Fargo only), and C6 (`validator` + `budget` read one construction; no pass/fail change under the recommended rule).
-4. **Ship `/bike` inline `<svg>` + Computation Ledger on top of `BikeScene`, Panel A first**: Draw the Full-Bike view with `TargetPoint`, `StemClamp` and `HandGrip` labelled, `−10 −5 +5 +10` zero-JS nudges, and the 5-stage ledger. Verify visual closure on C1 and C2 immediately. Cockpit Zoom (`Reachable Polygon + FitOval`), Saddle Rail Zoom, the alignment toggle and the `/validate` overlay follow as separate changes.
-5. **Ship the closed-form 2×2 hardware fit solve beside the existing score**: Display exact solved `(StemLength, SpacerMm, RailOffsetMm)` next to current scores and verify on real comparisons (`seven-custom`, `fenrir`, `compare all`).
-6. **Migrate all remaining metrics & cut `BikeScene` duplicates**: Route ETT, AETT, Trail, Seatpost Ext, and the labelled `RearCenter / Wheelbase` ratio through `BikeScene`; delete `CalculateBaselinePosture`, `GetDefaultBaselineBike`, `BaselineMetrics`, `ApplyIdealCockpitTargets` duplicate in `ScoreRow`, and dead helpers.
-7. **Tighten input types & eliminate silent fallbacks (C7, C8, C9, C10)**: Move the remaining callers onto `RiderFit` (with sit-bone-first normalization), typed `Fork`/`Setup`, explicit-key spec syntax (dropping `reorderFlagsForStdlib`), optional `Wheelbase`, declared `ChartPrecision`, sorted error summaries, and convert fallback defaults into errors (mostly test-fixture work; see C8).
-8. **Execute the chosen Web/CLI surface diet**: Collapse `/saddles`, `/saddle-swap`, `/handlebars`, `/stems`, `/forks`, and `/ideals` into `/bike` selectors + ghost overlay, simplify `pkg/fit`, and—if the 2×2 hardware solve proves clearly superior—retire the composite scoring/oval machinery and add `go tool deadcode ./...` to `make check`.
+**Resolved pre-implementation decisions**:
+- **C1 / Explicit Cockpit Point Typing**: Every cockpit coordinate, distance, drop, or target in code must explicitly state what physical point it represents (`StemClamp`, `UnsweptBarTop`, `HandGrip`, or `ReferenceBarClamp` via `TargetRef`)—no bare or implicit `HB` / `HX` / `HY` values are permitted anywhere. All four `TargetRef` modes remain supported so readings 1–3 can be evaluated and compared explicitly while C1 is verified with Seven and the fitter.
+- **C4 (Lower Headset Cup Policy)**: Apply `PhysicalLowerCupMm - CadLowerCupMm` (`HeadsetCupType.CupStackMm() - GeoHeadsetSpacerMm`) in `compare`, keeping the validator warning accurate and updating `TestAnalyzeBikeFit_NormalizesCadBaseline` in the same commit.
+- **`AETT` Definition**: Keep `AETT` as a pure frame-only metric at radial `seatHeight` (`746 mm`) along the seat-tube axis (`SeatAxisPoint`), independent of saddle model, seatpost setback, and rail offset (preserving zero diff when `BikeScene` lands).
+- **Scoring & Diet Strategy**: Execute Conservative Consolidation through Phase 4 (keeping the 0–100 continuous curve score alongside the closed-form 2×2 hardware solve), then decide in Phase 5 whether to retire composite scoring.
+
+#### Phase 1: Provenance Docs, User-Facing Disambiguation & Guardrail Tests
+1. **`docs: record C1 target convention and C4 lower-cup provenance`**
+   - Document the four explicit `TargetRef` conventions (`TargetHandGrip`, `TargetUnsweptBarTop`, `TargetStemClamp`, `TargetReferenceBarClamp`) and C4 lower-cup verification notes in [pkg/ideal/readme.md](pkg/ideal/readme.md) and frame `Notes` ([seven_custom.go](pkg/frames/seven_custom.go), [otso_fenrir_stainless.go](pkg/frames/otso_fenrir_stainless.go), [salsa_fargo.go](pkg/frames/salsa_fargo.go)).
+2. **`refactor(compare,web,ideal): clarify StemClamp vs HandGrip in user-facing labels`**
+   - Rename CLI/Web table headers, footers, and attribute display labels from ambiguous `HB` / `HX` / `HY` to explicit `StemClamp` or `HandGrip` (updating golden/DOM assertions only). Zero math changes.
+3. **`test(validator): add registry-wide geometric invariant property tests`**
+   - Add `RigidDistancesInvariantUnderPitch`, `CADForkReproducesPublishedChart`, `CupAndA2cAreInterchangeable`, and `AxlesStayLevel` (with C3's known rake-swap delta temporarily asserted or skipped until Commit 6).
+
+#### Phase 2: `BikeScene` Foundation & Isolated Correctness Fixes (One Fix per Commit)
+4. **`feat(geometry): introduce explicit RiderFit/TargetRef and pure-2D BikeScene constructor`**
+   - Add `pkg/geometry/scene.go` (`BuildScene`, `RiderFit` with required `TargetRef`, `FrameSize`, `BuildSpec`, `CockpitSpec`, `SeatSpec`) alongside existing code, plus unit tests verifying exact parity with `CalculateDynamicGeometry` on constant-rake setups. Zero existing callers changed yet.
+5. **`refactor(geometry): route CalculateDynamicGeometry and cockpit points through BikeScene`**
+   - Wire `AnalyzeBikeFitWithSaddle` to read `Reach`, `Stack`, `HTA`, `STA`, `BbDrop`, `BRP`, `StemClamp`, and `HandGrip` from `BikeScene` under existing baseline assumptions (`HeadsetTopStackMm = 0`, constant-rake pitch, `CadLowerCupMm` baseline). **Pure refactor: zero output change across all tests.**
+6. **`fix(geometry): level both axles across fork rake changes (C3)`**
+   - Switch `BikeScene` pitch leveling to include `Fork.Rake` (`theta = -atan2(FA_0.Y - RA_0.Y, FA_0.X - RA_0.X)`), enable strict `< 1e-6` in `AxlesStayLevel` across all frames × forks × sags, and update affected test expectations (`1.2–2.0 mm` Reach, `0.8–1.4 mm` Stack, `0.11°–0.18°` HTA).
+7. **`fix(geometry): model upper HeadsetTopStackMm between head tube top and stem (C2)`**
+   - Add `HeadsetTopStackMm` (`11 mm` default, disclosed in the comparison header) to `CockpitSpec` / `BikeScene` and update cockpit test expectations (`~3.8 mm` X, `~10.3 mm` Y).
+8. **`fix(geometry): apply physical lower headset cup stack in comparisons (C4)`**
+   - Pitch by `PhysicalLowerCupMm - CadLowerCupMm` (`HeadsetCupType.CupStackMm() - GeoHeadsetSpacerMm`) so `otso-fenrir-stainless` and `salsa-fargo` match the validator disclosure, and update `TestAnalyzeBikeFit_NormalizesCadBaseline` in the same commit.
+9. **`feat(ideal,compare): wire explicit TargetRef modes into cockpit target evaluation (C1)`**
+   - Require every cockpit target in `RiderFit` / `IdmatchProfile` to state its `TargetRef` (`TargetHandGrip`, `TargetUnsweptBarTop`, `TargetStemClamp`, `TargetReferenceBarClamp`) and disclose the active `TargetRef` in the comparison header.
+10. **`refactor(validator,geometry): unify closure residuals on BikeScene (C6)`**
+    - Route `validator.ValidateBikeGeometry`, `geometry.A2cBudget`/`FrontCenterBudget`/`WheelbaseBudget`, and `validator.SizeResiduals` through `BikeScene`'s `FA_chart` and `FA_decl` points. Zero change to frame pass/fail or `GeoSlopMm` allowances.
+
+#### Phase 3: Deduplication, Metric Migration & Papercut Fixes
+11. **`refactor(scoring,canonicalizer): remove duplicate 3-pass cockpit selection in ScoreRow (C7)`**
+    - Make `ScoreRow` read the already-computed `CockpitFit` from `CanonicalComparisonRow` instead of mutating a throwaway copy. **Pure refactor: zero output change.**
+12. **`refactor(geometry): normalize saddle fit once via SitBones and delete Translate*FromRef (C7)`**
+    - Compute rail offset directly from `SitBones` in `BikeScene`, removing `TranslateSaddleHeightFromRef`, `TranslateHbDistanceFromRef`, `TranslateBrpFromRef`, `TargetBrpForPelvicSetback`, `TranslateClampOffset`, and scattered `746.0` / `219.0` / `292.0` literals.
+13. **`fix(geometry,compare): replace phantom Fenrir posture model with RearCenter/Wheelbase ratio (C5)`**
+    - Delete `GetDefaultBaselineBike` and `CalculateBaselinePosture` (~200 LOC), remove `Modeled Back Angle: 53.6°` from headers, and replace `Front Wt` with the labelled `RearCenter / Wheelbase` ratio.
+14. **`refactor(geometry,model): unify HasBentSeatTube, ETT, AETT, and Trail on BikeScene`**
+    - Consolidate the three `EffectiveSta` / `HasBentSeatTube` implementations and route `ETT`, `AETT` (at radial `H_frame = 746 mm`), `Trail`, and `Seatpost Ext` through `BikeScene` readouts. **Pure refactor: zero output change.**
+15. **`fix(curve,model): fix StemPenalty C1 slope at u=1 and sort ErrorSummary keys (C11)`**
+    - Fix `curve.StemPenalty` exterior derivative at `u = 1` ([curve.go](pkg/curve/curve.go#L145-L160)) and sort size keys in `FrameValidationReport.ErrorSummary()` ([bike.go](pkg/model/bike.go#L1465-L1475)).
+
+#### Phase 4: Closed-Form 2×2 Fit Solve & Visual Workbench
+16. **`feat(geometry,compare): add closed-form 2x2 linear fit solve alongside curve score`**
+    - Implement the 5-line 2×2 solver `(StemLengthMm, SpacerMm)` for each explicit `TargetRef` and display the solved hardware alongside the 0–100 curve score on real comparisons (`seven-custom`, `fenrir`, `compare all`).
+17. **`feat(web): add /bike route with Panel A full-bike inline SVG and zero-JS nudge links`**
+    - Ship the ~300-line single-bike SVG view (`TargetPoint` with `TargetRef`, `StemClamp`, `HandGrip`, frame/fork/cockpit/saddle) and `GET` query nudges (`−10 −5 +5 +10`).
+18. **`feat(web): add 5-stage arithmetic computation ledger to /bike and compare details`**
+    - Render the 5-stage intermediate calculation table in `<details>`.
+19. **`feat(web): add cockpit/saddle zoom panels and multi-bike ghost overlay (optional follow-ons)`**
+    - Add Panels B and C and the `BB` / `SitBones` overlay toggle if still wanted after Panel A lands.
+
+#### Phase 5: Input Tightening & Surface Diet (Each Amending `AGENTS.md` / `docs/WEB.md` in the Same Commit)
+20. **`refactor(model,canonicalizer,ideal): replace string-parsed fork travel and attribute aliases with typed fields (C10)`**
+    - Use `catalog.Fork` `TravelMm` / booleans instead of parsing `"_"` or `"rigid"` strings, and replace the ~55 string aliases in `LookupAttribute` with typed `MetricID` constants checked by `exhaustive`.
+21. **`feat(model,validator,frames): support optional Wheelbase and declared ChartPrecision (C9)`**
+    - Allow omitted `Wheelbase` on frames that do not publish it (`moots-mountaineer`, `seven-expedition-926d`, `seven-expedition-926f`), add optional declared `ChartPrecision` (`seven-custom`), and update [AGENTS.md](AGENTS.md).
+22. **`refactor(geometry,geom2d): replace silent <=0 fallback defaults with explicit constructor errors (C8)`**
+    - Add a shared complete test-fixture builder in `pkg/*/*_test.go` and remove the ~20 silent fallback defaults (`1150`, `430`/`440`, `120`, `44`, `hbDropMm == 0 → 13.0`).
+23. **`refactor(web,compare,fit): execute chosen surface diet and add deadcode check to make check`**
+    - Decide whether to retain or retire the composite 0–100 curve score after evaluating Phase 4, fold redundant web sub-pages into `/bike`, update [AGENTS.md](AGENTS.md) and [docs/WEB.md](docs/WEB.md), delete unreferenced exports, and add `go tool deadcode ./...` to `make check`.
 
 ### 4. Repository Rules This Plan Changes
 
