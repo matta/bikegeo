@@ -23,7 +23,7 @@ var OtsoFenrirStainless = model.FrameModel{
 		{Fork: "sid_100", A2cMm: 506, RakeMm: 44},
 		{Fork: "fox34_120", A2cMm: 530, RakeMm: 44},
 	},
-	Notes: "Stainless steel bikepacking & adventure frame designed around the 495mm Lithic carbon rigid fork (54mm offset, rear Tuning Chip 450mm chainstay / 72mm BB drop position) or 100-120mm suspension forks with an EC44 external lower headset cup.",
+	Notes: "Stainless steel bikepacking & adventure frame designed around the 495mm Lithic carbon rigid fork (54mm offset, rear Tuning Chip 450mm chainstay / 72mm BB drop position) or 100-120mm suspension forks with an EC44 external lower headset cup. Lower-cup provenance (C4): the published geometry chart closes to the bare head tube with GeoHeadsetSpacerMm: 0 (CadLowerCupMm = 0) around the 495mm fork A2C, while a physical tapered-steerer build uses an external EC44 lower headset cup (HeadsetCupType: CupEC44, 12mm physical stack) that adds 12mm to the front-end structural length relative to the bare-headtube chart (pending manufacturer confirmation of whether the CAD chart omitted the lower cup).",
 	Geometries: map[string]model.SizeGeometry{
 		"XS": {
 			Reach:           387,

@@ -12,16 +12,29 @@ The **BRP (Biomechanical Reference Point)** is the standardized anatomical point
 
 > *The BRP (Biomechanical Reference Point) is the point, common to all saddles currently on the market, where the saddle reaches a width of 70mm. Defining the BRP allows you to have a common denominator from which you can calculate all the setup measurements for your saddle.* (idmatch Bikelab)
 
-The **HB reference point** is the intersection between the handlebar and the stem clamp center.
+Canonical idmatch documentation defines the handlebar reference point (HB) as **`StemClamp`** (the intersection between the handlebar and the stem clamp center). By contrast, a fit session recorded with a tracking marker at the rider's hands on a straight test bar measures **`HandGrip`**, while subtracting stated bar rise without sweep compensation yields **`UnsweptBarTop`**.
 
-### Four Standard idmatch Cockpit Measurements
+To prevent the ~70 mm clamp-vs-grip ambiguity hidden by bare `HB` / `HX` / `HY` labels, cockpit values and targets distinguish three explicit physical reference points:
+- **`StemClamp`** (`StemClampPoint`, `StemClampX`, `StemClampY`): Intersection of the handlebar and the stem clamp center (canonical idmatch `HB` / frame-CAD stem center).
+- **`UnsweptBarTop`** (`UnsweptBarTopPoint`, `UnsweptBarTopX`, `UnsweptBarTopY`): `StemClamp + (0, Bar.StatedRiseMm)` — the bar top at the stem clamp X coordinate before backsweep (matching Seven Cycles' reading of `(481, 726)`).
+- **`HandGrip`** (`GripPoint`, `GripX`, `GripY`): Rider's physical hand contact center after backsweep, upsweep, grip inset, and bar roll (`StemClamp + BarOffset(Bar, GripInset, Roll)`).
+
+Every cockpit fit target `TargetPoint` (or distance `d` and drop `c` from `BRP`) must declare an explicit **`TargetRef`** governing how it translates to the required stem clamp center `C*`:
+- **`TargetHandGrip`**: Target is the physical hand grip position (`HandGrip`); required stem clamp is `C* = TargetPoint - BarOffset(Bar, Roll)`.
+- **`TargetUnsweptBarTop`**: Target is at the stem clamp X coordinate with stated bar rise included (`UnsweptBarTop`); required stem clamp is `C* = TargetPoint - (0, Bar.StatedRiseMm)`.
+- **`TargetStemClamp`**: Target is the stem clamp center directly (`StemClamp`); required stem clamp is `C* = TargetPoint`.
+- **`TargetReferenceBarClamp`**: Target is the stem clamp of the fit bike's handlebar (`ReferenceBar`), reproducing hand position via `C* = TargetPoint + BarOffset(ReferenceBar) - BarOffset(Bar, Roll)`.
+
+### Four Standard idmatch Cockpit Measurements & Provenance
 
 From an idmatch Bikelab report (e.g. `206563 - Matt Armstrong - Report idmatch Bikelab.pdf`):
 1. **Saddle height `(a)`**: `746 mm` — Radial distance from the Bottom Bracket spindle center `(0, 0)` to the BRP.
 2. **Saddle setback `(b)`**: `219 mm` — Horizontal distance behind the Bottom Bracket to the BRP.
-3. **Saddle-Handlebar distance `(d)`**: `700 mm` — Direct 2D Euclidean distance from BRP to HB: `hypot(HbX - BrpX, HbY - BrpY)`.
-4. **Saddle-Handlebar Drop `(c)`**: `+13 mm` — Vertical height difference from BRP to HB: `HbY - BrpY` (positive = HB is higher than saddle).
+3. **Saddle-Handlebar distance `(d)`**: `700 mm` — Direct 2D Euclidean distance from BRP to the target cockpit point (`(481, 726)` relative to `BRP = (-219.0, 713.1)`): `hypot(TargetX - BrpX, TargetY - BrpY)`.
+4. **Saddle-Handlebar Drop `(c)`**: `+13 mm` — Vertical height difference from BRP to the target cockpit point: `TargetY - BrpY` (positive = target is higher than BRP, `+3 mm` above `SitBones` at `Y = 723.1`).
 5. **Saddle angle from BB `(g)`**: `72.9°` — Polar angle from the Bottom Bracket to the BRP: `atan2(713, 219) = 72.93°`. (Note: this is the angle to the BRP itself, not a frame's Seat Tube Angle).
+
+**Provenance (`TargetUnsweptBarTop` vs. `TargetHandGrip`)**: With `BRP = (-219.0, 713.1)`, the `700 mm` / `+13 mm` target sits at `(481, 726)`. Under Seven Cycles' `TargetUnsweptBarTop` reading for `seven-custom` (subtracting `50 mm` stated bar rise without backsweep compensation, matching Seven's fit-sheet targets of `74.6 cm` saddle height, `7.6 cm` saddle-nose setback, `24.5 cm` saddle length / `X_tail = -321 mm`, `3.7 cm` saddle-to-stem drop `StemClampY = 676 mm`, and `80.3 cm` saddle-tail-to-bar reach `StemClampX = 482 mm`), the required `StemClamp` is `(481, 676)`. Under a `TargetHandGrip` reading with the Tumbleweed Persuader 20° bar (`BarOffset = (-72.8, +45.5)`), placing `HandGrip` at `(481, 726)` instead requires `StemClamp` at `C* = (553.7, 680.6)` (`~73 mm` further forward).
 
 ---
 
@@ -52,16 +65,16 @@ When a target setback is specified (e.g. `219 mm` in `idmatch`), `SelectBestBRP`
 
 ---
 
-## Front Cockpit Optimization (`HBPoint`) & Area of Reasonable Fit
+## Front Cockpit Optimization (`StemClamp` / `HandGrip`) & Area of Reasonable Fit
 
-The steerer tube extends upward and rearward at polar angle `180° - HTA`. With stem clamp thickness of 40 mm and steerer spacers `s` (`0..max_spacer_mm` in 5 mm steps), the center of the stem handlebar clamp sits at:
-- `SteererX = Reach - (s + 20.0) * cos(HTA)`
-- `SteererY = Stack + (s + 20.0) * sin(HTA)`
-- `ClampX = SteererX + LengthMm * cos((90° - HTA) + AngleDeg)`
-- `ClampY = SteererY + LengthMm * sin((90° - HTA) + AngleDeg)`
+The steerer tube extends upward and rearward at polar angle `180° - HTA`. With upper headset bearing cover stack `HeadsetTopStackMm` (`~11 mm` on `EC44`/`ZS44` headsets), steerer spacers `s` (`0..max_spacer_mm` in 5 mm steps), and stem clamp thickness of `40 mm` (`StemThicknessMm`), the center of the stem handlebar clamp (`StemClamp`) sits at:
+- `SteererX = Reach - (HeadsetTopStackMm + s + StemThicknessMm/2) * cos(HTA)`
+- `SteererY = Stack + (HeadsetTopStackMm + s + StemThicknessMm/2) * sin(HTA)`
+- `StemClampX = SteererX + LengthMm * cos((90° - HTA) + AngleDeg)`
+- `StemClampY = SteererY + LengthMm * sin((90° - HTA) + AngleDeg)`
 
 ### Handlebar Component Geometry & Contact Point Offset
-A handlebar component translates the stem clamp center (`P_HB`) to the hand grip center (`P_Grip`) and vice versa. Rather than relying solely on naive trigonometry (`Width/2 * tan(sweep)`), `bikegeo` implements a complete 3D piecewise linear kinematic transformation model (`pkg/geometry/handlebar.go`, `pkg/catalog/handlebars.go`):
+A handlebar component translates the stem clamp center (`StemClamp`) to the hand grip center (`HandGrip`) and vice versa. Rather than relying solely on naive trigonometry (`Width/2 * tan(sweep)`), `bikegeo` implements a complete 3D piecewise linear kinematic transformation model (`pkg/geometry/handlebar.go`, `pkg/catalog/handlebars.go`):
 
 1. **Lateral Hand Coordinate**: `z_hand = W / 2 - d_grip` (with standard `d_grip = 65 mm` inboard of bar tip, or `70 mm` for wing grips).
 2. **Swept Lever Arm**: `L_z = max(0, z_hand - z_b)`, where `z_b` is the effective lateral bend start.
@@ -81,10 +94,10 @@ Legacy 2D baseline calculation:
 - `swept_span = max(0, (800 / 2) - 190.0 - 70.0) = 140.0 mm`
 - `Offset_X = -swept_span * sin(20°) = -47.88 mm` (rearward pullback)
 - `Offset_Y = +50.0 mm` (upward riser)
-- `HbX = ClampX + Offset_X`
-- `HbY = ClampY + Offset_Y`
+- `GripX = StemClampX + Offset_X`
+- `GripY = StemClampY + Offset_Y`
 
-To place the rider's hands at the target `(HbX, HbY)` from an idmatch report, the physical stem clamp center must sit downward (`-50.0 mm`) and forward (`+47.9 mm`), correctly driving frame selection toward models with appropriate reach and stack.
+Under `TargetHandGrip`, to place the rider's hands at `(GripX, GripY)` from an idmatch report, the physical stem clamp center (`StemClamp`) must sit downward (`-50.0 mm`) and forward (`+47.9 mm`), correctly driving frame selection toward models with appropriate reach and stack. Under `TargetUnsweptBarTop`, the stem clamp sits directly at `(TargetX, TargetY - StatedRiseMm)` without backsweep compensation.
 
 ### Handlebar Clamp Fit (`handlebar_clamp_fit`)
 When scoring cockpits against biomechanical profiles, handlebar positions are assessed against an **Area of Reasonable Fit** oval:
