@@ -715,6 +715,33 @@ func ApplyCockpitFitForTarget(
 		can.SelectedHB = &fitRes.SelectedHB
 		can.SaddleHbMm = fitRes.SelectedHB.SaddleHbMm
 		can.SaddleHbDropMm = fitRes.SelectedHB.SaddleHbDropMm
+		if can.ActiveHta > 0 {
+			reqClamp, err := RequiredStemClamp(RiderFit{
+				TargetPoint:  geom2d.Point2{X: oval.CenterX, Y: oval.CenterY},
+				TargetRef:    targetRef,
+				ReferenceBar: refBar,
+			}, CockpitSpec{
+				HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
+				StemClampHeightMm: model.StemThicknessMm,
+				Handlebar:         can.Handlebar,
+				GripInsetMm:       model.DefaultGripInsetMm,
+			})
+			if err == nil {
+				sc := BikeScene{
+					HeadTubeTop:       geom2d.Point2{X: can.ActiveReach, Y: can.ActiveStack},
+					HtaDeg:            can.ActiveHta,
+					Cockpit:           CockpitSpec{HeadsetTopStackMm: model.DefaultHeadsetTopStackMm, StemClampHeightMm: model.StemThicknessMm},
+					RequiredStemClamp: reqClamp,
+				}
+				if solved, ok := sc.SolveStemSpacerFit(fitRes.SelectedHB.Stem.AngleDeg); ok {
+					can.StemSpacerFit = &model.StemSpacerFit{
+						StemAngleDeg: solved.StemAngleDeg,
+						StemLengthMm: solved.StemLengthMm,
+						SpacerMm:     solved.SpacerMm,
+					}
+				}
+			}
+		}
 		return
 	}
 
@@ -1113,6 +1140,19 @@ func AnalyzeBikeFitWithSaddle(
 		saddleHbDropMm = best.SaddleHbDropMm
 	}
 
+	solveAngle := baseStem.AngleDeg
+	if selectedHB != nil {
+		solveAngle = selectedHB.Stem.AngleDeg
+	}
+	var stemSpacerFit *model.StemSpacerFit
+	if solved, ok := scene.SolveStemSpacerFit(solveAngle); ok {
+		stemSpacerFit = &model.StemSpacerFit{
+			StemAngleDeg: solved.StemAngleDeg,
+			StemLengthMm: solved.StemLengthMm,
+			SpacerMm:     solved.SpacerMm,
+		}
+	}
+
 	idealSTA := saddle.IdealSeatTubeAngle(model.DefaultTargetSitBoneSetbackMm, brpSeatHeight, model.DefaultSeatpostSetbackMm)
 
 	return model.BikeFitAnalysis{
@@ -1152,6 +1192,7 @@ func AnalyzeBikeFitWithSaddle(
 		SaddleHbMm:          saddleHbMm,
 		SaddleHbDropMm:      saddleHbDropMm,
 		SelectedHB:          selectedHB,
+		StemSpacerFit:       stemSpacerFit,
 		PossibleHBs:         possibleHBs,
 	}, nil
 }

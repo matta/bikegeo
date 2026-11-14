@@ -751,6 +751,36 @@ func (s BikeScene) EvaluatedCockpitPoint() geom2d.Point2 {
 	}
 }
 
+// StemSpacerFit holds the exact stem length and spacer stack that places
+// StemClamp at RequiredStemClamp for a given stem angle.
+type StemSpacerFit struct {
+	StemAngleDeg model.Deg
+	StemLengthMm float64
+	SpacerMm     float64
+}
+
+// SolveStemSpacerFit solves for the exact continuous (StemLengthMm, SpacerMm) at
+// stemAngleDeg that places StemClamp at RequiredStemClamp. Returns false if the
+// stem is parallel to the steerer axis.
+func (s BikeScene) SolveStemSpacerFit(stemAngleDeg model.Deg) (StemSpacerFit, bool) {
+	uSteer := SteererTubeDir(s.HtaDeg)
+	nSteer := uSteer.Perpendicular(geom2d.Clockwise)
+	uStem := nSteer.Rotate(stemAngleDeg.Angle())
+	det := uSteer.X*uStem.Y - uSteer.Y*uStem.X
+	if math.Abs(det) < 1e-9 {
+		return StemSpacerFit{}, false
+	}
+	rhs := s.RequiredStemClamp.Sub(s.HeadTubeTop)
+	t := (rhs.X*uStem.Y - rhs.Y*uStem.X) / det
+	l := (uSteer.X*rhs.Y - uSteer.Y*rhs.X) / det
+	spacer := t - (s.Cockpit.HeadsetTopStackMm + s.Cockpit.StemClampHeightMm/2.0)
+	return StemSpacerFit{
+		StemAngleDeg: stemAngleDeg,
+		StemLengthMm: l,
+		SpacerMm:     spacer,
+	}, true
+}
+
 // TargetPointError returns RequiredStemClamp - StemClamp (equivalently TargetPoint - EvaluatedCockpitPoint).
 func (s BikeScene) TargetPointError() geom2d.Vec2 { return s.RequiredStemClamp.Sub(s.StemClamp) }
 

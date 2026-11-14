@@ -317,6 +317,29 @@ var registry = []AttributeMeta{
 		},
 	},
 	{
+		ID:       "stem_spacer_fit",
+		Label:    "Stem/Spacer Fit",
+		Unit:     "",
+		Decimals: 0,
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.StemSpacerFit == nil {
+				return 0, false
+			}
+			return row.Canonical.StemSpacerFit.StemLengthMm, true
+		},
+		FormatVal: func(val float64, row *model.CanonicalComparisonRow) string {
+			if row != nil && row.Canonical.StemSpacerFit != nil {
+				fit := row.Canonical.StemSpacerFit
+				sign := "+"
+				if fit.SpacerMm < 0 {
+					sign = ""
+				}
+				return fmt.Sprintf("%.0fmm %.0f° %s%.0fmm", fit.StemLengthMm, fit.StemAngleDeg, sign, fit.SpacerMm)
+			}
+			return fmt.Sprintf("%.0fmm", val)
+		},
+	},
+	{
 		ID:        "sit_bone_setback",
 		Label:     "Sit Bones",
 		Unit:      "mm",

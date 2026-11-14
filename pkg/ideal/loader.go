@@ -36,6 +36,7 @@ func IdmatchProfile() *Profile {
 			DisplayOnlyWithTarget("saddle_hb", Between(695, 705), Between(685, 715), model.Some(75.0), FalloffBoth(15, 15)),
 			DisplayOnlyWithTarget("saddle_hb_drop", Between(-2, 8), Between(-10, 16), model.Some(75.0), FalloffBoth(10, 10)),
 			DisplayOnly("best_stem"),
+			DisplayOnly("stem_spacer_fit"),
 			{
 				ID:         "handlebar_clamp_fit",
 				Weight:     15,

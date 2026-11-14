@@ -552,3 +552,109 @@ func TestBuildScene_ValidationAndZeroDefaults(t *testing.T) {
 		t.Errorf("zero-rise/zero-sweep bar should put HandGrip == StemClamp, got dist %.9f", scZero.HandGrip.DistanceTo(scZero.StemClamp))
 	}
 }
+
+func TestSolveStemSpacerFit(t *testing.T) {
+	// Seven Custom geometry from SIMPLIFY_G.md Part II §3:
+	// HT = (424, 631), HTA = 70°, HeadsetTopStackMm = 11, StemClampHeight = 40.
+	persuader := catalog.DefaultHandlebar()
+	saddle := catalog.DefaultSaddle()
+	frame := geometry.FrameSize{
+		ReachMm:     424,
+		StackMm:     631,
+		HtaDeg:      70,
+		StaDeg:      74,
+		HtlMm:       120,
+		BbDropMm:    70,
+		ChainstayMm: 450,
+		CadFork:     geometry.Fork{StaticA2cMm: 492, RakeMm: 51},
+		CadSagPct:   0,
+		WheelbaseMm: model.Some(1140.0),
+	}
+	build := geometry.BuildSpec{
+		Fork:               frame.CadFork,
+		SagPct:             0,
+		WheelRadiusFrontMm: 372,
+		WheelRadiusRearMm:  372,
+	}
+	cockpit := geometry.CockpitSpec{
+		HeadsetTopStackMm: 11,
+		SpacerMm:          0,
+		Stem:              model.StemSpec{LengthMm: 70, AngleDeg: -6},
+		StemClampHeightMm: 40,
+		Handlebar:         persuader,
+		GripInsetMm:       model.DefaultGripInsetMm,
+	}
+	seat := geometry.SeatSpec{
+		PostSetbackMm: model.DefaultSeatpostSetbackMm,
+		ClampLengthMm: model.DefaultSeatpostClampLengthMm,
+		Saddle:        saddle,
+	}
+
+	// 1. TargetStemClamp @ (480.9, 676.1) with -6° stem -> ~69mm stem, ~-1mm spacers.
+	fitClamp := geometry.RiderFit{
+		FrameSeatAxisHeightMm: 746,
+		BrpHeightMm:           746,
+		TargetSitBonesXMm:     -292,
+		TargetPoint:           geom2d.Point2{X: 480.9, Y: 676.1},
+		TargetRef:             geometry.TargetStemClamp,
+		ReferenceSaddle:       saddle,
+	}
+	scClamp, err := geometry.BuildScene(frame, build, cockpit, seat, fitClamp)
+	if err != nil {
+		t.Fatalf("BuildScene(TargetStemClamp): %v", err)
+	}
+	sClamp, ok := scClamp.SolveStemSpacerFit(-6)
+	if !ok {
+		t.Fatal("SolveStemSpacerFit(-6) returned false")
+	}
+	if math.Abs(sClamp.StemLengthMm-69.2) > 0.5 || math.Abs(sClamp.SpacerMm-(-1.3)) > 0.5 {
+		t.Errorf("TargetStemClamp -6° = (L=%.2f, sp=%.2f), want ~(69.2, -1.3)", sClamp.StemLengthMm, sClamp.SpacerMm)
+	}
+
+	// 2. TargetHandGrip @ (480.9, 726.1) with Persuader:
+	//    -6° -> ~140mm stem, ~-14mm spacers
+	//   -17° -> ~145mm stem, ~+14mm spacers
+	fitGrip := fitClamp
+	fitGrip.TargetPoint = geom2d.Point2{X: 480.9, Y: 726.1}
+	fitGrip.TargetRef = geometry.TargetHandGrip
+	scGrip, err := geometry.BuildScene(frame, build, cockpit, seat, fitGrip)
+	if err != nil {
+		t.Fatalf("BuildScene(TargetHandGrip): %v", err)
+	}
+	sGrip6, ok := scGrip.SolveStemSpacerFit(-6)
+	if !ok {
+		t.Fatal("SolveStemSpacerFit(-6) returned false")
+	}
+	if math.Abs(sGrip6.StemLengthMm-140.0) > 1.0 || math.Abs(sGrip6.SpacerMm-(-14.0)) > 1.0 {
+		t.Errorf("TargetHandGrip -6° = (L=%.2f, sp=%.2f), want ~(140, -14)", sGrip6.StemLengthMm, sGrip6.SpacerMm)
+	}
+	sGrip17, ok := scGrip.SolveStemSpacerFit(-17)
+	if !ok {
+		t.Fatal("SolveStemSpacerFit(-17) returned false")
+	}
+	if math.Abs(sGrip17.StemLengthMm-145.0) > 1.0 || math.Abs(sGrip17.SpacerMm-14.0) > 1.0 {
+		t.Errorf("TargetHandGrip -17° = (L=%.2f, sp=%.2f), want ~(145, +14)", sGrip17.StemLengthMm, sGrip17.SpacerMm)
+	}
+
+	// 3. Round-trip: vector identity for all solved angles, plus WithCockpit for buildable +spacer solve (-17°).
+	uSteer := geometry.SteererTubeDir(scGrip.HtaDeg)
+	nSteer := uSteer.Perpendicular(geom2d.Clockwise)
+	for _, sol := range []geometry.StemSpacerFit{sGrip6, sGrip17} {
+		tSteer := cockpit.HeadsetTopStackMm + sol.SpacerMm + cockpit.StemClampHeightMm/2.0
+		uStem := nSteer.Rotate(sol.StemAngleDeg.Angle())
+		reconstructed := scGrip.HeadTubeTop.Add(uSteer.Scale(tSteer)).Add(uStem.Scale(sol.StemLengthMm))
+		if d := reconstructed.DistanceTo(scGrip.RequiredStemClamp); d > 1e-9 {
+			t.Errorf("2x2 reconstruction error at %.0f° = %.12f mm, want < 1e-9", sol.StemAngleDeg, d)
+		}
+	}
+	c17 := cockpit
+	c17.Stem = model.StemSpec{LengthMm: sGrip17.StemLengthMm, AngleDeg: sGrip17.StemAngleDeg}
+	c17.SpacerMm = sGrip17.SpacerMm
+	roundTrip, err := scGrip.WithCockpit(c17)
+	if err != nil {
+		t.Fatalf("WithCockpit(-17°): %v", err)
+	}
+	if d := roundTrip.TargetPointError().Norm(); d > 1e-9 {
+		t.Errorf("round-trip error at -17° = %.12f mm, want < 1e-9", d)
+	}
+}

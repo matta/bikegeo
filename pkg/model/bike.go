@@ -1453,6 +1453,14 @@ type DynamicGeometryResult struct {
 	TotalNewA2c   float64
 }
 
+// StemSpacerFit holds the exact stem length and spacer stack at a given stem
+// angle that places StemClamp at RequiredStemClamp.
+type StemSpacerFit struct {
+	StemAngleDeg Deg
+	StemLengthMm float64
+	SpacerMm     float64
+}
+
 type BikeFitAnalysis struct {
 	StructuralA2c       float64
 	ActiveReach         float64
@@ -1494,6 +1502,7 @@ type BikeFitAnalysis struct {
 	SelectedHB          *HBPoint
 	PossibleHBs         []HBPoint
 	CockpitFitResult    *CockpitFitResult
+	StemSpacerFit       *StemSpacerFit
 }
 
 type BaselineMetrics struct {
