@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
@@ -96,6 +95,8 @@ func translateAttributeSpecForSaddle(spec ideal.AttributeSpec, saddle model.Sadd
 }
 
 // ScoreRow scores a single CanonicalComparisonRow against an ideal profile.
+// Cockpit fit (SelectedBRP, SelectedHB, CockpitFitResult) must already be populated
+// on row.Canonical (e.g., via canonicalizer.ApplyIdealCockpitTargets).
 func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	if prof == nil {
 		prof = ideal.IdmatchProfile()
@@ -111,83 +112,7 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 
 	var evals []attrEval
 	totalActiveWeight := 0.0
-
-	var brpMin, brpMax model.Opt[float64]
-	var distMin, distMax model.Opt[float64]
-	var dropMin, dropMax model.Opt[float64]
-	var hasClampFit bool
-
-	for _, spec := range prof.Attributes {
-		lowID := strings.ToLower(spec.ID)
-		if lowID == "handlebar_clamp_fit" || lowID == "cockpit_fit" || lowID == "clamp_fit" {
-			hasClampFit = true
-		} else if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && spec.Ideal != nil {
-			brpMin = spec.Ideal.Min
-			brpMax = spec.Ideal.Max
-		} else if (lowID == "saddle_hb" || lowID == "saddlehb") && spec.Ideal != nil {
-			distMin = spec.Ideal.Min
-			distMax = spec.Ideal.Max
-		} else if (lowID == "saddle_hb_drop" || lowID == "hb_drop" || lowID == "saddlehbdrop") && spec.Ideal != nil {
-			dropMin = spec.Ideal.Min
-			dropMax = spec.Ideal.Max
-		}
-	}
-
 	can := &row.Canonical
-
-	rowBrpMin, rowBrpMax := brpMin, brpMax
-	rowDistMin, rowDistMax := distMin, distMax
-	rowDropMin, rowDropMax := dropMin, dropMax
-	if can.Saddle.ID != "" && can.Saddle.ID != "sqlab-610-ergolux" {
-		refSQ := model.ReferenceIdmatchSaddle()
-		rowBrpMin = brpMin.Map(func(v float64) float64 {
-			return can.Saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(v))
-		})
-		rowBrpMax = brpMax.Map(func(v float64) float64 {
-			return can.Saddle.TargetBrpForPelvicSetback(refSQ.SitBoneSetbackFromBrp(v))
-		})
-		refRise := 3.0
-		if dMin, ok := dropMin.Get(); ok {
-			if dMax, ok := dropMax.Get(); ok {
-				refRise = (dMin + dMax) / 2.0
-			} else {
-				refRise = dMin
-			}
-		}
-		rowDistMin = distMin.Map(func(v float64) float64 {
-			return can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, v, refRise)
-		})
-		rowDistMax = distMax.Map(func(v float64) float64 {
-			return can.Saddle.TranslateHbDistanceFromRef(refSQ, 746.0, 219.0, v, refRise)
-		})
-	}
-
-	activeBRP := can.DeadCenterBRP
-	if can.SelectedBRP != nil {
-		activeBRP = *can.SelectedBRP
-	}
-	if len(can.PossibleBRPs) > 0 {
-		if bestBRP, ok := geometry.SelectBestBRP(can.PossibleBRPs, rowBrpMin, rowBrpMax); ok {
-			can.SelectedBRP = &bestBRP
-			can.SitBoneSetbackMm = bestBRP.SitBoneSetbackMm
-			can.AchievedClampOffset = bestBRP.AchievedClampOffsetMm
-			activeBRP = bestBRP
-		}
-		bar := can.Handlebar
-		if bar.ID == "" {
-			bar = catalog.DefaultHandlebar()
-		}
-		can.PossibleHBs = geometry.MapPossibleHBsWithHandlebar(row.Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP, bar, model.DefaultGripInsetMm, 0.0)
-	}
-	if len(can.PossibleHBs) > 0 {
-		if hasClampFit && (rowDistMin.IsSet() || rowDistMax.IsSet()) {
-			geometry.ApplyCockpitFitForTarget(can, row.Bike, row.Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax, prof.TargetRef, prof.ReferenceBar)
-		} else if bestHB, ok := geometry.SelectBestHBWithDropForTarget(can.PossibleHBs, row.Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax, activeBRP, prof.TargetRef, prof.ReferenceBar); ok {
-			can.SelectedHB = &bestHB
-			can.SaddleHbMm = bestHB.SaddleHbMm
-			can.SaddleHbDropMm = bestHB.SaddleHbDropMm
-		}
-	}
 
 	for _, spec := range prof.Attributes {
 		meta, ok := ideal.LookupAttribute(spec.ID)

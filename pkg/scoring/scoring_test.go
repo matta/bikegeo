@@ -6,11 +6,23 @@ import (
 	"strings"
 	"testing"
 
+	"bikegeo/pkg/canonicalizer"
 	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 )
+
+func scoreRowWithTargets(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
+	rows := []model.CanonicalComparisonRow{row}
+	canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+	return ScoreRow(rows[0], prof)
+}
+
+func scoreAllRowsWithTargets(rows []model.CanonicalComparisonRow, prof *ideal.Profile) []Result {
+	canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+	return ScoreAllRows(rows, prof)
+}
 
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || (len(s) > 0 && searchSubstr(s, substr)))
@@ -213,7 +225,7 @@ func TestScoreRow_SaddleHb(t *testing.T) {
 		},
 	}
 
-	res := ScoreRow(row, prof)
+	res := scoreRowWithTargets(row, prof)
 	if math.Round(res.Total) != 100 {
 		t.Errorf("Expected total score 100 for Saddle-HB in target range [695, 705], got %.1f", res.Total)
 	}
@@ -303,7 +315,7 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 		},
 	}
 
-	res := ScoreRow(row, prof)
+	res := scoreRowWithTargets(row, prof)
 	if res.Total < 90.0 {
 		t.Errorf("Expected score > 90 for 72.0° frame (ideal setback match), got %.1f", res.Total)
 	}
@@ -340,7 +352,7 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 			PossibleBRPs:  fenrirPossible,
 		},
 	}
-	fenrirRes := ScoreRow(fenrirRow, prof)
+	fenrirRes := scoreRowWithTargets(fenrirRow, prof)
 	if fenrirRes.Total > 50.0 {
 		t.Errorf("Expected score < 50 for Otso Fenrir on Redshift post alone (cannot reach 219mm), got %.1f", fenrirRes.Total)
 	}
@@ -495,7 +507,7 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 		},
 	}
 
-	resMulti := ScoreRow(rowMulti, prof)
+	resMulti := scoreRowWithTargets(rowMulti, prof)
 	if resMulti.Total != 100.0 {
 		t.Errorf("Expected total score 100 for exact center with multi-setup bonus, got %.1f", resMulti.Total)
 	}
@@ -537,7 +549,7 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 			PossibleHBs:   possibleZero,
 		},
 	}
-	resZero := ScoreRow(rowZero, prof)
+	resZero := scoreRowWithTargets(rowZero, prof)
 	// BaseScore at R=1.10 is ~65.1 (continuous past the oval edge, no flat penalty).
 	if math.Abs(resZero.Total-65.1) > 0.5 {
 		t.Errorf("Expected score ~65.1 for R=1.10, got %.1f", resZero.Total)
@@ -730,7 +742,7 @@ func TestScoreAllRows_FarOutsideCockpitStillRanksByDistance(t *testing.T) {
 		})
 	}
 
-	results := ScoreAllRows(rows, prof)
+	results := scoreAllRowsWithTargets(rows, prof)
 	for i := 1; i < len(results); i++ {
 		if !(results[i].Total > results[i-1].Total) {
 			t.Errorf("shortfall %.0fmm scored %.3f, not above shortfall %.0fmm at %.3f",
@@ -899,7 +911,7 @@ func TestScoreRow_DisplayOnlyWithTargetCarriesZone(t *testing.T) {
 			TrailMm:            102,
 		},
 	}
-	res := ScoreRow(row, prof)
+	res := scoreRowWithTargets(row, prof)
 	byID := map[string]CriterionResult{}
 	for _, c := range res.Criteria {
 		byID[c.ID] = c
@@ -1139,7 +1151,7 @@ func TestScoreRow_CockpitTargetRefModes(t *testing.T) {
 	}
 
 	// 1. TargetHandGrip selects candA (60mm).
-	resHand := ScoreRow(makeRow(), makeProf(model.TargetHandGrip, model.Opt[model.HandlebarSpec]{}))
+	resHand := scoreRowWithTargets(makeRow(), makeProf(model.TargetHandGrip, model.Opt[model.HandlebarSpec]{}))
 	if got := bestStemLen(resHand); got != 60 {
 		t.Errorf("TargetHandGrip selected stem = %.0fmm, want 60mm", got)
 	}
@@ -1149,7 +1161,7 @@ func TestScoreRow_CockpitTargetRefModes(t *testing.T) {
 
 	// 2. TargetStemClamp selects candB (80mm).
 	profClamp := makeProf(model.TargetStemClamp, model.Opt[model.HandlebarSpec]{})
-	resClamp := ScoreRow(makeRow(), profClamp)
+	resClamp := scoreRowWithTargets(makeRow(), profClamp)
 	if got := bestStemLen(resClamp); got != 80 {
 		t.Errorf("TargetStemClamp selected stem = %.0fmm, want 80mm", got)
 	}
@@ -1182,7 +1194,7 @@ func TestScoreRow_CockpitTargetRefModes(t *testing.T) {
 	}
 
 	// 3. TargetReferenceBarClamp with flat zero-offset bar matches TargetHandGrip.
-	resRefFlat := ScoreRow(makeRow(), makeProf(model.TargetReferenceBarClamp, model.Some(flatBar)))
+	resRefFlat := scoreRowWithTargets(makeRow(), makeProf(model.TargetReferenceBarClamp, model.Some(flatBar)))
 	if got := bestStemLen(resRefFlat); got != 60 {
 		t.Errorf("TargetReferenceBarClamp(flatBar) selected stem = %.0fmm, want 60mm", got)
 	}
@@ -1191,7 +1203,7 @@ func TestScoreRow_CockpitTargetRefModes(t *testing.T) {
 	}
 
 	// 4. TargetReferenceBarClamp with ReferenceBar == Handlebar matches TargetStemClamp.
-	resRefSame := ScoreRow(makeRow(), makeProf(model.TargetReferenceBarClamp, model.Some(bar)))
+	resRefSame := scoreRowWithTargets(makeRow(), makeProf(model.TargetReferenceBarClamp, model.Some(bar)))
 	if got := bestStemLen(resRefSame); got != 80 {
 		t.Errorf("TargetReferenceBarClamp(sameBar) selected stem = %.0fmm, want 80mm", got)
 	}
