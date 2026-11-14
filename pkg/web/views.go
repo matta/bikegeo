@@ -14,11 +14,12 @@ import (
 
 // CellView is a template-ready table cell.
 type CellView struct {
-	Lines []string
-	Class string
-	Attrs template.HTMLAttr
-	Href  string
-	Scope string // "col" or "row" renders a <th>; empty renders a <td>
+	Lines       []string
+	Class       string
+	Attrs       template.HTMLAttr
+	Href        string
+	InspectHref string
+	Scope       string // "col" or "row" renders a <th>; empty renders a <td>
 }
 
 // RowView is a template-ready table row.

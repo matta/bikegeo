@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -273,10 +274,14 @@ func TestCompare_CellsCarryMetricAndZone(t *testing.T) {
 	if href != "/help#metric-brp_setback" {
 		t.Errorf("metric header link = %q", href)
 	}
-	// Frame cells link to validation.
+	// Frame cells link to validation, and also include an Inspect link to /bike.
 	link := doc.Find(`table[data-table="fit-cockpit"] tbody tr[data-frame-id="esker-hayduke"] th a`).AttrOr("href", "")
 	if link != "/validate?frame=esker-hayduke" {
 		t.Errorf("frame link = %q", link)
+	}
+	inspect := doc.Find(`table[data-table="fit-cockpit"] tbody tr[data-frame-id="esker-hayduke"] th a.inspect`).AttrOr("href", "")
+	if !strings.HasPrefix(inspect, "/bike?") || !strings.Contains(inspect, "frame=esker-hayduke") {
+		t.Errorf("fit-cockpit inspect link = %q", inspect)
 	}
 }
 
@@ -293,6 +298,10 @@ func TestCompare_ColumnsLayoutTagsCellsByFrame(t *testing.T) {
 	}
 	if got := doc.Find(`table[data-table="matrix"] thead th[data-frame-id]`).Length(); got != 2 {
 		t.Errorf("bike column headers = %d, want 2", got)
+	}
+	inspect := doc.Find(`table[data-table="matrix"] thead th[data-frame-id="otso-fenrir-stainless"] a.inspect`).AttrOr("href", "")
+	if !strings.HasPrefix(inspect, "/bike?") || !strings.Contains(inspect, "frame=otso-fenrir-stainless") {
+		t.Errorf("matrix inspect link = %q", inspect)
 	}
 }
 
@@ -367,7 +376,8 @@ func TestCompareInvalidTopOmitsResults(t *testing.T) {
 
 func TestPages_AllRoutesRender(t *testing.T) {
 	targets := []string{
-		"/", "/frames", "/frames?q=fenrir&all-sizes=1", "/forks", "/stems",
+		"/", "/bike", "/bike?frame=seven-custom&size=Custom&target_ref=stem_clamp",
+		"/frames", "/frames?q=fenrir&all-sizes=1", "/forks", "/stems",
 		"/ideals", "/ideals?name=idmatch", "/saddles", "/saddles?id=berthoud-aspin-open",
 		"/saddle-swap", "/saddle-swap?from=sqlab-610-ergolux&to=berthoud-aspin-open",
 		"/handlebars", "/handlebars?id=persuader20_800",
@@ -750,6 +760,8 @@ func TestHelp_AllMetricAnchorsResolveAcrossPages(t *testing.T) {
 
 	routes := []string{
 		"/",
+		"/bike",
+		"/bike?frame=seven-custom&size=Custom&target_ref=stem_clamp",
 		"/?layout=columns&col=otso-fenrir-stainless:L@110mm@20%25&col=esker-hayduke:S3@110mm@20%25",
 		"/frames",
 		"/frames?all-sizes=1",
@@ -1058,5 +1070,85 @@ func TestWebAnalysisInputValidation(t *testing.T) {
 	mustStatus(t, recSwap, http.StatusOK)
 	if docSwap.Find(`input[name="cockpit-dist"], input[name="cockpit-drop"]`).Length() != 0 {
 		t.Error("/saddle-swap still exposes unused cockpit-dist/cockpit-drop controls")
+	}
+}
+
+func TestBike_SVGPointsAndNudgeLinks(t *testing.T) {
+	// 1. Compare page links each column to /bike?frame=...
+	recHome, homeDoc := do(t, twoBikes)
+	mustStatus(t, recHome, http.StatusOK)
+	if homeDoc.Find(`table.editor a.inspect[href^="/bike?"]`).Length() != 2 {
+		t.Errorf("compare inspect links = %d, want 2", homeDoc.Find(`table.editor a.inspect[href^="/bike?"]`).Length())
+	}
+
+	// 2. /bike renders Panel A SVG with labelled points outside transform="scale(1,-1)".
+	rec, doc := do(t, "/bike?frame=seven-custom&size=Custom")
+	mustStatus(t, rec, http.StatusOK)
+	if strings.Contains(rec.Body.String(), "ZgotmplZ") {
+		t.Fatal("template emitted ZgotmplZ in /bike response")
+	}
+	if doc.Find("script").Length() != 0 {
+		t.Error("/bike must not contain scripts")
+	}
+	svg := doc.Find("svg.bike-svg")
+	if svg.Length() != 1 {
+		t.Fatalf("svg.bike-svg count = %d, want 1", svg.Length())
+	}
+	if got := svg.Find(`g.scene-geom`).AttrOr("transform", ""); got != "scale(1,-1)" {
+		t.Errorf("g.scene-geom transform = %q, want scale(1,-1)", got)
+	}
+	for _, pt := range []string{"BB", "HT", "SB", "BRP", "STC", "GR", "TP", "RSC"} {
+		sel := svg.Find(`g.scene-points [data-point="` + pt + `"]`)
+		if sel.Length() != 1 {
+			t.Errorf("missing SVG point data-point=%q in g.scene-points", pt)
+		}
+		if sel.ParentsFiltered(`g[transform]`).Length() != 0 {
+			t.Errorf("data-point=%q must stay outside flipped transform group so text is upright", pt)
+		}
+	}
+
+	parseXY := func(d *goquery.Document, id string) (float64, float64) {
+		t.Helper()
+		el := d.Find(`svg.bike-svg [data-point="` + id + `"]`)
+		x, err1 := strconv.ParseFloat(el.AttrOr("data-x", ""), 64)
+		y, err2 := strconv.ParseFloat(el.AttrOr("data-y", ""), 64)
+		if err1 != nil || err2 != nil {
+			t.Fatalf("invalid coords for %s: (%q, %q)", id, el.AttrOr("data-x", ""), el.AttrOr("data-y", ""))
+		}
+		return x, y
+	}
+	stcX0, stcY0 := parseXY(doc, "STC")
+	grX0, grY0 := parseXY(doc, "GR")
+
+	// 3. Follow the spacer +10 nudge link and verify STC and GR move up-and-back along the steerer axis.
+	nudgeHref := doc.Find(`a[data-nudge-param="spacer"][data-nudge-delta="+10"]`).AttrOr("href", "")
+	if nudgeHref == "" {
+		t.Fatal("missing spacer +10 nudge link")
+	}
+	rec2, doc2 := do(t, nudgeHref)
+	mustStatus(t, rec2, http.StatusOK)
+	stcX1, stcY1 := parseXY(doc2, "STC")
+	grX1, grY1 := parseXY(doc2, "GR")
+	if !(stcY1 > stcY0+5 && stcX1 < stcX0-1) {
+		t.Errorf("expected STC to move up-left along steerer after +10mm spacer: before=(%.2f,%.2f) after=(%.2f,%.2f)", stcX0, stcY0, stcX1, stcY1)
+	}
+	if !(grY1 > grY0+5 && grX1 < grX0-1) {
+		t.Errorf("expected GR to move up-left along steerer after +10mm spacer: before=(%.2f,%.2f) after=(%.2f,%.2f)", grX0, grY0, grX1, grY1)
+	}
+
+	// 4. Invalid query parameters on /bike return 400 with a .banner alert.
+	for _, bad := range []string{
+		"/bike?frame=nosuch",
+		"/bike?frame=seven-custom&size=ZZ",
+		"/bike?stem_len=abc",
+		"/bike?spacer=-5",
+		"/bike?target_ref=bogus",
+		"/bike?rail_off=999",
+	} {
+		recBad, docBad := do(t, bad)
+		mustStatus(t, recBad, http.StatusBadRequest)
+		if text(docBad.Find(".banner")) == "" {
+			t.Errorf("%s: expected non-empty .banner error on HTTP 400", bad)
+		}
 	}
 }

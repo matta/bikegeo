@@ -1,4 +1,4 @@
-{{define "cell"}}{{if .Scope}}<th scope="{{.Scope}}"{{if .Class}} class="{{.Class}}"{{end}}{{.Attrs}}>{{else}}<td{{if .Class}} class="{{.Class}}"{{end}}{{.Attrs}}>{{end}}{{if .Href}}<a href="{{.Href}}">{{end}}{{range $i, $l := .Lines}}{{if $i}}<br>{{end}}{{$l}}{{end}}{{if .Href}}</a>{{end}}{{if .Scope}}</th>{{else}}</td>{{end}}{{end}}
+{{define "cell"}}{{if .Scope}}<th scope="{{.Scope}}"{{if .Class}} class="{{.Class}}"{{end}}{{.Attrs}}>{{else}}<td{{if .Class}} class="{{.Class}}"{{end}}{{.Attrs}}>{{end}}{{if .Href}}<a href="{{.Href}}">{{end}}{{range $i, $l := .Lines}}{{if $i}}<br>{{end}}{{$l}}{{end}}{{if .Href}}</a>{{end}}{{if .InspectHref}} <a class="inspect" href="{{.InspectHref}}" title="Inspect this setup in the 2D workbench">Inspect</a>{{end}}{{if .Scope}}</th>{{else}}</td>{{end}}{{end}}
 {{define "table"}}<section class="report" id="{{.ID}}">
 {{if .Title}}<h2>{{.Title}}</h2>{{end}}
 {{range .Subtitle}}<p class="subtitle">{{.}}</p>

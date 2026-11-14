@@ -29,6 +29,7 @@ type NavItem struct {
 
 var nav = []NavItem{
 	{"/", "Compare"},
+	{"/bike", "Bike"},
 	{"/frames", "Frames"},
 	{"/forks", "Forks"},
 	{"/stems", "Stems"},
@@ -65,6 +66,7 @@ func New() http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.compare)
+	mux.HandleFunc("GET /bike", s.bike)
 	mux.HandleFunc("GET /help", s.help)
 	for _, p := range pages() {
 		mux.HandleFunc("GET "+p.Path, s.page(p))

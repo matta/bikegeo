@@ -19,7 +19,7 @@
 <td><select name="size" aria-label="Size for column {{.N}}">{{range .Sizes}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select></td>
 <td><select name="fork" aria-label="Fork for column {{.N}}">{{range .Forks}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select></td>
 <td><select name="sag" aria-label="Sag for column {{.N}}">{{range .Sags}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select></td>
-<td><a class="remove" href="{{.RemoveHref}}" title="Remove this column">Remove</a></td>
+<td><a class="inspect" href="{{.BikeHref}}" title="Inspect this setup in the 2D workbench">Inspect</a> · <a class="remove" href="{{.RemoveHref}}" title="Remove this column">Remove</a></td>
 </tr>
 {{end}}{{end}}
 {{if not .RawMode}}<tr class="add">

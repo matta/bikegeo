@@ -57,6 +57,7 @@ table[data-table] thead tr.ref td { background: var(--panel); color: var(--muted
 table[data-table] .num { text-align: right; }
 table[data-table] .sticky { position: sticky; left: 0; z-index: 1; background: var(--panel); text-align: left; }
 table[data-table] thead th.sticky { z-index: 4; }
+table[data-table] a.inspect { font-weight: normal; font-size: .85em; margin-left: .25rem; }
 table[data-table] tbody tr:hover td, table[data-table] tbody tr:hover th { filter: brightness(0.96); }
 table[data-table] td.zone-ideal, .zone-ideal.key { background: var(--ideal); color: var(--ideal-fg); }
 table[data-table] td.zone-acceptable, .zone-acceptable.key { background: var(--acceptable); color: var(--acceptable-fg); }
@@ -68,4 +69,28 @@ table[data-table] td.zone-missing { background: var(--missing); color: var(--mut
 details.breakdown > summary { cursor: pointer; font-weight: 600; margin: 1rem 0 .2rem; }
 pre.note { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: .5rem .8rem; overflow: auto; white-space: pre-wrap; }
 section.report { margin-bottom: 1.2rem; }
+.nudges { display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; margin: .7rem 0; padding: .5rem .8rem; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; }
+.nudge-group { display: flex; align-items: center; gap: .3rem; }
+.nudge-group a { padding: .05rem .35rem; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); text-decoration: none; font-variant-numeric: tabular-nums; font-size: .9em; }
+.nudge-group a:hover { border-color: var(--accent); }
+.bike-workbench { margin: .8rem 0 1.2rem; }
+.bike-svg { display: block; width: 100%; max-width: 980px; height: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); }
+.bike-svg circle.wheel { fill: none; stroke: var(--muted); stroke-width: 6; opacity: .55; }
+.bike-svg line.ground { stroke: var(--fg); stroke-width: 3; opacity: .45; }
+.bike-svg line.axis { stroke: var(--line); stroke-width: 2; stroke-dasharray: 10 10; }
+.bike-svg line.frame { stroke: var(--accent); stroke-width: 8; stroke-linecap: round; }
+.bike-svg line.cup { stroke: var(--outside-fg); stroke-width: 8; }
+.bike-svg line.fork { stroke: var(--fg); stroke-width: 7; stroke-linecap: round; }
+.bike-svg line.steer-ray { stroke: var(--muted); stroke-width: 2.5; stroke-dasharray: 8 8; }
+.bike-svg line.cockpit { stroke: var(--fg); stroke-width: 6; stroke-linecap: round; }
+.bike-svg line.saddle { stroke: var(--ideal-fg); stroke-width: 6; stroke-linecap: round; }
+.bike-svg line.bar { stroke: var(--ideal-fg); stroke-width: 6; stroke-linecap: round; }
+.bike-svg line.rider-reach { stroke: var(--muted); stroke-width: 3; stroke-dasharray: 12 8; }
+.bike-svg line.target-err { stroke: var(--outside-fg); stroke-width: 4; stroke-dasharray: 8 6; }
+.bike-svg .pt circle { fill: var(--fg); stroke: var(--bg); stroke-width: 2; }
+.bike-svg .pt-frame circle { fill: var(--accent); }
+.bike-svg .pt-contact circle { fill: var(--ideal-fg); }
+.bike-svg .pt-target circle { fill: var(--outside-fg); }
+.bike-svg .pt text { fill: var(--fg); font-size: 20px; font-family: ui-monospace, Menlo, Consolas, monospace; paint-order: stroke; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; }
+.bike-svg .pt-target text { fill: var(--outside-fg); font-weight: 700; }
 @media (max-width: 640px) { main { padding: 0 .6rem 2rem; } .scroll { max-height: 70vh; } }

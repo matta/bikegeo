@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -33,6 +34,7 @@ type colRow struct {
 	Sizes      []Option
 	Forks      []Option
 	Sags       []Option
+	BikeHref   string
 	RemoveHref string
 }
 
@@ -192,6 +194,21 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 			v.Add("fork", c.fork)
 			v.Add("sag", c.sag)
 		}
+		bikeVals := url.Values{}
+		bikeVals.Set("frame", fc.frame)
+		bikeVals.Set("size", fc.size)
+		if fc.fork != "" {
+			bikeVals.Set("fork", fc.fork)
+		}
+		if fc.sag != "" {
+			bikeVals.Set("sag", fc.sag)
+		}
+		if q.Saddle != "" {
+			bikeVals.Set("saddle", q.Saddle)
+		}
+		if q.Handlebar != "" {
+			bikeVals.Set("handlebar", q.Handlebar)
+		}
 		d.Rows = append(d.Rows, colRow{
 			N:          i + 1,
 			Frame:      fc.frame,
@@ -199,6 +216,7 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 			Sizes:      options(f.GetSizes(), fc.size, ""),
 			Forks:      options(forkChoices(f), fc.fork, ""),
 			Sags:       options([]string{"20", "25", "30"}, fc.sag, "—"),
+			BikeHref:   "/bike?" + bikeVals.Encode(),
 			RemoveHref: "/?" + v.Encode() + "#columns",
 		})
 	}
@@ -225,10 +243,52 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 			s.render(w, http.StatusInternalServerError, "compare.html", d)
 			return
 		}
+		bikeHrefByCol := make(map[string]string, len(d.Rows))
+		for _, row := range d.Rows {
+			bikeHrefByCol[strconv.Itoa(row.N)] = row.BikeHref
+		}
 		for _, t := range doc.Tables() {
-			d.Tables = append(d.Tables, toView(t))
+			tv := toView(t)
+			attachInspectLinks(&tv, t, bikeHrefByCol)
+			d.Tables = append(d.Tables, tv)
 		}
 		d.Footers = doc.Footers
 	}
 	s.render(w, status, "compare.html", d)
+}
+
+func attachInspectLinks(tv *TableView, t report.Table, bikeHrefByCol map[string]string) {
+	if len(tv.Head) > 0 {
+		for i, col := range t.Columns {
+			if colID := col.Attrs["col"]; colID != "" {
+				if href := bikeHrefByCol[colID]; href != "" {
+					tv.Head[0].Cells[i].InspectHref = href
+				}
+			}
+		}
+	}
+	frameColIdx := -1
+	for i, col := range t.Columns {
+		if col.ID == "frame" {
+			frameColIdx = i
+			break
+		}
+	}
+	if frameColIdx < 0 {
+		return
+	}
+	bodyIdx := 0
+	for _, r := range t.Rows {
+		if r.Kind == report.KindIdeal || r.Kind == report.KindAcceptable {
+			continue
+		}
+		if bodyIdx < len(tv.Body) && frameColIdx < len(tv.Body[bodyIdx].Cells) {
+			if colID := r.Attrs["col"]; colID != "" {
+				if href := bikeHrefByCol[colID]; href != "" {
+					tv.Body[bodyIdx].Cells[frameColIdx].InspectHref = href
+				}
+			}
+		}
+		bodyIdx++
+	}
 }
