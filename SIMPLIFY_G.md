@@ -26,16 +26,16 @@ Question 1 is implemented with genuine rigor. Question 2 has evolved into a mult
 Every metric `bikegeo` computes is **2D rigid-body kinematics in one sagittal plane**: roughly a dozen named `(X, Y)` points per build. Today that geometry is fragmented across `BikeGeometry`, `BaselineMetrics`, `DynamicGeometryResult`, `BikeFitAnalysis`, `BRPPoint`, `HBPoint`, `CockpitFitResult`, and `CanonicalComparisonRow` in [bike.go](pkg/model/bike.go) (**1,611** lines), [geometry.go](pkg/geometry/geometry.go) (**1,305** lines), [canonicalizer.go](pkg/canonicalizer/canonicalizer.go) (**767** lines), and [scoring.go](pkg/scoring/scoring.go) (**682** lines).
 
 **The unified blueprint**:
-1. **Fix the active correctness bugs** (especially the ~70 mm handlebar reference mismatch, missing upper headset top cover, un-leveled axles under fork rake swaps, and omitted physical lower headset cups).
+1. **Fix the active correctness & naming bugs**: eliminate the ambiguous `HB`/`HX`/`HY` terminology across code, fit targets, and docs (distinguishing **`StemClamp`** from **`HandGrip`** explicitly), add the omitted upper headset top cover stack (`C2`), level both axles across fork rake swaps (`C3`), and apply physical lower headset cups consistently (`C4`).
 2. **Replace the scalar pipeline with one explicit 2D sagittal `BikeScene` (`Layout`)** where every geometry metric, validator residual, posture/CoG ratio, fit solve, and SVG drawing reads directly off the same named points.
-3. **Normalize biomechanics once at the physical rider interfaces** (`SitBones` and `TargetHandGrip` or explicit `FitBikeBar` reference) instead of translating `BRP` targets across packages on every evaluation.
+3. **Normalize biomechanics once at the physical rider interfaces** (`SitBones`, `StemClamp`, and `HandGrip`, declaring whether a fit target was measured at the stem clamp or grips) instead of translating `BRP` targets across packages on every evaluation.
 4. **Expose transparency directly in the Web 1.0 UI**: add an inline `<svg>` side-view workbench (`/bike` + comparison overlays + zoomed cockpit/rail boxes + zero-JS `−10 −5 +5 +10` nudge links) and a 5-stage arithmetic computation ledger, backed by a **closed-form 2×2 linear fit solve** (`StemLengthMm`, `SpacerMm`, `RailOffsetMm`) that can either accompany or replace most of the composite scoring machinery.
 
 ### Upfront Summary of Correctness Findings (Ranked by Output Impact)
 
 | ID | Finding | Where | Output / Behavioral Impact |
 | --- | --- | --- | --- |
-| **C1** | Handlebar reference point (`HbPoint` w/ 20° backsweep) disagrees with `seven-custom` CAD note `(HX 481, HY 727)` by ~70 mm | [seven_custom.go](pkg/frames/seven_custom.go#L25), [handlebar.go](pkg/geometry/handlebar.go#L22-L134), [loader.go](pkg/ideal/loader.go#L11-L27) | `seven-custom` scores **23–26 / 100** with `0` oval fits; **11 of 19** frames in `compare all` peg the `100 mm` max stem with `0` oval fits |
+| **C1** | Ambiguous `HB` / `HX` / `HY` reference naming: canonical idmatch & Seven Cycles use **`HB` = stem clamp center**, whereas this session's straight-bar idmatch fit & `bikegeo` measure **`HB` = hand grip center** | [seven_custom.go](pkg/frames/seven_custom.go#L25), [readme.md](pkg/ideal/readme.md#L15), [bike.go](pkg/model/bike.go#L893-L905), [handlebar.go](pkg/geometry/handlebar.go#L22-L134) | `seven-custom` (`70 mm` stem) matches `Fenrir L` (`100 mm` stem) within `~6 mm` on seated cockpit reach (`AETT +24–26 mm` offsets `30 mm` shorter stem), yet **both** score poorly (`23` / `-9` to `-15`) because Persuader 20° backsweep puts `HandGrip` `~53–69 mm` behind `(481, 726)`; overloaded `HB` naming hid the clamp-vs-grip ambiguity |
 | **C2** | Missing upper headset cup / top cover stack (~11 mm) between `HeadTubeTop` and stem clamp | [handlebar.go](pkg/geometry/handlebar.go#L106) | Clamp shifts `~3.8 mm` forward and `~10.3 mm` low across all frames; adding `11 mm` matches `seven-custom` CAD `(481, 727)` to **0.3 mm** |
 | **C3** | Fork swaps pitch only for `ΔA2C` and ignore `ΔRake` | [geometry.go](pkg/geometry/geometry.go#L714-L767), [#L1080-L1158](pkg/geometry/geometry.go#L1080-L1158) | Front axle sits **2.1–3.6 mm off level**; HTA off by **0.11°–0.18°**, Reach by **1.2–2.0 mm**, Stack by **0.8–1.4 mm** |
 | **C4** | Physical lower `HeadsetCupType.CupStackMm()` promised by validator but ignored in `compare` | [validator.go](pkg/validator/validator.go#L208-L210), [geometry.go](pkg/geometry/geometry.go#L1064-L1069) | `otso-fenrir` & `salsa-fargo` (`EC44` 12 mm, `GeoHeadsetSpacerMm: 0`) sit **~12 mm** lower and **~0.55°** steeper than physical build |
@@ -51,45 +51,56 @@ Every metric `bikegeo` computes is **2D rigid-body kinematics in one sagittal pl
 
 ## Part I: Complete Correctness Audit (11 Concrete Findings)
 
-### C1. The ~70 mm Handlebar Reference Point Discrepancy (Highest Output Impact)
+### C1. Ambiguous `HB` / `HX` / `HY` Reference Naming & the ~70 mm Backsweep Discrepancy (Highest Output Impact)
 
 - **Where**:
-  - [seven_custom.go](pkg/frames/seven_custom.go#L25) (`Notes` recording the builder's CAD preview cockpit coordinates)
-  - [loader.go](pkg/ideal/loader.go#L11-L35) (`IdmatchProfile`)
-  - [handlebar.go](pkg/geometry/handlebar.go#L22-L134) (`GetHandlebarOffset`, `CalculateHBPointWithHandlebar`)
-  - [handlebars.go](pkg/catalog/handlebars.go#L11-L21) (`persuader20_800`)
-- **What the data shows**:
-  1. `IdmatchProfile()` sets `SaddleHeightMm = 746.0`, `brp_setback = 219.0`, `saddle_hb = 695–705` (midpoint `700.0`), and `saddle_hb_drop = -2 to 8` (midpoint `+3.0 mm` above Sit Bones). On `sqlab-610-ergolux` (`DeltaBrpToSitBones = (-73.0, +10.0)`), that puts:
-     - `BRP = (-219.0, √(746² - 219²)) = (-219.0, 713.1 mm)`
-     - `SitBones = (-292.0, 723.1 mm)`
-     - Ideal hand target `+13.0 mm` above `BRP` (`+3.0 mm` above `SitBones`).
-  2. [seven_custom.go](pkg/frames/seven_custom.go#L25) records the builder's CAD cockpit point (`2026-11-11`):
-     > *"cockpit coordinates (HX 481mm, HY 727mm with 70 mm -6° stem, 0mm spacer, and 50mm rise handlebar)."*
-  3. Checking `(481.0, 727.0)` directly against the idmatch pelvic point:
-     - Distance from `BRP (-219.0, 713.1)` to `(481.0, 727.0)` = **700.1 mm** (dead center of `695–705 mm`).
-     - Vertical offset above `SitBones (-292.0, 723.1)` = **+3.9 mm** (dead center of `-2 to +8 mm`).
-     Clearly, the `seven-custom` frame was drawn around `(481, 727)`.
-  4. Yet when `bikegeo` evaluates `seven-custom` with the exact same `70 mm -6°` stem and `0 mm` spacer, `CalculateHBPointWithHandlebar` places:
-     - `ClampPoint = (485.1, 666.7)`
-     - `GetHandlebarOffset` (`persuader20_800`: `800 mm` width, `DefaultGripInsetMm = 65 mm`, `EffectiveBendStartMm = 135 mm` → `lz = 200 mm`, `Backsweep = 20°`, `Upsweep = 4°`, `StatedRise = 50 mm`, `RiseModeBarEndCenter`) returns `dx0 = -200 × tan(20°) = -72.8 mm`, `dy0 = 50.0 - 65 × tan(4°) = +45.5 mm`.
-     - `HbPoint = (412.3, 712.2)` → `631.3 mm` from BRP (**68.8 mm short** of `700.1 mm`!).
+  - [readme.md](pkg/ideal/readme.md#L15) & [#L64](pkg/ideal/readme.md#L64) (formally defines `HB` / `P_HB` as the **stem clamp center**), vs. [#L80-L87](pkg/ideal/readme.md#L80-L87) (defines `HbX/HbY` as the hand position)
+  - [bike.go](pkg/model/bike.go#L893-L905) (`HBPoint`: `ClampX/ClampY` holds stem clamp center, while `HbX/HbY`, `SaddleHbMm`, and `SaddleHbDropMm` store **hand grip center**)
+  - [loader.go](pkg/ideal/loader.go#L11-L35) (`IdmatchProfile`: `saddle_hb`, `saddle_hb_drop`, `handlebar_clamp_fit`)
+  - [handlebar.go](pkg/geometry/handlebar.go#L22-L134) (`GetHandlebarOffset`, `CalculateHBPointWithHandlebar`) & [handlebars.go](pkg/catalog/handlebars.go#L11-L21) (`persuader20_800`)
+  - [seven_custom.go](pkg/frames/seven_custom.go#L25) (`Notes` recording AI-derived `HX 481mm, HY 727mm`) & [otso_fenrir_stainless.go](pkg/frames/otso_fenrir_stainless.go#L64-L75) + [profiles.go](pkg/catalog/profiles.go#L14) (`110 mm` Fenrir L baseline)
+- **What actually happened (the idmatch convention conflict)**:
+  1. **Canonical idmatch vs. what this fit session measured**:
+     - Canonical idmatch documentation (and [readme.md](pkg/ideal/readme.md#L15)) defines `HB` as the intersection of the handlebar and the **stem clamp center** (`StemClamp`).
+     - In this rider's session, however, the idmatch test bike ran a **flat, straight handlebar** (minimal backsweep), and the fitter placed the tracking marker near the **hand grip position** (`HandGrip`) on the rider's physical bike (`Tumbleweed Persuader 20°`). That session produced `BRP = (-219.0, 713.1)` (`746 mm` height, `219 mm` setback) and **`(X = 481, Y = 726)`** (`700 mm` diagonal distance from BRP, `+3 mm` above Sit Bones / `+13 mm` above BRP).
+  2. **How Seven Cycles designed `seven-custom` around `(481, 726)`**:
+     - Seven's fit targets specify: `74.6 cm` saddle height, `7.6 cm` saddle-nose setback (`X_nose = -76 mm`), `24.5 cm` saddle length (`X_tail = -76 - 245 = -321 mm`), `3.7 cm` saddle-top-to-stem-center drop (`713 - 37 = 676 mm`), and `80.3 cm` saddle-tail-to-bar reach (`-321 + 803 = +482 mm`).
+     - Following canonical idmatch convention, Seven treated `X = 481–482 mm, Y = 726 mm` as the unswept bar top (`726 - 50 mm rise = 676 mm` **stem clamp height**), and designed `seven-custom` (`Reach = 424 mm`, `Stack = 631 mm`, `HTA = 70.0°`) so a **`70 mm -6°` stem** places the **stem clamp center** at **`(481.3, 677.1)`** (after `~11 mm` upper headset cover stack; note that `"HX 481mm, HY 727mm"` in [seven_custom.go](pkg/frames/seven_custom.go#L25) was added during AI coding from the idmatch `(481, 726)` coordinate rather than supplied by Seven).
+     - Vertically, Seven subtracted the `50 mm` handlebar rise (`726 → 676 mm`). Horizontally, Seven left the **stem clamp** at `X = 481–482 mm` without adding forward reach for the Persuader bar's `20°` backsweep.
+  3. **What `bikegeo` computes—and why it reveals a real frame design discrepancy**:
+     - Because `bikegeo` models `(481, 726)` as the **`HandGrip` position** (matching the straight test bar / physical hand marker), evaluating `seven-custom` with its `70 mm -6°` stem and `persuader20_800` adds `GetHandlebarOffset`:
+       - `ClampPoint = (485.1, 666.7)` *(missing ~11 mm upper headset cover; see C2)*
+       - `persuader20_800` offset (`800 mm` width, `DefaultGripInsetMm = 65 mm`, `EffectiveBendStartMm = 135 mm` → `lz = 200 mm`, `20°` backsweep, `4°` upsweep, `50 mm` bar-end rise): `dx0 = -200 × tan(20°) = -72.8 mm`, `dy0 = 50.0 - 65 × tan(4°) = +45.5 mm`
+       - `HbPoint (HandGrip) = (412.3, 712.2)` → `631.3 mm` from BRP (**68.8 mm short** of `700.1 mm`!).
+     - Even using the shorter legacy Persuader sweep estimate in [readme.md](pkg/ideal/readme.md#L80-L83) (`-47.9 mm`), grips on the `70 mm` stem build still sit **~48 mm behind `(481, 726)`**.
+     - Cross-checking by **seated cockpit length (`ETT` / `AETT` / `BRP Setback`)** rather than `Reach` alone gives the principled comparison against **Otso Fenrir L**:
+       - Comparing `Reach` alone (`Seven Custom = 424 mm` vs. `Fenrir L = 428 mm` rigid / `422 mm` @ 120mm) misleads because it ignores `Seven`'s `2.25°` slacker `STA` (`73.0°` vs. `Fenrir L` `75.25°` rigid / `74.7°` @ 120mm).
+       - Across full seated geometry in `bikegeo compare`: `Seven Custom` adds **`+19 to +20 mm` of `ETT`** (`617 mm` vs. `597–598 mm`), **`+24 to +26 mm` of `AETT`** (`612 mm` vs. `586–588 mm`), and puts **`BRP Setback` dead-on at `219 mm ✓`** (`rail +13 mm`), whereas `Fenrir L` maxes out the saddle rails at `+15 mm` and still lands **`20–26 mm` too far forward** (`193–199 mm ✗`).
+       - Because that `+24–26 mm` gain in `AETT` / setback compensates for most of a shorter stem: **`Seven Custom` with a `70 mm -6°` stem (`BRP → HandGrip = 631.3 mm`, `BRP → Clamp+50 = 704.1 mm`, or `700.5 mm` w/ C2 11 mm top cover) lands within `5.9 mm` of `Fenrir L` with a `100 mm -6°` stem (`BRP → HandGrip = 637.2 mm`, `BRP → Clamp+50 = 710.0 mm`)** and `15.5 mm` of `Fenrir L` with its baseline `110 mm -6°` stem (`646.8 mm` in `DefaultRiderProfile`).
+       - What this reveals: **`Seven Custom` is NOT ~5–7 cm shorter than `Fenrir L`**—in seated `AETT` + stem terms (`612 + 70 ≈ 682 mm` vs. `588 + 100 ≈ 688 mm`) the two bikes put the Persuader grips in almost the same place (`631 mm` vs. `637–647 mm`), while `Seven` fixes the `20–26 mm` saddle-setback deficit. **Both** bikes read `53–69 mm` short of `700 mm` in `bikegeo` strictly because the `700 mm` / `(481, 726)` target aligns with `(StemClamp + BarRise)` while `bikegeo` evaluates `HandGrip` after `-72.8 mm` of Persuader 20° backsweep. Whether `631–647 mm` (matching your existing Fenrir setup w/ Persuader sweep) or `700 mm` (`StemClamp` before sweep vs. straight-bar hands) was the physical intent is the exact question the clamp-vs-grip distinction clarifies.
 
-- **Exact decomposition of the `(-68.7 mm, -14.8 mm)` gap**:
+- **Exact decomposition of `bikegeo`'s `(-69.0 mm, -14.8 mm)` delta vs. `(481, 727)` on `seven-custom` (`70 mm -6°` stem)**:
 
-| Component | ΔX (mm) | ΔY (mm) | Cause |
+| Component | ΔX (mm) | ΔY (mm) | Physical Cause |
 | --- | --- | --- | --- |
-| Backsweep of `persuader20_800` applied by tool (`-lz × tan(20°)`), absent at CAD `HX` | -72.8 | — | `GetHandlebarOffset` ([handlebar.go](pkg/geometry/handlebar.go#L40)) |
-| Inboard grip rise (`50 - 65×tan(4°) = 45.5 mm`) vs stated `50 mm` rise | — | -4.5 | `BaseRiseAtBend` ([bike.go](pkg/model/bike.go#L878-L885)) |
+| Backsweep of `persuader20_800` (`-lz × tan(20°)`) applied to `HandGrip`, absent at `StemClamp` | -72.8 | — | `GetHandlebarOffset` ([handlebar.go](pkg/geometry/handlebar.go#L40)) |
+| Inboard grip rise (`50 - 65×tan(4°) = 45.5 mm`) vs stated `50 mm` bar-end rise | — | -4.5 | `BaseRiseAtBend` ([bike.go](pkg/model/bike.go#L878-L885)) |
 | ~11 mm upper headset top cover omitted between `HeadTubeTop` and stem (C2) | +3.8 | -10.3 | `CalculateHBPointWithHandlebar` ([handlebar.go](pkg/geometry/handlebar.go#L106)) |
-| **Total discrepancy** | **-69.0** | **-14.8** | `(412.3, 712.2)` vs `(481, 727)` |
+| **Total delta** | **-69.0** | **-14.8** | `bikegeo` `HandGrip (412.3, 712.2)` vs `(481, 727)` |
 
-- **Observed live consequences** (verified by running `go run ./cmd/bikegeo compare fenrir:L@rigid fenrir:L@120mm@20% seven-custom --score-detail` and `go run ./cmd/bikegeo compare all`):
-  - `seven-custom` maxes out at the catalog's longest stem (`100mm -6° +0mm`), still lands at `BRP–HB = 660 ✗ 35 sht`, `Oval Fits = 0 ✗` (`-68 (-66)`), and scores **23 (#1)** in the default comparison (and **26 (#11)** in `compare all`, where `PruneRows` picks `110mm @ 30% sag` over its own `492mm` CAD rigid fork!).
-  - Across `bikegeo compare all`, **11 of 19 frames** peg the `100 mm -6° +0mm` catalog ceiling and **11 of 19** have `0 ✗` setups inside the fit oval, systematically ranking oversized XL frames near the top (`Surly Krampus XL #1`, `Sklar PBJ L #2`, `Esker Hayduke S4 #3`, `Ritchey Ultra XL #4`, `Moots Mountaineer XL #5`, `Revel El Jefe XL #6`, `Sour Pasta Party XL #7`).
-- **Two possible interpretations (requires checking the idmatch report)**:
-  - **Reading (a)**: The idmatch `700 mm` / `+3 mm` target was measured to the **stem-clamp bar center + rise** (standard bike-CAD `HX/HY`), or on a near-zero-sweep fit-bike bar. Subtracting `72.8 mm` of Persuader backsweep without translating the idmatch target shifts every frame ~70 mm short.
-  - **Reading (b)**: The idmatch `700 mm` target truly was measured to **hand grips** matching Persuader sweep. Then `bikegeo` is modeling backsweep faithfully, and Seven's `2026-11-11` CAD preview (`HX 481, HY 727` with `70 mm` stem + `50 mm` rise) omitted `-72.8 mm` of Persuader backsweep, putting physical grips ~70 mm too close.
-- **Architectural fix**: Store `CockpitReference` explicitly on `RiderFit` (`GripCenter` vs `StemClampBarCenter`, plus the `ReferenceBar` used during the fit if translated) and draw `TargetPoint`, `ClampPoint`, and `GripPoint` together on the side-view SVG so any 70 mm divergence is immediately visible.
+- **Observed live output** (`go run ./cmd/bikegeo compare fenrir:L@rigid fenrir:L@120mm@20% seven-custom --score-detail` and `compare all`):
+  - `seven-custom` maxes out at the `100 mm -6° +0mm` stem ceiling, lands at `BRP–HB = 660 ✗ 35 sht`, `Oval Fits = 0 ✗` (`-68 (-66)`), and scores **23 (#1)** standalone (and **26 (#11)** in `compare all`, where `PruneRows` picks `110mm @ 30% sag` over its `492mm` CAD rigid fork), while `Fenrir L` itself scores **-9 (#2)** / **-15 (#3)** (`BRP–HB = 637 ✗ 58 sht`, `0 ✗` oval fits).
+  - Across `compare all`, **11 of 19** frames peg the `100 mm -6°` ceiling and **11 of 19** score `0 ✗` in the oval, ranking XL frames (`Krampus XL #1`, `Sklar PBJ L #2`, `Esker Hayduke S4 #3`, `Ritchey Ultra XL #4`, `Moots Mountaineer XL #5`) highest because longer-reach frames offset the Persuader's `-72.8 mm` pullback without exceeding `100 mm` stems.
+- **The actual code & documentation bug — overloaded `HB` / `HX` / `HY` naming**:
+  - Regardless of which point matches your intended posture (`~631–647 mm` Persuader `HandGrip` vs. `700 mm` `StemClamp`), **the codebase's `HB`/`HX`/`HY` terminology actively conceals what is being measured**:
+    - [readme.md](pkg/ideal/readme.md#L15) defines `HB` as the **stem clamp center** (canonical idmatch terminology).
+    - `HBPoint` ([bike.go](pkg/model/bike.go#L893-L905)), `SaddleHbMm`, `BRP–HB`, `HB Rise`, `PossibleHBs`, and `SelectBestHB*` instead store and score the swept **`HandGrip`** point (`HbX/HbY`), while naming the scored attribute **`handlebar_clamp_fit`** (literally calling a grip check a *clamp* fit!).
+- **Required code cleanup (eliminate `HB` / `HX` / `HY` everywhere)**:
+  1. **Banish ambiguous `HB`, `HX`, `HY` identifiers everywhere** (structs, fields, functions, attribute IDs, CLI/Web table headers, and documentation). Replace them with two unambiguous physical names across the entire codebase:
+     - **`StemClamp`** (`StemClampPoint`, `StemClampX`, `StemClampY`, `BrpToStemClampMm`, `StemClampDropMm`) — intersection of the handlebar and stem clamp center (canonical idmatch `HB` / bike-CAD `HX, HY`).
+     - **`HandGrip`** (`GripPoint`, `GripX`, `GripY`, `BrpToGripMm`, `GripRiseAboveSitBonesMm`, `grip_fit`) — rider's hand contact center after backsweep, upsweep, grip inset, and bar roll.
+  2. **Declare an explicit `TargetRef` on every fit target**: Require `RiderFit` to specify whether the target coordinate measures `TargetRef: TargetHandGrip` *(fit marker placed at hands / straight test bar represents grips)* or `TargetRef: TargetStemClamp` *(canonical idmatch stem clamp reference)*.
+  3. **Display `TargetPoint`, `StemClamp`, and `HandGrip` side-by-side** in both the SVG blueprint and arithmetic ledger so a 50–73 mm clamp-vs-grip discrepancy cannot hide behind an overloaded label.
 
 ---
 
@@ -97,7 +108,7 @@ Every metric `bikegeo` computes is **2D rigid-body kinematics in one sagittal pl
 
 - **Where**: [handlebar.go](pkg/geometry/handlebar.go#L106) (`dSteerer := spacerMm + model.StemThicknessMm/2.0`)
 - **What happens**: With `0 mm` spacers and `StemThicknessMm = 40.0`, `CalculateHBPointWithHandlebar` centers the stem only `20.0 mm` along the upward steerer axis from `HeadTubeTop`—treating the stem as sitting directly on bare titanium/steel frame metal with no upper headset cup, bearing cover, or compression ring.
-- **Calibration from Seven's CAD note**: Adding `HeadsetTopStackMm = 11.0 mm` (typical `EC44`/`ZS44` upper bearing + top cover) along `(-cos 70°, sin 70°)` shifts the stem clamp on `seven-custom` (`70 mm -6°`, `0 mm` spacer) by `(-3.76 mm, +10.34 mm)` from `(485.1, 666.7)` to `(481.3, 677.1)`. Adding `+50 mm` vertical bar rise gives `(481.3, 727.1)`—matching Seven's `HX 481, HY 727` to **0.3 mm**.
+- **Calibration from Seven's fit sheet (`3.7 cm` saddle-to-stem drop, `80.3 cm` saddle-tail-to-bar reach)**: Adding `HeadsetTopStackMm = 11.0 mm` (typical `EC44`/`ZS44` upper bearing + top cover) along `(-cos 70°, sin 70°)` shifts `StemClamp` on `seven-custom` (`70 mm -6°`, `0 mm` spacer) by `(-3.76 mm, +10.34 mm)` from `(485.1, 666.7)` to `(481.3, 677.1)`—matching Seven's stem-center target `(482, 676)` (`X = -321 + 803`, `Y = 713 - 37`) within ~1 mm, and `(481.3, 677.1 + 50)` = `(481.3, 727.1)`.
 - **Impact**: Shifts every frame's cockpit by ~4 mm X and ~10 mm Y (critical since `saddle_hb_drop` ideal window `-2 to +8` is only `±5 mm` wide). Model `HeadsetTopStackMm` explicitly (per headset standard or frame, just like `CupStackMm()`) and state the assumption in the comparison header.
 
 ---
@@ -232,20 +243,20 @@ Notably, `if hbDropMm == 0 { hbDropMm = 13.0 }` in [saddle_swap.go](pkg/geometry
 Instead of passing loose floats between `DynamicGeometryResult`, `BikeFitAnalysis`, `BRPPoint`, and `HBPoint`, compute **one immutable `BikeScene`** per build. Every metric, validator check, closed-form fit solve, and SVG primitive reads directly from the same points:
 
 ```text
-                       GR o<----- bar offset ---o CL (StemClamp)
-                                                /
-                SB o                           / stem
-             BRP o  \ saddle                  o SC (SteererClamp)
-                  \                           |  spacers + stemH/2 + headsetTop
-                   \                          o HT (Reach, Stack)
-                    \  seat tube             /
-                     \                      /  steerer (HTL + cup + A2C_active)
-                      \                    /
-        RA o-----------o BB (0,0)         /
-         ( )                             o--o FA   (rake, perpendicular)
-          |                                 ( )
-   -------o----------------------------------o--------- ground (Y = -WheelRadius + BbDrop)
-         RC                                 FC
+                       GR (HandGrip) o<-- bar offset --o CL (StemClamp)
+                                                      /
+                SB (SitBones) o                      / stem
+             BRP o             \ saddle             o SC (SteererClamp)
+                  \                                 |  spacers + stemH/2 + headsetTop
+                   \                                o HT (Reach, Stack)
+                    \  seat tube                   /
+                     \                            /  steerer (HTL + cup + A2C_active)
+                      \                          /
+        RA o-----------o BB (0,0)               /
+         ( )                                   o--o FA   (rake, perpendicular)
+          |                                       ( )
+   -------o----------------------------------------o--------- ground (Y = -WheelRadius + BbDrop)
+         RC                                       FC
 ```
 
 **Typed inputs (no hidden defaults inside builders)**:
@@ -253,7 +264,7 @@ Instead of passing loose floats between `DynamicGeometryResult`, `BikeFitAnalysi
 - `BuildSpec`: `Fork{ID, StaticA2c, Rake, Travel}`, `SagPct`, `PhysicalLowerCupMm`, `WheelRadiusFront`, `WheelRadiusRear`.
 - `CockpitSpec`: `HeadsetTopStackMm`, `SpacerMm`, `Stem{Length, Angle, ClampHeight}`, `Handlebar`, `BarRoll`, `GripInset`.
 - `SeatSpec`: `PostSetbackMm`, `Saddle`, `RailOffsetMm`.
-- `RiderFit`: `LegExtensionOrBrpHeight`, `SitBonesTargetX` (or `TargetBrpSetback`), `TargetHandPoint` (with explicit `CockpitReference`: grip vs. clamp+rise), `ReferenceSaddle`, `ReferenceBar`.
+- `RiderFit`: `LegExtensionOrBrpHeight`, `SitBonesTargetX` (or `TargetBrpSetback`), `TargetPoint` + `TargetRef` (`TargetHandGrip` vs. `TargetStemClamp`), `ReferenceSaddle`, `ReferenceBar`.
 
 **Exact 2D Construction (BB initially `(0,0)`, `+X` forward, `+Y` up)**:
 
@@ -264,11 +275,12 @@ s = (-cos STA,  sin STA)           // up the seat tube (uses bent ray if ActualS
 r = (-sin STA, -cos STA)           // rearward perpendicular to seat tube
 
 // 1. Chart attitude landmarks (with active fork, sag, and lower headset cup)
-BB_0 = (0, 0)
-RA_0 = (-sqrt(Chainstay^2 - BbDrop^2), BbDrop)
-HT_0 = (Reach, Stack)
+BB_0  = (0, 0)
+RA_0  = (-sqrt(Chainstay^2 - BbDrop^2), BbDrop)
+HT_0  = (Reach, Stack)
+HTB_0 = HT_0 - HTL * u
 A2C_eff = Fork.StaticA2c - Fork.Travel * SagPct
-FA_0 = HT_0 - (HTL + CupStack + A2C_eff) * u + Fork.Rake * n
+FA_0  = HTB_0 - (CupStack + A2C_eff) * u + Fork.Rake * n
 
 // 2. Exact rear-axle pitch leveling (handles A2C, Sag, Cup, AND Rake changes together)
 theta = -atan2(FA_0.Y - RA_0.Y, FA_0.X - RA_0.X)   // positive pitches nose up (slackens HTA/STA)
@@ -307,7 +319,7 @@ And `pkg/geometry/budget.go` can perturb inputs straight through this single con
 
 ### 2. Sit-Bone-First & Grip-First Fit Normalization
 
-Convert idmatch's `sqlab-610-ergolux` BRP coordinates (`BRP = (-219, 713.1)`, `SitBones = (-292, 723.1)`) and cockpit target (`TargetHandPoint` with explicit reference mode per C1) **once** at profile load into anatomical coordinates:
+Convert idmatch's `sqlab-610-ergolux` BRP coordinates (`BRP = (-219, 713.1)`, `SitBones = (-292, 723.1)`) and cockpit target (`TargetPoint` with explicit `TargetRef: TargetHandGrip` vs. `TargetStemClamp` per C1) **once** at profile load into physical coordinates:
 
 1. For any candidate saddle `S`, solve `TargetRailCenter = TargetSitBones - (S.RailCenterToSitBones)` and solve `RequiredRailOffsetMm` against the active seat tube + post offset line in one step. Clamp to `[-HalfWindow, +HalfWindow]` only to display physical limits; surface `RailMarginMm = HalfWindow - |RequiredRailOffsetMm|` directly.
 2. Compute `BRP` and `BB-to-BRP Saddle Height` as pure workshop outputs for the mechanic's calipers.
@@ -315,31 +327,31 @@ Convert idmatch's `sqlab-610-ergolux` BRP coordinates (`BRP = (-219, 713.1)`, `S
 
 ### 3. Closed-Form 2×2 Linear Algebra Fit Solve vs. Continuous Curve Scoring
 
-Notice a striking mathematical fact about front-cockpit fitting: once `TargetHandPoint` (`G*`) and handlebar (`Bar`, `Roll`) are known, the required stem clamp point is fixed:
+Notice a striking mathematical fact about front-cockpit fitting: once `TargetPoint` (`G*`, if `TargetHandGrip`) and handlebar (`Bar`, `Roll`) are known, the required `StemClamp` point is fixed:
 ```text
-C* = G* - BarOffset(Bar, Roll)
+C* = G* - BarOffset(Bar, Roll)     (or C* = TargetPoint directly if TargetRef == TargetStemClamp)
 ```
 For any stem angle `a` (e.g., `-6°`, `0°`, `+6°`, `+17°`), finding the exact continuous **stem length `L`** and **steerer distance `t`** (`t = HeadsetTopStack + SpacerMm + StemClampHeight/2`) that puts `StemClamp` at `C*` is just **two linear equations in two unknowns**:
 ```text
 HT + t · u_steer + L · u_stem(a) = C*
 ```
-Solving that 2×2 system (`det(u_steer, u_stem(a)) != 0` whenever stem isn't parallel to steerer) takes **5 lines of exact arithmetic** and outputs what the rider actually buys:
+Solving that 2×2 system (`det(u_steer, u_stem(a)) != 0` whenever stem isn't parallel to steerer) takes **5 lines of exact arithmetic** and outputs what the rider actually buys (making any clamp-vs-grip discrepancy unmistakable):
 
 ```text
-Seven Custom (w/ Clamp+Rise ref)   -6°: 71 mm stem,  0 mm spacers  | rail +13 mm  | within hardware range
-Otso Fenrir L                      -6°: 118 mm stem, 22 mm spacers | rail +28 mm  | stem > 100 mm, rail > +15 mm
+Seven Custom (TargetRef = TargetStemClamp)  -6°:  70 mm stem,  0 mm spacers | rail +13 mm | within hardware range
+Seven Custom (TargetRef = TargetHandGrip)   -6°: 147 mm stem, 18 mm spacers | rail +13 mm | stem > 100 mm (+47 mm over)
 ```
-*(Illustrative once C1's target convention is settled.)*
+*(Illustrative values using the Persuader 20° sweep vector; exact stock rounding adds ±2.5 mm.)*
 
 This gives two clean architectural options for grading bikes:
-- **Radical Fit Solve (Recommended)**: Replace the Fit Oval, 3-pass stem grid search, `VersatilityBonus`, `StemPenalty`, and composite weighted score with the closed-form 2×2 solve + nearest stock `(Stem, Spacer)` hardware match + millimeter excesses outside hardware limits (`0 mm` = exact hardware fit; `+18 mm stem, +13 mm rail` = transparent gap). Cuts ~2,200 LOC while eliminating arbitrary weights and score-vs-display mismatches.
-- **Conservative Simplified Curve Scoring (If a 0–100 score is retained)**: Feed the closed-form solved `(StemLength, SpacerMm, RailOffset)` directly into `pkg/curve` (`StemPenalty` fixed for C1 monotonicity at `u = 1` + `Falloff` on clamp/grip error), keep non-frame metrics (`FrontWt`, `SeatpostExt`, `BB Drop`, `Trail`) clearly separated from cockpit fit, delete the duplicate `ApplyIdealCockpitTargets` block in `ScoreRow`, and print the real fit metric (`"71mm -6° +0mm · R=0.32"`) instead of `"6 ✓"`.
+- **Radical Fit Solve (Recommended)**: Replace the Fit Oval, 3-pass stem grid search, `VersatilityBonus`, `StemPenalty`, and composite weighted score with the closed-form 2×2 solve + nearest stock `(Stem, Spacer)` hardware match + millimeter excesses outside hardware limits (`0 mm` = exact hardware fit; `+47 mm stem` = transparent gap). Cuts ~2,200 LOC while eliminating arbitrary weights and score-vs-display mismatches.
+- **Conservative Simplified Curve Scoring (If a 0–100 score is retained)**: Feed the closed-form solved `(StemLength, SpacerMm, RailOffset)` directly into `pkg/curve` (`StemPenalty` fixed for C1 monotonicity at `u = 1` + `Falloff` on clamp/grip error), keep non-frame metrics (`FrontWt`, `SeatpostExt`, `BB Drop`, `Trail`) clearly separated from cockpit fit, delete the duplicate `ApplyIdealCockpitTargets` block in `ScoreRow`, and print the real fit metric (`"70mm -6° +0mm · R=0.12"`) instead of `"6 ✓"`.
 
 ### 4. Four Registry-Wide Invariant Property Tests
 
 Add one test function looping over **every frame, size, fork, and sag in `frames.AllFrames()`** (`pkg/frames` + `TestAllFrameData`):
 1. `AxlesStayLevel`: `|Scene.FrontAxle.Y - Scene.RearAxle.Y| < 1e-6` for every frame × fork × sag (immediately catches C3).
-2. `RigidDistancesInvariantUnderPitch`: Euclidean distances `|HT - BB|`, `|HB - BB|`, `|BB - RA|`, `|HT - HB|`, and `HTL` never change under any fork swap or cup swap.
+2. `RigidDistancesInvariantUnderPitch`: Euclidean distances `|HT - BB|`, `|HTB - BB|`, `|BB - RA|`, `|HT - HTB|`, and `HTL` never change under any fork swap or cup swap.
 3. `CADForkReproducesPublishedChart`: `BuildScene(frame, size, CadFork, GeoHeadsetSpacerMm)` recovers published `Reach`, `Stack`, `Hta`, `Sta`, `BbDrop` to `< 1e-6`, and recovers published `FrontCenter` and `Wheelbase` within `FrontCenterBudget` / `WheelbaseBudget`.
 4. `SwapAtoBtoAIsIdentity`: Swapping from fork `A` to `B` and back to `A` returns identical coordinates and metrics to `< 1e-9`.
 
@@ -357,8 +369,8 @@ Because `bikegeo serve` uses pure Go `html/template` and Web 1.0 `GET` forms wit
    - **Chart validation mode on `/validate`**: Overlay published chart geometry (dashed gray) against reconstructed closure from `CadFork + GeoHeadsetSpacerMm` so `ΔA2C`, `ΔFC`, and `ΔWB` appear visually right beside the residual table.
 
 2. **Panel B: Front Cockpit Zoom Box (`~260 × 260 mm` around `HeadTubeTop`)**:
-   - **Reachable Stem/Spacer Polygon**: Draw the exact boundary polygon traced by `[MinStem..MaxStem] × [0..MaxSpacerMm]` for each catalog stem angle (replacing cryptic `"N in oval"` counts with an immediately legible envelope), plus discrete stock-stem grid dots (`PossibleHBs`), bold selected stem/spacer vector, handlebar offset arrow (`CL → GR`), and the 30°-rotated `FitOval` around `TargetHandPoint`.
-   - Had this zoom box existed from day one, C1 (~70 mm backsweep gap) and C2 (~11 mm missing headset top cover) would have jumped off the screen in 1 second.
+   - **Reachable Stem/Spacer Polygon**: Draw the exact boundary polygon traced by `[MinStem..MaxStem] × [0..MaxSpacerMm]` for each catalog stem angle (replacing cryptic `"N in oval"` counts with an immediately legible envelope), plus discrete stock-stem grid dots (`PossibleStemClamps` / `PossibleHandGrips`), bold selected stem/spacer vector, handlebar offset arrow (`StemClamp → HandGrip`), and the 30°-rotated `FitOval` around `TargetPoint`.
+   - Had this zoom box existed from day one—explicitly labeling **`TargetPoint`**, **`StemClamp`**, and **`HandGrip`**—both the ~70 mm Persuader backsweep discrepancy (`C1`) and the ~11 mm missing headset top cover (`C2`) would have jumped off the screen in 1 second.
 
 3. **Panel C: Rear Saddle & Seatpost Rail Zoom Box (`~220 × 160 mm` around `SeatpostClamp`)**:
    - Draws `EffectiveSTA` ray, perpendicular `SeatpostSetbackMm` offset, usable straight rail window `[-HalfWindow, +HalfWindow]` shaded green, solved clamp pin, `RailCenter`, `SitBones` elevation/setback step, and `70 mm BRP` caliper mark.
@@ -413,17 +425,17 @@ Every figure below is measured from `find/wc -l` on current non-test Go sources 
 2. **One home for each domain fact**: `RiderFit` owns fit targets; `Catalog` owns fork `TravelMm` and `StaticA2c`; `BuildScene` owns kinematics; `EffectiveSta` exists in one function; sizes live in one ordered slice rather than a `Sizes` slice + `Geometries` map that can drift.
 3. **Types over string parsing**: Replace attribute alias matching (~55 strings in `LookupAttribute`), `ForkTravel()` substring splitting, and `IsRigidFork` display parsing with typed fields and `exhaustive`-checked enums.
 4. **Declare precision and provenance, don't infer from floats**: Add optional declared `ChartPrecision` on `FrameModel` and treat `Wheelbase` as optional when manufacturers omit it.
-5. **State every normalization on the page**: Extend the comparison header's seatpost disclosure to state `HeadsetTopStackMm`, lower cup behavior (`CadLowerCupMm` vs `PhysicalLowerCupMm`), wheel radius (`372 mm`), grip inset (`65 mm`), and cockpit target convention (`GripCenter` vs `StemClampBarCenter`).
+5. **State every normalization on the page**: Extend the comparison header's seatpost disclosure to state `HeadsetTopStackMm`, lower cup behavior (`CadLowerCupMm` vs `PhysicalLowerCupMm`), wheel radius (`372 mm`), grip inset (`65 mm`), and cockpit target convention (`TargetRef`: `TargetHandGrip` vs. `TargetStemClamp`).
 6. **Registry-wide invariants before formatted-string tests**: Keep the 4 property tests on `AllFrames()` as permanent guardrails against C3, C4, and C6 regressions.
 7. **Deterministic output everywhere**: Sort map keys before iterating (`FrameValidationReport.ErrorSummary()`, `fit` candidate tie-breaking).
-8. **Literal names matching physics**: Rename `"HB"`/`"HbPoint"` to `GripPoint` vs `StemClamp`, `"Seatpost Ext"` to `BB-to-BRP minus SeatTube`, and `"Oval Fits"` to report what is graded.
+8. **Literal names matching physics—retire `HB` / `HX` / `HY`**: Never overload `HB`/`HX`/`HY` across stem clamps and grips. Use **`StemClamp`** (`StemClampX`, `StemClampY`, `BrpToStemClampMm`) vs. **`HandGrip`** (`GripX`, `GripY`, `BrpToGripMm`), rename `handlebar_clamp_fit` to `grip_fit` (or remove via fit solve), rename `"Seatpost Ext"` to `BB-to-BRP minus SeatTube`, and make `"Oval Fits"` report what is graded.
 9. **Enforce dead-code cleanliness**: Delete unreferenced exports and add `go tool deadcode ./...` to `make check`.
 
 ### 3. Recommended 8-Step Incremental Execution Order
 
 Each step is small, independently reviewable, and keeps `go vet ./... && go test ./...` passing:
 
-1. **Settle C1 & C4 product definitions**: Confirm against the original idmatch report whether `700 mm` / `+3 mm` measures to bar clamp+rise vs. grips with Persuader sweep, and confirm whether Fenrir/Fargo published charts omit physical `EC44` lower cups.
+1. **Resolve C1, eliminate `HB`/`HX`/`HY` ambiguity & confirm C4**: Confirm against Seven Cycles and the idmatch fit sheet whether to align `seven-custom` around `TargetHandGrip = (481, 726)` (adding forward reach to compensate for Persuader 20° backsweep) or treat `(481, 676)` explicitly as `TargetStemClamp`; simultaneously rename `HB`/`HX`/`HY` identifiers across structs, profiles, UI columns, and docs to **`StemClamp`** vs. **`HandGrip`**, and confirm whether Fenrir/Fargo published charts omit physical `EC44` lower cups.
 2. **Land the 4 registry-wide invariant tests**: Pin `AxlesStayLevel`, `RigidDistancesInvariantUnderPitch`, `CADForkReproducesPublishedChart`, and `SwapAtoBtoAIsIdentity` (expect `AxlesStayLevel` to expose C3 immediately).
 3. **Introduce `BikeScene` (`pkg/geometry/scene.go`) alongside existing code**: Assert exact agreement with existing Reach/Stack/HTA/BB Drop for constant-rake swaps, then fix C3 (leveling `(RearAxle, FrontAxle)` over A2C + Rake), C2 (`HeadsetTopStackMm`), C4 (explicit cup policy), and C6 (unify `validator` + `budget` on `BikeScene`).
 4. **Ship `/bike` inline `<svg>` + Computation Ledger on top of `BikeScene`**: Draw Full-Bike, Cockpit Zoom (`Reachable Polygon + FitOval`), Saddle Rail Zoom, `−10 −5 +5 +10` zero-JS nudges, and the 5-stage ledger. Verify visual closure on C1 and C2 immediately.
