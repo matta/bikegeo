@@ -1548,17 +1548,13 @@ type BikeFitAnalysis struct {
 	DeltaBbDrop         float64
 	InferredPublishMode string
 
-	// Weight Distribution & Biomechanical Posture
-	WeightDistFrontPct float64
-	WeightDistRearPct  float64
-	BackAngleDeg       Deg
-	FrontCenterCalc    float64
-	RearCenterCalc     float64
-	SeatToRearCenter   float64
-	WheelbaseCalc      float64
-	ActiveChainstay    float64
-	ChainstayDesc      string
-	TrailMm            float64
+	// Axle Centering & Frame Proportions
+	RearCenterWheelbaseRatio float64
+	SeatToRearCenter         float64
+	WheelbaseCalc            float64
+	ActiveChainstay          float64
+	ChainstayDesc            string
+	TrailMm                  float64
 
 	// Cockpit BRP & HB Points and Saddle-Handlebar Metrics
 	Saddle              SaddleSpec

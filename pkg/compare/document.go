@@ -127,7 +127,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		refDefLines = append(refDefLines, "Frame & Chassis Specs: Reach, Stack, HTA, STA, BB Drop, and Trail reflect the dynamic, rotated frame attitude at the effective fork A2C, sag, and physical lower headset cup stack specified for each setup.")
 	}
 	if hasAttr("chainstay") {
-		refDefLines = append(refDefLines, "Chainstay (*): Asterisk indicates adjustable/sliding dropouts; displayed at maximum stay position (most rearward axle). Front Wt % and Seat Axis–Rear Axle are calculated at this exact position.")
+		refDefLines = append(refDefLines, "Chainstay (*): Asterisk indicates adjustable/sliding dropouts; displayed at maximum stay position (most rearward axle). RC / WB and Seat Axis–Rear Axle are calculated at this exact position.")
 	}
 	if state.SaddleHeightMm > 0 {
 		refDefLines = append(refDefLines, "H: the saddle height entered for the comparison. It is used both as the length along the seat-tube axis (Seat Axis Point) and as the radial BB-to-BRP distance (Saddle BRP).")
@@ -215,7 +215,6 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		}
 	}
 
-	backAngle := rows[0].Canonical.BackAngleDeg
 	title := "Apples-to-Apples Geometry Comparison Matrix"
 	saddle := state.Saddle
 	if saddle.ID == "" {
@@ -238,8 +237,8 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 	}
 
 	line1 := fmt.Sprintf(
-		"H (saddle height): %s | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Headset Top Stack: %.0fmm | Modeled Back Angle: %.1f°",
-		hText, saddleName, model.DefaultHeadsetTopStackMm, backAngle,
+		"H (saddle height): %s | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Headset Top Stack: %.0fmm",
+		hText, saddleName, model.DefaultHeadsetTopStackMm,
 	)
 	cockpitTargetPart := ""
 	if prof.TargetRef.IsValid() {

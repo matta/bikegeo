@@ -54,15 +54,7 @@ func IdmatchProfile() *Profile {
 				Falloff:    FalloffBoth(25, 25),
 				Floor:      model.Some(-100.0),
 			},
-			{
-				ID:         "frontwt",
-				Weight:     4,
-				Ideal:      Between(35.8, 38.2),
-				Acceptable: Between(34.8, 39.2),
-				EdgeScore:  model.Some(75.0),
-				Falloff:    FalloffBoth(2.0, 2.0),
-				Floor:      model.Some(-100.0),
-			},
+			DisplayOnly("rc_wb_ratio"),
 			{
 				ID:         "bbdrop",
 				Weight:     3,

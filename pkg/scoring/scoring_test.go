@@ -123,9 +123,8 @@ func TestExplainProfile_LossesAndH2H(t *testing.T) {
 				FinalSubScore: 100,
 				CountInside:   4,
 			},
-			ActiveBbDrop:       70.0,
-			WeightDistFrontPct: 37.0,
-			TrailMm:            102.0,
+			ActiveBbDrop: 70.0,
+			TrailMm:      102.0,
 		},
 	}
 	rowHayduke := model.CanonicalComparisonRow{
@@ -141,9 +140,8 @@ func TestExplainProfile_LossesAndH2H(t *testing.T) {
 				FinalSubScore: 100,
 				CountInside:   4,
 			},
-			ActiveBbDrop:       70.0,
-			WeightDistFrontPct: 37.0,
-			TrailMm:            102.0,
+			ActiveBbDrop: 70.0,
+			TrailMm:      102.0,
 		},
 	}
 
@@ -871,9 +869,8 @@ func TestLossDeltaMatchesCell(t *testing.T) {
 					FinalSubScore: 100,
 					CountInside:   4,
 				},
-				ActiveBbDrop:       70.0,
-				WeightDistFrontPct: 37.0,
-				TrailMm:            102.0,
+				ActiveBbDrop: 70.0,
+				TrailMm:      102.0,
 			},
 		}
 	}
@@ -904,11 +901,10 @@ func TestScoreRow_DisplayOnlyWithTargetCarriesZone(t *testing.T) {
 					SaddleHbDropMm: 2.0,   // ideal for [-2,8]
 				},
 			},
-			ActiveReach:        465,
-			ActiveStack:        630,
-			ActiveBbDrop:       70,
-			WeightDistFrontPct: 37.0,
-			TrailMm:            102,
+			ActiveReach:  465,
+			ActiveStack:  630,
+			ActiveBbDrop: 70,
+			TrailMm:      102,
 		},
 	}
 	res := scoreRowWithTargets(row, prof)
@@ -946,11 +942,10 @@ func TestLossAndHeadToHeadUseRegistryLabel(t *testing.T) {
 					CountInside:   count,
 					FinalSubScore: 50 - bestR*10,
 				},
-				ActiveReach:        460,
-				ActiveStack:        620,
-				ActiveBbDrop:       70,
-				WeightDistFrontPct: 37,
-				TrailMm:            102,
+				ActiveReach:  460,
+				ActiveStack:  620,
+				ActiveBbDrop: 70,
+				TrailMm:      102,
 			},
 		}
 		return ScoredFrame{Name: name, Row: row, Score: ScoreRow(row, prof)}
@@ -1010,7 +1005,6 @@ func TestExplainProfile_HeadToHeadReconcilesAllFactors(t *testing.T) {
 				makeCrit("brp_setback", "BRP Setback", "mm", 215, 25),
 				makeCrit("handlebar_clamp_fit", "Oval Fits", "", 80, 34),
 				makeCrit("seatpost_extension", "Seatpost Ext", "mm", 270, 12),
-				makeCrit("frontwt", "Front Wt", "%", 35.0, 5),
 				makeCrit("bbdrop", "BB Drop", "mm", 62, 5),
 				makeCrit("trail", "Trail", "mm", 102, 10.4),
 			},
@@ -1024,7 +1018,6 @@ func TestExplainProfile_HeadToHeadReconcilesAllFactors(t *testing.T) {
 				makeCrit("brp_setback", "BRP Setback", "mm", 205, 20),
 				makeCrit("handlebar_clamp_fit", "Oval Fits", "", 65, 30),
 				makeCrit("seatpost_extension", "Seatpost Ext", "mm", 250, 10),
-				makeCrit("frontwt", "Front Wt", "%", 37.0, 8),
 				makeCrit("bbdrop", "BB Drop", "mm", 70, 7),
 				makeCrit("trail", "Trail", "mm", 101, 10.0),
 			},
@@ -1040,7 +1033,6 @@ func TestExplainProfile_HeadToHeadReconcilesAllFactors(t *testing.T) {
 		"BRP Setback 215mm vs 205mm (+5)",
 		"Oval Fits sub-score 80 vs 65 (+4)",
 		"Seatpost Ext 270mm vs 250mm (+2)",
-		"Front Wt 35.0% vs 37.0% (-3)",
 		"BB Drop 62mm vs 70mm (-2)",
 	} {
 		if !strings.Contains(line, want) {

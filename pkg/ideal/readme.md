@@ -132,11 +132,11 @@ Built directly around the idmatch Bikelab report:
 - `saddle_hb`: Display-only with target `700 mm` (`ideal: 695–705, acceptable: 685–715`)
 - `saddle_hb_drop`: Display-only with target `+3 mm` relative to sit-bone position (`ideal: -2–8, acceptable: -10–16`; corresponds to `+13 mm` above the lowered SQlab 70 mm BRP plane)
 - `seatpost_extension`: Target `250–310 mm` (`acceptable: 210–340, edge_score: 75, falloff: 25`, weight: 4) — Proxy for standover clearance and seatpost/dropper fitment: `SaddleHeightMm - SeatTubeLength`.
-- `frontwt`: Target `35.8–38.2%` (`acceptable: 34.8–39.2%, edge_score: 75, falloff: 2.0`, weight: 4) — Fore/aft rider centering between axles based on modeled target pedaling CoG relative to BB.
+- `rc_wb_ratio`: Display-only `RearCenter / Wheelbase` ratio (`%`)
 - `bbdrop`: Target `70 mm` (`acceptable: 60–80, edge_score: 75, falloff: 10`, weight: 3)
 - `trail`: Target `98–106 mm` (`acceptable: 92–109 mm, edge_score: 75, falloff: 10`, weight: 2) — Steering feel ground trail based on active HTA, fork rake, and 29x2.4" baseline tires (372mm wheel radius).
 - `hta`: Display-only (`ActiveHta`)
-- `seat_to_rc`: Display-only Seat Axis–Rear Axle (horizontal distance from the Seat Axis Point to rear axle, deprecated in favor of `frontwt`)
+- `seat_to_rc`: Display-only Seat Axis–Rear Axle (horizontal distance from the Seat Axis Point to rear axle)
 - `sparevert`: Display-only Seat Axis–HT Drop (vertical drop from the Seat Axis Point to head tube top `SaddleHeight * sin(STA) - Stack`)
 
 ## Score Curves (`pkg/curve`)

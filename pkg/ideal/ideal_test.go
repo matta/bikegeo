@@ -412,8 +412,8 @@ func TestEvaluate_DirectionalWordsAndBoundaryRounding(t *testing.T) {
 		{"sparevert", 60, "60"},    // DisplayOnly attribute
 		{"bbdrop", 66, "66 ~ 4 hi"},
 		{"bbdrop", 77, "77 ~ 7 lo"},
-		{"hta", 67.7, "67.7"}, // DisplayOnly attribute
-		{"frontwt", 35.0, "35.0 ~ 0.8% lo"},
+		{"hta", 67.7, "67.7"},         // DisplayOnly attribute
+		{"rc_wb_ratio", 38.9, "38.9"}, // DisplayOnly attribute
 		{"trail", 83, "83 ✗ 15 qck"},
 		{"trail", 101, "101 ✓"},
 		{"trail", 108, "108 ~ 2 slw"},

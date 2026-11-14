@@ -877,204 +877,6 @@ func CalculateTrail(htaDeg model.Deg, rakeMm, wheelRadiusMm float64) float64 {
 	return (wheelRadiusMm*hta.Cos() - rakeMm) / hta.Sin()
 }
 
-// BiomechanicalPosture models the rider's contact points and upper body posture on a baseline bike.
-type BiomechanicalPosture struct {
-	BackAngleDeg model.Deg // Torso angle from horizontal in degrees (hip to shoulder)
-	HipX         float64   // Hip joint X coordinate relative to BB (mm)
-	HipY         float64   // Hip joint Y coordinate relative to BB (mm)
-	GripX        float64   // Grip center X coordinate relative to BB (mm)
-	GripY        float64   // Grip center Y coordinate relative to BB (mm)
-	RiderCgX     float64   // Rider center of gravity X relative to BB (mm)
-	RiderCgY     float64   // Rider center of gravity Y relative to BB (mm)
-	SystemCgX    float64   // Combined rider + bike center of gravity X relative to BB (mm)
-	SystemCgY    float64   // Combined rider + bike center of gravity Y relative to BB (mm)
-}
-
-// WeightDistributionResult holds the static weight distribution on front and rear axles.
-type WeightDistributionResult struct {
-	FrontPct        float64   // Percentage of system weight on front axle
-	RearPct         float64   // Percentage of system weight on rear axle
-	FrontCenterCalc float64   // Horizontal distance from BB to front axle (mm)
-	RearCenterCalc  float64   // Horizontal distance from BB to rear axle (mm)
-	WheelbaseCalc   float64   // Total horizontal wheelbase (mm)
-	BackAngleDeg    model.Deg // Estimated back angle in degrees
-}
-
-// GetDefaultBaselineBike returns the canonical Otso Fenrir Stainless Large baseline build
-// (rigid 495mm fork, EC44 lower cup, 780mm saddle height).
-func GetDefaultBaselineBike() model.BikeGeometry {
-	return model.BikeGeometry{
-		ID:              "otso-fenrir-stainless-l",
-		Manufacturer:    "Otso",
-		Model:           "Fenrir",
-		Size:            "L",
-		Reach:           428.0,
-		Stack:           642.0,
-		HtaDeg:          68.25,
-		StaDeg:          75.25,
-		Htl:             140.0,
-		BbDrop:          72.0,
-		ForkRake:        54.0,
-		Wheelbase:       1158.0,
-		ChainstayLength: 450.0,
-		ForkA2c:         495.0,
-		HeadsetCupType:  model.CupEC44,
-	}
-}
-
-// CalculateBaselinePosture models the rider's contact points, back angle, and Center of Gravity (CoG).
-func CalculateBaselinePosture(
-	bike model.BikeGeometry,
-	profile model.RiderProfile,
-) (BiomechanicalPosture, error) {
-	if profile.SaddleHeightMm <= 0 {
-		return BiomechanicalPosture{}, fmt.Errorf("profile.SaddleHeightMm must be positive, got %.1f", profile.SaddleHeightMm)
-	}
-	if profile.HeightIn <= 0 || profile.InseamIn <= 0 {
-		return BiomechanicalPosture{}, fmt.Errorf("profile must specify positive height and inseam, got height=%.1f inseam=%.1f", profile.HeightIn, profile.InseamIn)
-	}
-
-	staDeg := bike.StaDeg
-	if staDeg <= 0 {
-		staDeg = 74.71
-	}
-
-	htaDeg := bike.HtaDeg
-	if htaDeg <= 0 {
-		htaDeg = 67.71
-	}
-
-	// 1. Hip joint coordinates relative to Bottom Bracket (0,0)
-	seatAxis := SeatTubeAxis(geom2d.Origin, staDeg)
-	saddlePt := seatAxis.PointAt(profile.SaddleHeightMm)
-	saddleX := saddlePt.X - profile.BaselineSaddleSetbackOffsetMm
-	saddleY := saddlePt.Y
-	hip := geom2d.Point2{X: saddleX, Y: saddleY + 35.0} // Greater trochanter / acetabulum sits ~35mm above saddle top
-
-	// 2. Handlebar grip coordinates relative to Bottom Bracket (0,0)
-	reach := bike.Reach
-	if reach <= 0 {
-		reach = 421.9
-	}
-	stack := bike.Stack
-	if stack <= 0 {
-		stack = 646.0
-	}
-	headTubeTop := geom2d.Point2{X: reach, Y: stack}
-
-	steererDir := SteererTubeDir(htaDeg)
-	stemDir := steererDir.Perpendicular(geom2d.Clockwise).Rotate(profile.BaselineStemAngleDeg.Angle())
-	clamp := headTubeTop.Add(stemDir.Scale(profile.BaselineStemMm))
-
-	// Bar sweep & rise from configured handlebar
-	bar := profile.Handlebar
-	if bar.ID == "" {
-		bar = catalog.DefaultHandlebar()
-	}
-	sweepOffset := GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
-	grip := clamp.Add(geom2d.Vec2{X: sweepOffset.X, Y: sweepOffset.Y})
-
-	// 3. Biomechanical Triangle: Hip, Shoulder, Grip
-	heightMm := profile.HeightIn * 25.4
-	torsoLen := 0.288 * heightMm // Hip to shoulder (~541mm for 74")
-	armLen := 0.380 * heightMm   // Shoulder to hand (~714mm for 74")
-
-	halfWidth := bar.EffectiveWidthMm() / 2.0
-	if halfWidth <= 0 {
-		halfWidth = 400.0
-	}
-	// 3D lateral arm spread to 800mm wide bar:
-	// Shoulder half-breadth ~200mm, grip half-breadth ~390mm -> lateral offset ~190mm
-	lateralOffset := math.Max(0, halfWidth-200.0)
-	// Effective arm reach projected in the sagittal plane with comfortable ~25° elbow flexion
-	sagittalArmReach := math.Sqrt(math.Max(100.0, (0.88*armLen)*(0.88*armLen)-lateralOffset*lateralOffset))
-
-	vHipGrip := grip.Sub(hip)
-	distHipGrip := vHipGrip.Norm()
-	alpha := vHipGrip.Angle()
-
-	beta, err := geom2d.SolveTriangleSSS(torsoLen, distHipGrip, sagittalArmReach)
-	if err != nil {
-		return BiomechanicalPosture{}, err
-	}
-
-	backAngle := alpha.Add(beta)
-	backAngleDeg := model.DegOf(backAngle)
-
-	// 4. Rider Center of Gravity
-	torsoDir := geom2d.FromPolar(1.0, backAngle)
-	shoulder := hip.Add(torsoDir.Scale(torsoLen))
-
-	// Torso + Head (58% of body mass)
-	upper := hip.Add(torsoDir.Scale(0.62 * torsoLen))
-
-	// Arms (10% of body mass)
-	arm := geom2d.Point2{X: (shoulder.X + grip.X) / 2.0, Y: (shoulder.Y + grip.Y) / 2.0}
-
-	// Legs (32% of body mass) between Hip and Pedals (0,0)
-	leg := geom2d.Point2{X: 0.45 * hip.X, Y: 0.40 * hip.Y}
-
-	riderCg := geom2d.Point2{
-		X: 0.58*upper.X + 0.10*arm.X + 0.32*leg.X,
-		Y: 0.58*upper.Y + 0.10*arm.Y + 0.32*leg.Y,
-	}
-
-	// 5. System Center of Gravity (Rider + Bike)
-	riderMassKg := profile.RiderWeightLbs * 0.45359237
-	bikeMassKg := profile.BikeWeightLbs * 0.45359237
-	bikeCg := geom2d.Point2{X: 0.0, Y: 280.0} // Center of mass of hardtail frame/wheels/drivetrain near BB
-
-	totalMass := riderMassKg + bikeMassKg
-	systemCg := geom2d.Point2{
-		X: (riderMassKg*riderCg.X + bikeMassKg*bikeCg.X) / totalMass,
-		Y: (riderMassKg*riderCg.Y + bikeMassKg*bikeCg.Y) / totalMass,
-	}
-
-	return BiomechanicalPosture{
-		BackAngleDeg: Round(backAngleDeg, 1),
-		HipX:         Round(hip.X, 1),
-		HipY:         Round(hip.Y, 1),
-		GripX:        Round(grip.X, 1),
-		GripY:        Round(grip.Y, 1),
-		RiderCgX:     Round(riderCg.X, 1),
-		RiderCgY:     Round(riderCg.Y, 1),
-		SystemCgX:    Round(systemCg.X, 1),
-		SystemCgY:    Round(systemCg.Y, 1),
-	}, nil
-}
-
-// CalculateWeightDistribution calculates static weight distribution between the axles for an active frame setup.
-func CalculateWeightDistribution(
-	activeReach, activeStack float64, activeHta model.Deg, activeHtl, activeBbDrop, forkRake, structuralA2c, chainstayLength float64,
-	posture BiomechanicalPosture,
-) WeightDistributionResult {
-	if chainstayLength <= 0 {
-		chainstayLength = 440.0
-	}
-	cs := math.Max(chainstayLength, activeBbDrop+1.0)
-	rearCenter := math.Sqrt(math.Max(0, cs*cs-activeBbDrop*activeBbDrop))
-	xRear := -rearCenter
-
-	frontCenter := CalculateFrontCenter(activeReach, activeHtl, activeHta, forkRake, structuralA2c)
-	wheelbase := frontCenter + rearCenter
-	if wheelbase <= 0 {
-		wheelbase = 1150.0
-	}
-
-	distRear := posture.SystemCgX - xRear
-	frontPct := (distRear / wheelbase) * 100.0
-	rearPct := 100.0 - frontPct
-
-	return WeightDistributionResult{
-		FrontPct:        frontPct,
-		RearPct:         rearPct,
-		FrontCenterCalc: frontCenter,
-		RearCenterCalc:  rearCenter,
-		WheelbaseCalc:   wheelbase,
-		BackAngleDeg:    posture.BackAngleDeg,
-	}
-}
-
 // AnalyzeBikeFit runs the master analysis pipeline:
 // reverse-engineers CAD baseline, applies optional canonical/target fork modifications,
 // and derives all final dynamic cockpit, frame, and weight distribution metrics.
@@ -1243,13 +1045,7 @@ func AnalyzeBikeFitWithSaddle(
 		}
 	}
 
-	// 5. Biomechanical Posture & Weight Distribution
-	baselineBike := GetDefaultBaselineBike()
-	posture, err := CalculateBaselinePosture(baselineBike, profile)
-	if err != nil {
-		return model.BikeFitAnalysis{}, err
-	}
-
+	// 5. Chainstay Description
 	activeCS := bike.ChainstayLength
 	if activeCS <= 0 {
 		activeCS = 440.0
@@ -1259,23 +1055,6 @@ func AnalyzeBikeFitWithSaddle(
 		activeCS = bike.GetMaxChainstay()
 		csDesc = fmt.Sprintf("%.1f mm [max of %.0f-%.0f]", activeCS, bike.GetMinChainstay(), bike.GetMaxChainstay())
 	}
-
-	htl := bike.Htl
-	if htl <= 0 {
-		htl = 120.0
-	}
-
-	weightDist := CalculateWeightDistribution(
-		activeReach,
-		activeStack,
-		activeHta,
-		htl,
-		activeBbDrop,
-		rake,
-		activeStructuralA2c,
-		activeCS,
-		posture,
-	)
 
 	// 6. Cockpit BRP & HB Points and Saddle-Handlebar Distance from BikeScene
 	deadCenterBRP := model.BRPPoint{
@@ -1355,16 +1134,12 @@ func AnalyzeBikeFitWithSaddle(
 		DeltaBbDrop:         deltaBbDrop,
 		InferredPublishMode: inferredPublishMode,
 
-		WeightDistFrontPct: weightDist.FrontPct,
-		WeightDistRearPct:  weightDist.RearPct,
-		BackAngleDeg:       weightDist.BackAngleDeg,
-		FrontCenterCalc:    weightDist.FrontCenterCalc,
-		RearCenterCalc:     weightDist.RearCenterCalc,
-		SeatToRearCenter:   weightDist.RearCenterCalc - actualSetback,
-		WheelbaseCalc:      weightDist.WheelbaseCalc,
-		ActiveChainstay:    activeCS,
-		ChainstayDesc:      csDesc,
-		TrailMm:            scene.TrailMm(),
+		RearCenterWheelbaseRatio: scene.RearCenterWheelbaseRatio(),
+		SeatToRearCenter:         scene.RearCenter() - actualSetback,
+		WheelbaseCalc:            scene.Wheelbase(),
+		ActiveChainstay:          activeCS,
+		ChainstayDesc:            csDesc,
+		TrailMm:                  scene.TrailMm(),
 
 		Saddle:              saddle,
 		Handlebar:           bar,

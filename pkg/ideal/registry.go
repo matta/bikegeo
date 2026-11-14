@@ -97,7 +97,7 @@ var registry = []AttributeMeta{
 		},
 	},
 	// Deprecated: seat_to_rc (Seat Axis–Rear Axle) only measures horizontal distance from rear axle to the Seat Axis Point, ignoring front-center.
-	// Use frontwt for fore/aft rider weight distribution and wheel centering.
+	// Use rc_wb_ratio for rear-center-to-wheelbase proportion.
 	{
 		ID:        "seat_to_rc",
 		Label:     "Seat Axis–Rear Axle",
@@ -211,25 +211,12 @@ var registry = []AttributeMeta{
 		},
 	},
 	{
-		ID:        "frontwt",
-		Label:     "Front Wt",
-		Unit:      "%",
-		Decimals:  1,
-		BelowWord: "lo",
-		AboveWord: "hi",
+		ID:       "rc_wb_ratio",
+		Label:    "RC / WB",
+		Unit:     "%",
+		Decimals: 1,
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
-			return row.Canonical.WeightDistFrontPct, true
-		},
-	},
-	{
-		ID:        "backangle",
-		Label:     "Back Angle",
-		Unit:      "°",
-		Decimals:  1,
-		BelowWord: "lo",
-		AboveWord: "hi",
-		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
-			return float64(row.Canonical.BackAngleDeg), true
+			return row.Canonical.RearCenterWheelbaseRatio * 100.0, true
 		},
 	},
 	{

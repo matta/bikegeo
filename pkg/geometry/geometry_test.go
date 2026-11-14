@@ -129,48 +129,34 @@ func TestCalculateActualSetback(t *testing.T) {
 	}
 }
 
-func TestBiomechanicalPostureAndWeightDistribution(t *testing.T) {
-	profile := catalog.DefaultRiderProfile()
-	baselineBike := geometry.GetDefaultBaselineBike()
-
-	posture, err := geometry.CalculateBaselinePosture(baselineBike, profile)
-	if err != nil {
-		t.Fatalf("CalculateBaselinePosture failed: %v", err)
+func testBaselineBike() model.BikeGeometry {
+	return model.BikeGeometry{
+		ID:              "otso-fenrir-stainless-l",
+		Manufacturer:    "Otso",
+		Model:           "Fenrir",
+		Size:            "L",
+		Reach:           428.0,
+		Stack:           642.0,
+		HtaDeg:          68.25,
+		StaDeg:          75.25,
+		Htl:             140.0,
+		BbDrop:          72.0,
+		ForkRake:        54.0,
+		Wheelbase:       1158.0,
+		ChainstayLength: 450.0,
+		ForkA2c:         495.0,
+		HeadsetCupType:  model.CupEC44,
 	}
+}
 
-	// Modeled back angle should be an endurance bikepacking position (~54.5° with 50mm rise bar and 20° sweep)
-	if posture.BackAngleDeg < 40.0 || posture.BackAngleDeg > 65.0 {
-		t.Errorf("Expected BackAngleDeg between 40° and 65°, got %.1f°", posture.BackAngleDeg)
-	}
-
-	// Hip position should be aft of BB
-	if posture.HipX >= 0 {
-		t.Errorf("Expected HipX < 0, got %.1f", posture.HipX)
-	}
-
-	// System CoG should be near the BB
-	if math.Abs(posture.SystemCgX) > 100.0 {
-		t.Errorf("Expected SystemCgX near BB (within 100mm), got %.1f", posture.SystemCgX)
-	}
-
-	// Test weight distribution on Otso Fenrir Large
-	fit, err := geometry.AnalyzeBikeFit(baselineBike, model.Opt[float64]{}, model.Opt[float64]{}, profile)
+func TestRearCenterWheelbaseRatio(t *testing.T) {
+	bike := testBaselineBike()
+	fit, err := geometry.AnalyzeBikeFit(bike, model.Opt[float64]{}, model.Opt[float64]{}, catalog.DefaultRiderProfile())
 	if err != nil {
 		t.Fatalf("AnalyzeBikeFit failed: %v", err)
 	}
-	if fit.WeightDistFrontPct <= 30.0 || fit.WeightDistFrontPct >= 45.0 {
-		t.Errorf("Expected WeightDistFrontPct between 30%% and 45%%, got %.1f%%", fit.WeightDistFrontPct)
-	}
-	if math.Abs((fit.WeightDistFrontPct+fit.WeightDistRearPct)-100.0) > 0.2 {
-		t.Errorf("Expected front + rear to equal 100%%, got %.1f%% + %.1f%%", fit.WeightDistFrontPct, fit.WeightDistRearPct)
-	}
-
-	// Test chainstay effect: longer chainstay frame should have higher front weight percentage
-	shortCsDist := geometry.CalculateWeightDistribution(420, 640, 68, 140, 70, 50, 500, 430, posture)
-	longCsDist := geometry.CalculateWeightDistribution(420, 640, 68, 140, 70, 50, 500, 460, posture)
-
-	if longCsDist.FrontPct <= shortCsDist.FrontPct {
-		t.Errorf("Expected longer chainstay to shift weight forward (got short: %.1f%%, long: %.1f%%)", shortCsDist.FrontPct, longCsDist.FrontPct)
+	if fit.RearCenterWheelbaseRatio <= 0.30 || fit.RearCenterWheelbaseRatio >= 0.45 {
+		t.Errorf("Expected RearCenterWheelbaseRatio between 0.30 and 0.45, got %.4f", fit.RearCenterWheelbaseRatio)
 	}
 }
 
@@ -285,7 +271,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 }
 
 func TestAnalyzeBikeFitRequiresPositiveSeatHeight(t *testing.T) {
-	bike := geometry.GetDefaultBaselineBike()
+	bike := testBaselineBike()
 
 	badProf := catalog.DefaultRiderProfile()
 	badProf.SaddleHeightMm = 0
@@ -296,13 +282,10 @@ func TestAnalyzeBikeFitRequiresPositiveSeatHeight(t *testing.T) {
 	if _, err := geometry.AnalyzeBikeFit(bike, model.Opt[float64]{}, model.Opt[float64]{}, badProf); err == nil {
 		t.Errorf("Expected error for negative SaddleHeightMm in AnalyzeBikeFit, got nil")
 	}
-	if _, err := geometry.CalculateBaselinePosture(bike, badProf); err == nil {
-		t.Errorf("Expected error for SaddleHeightMm <= 0 in CalculateBaselinePosture, got nil")
-	}
 }
 
 func TestAnalyzeBikeFitRequiresPositiveRake(t *testing.T) {
-	bike := geometry.GetDefaultBaselineBike()
+	bike := testBaselineBike()
 	prof := catalog.DefaultRiderProfile()
 
 	// 1. Zero bike ForkRake

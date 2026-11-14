@@ -635,7 +635,7 @@ func TestCompare_BreakdownSubtitleAndTranslatedH(t *testing.T) {
 	bdSub := tables[len(tables)-1].Subtitle
 	for _, want := range []string{
 		"-100 or -200",
-		"> -166 to +100",
+		"> -174 to +100",
 		"±1–2",
 	} {
 		if !strings.Contains(bdSub, want) {
