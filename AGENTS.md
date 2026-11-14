@@ -62,7 +62,7 @@ make pre-commit
 
 When adding or editing frame files in `pkg/frames/*.go`:
 1. **Strict Ground Truth & Chart Immutability**:
-   - Published manufacturer geometry numbers (Stack, Reach, HTA, Wheelbase, etc.) are sacred ground truth. **NEVER modify or nudge published chart numbers** to absorb rounding residuals or force validation to pass.
+   - Published manufacturer geometry numbers (Stack, Reach, HTA, Wheelbase when published, etc.) are sacred ground truth. **NEVER modify or nudge published chart numbers** to absorb rounding residuals or force validation to pass, and **omit `Wheelbase` rather than deriving it** when a manufacturer does not publish it.
    - Size geometry overrides are strictly forbidden unless resolving a proven, catastrophic manufacturer typo (>5mm or digit transposition) documented in `Notes`.
 2. **Headset Standard & Cup Stack Verification**:
    - Verify the frame material and headset specification before finishing ingestion.
@@ -70,7 +70,7 @@ When adding or editing frame files in `pkg/frames/*.go`:
    - Steel/aluminum frames with external cups (`EC34`/`EC44`) physically add 10–14mm stack below the headtube; `GeoHeadsetSpacerMm` explicitly sets the CAD spacer (typically 10–12mm if drawn with cups, or 0.0mm if drawn to the bare headtube).
 3. **`GeoSlopMm` is an Absolute Last Resort**:
    - `GeoSlopMm` must **never** be used to mask modeling errors (such as using the bike's sold rigid fork rather than the suspension fork the CAD chart was drawn around, ignoring CAD sag, or assuming the wrong headset standard).
-   - Validation needs no slop for ordinary rounding. Each closure check (Stack ↔ fork A2C, Front Center, Wheelbase) propagates the rounding half-width of every published input through its equation (`geometry.A2cBudget`, `FrontCenterBudget`, `WheelbaseBudget`) and fails only when the residual exceeds that worst case. Precision is inferred per chart column: a head-angle column of 68, 68.5, 69 is on a half-degree grid (±0.25°). A pass that holds only because the head angle is assumed rounded is reported as an `*_needs_angle_rounding` notice.
+   - Validation needs no slop for ordinary rounding. Each closure check (Stack ↔ fork A2C, Front Center, Wheelbase) propagates the rounding half-width of every published input through its equation (`geometry.A2cBudget`, `FrontCenterBudget`, `WheelbaseBudget`) and fails only when the residual exceeds that worst case. Frames may declare `ChartPrecision` explicitly (for example on single-size charts or trailing-zero angles such as `70.0°`); any undeclared field falls back to inference per chart column (a head-angle column of `68, 68.5, 69` is on a half-degree grid, `±0.25°`). A pass that holds only because the head angle is assumed rounded is reported as an `*_needs_angle_rounding` notice.
    - `GeoSlopMm` is an allowance **added** to the rounding budget, for chart error that rounding cannot explain. It must be needed (some size fails without it) and no larger than `bikegeo fit`'s "Allowance needed beyond rounding" rounded up to 0.5mm; `TestDeclaredAllowancesAreNecessary` enforces both.
    - If a custom `GeoSlopMm` override is genuinely necessary, it requires an explicit `Reason` field on `model.GeoSlopMm` documenting the manufacturer discrepancy.
 4. **Use `bikegeo fit` as Primary Tool & Automated Solver**:

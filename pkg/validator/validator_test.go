@@ -739,7 +739,7 @@ func TestRoundingBudgetRows(t *testing.T) {
 		return rows
 	}
 
-	for _, f := range []model.FrameModel{frames.SevenExpedition926d, frames.SurlyECR, frames.MootsMountaineer} {
+	for _, f := range []model.FrameModel{frames.OtsoFenrirStainless, frames.SurlyECR} {
 		rows := rowsOf(f)
 		for _, label := range []string{"Rounding Budget: Stack / A2C", "Rounding Budget: Wheelbase"} {
 			v, ok := rows[label]
@@ -755,15 +755,24 @@ func TestRoundingBudgetRows(t *testing.T) {
 			t.Errorf("%s: obsolete Allowed Slop Tolerances row present", f.ID)
 		}
 	}
+	for _, f := range []model.FrameModel{frames.SevenExpedition926d, frames.MootsMountaineer} {
+		rows := rowsOf(f)
+		if v, ok := rows["Rounding Budget: Stack / A2C"]; !ok || !strings.Contains(v, "% used") {
+			t.Errorf("%s: unexpected Stack / A2C budget row: %q (ok=%v)", f.ID, v, ok)
+		}
+		if _, ok := rows["Rounding Budget: Wheelbase"]; ok {
+			t.Errorf("%s: unexpected Rounding Budget: Wheelbase when Wheelbase is omitted", f.ID)
+		}
+	}
 	if got := rowsOf(frames.SurlyECR)["Declared Allowance (geo_slop_mm)"]; got != "none (rounding budget only)" {
 		t.Errorf("surly-ecr declared allowance = %q, want none", got)
 	}
 
-	// Quarter-degree HTA (Seven) gives a much tighter wheelbase budget than integer HTA (ECR).
-	sevenWb := rowsOf(frames.SevenExpedition926d)["Rounding Budget: Wheelbase"]
+	// Quarter-degree HTA (Fenrir) gives a much tighter wheelbase budget than integer HTA (ECR).
+	fenrirWb := rowsOf(frames.OtsoFenrirStainless)["Rounding Budget: Wheelbase"]
 	ecrWb := rowsOf(frames.SurlyECR)["Rounding Budget: Wheelbase"]
-	if !strings.Contains(sevenWb, "HTA ±1.") || !strings.Contains(ecrWb, "HTA ±5.") {
-		t.Errorf("expected quarter-degree vs integer-degree HTA terms, got seven=%q ecr=%q", sevenWb, ecrWb)
+	if !strings.Contains(fenrirWb, "HTA ±1.") || !strings.Contains(ecrWb, "HTA ±5.") {
+		t.Errorf("expected quarter-degree vs integer-degree HTA terms, got fenrir=%q ecr=%q", fenrirWb, ecrWb)
 	}
 
 	for _, v := range []float64{-1.5, 10.5} {

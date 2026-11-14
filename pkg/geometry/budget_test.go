@@ -188,6 +188,16 @@ func TestInferChartPrecision(t *testing.T) {
 	if hw := geometry.InferChartPrecision(quarter).HtaDeg; hw != 0.125 {
 		t.Errorf("quarter-degree HTA column half-width = %v, want 0.125", hw)
 	}
+
+	// Declared ChartPrecision overrides float-inferred precision (e.g. Seven Custom's 70.0° HTA).
+	declared := quarter
+	declared.ChartPrecision = model.ChartPrecision{HtaDeg: 0.05}
+	if hw := geometry.InferChartPrecision(declared).HtaDeg; hw != 0.05 {
+		t.Errorf("declared HTA half-width = %v, want 0.05", hw)
+	}
+	if hw := geometry.InferChartPrecision(frames.SevenCustom).HtaDeg; hw != 0.05 {
+		t.Errorf("SevenCustom HTA half-width = %v, want 0.05", hw)
+	}
 }
 
 // TestBudgetNarrowerPrecisionNeverWidens: a more precise chart can only tighten a budget.

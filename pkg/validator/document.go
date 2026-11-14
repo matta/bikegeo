@@ -120,6 +120,10 @@ func addDetail(doc *report.Document, b Bundle) {
 	if !b.Valid() {
 		badge = "VALIDATION ISSUES DETECTED (INVALID)"
 	}
+	wbStr := "N/A"
+	if b.Bike.Wheelbase > 0 {
+		wbStr = fmt.Sprintf("%.1f mm", b.Bike.Wheelbase)
+	}
 	spec := report.FromStrings(
 		"validation-"+report.Slug(b.Frame.ID+"-"+b.Size),
 		fmt.Sprintf("=== %s %s (Size %s) [%s] ===", b.Bike.Manufacturer, b.Bike.Model, b.Size, badge),
@@ -134,7 +138,7 @@ func addDetail(doc *report.Document, b Bundle) {
 			fmt.Sprintf("%.1f mm", b.Bike.Htl),
 			fmt.Sprintf("%.1f mm", b.Bike.BbDrop),
 			fmt.Sprintf("%.1f mm", b.Bike.ForkRake),
-			fmt.Sprintf("%.1f mm", b.Bike.Wheelbase),
+			wbStr,
 		}},
 	)
 	spec.Columns[5].ID = "bbdrop"

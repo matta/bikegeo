@@ -30,7 +30,6 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 		{name: "htl", label: "Head Tube Length (HTL)", val: bike.Htl},
 		{name: "bb_drop", label: "Bottom Bracket Drop", val: bike.BbDrop},
 		{name: "fork_rake", label: "Fork Rake / Offset", val: bike.ForkRake},
-		{name: "wheelbase", label: "Wheelbase", val: bike.Wheelbase},
 	}
 
 	for _, req := range required {

@@ -1002,6 +1002,7 @@ type FrameModel struct {
 	HeadsetCupType     HeadsetCupType
 	GeoHeadsetSpacerMm float64
 	GeoSlopMm          *GeoSlopMm
+	ChartPrecision     ChartPrecision
 	ActualStaDeg       Deg
 	SeatTubeOffsetXMm  Opt[float64]
 	ChainstayRangeMm   []float64

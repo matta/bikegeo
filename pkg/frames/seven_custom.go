@@ -11,6 +11,7 @@ var SevenCustom = model.FrameModel{
 	WheelSize:          "29",
 	HeadsetCupType:     model.CupEC44,
 	GeoHeadsetSpacerMm: 11,
+	ChartPrecision:     model.ChartPrecision{HtaDeg: 0.05},
 	MaxSpacerMm:        40,
 	CanonicalStem:      model.StemSpec{LengthMm: 70, AngleDeg: -6},
 	Stems:              []string{"mtb"},

@@ -69,16 +69,32 @@ func InferChartPrecision(frame model.FrameModel) model.ChartPrecision {
 		}
 		return vals
 	}
-	return model.ChartPrecision{
-		ReachMm:       gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.Reach }), lengthGridsMm),
-		StackMm:       gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.Stack }), lengthGridsMm),
-		HtaDeg:        model.Deg(gridHalfWidth(col(func(g model.SizeGeometry) float64 { return float64(g.HtaDeg) }), angleGridsDeg)),
-		HtlMm:         gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.Htl }), lengthGridsMm),
-		BbDropMm:      gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.BbDrop }), lengthGridsMm),
-		ChainstayMm:   gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.ChainstayLength }), lengthGridsMm),
-		WheelbaseMm:   gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.Wheelbase }), lengthGridsMm),
-		FrontCenterMm: gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.FrontCenter }), lengthGridsMm),
+	p := frame.ChartPrecision
+	if p.ReachMm <= 0 {
+		p.ReachMm = gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.Reach }), lengthGridsMm)
 	}
+	if p.StackMm <= 0 {
+		p.StackMm = gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.Stack }), lengthGridsMm)
+	}
+	if p.HtaDeg <= 0 {
+		p.HtaDeg = model.Deg(gridHalfWidth(col(func(g model.SizeGeometry) float64 { return float64(g.HtaDeg) }), angleGridsDeg))
+	}
+	if p.HtlMm <= 0 {
+		p.HtlMm = gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.Htl }), lengthGridsMm)
+	}
+	if p.BbDropMm <= 0 {
+		p.BbDropMm = gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.BbDrop }), lengthGridsMm)
+	}
+	if p.ChainstayMm <= 0 {
+		p.ChainstayMm = gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.ChainstayLength }), lengthGridsMm)
+	}
+	if p.WheelbaseMm <= 0 {
+		p.WheelbaseMm = gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.Wheelbase }), lengthGridsMm)
+	}
+	if p.FrontCenterMm <= 0 {
+		p.FrontCenterMm = gridHalfWidth(col(func(g model.SizeGeometry) float64 { return g.FrontCenter }), lengthGridsMm)
+	}
+	return p
 }
 
 // ChartPrecisionFor returns the bike's chart precision, inferring any field that
