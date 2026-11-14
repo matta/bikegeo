@@ -20,6 +20,7 @@ const (
 	TargetStemClamp TargetRef = "stem_clamp"
 	// TargetReferenceBarClamp indicates TargetPoint is the stem clamp center of RiderFit.ReferenceBar
 	// on the fit bike, reproducing hand position through ReferenceBar's sweep/rise offset.
+	// TODO: this this strictly necessary? It seems like a YAGNI thing.
 	TargetReferenceBarClamp TargetRef = "reference_bar_clamp"
 )
 
