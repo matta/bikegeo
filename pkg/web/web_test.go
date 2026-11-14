@@ -729,8 +729,8 @@ func TestMarkedCellsHaveZone(t *testing.T) {
 	if fenrir110Trail == nil || fenrir110Trail.Length() != 1 {
 		t.Fatal("missing Fenrir L @ 110mm trail cell")
 	}
-	if got := text(fenrir110Trail); got != "102 ✓" {
-		t.Errorf("Fenrir L @ 110mm trail = %q, want %q", got, "102 ✓")
+	if got := text(fenrir110Trail); got != "104 ✓" {
+		t.Errorf("Fenrir L @ 110mm trail = %q, want %q", got, "104 ✓")
 	}
 	if got := fenrir110Trail.AttrOr("data-zone", ""); got != "ideal" || !fenrir110Trail.HasClass("zone-ideal") {
 		t.Errorf("Fenrir L @ 110mm trail zone=%q class=%q, want ideal / zone-ideal", got, fenrir110Trail.AttrOr("class", ""))

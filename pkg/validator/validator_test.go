@@ -1106,13 +1106,6 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 				htaRad := bike.HtaDeg.Angle()
 				lChart := (bike.Stack - bike.BbDrop + bike.CadFork.RakeMm*htaRad.Cos()) / htaRad.Sin()
 
-				u0 := geometry.SteererTubeDir(bike.HtaDeg)
-				n0 := u0.Perpendicular(geom2d.Clockwise)
-				ht0 := geom2d.Point2{X: bike.Reach, Y: bike.Stack}
-				fa0 := ht0.SubVec(u0.Scale(lChart)).Add(n0.Scale(bike.CadFork.RakeMm))
-				ra0 := geom2d.Point2{X: -geometry.RearCenterHoriz(bike.ChainstayLength, bike.BbDrop), Y: bike.BbDrop}
-				wbChart := fa0.X - ra0.X
-
 				for _, s := range setups {
 					res, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Some(s.A2cMm), model.Some(s.RakeMm), profile, saddle)
 					if err != nil {
@@ -1125,21 +1118,8 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 					faAct := htAct.SubVec(uAct.Scale(lChart + dL)).Add(nAct.Scale(s.RakeMm))
 					raAct := geom2d.Point2{X: -geometry.RearCenterHoriz(bike.ChainstayLength, res.ActiveBbDrop), Y: res.ActiveBbDrop}
 					axleDelta := math.Abs(faAct.Y - raAct.Y)
-
-					if math.Abs(s.RakeMm-bike.CadFork.RakeMm) < 1e-6 {
-						// Pre-Commit-6: CalculateDynamicGeometry pitches using published bike.Wheelbase
-						// rather than wbChart, leaving |(wbChart - bike.Wheelbase) * sin(dHta)| (0 at dL == 0).
-						// Commit 6 (BikeScene) eliminates this drift so axleDelta < 1e-6 unconditionally.
-						dHta := (res.ActiveHta - bike.HtaDeg).Angle()
-						preCommit6WbDrift := math.Abs((wbChart - bike.Wheelbase) * dHta.Sin())
-						if math.Abs(axleDelta-preCommit6WbDrift) >= 1e-6 || axleDelta >= 0.1 {
-							t.Errorf("%s %s (%s, same rake %.1f): |FA.Y - RA.Y| = %.6f mm (expected pre-Commit-6 drift %.6f mm, want within 1e-6 and < 0.1)", frame.ID, sz, s.DisplayLabel, s.RakeMm, axleDelta, preCommit6WbDrift)
-						}
-					} else {
-						// Known C3 issue before Commit 6: AnalyzeBikeFitWithSaddle ignores Fork.Rake changes when pitching.
-						if axleDelta <= 0.1 || axleDelta >= 5.0 {
-							t.Errorf("%s %s (%s, rake %.1f vs CAD %.1f): unexpected pre-Commit-6 C3 |FA.Y - RA.Y| = %.3f mm", frame.ID, sz, s.DisplayLabel, s.RakeMm, bike.CadFork.RakeMm, axleDelta)
-						}
+					if axleDelta >= 1e-6 {
+						t.Errorf("%s %s (%s): |FA.Y - RA.Y| = %.6f mm, want < 1e-6", frame.ID, sz, s.DisplayLabel, axleDelta)
 					}
 				}
 			}

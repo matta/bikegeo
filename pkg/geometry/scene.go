@@ -327,14 +327,6 @@ type BikeScene struct {
 	StructuralA2cMm float64
 }
 
-// legacyPitchMode preserves pre-C3 constant-rake / published-wheelbase pitching during Commit 5's
-// incremental cutover; removed in Commit 6 (C3).
-// TODO: to be removed in Commit 6 (C3)
-type legacyPitchMode struct {
-	pitchWheelbaseOverride float64
-	constantRakePitch      bool
-}
-
 // frameLandmarks2D holds rigid 2D frame landmarks and head-tube angle in BB-relative coordinates.
 type frameLandmarks2D struct {
 	BB             geom2d.Point2
@@ -433,17 +425,6 @@ func BuildScene(
 	seat SeatSpec,
 	fit RiderFit,
 ) (BikeScene, error) {
-	return buildScene(frame, build, cockpit, seat, fit, legacyPitchMode{})
-}
-
-func buildScene(
-	frame FrameSize,
-	build BuildSpec,
-	cockpit CockpitSpec,
-	seat SeatSpec,
-	fit RiderFit,
-	pitchMode legacyPitchMode,
-) (BikeScene, error) {
 	if err := validateSceneInputs(frame, build, cockpit, seat, fit); err != nil {
 		return BikeScene{}, err
 	}
@@ -487,14 +468,6 @@ func buildScene(
 
 	// 2. Exact rear-axle pitch leveling across A2C, sag, lower cup, and rake changes.
 	dRake := build.Fork.RakeMm - frame.CadFork.RakeMm
-	wbBeforePitch := wb0
-	if pitchMode.constantRakePitch {
-		dRake = 0
-	}
-	if pitchMode.pitchWheelbaseOverride > 0 {
-		wbBeforePitch = pitchMode.pitchWheelbaseOverride - dL*u0.X
-	}
-
 	leveled := levelFrame2D(frameLevelingInput{
 		Initial: frameLandmarks2D{
 			BB:             bb0,
@@ -506,7 +479,7 @@ func buildScene(
 		},
 		DeltaStructuralA2cMm:   dL,
 		DeltaRakeMm:            dRake,
-		WheelbaseBeforePitchMm: wbBeforePitch,
+		WheelbaseBeforePitchMm: wb0,
 	})
 	fr := leveled.Leveled
 	uAct := SteererTubeDir(fr.HtaDeg)

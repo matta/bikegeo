@@ -86,7 +86,8 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 		t.Errorf("Expected DeltaAngleDeg -3.12, got %.2f", dyn.DeltaAngleDeg)
 	}
 
-	// Step 3: Master AnalyzeBikeFit pipeline
+	// Step 3: Master AnalyzeBikeFit pipeline (BuildScene levels from exact 2D wb0 = fa0.X - ra0.X
+	// ~1070.8 mm rather than the synthetic fixture's contradictory Wheelbase = 1150.0 mm).
 	fit, err := geometry.AnalyzeBikeFit(
 		binaryHavok,
 		model.Some(saggedFork),
@@ -100,23 +101,23 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 	if geometry.Round(fit.StructuralA2c, 1) != 428.8 {
 		t.Errorf("Expected StructuralA2c 428.8, got %.1f", fit.StructuralA2c)
 	}
-	if geometry.Round(fit.ActiveReach, 1) != 433.1 {
-		t.Errorf("Expected ActiveReach 433.1, got %.1f", fit.ActiveReach)
+	if geometry.Round(fit.ActiveReach, 1) != 434.9 {
+		t.Errorf("Expected ActiveReach 434.9, got %.1f", fit.ActiveReach)
 	}
-	if geometry.Round(fit.ActiveStack, 1) != 633.4 {
-		t.Errorf("Expected ActiveStack 633.4, got %.1f", fit.ActiveStack)
+	if geometry.Round(fit.ActiveStack, 1) != 632.1 {
+		t.Errorf("Expected ActiveStack 632.1, got %.1f", fit.ActiveStack)
 	}
-	if geometry.Round(fit.Aett, 1) != 566.0 {
-		t.Errorf("Expected AETT 566.0, got %.1f", fit.Aett)
+	if geometry.Round(fit.Aett, 1) != 565.5 {
+		t.Errorf("Expected AETT 565.5, got %.1f", fit.Aett)
 	}
-	if geometry.Round(fit.ActualSetback, 1) != 173.9 {
-		t.Errorf("Expected ActualSetback 173.9, got %.1f", fit.ActualSetback)
+	if geometry.Round(fit.ActualSetback, 1) != 171.7 {
+		t.Errorf("Expected ActualSetback 171.7, got %.1f", fit.ActualSetback)
 	}
-	if geometry.Round(fit.SpareVerticalStack, 1) != 127.0 {
-		t.Errorf("Expected SpareVerticalStack 127.0, got %.1f", fit.SpareVerticalStack)
+	if geometry.Round(fit.SpareVerticalStack, 1) != 128.7 {
+		t.Errorf("Expected SpareVerticalStack 128.7, got %.1f", fit.SpareVerticalStack)
 	}
-	if geometry.Round(fit.SpareAxialSteerer, 1) != 133.5 {
-		t.Errorf("Expected SpareAxialSteerer 133.5, got %.1f", fit.SpareAxialSteerer)
+	if geometry.Round(fit.SpareAxialSteerer, 1) != 135.1 {
+		t.Errorf("Expected SpareAxialSteerer 135.1, got %.1f", fit.SpareAxialSteerer)
 	}
 }
 

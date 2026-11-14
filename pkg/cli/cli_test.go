@@ -242,8 +242,8 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "-1 (#2)") {
 			t.Errorf("expected '-1 (#2)' in output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "-7 (#3)") {
-			t.Errorf("expected '-7 (#3)' in output, got:\n%s", out)
+		if !strings.Contains(out, "-6 (#3)") {
+			t.Errorf("expected '-6 (#3)' in output, got:\n%s", out)
 		}
 	})
 
@@ -303,7 +303,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Score,,,64 (#1),-1 (#2),-7 (#3)") {
+		if !strings.Contains(out, "Score,,,64 (#1),-1 (#2),-6 (#3)") {
 			t.Errorf("expected CSV Score row, got:\n%s", out)
 		}
 	})
@@ -314,7 +314,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "| Score |  |  | 64 (#1) | -1 (#2) | -7 (#3) |") {
+		if !strings.Contains(out, "| Score |  |  | 64 (#1) | -1 (#2) | -6 (#3) |") {
 			t.Errorf("expected Markdown Score row, got:\n%s", out)
 		}
 	})

@@ -1034,9 +1034,8 @@ func AnalyzeBikeFitWithSaddle(
 	geoSpacer := bike.GeoHeadsetSpacerMm
 	baseForkA2c := baseStructuralA2c - geoSpacer
 
-	// 2. Construct BikeScene under Commit 5 baseline assumptions:
-	//    HeadsetTopStackMm = 0 (C2 in Commit 7), constant-rake pitch with published wheelbase (C3 in Commit 6),
-	//    and PhysicalLowerCupMm = CadLowerCupMm (C4 in Commit 8).
+	// 2. Construct BikeScene under Commit 6 baseline assumptions:
+	//    HeadsetTopStackMm = 0 (C2 in Commit 7) and PhysicalLowerCupMm = CadLowerCupMm (C4 in Commit 8).
 	frame, err := FrameSizeFromBikeGeometry(bike)
 	if err != nil {
 		return model.BikeFitAnalysis{}, err
@@ -1102,14 +1101,7 @@ func AnalyzeBikeFitWithSaddle(
 		ReferenceSaddle:       refSQ,
 	}
 
-	pitchWb := bike.Wheelbase
-	if pitchWb <= 0 {
-		pitchWb = 1150.0
-	}
-	scene, err := buildScene(frame, build, cockpit, seat, fitTarget, legacyPitchMode{
-		pitchWheelbaseOverride: pitchWb,
-		constantRakePitch:      true,
-	})
+	scene, err := BuildScene(frame, build, cockpit, seat, fitTarget)
 	if err != nil {
 		return model.BikeFitAnalysis{}, err
 	}
