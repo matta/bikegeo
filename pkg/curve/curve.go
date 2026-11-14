@@ -156,7 +156,7 @@ func StemPenalty(stemLen, minLen, maxLen float64) (penalty float64, u float64) {
 		return MaxStemPenalty * u * u, u
 	}
 	over := u - 1.0
-	return MaxStemPenalty * (1.0 + 2.0*over*over + over), u
+	return MaxStemPenalty * (1.0 + 2.0*over*over + 2.0*over), u
 }
 
 func isFinite(v float64) bool {

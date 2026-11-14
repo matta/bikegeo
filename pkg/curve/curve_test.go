@@ -197,7 +197,7 @@ func TestStemPenalty(t *testing.T) {
 		{60, 60, 100, 15, 1},
 		{100, 60, 100, 15, 1},
 		{90, 60, 100, 3.75, 0.5},
-		{110, 60, 100, 15 * (1 + 2*0.25 + 0.5), 1.5},
+		{110, 60, 100, 15 * (1 + 2*0.25 + 2*0.5), 1.5},
 		{80, 0, 100, 0, 0},   // no usable range
 		{80, 100, 100, 0, 0}, // empty range
 	}
@@ -220,5 +220,16 @@ func TestStemPenalty(t *testing.T) {
 			t.Fatalf("StemPenalty jumps by %v at stem=%v", cur-prev, stem)
 		}
 		prev = cur
+	}
+
+	// C1 smoothness at boundary u = 1: left and right slopes wrt u must match.
+	eps := 1e-6
+	pAt1, _ := StemPenalty(100, 60, 100)
+	pLeft, _ := StemPenalty(100-eps*20, 60, 100)
+	pRight, _ := StemPenalty(100+eps*20, 60, 100)
+	slopeLeft := (pAt1 - pLeft) / eps
+	slopeRight := (pRight - pAt1) / eps
+	if math.Abs(slopeLeft-slopeRight) > 1e-4 {
+		t.Errorf("StemPenalty not C1 at u=1: left slope %.6f != right slope %.6f", slopeLeft, slopeRight)
 	}
 }

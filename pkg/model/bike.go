@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -1377,7 +1378,8 @@ func (r FrameValidationReport) ErrorSummary() string {
 			msgs = append(msgs, fmt.Sprintf("%s: %s", iss.Title, iss.Message))
 		}
 	}
-	for sz, rep := range r.SizeReports {
+	for _, sz := range slices.Sorted(maps.Keys(r.SizeReports)) {
+		rep := r.SizeReports[sz]
 		for _, iss := range rep.Issues {
 			if iss.Severity == SeverityError {
 				msgs = append(msgs, fmt.Sprintf("[Size %s] %s: %s", sz, iss.Title, iss.Message))
