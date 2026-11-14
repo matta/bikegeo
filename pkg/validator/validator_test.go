@@ -280,8 +280,8 @@ func TestValidateRevelElJefe(t *testing.T) {
 	if !report.IsValid {
 		t.Fatalf("Expected Revel El Jefe to pass validation: %s", report.ErrorSummary())
 	}
-	if !jefe.HasBentSeatTube() {
-		t.Fatalf("Expected Revel El Jefe to have bent seat tube")
+	if jefe.ActualStaDeg <= 0 {
+		t.Fatalf("Expected Revel El Jefe to have bent seat tube (ActualStaDeg > 0)")
 	}
 
 	// Verify invalid actual_sta_deg fails validation

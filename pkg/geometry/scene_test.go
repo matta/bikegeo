@@ -141,10 +141,7 @@ func TestBuildScene_ParityWithCalculateDynamicGeometry_ConstantRake(t *testing.T
 						}
 
 						// Compare against CalculateDynamicGeometry using wbChart on constant-rake setup.
-						effStaCad := bike.StaDeg
-						if bike.HasBentSeatTube() {
-							effStaCad = bike.CalculateEffectiveSta(brpH, bike.Stack, bike.StaDeg)
-						}
+						effStaCad := frame.EffectiveStaDegAt(brpH)
 						dyn := geometry.CalculateDynamicGeometry(
 							bike.Reach, bike.Stack, bike.HtaDeg, effStaCad, bike.BbDrop,
 							baseStruct, targetEff+frame.CadLowerCupMm, wbChart, bike.ChainstayLength,
@@ -169,10 +166,7 @@ func TestBuildScene_ParityWithCalculateDynamicGeometry_ConstantRake(t *testing.T
 							t.Errorf("%s %s d=%.0f: PitchDeg diff %.12f", frameModel.ID, sz, delta, d)
 						}
 
-						seatAxisSta := dyn.NewSta
-						if bike.HasBentSeatTube() {
-							seatAxisSta = bike.CalculateEffectiveSta(746.0, bike.Stack, bike.StaDeg) - dyn.DeltaAngleDeg
-						}
+						seatAxisSta := frame.EffectiveStaDegAt(746.0) - dyn.DeltaAngleDeg
 						wantAett := geometry.CalculateAett(dyn.NewReach, dyn.NewStack, dyn.NewHta, seatAxisSta, 746.0)
 						wantEtt := geometry.CalculateEtt(dyn.NewReach, dyn.NewStack, dyn.NewHta, bike.StaDeg-dyn.DeltaAngleDeg)
 						wantSetback := geometry.CalculateActualSetback(seatAxisSta, 746.0)

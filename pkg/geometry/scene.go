@@ -88,7 +88,8 @@ func (f FrameSize) SeatTubeOffsetX() float64 {
 	return CalculateBentSeatTubeOffset(f.StackMm, f.ActualStaDeg, f.StaDeg)
 }
 
-func (f FrameSize) effectiveStaCad(seatHeight float64) model.Deg {
+// EffectiveStaDegAt returns the effective seat-tube angle at seatHeight in the CAD attitude.
+func (f FrameSize) EffectiveStaDegAt(seatHeight float64) model.Deg {
 	if !f.HasBentSeatTube() || seatHeight <= 0 {
 		return f.StaDeg
 	}
@@ -553,8 +554,8 @@ func BuildScene(
 
 	// 4. Rear cockpit on leveled frame
 	nominalStaAct := frame.StaDeg - leveled.PitchDeg
-	seatAxisStaAct := frame.effectiveStaCad(fit.FrameSeatAxisHeightMm) - leveled.PitchDeg
-	effStaAct := frame.effectiveStaCad(fit.BrpHeightMm) - leveled.PitchDeg
+	seatAxisStaAct := frame.EffectiveStaDegAt(fit.FrameSeatAxisHeightMm) - leveled.PitchDeg
+	effStaAct := frame.EffectiveStaDegAt(fit.BrpHeightMm) - leveled.PitchDeg
 
 	nominalSeatAxis := SeatTubeAxis(fr.BB, nominalStaAct)
 	frameSeatAxis := SeatTubeAxis(fr.BB, seatAxisStaAct)

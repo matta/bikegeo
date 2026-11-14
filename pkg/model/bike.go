@@ -288,49 +288,6 @@ func (b BikeGeometry) HasBentSeatTube() bool {
 	return b.ActualStaDeg > 0 && (b.ActualStaDeg-b.StaDeg).Abs() > 0.001
 }
 
-func (b BikeGeometry) GetActualStaDeg() Deg {
-	if b.ActualStaDeg > 0 {
-		return b.ActualStaDeg
-	}
-	return b.StaDeg
-}
-
-func (b BikeGeometry) GetSeatTubeOffsetXMm(stack float64, nominalSta Deg) float64 {
-	if v, ok := b.SeatTubeOffsetXMm.Get(); ok {
-		return v
-	}
-	if !b.HasBentSeatTube() {
-		return 0
-	}
-	if stack <= 0 {
-		stack = b.Stack
-	}
-	if nominalSta <= 0 {
-		nominalSta = b.StaDeg
-	}
-	cotAct := 1.0 / b.ActualStaDeg.Angle().Tan()
-	cotNom := 1.0 / nominalSta.Angle().Tan()
-	return stack * (cotAct - cotNom)
-}
-
-func (b BikeGeometry) CalculateEffectiveSta(seatHeight, stack float64, nominalSta Deg) Deg {
-	if !b.HasBentSeatTube() || seatHeight <= 0 {
-		if nominalSta > 0 {
-			return nominalSta
-		}
-		return b.StaDeg
-	}
-	ox := b.GetSeatTubeOffsetXMm(stack, nominalSta)
-	sinVal := (ox * b.ActualStaDeg.Angle().Sin()) / seatHeight
-	if sinVal > 1.0 {
-		sinVal = 1.0
-	} else if sinVal < -1.0 {
-		sinVal = -1.0
-	}
-	alphaRad := math.Asin(sinVal)
-	return b.ActualStaDeg + DegOf(geom2d.FromRad(alphaRad))
-}
-
 func (b BikeGeometry) GetGeoHeadsetSpacerMm() float64 {
 	return b.GeoHeadsetSpacerMm
 }
@@ -1125,41 +1082,6 @@ func (fm *FrameModel) GetSpacersMm() []float64 {
 
 func (fm *FrameModel) GetCanonicalStem() StemSpec {
 	return fm.CanonicalStem
-}
-
-func (fm *FrameModel) HasBentSeatTube() bool {
-	return fm.ActualStaDeg > 0
-}
-
-func (fm *FrameModel) GetActualStaDeg() Deg {
-	return fm.ActualStaDeg
-}
-
-func (fm *FrameModel) GetSeatTubeOffsetXMm(stack float64, nominalSta Deg) float64 {
-	if v, ok := fm.SeatTubeOffsetXMm.Get(); ok {
-		return v
-	}
-	if !fm.HasBentSeatTube() || stack <= 0 || nominalSta <= 0 {
-		return 0
-	}
-	cotAct := 1.0 / fm.ActualStaDeg.Angle().Tan()
-	cotNom := 1.0 / nominalSta.Angle().Tan()
-	return stack * (cotAct - cotNom)
-}
-
-func (fm *FrameModel) CalculateEffectiveSta(seatHeight, stack float64, nominalSta Deg) Deg {
-	if !fm.HasBentSeatTube() || seatHeight <= 0 || nominalSta <= 0 {
-		return nominalSta
-	}
-	ox := fm.GetSeatTubeOffsetXMm(stack, nominalSta)
-	sinVal := (ox * fm.ActualStaDeg.Angle().Sin()) / seatHeight
-	if sinVal > 1.0 {
-		sinVal = 1.0
-	} else if sinVal < -1.0 {
-		sinVal = -1.0
-	}
-	alphaRad := math.Asin(sinVal)
-	return fm.ActualStaDeg + DegOf(geom2d.FromRad(alphaRad))
 }
 
 func (fm *FrameModel) HasAdjustableChainstay() bool {

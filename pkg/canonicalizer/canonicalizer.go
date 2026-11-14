@@ -569,30 +569,6 @@ func CanonicalizeBikes(
 	for _, bike := range bikes {
 		valReport := validator.ValidateBikeGeometry(bike)
 
-		baseSta := bike.StaDeg
-		if bike.HasBentSeatTube() {
-			baseSta = bike.CalculateEffectiveSta(seatHeight, bike.Stack, bike.StaDeg)
-		}
-
-		baselineAett := geometry.CalculateAett(
-			bike.Reach,
-			bike.Stack,
-			bike.HtaDeg,
-			baseSta,
-			seatHeight,
-		)
-		baselineSetback := geometry.CalculateActualSetback(
-			baseSta,
-			seatHeight,
-		)
-
-		verticalStack, axialLength := geometry.CalculateSteererStack(
-			bike.Stack,
-			baseSta,
-			bike.HtaDeg,
-			seatHeight,
-		)
-
 		baseA2c := bike.GetCadA2c()
 		if baseA2c <= 0 {
 			baseA2c = valReport.GeometricA2c
@@ -603,32 +579,69 @@ func CanonicalizeBikes(
 			activeCS = bike.GetMaxChainstay()
 		}
 
-		baseCS := math.Max(activeCS, bike.BbDrop+1.0)
-		baseRearCenter := math.Sqrt(math.Max(0, baseCS*baseCS-bike.BbDrop*bike.BbDrop))
-
-		baseBRP := geometry.CalculateBRPPoint(
-			baseSta,
-			seatHeight,
-			model.DefaultSeatpostSetbackMm,
-			model.DefaultSaddleBrpOffsetMm,
-			0.0,
-		)
-
+		frame, err := geometry.FrameSizeFromBikeGeometry(bike)
+		if err != nil {
+			return nil, err
+		}
+		if frame.ChainstayMm <= 0 {
+			frame.ChainstayMm = math.Max(430.0, math.Abs(frame.BbDropMm)+1.0)
+		}
 		bar := config.RiderProfile.Handlebar
 		if bar.ID == "" {
 			bar = catalog.DefaultHandlebar()
 		}
-		baseHB := geometry.CalculateHBPointWithHandlebar(
-			bike.Reach,
-			bike.Stack,
-			bike.HtaDeg,
-			baseBRP,
-			bike.GetCanonicalStem(),
-			0.0,
-			bar,
-			model.DefaultGripInsetMm,
-			0.0,
-		)
+		cadBuild := geometry.BuildSpec{
+			Fork:               frame.CadFork,
+			SagPct:             frame.CadSagPct,
+			PhysicalLowerCupMm: frame.CadLowerCupMm,
+			WheelRadiusFrontMm: bike.WheelRadiusMm(),
+			WheelRadiusRearMm:  bike.WheelRadiusMm(),
+		}
+		cadStem := bike.GetCanonicalStem()
+		if cadStem.LengthMm <= 0 {
+			if len(bike.Stems) > 0 && bike.Stems[0].LengthMm > 0 {
+				cadStem = bike.Stems[0]
+			} else {
+				cadStem = model.StemSpec{LengthMm: 70.0}
+			}
+		}
+		cadCockpit := geometry.CockpitSpec{
+			HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
+			SpacerMm:          0.0,
+			Stem:              cadStem,
+			StemClampHeightMm: model.StemThicknessMm,
+			Handlebar:         bar,
+			BarRollDeg:        0.0,
+			GripInsetMm:       model.DefaultGripInsetMm,
+		}
+		saddle := config.Saddle
+		if saddle.ID == "" {
+			saddle = catalog.DefaultSaddle()
+		}
+		cadSeat := geometry.SeatSpec{
+			PostSetbackMm: model.DefaultSeatpostSetbackMm,
+			ClampLengthMm: model.DefaultSeatpostClampLengthMm,
+			Saddle:        saddle,
+			RailOffsetMm:  0.0,
+		}
+		targetRef := config.RiderProfile.TargetRef
+		if targetRef == "" {
+			targetRef = geometry.TargetHandGrip
+		}
+		cadFit := geometry.RiderFit{
+			FrameSeatAxisHeightMm: seatHeight,
+			BrpHeightMm:           seatHeight,
+			TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm,
+			TargetRef:             targetRef,
+			ReferenceSaddle:       saddle,
+			ReferenceBar:          config.RiderProfile.ReferenceBar,
+		}
+		cadScene, err := geometry.BuildScene(frame, cadBuild, cadCockpit, cadSeat, cadFit)
+		if err != nil {
+			return nil, err
+		}
+		baselineSetback := cadScene.SeatAxisActualSetbackMm()
+		baselineSeatExt, _ := cadScene.SeatpostExtensionMm()
 
 		baseline := model.BaselineMetrics{
 			Reach:              bike.Reach,
@@ -637,15 +650,15 @@ func CanonicalizeBikes(
 			StaDeg:             bike.StaDeg,
 			BbDrop:             bike.BbDrop,
 			A2c:                baseA2c,
-			Aett:               baselineAett,
+			Aett:               cadScene.AettMm(),
 			ActualSetback:      baselineSetback,
-			SpareVerticalStack: verticalStack,
-			SpareAxialSteerer:  axialLength,
-			SeatpostExtension:  geometry.CalculateSeatpostExtension(seatHeight, bike.SeatTubeLength),
+			SpareVerticalStack: cadScene.SpareVerticalStackMm(),
+			SpareAxialSteerer:  cadScene.SpareAxialSteererMm(),
+			SeatpostExtension:  baselineSeatExt,
 			Chainstay:          activeCS,
-			SeatToRearCenter:   baseRearCenter - baselineSetback,
-			SaddleHbMm:         baseHB.SaddleHbMm,
-			TrailMm:            geometry.CalculateTrail(bike.HtaDeg, bike.GetCadRake(), bike.WheelRadiusMm()),
+			SeatToRearCenter:   cadScene.RearCenter() - baselineSetback,
+			SaddleHbMm:         cadScene.GripDistFromBrpMm(),
+			TrailMm:            cadScene.TrailMm(),
 		}
 
 		canonical, err := geometry.AnalyzeBikeFitWithSaddle(
