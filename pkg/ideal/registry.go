@@ -280,7 +280,7 @@ var registry = []AttributeMeta{
 	},
 	{
 		ID:        "saddle_hb",
-		Label:     "BRP–HB",
+		Label:     "BRP–HandGrip",
 		Unit:      "mm",
 		Decimals:  0,
 		BelowWord: "sht",
@@ -294,7 +294,7 @@ var registry = []AttributeMeta{
 	},
 	{
 		ID:        "saddle_hb_drop",
-		Label:     "HB Rise",
+		Label:     "HandGrip Rise",
 		Unit:      "mm",
 		Decimals:  0,
 		BelowWord: "lo",
@@ -398,7 +398,11 @@ func LookupAttribute(id string) (AttributeMeta, bool) {
 	if norm == "brp" {
 		norm = "brp_setback"
 	}
-	if norm == "hb_drop" || norm == "drop" || norm == "hb_rise" || norm == "rise" || norm == "saddle_hb_rise" || norm == "hbrise" {
+	if norm == "brp_handgrip" || norm == "brp-handgrip" || norm == "brphandgrip" || norm == "brp–handgrip" {
+		norm = "saddle_hb"
+	}
+	if norm == "hb_drop" || norm == "drop" || norm == "hb_rise" || norm == "rise" || norm == "saddle_hb_rise" || norm == "hbrise" ||
+		norm == "handgrip_rise" || norm == "handgrip-rise" || norm == "handgriprise" || norm == "grip_rise" || norm == "grip-rise" || norm == "griprise" {
 		norm = "saddle_hb_drop"
 	}
 	if norm == "stem" || norm == "beststem" || norm == "best-stem" {

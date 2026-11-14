@@ -157,7 +157,7 @@ func (db *docb) listHandlebars(gripInset float64, rollDeg model.Deg, cutWidth fl
 		rollNote = fmt.Sprintf(" (Roll: %+.1f°)", rollDeg)
 	}
 	title := fmt.Sprintf("Canonical Handlebar Catalog (%d)%s", len(bars), rollNote)
-	subtitle := fmt.Sprintf("Origin (0,0,0) is 31.8mm clamp center; (+X) forward reach, (+Y) upward stack, (+Z) lateral hand center (d_grip = %.0fmm)", gripInset)
+	subtitle := fmt.Sprintf("Origin (0,0,0) is 31.8mm StemClamp center; (+X) forward reach, (+Y) upward stack, (+Z) lateral HandGrip center (d_grip = %.0fmm)", gripInset)
 
 	var insightLines []string
 	if p800, ok := byID["persuader20_800"]; ok {
@@ -241,8 +241,8 @@ func (db *docb) showHandlebarDetail(b model.HandlebarSpec, gripInset float64, ro
 		{"Hand Lateral (z_hand)", fmt.Sprintf("%.1f mm", zHand), "Lateral distance from centerline to hand center (W/2 - d_grip)"},
 		{"Swept Lever Arm (L_z)", fmt.Sprintf("%.1f mm", sweptRun), "Active swept span from bend to hand center (z_hand - z_b)"},
 		{"Roll Angle (θ_roll)", fmt.Sprintf("%+.1f°", rollDeg), "Rotation in stem clamp (+ forward, - backward)"},
-		{"Reach Offset (ΔX_bar)", fmt.Sprintf("%+.1f mm", offset.X), "Longitudinal displacement from clamp to hand center (+ forward, - rearward)"},
-		{"Stack Offset (ΔY_bar)", fmt.Sprintf("%+.1f mm", offset.Y), "Vertical displacement from clamp to hand center (+ upward)"},
+		{"Reach Offset (ΔX_bar)", fmt.Sprintf("%+.1f mm", offset.X), "Longitudinal displacement from StemClamp to HandGrip center (+ forward, - rearward)"},
+		{"Stack Offset (ΔY_bar)", fmt.Sprintf("%+.1f mm", offset.Y), "Vertical displacement from StemClamp to HandGrip center (+ upward)"},
 	}
 
 	// Roll sweep table

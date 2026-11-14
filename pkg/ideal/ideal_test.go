@@ -40,12 +40,12 @@ func TestLookupAttribute_SaddleHb(t *testing.T) {
 	if !ok {
 		t.Fatalf("LookupAttribute('saddle_hb') failed")
 	}
-	if meta.Label != "BRP–HB" || meta.Unit != "mm" {
+	if meta.Label != "BRP–HandGrip" || meta.Unit != "mm" {
 		t.Errorf("Unexpected meta: %+v", meta)
 	}
 
 	// Canonical name variants
-	for _, variant := range []string{"saddle-hb", "saddlehb", "SADDLE_HB", "Saddle-HB"} {
+	for _, variant := range []string{"saddle-hb", "saddlehb", "SADDLE_HB", "Saddle-HB", "brp_handgrip", "brp-handgrip", "brphandgrip", "brp–handgrip"} {
 		if _, ok := LookupAttribute(variant); !ok {
 			t.Errorf("LookupAttribute(%q) failed", variant)
 		}
@@ -65,14 +65,14 @@ func TestLookupAttribute_BrpSetbackAndDrop(t *testing.T) {
 		}
 	}
 
-	// Saddle-HB Drop / HB Rise lookup and variants
-	for _, variant := range []string{"saddle_hb_drop", "saddle-hb-drop", "saddlehbdrop", "hb_drop", "drop", "SADDLE_HB_DROP", "hb_rise", "rise"} {
+	// Saddle-HB Drop / HandGrip Rise lookup and variants
+	for _, variant := range []string{"saddle_hb_drop", "saddle-hb-drop", "saddlehbdrop", "hb_drop", "drop", "SADDLE_HB_DROP", "hb_rise", "rise", "handgrip_rise", "handgrip-rise", "handgriprise", "grip_rise", "grip-rise", "griprise"} {
 		meta, ok := LookupAttribute(variant)
 		if !ok {
 			t.Errorf("LookupAttribute(%q) failed", variant)
 			continue
 		}
-		if meta.Label != "HB Rise" || meta.Unit != "mm" {
+		if meta.Label != "HandGrip Rise" || meta.Unit != "mm" {
 			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
 		}
 	}

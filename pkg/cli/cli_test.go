@@ -541,8 +541,8 @@ func TestCompare_SaddleHbMetric(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 	}
-	if !strings.Contains(out, "| BRP–HB |") {
-		t.Errorf("expected 'BRP–HB' row in compare output, got:\n%s", out)
+	if !strings.Contains(out, "| BRP–HandGrip |") {
+		t.Errorf("expected 'BRP–HandGrip' row in compare output, got:\n%s", out)
 	}
 }
 

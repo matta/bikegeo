@@ -551,7 +551,7 @@ func TestCompare_BrpSetbackUsesSelectedBRPAndFooterUsesSitBones(t *testing.T) {
 		t.Errorf("surly-ecr:L brp_setback cell = %q, want %q", brpCell, "219 ✓")
 	}
 
-	// F-p4ab-2: Footer defines HB Rise relative to Sit Bones, not Saddle BRP.
+	// F-p4ab-2: Footer defines HandGrip Rise relative to Sit Bones, not Saddle BRP.
 	var refLines []string
 	for _, f := range doc.Footers {
 		if f.Title == "Reference Metric Definitions" {
@@ -559,11 +559,11 @@ func TestCompare_BrpSetbackUsesSelectedBRPAndFooterUsesSitBones(t *testing.T) {
 		}
 	}
 	joined := strings.Join(refLines, "\n")
-	if !strings.Contains(joined, "HB Rise: handlebar height relative to the Sit Bones") {
-		t.Errorf("footer should define HB Rise relative to Sit Bones:\n%s", joined)
+	if !strings.Contains(joined, "HandGrip Rise: hand grip height relative to the Sit Bones") {
+		t.Errorf("footer should define HandGrip Rise relative to Sit Bones:\n%s", joined)
 	}
-	if strings.Contains(joined, "HB Rise: handlebar height relative to the Saddle BRP") {
-		t.Errorf("footer still contains stale HB Rise vs Saddle BRP text:\n%s", joined)
+	if strings.Contains(joined, "HandGrip Rise: hand grip height relative to the Saddle BRP") || strings.Contains(joined, "HB Rise: handlebar height relative to the Saddle BRP") {
+		t.Errorf("footer still contains stale HandGrip Rise vs Saddle BRP text:\n%s", joined)
 	}
 }
 
@@ -605,8 +605,8 @@ func TestCompare_SingleStepIntegerRounding(t *testing.T) {
 	if got := findVal("Fairlight Holt 2.0 (S)", "ETT"); got != "587" {
 		t.Errorf("Fairlight Holt 2.0 (S) ETT = %q, want 587 (single-step from ~586.55mm)", got)
 	}
-	if got := findVal("Surly ECR (L)", "BRP–HB"); !strings.HasPrefix(got, "657 ") {
-		t.Errorf("Surly ECR (L) BRP–HB = %q, want 657 ... (single-step from ~656.52mm)", got)
+	if got := findVal("Surly ECR (L)", "BRP–HandGrip"); !strings.HasPrefix(got, "657 ") {
+		t.Errorf("Surly ECR (L) BRP–HandGrip = %q, want 657 ... (single-step from ~656.52mm)", got)
 	}
 }
 

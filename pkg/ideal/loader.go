@@ -7,11 +7,11 @@ import (
 	"bikegeo/pkg/model"
 )
 
-// IdmatchProfile returns the idmatch biomechanical fit profile (BRP -> HB).
+// IdmatchProfile returns the idmatch biomechanical fit profile (BRP -> HandGrip).
 func IdmatchProfile() *Profile {
 	p := &Profile{
 		Name:           "idmatch",
-		Description:    "Biomechanical fit profile based on idmatch Bikelab report (BRP -> HB)",
+		Description:    "Biomechanical fit profile based on idmatch Bikelab report (BRP -> HandGrip)",
 		SaddleHeightMm: model.Some(746.0),
 		Attributes: []AttributeSpec{
 			{

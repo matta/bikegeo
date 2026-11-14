@@ -151,7 +151,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		refDefLines = append(refDefLines, "Seat Axis–HT Drop: vertical drop from the Seat Axis Point to head tube top (H * sin(STA) - Stack; steerer spacer/stem rise needed for level bars).")
 	}
 	if hasAttr("brp_setback", "saddle_hb", "saddle_hb_drop") {
-		refDefLines = append(refDefLines, "BRP Setback: horizontal distance from the BB center back to the Saddle BRP. BRP–HB: distance from the Saddle BRP to the handlebar reference point; HB Rise: handlebar height relative to the Sit Bones (both depend on saddle, stem and bar).")
+		refDefLines = append(refDefLines, "BRP Setback: horizontal distance from the BB center back to the Saddle BRP. BRP–HandGrip: distance from the Saddle BRP to the hand grip center (HandGrip); HandGrip Rise: hand grip height relative to the Sit Bones (both depend on saddle, stem and bar).")
 	}
 	if hasAttr("seatpost_extension") {
 		refDefLines = append(refDefLines, "Seatpost Ext: Exposed seatpost length from collar to saddle rails (available vertical height for dropper post fitment).")
