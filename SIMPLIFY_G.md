@@ -509,61 +509,81 @@ Every commit below has a single responsibility, is independently reviewable, and
 - **`AETT` Definition**: Keep `AETT` as a pure frame-only metric at radial `seatHeight` (`746 mm`) along the seat-tube axis (`SeatAxisPoint`), independent of saddle model, seatpost setback, and rail offset (preserving zero diff when `BikeScene` lands).
 - **Scoring & Diet Strategy**: Execute Conservative Consolidation through Phase 4 (keeping the 0–100 continuous curve score alongside the closed-form 2×2 hardware solve), then decide in Phase 5 whether to retire composite scoring.
 
+**Compute Tier Summary (Hydrogen vs. Argon for Remaining Commits 10–23)**:
+- **Commits 1–8**: Completed on `main`.
+- **Commit 9**: Implemented and verified in the working tree (ready to commit).
+- **Hydrogen (10 of 14 remaining commits)**: **10, 11, 13, 14, 15, 16, 18, 20, 21, 22** — well-specified refactors with strict zero-output-change invariants, localized math/enum/fixture updates, or additive tables guarded by `go vet`, `exhaustive`, and existing tests.
+- **Argon (4 of 14 remaining commits)**: **12, 17, 19 (optional), 23** — cross-package coordinate-model replacement (`SitBones` normalization), new multi-element SVG route (`/bike` + zoom/overlay panels), and the final Phase 5 architectural surface diet.
+
 #### Phase 1: Provenance Docs, User-Facing Disambiguation & Guardrail Tests
-1. **`docs: record C1 target convention and C4 lower-cup provenance`**
+1. **`docs: record C1 target convention and C4 lower-cup provenance`** *(Completed)*
    - Document the explicit `TargetRef` conventions (`TargetHandGrip`, `TargetStemClamp`, `TargetReferenceBarClamp`) and C4 lower-cup verification notes in [pkg/ideal/readme.md](pkg/ideal/readme.md) and frame `Notes` ([seven_custom.go](pkg/frames/seven_custom.go), [otso_fenrir_stainless.go](pkg/frames/otso_fenrir_stainless.go), [salsa_fargo.go](pkg/frames/salsa_fargo.go)).
-2. **`refactor(compare,web,ideal): clarify StemClamp vs HandGrip in user-facing labels`**
+2. **`refactor(compare,web,ideal): clarify StemClamp vs HandGrip in user-facing labels`** *(Completed)*
    - Rename CLI/Web table headers, footers, and attribute display labels from ambiguous `HB` / `HX` / `HY` to explicit `StemClamp` or `HandGrip` (updating golden/DOM assertions only). Zero math changes.
-3. **`test(validator): add registry-wide geometric invariant property tests`**
+3. **`test(validator): add registry-wide geometric invariant property tests`** *(Completed)*
    - Add `RigidDistancesInvariantUnderPitch`, `CADForkReproducesPublishedChart`, `CupAndA2cAreInterchangeable`, and `AxlesStayLevel` (with C3's known rake-swap delta temporarily asserted or skipped until Commit 6).
 
 #### Phase 2: `BikeScene` Foundation & Isolated Correctness Fixes (One Fix per Commit)
-4. **`feat(geometry): introduce explicit RiderFit/TargetRef and pure-2D BikeScene constructor`**
+4. **`feat(geometry): introduce explicit RiderFit/TargetRef and pure-2D BikeScene constructor`** *(Completed)*
    - Add `pkg/geometry/scene.go` (`BuildScene`, `RiderFit` with required `TargetRef`, `FrameSize`, `BuildSpec`, `CockpitSpec`, `SeatSpec`) alongside existing code, plus unit tests verifying exact parity with `CalculateDynamicGeometry` on constant-rake setups. Zero existing callers changed yet.
-5. **`refactor(geometry): route CalculateDynamicGeometry and cockpit points through BikeScene`**
+5. **`refactor(geometry): route CalculateDynamicGeometry and cockpit points through BikeScene`** *(Completed)*
    - Wire `AnalyzeBikeFitWithSaddle` to read `Reach`, `Stack`, `HTA`, `STA`, `BbDrop`, `BRP`, `StemClamp`, and `HandGrip` from `BikeScene` under existing baseline assumptions (`HeadsetTopStackMm = 0`, constant-rake pitch, `CadLowerCupMm` baseline). **Pure refactor: zero output change across all tests.**
-6. **`fix(geometry): level both axles across fork rake changes (C3)`**
+6. **`fix(geometry): level both axles across fork rake changes (C3)`** *(Completed)*
    - Switch `BikeScene` pitch leveling to include `Fork.Rake` (`theta = -atan2(FA_0.Y - RA_0.Y, FA_0.X - RA_0.X)`), enable strict `< 1e-6` in `AxlesStayLevel` across all frames × forks × sags, and update affected test expectations (`1.2–2.0 mm` Reach, `0.8–1.4 mm` Stack, `0.11°–0.18°` HTA).
-7. **`fix(geometry): model upper HeadsetTopStackMm between head tube top and stem (C2)`**
+7. **`fix(geometry): model upper HeadsetTopStackMm between head tube top and stem (C2)`** *(Completed)*
    - Add `HeadsetTopStackMm` (`11 mm` default, disclosed in the comparison header) to `CockpitSpec` / `BikeScene` and update cockpit test expectations (`~3.8 mm` X, `~10.3 mm` Y).
-8. **`fix(geometry): apply physical lower headset cup stack in comparisons (C4)`**
+8. **`fix(geometry): apply physical lower headset cup stack in comparisons (C4)`** *(Completed)*
    - Pitch by `PhysicalLowerCupMm - CadLowerCupMm` (`HeadsetCupType.CupStackMm() - GeoHeadsetSpacerMm`) so `otso-fenrir-stainless` and `salsa-fargo` match the validator disclosure, and update `TestAnalyzeBikeFit_NormalizesCadBaseline` in the same commit.
-9. **`feat(ideal,compare): wire explicit TargetRef modes into cockpit target evaluation (C1)`**
+9. **`feat(ideal,compare): wire explicit TargetRef modes into cockpit target evaluation (C1)`** *(Ready in working tree)*
    - Require every cockpit target in `RiderFit` / `IdmatchProfile` to state its `TargetRef` (`TargetHandGrip`, `TargetStemClamp`, `TargetReferenceBarClamp`) and disclose the active `TargetRef` in the comparison header.
 10. **`refactor(validator,geometry): unify closure residuals on BikeScene (C6)`**
     - Route `validator.ValidateBikeGeometry`, `geometry.A2cBudget`/`FrontCenterBudget`/`WheelbaseBudget`, and `validator.SizeResiduals` through `BikeScene`'s `FA_chart` and `FA_decl` points. Zero change to frame pass/fail or `GeoSlopMm` allowances.
+    - **Compute: Hydrogen** — `BikeScene` already computes `ChartFrontAxle` (`FA_chart`), `DeclaredForkFrontAxle` (`FA_decl`), and closure residuals; `TestAllFrameData` and `TestDeclaredAllowancesAreNecessary` enforce the zero-pass/fail-change invariant.
 
 #### Phase 3: Deduplication, Metric Migration & Papercut Fixes
 11. **`refactor(scoring,canonicalizer): remove duplicate 3-pass cockpit selection in ScoreRow (C7)`**
     - Make `ScoreRow` read the already-computed `CockpitFit` from `CanonicalComparisonRow` instead of mutating a throwaway copy. **Pure refactor: zero output change.**
+    - **Compute: Hydrogen** — Pure deduplication refactor with a strict zero-output-change invariant; `ScoreRow` reads pre-computed `CockpitFitResult` / `SelectedHB` from `CanonicalComparisonRow`.
 12. **`refactor(geometry): normalize saddle fit once via SitBones and delete Translate*FromRef (C7)`**
     - Compute rail offset directly from `SitBones` in `BikeScene`, removing `TranslateSaddleHeightFromRef`, `TranslateHbDistanceFromRef`, `TranslateBrpFromRef`, `TargetBrpForPelvicSetback`, `TranslateClampOffset`, and scattered `746.0` / `219.0` / `292.0` literals.
+    - **Compute: Argon** — Cross-package semantic refactor (~200 LOC deleted across `geometry`, `canonicalizer`, `scoring`, `compare`, and `web/saddle_swap`) replacing BRP translation helpers with direct `SitBones` rail solving and updating multi-saddle test expectations.
 13. **`fix(geometry,compare): replace phantom Fenrir posture model with RearCenter/Wheelbase ratio (C5)`**
     - Delete `GetDefaultBaselineBike` and `CalculateBaselinePosture` (~200 LOC), remove `Modeled Back Angle: 53.6°` from headers, and replace `Front Wt` with the labelled `RearCenter / Wheelbase` ratio.
+    - **Compute: Hydrogen** — Mechanical deletion of `GetDefaultBaselineBike` / `CalculateBaselinePosture` (~200 LOC) and replacement of `Front Wt` with `BikeScene.RearCenterWheelbaseRatio()` (already on `BikeScene`), guided by compiler and golden-test diffs.
 14. **`refactor(geometry,model): unify HasBentSeatTube, ETT, AETT, and Trail on BikeScene`**
     - Consolidate the three `EffectiveSta` / `HasBentSeatTube` implementations and route `ETT`, `AETT` (at radial `H_frame = 746 mm`), `Trail`, and `Seatpost Ext` through `BikeScene` readouts. **Pure refactor: zero output change.**
+    - **Compute: Hydrogen** — Pure consolidation refactor with zero output change; `EffectiveStaDeg`, `EttMm()`, `AettMm()`, `TrailMm()`, and `SeatpostExtensionMm()` already exist on `BikeScene`.
 15. **`fix(curve,model): fix StemPenalty C1 slope at u=1 and sort ErrorSummary keys (C11)`**
     - Fix `curve.StemPenalty` exterior derivative at `u = 1` ([curve.go](pkg/curve/curve.go#L145-L160)) and sort size keys in `FrameValidationReport.ErrorSummary()` ([bike.go](pkg/model/bike.go#L1465-L1475)).
+    - **Compute: Hydrogen** — Two localized ~10-line fixes (`curve.StemPenalty` exterior slope at `u = 1` in `pkg/curve/curve.go` and sorted size keys in `FrameValidationReport.ErrorSummary()` in `pkg/model/bike.go`).
 
 #### Phase 4: Closed-Form 2×2 Fit Solve & Visual Workbench
 16. **`feat(geometry,compare): add closed-form 2x2 linear fit solve alongside curve score`**
     - Implement the 5-line 2×2 solver `(StemLengthMm, SpacerMm)` for each explicit `TargetRef` and display the solved hardware alongside the 0–100 curve score on real comparisons (`seven-custom`, `fenrir`, `compare all`).
+    - **Compute: Hydrogen** — Self-contained 5-line 2×2 determinant solve using `BikeScene.RequiredStemClamp` with hand-verified reference numbers in Part II §3, added alongside the existing curve score.
 17. **`feat(web): add /bike route with Panel A full-bike inline SVG and zero-JS nudge links`**
     - Ship the ~300-line single-bike SVG view (`TargetPoint` with `TargetRef`, `StemClamp`, `HandGrip`, frame/fork/cockpit/saddle) and `GET` query nudges (`−10 −5 +5 +10`).
+    - **Compute: Argon** — New ~300-line `/bike` route, full-bike inline SVG coordinate projection + upright callout layout, `GET` nudge links, and `goquery` navigation/anchor integration tests.
 18. **`feat(web): add 5-stage arithmetic computation ledger to /bike and compare details`**
     - Render the 5-stage intermediate calculation table in `<details>`.
+    - **Compute: Hydrogen** — Additive 5-stage `<details>` computation table formatting intermediate `BikeScene` quantities already in memory.
 19. **`feat(web): add cockpit/saddle zoom panels and multi-bike ghost overlay (optional follow-ons)`**
     - Add Panels B and C and the `BB` / `SitBones` overlay toggle if still wanted after Panel A lands.
+    - **Compute: Argon** *(optional follow-on)* — Non-trivial SVG geometry (reachable stem/spacer polygon boundary, rotated `FitOval` path, and multi-bike `BB` vs. `SitBones` alignment transforms).
 
 #### Phase 5: Input Tightening & Surface Diet (Each Amending `AGENTS.md` / `docs/WEB.md` in the Same Commit)
 20. **`refactor(model,canonicalizer,ideal): replace string-parsed fork travel and attribute aliases with typed fields (C10)`**
     - Use `catalog.Fork` `TravelMm` / booleans instead of parsing `"_"` or `"rigid"` strings, and replace the ~55 string aliases in `LookupAttribute` with typed `MetricID` constants checked by `exhaustive`.
+    - **Compute: Hydrogen** — Mechanical replacement of string parsing (`ForkTravel`, `IsRigidFork`) and attribute alias strings with typed struct fields and `MetricID` constants enforced by `go vet` and `go tool exhaustive ./...`.
 21. **`feat(model,validator,frames): support optional Wheelbase and declared ChartPrecision (C9)`**
     - Allow omitted `Wheelbase` on frames that do not publish it (`moots-mountaineer`, `seven-expedition-926d`, `seven-expedition-926f`), add optional declared `ChartPrecision` (`seven-custom`), and update [AGENTS.md](AGENTS.md).
+    - **Compute: Hydrogen** — Scoped schema/validation update (`Wheelbase` optional on 3 frames, declared `ChartPrecision` on `seven-custom`, plus `AGENTS.md` update) guarded by `TestAllFrameData`.
 22. **`refactor(geometry,geom2d): replace silent <=0 fallback defaults with explicit constructor errors (C8)`**
     - Add a shared complete test-fixture builder in `pkg/*/*_test.go` and remove the ~20 silent fallback defaults (`1150`, `430`/`440`, `120`, `44`, `hbDropMm == 0 → 13.0`).
+    - **Compute: Hydrogen** — Mechanical removal of ~20 `<= 0` fallback defaults and completion of partial unit-test fixtures via a shared test helper; compiler and test failures pinpoint every call site.
 23. **`refactor(web,compare,fit): execute chosen surface diet and add deadcode check to make check`**
     - Decide whether to retain or retire the composite 0–100 curve score after evaluating Phase 4, fold redundant web sub-pages into `/bike`, update [AGENTS.md](AGENTS.md) and [docs/WEB.md](docs/WEB.md), delete unreferenced exports, and add `go tool deadcode ./...` to `make check`.
+    - **Compute: Argon** — High-judgment Phase 5 surface diet across `web`, `compare`, `fit`, `AGENTS.md`, `docs/WEB.md`, and `Makefile` (`go tool deadcode ./...`).
 
 ### 4. Repository Rules This Plan Changes
 
