@@ -316,14 +316,14 @@ type helpMetric struct {
 func (s *server) help(w http.ResponseWriter, _ *http.Request) {
 	d := helpData{base: newBase("Help", "/help")}
 	prof, _ := ideal.GetProfile("idmatch")
-	specs := map[string]ideal.AttributeSpec{}
+	specs := map[ideal.MetricID]ideal.AttributeSpec{}
 	if prof != nil {
 		for _, a := range prof.Attributes {
 			specs[a.ID] = a
 		}
 	}
 	for _, m := range ideal.AllAttributes() {
-		hm := helpMetric{ID: m.ID, Label: m.Label, Unit: m.Unit}
+		hm := helpMetric{ID: string(m.ID), Label: m.Label, Unit: m.Unit}
 		if sp, ok := specs[m.ID]; ok {
 			hm.Ideal, hm.Acceptable = compare.FormatAttrRanges(sp, m)
 			hm.Weight = sp.Weight

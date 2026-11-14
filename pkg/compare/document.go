@@ -3,6 +3,7 @@ package compare
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -53,15 +54,15 @@ func zoneOf(cr scoring.CriterionResult) string {
 func metricCell(item scoredRowItem, attr ideal.AttributeSpec, meta ideal.AttributeMeta) report.Cell {
 	for _, cr := range item.score.Criteria {
 		if cr.ID == attr.ID {
-			return report.Cell{Text: cr.FormattedCell, Zone: zoneOf(cr), MetricID: attr.ID}
+			return report.Cell{Text: cr.FormattedCell, Zone: zoneOf(cr), MetricID: string(attr.ID)}
 		}
 	}
 	val, ok := meta.Extract(item.row)
 	if !ok {
-		return report.Cell{Text: "— (no data)", Zone: report.ZoneMissing, MetricID: attr.ID}
+		return report.Cell{Text: "— (no data)", Zone: report.ZoneMissing, MetricID: string(attr.ID)}
 	}
 	ev := ideal.Evaluate(attr, meta, val, &item.row)
-	return report.Cell{Text: ev.FormattedCell, Zone: string(ev.Zone), MetricID: attr.ID}
+	return report.Cell{Text: ev.FormattedCell, Zone: string(ev.Zone), MetricID: string(attr.ID)}
 }
 
 func plain(s string) report.Cell { return report.Cell{Text: s} }
@@ -111,12 +112,10 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 	var footers []report.Footer
 	missingNotes := scoring.CollectMissingDataNotes(scoredFramesForExplain)
 
-	hasAttr := func(ids ...string) bool {
+	hasAttr := func(ids ...ideal.MetricID) bool {
 		for _, a := range prof.Attributes {
-			for _, id := range ids {
-				if strings.EqualFold(a.ID, id) {
-					return true
-				}
+			if slices.Contains(ids, a.ID) {
+				return true
 			}
 		}
 		return false
@@ -278,7 +277,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		} else {
 			var fitAttrs, chassisAttrs []ideal.AttributeSpec
 			for _, attr := range prof.Attributes {
-				if attr.Ideal != nil || strings.EqualFold(attr.ID, "best_stem") {
+				if attr.Ideal != nil || attr.ID == ideal.MetricBestStem {
 					fitAttrs = append(fitAttrs, attr)
 				} else {
 					chassisAttrs = append(chassisAttrs, attr)
@@ -343,7 +342,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		for _, evalAttr := range activeProf.Attributes {
 			meta, _ := ideal.LookupAttribute(evalAttr.ID)
 			idealStr, accStr := FormatAttrRanges(evalAttr, meta)
-			addRow(evalAttr.ID, meta.Label, idealStr, accStr, func(item scoredRowItem) report.Cell {
+			addRow(string(evalAttr.ID), meta.Label, idealStr, accStr, func(item scoredRowItem) report.Cell {
 				return metricCell(item, evalAttr, meta)
 			})
 		}
@@ -386,7 +385,7 @@ func buildTransposedTable(
 	metas := make([]ideal.AttributeMeta, len(evalAttrs))
 	for i, attr := range evalAttrs {
 		metas[i], _ = ideal.LookupAttribute(attr.ID)
-		t.Columns = append(t.Columns, report.Column{ID: attr.ID, Label: metas[i].Label, Numeric: true})
+		t.Columns = append(t.Columns, report.Column{ID: string(attr.ID), Label: metas[i].Label, Numeric: true})
 	}
 
 	if withRefRows {
@@ -433,7 +432,7 @@ func buildBreakdown(
 	for _, attr := range prof.Attributes {
 		if attr.Weight > 0 && attr.Ideal != nil {
 			meta, _ := ideal.LookupAttribute(attr.ID)
-			t.Columns = append(t.Columns, report.Column{ID: attr.ID, Label: meta.Label, Numeric: true})
+			t.Columns = append(t.Columns, report.Column{ID: string(attr.ID), Label: meta.Label, Numeric: true})
 			weightedAttrs = append(weightedAttrs, attr)
 			weightParts = append(weightParts, fmt.Sprintf("%s %.0f", meta.Label, attr.Weight))
 
@@ -470,10 +469,10 @@ func buildBreakdown(
 	}
 
 	for _, item := range items {
-		subScores := make(map[string]float64)
-		pointsLost := make(map[string]float64)
-		missingMap := make(map[string]bool)
-		zones := make(map[string]string)
+		subScores := make(map[ideal.MetricID]float64)
+		pointsLost := make(map[ideal.MetricID]float64)
+		missingMap := make(map[ideal.MetricID]bool)
+		zones := make(map[ideal.MetricID]string)
 		for _, c := range item.score.Criteria {
 			subScores[c.ID] = c.SubScore
 			pointsLost[c.ID] = c.PointsLost
@@ -481,9 +480,9 @@ func buildBreakdown(
 			zones[c.ID] = c.Zone
 		}
 
-		formatSubScoreCell := func(id string) report.Cell {
+		formatSubScoreCell := func(id ideal.MetricID) report.Cell {
 			if missingMap[id] {
-				return report.Cell{Text: "—", Zone: report.ZoneMissing, MetricID: id}
+				return report.Cell{Text: "—", Zone: report.ZoneMissing, MetricID: string(id)}
 			}
 			sub := math.Round(subScores[id])
 			lost := math.Round(pointsLost[id])
@@ -493,9 +492,8 @@ func buildBreakdown(
 			}
 			text := scorePart
 
-			lowID := strings.ToLower(id)
 			switch {
-			case (lowID == "handlebar_clamp_fit" || lowID == "clamp_fit") && item.row.Canonical.CockpitFitResult != nil:
+			case id == ideal.MetricHandlebarClampFit && item.row.Canonical.CockpitFitResult != nil:
 				cfr := item.row.Canonical.CockpitFitResult
 				hb := cfr.SelectedHB
 				sign := "+"
@@ -507,21 +505,21 @@ func buildBreakdown(
 					stemPenStr = fmt.Sprintf(" [-%.0f stem]", cfr.StemPenalty)
 				}
 				text = fmt.Sprintf("%s [%.0fmm %.0f° %s%.0fmm]%s (%d in oval)", scorePart, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, stemPenStr, cfr.CountInside)
-			case (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && item.row.Canonical.SelectedBRP != nil:
+			case id == ideal.MetricBrpSetback && item.row.Canonical.SelectedBRP != nil:
 				brp := item.row.Canonical.SelectedBRP
 				sign := "+"
 				if brp.RailOffsetMm < 0 {
 					sign = ""
 				}
 				text = fmt.Sprintf("%s [rail %s%.0fmm]", scorePart, sign, brp.RailOffsetMm)
-			case (lowID == "saddle_hb" || lowID == "saddlehb") && item.row.Canonical.SelectedHB != nil && item.row.Canonical.SelectedHB.Stem.LengthMm > 0:
+			case id == ideal.MetricSaddleHb && item.row.Canonical.SelectedHB != nil && item.row.Canonical.SelectedHB.Stem.LengthMm > 0:
 				hb := item.row.Canonical.SelectedHB
 				sign := "+"
 				if hb.SpacerMm < 0 {
 					sign = ""
 				}
 				text = fmt.Sprintf("%s [%.0fmm %.0f° %s%.0fmm]", scorePart, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm)
-			case (lowID == "saddle_hb_drop" || lowID == "hb_drop" || lowID == "saddlehbdrop") && item.row.Canonical.SelectedHB != nil:
+			case id == ideal.MetricSaddleHbDrop && item.row.Canonical.SelectedHB != nil:
 				drop := item.row.Canonical.SelectedHB.SaddleHbDropMm
 				sign := ""
 				if drop > 0 {
@@ -529,7 +527,7 @@ func buildBreakdown(
 				}
 				text = fmt.Sprintf("%s [%s%.0fmm]", scorePart, sign, drop)
 			}
-			return report.Cell{Text: text, Zone: zones[id], MetricID: id}
+			return report.Cell{Text: text, Zone: zones[id], MetricID: string(id)}
 		}
 
 		rndTotal := math.Round(item.score.Total)

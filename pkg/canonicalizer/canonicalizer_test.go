@@ -191,7 +191,7 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 			t.Fatalf("expected 9 setups for Holt 2, got %d", len(setups))
 		}
 		for _, s := range setups {
-			if canonicalizer.IsRigidFork(s.DisplayLabel) {
+			if s.IsRigid {
 				t.Errorf("did not expect rigid fork on suspension-only frame: %+v", s)
 			}
 		}
@@ -352,7 +352,7 @@ func TestAllowedSagPercentages(t *testing.T) {
 	}
 
 	// ResolveForkToken with unallowed 15% sag should error
-	if _, _, _, _, err := canonicalizer.ResolveForkToken("110mm", model.Some(15.0), *frame); err == nil {
+	if _, err := canonicalizer.ResolveForkToken("110mm", model.Some(15.0), *frame); err == nil {
 		t.Errorf("expected ResolveForkToken to error for 15%% sag override")
 	}
 }

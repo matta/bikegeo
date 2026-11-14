@@ -17,10 +17,10 @@ var BinaryKinetik = model.FrameModel{
 	Stems:              []string{"mtb"},
 	Sizes:              []string{"S", "SMD", "M", "ML", "L", "XL"},
 	DefaultSize:        "L",
-	CadFork:            model.ForkRef{Fork: "fox34_120", SagPct: 15, A2cMm: 512, RakeMm: 44},
+	CadFork:            model.ForkRef{Fork: "fox34_120", TravelMm: 120, SagPct: 15, A2cMm: 512, RakeMm: 44},
 	Forks: []model.ForkRef{
-		{Fork: "fox34_120", A2cMm: 530, RakeMm: 44},
-		{Fork: "sid_100", A2cMm: 506, RakeMm: 44},
+		{Fork: "fox34_120", TravelMm: 120, A2cMm: 530, RakeMm: 44},
+		{Fork: "sid_100", TravelMm: 100, A2cMm: 506, RakeMm: 44},
 		{Fork: "rigid_500", A2cMm: 500, RakeMm: 44},
 	},
 	Notes: "Butted 3Al-2.5V (Grade 9) titanium expedition hardtail frame designed around a 120mm suspension fork (530mm static A2C at 15% sag = 512mm published CAD A2C) or 100-120mm travel (100mm recommended for S & SMD) / ~500mm rigid fork with a ZS44/EC44 headset (EC44 lower cup). Features rocker-style adjustable dropouts (455-472mm chainstay, forward 455mm position in published geometry), clearance for up to 29x3.0\" or 27.5x3.0\" tires, 12x148mm Boost spacing, 73mm BSA threaded BB, 31.6mm seatpost with internal dropper routing, and 9 accessory mount locations plus rack and fender mounts.",

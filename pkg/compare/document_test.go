@@ -300,7 +300,7 @@ func TestDocument_AllConfigsZonesAndDeltasConsistent(t *testing.T) {
 			if idealText == "" {
 				continue
 			}
-			meta, ok := ideal.LookupAttribute(col.ID)
+			meta, ok := ideal.LookupAttribute(ideal.MetricID(col.ID))
 			if !ok {
 				continue
 			}

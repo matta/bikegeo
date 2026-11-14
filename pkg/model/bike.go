@@ -5,7 +5,6 @@ import (
 	"maps"
 	"math"
 	"slices"
-	"strconv"
 	"strings"
 
 	"bikegeo/pkg/geom2d"
@@ -945,30 +944,20 @@ type ForkPreset = ForkCatalogEntry
 
 // ForkRef encapsulates a reference to a catalog fork with resolved A2C and rake.
 type ForkRef struct {
-	Fork   string
-	SagPct float64
-	A2cMm  float64
-	RakeMm float64
+	Fork     string
+	TravelMm float64
+	SagPct   float64
+	A2cMm    float64
+	RakeMm   float64
 }
 
 func (r ForkRef) GetSagPct() float64 {
 	return r.SagPct
 }
 
-func (r ForkRef) ForkTravel() float64 {
-	parts := strings.SplitSeq(r.Fork, "_")
-	for p := range parts {
-		if v, err := strconv.ParseFloat(strings.TrimSuffix(p, "mm"), 64); err == nil && v >= 60 && v <= 200 {
-			return v
-		}
-	}
-	return 0.0
-}
-
 func (r ForkRef) StaticA2c() float64 {
-	tr := r.ForkTravel()
-	if tr > 0 && r.SagPct > 0 {
-		return r.A2cMm + tr*(r.SagPct/100.0)
+	if r.TravelMm > 0 && r.SagPct > 0 {
+		return r.A2cMm + r.TravelMm*(r.SagPct/100.0)
 	}
 	return r.A2cMm
 }
@@ -1141,7 +1130,7 @@ func (fm *FrameModel) GetCadRake() float64 {
 
 func (fm *FrameModel) SupportsRigid() bool {
 	for _, f := range fm.Forks {
-		if f.ForkTravel() == 0 && f.A2cMm > 0 {
+		if f.TravelMm == 0 && f.A2cMm > 0 {
 			return true
 		}
 	}
@@ -1150,7 +1139,7 @@ func (fm *FrameModel) SupportsRigid() bool {
 
 func (fm *FrameModel) GetRigidA2c() float64 {
 	for _, f := range fm.Forks {
-		if f.ForkTravel() == 0 && f.A2cMm > 0 {
+		if f.TravelMm == 0 && f.A2cMm > 0 {
 			return f.A2cMm
 		}
 	}
@@ -1159,7 +1148,7 @@ func (fm *FrameModel) GetRigidA2c() float64 {
 
 func (fm *FrameModel) GetRigidRake() float64 {
 	for _, f := range fm.Forks {
-		if f.ForkTravel() == 0 && f.A2cMm > 0 {
+		if f.TravelMm == 0 && f.A2cMm > 0 {
 			return f.RakeMm
 		}
 	}
@@ -1193,7 +1182,7 @@ func (fm *FrameModel) EffectiveA2cRange() (minA2c float64, maxA2c float64, ok bo
 		if ref.A2cMm <= 0 {
 			return
 		}
-		tr := ref.ForkTravel()
+		tr := ref.TravelMm
 		if tr > 0 {
 			st := ref.StaticA2c()
 			minA := st - tr*0.30
@@ -1250,7 +1239,7 @@ func (fm *FrameModel) GetSupportedForkOptions() []string {
 	var hasRigid bool
 	var minTr, maxTr float64
 	for _, f := range fm.Forks {
-		tr := f.ForkTravel()
+		tr := f.TravelMm
 		if tr == 0 {
 			hasRigid = true
 		} else {
@@ -1294,7 +1283,7 @@ func (fm *FrameModel) IsFixedRigidOnly() bool {
 		return false
 	}
 	for _, f := range fm.Forks {
-		if f.ForkTravel() > 0 {
+		if f.TravelMm > 0 {
 			return false
 		}
 	}
@@ -1422,6 +1411,8 @@ type ComparisonSetup struct {
 	Size         string
 	A2cMm        float64
 	RakeMm       float64
+	TravelMm     float64
+	IsRigid      bool
 	DisplayLabel string
 	SagPct       float64
 	AutoExpanded bool

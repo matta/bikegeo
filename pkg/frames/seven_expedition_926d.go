@@ -20,7 +20,7 @@ var SevenExpedition926d = model.FrameModel{
 	Forks: []model.ForkRef{
 		{Fork: "enve_mountain_472", A2cMm: 472, RakeMm: 55},
 		{Fork: "enve_mountain_boost", A2cMm: 492, RakeMm: 52},
-		{Fork: "sid_100", A2cMm: 506, RakeMm: 44},
+		{Fork: "sid_100", TravelMm: 100, A2cMm: 506, RakeMm: 44},
 	},
 	Notes: "Handcrafted titanium bikepacking & adventure mountain frame designed for drop handlebars ('d'), 29\" wheels with 2.0-2.6\" tires, and 100/142mm or Boost 110/148mm spacing. Seven published Rider-Ready geometry across two fit profiles in 12 sizes (Standard Fit 'S' and Endurance Fit 'E', for 24 total sizes). The published geometry was mathematically modeled in CAD around the 472mm A2C ENVE Mountain Carbon fork (specified at 5.5cm / 55mm rake per Seven's specification note: \"Optimized for 29 x 2.6\" tires at 5.5 cm rake setting\") paired with an EC44 external lower headset cup (10mm CAD spacer), yielding ~482mm structural A2C (satisfied within ≤0.6mm across all 24 sizes with zero A2C slop required). While complete builds feature the ENVE Mountain Carbon Boost fork (490/492mm A2C) or 100mm suspension forks, running those taller forks kinematically pitches the frame around the rear axle (e.g. 492mm Boost fork raises stack by ~7mm, shortens reach by ~11mm, slackens HTA by ~1.0°, and reduces BB drop by ~8mm). Wheelbases are derived from horizontal rear center plus front center.",
 	Geometries: map[string]model.SizeGeometry{

@@ -16,11 +16,11 @@ var TurnerVennTI = model.FrameModel{
 	Stems:              []string{"mtb"},
 	Sizes:              []string{"S", "M", "L", "XL"},
 	DefaultSize:        "L",
-	CadFork:            model.ForkRef{Fork: "fox34_130", A2cMm: 541, RakeMm: 44},
+	CadFork:            model.ForkRef{Fork: "fox34_130", TravelMm: 130, A2cMm: 541, RakeMm: 44},
 	Forks: []model.ForkRef{
-		{Fork: "fox34_130", A2cMm: 541, RakeMm: 44},
-		{Fork: "fox34_120", A2cMm: 530, RakeMm: 44},
-		{Fork: "pike_140", A2cMm: 551, RakeMm: 44},
+		{Fork: "fox34_130", TravelMm: 130, A2cMm: 541, RakeMm: 44},
+		{Fork: "fox34_120", TravelMm: 120, A2cMm: 530, RakeMm: 44},
+		{Fork: "pike_140", TravelMm: 140, A2cMm: 551, RakeMm: 44},
 	},
 	Notes: "Custom shaped 3Al-2.5V titanium trail & all-terrain hardtail featuring double-butted top and down tubes, tapered/butted chainstays, and a 3D-printed titanium lower chainstay yoke with integrated bridge. Designed around a 130mm suspension fork (120-140mm supported; baseline 541mm static A2C at 0% sag, 44mm offset) with a semi-integrated ZS44/ZS56 headset (0mm CAD spacer stack). Features SRAM UDH / T-Type transmission compatibility, T47 (92mm) threaded BB, 30.9mm seatpost with internal dropper routing, clearance for 29x2.8\" tires, post-mount rear brake up to 200mm, and max 34t chainring (52-55mm chainline). Turner published geometry unweighted (0% sag); size XL published stack of 670mm is an apparent transcription error for 690mm given the 160mm head tube length, 1224mm wheelbase, and 680mm effective top tube.",
 	Geometries: map[string]model.SizeGeometry{

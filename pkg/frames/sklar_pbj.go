@@ -24,8 +24,8 @@ var SklarPBJ = model.FrameModel{
 	CadFork:          model.ForkRef{Fork: "sklar_steel_485", A2cMm: 485, RakeMm: 52},
 	Forks: []model.ForkRef{
 		{Fork: "sklar_steel_485", A2cMm: 485, RakeMm: 52},
-		{Fork: "sid_100", A2cMm: 506, RakeMm: 44},
-		{Fork: "fox34_120", A2cMm: 530, RakeMm: 44},
+		{Fork: "sid_100", TravelMm: 100, A2cMm: 506, RakeMm: 44},
+		{Fork: "fox34_120", TravelMm: 120, A2cMm: 530, RakeMm: 44},
 	},
 	Notes: "Double butted heat-treated Chromoly steel all-terrain bike (ATB) / rigid mountain touring frame designed around a 485mm A2C rigid chromoly steel fork (52mm offset, 110x15mm Boost spacing, 180mm post mount, 1-1/8\" straight steerer with 30mm crown race, internal dynamo routing, cargo cage and rack/fender mounts). Headtube is EC34/EC44 (EC44 lower cup with 12mm CAD spacer). Suspension-corrected for 100mm suspension forks and officially compatible with up to 120mm suspension forks ('Singlespeed + 120mm Suspension' build tested and confirmed by builder Adam Sklar). Features sliding modular dropouts offering 20mm of rear chainstay adjustment (432-452mm range) compatible with singlespeed, standard geared, and SRAM Transmission (UDH insert kit). Clearance for 29x2.6\" tires (clears most 2.8\"), 73mm BSA threaded BB, 148x12mm Boost rear spacing (52mm chainline), 160mm post-mount rear brake insert, up to 36T chainring, 31.6mm seatpost with stealth dropper routing (34.9mm clamp included), and 3 bottle cage positions (two in main triangle, one under downtube). Published Medium wheelbase is corrected from 1165mm to 1156mm to resolve an errant digit transposition in published geometry (730mm front center + 427mm rear center = 1157mm).",
 	Geometries: map[string]model.SizeGeometry{

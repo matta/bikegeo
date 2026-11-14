@@ -17,10 +17,10 @@ var FairlightHolt2 = model.FrameModel{
 	Stems:              []string{"mtb"},
 	Sizes:              []string{"S", "M", "L", "XL"},
 	DefaultSize:        "L",
-	CadFork:            model.ForkRef{Fork: "pike_120", SagPct: 20, A2cMm: 507, RakeMm: 44},
+	CadFork:            model.ForkRef{Fork: "pike_120", TravelMm: 120, SagPct: 20, A2cMm: 507, RakeMm: 44},
 	Forks: []model.ForkRef{
-		{Fork: "pike_120", A2cMm: 531, RakeMm: 44},
-		{Fork: "sid_100", A2cMm: 506, RakeMm: 44},
+		{Fork: "pike_120", TravelMm: 120, A2cMm: 531, RakeMm: 44},
+		{Fork: "sid_100", TravelMm: 100, A2cMm: 506, RakeMm: 44},
 	},
 	Notes: "Custom-formed Reynolds 853 steel 29er XC/downcountry hardtail designed around a 100-120mm suspension fork (published baseline: RockShox SID 120mm with 20% sag = 507mm sagged / 531mm static A2C, 44mm offset) and an EC44 lower headset cup (ZS44/28.6 | EC44/40 with 12mm CAD spacer). Compatible with Shimano and SRAM 1x MTB groupsets (single ring only, 55mm chainline max 38T, 52mm chainline max 32T). Features T47 73mm threaded BB, 30.9mm seatpost with Hope 33.4mm custom clamp, 148x12mm Boost rear spacing, post-mount 160mm native rear rotor (180mm with adaptor), and 29\" native wheel compatibility.",
 	Geometries: map[string]model.SizeGeometry{

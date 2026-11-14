@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"strings"
 
 	"bikegeo/pkg/curve"
 	"bikegeo/pkg/model"
@@ -48,7 +47,7 @@ func PrintedDistanceToIdeal(idealRange *Range, printedVal float64, decimals int)
 // Evaluate evaluates a metric value against an AttributeSpec and returns an Evaluation.
 // row can be nil if evaluating abstract test values.
 func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.CanonicalComparisonRow) Evaluation {
-	if strings.EqualFold(spec.ID, "handlebar_clamp_fit") && row != nil && row.Canonical.CockpitFitResult != nil {
+	if spec.ID == MetricHandlebarClampFit && row != nil && row.Canonical.CockpitFitResult != nil {
 		cfr := row.Canonical.CockpitFitResult
 		subScore := cfr.FinalSubScore
 		printedSub := math.Round(subScore)

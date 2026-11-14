@@ -137,6 +137,7 @@ func addDetail(doc *report.Document, b Bundle) {
 			fmt.Sprintf("%.1f mm", b.Bike.Wheelbase),
 		}},
 	)
+	spec.Columns[5].ID = "bbdrop"
 	doc.AddTable(spec)
 
 	doc.AddText(fmt.Sprintf(

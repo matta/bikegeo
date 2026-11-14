@@ -263,7 +263,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 
 	case "default_fork.fork", "default_fork":
 		for idx, f := range frame.Forks {
-			if strings.EqualFold(f.Fork, val) || (val == "rigid" && f.ForkTravel() == 0) {
+			if strings.EqualFold(f.Fork, val) || (val == "rigid" && f.TravelMm == 0) {
 				if idx > 0 {
 					frame.Forks[0], frame.Forks[idx] = frame.Forks[idx], frame.Forks[0]
 				}
@@ -272,9 +272,10 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		}
 		if entry, ok := catalog.GetCatalogFork(val); ok && len(entry.Options) > 0 {
 			newRef := model.ForkRef{
-				Fork:   entry.ID,
-				A2cMm:  entry.Options[0].A2cMm,
-				RakeMm: entry.Options[0].RakeMm,
+				Fork:     entry.ID,
+				TravelMm: entry.TravelMm,
+				A2cMm:    entry.Options[0].A2cMm,
+				RakeMm:   entry.Options[0].RakeMm,
 			}
 			frame.Forks = append([]model.ForkRef{newRef}, frame.Forks...)
 		}
@@ -377,7 +378,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 		}
 		found := false
 		for i := range frame.Forks {
-			if frame.Forks[i].ForkTravel() == 0 {
+			if frame.Forks[i].TravelMm == 0 {
 				frame.Forks[i].A2cMm = v
 				found = true
 				break
@@ -680,7 +681,7 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 	for _, t := range []float64{0, 100, 110, 120, 130, 140, 150} {
 		travelSet[t] = true
 	}
-	if tr := frame.CadFork.ForkTravel(); tr > 0 {
+	if tr := frame.CadFork.TravelMm; tr > 0 {
 		travelSet[tr] = true
 	}
 	var travels []float64
@@ -742,7 +743,7 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 				if frame.SupportsRigid() {
 					staticA2cs = append(staticA2cs, frame.GetRigidA2c())
 				}
-				if frame.CadFork.ForkTravel() == 0 && frame.CadFork.A2cMm > 0 {
+				if frame.CadFork.TravelMm == 0 && frame.CadFork.A2cMm > 0 {
 					staticA2cs = append(staticA2cs, frame.CadFork.A2cMm)
 				}
 				for _, a := range []float64{440, 468, 470, 472, 480, 483, 485, 490, 492, 495, 500, 510} {
@@ -764,7 +765,7 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 						}
 					}
 				}
-				if st := frame.CadFork.StaticA2c(); st > 0 && math.Abs(frame.CadFork.ForkTravel()-travel) < 0.1 {
+				if st := frame.CadFork.StaticA2c(); st > 0 && math.Abs(frame.CadFork.TravelMm-travel) < 0.1 {
 					staticA2cs = append(staticA2cs, st)
 				}
 			}

@@ -16,9 +16,9 @@ var MootsMountaineer = model.FrameModel{
 	Stems:              []string{"mtb"},
 	Sizes:              []string{"S", "M", "L", "XL"},
 	DefaultSize:        "M",
-	CadFork:            model.ForkRef{Fork: "pike_120", SagPct: 20, A2cMm: 507, RakeMm: 44},
+	CadFork:            model.ForkRef{Fork: "pike_120", TravelMm: 120, SagPct: 20, A2cMm: 507, RakeMm: 44},
 	Forks: []model.ForkRef{
-		{Fork: "pike_120", A2cMm: 531, RakeMm: 44},
+		{Fork: "pike_120", TravelMm: 120, A2cMm: 531, RakeMm: 44},
 	},
 	Notes: "Handcrafted titanium micro-suspension trail mountain bike featuring Moots' signature YBB micro-suspension unit at the rear and designed around a 120mm suspension fork. Features oversized seamless 3Al-2.5V titanium with proprietary double-butted tubing, 44mm straight head tube (Chris King InSet 7, ZS44/EC44), 73mm English threaded BB, 30.9mm seatpost with stealth dropper routing, SRAM UDH dropouts (12x148mm Boost spacing), clearance for up to 29x2.6\" tires, and 3 water bottle locations. Published geometry is based on a 120mm fork (baseline 531mm static A2C, 44mm offset) paired with an EC44 lower headset cup. Wheelbase numbers are derived from horizontal rear center plus front center as Moots does not publish wheelbase.",
 	Geometries: map[string]model.SizeGeometry{

@@ -20,7 +20,7 @@ var SalsaFargo = model.FrameModel{
 	CadFork:            model.ForkRef{Fork: "firestarter_deluxe_483", A2cMm: 483, RakeMm: 51},
 	Forks: []model.ForkRef{
 		{Fork: "firestarter_deluxe_483", A2cMm: 483, RakeMm: 51},
-		{Fork: "sid_100", A2cMm: 506, RakeMm: 51},
+		{Fork: "sid_100", TravelMm: 100, A2cMm: 506, RakeMm: 51},
 	},
 	Notes: "Triple-butted seamless CroMoly steel drop-bar bikepacking and off-road exploration frame designed around the Cutthroat Carbon Deluxe rigid fork (483mm A2C, 51mm offset) or 100mm suspension forks with a ZS44/EC44 headset (FSA Orbit ITA). Features Alternator 1.5 dropouts (445-462mm chainstay length) and clearance for up to 29x2.4\" (or 29x3.0\" on sizes S-XL). Lower-cup provenance (C4): the published geometry chart closes to the bare head tube with GeoHeadsetSpacerMm: 0 (CadLowerCupMm = 0) around the 483mm rigid fork A2C, while a physical tapered-steerer fork build uses the EC44 lower headset cup (HeadsetCupType: CupEC44, 12mm physical stack; straight 1-1/8\" steerer builds use ZS44 0mm lower crown race adapter), adding 12mm of physical lower-cup stack relative to the bare-headtube chart when built with a tapered steerer.",
 	Geometries: map[string]model.SizeGeometry{

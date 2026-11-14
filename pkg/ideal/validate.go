@@ -16,13 +16,35 @@ func (p *Profile) HasCockpitTargets() bool {
 		if attr.Ideal == nil {
 			continue
 		}
-		id := strings.ToLower(strings.TrimSpace(attr.ID))
-		if meta, ok := LookupAttribute(attr.ID); ok {
-			id = meta.ID
-		}
-		switch id {
-		case "handlebar_clamp_fit", "saddle_hb", "saddle_hb_drop":
+		switch attr.ID {
+		case MetricHandlebarClampFit, MetricSaddleHb, MetricSaddleHbDrop:
 			return true
+		case MetricSetback,
+			MetricEtt,
+			MetricAett,
+			MetricSpareVert,
+			MetricSpareAxial,
+			MetricSeatpostExtension,
+			MetricSeatToRc,
+			MetricChainstay,
+			MetricBbDrop,
+			MetricHta,
+			MetricTrail,
+			MetricSta,
+			MetricReach,
+			MetricStack,
+			MetricWheelbase,
+			MetricRcWbRatio,
+			MetricSeatTube,
+			MetricStandover,
+			MetricBrpSetback,
+			MetricBestStem,
+			MetricStemSpacerFit,
+			MetricSitBoneSetback,
+			MetricIdealSta:
+			continue
+		default:
+			continue
 		}
 	}
 	return false
@@ -55,20 +77,19 @@ func ValidateProfile(p *Profile) error {
 		return fmt.Errorf("profile %q must define at least one attribute", p.Name)
 	}
 
-	seenIDs := make(map[string]bool)
+	seenIDs := make(map[MetricID]bool)
 	hasWeighted := false
 
 	for idx, attr := range p.Attributes {
-		id := strings.ToLower(strings.TrimSpace(attr.ID))
-		if id == "" {
+		if attr.ID == "" {
 			return fmt.Errorf("profile %q attribute #%d is missing id", p.Name, idx+1)
 		}
-		if seenIDs[id] {
+		if seenIDs[attr.ID] {
 			return fmt.Errorf("profile %q contains duplicate attribute id %q", p.Name, attr.ID)
 		}
-		seenIDs[id] = true
+		seenIDs[attr.ID] = true
 
-		if _, ok := LookupAttribute(id); !ok {
+		if _, ok := LookupAttribute(attr.ID); !ok {
 			return fmt.Errorf("profile %q attribute %q is not a recognized attribute id", p.Name, attr.ID)
 		}
 

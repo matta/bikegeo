@@ -2,14 +2,13 @@ package ideal
 
 import (
 	"fmt"
-	"strings"
 
 	"bikegeo/pkg/model"
 )
 
 // AttributeMeta contains metadata and extraction logic for a known bike geometry or fit attribute.
 type AttributeMeta struct {
-	ID        string
+	ID        MetricID
 	Label     string
 	Unit      string
 	Decimals  int
@@ -389,62 +388,48 @@ var registry = []AttributeMeta{
 	},
 }
 
-var registryMap = func() map[string]AttributeMeta {
-	m := make(map[string]AttributeMeta, len(registry)*2)
+var registryMap = func() map[MetricID]AttributeMeta {
+	m := make(map[MetricID]AttributeMeta, len(registry))
 	for _, a := range registry {
-		lower := strings.ToLower(a.ID)
-		m[lower] = a
-		cleaned := strings.ReplaceAll(strings.ReplaceAll(lower, "_", ""), "-", "")
-		if cleaned != lower {
-			m[cleaned] = a
-		}
+		m[a.ID] = a
 	}
 	return m
 }()
 
-// LookupAttribute returns the AttributeMeta for a given ID, or false if unknown.
-func LookupAttribute(id string) (AttributeMeta, bool) {
-	norm := strings.ToLower(strings.TrimSpace(id))
-	if norm == "brp" {
-		norm = "brp_setback"
+// LookupAttribute returns the AttributeMeta for a given MetricID, or false if unknown.
+func LookupAttribute(id MetricID) (AttributeMeta, bool) {
+	switch id {
+	case MetricSetback,
+		MetricEtt,
+		MetricAett,
+		MetricSpareVert,
+		MetricSpareAxial,
+		MetricSeatpostExtension,
+		MetricSeatToRc,
+		MetricChainstay,
+		MetricBbDrop,
+		MetricHta,
+		MetricTrail,
+		MetricSta,
+		MetricReach,
+		MetricStack,
+		MetricWheelbase,
+		MetricRcWbRatio,
+		MetricSeatTube,
+		MetricStandover,
+		MetricBrpSetback,
+		MetricSaddleHb,
+		MetricSaddleHbDrop,
+		MetricBestStem,
+		MetricStemSpacerFit,
+		MetricSitBoneSetback,
+		MetricIdealSta,
+		MetricHandlebarClampFit:
+		meta, ok := registryMap[id]
+		return meta, ok
+	default:
+		return AttributeMeta{}, false
 	}
-	if norm == "brp_handgrip" || norm == "brp-handgrip" || norm == "brphandgrip" || norm == "brp–handgrip" {
-		norm = "saddle_hb"
-	}
-	if norm == "hb_drop" || norm == "drop" || norm == "hb_rise" || norm == "rise" || norm == "saddle_hb_rise" || norm == "hbrise" ||
-		norm == "handgrip_rise" || norm == "handgrip-rise" || norm == "handgriprise" || norm == "grip_rise" || norm == "grip-rise" || norm == "griprise" {
-		norm = "saddle_hb_drop"
-	}
-	if norm == "stem" || norm == "beststem" || norm == "best-stem" {
-		norm = "best_stem"
-	}
-	if norm == "sit_bones" || norm == "sitbones" || norm == "sitbone" || norm == "sit_bone" {
-		norm = "sit_bone_setback"
-	}
-	if norm == "idealsta" {
-		norm = "ideal_sta"
-	}
-	if norm == "trail_mm" || norm == "trail-mm" || norm == "trailmm" {
-		norm = "trail"
-	}
-	if norm == "cockpit_fit" || norm == "cockpit" || norm == "hb_fit_area" || norm == "clamp_fit" || norm == "hbclampfit" || norm == "clampfit" || norm == "oval_fits" || norm == "ovalfits" {
-		norm = "handlebar_clamp_fit"
-	}
-	if norm == "seat_to_rc" || norm == "seat_axis_rear_axle" || norm == "seat-axis-rear-axle" || norm == "seat-rc" || norm == "seat_rc" || norm == "seatrc" || norm == "saddle_rc" || norm == "saddle-rc" || norm == "saddle_rear_axle" || norm == "saddle-rear-axle" || norm == "saddlerearaxle" || norm == "saddle_axle" || norm == "saddle-axle" || norm == "saddle_to_axle" || norm == "saddle-to-axle" {
-		norm = "seat_to_rc"
-	}
-	if norm == "sparevert" || norm == "seat_axis_ht_drop" || norm == "seat-axis-ht-drop" || norm == "spare_vert" || norm == "spare-vert" || norm == "saddle_ht_drop" || norm == "saddle-ht-drop" || norm == "saddlehtdrop" || norm == "saddle_to_ht_drop" || norm == "steerer_stack" {
-		norm = "sparevert"
-	}
-	cleaned := strings.ReplaceAll(strings.ReplaceAll(norm, "_", ""), "-", "")
-	if cleaned == "seatpostext" || cleaned == "seatpost" || cleaned == "postext" || cleaned == "postextension" {
-		norm = "seatpost_extension"
-	}
-	meta, ok := registryMap[norm]
-	if !ok {
-		meta, ok = registryMap[cleaned]
-	}
-	return meta, ok
 }
 
 // AllAttributes returns a copy of all supported AttributeMeta definitions in standard order.

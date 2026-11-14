@@ -116,9 +116,8 @@ func NormalizeAndValidate(p *Profile) (*Profile, error) {
 			if !attr.Floor.IsSet() {
 				attr.Floor = model.Some(-200.0)
 			}
-			lowID := strings.ToLower(attr.ID)
-			switch lowID {
-			case "brp_setback", "brp", "brpsetback":
+			switch attr.ID {
+			case MetricBrpSetback:
 				if vMin, ok := attr.Ideal.Min.Get(); ok {
 					if vMax, ok := attr.Ideal.Max.Get(); ok {
 						refBrpSB = (vMin + vMax) / 2.0
@@ -128,9 +127,16 @@ func NormalizeAndValidate(p *Profile) (*Profile, error) {
 				} else if vMax, ok := attr.Ideal.Max.Get(); ok {
 					refBrpSB = vMax
 				}
-			case "saddle_hb_drop", "hb_drop", "saddlehbdrop":
+			case MetricSaddleHbDrop:
 				dropMin = attr.Ideal.Min
 				dropMax = attr.Ideal.Max
+			case MetricSetback, MetricEtt, MetricAett, MetricSpareVert, MetricSpareAxial,
+				MetricSeatpostExtension, MetricSeatToRc, MetricChainstay, MetricBbDrop,
+				MetricHta, MetricTrail, MetricSta, MetricReach, MetricStack, MetricWheelbase,
+				MetricRcWbRatio, MetricSeatTube, MetricStandover, MetricSaddleHb,
+				MetricBestStem, MetricStemSpacerFit, MetricSitBoneSetback, MetricIdealSta,
+				MetricHandlebarClampFit:
+			default:
 			}
 		}
 	}
@@ -178,8 +184,7 @@ func (p *Profile) ForSaddle(saddle model.SaddleSpec) *Profile {
 
 	refRise := 3.0
 	for _, attr := range p.Attributes {
-		lowID := strings.ToLower(attr.ID)
-		if (lowID == "saddle_hb_drop" || lowID == "hb_drop" || lowID == "saddlehbdrop") && attr.Ideal != nil {
+		if attr.ID == MetricSaddleHbDrop && attr.Ideal != nil {
 			if dMin, ok := attr.Ideal.Min.Get(); ok {
 				if dMax, ok := attr.Ideal.Max.Get(); ok {
 					refRise = (dMin + dMax) / 2.0
@@ -203,15 +208,14 @@ func (p *Profile) ForSaddle(saddle model.SaddleSpec) *Profile {
 	copied := *p
 	copied.Attributes = make([]AttributeSpec, len(p.Attributes))
 	for i, attr := range p.Attributes {
-		lowID := strings.ToLower(attr.ID)
-		switch lowID {
-		case "brp_setback", "brp", "brpsetback":
+		switch attr.ID {
+		case MetricBrpSetback:
 			fn := func(v float64) float64 {
 				return saddle.BrpSetbackFromSitBones(ref.SitBoneSetbackFromBrp(v))
 			}
 			attr.Ideal = mapRange(attr.Ideal, fn)
 			attr.Acceptable = mapRange(attr.Acceptable, fn)
-		case "saddle_hb", "saddlehb":
+		case MetricSaddleHb:
 			fn := func(v float64) float64 {
 				if v <= 0 {
 					return 0
@@ -224,6 +228,13 @@ func (p *Profile) ForSaddle(saddle model.SaddleSpec) *Profile {
 			}
 			attr.Ideal = mapRange(attr.Ideal, fn)
 			attr.Acceptable = mapRange(attr.Acceptable, fn)
+		case MetricSetback, MetricEtt, MetricAett, MetricSpareVert, MetricSpareAxial,
+			MetricSeatpostExtension, MetricSeatToRc, MetricChainstay, MetricBbDrop,
+			MetricHta, MetricTrail, MetricSta, MetricReach, MetricStack, MetricWheelbase,
+			MetricRcWbRatio, MetricSeatTube, MetricStandover, MetricSaddleHbDrop,
+			MetricBestStem, MetricStemSpacerFit, MetricSitBoneSetback, MetricIdealSta,
+			MetricHandlebarClampFit:
+		default:
 		}
 		copied.Attributes[i] = attr
 	}

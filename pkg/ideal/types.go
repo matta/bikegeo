@@ -55,9 +55,41 @@ func FalloffAbove(above float64) *Falloff {
 	return &Falloff{Above: model.Some(above)}
 }
 
+// MetricID identifies a known bike geometry or fit metric in the attribute registry.
+type MetricID string
+
+const (
+	MetricSetback           MetricID = "setback"
+	MetricEtt               MetricID = "ett"
+	MetricAett              MetricID = "aett"
+	MetricSpareVert         MetricID = "sparevert"
+	MetricSpareAxial        MetricID = "spareaxial"
+	MetricSeatpostExtension MetricID = "seatpost_extension"
+	MetricSeatToRc          MetricID = "seat_to_rc"
+	MetricChainstay         MetricID = "chainstay"
+	MetricBbDrop            MetricID = "bbdrop"
+	MetricHta               MetricID = "hta"
+	MetricTrail             MetricID = "trail"
+	MetricSta               MetricID = "sta"
+	MetricReach             MetricID = "reach"
+	MetricStack             MetricID = "stack"
+	MetricWheelbase         MetricID = "wheelbase"
+	MetricRcWbRatio         MetricID = "rc_wb_ratio"
+	MetricSeatTube          MetricID = "seattube"
+	MetricStandover         MetricID = "standover"
+	MetricBrpSetback        MetricID = "brp_setback"
+	MetricSaddleHb          MetricID = "saddle_hb"
+	MetricSaddleHbDrop      MetricID = "saddle_hb_drop"
+	MetricBestStem          MetricID = "best_stem"
+	MetricStemSpacerFit     MetricID = "stem_spacer_fit"
+	MetricSitBoneSetback    MetricID = "sit_bone_setback"
+	MetricIdealSta          MetricID = "ideal_sta"
+	MetricHandlebarClampFit MetricID = "handlebar_clamp_fit"
+)
+
 // AttributeSpec describes the scoring and display configuration for a single geometry or fit metric.
 type AttributeSpec struct {
-	ID         string
+	ID         MetricID
 	Weight     float64
 	Ideal      *Range
 	Acceptable *Range
@@ -67,12 +99,12 @@ type AttributeSpec struct {
 }
 
 // DisplayOnly returns an unscored, display-only AttributeSpec for the given attribute ID.
-func DisplayOnly(id string) AttributeSpec {
+func DisplayOnly(id MetricID) AttributeSpec {
 	return AttributeSpec{ID: id}
 }
 
 // DisplayOnlyWithTarget returns an unscored AttributeSpec that displays target ranges without contributing to the score.
-func DisplayOnlyWithTarget(id string, ideal, acceptable *Range, edgeScore model.Opt[float64], falloff *Falloff) AttributeSpec {
+func DisplayOnlyWithTarget(id MetricID, ideal, acceptable *Range, edgeScore model.Opt[float64], falloff *Falloff) AttributeSpec {
 	return AttributeSpec{
 		ID:         id,
 		Weight:     0,

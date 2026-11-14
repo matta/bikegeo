@@ -179,7 +179,7 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 	}
 
 	// Fork Travel & Static A2C Plausibility Check (for 29er suspension forks)
-	forkTravel := bike.CadFork.ForkTravel()
+	forkTravel := bike.CadFork.TravelMm
 	staticA2c := bike.CadFork.StaticA2c()
 	if forkTravel > 0 && staticA2c > 0 {
 		minStaticA2c := forkTravel + 400.0

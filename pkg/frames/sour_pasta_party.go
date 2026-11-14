@@ -16,10 +16,10 @@ var SourPastaParty = model.FrameModel{
 	Stems:              []string{"mtb"},
 	Sizes:              []string{"S", "M", "L", "XL"},
 	DefaultSize:        "L",
-	CadFork:            model.ForkRef{Fork: "fox34_120", SagPct: 15, A2cMm: 512, RakeMm: 44},
+	CadFork:            model.ForkRef{Fork: "fox34_120", TravelMm: 120, SagPct: 15, A2cMm: 512, RakeMm: 44},
 	Forks: []model.ForkRef{
-		{Fork: "fox34_120", A2cMm: 530, RakeMm: 44},
-		{Fork: "sid_100", A2cMm: 506, RakeMm: 44},
+		{Fork: "fox34_120", TravelMm: 120, A2cMm: 530, RakeMm: 44},
+		{Fork: "sid_100", TravelMm: 100, A2cMm: 506, RakeMm: 44},
 		{Fork: "rigid_490", A2cMm: 490, RakeMm: 44},
 	},
 	Notes: "Handmade CrMo steel 29er trail/adventure hardtail designed in Dresden, Germany around 100-120mm suspension forks (published with a 120mm fork at 15% sag and 12mm EC44 lower headset cup) or 490mm rigid forks (Sour Party Fork / Sour Carbon 29\"). Wheelbases adapted to modern archetypical 44mm offset fork.",

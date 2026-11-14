@@ -19,8 +19,8 @@ var SurlyKrampus = model.FrameModel{
 	CadFork:            model.ForkRef{Fork: "surly_krampus_483", A2cMm: 483, RakeMm: 47},
 	Forks: []model.ForkRef{
 		{Fork: "surly_krampus_483", A2cMm: 483, RakeMm: 47},
-		{Fork: "sid_100", A2cMm: 506, RakeMm: 44},
-		{Fork: "fox34_120", A2cMm: 530, RakeMm: 44},
+		{Fork: "sid_100", TravelMm: 100, A2cMm: 506, RakeMm: 44},
+		{Fork: "fox34_120", TravelMm: 120, A2cMm: 530, RakeMm: 44},
 	},
 	Notes: "4130 Chromoly steel 'Natch tubing 29+ trail hardtail designed around a 483mm rigid fork (47mm offset) or 100-120mm suspension forks (max 550x51mm) with a ZS44/EC44 headset (EC44 lower cup). Features 'Gnot-Boost' 145mm rear spacing (12x142 or 12x148mm) and clearance for 29x3.0\" tires.",
 	Geometries: map[string]model.SizeGeometry{

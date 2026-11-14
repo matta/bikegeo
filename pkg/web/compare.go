@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 
 	"bikegeo/pkg/canonicalizer"
 	"bikegeo/pkg/catalog"
@@ -89,16 +88,16 @@ func options(values []string, current string, blankLabel string) []Option {
 // "a2c=<static>/<rake>" form so the URL reproduces what is on screen.
 func forkToken(f model.FrameModel, r model.CanonicalComparisonRow) string {
 	tok := "rigid"
-	if !canonicalizer.IsRigidFork(canonicalizer.GetEffectiveForkLabel(r)) {
+	if !r.Setup.IsRigid {
 		tok = canonicalizer.FormatForkType(r)
 	}
 	var sag model.Opt[float64]
 	if r.Setup.SagPct > 0 {
 		sag = model.Some(r.Setup.SagPct)
 	}
-	a2c, rake, static, _, err := canonicalizer.ResolveForkToken(tok, sag, f)
-	exact := err == nil && math.Abs(rake-r.Setup.RakeMm) < 0.5 &&
-		(math.Abs(a2c-r.Setup.A2cMm) < 0.5 || math.Abs(static-r.Setup.A2cMm) < 0.5)
+	rf, err := canonicalizer.ResolveForkToken(tok, sag, f)
+	exact := err == nil && math.Abs(rf.TargetRake-r.Setup.RakeMm) < 0.5 &&
+		(math.Abs(rf.TargetA2c-r.Setup.A2cMm) < 0.5 || math.Abs(rf.StaticA2c-r.Setup.A2cMm) < 0.5)
 	if !exact && tok != "rigid" {
 		return fmt.Sprintf("a2c=%.0f/%.0f", r.Setup.A2cMm, r.Setup.RakeMm)
 	}
@@ -113,14 +112,13 @@ func forkChoices(f model.FrameModel) []string {
 	}
 	var out []string
 	for _, s := range setups {
-		lbl := s.DisplayLabel
 		switch {
-		case canonicalizer.IsRigidFork(lbl):
+		case s.IsRigid:
 			out = append(out, "rigid")
-		case strings.Contains(lbl, "@"):
-			out = append(out, strings.TrimSpace(strings.SplitN(lbl, "@", 2)[0]))
+		case s.TravelMm > 0:
+			out = append(out, fmt.Sprintf("%.0fmm", s.TravelMm))
 		default:
-			out = append(out, lbl)
+			out = append(out, s.DisplayLabel)
 		}
 	}
 	return out

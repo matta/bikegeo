@@ -400,14 +400,22 @@ func TestAllFrameData(t *testing.T) {
 			}
 		}
 
-		// 3. Verify CAD fork specification is populated
+		// 3. Verify CAD fork specification is populated and TravelMm matches catalog
 		if frame.CadFork.Fork == "" || frame.CadFork.A2cMm <= 0 {
 			t.Errorf("Frame %s has invalid cad_fork: %+v", frame.ID, frame.CadFork)
+		}
+		if entry, ok := catalog.GetCatalogFork(frame.CadFork.Fork); ok && frame.CadFork.TravelMm != entry.TravelMm {
+			t.Errorf("Frame %s CadFork %q TravelMm = %.0f, catalog has %.0f", frame.ID, frame.CadFork.Fork, frame.CadFork.TravelMm, entry.TravelMm)
 		}
 
 		// 4. Verify forks
 		if len(frame.Forks) == 0 {
 			t.Errorf("Frame %s missing forks", frame.ID)
+		}
+		for _, f := range frame.Forks {
+			if entry, ok := catalog.GetCatalogFork(f.Fork); ok && f.TravelMm != entry.TravelMm {
+				t.Errorf("Frame %s Fork %q TravelMm = %.0f, catalog has %.0f", frame.ID, f.Fork, f.TravelMm, entry.TravelMm)
+			}
 		}
 		if _, _, ok := frame.EffectiveA2cRange(); !ok {
 			t.Errorf("Frame %s cannot derive valid A2C range", frame.ID)

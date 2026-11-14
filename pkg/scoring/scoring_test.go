@@ -908,7 +908,7 @@ func TestScoreRow_DisplayOnlyWithTargetCarriesZone(t *testing.T) {
 		},
 	}
 	res := scoreRowWithTargets(row, prof)
-	byID := map[string]CriterionResult{}
+	byID := map[ideal.MetricID]CriterionResult{}
 	for _, c := range res.Criteria {
 		byID[c.ID] = c
 	}
@@ -994,7 +994,7 @@ func TestExplainProfile_HeadToHeadReconcilesAllFactors(t *testing.T) {
 
 	// Build two frames differing in 3 positive factors (+5, +4, +2), 2 negative
 	// factors (-3, -2), and a <1 pt factor (+0.4): total gap = 65 - 59 = 6.
-	makeCrit := func(id, label, unit string, val, pts float64) CriterionResult {
+	makeCrit := func(id ideal.MetricID, label, unit string, val, pts float64) CriterionResult {
 		return CriterionResult{ID: id, Label: label, Unit: unit, Value: val, Points: pts, Weight: 1}
 	}
 	fa := ScoredFrame{

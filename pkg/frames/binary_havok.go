@@ -20,8 +20,8 @@ var BinaryHavok = model.FrameModel{
 	CadFork:            model.ForkRef{Fork: "rigid_485", A2cMm: 485, RakeMm: 45},
 	Forks: []model.ForkRef{
 		{Fork: "rigid_485", A2cMm: 485, RakeMm: 45},
-		{Fork: "sid_100", A2cMm: 506, RakeMm: 44},
-		{Fork: "fox34_120", A2cMm: 530, RakeMm: 44},
+		{Fork: "sid_100", TravelMm: 100, A2cMm: 506, RakeMm: 44},
+		{Fork: "fox34_120", TravelMm: 120, A2cMm: 530, RakeMm: 44},
 	},
 	Notes: "Titanium 29+ drop-bar endurance & adventure bike frame designed around a 485mm axle-to-crown rigid fork or 100mm suspension fork with an EC44 external lower headset cup. Features rocker sliding dropouts (445-460mm chainstay, forward 445mm position in published geometry).",
 	Geometries: map[string]model.SizeGeometry{

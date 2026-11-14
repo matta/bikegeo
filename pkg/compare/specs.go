@@ -296,7 +296,7 @@ func parseFrameSetups(
 		}
 		forkSetups = expForks
 	} else {
-		targetA2c, targetRake, _, displayLabel, err := canonicalizer.ResolveForkToken(forkToken, sagOverride, frame)
+		resolved, err := canonicalizer.ResolveForkToken(forkToken, sagOverride, frame)
 		if err != nil {
 			return nil, err
 		}
@@ -304,9 +304,11 @@ func parseFrameSetups(
 		forkSetups = []model.ComparisonSetup{
 			{
 				FrameID:      frame.ID,
-				A2cMm:        targetA2c,
-				RakeMm:       targetRake,
-				DisplayLabel: displayLabel,
+				A2cMm:        resolved.TargetA2c,
+				RakeMm:       resolved.TargetRake,
+				TravelMm:     resolved.TravelMm,
+				IsRigid:      resolved.IsRigid,
+				DisplayLabel: resolved.DisplayLabel,
 				SagPct:       sagVal,
 				AutoExpanded: false,
 			},
@@ -387,26 +389,26 @@ func DefaultComparisonState() model.SavedComparisonState {
 		HandlebarID:  defBar.ID,
 		Handlebar:    defBar,
 		Columns: []model.ComparisonSetup{
-			{FrameID: "binary-havok", Size: "XL", A2cMm: 486, RakeMm: 44, DisplayLabel: "100mm @ 20% sag"},
-			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
-			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 495, RakeMm: 54, DisplayLabel: "Rigid (495mm)"},
-			{FrameID: "otso-fenrir-stainless", Size: "XL", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
-			{FrameID: "esker-hayduke", Size: "S3", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
-			{FrameID: "revel-el-jefe", Size: "L", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
-			{FrameID: "revel-el-jefe", Size: "XL", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
-			{FrameID: "surly-krampus", Size: "L", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
-			{FrameID: "surly-krampus", Size: "XL", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
-			{FrameID: "binary-kinetik", Size: "L", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
-			{FrameID: "turner-venn-ti", Size: "L", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
-			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
-			{FrameID: "fairlight-holt-2", Size: "L", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
-			{FrameID: "fairlight-holt-2", Size: "XL", A2cMm: 506, RakeMm: 44, DisplayLabel: "120mm @ 20% sag"},
-			{FrameID: "sklar-pbj", Size: "L", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
-			{FrameID: "sklar-pbj", Size: "XL", A2cMm: 499, RakeMm: 44, DisplayLabel: "110mm @ 20% sag"},
-			{FrameID: "salsa-fargo", Size: "L", A2cMm: 483, RakeMm: 51, DisplayLabel: "Rigid (483mm)"},
-			{FrameID: "salsa-fargo", Size: "XL", A2cMm: 483, RakeMm: 51, DisplayLabel: "Rigid (483mm)"},
-			{FrameID: "salsa-fargo", Size: "L", A2cMm: 486, RakeMm: 44, DisplayLabel: "100mm @ 20% sag"},
-			{FrameID: "salsa-fargo", Size: "XL", A2cMm: 486, RakeMm: 44, DisplayLabel: "100mm @ 20% sag"},
+			{FrameID: "binary-havok", Size: "XL", A2cMm: 486, RakeMm: 44, TravelMm: 100, SagPct: 20, DisplayLabel: "100mm @ 20% sag"},
+			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 499, RakeMm: 44, TravelMm: 110, SagPct: 20, DisplayLabel: "110mm @ 20% sag"},
+			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 495, RakeMm: 54, IsRigid: true, DisplayLabel: "Rigid (495mm)"},
+			{FrameID: "otso-fenrir-stainless", Size: "XL", A2cMm: 506, RakeMm: 44, TravelMm: 120, SagPct: 20, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "esker-hayduke", Size: "S3", A2cMm: 499, RakeMm: 44, TravelMm: 110, SagPct: 20, DisplayLabel: "110mm @ 20% sag"},
+			{FrameID: "revel-el-jefe", Size: "L", A2cMm: 506, RakeMm: 44, TravelMm: 120, SagPct: 20, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "revel-el-jefe", Size: "XL", A2cMm: 506, RakeMm: 44, TravelMm: 120, SagPct: 20, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "surly-krampus", Size: "L", A2cMm: 506, RakeMm: 44, TravelMm: 120, SagPct: 20, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "surly-krampus", Size: "XL", A2cMm: 506, RakeMm: 44, TravelMm: 120, SagPct: 20, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "binary-kinetik", Size: "L", A2cMm: 499, RakeMm: 44, TravelMm: 110, SagPct: 20, DisplayLabel: "110mm @ 20% sag"},
+			{FrameID: "turner-venn-ti", Size: "L", A2cMm: 506, RakeMm: 44, TravelMm: 120, SagPct: 20, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "otso-fenrir-stainless", Size: "L", A2cMm: 506, RakeMm: 44, TravelMm: 120, SagPct: 20, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "fairlight-holt-2", Size: "L", A2cMm: 506, RakeMm: 44, TravelMm: 120, SagPct: 20, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "fairlight-holt-2", Size: "XL", A2cMm: 506, RakeMm: 44, TravelMm: 120, SagPct: 20, DisplayLabel: "120mm @ 20% sag"},
+			{FrameID: "sklar-pbj", Size: "L", A2cMm: 499, RakeMm: 44, TravelMm: 110, SagPct: 20, DisplayLabel: "110mm @ 20% sag"},
+			{FrameID: "sklar-pbj", Size: "XL", A2cMm: 499, RakeMm: 44, TravelMm: 110, SagPct: 20, DisplayLabel: "110mm @ 20% sag"},
+			{FrameID: "salsa-fargo", Size: "L", A2cMm: 483, RakeMm: 51, IsRigid: true, DisplayLabel: "Rigid (483mm)"},
+			{FrameID: "salsa-fargo", Size: "XL", A2cMm: 483, RakeMm: 51, IsRigid: true, DisplayLabel: "Rigid (483mm)"},
+			{FrameID: "salsa-fargo", Size: "L", A2cMm: 486, RakeMm: 44, TravelMm: 100, SagPct: 20, DisplayLabel: "100mm @ 20% sag"},
+			{FrameID: "salsa-fargo", Size: "XL", A2cMm: 486, RakeMm: 44, TravelMm: 100, SagPct: 20, DisplayLabel: "100mm @ 20% sag"},
 		},
 	}
 }

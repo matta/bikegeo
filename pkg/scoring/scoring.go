@@ -13,7 +13,7 @@ import (
 
 // CriterionResult stores the calculated score breakdown for a single criterion.
 type CriterionResult struct {
-	ID              string
+	ID              ideal.MetricID
 	Label           string
 	Unit            string
 	Value           float64
@@ -226,16 +226,15 @@ func formatCockpitOffset(hb model.HBPoint, oval model.FitOval, targetRef model.T
 // incorporating cockpit setup context (such as rail offset or stem/spacer configuration) if available.
 func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val float64, dist float64, zone ideal.ZoneType, row *model.CanonicalComparisonRow) string {
 	label := meta.Label
-	lowID := strings.ToLower(spec.ID)
 
-	if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && row != nil && row.Canonical.SelectedBRP != nil {
+	if spec.ID == ideal.MetricBrpSetback && row != nil && row.Canonical.SelectedBRP != nil {
 		brp := row.Canonical.SelectedBRP
 		sign := "+"
 		if brp.RailOffsetMm < 0 {
 			sign = ""
 		}
 		label = fmt.Sprintf("%s (rail %s%.0fmm)", meta.Label, sign, brp.RailOffsetMm)
-	} else if (lowID == "saddle_hb" || lowID == "saddlehb") && row != nil && row.Canonical.SelectedHB != nil && row.Canonical.SelectedHB.Stem.LengthMm > 0 {
+	} else if spec.ID == ideal.MetricSaddleHb && row != nil && row.Canonical.SelectedHB != nil && row.Canonical.SelectedHB.Stem.LengthMm > 0 {
 		hb := row.Canonical.SelectedHB
 		sign := "+"
 		if hb.SpacerMm < 0 {
@@ -252,8 +251,8 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 	isBelow := printedDist < 0 || (printedDist == 0 && dist < 0)
 	absDist := math.Abs(printedDist)
 
-	switch lowID {
-	case "handlebar_clamp_fit":
+	switch spec.ID {
+	case ideal.MetricHandlebarClampFit:
 		if row != nil && row.Canonical.CockpitFitResult != nil {
 			cfr := row.Canonical.CockpitFitResult
 			hb := cfr.SelectedHB
@@ -285,7 +284,7 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 			return fmt.Sprintf("%s: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f%s, %d valid setup%s in fit window%s)",
 				label, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, cfr.CountInside, plural, stemNote)
 		}
-	case "hta", "sta":
+	case ideal.MetricHta, ideal.MetricSta:
 		target := 68.0
 		if isBelow {
 			if spec.Ideal != nil {
@@ -302,7 +301,7 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 		}
 		return fmt.Sprintf("%s %.1f° is %.1f° steeper than %.1f", label, printedVal, absDist, target)
 
-	case "trail":
+	case ideal.MetricTrail:
 		if isBelow {
 			target := 98.0
 			if spec.Ideal != nil {
@@ -320,11 +319,18 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 		}
 		return fmt.Sprintf("Trail %.0fmm is %.0fmm slower than the %.0fmm ideal", printedVal, absDist, target)
 
-	case "bbdrop":
+	case ideal.MetricBbDrop:
 		if isBelow {
 			return fmt.Sprintf("BB drop %.0fmm sits %.0fmm higher than ideal", printedVal, absDist)
 		}
 		return fmt.Sprintf("BB drop %.0fmm sits %.0fmm lower than ideal", printedVal, absDist)
+	case ideal.MetricSetback, ideal.MetricEtt, ideal.MetricAett, ideal.MetricSpareVert, ideal.MetricSpareAxial,
+		ideal.MetricSeatpostExtension, ideal.MetricSeatToRc, ideal.MetricChainstay,
+		ideal.MetricReach, ideal.MetricStack, ideal.MetricWheelbase, ideal.MetricRcWbRatio,
+		ideal.MetricSeatTube, ideal.MetricStandover, ideal.MetricBrpSetback,
+		ideal.MetricSaddleHb, ideal.MetricSaddleHbDrop, ideal.MetricBestStem,
+		ideal.MetricStemSpacerFit, ideal.MetricSitBoneSetback, ideal.MetricIdealSta:
+	default:
 	}
 
 	valStr := formatValue(meta.Unit, printedVal)
@@ -334,7 +340,7 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 		if spec.Ideal != nil {
 			if minVal, ok := spec.Ideal.Min.Get(); ok {
 				idealStr := formatValue(meta.Unit, ideal.RoundPrinted(minVal, meta.Decimals))
-				if lowID == "setback" || lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" || lowID == "sit_bone_setback" {
+				if spec.ID == ideal.MetricSetback || spec.ID == ideal.MetricBrpSetback || spec.ID == ideal.MetricSitBoneSetback {
 					return fmt.Sprintf("%s %s is %s forward of the %s ideal", label, valStr, distStr, idealStr)
 				}
 				return fmt.Sprintf("%s %s is %s short of the %s ideal", label, valStr, distStr, idealStr)
@@ -346,7 +352,7 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 	if spec.Ideal != nil {
 		if maxVal, ok := spec.Ideal.Max.Get(); ok {
 			idealStr := formatValue(meta.Unit, ideal.RoundPrinted(maxVal, meta.Decimals))
-			if lowID == "setback" || lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" || lowID == "sit_bone_setback" {
+			if spec.ID == ideal.MetricSetback || spec.ID == ideal.MetricBrpSetback || spec.ID == ideal.MetricSitBoneSetback {
 				return fmt.Sprintf("%s %s is %s aft of the %s ideal", label, valStr, distStr, idealStr)
 			}
 			return fmt.Sprintf("%s %s is %s past the %s ideal", label, valStr, distStr, idealStr)
@@ -377,16 +383,16 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 		var losses []lossItem
 
 		rowProf := prof.ForSaddle(f.Row.Canonical.Saddle)
-		rowSpecMap := make(map[string]ideal.AttributeSpec, len(rowProf.Attributes))
+		rowSpecMap := make(map[ideal.MetricID]ideal.AttributeSpec, len(rowProf.Attributes))
 		for _, a := range rowProf.Attributes {
-			rowSpecMap[strings.ToLower(a.ID)] = a
+			rowSpecMap[a.ID] = a
 		}
 
 		for _, cr := range f.Score.Criteria {
 			if cr.Missing || cr.IsDisplayOnly || cr.Weight <= 0 {
 				continue
 			}
-			spec, ok := rowSpecMap[strings.ToLower(cr.ID)]
+			spec, ok := rowSpecMap[cr.ID]
 			if !ok {
 				continue
 			}
@@ -438,7 +444,7 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 		}
 
 		type diffItem struct {
-			id    string
+			id    ideal.MetricID
 			diff  float64
 			label string
 			unit  string
@@ -449,7 +455,7 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 		var con []diffItem
 		var smallCount int
 
-		critBMap := make(map[string]CriterionResult)
+		critBMap := make(map[ideal.MetricID]CriterionResult)
 		for _, c := range fb.Score.Criteria {
 			critBMap[c.ID] = c
 		}
@@ -493,7 +499,7 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 			// Oval Fits matrix cells show setup count, while CriterionResult.Value
 			// stores the sub-score; label it explicitly so the two aren't conflated.
 			valKind := ""
-			if strings.EqualFold(d.id, "handlebar_clamp_fit") {
+			if d.id == ideal.MetricHandlebarClampFit {
 				valKind = "sub-score "
 			}
 			roundedDiff := int(math.Round(d.diff))

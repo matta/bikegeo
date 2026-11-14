@@ -8,12 +8,6 @@ import (
 	"bikegeo/pkg/model"
 )
 
-// IsRigidFork reports whether the provided label describes a rigid fork.
-func IsRigidFork(label string) bool {
-	low := strings.ToLower(strings.TrimSpace(label))
-	return strings.HasPrefix(low, "rigid") || low == "0mm" || low == "0"
-}
-
 // FormatRigidFork produces the canonical display label for a rigid fork with the given A2C.
 func FormatRigidFork(a2c float64) string {
 	return fmt.Sprintf("Rigid (%.0fmm)", math.Round(a2c))
@@ -46,10 +40,10 @@ func GetEffectiveForkLabel(r model.CanonicalComparisonRow) string {
 // For rigid forks, it avoids redundant repetitions and merely states "Rigid (<A2C>mm)".
 // For suspension forks, it appends the effective (sagged) A2C: "<Fork> (<EffA2C>mm)".
 func FormatForkEffA2c(r model.CanonicalComparisonRow) string {
-	lbl := GetEffectiveForkLabel(r)
-	if IsRigidFork(lbl) {
+	if r.Setup.IsRigid {
 		return FormatRigidFork(r.EffectiveA2c)
 	}
+	lbl := GetEffectiveForkLabel(r)
 	if lbl == "" {
 		return fmt.Sprintf("%.0fmm A2C", math.Round(r.EffectiveA2c))
 	}
@@ -64,10 +58,10 @@ func FormatForkEffA2c(r model.CanonicalComparisonRow) string {
 // For rigid forks, effective A2C equals static A2C so it returns "Rigid (<A2C>mm)".
 // For suspension forks, it depicts transition to sagged A2C: "<Fork> -> <EffA2C>mm A2C".
 func FormatForkFlow(r model.CanonicalComparisonRow) string {
-	lbl := GetEffectiveForkLabel(r)
-	if IsRigidFork(lbl) {
+	if r.Setup.IsRigid {
 		return FormatRigidFork(r.EffectiveA2c)
 	}
+	lbl := GetEffectiveForkLabel(r)
 	if lbl != "" {
 		return fmt.Sprintf("%s -> %.0fmm A2C", lbl, math.Round(r.EffectiveA2c))
 	}
@@ -76,14 +70,13 @@ func FormatForkFlow(r model.CanonicalComparisonRow) string {
 
 // FormatForkType extracts a short fork type identifier (e.g. "rigid", "120mm") for frame name disambiguation.
 func FormatForkType(r model.CanonicalComparisonRow) string {
-	lbl := GetEffectiveForkLabel(r)
-	if strings.Contains(lbl, "@") {
-		parts := strings.Split(lbl, "@")
-		return strings.TrimSpace(parts[0])
-	}
-	if IsRigidFork(lbl) {
+	if r.Setup.IsRigid {
 		return "rigid"
 	}
+	if r.Setup.TravelMm > 0 {
+		return fmt.Sprintf("%.0fmm", r.Setup.TravelMm)
+	}
+	lbl := GetEffectiveForkLabel(r)
 	if lbl != "" {
 		return lbl
 	}
@@ -92,10 +85,10 @@ func FormatForkType(r model.CanonicalComparisonRow) string {
 
 // FormatForkSag extracts a fork+sag identifier (e.g. "rigid", "120mm @ 20% sag") for frame name disambiguation.
 func FormatForkSag(r model.CanonicalComparisonRow) string {
-	lbl := GetEffectiveForkLabel(r)
-	if IsRigidFork(lbl) {
+	if r.Setup.IsRigid {
 		return "rigid"
 	}
+	lbl := GetEffectiveForkLabel(r)
 	clean := strings.TrimSpace(lbl)
 	if clean != "" {
 		return clean

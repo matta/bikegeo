@@ -17,10 +17,10 @@ var EskerHayduke = model.FrameModel{
 	Stems:              []string{"mtb"},
 	Sizes:              []string{"S1", "S2", "S3", "S4"},
 	DefaultSize:        "S3",
-	CadFork:            model.ForkRef{Fork: "pike_120", SagPct: 30, A2cMm: 495, RakeMm: 44},
+	CadFork:            model.ForkRef{Fork: "pike_120", TravelMm: 120, SagPct: 30, A2cMm: 495, RakeMm: 44},
 	Forks: []model.ForkRef{
-		{Fork: "pike_120", A2cMm: 531, RakeMm: 44},
-		{Fork: "fox34_130", A2cMm: 541, RakeMm: 44},
+		{Fork: "pike_120", TravelMm: 120, A2cMm: 531, RakeMm: 44},
+		{Fork: "fox34_130", TravelMm: 130, A2cMm: 541, RakeMm: 44},
 		{Fork: "rigid_495", A2cMm: 495, RakeMm: 51},
 	},
 	Notes: "Custom seamless, quadruple-butted 4130 Chromoly adventure and bikepacking hardtail designed around a 120mm suspension fork at 30% sag (495mm A2C) or a 495mm rigid fork (Esker Fork Yeah!) with an EC44 lower headset cup (12mm stack). Features Portage adjustable dropouts (440-454mm chainstay, forward 440mm position in published geometry).",

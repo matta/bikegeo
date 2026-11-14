@@ -8,6 +8,7 @@ import (
 
 	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geometry"
+	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/report"
 )
@@ -353,6 +354,7 @@ func (db *docb) saddles(v url.Values) int {
 			db.fail("Error: %v", err)
 			return 1
 		}
+		db.doc.Sections[len(db.doc.Sections)-1].Table.Columns[3].ID = string(ideal.MetricIdealSta)
 	}
 
 	return 0

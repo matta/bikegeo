@@ -113,7 +113,7 @@ func FrameSizeFromBikeGeometry(bike model.BikeGeometry) (FrameSize, error) {
 			ID:          bike.CadFork.Fork,
 			StaticA2cMm: bike.CadFork.StaticA2c(),
 			RakeMm:      cadRake,
-			TravelMm:    bike.CadFork.ForkTravel(),
+			TravelMm:    bike.CadFork.TravelMm,
 		}
 	} else if budget, ok := A2cBudget(bike); ok && bike.ForkA2c > 0 && budget.Within() {
 		cadFork = Fork{

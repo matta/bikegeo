@@ -20,9 +20,9 @@ var RitcheyUltra = model.FrameModel{
 	Stems:         []string{"mtb"},
 	Sizes:         []string{"S", "M", "L", "XL"},
 	DefaultSize:   "L",
-	CadFork:       model.ForkRef{Fork: "fox34_120", SagPct: 20, A2cMm: 506, RakeMm: 44},
+	CadFork:       model.ForkRef{Fork: "fox34_120", TravelMm: 120, SagPct: 20, A2cMm: 506, RakeMm: 44},
 	Forks: []model.ForkRef{
-		{Fork: "fox34_120", A2cMm: 530, RakeMm: 44},
+		{Fork: "fox34_120", TravelMm: 120, A2cMm: 530, RakeMm: 44},
 		{Fork: "rigid_500", A2cMm: 500, RakeMm: 44},
 	},
 	Notes: "Heat-treated, triple-butted Ritchey Logic steel tubing hardtail designed for 120mm suspension forks or a 500mm rigid fork, featuring an integrated IS42/IS52 headset (0mm lower cup stack). Wheelbases adapted to archetypical 44mm offset fork.",

@@ -74,11 +74,11 @@ func ExpandPlausibleForkSetups(
 	if sag, ok := sagOverride.Get(); !ok || sag == 0 {
 		var rigidForks []model.ForkRef
 		for _, f := range frame.Forks {
-			if f.ForkTravel() == 0 && f.A2cMm > 0 {
+			if f.TravelMm == 0 && f.A2cMm > 0 {
 				rigidForks = append(rigidForks, f)
 			}
 		}
-		if len(rigidForks) == 0 && frame.CadFork.ForkTravel() == 0 && frame.CadFork.A2cMm > 0 {
+		if len(rigidForks) == 0 && frame.CadFork.TravelMm == 0 && frame.CadFork.A2cMm > 0 {
 			rigidForks = append(rigidForks, frame.CadFork)
 		}
 
@@ -97,6 +97,7 @@ func ExpandPlausibleForkSetups(
 				FrameID:      frame.ID,
 				A2cMm:        rf.A2cMm,
 				RakeMm:       rake,
+				IsRigid:      true,
 				DisplayLabel: FormatRigidFork(rf.A2cMm),
 				SagPct:       0.0,
 				AutoExpanded: true,
@@ -108,7 +109,7 @@ func ExpandPlausibleForkSetups(
 	if !frame.IsFixedRigidOnly() {
 		var minTr, maxTr float64
 		for _, f := range frame.Forks {
-			tr := f.ForkTravel()
+			tr := f.TravelMm
 			if tr >= 60 {
 				if minTr == 0 || tr < minTr {
 					minTr = tr
@@ -118,8 +119,8 @@ func ExpandPlausibleForkSetups(
 				}
 			}
 		}
-		if minTr == 0 && frame.CadFork.ForkTravel() >= 60 {
-			minTr = frame.CadFork.ForkTravel()
+		if minTr == 0 && frame.CadFork.TravelMm >= 60 {
+			minTr = frame.CadFork.TravelMm
 			maxTr = minTr
 		}
 
@@ -190,6 +191,7 @@ func ExpandPlausibleForkSetups(
 						FrameID:      frame.ID,
 						A2cMm:        effA2c,
 						RakeMm:       rake,
+						TravelMm:     tr,
 						DisplayLabel: FormatSuspensionFork(tr, sag),
 						SagPct:       sag,
 						AutoExpanded: true,
@@ -206,19 +208,29 @@ func ExpandPlausibleForkSetups(
 	return setups, nil
 }
 
+// ResolvedFork holds the typed physical properties resolved from a fork modifier token.
+type ResolvedFork struct {
+	TargetA2c    float64
+	TargetRake   float64
+	StaticA2c    float64
+	TravelMm     float64
+	IsRigid      bool
+	DisplayLabel string
+}
+
 // ResolveForkToken resolves a user comparison modifier (e.g. "120mm", "rigid", "stock", "a2c=506/44")
 // against the fork catalog and frame constraints.
 func ResolveForkToken(
 	token string,
 	sagOverride model.Opt[float64],
 	frame model.FrameModel,
-) (targetA2c float64, targetRake float64, staticA2c float64, displayLabel string, err error) {
+) (ResolvedFork, error) {
 	if sag, ok := sagOverride.Get(); ok {
 		if math.IsNaN(sag) || math.IsInf(sag, 0) || sag < 0 || math.Signbit(sag) {
-			return 0, 0, 0, "", fmt.Errorf("invalid sag %v%%; allowed sags are 20%%, 25%%, 30%%", sag)
+			return ResolvedFork{}, fmt.Errorf("invalid sag %v%%; allowed sags are 20%%, 25%%, 30%%", sag)
 		}
 		if sag > 0 && !IsAllowedSag(sag) {
-			return 0, 0, 0, "", fmt.Errorf("invalid sag %.0f%%; allowed sags are 20%%, 25%%, 30%%", sag)
+			return ResolvedFork{}, fmt.Errorf("invalid sag %.0f%%; allowed sags are 20%%, 25%%, 30%%", sag)
 		}
 	}
 	clean := strings.TrimSpace(token)
@@ -236,6 +248,9 @@ func ResolveForkToken(
 		return nil
 	}
 
+	var targetA2c, targetRake, staticA2c float64
+	var displayLabel string
+
 	// 1. Stock / Default fork
 	if lower == "" || lower == "stock" || lower == "default" {
 		def := frame.GetDefaultFork()
@@ -248,7 +263,7 @@ func ResolveForkToken(
 		if def.Fork != "" {
 			if entry, ok := GetCatalogFork(def.Fork); ok {
 				if entry.TravelMm == 0 && sagOverride.OrZero() > 0 {
-					return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
+					return ResolvedFork{}, fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
 				}
 				if entry.TravelMm > 0 && len(entry.Options) > 0 {
 					staticA2c = entry.Options[0].A2cMm
@@ -259,34 +274,54 @@ func ResolveForkToken(
 					sag = sagOverride.Or(sag)
 					targetA2c = geometry.Round(staticA2c-entry.TravelMm*(sag/100.0), 1)
 					displayLabel = FormatSuspensionFork(entry.TravelMm, sag)
-					return targetA2c, targetRake, staticA2c, displayLabel, nil
+					return ResolvedFork{
+						TargetA2c:    targetA2c,
+						TargetRake:   targetRake,
+						StaticA2c:    staticA2c,
+						TravelMm:     entry.TravelMm,
+						DisplayLabel: displayLabel,
+					}, nil
 				}
 			}
 		}
-		if (frame.IsFixedRigidOnly() || def.ForkTravel() == 0) && sagOverride.OrZero() > 0 {
-			return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
+		if (frame.IsFixedRigidOnly() || def.TravelMm == 0) && sagOverride.OrZero() > 0 {
+			return ResolvedFork{}, fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
 		}
-		if frame.IsFixedRigidOnly() || def.ForkTravel() == 0 {
+		isRigid := frame.IsFixedRigidOnly() || def.TravelMm == 0
+		if isRigid {
 			displayLabel = FormatRigidFork(targetA2c)
 		} else {
 			displayLabel = FormatStockFork()
 		}
-		return targetA2c, targetRake, staticA2c, displayLabel, nil
+		return ResolvedFork{
+			TargetA2c:    targetA2c,
+			TargetRake:   targetRake,
+			StaticA2c:    staticA2c,
+			TravelMm:     def.TravelMm,
+			IsRigid:      isRigid,
+			DisplayLabel: displayLabel,
+		}, nil
 	}
 
 	// 2. Rigid fork
 	if lower == "rigid" || lower == "0mm" || lower == "0" || strings.HasPrefix(lower, "rigid") {
 		if !frame.SupportsRigid() {
-			return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" (%s) does not support a rigid fork", frame.Manufacturer, frame.Model, frame.ID)
+			return ResolvedFork{}, fmt.Errorf("frame \"%s %s\" (%s) does not support a rigid fork", frame.Manufacturer, frame.Model, frame.ID)
 		}
 		if sagOverride.OrZero() > 0 {
-			return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
+			return ResolvedFork{}, fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
 		}
 		targetA2c = frame.GetRigidA2c()
 		targetRake = frame.GetRigidRake()
 		staticA2c = targetA2c
 		displayLabel = FormatRigidFork(targetA2c)
-		return targetA2c, targetRake, staticA2c, displayLabel, nil
+		return ResolvedFork{
+			TargetA2c:    targetA2c,
+			TargetRake:   targetRake,
+			StaticA2c:    staticA2c,
+			IsRigid:      true,
+			DisplayLabel: displayLabel,
+		}, nil
 	}
 
 	// 3. Direct A2C syntax: a2c=NNN/MM or a2c=NNN
@@ -296,18 +331,18 @@ func ResolveForkToken(
 			parts := strings.SplitN(valPart, "/", 2)
 			a2cVal, err := strconv.ParseFloat(parts[0], 64)
 			if err != nil || math.IsNaN(a2cVal) || math.IsInf(a2cVal, 0) || a2cVal <= 0 {
-				return 0, 0, 0, "", fmt.Errorf("invalid A2C in %q", token)
+				return ResolvedFork{}, fmt.Errorf("invalid A2C in %q", token)
 			}
 			rakeVal, err := strconv.ParseFloat(parts[1], 64)
 			if err != nil || math.IsNaN(rakeVal) || math.IsInf(rakeVal, 0) || rakeVal <= 0 {
-				return 0, 0, 0, "", fmt.Errorf("invalid rake in %q", token)
+				return ResolvedFork{}, fmt.Errorf("invalid rake in %q", token)
 			}
 			targetA2c = a2cVal
 			targetRake = rakeVal
 		} else {
 			a2cVal, err := strconv.ParseFloat(valPart, 64)
 			if err != nil || math.IsNaN(a2cVal) || math.IsInf(a2cVal, 0) || a2cVal <= 0 {
-				return 0, 0, 0, "", fmt.Errorf("invalid A2C in %q", token)
+				return ResolvedFork{}, fmt.Errorf("invalid A2C in %q", token)
 			}
 			targetA2c = a2cVal
 			targetRake = frame.CadFork.RakeMm
@@ -323,8 +358,9 @@ func ResolveForkToken(
 		if len(rigidRefs) == 0 {
 			rigidRefs = []model.ForkRef{frame.CadFork}
 		}
+		isRigid := false
 		for _, f := range rigidRefs {
-			if f.ForkTravel() == 0 && f.A2cMm > 0 {
+			if f.TravelMm == 0 && f.A2cMm > 0 {
 				rk := f.RakeMm
 				if rk <= 0 {
 					rk = frame.CadFork.RakeMm
@@ -334,21 +370,28 @@ func ResolveForkToken(
 				}
 				if math.Abs(targetA2c-f.A2cMm) < 0.05 && math.Abs(targetRake-rk) < 0.05 {
 					displayLabel = FormatRigidFork(targetA2c)
+					isRigid = true
 					break
 				}
 			}
 		}
 		if err := checkA2cRange(targetA2c); err != nil {
-			return 0, 0, 0, "", err
+			return ResolvedFork{}, err
 		}
-		return targetA2c, targetRake, staticA2c, displayLabel, nil
+		return ResolvedFork{
+			TargetA2c:    targetA2c,
+			TargetRake:   targetRake,
+			StaticA2c:    staticA2c,
+			IsRigid:      isRigid,
+			DisplayLabel: displayLabel,
+		}, nil
 	}
 
 	// 4. Suspension travel token (e.g. "120mm", "120")
 	travelStr := strings.TrimSuffix(lower, "mm")
 	if travelVal, err := strconv.ParseFloat(travelStr, 64); err == nil && !math.IsNaN(travelVal) && !math.IsInf(travelVal, 0) && travelVal >= 60 {
 		if frame.IsFixedRigidOnly() {
-			return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" has a fixed rigid fork (%.0fmm A2C) and does not support suspension fork %q", frame.Manufacturer, frame.Model, frame.GetRigidA2c(), token)
+			return ResolvedFork{}, fmt.Errorf("frame \"%s %s\" has a fixed rigid fork (%.0fmm A2C) and does not support suspension fork %q", frame.Manufacturer, frame.Model, frame.GetRigidA2c(), token)
 		}
 		var stdFork model.ForkCatalogEntry
 		foundFrameFork := false
@@ -373,12 +416,12 @@ func ResolveForkToken(
 		if !foundFrameFork {
 			f, ok := GetStandardForkForTravel(travelVal)
 			if !ok {
-				return 0, 0, 0, "", fmt.Errorf("no catalog fork found for %.0fmm suspension travel", travelVal)
+				return ResolvedFork{}, fmt.Errorf("no catalog fork found for %.0fmm suspension travel", travelVal)
 			}
 			stdFork = f
 		}
 		if len(stdFork.Options) == 0 {
-			return 0, 0, 0, "", fmt.Errorf("fork %s has no configured options", stdFork.ID)
+			return ResolvedFork{}, fmt.Errorf("fork %s has no configured options", stdFork.ID)
 		}
 		opt := stdFork.Options[0]
 		if frameRake > 0 {
@@ -395,40 +438,54 @@ func ResolveForkToken(
 		targetA2c = geometry.Round(staticA2c-stdFork.TravelMm*(sag/100.0), 1)
 		displayLabel = FormatSuspensionFork(travelVal, sag)
 		if err := checkA2cRange(targetA2c); err != nil {
-			return 0, 0, 0, "", err
+			return ResolvedFork{}, err
 		}
-		return targetA2c, targetRake, staticA2c, displayLabel, nil
+		return ResolvedFork{
+			TargetA2c:    targetA2c,
+			TargetRake:   targetRake,
+			StaticA2c:    staticA2c,
+			TravelMm:     stdFork.TravelMm,
+			DisplayLabel: displayLabel,
+		}, nil
 	}
 
 	// 5. Explicit catalog fork ID lookup
 	if entry, ok := GetCatalogFork(token); ok {
 		if len(entry.Options) == 0 {
-			return 0, 0, 0, "", fmt.Errorf("fork %s has no options", entry.ID)
+			return ResolvedFork{}, fmt.Errorf("fork %s has no options", entry.ID)
 		}
 		opt := entry.Options[0]
 		staticA2c = opt.A2cMm
 		targetRake = opt.RakeMm
-		if entry.TravelMm == 0 {
+		isRigid := entry.TravelMm == 0
+		if isRigid {
 			if sagOverride.OrZero() > 0 {
-				return 0, 0, 0, "", fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
+				return ResolvedFork{}, fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
 			}
 			targetA2c = staticA2c
 			displayLabel = FormatRigidFork(targetA2c)
 		} else {
 			if frame.IsFixedRigidOnly() {
-				return 0, 0, 0, "", fmt.Errorf("frame \"%s %s\" has a fixed rigid fork (%.0fmm A2C) and does not support suspension fork %q", frame.Manufacturer, frame.Model, frame.GetRigidA2c(), token)
+				return ResolvedFork{}, fmt.Errorf("frame \"%s %s\" has a fixed rigid fork (%.0fmm A2C) and does not support suspension fork %q", frame.Manufacturer, frame.Model, frame.GetRigidA2c(), token)
 			}
 			sag := sagOverride.Or(20.0)
 			targetA2c = geometry.Round(staticA2c-entry.TravelMm*(sag/100.0), 1)
 			displayLabel = FormatSuspensionFork(entry.TravelMm, sag)
 		}
 		if err := checkA2cRange(targetA2c); err != nil {
-			return 0, 0, 0, "", err
+			return ResolvedFork{}, err
 		}
-		return targetA2c, targetRake, staticA2c, displayLabel, nil
+		return ResolvedFork{
+			TargetA2c:    targetA2c,
+			TargetRake:   targetRake,
+			StaticA2c:    staticA2c,
+			TravelMm:     entry.TravelMm,
+			IsRigid:      isRigid,
+			DisplayLabel: displayLabel,
+		}, nil
 	}
 
-	return 0, 0, 0, "", fmt.Errorf("unrecognized fork specification %q for frame \"%s %s\"", token, frame.Manufacturer, frame.Model)
+	return ResolvedFork{}, fmt.Errorf("unrecognized fork specification %q for frame \"%s %s\"", token, frame.Manufacturer, frame.Model)
 }
 
 // ResolveFrameForkSetup resolves a ComparisonSetup against a FrameModel, enforcing physical validity
@@ -484,17 +541,21 @@ func ResolveFrameForkSetupWithSaddle(
 
 	targetA2c := setup.A2cMm
 	targetRake := setup.RakeMm
+	travelMm := setup.TravelMm
+	isRigid := setup.IsRigid
 	displayLabel := setup.DisplayLabel
 
 	// If A2C is not pre-resolved, resolve default fork
 	if targetA2c <= 0 {
-		tA2c, tRake, _, dLabel, err := ResolveForkToken("", model.Opt[float64]{}, frame)
+		resolved, err := ResolveForkToken("", model.Opt[float64]{}, frame)
 		if err != nil {
 			return model.CanonicalComparisonRow{}, err
 		}
-		targetA2c = tA2c
-		targetRake = tRake
-		displayLabel = dLabel
+		targetA2c = resolved.TargetA2c
+		targetRake = resolved.TargetRake
+		travelMm = resolved.TravelMm
+		isRigid = resolved.IsRigid
+		displayLabel = resolved.DisplayLabel
 	}
 	if targetRake <= 0 {
 		targetRake = frame.CadFork.RakeMm
@@ -542,6 +603,8 @@ func ResolveFrameForkSetupWithSaddle(
 		Size:         size,
 		A2cMm:        targetA2c,
 		RakeMm:       targetRake,
+		TravelMm:     travelMm,
+		IsRigid:      isRigid,
 		DisplayLabel: displayLabel,
 		SagPct:       setup.SagPct,
 		AutoExpanded: setup.AutoExpanded,
@@ -705,16 +768,15 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 		var hasClampFit bool
 
 		for _, attr := range rowProf.Attributes {
-			lowID := strings.ToLower(attr.ID)
-			if lowID == "handlebar_clamp_fit" || lowID == "cockpit_fit" || lowID == "clamp_fit" {
+			if attr.ID == ideal.MetricHandlebarClampFit {
 				hasClampFit = true
-			} else if (lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback") && attr.Ideal != nil {
+			} else if attr.ID == ideal.MetricBrpSetback && attr.Ideal != nil {
 				rowBrpMin = attr.Ideal.Min
 				rowBrpMax = attr.Ideal.Max
-			} else if (lowID == "saddle_hb" || lowID == "saddlehb") && attr.Ideal != nil {
+			} else if attr.ID == ideal.MetricSaddleHb && attr.Ideal != nil {
 				rowDistMin = attr.Ideal.Min
 				rowDistMax = attr.Ideal.Max
-			} else if (lowID == "saddle_hb_drop" || lowID == "hb_drop" || lowID == "saddlehbdrop") && attr.Ideal != nil {
+			} else if attr.ID == ideal.MetricSaddleHbDrop && attr.Ideal != nil {
 				rowDropMin = attr.Ideal.Min
 				rowDropMax = attr.Ideal.Max
 			}

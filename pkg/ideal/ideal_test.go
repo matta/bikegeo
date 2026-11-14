@@ -9,96 +9,72 @@ import (
 	"bikegeo/pkg/model"
 )
 
-func TestLookupAttribute_Trail(t *testing.T) {
-	for _, variant := range []string{"trail", "trail_mm", "trail-mm", "TRAIL"} {
-		meta, ok := LookupAttribute(variant)
+func TestLookupAttribute_AllRegistered(t *testing.T) {
+	all := AllAttributes()
+	if len(all) == 0 {
+		t.Fatal("AllAttributes() returned empty slice")
+	}
+	for _, meta := range all {
+		got, ok := LookupAttribute(meta.ID)
 		if !ok {
-			t.Errorf("LookupAttribute(%q) failed", variant)
+			t.Errorf("LookupAttribute(%q) failed", meta.ID)
 			continue
 		}
-		if meta.Label != "Trail" || meta.Unit != "mm" {
-			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
+		if got.ID != meta.ID || got.Label != meta.Label || got.Unit != meta.Unit {
+			t.Errorf("LookupAttribute(%q) = %+v, want %+v", meta.ID, got, meta)
 		}
+	}
+	if _, ok := LookupAttribute(MetricID("nonexistent_metric")); ok {
+		t.Error("LookupAttribute(nonexistent_metric) = true, want false")
+	}
+}
+
+func TestLookupAttribute_Trail(t *testing.T) {
+	meta, ok := LookupAttribute(MetricTrail)
+	if !ok {
+		t.Fatalf("LookupAttribute(%q) failed", MetricTrail)
+	}
+	if meta.Label != "Trail" || meta.Unit != "mm" {
+		t.Errorf("Unexpected meta: %+v", meta)
 	}
 }
 
 func TestLookupAttribute_SeatpostExtension(t *testing.T) {
-	for _, variant := range []string{"seatpost_extension", "seatpost-extension", "seatpostextension", "seatpost_ext", "seatpost-ext", "seatpostext", "seatpost", "post_ext", "post-ext", "postext", "post_extension"} {
-		meta, ok := LookupAttribute(variant)
-		if !ok {
-			t.Errorf("LookupAttribute(%q) failed", variant)
-			continue
-		}
-		if meta.Label != "Seatpost Ext" || meta.Unit != "mm" {
-			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
-		}
+	meta, ok := LookupAttribute(MetricSeatpostExtension)
+	if !ok {
+		t.Fatalf("LookupAttribute(%q) failed", MetricSeatpostExtension)
+	}
+	if meta.Label != "Seatpost Ext" || meta.Unit != "mm" {
+		t.Errorf("Unexpected meta: %+v", meta)
 	}
 }
 
 func TestLookupAttribute_SaddleHb(t *testing.T) {
-	meta, ok := LookupAttribute("saddle_hb")
+	meta, ok := LookupAttribute(MetricSaddleHb)
 	if !ok {
-		t.Fatalf("LookupAttribute('saddle_hb') failed")
+		t.Fatalf("LookupAttribute(%q) failed", MetricSaddleHb)
 	}
 	if meta.Label != "BRP–HandGrip" || meta.Unit != "mm" {
 		t.Errorf("Unexpected meta: %+v", meta)
 	}
-
-	// Canonical name variants
-	for _, variant := range []string{"saddle-hb", "saddlehb", "SADDLE_HB", "Saddle-HB", "brp_handgrip", "brp-handgrip", "brphandgrip", "brp–handgrip"} {
-		if _, ok := LookupAttribute(variant); !ok {
-			t.Errorf("LookupAttribute(%q) failed", variant)
-		}
-	}
 }
 
 func TestLookupAttribute_BrpSetbackAndDrop(t *testing.T) {
-	// BRP Setback lookup and variants
-	for _, variant := range []string{"brp_setback", "brp-setback", "brpsetback", "brp", "BRP", "BRP_SETBACK"} {
-		meta, ok := LookupAttribute(variant)
-		if !ok {
-			t.Errorf("LookupAttribute(%q) failed", variant)
-			continue
-		}
-		if meta.Label != "BRP Setback" || meta.Unit != "mm" {
-			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
-		}
+	meta, ok := LookupAttribute(MetricBrpSetback)
+	if !ok || meta.Label != "BRP Setback" || meta.Unit != "mm" {
+		t.Errorf("LookupAttribute(%q) = %+v, %v", MetricBrpSetback, meta, ok)
 	}
-
-	// Saddle-HB Drop / HandGrip Rise lookup and variants
-	for _, variant := range []string{"saddle_hb_drop", "saddle-hb-drop", "saddlehbdrop", "hb_drop", "drop", "SADDLE_HB_DROP", "hb_rise", "rise", "handgrip_rise", "handgrip-rise", "handgriprise", "grip_rise", "grip-rise", "griprise"} {
-		meta, ok := LookupAttribute(variant)
-		if !ok {
-			t.Errorf("LookupAttribute(%q) failed", variant)
-			continue
-		}
-		if meta.Label != "HandGrip Rise" || meta.Unit != "mm" {
-			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
-		}
+	meta, ok = LookupAttribute(MetricSaddleHbDrop)
+	if !ok || meta.Label != "HandGrip Rise" || meta.Unit != "mm" {
+		t.Errorf("LookupAttribute(%q) = %+v, %v", MetricSaddleHbDrop, meta, ok)
 	}
-
-	// Best Stem lookup and variants
-	for _, variant := range []string{"best_stem", "best-stem", "beststem", "stem"} {
-		meta, ok := LookupAttribute(variant)
-		if !ok {
-			t.Errorf("LookupAttribute(%q) failed", variant)
-			continue
-		}
-		if meta.Label != "Best Stem" {
-			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
-		}
+	meta, ok = LookupAttribute(MetricBestStem)
+	if !ok || meta.Label != "Best Stem" {
+		t.Errorf("LookupAttribute(%q) = %+v, %v", MetricBestStem, meta, ok)
 	}
-
-	// Handlebar Clamp Fit / Oval Fits lookup and variants
-	for _, variant := range []string{"handlebar_clamp_fit", "handlebar-clamp-fit", "cockpit_fit", "cockpit", "clamp_fit", "hb_fit_area", "oval_fits", "ovalfits"} {
-		meta, ok := LookupAttribute(variant)
-		if !ok {
-			t.Errorf("LookupAttribute(%q) failed", variant)
-			continue
-		}
-		if meta.Label != "Oval Fits" {
-			t.Errorf("Unexpected meta for %q: %+v", variant, meta)
-		}
+	meta, ok = LookupAttribute(MetricHandlebarClampFit)
+	if !ok || meta.Label != "Oval Fits" {
+		t.Errorf("LookupAttribute(%q) = %+v, %v", MetricHandlebarClampFit, meta, ok)
 	}
 }
 
@@ -393,13 +369,13 @@ func TestGetProfile_Default(t *testing.T) {
 
 func TestEvaluate_DirectionalWordsAndBoundaryRounding(t *testing.T) {
 	p := IdmatchProfile()
-	attrMap := make(map[string]AttributeSpec)
+	attrMap := make(map[MetricID]AttributeSpec)
 	for _, a := range p.Attributes {
 		attrMap[a.ID] = a
 	}
 
 	cases := []struct {
-		id       string
+		id       MetricID
 		val      float64
 		expected string
 	}{
@@ -681,7 +657,7 @@ func TestZoneMatchesDisplayedText(t *testing.T) {
 
 	// Specific Pilot regressions:
 	p := IdmatchProfile()
-	attrMap := map[string]AttributeSpec{}
+	attrMap := map[MetricID]AttributeSpec{}
 	for _, a := range p.Attributes {
 		attrMap[a.ID] = a
 	}
