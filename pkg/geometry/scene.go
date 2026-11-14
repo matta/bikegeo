@@ -391,6 +391,82 @@ func placeFrontCockpit(headTubeTop geom2d.Point2, htaDeg model.Deg, cockpit Cock
 	}
 }
 
+// ChartClosureInput holds the published chart inputs and CAD fork hypothesis
+// needed to construct FA_chart and FA_decl without full cockpit/seat/fit specs.
+type ChartClosureInput struct {
+	ReachMm       float64
+	StackMm       float64
+	HtaDeg        model.Deg
+	HtlMm         float64
+	BbDropMm      float64
+	ChainstayMm   float64
+	WheelbaseMm   model.Opt[float64]
+	FrontCenterMm model.Opt[float64]
+	CadEffA2cMm   float64
+	CadRakeMm     float64
+	CadLowerCupMm float64
+}
+
+// ChartClosure holds the chart-implied (FA_chart) and declared-fork (FA_decl)
+// front-axle points and their closure residuals.
+type ChartClosure struct {
+	RearAxle               geom2d.Point2
+	HeadTubeTop            geom2d.Point2
+	HeadTubeBottom         geom2d.Point2
+	ChartL                 float64
+	ChartFrontAxle         geom2d.Point2
+	DeclFrontAxle          geom2d.Point2
+	ImpliedStructuralA2cMm float64
+	ImpliedForkA2cMm       float64
+	ResidualA2cMm          float64
+	ResidualFcMm           model.Opt[float64]
+	ResidualWbMm           model.Opt[float64]
+}
+
+// EvaluateChartClosure constructs FA_chart, FA_decl, and the chart closure residuals
+// directly from published chart dimensions and the CAD fork/lower-cup hypothesis.
+func EvaluateChartClosure(in ChartClosureInput) (ChartClosure, error) {
+	chartL, ok := frontEndLength(in.StackMm, in.BbDropMm, in.HtaDeg, in.CadRakeMm)
+	if !ok {
+		return ChartClosure{}, fmt.Errorf("steerer axis is horizontal (HTA %.2f°)", in.HtaDeg)
+	}
+
+	u0 := SteererTubeDir(in.HtaDeg)          // (-cos HTA, sin HTA) up the steerer
+	n0 := u0.Perpendicular(geom2d.Clockwise) // (sin HTA, cos HTA) forward perp (rake direction)
+
+	ra0 := geom2d.Point2{
+		X: -RearCenterHoriz(in.ChainstayMm, in.BbDropMm),
+		Y: in.BbDropMm,
+	}
+	ht0 := geom2d.Point2{X: in.ReachMm, Y: in.StackMm}
+	htb0 := ht0.SubVec(u0.Scale(in.HtlMm))
+	faChart := ht0.SubVec(u0.Scale(chartL)).Add(n0.Scale(in.CadRakeMm))
+	faDecl := htb0.SubVec(u0.Scale(in.CadLowerCupMm + in.CadEffA2cMm)).Add(n0.Scale(in.CadRakeMm))
+
+	resA2c := (in.CadEffA2cMm + in.CadLowerCupMm + in.HtlMm) - chartL
+	var resFc, resWb model.Opt[float64]
+	if pubFc, ok := in.FrontCenterMm.Get(); ok && pubFc > 0 {
+		resFc = model.Some(faChart.DistanceToOrigin() - pubFc)
+	}
+	if pubWb, ok := in.WheelbaseMm.Get(); ok && pubWb > 0 && in.ChainstayMm > 0 {
+		resWb = model.Some((faChart.X - ra0.X) - pubWb)
+	}
+
+	return ChartClosure{
+		RearAxle:               ra0,
+		HeadTubeTop:            ht0,
+		HeadTubeBottom:         htb0,
+		ChartL:                 chartL,
+		ChartFrontAxle:         faChart,
+		DeclFrontAxle:          faDecl,
+		ImpliedStructuralA2cMm: chartL - in.HtlMm,
+		ImpliedForkA2cMm:       chartL - in.HtlMm - in.CadLowerCupMm,
+		ResidualA2cMm:          resA2c,
+		ResidualFcMm:           resFc,
+		ResidualWbMm:           resWb,
+	}, nil
+}
+
 // BuildScene constructs a pure 2D sagittal BikeScene from explicit frame, build, cockpit, seat, and fit inputs.
 // Every required input must be explicitly valid; BuildScene returns an error rather than inventing fallback defaults.
 func BuildScene(
@@ -410,28 +486,37 @@ func BuildScene(
 	}
 
 	// 1. Initial CAD chart frame (BB_0 = (0,0), +X forward, +Y up)
+	cadEffA2c := frame.CadFork.EffectiveA2c(frame.CadSagPct)
+	closure, err := EvaluateChartClosure(ChartClosureInput{
+		ReachMm:       frame.ReachMm,
+		StackMm:       frame.StackMm,
+		HtaDeg:        frame.HtaDeg,
+		HtlMm:         frame.HtlMm,
+		BbDropMm:      frame.BbDropMm,
+		ChainstayMm:   frame.ChainstayMm,
+		WheelbaseMm:   frame.WheelbaseMm,
+		FrontCenterMm: frame.FrontCenterMm,
+		CadEffA2cMm:   cadEffA2c,
+		CadRakeMm:     frame.CadFork.RakeMm,
+		CadLowerCupMm: frame.CadLowerCupMm,
+	})
+	if err != nil {
+		return BikeScene{}, err
+	}
+
 	hta0 := frame.HtaDeg
 	u0 := SteererTubeDir(hta0)               // (-cos HTA, sin HTA) up the steerer
 	n0 := u0.Perpendicular(geom2d.Clockwise) // (sin HTA, cos HTA) forward perp (rake direction)
 
 	bb0 := geom2d.Origin
-	ra0 := geom2d.Point2{
-		X: -RearCenterHoriz(frame.ChainstayMm, frame.BbDropMm),
-		Y: frame.BbDropMm,
-	}
-	ht0 := geom2d.Point2{X: frame.ReachMm, Y: frame.StackMm}
-	htb0 := ht0.SubVec(u0.Scale(frame.HtlMm))
+	ra0 := closure.RearAxle
+	ht0 := closure.HeadTubeTop
+	htb0 := closure.HeadTubeBottom
+	chartL := closure.ChartL
+	faChart := closure.ChartFrontAxle
+	faDecl := closure.DeclFrontAxle
 
-	chartL, ok := frontEndLength(frame.StackMm, frame.BbDropMm, hta0, frame.CadFork.RakeMm)
-	if !ok {
-		return BikeScene{}, fmt.Errorf("steerer axis is horizontal (HTA %.2f°)", hta0)
-	}
-	faChart := ht0.SubVec(u0.Scale(chartL)).Add(n0.Scale(frame.CadFork.RakeMm))
-
-	cadEffA2c := frame.CadFork.EffectiveA2c(frame.CadSagPct)
 	forkEffA2c := build.Fork.EffectiveA2c(build.SagPct)
-
-	faDecl := htb0.SubVec(u0.Scale(frame.CadLowerCupMm + cadEffA2c)).Add(n0.Scale(frame.CadFork.RakeMm))
 
 	dL := (forkEffA2c + build.PhysicalLowerCupMm) - (cadEffA2c + frame.CadLowerCupMm)
 	fa0 := ht0.SubVec(u0.Scale(chartL + dL)).Add(n0.Scale(build.Fork.RakeMm))
@@ -486,14 +571,9 @@ func BuildScene(
 	railCenter := effSeatAxis.PointWithOffset(axial, seat.PostSetbackMm+seat.RailOffsetMm, geom2d.CounterClockwise)
 
 	// 5. Validation residuals from chart/declared points
-	resA2c := (cadEffA2c + frame.CadLowerCupMm + frame.HtlMm) - chartL
-	var resFc, resWb model.Opt[float64]
-	if pubFc, ok := frame.FrontCenterMm.Get(); ok && pubFc > 0 {
-		resFc = model.Some(faChart.DistanceToOrigin() - pubFc)
-	}
-	if pubWb, ok := frame.WheelbaseMm.Get(); ok && pubWb > 0 {
-		resWb = model.Some((faChart.X - ra0.X) - pubWb)
-	}
+	resA2c := closure.ResidualA2cMm
+	resFc := closure.ResidualFcMm
+	resWb := closure.ResidualWbMm
 
 	return BikeScene{
 		Frame:             frame,

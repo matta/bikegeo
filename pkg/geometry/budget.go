@@ -184,15 +184,27 @@ func buildBudget(in chartInputs, prec model.ChartPrecision, allowance float64, r
 	return b
 }
 
-// impliedFrontCenterHoriz is the horizontal front-center implied by Reach, Stack,
-// BB drop, HTA and rake. The head tube length cancels: the front end is as long
-// as the published Stack says it is.
-func impliedFrontCenterHoriz(in chartInputs, rake float64) float64 {
-	frontEnd, ok := frontEndLength(in.stack, in.bbDrop, in.hta(), rake)
-	if !ok {
-		return math.NaN()
+func closureInput(c chartInputs, forkA2c, rake, spacer float64) ChartClosureInput {
+	var wb, fc model.Opt[float64]
+	if c.wheelbase > 0 {
+		wb = model.Some(c.wheelbase)
 	}
-	return CalculateFrontCenter(in.reach, in.htl, in.hta(), rake, frontEnd-in.htl)
+	if c.frontCenter > 0 {
+		fc = model.Some(c.frontCenter)
+	}
+	return ChartClosureInput{
+		ReachMm:       c.reach,
+		StackMm:       c.stack,
+		HtaDeg:        c.hta(),
+		HtlMm:         c.htl,
+		BbDropMm:      c.bbDrop,
+		ChainstayMm:   c.chainstay,
+		WheelbaseMm:   wb,
+		FrontCenterMm: fc,
+		CadEffA2cMm:   forkA2c,
+		CadRakeMm:     rake,
+		CadLowerCupMm: spacer,
+	}
 }
 
 func allowanceOf(v model.Opt[float64]) float64 {
@@ -212,15 +224,15 @@ func A2cBudget(bike model.BikeGeometry) (budget model.ErrorBudget, ok bool) {
 	if forkA2c <= 0 || in.htl <= 0 {
 		return model.ErrorBudget{}, false
 	}
-	if _, ok := frontEndLength(in.stack, in.bbDrop, in.hta(), rake); !ok {
+	if _, err := EvaluateChartClosure(closureInput(in, forkA2c, rake, spacer)); err != nil {
 		return model.ErrorBudget{}, false
 	}
 	resid := func(c chartInputs) float64 {
-		frontEnd, ok := frontEndLength(c.stack, c.bbDrop, c.hta(), rake)
-		if !ok {
+		cl, err := EvaluateChartClosure(closureInput(c, forkA2c, rake, spacer))
+		if err != nil {
 			return math.NaN()
 		}
-		return forkA2c - (frontEnd - c.htl - spacer)
+		return cl.ResidualA2cMm
 	}
 	return buildBudget(in, ChartPrecisionFor(bike), allowanceOf(bike.GetGeoSlopMm().A2c), resid), true
 }
@@ -231,11 +243,18 @@ func A2cBudget(bike model.BikeGeometry) (budget model.ErrorBudget, ok bool) {
 func FrontCenterBudget(bike model.BikeGeometry) (budget model.ErrorBudget, ok bool) {
 	rake := bike.ForkRake
 	in := chartInputsOf(bike)
-	if in.frontCenter <= 0 || math.IsNaN(impliedFrontCenterHoriz(in, rake)) {
+	if in.frontCenter <= 0 {
+		return model.ErrorBudget{}, false
+	}
+	if _, err := EvaluateChartClosure(closureInput(in, 0, rake, 0)); err != nil {
 		return model.ErrorBudget{}, false
 	}
 	resid := func(c chartInputs) float64 {
-		return math.Hypot(impliedFrontCenterHoriz(c, rake), c.bbDrop) - c.frontCenter
+		cl, err := EvaluateChartClosure(closureInput(c, 0, rake, 0))
+		if err != nil {
+			return math.NaN()
+		}
+		return cl.ResidualFcMm.OrZero()
 	}
 	return buildBudget(in, ChartPrecisionFor(bike), allowanceOf(bike.GetGeoSlopMm().FrontCenter), resid), true
 }
@@ -247,11 +266,18 @@ func FrontCenterBudget(bike model.BikeGeometry) (budget model.ErrorBudget, ok bo
 func WheelbaseBudget(bike model.BikeGeometry) (budget model.ErrorBudget, ok bool) {
 	rake := bike.ForkRake
 	in := chartInputsOf(bike)
-	if in.wheelbase <= 0 || in.chainstay <= 0 || math.IsNaN(impliedFrontCenterHoriz(in, rake)) {
+	if in.wheelbase <= 0 || in.chainstay <= 0 {
+		return model.ErrorBudget{}, false
+	}
+	if _, err := EvaluateChartClosure(closureInput(in, 0, rake, 0)); err != nil {
 		return model.ErrorBudget{}, false
 	}
 	resid := func(c chartInputs) float64 {
-		return RearCenterHoriz(c.chainstay, c.bbDrop) + impliedFrontCenterHoriz(c, rake) - c.wheelbase
+		cl, err := EvaluateChartClosure(closureInput(c, 0, rake, 0))
+		if err != nil {
+			return math.NaN()
+		}
+		return cl.ResidualWbMm.OrZero()
 	}
 	return buildBudget(in, ChartPrecisionFor(bike), allowanceOf(bike.GetGeoSlopMm().Wheelbase), resid), true
 }

@@ -811,14 +811,14 @@ func TestSizeResidualsUsesDeclaredCadFork(t *testing.T) {
 	if m == nil {
 		t.Fatalf("size M not found in binary-havok residuals")
 	}
-	if m.FcCalc != 657.0 {
-		t.Errorf("binary-havok:M FcCalc = %.1f, want 657.0 (declared CAD fork 502mm)", m.FcCalc)
+	if m.FcCalc != 657.1 {
+		t.Errorf("binary-havok:M FcCalc = %.1f, want 657.1 (declared CAD fork 502mm)", m.FcCalc)
 	}
 	if m.WbCalc != 1092.7 {
 		t.Errorf("binary-havok:M WbCalc = %.1f, want 1092.7 (declared CAD fork 502mm)", m.WbCalc)
 	}
-	if deltaFc, ok := m.DeltaFc.Get(); !ok || deltaFc != 0.0 {
-		t.Errorf("binary-havok:M DeltaFc = %v, want 0.0", m.DeltaFc)
+	if deltaFc, ok := m.DeltaFc.Get(); !ok || deltaFc != 0.1 {
+		t.Errorf("binary-havok:M DeltaFc = %v, want 0.1", m.DeltaFc)
 	}
 	if deltaWb, ok := m.DeltaWb.Get(); !ok || deltaWb != 0.7 {
 		t.Errorf("binary-havok:M DeltaWb = %v, want +0.7", m.DeltaWb)

@@ -213,25 +213,29 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 	}
 
 	// 4. Reverse-Engineering Geometric Axle-to-Crown (Master Stack Equation Check)
-	structuralA2c, a2cErr := geometry.CalculateGeometricA2c(
-		bike.Stack,
-		bike.BbDrop,
-		bike.Htl,
-		bike.HtaDeg,
-		bike.ForkRake,
-	)
-	if a2cErr != nil {
+	expectedForkA2c := bike.GetCadA2c()
+	closure, closureErr := geometry.EvaluateChartClosure(geometry.ChartClosureInput{
+		ReachMm:       bike.Reach,
+		StackMm:       bike.Stack,
+		HtaDeg:        bike.HtaDeg,
+		HtlMm:         bike.Htl,
+		BbDropMm:      bike.BbDrop,
+		ChainstayMm:   bike.ChainstayLength,
+		CadEffA2cMm:   expectedForkA2c,
+		CadRakeMm:     bike.ForkRake,
+		CadLowerCupMm: geoSpacerMm,
+	})
+	if closureErr != nil {
 		issues = append(issues, model.ValidationIssue{
 			ID:       "invalid_steerer_geometry",
 			Field:    "hta_deg",
 			Severity: model.SeverityError,
 			Title:    "Invalid Steerer Geometry",
-			Message:  a2cErr.Error(),
+			Message:  closureErr.Error(),
 		})
 	}
-	calculatedForkA2c := structuralA2c - geoSpacerMm
-
-	expectedForkA2c := bike.GetCadA2c()
+	structuralA2c := closure.ImpliedStructuralA2cMm
+	calculatedForkA2c := closure.ImpliedForkA2cMm
 	statedStaticA2c := staticA2c
 	if statedStaticA2c <= 0 {
 		statedStaticA2c = expectedForkA2c
@@ -291,24 +295,8 @@ func ValidateBikeGeometry(bike model.BikeGeometry) model.ValidationReport {
 	}
 
 	// 5. Front-Center & Wheelbase Consistency Check
-	calculatedFcHoriz := geometry.CalculateFrontCenter(
-		bike.Reach,
-		bike.Htl,
-		bike.HtaDeg,
-		bike.ForkRake,
-		structuralA2c,
-	)
-	calculatedFc3D := geometry.Round(
-		geometry.CalculateFrontCenter3D(
-			bike.Reach,
-			bike.Htl,
-			bike.HtaDeg,
-			bike.ForkRake,
-			structuralA2c,
-			bike.BbDrop,
-		),
-		1,
-	)
+	calculatedFcHoriz := closure.ChartFrontAxle.X
+	calculatedFc3D := geometry.Round(closure.ChartFrontAxle.DistanceToOrigin(), 1)
 
 	// Horizontal front-center implied by published Front Center or Wheelbase, used to
 	// emit a single sag-convention hint if either cross-check fails.

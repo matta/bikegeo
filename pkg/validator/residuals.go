@@ -2,7 +2,6 @@ package validator
 
 import (
 	"fmt"
-	"math"
 
 	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/model"
@@ -65,44 +64,38 @@ func SizeResiduals(frame model.FrameModel) ([]SizeResidual, error) {
 		valReport := ValidateBikeGeometry(bike)
 
 		geoSpacer := bike.GetGeoHeadsetSpacerMm()
-		structuralA2c, err := geometry.CalculateGeometricA2c(
-			bike.Stack,
-			bike.BbDrop,
-			bike.Htl,
-			bike.HtaDeg,
-			bike.ForkRake,
-		)
+		expectedForkA2c := bike.GetCadA2c()
+		closure, err := geometry.EvaluateChartClosure(geometry.ChartClosureInput{
+			ReachMm:       bike.Reach,
+			StackMm:       bike.Stack,
+			HtaDeg:        bike.HtaDeg,
+			HtlMm:         bike.Htl,
+			BbDropMm:      bike.BbDrop,
+			ChainstayMm:   bike.ChainstayLength,
+			CadEffA2cMm:   expectedForkA2c,
+			CadRakeMm:     bike.ForkRake,
+			CadLowerCupMm: geoSpacer,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate geometric A2C for size %s: %w", sz, err)
 		}
-		calculatedForkA2c := structuralA2c - geoSpacer
-
-		expectedForkA2c := bike.GetCadA2c()
+		structuralA2c := closure.ImpliedStructuralA2cMm
+		calculatedForkA2c := closure.ImpliedForkA2cMm
 
 		deltaA2c := 0.0
 		if expectedForkA2c > 0 {
-			deltaA2c = geometry.Round(expectedForkA2c-calculatedForkA2c, 1)
+			deltaA2c = geometry.Round(closure.ResidualA2cMm, 1)
 		}
 
-		// Evaluate FC and WB at the declared CAD structural A2C (fork A2C + CAD spacer)
+		// Evaluate FC and WB at the declared CAD structural A2C (FA_decl)
 		// so residuals reflect full frame+fork discrepancy rather than masking Stack error.
-		evalStructuralA2c := structuralA2c
+		faEval := closure.ChartFrontAxle
 		if expectedForkA2c > 0 {
-			evalStructuralA2c = expectedForkA2c + geoSpacer
+			faEval = closure.DeclFrontAxle
 		}
 
 		var deltaFc model.Opt[float64]
-		fcCalc := geometry.Round(
-			geometry.CalculateFrontCenter3D(
-				bike.Reach,
-				bike.Htl,
-				bike.HtaDeg,
-				bike.ForkRake,
-				evalStructuralA2c,
-				bike.BbDrop,
-			),
-			1,
-		)
+		fcCalc := geometry.Round(faEval.DistanceToOrigin(), 1)
 		if bike.FrontCenter > 0 {
 			deltaFc = model.Some(geometry.Round(fcCalc-bike.FrontCenter, 1))
 		}
@@ -110,15 +103,7 @@ func SizeResiduals(frame model.FrameModel) ([]SizeResidual, error) {
 		var deltaWb model.Opt[float64]
 		wbCalc := 0.0
 		if bike.Wheelbase > 0 && bike.ChainstayLength > 0 {
-			calculatedFcHoriz := geometry.CalculateFrontCenter(
-				bike.Reach,
-				bike.Htl,
-				bike.HtaDeg,
-				bike.ForkRake,
-				evalStructuralA2c,
-			)
-			csHorizontal := math.Sqrt(math.Max(0, bike.ChainstayLength*bike.ChainstayLength-bike.BbDrop*bike.BbDrop))
-			wbCalc = geometry.Round(csHorizontal+calculatedFcHoriz, 1)
+			wbCalc = geometry.Round(faEval.X-closure.RearAxle.X, 1)
 			deltaWb = model.Some(geometry.Round(wbCalc-bike.Wheelbase, 1))
 		}
 
