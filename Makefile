@@ -1,4 +1,4 @@
-.PHONY: all fix fmt vet exhaustive test check pre-commit build run serve clean watch
+.PHONY: all fix fmt vet exhaustive test check pre-commit build run serve watch watch-serve clean
 
 export PATH := $(HOME)/go/bin:$(PATH)
 
@@ -39,6 +39,9 @@ run: build
 
 serve: build
 	./bin/bikegeo serve --open
+
+watch-serve:
+	watchexec -r -e go,html,css -- go run ./cmd/bikegeo serve
 
 clean:
 	rm -rf bin/
