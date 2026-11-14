@@ -45,19 +45,23 @@
 
 <section class="bike-workbench">
 <svg class="bike-svg" viewBox="{{.SVG.ViewBox}}" role="img" aria-label="2D sagittal bike geometry blueprint">
-<g class="scene-geom" transform="scale(1,-1)">
-{{range .SVG.Circles}}<circle class="{{.Class}}" cx="{{.CX}}" cy="{{.CY}}" r="{{.R}}"/>
-{{end}}{{range .SVG.Lines}}<line class="{{.Class}}" x1="{{.X1}}" y1="{{.Y1}}" x2="{{.X2}}" y2="{{.Y2}}"/>
-{{end}}
-</g>
-<g class="scene-points">
-{{range .SVG.Points}}<g class="pt pt-{{.Kind}}" data-point="{{.ID}}" data-x="{{.XStr}}" data-y="{{.YStr}}">
-<circle cx="{{.SvgX}}" cy="{{.SvgY}}" r="{{.Radius}}"/>
-<text x="{{.LabelX}}" y="{{.LabelY}}">{{.Label}}</text>
-</g>
-{{end}}
-</g>
+{{template "bike_svg_body" .SVG}}
 </svg>
+<div class="bike-zoom-grid">
+<figure class="zoom-panel">
+<figcaption>Panel B: Front Cockpit Zoom — Candidate {{.TargetRefLabel}} Positions, Envelope &amp; FitOval</figcaption>
+<svg class="zoom-svg cockpit-zoom-svg" viewBox="{{.CockpitSVG.ViewBox}}" role="img" aria-label="Front cockpit zoom blueprint">
+{{template "bike_svg_body" .CockpitSVG}}
+</svg>
+<p class="zoom-legend">Gray dots: <strong>{{.TargetRefLabel}}</strong> (X, Y) for each allowed stock stem × spacer (5 mm steps). Dashed blue boxes: reachable [min..max] stem × [0..max] spacer envelope per angle. Green oval: FitOval centered on TargetPoint.</p>
+</figure>
+<figure class="zoom-panel">
+<figcaption>Panel C: Rear Saddle &amp; Seatpost Rail Zoom (Usable Rail Window &amp; BRP)</figcaption>
+<svg class="zoom-svg saddle-zoom-svg" viewBox="{{.SaddleSVG.ViewBox}}" role="img" aria-label="Rear saddle and rail zoom blueprint">
+{{template "bike_svg_body" .SaddleSVG}}
+</svg>
+</figure>
+</div>
 </section>
 
 {{template "table" .SummaryTable}}
@@ -67,3 +71,15 @@
 </details>
 {{end}}
 {{template "foot" .}}
+{{define "bike_svg_body"}}<g class="scene-geom" transform="scale(1,-1)">
+{{range .Polygons}}<polygon class="{{.Class}}" points="{{.Points}}"/>
+{{end}}{{range .Ellipses}}<ellipse class="{{.Class}}" cx="{{.CX}}" cy="{{.CY}}" rx="{{.RX}}" ry="{{.RY}}"{{if .Transform}} transform="{{.Transform}}"{{end}}/>
+{{end}}{{range .Circles}}<circle class="{{.Class}}" cx="{{.CX}}" cy="{{.CY}}" r="{{.R}}"/>
+{{end}}{{range .Lines}}<line class="{{.Class}}" x1="{{.X1}}" y1="{{.Y1}}" x2="{{.X2}}" y2="{{.Y2}}"/>
+{{end}}</g>
+<g class="scene-points">
+{{range .Points}}<g class="pt pt-{{.Kind}}" data-point="{{.ID}}" data-x="{{.XStr}}" data-y="{{.YStr}}">
+<circle cx="{{.SvgX}}" cy="{{.SvgY}}" r="{{.Radius}}"/>
+<text x="{{.LabelX}}" y="{{.LabelY}}">{{.Label}}</text>
+</g>
+{{end}}</g>{{end}}

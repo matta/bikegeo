@@ -1148,6 +1148,47 @@ func TestBike_SVGPointsAndNudgeLinks(t *testing.T) {
 	stcX0, stcY0 := parseXY(doc, "STC")
 	grX0, grY0 := parseXY(doc, "GR")
 
+	// Panel B (cockpit zoom) and Panel C (saddle/rail zoom) render with upright callout points.
+	cockpitSVG := doc.Find("svg.cockpit-zoom-svg")
+	if cockpitSVG.Length() != 1 {
+		t.Fatalf("svg.cockpit-zoom-svg count = %d, want 1", cockpitSVG.Length())
+	}
+	if cockpitSVG.Find("g.scene-geom polygon.reach-env").Length() == 0 {
+		t.Error("cockpit zoom SVG missing polygon.reach-env")
+	}
+	if cockpitSVG.Find("g.scene-geom ellipse.fit-oval").Length() != 1 {
+		t.Errorf("cockpit zoom SVG ellipse.fit-oval count = %d, want 1", cockpitSVG.Find("g.scene-geom ellipse.fit-oval").Length())
+	}
+	if cockpitSVG.Find("g.scene-geom circle.cand-dot").Length() == 0 {
+		t.Error("cockpit zoom SVG missing circle.cand-dot candidate grid")
+	}
+	for _, pt := range []string{"HT", "SC", "STC", "GR", "TP", "RSC"} {
+		sel := cockpitSVG.Find(`g.scene-points [data-point="` + pt + `"]`)
+		if sel.Length() != 1 {
+			t.Errorf("cockpit zoom SVG missing data-point=%q", pt)
+		}
+		if sel.ParentsFiltered(`g[transform]`).Length() != 0 {
+			t.Errorf("cockpit zoom data-point=%q must stay outside transform group", pt)
+		}
+	}
+
+	saddleSVG := doc.Find("svg.saddle-zoom-svg")
+	if saddleSVG.Length() != 1 {
+		t.Fatalf("svg.saddle-zoom-svg count = %d, want 1", saddleSVG.Length())
+	}
+	if saddleSVG.Find("g.scene-geom line.rail-win").Length() != 1 {
+		t.Errorf("saddle zoom SVG line.rail-win count = %d, want 1", saddleSVG.Find("g.scene-geom line.rail-win").Length())
+	}
+	for _, pt := range []string{"SPC", "RC", "SB", "BRP"} {
+		sel := saddleSVG.Find(`g.scene-points [data-point="` + pt + `"]`)
+		if sel.Length() != 1 {
+			t.Errorf("saddle zoom SVG missing data-point=%q", pt)
+		}
+		if sel.ParentsFiltered(`g[transform]`).Length() != 0 {
+			t.Errorf("saddle zoom data-point=%q must stay outside transform group", pt)
+		}
+	}
+
 	// 3. Follow the spacer +10 nudge link and verify STC and GR move up-and-back along the steerer axis.
 	nudgeHref := doc.Find(`a[data-nudge-param="spacer"][data-nudge-delta="+10"]`).AttrOr("href", "")
 	if nudgeHref == "" {

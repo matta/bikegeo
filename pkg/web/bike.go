@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -45,6 +46,17 @@ type svgCircle struct {
 	Class     string
 }
 
+type svgPolygon struct {
+	Points string
+	Class  string
+}
+
+type svgEllipse struct {
+	CX, CY, RX, RY string
+	Transform      string
+	Class          string
+}
+
 type svgPoint struct {
 	ID, Label  string
 	XStr, YStr string
@@ -56,44 +68,49 @@ type svgPoint struct {
 }
 
 type bikeSVGView struct {
-	ViewBox string
-	Lines   []svgLine
-	Circles []svgCircle
-	Points  []svgPoint
+	ViewBox  string
+	Polygons []svgPolygon
+	Ellipses []svgEllipse
+	Lines    []svgLine
+	Circles  []svgCircle
+	Points   []svgPoint
 }
 
 type bikeData struct {
 	base
-	Banner       []string
-	Ready        bool
-	FrameID      string
-	Size         string
-	Fork         string
-	Sag          string
-	SaddleID     string
-	HandlebarID  string
-	TargetRef    string
-	SaddleH      string
-	StemLen      string
-	StemAng      string
-	Spacer       string
-	BarRoll      string
-	PostSB       string
-	RailOff      string
-	TargetX      string
-	TargetY      string
-	Frames       []Option
-	Sizes        []Option
-	Forks        []Option
-	Sags         []Option
-	Saddles      []Option
-	Handlebars   []Option
-	TargetRefs   []Option
-	Nudges       []NudgeControl
-	SVG          bikeSVGView
-	SummaryTable TableView
-	LedgerTable  TableView
-	Permalink    string
+	Banner         []string
+	Ready          bool
+	FrameID        string
+	Size           string
+	Fork           string
+	Sag            string
+	SaddleID       string
+	HandlebarID    string
+	TargetRef      string
+	TargetRefLabel string
+	SaddleH        string
+	StemLen        string
+	StemAng        string
+	Spacer         string
+	BarRoll        string
+	PostSB         string
+	RailOff        string
+	TargetX        string
+	TargetY        string
+	Frames         []Option
+	Sizes          []Option
+	Forks          []Option
+	Sags           []Option
+	Saddles        []Option
+	Handlebars     []Option
+	TargetRefs     []Option
+	Nudges         []NudgeControl
+	SVG            bikeSVGView
+	CockpitSVG     bikeSVGView
+	SaddleSVG      bikeSVGView
+	SummaryTable   TableView
+	LedgerTable    TableView
+	Permalink      string
 }
 
 type bikeParams struct {
@@ -128,18 +145,19 @@ func (s *server) bike(w http.ResponseWriter, r *http.Request) {
 	p, errs := parseBikeQuery(v, allFrames)
 
 	d := bikeData{
-		base:        newBase("Bike", "/bike"),
-		Banner:      errs,
-		FrameID:     p.frameID,
-		Size:        p.size,
-		Fork:        p.fork,
-		Sag:         p.sag,
-		SaddleID:    p.saddle.ID,
-		HandlebarID: p.handlebar.ID,
-		TargetRef:   string(p.targetRef),
-		SaddleH:     formatFloatInput(p.saddleH),
-		BarRoll:     formatFloatInput(p.barRoll),
-		PostSB:      formatFloatInput(p.postSB),
+		base:           newBase("Bike", "/bike"),
+		Banner:         errs,
+		FrameID:        p.frameID,
+		Size:           p.size,
+		Fork:           p.fork,
+		Sag:            p.sag,
+		SaddleID:       p.saddle.ID,
+		HandlebarID:    p.handlebar.ID,
+		TargetRef:      string(p.targetRef),
+		TargetRefLabel: p.targetRef.Label(),
+		SaddleH:        formatFloatInput(p.saddleH),
+		BarRoll:        formatFloatInput(p.barRoll),
+		PostSB:         formatFloatInput(p.postSB),
 		TargetRefs: []Option{
 			{Value: string(model.TargetHandGrip), Label: "HandGrip", Selected: p.targetRef == model.TargetHandGrip},
 			{Value: string(model.TargetStemClamp), Label: "StemClamp", Selected: p.targetRef == model.TargetStemClamp},
@@ -390,6 +408,8 @@ func (s *server) bike(w http.ResponseWriter, r *http.Request) {
 
 	d.Nudges = buildBikeNudges(baseVals, stemLen, stemAng, spacer, p.barRoll, p.saddleH, railOff, halfWin)
 	d.SVG = buildBikeSVG(scene)
+	d.CockpitSVG = buildCockpitZoomSVG(scene, row)
+	d.SaddleSVG = buildSaddleZoomSVG(scene)
 	d.SummaryTable = toView(buildBikeSummaryTable(scene))
 	d.LedgerTable = toView(buildComputationLedger("bike-ledger", "5-stage arithmetic computation ledger", scene, row.Canonical.CockpitFitResult, nil))
 
@@ -752,14 +772,7 @@ func buildBikeSVG(sc geometry.BikeScene) bikeSVGView {
 		{CX: f2(sc.FrontAxle.X), CY: f2(sc.FrontAxle.Y), R: f2(sc.Build.WheelRadiusFrontMm), Class: "wheel"},
 	}
 
-	type ptSpec struct {
-		id, label string
-		p         geom2d.Point2
-		dx, dy    float64
-		r         float64
-		kind      string
-	}
-	ptSpecs := []ptSpec{
+	points := projectSVGPoints([]svgPointSpec{
 		{"BB", "BB (0,0)", sc.BB, 12, 22, 7, "frame"},
 		{"RA", "RearAxle", sc.RearAxle, -95, 22, 7, "frame"},
 		{"FA", "FrontAxle", sc.FrontAxle, 12, 22, 7, "frame"},
@@ -775,10 +788,28 @@ func buildBikeSVG(sc geometry.BikeScene) bikeSVGView {
 		{"GR", "HandGrip", sc.HandGrip, -110, -24, 8, "contact"},
 		{"TP", fmt.Sprintf("TargetPoint (%s)", sc.TargetRef.Label()), sc.TargetPoint, 14, -18, 9, "target"},
 		{"RSC", "RequiredStemClamp C*", sc.RequiredStemClamp, 14, 4, 8, "target"},
-	}
+	})
 
-	points := make([]svgPoint, 0, len(ptSpecs))
-	for _, spec := range ptSpecs {
+	return bikeSVGView{
+		ViewBox: fmt.Sprintf("%.0f %.0f %.0f %.0f", minX, -maxY, maxX-minX, maxY-minY),
+		Lines:   lines,
+		Circles: circles,
+		Points:  points,
+	}
+}
+
+type svgPointSpec struct {
+	id, label string
+	p         geom2d.Point2
+	dx, dy    float64
+	r         float64
+	kind      string
+}
+
+func projectSVGPoints(specs []svgPointSpec) []svgPoint {
+	f2 := func(x float64) string { return fmt.Sprintf("%.2f", x) }
+	points := make([]svgPoint, 0, len(specs))
+	for _, spec := range specs {
 		svgX := spec.p.X
 		svgY := -spec.p.Y
 		points = append(points, svgPoint{
@@ -794,11 +825,227 @@ func buildBikeSVG(sc geometry.BikeScene) bikeSVGView {
 			Kind:   spec.kind,
 		})
 	}
+	return points
+}
+
+func zoomViewBox(pts []geom2d.Point2, padX, padY, minW, minH float64) string {
+	minX, maxX := pts[0].X, pts[0].X
+	minY, maxY := pts[0].Y, pts[0].Y
+	for _, p := range pts[1:] {
+		if p.X < minX {
+			minX = p.X
+		}
+		if p.X > maxX {
+			maxX = p.X
+		}
+		if p.Y < minY {
+			minY = p.Y
+		}
+		if p.Y > maxY {
+			maxY = p.Y
+		}
+	}
+	minX -= padX
+	maxX += padX
+	minY -= padY
+	maxY += padY
+	if w := maxX - minX; w < minW {
+		extra := (minW - w) / 2
+		minX -= extra
+		maxX += extra
+	}
+	if h := maxY - minY; h < minH {
+		extra := (minH - h) / 2
+		minY -= extra
+		maxY += extra
+	}
+	return fmt.Sprintf("%.0f %.0f %.0f %.0f", math.Floor(minX), -math.Ceil(maxY), math.Ceil(maxX-minX), math.Ceil(maxY-minY))
+}
+
+func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow) bikeSVGView {
+	f2 := func(x float64) string { return fmt.Sprintf("%.2f", x) }
+	addLine := func(a, b geom2d.Point2, cls string) svgLine {
+		return svgLine{X1: f2(a.X), Y1: f2(a.Y), X2: f2(b.X), Y2: f2(b.Y), Class: cls}
+	}
+
+	brp := model.BRPPoint{BrpX: sc.BRP.X, BrpY: sc.BRP.Y, SitBoneX: sc.SitBones.X, SitBoneY: sc.SitBones.Y}
+	evalPt := func(st model.StemSpec, sp float64) geom2d.Point2 {
+		hb := geometry.CalculateHBPointWithHandlebar(
+			sc.Reach(), sc.Stack(), sc.HtaDeg, brp,
+			st, sp, sc.Cockpit.Handlebar, sc.Cockpit.GripInsetMm, sc.Cockpit.BarRollDeg,
+		)
+		return geometry.EvaluatedPointForHB(hb, sc.TargetRef, sc.Fit.ReferenceBar)
+	}
+
+	// Build reachable [MinStem..MaxStem] x [0..MaxSpacerMm] envelope polygon per stem angle.
+	stems := row.Bike.Stems
+	if len(stems) == 0 {
+		stems = []model.StemSpec{sc.Cockpit.Stem}
+	}
+	type lenRange struct{ minLen, maxLen float64 }
+	byAngle := make(map[model.Deg]lenRange)
+	var angles []model.Deg
+	for _, st := range stems {
+		r, exists := byAngle[st.AngleDeg]
+		if !exists {
+			byAngle[st.AngleDeg] = lenRange{st.LengthMm, st.LengthMm}
+			angles = append(angles, st.AngleDeg)
+			continue
+		}
+		if st.LengthMm < r.minLen {
+			r.minLen = st.LengthMm
+		}
+		if st.LengthMm > r.maxLen {
+			r.maxLen = st.LengthMm
+		}
+		byAngle[st.AngleDeg] = r
+	}
+	slices.Sort(angles)
+
+	maxSpacer := math.Max(0, row.Bike.GetMaxSpacerMm())
+	polygons := make([]svgPolygon, 0, len(angles))
+	boxPts := []geom2d.Point2{
+		sc.HeadTubeTop,
+		sc.SteererClamp,
+		sc.StemClamp,
+		sc.HandGrip,
+		sc.TargetPoint,
+		sc.RequiredStemClamp,
+		{X: sc.TargetPoint.X - 30, Y: sc.TargetPoint.Y - 30},
+		{X: sc.TargetPoint.X + 30, Y: sc.TargetPoint.Y + 30},
+	}
+	for _, ang := range angles {
+		lr := byAngle[ang]
+		corners := []geom2d.Point2{
+			evalPt(model.StemSpec{LengthMm: lr.minLen, AngleDeg: ang}, 0),
+			evalPt(model.StemSpec{LengthMm: lr.maxLen, AngleDeg: ang}, 0),
+			evalPt(model.StemSpec{LengthMm: lr.maxLen, AngleDeg: ang}, maxSpacer),
+			evalPt(model.StemSpec{LengthMm: lr.minLen, AngleDeg: ang}, maxSpacer),
+		}
+		var ptsStr []string
+		for _, c := range corners {
+			ptsStr = append(ptsStr, fmt.Sprintf("%.2f,%.2f", c.X, c.Y))
+			boxPts = append(boxPts, c)
+		}
+		polygons = append(polygons, svgPolygon{
+			Points: strings.Join(ptsStr, " "),
+			Class:  "reach-env",
+		})
+	}
+
+	// Discrete candidate stock-stem grid dots.
+	candHBs := geometry.MapPossibleHBsWithHandlebar(
+		row.Bike, sc.Reach(), sc.Stack(), sc.HtaDeg, brp,
+		sc.Cockpit.Handlebar, sc.Cockpit.GripInsetMm, sc.Cockpit.BarRollDeg,
+	)
+	circles := make([]svgCircle, 0, len(candHBs))
+	for _, hb := range candHBs {
+		p := geometry.EvaluatedPointForHB(hb, sc.TargetRef, sc.Fit.ReferenceBar)
+		circles = append(circles, svgCircle{
+			CX:    f2(p.X),
+			CY:    f2(p.Y),
+			R:     "1.80",
+			Class: "cand-dot",
+		})
+		boxPts = append(boxPts, p)
+	}
+
+	// 30-degree rotated FitOval centered on TargetPoint.
+	oval := geometry.DefaultFitOval(sc.TargetPoint.X, sc.TargetPoint.Y)
+	if cfr := row.Canonical.CockpitFitResult; cfr != nil && cfr.TargetOval.SemiMinorA > 0 && cfr.TargetOval.SemiMajorB > 0 {
+		oval.SemiMinorA = cfr.TargetOval.SemiMinorA
+		oval.SemiMajorB = cfr.TargetOval.SemiMajorB
+		oval.AngleDeg = cfr.TargetOval.AngleDeg
+	}
+	ellipses := []svgEllipse{{
+		CX:        f2(sc.TargetPoint.X),
+		CY:        f2(sc.TargetPoint.Y),
+		RX:        f2(oval.SemiMinorA),
+		RY:        f2(oval.SemiMajorB),
+		Transform: fmt.Sprintf("rotate(%.2f %.2f %.2f)", -float64(oval.AngleDeg), sc.TargetPoint.X, sc.TargetPoint.Y),
+		Class:     "fit-oval",
+	}}
+
+	htStub := sc.HeadTubeTop.SubVec(sc.SteererAxis.Direction.Scale(35))
+	steerEnd := sc.HeadTubeTop.Add(sc.SteererAxis.Direction.Scale(95))
+	lines := []svgLine{
+		addLine(htStub, sc.HeadTubeTop, "frame"),
+		addLine(sc.HeadTubeTop, steerEnd, "steer-ray"),
+		addLine(sc.HeadTubeTop, sc.SteererClamp, "cockpit"),
+		addLine(sc.SteererClamp, sc.StemClamp, "cockpit"),
+		addLine(sc.StemClamp, sc.HandGrip, "bar"),
+		addLine(sc.StemClamp, sc.RequiredStemClamp, "target-err"),
+	}
+
+	points := projectSVGPoints([]svgPointSpec{
+		{"HT", "HeadTubeTop", sc.HeadTubeTop, 6, 9, 3.0, "frame"},
+		{"SC", "SteererClamp", sc.SteererClamp, -52, -4, 2.6, "cockpit"},
+		{"STC", "StemClamp", sc.StemClamp, 6, 9, 3.0, "contact"},
+		{"GR", "HandGrip", sc.HandGrip, -42, -9, 3.2, "contact"},
+		{"TP", fmt.Sprintf("TargetPoint (%s)", sc.TargetRef.Label()), sc.TargetPoint, 6, -9, 3.5, "target"},
+		{"RSC", "RequiredStemClamp C*", sc.RequiredStemClamp, 6, 4, 3.2, "target"},
+	})
 
 	return bikeSVGView{
-		ViewBox: fmt.Sprintf("%.0f %.0f %.0f %.0f", minX, -maxY, maxX-minX, maxY-minY),
+		ViewBox:  zoomViewBox(boxPts, 85, 45, 260, 260),
+		Polygons: polygons,
+		Ellipses: ellipses,
+		Lines:    lines,
+		Circles:  circles,
+		Points:   points,
+	}
+}
+
+func buildSaddleZoomSVG(sc geometry.BikeScene) bikeSVGView {
+	f2 := func(x float64) string { return fmt.Sprintf("%.2f", x) }
+	addLine := func(a, b geom2d.Point2, cls string) svgLine {
+		return svgLine{X1: f2(a.X), Y1: f2(a.Y), X2: f2(b.X), Y2: f2(b.Y), Class: cls}
+	}
+
+	uSeat := sc.EffectiveSeatAxis.Direction
+	uRail := uSeat.Perpendicular(geom2d.CounterClockwise)
+	brpPerp := sc.Seat.PostSetbackMm + sc.Seat.RailOffsetMm - sc.Seat.Saddle.RailCenterToBrpMm
+	axial := math.Sqrt(math.Max(0, sc.Fit.BrpHeightMm*sc.Fit.BrpHeightMm-brpPerp*brpPerp))
+	axisHead := sc.EffectiveSeatAxis.PointAt(axial)
+	postBase := axisHead.SubVec(uSeat.Scale(60))
+	axisTop := axisHead.Add(uSeat.Scale(35))
+	halfWin := sc.Seat.HalfRailWindowMm()
+	railWinStart := sc.RailCenter.Add(uRail.Scale(-halfWin))
+	railWinEnd := sc.RailCenter.Add(uRail.Scale(halfWin))
+	brpCaliperStart := geom2d.Point2{X: sc.SitBones.X, Y: sc.BRP.Y}
+
+	lines := []svgLine{
+		addLine(postBase, axisTop, "steer-ray"),
+		addLine(postBase, axisHead, "cockpit"),
+		addLine(axisHead, sc.SeatpostClamp, "cockpit"),
+		addLine(railWinStart, railWinEnd, "rail-win"),
+		addLine(sc.SeatpostClamp, sc.RailCenter, "cockpit"),
+		addLine(sc.RailCenter, sc.SitBones, "saddle"),
+		addLine(sc.SitBones, sc.BRP, "saddle"),
+		addLine(brpCaliperStart, sc.BRP, "axis"),
+	}
+
+	points := projectSVGPoints([]svgPointSpec{
+		{"SPC", "SeatpostClamp", sc.SeatpostClamp, 6, 9, 2.8, "seat"},
+		{"RC", "RailCenter", sc.RailCenter, -44, 11, 2.6, "seat"},
+		{"SB", "SitBones", sc.SitBones, -38, -8, 3.3, "contact"},
+		{"BRP", "BRP (70mm)", sc.BRP, 6, -6, 3.0, "contact"},
+	})
+
+	boxPts := []geom2d.Point2{
+		postBase,
+		axisTop,
+		sc.SeatpostClamp,
+		sc.RailCenter,
+		sc.SitBones,
+		sc.BRP,
+		railWinStart,
+		railWinEnd,
+		brpCaliperStart,
+	}
+	return bikeSVGView{
+		ViewBox: zoomViewBox(boxPts, 55, 40, 220, 160),
 		Lines:   lines,
-		Circles: circles,
 		Points:  points,
 	}
 }
