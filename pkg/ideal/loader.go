@@ -116,7 +116,8 @@ func NormalizeAndValidate(p *Profile) (*Profile, error) {
 				attr.Floor = model.Some(-200.0)
 			}
 			lowID := strings.ToLower(attr.ID)
-			if lowID == "brp_setback" || lowID == "brp" || lowID == "brpsetback" {
+			switch lowID {
+			case "brp_setback", "brp", "brpsetback":
 				if vMin, ok := attr.Ideal.Min.Get(); ok {
 					if vMax, ok := attr.Ideal.Max.Get(); ok {
 						refBrpSB = (vMin + vMax) / 2.0
@@ -126,7 +127,7 @@ func NormalizeAndValidate(p *Profile) (*Profile, error) {
 				} else if vMax, ok := attr.Ideal.Max.Get(); ok {
 					refBrpSB = vMax
 				}
-			} else if lowID == "saddle_hb_drop" || lowID == "hb_drop" || lowID == "saddlehbdrop" {
+			case "saddle_hb_drop", "hb_drop", "saddlehbdrop":
 				dropMin = attr.Ideal.Min
 				dropMax = attr.Ideal.Max
 			}
