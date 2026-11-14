@@ -499,7 +499,7 @@ Every figure below is measured from `find/wc -l` on current non-test Go sources 
 8. **Literal names matching physics—retire `HB` / `HX` / `HY` and require explicit point types on every value**: Never overload `HB`/`HX`/`HY` across stem clamps and grips. Every cockpit coordinate, distance, drop, or target in code must explicitly declare what physical point it is (`StemClamp`, `HandGrip`, or `ReferenceBarClamp` via `TargetRef`), rename `handlebar_clamp_fit` to `grip_fit` (or remove via fit solve), rename `"Seatpost Ext"` to `BB-to-BRP minus SeatTube`, and make `"Oval Fits"` report what is graded.
 9. **Enforce dead-code cleanliness**: Delete unreferenced exports and add `go tool deadcode ./...` to `make check`.
 
-### 3. Granular Commit-by-Commit Execution Plan (23 Atomic Commits Across 5 Phases)
+### 3. Granular Commit-by-Commit Execution Plan (25 Atomic Commits Across 5 Phases)
 
 Every commit below has a single responsibility, is independently reviewable, and passes `make pre-commit` (which runs `go fix`, `go fmt`, `go vet`, `exhaustive`, and `go test`) before committing. Refactors are strictly separated from behavior-changing fixes so test diffs only appear on commits that intentionally change an equation or label. Any commit that changes a rule in [AGENTS.md](AGENTS.md) or [docs/WEB.md](docs/WEB.md) amends that document in the same commit (§4).
 
@@ -509,11 +509,11 @@ Every commit below has a single responsibility, is independently reviewable, and
 - **`AETT` Definition**: Keep `AETT` as a pure frame-only metric at radial `seatHeight` (`746 mm`) along the seat-tube axis (`SeatAxisPoint`), independent of saddle model, seatpost setback, and rail offset (preserving zero diff when `BikeScene` lands).
 - **Scoring & Diet Strategy**: Execute Conservative Consolidation through Phase 4 (keeping the 0–100 continuous curve score alongside the closed-form 2×2 hardware solve), then decide in Phase 5 whether to retire composite scoring.
 
-**Compute Tier Summary (Hydrogen vs. Argon for Remaining Commits 10–23)**:
+**Compute Tier Summary (Hydrogen vs. Argon for Remaining Commits 10–25)**:
 - **Commits 1–8**: Completed on `main`.
 - **Commit 9**: Implemented and verified in the working tree (ready to commit).
-- **Hydrogen (10 of 14 remaining commits)**: **10, 11, 13, 14, 15, 16, 18, 20, 21, 22** — well-specified refactors with strict zero-output-change invariants, localized math/enum/fixture updates, or additive tables guarded by `go vet`, `exhaustive`, and existing tests.
-- **Argon (4 of 14 remaining commits)**: **12, 17, 19 (optional), 23** — cross-package coordinate-model replacement (`SitBones` normalization), new multi-element SVG route (`/bike` + zoom/overlay panels), and the final Phase 5 architectural surface diet.
+- **Hydrogen (11 of 16 remaining commits)**: **10, 11, 13, 14, 15, 16, 18, 20, 21, 22, 25** — well-specified refactors with strict zero-output-change invariants, localized math/enum/fixture updates, additive tables, or dead-code removal guarded by `go vet`, `exhaustive`, `deadcode`, and existing tests.
+- **Argon (5 of 16 remaining commits)**: **12, 17, 19 (optional), 23, 24** — cross-package coordinate-model replacement (`SitBones` normalization), new multi-element SVG route (`/bike` + zoom/overlay panels), and the Phase 5 scoring and web-surface diet decisions.
 
 #### Phase 1: Provenance Docs, User-Facing Disambiguation & Guardrail Tests
 1. **`docs: record C1 target convention and C4 lower-cup provenance`** *(Completed)*
@@ -581,9 +581,15 @@ Every commit below has a single responsibility, is independently reviewable, and
 22. **`refactor(geometry,geom2d): replace silent <=0 fallback defaults with explicit constructor errors (C8)`**
     - Add a shared complete test-fixture builder in `pkg/*/*_test.go` and remove the ~20 silent fallback defaults (`1150`, `430`/`440`, `120`, `44`, `hbDropMm == 0 → 13.0`).
     - **Compute: Hydrogen** — Mechanical removal of ~20 `<= 0` fallback defaults and completion of partial unit-test fixtures via a shared test helper; compiler and test failures pinpoint every call site.
-23. **`refactor(web,compare,fit): execute chosen surface diet and add deadcode check to make check`**
-    - Decide whether to retain or retire the composite 0–100 curve score after evaluating Phase 4, fold redundant web sub-pages into `/bike`, update [AGENTS.md](AGENTS.md) and [docs/WEB.md](docs/WEB.md), delete unreferenced exports, and add `go tool deadcode ./...` to `make check`.
-    - **Compute: Argon** — High-judgment Phase 5 surface diet across `web`, `compare`, `fit`, `AGENTS.md`, `docs/WEB.md`, and `Makefile` (`go tool deadcode ./...`).
+23. **`refactor(scoring,compare,curve): decide whether to retain or retire composite 0–100 curve scoring`**
+    - Evaluate Phase 4's closed-form 2×2 hardware solve alongside the 0–100 curve score and either retire `pkg/scoring` / `pkg/curve` (ranking by hardware fit + millimeter excesses and updating [AGENTS.md](AGENTS.md)) or explicitly keep and streamline composite scoring.
+    - **Compute: Argon** — High-judgment architectural decision across `scoring`, `curve`, `compare`, `ideal`, `web`, and `AGENTS.md`.
+24. **`refactor(web): fold or remove redundant web catalog/tool sub-pages into /bike`**
+    - Decide which of the 6 catalog/tool routes (`/saddles`, `/saddle-swap`, `/handlebars`, `/stems`, `/forks`, `/ideals`) to fold into `/bike` or remove vs. retain, and update the capability table in [AGENTS.md](AGENTS.md) and [docs/WEB.md](docs/WEB.md) to match.
+    - **Compute: Argon** — High-judgment web surface diet across `web`, `AGENTS.md`, and `docs/WEB.md`.
+25. **`chore(build): delete unreferenced exports and add go tool deadcode to make check`**
+    - Run `go tool deadcode ./...` to confirm and delete any remaining unreferenced exported functions/types left after Commits 1–24, and add `go tool deadcode ./...` to `make check` in `Makefile`.
+    - **Compute: Hydrogen** — Mechanical dead-code removal and `Makefile` / `go.mod` tool check guarded by `go tool deadcode ./...` and `make pre-commit`.
 
 ### 4. Repository Rules This Plan Changes
 
