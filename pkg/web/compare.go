@@ -14,6 +14,7 @@ import (
 	"bikegeo/pkg/frames"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/report"
+	"bikegeo/pkg/scoring"
 )
 
 // Option is one entry of a <select>.
@@ -51,6 +52,7 @@ type compareData struct {
 	Layouts    []Option
 	Scores     []Option
 	Tables     []TableView
+	Ledgers    []TableView
 	Footers    []report.Footer
 	CLI        string
 	Permalink  string
@@ -251,6 +253,22 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 			tv := toView(t)
 			attachInspectLinks(&tv, t, bikeHrefByCol)
 			d.Tables = append(d.Tables, tv)
+		}
+		var scores []scoring.Result
+		if !q.NoScore {
+			scores = scoring.ScoreAllRows(res.Rows, res.Profile)
+		}
+		for i, row := range res.Rows {
+			sc, err := buildSceneForComparisonRow(row, res.Profile)
+			if err != nil {
+				continue
+			}
+			var scorePtr *scoring.Result
+			if i < len(scores) {
+				scorePtr = &scores[i]
+			}
+			ledgerTitle := fmt.Sprintf("[%d] %s %s (%s)", i+1, row.Bike.Manufacturer, row.Bike.Model, row.Bike.Size)
+			d.Ledgers = append(d.Ledgers, toView(buildComputationLedger(fmt.Sprintf("ledger-%d", i+1), ledgerTitle, sc, row.Canonical.CockpitFitResult, scorePtr)))
 		}
 		d.Footers = doc.Footers
 	}

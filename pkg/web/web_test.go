@@ -1180,3 +1180,48 @@ func TestBike_SVGPointsAndNudgeLinks(t *testing.T) {
 		}
 	}
 }
+
+func TestComputationLedger_BikeAndCompare(t *testing.T) {
+	stages := []string{
+		"1. Chart & Closure",
+		"2. Fork, Cup & Pitch",
+		"3. Rear Cockpit",
+		"4. Front Cockpit",
+		"5. Fit Target & Solve",
+	}
+
+	// 1. /bike renders the 5-stage computation ledger inside <details class="ledger">.
+	recBike, bikeDoc := do(t, "/bike?frame=otso-fenrir-stainless&size=L")
+	mustStatus(t, recBike, http.StatusOK)
+	bikeLedger := bikeDoc.Find(`details.ledger table[data-table="bike-ledger"]`)
+	if bikeLedger.Length() != 1 {
+		t.Fatalf("/bike details.ledger table count = %d, want 1", bikeLedger.Length())
+	}
+	bikeBody := text(bikeLedger)
+	for _, st := range stages {
+		if !strings.Contains(bikeBody, st) {
+			t.Errorf("/bike ledger missing stage %q", st)
+		}
+	}
+	if !strings.Contains(bikeBody, "2×2 Linear Fit Solve") {
+		t.Error("/bike ledger missing 2×2 Linear Fit Solve row")
+	}
+
+	// 2. / (compare) renders one 5-stage computation ledger per compared setup in <details class="ledger">,
+	// including Nearest Stock Fit & Score when scoring is enabled.
+	recCmp, cmpDoc := do(t, twoBikes)
+	mustStatus(t, recCmp, http.StatusOK)
+	ledgers := cmpDoc.Find(`details.ledger table[data-table^="ledger-"]`)
+	if ledgers.Length() != 2 {
+		t.Fatalf("compare details.ledger table count = %d, want 2", ledgers.Length())
+	}
+	cmpBody := text(ledgers.First())
+	for _, st := range stages {
+		if !strings.Contains(cmpBody, st) {
+			t.Errorf("compare ledger missing stage %q", st)
+		}
+	}
+	if !strings.Contains(cmpBody, "Nearest Stock Fit & Score") {
+		t.Error("compare ledger missing Nearest Stock Fit & Score row")
+	}
+}

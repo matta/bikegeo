@@ -92,6 +92,7 @@ type bikeData struct {
 	Nudges       []NudgeControl
 	SVG          bikeSVGView
 	SummaryTable TableView
+	LedgerTable  TableView
 	Permalink    string
 }
 
@@ -390,6 +391,7 @@ func (s *server) bike(w http.ResponseWriter, r *http.Request) {
 	d.Nudges = buildBikeNudges(baseVals, stemLen, stemAng, spacer, p.barRoll, p.saddleH, railOff, halfWin)
 	d.SVG = buildBikeSVG(scene)
 	d.SummaryTable = toView(buildBikeSummaryTable(scene))
+	d.LedgerTable = toView(buildComputationLedger("bike-ledger", "5-stage arithmetic computation ledger", scene, row.Canonical.CockpitFitResult, nil))
 
 	s.render(w, http.StatusOK, "bike.html", d)
 }

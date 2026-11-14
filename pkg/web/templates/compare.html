@@ -54,6 +54,9 @@
 {{range .Tables}}{{if eq .ID "breakdown"}}<details class="breakdown" open><summary>Scoring breakdown</summary>{{template "table" .}}</details>
 {{else}}{{template "table" .}}
 {{end}}{{end}}
+{{if .Ledgers}}<details class="ledger"><summary>5-stage arithmetic computation ledger</summary>
+{{range .Ledgers}}{{template "table" .}}{{end}}
+</details>{{end}}
 {{range .Footers}}{{template "footer" .}}{{end}}
 </section>
 {{end}}
