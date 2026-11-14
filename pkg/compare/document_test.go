@@ -605,8 +605,8 @@ func TestCompare_SingleStepIntegerRounding(t *testing.T) {
 	if got := findVal("Fairlight Holt 2.0 (S)", "ETT"); got != "587" {
 		t.Errorf("Fairlight Holt 2.0 (S) ETT = %q, want 587 (single-step from ~586.55mm)", got)
 	}
-	if got := findVal("Surly ECR (L)", "BRP–HandGrip"); !strings.HasPrefix(got, "657 ") {
-		t.Errorf("Surly ECR (L) BRP–HandGrip = %q, want 657 ... (single-step from ~656.52mm)", got)
+	if got := findVal("Surly ECR (L)", "BRP–HandGrip"); !strings.HasPrefix(got, "653 ") {
+		t.Errorf("Surly ECR (L) BRP–HandGrip = %q, want 653 ... (with 11 mm HeadsetTopStackMm)", got)
 	}
 }
 

@@ -102,7 +102,7 @@ func CalculateHBPointWithHandlebar(
 ) model.HBPoint {
 	headTubeTop := geom2d.Point2{X: reach, Y: stack}
 	cockpitPts := placeFrontCockpit(headTubeTop, htaDeg, CockpitSpec{
-		HeadsetTopStackMm: 0.0,
+		HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
 		SpacerMm:          spacerMm,
 		Stem:              stem,
 		StemClampHeightMm: model.StemThicknessMm,

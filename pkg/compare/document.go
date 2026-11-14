@@ -238,8 +238,8 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 	}
 
 	line1 := fmt.Sprintf(
-		"H (saddle height): %s | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Modeled Back Angle: %.1f°",
-		hText, saddleName, backAngle,
+		"H (saddle height): %s | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Headset Top Stack: %.0fmm | Modeled Back Angle: %.1f°",
+		hText, saddleName, model.DefaultHeadsetTopStackMm, backAngle,
 	)
 	line2 := fmt.Sprintf(
 		"Handlebar: %s (%.0fmm, %.0fmm rise, %.0f° sweep, %.0f° upsweep) | Ideal Profile: %s (*max stay position)",

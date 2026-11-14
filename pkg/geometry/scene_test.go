@@ -35,7 +35,7 @@ func baseTestInputs() (geometry.FrameSize, geometry.BuildSpec, geometry.CockpitS
 	}
 	bar, _ := catalog.GetHandlebar("persuader20_800")
 	cockpit := geometry.CockpitSpec{
-		HeadsetTopStackMm: 11.0,
+		HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
 		SpacerMm:          0.0,
 		Stem:              model.StemSpec{LengthMm: 70.0, AngleDeg: -6.0},
 		StemClampHeightMm: model.StemThicknessMm,
@@ -111,7 +111,7 @@ func TestBuildScene_ParityWithCalculateDynamicGeometry_ConstantRake(t *testing.T
 							WheelRadiusRearMm:  bike.WheelRadiusMm(),
 						}
 						cockpit := geometry.CockpitSpec{
-							HeadsetTopStackMm: 0.0,
+							HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
 							SpacerMm:          spacer,
 							Stem:              model.StemSpec{LengthMm: 80.0, AngleDeg: -6.0},
 							StemClampHeightMm: model.StemThicknessMm,

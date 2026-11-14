@@ -375,6 +375,10 @@ func (b BikeGeometry) WheelRadiusMm() float64 {
 // StemThicknessMm is the fixed axial height (in mm) of the stem clamp on the steerer tube.
 const StemThicknessMm = 40.0
 
+// DefaultHeadsetTopStackMm is the default axial height (in mm) of the upper headset bearing and top cover
+// between the top of the head tube and the bottom of the steerer spacers / stem clamp.
+const DefaultHeadsetTopStackMm = 11.0
+
 // SpacerStepMm is the fixed increment (in mm) for steerer spacers from 0 up to MaxSpacerMm.
 const SpacerStepMm = 5.0
 

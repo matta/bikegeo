@@ -1034,8 +1034,8 @@ func AnalyzeBikeFitWithSaddle(
 	geoSpacer := bike.GeoHeadsetSpacerMm
 	baseForkA2c := baseStructuralA2c - geoSpacer
 
-	// 2. Construct BikeScene under Commit 6 baseline assumptions:
-	//    HeadsetTopStackMm = 0 (C2 in Commit 7) and PhysicalLowerCupMm = CadLowerCupMm (C4 in Commit 8).
+	// 2. Construct BikeScene under Commit 7 baseline assumptions:
+	//    PhysicalLowerCupMm = CadLowerCupMm (C4 in Commit 8).
 	frame, err := FrameSizeFromBikeGeometry(bike)
 	if err != nil {
 		return model.BikeFitAnalysis{}, err
@@ -1078,7 +1078,7 @@ func AnalyzeBikeFitWithSaddle(
 		}
 	}
 	cockpit := CockpitSpec{
-		HeadsetTopStackMm: 0.0,
+		HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
 		SpacerMm:          0.0,
 		Stem:              baseStem,
 		StemClampHeightMm: model.StemThicknessMm,
