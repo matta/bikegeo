@@ -327,6 +327,103 @@ type BikeScene struct {
 	StructuralA2cMm float64
 }
 
+// legacyPitchMode preserves pre-C3 constant-rake / published-wheelbase pitching during Commit 5's
+// incremental cutover; removed in Commit 6 (C3).
+// TODO: to be removed in Commit 6 (C3)
+type legacyPitchMode struct {
+	pitchWheelbaseOverride float64
+	constantRakePitch      bool
+}
+
+// frameLandmarks2D holds rigid 2D frame landmarks and head-tube angle in BB-relative coordinates.
+type frameLandmarks2D struct {
+	BB             geom2d.Point2
+	RearAxle       geom2d.Point2
+	HeadTubeTop    geom2d.Point2
+	HeadTubeBottom geom2d.Point2
+	FrontAxle      geom2d.Point2
+	HtaDeg         model.Deg
+}
+
+// frameLevelingInput specifies a rigid frame configuration and fork/rake changes to level around the rear axle.
+type frameLevelingInput struct {
+	Initial                frameLandmarks2D
+	DeltaStructuralA2cMm   float64
+	DeltaRakeMm            float64
+	WheelbaseBeforePitchMm float64
+}
+
+// frameLevelingResult holds the leveled frame landmarks (re-centered with BB at Origin) and clockwise pitch angle.
+type frameLevelingResult struct {
+	Leveled  frameLandmarks2D
+	PitchDeg model.Deg
+}
+
+// frontCockpitPoints holds the positioned 2D cockpit points computed from the leveled head-tube top.
+type frontCockpitPoints struct {
+	SteererClamp geom2d.Point2
+	StemClamp    geom2d.Point2
+	HandGrip     geom2d.Point2
+}
+
+// levelFrame2D pitches rigid frame landmarks around the rear axle so both axles are level,
+// then shifts BB back to Origin (0,0).
+func levelFrame2D(in frameLevelingInput) frameLevelingResult {
+	init := in.Initial
+	u0 := SteererTubeDir(init.HtaDeg)
+	n0 := u0.Perpendicular(geom2d.Clockwise)
+
+	var theta geom2d.Angle
+	if in.DeltaStructuralA2cMm != 0 || in.DeltaRakeMm != 0 {
+		dyAxle := -in.DeltaStructuralA2cMm*u0.Y + in.DeltaRakeMm*n0.Y
+		theta = -geom2d.AngleFromSlope(in.WheelbaseBeforePitchMm, dyAxle)
+	}
+
+	out := frameLandmarks2D{
+		BB:             geom2d.Origin,
+		RearAxle:       init.RearAxle,
+		HeadTubeTop:    init.HeadTubeTop,
+		HeadTubeBottom: init.HeadTubeBottom,
+		FrontAxle:      init.FrontAxle,
+		HtaDeg:         init.HtaDeg,
+	}
+	if theta != 0 {
+		rot := geom2d.NewRotation(init.RearAxle, theta)
+		bbRot := rot.Apply(init.BB)
+		shift := geom2d.Origin.Sub(bbRot)
+
+		out.RearAxle = init.RearAxle.Add(shift)
+		out.HeadTubeTop = rot.Apply(init.HeadTubeTop).Add(shift)
+		out.HeadTubeBottom = rot.Apply(init.HeadTubeBottom).Add(shift)
+		out.FrontAxle = rot.Apply(init.FrontAxle).Add(shift)
+	}
+
+	pitchDeg := model.DegOf(theta)
+	out.HtaDeg = init.HtaDeg - pitchDeg
+	return frameLevelingResult{
+		Leveled:  out,
+		PitchDeg: pitchDeg,
+	}
+}
+
+// placeFrontCockpit positions SteererClamp, StemClamp, and HandGrip from the leveled head-tube top
+// and head-tube angle.
+func placeFrontCockpit(headTubeTop geom2d.Point2, htaDeg model.Deg, cockpit CockpitSpec) frontCockpitPoints {
+	uAct := SteererTubeDir(htaDeg)
+	nAct := uAct.Perpendicular(geom2d.Clockwise)
+	dSteerer := cockpit.HeadsetTopStackMm + cockpit.SpacerMm + cockpit.StemClampHeightMm/2.0
+	steererClamp := headTubeTop.Add(uAct.Scale(dSteerer))
+	stemDir := nAct.Rotate(cockpit.Stem.AngleDeg.Angle())
+	stemClamp := steererClamp.Add(stemDir.Scale(cockpit.Stem.LengthMm))
+	barOff := GetHandlebarOffset(cockpit.Handlebar, cockpit.GripInsetMm, cockpit.BarRollDeg)
+	handGrip := stemClamp.Add(geom2d.Vec2{X: barOff.X, Y: barOff.Y})
+	return frontCockpitPoints{
+		SteererClamp: steererClamp,
+		StemClamp:    stemClamp,
+		HandGrip:     handGrip,
+	}
+}
+
 // BuildScene constructs a pure 2D sagittal BikeScene from explicit frame, build, cockpit, seat, and fit inputs.
 // Every required input must be explicitly valid; BuildScene returns an error rather than inventing fallback defaults.
 func BuildScene(
@@ -335,6 +432,17 @@ func BuildScene(
 	cockpit CockpitSpec,
 	seat SeatSpec,
 	fit RiderFit,
+) (BikeScene, error) {
+	return buildScene(frame, build, cockpit, seat, fit, legacyPitchMode{})
+}
+
+func buildScene(
+	frame FrameSize,
+	build BuildSpec,
+	cockpit CockpitSpec,
+	seat SeatSpec,
+	fit RiderFit,
+	pitchMode legacyPitchMode,
 ) (BikeScene, error) {
 	if err := validateSceneInputs(frame, build, cockpit, seat, fit); err != nil {
 		return BikeScene{}, err
@@ -377,55 +485,45 @@ func BuildScene(
 		return BikeScene{}, fmt.Errorf("degenerate wheelbase %.2f mm", wb0)
 	}
 
-	// 2. Exact rear-axle pitch leveling across A2C, sag, lower cup, AND rake changes.
-	// Use FA_chart.Y == RA_0.Y identity for the vertical delta so dL == 0 && dRake == 0 produces exact +0.0 pitch.
+	// 2. Exact rear-axle pitch leveling across A2C, sag, lower cup, and rake changes.
 	dRake := build.Fork.RakeMm - frame.CadFork.RakeMm
-	var theta geom2d.Angle
-	if dL != 0 || dRake != 0 {
-		dyAxle := -dL*u0.Y + dRake*n0.Y
-		theta = -geom2d.AngleFromSlope(fa0.X-ra0.X, dyAxle)
+	wbBeforePitch := wb0
+	if pitchMode.constantRakePitch {
+		dRake = 0
+	}
+	if pitchMode.pitchWheelbaseOverride > 0 {
+		wbBeforePitch = pitchMode.pitchWheelbaseOverride - dL*u0.X
 	}
 
-	bb := geom2d.Origin
-	ra := ra0
-	ht := ht0
-	htb := htb0
-	fa := fa0
-	if theta != 0 {
-		rot := geom2d.NewRotation(ra0, theta)
-		bbRot := rot.Apply(bb0)
-		shift := geom2d.Origin.Sub(bbRot)
-
-		ra = ra0.Add(shift)
-		ht = rot.Apply(ht0).Add(shift)
-		htb = rot.Apply(htb0).Add(shift)
-		fa = rot.Apply(fa0).Add(shift)
-	}
-
-	thetaDeg := model.DegOf(theta)
-	htaAct := hta0 - thetaDeg
-	uAct := SteererTubeDir(htaAct)
-	nAct := uAct.Perpendicular(geom2d.Clockwise)
-	lowerCupBottom := htb.SubVec(uAct.Scale(build.PhysicalLowerCupMm))
-	steererAxis := geom2d.Axis2{Origin: ht, Direction: uAct}
+	leveled := levelFrame2D(frameLevelingInput{
+		Initial: frameLandmarks2D{
+			BB:             bb0,
+			RearAxle:       ra0,
+			HeadTubeTop:    ht0,
+			HeadTubeBottom: htb0,
+			FrontAxle:      fa0,
+			HtaDeg:         hta0,
+		},
+		DeltaStructuralA2cMm:   dL,
+		DeltaRakeMm:            dRake,
+		WheelbaseBeforePitchMm: wbBeforePitch,
+	})
+	fr := leveled.Leveled
+	uAct := SteererTubeDir(fr.HtaDeg)
+	lowerCupBottom := fr.HeadTubeBottom.SubVec(uAct.Scale(build.PhysicalLowerCupMm))
+	steererAxis := geom2d.Axis2{Origin: fr.HeadTubeTop, Direction: uAct}
 
 	// 3. Front cockpit on leveled frame
-	dSteerer := cockpit.HeadsetTopStackMm + cockpit.SpacerMm + cockpit.StemClampHeightMm/2.0
-	sc := ht.Add(uAct.Scale(dSteerer))
-	stemDir := nAct.Rotate(cockpit.Stem.AngleDeg.Angle())
-	cl := sc.Add(stemDir.Scale(cockpit.Stem.LengthMm))
-
-	barOff := GetHandlebarOffset(cockpit.Handlebar, cockpit.GripInsetMm, cockpit.BarRollDeg)
-	gr := cl.Add(geom2d.Vec2{X: barOff.X, Y: barOff.Y})
+	cockpitPts := placeFrontCockpit(fr.HeadTubeTop, fr.HtaDeg, cockpit)
 
 	// 4. Rear cockpit on leveled frame
-	nominalStaAct := frame.StaDeg - thetaDeg
-	seatAxisStaAct := frame.effectiveStaCad(fit.FrameSeatAxisHeightMm) - thetaDeg
-	effStaAct := frame.effectiveStaCad(fit.BrpHeightMm) - thetaDeg
+	nominalStaAct := frame.StaDeg - leveled.PitchDeg
+	seatAxisStaAct := frame.effectiveStaCad(fit.FrameSeatAxisHeightMm) - leveled.PitchDeg
+	effStaAct := frame.effectiveStaCad(fit.BrpHeightMm) - leveled.PitchDeg
 
-	nominalSeatAxis := SeatTubeAxis(bb, nominalStaAct)
-	frameSeatAxis := SeatTubeAxis(bb, seatAxisStaAct)
-	effSeatAxis := SeatTubeAxis(bb, effStaAct)
+	nominalSeatAxis := SeatTubeAxis(fr.BB, nominalStaAct)
+	frameSeatAxis := SeatTubeAxis(fr.BB, seatAxisStaAct)
+	effSeatAxis := SeatTubeAxis(fr.BB, effStaAct)
 
 	sa := frameSeatAxis.PointAt(fit.FrameSeatAxisHeightMm)
 
@@ -455,12 +553,12 @@ func BuildScene(
 		Cockpit:           cockpit,
 		Seat:              seat,
 		Fit:               fit,
-		BB:                bb,
-		RearAxle:          ra,
-		HeadTubeTop:       ht,
-		HeadTubeBottom:    htb,
+		BB:                fr.BB,
+		RearAxle:          fr.RearAxle,
+		HeadTubeTop:       fr.HeadTubeTop,
+		HeadTubeBottom:    fr.HeadTubeBottom,
 		LowerCupBottom:    lowerCupBottom,
-		FrontAxle:         fa,
+		FrontAxle:         fr.FrontAxle,
 		ChartL:            chartL,
 		ChartFrontAxle:    faChart,
 		DeclFrontAxle:     faDecl,
@@ -476,20 +574,38 @@ func BuildScene(
 		RailCenter:        railCenter,
 		BRP:               brp,
 		SitBones:          sb,
-		SteererClamp:      sc,
-		StemClamp:         cl,
-		HandGrip:          gr,
+		SteererClamp:      cockpitPts.SteererClamp,
+		StemClamp:         cockpitPts.StemClamp,
+		HandGrip:          cockpitPts.HandGrip,
 		TargetPoint:       fit.TargetPoint,
 		TargetRef:         fit.TargetRef,
 		RequiredStemClamp: reqClamp,
-		PitchDeg:          thetaDeg,
-		HtaDeg:            htaAct,
+		PitchDeg:          leveled.PitchDeg,
+		HtaDeg:            fr.HtaDeg,
 		NominalStaDeg:     nominalStaAct,
 		SeatAxisStaDeg:    seatAxisStaAct,
 		EffectiveStaDeg:   effStaAct,
 		ForkEffA2cMm:      forkEffA2c,
 		StructuralA2cMm:   forkEffA2c + build.PhysicalLowerCupMm,
 	}, nil
+}
+
+// WithCockpit returns a copy of s with the front cockpit re-evaluated for cockpit without re-pitching the frame.
+func (s BikeScene) WithCockpit(cockpit CockpitSpec) (BikeScene, error) {
+	if err := validateCockpitSpec(cockpit); err != nil {
+		return BikeScene{}, err
+	}
+	reqClamp, err := RequiredStemClamp(s.Fit, cockpit)
+	if err != nil {
+		return BikeScene{}, err
+	}
+	cockpitPts := placeFrontCockpit(s.HeadTubeTop, s.HtaDeg, cockpit)
+	s.Cockpit = cockpit
+	s.SteererClamp = cockpitPts.SteererClamp
+	s.StemClamp = cockpitPts.StemClamp
+	s.HandGrip = cockpitPts.HandGrip
+	s.RequiredStemClamp = reqClamp
+	return s, nil
 }
 
 // Reach returns the active frame reach in mm (HeadTubeTop.X relative to BB).
@@ -652,6 +768,19 @@ func validateCockpitTargetInputs(fit RiderFit, cockpit CockpitSpec) error {
 	return nil
 }
 
+func validateCockpitSpec(cockpit CockpitSpec) error {
+	if !isNonNegative(cockpit.HeadsetTopStackMm) || !isNonNegative(cockpit.SpacerMm) {
+		return fmt.Errorf("headset top stack (%.1f) and spacers (%.1f) must be non-negative", cockpit.HeadsetTopStackMm, cockpit.SpacerMm)
+	}
+	if !isPositive(cockpit.Stem.LengthMm) || !isPositive(cockpit.StemClampHeightMm) || !isFinite(float64(cockpit.Stem.AngleDeg)) {
+		return fmt.Errorf("stem requires positive LengthMm and StemClampHeightMm, got len=%.1f h=%.1f", cockpit.Stem.LengthMm, cockpit.StemClampHeightMm)
+	}
+	if !isFinite(float64(cockpit.BarRollDeg)) {
+		return fmt.Errorf("BarRollDeg must be finite")
+	}
+	return nil
+}
+
 func validateSceneInputs(
 	frame FrameSize,
 	build BuildSpec,
@@ -695,14 +824,8 @@ func validateSceneInputs(
 	if !isPositive(build.WheelRadiusFrontMm) || !isPositive(build.WheelRadiusRearMm) {
 		return fmt.Errorf("wheel radii must be positive, got front=%.1f rear=%.1f", build.WheelRadiusFrontMm, build.WheelRadiusRearMm)
 	}
-	if !isNonNegative(cockpit.HeadsetTopStackMm) || !isNonNegative(cockpit.SpacerMm) {
-		return fmt.Errorf("headset top stack (%.1f) and spacers (%.1f) must be non-negative", cockpit.HeadsetTopStackMm, cockpit.SpacerMm)
-	}
-	if !isPositive(cockpit.Stem.LengthMm) || !isPositive(cockpit.StemClampHeightMm) || !isFinite(float64(cockpit.Stem.AngleDeg)) {
-		return fmt.Errorf("stem requires positive LengthMm and StemClampHeightMm, got len=%.1f h=%.1f", cockpit.Stem.LengthMm, cockpit.StemClampHeightMm)
-	}
-	if !isFinite(float64(cockpit.BarRollDeg)) {
-		return fmt.Errorf("BarRollDeg must be finite")
+	if err := validateCockpitSpec(cockpit); err != nil {
+		return err
 	}
 	if !isNonNegative(seat.PostSetbackMm) || !isPositive(seat.ClampLengthMm) || !isPositive(seat.Saddle.RailLengthMm) || !isFinite(seat.RailOffsetMm) {
 		return fmt.Errorf("invalid SeatSpec (postSB=%.1f clamp=%.1f railLen=%.1f railOff=%.1f)", seat.PostSetbackMm, seat.ClampLengthMm, seat.Saddle.RailLengthMm, seat.RailOffsetMm)

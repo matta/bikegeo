@@ -101,21 +101,18 @@ func CalculateHBPointWithHandlebar(
 	gripInsetMm float64, rollDeg model.Deg,
 ) model.HBPoint {
 	headTubeTop := geom2d.Point2{X: reach, Y: stack}
-	steererAxis := SteererTubeAxis(headTubeTop, htaDeg)
+	cockpitPts := placeFrontCockpit(headTubeTop, htaDeg, CockpitSpec{
+		HeadsetTopStackMm: 0.0,
+		SpacerMm:          spacerMm,
+		Stem:              stem,
+		StemClampHeightMm: model.StemThicknessMm,
+		Handlebar:         bar,
+		BarRollDeg:        rollDeg,
+		GripInsetMm:       gripInsetMm,
+	})
 
-	dSteerer := spacerMm + model.StemThicknessMm/2.0
-	stemClamp := steererAxis.PointAt(dSteerer)
-
-	// Stem angle is rotated 90° clockwise from upward steerer axis, then rotated AngleDeg:
-	stemDir := steererAxis.Normal(geom2d.Clockwise).Rotate(stem.AngleDeg.Angle())
-	clampPoint := stemClamp.Add(stemDir.Scale(stem.LengthMm))
-
-	offset := GetHandlebarOffset(bar, gripInsetMm, rollDeg)
-	hbPoint := geom2d.Point2{
-		X: clampPoint.X + offset.X,
-		Y: clampPoint.Y + offset.Y,
-	}
-
+	clampPoint := cockpitPts.StemClamp
+	hbPoint := cockpitPts.HandGrip
 	brpPoint := brp.BrpPoint()
 	sitBonePoint := brp.SitBonePoint()
 	dist := hbPoint.DistanceTo(brpPoint)

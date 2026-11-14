@@ -723,34 +723,29 @@ func CalculateDynamicGeometry(
 	}
 
 	deltaA2c := newStructuralA2c - baseStructuralA2c
-
-	// Rigid-body displacement of the front axle in unrotated BB coordinates along the
-	// downward-forward steerer axis: SteererTubeDir(baseHta) points up-rearward (-cos, +sin),
-	// so lengthening structural A2C moves the front axle by SteererTubeDir.Scale(-deltaA2c).
-	steererDir := SteererTubeDir(baseHta)
-	axleVec := geom2d.Vec2{X: wheelbase, Y: 0}.Add(steererDir.Scale(-deltaA2c))
-
-	// Exact 2D rear-axle pitch angle needed to bring the front axle back to axle level.
-	// Use deltaA2c * steererDir.Y for the positive lift component so deltaA2c == 0 gives +0.0.
-	pitchAngle := geom2d.AngleFromSlope(axleVec.X, deltaA2c*steererDir.Y)
-	thetaDeg := model.DegOf(pitchAngle)
-
-	newHta := baseHta - thetaDeg
-	newSta := baseSta - thetaDeg
-
-	// Rotate Reach/Stack vector around Bottom Bracket
-	reachStack := geom2d.Vec2{X: baseReach, Y: baseStack}.Rotate(pitchAngle)
-	newReach := reachStack.X
-	newStack := reachStack.Y
-
-	// Compute Bottom Bracket displacement pivoting around rear axle (0,0)
 	cs := math.Max(chainstayLength, baseBbDrop+1.0)
-	xBb := math.Sqrt(math.Max(0, cs*cs-baseBbDrop*baseBbDrop))
+	ra0 := geom2d.Point2{
+		X: -RearCenterHoriz(cs, baseBbDrop),
+		Y: baseBbDrop,
+	}
+	u0 := SteererTubeDir(baseHta)
 
-	// In rear axle coordinate system, BB initial coords are (xBb, -baseBbDrop)
-	// Rotated by pitchAngle:
-	newPBB := geom2d.Vec2{X: xBb, Y: -baseBbDrop}.Rotate(pitchAngle)
-	newBbDrop := -newPBB.Y
+	leveled := levelFrame2D(frameLevelingInput{
+		Initial: frameLandmarks2D{
+			BB:          geom2d.Origin,
+			RearAxle:    ra0,
+			HeadTubeTop: geom2d.Point2{X: baseReach, Y: baseStack},
+			HtaDeg:      baseHta,
+		},
+		DeltaStructuralA2cMm:   deltaA2c,
+		WheelbaseBeforePitchMm: wheelbase - deltaA2c*u0.X,
+	})
+	fr := leveled.Leveled
+	newHta := fr.HtaDeg
+	newSta := baseSta - leveled.PitchDeg
+	newReach := fr.HeadTubeTop.X
+	newStack := fr.HeadTubeTop.Y
+	newBbDrop := fr.RearAxle.Y
 
 	return model.DynamicGeometryResult{
 		NewHta:        newHta,
@@ -758,7 +753,7 @@ func CalculateDynamicGeometry(
 		NewReach:      newReach,
 		NewStack:      newStack,
 		NewBbDrop:     newBbDrop,
-		DeltaAngleDeg: thetaDeg,
+		DeltaAngleDeg: leveled.PitchDeg,
 		DeltaReach:    newReach - baseReach,
 		DeltaStack:    newStack - baseStack,
 		DeltaBbDrop:   newBbDrop - baseBbDrop,
@@ -1021,9 +1016,11 @@ func AnalyzeBikeFitWithSaddle(
 	refSQ := model.ReferenceIdmatchSaddle()
 	brpSeatHeight := saddle.TranslateSaddleHeightFromRef(refSQ, seatHeight, 219.0)
 
-	geoSpacer := bike.GeoHeadsetSpacerMm
-
-	// 1. Reverse engineer baseline CAD geometric A2C
+	// 1. Validate rake and reverse-engineer baseline CAD geometric A2C for publish-mode inference.
+	rake := targetRake.Or(bike.ForkRake)
+	if rake <= 0 {
+		return model.BikeFitAnalysis{}, fmt.Errorf("fork rake must be positive, got %.1fmm", rake)
+	}
 	baseStructuralA2c, err := CalculateGeometricA2c(
 		bike.Stack,
 		bike.BbDrop,
@@ -1034,86 +1031,110 @@ func AnalyzeBikeFitWithSaddle(
 	if err != nil {
 		return model.BikeFitAnalysis{}, err
 	}
+	geoSpacer := bike.GeoHeadsetSpacerMm
 	baseForkA2c := baseStructuralA2c - geoSpacer
 
-	activeReach := bike.Reach
-	activeStack := bike.Stack
-	activeHta := bike.HtaDeg
-	activeSta := bike.StaDeg
-	if bike.HasBentSeatTube() {
-		activeSta = bike.CalculateEffectiveSta(brpSeatHeight, bike.Stack, bike.StaDeg)
+	// 2. Construct BikeScene under Commit 5 baseline assumptions:
+	//    HeadsetTopStackMm = 0 (C2 in Commit 7), constant-rake pitch with published wheelbase (C3 in Commit 6),
+	//    and PhysicalLowerCupMm = CadLowerCupMm (C4 in Commit 8).
+	frame, err := FrameSizeFromBikeGeometry(bike)
+	if err != nil {
+		return model.BikeFitAnalysis{}, err
 	}
-	// Frame-only seat-axis angles. seatAxisSta is the effective STA at the raw
-	// height H (not translated for the selected saddle), so AETT and the other
-	// Seat Axis metrics do not change when the saddle model changes. ettSta is
-	// the nominal STA, which for a bent seat tube is exact at stack height.
-	seatAxisSta := bike.CalculateEffectiveSta(seatHeight, bike.Stack, bike.StaDeg)
-	ettSta := bike.StaDeg
-	activeBbDrop := bike.BbDrop
-	activeStructuralA2c := baseStructuralA2c
-	deltaAngle := model.Deg(0.0)
-	deltaReach := 0.0
-	deltaStack := 0.0
-	deltaBbDrop := 0.0
+	if frame.ChainstayMm <= 0 {
+		frame.ChainstayMm = math.Max(430.0, math.Abs(frame.BbDropMm)+1.0)
+	}
 
-	// 2. If target A2C provided, normalize CAD baseline vs headset cup/spacer convention
-	// so evaluating at the declared CAD fork matches the published CAD chart exactly, then pitch.
+	buildFork := frame.CadFork
+	buildFork.RakeMm = rake
+	buildSag := frame.CadSagPct
 	if tA2c, ok := targetA2c.Get(); ok {
-		baselineStructuralA2c := baseStructuralA2c
-		if bike.CadFork.A2cMm > 0 {
-			baselineStructuralA2c = bike.CadFork.A2cMm + geoSpacer
-		} else if budget, ok := A2cBudget(bike); ok && bike.ForkA2c > 0 && budget.Within() {
-			// ForkA2c agrees with the published Stack within its rounding budget.
-			baselineStructuralA2c = bike.ForkA2c + geoSpacer
+		if !(bike.CadFork.A2cMm > 0 && tA2c == bike.CadFork.A2cMm) {
+			buildFork = Fork{StaticA2cMm: tA2c, RakeMm: rake}
+			buildSag = 0
 		}
-		totalNewA2c := tA2c + geoSpacer
-
-		wb := bike.Wheelbase
-		if wb <= 0 {
-			wb = 1150.0
-		}
-		cs := bike.ChainstayLength
-		if cs <= 0 {
-			cs = 430.0
-		}
-
-		staBeforePitch := activeSta
-		dyn := CalculateDynamicGeometry(
-			bike.Reach,
-			bike.Stack,
-			bike.HtaDeg,
-			activeSta,
-			bike.BbDrop,
-			baselineStructuralA2c,
-			totalNewA2c,
-			wb,
-			cs,
-		)
-
-		activeReach = dyn.NewReach
-		activeStack = dyn.NewStack
-		activeHta = dyn.NewHta
-		activeSta = dyn.NewSta
-		seatAxisSta -= staBeforePitch - dyn.NewSta
-		ettSta -= staBeforePitch - dyn.NewSta
-		activeBbDrop = dyn.NewBbDrop
-		activeStructuralA2c = dyn.TotalNewA2c
-		deltaAngle = dyn.DeltaAngleDeg
-		deltaReach = dyn.DeltaReach
-		deltaStack = dyn.DeltaStack
-		deltaBbDrop = dyn.DeltaBbDrop
+	}
+	build := BuildSpec{
+		Fork:               buildFork,
+		SagPct:             buildSag,
+		PhysicalLowerCupMm: frame.CadLowerCupMm,
+		WheelRadiusFrontMm: bike.WheelRadiusMm(),
+		WheelRadiusRearMm:  bike.WheelRadiusMm(),
 	}
 
-	// 3. Derived cockpit metrics
-	// Seat Axis metrics use the raw H; only BRP/HB metrics depend on the saddle.
-	if !bike.HasBentSeatTube() {
-		seatAxisSta = activeSta
+	bar := profile.Handlebar
+	if bar.ID == "" {
+		bar = catalog.DefaultHandlebar()
 	}
-	aett := CalculateAett(activeReach, activeStack, activeHta, seatAxisSta, seatHeight)
-	ett := CalculateEtt(activeReach, activeStack, activeHta, ettSta)
-	actualSetback := CalculateActualSetback(seatAxisSta, seatHeight)
-	verticalStack, axialLength := CalculateSteererStack(activeStack, seatAxisSta, activeHta, seatHeight)
-	seatpostExtension := CalculateSeatpostExtension(brpSeatHeight, bike.SeatTubeLength)
+	stems := bike.Stems
+	if len(stems) == 0 && bike.CanonicalStem.LengthMm > 0 {
+		stems = []model.StemSpec{bike.CanonicalStem}
+	}
+	baseStem := bike.CanonicalStem
+	if baseStem.LengthMm <= 0 {
+		if len(stems) > 0 && stems[0].LengthMm > 0 {
+			baseStem = stems[0]
+		} else {
+			baseStem = model.StemSpec{LengthMm: 70.0}
+		}
+	}
+	cockpit := CockpitSpec{
+		HeadsetTopStackMm: 0.0,
+		SpacerMm:          0.0,
+		Stem:              baseStem,
+		StemClampHeightMm: model.StemThicknessMm,
+		Handlebar:         bar,
+		BarRollDeg:        0.0,
+		GripInsetMm:       model.DefaultGripInsetMm,
+	}
+	seat := SeatSpec{
+		PostSetbackMm: model.DefaultSeatpostSetbackMm,
+		ClampLengthMm: model.DefaultSeatpostClampLengthMm,
+		Saddle:        saddle,
+		RailOffsetMm:  0.0,
+	}
+	fitTarget := RiderFit{
+		FrameSeatAxisHeightMm: seatHeight,
+		BrpHeightMm:           brpSeatHeight,
+		TargetSitBonesXMm:     -292.0,
+		TargetPoint:           geom2d.Point2{X: 480.9, Y: 726.1},
+		TargetRef:             TargetHandGrip,
+		ReferenceSaddle:       refSQ,
+	}
+
+	pitchWb := bike.Wheelbase
+	if pitchWb <= 0 {
+		pitchWb = 1150.0
+	}
+	scene, err := buildScene(frame, build, cockpit, seat, fitTarget, legacyPitchMode{
+		pitchWheelbaseOverride: pitchWb,
+		constantRakePitch:      true,
+	})
+	if err != nil {
+		return model.BikeFitAnalysis{}, err
+	}
+
+	activeReach := scene.Reach()
+	activeStack := scene.Stack()
+	activeHta := scene.HtaDeg
+	activeSta := scene.EffectiveStaDeg
+	activeBbDrop := scene.BbDrop()
+	activeStructuralA2c := scene.StructuralA2cMm
+	if !targetA2c.IsSet() {
+		activeStructuralA2c = baseStructuralA2c
+	}
+	deltaAngle := scene.PitchDeg
+	deltaReach := activeReach - bike.Reach
+	deltaStack := activeStack - bike.Stack
+	deltaBbDrop := activeBbDrop - bike.BbDrop
+
+	// 3. Derived frame seat-axis & cockpit metrics from BikeScene
+	aett := scene.AettMm()
+	ett := scene.EttMm()
+	actualSetback := scene.SeatAxisActualSetbackMm()
+	verticalStack := scene.SpareVerticalStackMm()
+	axialLength := scene.SpareAxialSteererMm()
+	seatpostExtension, _ := scene.SeatpostExtensionMm()
 
 	// 4. Infer CAD publish mode
 	inferredPublishMode := "Unspecified"
@@ -1150,10 +1171,6 @@ func AnalyzeBikeFitWithSaddle(
 	if htl <= 0 {
 		htl = 120.0
 	}
-	rake := targetRake.Or(bike.ForkRake)
-	if rake <= 0 {
-		return model.BikeFitAnalysis{}, fmt.Errorf("fork rake must be positive, got %.1fmm", rake)
-	}
 
 	weightDist := CalculateWeightDistribution(
 		activeReach,
@@ -1167,14 +1184,22 @@ func AnalyzeBikeFitWithSaddle(
 		posture,
 	)
 
-	// 6. Cockpit BRP & HB Points and Saddle-Handlebar Distance
-	deadCenterBRP := CalculateSaddleBRPPoint(
-		activeSta,
-		brpSeatHeight,
-		model.DefaultSeatpostSetbackMm,
-		saddle,
-		0.0,
-	)
+	// 6. Cockpit BRP & HB Points and Saddle-Handlebar Distance from BikeScene
+	deadCenterBRP := model.BRPPoint{
+		Saddle:                saddle,
+		SeatpostSetbackMm:     seat.PostSetbackMm,
+		SaddleBrpOffsetMm:     saddle.RailCenterToBrpMm,
+		RailOffsetMm:          seat.RailOffsetMm,
+		AchievedClampOffsetMm: seat.RailOffsetMm,
+		TotalPerpOffsetMm:     seat.PostSetbackMm + seat.RailOffsetMm - saddle.RailCenterToBrpMm,
+		BrpX:                  scene.BRP.X,
+		BrpY:                  scene.BRP.Y,
+		SitBoneX:              scene.SitBones.X,
+		SitBoneY:              scene.SitBones.Y,
+		BrpSetbackMm:          scene.BrpSetbackMm(),
+		SitBoneSetbackMm:      scene.SitBoneSetbackMm(),
+		BrpAngleFromBbDeg:     scene.BrpAngleFromBbDeg(),
+	}
 	possibleBRPs := MapPossibleSaddleBRPs(
 		activeSta,
 		brpSeatHeight,
@@ -1184,11 +1209,29 @@ func AnalyzeBikeFitWithSaddle(
 	)
 	selectedBRP := deadCenterBRP
 
-	bar := profile.Handlebar
-	if bar.ID == "" {
-		bar = catalog.DefaultHandlebar()
+	spacers := bike.GetSpacersMm()
+	var possibleHBs []model.HBPoint
+	for _, st := range stems {
+		for _, sp := range spacers {
+			cand := cockpit
+			cand.Stem = st
+			cand.SpacerMm = sp
+			sc, err := scene.WithCockpit(cand)
+			if err != nil {
+				return model.BikeFitAnalysis{}, err
+			}
+			possibleHBs = append(possibleHBs, model.HBPoint{
+				Stem:           st,
+				SpacerMm:       sp,
+				ClampX:         sc.StemClamp.X,
+				ClampY:         sc.StemClamp.Y,
+				HbX:            sc.HandGrip.X,
+				HbY:            sc.HandGrip.Y,
+				SaddleHbMm:     sc.GripDistFromBrpMm(),
+				SaddleHbDropMm: sc.GripRiseAboveSitBonesMm(),
+			})
+		}
 	}
-	possibleHBs := MapPossibleHBsWithHandlebar(bike, activeReach, activeStack, activeHta, selectedBRP, bar, model.DefaultGripInsetMm, 0.0)
 	var selectedHB *model.HBPoint
 	var saddleHbMm float64
 	var saddleHbDropMm float64
@@ -1228,7 +1271,7 @@ func AnalyzeBikeFitWithSaddle(
 		WheelbaseCalc:      weightDist.WheelbaseCalc,
 		ActiveChainstay:    activeCS,
 		ChainstayDesc:      csDesc,
-		TrailMm:            CalculateTrail(activeHta, rake, bike.WheelRadiusMm()),
+		TrailMm:            scene.TrailMm(),
 
 		Saddle:              saddle,
 		Handlebar:           bar,
