@@ -831,12 +831,12 @@ func frontEndLength(stack, bbDrop float64, htaDeg model.Deg, rake float64) (leng
 func CalculateDynamicGeometry(
 	baseReach, baseStack float64, baseHta, baseSta model.Deg, baseBbDrop, baseStructuralA2c, newStructuralA2c float64,
 	wheelbase, chainstayLength float64,
-) model.DynamicGeometryResult {
+) (model.DynamicGeometryResult, error) {
 	if wheelbase <= 0 {
-		wheelbase = 1150.0
+		return model.DynamicGeometryResult{}, fmt.Errorf("wheelbase must be positive, got %v", wheelbase)
 	}
 	if chainstayLength <= 0 {
-		chainstayLength = 430.0
+		return model.DynamicGeometryResult{}, fmt.Errorf("chainstayLength must be positive, got %v", chainstayLength)
 	}
 
 	deltaA2c := newStructuralA2c - baseStructuralA2c
@@ -875,7 +875,7 @@ func CalculateDynamicGeometry(
 		DeltaStack:    newStack - baseStack,
 		DeltaBbDrop:   newBbDrop - baseBbDrop,
 		TotalNewA2c:   newStructuralA2c,
-	}
+	}, nil
 }
 
 // CalculateFrontCenter calculates theoretical horizontal Front-Center from frame geometry.
@@ -958,9 +958,6 @@ func AnalyzeBikeFitWithSaddle(
 	frame, err := FrameSizeFromBikeGeometry(bike)
 	if err != nil {
 		return model.BikeFitAnalysis{}, err
-	}
-	if frame.ChainstayMm <= 0 {
-		frame.ChainstayMm = math.Max(430.0, math.Abs(frame.BbDropMm)+1.0)
 	}
 
 	buildFork := frame.CadFork
@@ -1073,10 +1070,7 @@ func AnalyzeBikeFitWithSaddle(
 	}
 
 	// 5. Chainstay Description
-	activeCS := bike.ChainstayLength
-	if activeCS <= 0 {
-		activeCS = 440.0
-	}
+	activeCS := scene.Frame.ChainstayMm
 	csDesc := fmt.Sprintf("%.1f mm [fixed]", activeCS)
 	if bike.HasAdjustableChainstay() {
 		activeCS = bike.GetMaxChainstay()
@@ -1216,7 +1210,7 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string) (model.BikeGeo
 	cadA2c := frame.CadFork.A2cMm
 	cadRake := frame.CadFork.RakeMm
 	if cadRake <= 0 {
-		cadRake = 44.0
+		return model.BikeGeometry{}, fmt.Errorf("frame %q requires positive CAD fork rake, got %v", frame.ID, cadRake)
 	}
 
 	return model.BikeGeometry{

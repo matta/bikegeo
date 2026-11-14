@@ -1,6 +1,7 @@
 package geometry
 
 import (
+	"fmt"
 	"math"
 
 	"bikegeo/pkg/geom2d"
@@ -102,21 +103,18 @@ func AnalyzeSaddleSwap(
 	clampLengthMm float64,
 	hbDistanceMm float64,
 	hbDropMm float64,
-) SaddleSwapReport {
+) (SaddleSwapReport, error) {
 	if saddleHeightMm <= 0 {
-		saddleHeightMm = model.DefaultIdmatchSaddleHeightMm
+		return SaddleSwapReport{}, fmt.Errorf("saddleHeightMm must be positive, got %v", saddleHeightMm)
 	}
 	if sitBoneSetbackMm <= 0 {
-		sitBoneSetbackMm = model.DefaultTargetSitBoneSetbackMm
+		return SaddleSwapReport{}, fmt.Errorf("sitBoneSetbackMm must be positive, got %v", sitBoneSetbackMm)
 	}
 	if clampLengthMm <= 0 {
-		clampLengthMm = model.DefaultSeatpostClampLengthMm
+		return SaddleSwapReport{}, fmt.Errorf("clampLengthMm must be positive, got %v", clampLengthMm)
 	}
 	if hbDistanceMm <= 0 {
-		hbDistanceMm = 700.0
-	}
-	if hbDropMm == 0 {
-		hbDropMm = 13.0
+		return SaddleSwapReport{}, fmt.Errorf("hbDistanceMm must be positive, got %v", hbDistanceMm)
 	}
 
 	sourceSpan := source.DeltaBrpToSitBonesMm()
@@ -336,5 +334,5 @@ func AnalyzeSaddleSwap(
 		Naive:                          naiveOutcome,
 		Pelvic:                         pelvicOutcome,
 		SeatpostRows:                   hwRows,
-	}
+	}, nil
 }

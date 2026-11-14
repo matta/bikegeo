@@ -18,7 +18,7 @@ func TestAnalyzeSaddleSwap_SQlabToBerthoudAspin(t *testing.T) {
 		t.Fatalf("Failed to find berthoud-aspin-open")
 	}
 
-	report := AnalyzeSaddleSwap(
+	report, err := AnalyzeSaddleSwap(
 		sqlab,
 		aspin,
 		746.0,
@@ -28,6 +28,9 @@ func TestAnalyzeSaddleSwap_SQlabToBerthoudAspin(t *testing.T) {
 		700.0,
 		13.0,
 	)
+	if err != nil {
+		t.Fatalf("AnalyzeSaddleSwap failed: %v", err)
+	}
 
 	// 1. Check dimensional deltas (BRP skew vs true pelvic delta and 2D step)
 	if report.BrpToSitBonesSpanDeltaMm != 15.0 {
@@ -148,7 +151,7 @@ func TestAnalyzeSaddleSwap_SQlabToSLRBoost(t *testing.T) {
 	sqlab, _ := catalog.GetSaddle("sqlab-610-ergolux")
 	slr, _ := catalog.GetSaddle("selle-italia-slr-boost-superflow-l3")
 
-	report := AnalyzeSaddleSwap(
+	report, err := AnalyzeSaddleSwap(
 		sqlab,
 		slr,
 		746.0,
@@ -158,6 +161,9 @@ func TestAnalyzeSaddleSwap_SQlabToSLRBoost(t *testing.T) {
 		700.0,
 		13.0,
 	)
+	if err != nil {
+		t.Fatalf("AnalyzeSaddleSwap failed: %v", err)
+	}
 
 	// SLR Boost sit bones are 15.3mm further rearward (-65.3 vs -50.0)
 	if report.RailCenterToSitBonesDeltaMm != -15.3 {
@@ -171,5 +177,33 @@ func TestAnalyzeSaddleSwap_SQlabToSLRBoost(t *testing.T) {
 	// Pelvic clamp offset is -15.3mm, which exceeds [-5, +5] on 11mm post
 	if report.Pelvic.IsFeasible {
 		t.Errorf("Expected SLR Boost pelvic fit on 11mm post to exceed ±5mm clamp window")
+	}
+}
+
+func TestAnalyzeSaddleSwap_ZeroDropAllowedAndInvalidRejected(t *testing.T) {
+	sqlab, _ := catalog.GetSaddle("sqlab-610-ergolux")
+	aspin, _ := catalog.GetSaddle("berthoud-aspin-open")
+
+	// hbDropMm == 0 (level bar) must be preserved, not overwritten with 13.0.
+	rep, err := AnalyzeSaddleSwap(sqlab, aspin, 746.0, 292.0, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm, 700.0, 0.0)
+	if err != nil {
+		t.Fatalf("AnalyzeSaddleSwap(hbDropMm=0) failed: %v", err)
+	}
+	if rep.HbDropMm != 0 {
+		t.Errorf("HbDropMm = %.1f, want 0.0", rep.HbDropMm)
+	}
+
+	for _, tc := range []struct {
+		name           string
+		sh, sb, cl, hb float64
+	}{
+		{"saddleHeight<=0", 0, 292, 30, 700},
+		{"sitBoneSetback<=0", 746, 0, 30, 700},
+		{"clampLength<=0", 746, 292, 0, 700},
+		{"hbDistance<=0", 746, 292, 30, 0},
+	} {
+		if _, err := AnalyzeSaddleSwap(sqlab, aspin, tc.sh, tc.sb, 25, tc.cl, tc.hb, 0); err == nil {
+			t.Errorf("%s: expected error, got nil", tc.name)
+		}
 	}
 }

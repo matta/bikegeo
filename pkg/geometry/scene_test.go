@@ -142,10 +142,13 @@ func TestBuildScene_ParityWithCalculateDynamicGeometry_ConstantRake(t *testing.T
 
 						// Compare against CalculateDynamicGeometry using wbChart on constant-rake setup.
 						effStaCad := frame.EffectiveStaDegAt(brpH)
-						dyn := geometry.CalculateDynamicGeometry(
+						dyn, err := geometry.CalculateDynamicGeometry(
 							bike.Reach, bike.Stack, bike.HtaDeg, effStaCad, bike.BbDrop,
 							baseStruct, targetEff+frame.CadLowerCupMm, wbChart, bike.ChainstayLength,
 						)
+						if err != nil {
+							t.Fatalf("CalculateDynamicGeometry(%s %s): %v", frameModel.ID, sz, err)
+						}
 
 						if d := math.Abs(scene.Reach() - dyn.NewReach); d > 1e-9 {
 							t.Errorf("%s %s d=%.0f: Reach diff %.12f (scene=%.6f dyn=%.6f)", frameModel.ID, sz, delta, d, scene.Reach(), dyn.NewReach)

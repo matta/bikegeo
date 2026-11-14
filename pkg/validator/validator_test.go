@@ -1082,12 +1082,26 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 					t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frame.ID, sz, err)
 				}
 				baseStruct := bike.CadFork.A2cMm + bike.GeoHeadsetSpacerMm
+				wb := bike.Wheelbase
+				if wb <= 0 {
+					fc := geometry.CalculateFrontCenter(bike.Reach, bike.Htl, bike.HtaDeg, bike.ForkRake, baseStruct)
+					wb = math.Sqrt(math.Max(0, fc*fc-bike.BbDrop*bike.BbDrop)) + geometry.RearCenterHoriz(bike.ChainstayLength, bike.BbDrop)
+				}
 				for _, s := range setups {
 					// Pre-BikeScene/C4: check cup vs A2C interchangeability on CalculateDynamicGeometry
 					// and strict monotonic slackening through AnalyzeBikeFitWithSaddle.
-					dynBase := geometry.CalculateDynamicGeometry(bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg, bike.BbDrop, baseStruct, s.A2cMm+bike.GeoHeadsetSpacerMm, bike.Wheelbase, bike.ChainstayLength)
-					dynCup := geometry.CalculateDynamicGeometry(bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg, bike.BbDrop, baseStruct, s.A2cMm+(bike.GeoHeadsetSpacerMm+extraMm), bike.Wheelbase, bike.ChainstayLength)
-					dynA2c := geometry.CalculateDynamicGeometry(bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg, bike.BbDrop, baseStruct, (s.A2cMm+extraMm)+bike.GeoHeadsetSpacerMm, bike.Wheelbase, bike.ChainstayLength)
+					dynBase, err := geometry.CalculateDynamicGeometry(bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg, bike.BbDrop, baseStruct, s.A2cMm+bike.GeoHeadsetSpacerMm, wb, bike.ChainstayLength)
+					if err != nil {
+						t.Fatalf("CalculateDynamicGeometry(%s, %s): %v", frame.ID, sz, err)
+					}
+					dynCup, err := geometry.CalculateDynamicGeometry(bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg, bike.BbDrop, baseStruct, s.A2cMm+(bike.GeoHeadsetSpacerMm+extraMm), wb, bike.ChainstayLength)
+					if err != nil {
+						t.Fatalf("CalculateDynamicGeometry(%s, %s): %v", frame.ID, sz, err)
+					}
+					dynA2c, err := geometry.CalculateDynamicGeometry(bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg, bike.BbDrop, baseStruct, (s.A2cMm+extraMm)+bike.GeoHeadsetSpacerMm, wb, bike.ChainstayLength)
+					if err != nil {
+						t.Fatalf("CalculateDynamicGeometry(%s, %s): %v", frame.ID, sz, err)
+					}
 
 					if d := math.Abs(dynCup.NewReach - dynA2c.NewReach); d > 1e-9 {
 						t.Errorf("%s %s (%s): Reach cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)

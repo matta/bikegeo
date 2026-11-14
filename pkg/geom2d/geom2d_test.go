@@ -194,4 +194,10 @@ func TestEllipse2(t *testing.T) {
 	if insideFar || rFar <= 1.0 {
 		t.Errorf("distant point should be outside, r=%v", rFar)
 	}
+
+	// Degenerate zero/negative semi-axes must never report inside
+	bad := Ellipse2{Center: Point2{X: 0, Y: 0}, SemiMinorA: 0, SemiMajorB: 20}
+	if r, in := bad.Evaluate(Point2{X: 0, Y: 0}); in || !math.IsInf(r, 1) {
+		t.Errorf("degenerate ellipse Evaluate = (%v, %v), want (+Inf, false)", r, in)
+	}
 }

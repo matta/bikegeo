@@ -88,7 +88,7 @@ func ExpandPlausibleForkSetups(
 				rake = frame.CadFork.RakeMm
 			}
 			if rake <= 0 {
-				rake = 44.0
+				return nil, fmt.Errorf("frame %q rigid fork %q requires positive rake, got %v", frame.ID, rf.Fork, rake)
 			}
 			if hasRange && (rf.A2cMm < minA2c-0.1 || rf.A2cMm > maxA2c+0.1) {
 				continue
@@ -347,7 +347,7 @@ func ResolveForkToken(
 			targetA2c = a2cVal
 			targetRake = frame.CadFork.RakeMm
 			if targetRake <= 0 {
-				targetRake = 44.0
+				return ResolvedFork{}, fmt.Errorf("frame %q requires positive CAD fork rake for %q, got %v", frame.ID, token, targetRake)
 			}
 		}
 		staticA2c = targetA2c
@@ -366,7 +366,7 @@ func ResolveForkToken(
 					rk = frame.CadFork.RakeMm
 				}
 				if rk <= 0 {
-					rk = 44.0
+					continue
 				}
 				if math.Abs(targetA2c-f.A2cMm) < 0.05 && math.Abs(targetRake-rk) < 0.05 {
 					displayLabel = FormatRigidFork(targetA2c)
@@ -560,7 +560,7 @@ func ResolveFrameForkSetupWithSaddle(
 	if targetRake <= 0 {
 		targetRake = frame.CadFork.RakeMm
 		if targetRake <= 0 {
-			targetRake = 44.0
+			return model.CanonicalComparisonRow{}, fmt.Errorf("frame %q requires positive fork rake, got %v", frame.ID, targetRake)
 		}
 	}
 	if displayLabel == "" {
@@ -645,9 +645,6 @@ func CanonicalizeBikes(
 		frame, err := geometry.FrameSizeFromBikeGeometry(bike)
 		if err != nil {
 			return nil, err
-		}
-		if frame.ChainstayMm <= 0 {
-			frame.ChainstayMm = math.Max(430.0, math.Abs(frame.BbDropMm)+1.0)
 		}
 		bar := config.RiderProfile.Handlebar
 		if bar.ID == "" {

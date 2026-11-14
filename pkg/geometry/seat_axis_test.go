@@ -13,7 +13,7 @@ func seatAxisTestBike() model.BikeGeometry {
 	return model.BikeGeometry{
 		ID: "test-m", Manufacturer: "Test", Model: "Bike", Size: "M",
 		Reach: 398.0, Stack: 656.0, HtaDeg: 69.0, StaDeg: 74.0,
-		Htl: 150.0, BbDrop: 70.0, ForkRake: 44.0, ForkA2c: 521.0,
+		Htl: 150.0, BbDrop: 70.0, ChainstayLength: 430.0, ForkRake: 44.0, ForkA2c: 521.0,
 		HeadsetCupType: model.CupEC44, GeoHeadsetSpacerMm: 12.0, Wheelbase: 1150.0,
 	}
 }

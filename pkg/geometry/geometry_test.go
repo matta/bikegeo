@@ -26,6 +26,7 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 		StaDeg:             74.0,
 		Htl:                150.0,
 		BbDrop:             70.0,
+		ChainstayLength:    430.0,
 		ForkRake:           44.0,
 		ForkA2c:            521.0,
 		HeadsetCupType:     model.CupEC44,
@@ -55,7 +56,7 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 
 	// Step 2: Dynamic Geometry
 	totalNewA2c := saggedFork + 12.0 // 428.8 mm
-	dyn := geometry.CalculateDynamicGeometry(
+	dyn, err := geometry.CalculateDynamicGeometry(
 		binaryHavok.Reach,
 		binaryHavok.Stack,
 		binaryHavok.HtaDeg,
@@ -66,6 +67,9 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 		binaryHavok.Wheelbase,
 		430.0,
 	)
+	if err != nil {
+		t.Fatalf("CalculateDynamicGeometry failed: %v", err)
+	}
 
 	if geometry.Round(dyn.NewHta, 2) != 72.12 {
 		t.Errorf("Expected NewHta 72.12, got %.2f", dyn.NewHta)
@@ -234,20 +238,21 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 
 	// Test Revel El Jefe Large in AnalyzeBikeFit pipeline
 	elJefeLarge := model.BikeGeometry{
-		ID:           "revel-el-jefe-l",
-		Manufacturer: "Revel",
-		Model:        "El Jefe",
-		Size:         "L",
-		Reach:        474.0,
-		Stack:        615.0,
-		HtaDeg:       67.5,
-		StaDeg:       75.0,
-		ActualStaDeg: 73.3,
-		Htl:          106.0,
-		BbDrop:       68.0,
-		ForkRake:     44.0,
-		ForkA2c:      510.0,
-		Wheelbase:    1167.0,
+		ID:              "revel-el-jefe-l",
+		Manufacturer:    "Revel",
+		Model:           "El Jefe",
+		Size:            "L",
+		Reach:           474.0,
+		Stack:           615.0,
+		HtaDeg:          67.5,
+		StaDeg:          75.0,
+		ActualStaDeg:    73.3,
+		Htl:             106.0,
+		BbDrop:          68.0,
+		ChainstayLength: 430.0,
+		ForkRake:        44.0,
+		ForkA2c:         510.0,
+		Wheelbase:       1167.0,
 	}
 
 	if !elJefeLarge.HasBentSeatTube() {
@@ -1024,10 +1029,13 @@ func TestCalculateDynamicGeometry_Exact2DRotation(t *testing.T) {
 	baseRearDist := cs
 
 	for _, delta := range []float64{-50, -25, 0, 25, 50} {
-		dyn := geometry.CalculateDynamicGeometry(
+		dyn, err := geometry.CalculateDynamicGeometry(
 			baseReach, baseStack, model.Deg(baseHta), model.Deg(baseSta), baseBbDrop,
 			495.0, 495.0+delta, wb, cs,
 		)
+		if err != nil {
+			t.Fatalf("CalculateDynamicGeometry(delta=%.0f) failed: %v", delta, err)
+		}
 		newDist := math.Hypot(dyn.NewReach, dyn.NewStack)
 		if math.Abs(newDist-baseDist) > 0.2 {
 			t.Errorf("delta=%.0fmm: BB-to-HT distance %.2f drifted from %.2f", delta, newDist, baseDist)
@@ -1042,7 +1050,10 @@ func TestCalculateDynamicGeometry_Exact2DRotation(t *testing.T) {
 	}
 
 	// Verify exact 2D pitch formula vs small-angle asin(dy/wb) at +50mm swap.
-	dyn50 := geometry.CalculateDynamicGeometry(baseReach, baseStack, model.Deg(baseHta), model.Deg(baseSta), baseBbDrop, 495.0, 545.0, wb, cs)
+	dyn50, err := geometry.CalculateDynamicGeometry(baseReach, baseStack, model.Deg(baseHta), model.Deg(baseSta), baseBbDrop, 495.0, 545.0, wb, cs)
+	if err != nil {
+		t.Fatalf("CalculateDynamicGeometry(+50) failed: %v", err)
+	}
 	htaRad := baseHta * math.Pi / 180.0
 	wantDeg := math.Atan2(50.0*math.Sin(htaRad), wb+50.0*math.Cos(htaRad)) * 180.0 / math.Pi
 	if math.Abs(float64(dyn50.DeltaAngleDeg)-wantDeg) > 0.015 {

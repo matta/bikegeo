@@ -151,7 +151,7 @@ func (db *docb) saddleSwap(v url.Values) int {
 		var summaryRows [][]string
 
 		for _, tgt := range targetSaddles {
-			rep := geometry.AnalyzeSaddleSwap(
+			rep, err := geometry.AnalyzeSaddleSwap(
 				sourceSaddle,
 				tgt,
 				saddleHeight,
@@ -161,6 +161,10 @@ func (db *docb) saddleSwap(v url.Values) int {
 				hbDistance,
 				hbDrop,
 			)
+			if err != nil {
+				db.fail("Error: %v", err)
+				return 1
+			}
 
 			c30 := "Feasible"
 			if !rep.Pelvic.IsFeasible {
@@ -209,7 +213,7 @@ func (db *docb) saddleSwap(v url.Values) int {
 	// 2. Detailed Breakdown for each target saddle
 	for _, targetSaddle := range targetSaddles {
 
-		swap := geometry.AnalyzeSaddleSwap(
+		swap, err := geometry.AnalyzeSaddleSwap(
 			sourceSaddle,
 			targetSaddle,
 			saddleHeight,
@@ -219,6 +223,10 @@ func (db *docb) saddleSwap(v url.Values) int {
 			hbDistance,
 			hbDrop,
 		)
+		if err != nil {
+			db.fail("Error: %v", err)
+			return 1
+		}
 
 		// 1. Unified Saddle Swap Table (Sit Position Invariant, BRP Shifts, Workshop Actions)
 		title := fmt.Sprintf("Saddle Swap Analysis: %s → %s", sourceSaddle.Name, targetSaddle.Name)

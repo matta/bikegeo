@@ -366,12 +366,9 @@ func (e Ellipse2) Evaluate(p Point2) (normalizedRadius float64, isInside bool) {
 	pMinor := dx*cosT - dy*sinT
 
 	a := e.SemiMinorA
-	if a <= 0 {
-		a = 10.0
-	}
 	b := e.SemiMajorB
-	if b <= 0 {
-		b = 20.0
+	if a <= 0 || b <= 0 {
+		return math.Inf(1), false
 	}
 
 	r := math.Hypot(pMinor/a, pMajor/b)
