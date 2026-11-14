@@ -71,8 +71,8 @@ Verify that CAD validation passes within the rounding budgets, without a `GeoSlo
 ```bash
 go run ./cmd/bikegeo validate <frame-id>
 ```
-Then run the fast feedback verification loop:
+Then run the required pre-commit workflow (which runs `go fix`, `go fmt`, `go vet`, `exhaustive`, and the full test suite; review any `go fix` diff per `AGENTS.md` to ensure no published geometry values changed):
 ```bash
-go vet ./... && go test ./...
+make pre-commit
 ```
 `TestAllFrameData` in `pkg/validator/validator_test.go` automatically validates all frames in `frames.AllFrames()`. You do **not** need to add boilerplate frame tests or edit hard-coded counts.

@@ -10,15 +10,15 @@ After **every** code modification, always execute the following command to verif
 go vet ./... && go test ./...
 ```
 
-## Final Verification & Cleanup
+## Final Verification & Pre-Commit Cleanup
 
-Formatting and modernization are not part of the fast feedback loop, but are part of the final cleanup stages of code modification. Before completing a task or submitting changes, apply the toolchain's automatic modernizations, format all Go source files, and verify the full check suite:
+Formatting and modernization are not part of the fast feedback loop, but are required before committing or completing a task. Run the codified pre-commit target, which executes `go fix ./...`, `go fmt ./...`, `go vet ./...`, `go tool exhaustive ./...`, and `go test -v ./...`:
 
 ```bash
-go fix ./... && go fmt ./... && make check
+make pre-commit
 ```
 
-- `go fix` rewrites code to current language and library idioms (for example `new(expr)` for pointer literals, `strings.FieldsSeq`, `maps.Copy`). Run it with the Go version pinned in `go.mod`, and re-run it until it reports no further changes.
+- `go fix` rewrites code to current language and library idioms (for example `new(expr)` for pointer literals, `strings.FieldsSeq`, `maps.Copy`). `make fix` (and `make pre-commit`) runs it with the Go version pinned in `go.mod`; if `go fix` makes changes, re-run `make pre-commit` until it reports no further changes.
 - Review its diff before committing. Its rewrites must be semantically neutral: if a change touches `pkg/frames/*.go`, confirm only idioms changed and no published geometry value did (see the chart-immutability rule below). Commit `go fix` output separately from feature work so it stays reviewable.
 - If a rewrite produces an awkward result (such as an aliased import like `maps0` caused by a shadowing variable), fix the cause (rename the variable) rather than keeping the workaround.
 
@@ -89,10 +89,9 @@ When adding or editing frame files in `pkg/frames/*.go`:
 - **Unit & Integration Tests**:
   - Domain math, validation, canonicalization, ideal profiles, scoring, fit solver, and CLI subcommands (`compare`, `validate`, `list`, `fit`) are tested in `pkg/*/*_test.go`. CLI tests assert on cell values (`runCLIRows` flattens Markdown tables), not on padding.
   - HTTP handlers and templates are tested browserlessly in `pkg/web/web_test.go`: `httptest.NewRequest` (set `req.Host = "127.0.0.1:8080"`) → `web.New().ServeHTTP` → `goquery` selectors such as `tr[data-frame-id="..."] td[data-metric="..."]`. No Playwright, Selenium, or other browser automation.
-- **Command**:
-  ```bash
-  go vet ./... && go test -v ./...
-  ```
+- **Commands**:
+  - `make check` — formats, vets, runs `exhaustive`, and runs the full test suite.
+  - `make pre-commit` — required pre-commit workflow (`fix` + `check`).
 
 ## Output Formatting & Markdown Guidelines
 

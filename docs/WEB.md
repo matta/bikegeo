@@ -85,7 +85,7 @@ Invalid input returns `400` and re-renders the page with an alert banner (`#erro
 
 ## Testing
 
-Everything runs under `go test ./...`, in process, with no browser:
+Everything runs under `make test` (`go test -v ./...`), in process, with no browser:
 
 1. Build a request with `httptest.NewRequest` (set `req.Host = "127.0.0.1:8080"`).
 2. Serve it with `web.New().ServeHTTP(recorder, req)`.

@@ -101,5 +101,6 @@ Compare matrices with zone-coloured cells, sticky headers and linked metric defi
 ## Running Verification & Tests
 
 ```bash
-go vet ./... && go test -v ./...
+make check       # format, vet, exhaustive enum check, and run tests
+make pre-commit  # required pre-commit step: runs go fix + make check
 ```

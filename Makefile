@@ -1,8 +1,11 @@
-.PHONY: all fmt vet exhaustive test check build run serve clean watch
+.PHONY: all fix fmt vet exhaustive test check pre-commit build run serve clean watch
 
 export PATH := $(HOME)/go/bin:$(PATH)
 
 all: check build
+
+fix:
+	go fix ./...
 
 fmt:
 	go fmt ./...
@@ -21,6 +24,9 @@ test:
 	go test -v ./...
 
 check: vet exhaustive test
+
+# Required pre-commit workflow: modernize with go fix, then run full check.
+pre-commit: fix check
 
 watch:
 	watchexec -c -f '*.go' -f 'go.*' -f '*.json' -f '*.s' -f '*.[ch]' "go vet ./... && go test ./..."

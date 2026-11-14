@@ -504,7 +504,7 @@ Every figure below is measured from `find/wc -l` on current non-test Go sources 
 
 ### 3. Granular Commit-by-Commit Execution Plan (23 Atomic Commits Across 5 Phases)
 
-Every commit below has a single responsibility, is independently reviewable, and keeps `go vet ./... && go test ./...` passing. Refactors are strictly separated from behavior-changing fixes so test diffs only appear on commits that intentionally change an equation or label. Any commit that changes a rule in [AGENTS.md](AGENTS.md) or [docs/WEB.md](docs/WEB.md) amends that document in the same commit (§4).
+Every commit below has a single responsibility, is independently reviewable, and passes `make pre-commit` (which runs `go fix`, `go fmt`, `go vet`, `exhaustive`, and `go test`) before committing. Refactors are strictly separated from behavior-changing fixes so test diffs only appear on commits that intentionally change an equation or label. Any commit that changes a rule in [AGENTS.md](AGENTS.md) or [docs/WEB.md](docs/WEB.md) amends that document in the same commit (§4).
 
 **Resolved pre-implementation decisions**:
 - **C1 / Explicit Cockpit Point Typing**: Every cockpit coordinate, distance, drop, or target in code must explicitly state what physical point it represents (`StemClamp`, `UnsweptBarTop`, `HandGrip`, or `ReferenceBarClamp` via `TargetRef`)—no bare or implicit `HB` / `HX` / `HY` values are permitted anywhere. All four `TargetRef` modes remain supported so readings 1–3 can be evaluated and compared explicitly while C1 is verified with Seven and the fitter.
