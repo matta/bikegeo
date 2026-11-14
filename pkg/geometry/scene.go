@@ -796,6 +796,51 @@ func (s BikeScene) SeatpostExtensionMm() (float64, bool) {
 // RearCenterWheelbaseRatio returns RearCenter / Wheelbase.
 func (s BikeScene) RearCenterWheelbaseRatio() float64 { return s.RearCenter() / s.Wheelbase() }
 
+func (s BikeScene) seatTubeDistance() float64 {
+	if stl, ok := s.Frame.SeatTubeLengthMm.Get(); ok && stl > 0 {
+		return stl
+	}
+	fallback := s.SeatpostClamp.DistanceTo(s.BB) * 0.75
+	if dirY := s.NominalSeatAxis.Direction.Y; dirY > 1e-6 && s.HeadTubeTop.Y > 0 {
+		horiz := s.HeadTubeTop.Y / dirY
+		if horiz > 0 && (fallback <= 0 || horiz < fallback) {
+			return horiz
+		}
+	}
+	return fallback
+}
+
+func (s BikeScene) upperSeatTubeAxis() geom2d.Axis2 {
+	oxVec := geom2d.Vec2{X: s.Frame.SeatTubeOffsetX(), Y: 0}.Rotate((-s.PitchDeg).Angle())
+	return SeatTubeAxis(s.BB.Add(oxVec), s.Frame.ActualStaDeg-s.PitchDeg)
+}
+
+// SeatTubeBend returns the bend point for frames with a bent seat tube.
+func (s BikeScene) SeatTubeBend() (geom2d.Point2, bool) {
+	if !s.Frame.HasBentSeatTube() {
+		return geom2d.Point2{}, false
+	}
+	stl := s.seatTubeDistance()
+	bendT := math.Min(160.0, stl*0.35)
+	return s.upperSeatTubeAxis().PointAt(bendT), true
+}
+
+// SeatTubeTop returns the 2D position of the top of the frame's seat tube.
+// Uses Frame.SeatTubeLengthMm when set, or a horizontal-top-tube fallback below the saddle.
+func (s BikeScene) SeatTubeTop() geom2d.Point2 {
+	stl := s.seatTubeDistance()
+	nominalTop := s.NominalSeatAxis.PointAt(stl)
+	if !s.Frame.HasBentSeatTube() {
+		return nominalTop
+	}
+	upper := s.upperSeatTubeAxis()
+	if math.Abs(upper.Direction.Y) < 1e-6 {
+		return nominalTop
+	}
+	t := (nominalTop.Y - upper.Origin.Y) / upper.Direction.Y
+	return upper.PointAt(t)
+}
+
 func isPositive(v float64) bool {
 	return v > 0 && !math.IsInf(v, 0)
 }

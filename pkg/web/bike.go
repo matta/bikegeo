@@ -700,22 +700,23 @@ func buildBikeSVG(sc geometry.BikeScene) bikeSVGView {
 		addLine(geom2d.Point2{X: 0, Y: groundY}, geom2d.Point2{X: 0, Y: maxY - 20}, "axis"),
 	)
 
-	// Frame tubes & stays
+	// Frame tubes & stays terminate at the top of the frame's seat tube (SeatTubeTop),
+	// never up at SeatpostClamp inside the saddle.
+	stTop := sc.SeatTubeTop()
 	lines = append(lines,
 		addLine(sc.BB, sc.RearAxle, "frame"),
 		addLine(sc.BB, sc.HeadTubeBottom, "frame"),
 		addLine(sc.HeadTubeBottom, sc.HeadTubeTop, "frame"),
-		addLine(sc.RearAxle, sc.SeatpostClamp, "frame"),
-		addLine(sc.SeatpostClamp, sc.HeadTubeTop, "frame"),
+		addLine(sc.RearAxle, stTop, "frame"),
+		addLine(stTop, sc.HeadTubeTop, "frame"),
 	)
-	if sc.Frame.HasBentSeatTube() {
-		bendPt := sc.FrameSeatAxis.PointAt(180)
+	if bendPt, ok := sc.SeatTubeBend(); ok {
 		lines = append(lines,
 			addLine(sc.BB, bendPt, "frame"),
-			addLine(bendPt, sc.SeatpostClamp, "frame"),
+			addLine(bendPt, stTop, "frame"),
 		)
 	} else {
-		lines = append(lines, addLine(sc.BB, sc.SeatpostClamp, "frame"))
+		lines = append(lines, addLine(sc.BB, stTop, "frame"))
 	}
 
 	// Fork & steering axis
@@ -729,6 +730,7 @@ func buildBikeSVG(sc geometry.BikeScene) bikeSVGView {
 
 	// Seatpost & saddle
 	lines = append(lines,
+		addLine(stTop, sc.SeatpostClamp, "cockpit"),
 		addLine(sc.SeatpostClamp, sc.RailCenter, "cockpit"),
 		addLine(sc.RailCenter, sc.SitBones, "saddle"),
 		addLine(sc.SitBones, sc.BRP, "saddle"),
@@ -759,12 +761,13 @@ func buildBikeSVG(sc geometry.BikeScene) bikeSVGView {
 		{"BB", "BB (0,0)", sc.BB, 12, 22, 7, "frame"},
 		{"RA", "RearAxle", sc.RearAxle, -95, 22, 7, "frame"},
 		{"FA", "FrontAxle", sc.FrontAxle, 12, 22, 7, "frame"},
+		{"STT", "SeatTubeTop", stTop, -125, -8, 6, "frame"},
 		{"HTB", "HeadTubeBottom", sc.HeadTubeBottom, 12, 20, 6, "frame"},
 		{"HT", "HeadTubeTop", sc.HeadTubeTop, 12, 24, 7, "frame"},
-		{"SPC", "SeatpostClamp", sc.SeatpostClamp, -145, -14, 6, "seat"},
-		{"RC", "RailCenter", sc.RailCenter, -120, 20, 5, "seat"},
-		{"SB", "SitBones", sc.SitBones, -100, -18, 8, "contact"},
-		{"BRP", "BRP", sc.BRP, 12, -16, 7, "contact"},
+		{"SPC", "SeatpostClamp", sc.SeatpostClamp, 14, 18, 6, "seat"},
+		{"RC", "RailCenter", sc.RailCenter, -110, 26, 5, "seat"},
+		{"SB", "SitBones", sc.SitBones, -100, -24, 8, "contact"},
+		{"BRP", "BRP", sc.BRP, 14, -14, 7, "contact"},
 		{"SC", "SteererClamp", sc.SteererClamp, -135, -8, 6, "cockpit"},
 		{"STC", "StemClamp", sc.StemClamp, 12, 24, 7, "contact"},
 		{"GR", "HandGrip", sc.HandGrip, -110, -24, 8, "contact"},

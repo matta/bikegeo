@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1097,7 +1098,7 @@ func TestBike_SVGPointsAndNudgeLinks(t *testing.T) {
 	if got := svg.Find(`g.scene-geom`).AttrOr("transform", ""); got != "scale(1,-1)" {
 		t.Errorf("g.scene-geom transform = %q, want scale(1,-1)", got)
 	}
-	for _, pt := range []string{"BB", "HT", "SB", "BRP", "STC", "GR", "TP", "RSC"} {
+	for _, pt := range []string{"BB", "STT", "HT", "SB", "BRP", "STC", "GR", "TP", "RSC"} {
 		sel := svg.Find(`g.scene-points [data-point="` + pt + `"]`)
 		if sel.Length() != 1 {
 			t.Errorf("missing SVG point data-point=%q in g.scene-points", pt)
@@ -1116,6 +1117,33 @@ func TestBike_SVGPointsAndNudgeLinks(t *testing.T) {
 			t.Fatalf("invalid coords for %s: (%q, %q)", id, el.AttrOr("data-x", ""), el.AttrOr("data-y", ""))
 		}
 		return x, y
+	}
+	sttX, sttY := parseXY(doc, "STT")
+	spcX, spcY := parseXY(doc, "SPC")
+	htX, htY := parseXY(doc, "HT")
+	if sttY >= spcY-150 {
+		t.Errorf("expected SeatTubeTop (STT y=%.1f) well below SeatpostClamp (SPC y=%.1f)", sttY, spcY)
+	}
+	maxFrameY := math.Max(sttY, htY) + 0.5
+	svg.Find(`g.scene-geom line.frame`).Each(func(_ int, s *goquery.Selection) {
+		y1, _ := strconv.ParseFloat(s.AttrOr("y1", ""), 64)
+		y2, _ := strconv.ParseFloat(s.AttrOr("y2", ""), 64)
+		if y1 > maxFrameY || y2 > maxFrameY {
+			t.Errorf("frame tube line reaches y=(%.1f, %.1f) above STT/HT (%.1f), intersecting seat", y1, y2, maxFrameY)
+		}
+	})
+	var foundSeatpost bool
+	svg.Find(`g.scene-geom line.cockpit`).Each(func(_ int, s *goquery.Selection) {
+		x1, _ := strconv.ParseFloat(s.AttrOr("x1", ""), 64)
+		y1, _ := strconv.ParseFloat(s.AttrOr("y1", ""), 64)
+		x2, _ := strconv.ParseFloat(s.AttrOr("x2", ""), 64)
+		y2, _ := strconv.ParseFloat(s.AttrOr("y2", ""), 64)
+		if math.Hypot(x1-sttX, y1-sttY) < 0.1 && math.Hypot(x2-spcX, y2-spcY) < 0.1 {
+			foundSeatpost = true
+		}
+	})
+	if !foundSeatpost {
+		t.Errorf("expected cockpit seatpost line from STT(%.1f,%.1f) to SPC(%.1f,%.1f), htX=%.1f", sttX, sttY, spcX, spcY, htX)
 	}
 	stcX0, stcY0 := parseXY(doc, "STC")
 	grX0, grY0 := parseXY(doc, "GR")

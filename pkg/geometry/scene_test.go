@@ -658,3 +658,89 @@ func TestSolveStemSpacerFit(t *testing.T) {
 		t.Errorf("round-trip error at -17° = %.12f mm, want < 1e-9", d)
 	}
 }
+
+func TestSeatTubeTopAndBend(t *testing.T) {
+	saddle := catalog.DefaultSaddle()
+	frame := geometry.FrameSize{
+		ReachMm:          428,
+		StackMm:          642,
+		HtaDeg:           68.25,
+		StaDeg:           75.25,
+		HtlMm:            140,
+		BbDropMm:         72,
+		ChainstayMm:      450,
+		SeatTubeLengthMm: model.Some(490.0),
+		CadFork:          geometry.Fork{StaticA2cMm: 495, RakeMm: 54},
+	}
+	build := geometry.BuildSpec{
+		Fork:               frame.CadFork,
+		WheelRadiusFrontMm: 372,
+		WheelRadiusRearMm:  372,
+	}
+	cockpit := geometry.CockpitSpec{
+		HeadsetTopStackMm: 11,
+		SpacerMm:          20,
+		Stem:              model.StemSpec{LengthMm: 60, AngleDeg: -6},
+		StemClampHeightMm: 40,
+		Handlebar:         catalog.DefaultHandlebar(),
+		GripInsetMm:       model.DefaultGripInsetMm,
+	}
+	seat := geometry.SeatSpec{
+		PostSetbackMm: model.DefaultSeatpostSetbackMm,
+		ClampLengthMm: model.DefaultSeatpostClampLengthMm,
+		Saddle:        saddle,
+	}
+	fit := geometry.RiderFit{
+		FrameSeatAxisHeightMm: 746,
+		BrpHeightMm:           746,
+		TargetSitBonesXMm:     -292,
+		TargetPoint:           geom2d.Point2{X: 480, Y: 700},
+		TargetRef:             geometry.TargetHandGrip,
+		ReferenceSaddle:       saddle,
+	}
+
+	// 1. Straight seat tube terminates at exact published SeatTubeLengthMm below SeatpostClamp.
+	scStraight, err := geometry.BuildScene(frame, build, cockpit, seat, fit)
+	if err != nil {
+		t.Fatalf("BuildScene(straight): %v", err)
+	}
+	if _, hasBend := scStraight.SeatTubeBend(); hasBend {
+		t.Error("straight seat tube should not report SeatTubeBend")
+	}
+	stTop := scStraight.SeatTubeTop()
+	if got := stTop.DistanceTo(scStraight.BB); math.Abs(got-490.0) > 1e-6 {
+		t.Errorf("SeatTubeTop distance from BB = %.4f, want 490.0", got)
+	}
+	if stTop.Y >= scStraight.SeatpostClamp.Y-150 {
+		t.Errorf("SeatTubeTop.Y = %.1f should be well below SeatpostClamp.Y = %.1f", stTop.Y, scStraight.SeatpostClamp.Y)
+	}
+
+	// 2. Bent seat tube reports a bend point between BB and SeatTubeTop.
+	bent := frame
+	bent.StaDeg = 75.0
+	bent.ActualStaDeg = 73.3
+	bent.SeatTubeLengthMm = model.Some(455.0)
+	scBent, err := geometry.BuildScene(bent, build, cockpit, seat, fit)
+	if err != nil {
+		t.Fatalf("BuildScene(bent): %v", err)
+	}
+	bendPt, hasBend := scBent.SeatTubeBend()
+	if !hasBend {
+		t.Fatal("bent seat tube should report SeatTubeBend")
+	}
+	bentTop := scBent.SeatTubeTop()
+	if !(bendPt.Y > 0 && bendPt.Y < bentTop.Y && bentTop.Y < scBent.SeatpostClamp.Y) {
+		t.Errorf("expected 0 < bendPt.Y (%.1f) < bentTop.Y (%.1f) < SeatpostClamp.Y (%.1f)", bendPt.Y, bentTop.Y, scBent.SeatpostClamp.Y)
+	}
+
+	// 3. Unset SeatTubeLengthMm still places SeatTubeTop well below SeatpostClamp.
+	noLen := frame
+	noLen.SeatTubeLengthMm = model.Opt[float64]{}
+	scNoLen, err := geometry.BuildScene(noLen, build, cockpit, seat, fit)
+	if err != nil {
+		t.Fatalf("BuildScene(noLen): %v", err)
+	}
+	if fallbackTop := scNoLen.SeatTubeTop(); fallbackTop.Y >= scNoLen.SeatpostClamp.Y-20 {
+		t.Errorf("fallback SeatTubeTop.Y = %.1f should stay below SeatpostClamp.Y = %.1f", fallbackTop.Y, scNoLen.SeatpostClamp.Y)
+	}
+}
