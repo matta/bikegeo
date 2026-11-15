@@ -43,7 +43,7 @@ All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs
    - Disable scoring with `--no-score`, or inspect points lost per band with `--score-detail`.
 
 6. **Catalogs and Analysis in the Web UI**:
-   - Ideal profiles, forks, stems, saddles, saddle swap and handlebars are browsed and tuned in the web app only (see [docs/WEB.md](docs/WEB.md)).
+   - The `/bike` workbench, saddles, saddle swap and handlebars are browsed and tuned in the web app only; the ideal profile, band costs and stock stem catalogs are on its `/help` page (see [docs/WEB.md](docs/WEB.md)).
 
 7. **Agent-Friendly CLI Output**:
    - Every command prints Markdown (no `--format` flag). `compare` keeps a many-bike comparison as one wide table.
@@ -93,7 +93,7 @@ make serve                           # build, serve on http://127.0.0.1:8080, op
 ./bin/bikegeo serve --port 0 --open  # or choose a free port
 ```
 
-Compare matrices with zone-coloured cells, sticky headers and linked metric definitions; frame and validation pages; and catalog and analysis pages for ideals, forks, stems, saddles, saddle swap and handlebars, each with a form for every input. Everything is a plain `GET` URL (`/?col=fenrir:L@110mm@20%25&col=hayduke:S3@110mm@20%25`) that you can bookmark or share. It listens on `127.0.0.1` only and uses no JavaScript. See [docs/WEB.md](docs/WEB.md).
+Compare matrices with zone-coloured cells, sticky headers and linked metric definitions; frame and validation pages; the `/bike` workbench; and analysis pages for saddles, saddle swap and handlebars, each with a form for every input. Everything is a plain `GET` URL (`/?col=fenrir:L@110mm@20%25&col=hayduke:S3@110mm@20%25`) that you can bookmark or share. It listens on `127.0.0.1` only and uses no JavaScript. See [docs/WEB.md](docs/WEB.md).
 
 ---
 

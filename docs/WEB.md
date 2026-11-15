@@ -1,6 +1,6 @@
 # bikegeo web interface: design and conventions
 
-`bikegeo serve` is the human interface: local, stateless HTML. The CLI is the agent interface and prints Markdown. Each capability is offered where it is used: `compare`, `validate` and `list` are on both (sharing builders), `fit` is CLI-only, and the catalog and analysis pages (forks, stems, ideals, saddles, saddle swap, handlebars) are web-only.
+`bikegeo serve` is the human interface: local, stateless HTML. The CLI is the agent interface and prints Markdown. Each capability is offered where it is used: `compare`, `validate` and `list` are on both (sharing builders), `fit` is CLI-only, and the `/bike` workbench and the analysis pages (saddles, saddle swap, handlebars) are web-only. The ideal profile, each band's cost and the stock stem catalogs are on `/help`.
 
 ## Why
 
@@ -47,14 +47,13 @@ All routes are `GET`. Unknown paths are `404`, other methods `405`.
 | Route | Content | Parameters |
 | --- | --- | --- |
 | `/` | Compare matrix with editor form | see below |
+| `/bike` | One setup's 2D workbench: full-bike SVG, cockpit and saddle zooms (Panel B marks the cheapest stock build), nudge links and the computation ledger | `frame`, `size`, `fork`, `sag`, `saddle`, `handlebar`, `target_ref`, `saddle_h`, `stem_len`, `stem_ang`, `spacer`, `bar_roll`, `post_sb`, `rail_off`, `target_x`, `target_y` |
 | `/frames` | Frame catalog | `q`, `category`, `size`, `all-sizes` |
-| `/forks`, `/stems` | Presets | none |
-| `/ideals` | Profiles, or one profile | `name` |
 | `/saddles` | Catalog, or one saddle | `id`, `saddle-height`, `sit-bone-setback` |
-| `/saddle-swap` | Swap analysis | `from`, `to`, `all`, `frame`, `saddle-height`, `sit-bone-setback`, `brp-setback`, `seatpost`, `clamp-length`, `cockpit-dist`, `cockpit-drop` |
+| `/saddle-swap` | Swap analysis | `from`, `to`, `all`, `frame`, `saddle-height`, `sit-bone-setback`, `brp-setback`, `seatpost` (default 0, the zero-setback dropper), `clamp-length` |
 | `/handlebars` | Catalog, or one bar / comparison | `id`, `compare`, `grip-inset`, `roll`, `width` |
 | `/validate` | CAD validation (all frames if `frame` is empty) | `frame`, `size` |
-| `/help` | Spec grammar and metric glossary, with `#metric-<id>` anchors | none |
+| `/help` | Spec grammar, ideal profile, stock hardware (stem catalogs, spacers, rail window) and metric glossary with each band's free range and cost; `#metric-<id>` anchors | none |
 | `/static/…` | Embedded stylesheet | none |
 
 ### Compare parameters

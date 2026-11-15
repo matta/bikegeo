@@ -36,7 +36,9 @@ make pre-commit
     | --- | --- | --- |
     | `compare`, `validate`, `list` | yes | yes (`/`, `/validate`, `/frames`) |
     | `fit` | yes | no |
-    | forks, stems, ideals, saddles, saddle-swap, handlebars | no | yes |
+    | `/bike` workbench (one setup's scene, cheapest stock build, nudges, computation ledger) | no | yes |
+    | saddles, saddle-swap, handlebars | no | yes |
+    | ideal profile, cost per band, stock stem catalogs | no | yes (`/help`) |
 
   - Presentation lives in a **builder** that returns a `report.Document`: `compare.BuildDocument`, `validator.BuildValidationDocument`, `compare.BuildFrameListDocument`, `fit.BuildSweepDocument` / `fit.BuildAnalysisDocument`, and the web-only builders in `pkg/web` (`docb`). `pkg/report` holds the presentation-neutral `Document` (ordered `Sections` of tables and text), `Table` and `Cell` (cells carry `Zone` and `MetricID`). Builders set zones explicitly; never infer them from strings.
   - The CLI (`pkg/cli`) parses flags, calls a builder and prints Markdown (`App.printDocument`). There is no `--format`: Markdown is the only output. `compare` keeps a many-bike comparison as one wide table (`DocOptions.Flat`) so programs can parse it.

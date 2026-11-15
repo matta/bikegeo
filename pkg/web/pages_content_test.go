@@ -13,8 +13,7 @@ func TestPages_ContentCarriedOverFromCLI(t *testing.T) {
 		url  string
 		want []string
 	}{
-		{"/ideals", []string{"idmatch"}},
-		{"/ideals?name=idmatch", []string{"Ideal Profile: idmatch", "Cockpit Target: HandGrip", "BRP Setback (brp_setback)"}},
+		{"/help", []string{"idmatch", "Cockpit target: 700 mm from the BRP, +3 mm above the sit bones", "HandGrip", "40–100 mm", "60–110 mm"}},
 		{"/saddles?id=berthoud-aspin-open", []string{"Berthoud Aspin Open"}},
 		{"/saddles?id=selle-italia-slr-boost-superflow-l3", []string{"Selle Italia SLR Boost Superflow"}},
 		{"/saddle-swap", []string{"70mm BRP Point (X, Y)", "Fit Dimension / Checkpoint"}},
@@ -27,8 +26,6 @@ func TestPages_ContentCarriedOverFromCLI(t *testing.T) {
 			"Delta (Bar 2 - Bar 1)", "+3.1 mm", "+1.5 mm",
 			"-3.1 mm Reach and -1.5 mm Stack",
 		}},
-		{"/forks", []string{"sid_110", "RockShox SID 110mm", "521/44"}},
-		{"/stems", []string{"mtb", "gravel"}},
 		{"/frames?q=havok", []string{"binary-havok"}},
 	}
 	for _, c := range cases {

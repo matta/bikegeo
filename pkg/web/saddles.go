@@ -94,30 +94,30 @@ func (db *docb) saddles(v url.Values) int {
 		transSlrDropBest := geometry.TranslateSaddleFit(sqlab, -15.0, slr, model.DropBestClampLengthMm)
 		transSlrStd := geometry.TranslateSaddleFit(sqlab, 0.0, slr, model.DefaultSeatpostClampLengthMm)
 
-		shSQ11 := sqlab.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
-		shAspin11 := aspin.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
-		shSLR11 := slr.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
-		resSQ11 := geometry.CalculateIdealSeatTubeAngle(sqlab, sitBoneSetback, shSQ11, model.DefaultSeatpostSetbackMm, "11mm", model.DefaultSeatpostClampLengthMm)
-		resAspin11 := geometry.CalculateIdealSeatTubeAngle(aspin, sitBoneSetback, shAspin11, model.DefaultSeatpostSetbackMm, "11mm", model.DefaultSeatpostClampLengthMm)
-		resSLR11 := geometry.CalculateIdealSeatTubeAngle(slr, sitBoneSetback, shSLR11, model.DefaultSeatpostSetbackMm, "11mm", model.DefaultSeatpostClampLengthMm)
-		deltaAspin11 := resAspin11.IdealStaDeg - resSQ11.IdealStaDeg
-		deltaSlr11 := resSLR11.IdealStaDeg - resSQ11.IdealStaDeg
+		shSQDropper := sqlab.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
+		shAspinDropper := aspin.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
+		shSLRDropper := slr.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
+		resSQDropper := geometry.CalculateIdealSeatTubeAngle(sqlab, sitBoneSetback, shSQDropper, model.DefaultSeatpostSetbackMm, "zero-setback dropper", model.DefaultSeatpostClampLengthMm)
+		resAspinDropper := geometry.CalculateIdealSeatTubeAngle(aspin, sitBoneSetback, shAspinDropper, model.DefaultSeatpostSetbackMm, "zero-setback dropper", model.DefaultSeatpostClampLengthMm)
+		resSLRDropper := geometry.CalculateIdealSeatTubeAngle(slr, sitBoneSetback, shSLRDropper, model.DefaultSeatpostSetbackMm, "zero-setback dropper", model.DefaultSeatpostClampLengthMm)
+		deltaAspinDropper := resAspinDropper.IdealStaDeg - resSQDropper.IdealStaDeg
+		deltaSlrDropper := resSLRDropper.IdealStaDeg - resSQDropper.IdealStaDeg
 		aspinDir := "slackening STA by"
-		if deltaAspin11 >= 0 {
+		if deltaAspinDropper >= 0 {
 			aspinDir = "steepening STA by"
 		}
 		slrDir := "steepening STA by"
-		if deltaSlr11 < 0 {
+		if deltaSlrDropper < 0 {
 			slrDir = "slackening STA by"
 		}
 
 		footers = append(footers, report.Footer{
 			Title: "Cross-Saddle Fit Translation: SQlab 610 Ergolux vs. Catalog Saddles",
 			Lines: []string{
-				fmt.Sprintf("Pelvic Fit Equivalence (Aspin): Rail-to-sit-bone delta is only %.1f mm (Aspin %.1fmm vs SQlab %.1fmm), %s ~%.2f° at %.0fmm SH / %.0fmm sit-bone setback (11mm post).",
-					transAspinDropBest.SitBoneDeltaMm, aspin.RailCenterToSitBonesMm, sqlab.RailCenterToSitBonesMm, aspinDir, deltaAspin11.Abs(), saddleHeight, sitBoneSetback),
-				fmt.Sprintf("Pelvic Fit Equivalence (SLR Boost): Sit bones sit %.1f mm further rearward (SLR %.1fmm vs SQlab %.1fmm), %s ~%.2f° at %.0fmm SH / %.0fmm sit-bone setback (11mm post).",
-					math.Abs(transSlrDropBest.SitBoneDeltaMm), slr.RailCenterToSitBonesMm, sqlab.RailCenterToSitBonesMm, slrDir, deltaSlr11.Abs(), saddleHeight, sitBoneSetback),
+				fmt.Sprintf("Pelvic Fit Equivalence (Aspin): Rail-to-sit-bone delta is only %.1f mm (Aspin %.1fmm vs SQlab %.1fmm), %s ~%.2f° at %.0fmm SH / %.0fmm sit-bone setback (zero-setback dropper).",
+					transAspinDropBest.SitBoneDeltaMm, aspin.RailCenterToSitBonesMm, sqlab.RailCenterToSitBonesMm, aspinDir, deltaAspinDropper.Abs(), saddleHeight, sitBoneSetback),
+				fmt.Sprintf("Pelvic Fit Equivalence (SLR Boost): Sit bones sit %.1f mm further rearward (SLR %.1fmm vs SQlab %.1fmm), %s ~%.2f° at %.0fmm SH / %.0fmm sit-bone setback (zero-setback dropper).",
+					math.Abs(transSlrDropBest.SitBoneDeltaMm), slr.RailCenterToSitBonesMm, sqlab.RailCenterToSitBonesMm, slrDir, deltaSlrDropper.Abs(), saddleHeight, sitBoneSetback),
 				fmt.Sprintf("BRP Caliper Discrepancy: BRP lines vary widely due to nose taper (Aspin %.0fmm vs SQlab %.0fmm vs SLR Boost %.0fmm from sit bones), proving raw BRP misleads without resolving sit bones.",
 					aspin.DeltaBrpToSitBonesMm(), sqlab.DeltaBrpToSitBonesMm(), slr.DeltaBrpToSitBonesMm()),
 				fmt.Sprintf("Clamp Translation to Aspin: Clamping SQlab at -15.0mm translates to %+.1fmm on Aspin (window [%.1f, %+.1f] mm; feasible: %t); dead-center translates to %+.1fmm (window [%.1f, %+.1f] mm).",

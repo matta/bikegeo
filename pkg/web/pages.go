@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"bikegeo/pkg/compare"
 	"bikegeo/pkg/frames"
 	"bikegeo/pkg/ideal"
+	"bikegeo/pkg/model"
 	"bikegeo/pkg/report"
 	"bikegeo/pkg/validator"
 )
@@ -120,29 +122,6 @@ func pages() []page {
 			Link: map[string]string{"Frame ID": "/validate?frame=", "ID": "/validate?frame="},
 		},
 		{
-			Path: "/forks", Title: "Forks",
-			Blurb: "Standard 29er fork presets and their travel-to-A2C mappings.",
-			Build: run(func(db *docb, _ url.Values) int { return db.forks() }),
-		},
-		{
-			Path: "/stems", Title: "Stems",
-			Blurb: "Stem presets and their length / angle envelopes.",
-			Build: run(func(db *docb, _ url.Values) int { return db.stems() }),
-		},
-		{
-			Path: "/ideals", Title: "Ideals",
-			Blurb: "Ideal frame profiles: the free ranges and costs every setup is scored against.",
-			Controls: func(v url.Values) []Control {
-				var names []string
-				for _, p := range ideal.ListProfiles() {
-					names = append(names, p.Name)
-				}
-				return []Control{{Name: "name", Label: "Profile", Kind: "select", Value: v.Get("name"), Options: options(names, v.Get("name"), "All profiles")}}
-			},
-			Build: run(func(db *docb, v url.Values) int { return db.ideals(strings.TrimSpace(v.Get("name"))) }),
-			Link:  map[string]string{"Name": "/ideals?name="},
-		},
-		{
 			Path: "/saddles", Title: "Saddles",
 			Blurb: "Saddle catalog with pelvic-fit translation between saddles.",
 			Controls: func(v url.Values) []Control {
@@ -167,7 +146,7 @@ func pages() []page {
 					numberControl(v, "saddle-height", "Saddle height (mm)", "BB to BRP, default 746"),
 					numberControl(v, "sit-bone-setback", "Sit-bone setback (mm)", "behind BB, default 292"),
 					numberControl(v, "brp-setback", "BRP setback (mm)", "derives sit-bone setback"),
-					numberControl(v, "seatpost", "Seatpost setback (mm)", "default 11"),
+					numberControl(v, "seatpost", "Seatpost setback (mm)", "default 0 (zero-setback dropper)"),
 					numberControl(v, "clamp-length", "Clamp length (mm)", "default 30"),
 				}
 			},
@@ -304,7 +283,22 @@ func linkTables(doc *report.Document, links map[string]string) {
 // helpData backs the glossary page.
 type helpData struct {
 	base
-	Metrics []helpMetric
+	Profile  helpProfile
+	Metrics  []helpMetric
+	Stems    []helpStemSet
+	Spacers  string
+	RailNote string
+}
+
+// helpProfile summarizes the ideal profile every setup is scored against.
+type helpProfile struct {
+	Name, Description, SaddleHeight, TargetRef, CockpitTarget string
+}
+
+// helpStemSet is one stock stem catalog: the lengths and angles the cockpit scan tries.
+type helpStemSet struct {
+	ID, Lengths, Angles string
+	Count               int
 }
 
 type helpMetric struct {
@@ -321,7 +315,33 @@ func (s *server) help(w http.ResponseWriter, _ *http.Request) {
 		for _, a := range prof.Attributes {
 			specs[a.ID] = a
 		}
+		d.Profile = helpProfile{
+			Name:          prof.Name,
+			Description:   prof.Description,
+			SaddleHeight:  "—",
+			TargetRef:     prof.TargetRef.Label(),
+			CockpitTarget: fmt.Sprintf("%.0f mm from the BRP, %+.0f mm above the sit bones", prof.CockpitTargetDistMm, prof.CockpitTargetRiseMm),
+		}
+		if sh, ok := prof.SaddleHeightMm.Get(); ok {
+			d.Profile.SaddleHeight = fmt.Sprintf("%.0f mm", sh)
+		}
 	}
+	for _, st := range catalog.CommonStemCatalog {
+		hs := helpStemSet{ID: st.ID, Lengths: "—", Count: len(st.Expand())}
+		if len(st.LengthRangeMm) == 2 {
+			hs.Lengths = fmt.Sprintf("%.0f–%.0f mm in %.0f mm steps", st.LengthRangeMm[0], st.LengthRangeMm[1], model.StemLengthStepMm)
+		}
+		var angs []string
+		for _, a := range st.AnglesDeg {
+			angs = append(angs, fmt.Sprintf("%+.0f°", float64(a)))
+		}
+		hs.Angles = strings.Join(angs, ", ")
+		d.Stems = append(d.Stems, hs)
+	}
+	d.Spacers = fmt.Sprintf("0 to each frame's max_spacer_mm in %.0f mm steps", model.SpacerStepMm)
+	saddle := catalog.DefaultSaddle()
+	railLo, railHi := saddle.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
+	d.RailNote = fmt.Sprintf("the saddle's clamp window in 1 mm steps (%s: %+.0f to %+.0f mm)", saddle.Name, railLo, railHi)
 	for _, m := range ideal.AllAttributes() {
 		hm := helpMetric{ID: string(m.ID), Label: m.Label, Unit: m.Unit}
 		if sp, ok := specs[m.ID]; ok {

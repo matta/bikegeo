@@ -378,8 +378,8 @@ func TestCompareInvalidTopOmitsResults(t *testing.T) {
 func TestPages_AllRoutesRender(t *testing.T) {
 	targets := []string{
 		"/", "/bike", "/bike?frame=seven-custom&size=Custom&target_ref=stem_clamp",
-		"/frames", "/frames?q=fenrir&all-sizes=1", "/forks", "/stems",
-		"/ideals", "/ideals?name=idmatch", "/saddles", "/saddles?id=berthoud-aspin-open",
+		"/frames", "/frames?q=fenrir&all-sizes=1",
+		"/saddles", "/saddles?id=berthoud-aspin-open",
 		"/saddle-swap", "/saddle-swap?from=sqlab-610-ergolux&to=berthoud-aspin-open",
 		"/handlebars", "/handlebars?id=persuader20_800",
 		"/validate", "/validate?frame=binary-havok", "/help",
@@ -391,8 +391,8 @@ func TestPages_AllRoutesRender(t *testing.T) {
 			if doc.Find("table[data-table]").Length() == 0 {
 				t.Error("page has no table")
 			}
-			if doc.Find("nav a").Length() < 10 {
-				t.Error("navigation missing")
+			if got := doc.Find("nav a").Length(); got < len(nav) {
+				t.Errorf("navigation has %d links, want %d", got, len(nav))
 			}
 			if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
 				t.Errorf("content type = %q", ct)
@@ -462,7 +462,7 @@ func TestServer_RejectsNonLoopbackHost(t *testing.T) {
 		"example.com":    http.StatusForbidden,
 		"evil.test:8080": http.StatusForbidden,
 	} {
-		req := httptest.NewRequest(http.MethodGet, "/forks", nil)
+		req := httptest.NewRequest(http.MethodGet, "/frames", nil)
 		req.Host = host
 		rec := httptest.NewRecorder()
 		New().ServeHTTP(rec, req)
@@ -532,20 +532,7 @@ func TestHelp_HandlebarClampFitMatchesIdeals(t *testing.T) {
 		t.Errorf("handlebar_clamp_fit row = %q still shows old count thresholds", rowText)
 	}
 
-	// Verify /ideals?name=idmatch and / compare reference rows match /help.
-	_, ideals := do(t, "/ideals?name=idmatch")
-	var idealCells []string
-	ideals.Find("table[data-table] tbody tr").Each(func(_ int, tr *goquery.Selection) {
-		if strings.Contains(tr.Find("td").First().Text(), "handlebar_clamp_fit") {
-			tr.Find("td").Each(func(_ int, td *goquery.Selection) {
-				idealCells = append(idealCells, text(td))
-			})
-		}
-	})
-	if len(idealCells) < 3 || idealCells[2] != "≥1" {
-		t.Errorf("/ideals Oval Fits row = %v, want the ≥1 free range as its last column", idealCells)
-	}
-
+	// Verify the / compare reference row matches /help.
 	_, cmp := do(t, "/")
 	clampIdx := -1
 	cmp.Find(`table[data-table="fit-cockpit"] thead tr.labels th`).Each(func(i int, th *goquery.Selection) {
@@ -614,7 +601,7 @@ func TestRunServe_FlagValidationAndShutdown(t *testing.T) {
 	client, serverConn := net.Pipe()
 	ln.conns <- serverConn
 
-	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1:8080/forks", nil)
+	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1:8080/frames", nil)
 	if err := req.Write(client); err != nil {
 		cancel()
 		t.Fatalf("write request: %v", err)
@@ -627,7 +614,7 @@ func TestRunServe_FlagValidationAndShutdown(t *testing.T) {
 	resp.Body.Close()
 	client.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("GET /forks status = %d, want 200", resp.StatusCode)
+		t.Errorf("GET /frames status = %d, want 200", resp.StatusCode)
 	}
 
 	cancel()
@@ -673,7 +660,7 @@ func TestPages_NonNumericParameterIs400WithBanner(t *testing.T) {
 }
 
 func TestPages_UnknownIDsAre400(t *testing.T) {
-	for _, target := range []string{"/saddles?id=nope", "/handlebars?id=nope", "/ideals?name=nope"} {
+	for _, target := range []string{"/saddles?id=nope", "/handlebars?id=nope"} {
 		rec, _ := do(t, target)
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("%s: status %d, want 400", target, rec.Code)
@@ -681,13 +668,28 @@ func TestPages_UnknownIDsAre400(t *testing.T) {
 	}
 }
 
-func TestPages_ForksAndStemsCatalogs(t *testing.T) {
-	for _, target := range []string{"/forks", "/stems"} {
-		rec, doc := do(t, target)
-		mustStatus(t, rec, http.StatusOK)
-		if doc.Find("table[data-table] tbody tr").Length() == 0 {
-			t.Errorf("%s: no rows", target)
+// /forks, /stems and /ideals were folded away (SIMPLIFY_G step 24): the routes are
+// gone, the nav no longer links them, and /help carries the profile summary and
+// the stock stem catalogs instead.
+func TestPages_FoldedRoutesAreGone(t *testing.T) {
+	for _, target := range []string{"/forks", "/stems", "/ideals", "/ideals?name=idmatch"} {
+		rec, _ := do(t, target)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s: status %d, want 404", target, rec.Code)
 		}
+	}
+	rec, doc := do(t, "/help")
+	mustStatus(t, rec, http.StatusOK)
+	for _, gone := range []string{"/forks", "/stems", "/ideals"} {
+		if doc.Find(`nav a[href="`+gone+`"]`).Length() != 0 {
+			t.Errorf("nav still links %s", gone)
+		}
+	}
+	if n := doc.Find(`table[data-table="stem-catalog"] tbody tr`).Length(); n != 2 {
+		t.Errorf("/help stem catalog rows = %d, want 2 (mtb, gravel)", n)
+	}
+	if got := text(doc.Find(`#profile`)); !strings.Contains(got, "746 mm") || !strings.Contains(got, "700 mm from the BRP") {
+		t.Errorf("/help #profile = %q, want saddle height and cockpit target", got)
 	}
 }
 
@@ -770,10 +772,6 @@ func TestHelp_AllMetricAnchorsResolveAcrossPages(t *testing.T) {
 		"/?layout=columns&col=otso-fenrir-stainless:L@110mm@20%25&col=esker-hayduke:S3@110mm@20%25",
 		"/frames",
 		"/frames?all-sizes=1",
-		"/forks",
-		"/stems",
-		"/ideals",
-		"/ideals?name=idmatch",
 		"/saddles",
 		"/saddles?id=berthoud-aspin-open",
 		"/saddle-swap",
@@ -856,18 +854,6 @@ func TestRunServe_HelpAndUnexpectedArgs(t *testing.T) {
 	var out, errOut bytes.Buffer
 	if code := RunServe([]string{"extra-arg"}, &out, &errOut); code != 2 {
 		t.Errorf("RunServe([extra-arg]) = %d, want 2", code)
-	}
-}
-
-func TestIdeals_NoBrokenCommandHint(t *testing.T) {
-	rec, doc := do(t, "/ideals")
-	mustStatus(t, rec, http.StatusOK)
-	body := text(doc.Find("body"))
-	if strings.Contains(body, "bikegeo ideals show") {
-		t.Errorf("/ideals still references non-existent 'bikegeo ideals show'")
-	}
-	if !strings.Contains(text(doc.Find("h2").First()), "Ideal Frame Profiles (") {
-		t.Errorf("/ideals title = %q, want profile count in title", text(doc.Find("h2").First()))
 	}
 }
 

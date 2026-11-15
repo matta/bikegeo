@@ -18,6 +18,30 @@
 <p>Every scored cell shows its value plus <span class="zone-ideal key">✓ free</span> (it costs no points) or <span class="zone-outside key">✗ N pts</span> (the points it costs). Each scored band is free inside its ideal range and loses points linearly outside it at the cost listed below (points of total per unit). A bike's total is 100 minus the points lost across all bands, so it has no floor and may go below 0. The ranges below are the default <em>idmatch</em> profile.</p>
 </section>
 
+<section id="profile">
+<h2>Ideal profile</h2>
+<p>Every setup is scored against the <em>{{.Profile.Name}}</em> profile: {{.Profile.Description}}.</p>
+<ul>
+<li>Saddle height: {{.Profile.SaddleHeight}}</li>
+<li>Cockpit target: {{.Profile.CockpitTarget}} (measured at the {{.Profile.TargetRef}})</li>
+</ul>
+</section>
+
+<section id="hardware">
+<h2>Stock hardware</h2>
+<p>Each setup gets its cheapest stock build: the saddle rail position first, then every stem length × angle × spacer stack. The hardware bands (Rail Offset, Stem Length, Stem Angle, Spacers) reach their stated points at these limits.</p>
+<ul>
+<li>Saddle rails: {{.RailNote}}</li>
+<li>Spacers: {{.Spacers}}</li>
+</ul>
+<div class="scroll"><table data-table="stem-catalog">
+<thead><tr><th scope="col">Stem catalog</th><th scope="col">Lengths</th><th scope="col">Angles</th><th scope="col">Stems</th></tr></thead>
+<tbody>
+{{range .Stems}}<tr data-stem-set="{{.ID}}"><th scope="row"><code>{{.ID}}</code></th><td>{{.Lengths}}</td><td>{{.Angles}}</td><td class="num">{{.Count}}</td></tr>
+{{end}}</tbody>
+</table></div>
+</section>
+
 <section id="metrics">
 <h2>Metrics</h2>
 <div class="scroll"><table data-table="glossary">
