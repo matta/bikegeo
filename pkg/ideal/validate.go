@@ -17,9 +17,9 @@ func (p *Profile) HasCockpitTargets() bool {
 			continue
 		}
 		switch attr.ID {
-		case MetricHandlebarClampFit, MetricSaddleHb, MetricSaddleHbDrop:
+		case MetricHandlebarClampFit:
 			return true
-		case MetricSetback,
+		case MetricSaddleHb, MetricSaddleHbDrop, MetricSetback,
 			MetricEtt,
 			MetricAett,
 			MetricSpareVert,
@@ -133,76 +133,6 @@ func ValidateProfile(p *Profile) error {
 			}
 			if hasIdealMin && hasIdealMax && idealMin > idealMax {
 				return fmt.Errorf("profile %q attribute %q ideal min (%.1f) exceeds max (%.1f)", p.Name, attr.ID, idealMin, idealMax)
-			}
-
-			// Validate Acceptable range if present
-			isWider := false
-			if attr.Acceptable != nil {
-				accMin, hasAccMin := attr.Acceptable.Min.Get()
-				accMax, hasAccMax := attr.Acceptable.Max.Get()
-				if !hasAccMin && !hasAccMax {
-					return fmt.Errorf("profile %q attribute %q acceptable range must define min, max, or both", p.Name, attr.ID)
-				}
-				if hasAccMin && hasAccMax && accMin > accMax {
-					return fmt.Errorf("profile %q attribute %q acceptable min (%.1f) exceeds max (%.1f)", p.Name, attr.ID, accMin, accMax)
-				}
-
-				// One-sided consistency
-				if hasIdealMin && !hasAccMin {
-					return fmt.Errorf("profile %q attribute %q ideal has min bound but acceptable is unbounded below", p.Name, attr.ID)
-				}
-				if !hasIdealMin && hasAccMin {
-					return fmt.Errorf("profile %q attribute %q ideal is unbounded below but acceptable has min bound", p.Name, attr.ID)
-				}
-				if hasIdealMax && !hasAccMax {
-					return fmt.Errorf("profile %q attribute %q ideal has max bound but acceptable is unbounded above", p.Name, attr.ID)
-				}
-				if !hasIdealMax && hasAccMax {
-					return fmt.Errorf("profile %q attribute %q ideal is unbounded above but acceptable has max bound", p.Name, attr.ID)
-				}
-
-				// Subset check
-				if hasIdealMin && hasAccMin && accMin > idealMin {
-					return fmt.Errorf("profile %q attribute %q acceptable min (%.1f) must be <= ideal min (%.1f)", p.Name, attr.ID, accMin, idealMin)
-				}
-				if hasIdealMax && hasAccMax && accMax < idealMax {
-					return fmt.Errorf("profile %q attribute %q acceptable max (%.1f) must be >= ideal max (%.1f)", p.Name, attr.ID, accMax, idealMax)
-				}
-
-				// Check if acceptable is wider than ideal
-				if hasIdealMin && hasAccMin && accMin < idealMin {
-					isWider = true
-				}
-				if hasIdealMax && hasAccMax && accMax > idealMax {
-					isWider = true
-				}
-			}
-
-			edge, hasEdge := attr.EdgeScore.Get()
-			if isWider {
-				if !hasEdge {
-					return fmt.Errorf("profile %q attribute %q acceptable range is wider than ideal, but edge_score is not defined", p.Name, attr.ID)
-				}
-				if edge <= 0 || edge > 100 {
-					return fmt.Errorf("profile %q attribute %q edge_score (%.1f) must be in (0, 100]", p.Name, attr.ID, edge)
-				}
-			} else if hasEdge {
-				if edge <= 0 || edge > 100 {
-					return fmt.Errorf("profile %q attribute %q edge_score (%.1f) must be in (0, 100]", p.Name, attr.ID, edge)
-				}
-			}
-
-			// Floor validation
-			if fl, ok := attr.Floor.Get(); ok && fl >= 0 {
-				return fmt.Errorf("profile %q attribute %q floor (%.1f) must be negative", p.Name, attr.ID, fl)
-			}
-
-			// Legacy curve fields no longer affect scores; when present they must
-			// still compile (no flat, rising or discontinuous shape).
-			if attr.Falloff != nil {
-				if _, err := attr.compileCurves(); err != nil {
-					return fmt.Errorf("profile %q %w", p.Name, err)
-				}
 			}
 		}
 	}

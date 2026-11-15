@@ -21,9 +21,9 @@
 <section id="metrics">
 <h2>Metrics</h2>
 <div class="scroll"><table data-table="glossary">
-<thead><tr><th scope="col">Metric</th><th scope="col">ID</th><th scope="col">Unit</th><th scope="col">Ideal</th><th scope="col">Acceptable</th><th scope="col">Cost</th></tr></thead>
+<thead><tr><th scope="col">Metric</th><th scope="col">ID</th><th scope="col">Unit</th><th scope="col">Ideal</th><th scope="col">Cost</th></tr></thead>
 <tbody>
-{{range .Metrics}}<tr id="metric-{{.ID}}" data-metric="{{.ID}}"><th scope="row" class="sticky">{{.Label}}</th><td><code>{{.ID}}</code></td><td>{{.Unit}}</td><td class="num">{{.Ideal}}</td><td class="num">{{.Acceptable}}</td><td class="num">{{if .Scored}}{{.Cost}}{{else}}display only{{end}}</td></tr>
+{{range .Metrics}}<tr id="metric-{{.ID}}" data-metric="{{.ID}}"><th scope="row" class="sticky">{{.Label}}</th><td><code>{{.ID}}</code></td><td>{{.Unit}}</td><td class="num">{{.Ideal}}</td><td class="num">{{if .Scored}}{{.Cost}}{{else}}display only{{end}}</td></tr>
 {{end}}</tbody>
 </table></div>
 </section>

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"bikegeo/pkg/catalog"
+	"bikegeo/pkg/geom2d"
 	"bikegeo/pkg/model"
 )
 
@@ -100,13 +102,9 @@ func TestIdmatchProfileValid(t *testing.T) {
 func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
 	// Seat-RC: free >= 235, 0.5 points per mm below.
 	spec := AttributeSpec{
-		ID:         "seat_to_rc",
-		Cost:       CostBoth(0.5, 0),
-		Ideal:      AtLeast(235),
-		Acceptable: AtLeast(220),
-		EdgeScore:  model.Some(70.0),
-		Falloff:    FalloffBelow(20),
-		Floor:      model.Some(-100.0),
+		ID:    "seat_to_rc",
+		Cost:  CostBoth(0.5, 0),
+		Ideal: AtLeast(235),
 	}
 	meta, ok := LookupAttribute("seat_to_rc")
 	if !ok {
@@ -135,13 +133,9 @@ func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
 func TestEvaluate_DesignDocTable(t *testing.T) {
 	// AETT free 630–642, 2 points/mm below, 3 above.
 	spec := AttributeSpec{
-		ID:         "aett",
-		Cost:       CostBoth(2, 3),
-		Ideal:      Between(630, 642),
-		Acceptable: Between(606, 642),
-		EdgeScore:  model.Some(60.0),
-		Falloff:    FalloffBoth(10, 5),
-		Floor:      model.Some(-200.0),
+		ID:    "aett",
+		Cost:  CostBoth(2, 3),
+		Ideal: Between(630, 642),
 	}
 	meta, ok := LookupAttribute("aett")
 	if !ok {
@@ -182,13 +176,9 @@ func TestEvaluate_DesignDocTable(t *testing.T) {
 func TestEvaluate_OneSidedChainstay(t *testing.T) {
 	// Chainstay: free >= 470, 0.4 points per mm below.
 	spec := AttributeSpec{
-		ID:         "chainstay",
-		Cost:       CostBoth(0.4, 0),
-		Ideal:      AtLeast(470),
-		Acceptable: AtLeast(445),
-		EdgeScore:  model.Some(70.0),
-		Falloff:    FalloffBelow(25),
-		Floor:      model.Some(-100.0),
+		ID:    "chainstay",
+		Cost:  CostBoth(0.4, 0),
+		Ideal: AtLeast(470),
 	}
 	meta, ok := LookupAttribute("chainstay")
 	if !ok {
@@ -257,22 +247,11 @@ func TestValidation_StrictRejections(t *testing.T) {
 	pInverted := &Profile{
 		Name: "test",
 		Attributes: []AttributeSpec{
-			{ID: "hta", Cost: CostEach(1), Ideal: Between(69, 67), Falloff: FalloffBoth(1, 1)},
+			{ID: "hta", Cost: CostEach(1), Ideal: Between(69, 67)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pInverted); err == nil || !strings.Contains(err.Error(), "exceeds max") {
 		t.Errorf("Expected inverted min/max error, got: %v", err)
-	}
-
-	// 4. Acceptable wider than ideal but missing edge_score
-	pMissingEdge := &Profile{
-		Name: "test",
-		Attributes: []AttributeSpec{
-			{ID: "hta", Cost: CostEach(1), Ideal: Exact(68), Acceptable: Between(67, 69), Falloff: FalloffBoth(1, 1)},
-		},
-	}
-	if _, err := NormalizeAndValidate(pMissingEdge); err == nil || !strings.Contains(err.Error(), "edge_score is not defined") {
-		t.Errorf("Expected missing edge_score error, got: %v", err)
 	}
 
 	// 5. A scored band needs only a free range and a cost: no falloff is required.
@@ -301,23 +280,12 @@ func TestValidation_StrictRejections(t *testing.T) {
 		}
 	}
 
-	// 6. Non-negative floor
-	pBadFloor := &Profile{
-		Name: "test",
-		Attributes: []AttributeSpec{
-			{ID: "hta", Cost: CostEach(1), Ideal: Exact(68), Falloff: FalloffBoth(1, 1), Floor: model.Some(10.0)},
-		},
-	}
-	if _, err := NormalizeAndValidate(pBadFloor); err == nil || !strings.Contains(err.Error(), "floor (10.0) must be negative") {
-		t.Errorf("Expected negative floor error, got: %v", err)
-	}
-
 	// 7. Invalid non-empty TargetRef
 	pBadTargetRef := &Profile{
 		Name:      "test-bad-ref",
 		TargetRef: "hb",
 		Attributes: []AttributeSpec{
-			{ID: "hta", Cost: CostEach(1), Ideal: Exact(68), Falloff: FalloffBoth(1, 1)},
+			{ID: "hta", Cost: CostEach(1), Ideal: Exact(68)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pBadTargetRef); err == nil || !strings.Contains(err.Error(), "target_ref") {
@@ -328,7 +296,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 	pMissingTargetRef := &Profile{
 		Name: "test-missing-ref",
 		Attributes: []AttributeSpec{
-			{ID: "saddle_hb", Cost: CostEach(1), Ideal: Exact(700), Falloff: FalloffBoth(20, 20)},
+			{ID: "handlebar_clamp_fit", Cost: &Cost{Above: OvalCostPerR}, Ideal: AtLeast(1)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pMissingTargetRef); err == nil || !strings.Contains(err.Error(), "target_ref") {
@@ -340,7 +308,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 		Name:      "test-missing-ref-bar",
 		TargetRef: model.TargetReferenceBarClamp,
 		Attributes: []AttributeSpec{
-			{ID: "saddle_hb", Cost: CostEach(1), Ideal: Exact(630), Falloff: FalloffBoth(20, 20)},
+			{ID: "handlebar_clamp_fit", Cost: &Cost{Above: OvalCostPerR}, Ideal: AtLeast(1)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pMissingRefBar); err == nil || !strings.Contains(err.Error(), "reference_bar") {
@@ -353,7 +321,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 		TargetRef:    model.TargetReferenceBarClamp,
 		ReferenceBar: model.Some(model.HandlebarSpec{ID: "flat", StockWidthMm: 760, CurrentWidthMm: 760}),
 		Attributes: []AttributeSpec{
-			{ID: "saddle_hb", Cost: CostEach(1), Ideal: Exact(630), Falloff: FalloffBoth(20, 20)},
+			{ID: "handlebar_clamp_fit", Cost: &Cost{Above: OvalCostPerR}, Ideal: AtLeast(1)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pValidRefBar); err != nil {
@@ -500,18 +468,6 @@ func TestIdmatchProfile_BandsAreFreeInsideAndLinearOutside(t *testing.T) {
 	}
 }
 
-func TestValidateProfile_RejectsFlatCurve(t *testing.T) {
-	p := &Profile{
-		Name: "flat",
-		Attributes: []AttributeSpec{
-			{ID: "hta", Cost: CostEach(1), Ideal: Exact(68), Acceptable: Between(66, 70), EdgeScore: model.Some(100.0), Falloff: FalloffBoth(1, 1)},
-		},
-	}
-	if _, err := NormalizeAndValidate(p); err == nil {
-		t.Fatal("expected an edge_score of 100 on a non-empty acceptable band to be rejected as a flat curve")
-	}
-}
-
 // parseFormattedCell splits a cell into its shown value, marker and trailing text
 // ("" for a bare value and marker; "N pts" for a scored band's lost points; a signed
 // delta and direction word for a display-only band).
@@ -539,15 +495,11 @@ func testSpecsForSweep() []AttributeSpec {
 	// Include Berthoud-translated non-integer bounds (679.9-689.9 / 669.9-699.9)
 	// and an asymmetric non-integer BRP setback target.
 	specs = append(specs,
-		DisplayOnlyWithTarget("saddle_hb", Between(679.9, 689.9), Between(669.9, 699.9), model.Some(75.0), FalloffBoth(15, 15)),
+		AttributeSpec{ID: "saddle_hb", Ideal: Between(679.9, 689.9)},
 		AttributeSpec{
-			ID:         "brp_setback",
-			Cost:       CostEach(1.2),
-			Ideal:      Exact(228.4),
-			Acceptable: Between(223.4, 233.4),
-			EdgeScore:  model.Some(75.0),
-			Falloff:    FalloffBoth(20, 20),
-			Floor:      model.Some(-200.0),
+			ID:    "brp_setback",
+			Cost:  CostEach(1.2),
+			Ideal: Exact(228.4),
 		},
 	)
 	return specs
@@ -556,15 +508,11 @@ func testSpecsForSweep() []AttributeSpec {
 func sweepGridForSpec(spec AttributeSpec, meta AttributeMeta) []float64 {
 	lo := 0.0
 	hi := 0.0
-	if spec.Acceptable != nil && spec.Acceptable.Min.IsSet() {
-		lo = spec.Acceptable.Min.OrZero() - 20
-	} else if spec.Ideal.Min.IsSet() {
-		lo = spec.Ideal.Min.OrZero() - 20
+	if spec.Ideal.Min.IsSet() {
+		lo = spec.Ideal.Min.OrZero() - 30
 	}
-	if spec.Acceptable != nil && spec.Acceptable.Max.IsSet() {
-		hi = spec.Acceptable.Max.OrZero() + 20
-	} else if spec.Ideal.Max.IsSet() {
-		hi = spec.Ideal.Max.OrZero() + 20
+	if spec.Ideal.Max.IsSet() {
+		hi = spec.Ideal.Max.OrZero() + 30
 	}
 	step := 0.1
 	if meta.Decimals > 0 {
@@ -635,13 +583,9 @@ func TestCellDeltaMatchesDisplayedValue(t *testing.T) {
 
 	// A scored band without direction words shows points lost, rounded to whole points.
 	noWordSpec := AttributeSpec{
-		ID:         "reach",
-		Cost:       CostEach(1),
-		Ideal:      Exact(450),
-		Acceptable: Between(440, 460),
-		EdgeScore:  model.Some(75.0),
-		Falloff:    FalloffBoth(10, 10),
-		Floor:      model.Some(-100.0),
+		ID:    "reach",
+		Cost:  CostEach(1),
+		Ideal: Exact(450),
 	}
 	noWordMeta := AttributeMeta{ID: "reach", Label: "Reach", Unit: "mm", Decimals: 0}
 	if ev := Evaluate(noWordSpec, noWordMeta, 434.5, nil); ev.FormattedCell != "434 ✗ 16 pts" {
@@ -651,7 +595,7 @@ func TestCellDeltaMatchesDisplayedValue(t *testing.T) {
 		t.Errorf("450.2 = %q, want %q", ev.FormattedCell, "450 ✓")
 	}
 	// A display-only band with a target keeps its signed delta.
-	displaySpec := DisplayOnlyWithTarget("reach", Exact(450), Between(440, 460), model.Some(75.0), FalloffBoth(10, 10))
+	displaySpec := AttributeSpec{ID: "reach", Ideal: Exact(450)}
 	if ev := Evaluate(displaySpec, noWordMeta, 434.5, nil); ev.FormattedCell != "434 ✗ −16" {
 		t.Errorf("display-only 434.5 tie = %q, want %q", ev.FormattedCell, "434 ✗ −16")
 	}
@@ -786,8 +730,6 @@ func TestEvaluate_HandlebarClampFitMarkers(t *testing.T) {
 					HasFit:      tc.count > 0,
 					CountInside: tc.count,
 					BestR:       tc.bestR,
-					// The legacy sub-score no longer picks the marker.
-					FinalSubScore: 100,
 				},
 			},
 		}
@@ -810,23 +752,22 @@ func TestOvalPointsLost(t *testing.T) {
 	meta, _ := LookupAttribute(MetricHandlebarClampFit)
 
 	cases := []struct {
-		r, stemPenalty, want float64
+		r, want float64
 	}{
-		{0.0, 0, 0},
-		{0.97, 0, 0}, // inside the oval is free
-		{1.0, 0, 0},
-		{1.5, 0, 11},
-		{2.8, 0, 39.6},
-		{11.07, 0, 221.54}, // linear, no tail
-		{2.8, 15, 39.6},    // the selector's stem penalty costs no points
+		{0.0, 0},
+		{0.97, 0}, // inside the oval is free
+		{1.0, 0},
+		{1.5, 11},
+		{2.8, 39.6},
+		{11.07, 221.54}, // linear, no tail
 	}
 	for _, tc := range cases {
 		row := model.CanonicalComparisonRow{Canonical: model.BikeFitAnalysis{
-			CockpitFitResult: &model.CockpitFitResult{BestR: tc.r, StemPenalty: tc.stemPenalty},
+			CockpitFitResult: &model.CockpitFitResult{BestR: tc.r},
 		}}
 		ev := Evaluate(spec, meta, 0, &row)
 		if math.Abs(ev.PointsLost-tc.want) > 1e-9 {
-			t.Errorf("R=%.2f stem=%.0f: PointsLost = %.4f, want %.4f", tc.r, tc.stemPenalty, ev.PointsLost, tc.want)
+			t.Errorf("R=%.2f: PointsLost = %.4f, want %.4f", tc.r, ev.PointsLost, tc.want)
 		}
 		if ev.DistanceToIdeal != tc.r {
 			t.Errorf("R=%.2f: DistanceToIdeal = %v, want R", tc.r, ev.DistanceToIdeal)
@@ -899,5 +840,52 @@ func TestHardwareLimits_FromRow(t *testing.T) {
 	}
 	if _, _, ok := HardwareLimits(MetricStemLength, nil); ok {
 		t.Error("nil row must have no hardware limits")
+	}
+}
+
+func TestCockpitTarget_ReferenceSaddleAndSitBoneInvariant(t *testing.T) {
+	p := IdmatchProfile()
+	ref := p.ReferenceSaddle
+
+	dist, rise, ok := p.CockpitTarget(ref)
+	if !ok || dist != 700 || rise != 3 {
+		t.Fatalf("reference CockpitTarget = (%v, %v, %v), want (700, 3, true)", dist, rise, ok)
+	}
+	if dist, rise, _ := p.CockpitTarget(model.SaddleSpec{}); dist != 700 || rise != 3 {
+		t.Errorf("unset saddle CockpitTarget = (%v, %v), want the reference target", dist, rise)
+	}
+	if _, _, ok := (&Profile{}).CockpitTarget(ref); ok {
+		t.Error("a profile without a cockpit target must report ok=false")
+	}
+
+	// The hands keep their position relative to the sit bones for every saddle: the
+	// target distance from that saddle's BRP, projected from its own sit bones,
+	// lands on the reference hand point. The reference hand point sits `rise` above
+	// the reference sit bones at `dist` from the reference BRP.
+	handY := p.ReferenceSitBones.Y + 3
+	dyRef := handY - p.ReferenceBrp.Y
+	hand := geom2d.Point2{X: p.ReferenceBrp.X + math.Sqrt(700*700-dyRef*dyRef), Y: handY}
+	for _, saddle := range catalog.AllSaddles() {
+		dist, rise, ok := p.CockpitTarget(saddle)
+		if !ok || rise != 3 {
+			t.Fatalf("%s: CockpitTarget = (%v, %v, %v), want rise 3", saddle.ID, dist, rise, ok)
+		}
+		brp := saddle.BrpPointFromSitBones(p.ReferenceSitBones)
+		if got := hand.DistanceTo(brp); math.Abs(got-dist) > 0.051 {
+			t.Errorf("%s: target distance %.2f, want %.2f (within 0.05 of the reference hand point)", saddle.ID, dist, got)
+		}
+	}
+
+	// Pin the non-reference saddles at the centres the replaced ForSaddle range
+	// projection produced (the midpoint of its 695–705 mm range).
+	for id, want := range map[string]float64{"berthoud-aspin-open": 684.9, "selle-italia-slr-boost-superflow-l3": 689.9} {
+		saddle, ok := catalog.GetSaddle(id)
+		if !ok {
+			t.Fatalf("saddle %q missing", id)
+		}
+		dist, _, _ := p.CockpitTarget(saddle)
+		if math.Abs(dist-want) > 0.051 {
+			t.Errorf("%s: target distance %.1f, want %.1f", id, dist, want)
+		}
 	}
 }

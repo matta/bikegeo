@@ -83,7 +83,7 @@ func TestBuildDocumentSplitLayout(t *testing.T) {
 			}
 		}
 	}
-	if zones[report.ZoneIdeal]+zones[report.ZoneAcceptable]+zones[report.ZoneOutside] == 0 {
+	if zones[report.ZoneIdeal]+zones[report.ZoneOutside] == 0 {
 		t.Errorf("no zoned metric cells found: %v", zones)
 	}
 	if got := len(fit.Rows) - 1; got != len(res.Rows) {
@@ -185,9 +185,9 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 			break
 		}
 	}
-	wantIdeal, _ := FormatAttrRanges(clampSpec, meta)
-	if wantIdeal != "≥100" {
-		t.Fatalf("FormatAttrRanges(handlebar_clamp_fit) = %q, want ≥100", wantIdeal)
+	wantIdeal := FormatAttrRange(clampSpec, meta)
+	if wantIdeal != "≥1" {
+		t.Fatalf("FormatAttrRange(handlebar_clamp_fit) = %q, want ≥1", wantIdeal)
 	}
 
 	for _, saddle := range []string{"", "berthoud-aspin-open", "selle-italia-slr-boost-superflow-l3"} {
@@ -209,7 +209,7 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 			t.Fatal("missing breakdown table")
 		}
 
-		// The fit-cockpit Ideal reference row stays; there is no Acceptable row.
+		// The fit-cockpit Ideal reference row stays; it is the only reference row.
 		clampCol := -1
 		for i, c := range fit.Columns {
 			if c.ID == "handlebar_clamp_fit" {
@@ -223,8 +223,8 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 		if got := fit.Rows[0].Cells[clampCol].Text; got != wantIdeal {
 			t.Errorf("saddle=%q Ideal ref = %q, want %q", saddle, got, wantIdeal)
 		}
-		if fit.Rows[1].Kind == report.KindAcceptable {
-			t.Errorf("saddle=%q: unexpected Acceptable reference row", saddle)
+		if fit.Rows[1].Kind != report.KindData {
+			t.Errorf("saddle=%q: the Ideal row must be the only reference row", saddle)
 		}
 
 		bdClampCol := -1
@@ -619,8 +619,8 @@ func TestCompare_SingleStepIntegerRounding(t *testing.T) {
 	if got := findVal("Fairlight Holt 2.0 (S)", "ETT"); got != "587" {
 		t.Errorf("Fairlight Holt 2.0 (S) ETT = %q, want 587 (single-step from ~586.55mm)", got)
 	}
-	if got := findVal("Surly ECR (L)", "BRP–HandGrip"); !strings.HasPrefix(got, "651 ") {
-		t.Errorf("Surly ECR (L) BRP–HandGrip = %q, want 651 ... (with 11 mm HeadsetTopStackMm)", got)
+	if got := findVal("Surly ECR (L)", "BRP–HandGrip"); got != "651" {
+		t.Errorf("Surly ECR (L) BRP–HandGrip = %q, want 651 (display-only, with 11 mm HeadsetTopStackMm)", got)
 	}
 }
 
@@ -647,12 +647,14 @@ func TestCompare_BreakdownSubtitleAndTranslatedH(t *testing.T) {
 	}
 
 	bdSub := tables[len(tables)-1].Subtitle
+	if strings.Contains(bdSub, "±1–2") {
+		t.Errorf("breakdown subtitle must not carry the rounding caveat:\n%s", bdSub)
+	}
 	for _, want := range []string{
 		"Total = 100 − Σ points lost",
 		"BRP Setback 1.20/mm",
 		"Oval Fits 22/R beyond the oval edge",
 		"Seatpost Ext 0.18/mm below, 0.21/mm above",
-		"±1–2",
 	} {
 		if !strings.Contains(bdSub, want) {
 			t.Errorf("breakdown subtitle missing %q:\n%s", want, bdSub)

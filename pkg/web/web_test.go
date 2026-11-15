@@ -525,8 +525,8 @@ func TestHelp_HandlebarClampFitMatchesIdeals(t *testing.T) {
 		t.Fatal("missing handlebar_clamp_fit row")
 	}
 	rowText := text(row)
-	if !strings.Contains(rowText, "≥100") || !strings.Contains(rowText, "≥75") {
-		t.Errorf("handlebar_clamp_fit row = %q, want ≥100 and ≥75", rowText)
+	if !strings.Contains(rowText, "≥1") || strings.Contains(rowText, "≥75") || strings.Contains(rowText, "≥100") {
+		t.Errorf("handlebar_clamp_fit row = %q, want the ≥1 free range and no legacy ≥100 / ≥75 thresholds", rowText)
 	}
 	if strings.Contains(rowText, "≥4") || strings.Contains(rowText, "1–3") {
 		t.Errorf("handlebar_clamp_fit row = %q still shows old count thresholds", rowText)
@@ -542,8 +542,8 @@ func TestHelp_HandlebarClampFitMatchesIdeals(t *testing.T) {
 			})
 		}
 	})
-	if len(idealCells) < 4 || idealCells[2] != "≥100" || idealCells[3] != "≥75" {
-		t.Errorf("/ideals Oval Fits row = %v, want ≥100 and ≥75", idealCells)
+	if len(idealCells) < 3 || idealCells[2] != "≥1" {
+		t.Errorf("/ideals Oval Fits row = %v, want the ≥1 free range as its last column", idealCells)
 	}
 
 	_, cmp := do(t, "/")
@@ -557,8 +557,8 @@ func TestHelp_HandlebarClampFitMatchesIdeals(t *testing.T) {
 		t.Fatal("missing handlebar_clamp_fit header on /")
 	}
 	cmpIdeal := text(cmp.Find(`table[data-table="fit-cockpit"] thead tr.ref.ideal td, table[data-table="fit-cockpit"] thead tr.ref.ideal th`).Eq(clampIdx))
-	if cmpIdeal != "≥100" {
-		t.Errorf("/ Oval Fits reference = %q, want ≥100", cmpIdeal)
+	if cmpIdeal != "≥1" {
+		t.Errorf("/ Oval Fits reference = %q, want ≥1", cmpIdeal)
 	}
 	if n := cmp.Find(`table[data-table="fit-cockpit"] thead tr.ref.acceptable`).Length(); n != 0 {
 		t.Errorf("/ has %d acceptable reference rows, want none", n)
@@ -722,8 +722,11 @@ func TestMarkedCellsHaveZone(t *testing.T) {
 				}
 			}
 		})
-		if seenMetric["saddle_hb"] == 0 || seenMetric["saddle_hb_drop"] == 0 {
-			t.Errorf("%s: expected marked saddle_hb and saddle_hb_drop cells, got counts=%v", target, seenMetric)
+		if seenMetric["brp_setback"] == 0 || seenMetric["handlebar_clamp_fit"] == 0 {
+			t.Errorf("%s: expected marked brp_setback and handlebar_clamp_fit cells, got counts=%v", target, seenMetric)
+		}
+		if seenMetric["saddle_hb"] != 0 || seenMetric["saddle_hb_drop"] != 0 {
+			t.Errorf("%s: saddle_hb and saddle_hb_drop are display-only and must carry no zone, got counts=%v", target, seenMetric)
 		}
 	}
 

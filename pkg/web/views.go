@@ -29,8 +29,8 @@ type RowView struct {
 	Cells []CellView
 }
 
-// TableView is a template-ready table: header rows (labels plus Ideal /
-// Acceptable reference rows) in Head, data rows in Body.
+// TableView is a template-ready table: header rows (labels plus the Ideal
+// reference row) in Head, data rows in Body.
 type TableView struct {
 	ID       string
 	Title    string
@@ -112,7 +112,7 @@ func toView(t report.Table) TableView {
 
 	for _, r := range t.Rows {
 		rv := RowView{Attrs: attrString(map[string]string{"row": r.ID, "kind": r.Kind}, r.Attrs)}
-		if r.Kind == report.KindIdeal || r.Kind == report.KindAcceptable {
+		if r.Kind == report.KindIdeal {
 			rv.Class = "ref " + r.Kind
 		}
 		for i, c := range r.Cells {

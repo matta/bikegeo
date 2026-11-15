@@ -131,7 +131,7 @@ func pages() []page {
 		},
 		{
 			Path: "/ideals", Title: "Ideals",
-			Blurb: "Ideal frame profiles: the target and acceptable ranges every setup is scored against.",
+			Blurb: "Ideal frame profiles: the free ranges and costs every setup is scored against.",
 			Controls: func(v url.Values) []Control {
 				var names []string
 				for _, p := range ideal.ListProfiles() {
@@ -308,9 +308,9 @@ type helpData struct {
 }
 
 type helpMetric struct {
-	ID, Label, Unit, Ideal, Acceptable string
-	Cost                               string
-	Scored                             bool
+	ID, Label, Unit, Ideal string
+	Cost                   string
+	Scored                 bool
 }
 
 func (s *server) help(w http.ResponseWriter, _ *http.Request) {
@@ -325,7 +325,7 @@ func (s *server) help(w http.ResponseWriter, _ *http.Request) {
 	for _, m := range ideal.AllAttributes() {
 		hm := helpMetric{ID: string(m.ID), Label: m.Label, Unit: m.Unit}
 		if sp, ok := specs[m.ID]; ok {
-			hm.Ideal, hm.Acceptable = compare.FormatAttrRanges(sp, m)
+			hm.Ideal = compare.FormatAttrRange(sp, m)
 			hm.Cost = compare.FormatCost(sp, m)
 			hm.Scored = sp.IsScored()
 		}

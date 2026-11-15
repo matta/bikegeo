@@ -513,8 +513,6 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 		if rem != 0 && (len(proParts) > 0 || len(conParts) > 0 || gap != 0) {
 			if smallCount > 0 {
 				clauses = append(clauses, fmt.Sprintf("smaller (<1 pt) factors (%+d)", rem))
-			} else {
-				clauses = append(clauses, fmt.Sprintf("rounding (%+d)", rem))
 			}
 		}
 

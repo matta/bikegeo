@@ -7,18 +7,16 @@ import "strings"
 
 // Zone classifies how a cell value relates to an ideal profile.
 const (
-	ZoneNone       = ""
-	ZoneIdeal      = "ideal"
-	ZoneAcceptable = "acceptable"
-	ZoneOutside    = "outside"
-	ZoneMissing    = "missing"
+	ZoneNone    = ""
+	ZoneIdeal   = "ideal"
+	ZoneOutside = "outside"
+	ZoneMissing = "missing"
 )
 
 // Row kinds.
 const (
-	KindData       = "data"
-	KindIdeal      = "ideal"
-	KindAcceptable = "acceptable"
+	KindData  = "data"
+	KindIdeal = "ideal"
 )
 
 // Document is the full output of one command or page.

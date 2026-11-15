@@ -68,6 +68,7 @@ func DisambiguateFrameNames(rows []model.CanonicalComparisonRow) []string {
 	return names
 }
 
-func FormatAttrRanges(evalAttr ideal.AttributeSpec, meta ideal.AttributeMeta) (string, string) {
-	return ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals), ideal.FormatRange(evalAttr.Acceptable, meta.Unit, meta.Decimals)
+// FormatAttrRange renders the attribute's free (Ideal) range.
+func FormatAttrRange(evalAttr ideal.AttributeSpec, meta ideal.AttributeMeta) string {
+	return ideal.FormatRange(evalAttr.Ideal, meta.Unit, meta.Decimals)
 }

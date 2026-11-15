@@ -99,7 +99,7 @@ Under `TargetHandGrip`, to place the rider's hands at `(GripX, GripY)` from an i
 
 ### Handlebar Clamp Fit (`handlebar_clamp_fit`)
 When scoring cockpits against biomechanical profiles, handlebar positions are assessed against an **Area of Reasonable Fit** oval:
-- **Ideal Center**: `(BrpX + ΔX_0, BrpY + ΔY_0)` where `ΔX_0 = √(d_0² - c_0²)` and `ΔY_0 = c_0` from target `saddle_hb` distance `d_0` and drop `c_0`.
+- **Ideal Center**: `(BrpX + ΔX_0, SitBoneY + c_0)` where `ΔX_0 = √(d_0² - (SitBoneY + c_0 - BrpY)²)`, from the profile's explicit cockpit target: `d_0 = CockpitTargetDistMm` (700 mm from the BRP) and `c_0 = CockpitTargetRiseMm` (3 mm above the sit bones), defined for the reference saddle. For another saddle `Profile.CockpitTarget` keeps the hands where they sit relative to the sit bones: it re-measures `d_0` from that saddle's BRP (Berthoud Aspin `684.9 mm`, SLR Boost `689.9 mm`).
 - **Dimensions**: Semi-minor axis `a = 10.0 mm` (±1 cm horizontal) and semi-major axis `b = 20.0 mm` (±2 cm vertical).
 - **Rotation**: 30° clockwise tilt, matching frame sizing geometry where longer reach requires taller stack.
 - **Normalized Radius `R`**: `R = √((p_minor / 10)² + (p_major / 20)²)`
@@ -112,15 +112,7 @@ Each setup gets its cheapest stock build on the points-lost ledger, in two scans
 
 Both totals are continuous in the frame geometry: each candidate's cost is continuous and the scan keeps their minimum. The closed-form 2×2 solve (`Stem/Spacer Fit`) still explains the result ("needs a 127 mm stem") and measures the excess past the hardware limits.
 
-The legacy proximity figures (`BaseScore`, the versatility bonus, `StemPenalty`, `FinalSubScore`) are still computed for the selected setup but drive nothing: the Oval Fits marker is ✓ when R ≤ 1 and `✗ N pts` otherwise, and they are slated for deletion.
-
-When a profile does not score `handlebar_clamp_fit` (or `brp_setback` / `rail_offset` for the saddle), the legacy selectors run instead: `SelectBestBRP`, and for the cockpit `SelectBestHBWithDrop` selects the optimal stem and spacer combination using strict hierarchy:
-1. **Primary (`saddle_hb`)**: Minimum rounded mm distance to the distance target range `(d)`.
-2. **Secondary (`saddle_hb_drop`)**: Minimum rounded mm distance to the drop target range `(c)`.
-3. **Tie-breaker 1**: Closest stem length to `canonical_stem`.
-4. **Tie-breaker 2**: Closest stem angle to `canonical_stem`.
-5. **Tie-breaker 3**: Smallest spacer stack (`spacerMm`).
-6. **Tie-breaker 4**: Closest unrounded distance to target midpoint.
+A profile without a scored `handlebar_clamp_fit` (or without a cockpit target) keeps the row's default selection: the canonical stem with no spacers. There is no separate range-based selector.
 
 ---
 
@@ -129,18 +121,17 @@ When a profile does not score `handlebar_clamp_fit` (or `brp_setback` / `rail_of
 ### `idmatch` Profile
 Built directly around the idmatch Bikelab report:
 - `saddle_height_mm`: `746`
-- `brp_setback`: Free at exactly `219 mm`; `1.2` points per mm either side (`acceptable: 214–224` is display-only)
+- `brp_setback`: Free at exactly `219 mm`; `1.2` points per mm either side
 - `rail_offset`: Free within `±5 mm` of dead center; linear to `8` points at the saddle's clamp limit (`±15 mm` on the SQlab 610)
-- `handlebar_clamp_fit`: Free inside the fit oval (`R ≤ 1`); `22` points per unit of R beyond the edge (display: `≥100` / `≥75` on the selected setup's `FinalSubScore`)
+- `handlebar_clamp_fit`: Free inside the fit oval (`R ≤ 1`); `22` points per unit of R beyond the edge (displayed free range: `≥1` setup inside the oval)
 - `stem_length`: Free `70–80 mm`; linear to `8` points at the stem catalog limits (`mtb` 40/100, `gravel` 60/110)
 - `stem_angle`: Free at `0°`; `1` point at `−6°` or `+6°`
 - `spacers`: Free `0–20 mm`; linear to `8` points at `max_spacer_mm` (`40 mm`)
-- `saddle_hb`: Display-only with target `700 mm` (`ideal: 695–705, acceptable: 685–715`)
-- `saddle_hb_drop`: Display-only with target `+3 mm` relative to sit-bone position (`ideal: -2–8, acceptable: -10–16`; corresponds to `+13 mm` above the lowered SQlab 70 mm BRP plane)
-- `seatpost_extension`: Free `250–310 mm`; `0.18` points per mm below, `0.21` per mm above (`acceptable: 210–340` is display-only) — Proxy for standover clearance and seatpost/dropper fitment: `SaddleHeightMm - SeatTubeLength`.
+- `saddle_hb`, `saddle_hb_drop`: Display-only with no ranges. The cockpit target is the profile's explicit `CockpitTargetDistMm = 700` (from the BRP) and `CockpitTargetRiseMm = +3` (above the sit bones; `+13 mm` above the lowered SQlab 70 mm BRP plane)
+- `seatpost_extension`: Free `250–310 mm`; `0.18` points per mm below, `0.21` per mm above — Proxy for standover clearance and seatpost/dropper fitment: `SaddleHeightMm - SeatTubeLength`.
 - `rc_wb_ratio`: Free `37–39 %` (`RearCenter / Wheelbase`); `4` points per percentage point either side
-- `bbdrop`: Free `65–75 mm`; `0.44` points per mm either side (`acceptable: 60–80` is display-only)
-- `trail`: Free `98–106 mm`; `0.41` points per mm either side (`acceptable: 92–109 mm` is display-only) — Steering feel ground trail based on active HTA, fork rake, and 29x2.4" baseline tires (372mm wheel radius).
+- `bbdrop`: Free `65–75 mm`; `0.44` points per mm either side
+- `trail`: Free `98–106 mm`; `0.41` points per mm either side — Steering feel ground trail based on active HTA, fork rake, and 29x2.4" baseline tires (372mm wheel radius).
 - `hta`: Display-only (`ActiveHta`)
 - `seat_to_rc`: Display-only Seat Axis–Rear Axle (horizontal distance from the Seat Axis Point to rear axle)
 - `sparevert`: Display-only Seat Axis–HT Drop (vertical drop from the Seat Axis Point to head tube top `SaddleHeight * sin(STA) - Stack`)
@@ -150,7 +141,7 @@ Built directly around the idmatch Bikelab report:
 `Total = 100 − Σ points lost`, and it may go below 0.
 
 - Each scored attribute is free inside its `Ideal` range and linear outside it: either `Cost.Below` / `Cost.Above` points of total per unit, or (hardware bands) `LimitPoints` reached at the setup's hardware limit (`ideal.HardwareLimits`: rail clamp window, stem catalog length and angle range, spacer stack). There are no weights, weighted averages, floors or curve tails, so adding or removing a band never rescales the others.
-- A scored cell is `✓` when the printed value is inside the free range (or the band costs nothing) and `✗ N pts` otherwise; display-only bands keep a `✗` with their distance. `Acceptable` ranges are no longer shown and do not change the points.
+- A scored cell is `✓` when the printed value is inside the free range (or the band costs nothing) and `✗ N pts` otherwise; display-only bands keep a `✗` with their distance. There are no acceptable ranges.
 - **Fit gate** (`scoring.Fits`): a setup fits when some stock build puts the hands inside the oval (`CountInside > 0`, or `R ≤ 1` for the selected build) and the BRP lands within 10 mm of the `brp_setback` free range. Every fitting setup ranks above every non-fitting one (`scoring.Better`); points order each group.
 - Points use the unrounded value; the cell's marker and delta use the printed value.
-- `EdgeScore`, `Falloff` and `Floor` are still validated (`AttributeSpec.compileCurves`) but no longer affect scores; a profile no longer needs them; when `Falloff` is set the curve must still compile. They are slated for deletion along with `pkg/curve`, which no longer feeds any display.
+- A profile needs only a free range and a cost per scored band: there are no `EdgeScore`, `Falloff`, `Floor` or `Acceptable` fields. `ForSaddle` carries only the `brp_setback` free value onto another saddle through the sit-bone invariant.

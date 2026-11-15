@@ -802,7 +802,8 @@ func CanonicalizeBikes(
 //     and spacers bands; the cheapest is kept. Past the hardware limits the oval
 //     absorbs the miss.
 //
-// Profiles without those scored bands fall back to the legacy range selectors.
+// A profile without a cockpit target, or without a scored Oval Fits band, leaves
+// the row's default selection in place.
 func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.Profile) {
 	if prof == nil {
 		return
@@ -813,44 +814,19 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 		can := &row.Canonical
 		rowProf := prof.ForSaddle(can.Saddle)
 
-		var rowBrpMin, rowBrpMax model.Opt[float64]
-		var rowDistMin, rowDistMax model.Opt[float64]
-		var rowDropMin, rowDropMax model.Opt[float64]
-		var hasClampFit bool
-
-		for _, attr := range rowProf.Attributes {
-			if attr.ID == ideal.MetricHandlebarClampFit {
-				hasClampFit = true
-			} else if attr.ID == ideal.MetricBrpSetback && attr.Ideal != nil {
-				rowBrpMin = attr.Ideal.Min
-				rowBrpMax = attr.Ideal.Max
-			} else if attr.ID == ideal.MetricSaddleHb && attr.Ideal != nil {
-				rowDistMin = attr.Ideal.Min
-				rowDistMax = attr.Ideal.Max
-			} else if attr.ID == ideal.MetricSaddleHbDrop && attr.Ideal != nil {
-				rowDropMin = attr.Ideal.Min
-				rowDropMax = attr.Ideal.Max
-			}
-		}
-
 		// 1. Saddle position on the rails.
 		activeBRP := can.DeadCenterBRP
 		if can.SelectedBRP != nil {
 			activeBRP = *can.SelectedBRP
 		}
 		if len(can.PossibleBRPs) > 0 {
-			var bestBRP model.BRPPoint
-			var ok bool
 			if cost := brpCost(rowProf, row); cost != nil {
-				bestBRP, ok = geometry.SelectCheapestBRP(can.PossibleBRPs, cost)
-			} else {
-				bestBRP, ok = geometry.SelectBestBRP(can.PossibleBRPs, rowBrpMin, rowBrpMax)
-			}
-			if ok {
-				can.SelectedBRP = &bestBRP
-				can.SitBoneSetbackMm = bestBRP.SitBoneSetbackMm
-				can.AchievedClampOffset = bestBRP.AchievedClampOffsetMm
-				activeBRP = bestBRP
+				if bestBRP, ok := geometry.SelectCheapestBRP(can.PossibleBRPs, cost); ok {
+					can.SelectedBRP = &bestBRP
+					can.SitBoneSetbackMm = bestBRP.SitBoneSetbackMm
+					can.AchievedClampOffset = bestBRP.AchievedClampOffsetMm
+					activeBRP = bestBRP
+				}
 			}
 			// Re-map PossibleHBs referencing the selected BRP and configured handlebar.
 			bar := can.Handlebar
@@ -861,19 +837,12 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 		}
 
 		// 2. Cockpit hardware.
-		switch {
-		case hasClampFit && (rowDistMin.IsSet() || rowDistMax.IsSet()):
-			if cost := cockpitCost(rowProf, row); cost != nil {
-				geometry.ApplyCockpitFitByCost(can, row.Bike, rowDistMin, rowDistMax, rowDropMin, rowDropMax, prof.TargetRef, prof.ReferenceBar, cost)
-			} else {
-				geometry.ApplyCockpitFitForTarget(can, row.Bike, row.Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax, prof.TargetRef, prof.ReferenceBar)
-			}
-		case len(can.PossibleHBs) > 0:
-			if bestHB, ok := geometry.SelectBestHBWithDropForTarget(can.PossibleHBs, row.Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax, activeBRP, prof.TargetRef, prof.ReferenceBar); ok {
-				can.SelectedHB = &bestHB
-				can.SaddleHbMm = bestHB.SaddleHbMm
-				can.SaddleHbDropMm = bestHB.SaddleHbDropMm
-			}
+		distMm, riseMm, ok := prof.CockpitTarget(can.Saddle)
+		if !ok {
+			continue
+		}
+		if cost := cockpitCost(rowProf, row); cost != nil {
+			geometry.ApplyCockpitFitByCost(can, distMm, riseMm, prof.TargetRef, prof.ReferenceBar, cost)
 		}
 	}
 }

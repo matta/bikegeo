@@ -48,8 +48,7 @@ func PrintedDistanceToIdeal(idealRange *Range, printedVal float64, decimals int)
 const OvalCostPerR = 22.0
 
 // OvalPointsLost returns the Oval Fits points lost for a selected cockpit setup:
-// OvalCostPerR per unit of R beyond the oval edge. The selector's stem penalty
-// only steers which setup is selected; it costs no points.
+// OvalCostPerR per unit of R beyond the oval edge.
 func OvalPointsLost(cfr *model.CockpitFitResult, cost *Cost) float64 {
 	if cfr == nil {
 		return 0
@@ -176,7 +175,7 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 		zone, sym := freeOrLost(lost)
 
 		return Evaluation{
-			Value:           cfr.FinalSubScore,
+			Value:           float64(cfr.CountInside),
 			Zone:            zone,
 			DistanceToIdeal: cfr.BestR,
 			PointsLost:      lost,

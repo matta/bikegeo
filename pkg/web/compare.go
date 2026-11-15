@@ -295,7 +295,7 @@ func attachInspectLinks(tv *TableView, t report.Table, bikeHrefByCol map[string]
 	}
 	bodyIdx := 0
 	for _, r := range t.Rows {
-		if r.Kind == report.KindIdeal || r.Kind == report.KindAcceptable {
+		if r.Kind == report.KindIdeal {
 			continue
 		}
 		if bodyIdx < len(tv.Body) && frameColIdx < len(tv.Body[bodyIdx].Cells) {

@@ -411,29 +411,25 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	}
 }
 
-func TestMapPossibleHBs_And_SelectBestHB(t *testing.T) {
+func TestMapPossibleHBs_CoversEveryStemAndSpacer(t *testing.T) {
 	reach := 440.0
 	stack := 630.0
 	htaDeg := model.Deg(68.0)
 	staDeg := model.Deg(74.0)
 	seatHeight := 750.0
 
-	maxSpacer := 20.0 // 0, 5, 10, 15, 20 mm (5 spacer points)
-	canonical := model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0}
-	stems := []model.StemSpec{
-		{LengthMm: 50.0, AngleDeg: -6.0},
-		{LengthMm: 60.0, AngleDeg: -6.0},
-		{LengthMm: 70.0, AngleDeg: -6.0},
-	}
-
 	bike := model.BikeGeometry{
 		Reach:         reach,
 		Stack:         stack,
 		HtaDeg:        htaDeg,
 		StaDeg:        staDeg,
-		MaxSpacerMm:   maxSpacer,
-		CanonicalStem: canonical,
-		Stems:         stems,
+		MaxSpacerMm:   20.0, // 0, 5, 10, 15, 20 mm (5 spacer points)
+		CanonicalStem: model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0},
+		Stems: []model.StemSpec{
+			{LengthMm: 50.0, AngleDeg: -6.0},
+			{LengthMm: 60.0, AngleDeg: -6.0},
+			{LengthMm: 70.0, AngleDeg: -6.0},
+		},
 	}
 
 	brp := geometry.CalculateBRPPoint(staDeg, seatHeight, 0.0, 0.0, 0.0)
@@ -442,61 +438,12 @@ func TestMapPossibleHBs_And_SelectBestHB(t *testing.T) {
 	if len(points) != 15 {
 		t.Fatalf("Expected 15 possible HB points, got %d", len(points))
 	}
-
-	// 1. With unset target, SelectBestHB should select the canonical stem at 0 spacer
-	bestNoTarget, ok := geometry.SelectBestHB(points, canonical, model.Opt[float64]{}, model.Opt[float64]{})
-	if !ok {
-		t.Fatalf("SelectBestHB returned false")
-	}
-	if bestNoTarget.Stem.LengthMm != canonical.LengthMm || bestNoTarget.Stem.AngleDeg != canonical.AngleDeg {
-		t.Errorf("Expected canonical stem, got %+v", bestNoTarget.Stem)
-	}
-	if bestNoTarget.SpacerMm != 0 {
-		t.Errorf("Expected 0 spacer with no target, got %.1f", bestNoTarget.SpacerMm)
-	}
-
-	// 2. Select with target range matching one specific stem/spacer combination
-	// Let's find point for 70mm stem @ 10mm spacer:
-	var targetPt model.HBPoint
+	seen := map[[2]float64]bool{}
 	for _, p := range points {
-		if p.Stem.LengthMm == 70.0 && p.SpacerMm == 10.0 {
-			targetPt = p
-			break
-		}
+		seen[[2]float64{p.Stem.LengthMm, p.SpacerMm}] = true
 	}
-	targetMin := targetPt.SaddleHbMm - 0.5
-	targetMax := targetPt.SaddleHbMm + 0.5
-	bestTarget, ok := geometry.SelectBestHB(points, canonical, model.Some(targetMin), model.Some(targetMax))
-	if !ok {
-		t.Fatalf("SelectBestHB returned false")
-	}
-	if math.Abs(bestTarget.SaddleHbMm-targetPt.SaddleHbMm) > 0.001 {
-		t.Errorf("Expected SaddleHbMm %.1f, got %.1f", targetPt.SaddleHbMm, bestTarget.SaddleHbMm)
-	}
-	if bestTarget.Stem.LengthMm != 70.0 || bestTarget.SpacerMm != 10.0 {
-		t.Errorf("Expected 70mm stem @ 10mm spacer, got %+v @ %.1fmm", bestTarget.Stem, bestTarget.SpacerMm)
-	}
-
-	// 3. Test tie breaking: if two points both fall in [targetMin, targetMax], point with canonical stem wins
-	// Let target encompass both 60mm stem @ 10mm and 70mm stem @ 0mm
-	var ptCanon, ptOther model.HBPoint
-	for _, p := range points {
-		if p.Stem.LengthMm == 60.0 && p.SpacerMm == 10.0 {
-			ptCanon = p
-		}
-		if p.Stem.LengthMm == 70.0 && p.SpacerMm == 0.0 {
-			ptOther = p
-		}
-	}
-	minVal := math.Min(ptCanon.SaddleHbMm, ptOther.SaddleHbMm) - 2.0
-	maxVal := math.Max(ptCanon.SaddleHbMm, ptOther.SaddleHbMm) + 2.0
-	bestTie, ok := geometry.SelectBestHB(points, canonical, model.Some(minVal), model.Some(maxVal))
-	if !ok {
-		t.Fatalf("SelectBestHB returned false")
-	}
-	// The 60mm stem (canonical length) must win over 50mm or 70mm
-	if bestTie.Stem.LengthMm != canonical.LengthMm {
-		t.Errorf("Expected canonical stem length %.0fmm to win tie-break, got %.0fmm", canonical.LengthMm, bestTie.Stem.LengthMm)
+	if len(seen) != 15 {
+		t.Errorf("Expected 15 distinct stem/spacer combinations, got %d", len(seen))
 	}
 }
 
@@ -565,7 +512,7 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 	}
 }
 
-func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
+func TestMapPossibleBRPs_And_SelectCheapestBRP(t *testing.T) {
 	staDeg := model.Deg(72.0)
 	seatHeight := 746.0
 
@@ -575,21 +522,20 @@ func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
 		t.Fatalf("Expected 31 candidate BRP points, got %d", len(points))
 	}
 
-	// 1. Without target, should select dead-center (RailOffsetMm = 0)
-	bestNoTarget, ok := geometry.SelectBestBRP(points, model.Opt[float64]{}, model.Opt[float64]{})
+	// 1. A flat cost leaves a tie, which goes to dead center (RailOffsetMm = 0)
+	bestFlat, ok := geometry.SelectCheapestBRP(points, func(model.BRPPoint) float64 { return 0 })
 	if !ok {
-		t.Fatalf("SelectBestBRP returned false")
+		t.Fatalf("SelectCheapestBRP returned false")
 	}
-	if math.Abs(bestNoTarget.RailOffsetMm) > 0.001 {
-		t.Errorf("Expected 0 rail offset without target, got %.1f", bestNoTarget.RailOffsetMm)
+	if math.Abs(bestFlat.RailOffsetMm) > 0.001 {
+		t.Errorf("Expected 0 rail offset on a tie, got %.1f", bestFlat.RailOffsetMm)
 	}
 
-	// 2. Target 219mm on STA=72.0° with the zero-setback dropper: dead-center setback is 208.5mm, so the rails must move back ~11mm
-	tMin := 218.5
-	tMax := 219.5
-	bestTarget, ok := geometry.SelectBestBRP(points, model.Some(tMin), model.Some(tMax))
+	// 2. Cost = distance from 219mm on STA=72.0° with the zero-setback dropper: dead-center setback is 208.5mm, so the rails must move back ~11mm
+	toSetback := func(b model.BRPPoint) float64 { return math.Abs(b.BrpSetbackMm - 219.0) }
+	bestTarget, ok := geometry.SelectCheapestBRP(points, toSetback)
 	if !ok {
-		t.Fatalf("SelectBestBRP returned false")
+		t.Fatalf("SelectCheapestBRP returned false")
 	}
 	if math.Abs(bestTarget.BrpSetbackMm-219.0) > 0.5 {
 		t.Errorf("Expected BrpSetbackMm ~ 219.0, got %.1f", bestTarget.BrpSetbackMm)
@@ -600,55 +546,16 @@ func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
 
 	// 3. Target 219mm on steep STA=75.0° (Binary Kinetik): dead center is ~181.5mm, requires +37.5mm (clamps to +15mm)
 	steepPoints := geometry.MapPossibleBRPs(75.0, seatHeight)
-	bestClamped, ok := geometry.SelectBestBRP(steepPoints, model.Some(tMin), model.Some(tMax))
+	bestClamped, ok := geometry.SelectCheapestBRP(steepPoints, toSetback)
 	if !ok {
-		t.Fatalf("SelectBestBRP returned false for steep points")
+		t.Fatalf("SelectCheapestBRP returned false for steep points")
 	}
 	if bestClamped.RailOffsetMm != 15.0 {
 		t.Errorf("Expected clamp to max +15mm rail offset, got %.1f", bestClamped.RailOffsetMm)
 	}
-}
 
-func TestSelectBestHBWithDrop_Hierarchy(t *testing.T) {
-	canonicalStem := model.StemSpec{LengthMm: 60.0, AngleDeg: -6.0}
-
-	// ptA: SaddleHbMm = 700 (inside distance [695, 705]), SaddleHbDropMm = 25 (12mm away from drop target 13)
-	// ptB: SaddleHbMm = 700 (inside distance [695, 705]), SaddleHbDropMm = 14 (1mm away from drop target 13)
-	// ptC: SaddleHbMm = 708 (3mm away from distance), SaddleHbDropMm = 13 (0mm away from drop target)
-	ptA := model.HBPoint{
-		Stem:           model.StemSpec{LengthMm: 60, AngleDeg: 0},
-		SpacerMm:       20,
-		SaddleHbMm:     700.0,
-		SaddleHbDropMm: 25.0,
-	}
-	ptB := model.HBPoint{
-		Stem:           model.StemSpec{LengthMm: 60, AngleDeg: -6},
-		SpacerMm:       10,
-		SaddleHbMm:     700.0,
-		SaddleHbDropMm: 14.0,
-	}
-	ptC := model.HBPoint{
-		Stem:           model.StemSpec{LengthMm: 70, AngleDeg: -6},
-		SpacerMm:       10,
-		SaddleHbMm:     708.0,
-		SaddleHbDropMm: 13.0,
-	}
-
-	pts := []model.HBPoint{ptA, ptC, ptB}
-	distMin := 695.0
-	distMax := 705.0
-	dropMin := 8.0
-	dropMax := 18.0
-
-	// ptB must win over ptA because both are in distance target range [695, 705], but ptB is in drop target range [8, 18].
-	// ptB must win over ptC because distance is PRIMARY (ptC is outside distance range [695, 705]).
-	best, ok := geometry.SelectBestHBWithDrop(pts, canonicalStem, model.Some(distMin), model.Some(distMax), model.Some(dropMin), model.Some(dropMax))
-	if !ok {
-		t.Fatalf("SelectBestHBWithDrop returned false")
-	}
-	if best.SaddleHbMm != 700.0 || best.SaddleHbDropMm != 14.0 {
-		t.Errorf("Expected ptB (700mm, drop 14mm) to win primary distance / secondary drop hierarchy, got dist=%.1f, drop=%.1f",
-			best.SaddleHbMm, best.SaddleHbDropMm)
+	if _, ok := geometry.SelectCheapestBRP(nil, toSetback); ok {
+		t.Error("an empty candidate list must report ok=false")
 	}
 }
 
@@ -715,96 +622,80 @@ func TestFitOval_Geometry(t *testing.T) {
 	}
 }
 
-func TestCockpitBaseScore_RollOff(t *testing.T) {
-	checks := []struct{ r, want float64 }{
-		{0.0, 100.0}, // center
-		{0.5, 87.5},  // mid-oval: linear between 100 and 75
-		{1.0, 75.0},  // oval edge
-		{2.0, 0.0},   // one oval radius past the edge
-	}
-	for _, c := range checks {
-		if s := geometry.CalculateCockpitBaseScore(c.r); math.Abs(s-c.want) > 1e-9 {
-			t.Errorf("R=%.2f expected %.2f, got %.4f", c.r, c.want, s)
-		}
-	}
+// ovalPoint returns a candidate whose hand grip sits r oval radii from the oval
+// center along its minor axis.
+func ovalPoint(stem model.StemSpec, spacerMm, r float64) model.HBPoint {
+	cos30, sin30 := math.Cos(30.0*math.Pi/180.0), math.Sin(30.0*math.Pi/180.0)
+	return model.HBPoint{Stem: stem, SpacerMm: spacerMm, HbX: 500 + r*10*cos30, HbY: 700 - r*10*sin30}
 }
 
-// The cockpit proximity score must never go flat or jump, however far the bars are.
-func TestCockpitBaseScore_StrictlyDecreasingAndContinuous(t *testing.T) {
-	prev := geometry.CalculateCockpitBaseScore(0)
-	for i := 1; i <= 100000; i++ {
-		r := float64(i) * 0.001
-		cur := geometry.CalculateCockpitBaseScore(r)
-		if !(cur < prev) {
-			t.Fatalf("not strictly decreasing at R=%.3f: %.6f then %.6f", r, prev, cur)
-		}
-		if !(cur > -200.0) {
-			t.Fatalf("R=%.3f reached the -200 asymptote: %.6f", r, cur)
-		}
-		if prev-cur > 0.5 {
-			t.Fatalf("jump of %.3f at R=%.3f", prev-cur, r)
-		}
-		prev = cur
-	}
-	// Far out, two different distances still score differently.
-	if !(geometry.CalculateCockpitBaseScore(8.15) < geometry.CalculateCockpitBaseScore(5.55)) {
-		t.Error("R=8.15 should score lower than R=5.55")
-	}
-}
-
-func TestEvaluateCockpitFit(t *testing.T) {
+func TestEvaluateCockpitFitByCost(t *testing.T) {
 	oval := geometry.DefaultFitOval(500.0, 700.0)
-	canonicalStem := model.StemSpec{LengthMm: 70, AngleDeg: -6}
+	byR := func(_ model.HBPoint, r float64) float64 { return r }
 
-	// Scenario 1: Multiple setups inside (diminishing returns versatility bonus)
-	setupsInside := []model.HBPoint{
-		{Stem: model.StemSpec{LengthMm: 70, AngleDeg: -6}, SpacerMm: 10, HbX: 500.0, HbY: 700.0},  // R=0 (Center)
-		{Stem: model.StemSpec{LengthMm: 80, AngleDeg: -6}, SpacerMm: 15, HbX: 505.0, HbY: 708.66}, // inside
-		{Stem: model.StemSpec{LengthMm: 60, AngleDeg: -6}, SpacerMm: 5, HbX: 495.0, HbY: 691.34},  // inside
+	setups := []model.HBPoint{
+		ovalPoint(model.StemSpec{LengthMm: 80, AngleDeg: -6}, 15, 0.5), // inside
+		ovalPoint(model.StemSpec{LengthMm: 70, AngleDeg: -6}, 10, 0),   // R=0 (center)
+		ovalPoint(model.StemSpec{LengthMm: 60, AngleDeg: -6}, 5, 0.8),  // inside
+		ovalPoint(model.StemSpec{LengthMm: 90, AngleDeg: 0}, 0, 1.1),   // outside
 	}
-	resMulti := geometry.EvaluateCockpitFit(setupsInside, canonicalStem, oval)
-	if resMulti.CountInside != 3 {
-		t.Errorf("Expected 3 inside, got %d", resMulti.CountInside)
+	res := geometry.EvaluateCockpitFitByCost(setups, oval, "", model.Opt[model.HandlebarSpec]{}, byR)
+	if res.CountInside != 3 || !res.HasFit {
+		t.Errorf("Expected 3 inside with a fit, got %d (HasFit=%v)", res.CountInside, res.HasFit)
 	}
-	if resMulti.BestR != 0.0 {
-		t.Errorf("Expected BestR 0.0, got %.3f", resMulti.BestR)
+	if res.BestR != 0.0 || res.SelectedHB.Stem.LengthMm != 70 {
+		t.Errorf("Expected the centered 70mm stem at R=0, got %.0fmm at R=%.3f", res.SelectedHB.Stem.LengthMm, res.BestR)
 	}
-	// The bonus fills headroom above the base score; a perfectly centered setup has none.
-	if resMulti.VersatilityBonus != 0.0 {
-		t.Errorf("Expected no bonus headroom at the oval center, got %.1f", resMulti.VersatilityBonus)
-	}
-	if resMulti.FinalSubScore != 100.0 {
-		t.Errorf("Expected final score 100.0, got %.1f", resMulti.FinalSubScore)
+	if res.TargetRef != geometry.TargetHandGrip {
+		t.Errorf("Expected an empty target ref to default to HandGrip, got %q", res.TargetRef)
 	}
 
-	// Spare setups lift an off-center selection, without ever exceeding 100.
-	offCenterAlone := geometry.EvaluateCockpitFit(setupsInside[1:2], canonicalStem, oval)
-	offCenterWithSpares := geometry.EvaluateCockpitFit(setupsInside[1:], canonicalStem, oval)
-	if !(offCenterWithSpares.FinalSubScore > offCenterAlone.FinalSubScore) {
-		t.Errorf("Expected spare setups to raise the score: alone %.2f, with spares %.2f", offCenterAlone.FinalSubScore, offCenterWithSpares.FinalSubScore)
+	// Nothing inside: the cheapest candidate is still selected and the miss is its R.
+	outside := []model.HBPoint{
+		ovalPoint(model.StemSpec{LengthMm: 90, AngleDeg: 0}, 0, 1.6),
+		ovalPoint(model.StemSpec{LengthMm: 100, AngleDeg: 0}, 0, 1.1),
 	}
-	if offCenterWithSpares.FinalSubScore >= 100.0 {
-		t.Errorf("Expected score below 100, got %.2f", offCenterWithSpares.FinalSubScore)
+	resZero := geometry.EvaluateCockpitFitByCost(outside, oval, "", model.Opt[model.HandlebarSpec]{}, byR)
+	if resZero.CountInside != 0 || resZero.HasFit {
+		t.Errorf("Expected 0 inside, got %d (HasFit=%v)", resZero.CountInside, resZero.HasFit)
+	}
+	if math.Abs(resZero.BestR-1.1) > 1e-3 {
+		t.Errorf("Expected BestR 1.1, got %.3f", resZero.BestR)
 	}
 
-	// Scenario 2: 0 setups inside. There is no separate missing-fit penalty: the score
-	// continues smoothly past the oval edge (75 at R=1). At R=1.10 it is just below 75:
-	// BaseScore = -200 + 275*h/(h+0.1), h = 200/75 -> ~65.1, and Final equals BaseScore.
-	// For R=1.10 along minor axis: dx = 11*cos(30) = 9.526, dy = -11*sin(30) = -5.5
-	dx := 11.0 * math.Cos(30.0*math.Pi/180.0)
-	dy := -11.0 * math.Sin(30.0*math.Pi/180.0)
-	setupsOutside := []model.HBPoint{
-		{Stem: model.StemSpec{LengthMm: 90, AngleDeg: 0}, SpacerMm: 0, HbX: 500.0 + dx, HbY: 700.0 + dy},
+	// No candidates, or no cost: the empty result reports no fit.
+	if r := geometry.EvaluateCockpitFitByCost(nil, oval, "", model.Opt[model.HandlebarSpec]{}, byR); r.HasFit || r.BestR != 999 {
+		t.Errorf("Expected an empty result for no candidates, got %+v", r)
 	}
-	resZero := geometry.EvaluateCockpitFit(setupsOutside, canonicalStem, oval)
-	if resZero.CountInside != 0 {
-		t.Errorf("Expected 0 inside, got %d", resZero.CountInside)
+}
+
+// The cheapest candidate wins even when another sits closer to the oval center; on
+// equal cost the candidate nearer the center wins, then the earlier one.
+func TestEvaluateCockpitFitByCost_CheapestWins(t *testing.T) {
+	oval := geometry.DefaultFitOval(500.0, 700.0)
+	short := model.StemSpec{LengthMm: 80, AngleDeg: -6}
+	long := model.StemSpec{LengthMm: 100, AngleDeg: -6}
+	// The 100mm stem is closer to center (R=0.10) but the 80mm stem is slightly off center (R=0.25).
+	candidates := []model.HBPoint{ovalPoint(long, 0, 0.10), ovalPoint(short, 10, 0.25)}
+	stemCost := func(pt model.HBPoint, _ float64) float64 {
+		if pt.Stem.LengthMm > 90 {
+			return 15
+		}
+		return 0
 	}
-	if math.Abs(resZero.BaseScore-65.1) > 0.1 {
-		t.Errorf("Expected BaseScore ~65.1, got %.2f", resZero.BaseScore)
+	res := geometry.EvaluateCockpitFitByCost(candidates, oval, "", model.Opt[model.HandlebarSpec]{}, stemCost)
+	if res.SelectedHB.Stem.LengthMm != 80 || res.CountInside != 2 {
+		t.Errorf("Expected the cheaper 80mm stem with 2 inside, got %.0fmm with %d inside", res.SelectedHB.Stem.LengthMm, res.CountInside)
 	}
-	if math.Abs(resZero.FinalSubScore-resZero.BaseScore) > 1e-9 {
-		t.Errorf("Expected FinalSubScore == BaseScore with a single outside setup, got %.2f vs %.2f", resZero.FinalSubScore, resZero.BaseScore)
+
+	flat := func(model.HBPoint, float64) float64 { return 3 }
+	res = geometry.EvaluateCockpitFitByCost(candidates, oval, "", model.Opt[model.HandlebarSpec]{}, flat)
+	if res.SelectedHB.Stem.LengthMm != 100 {
+		t.Errorf("Expected a cost tie to go to the candidate nearer the center, got %.0fmm", res.SelectedHB.Stem.LengthMm)
+	}
+	res = geometry.EvaluateCockpitFitByCost([]model.HBPoint{candidates[0], candidates[0]}, oval, "", model.Opt[model.HandlebarSpec]{}, flat)
+	if res.SelectedHB.Stem.LengthMm != 100 {
+		t.Errorf("Expected identical candidates to keep the earlier one, got %.0fmm", res.SelectedHB.Stem.LengthMm)
 	}
 }
 
@@ -934,89 +825,6 @@ func TestSaddleElevationAndTranslationMethods(t *testing.T) {
 	aspinVec := aspin.BrpToSitBonesVec()
 	if aspinVec.X != -88.0 || aspinVec.Y != 0.0 {
 		t.Errorf("Expected Aspin BrpToSitBonesVec (-88.0, 0.0), got (%.1f, %.1f)", aspinVec.X, aspinVec.Y)
-	}
-}
-
-func TestEvaluateCockpitFit_StemExtremityPreference(t *testing.T) {
-	oval := geometry.DefaultFitOval(500.0, 700.0)
-	canonicalStem := model.StemSpec{LengthMm: 80, AngleDeg: -6}
-	expectedRange := []float64{60.0, 100.0} // Midpoint 80mm
-
-	// Candidate A: 80mm stem (midpoint, penalty=0), slightly off-center inside oval (R=0.25)
-	// BaseScore = 100 - 25*(0.25)^2 = 98.44, StemPenalty = 0.0 -> CompScore = 98.44
-	// Candidate B: 100mm stem (extreme, penalty=15), closer to center inside oval (R=0.10)
-	// BaseScore = 100 - 25*(0.10)^2 = 99.75, StemPenalty = 15.0 -> CompScore = 84.75
-	dxA := 2.5 * math.Cos(30.0*math.Pi/180.0)
-	dyA := -2.5 * math.Sin(30.0*math.Pi/180.0)
-	dxB := 1.0 * math.Cos(30.0*math.Pi/180.0)
-	dyB := -1.0 * math.Sin(30.0*math.Pi/180.0)
-
-	candidates := []model.HBPoint{
-		{Stem: model.StemSpec{LengthMm: 100, AngleDeg: -6}, SpacerMm: 0, HbX: 500.0 + dxB, HbY: 700.0 + dyB},
-		{Stem: model.StemSpec{LengthMm: 80, AngleDeg: -6}, SpacerMm: 10, HbX: 500.0 + dxA, HbY: 700.0 + dyA},
-	}
-
-	res := geometry.EvaluateCockpitFit(candidates, canonicalStem, oval, expectedRange)
-
-	// Verify 80mm stem was preferred over 100mm stem
-	if res.SelectedHB.Stem.LengthMm != 80.0 {
-		t.Errorf("Expected 80mm stem to be selected due to stem extremity down-weighting of 100mm, got %.0fmm", res.SelectedHB.Stem.LengthMm)
-	}
-	if res.StemPenalty != 0.0 {
-		t.Errorf("Expected StemPenalty 0.0 for 80mm stem, got %.1f", res.StemPenalty)
-	}
-	if res.CountInside != 2 {
-		t.Errorf("Expected 2 inside oval, got %d", res.CountInside)
-	}
-
-	// Now evaluate only candidate B (100mm stem alone)
-	resOnly100 := geometry.EvaluateCockpitFit([]model.HBPoint{candidates[0]}, canonicalStem, oval, expectedRange)
-	if resOnly100.SelectedHB.Stem.LengthMm != 100.0 {
-		t.Fatalf("Expected 100mm stem selected, got %.0fmm", resOnly100.SelectedHB.Stem.LengthMm)
-	}
-	if resOnly100.StemPenalty != 15.0 {
-		t.Errorf("Expected 15.0 stem penalty for 100mm stem, got %.1f", resOnly100.StemPenalty)
-	}
-	// Final score should reflect down-weighting: BaseScore (97.5 at R=0.1) - StemPenalty (15.0) = 82.5
-	if math.Abs(resOnly100.FinalSubScore-82.5) > 0.2 {
-		t.Errorf("Expected FinalSubScore ~82.5 for 100mm stem, got %.1f", resOnly100.FinalSubScore)
-	}
-}
-
-// Moving one candidate across the oval edge must not make the final score jump.
-func TestEvaluateCockpitFit_ContinuousAcrossOvalEdge(t *testing.T) {
-	oval := geometry.DefaultFitOval(500.0, 700.0)
-	canonicalStem := model.StemSpec{LengthMm: 80, AngleDeg: -6}
-	expectedRange := []float64{60.0, 100.0}
-	cos30, sin30 := math.Cos(30.0*math.Pi/180.0), math.Sin(30.0*math.Pi/180.0)
-
-	// A second, fixed candidate sits comfortably inside; the first slides along the minor axis.
-	fixed := model.HBPoint{Stem: model.StemSpec{LengthMm: 90, AngleDeg: -6}, SpacerMm: 5, HbX: 500 + 4*cos30, HbY: 700 - 4*sin30}
-
-	prev := math.NaN()
-	for i := 0; i <= 400; i++ {
-		rr := 0.5 + float64(i)*0.0025 // R from 0.5 to 1.5, crossing the oval edge at 1.0
-		moving := model.HBPoint{Stem: model.StemSpec{LengthMm: 80, AngleDeg: -6}, SpacerMm: 0, HbX: 500 + rr*10*cos30, HbY: 700 - rr*10*sin30}
-		res := geometry.EvaluateCockpitFit([]model.HBPoint{moving, fixed}, canonicalStem, oval, expectedRange)
-		if !math.IsNaN(prev) && math.Abs(res.FinalSubScore-prev) > 1.0 {
-			t.Fatalf("final score jumps from %.3f to %.3f near R=%.4f", prev, res.FinalSubScore, rr)
-		}
-		prev = res.FinalSubScore
-	}
-}
-
-// Candidates that are all hopelessly outside the oval must still be told apart.
-func TestEvaluateCockpitFit_FarOutsideStillRanksByDistance(t *testing.T) {
-	oval := geometry.DefaultFitOval(500.0, 700.0)
-	stem := model.StemSpec{LengthMm: 100, AngleDeg: -6}
-	var prev float64
-	for i, off := range []float64{50, 63, 74, 87, 103} {
-		pt := model.HBPoint{Stem: stem, HbX: 500 - off, HbY: 700}
-		res := geometry.EvaluateCockpitFit([]model.HBPoint{pt}, stem, oval)
-		if i > 0 && !(res.FinalSubScore < prev) {
-			t.Errorf("offset %vmm scored %.3f, not below the nearer offset's %.3f", off, res.FinalSubScore, prev)
-		}
-		prev = res.FinalSubScore
 	}
 }
 

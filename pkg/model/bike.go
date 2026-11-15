@@ -857,18 +857,13 @@ func (r TargetRef) Label() string {
 
 // CockpitFitResult captures the fit assessment of a bike's candidate handlebar positions against a FitOval.
 type CockpitFitResult struct {
-	TargetRef         TargetRef
-	ReferenceBar      Opt[HandlebarSpec]
-	TargetOval        FitOval
-	SelectedHB        HBPoint
-	BestR             float64
-	CountInside       int
-	BaseScore         float64
-	VersatilityBonus  float64
-	StemPenalty       float64 // Penalty points for using stem near/at extreme of expected range
-	StemNormalizedDev float64 // Normalized deviation u = |L - L_mid| / HalfSpan
-	FinalSubScore     float64
-	HasFit            bool
+	TargetRef    TargetRef
+	ReferenceBar Opt[HandlebarSpec]
+	TargetOval   FitOval
+	SelectedHB   HBPoint
+	BestR        float64
+	CountInside  int
+	HasFit       bool
 }
 
 func (b BikeGeometry) GetMaxSpacerMm() float64 {

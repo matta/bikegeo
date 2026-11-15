@@ -33,28 +33,6 @@ func AtMost(max float64) *Range {
 	return &Range{Max: model.Some(max)}
 }
 
-// Falloff specifies the drop-off distance outside the acceptable range
-// where the sub-score drops from the edge score to 0.
-type Falloff struct {
-	Below model.Opt[float64]
-	Above model.Opt[float64]
-}
-
-// FalloffBoth returns a Falloff with both Below and Above drop-off distances.
-func FalloffBoth(below, above float64) *Falloff {
-	return &Falloff{Below: model.Some(below), Above: model.Some(above)}
-}
-
-// FalloffBelow returns a Falloff with only a Below drop-off distance.
-func FalloffBelow(below float64) *Falloff {
-	return &Falloff{Below: model.Some(below)}
-}
-
-// FalloffAbove returns a Falloff with only an Above drop-off distance.
-func FalloffAbove(above float64) *Falloff {
-	return &Falloff{Above: model.Some(above)}
-}
-
 // Cost is a band's price in points of total per unit outside its free range
 // (the AttributeSpec Ideal range). Total = 100 − Σ points lost, so each band's
 // cost stands on its own: adding or removing a band never rescales the others.
@@ -122,10 +100,6 @@ type AttributeSpec struct {
 	// saddle rail window, steerer spacer stack).
 	LimitPoints float64
 	Ideal       *Range
-	Acceptable  *Range
-	EdgeScore   model.Opt[float64]
-	Falloff     *Falloff
-	Floor       model.Opt[float64]
 }
 
 // IsScored reports whether the attribute contributes points lost to the total.
@@ -136,17 +110,6 @@ func (s AttributeSpec) IsScored() bool {
 // DisplayOnly returns an unscored, display-only AttributeSpec for the given attribute ID.
 func DisplayOnly(id MetricID) AttributeSpec {
 	return AttributeSpec{ID: id}
-}
-
-// DisplayOnlyWithTarget returns an unscored AttributeSpec that displays target ranges without contributing to the score.
-func DisplayOnlyWithTarget(id MetricID, ideal, acceptable *Range, edgeScore model.Opt[float64], falloff *Falloff) AttributeSpec {
-	return AttributeSpec{
-		ID:         id,
-		Ideal:      ideal,
-		Acceptable: acceptable,
-		EdgeScore:  edgeScore,
-		Falloff:    falloff,
-	}
 }
 
 // Profile represents an idealized frame definition with sweet-spot ranges across attributes.
@@ -160,7 +123,13 @@ type Profile struct {
 	ReferenceSaddle        model.SaddleSpec
 	TargetRef              model.TargetRef
 	ReferenceBar           model.Opt[model.HandlebarSpec]
-	Attributes             []AttributeSpec
+	// CockpitTargetDistMm and CockpitTargetRiseMm are the explicit cockpit target
+	// for the reference saddle: the hands sit CockpitTargetDistMm from the BRP and
+	// CockpitTargetRiseMm above the sit bones. CockpitTarget derives the distance
+	// for any other saddle.
+	CockpitTargetDistMm float64
+	CockpitTargetRiseMm float64
+	Attributes          []AttributeSpec
 }
 
 // Spec returns the profile's attribute spec for id.
@@ -190,15 +159,13 @@ type ProfileSummary struct {
 type ZoneType string
 
 const (
-	ZoneIdeal      ZoneType = "ideal"
-	ZoneAcceptable ZoneType = "acceptable"
-	ZoneOutside    ZoneType = "outside"
+	ZoneIdeal   ZoneType = "ideal"
+	ZoneOutside ZoneType = "outside"
 )
 
 const (
-	SymbolIdeal      = "✓"
-	SymbolAcceptable = "~"
-	SymbolOutside    = "✗"
+	SymbolIdeal   = "✓"
+	SymbolOutside = "✗"
 )
 
 // Evaluation contains the computed score and zone classification for a specific metric value.

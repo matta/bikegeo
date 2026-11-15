@@ -1,13 +1,13 @@
 :root {
   --bg: #fbfbfa; --fg: #1d2125; --muted: #5d6670; --line: #d6dadf; --panel: #f0f2f4;
-  --accent: #1558b0; --ideal: #d8f0dc; --acceptable: #fdf0c6; --outside: #f9d9d6; --missing: #e9ebee;
-  --ideal-fg: #14532d; --acceptable-fg: #6b4e00; --outside-fg: #8a1c14;
+  --accent: #1558b0; --ideal: #d8f0dc; --outside: #f9d9d6; --missing: #e9ebee;
+  --ideal-fg: #14532d; --outside-fg: #8a1c14;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14171a; --fg: #e4e7ea; --muted: #99a3ad; --line: #343b42; --panel: #1d2226;
-    --accent: #7db3ff; --ideal: #17331f; --acceptable: #3a3012; --outside: #3d1b18; --missing: #262b30;
-    --ideal-fg: #9be0aa; --acceptable-fg: #f0d27a; --outside-fg: #f5a79f;
+    --accent: #7db3ff; --ideal: #17331f; --outside: #3d1b18; --missing: #262b30;
+    --ideal-fg: #9be0aa; --outside-fg: #f5a79f;
   }
 }
 * { box-sizing: border-box; }
@@ -60,7 +60,6 @@ table[data-table] thead th.sticky { z-index: 4; }
 table[data-table] a.inspect { font-weight: normal; font-size: .85em; margin-left: .25rem; }
 table[data-table] tbody tr:hover td, table[data-table] tbody tr:hover th { filter: brightness(0.96); }
 table[data-table] td.zone-ideal, .zone-ideal.key { background: var(--ideal); color: var(--ideal-fg); }
-table[data-table] td.zone-acceptable, .zone-acceptable.key { background: var(--acceptable); color: var(--acceptable-fg); }
 table[data-table] td.zone-outside, .zone-outside.key { background: var(--outside); color: var(--outside-fg); }
 table[data-table] td.zone-missing { background: var(--missing); color: var(--muted); }
 .key { padding: 0 .35rem; border-radius: 3px; white-space: nowrap; }

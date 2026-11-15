@@ -69,7 +69,6 @@ func (db *docb) showIdeal(name string) int {
 		"Attribute",
 		"Cost (points lost outside the ideal range)",
 		"Ideal Range (free)",
-		"Acceptable Range",
 	}
 
 	var rows [][]string
@@ -89,16 +88,10 @@ func (db *docb) showIdeal(name string) int {
 			idealStr = "—"
 		}
 
-		accStr := ideal.FormatRange(attr.Acceptable, meta.Unit, meta.Decimals)
-		if accStr == "" {
-			accStr = "—"
-		}
-
 		rows = append(rows, []string{
 			fmt.Sprintf("%s (%s)", meta.Label, attr.ID),
 			costStr,
 			idealStr,
-			accStr,
 		})
 	}
 
@@ -165,24 +158,6 @@ func generateSampleValues(spec ideal.AttributeSpec) []float64 {
 		} else if hasMax {
 			add(maxVal)
 			add(maxVal - 10)
-		}
-	}
-
-	if spec.Acceptable != nil {
-		if minVal, ok := spec.Acceptable.Min.Get(); ok {
-			add(minVal)
-		}
-		if maxVal, ok := spec.Acceptable.Max.Get(); ok {
-			add(maxVal)
-		}
-	}
-
-	if spec.Acceptable != nil {
-		if minVal, ok := spec.Acceptable.Min.Get(); ok {
-			add(minVal - 10)
-		}
-		if maxVal, ok := spec.Acceptable.Max.Get(); ok {
-			add(maxVal + 10)
 		}
 	}
 

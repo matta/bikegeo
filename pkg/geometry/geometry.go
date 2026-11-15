@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"bikegeo/pkg/catalog"
-	"bikegeo/pkg/curve"
 	"bikegeo/pkg/geom2d"
 	"bikegeo/pkg/model"
 )
@@ -149,85 +148,6 @@ func MapPossibleBRPs(staDeg model.Deg, seatHeight float64) []model.BRPPoint {
 	)
 }
 
-func optRangeMid(minVal, maxVal model.Opt[float64]) float64 {
-	lo, hasLo := minVal.Get()
-	hi, hasHi := maxVal.Get()
-	switch {
-	case hasLo && hasHi:
-		return (lo + hi) / 2.0
-	case hasLo:
-		return lo
-	case hasHi:
-		return hi
-	default:
-		return 0
-	}
-}
-
-func optRangeDist(val float64, minVal, maxVal model.Opt[float64]) float64 {
-	if lo, ok := minVal.Get(); ok && val < lo {
-		return lo - val
-	}
-	if hi, ok := maxVal.Get(); ok && val > hi {
-		return val - hi
-	}
-	return 0
-}
-
-// SelectBestBRP selects the best BRP point from candidate points for a target setback range.
-// Ranking hierarchy:
-// 1. Min distance to target setback range (0 if inside or if target is unset)
-// 2. Smallest absolute rail offset (|RailOffsetMm|, closest to dead center 0mm on rails)
-// 3. Min exact unrounded distance to target midpoint
-func SelectBestBRP(
-	possible []model.BRPPoint,
-	targetMin, targetMax model.Opt[float64],
-) (model.BRPPoint, bool) {
-	if len(possible) == 0 {
-		return model.BRPPoint{}, false
-	}
-
-	best := possible[0]
-	hasTarget := targetMin.IsSet() || targetMax.IsSet()
-	targetMid := optRangeMid(targetMin, targetMax)
-
-	better := func(a, b model.BRPPoint) bool {
-		if hasTarget {
-			distA := optRangeDist(a.BrpSetbackMm, targetMin, targetMax)
-			distB := optRangeDist(b.BrpSetbackMm, targetMin, targetMax)
-			if math.Abs(distA-distB) > 0.001 {
-				return distA < distB
-			}
-		}
-
-		// Tie-breaker 1: closest to dead center on rails (min |RailOffsetMm|)
-		railDiffA := math.Abs(a.RailOffsetMm)
-		railDiffB := math.Abs(b.RailOffsetMm)
-		if math.Abs(railDiffA-railDiffB) > 0.001 {
-			return railDiffA < railDiffB
-		}
-
-		// Tie-breaker 2: min unrounded distance to target midpoint
-		if hasTarget {
-			midDiffA := math.Abs(a.BrpSetbackMm - targetMid)
-			midDiffB := math.Abs(b.BrpSetbackMm - targetMid)
-			if math.Abs(midDiffA-midDiffB) > 0.001 {
-				return midDiffA < midDiffB
-			}
-		}
-
-		return false
-	}
-
-	for _, pt := range possible[1:] {
-		if better(pt, best) {
-			best = pt
-		}
-	}
-
-	return best, true
-}
-
 // SelectCheapestBRP returns the BRP candidate (saddle rail position) with the
 // lowest cost. Ties go to the position nearer dead center on the rails, then to
 // the earlier candidate.
@@ -327,14 +247,6 @@ func MapPossibleHBsWithHandlebar(
 	return points
 }
 
-// SelectBestHBWithDrop selects the best HB point from candidate points for desired target distance and drop ranges.
-// Ranking hierarchy:
-// 1. Primary: Min rounded mm distance to distance target range (saddle_hb, 0 if inside or unset)
-// 2. Secondary: Min rounded mm distance to drop target range (saddle_hb_drop, 0 if inside or unset)
-// 3. Tie-breaker 1: Closest stem length to canonicalStem
-// 4. Tie-breaker 2: Closest stem angle to canonicalStem
-// 5. Tie-breaker 3: Smallest spacer stack (spacerMm)
-// 6. Tie-breaker 4: Min exact unrounded distance to target midpoints (distance first, then drop)
 // EvaluatedPointForHB returns the 2D cockpit point on pt evaluated against targets
 // under targetRef (with optional refBar for TargetReferenceBarClamp).
 // An empty targetRef defaults to TargetHandGrip for legacy callers.
@@ -354,134 +266,6 @@ func EvaluatedPointForHB(pt model.HBPoint, targetRef model.TargetRef, refBar mod
 	default:
 		return handGrip
 	}
-}
-
-// candidateTargetMetrics returns the distance from BRP and vertical rise above SitBones
-// for the evaluated cockpit point matching targetRef. When targetRef is TargetHandGrip
-// (or empty), it returns pt.SaddleHbMm and pt.SaddleHbDropMm directly so callers with zero BRP work unchanged.
-func candidateTargetMetrics(pt model.HBPoint, brp model.BRPPoint, targetRef model.TargetRef, refBar model.Opt[model.HandlebarSpec]) (distMm, dropMm float64) {
-	switch targetRef {
-	case TargetHandGrip:
-		return pt.SaddleHbMm, pt.SaddleHbDropMm
-	case TargetStemClamp, TargetReferenceBarClamp:
-		evalPt := EvaluatedPointForHB(pt, targetRef, refBar)
-		return evalPt.DistanceTo(brp.BrpPoint()), evalPt.Y - brp.SitBonePoint().Y
-	default:
-		return pt.SaddleHbMm, pt.SaddleHbDropMm
-	}
-}
-
-func SelectBestHBWithDrop(
-	possible []model.HBPoint,
-	canonicalStem model.StemSpec,
-	distMin, distMax model.Opt[float64],
-	dropMin, dropMax model.Opt[float64],
-) (model.HBPoint, bool) {
-	return SelectBestHBWithDropForTarget(possible, canonicalStem, distMin, distMax, dropMin, dropMax, model.BRPPoint{}, TargetHandGrip, model.Opt[model.HandlebarSpec]{})
-}
-
-// SelectBestHBWithDropForTarget selects the best HB point from candidate points evaluating
-// the cockpit point matching targetRef relative to brp against target distance and drop ranges.
-func SelectBestHBWithDropForTarget(
-	possible []model.HBPoint,
-	canonicalStem model.StemSpec,
-	distMin, distMax model.Opt[float64],
-	dropMin, dropMax model.Opt[float64],
-	brp model.BRPPoint,
-	targetRef model.TargetRef,
-	refBar model.Opt[model.HandlebarSpec],
-) (model.HBPoint, bool) {
-	if len(possible) == 0 {
-		return model.HBPoint{}, false
-	}
-
-	best := possible[0]
-	hasDistTarget := distMin.IsSet() || distMax.IsSet()
-	hasDropTarget := dropMin.IsSet() || dropMax.IsSet()
-
-	distMid := optRangeMid(distMin, distMax)
-	dropMid := optRangeMid(dropMin, dropMax)
-
-	better := func(a, b model.HBPoint) bool {
-		distValA, dropValA := candidateTargetMetrics(a, brp, targetRef, refBar)
-		distValB, dropValB := candidateTargetMetrics(b, brp, targetRef, refBar)
-
-		// 1. Primary: Saddle-target distance range
-		if hasDistTarget {
-			distA := optRangeDist(distValA, distMin, distMax)
-			distB := optRangeDist(distValB, distMin, distMax)
-			roundDistA := math.Round(distA)
-			roundDistB := math.Round(distB)
-			if roundDistA != roundDistB {
-				return roundDistA < roundDistB
-			}
-		}
-
-		// 2. Secondary: Saddle-target drop range
-		if hasDropTarget {
-			dropA := optRangeDist(dropValA, dropMin, dropMax)
-			dropB := optRangeDist(dropValB, dropMin, dropMax)
-			roundDropA := math.Round(dropA)
-			roundDropB := math.Round(dropB)
-			if roundDropA != roundDropB {
-				return roundDropA < roundDropB
-			}
-		}
-
-		// Tie-breaker 1: closest stem length to canonical
-		lenDiffA := math.Abs(a.Stem.LengthMm - canonicalStem.LengthMm)
-		lenDiffB := math.Abs(b.Stem.LengthMm - canonicalStem.LengthMm)
-		if math.Abs(lenDiffA-lenDiffB) > 0.001 {
-			return lenDiffA < lenDiffB
-		}
-
-		// Tie-breaker 2: closest stem angle to canonical
-		angDiffA := (a.Stem.AngleDeg - canonicalStem.AngleDeg).Abs()
-		angDiffB := (b.Stem.AngleDeg - canonicalStem.AngleDeg).Abs()
-		if (angDiffA - angDiffB).Abs() > 0.001 {
-			return angDiffA < angDiffB
-		}
-
-		// Tie-breaker 3: smallest spacer stack
-		if math.Abs(a.SpacerMm-b.SpacerMm) > 0.001 {
-			return a.SpacerMm < b.SpacerMm
-		}
-
-		// Tie-breaker 4: closest unrounded distance to target midpoints
-		if hasDistTarget {
-			midDiffA := math.Abs(distValA - distMid)
-			midDiffB := math.Abs(distValB - distMid)
-			if math.Abs(midDiffA-midDiffB) > 0.001 {
-				return midDiffA < midDiffB
-			}
-		}
-		if hasDropTarget {
-			midDiffA := math.Abs(dropValA - dropMid)
-			midDiffB := math.Abs(dropValB - dropMid)
-			if math.Abs(midDiffA-midDiffB) > 0.001 {
-				return midDiffA < midDiffB
-			}
-		}
-
-		return false
-	}
-
-	for _, pt := range possible[1:] {
-		if better(pt, best) {
-			best = pt
-		}
-	}
-
-	return best, true
-}
-
-// SelectBestHB selects the best HB point from candidate points for a desired target distance range.
-func SelectBestHB(
-	possible []model.HBPoint,
-	canonicalStem model.StemSpec,
-	targetMin, targetMax model.Opt[float64],
-) (model.HBPoint, bool) {
-	return SelectBestHBWithDrop(possible, canonicalStem, targetMin, targetMax, model.Opt[float64]{}, model.Opt[float64]{})
 }
 
 // DefaultFitOval creates a FitOval with standard defaults (a = 10mm horizontal, b = 20mm vertical, 30° clockwise).
@@ -509,290 +293,80 @@ func EvaluateFitOval(oval model.FitOval, x, y float64) (float64, bool) {
 	return e.Evaluate(geom2d.Point2{X: x, Y: y})
 }
 
-// cockpitProximity scores a handlebar position by its normalized elliptical radius R
-// from the fit oval's center: 100 at the center, 75 at the oval edge (R = 1), 0 at
-// R = 2, and an asymptotic tail towards -200 beyond that. Defined with package curve so
-// it cannot contain flats or jumps.
-var cockpitProximity = curve.MustFalloff([]curve.Knot{{D: 1.0, Score: 75.0}}, 2.0, -200.0)
-
-// Versatility bonus tuning: spare setups near the oval center add up to
-// maxVersatilityShare of the remaining headroom to 100, reaching half of that
-// share at versatilityHalfCapacity of spare capacity.
-const (
-	maxVersatilityShare     = 0.4
-	versatilityHalfCapacity = 2.0
-)
-
-// CalculateCockpitBaseScore returns the base proximity score for a normalized radius R.
-// It is continuous and strictly decreasing for all R >= 0 (see pkg/curve).
-func CalculateCockpitBaseScore(r float64) float64 {
-	return cockpitProximity.Score(r)
-}
-
-// EvaluateCockpitFit evaluates candidate HB points against a FitOval.
-// It selects the representative HB point, counts valid setups inside the oval,
-// down-weights stems at the extremes of the expected stem range,
-// and computes the final sub-score including versatility bonus or zero-fit penalty.
-func EvaluateCockpitFit(
-	possible []model.HBPoint,
-	canonicalStem model.StemSpec,
-	oval model.FitOval,
-	expectedStemRange ...[]float64,
-) model.CockpitFitResult {
-	return EvaluateCockpitFitForTarget(possible, canonicalStem, oval, TargetHandGrip, model.Opt[model.HandlebarSpec]{}, expectedStemRange...)
-}
-
-// EvaluateCockpitFitForTarget evaluates candidate HB points against a FitOval using the candidate
-// point identified by targetRef (and optional refBar for TargetReferenceBarClamp).
-func EvaluateCockpitFitForTarget(
-	possible []model.HBPoint,
-	canonicalStem model.StemSpec,
-	oval model.FitOval,
-	targetRef model.TargetRef,
-	refBar model.Opt[model.HandlebarSpec],
-	expectedStemRange ...[]float64,
-) model.CockpitFitResult {
-	if targetRef == "" {
-		targetRef = TargetHandGrip
-	}
-	if len(possible) == 0 {
-		return model.CockpitFitResult{
-			TargetOval:    oval,
-			TargetRef:     targetRef,
-			ReferenceBar:  refBar,
-			BestR:         999,
-			CountInside:   0,
-			BaseScore:     -200.0,
-			FinalSubScore: -200.0,
-			HasFit:        false,
-		}
-	}
-
-	var minStem, maxStem float64
-	hasRange := false
-	if len(expectedStemRange) > 0 && len(expectedStemRange[0]) == 2 && expectedStemRange[0][0] > 0 && expectedStemRange[0][1] > expectedStemRange[0][0] {
-		minStem = expectedStemRange[0][0]
-		maxStem = expectedStemRange[0][1]
-		hasRange = true
-	}
-
-	evaluated, countInside := evaluateCockpitCandidates(possible, oval, targetRef, refBar, minStem, maxStem, hasRange)
-
-	better := func(a, b evaluatedPoint) bool {
-		if diff := a.finalScore - b.finalScore; math.Abs(diff) > 0.001 {
-			return diff > 0
-		}
-
-		// Tie-breaker 1: closest stem length to stem range midpoint (or canonical)
-		targetLen := canonicalStem.LengthMm
-		if hasRange {
-			targetLen = (minStem + maxStem) / 2.0
-		}
-		lenDiffA := math.Abs(a.pt.Stem.LengthMm - targetLen)
-		lenDiffB := math.Abs(b.pt.Stem.LengthMm - targetLen)
-		if math.Abs(lenDiffA-lenDiffB) > 0.001 {
-			return lenDiffA < lenDiffB
-		}
-
-		// Tie-breaker 2: closest stem angle to canonical
-		angDiffA := (a.pt.Stem.AngleDeg - canonicalStem.AngleDeg).Abs()
-		angDiffB := (b.pt.Stem.AngleDeg - canonicalStem.AngleDeg).Abs()
-		if (angDiffA - angDiffB).Abs() > 0.001 {
-			return angDiffA < angDiffB
-		}
-
-		// Tie-breaker 3: smallest spacer stack
-		if math.Abs(a.pt.SpacerMm-b.pt.SpacerMm) > 0.001 {
-			return a.pt.SpacerMm < b.pt.SpacerMm
-		}
-
-		return a.r < b.r
-	}
-
-	best := evaluated[0]
-	for _, ep := range evaluated[1:] {
-		if better(ep, best) {
-			best = ep
-		}
-	}
-
-	return cockpitFitResult(oval, targetRef, refBar, best, countInside)
-}
-
 // CockpitCost prices one stock cockpit candidate (stem length × angle × spacer
 // stack) whose evaluated point sits at normalized oval radius r.
 type CockpitCost func(pt model.HBPoint, r float64) float64
 
 // EvaluateCockpitFitByCost scans every stock cockpit candidate against a FitOval
 // and keeps the cheapest under cost. Ties go to the candidate nearer the oval
-// center, then to the earlier candidate. BaseScore, VersatilityBonus, StemPenalty
-// and FinalSubScore are still reported for the selected candidate (they drive the
-// Oval Fits display marker only).
+// center, then to the earlier candidate.
 func EvaluateCockpitFitByCost(
 	possible []model.HBPoint,
 	oval model.FitOval,
 	targetRef model.TargetRef,
 	refBar model.Opt[model.HandlebarSpec],
 	cost CockpitCost,
-	expectedStemRange ...[]float64,
 ) model.CockpitFitResult {
 	if targetRef == "" {
 		targetRef = TargetHandGrip
 	}
 	if len(possible) == 0 || cost == nil {
 		return model.CockpitFitResult{
-			TargetOval:    oval,
-			TargetRef:     targetRef,
-			ReferenceBar:  refBar,
-			BestR:         999,
-			BaseScore:     -200.0,
-			FinalSubScore: -200.0,
+			TargetOval:   oval,
+			TargetRef:    targetRef,
+			ReferenceBar: refBar,
+			BestR:        999,
 		}
 	}
-	var minStem, maxStem float64
-	hasRange := false
-	if len(expectedStemRange) > 0 && len(expectedStemRange[0]) == 2 && expectedStemRange[0][0] > 0 && expectedStemRange[0][1] > expectedStemRange[0][0] {
-		minStem, maxStem, hasRange = expectedStemRange[0][0], expectedStemRange[0][1], true
+
+	type candidate struct {
+		pt model.HBPoint
+		r  float64
 	}
-
-	evaluated, countInside := evaluateCockpitCandidates(possible, oval, targetRef, refBar, minStem, maxStem, hasRange)
-	bestIdx, bestCost := 0, cost(evaluated[0].pt, evaluated[0].r)
-	for i := 1; i < len(evaluated); i++ {
-		c := cost(evaluated[i].pt, evaluated[i].r)
-		if c < bestCost-1e-9 || (math.Abs(c-bestCost) <= 1e-9 && evaluated[i].r < evaluated[bestIdx].r-1e-9) {
-			bestIdx, bestCost = i, c
-		}
-	}
-	return cockpitFitResult(oval, targetRef, refBar, evaluated[bestIdx], countInside)
-}
-
-type evaluatedPoint struct {
-	pt          model.HBPoint
-	r           float64
-	membership  float64 // 1 - R inside the oval, 0 outside
-	baseScore   float64
-	stemPenalty float64
-	stemDevU    float64
-	bonus       float64
-	finalScore  float64
-}
-
-// evaluateCockpitCandidates computes each candidate's oval radius and the legacy
-// proximity, versatility and stem-penalty figures.
-func evaluateCockpitCandidates(
-	possible []model.HBPoint,
-	oval model.FitOval,
-	targetRef model.TargetRef,
-	refBar model.Opt[model.HandlebarSpec],
-	minStem, maxStem float64,
-	hasRange bool,
-) ([]evaluatedPoint, int) {
-	evaluated := make([]evaluatedPoint, len(possible))
+	candidates := make([]candidate, len(possible))
 	countInside := 0
-	totalMembership := 0.0
-
 	for i, pt := range possible {
 		evalPt := EvaluatedPointForHB(pt, targetRef, refBar)
 		r, inside := EvaluateFitOval(oval, evalPt.X, evalPt.Y)
-		ep := evaluatedPoint{
-			pt:         pt,
-			r:          r,
-			membership: math.Max(0, 1.0-r),
-			baseScore:  CalculateCockpitBaseScore(r),
-		}
-		if hasRange {
-			ep.stemPenalty, ep.stemDevU = curve.StemPenalty(pt.Stem.LengthMm, minStem, maxStem)
-		}
 		if inside {
 			countInside++
 		}
-		totalMembership += ep.membership
-		evaluated[i] = ep
+		candidates[i] = candidate{pt: pt, r: r}
 	}
 
-	// Score every candidate as if it were the one chosen. The versatility bonus
-	// rewards the spare setups (all the others) sitting near the oval center,
-	// filling part of the headroom above the base score.
-	for i := range evaluated {
-		ep := &evaluated[i]
-		spare := totalMembership - ep.membership
-		ep.bonus = (curve.Peak - ep.baseScore) * curve.Saturating(maxVersatilityShare, versatilityHalfCapacity, spare)
-		ep.finalScore = ep.baseScore + ep.bonus - ep.stemPenalty
+	bestIdx, bestCost := 0, cost(candidates[0].pt, candidates[0].r)
+	for i := 1; i < len(candidates); i++ {
+		c := cost(candidates[i].pt, candidates[i].r)
+		if c < bestCost-1e-9 || (math.Abs(c-bestCost) <= 1e-9 && candidates[i].r < candidates[bestIdx].r-1e-9) {
+			bestIdx, bestCost = i, c
+		}
 	}
-	return evaluated, countInside
-}
-
-func cockpitFitResult(oval model.FitOval, targetRef model.TargetRef, refBar model.Opt[model.HandlebarSpec], best evaluatedPoint, countInside int) model.CockpitFitResult {
+	best := candidates[bestIdx]
 	return model.CockpitFitResult{
-		TargetOval:        oval,
-		TargetRef:         targetRef,
-		ReferenceBar:      refBar,
-		SelectedHB:        best.pt,
-		BestR:             Round(best.r, 3),
-		CountInside:       countInside,
-		BaseScore:         best.baseScore,
-		VersatilityBonus:  best.bonus,
-		StemPenalty:       best.stemPenalty,
-		StemNormalizedDev: best.stemDevU,
-		FinalSubScore:     best.finalScore,
-		HasFit:            countInside > 0,
+		TargetOval:   oval,
+		TargetRef:    targetRef,
+		ReferenceBar: refBar,
+		SelectedHB:   best.pt,
+		BestR:        Round(best.r, 3),
+		CountInside:  countInside,
+		HasFit:       countInside > 0,
 	}
 }
 
-// ApplyCockpitFit evaluates candidate HB points against target distance and drop ranges.
-// When distance targets are provided, it constructs the 30° rotated FitOval relative to active BRP,
-// evaluates candidate stems, and populates CockpitFitResult, SelectedHB, SaddleHbMm, and SaddleHbDropMm.
-// When no distance target is present, it falls back to SelectBestHBWithDrop.
-func ApplyCockpitFit(
-	can *model.BikeFitAnalysis,
-	bike model.BikeGeometry,
-	canonicalStem model.StemSpec,
-	distMin, distMax, dropMin, dropMax model.Opt[float64],
-) {
-	ApplyCockpitFitForTarget(can, bike, canonicalStem, distMin, distMax, dropMin, dropMax, TargetHandGrip, model.Opt[model.HandlebarSpec]{})
-}
-
-// ApplyCockpitFitForTarget evaluates candidate HB points against target distance and drop ranges
-// under targetRef (and optional refBar for TargetReferenceBarClamp).
-// When distance targets are provided, it constructs the 30° rotated FitOval relative to active BRP,
-// evaluates candidate stems, and populates CockpitFitResult, SelectedHB, SaddleHbMm, and SaddleHbDropMm.
-// When no distance target is present, it falls back to SelectBestHBWithDropForTarget.
-func ApplyCockpitFitForTarget(
-	can *model.BikeFitAnalysis,
-	bike model.BikeGeometry,
-	canonicalStem model.StemSpec,
-	distMin, distMax, dropMin, dropMax model.Opt[float64],
-	targetRef model.TargetRef,
-	refBar model.Opt[model.HandlebarSpec],
-) {
-	applyCockpitFit(can, bike, canonicalStem, distMin, distMax, dropMin, dropMax, targetRef, refBar, nil)
-}
-
-// ApplyCockpitFitByCost is ApplyCockpitFitForTarget with the stock cockpit
-// candidate chosen by the cheapest cost (see EvaluateCockpitFitByCost) instead of
-// the legacy proximity score and tie-breaks. Without a distance target it falls
-// back to SelectBestHBWithDropForTarget.
+// ApplyCockpitFitByCost places the FitOval for the explicit cockpit target (the
+// hands distMm from the active BRP and riseMm above its sit bones), scans every
+// stock cockpit candidate (see EvaluateCockpitFitByCost) and records the cheapest
+// on can: CockpitFitResult, SelectedHB, SaddleHbMm, SaddleHbDropMm and the
+// stem/spacer solve for the oval centre. Does nothing without candidates or a
+// positive distMm.
 func ApplyCockpitFitByCost(
 	can *model.BikeFitAnalysis,
-	bike model.BikeGeometry,
-	distMin, distMax, dropMin, dropMax model.Opt[float64],
+	distMm, riseMm float64,
 	targetRef model.TargetRef,
 	refBar model.Opt[model.HandlebarSpec],
 	cost CockpitCost,
 ) {
-	applyCockpitFit(can, bike, bike.GetCanonicalStem(), distMin, distMax, dropMin, dropMax, targetRef, refBar, cost)
-}
-
-func applyCockpitFit(
-	can *model.BikeFitAnalysis,
-	bike model.BikeGeometry,
-	canonicalStem model.StemSpec,
-	distMin, distMax, dropMin, dropMax model.Opt[float64],
-	targetRef model.TargetRef,
-	refBar model.Opt[model.HandlebarSpec],
-	cost CockpitCost,
-) {
-	if len(can.PossibleHBs) == 0 {
+	if len(can.PossibleHBs) == 0 || distMm <= 0 {
 		return
 	}
 
@@ -801,67 +375,70 @@ func applyCockpitFit(
 		activeBRP = *can.SelectedBRP
 	}
 
-	hasDistTarget := distMin.IsSet() || distMax.IsSet()
-	if hasDistTarget {
-		distMid := optRangeMid(distMin, distMax)
-		dropMid := optRangeMid(dropMin, dropMax)
+	brpPt := activeBRP.BrpPoint()
+	sitBonePt := activeBRP.SitBonePoint()
+	hbY := sitBonePt.Y + riseMm
+	dyBrp := hbY - brpPt.Y
+	dx0 := math.Sqrt(math.Max(0, distMm*distMm-dyBrp*dyBrp))
 
-		brpPt := activeBRP.BrpPoint()
-		sitBonePt := activeBRP.SitBonePoint()
-		hbY := sitBonePt.Y + dropMid
-		dyBrp := hbY - brpPt.Y
-		dx0 := math.Sqrt(math.Max(0, distMid*distMid-dyBrp*dyBrp))
-
-		oval := DefaultFitOval(brpPt.X+dx0, hbY)
-		var expectedRangeOpt [][]float64
-		if minStem, maxStem, ok := bike.GetExpectedStemRangeMm(); ok {
-			expectedRangeOpt = append(expectedRangeOpt, []float64{minStem, maxStem})
-		}
-		var fitRes model.CockpitFitResult
-		if cost != nil {
-			fitRes = EvaluateCockpitFitByCost(can.PossibleHBs, oval, targetRef, refBar, cost, expectedRangeOpt...)
-		} else {
-			fitRes = EvaluateCockpitFitForTarget(can.PossibleHBs, canonicalStem, oval, targetRef, refBar, expectedRangeOpt...)
-		}
-		can.CockpitFitResult = &fitRes
-		can.SelectedHB = &fitRes.SelectedHB
-		can.SaddleHbMm = fitRes.SelectedHB.SaddleHbMm
-		can.SaddleHbDropMm = fitRes.SelectedHB.SaddleHbDropMm
-		if can.ActiveHta > 0 {
-			reqClamp, err := RequiredStemClamp(RiderFit{
-				TargetPoint:  geom2d.Point2{X: oval.CenterX, Y: oval.CenterY},
-				TargetRef:    targetRef,
-				ReferenceBar: refBar,
-			}, CockpitSpec{
-				HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
-				StemClampHeightMm: model.StemThicknessMm,
-				Handlebar:         can.Handlebar,
-				GripInsetMm:       model.DefaultGripInsetMm,
-			})
-			if err == nil {
-				sc := BikeScene{
-					HeadTubeTop:       geom2d.Point2{X: can.ActiveReach, Y: can.ActiveStack},
-					HtaDeg:            can.ActiveHta,
-					Cockpit:           CockpitSpec{HeadsetTopStackMm: model.DefaultHeadsetTopStackMm, StemClampHeightMm: model.StemThicknessMm},
-					RequiredStemClamp: reqClamp,
-				}
-				if solved, ok := sc.SolveStemSpacerFit(fitRes.SelectedHB.Stem.AngleDeg); ok {
-					can.StemSpacerFit = &model.StemSpacerFit{
-						StemAngleDeg: solved.StemAngleDeg,
-						StemLengthMm: solved.StemLengthMm,
-						SpacerMm:     solved.SpacerMm,
-					}
-				}
-			}
-		}
+	oval := DefaultFitOval(brpPt.X+dx0, hbY)
+	fitRes := EvaluateCockpitFitByCost(can.PossibleHBs, oval, targetRef, refBar, cost)
+	can.CockpitFitResult = &fitRes
+	can.SelectedHB = &fitRes.SelectedHB
+	can.SaddleHbMm = fitRes.SelectedHB.SaddleHbMm
+	can.SaddleHbDropMm = fitRes.SelectedHB.SaddleHbDropMm
+	if can.ActiveHta <= 0 {
 		return
 	}
-
-	if bestHB, ok := SelectBestHBWithDropForTarget(can.PossibleHBs, canonicalStem, distMin, distMax, dropMin, dropMax, activeBRP, targetRef, refBar); ok {
-		can.SelectedHB = &bestHB
-		can.SaddleHbMm = bestHB.SaddleHbMm
-		can.SaddleHbDropMm = bestHB.SaddleHbDropMm
+	reqClamp, err := RequiredStemClamp(RiderFit{
+		TargetPoint:  geom2d.Point2{X: oval.CenterX, Y: oval.CenterY},
+		TargetRef:    targetRef,
+		ReferenceBar: refBar,
+	}, CockpitSpec{
+		HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
+		StemClampHeightMm: model.StemThicknessMm,
+		Handlebar:         can.Handlebar,
+		GripInsetMm:       model.DefaultGripInsetMm,
+	})
+	if err != nil {
+		return
 	}
+	sc := BikeScene{
+		HeadTubeTop:       geom2d.Point2{X: can.ActiveReach, Y: can.ActiveStack},
+		HtaDeg:            can.ActiveHta,
+		Cockpit:           CockpitSpec{HeadsetTopStackMm: model.DefaultHeadsetTopStackMm, StemClampHeightMm: model.StemThicknessMm},
+		RequiredStemClamp: reqClamp,
+	}
+	if solved, ok := sc.SolveStemSpacerFit(fitRes.SelectedHB.Stem.AngleDeg); ok {
+		can.StemSpacerFit = &model.StemSpacerFit{
+			StemAngleDeg: solved.StemAngleDeg,
+			StemLengthMm: solved.StemLengthMm,
+			SpacerMm:     solved.SpacerMm,
+		}
+	}
+}
+
+// canonicalHB returns the bike's canonical build among the candidates: the
+// canonical stem's length and angle with the smallest spacer stack, or the nearest
+// stock stem when the canonical one is not stocked.
+func canonicalHB(possible []model.HBPoint, canonical model.StemSpec) (model.HBPoint, bool) {
+	if len(possible) == 0 {
+		return model.HBPoint{}, false
+	}
+	best := possible[0]
+	for _, pt := range possible[1:] {
+		switch {
+		case math.Abs(pt.Stem.LengthMm-canonical.LengthMm) < math.Abs(best.Stem.LengthMm-canonical.LengthMm)-0.001:
+			best = pt
+		case math.Abs(pt.Stem.LengthMm-canonical.LengthMm) > math.Abs(best.Stem.LengthMm-canonical.LengthMm)+0.001:
+		case (pt.Stem.AngleDeg - canonical.AngleDeg).Abs() < (best.Stem.AngleDeg-canonical.AngleDeg).Abs()-0.001:
+			best = pt
+		case (pt.Stem.AngleDeg - canonical.AngleDeg).Abs() > (best.Stem.AngleDeg-canonical.AngleDeg).Abs()+0.001:
+		case pt.SpacerMm < best.SpacerMm-0.001:
+			best = pt
+		}
+	}
+	return best, true
 }
 
 // CalculateSteererStack calculates the 'spare' steerer tube required to bring
@@ -1240,7 +817,7 @@ func AnalyzeBikeFitWithSaddle(
 	var selectedHB *model.HBPoint
 	var saddleHbMm float64
 	var saddleHbDropMm float64
-	if best, ok := SelectBestHB(possibleHBs, bike.GetCanonicalStem(), model.Opt[float64]{}, model.Opt[float64]{}); ok {
+	if best, ok := canonicalHB(possibleHBs, bike.GetCanonicalStem()); ok {
 		selectedHB = &best
 		saddleHbMm = best.SaddleHbMm
 		saddleHbDropMm = best.SaddleHbDropMm

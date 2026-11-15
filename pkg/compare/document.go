@@ -341,7 +341,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		activeProf := prof.ForSaddle(state.Saddle)
 		for _, evalAttr := range activeProf.Attributes {
 			meta, _ := ideal.LookupAttribute(evalAttr.ID)
-			idealStr, _ := FormatAttrRanges(evalAttr, meta)
+			idealStr := FormatAttrRange(evalAttr, meta)
 			addRow(string(evalAttr.ID), meta.Label, idealStr, func(item scoredRowItem) report.Cell {
 				return metricCell(item, evalAttr, meta)
 			})
@@ -357,7 +357,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 }
 
 // buildTransposedTable constructs a bike-as-row comparison table for the given
-// attributes, optionally including Score/Fork columns and Ideal/Acceptable reference rows.
+// attributes, optionally including Score/Fork columns and an Ideal reference row.
 func buildTransposedTable(
 	id, title, subtitle string,
 	footers []report.Footer,
@@ -392,7 +392,7 @@ func buildTransposedTable(
 		idealRow := report.Row{ID: "ideal", Kind: report.KindIdeal, Cells: make([]report.Cell, len(t.Columns))}
 		idealRow.Cells[1].Text = "Ideal"
 		for idx := range evalAttrs {
-			idealRow.Cells[offset+idx].Text, _ = FormatAttrRanges(evalAttrs[idx], metas[idx])
+			idealRow.Cells[offset+idx].Text = FormatAttrRange(evalAttrs[idx], metas[idx])
 		}
 		t.Rows = append(t.Rows, idealRow)
 	}
@@ -435,7 +435,7 @@ func buildBreakdown(
 	}
 	t.Columns = append(t.Columns, report.Column{ID: "total", Label: "Total", Numeric: true})
 	t.Subtitle = fmt.Sprintf(
-		"Points lost per band (free inside the ideal range, linear outside it; band losses rounded independently, may differ from 100 - Total by ±1–2). Total = 100 − Σ points lost, may go below 0. Costs: %s",
+		"Points lost per band (free inside the ideal range, linear outside it). Total = 100 − Σ points lost, may go below 0. Costs: %s",
 		strings.Join(costParts, "; "),
 	)
 	if withFooters {

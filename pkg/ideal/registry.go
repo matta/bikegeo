@@ -379,7 +379,7 @@ var registry = []AttributeMeta{
 			if row.Canonical.CockpitFitResult == nil {
 				return 0, false
 			}
-			return row.Canonical.CockpitFitResult.FinalSubScore, true
+			return float64(row.Canonical.CockpitFitResult.CountInside), true
 		},
 		FormatVal: func(val float64, row *model.CanonicalComparisonRow) string {
 			if row != nil && row.Canonical.CockpitFitResult != nil {

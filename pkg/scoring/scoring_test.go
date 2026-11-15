@@ -42,18 +42,14 @@ func TestScoreRow_MissingDataRenormalization(t *testing.T) {
 		Name: "test-missing",
 		Attributes: []ideal.AttributeSpec{
 			{
-				ID:        "setback",
-				Cost:      ideal.CostEach(1),
-				Ideal:     &ideal.Range{Min: model.Some(230.0), Max: model.Some(230.0)},
-				EdgeScore: model.Some(80.0),
-				Falloff:   &ideal.Falloff{Below: model.Some(10.0), Above: model.Some(10.0)},
+				ID:    "setback",
+				Cost:  ideal.CostEach(1),
+				Ideal: &ideal.Range{Min: model.Some(230.0), Max: model.Some(230.0)},
 			},
 			{
-				ID:        "standover",
-				Cost:      ideal.CostEach(1),
-				Ideal:     &ideal.Range{Min: model.Some(700.0), Max: model.Some(750.0)},
-				EdgeScore: model.Some(80.0),
-				Falloff:   &ideal.Falloff{Below: model.Some(50.0), Above: model.Some(50.0)},
+				ID:    "standover",
+				Cost:  ideal.CostEach(1),
+				Ideal: &ideal.Range{Min: model.Some(700.0), Max: model.Some(750.0)},
 			},
 		},
 	}
@@ -119,9 +115,8 @@ func TestExplainProfile_LossesAndH2H(t *testing.T) {
 				BrpSetbackMm: 219.0,
 			},
 			CockpitFitResult: &model.CockpitFitResult{
-				HasFit:        true,
-				FinalSubScore: 100,
-				CountInside:   4,
+				HasFit:      true,
+				CountInside: 4,
 			},
 			ActiveBbDrop: 70.0,
 			TrailMm:      102.0,
@@ -136,9 +131,8 @@ func TestExplainProfile_LossesAndH2H(t *testing.T) {
 				BrpSetbackMm: 195.0,
 			},
 			CockpitFitResult: &model.CockpitFitResult{
-				HasFit:        true,
-				FinalSubScore: 100,
-				CountInside:   4,
+				HasFit:      true,
+				CountInside: 4,
 			},
 			ActiveBbDrop: 70.0,
 			TrailMm:      102.0,
@@ -173,11 +167,9 @@ func TestScoreRow_SaddleHb(t *testing.T) {
 		TargetRef: model.TargetHandGrip,
 		Attributes: []ideal.AttributeSpec{
 			{
-				ID:        "saddle_hb",
-				Cost:      ideal.CostEach(1),
-				Ideal:     &ideal.Range{Min: model.Some(695.0), Max: model.Some(705.0)},
-				EdgeScore: model.Some(80.0),
-				Falloff:   &ideal.Falloff{Below: model.Some(50.0), Above: model.Some(50.0)},
+				ID:    "saddle_hb",
+				Cost:  ideal.CostEach(1),
+				Ideal: &ideal.Range{Min: model.Some(695.0), Max: model.Some(705.0)},
 			},
 		},
 	}
@@ -218,12 +210,12 @@ func TestScoreRow_SaddleHb(t *testing.T) {
 		},
 		Canonical: model.BikeFitAnalysis{
 			PossibleHBs: possibleHBs,
-			SelectedHB:  &possibleHBs[0], // Initially non-target
-			SaddleHbMm:  possibleHBs[0].SaddleHbMm,
+			SelectedHB:  &possibleHBs[1], // the on-target build
+			SaddleHbMm:  possibleHBs[1].SaddleHbMm,
 		},
 	}
 
-	res := scoreRowWithTargets(row, prof)
+	res := ScoreRow(row, prof)
 	if math.Round(res.Total) != 100 {
 		t.Errorf("Expected total score 100 for Saddle-HB in target range [695, 705], got %.1f", res.Total)
 	}
@@ -242,36 +234,26 @@ func TestScoreRow_SaddleHb(t *testing.T) {
 }
 
 func TestScoreRow_IdmatchFit(t *testing.T) {
-	// Ideal profile with BRP Setback (target 219mm), Saddle-HB (target 700mm), and Saddle-HB Drop (target 13mm)
+	// Ideal profile with BRP Setback (target 219mm) and Oval Fits on a 700mm / 13mm cockpit target
 	prof := &ideal.Profile{
-		Name:           "test-idmatch",
-		SaddleHeightMm: model.Some(746.0),
-		TargetRef:      model.TargetHandGrip,
+		Name:                "test-idmatch",
+		SaddleHeightMm:      model.Some(746.0),
+		TargetRef:           model.TargetHandGrip,
+		CockpitTargetDistMm: 700,
+		CockpitTargetRiseMm: 13,
 		Attributes: []ideal.AttributeSpec{
 			{
-				ID:         "brp_setback",
-				Cost:       ideal.CostEach(1),
-				Ideal:      &ideal.Range{Min: model.Some(219.0), Max: model.Some(219.0)}, // target 219mm
-				Acceptable: &ideal.Range{Min: model.Some(214.0), Max: model.Some(224.0)}, // within ±5mm of rail center
-				EdgeScore:  model.Some(75.0),
-				Falloff:    &ideal.Falloff{Below: model.Some(20.0), Above: model.Some(20.0)},
+				ID:    "brp_setback",
+				Cost:  ideal.CostEach(1),
+				Ideal: &ideal.Range{Min: model.Some(219.0), Max: model.Some(219.0)}, // target 219mm
 			},
 			{
-				ID:         "saddle_hb",
-				Cost:       ideal.CostEach(1),
-				Ideal:      &ideal.Range{Min: model.Some(695.0), Max: model.Some(705.0)},
-				Acceptable: &ideal.Range{Min: model.Some(685.0), Max: model.Some(715.0)},
-				EdgeScore:  model.Some(75.0),
-				Falloff:    &ideal.Falloff{Below: model.Some(15.0), Above: model.Some(15.0)},
+				ID:    "handlebar_clamp_fit",
+				Cost:  &ideal.Cost{Above: ideal.OvalCostPerR},
+				Ideal: ideal.AtLeast(1),
 			},
-			{
-				ID:         "saddle_hb_drop",
-				Cost:       ideal.CostEach(1),
-				Ideal:      &ideal.Range{Min: model.Some(-2.0), Max: model.Some(8.0)},
-				Acceptable: &ideal.Range{Min: model.Some(-10.0), Max: model.Some(16.0)},
-				EdgeScore:  model.Some(75.0),
-				Falloff:    &ideal.Falloff{Below: model.Some(10.0), Above: model.Some(10.0)},
-			},
+			ideal.DisplayOnly("saddle_hb"),
+			ideal.DisplayOnly("saddle_hb_drop"),
 		},
 	}
 
@@ -325,9 +307,9 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 				t.Errorf("Expected brp_setback cell '219 ✓', got %q", c.FormattedCell)
 			}
 		}
-		if c.ID == "saddle_hb" {
+		if c.ID == "handlebar_clamp_fit" {
 			if c.PointsLost > 2.0 {
-				t.Errorf("Expected saddle_hb within ~2mm of its free range (<= 2 points lost), got %.1f (%q)", c.PointsLost, c.FormattedCell)
+				t.Errorf("Expected the oval within reach (<= 2 points lost), got %.1f (%q)", c.PointsLost, c.FormattedCell)
 			}
 		}
 	}
@@ -435,21 +417,19 @@ func TestScoreRow_SeatpostExtension(t *testing.T) {
 func TestScoreRow_HandlebarClampFit(t *testing.T) {
 	// Profile with handlebar_clamp_fit, saddle_hb target (700mm), and saddle_hb_drop target (13mm)
 	prof := &ideal.Profile{
-		Name:           "test-clamp-fit",
-		SaddleHeightMm: model.Some(746.0),
-		TargetRef:      model.TargetHandGrip,
+		CockpitTargetDistMm: 700,
+		CockpitTargetRiseMm: 13,
+		Name:                "test-clamp-fit",
+		SaddleHeightMm:      model.Some(746.0),
+		TargetRef:           model.TargetHandGrip,
 		Attributes: []ideal.AttributeSpec{
 			{
-				ID:         "handlebar_clamp_fit",
-				Cost:       &ideal.Cost{Above: ideal.OvalCostPerR},
-				Ideal:      ideal.AtLeast(100),
-				Acceptable: ideal.AtLeast(75),
-				EdgeScore:  model.Some(75.0),
-				Falloff:    ideal.FalloffBelow(75),
-				Floor:      model.Some(-200.0),
+				ID:    "handlebar_clamp_fit",
+				Cost:  &ideal.Cost{Above: ideal.OvalCostPerR},
+				Ideal: ideal.AtLeast(100),
 			},
-			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), model.Some(75.0), ideal.FalloffBoth(15, 15)),
-			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), model.Some(75.0), ideal.FalloffBoth(10, 10)),
+			ideal.DisplayOnly("saddle_hb"),
+			ideal.DisplayOnly("saddle_hb_drop"),
 		},
 	}
 
@@ -556,21 +536,19 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 
 func TestScoreRow_HandlebarClampFit_StemExtremityPenalty(t *testing.T) {
 	prof := &ideal.Profile{
-		Name:           "test-stem-extreme",
-		SaddleHeightMm: model.Some(746.0),
-		TargetRef:      model.TargetHandGrip,
+		CockpitTargetDistMm: 700,
+		CockpitTargetRiseMm: 13,
+		Name:                "test-stem-extreme",
+		SaddleHeightMm:      model.Some(746.0),
+		TargetRef:           model.TargetHandGrip,
 		Attributes: []ideal.AttributeSpec{
 			{
-				ID:         "handlebar_clamp_fit",
-				Cost:       &ideal.Cost{Above: ideal.OvalCostPerR},
-				Ideal:      ideal.AtLeast(100),
-				Acceptable: ideal.AtLeast(75),
-				EdgeScore:  model.Some(75.0),
-				Falloff:    ideal.FalloffBelow(75),
-				Floor:      model.Some(-200.0),
+				ID:    "handlebar_clamp_fit",
+				Cost:  &ideal.Cost{Above: ideal.OvalCostPerR},
+				Ideal: ideal.AtLeast(100),
 			},
-			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), model.Some(75.0), ideal.FalloffBoth(15, 15)),
-			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), model.Some(75.0), ideal.FalloffBoth(10, 10)),
+			ideal.DisplayOnly("saddle_hb"),
+			ideal.DisplayOnly("saddle_hb_drop"),
 		},
 	}
 
@@ -605,10 +583,13 @@ func TestScoreRow_HandlebarClampFit_StemExtremityPenalty(t *testing.T) {
 		},
 	}
 
-	geometry.ApplyCockpitFit(&row100.Canonical, row100.Bike, row100.Bike.GetCanonicalStem(), model.Some(700.0), model.Some(700.0), model.Some(13.0), model.Some(13.0))
+	ovalCost := func(_ model.HBPoint, r float64) float64 {
+		return ideal.OvalPointsLost(&model.CockpitFitResult{BestR: r}, nil)
+	}
+	geometry.ApplyCockpitFitByCost(&row100.Canonical, 700.0, 13.0, geometry.TargetHandGrip, model.Opt[model.HandlebarSpec]{}, ovalCost)
 
 	res100 := ScoreRow(row100, prof)
-	// R = 0 (free inside the oval). The 15pt StemPenalty only steers selection and costs no points.
+	// R = 0 (free inside the oval). A 100mm stem on a 60-100mm frame costs nothing under Oval Fits.
 	var critClamp *CriterionResult
 	for i := range res100.Criteria {
 		if res100.Criteria[i].ID == "handlebar_clamp_fit" {
@@ -620,13 +601,13 @@ func TestScoreRow_HandlebarClampFit_StemExtremityPenalty(t *testing.T) {
 		t.Fatalf("Expected handlebar_clamp_fit criterion")
 	}
 	if critClamp.PointsLost != 0 {
-		t.Errorf("Expected 0 points lost inside the oval despite the 15pt stem penalty, got %.2f", critClamp.PointsLost)
+		t.Errorf("Expected 0 points lost inside the oval, got %.2f", critClamp.PointsLost)
 	}
 
-	// Verify loss explanation omits the unpriced stem penalty and the reach/stack offset when R=0.00
+	// Verify loss explanation omits the reach/stack offset when R=0.00
 	meta, _ := ideal.LookupAttribute("handlebar_clamp_fit")
 	spec := prof.Attributes[0]
-	lossDesc := DescribeLossWithRow(spec, meta, critClamp.Value, critClamp.DistanceToIdeal, ideal.ZoneAcceptable, &row100)
+	lossDesc := DescribeLossWithRow(spec, meta, critClamp.Value, critClamp.DistanceToIdeal, ideal.ZoneIdeal, &row100)
 	if strings.Contains(lossDesc, "stem penalty") {
 		t.Errorf("Expected loss explanation not to mention the unpriced stem penalty, got: %s", lossDesc)
 	}
@@ -654,12 +635,11 @@ func TestDescribeLoss_CockpitFitOffset_InsideOval(t *testing.T) {
 				},
 				BestR:       0.97,
 				CountInside: 1,
-				StemPenalty: 15.0,
 			},
 		},
 	}
 
-	desc := DescribeLossWithRow(spec, meta, 85, 0.97, ideal.ZoneAcceptable, &row)
+	desc := DescribeLossWithRow(spec, meta, 85, 0.97, ideal.ZoneIdeal, &row)
 	expected := "Oval Fits: closest stem is 100mm -6° +0mm (R=0.97, reach: 11mm short, stack: 2mm low, 1 valid setup in fit window)"
 	if desc != expected {
 		t.Errorf("\nExpected: %s\nGot:      %s", expected, desc)
@@ -685,7 +665,6 @@ func TestDescribeLoss_CockpitFitOffset_ZeroFits(t *testing.T) {
 				},
 				BestR:       5.37,
 				CountInside: 0,
-				StemPenalty: 15.0,
 			},
 		},
 	}
@@ -702,21 +681,19 @@ func TestDescribeLoss_CockpitFitOffset_ZeroFits(t *testing.T) {
 // floor on the cockpit curve once made them tie, letting minor criteria decide.
 func TestScoreAllRows_FarOutsideCockpitStillRanksByDistance(t *testing.T) {
 	prof := &ideal.Profile{
-		Name:           "test-far-cockpit",
-		SaddleHeightMm: model.Some(746.0),
-		TargetRef:      model.TargetHandGrip,
+		CockpitTargetDistMm: 700,
+		CockpitTargetRiseMm: 13,
+		Name:                "test-far-cockpit",
+		SaddleHeightMm:      model.Some(746.0),
+		TargetRef:           model.TargetHandGrip,
 		Attributes: []ideal.AttributeSpec{
 			{
-				ID:         "handlebar_clamp_fit",
-				Cost:       &ideal.Cost{Above: ideal.OvalCostPerR},
-				Ideal:      ideal.AtLeast(100),
-				Acceptable: ideal.AtLeast(75),
-				EdgeScore:  model.Some(75.0),
-				Falloff:    ideal.FalloffBelow(75),
-				Floor:      model.Some(-200.0),
+				ID:    "handlebar_clamp_fit",
+				Cost:  &ideal.Cost{Above: ideal.OvalCostPerR},
+				Ideal: ideal.AtLeast(100),
 			},
-			ideal.DisplayOnlyWithTarget("saddle_hb", ideal.Between(695, 705), ideal.Between(685, 715), model.Some(75.0), ideal.FalloffBoth(15, 15)),
-			ideal.DisplayOnlyWithTarget("saddle_hb_drop", ideal.Between(8, 18), ideal.Between(0, 26), model.Some(75.0), ideal.FalloffBoth(10, 10)),
+			ideal.DisplayOnly("saddle_hb"),
+			ideal.DisplayOnly("saddle_hb_drop"),
 		},
 	}
 
@@ -762,34 +739,28 @@ func TestLossDeltaMatchesCell(t *testing.T) {
 		}
 		specs = append(specs, a)
 	}
-	// Include saddle-translated BRP setback and BRP-HB specs, plus synthetic HTA/STA specs.
+	// Include the saddle-translated BRP setback and a display-only BRP-HB spec, plus synthetic HTA/STA specs.
 	berthoud, ok := catalog.GetSaddle("berthoud-aspin-open")
 	if !ok {
 		t.Fatal("missing berthoud-aspin-open saddle")
 	}
 	for _, a := range prof.ForSaddle(berthoud).Attributes {
-		if a.ID == "brp_setback" || a.ID == "saddle_hb" {
+		if a.ID == "brp_setback" {
 			specs = append(specs, a)
 		}
 	}
+	// A display-only band with a free range, centred on the Berthoud cockpit target.
+	specs = append(specs, ideal.AttributeSpec{ID: "saddle_hb", Ideal: ideal.Between(679.9, 689.9)})
 	specs = append(specs,
 		ideal.AttributeSpec{
-			ID:         "hta",
-			Cost:       ideal.CostEach(1),
-			Ideal:      ideal.Between(67.5, 68.5),
-			Acceptable: ideal.Between(66.5, 69.5),
-			EdgeScore:  model.Some(75.0),
-			Falloff:    ideal.FalloffBoth(2.0, 2.0),
-			Floor:      model.Some(-100.0),
+			ID:    "hta",
+			Cost:  ideal.CostEach(1),
+			Ideal: ideal.Between(67.5, 68.5),
 		},
 		ideal.AttributeSpec{
-			ID:         "sta",
-			Cost:       ideal.CostEach(1),
-			Ideal:      ideal.Between(73.0, 74.5),
-			Acceptable: ideal.Between(72.0, 75.5),
-			EdgeScore:  model.Some(75.0),
-			Falloff:    ideal.FalloffBoth(2.0, 2.0),
-			Floor:      model.Some(-100.0),
+			ID:    "sta",
+			Cost:  ideal.CostEach(1),
+			Ideal: ideal.Between(73.0, 74.5),
 		},
 	)
 
@@ -872,9 +843,8 @@ func TestLossDeltaMatchesCell(t *testing.T) {
 				DeadCenterBRP: model.BRPPoint{BrpSetbackMm: brpSetback},
 				SelectedBRP:   &model.BRPPoint{BrpSetbackMm: brpSetback, RailOffsetMm: 15},
 				CockpitFitResult: &model.CockpitFitResult{
-					HasFit:        true,
-					FinalSubScore: 100,
-					CountInside:   4,
+					HasFit:      true,
+					CountInside: 4,
 				},
 				ActiveBbDrop: 70.0,
 				TrailMm:      102.0,
@@ -896,7 +866,7 @@ func TestLossDeltaMatchesCell(t *testing.T) {
 	}
 }
 
-func TestScoreRow_DisplayOnlyWithTargetCarriesZone(t *testing.T) {
+func TestScoreRow_DisplayOnlyBandsCarryNoZone(t *testing.T) {
 	prof := ideal.IdmatchProfile()
 	row := model.CanonicalComparisonRow{
 		Canonical: model.BikeFitAnalysis{
@@ -919,11 +889,12 @@ func TestScoreRow_DisplayOnlyWithTargetCarriesZone(t *testing.T) {
 	for _, c := range res.Criteria {
 		byID[c.ID] = c
 	}
-	if c := byID["saddle_hb"]; !c.IsDisplayOnly || c.Zone != string(ideal.ZoneOutside) {
-		t.Errorf("saddle_hb = %+v, want IsDisplayOnly=true Zone=outside", c)
+	// The cockpit target is explicit on the profile; saddle_hb and saddle_hb_drop carry no range.
+	if c := byID["saddle_hb"]; !c.IsDisplayOnly || c.Zone != "" {
+		t.Errorf("saddle_hb = %+v, want IsDisplayOnly=true Zone=\"\"", c)
 	}
-	if c := byID["saddle_hb_drop"]; !c.IsDisplayOnly || c.Zone != string(ideal.ZoneIdeal) {
-		t.Errorf("saddle_hb_drop = %+v, want IsDisplayOnly=true Zone=ideal", c)
+	if c := byID["saddle_hb_drop"]; !c.IsDisplayOnly || c.Zone != "" {
+		t.Errorf("saddle_hb_drop = %+v, want IsDisplayOnly=true Zone=\"\"", c)
 	}
 	if c := byID["reach"]; !c.IsDisplayOnly || c.Zone != "" {
 		t.Errorf("reach = %+v, want IsDisplayOnly=true Zone=\"\"", c)
@@ -943,11 +914,10 @@ func TestLossAndHeadToHeadUseRegistryLabel(t *testing.T) {
 				DeadCenterBRP: model.BRPPoint{BrpSetbackMm: 219},
 				SelectedHB:    &model.HBPoint{Stem: model.StemSpec{LengthMm: 90, AngleDeg: -6}, SaddleHbMm: 690, SaddleHbDropMm: 3},
 				CockpitFitResult: &model.CockpitFitResult{
-					TargetOval:    model.FitOval{CenterX: 500, CenterY: 700},
-					SelectedHB:    model.HBPoint{Stem: model.StemSpec{LengthMm: 90, AngleDeg: -6}, HbX: 480, HbY: 700},
-					BestR:         bestR,
-					CountInside:   count,
-					FinalSubScore: 50 - bestR*10,
+					TargetOval:  model.FitOval{CenterX: 500, CenterY: 700},
+					SelectedHB:  model.HBPoint{Stem: model.StemSpec{LengthMm: 90, AngleDeg: -6}, HbX: 480, HbY: 700},
+					BestR:       bestR,
+					CountInside: count,
 				},
 				ActiveReach:  460,
 				ActiveStack:  620,
@@ -1117,28 +1087,18 @@ func TestScoreRow_CockpitTargetRefModes(t *testing.T) {
 			SaddleHeightMm: model.Some(746.0),
 			TargetRef:      ref,
 			ReferenceBar:   refBar,
+
+			CockpitTargetDistMm: targetDist,
+			CockpitTargetRiseMm: targetDrop,
 			Attributes: []ideal.AttributeSpec{
 				{
-					ID:         "handlebar_clamp_fit",
-					Cost:       &ideal.Cost{Above: ideal.OvalCostPerR},
-					Ideal:      &ideal.Range{Min: model.Some(100.0)},
-					Acceptable: &ideal.Range{Min: model.Some(75.0)},
+					ID:    "handlebar_clamp_fit",
+					Cost:  &ideal.Cost{Above: ideal.OvalCostPerR},
+					Ideal: &ideal.Range{Min: model.Some(1.0)},
 				},
-				{
-					ID:        "saddle_hb",
-					Ideal:     ideal.Exact(targetDist),
-					EdgeScore: model.Some(80.0),
-					Falloff:   &ideal.Falloff{Below: model.Some(50.0), Above: model.Some(50.0)},
-				},
-				{
-					ID:        "saddle_hb_drop",
-					Ideal:     ideal.Exact(targetDrop),
-					EdgeScore: model.Some(80.0),
-					Falloff:   &ideal.Falloff{Below: model.Some(50.0), Above: model.Some(50.0)},
-				},
-				{
-					ID: "best_stem",
-				},
+				ideal.DisplayOnly("saddle_hb"),
+				ideal.DisplayOnly("saddle_hb_drop"),
+				ideal.DisplayOnly("best_stem"),
 			},
 		}
 	}
@@ -1171,26 +1131,28 @@ func TestScoreRow_CockpitTargetRefModes(t *testing.T) {
 		t.Errorf("TargetStemClamp total = %.2f, want ~100", resClamp.Total)
 	}
 
-	// Verify ApplyCockpitFitForTarget preserves physical HandGrip SaddleHbMm/DropMm on SelectedHB
+	// Verify ApplyCockpitFitByCost preserves physical HandGrip SaddleHbMm/DropMm on SelectedHB
 	// and DescribeLossWithRow measures offset from StemClamp rather than HandGrip.
 	rowClamp := makeRow()
-	geometry.ApplyCockpitFitForTarget(&rowClamp.Canonical, rowClamp.Bike, rowClamp.Bike.GetCanonicalStem(),
-		model.Some(targetDist), model.Some(targetDist), model.Some(targetDrop), model.Some(targetDrop),
-		model.TargetStemClamp, model.Opt[model.HandlebarSpec]{})
+	ovalCost := func(_ model.HBPoint, r float64) float64 {
+		return ideal.OvalPointsLost(&model.CockpitFitResult{BestR: r}, nil)
+	}
+	geometry.ApplyCockpitFitByCost(&rowClamp.Canonical, targetDist, targetDrop,
+		model.TargetStemClamp, model.Opt[model.HandlebarSpec]{}, ovalCost)
 	if rowClamp.Canonical.CockpitFitResult == nil || rowClamp.Canonical.CockpitFitResult.TargetRef != model.TargetStemClamp {
-		t.Fatalf("ApplyCockpitFitForTarget TargetRef = %+v, want TargetStemClamp", rowClamp.Canonical.CockpitFitResult)
+		t.Fatalf("ApplyCockpitFitByCost TargetRef = %+v, want TargetStemClamp", rowClamp.Canonical.CockpitFitResult)
 	}
 	if math.Abs(rowClamp.Canonical.SelectedHB.SaddleHbMm-candB.SaddleHbMm) > 1e-9 {
 		t.Errorf("SelectedHB.SaddleHbMm = %.3f, want physical HandGrip %.3f", rowClamp.Canonical.SelectedHB.SaddleHbMm, candB.SaddleHbMm)
 	}
 	shiftedOval := rowClamp.Canonical.CockpitFitResult.TargetOval
 	shiftedOval.CenterX += 25.0
-	fitOut := geometry.EvaluateCockpitFitForTarget([]model.HBPoint{candB}, rowClamp.Bike.GetCanonicalStem(), shiftedOval,
-		model.TargetStemClamp, model.Opt[model.HandlebarSpec]{})
+	fitOut := geometry.EvaluateCockpitFitByCost([]model.HBPoint{candB}, shiftedOval,
+		model.TargetStemClamp, model.Opt[model.HandlebarSpec]{}, ovalCost)
 	rowOut := makeRow()
 	rowOut.Canonical.CockpitFitResult = &fitOut
 	rowOut.Canonical.SelectedHB = &fitOut.SelectedHB
-	lossMsg := DescribeLossWithRow(profClamp.Attributes[0], ideal.AttributeMeta{Label: "Oval Fits"}, fitOut.FinalSubScore, 0, ideal.ZoneOutside, &rowOut)
+	lossMsg := DescribeLossWithRow(profClamp.Attributes[0], ideal.AttributeMeta{Label: "Oval Fits"}, float64(fitOut.CountInside), 0, ideal.ZoneOutside, &rowOut)
 	if !strings.Contains(lossMsg, "reach: 25mm short, stack: 0mm") {
 		t.Errorf("DescribeLossWithRow TargetStemClamp offset = %q, want StemClamp delta (25mm short, stack: 0mm)", lossMsg)
 	}
@@ -1213,12 +1175,6 @@ func TestScoreRow_CockpitTargetRefModes(t *testing.T) {
 		t.Errorf("TargetReferenceBarClamp(sameBar) total = %.6f, want %.6f (matching TargetStemClamp)", resRefSame.Total, resClamp.Total)
 	}
 
-	// 5. Fallback selector without handlebar_clamp_fit also honors TargetRef.
-	if got, ok := geometry.SelectBestHBWithDropForTarget([]model.HBPoint{candA, candB}, rowClamp.Bike.GetCanonicalStem(),
-		model.Some(targetDist), model.Some(targetDist), model.Some(targetDrop), model.Some(targetDrop),
-		brp, model.TargetStemClamp, model.Opt[model.HandlebarSpec]{}); !ok || got.Stem.LengthMm != 80 {
-		t.Errorf("SelectBestHBWithDropForTarget(TargetStemClamp) selected %.0fmm (ok=%v), want 80mm", got.Stem.LengthMm, ok)
-	}
 }
 
 func gateRow(brp float64, countInside int, bestR float64) model.CanonicalComparisonRow {
