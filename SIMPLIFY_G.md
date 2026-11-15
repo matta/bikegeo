@@ -581,9 +581,36 @@ Every commit below has a single responsibility, is independently reviewable, and
 22. **`refactor(geometry,geom2d): replace silent <=0 fallback defaults with explicit constructor errors (C8)`**
     - Add a shared complete test-fixture builder in `pkg/*/*_test.go` and remove the ~20 silent fallback defaults (`1150`, `430`/`440`, `120`, `44`, `hbDropMm == 0 → 13.0`).
     - **Compute: Hydrogen** — Mechanical removal of ~20 `<= 0` fallback defaults and completion of partial unit-test fixtures via a shared test helper; compiler and test failures pinpoint every call site.
-23. **`refactor(scoring,compare,curve): decide whether to retain or retire composite 0–100 curve scoring`**
-    - Evaluate Phase 4's closed-form 2×2 hardware solve alongside the 0–100 curve score and either retire `pkg/scoring` / `pkg/curve` (ranking by hardware fit + millimeter excesses and updating [AGENTS.md](AGENTS.md)) or explicitly keep and streamline composite scoring.
-    - **Compute: Argon** — High-judgment architectural decision across `scoring`, `curve`, `compare`, `ideal`, `web`, and `AGENTS.md`.
+23. **`refactor(scoring,compare,curve,ideal): replace composite curve scoring with a points-lost ledger and a fit gate`**
+    - **Decided 2026-11-14** in a band-by-band review. This replaces the earlier "retain or retire" question.
+    - **Evidence (exact scorer output, all 359 `compare all` setups):** replacing each band's three-part curve (line to the edge score, hyperbolic tail, floor) with one straight line leaves the frame ranking unchanged (Spearman 1.000, top 5 identical). The versatility bonus never exceeds 3.6 points and changes no rank. The oval's tail is the only curve feature that matters, because 311 of 359 setups sit beyond R = 2.
+    - **Total = 100 − Σ points lost.** Each band states its cost in points of total per unit, so adding or removing a band never rescales the others. There are no weights, no weighted average, no floors and no curve tails. Every band is free inside its range and linear outside it. Totals may go below 0.
+    - **Bands** (cost in points of total):
+
+      | Band | Free | Cost outside |
+      | --- | --- | --- |
+      | BRP setback | exactly 219 mm | 1.2 per mm |
+      | Cockpit oval (10 × 20 mm, tilted 30° forward of vertical) | anywhere inside (R ≤ 1) | 22 per unit of R beyond the edge, linear, no tail |
+      | Seatpost extension | 250–310 mm | 0.18 per mm below, 0.21 per mm above |
+      | BB drop | 65–75 mm | 0.44 per mm |
+      | Trail | 98–106 mm | 0.41 per mm, both sides |
+      | Rail offset | ±5 mm | linear to 8 at the ±15 mm limit; beyond it, setback absorbs the miss |
+      | Stem length | 70–80 mm | linear to 8 at the catalog limits (40/100, gravel 60/110); beyond them, the oval absorbs the miss |
+      | Spacers | 0–20 mm | linear to 8 at 40 mm; above 40 mm is unbuildable and the oval absorbs the miss |
+      | Stem angle | 0° | 1 for −6° or +6° |
+      | RC / WB | 37–39 % | 4 per percentage point |
+
+    - **Cockpit target:** one point, 700 mm from the BRP and 3 mm above the sit bones. It stays BRP-relative, so a setback miss is counted once. It replaces the `saddle_hb` / `saddle_hb_drop` ranges. The C1 `TargetRef` reading is still open and independent of this.
+    - **Fit gate:** a setup fits when some stock build puts the hands inside the oval *and* the BRP lands within 10 mm of 219 mm. Every setup that fits ranks above every setup that doesn't; points order each group.
+    - **Hardware selection:** score every stock combination (stem lengths in 10 mm steps × −6°/0°/+6° × spacers 0–40 mm in 5 mm steps, 189 per setup) and keep the cheapest. The closed-form 2×2 solve stays as the explanation ("needs a 104 mm stem") and as the measure of excess past the hardware limits.
+    - **Per-frame pick in `all`:** best score wins over size, fork and sag. The CAD fork must always be a candidate; today stage-1 sag pruning and the fork expansion drop it for 8 frames.
+    - **Baseline seatpost:** a zero-setback dropper replaces the Redshift ShockStop (11 mm sagged setback). Fork length or a setback post is never used as a fit fix. Update the comparison header disclosure.
+    - **Display:** ✓ means free; ✗ shows the points lost ("✗ 3 pts"). There are no acceptable ranges and no ~ symbol. HTA, chainstay and the other geometry columns stay display-only (trail stands in for HTA, r = −0.92; RC/WB carries chainstay's effect).
+    - **Delete:** `pkg/curve`; the `EdgeScore`, `Falloff`, `Floor`, `Acceptable` and weight fields; the versatility bonus; `StemPenalty`; the fewest-spacers and canonical-stem tie-breaks; the `ForSaddle` range projection; the breakdown table's floor/weight subtitle; and the head-to-head rounding remainder.
+    - **AGENTS.md:** replace "Score Curves Live in `pkg/curve`" with the ledger rule above.
+    - **Suggested split** (each passes `make pre-commit`): 23a zero-setback dropper baseline; 23b points-lost ledger with straight-line bands (same terms as today); 23c rail/stem/spacer/angle/RC-WB bands and the 189-combination hardware scan; 23d fit gate, ✓/✗ display, CAD-fork candidate fix; 23e deletions and the AGENTS.md rule.
+    - **Re-measure after 23a:** the dropper-shifted setback shortfalls (about 1.5 mm for the ECR up to 25 mm for most frames) are hand estimates, so the gate population must be checked in code.
+    - **Compute: Argon** — Cross-package scoring replacement across `scoring`, `curve`, `compare`, `ideal`, `geometry`, `web`, and `AGENTS.md`.
 24. **`refactor(web): fold or remove redundant web catalog/tool sub-pages into /bike`**
     - Decide which of the 6 catalog/tool routes (`/saddles`, `/saddle-swap`, `/handlebars`, `/stems`, `/forks`, `/ideals`) to fold into `/bike` or remove vs. retain, and update the capability table in [AGENTS.md](AGENTS.md) and [docs/WEB.md](docs/WEB.md) to match.
     - **Compute: Argon** — High-judgment web surface diet across `web`, `AGENTS.md`, and `docs/WEB.md`.
