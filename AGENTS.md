@@ -2,6 +2,10 @@
 
 This repository is a zero-dependency **Go** command-line application (`bikegeo`).
 
+## Rider Fit Provenance
+
+Before analyzing Matt's personal bike fit, read [docs/RIDER_FIT.md](docs/RIDER_FIT.md). It records his confirmed saddle and seatpost, riding observations, and the idmatch transfer from his bike with an **unsagged Redshift post** to the test jig using the **same physical saddle**. Treat these owner-confirmed facts as established; do not ask him to repeat them. Keep reported measurements, model-derived sit-bone coordinates, and untested fit preferences distinct.
+
 ## Fast Feedback Command Loop
 
 After **every** code modification, always execute the following command to verify type safety and test suite pass rate:

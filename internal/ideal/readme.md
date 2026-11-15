@@ -6,6 +6,8 @@ This directory contains ideal bike fit profiles used by `bikegeo compare` and th
 
 ## idmatch Biomechanical Reference Point (BRP) & Saddle Position
 
+For Matt's confirmed saddle, suspension seatpost, riding history, and the **unsagged source-bike measurement and same-saddle transfer to the test jig**, see [Rider Fit: Facts and Measurement Provenance](../../docs/RIDER_FIT.md). That record establishes how the reported position was obtained; it does not establish an optimal setback or supply a measured seatpost sag correction.
+
 ### Definition & Reference Points
 
 The **BRP (Biomechanical Reference Point)** is the standardized anatomical point on a saddle where its width reaches exactly **70 mm**. Defining setup measurements relative to the BRP eliminates discrepancies caused by varying saddle lengths, nose shapes, and contour tapers:
