@@ -33,9 +33,9 @@ If a calculation turns out to be common across frames rather than a one-off quir
 
 ## 5-Step Ingestion Recipe
 
-### Step 1: Transcribe Geometry into `pkg/frames/<id>.go` and Register in `pkg/frames/frames.go`
-Create `pkg/frames/<id>.go`:
-- Define a `var <FrameVar> = model.FrameModel{...}` following the standard `model.FrameModel` struct (`HeadsetCupType`, `GeoHeadsetSpacerMm`, `CadFork`, `Forks`, `MaxSpacerMm`, `CanonicalStem`, `Stems`, `Sizes`, `Geometries`) and register it in `allFrames` in `pkg/frames/frames.go`.
+### Step 1: Transcribe Geometry into `internal/frames/<id>.go` and Register in `internal/frames/frames.go`
+Create `internal/frames/<id>.go`:
+- Define a `var <FrameVar> = model.FrameModel{...}` following the standard `model.FrameModel` struct (`HeadsetCupType`, `GeoHeadsetSpacerMm`, `CadFork`, `Forks`, `MaxSpacerMm`, `CanonicalStem`, `Stems`, `Sizes`, `Geometries`) and register it in `allFrames` in `internal/frames/frames.go`.
 - Enter literal, exact published numbers without altering them.
 
 ### Step 2: Run `bikegeo fit` to Diagnose Geometry & Review Automated Recommendations
@@ -63,8 +63,8 @@ go run ./cmd/bikegeo fit <frame-id> --try sag=0,20,25,30
 ```
 Use `--detail` to print the full per-size residual table for each combination.
 
-### Step 4: Apply Solved Values in `pkg/frames/<id>.go`
-Update `HeadsetCupType`, `GeoHeadsetSpacerMm`, `CadFork`, and `Forks` in `pkg/frames/<id>.go` with the solved physical parameters.
+### Step 4: Apply Solved Values in `internal/frames/<id>.go`
+Update `HeadsetCupType`, `GeoHeadsetSpacerMm`, `CadFork`, and `Forks` in `internal/frames/<id>.go` with the solved physical parameters.
 
 ### Step 5: Validate and Verify Test Suite
 Verify that CAD validation passes within the rounding budgets, without a `GeoSlopMm` override unless `fit` showed one is needed:
@@ -75,4 +75,4 @@ Then run the required pre-commit workflow (which runs `go fix`, `go fmt`, `go ve
 ```bash
 make pre-commit
 ```
-`TestAllFrameData` in `pkg/validator/validator_test.go` automatically validates all frames in `frames.AllFrames()`. You do **not** need to add boilerplate frame tests or edit hard-coded counts.
+`TestAllFrameData` in `internal/validator/validator_test.go` automatically validates all frames in `frames.AllFrames()`. You do **not** need to add boilerplate frame tests or edit hard-coded counts.

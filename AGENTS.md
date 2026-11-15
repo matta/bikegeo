@@ -19,17 +19,17 @@ make pre-commit
 ```
 
 - `go fix` rewrites code to current language and library idioms (for example `new(expr)` for pointer literals, `strings.FieldsSeq`, `maps.Copy`). `make fix` (and `make pre-commit`) runs it with the Go version pinned in `go.mod`; if `go fix` makes changes, re-run `make pre-commit` until it reports no further changes.
-- Review its diff before committing. Its rewrites must be semantically neutral: if a change touches `pkg/frames/*.go`, confirm only idioms changed and no published geometry value did (see the chart-immutability rule below). Commit `go fix` output separately from feature work so it stays reviewable.
+- Review its diff before committing. Its rewrites must be semantically neutral: if a change touches `internal/frames/*.go`, confirm only idioms changed and no published geometry value did (see the chart-immutability rule below). Commit `go fix` output separately from feature work so it stays reviewable.
 - If a rewrite produces an awkward result (such as an aliased import like `maps0` caused by a shadowing variable), fix the cause (rename the variable) rather than keeping the workaround.
 
 ## Architectural Guidelines
 
 - **Zero Runtime Dependencies & Pure-Go Data**:
-  - The shipped binary uses only the Go standard library (`flag`, `encoding/csv`, `net/http`, `html/template`, `embed`) with custom Unicode box-drawing, Markdown, and CSV table formatting in `pkg/cli/render.go`.
+  - The shipped binary uses only the Go standard library (`flag`, `encoding/csv`, `net/http`, `html/template`, `embed`) with custom Unicode box-drawing, Markdown, and CSV table formatting in `internal/cli/render.go`.
   - The single exception is `github.com/PuerkitoBio/goquery`, allowed **only** in `_test.go` files for DOM assertions. Never import it (or any third-party package) from non-test code; verify with `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo`, which must list only `bikegeo/...`.
   - `github.com/nishanths/exhaustive` is a `tool` dependency in `go.mod`, used only by `make check` (`go tool exhaustive ./...`). It is never linked into the binary. A `switch` on an enum-like type (`model.HeadsetCupType`, `model.PublishMode`, `ideal.ZoneType`, ...) must name every constant even when it has a `default`; when adding a constant, add its case everywhere the linter reports.
   - `golang.org/x/tools/cmd/deadcode` is a `tool` dependency in `go.mod` too, used only by `make check` (running both `go tool deadcode ./...` and `go tool deadcode -test ./...`). Plain `deadcode` ensures test-only helpers stay in `*_test.go` files and never ship in the binary; `deadcode -test` ensures test helpers themselves do not rot. Delete unreachable functions, or move test-only helpers into `*_test.go`; do not keep unused exports "for later".
-  - All bike frames (`pkg/frames/*.go`), fork and stem catalogs (`pkg/catalog/catalog.go`), ideal fit profiles (`pkg/ideal/loader.go`), and the default comparison baseline (`compare.DefaultComparisonState()` in `pkg/compare/specs.go`, also reachable as `compare.DefaultComparisonState()`) are compiled directly as Go structs. There are no JSON data files or runtime persistence files.
+  - All bike frames (`internal/frames/*.go`), fork and stem catalogs (`internal/catalog/catalog.go`), ideal fit profiles (`internal/ideal/loader.go`), and the default comparison baseline (`compare.DefaultComparisonState()` in `internal/compare/specs.go`, also reachable as `compare.DefaultComparisonState()`) are compiled directly as Go structs. There are no JSON data files or runtime persistence files.
 - **Each Interface Lives Where It Is Used** (see [docs/WEB.md](docs/WEB.md)):
   - The web (`bikegeo serve`) is for people; the CLI is for agents and scripts. A capability gets a surface only for a real audience, never by default.
 
@@ -41,9 +41,9 @@ make pre-commit
     | saddles, saddle-swap, handlebars | no | yes |
     | ideal profile, cost per band, stock stem catalogs | no | yes (`/help`) |
 
-  - Presentation lives in a **builder** that returns a `report.Document`: `compare.BuildDocument`, `validator.BuildValidationDocument`, `compare.BuildFrameListDocument`, `fit.BuildSweepDocument` / `fit.BuildAnalysisDocument`, and the web-only builders in `pkg/web` (`docb`). `pkg/report` holds the presentation-neutral `Document` (ordered `Sections` of tables and text), `Table` and `Cell` (cells carry `Zone` and `MetricID`). Builders set zones explicitly; never infer them from strings.
-  - The CLI (`pkg/cli`) parses flags, calls a builder and prints Markdown (`App.printDocument`). There is no `--format`: Markdown is the only output. `compare` keeps a many-bike comparison as one wide table (`DocOptions.Flat`) so programs can parse it.
-  - The web (`pkg/web`) turns the URL query into a builder call and renders HTML. `pkg/web` never imports `pkg/cli`; `pkg/cli` imports `pkg/web` only to dispatch `bikegeo serve`.
+  - Presentation lives in a **builder** that returns a `report.Document`: `compare.BuildDocument`, `validator.BuildValidationDocument`, `compare.BuildFrameListDocument`, `fit.BuildSweepDocument` / `fit.BuildAnalysisDocument`, and the web-only builders in `internal/web` (`docb`). `internal/report` holds the presentation-neutral `Document` (ordered `Sections` of tables and text), `Table` and `Cell` (cells carry `Zone` and `MetricID`). Builders set zones explicitly; never infer them from strings.
+  - The CLI (`internal/cli`) parses flags, calls a builder and prints Markdown (`App.printDocument`). There is no `--format`: Markdown is the only output. `compare` keeps a many-bike comparison as one wide table (`DocOptions.Flat`) so programs can parse it.
+  - The web (`internal/web`) turns the URL query into a builder call and renders HTML. `internal/web` and `internal/cli` never import each other; `cmd/bikegeo/main.go` injects `web.RunServe` into `cli.Run` to dispatch `bikegeo serve`.
   - Do not add a CLI subcommand for a human-browsing feature, or a web page for an agent-only tool. If both audiences need it, share a builder.
   - The web is strictly Web 1.0: `GET` forms, URL query as the only state, full-page responses, no JavaScript, no cookies. Controls must be populated from the parsed query.
   - `bikegeo fit` can list tied candidate solutions in a varying order between runs; that is pre-existing.
@@ -56,8 +56,8 @@ make pre-commit
   - Every comparison column specifies `FrameID + Size + Fork (travel in mm or "rigid") + Sag %`.
   - Allows comparing the same frame across multiple sag points or fork capacities alongside different frames.
 - **Frame-Level Fork Constraints**:
-  - Frames define `CadFork` and `Forks` (supported fork refs with `ID`, `A2cMm`, `RakeMm`, `SagPct`) in `pkg/frames/*.go`.
-  - `pkg/canonicalizer` strictly enforces these constraints, rejecting unsupported travel sizes, rigid forks on suspension-only frames, or non-zero sag on rigid forks.
+  - Frames define `CadFork` and `Forks` (supported fork refs with `ID`, `A2cMm`, `RakeMm`, `SagPct`) in `internal/frames/*.go`.
+  - `internal/canonicalizer` strictly enforces these constraints, rejecting unsupported travel sizes, rigid forks on suspension-only frames, or non-zero sag on rigid forks.
 - **Default Comparison Baseline**:
   - Running `bikegeo compare` with no arguments evaluates `compare.DefaultComparisonState()`. Incremental `+spec` and `-spec` / `-col_num` flags add or remove columns against that baseline in memory.
 - **Angles Are `model.Deg`, Lengths Stay `float64`**:
@@ -65,7 +65,7 @@ make pre-commit
 
 ## Adding or Modifying Bike Frame Datasets
 
-When adding or editing frame files in `pkg/frames/*.go`:
+When adding or editing frame files in `internal/frames/*.go`:
 1. **Strict Ground Truth & Chart Immutability**:
    - Published manufacturer geometry numbers (Stack, Reach, HTA, Wheelbase when published, etc.) are sacred ground truth. **NEVER modify or nudge published chart numbers** to absorb rounding residuals or force validation to pass, and **omit `Wheelbase` rather than deriving it** when a manufacturer does not publish it.
    - Size geometry overrides are strictly forbidden unless resolving a proven, catastrophic manufacturer typo (>5mm or digit transposition) documented in `Notes`.
@@ -83,17 +83,17 @@ When adding or editing frame files in `pkg/frames/*.go`:
    - Use `bikegeo fit <frame> --try ...` to sweep candidate parameters manually when exploring non-standard options.
    - Ad-hoc scripts are acceptable for source data wrangling (unit conversions, table parsing) or investigating unmodeled frame quirks, but routine CAD back-solving belongs in `fit`.
    - See the workspace skill [ingest-frame](file:///.agents/skills/ingest-frame/SKILL.md) for the complete 5-step recipe.
-5. **Register New Frames in `pkg/frames/frames.go`**:
-   - Create `pkg/frames/<frame-id>.go` and add the frame to the `allFrames` slice in `pkg/frames/frames.go`.
+5. **Register New Frames in `internal/frames/frames.go`**:
+   - Create `internal/frames/<frame-id>.go` and add the frame to the `allFrames` slice in `internal/frames/frames.go`.
 6. **Automated Test Coverage**:
-   - `pkg/validator/validator_test.go` (`TestAllFrameData`) automatically validates all frames in `frames.AllFrames()`, verifies every size materializes and passes validation, and verifies supported fork capabilities.
+   - `internal/validator/validator_test.go` (`TestAllFrameData`) automatically validates all frames in `frames.AllFrames()`, verifies every size materializes and passes validation, and verifies supported fork capabilities.
    - You do **not** need to add boilerplate per-frame unit tests or update test counts when adding frames.
 
 ## Testing Strategy & Conventions
 
 - **Unit & Integration Tests**:
-  - Domain math, validation, canonicalization, ideal profiles, scoring, fit solver, and CLI subcommands (`compare`, `validate`, `list`, `fit`) are tested in `pkg/*/*_test.go`. CLI tests assert on cell values (`runCLIRows` flattens Markdown tables), not on padding.
-  - HTTP handlers and templates are tested browserlessly in `pkg/web/web_test.go`: `httptest.NewRequest` (set `req.Host = "127.0.0.1:8080"`) → `web.New().ServeHTTP` → `goquery` selectors such as `tr[data-frame-id="..."] td[data-metric="..."]`. No Playwright, Selenium, or other browser automation.
+  - Domain math, validation, canonicalization, ideal profiles, scoring, fit solver, and CLI subcommands (`compare`, `validate`, `list`, `fit`) are tested in `internal/*/*_test.go`. CLI tests assert on cell values (`runCLIRows` flattens Markdown tables), not on padding.
+  - HTTP handlers and templates are tested browserlessly in `internal/web/web_test.go`: `httptest.NewRequest` (set `req.Host = "127.0.0.1:8080"`) → `web.New().ServeHTTP` → `goquery` selectors such as `tr[data-frame-id="..."] td[data-metric="..."]`. No Playwright, Selenium, or other browser automation.
 - **Commands**:
   - `make check` — formats, vets, runs `exhaustive`, runs `deadcode`, and runs the full test suite.
   - `make pre-commit` — required pre-commit workflow (`fix` + `check`).

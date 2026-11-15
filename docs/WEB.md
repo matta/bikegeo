@@ -24,21 +24,21 @@ make serve                                       # builds, serves on 127.0.0.1:8
 ./bin/bikegeo serve --render /handlebars         # render one route to stdout with no TCP socket
 ```
 
-`serve` is dispatched from `pkg/cli`; `pkg/web` does not import `pkg/cli`.
+`serve` is dispatched via `cli.ServeFunc` wired in `cmd/bikegeo/main.go`; neither `internal/web` nor `internal/cli` imports the other.
 
 ## Architecture
 
 ```
-pkg/report     presentation-neutral Document (ordered Sections) / Table / Row / Cell (+ Zone, MetricID, Attrs). No I/O.
-pkg/compare    spec parsing, Run(Options), BuildDocument, BuildFrameListDocument, ResolveValidationTargets
-pkg/validator  BuildValidationDocument
-pkg/fit        BuildSweepDocument / BuildAnalysisDocument (CLI only)
-pkg/cli        flag parsing and Markdown printing of the above
-pkg/web        net/http handlers, query parsing, web-only builders (docb), html/template views, embedded templates + CSS
+internal/report     presentation-neutral Document (ordered Sections) / Table / Row / Cell (+ Zone, MetricID, Attrs). No I/O.
+internal/compare    spec parsing, Run(Options), BuildDocument, BuildFrameListDocument, ResolveValidationTargets
+internal/validator  BuildValidationDocument
+internal/fit        BuildSweepDocument / BuildAnalysisDocument (CLI only)
+internal/cli        flag parsing and Markdown printing of the above
+internal/web        net/http handlers, query parsing, web-only builders (docb), html/template views, embedded templates + CSS
 ```
 
-- A web page is a `page{}` in `pkg/web/pages.go`: `Controls` (form inputs from the query), `Build` (query → `report.Document` or an error banner), optional `Link` (cell text → URL) and optional `Args` (the equivalent `bikegeo` command, only for pages with a CLI counterpart).
-- Web-only builders use `docb` (`pkg/web/docb.go`): `render` / `renderFooters` add tables, `text` adds prose, `fail` records the error that becomes the 400 banner.
+- A web page is a `page{}` in `internal/web/pages.go`: `Controls` (form inputs from the query), `Build` (query → `report.Document` or an error banner), optional `Link` (cell text → URL) and optional `Args` (the equivalent `bikegeo` command, only for pages with a CLI counterpart).
+- Web-only builders use `docb` (`internal/web/docb.go`): `render` / `renderFooters` add tables, `text` adds prose, `fail` records the error that becomes the 400 banner.
 
 ## Routes
 
@@ -91,13 +91,13 @@ Everything runs under `make test` (`go test -v ./...`), in process, with no brow
 3. Assert the status code.
 4. Parse the body with `goquery` and assert on selectors such as `tr[data-frame-id="…"] td[data-metric="…"]`.
 
-`pkg/web/web_test.go` and `pkg/web/pages_content_test.go` cover default rendering, query overrides, form echo, a form round trip that must reproduce the default view, zone classes, every route and its headline content, validation errors, the host guard and method handling. `pkg/compare` and `pkg/report` test the document layer without HTTP. CLI tests live in `pkg/cli/cli_test.go`.
+`internal/web/web_test.go` and `internal/web/pages_content_test.go` cover default rendering, query overrides, form echo, a form round trip that must reproduce the default view, zone classes, every route and its headline content, validation errors, the host guard and method handling. `internal/compare` and `internal/report` test the document layer without HTTP. CLI tests live in `internal/cli/cli_test.go`.
 
 **Dependencies:** `github.com/PuerkitoBio/goquery` is imported only from `_test.go` files. The shipped binary links the standard library only; check with `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo` (it should list only `bikegeo/…` packages).
 
 ## Adding a page
 
-1. Write a builder that returns a `report.Document` (a `docb` method in `pkg/web`, or a shared builder in the domain package if the CLI needs it too).
-2. Add a `page{…}` entry in `pkg/web/pages.go` with `Controls` and `Build` (use `run(...)` to adapt a `docb` method), and a nav entry in `pkg/web/server.go`.
+1. Write a builder that returns a `report.Document` (a `docb` method in `internal/web`, or a shared builder in the domain package if the CLI needs it too).
+2. Add a `page{…}` entry in `internal/web/pages.go` with `Controls` and `Build` (use `run(...)` to adapt a `docb` method), and a nav entry in `internal/web/server.go`.
 3. Add the route to `TestPages_AllRoutesRender` and assert content in a goquery test.
 4. Only if an agent needs the same report, add a CLI subcommand that calls the same builder and prints it with `printDocument`.

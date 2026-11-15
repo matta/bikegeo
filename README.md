@@ -2,7 +2,7 @@
 
 A zero-dependency Go application for **bicycle geometry validation and apples-to-apples frame comparisons**, with two interfaces, each used for what it suits: a **local web app** (`bikegeo serve`) for people, and a **Markdown command line** for agents and scripts.
 
-All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs ([`pkg/catalog/catalog.go`](pkg/catalog/catalog.go)), ideal fit profiles ([`pkg/ideal/loader.go`](pkg/ideal/loader.go)), and the baseline comparison state ([`pkg/compare/specs.go`](pkg/compare/specs.go)) are compiled directly into Go structs with zero external dependencies or JSON configuration files.
+All bike frame definitions ([`internal/frames/`](internal/frames)), fork and stem catalogs ([`internal/catalog/catalog.go`](internal/catalog/catalog.go)), ideal fit profiles ([`internal/ideal/loader.go`](internal/ideal/loader.go)), and the baseline comparison state ([`internal/compare/specs.go`](internal/compare/specs.go)) are compiled directly into Go structs with zero external dependencies or JSON configuration files.
 
 ---
 
@@ -14,7 +14,7 @@ All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs
    - Compare **different frames** at different sag points and fork capacities (`havok:L@110mm@20% hayduke:S3@110mm@20% fenrir:L@rigid`).
 
 2. **Strict Frame-Level Fork & Sag Constraint Enforcement**:
-   - Frames specify their CAD fork (`CadFork`) and supported forks (`Forks`) in [`pkg/frames/`](pkg/frames).
+   - Frames specify their CAD fork (`CadFork`) and supported forks (`Forks`) in [`internal/frames/`](internal/frames).
    - Automatically prevents invalid combinations:
      - Rejects unsupported suspension travel capacities for a frame.
      - Rejects `rigid` forks on suspension-only frames.
@@ -33,8 +33,8 @@ All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs
    - Detects whether the manufacturer published numbers at **0% static sag** or **15–30% sagged CAD**, or whether there is a published typo/inconsistency.
    - `bikegeo fit <frame>` automatically solves for candidate physical fork/spacer/sag combinations when ingesting new frames.
 
-5. **Ideal Frame Profiles & Sweet-Spot Scoring (`pkg/ideal`, `pkg/scoring`)**:
-   - Frames are evaluated against parameterized sweet-spot ranges defined in [`pkg/ideal/loader.go`](pkg/ideal/loader.go) (`idmatch` biomechanical fit profile).
+5. **Ideal Frame Profiles & Sweet-Spot Scoring (`internal/ideal`, `internal/scoring`)**:
+   - Frames are evaluated against parameterized sweet-spot ranges defined in [`internal/ideal/loader.go`](internal/ideal/loader.go) (`idmatch` biomechanical fit profile).
    - Scores are a points-lost ledger: `Total = 100 − Σ points lost`. Each scored band is free inside its ideal range (e.g. BRP Setback 219mm, inside the fit oval, BB Drop 65–75mm, Trail 98–106mm) and loses a stated number of points of total per unit outside it, linearly and with no floor, so totals can go below 0.
      - Scored cells show `✓` when the band is free and `✗ N pts` with the points it costs otherwise (e.g. `204 ✗ 18 pts`). There is no acceptable range and no `~`.
    - A setup *fits* when some stock build puts the hands inside the oval and the BRP lands within 10 mm of 219 mm. Every fitting setup ranks above every non-fitting one; points order each group. Tables are sorted that way (with original `[#]` identifiers preserved).
