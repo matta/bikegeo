@@ -197,28 +197,25 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 	refSitBones := model.ReferenceSitBonePoint(p.saddleH, model.DefaultTargetSitBoneSetbackMm)
 	brpH := p.saddle.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 
-	targetPt := geom2d.Point2{X: 480.9, Y: 726.1}
-	if p.targetRef == model.TargetStemClamp {
-		targetPt = geom2d.Point2{X: 480.9, Y: 676.1}
-	} else if row.Canonical.CockpitFitResult != nil {
+	target := geometry.DefaultRiderTarget(p.targetRef)
+	if p.targetRef != model.TargetStemClamp && row.Canonical.CockpitFitResult != nil {
 		ov := row.Canonical.CockpitFitResult.TargetOval
 		if ov.CenterX != 0 || ov.CenterY != 0 {
-			targetPt = geom2d.Point2{X: ov.CenterX, Y: ov.CenterY}
+			target.Point = geom2d.Point2{X: ov.CenterX, Y: ov.CenterY}
 		}
 	}
 	if p.hasTargetX {
-		targetPt.X = p.targetX
+		target.Point.X = p.targetX
 	}
 	if p.hasTargetY {
-		targetPt.Y = p.targetY
+		target.Point.Y = p.targetY
 	}
 
 	fit := geometry.RiderFit{
 		FrameSeatAxisHeightMm: p.saddleH,
 		BrpHeightMm:           brpH,
 		TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm,
-		TargetPoint:           targetPt,
-		TargetRef:             p.targetRef,
+		Target:                target,
 		ReferenceSaddle:       catalog.DefaultSaddle(),
 		ReferenceBar:          model.Some(catalog.DefaultHandlebar()),
 	}
@@ -245,8 +242,8 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 	d.StemAng = formatFloatInput(stemAng)
 	d.Spacer = formatFloatInput(spacer)
 	d.RailOff = formatFloatInput(railOff)
-	d.TargetX = formatFloatInput(targetPt.X)
-	d.TargetY = formatFloatInput(targetPt.Y)
+	d.TargetX = formatFloatInput(target.Point.X)
+	d.TargetY = formatFloatInput(target.Point.Y)
 
 	baseVals := url.Values{}
 	baseVals.Set("frame", p.frameModel.ID)

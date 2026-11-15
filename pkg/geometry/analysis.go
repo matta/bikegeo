@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"bikegeo/pkg/catalog"
-	"bikegeo/pkg/geom2d"
 	"bikegeo/pkg/model"
 )
 
@@ -115,8 +114,7 @@ func AnalyzeBikeFitWithSaddle(
 		FrameSeatAxisHeightMm: seatHeight,
 		BrpHeightMm:           brpSeatHeight,
 		TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm,
-		TargetPoint:           geom2d.Point2{X: 480.9, Y: 726.1},
-		TargetRef:             targetRef,
+		Target:                DefaultRiderTarget(targetRef),
 		ReferenceSaddle:       refSQ,
 		ReferenceBar:          profile.ReferenceBar,
 	}

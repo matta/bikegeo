@@ -832,8 +832,7 @@ func TestAnalyzeBikeFit_NormalizesCadBaseline(t *testing.T) {
 			FrameSeatAxisHeightMm: profile.SaddleHeightMm,
 			BrpHeightMm:           profile.SaddleHeightMm,
 			TargetSitBonesXMm:     -292.0,
-			TargetPoint:           geom2d.Point2{X: 480.9, Y: 726.1},
-			TargetRef:             geometry.TargetHandGrip,
+			Target:                geometry.RiderTarget{Point: geom2d.Point2{X: 480.9, Y: 726.1}, Ref: geometry.TargetHandGrip},
 			ReferenceSaddle:       saddle,
 		},
 	)

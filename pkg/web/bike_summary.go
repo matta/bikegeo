@@ -27,18 +27,18 @@ func buildBikeSummaryTable(sc geometry.BikeScene) report.Table {
 	rows := [][]string{
 		{"Frame (active)", fmt.Sprintf("Reach %.1f mm, Stack %.1f mm, HTA %.1f°, STA %.1f°", sc.Reach(), sc.Stack(), sc.HtaDeg, sc.EffectiveStaDeg), fmt.Sprintf("Pitch Δθ %+.2f°, Trail %.1f mm, RC/WB %.1f%%", sc.PitchDeg, sc.TrailMm(), sc.RearCenterWheelbaseRatio()*100)},
 		{"Stem / Spacer Fit (exact)", solvedStr, fmt.Sprintf("At current stem angle %.0f° to hit C*", sc.Cockpit.Stem.AngleDeg)},
-		{"Target Error (C* − StemClamp)", fmt.Sprintf("(%.1f, %.1f) mm (|Δ|=%.1f mm)", errVec.X, errVec.Y, errVec.Norm()), fmt.Sprintf("TargetRef: %s", sc.TargetRef.Label())},
+		{"Target Error (C* − StemClamp)", fmt.Sprintf("(%.1f, %.1f) mm (|Δ|=%.1f mm)", errVec.X, errVec.Y, errVec.Norm()), fmt.Sprintf("TargetRef: %s", sc.Fit.Target.Ref.Label())},
 		{"RequiredStemClamp C*", ptStr(sc.RequiredStemClamp), "Stem clamp center required by TargetPoint + bar"},
 		{"StemClamp", ptStr(sc.StemClamp), fmt.Sprintf("%.0fmm %.0f° stem + %.0fmm spacers", sc.Cockpit.Stem.LengthMm, sc.Cockpit.Stem.AngleDeg, sc.Cockpit.SpacerMm)},
 		{"HandGrip", ptStr(sc.HandGrip), fmt.Sprintf("BRP–Grip %.1f mm, Grip–SitBones Y %+.1f mm", sc.GripDistFromBrpMm(), sc.GripRiseAboveSitBonesMm())},
-		{"TargetPoint", ptStr(sc.TargetPoint), sc.TargetRef.Label()},
+		{"TargetPoint", ptStr(sc.Fit.Target.Point), sc.Fit.Target.Ref.Label()},
 		{"SitBones", ptStr(sc.SitBones), fmt.Sprintf("Target X = %.1f mm", sc.Fit.TargetSitBonesXMm)},
 		{"BRP", ptStr(sc.BRP), fmt.Sprintf("Required rail offset %+.1f mm, margin %.1f mm (%s)", sc.RequiredRailOffsetMm, sc.RailMarginMm, railStatus)},
 	}
 	t := report.FromStrings(
 		"bike-scene",
 		"Scene coordinates and solved hardware",
-		fmt.Sprintf("TargetRef: %s | Saddle: %s | Handlebar: %s", sc.TargetRef.Label(), sc.Seat.Saddle.Name, sc.Cockpit.Handlebar.Name),
+		fmt.Sprintf("TargetRef: %s | Saddle: %s | Handlebar: %s", sc.Fit.Target.Ref.Label(), sc.Seat.Saddle.Name, sc.Cockpit.Handlebar.Name),
 		[]string{"Quantity", "Value", "Notes"},
 		rows,
 	)

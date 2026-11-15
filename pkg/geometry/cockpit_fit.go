@@ -197,8 +197,7 @@ func ApplyCockpitFitByCost(
 		return
 	}
 	reqClamp, err := RequiredStemClamp(RiderFit{
-		TargetPoint:  geom2d.Point2{X: oval.CenterX, Y: oval.CenterY},
-		TargetRef:    targetRef,
+		Target:       RiderTarget{Point: geom2d.Point2{X: oval.CenterX, Y: oval.CenterY}, Ref: targetRef},
 		ReferenceBar: refBar,
 	}, CockpitSpec{
 		HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,

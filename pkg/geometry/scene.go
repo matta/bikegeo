@@ -200,6 +200,24 @@ func (s SeatSpec) HalfRailWindowMm() float64 {
 	return (s.Saddle.RailLengthMm - s.ClampLengthMm) / 2.0
 }
 
+// RiderTarget groups the cockpit target coordinate with the physical point it describes.
+type RiderTarget struct {
+	Point geom2d.Point2
+	Ref   TargetRef
+}
+
+// DefaultRiderTarget returns the standard target coordinate for a cockpit reference point.
+func DefaultRiderTarget(ref TargetRef) RiderTarget {
+	var pt geom2d.Point2
+	switch ref {
+	case TargetHandGrip, TargetReferenceBarClamp:
+		pt = geom2d.Point2{X: 480.9, Y: 726.1}
+	case TargetStemClamp:
+		pt = geom2d.Point2{X: 480.9, Y: 676.1}
+	}
+	return RiderTarget{Point: pt, Ref: ref}
+}
+
 // RiderFit specifies the rider's biomechanical targets and explicit cockpit reference point.
 type RiderFit struct {
 	// FrameSeatAxisHeightMm is the radial distance from BB (0,0) along the active frame seat-tube
@@ -212,9 +230,8 @@ type RiderFit struct {
 	// TargetSitBonesXMm is the target X coordinate of SitBones relative to BB (negative = rearward).
 	TargetSitBonesXMm float64
 
-	// TargetPoint is the 2D target coordinate relative to BB (0,0), interpreted according to TargetRef.
-	TargetPoint geom2d.Point2
-	TargetRef   TargetRef
+	// Target is the 2D cockpit coordinate relative to BB (0,0), paired with its physical reference point.
+	Target RiderTarget
 
 	// ReferenceSaddle is the saddle used to record reference biomechanical coordinates.
 	ReferenceSaddle model.SaddleSpec
@@ -223,8 +240,8 @@ type RiderFit struct {
 	ReferenceBar model.Opt[model.HandlebarSpec]
 }
 
-// RequiredStemClamp converts fit.TargetPoint into the required 2D StemClamp coordinate C*
-// for the configured handlebar, grip inset, and roll under fit.TargetRef.
+// RequiredStemClamp converts fit.Target into the required 2D StemClamp coordinate C*
+// for the configured handlebar, grip inset, and roll.
 func RequiredStemClamp(fit RiderFit, cockpit CockpitSpec) (geom2d.Point2, error) {
 	if err := validateCockpitTargetInputs(fit, cockpit); err != nil {
 		return geom2d.Point2{}, err
@@ -232,18 +249,18 @@ func RequiredStemClamp(fit RiderFit, cockpit CockpitSpec) (geom2d.Point2, error)
 	barOff := GetHandlebarOffset(cockpit.Handlebar, cockpit.GripInsetMm, cockpit.BarRollDeg)
 	barVec := geom2d.Vec2{X: barOff.X, Y: barOff.Y}
 
-	switch fit.TargetRef {
+	switch fit.Target.Ref {
 	case TargetHandGrip:
-		return fit.TargetPoint.SubVec(barVec), nil
+		return fit.Target.Point.SubVec(barVec), nil
 	case TargetStemClamp:
-		return fit.TargetPoint, nil
+		return fit.Target.Point, nil
 	case TargetReferenceBarClamp:
 		refBar, _ := fit.ReferenceBar.Get()
 		refOff := GetHandlebarOffset(refBar, cockpit.GripInsetMm, 0.0)
 		refVec := geom2d.Vec2{X: refOff.X, Y: refOff.Y}
-		return fit.TargetPoint.Add(refVec).SubVec(barVec), nil
+		return fit.Target.Point.Add(refVec).SubVec(barVec), nil
 	default:
-		return geom2d.Point2{}, fmt.Errorf("invalid TargetRef %q", fit.TargetRef)
+		return geom2d.Point2{}, fmt.Errorf("invalid TargetRef %q", fit.Target.Ref)
 	}
 }
 
@@ -287,12 +304,10 @@ type BikeScene struct {
 	RequiredRailOffsetMm float64
 	RailMarginMm         float64
 
-	// Leveled front cockpit landmarks & explicit fit target
+	// Leveled front cockpit landmarks
 	SteererClamp      geom2d.Point2
 	StemClamp         geom2d.Point2
 	HandGrip          geom2d.Point2
-	TargetPoint       geom2d.Point2
-	TargetRef         TargetRef
 	RequiredStemClamp geom2d.Point2
 
 	// Active leveled angles & fork lengths
@@ -617,8 +632,6 @@ func BuildScene(
 		SteererClamp:         cockpitPts.SteererClamp,
 		StemClamp:            cockpitPts.StemClamp,
 		HandGrip:             cockpitPts.HandGrip,
-		TargetPoint:          fit.TargetPoint,
-		TargetRef:            fit.TargetRef,
 		RequiredStemClamp:    reqClamp,
 		PitchDeg:             leveled.PitchDeg,
 		HtaDeg:               fr.HtaDeg,
@@ -824,11 +837,11 @@ func isFinite(v float64) bool {
 }
 
 func validateCockpitTargetInputs(fit RiderFit, cockpit CockpitSpec) error {
-	if !fit.TargetRef.IsValid() {
-		return fmt.Errorf("RiderFit requires a valid TargetRef (got %q)", fit.TargetRef)
+	if !fit.Target.Ref.IsValid() {
+		return fmt.Errorf("RiderFit requires a valid TargetRef (got %q)", fit.Target.Ref)
 	}
-	if !isFinite(fit.TargetPoint.X) || !isFinite(fit.TargetPoint.Y) {
-		return fmt.Errorf("RiderFit TargetPoint must be finite, got (%v, %v)", fit.TargetPoint.X, fit.TargetPoint.Y)
+	if !isFinite(fit.Target.Point.X) || !isFinite(fit.Target.Point.Y) {
+		return fmt.Errorf("RiderFit Target.Point must be finite, got (%v, %v)", fit.Target.Point.X, fit.Target.Point.Y)
 	}
 	if !isPositive(cockpit.Handlebar.EffectiveWidthMm()) {
 		return fmt.Errorf("Handlebar width must be positive, got %v mm", cockpit.Handlebar.EffectiveWidthMm())
@@ -836,7 +849,7 @@ func validateCockpitTargetInputs(fit RiderFit, cockpit CockpitSpec) error {
 	if !isPositive(cockpit.GripInsetMm) || cockpit.GripInsetMm >= cockpit.Handlebar.EffectiveWidthMm()/2.0 {
 		return fmt.Errorf("GripInsetMm %v must be in (0, %.1f)", cockpit.GripInsetMm, cockpit.Handlebar.EffectiveWidthMm()/2.0)
 	}
-	if fit.TargetRef == TargetReferenceBarClamp {
+	if fit.Target.Ref == TargetReferenceBarClamp {
 		refBar, ok := fit.ReferenceBar.Get()
 		if !ok || !isPositive(refBar.EffectiveWidthMm()) {
 			return fmt.Errorf("TargetReferenceBarClamp requires RiderFit.ReferenceBar with positive width")

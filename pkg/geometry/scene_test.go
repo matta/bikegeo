@@ -54,8 +54,7 @@ func baseTestInputs() (geometry.FrameSize, geometry.BuildSpec, geometry.CockpitS
 		FrameSeatAxisHeightMm: 746.0,
 		BrpHeightMm:           746.0,
 		TargetSitBonesXMm:     -292.0,
-		TargetPoint:           geom2d.Point2{X: 480.9, Y: 726.1},
-		TargetRef:             geometry.TargetHandGrip,
+		Target:                geometry.RiderTarget{Point: geom2d.Point2{X: 480.9, Y: 726.1}, Ref: geometry.TargetHandGrip},
 		ReferenceSaddle:       saddle,
 	}
 	return frame, build, cockpit, seat, fit
@@ -294,14 +293,14 @@ func TestBuildScene_TargetRefModes(t *testing.T) {
 
 	// 2. TargetStemClamp: C* = TargetPoint directly (e.g. Seven's stem-center fit-sheet target)
 	fitClamp := baseFit
-	fitClamp.TargetPoint = geom2d.Point2{X: 482.0, Y: 676.0}
-	fitClamp.TargetRef = geometry.TargetStemClamp
+	fitClamp.Target.Point = geom2d.Point2{X: 482.0, Y: 676.0}
+	fitClamp.Target.Ref = geometry.TargetStemClamp
 	scClamp, err := geometry.BuildScene(frame, build, cockpit, seat, fitClamp)
 	if err != nil {
 		t.Fatalf("BuildScene clamp: %v", err)
 	}
-	if scClamp.RequiredStemClamp != fitClamp.TargetPoint {
-		t.Errorf("TargetStemClamp C* = %+v, want %+v", scClamp.RequiredStemClamp, fitClamp.TargetPoint)
+	if scClamp.RequiredStemClamp != fitClamp.Target.Point {
+		t.Errorf("TargetStemClamp C* = %+v, want %+v", scClamp.RequiredStemClamp, fitClamp.Target.Point)
 	}
 
 	// 3. TargetReferenceBarClamp:
@@ -318,7 +317,7 @@ func TestBuildScene_TargetRefModes(t *testing.T) {
 		RiseMode:             model.RiseModeStandardKnuckle,
 	}
 	fitRefFlat := baseFit
-	fitRefFlat.TargetRef = geometry.TargetReferenceBarClamp
+	fitRefFlat.Target.Ref = geometry.TargetReferenceBarClamp
 	fitRefFlat.ReferenceBar = model.Some(flatBar)
 	scRefFlat, err := geometry.BuildScene(frame, build, cockpit, seat, fitRefFlat)
 	if err != nil {
@@ -330,13 +329,13 @@ func TestBuildScene_TargetRefModes(t *testing.T) {
 
 	// With ReferenceBar == current Bar at neutral roll, C* == TargetPoint (when cockpit.BarRollDeg == 0).
 	fitRefSame := baseFit
-	fitRefSame.TargetRef = geometry.TargetReferenceBarClamp
+	fitRefSame.Target.Ref = geometry.TargetReferenceBarClamp
 	fitRefSame.ReferenceBar = model.Some(cockpit.Handlebar)
 	scRefSame, err := geometry.BuildScene(frame, build, cockpit, seat, fitRefSame)
 	if err != nil {
 		t.Fatalf("BuildScene ref same: %v", err)
 	}
-	if d := scRefSame.RequiredStemClamp.DistanceTo(fitRefSame.TargetPoint); d > 1e-9 {
+	if d := scRefSame.RequiredStemClamp.DistanceTo(fitRefSame.Target.Point); d > 1e-9 {
 		t.Errorf("TargetReferenceBarClamp with identical bar differed from TargetPoint by %.12f mm", d)
 	}
 
@@ -346,12 +345,12 @@ func TestBuildScene_TargetRefModes(t *testing.T) {
 	for _, f := range []geometry.RiderFit{baseFit, fitClamp, fitRefFlat, fitRefSame} {
 		sc, err := geometry.BuildScene(frame, build, cockpitRolled, seat, f)
 		if err != nil {
-			t.Fatalf("BuildScene(%s): %v", f.TargetRef, err)
+			t.Fatalf("BuildScene(%s): %v", f.Target.Ref, err)
 		}
 		got := sc.TargetPointError()
-		want := sc.TargetPoint.Sub(evaluatedCockpitPoint(sc))
+		want := sc.Fit.Target.Point.Sub(evaluatedCockpitPoint(sc))
 		if d := math.Abs(got.X-want.X) + math.Abs(got.Y-want.Y); d > 1e-9 {
-			t.Errorf("%s: TargetPointError %+v != TargetPoint - evaluatedCockpitPoint %+v", f.TargetRef, got, want)
+			t.Errorf("%s: TargetPointError %+v != TargetPoint - evaluatedCockpitPoint %+v", f.Target.Ref, got, want)
 		}
 	}
 
@@ -395,13 +394,13 @@ func TestBuildScene_ValidationAndZeroDefaults(t *testing.T) {
 		mutate func(*geometry.FrameSize, *geometry.BuildSpec, *geometry.CockpitSpec, *geometry.SeatSpec, *geometry.RiderFit)
 	}{
 		{"missing TargetRef", func(_ *geometry.FrameSize, _ *geometry.BuildSpec, _ *geometry.CockpitSpec, _ *geometry.SeatSpec, fi *geometry.RiderFit) {
-			fi.TargetRef = ""
+			fi.Target.Ref = ""
 		}},
 		{"invalid TargetRef", func(_ *geometry.FrameSize, _ *geometry.BuildSpec, _ *geometry.CockpitSpec, _ *geometry.SeatSpec, fi *geometry.RiderFit) {
-			fi.TargetRef = "hb"
+			fi.Target.Ref = "hb"
 		}},
 		{"TargetReferenceBarClamp missing ReferenceBar", func(_ *geometry.FrameSize, _ *geometry.BuildSpec, _ *geometry.CockpitSpec, _ *geometry.SeatSpec, fi *geometry.RiderFit) {
-			fi.TargetRef = geometry.TargetReferenceBarClamp
+			fi.Target.Ref = geometry.TargetReferenceBarClamp
 			fi.ReferenceBar = model.Opt[model.HandlebarSpec]{}
 		}},
 		{"zero fork rake", func(_ *geometry.FrameSize, b *geometry.BuildSpec, _ *geometry.CockpitSpec, _ *geometry.SeatSpec, _ *geometry.RiderFit) {
@@ -430,7 +429,7 @@ func TestBuildScene_ValidationAndZeroDefaults(t *testing.T) {
 			fr.ChainstayMm = fr.BbDropMm
 		}},
 		{"NaN target point", func(_ *geometry.FrameSize, _ *geometry.BuildSpec, _ *geometry.CockpitSpec, _ *geometry.SeatSpec, fi *geometry.RiderFit) {
-			fi.TargetPoint.X = math.NaN()
+			fi.Target.Point.X = math.NaN()
 		}},
 	}
 
@@ -454,7 +453,7 @@ func TestBuildScene_ValidationAndZeroDefaults(t *testing.T) {
 	seatZero := seat
 	seatZero.PostSetbackMm = 0.0
 	fitZero := fit
-	fitZero.TargetRef = geometry.TargetHandGrip
+	fitZero.Target.Ref = geometry.TargetHandGrip
 	scZero, err := geometry.BuildScene(frame, build, cockpitZero, seatZero, fitZero)
 	if err != nil {
 		t.Fatalf("explicit zero inputs failed: %v", err)
@@ -506,8 +505,7 @@ func TestSolveStemSpacerFit(t *testing.T) {
 		FrameSeatAxisHeightMm: 746,
 		BrpHeightMm:           746,
 		TargetSitBonesXMm:     -292,
-		TargetPoint:           geom2d.Point2{X: 480.9, Y: 676.1},
-		TargetRef:             geometry.TargetStemClamp,
+		Target:                geometry.RiderTarget{Point: geom2d.Point2{X: 480.9, Y: 676.1}, Ref: geometry.TargetStemClamp},
 		ReferenceSaddle:       saddle,
 	}
 	scClamp, err := geometry.BuildScene(frame, build, cockpit, seat, fitClamp)
@@ -526,8 +524,8 @@ func TestSolveStemSpacerFit(t *testing.T) {
 	//    -6° -> ~140mm stem, ~-14mm spacers
 	//   -17° -> ~145mm stem, ~+14mm spacers
 	fitGrip := fitClamp
-	fitGrip.TargetPoint = geom2d.Point2{X: 480.9, Y: 726.1}
-	fitGrip.TargetRef = geometry.TargetHandGrip
+	fitGrip.Target.Point = geom2d.Point2{X: 480.9, Y: 726.1}
+	fitGrip.Target.Ref = geometry.TargetHandGrip
 	scGrip, err := geometry.BuildScene(frame, build, cockpit, seat, fitGrip)
 	if err != nil {
 		t.Fatalf("BuildScene(TargetHandGrip): %v", err)
@@ -605,8 +603,7 @@ func TestSeatTubeTopAndBend(t *testing.T) {
 		FrameSeatAxisHeightMm: 746,
 		BrpHeightMm:           746,
 		TargetSitBonesXMm:     -292,
-		TargetPoint:           geom2d.Point2{X: 480, Y: 700},
-		TargetRef:             geometry.TargetHandGrip,
+		Target:                geometry.RiderTarget{Point: geom2d.Point2{X: 480, Y: 700}, Ref: geometry.TargetHandGrip},
 		ReferenceSaddle:       saddle,
 	}
 
@@ -657,7 +654,7 @@ func TestSeatTubeTopAndBend(t *testing.T) {
 }
 
 func evaluatedCockpitPoint(s geometry.BikeScene) geom2d.Point2 {
-	switch s.TargetRef {
+	switch s.Fit.Target.Ref {
 	case geometry.TargetHandGrip:
 		return s.HandGrip
 	case geometry.TargetStemClamp:

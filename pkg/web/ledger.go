@@ -71,17 +71,17 @@ func buildSceneForComparisonRow(row model.CanonicalComparisonRow, prof *ideal.Pr
 		seat.RailOffsetMm = row.Canonical.SelectedBRP.RailOffsetMm
 	}
 	targetRef := model.TargetHandGrip
-	targetPt := geom2d.Point2{X: 480.9, Y: 726.1}
 	if prof != nil && prof.TargetRef.IsValid() {
 		targetRef = prof.TargetRef
 	}
+	if row.Canonical.CockpitFitResult != nil && row.Canonical.CockpitFitResult.TargetRef.IsValid() {
+		targetRef = row.Canonical.CockpitFitResult.TargetRef
+	}
+	target := geometry.DefaultRiderTarget(targetRef)
 	if row.Canonical.CockpitFitResult != nil {
-		if row.Canonical.CockpitFitResult.TargetRef.IsValid() {
-			targetRef = row.Canonical.CockpitFitResult.TargetRef
-		}
 		ov := row.Canonical.CockpitFitResult.TargetOval
 		if ov.CenterX != 0 || ov.CenterY != 0 {
-			targetPt = geom2d.Point2{X: ov.CenterX, Y: ov.CenterY}
+			target.Point = geom2d.Point2{X: ov.CenterX, Y: ov.CenterY}
 		}
 	}
 	saddleH := model.DefaultIdmatchSaddleHeightMm
@@ -91,8 +91,7 @@ func buildSceneForComparisonRow(row model.CanonicalComparisonRow, prof *ideal.Pr
 		FrameSeatAxisHeightMm: saddleH,
 		BrpHeightMm:           brpH,
 		TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm,
-		TargetPoint:           targetPt,
-		TargetRef:             targetRef,
+		Target:                target,
 		ReferenceSaddle:       catalog.DefaultSaddle(),
 		ReferenceBar:          model.Some(catalog.DefaultHandlebar()),
 	}
@@ -254,8 +253,8 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 		[]string{
 			"5. Fit Target & Solve",
 			"Required Stem Clamp C*",
-			fmt.Sprintf("TargetPoint (%s) → RequiredStemClamp", sc.TargetRef.Label()),
-			fmt.Sprintf("Target %s, Δ=(%+.1f, %+.1f)", pt(sc.TargetPoint), errVec.X, errVec.Y),
+			fmt.Sprintf("TargetPoint (%s) → RequiredStemClamp", sc.Fit.Target.Ref.Label()),
+			fmt.Sprintf("Target %s, Δ=(%+.1f, %+.1f)", pt(sc.Fit.Target.Point), errVec.X, errVec.Y),
 			fmt.Sprintf("C* %s (|Δ|=%.1f mm)", pt(sc.RequiredStemClamp), errVec.Norm()),
 		},
 	)
@@ -312,7 +311,7 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 	return report.FromStrings(
 		id,
 		title,
-		fmt.Sprintf("TargetRef: %s | Saddle: %s | Handlebar: %s", sc.TargetRef.Label(), sc.Seat.Saddle.Name, sc.Cockpit.Handlebar.Name),
+		fmt.Sprintf("TargetRef: %s | Saddle: %s | Handlebar: %s", sc.Fit.Target.Ref.Label(), sc.Seat.Saddle.Name, sc.Cockpit.Handlebar.Name),
 		[]string{"Stage", "Quantity", "Plain Formula", "Substituted Inputs", "Result"},
 		rows,
 	)

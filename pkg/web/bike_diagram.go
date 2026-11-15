@@ -55,7 +55,7 @@ func buildBikeSVG(sc geometry.BikeScene) bikeSVGView {
 	groundY := sc.RearAxle.Y - sc.Build.WheelRadiusRearMm
 	minX := math.Floor(sc.RearAxle.X - sc.Build.WheelRadiusRearMm - 90)
 	maxX := math.Ceil(sc.FrontAxle.X + sc.Build.WheelRadiusFrontMm + 90)
-	maxY := math.Ceil(math.Max(math.Max(sc.SitBones.Y, sc.HandGrip.Y), math.Max(sc.TargetPoint.Y, sc.RequiredStemClamp.Y)) + 110)
+	maxY := math.Ceil(math.Max(math.Max(sc.SitBones.Y, sc.HandGrip.Y), math.Max(sc.Fit.Target.Point.Y, sc.RequiredStemClamp.Y)) + 110)
 	minY := math.Floor(groundY - 70)
 
 	f2 := func(x float64) string { return fmt.Sprintf("%.2f", x) }
@@ -135,7 +135,7 @@ func buildBikeSVG(sc geometry.BikeScene) bikeSVGView {
 		{"SC", "SteererClamp", sc.SteererClamp, -135, -8, 6, "cockpit"},
 		{"STC", "StemClamp", sc.StemClamp, 12, 24, 7, "contact"},
 		{"GR", "HandGrip", sc.HandGrip, -110, -24, 8, "contact"},
-		{"TP", fmt.Sprintf("TargetPoint (%s)", sc.TargetRef.Label()), sc.TargetPoint, 14, -18, 9, "target"},
+		{"TP", fmt.Sprintf("TargetPoint (%s)", sc.Fit.Target.Ref.Label()), sc.Fit.Target.Point, 14, -18, 9, "target"},
 		{"RSC", "RequiredStemClamp C*", sc.RequiredStemClamp, 14, 4, 8, "target"},
 	})
 
@@ -223,7 +223,7 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 			sc.Reach(), sc.Stack(), sc.HtaDeg, brp,
 			st, sp, sc.Cockpit.Handlebar, sc.Cockpit.GripInsetMm, sc.Cockpit.BarRollDeg,
 		)
-		return geometry.EvaluatedPointForHB(hb, sc.TargetRef, sc.Fit.ReferenceBar)
+		return geometry.EvaluatedPointForHB(hb, sc.Fit.Target.Ref, sc.Fit.ReferenceBar)
 	}
 
 	// Build reachable [MinStem..MaxStem] x [0..MaxSpacerMm] envelope polygon per stem angle.
@@ -251,6 +251,7 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 	}
 	slices.Sort(angles)
 
+	target := sc.Fit.Target
 	maxSpacer := math.Max(0, row.Bike.GetMaxSpacerMm())
 	polygons := make([]svgPolygon, 0, len(angles))
 	boxPts := []geom2d.Point2{
@@ -258,10 +259,10 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 		sc.SteererClamp,
 		sc.StemClamp,
 		sc.HandGrip,
-		sc.TargetPoint,
+		target.Point,
 		sc.RequiredStemClamp,
-		{X: sc.TargetPoint.X - 30, Y: sc.TargetPoint.Y - 30},
-		{X: sc.TargetPoint.X + 30, Y: sc.TargetPoint.Y + 30},
+		{X: target.Point.X - 30, Y: target.Point.Y - 30},
+		{X: target.Point.X + 30, Y: target.Point.Y + 30},
 	}
 	for _, ang := range angles {
 		lr := byAngle[ang]
@@ -296,7 +297,7 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 	circles := make([]svgCircle, 0, len(candHBs))
 	var best *svgCircle
 	for _, hb := range candHBs {
-		p := geometry.EvaluatedPointForHB(hb, sc.TargetRef, sc.Fit.ReferenceBar)
+		p := geometry.EvaluatedPointForHB(hb, target.Ref, sc.Fit.ReferenceBar)
 		c := svgCircle{CX: f2(p.X), CY: f2(p.Y), R: "1.80", Class: "cand-dot"}
 		if isSelected(hb) {
 			c.R, c.Class = "3.20", "cand-dot cand-best"
@@ -311,18 +312,18 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 	}
 
 	// 30-degree rotated FitOval centered on TargetPoint.
-	oval := geometry.DefaultFitOval(sc.TargetPoint.X, sc.TargetPoint.Y)
+	oval := geometry.DefaultFitOval(target.Point.X, target.Point.Y)
 	if cfr := row.Canonical.CockpitFitResult; cfr != nil && cfr.TargetOval.SemiMinorA > 0 && cfr.TargetOval.SemiMajorB > 0 {
 		oval.SemiMinorA = cfr.TargetOval.SemiMinorA
 		oval.SemiMajorB = cfr.TargetOval.SemiMajorB
 		oval.AngleDeg = cfr.TargetOval.AngleDeg
 	}
 	ellipses := []svgEllipse{{
-		CX:        f2(sc.TargetPoint.X),
-		CY:        f2(sc.TargetPoint.Y),
+		CX:        f2(target.Point.X),
+		CY:        f2(target.Point.Y),
 		RX:        f2(oval.SemiMinorA),
 		RY:        f2(oval.SemiMajorB),
-		Transform: fmt.Sprintf("rotate(%.2f %.2f %.2f)", -float64(oval.AngleDeg), sc.TargetPoint.X, sc.TargetPoint.Y),
+		Transform: fmt.Sprintf("rotate(%.2f %.2f %.2f)", -float64(oval.AngleDeg), target.Point.X, target.Point.Y),
 		Class:     "fit-oval",
 	}}
 
@@ -342,7 +343,7 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 		{"SC", "SteererClamp", sc.SteererClamp, -52, -4, 2.6, "cockpit"},
 		{"STC", "StemClamp", sc.StemClamp, 6, 9, 3.0, "contact"},
 		{"GR", "HandGrip", sc.HandGrip, -42, -9, 3.2, "contact"},
-		{"TP", fmt.Sprintf("TargetPoint (%s)", sc.TargetRef.Label()), sc.TargetPoint, 6, -9, 3.5, "target"},
+		{"TP", fmt.Sprintf("TargetPoint (%s)", target.Ref.Label()), target.Point, 6, -9, 3.5, "target"},
 		{"RSC", "RequiredStemClamp C*", sc.RequiredStemClamp, 6, 4, 3.2, "target"},
 	})
 

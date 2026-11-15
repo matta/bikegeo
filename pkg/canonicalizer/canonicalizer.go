@@ -719,7 +719,7 @@ func CanonicalizeBikes(
 			FrameSeatAxisHeightMm: seatHeight,
 			BrpHeightMm:           seatHeight,
 			TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm,
-			TargetRef:             targetRef,
+			Target:                geometry.RiderTarget{Ref: targetRef},
 			ReferenceSaddle:       saddle,
 			ReferenceBar:          config.RiderProfile.ReferenceBar,
 		}
