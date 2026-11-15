@@ -20,13 +20,15 @@ vet:
 exhaustive:
 	go tool exhaustive ./...
 
-# Fails when a function is unreachable from main or from any test. -test makes
-# tests roots, so code that only tests exercise is kept; delete a function that
-# nothing needs, or move it into the test that does. Like exhaustive, deadcode
-# is a `tool` dependency in go.mod and is never linked into the bikegeo binary.
+# Fails when a function is unreachable from main (plain deadcode) or from main
+# and tests (-test). Running both ensures test-only helpers stay in *_test.go
+# files and neither production code nor test helpers rot. Like exhaustive,
+# deadcode is a `tool` dependency in go.mod and is never linked into the binary.
 deadcode:
+	@out="$$(go tool deadcode ./...)"; \
+	if [ -n "$$out" ]; then echo "$$out"; echo "deadcode: unreachable functions from main found"; exit 1; fi
 	@out="$$(go tool deadcode -test ./...)"; \
-	if [ -n "$$out" ]; then echo "$$out"; echo "deadcode: unreachable functions found"; exit 1; fi
+	if [ -n "$$out" ]; then echo "$$out"; echo "deadcode -test: unreachable functions found"; exit 1; fi
 
 test:
 	go test -v ./...

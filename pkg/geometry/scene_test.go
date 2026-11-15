@@ -61,164 +61,72 @@ func baseTestInputs() (geometry.FrameSize, geometry.BuildSpec, geometry.CockpitS
 	return frame, build, cockpit, seat, fit
 }
 
-func TestBuildScene_ParityWithCalculateDynamicGeometry_ConstantRake(t *testing.T) {
-	saddle := catalog.DefaultSaddle()
-	aspin, _ := catalog.GetSaddle("berthoud-aspin-open")
-	bar, _ := catalog.GetHandlebar("persuader20_800")
+func TestBuildScene_DerivedMetricsAndCockpit(t *testing.T) {
+	frame, build, cockpit, seat, fit := baseTestInputs()
+	frame.SeatTubeLengthMm = model.Some(450.0)
+	cockpit.SpacerMm = 15.0
+	cockpit.BarRollDeg = 5.0
 
-	for _, frameModel := range frames.AllFrames() {
-		for _, sz := range frameModel.GetSizes() {
-			bike, err := geometry.MaterializeBikeGeometry(frameModel, sz)
-			if err != nil {
-				t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frameModel.ID, sz, err)
-			}
-			frame, err := geometry.FrameSizeFromBikeGeometry(bike)
-			if err != nil {
-				t.Fatalf("FrameSizeFromBikeGeometry(%s, %s): %v", frameModel.ID, sz, err)
-			}
+	sc, err := geometry.BuildScene(frame, build, cockpit, seat, fit)
+	if err != nil {
+		t.Fatalf("BuildScene: %v", err)
+	}
 
-			// Compute the chart-implied wheelbase at the CAD fork (the exact baseline assumed by step 1a/1b).
-			htaRad := frame.HtaDeg.Angle()
-			lChart := (frame.StackMm - frame.BbDropMm + frame.CadFork.RakeMm*htaRad.Cos()) / htaRad.Sin()
-			u0 := geometry.SteererTubeDir(frame.HtaDeg)
-			n0 := u0.Perpendicular(geom2d.Clockwise)
-			faChart := geom2d.Point2{X: frame.ReachMm, Y: frame.StackMm}.SubVec(u0.Scale(lChart)).Add(n0.Scale(frame.CadFork.RakeMm))
-			ra0X := -geometry.RearCenterHoriz(frame.ChainstayMm, frame.BbDropMm)
-			wbChart := faChart.X - ra0X
+	// ETT = Reach + Stack / tan(NominalSTA)
+	wantEtt := sc.Reach() + sc.Stack()/sc.NominalStaDeg.Angle().Tan()
+	if d := math.Abs(sc.EttMm() - wantEtt); d > 1e-9 {
+		t.Errorf("EttMm = %.6f, want %.6f", sc.EttMm(), wantEtt)
+	}
 
-			cadEff := frame.CadFork.EffectiveA2c(frame.CadSagPct)
-			baseStruct := cadEff + frame.CadLowerCupMm
+	// SeatAxisActualSetback = H * cos(seatAxisSTA)
+	seatAxisSta := frame.EffectiveStaDegAt(fit.FrameSeatAxisHeightMm) - sc.PitchDeg
+	wantSetback := fit.FrameSeatAxisHeightMm * seatAxisSta.Angle().Cos()
+	if d := math.Abs(sc.SeatAxisActualSetbackMm() - wantSetback); d > 1e-9 {
+		t.Errorf("SeatAxisActualSetbackMm = %.6f, want %.6f", sc.SeatAxisActualSetbackMm(), wantSetback)
+	}
 
-			for _, delta := range []float64{-25.0, 0.0, 15.0, 35.0} {
-				for _, roll := range []model.Deg{0.0, 5.0} {
-					targetEff := cadEff + delta
-					railOff := 5.0
-					spacer := 10.0
+	// AETT = horizontal distance at SeatAxisPoint.Y from SeatAxisPoint to steerer axis.
+	seatY := fit.FrameSeatAxisHeightMm * seatAxisSta.Angle().Sin()
+	steererAtSeatY := sc.Reach() - (seatY-sc.Stack())/sc.HtaDeg.Angle().Tan()
+	wantAett := steererAtSeatY - (-wantSetback)
+	if d := math.Abs(sc.AettMm() - wantAett); d > 1e-9 {
+		t.Errorf("AettMm = %.6f, want %.6f", sc.AettMm(), wantAett)
+	}
 
-					// Test both reference saddle and non-reference saddle (different BRP height for bent STA check).
-					refSitBones := model.ReferenceSitBonePoint(746.0, 292.0)
-					for _, s := range []model.SaddleSpec{saddle, aspin} {
-						brpH := s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
+	// Spare steerer stack
+	wantVert := seatY - sc.Stack()
+	wantAxial := wantVert / sc.HtaDeg.Angle().Sin()
+	if d := math.Abs(sc.SpareVerticalStackMm() - wantVert); d > 1e-9 {
+		t.Errorf("SpareVerticalStackMm = %.6f, want %.6f", sc.SpareVerticalStackMm(), wantVert)
+	}
+	if d := math.Abs(sc.SpareAxialSteererMm() - wantAxial); d > 1e-9 {
+		t.Errorf("SpareAxialSteererMm = %.6f, want %.6f", sc.SpareAxialSteererMm(), wantAxial)
+	}
 
-						build := geometry.BuildSpec{
-							Fork: geometry.Fork{
-								ID:          "constant_rake_test",
-								StaticA2cMm: targetEff,
-								RakeMm:      frame.CadFork.RakeMm,
-							},
-							SagPct:             0,
-							PhysicalLowerCupMm: frame.CadLowerCupMm,
-							WheelRadiusFrontMm: bike.WheelRadiusMm(),
-							WheelRadiusRearMm:  bike.WheelRadiusMm(),
-						}
-						cockpit := geometry.CockpitSpec{
-							HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
-							SpacerMm:          spacer,
-							Stem:              model.StemSpec{LengthMm: 80.0, AngleDeg: -6.0},
-							StemClampHeightMm: model.StemThicknessMm,
-							Handlebar:         bar,
-							BarRollDeg:        roll,
-							GripInsetMm:       model.DefaultGripInsetMm,
-						}
-						seat := geometry.SeatSpec{
-							PostSetbackMm: model.DefaultSeatpostSetbackMm,
-							ClampLengthMm: model.DefaultSeatpostClampLengthMm,
-							Saddle:        s,
-							RailOffsetMm:  railOff,
-						}
-						fit := geometry.RiderFit{
-							FrameSeatAxisHeightMm: 746.0,
-							BrpHeightMm:           brpH,
-							TargetSitBonesXMm:     -292.0,
-							TargetPoint:           geom2d.Point2{X: 480.9, Y: 726.1},
-							TargetRef:             geometry.TargetHandGrip,
-							ReferenceSaddle:       saddle,
-						}
+	// Seatpost extension
+	ext, ok := sc.SeatpostExtensionMm()
+	if !ok || math.Abs(ext-(746.0-450.0)) > 1e-9 {
+		t.Errorf("SeatpostExtensionMm = (%.4f, %v), want (296.0, true)", ext, ok)
+	}
 
-						scene, err := geometry.BuildScene(frame, build, cockpit, seat, fit)
-						if err != nil {
-							t.Fatalf("BuildScene(%s %s d=%.0f %s): %v", frameModel.ID, sz, delta, s.ID, err)
-						}
-
-						// Compare against CalculateDynamicGeometry using wbChart on constant-rake setup.
-						effStaCad := frame.EffectiveStaDegAt(brpH)
-						dyn, err := geometry.CalculateDynamicGeometry(
-							bike.Reach, bike.Stack, bike.HtaDeg, effStaCad, bike.BbDrop,
-							baseStruct, targetEff+frame.CadLowerCupMm, wbChart, bike.ChainstayLength,
-						)
-						if err != nil {
-							t.Fatalf("CalculateDynamicGeometry(%s %s): %v", frameModel.ID, sz, err)
-						}
-
-						if d := math.Abs(scene.Reach() - dyn.NewReach); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: Reach diff %.12f (scene=%.6f dyn=%.6f)", frameModel.ID, sz, delta, d, scene.Reach(), dyn.NewReach)
-						}
-						if d := math.Abs(scene.Stack() - dyn.NewStack); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: Stack diff %.12f", frameModel.ID, sz, delta, d)
-						}
-						if d := (scene.HtaDeg - dyn.NewHta).Abs(); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: HTA diff %.12f", frameModel.ID, sz, delta, d)
-						}
-						if d := (scene.EffectiveStaDeg - dyn.NewSta).Abs(); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: EffectiveSTA diff %.12f", frameModel.ID, sz, delta, d)
-						}
-						if d := math.Abs(scene.BbDrop() - dyn.NewBbDrop); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: BbDrop diff %.12f", frameModel.ID, sz, delta, d)
-						}
-						if d := (scene.PitchDeg - dyn.DeltaAngleDeg).Abs(); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: PitchDeg diff %.12f", frameModel.ID, sz, delta, d)
-						}
-
-						seatAxisSta := frame.EffectiveStaDegAt(746.0) - dyn.DeltaAngleDeg
-						wantAett := geometry.CalculateAett(dyn.NewReach, dyn.NewStack, dyn.NewHta, seatAxisSta, 746.0)
-						wantEtt := geometry.CalculateEtt(dyn.NewReach, dyn.NewStack, dyn.NewHta, bike.StaDeg-dyn.DeltaAngleDeg)
-						wantSetback := geometry.CalculateActualSetback(seatAxisSta, 746.0)
-						wantVert, wantAxial := geometry.CalculateSteererStack(dyn.NewStack, seatAxisSta, dyn.NewHta, 746.0)
-
-						if d := math.Abs(scene.AettMm() - wantAett); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: Aett diff %.12f", frameModel.ID, sz, delta, d)
-						}
-						if d := math.Abs(scene.EttMm() - wantEtt); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: Ett diff %.12f", frameModel.ID, sz, delta, d)
-						}
-						if d := math.Abs(scene.SeatAxisActualSetbackMm() - wantSetback); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: ActualSetback diff %.12f", frameModel.ID, sz, delta, d)
-						}
-						if d := math.Abs(scene.SpareVerticalStackMm() - wantVert); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: SpareVert diff %.12f", frameModel.ID, sz, delta, d)
-						}
-						if d := math.Abs(scene.SpareAxialSteererMm() - wantAxial); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: SpareAxial diff %.12f", frameModel.ID, sz, delta, d)
-						}
-
-						wantBRP := s.CalculatePoint(dyn.NewSta, brpH, model.DefaultSeatpostSetbackMm, railOff)
-						if d := scene.BRP.DistanceTo(wantBRP.BrpPoint()); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: BRP diff %.12f", frameModel.ID, sz, delta, d)
-						}
-						if d := scene.SitBones.DistanceTo(wantBRP.SitBonePoint()); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: SitBones diff %.12f", frameModel.ID, sz, delta, d)
-						}
-
-						wantHB := geometry.CalculateHBPointWithHandlebar(
-							dyn.NewReach, dyn.NewStack, dyn.NewHta, wantBRP,
-							cockpit.Stem, spacer, bar, model.DefaultGripInsetMm, roll,
-						)
-						if d := math.Abs(scene.StemClamp.X-wantHB.ClampX) + math.Abs(scene.StemClamp.Y-wantHB.ClampY); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: StemClamp diff %.12f", frameModel.ID, sz, delta, d)
-						}
-						if d := math.Abs(scene.HandGrip.X-wantHB.HbX) + math.Abs(scene.HandGrip.Y-wantHB.HbY); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: HandGrip diff %.12f", frameModel.ID, sz, delta, d)
-						}
-						if d := math.Abs(scene.GripDistFromBrpMm() - wantHB.SaddleHbMm); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: GripDist diff %.12f", frameModel.ID, sz, delta, d)
-						}
-						if d := math.Abs(scene.GripRiseAboveSitBonesMm() - wantHB.SaddleHbDropMm); d > 1e-9 {
-							t.Errorf("%s %s d=%.0f: GripRise diff %.12f", frameModel.ID, sz, delta, d)
-						}
-					}
-				}
-			}
-		}
+	// Direct cockpit point checks (StemClamp, HandGrip, GripDistFromBrpMm, GripRiseAboveSitBonesMm)
+	uSteer := geometry.SteererTubeDir(sc.HtaDeg)
+	nSteer := uSteer.Perpendicular(geom2d.Clockwise)
+	dSteer := cockpit.HeadsetTopStackMm + cockpit.SpacerMm + cockpit.StemClampHeightMm/2.0
+	wantClamp := sc.HeadTubeTop.Add(uSteer.Scale(dSteer)).Add(nSteer.Rotate(cockpit.Stem.AngleDeg.Angle()).Scale(cockpit.Stem.LengthMm))
+	if d := sc.StemClamp.DistanceTo(wantClamp); d > 1e-9 {
+		t.Errorf("StemClamp diff %.12f", d)
+	}
+	barOff := geometry.GetHandlebarOffset(cockpit.Handlebar, cockpit.GripInsetMm, cockpit.BarRollDeg)
+	wantGrip := wantClamp.Add(geom2d.Vec2{X: barOff.X, Y: barOff.Y})
+	if d := sc.HandGrip.DistanceTo(wantGrip); d > 1e-9 {
+		t.Errorf("HandGrip diff %.12f", d)
+	}
+	if d := math.Abs(sc.GripDistFromBrpMm() - sc.HandGrip.DistanceTo(sc.BRP)); d > 1e-9 {
+		t.Errorf("GripDistFromBrpMm diff %.12f", d)
+	}
+	if d := math.Abs(sc.GripRiseAboveSitBonesMm() - (sc.HandGrip.Y - sc.SitBones.Y)); d > 1e-9 {
+		t.Errorf("GripRiseAboveSitBonesMm diff %.12f", d)
 	}
 }
 
@@ -432,7 +340,7 @@ func TestBuildScene_TargetRefModes(t *testing.T) {
 		t.Errorf("TargetReferenceBarClamp with identical bar differed from TargetPoint by %.12f mm", d)
 	}
 
-	// Verify invariant RequiredStemClamp - StemClamp == TargetPoint - EvaluatedCockpitPoint across all TargetRef modes.
+	// Verify invariant RequiredStemClamp - StemClamp == TargetPoint - evaluatedCockpitPoint across all TargetRef modes.
 	cockpitRolled := cockpit
 	cockpitRolled.BarRollDeg = 5.0
 	for _, f := range []geometry.RiderFit{baseFit, fitClamp, fitRefFlat, fitRefSame} {
@@ -441,9 +349,9 @@ func TestBuildScene_TargetRefModes(t *testing.T) {
 			t.Fatalf("BuildScene(%s): %v", f.TargetRef, err)
 		}
 		got := sc.TargetPointError()
-		want := sc.TargetPoint.Sub(sc.EvaluatedCockpitPoint())
+		want := sc.TargetPoint.Sub(evaluatedCockpitPoint(sc))
 		if d := math.Abs(got.X-want.X) + math.Abs(got.Y-want.Y); d > 1e-9 {
-			t.Errorf("%s: TargetPointError %+v != TargetPoint - EvaluatedCockpitPoint %+v", f.TargetRef, got, want)
+			t.Errorf("%s: TargetPointError %+v != TargetPoint - evaluatedCockpitPoint %+v", f.TargetRef, got, want)
 		}
 	}
 
@@ -745,5 +653,22 @@ func TestSeatTubeTopAndBend(t *testing.T) {
 	}
 	if fallbackTop := scNoLen.SeatTubeTop(); fallbackTop.Y >= scNoLen.SeatpostClamp.Y-20 {
 		t.Errorf("fallback SeatTubeTop.Y = %.1f should stay below SeatpostClamp.Y = %.1f", fallbackTop.Y, scNoLen.SeatpostClamp.Y)
+	}
+}
+
+func evaluatedCockpitPoint(s geometry.BikeScene) geom2d.Point2 {
+	switch s.TargetRef {
+	case geometry.TargetHandGrip:
+		return s.HandGrip
+	case geometry.TargetStemClamp:
+		return s.StemClamp
+	case geometry.TargetReferenceBarClamp:
+		if refBar, ok := s.Fit.ReferenceBar.Get(); ok {
+			refOff := geometry.GetHandlebarOffset(refBar, s.Cockpit.GripInsetMm, 0.0)
+			return s.HandGrip.SubVec(geom2d.Vec2{X: refOff.X, Y: refOff.Y})
+		}
+		return s.StemClamp
+	default:
+		return s.HandGrip
 	}
 }

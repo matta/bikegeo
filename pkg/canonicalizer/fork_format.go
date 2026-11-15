@@ -54,20 +54,6 @@ func FormatForkEffA2c(r model.CanonicalComparisonRow) string {
 	return fmt.Sprintf("%s %s", lbl, effStr)
 }
 
-// FormatForkFlow formats the "Fork & Eff. A2C" row in vertical (non-transposed) comparison views.
-// For rigid forks, effective A2C equals static A2C so it returns "Rigid (<A2C>mm)".
-// For suspension forks, it depicts transition to sagged A2C: "<Fork> -> <EffA2C>mm A2C".
-func FormatForkFlow(r model.CanonicalComparisonRow) string {
-	if r.Setup.IsRigid {
-		return FormatRigidFork(r.EffectiveA2c)
-	}
-	lbl := GetEffectiveForkLabel(r)
-	if lbl != "" {
-		return fmt.Sprintf("%s -> %.0fmm A2C", lbl, math.Round(r.EffectiveA2c))
-	}
-	return fmt.Sprintf("%.0fmm A2C", math.Round(r.EffectiveA2c))
-}
-
 // FormatForkType extracts a short fork type identifier (e.g. "rigid", "120mm") for frame name disambiguation.
 func FormatForkType(r model.CanonicalComparisonRow) string {
 	if r.Setup.IsRigid {

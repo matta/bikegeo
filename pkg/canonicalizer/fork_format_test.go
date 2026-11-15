@@ -152,48 +152,6 @@ func TestFormatForkEffA2c(t *testing.T) {
 	}
 }
 
-func TestFormatForkFlow(t *testing.T) {
-	tests := []struct {
-		name string
-		row  model.CanonicalComparisonRow
-		want string
-	}{
-		{
-			name: "rigid fork flow",
-			row: model.CanonicalComparisonRow{
-				Setup:        model.ComparisonSetup{IsRigid: true},
-				DisplayLabel: "Rigid (483mm)",
-				EffectiveA2c: 483,
-			},
-			want: "Rigid (483mm)",
-		},
-		{
-			name: "suspension fork flow",
-			row: model.CanonicalComparisonRow{
-				DisplayLabel: "110mm @ 20% sag",
-				EffectiveA2c: 499.2,
-			},
-			want: "110mm @ 20% sag -> 499mm A2C",
-		},
-		{
-			name: "empty label flow",
-			row: model.CanonicalComparisonRow{
-				EffectiveA2c: 506,
-			},
-			want: "506mm A2C",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := canonicalizer.FormatForkFlow(tc.row)
-			if got != tc.want {
-				t.Errorf("FormatForkFlow() = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
 func TestFormatForkTypeAndSag(t *testing.T) {
 	rigidRow := model.CanonicalComparisonRow{
 		Setup:        model.ComparisonSetup{IsRigid: true},

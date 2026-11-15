@@ -346,7 +346,10 @@ func TestScoreRow_SeatpostExtension(t *testing.T) {
 
 	buildRow := func(seatTubeLength float64) model.CanonicalComparisonRow {
 		seatHeight := 746.0
-		ext := geometry.CalculateSeatpostExtension(seatHeight, seatTubeLength)
+		ext := 0.0
+		if seatTubeLength > 0 {
+			ext = seatHeight - seatTubeLength
+		}
 		return model.CanonicalComparisonRow{
 			Bike: model.BikeGeometry{
 				SeatTubeLength: seatTubeLength,

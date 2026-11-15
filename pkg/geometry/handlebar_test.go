@@ -184,41 +184,6 @@ func TestKeyInsights(t *testing.T) {
 	}
 }
 
-func TestForwardAndInverseTransforms(t *testing.T) {
-	spec := catalog.HandlebarPresets["sqlab3OX_16_30"]
-	gripInset := 65.0
-	rollDeg := model.Deg(3.5)
-
-	hbOrigin := model.Point3D{X: 450.0, Y: 620.0, Z: 0.0}
-
-	// Forward transform: HB -> Grip
-	grip := geometry.HBToGrip(hbOrigin, spec, gripInset, rollDeg)
-
-	offset := geometry.GetHandlebarOffset(spec, gripInset, rollDeg)
-	if math.Abs(grip.X-(hbOrigin.X+offset.X)) > 1e-6 {
-		t.Errorf("Forward transform X mismatch: got %.3f", grip.X)
-	}
-	if math.Abs(grip.Y-(hbOrigin.Y+offset.Y)) > 1e-6 {
-		t.Errorf("Forward transform Y mismatch: got %.3f", grip.Y)
-	}
-	if math.Abs(grip.Z-offset.Z) > 1e-6 {
-		t.Errorf("Forward transform Z mismatch: got %.3f", grip.Z)
-	}
-
-	// Inverse transform: Grip -> HB
-	recoveredHB := geometry.GripToHB(grip, spec, gripInset, rollDeg)
-
-	if math.Abs(recoveredHB.X-hbOrigin.X) > 1e-6 {
-		t.Errorf("Inverse transform X mismatch: expected %.3f, got %.3f", hbOrigin.X, recoveredHB.X)
-	}
-	if math.Abs(recoveredHB.Y-hbOrigin.Y) > 1e-6 {
-		t.Errorf("Inverse transform Y mismatch: expected %.3f, got %.3f", hbOrigin.Y, recoveredHB.Y)
-	}
-	if recoveredHB.Z != 0.0 {
-		t.Errorf("Inverse transform Z must be 0.0, got %.3f", recoveredHB.Z)
-	}
-}
-
 func TestCutHandlebarWidth(t *testing.T) {
 	// Trimming an 800mm Persuader down to 760mm reduces zHand from 335mm to 315mm,
 	// reducing swept run Lz from 200mm to 180mm.

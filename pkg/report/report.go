@@ -89,28 +89,6 @@ type Table struct {
 	Footers  []Footer
 }
 
-// Headers returns the column labels.
-func (t Table) Headers() []string {
-	out := make([]string, len(t.Columns))
-	for i, c := range t.Columns {
-		out[i] = c.Label
-	}
-	return out
-}
-
-// StringRows flattens rows to plain cell text.
-func (t Table) StringRows() [][]string {
-	out := make([][]string, len(t.Rows))
-	for i, r := range t.Rows {
-		cells := make([]string, len(r.Cells))
-		for j, c := range r.Cells {
-			cells[j] = c.Text
-		}
-		out[i] = cells
-	}
-	return out
-}
-
 // FromStrings builds a Table from plain string headers and rows, as produced
 // by commands that have no per-cell semantics.
 func FromStrings(id, title, subtitle string, headers []string, rows [][]string, footers ...Footer) Table {

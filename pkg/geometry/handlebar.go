@@ -49,28 +49,6 @@ func GetHandlebarOffset(spec model.HandlebarSpec, gripInsetMm float64, rollDeg m
 	return model.Point3D{X: dx, Y: dy, Z: dz0}
 }
 
-// HBToGrip performs the forward transform:
-// Stem Clamp Center (P_HB) -> Hand Grip Center (P_Grip).
-func HBToGrip(hb model.Point3D, spec model.HandlebarSpec, gripInsetMm float64, rollDeg model.Deg) model.Point3D {
-	offset := GetHandlebarOffset(spec, gripInsetMm, rollDeg)
-	return model.Point3D{
-		X: hb.X + offset.X,
-		Y: hb.Y + offset.Y,
-		Z: offset.Z,
-	}
-}
-
-// GripToHB performs the inverse transform:
-// Target Hand Grip Center (P_Grip) -> Required Stem Clamp Center (P_HB).
-func GripToHB(grip model.Point3D, spec model.HandlebarSpec, gripInsetMm float64, rollDeg model.Deg) model.Point3D {
-	offset := GetHandlebarOffset(spec, gripInsetMm, rollDeg)
-	return model.Point3D{
-		X: grip.X - offset.X,
-		Y: grip.Y - offset.Y,
-		Z: 0.0,
-	}
-}
-
 // HandlebarDelta computes the hand grip coordinate shift when switching from specFrom to specTo
 // with the stem clamp held fixed at (0, 0, 0).
 // Positive X means grips move forward; positive Y means grips move upward.

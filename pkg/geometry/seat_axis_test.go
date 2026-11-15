@@ -19,11 +19,14 @@ func seatAxisTestBike() model.BikeGeometry {
 }
 
 func TestCalculateEttMatchesIndustryDefinition(t *testing.T) {
-	reach, stack, hta, sta := 398.0, 656.0, 69.0, 74.0
-	want := reach + stack/math.Tan(sta*math.Pi/180.0)
-	got := geometry.CalculateEtt(reach, stack, model.Deg(hta), model.Deg(sta))
-	if math.Abs(got-want) > 0.01 {
-		t.Errorf("CalculateEtt = %.3f, want reach + stack/tan(STA) = %.3f", got, want)
+	bike := seatAxisTestBike()
+	fit, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Opt[float64]{}, model.Opt[float64]{}, catalog.DefaultRiderProfile(), catalog.DefaultSaddle())
+	if err != nil {
+		t.Fatalf("AnalyzeBikeFitWithSaddle: %v", err)
+	}
+	want := fit.ActiveReach + fit.ActiveStack/math.Tan(float64(bike.StaDeg-fit.DeltaAngleDeg)*math.Pi/180.0)
+	if math.Abs(fit.Ett-want) > 0.01 {
+		t.Errorf("Ett = %.3f, want reach + stack/tan(STA) = %.3f", fit.Ett, want)
 	}
 }
 

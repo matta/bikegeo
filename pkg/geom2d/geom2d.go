@@ -1,9 +1,6 @@
 package geom2d
 
-import (
-	"fmt"
-	"math"
-)
+import "math"
 
 // Angle represents an angular quantity stored in radians.
 type Angle float64
@@ -61,27 +58,6 @@ func (a Angle) Neg() Angle {
 // AngleFromSlope returns the angle of a 2D displacement (dy/dx).
 func AngleFromSlope(dx, dy float64) Angle {
 	return Angle(math.Atan2(dy, dx))
-}
-
-// AngleFromLift returns the rotation angle of a lever of length 'arm' that causes vertical lift 'dy'.
-// sin(theta) = dy / arm. Clamps dy/arm to [-1, 1] for numerical safety.
-func AngleFromLift(arm, dy float64) (Angle, error) {
-	if arm <= 0 {
-		return 0, fmt.Errorf("lever arm must be positive, got %.1f", arm)
-	}
-	ratio := math.Max(-1.0, math.Min(1.0, dy/arm))
-	return Angle(math.Asin(ratio)), nil
-}
-
-// SolveTriangleSSS solves for the angle opposite to side c in a triangle with sides a, b, c
-// using the Law of Cosines: c^2 = a^2 + b^2 - 2ab*cos(C) => cos(C) = (a^2 + b^2 - c^2) / (2ab).
-func SolveTriangleSSS(a, b, c float64) (Angle, error) {
-	if a <= 0 || b <= 0 {
-		return 0, fmt.Errorf("triangle sides a and b must be positive, got a=%.1f b=%.1f", a, b)
-	}
-	cosC := (a*a + b*b - c*c) / (2.0 * a * b)
-	cosC = math.Max(-1.0, math.Min(1.0, cosC))
-	return Angle(math.Acos(cosC)), nil
 }
 
 // UnitFromPolar returns a normalized unit vector directed along polar angle (counter-clockwise from +X).
@@ -295,24 +271,6 @@ type Transform2 struct {
 // NewRotation creates a Transform2 rotating around pivot by angle.
 func NewRotation(pivot Point2, angle Angle) Transform2 {
 	return Transform2{Pivot: pivot, Rotation: angle}
-}
-
-// RotationForLift returns a Transform2 pivoting around 'pivot' that vertically lifts 'point' by dy.
-// When point is to the right (+X) of pivot (like front axle relative to rear axle),
-// lifting (+dy) pitches the bike counter-clockwise around the rear axle.
-func RotationForLift(pivot, point Point2, dy float64) (Transform2, error) {
-	arm := pivot.DistanceTo(point)
-	ang, err := AngleFromLift(arm, dy)
-	if err != nil {
-		return Transform2{}, err
-	}
-	// If point is to the right of pivot (dx > 0), positive dy lifts the right side -> counter-clockwise rotation (+ang)
-	// If point is to the left of pivot (dx < 0), positive dy lifts the left side -> clockwise rotation (-ang)
-	dx := point.X - pivot.X
-	if dx < 0 {
-		ang = ang.Neg()
-	}
-	return Transform2{Pivot: pivot, Rotation: ang}, nil
 }
 
 // Apply transforms point p by rotating around t.Pivot by t.Rotation.

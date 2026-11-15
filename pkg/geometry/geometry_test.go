@@ -54,52 +54,17 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 		t.Errorf("Expected baseForkA2c ~482.58, got %.2f", baseForkA2c)
 	}
 
-	// Step 2: Dynamic Geometry
-	totalNewA2c := saggedFork + 12.0 // 428.8 mm
-	dyn, err := geometry.CalculateDynamicGeometry(
-		binaryHavok.Reach,
-		binaryHavok.Stack,
-		binaryHavok.HtaDeg,
-		binaryHavok.StaDeg,
-		binaryHavok.BbDrop,
-		baseA2c,
-		totalNewA2c,
-		binaryHavok.Wheelbase,
-		430.0,
-	)
-	if err != nil {
-		t.Fatalf("CalculateDynamicGeometry failed: %v", err)
-	}
-
-	if geometry.Round(dyn.NewHta, 2) != 72.12 {
-		t.Errorf("Expected NewHta 72.12, got %.2f", dyn.NewHta)
-	}
-	if geometry.Round(dyn.NewSta, 2) != 77.12 {
-		t.Errorf("Expected NewSta 77.12, got %.2f", dyn.NewSta)
-	}
-	if geometry.Round(dyn.NewReach, 1) != 433.1 {
-		t.Errorf("Expected NewReach 433.1, got %.1f", dyn.NewReach)
-	}
-	if geometry.Round(dyn.NewStack, 1) != 633.4 {
-		t.Errorf("Expected NewStack 633.4, got %.1f", dyn.NewStack)
-	}
-	if geometry.Round(dyn.NewBbDrop, 1) != 93.0 {
-		t.Errorf("Expected NewBbDrop 93.0, got %.1f", dyn.NewBbDrop)
-	}
-	if geometry.Round(dyn.DeltaAngleDeg, 2) != -3.12 {
-		t.Errorf("Expected DeltaAngleDeg -3.12, got %.2f", dyn.DeltaAngleDeg)
-	}
-
-	// Step 3: Master AnalyzeBikeFit pipeline (BuildScene levels from exact 2D wb0 = fa0.X - ra0.X
+	// Step 2: Master AnalyzeBikeFitWithSaddle pipeline (BuildScene levels from exact 2D wb0 = fa0.X - ra0.X
 	// ~1070.8 mm rather than the synthetic fixture's contradictory Wheelbase = 1150.0 mm).
-	fit, err := geometry.AnalyzeBikeFit(
+	fit, err := geometry.AnalyzeBikeFitWithSaddle(
 		binaryHavok,
 		model.Some(saggedFork),
 		model.Opt[float64]{},
 		catalog.DefaultRiderProfile(),
+		catalog.DefaultSaddle(),
 	)
 	if err != nil {
-		t.Fatalf("AnalyzeBikeFit failed: %v", err)
+		t.Fatalf("AnalyzeBikeFitWithSaddle failed: %v", err)
 	}
 
 	if geometry.Round(fit.StructuralA2c, 1) != 428.8 {
@@ -125,14 +90,6 @@ func TestBinaryHavokGeometryParity(t *testing.T) {
 	}
 }
 
-func TestCalculateActualSetback(t *testing.T) {
-	// 760mm saddle height at 74.0 deg STA -> 760 * cos(74 deg) = 209.484... -> 209.5 mm
-	sb := geometry.CalculateActualSetback(74.0, 760.0)
-	if geometry.Round(sb, 1) != 209.5 {
-		t.Errorf("Expected ActualSetback 209.5, got %.1f", sb)
-	}
-}
-
 func testBaselineBike() model.BikeGeometry {
 	return model.BikeGeometry{
 		ID:              "otso-fenrir-stainless-l",
@@ -155,9 +112,9 @@ func testBaselineBike() model.BikeGeometry {
 
 func TestRearCenterWheelbaseRatio(t *testing.T) {
 	bike := testBaselineBike()
-	fit, err := geometry.AnalyzeBikeFit(bike, model.Opt[float64]{}, model.Opt[float64]{}, catalog.DefaultRiderProfile())
+	fit, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Opt[float64]{}, model.Opt[float64]{}, catalog.DefaultRiderProfile(), catalog.DefaultSaddle())
 	if err != nil {
-		t.Fatalf("AnalyzeBikeFit failed: %v", err)
+		t.Fatalf("AnalyzeBikeFitWithSaddle failed: %v", err)
 	}
 	if fit.RearCenterWheelbaseRatio <= 0.30 || fit.RearCenterWheelbaseRatio >= 0.45 {
 		t.Errorf("Expected RearCenterWheelbaseRatio between 0.30 and 0.45, got %.4f", fit.RearCenterWheelbaseRatio)
@@ -226,7 +183,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 	for _, tc := range lookupCases {
 		ox := geometry.CalculateBentSeatTubeOffset(tc.stack, actualSta, nominalSta)
 		effSta := geometry.CalculateEffectiveSta(actualSta, ox, tc.saddleL)
-		setback := geometry.CalculateActualSetback(effSta, tc.saddleL)
+		setback := -geometry.SeatTubeAxis(geom2d.Origin, effSta).PointAt(tc.saddleL).X
 
 		if (effSta - tc.expectedSta).Abs() > 0.015 {
 			t.Errorf("[%s at L=%.0f] expected effective STA %.2f°, got %.4f°", tc.sizeName, tc.saddleL, tc.expectedSta, effSta)
@@ -236,7 +193,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 		}
 	}
 
-	// Test Revel El Jefe Large in AnalyzeBikeFit pipeline
+	// Test Revel El Jefe Large in AnalyzeBikeFitWithSaddle pipeline
 	elJefeLarge := model.BikeGeometry{
 		ID:              "revel-el-jefe-l",
 		Manufacturer:    "Revel",
@@ -259,9 +216,9 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 		t.Fatalf("Expected elJefeLarge.HasBentSeatTube() to be true")
 	}
 
-	fit, err := geometry.AnalyzeBikeFit(elJefeLarge, model.Opt[float64]{}, model.Opt[float64]{}, catalog.DefaultRiderProfile())
+	fit, err := geometry.AnalyzeBikeFitWithSaddle(elJefeLarge, model.Opt[float64]{}, model.Opt[float64]{}, catalog.DefaultRiderProfile(), catalog.DefaultSaddle())
 	if err != nil {
-		t.Fatalf("AnalyzeBikeFit failed: %v", err)
+		t.Fatalf("AnalyzeBikeFitWithSaddle failed: %v", err)
 	}
 
 	// Effective STA at 780mm saddle height should be ~74.69°
@@ -277,48 +234,50 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 
 func TestAnalyzeBikeFitRequiresPositiveSeatHeight(t *testing.T) {
 	bike := testBaselineBike()
+	saddle := catalog.DefaultSaddle()
 
 	badProf := catalog.DefaultRiderProfile()
 	badProf.SaddleHeightMm = 0
-	if _, err := geometry.AnalyzeBikeFit(bike, model.Opt[float64]{}, model.Opt[float64]{}, badProf); err == nil {
-		t.Errorf("Expected error for SaddleHeightMm <= 0 in AnalyzeBikeFit, got nil")
+	if _, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Opt[float64]{}, model.Opt[float64]{}, badProf, saddle); err == nil {
+		t.Errorf("Expected error for SaddleHeightMm <= 0 in AnalyzeBikeFitWithSaddle, got nil")
 	}
 	badProf.SaddleHeightMm = -100
-	if _, err := geometry.AnalyzeBikeFit(bike, model.Opt[float64]{}, model.Opt[float64]{}, badProf); err == nil {
-		t.Errorf("Expected error for negative SaddleHeightMm in AnalyzeBikeFit, got nil")
+	if _, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Opt[float64]{}, model.Opt[float64]{}, badProf, saddle); err == nil {
+		t.Errorf("Expected error for negative SaddleHeightMm in AnalyzeBikeFitWithSaddle, got nil")
 	}
 }
 
 func TestAnalyzeBikeFitRequiresPositiveRake(t *testing.T) {
 	bike := testBaselineBike()
 	prof := catalog.DefaultRiderProfile()
+	saddle := catalog.DefaultSaddle()
 
 	// 1. Zero bike ForkRake
 	badBike := bike
 	badBike.ForkRake = 0
-	if _, err := geometry.AnalyzeBikeFit(badBike, model.Opt[float64]{}, model.Opt[float64]{}, prof); err == nil {
-		t.Errorf("Expected error for ForkRake <= 0 in AnalyzeBikeFit, got nil")
+	if _, err := geometry.AnalyzeBikeFitWithSaddle(badBike, model.Opt[float64]{}, model.Opt[float64]{}, prof, saddle); err == nil {
+		t.Errorf("Expected error for ForkRake <= 0 in AnalyzeBikeFitWithSaddle, got nil")
 	}
 
 	// 2. Negative bike ForkRake
 	badBike.ForkRake = -44.0
-	if _, err := geometry.AnalyzeBikeFit(badBike, model.Opt[float64]{}, model.Opt[float64]{}, prof); err == nil {
-		t.Errorf("Expected error for negative ForkRake in AnalyzeBikeFit, got nil")
+	if _, err := geometry.AnalyzeBikeFitWithSaddle(badBike, model.Opt[float64]{}, model.Opt[float64]{}, prof, saddle); err == nil {
+		t.Errorf("Expected error for negative ForkRake in AnalyzeBikeFitWithSaddle, got nil")
 	}
 
 	// 3. Zero targetRake
-	if _, err := geometry.AnalyzeBikeFit(bike, model.Opt[float64]{}, model.Some(0.0), prof); err == nil {
-		t.Errorf("Expected error for targetRake <= 0 in AnalyzeBikeFit, got nil")
+	if _, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Opt[float64]{}, model.Some(0.0), prof, saddle); err == nil {
+		t.Errorf("Expected error for targetRake <= 0 in AnalyzeBikeFitWithSaddle, got nil")
 	}
 
 	// 4. Negative targetRake
-	if _, err := geometry.AnalyzeBikeFit(bike, model.Opt[float64]{}, model.Some(-44.0), prof); err == nil {
-		t.Errorf("Expected error for negative targetRake in AnalyzeBikeFit, got nil")
+	if _, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Opt[float64]{}, model.Some(-44.0), prof, saddle); err == nil {
+		t.Errorf("Expected error for negative targetRake in AnalyzeBikeFitWithSaddle, got nil")
 	}
 }
 
 func TestCalculateHandlebarOffset(t *testing.T) {
-	offset := geometry.DefaultHandlebarOffset()
+	offset := geometry.GetHandlebarOffset(catalog.DefaultHandlebar(), model.DefaultGripInsetMm, 0.0)
 	// Tumbleweed Persuader 20° (800mm):
 	// zb = 135mm, zHand = 400 - 65 = 335mm, Lz = 200mm.
 	// OffsetX = -200 * tan(20°) = -72.8 mm
@@ -336,10 +295,11 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	stack := 620.0
 	seatHeight := 750.0
 	staDeg := model.Deg(74.0)
+	bar := catalog.DefaultHandlebar()
 
 	// BRP point with 0 offset matches bare seat tube top coordinates
-	brp := geometry.CalculateBRPPoint(staDeg, seatHeight, 0.0, 0.0, 0.0)
-	barOffset := geometry.DefaultHandlebarOffset()
+	brp := model.SaddleSpec{}.CalculatePoint(staDeg, seatHeight, 0.0, 0.0)
+	barOffset := geometry.GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
 
 	// Case 1: HTA = 73°, stem -17° (90° - 73° - 17° = 0° => stem extends strictly horizontally forward)
 	// spacer = 0 mm => d_steerer = 11 (HeadsetTopStackMm) + 0 + 40/2 = 31 mm
@@ -350,7 +310,7 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	// HbX = ClampX + barOffset.X
 	// HbY = ClampY + barOffset.Y
 	stem1 := model.StemSpec{LengthMm: 100.0, AngleDeg: -17.0}
-	hb1 := geometry.CalculateHBPoint(reach, stack, 73.0, brp, stem1, 0.0)
+	hb1 := geometry.CalculateHBPointWithHandlebar(reach, stack, 73.0, brp, stem1, 0.0, bar, model.DefaultGripInsetMm, 0.0)
 
 	expectedSteererX1 := reach - 31.0*math.Cos(73.0*math.Pi/180.0)
 	expectedSteererY1 := stack + 31.0*math.Sin(73.0*math.Pi/180.0)
@@ -384,7 +344,7 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	// d_steerer = 11 (HeadsetTopStackMm) + 10 + 20 = 41 mm
 	// theta_stem = (90 - 70) + (-6) = 14°
 	stem2 := model.StemSpec{LengthMm: 80.0, AngleDeg: -6.0}
-	hb2 := geometry.CalculateHBPoint(reach, stack, 70.0, brp, stem2, 10.0)
+	hb2 := geometry.CalculateHBPointWithHandlebar(reach, stack, 70.0, brp, stem2, 10.0, bar, model.DefaultGripInsetMm, 0.0)
 
 	expectedSteererX2 := reach - 41.0*math.Cos(70.0*math.Pi/180.0)
 	expectedSteererY2 := stack + 41.0*math.Sin(70.0*math.Pi/180.0)
@@ -432,8 +392,8 @@ func TestMapPossibleHBs_CoversEveryStemAndSpacer(t *testing.T) {
 		},
 	}
 
-	brp := geometry.CalculateBRPPoint(staDeg, seatHeight, 0.0, 0.0, 0.0)
-	points := geometry.MapPossibleHBs(bike, reach, stack, htaDeg, brp)
+	brp := model.SaddleSpec{}.CalculatePoint(staDeg, seatHeight, 0.0, 0.0)
+	points := geometry.MapPossibleHBsWithHandlebar(bike, reach, stack, htaDeg, brp, catalog.DefaultHandlebar(), model.DefaultGripInsetMm, 0.0)
 	// 3 stems * 5 spacers = 15 points
 	if len(points) != 15 {
 		t.Fatalf("Expected 15 possible HB points, got %d", len(points))
@@ -451,9 +411,11 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 	// idmatch report: Saddle height = 746mm (exact hypot(219, 713) = 745.88mm)
 	// BRP: X = -219.0mm, Z = 713.0mm => angle from BB = 72.93°
 	seatHeight := 746.0
+	refSaddle := model.ReferenceIdmatchSaddle()
+	bar := catalog.DefaultHandlebar()
 
 	// Test 1: On a frame with STA = 72.9255° and 0 offset, BRP is exactly (-219.0, 713.0)
-	brpZero := geometry.CalculateBRPPoint(72.9255, seatHeight, 0.0, 0.0, 0.0)
+	brpZero := model.SaddleSpec{}.CalculatePoint(72.9255, seatHeight, 0.0, 0.0)
 	if math.Abs(brpZero.BrpX-(-219.0)) > 0.5 {
 		t.Errorf("Expected BrpX ~ -219.0, got %.1f", brpZero.BrpX)
 	}
@@ -469,26 +431,21 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 
 	// Test 2: Radial distance invariance hypot(BrpX, BrpY) == seatHeight across various offsets
 	for _, railOffset := range []float64{-20.0, -10.0, 0.0, 5.0, 15.0, 20.0} {
-		brp := geometry.CalculateBRPPoint(74.0, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSaddleBrpOffsetMm, railOffset)
+		brp := refSaddle.CalculatePoint(74.0, seatHeight, model.DefaultSeatpostSetbackMm, railOffset)
 		r := math.Hypot(brp.BrpX, brp.BrpY)
 		if math.Abs(r-seatHeight) > 0.15 {
 			t.Errorf("Radial distance violated for railOffset=%.1f: expected %.1f, got %.2f", railOffset, seatHeight, r)
 		}
 	}
 
-	// Test 3: CalculateHBPoint reproduces idmatch Saddle-Handlebar distance d=700mm and drop c=+13mm
+	// Test 3: CalculateHBPointWithHandlebar reproduces idmatch Saddle-Handlebar distance d=700mm and drop c=+13mm
 	// In the report, BRP = (-219, 713) and HB = (481, 726)
 	brpReport := model.BRPPoint{
 		BrpX:         -219.0,
 		BrpY:         713.0,
 		BrpSetbackMm: 219.0,
 	}
-	// To achieve target hand position (HbX=481.0, HbY=726.0) with a 50mm rise / 20° sweep bar,
-	// the stem clamp center must sit downward and forward:
-	// ClampX = HbX - OffsetX = 481.0 - (-47.88) = 528.88
-	// ClampY = HbY - OffsetY = 726.0 - 50.00 = 676.00
-	// For HTA=90°, steererX = 400: stem length = 528.88 - 400 = 128.88, stack = 676 - 31 = 645
-	barOffset := geometry.DefaultHandlebarOffset()
+	barOffset := geometry.GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
 	clampX := 481.0 - barOffset.X
 	clampY := 726.0 - barOffset.Y
 
@@ -496,7 +453,7 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 	reach := 400.0 + dSteerer*math.Cos(90.0*math.Pi/180.0) // 400
 	stack := clampY - dSteerer*math.Sin(90.0*math.Pi/180.0)
 	stem := model.StemSpec{LengthMm: clampX - 400.0, AngleDeg: 0.0}
-	hb := geometry.CalculateHBPoint(reach, stack, 90.0, brpReport, stem, 0.0)
+	hb := geometry.CalculateHBPointWithHandlebar(reach, stack, 90.0, brpReport, stem, 0.0, bar, model.DefaultGripInsetMm, 0.0)
 
 	if math.Abs(hb.HbX-481.0) > 0.1 {
 		t.Errorf("Expected HbX ~ 481.0, got %.1f", hb.HbX)
@@ -515,8 +472,9 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 func TestMapPossibleBRPs_And_SelectCheapestBRP(t *testing.T) {
 	staDeg := model.Deg(72.0)
 	seatHeight := 746.0
+	refSaddle := model.ReferenceIdmatchSaddle()
 
-	points := geometry.MapPossibleBRPs(staDeg, seatHeight)
+	points := refSaddle.MapPossibleBRPs(staDeg, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
 	// SQlab 610 with 30mm clamp: straight rails 60mm -> clamp window [-15, +15] in 1mm steps = 31 points
 	if len(points) != 31 {
 		t.Fatalf("Expected 31 candidate BRP points, got %d", len(points))
@@ -545,7 +503,7 @@ func TestMapPossibleBRPs_And_SelectCheapestBRP(t *testing.T) {
 	}
 
 	// 3. Target 219mm on steep STA=75.0° (Binary Kinetik): dead center is ~181.5mm, requires +37.5mm (clamps to +15mm)
-	steepPoints := geometry.MapPossibleBRPs(75.0, seatHeight)
+	steepPoints := refSaddle.MapPossibleBRPs(75.0, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
 	bestClamped, ok := geometry.SelectCheapestBRP(steepPoints, toSetback)
 	if !ok {
 		t.Fatalf("SelectCheapestBRP returned false for steep points")
@@ -556,33 +514,6 @@ func TestMapPossibleBRPs_And_SelectCheapestBRP(t *testing.T) {
 
 	if _, ok := geometry.SelectCheapestBRP(nil, toSetback); ok {
 		t.Error("an empty candidate list must report ok=false")
-	}
-}
-
-func TestCalculateSeatpostExtension(t *testing.T) {
-	tests := []struct {
-		name           string
-		seatHeight     float64
-		seatTubeLength float64
-		expected       float64
-	}{
-		{"Valid 746mm saddle with 450mm seat tube", 746.0, 450.0, 296.0},
-		{"Valid 746mm saddle with 558.8mm seat tube (Fargo XL)", 746.0, 558.8, 187.2},
-		{"Valid 780mm saddle with 480mm seat tube", 780.0, 480.0, 300.0},
-		{"Zero seat height", 0.0, 450.0, 0.0},
-		{"Negative seat height", -50.0, 450.0, 0.0},
-		{"Zero seat tube length", 746.0, 0.0, 0.0},
-		{"Negative seat tube length", 746.0, -400.0, 0.0},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := geometry.CalculateSeatpostExtension(tc.seatHeight, tc.seatTubeLength)
-			if math.Abs(got-tc.expected) > 0.05 {
-				t.Errorf("CalculateSeatpostExtension(%.1f, %.1f) = %.1f; expected %.1f",
-					tc.seatHeight, tc.seatTubeLength, got, tc.expected)
-			}
-		})
 	}
 }
 
@@ -702,21 +633,15 @@ func TestEvaluateCockpitFitByCost_CheapestWins(t *testing.T) {
 func TestTubeAxisHelpers(t *testing.T) {
 	// SeatTubeAxis for STA 74° starting at origin (0,0)
 	seatAxis := geometry.SeatTubeAxis(geom2d.Origin, 74.0)
-	seatDir := geometry.SeatTubeDir(74.0)
 
 	expectedX := -math.Cos(74.0 * math.Pi / 180.0)
 	expectedY := math.Sin(74.0 * math.Pi / 180.0)
 
-	if math.Abs(seatDir.X-expectedX) > 1e-9 || math.Abs(seatDir.Y-expectedY) > 1e-9 {
-		t.Errorf("SeatTubeDir(74) = (%v, %v), expected (%v, %v)", seatDir.X, seatDir.Y, expectedX, expectedY)
-	}
 	if math.Abs(seatAxis.Direction.X-expectedX) > 1e-9 || math.Abs(seatAxis.Direction.Y-expectedY) > 1e-9 {
 		t.Errorf("SeatTubeAxis(74).Direction = (%v, %v), expected (%v, %v)", seatAxis.Direction.X, seatAxis.Direction.Y, expectedX, expectedY)
 	}
 
-	// SteererTubeAxis for HTA 68° starting at head tube top (420, 640)
-	headTubeTop := geom2d.Point2{X: 420.0, Y: 640.0}
-	steererAxis := geometry.SteererTubeAxis(headTubeTop, 68.0)
+	// SteererTubeDir for HTA 68°
 	steererDir := geometry.SteererTubeDir(68.0)
 
 	expectedHtaX := -math.Cos(68.0 * math.Pi / 180.0)
@@ -724,12 +649,6 @@ func TestTubeAxisHelpers(t *testing.T) {
 
 	if math.Abs(steererDir.X-expectedHtaX) > 1e-9 || math.Abs(steererDir.Y-expectedHtaY) > 1e-9 {
 		t.Errorf("SteererTubeDir(68) = (%v, %v), expected (%v, %v)", steererDir.X, steererDir.Y, expectedHtaX, expectedHtaY)
-	}
-	if math.Abs(steererAxis.Direction.X-expectedHtaX) > 1e-9 || math.Abs(steererAxis.Direction.Y-expectedHtaY) > 1e-9 {
-		t.Errorf("SteererTubeAxis(68).Direction = (%v, %v), expected (%v, %v)", steererAxis.Direction.X, steererAxis.Direction.Y, expectedHtaX, expectedHtaY)
-	}
-	if steererAxis.Origin != headTubeTop {
-		t.Errorf("SteererTubeAxis origin = %v, expected %v", steererAxis.Origin, headTubeTop)
 	}
 }
 
@@ -828,47 +747,6 @@ func TestSaddleElevationAndTranslationMethods(t *testing.T) {
 	}
 }
 
-// F-p4ab-3: Exact 2D rigid-body rotation preserves distances and diverges from small-angle lift over ±50mm swaps.
-func TestCalculateDynamicGeometry_Exact2DRotation(t *testing.T) {
-	baseReach, baseStack := 428.0, 642.0
-	baseHta, baseSta, baseBbDrop := 68.25, 75.25, 72.0
-	wb, cs := 1158.0, 450.0
-	baseDist := math.Hypot(baseReach, baseStack)
-	baseRearDist := cs
-
-	for _, delta := range []float64{-50, -25, 0, 25, 50} {
-		dyn, err := geometry.CalculateDynamicGeometry(
-			baseReach, baseStack, model.Deg(baseHta), model.Deg(baseSta), baseBbDrop,
-			495.0, 495.0+delta, wb, cs,
-		)
-		if err != nil {
-			t.Fatalf("CalculateDynamicGeometry(delta=%.0f) failed: %v", delta, err)
-		}
-		newDist := math.Hypot(dyn.NewReach, dyn.NewStack)
-		if math.Abs(newDist-baseDist) > 0.2 {
-			t.Errorf("delta=%.0fmm: BB-to-HT distance %.2f drifted from %.2f", delta, newDist, baseDist)
-		}
-		if math.Abs(float64(dyn.NewHta-dyn.NewSta)-(baseHta-baseSta)) > 0.02 {
-			t.Errorf("delta=%.0fmm: HTA-STA %.3f != %.3f", delta, dyn.NewHta-dyn.NewSta, baseHta-baseSta)
-		}
-		if delta == 0 && (dyn.DeltaAngleDeg != 0 || dyn.NewReach != baseReach || dyn.NewStack != baseStack) {
-			t.Errorf("delta=0: expected zero pitch, got %+v", dyn)
-		}
-		_ = baseRearDist
-	}
-
-	// Verify exact 2D pitch formula vs small-angle asin(dy/wb) at +50mm swap.
-	dyn50, err := geometry.CalculateDynamicGeometry(baseReach, baseStack, model.Deg(baseHta), model.Deg(baseSta), baseBbDrop, 495.0, 545.0, wb, cs)
-	if err != nil {
-		t.Fatalf("CalculateDynamicGeometry(+50) failed: %v", err)
-	}
-	htaRad := baseHta * math.Pi / 180.0
-	wantDeg := math.Atan2(50.0*math.Sin(htaRad), wb+50.0*math.Cos(htaRad)) * 180.0 / math.Pi
-	if math.Abs(float64(dyn50.DeltaAngleDeg)-wantDeg) > 0.015 {
-		t.Errorf("+50mm DeltaAngleDeg = %.2f, want exact 2D %.4f", dyn50.DeltaAngleDeg, wantDeg)
-	}
-}
-
 // C4: Physical lower headset cup (HeadsetCupType.CupStackMm()) is applied in comparisons when it
 // differs from the chart baseline (GeoHeadsetSpacerMm).
 func TestAnalyzeBikeFit_NormalizesCadBaseline(t *testing.T) {
@@ -889,12 +767,13 @@ func TestAnalyzeBikeFit_NormalizesCadBaseline(t *testing.T) {
 		CadFork:            model.ForkRef{Fork: "lithic_495", A2cMm: 495.0, RakeMm: 54.0},
 	}
 	profile := catalog.DefaultRiderProfile()
+	saddle := catalog.DefaultSaddle()
 
 	// 1. When GeoHeadsetSpacerMm matches CupEC44.CupStackMm() (12mm), evaluating at the 495mm CAD fork
 	// preserves the published CAD chart without spurious pitch from chart Stack rounding residuals.
-	fitMatched, err := geometry.AnalyzeBikeFit(baseBike, model.Some(495.0), model.Opt[float64]{}, profile)
+	fitMatched, err := geometry.AnalyzeBikeFitWithSaddle(baseBike, model.Some(495.0), model.Opt[float64]{}, profile, saddle)
 	if err != nil {
-		t.Fatalf("AnalyzeBikeFit matched cup failed: %v", err)
+		t.Fatalf("AnalyzeBikeFitWithSaddle matched cup failed: %v", err)
 	}
 	if fitMatched.DeltaAngleDeg != 0 || fitMatched.ActiveReach != baseBike.Reach || fitMatched.ActiveStack != baseBike.Stack ||
 		fitMatched.ActiveHta != baseBike.HtaDeg || fitMatched.ActiveBbDrop != baseBike.BbDrop {
@@ -906,9 +785,9 @@ func TestAnalyzeBikeFit_NormalizesCadBaseline(t *testing.T) {
 	// pitches the frame by the +12mm physical lower cup difference and matches BuildScene to < 1e-9.
 	cupDiffBike := baseBike
 	cupDiffBike.GeoHeadsetSpacerMm = 0.0
-	fitDiff, err := geometry.AnalyzeBikeFit(cupDiffBike, model.Some(495.0), model.Opt[float64]{}, profile)
+	fitDiff, err := geometry.AnalyzeBikeFitWithSaddle(cupDiffBike, model.Some(495.0), model.Opt[float64]{}, profile, saddle)
 	if err != nil {
-		t.Fatalf("AnalyzeBikeFit physical cup failed: %v", err)
+		t.Fatalf("AnalyzeBikeFitWithSaddle physical cup failed: %v", err)
 	}
 	if math.Abs(fitDiff.StructuralA2c-507.0) > 1e-9 {
 		t.Errorf("expected StructuralA2c 507.0mm (495 + 12mm EC44), got %.6f", fitDiff.StructuralA2c)
@@ -923,7 +802,6 @@ func TestAnalyzeBikeFit_NormalizesCadBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FrameSizeFromBikeGeometry: %v", err)
 	}
-	saddle := catalog.DefaultSaddle()
 	bar := profile.Handlebar
 	if bar.ID == "" {
 		bar = catalog.DefaultHandlebar()

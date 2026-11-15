@@ -721,24 +721,6 @@ func (s BikeScene) GripDistFromBrpMm() float64 { return s.HandGrip.DistanceTo(s.
 // GripRiseAboveSitBonesMm returns HandGrip.Y - SitBones.Y in mm.
 func (s BikeScene) GripRiseAboveSitBonesMm() float64 { return s.HandGrip.Y - s.SitBones.Y }
 
-// EvaluatedCockpitPoint returns the physical cockpit point compared against TargetPoint for s.TargetRef.
-func (s BikeScene) EvaluatedCockpitPoint() geom2d.Point2 {
-	switch s.TargetRef {
-	case TargetHandGrip:
-		return s.HandGrip
-	case TargetStemClamp:
-		return s.StemClamp
-	case TargetReferenceBarClamp:
-		if refBar, ok := s.Fit.ReferenceBar.Get(); ok {
-			refOff := GetHandlebarOffset(refBar, s.Cockpit.GripInsetMm, 0.0)
-			return s.HandGrip.SubVec(geom2d.Vec2{X: refOff.X, Y: refOff.Y})
-		}
-		return s.StemClamp
-	default:
-		return s.HandGrip
-	}
-}
-
 // StemSpacerFit holds the exact stem length and spacer stack that places
 // StemClamp at RequiredStemClamp for a given stem angle.
 type StemSpacerFit struct {

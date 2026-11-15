@@ -12,7 +12,7 @@ go vet ./... && go test ./...
 
 ## Final Verification & Pre-Commit Cleanup
 
-Formatting and modernization are not part of the fast feedback loop, but are required before committing or completing a task. Run the codified pre-commit target, which executes `go fix ./...`, `go fmt ./...`, `go vet ./...`, `go tool exhaustive ./...`, `go tool deadcode -test ./...`, and `go test -v ./...`:
+Formatting and modernization are not part of the fast feedback loop, but are required before committing or completing a task. Run the codified pre-commit target, which executes `go fix ./...`, `go fmt ./...`, `go vet ./...`, `go tool exhaustive ./...`, `go tool deadcode ./...`, `go tool deadcode -test ./...`, and `go test -v ./...`:
 
 ```bash
 make pre-commit
@@ -28,7 +28,7 @@ make pre-commit
   - The shipped binary uses only the Go standard library (`flag`, `encoding/csv`, `net/http`, `html/template`, `embed`) with custom Unicode box-drawing, Markdown, and CSV table formatting in `pkg/cli/render.go`.
   - The single exception is `github.com/PuerkitoBio/goquery`, allowed **only** in `_test.go` files for DOM assertions. Never import it (or any third-party package) from non-test code; verify with `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo`, which must list only `bikegeo/...`.
   - `github.com/nishanths/exhaustive` is a `tool` dependency in `go.mod`, used only by `make check` (`go tool exhaustive ./...`). It is never linked into the binary. A `switch` on an enum-like type (`model.HeadsetCupType`, `model.PublishMode`, `ideal.ZoneType`, ...) must name every constant even when it has a `default`; when adding a constant, add its case everywhere the linter reports.
-  - `golang.org/x/tools/cmd/deadcode` is a `tool` dependency in `go.mod` too, used only by `make check` (`go tool deadcode -test ./...`; the `-test` flag makes tests roots, so code that only tests exercise is kept). It fails the build on any function unreachable from `main` or a test. Delete such a function, or move it into the test that needs it; do not keep unused exports "for later".
+  - `golang.org/x/tools/cmd/deadcode` is a `tool` dependency in `go.mod` too, used only by `make check` (running both `go tool deadcode ./...` and `go tool deadcode -test ./...`). Plain `deadcode` ensures test-only helpers stay in `*_test.go` files and never ship in the binary; `deadcode -test` ensures test helpers themselves do not rot. Delete unreachable functions, or move test-only helpers into `*_test.go`; do not keep unused exports "for later".
   - All bike frames (`pkg/frames/*.go`), fork and stem catalogs (`pkg/catalog/catalog.go`), ideal fit profiles (`pkg/ideal/loader.go`), and the default comparison baseline (`compare.DefaultComparisonState()` in `pkg/compare/specs.go`, also reachable as `compare.DefaultComparisonState()`) are compiled directly as Go structs. There are no JSON data files or runtime persistence files.
 - **Each Interface Lives Where It Is Used** (see [docs/WEB.md](docs/WEB.md)):
   - The web (`bikegeo serve`) is for people; the CLI is for agents and scripts. A capability gets a surface only for a real audience, never by default.

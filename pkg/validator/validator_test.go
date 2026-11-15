@@ -1081,47 +1081,7 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 				if err != nil {
 					t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frame.ID, sz, err)
 				}
-				baseStruct := bike.CadFork.A2cMm + bike.GeoHeadsetSpacerMm
-				wb := bike.Wheelbase
-				if wb <= 0 {
-					fc := geometry.CalculateFrontCenter(bike.Reach, bike.Htl, bike.HtaDeg, bike.ForkRake, baseStruct)
-					wb = math.Sqrt(math.Max(0, fc*fc-bike.BbDrop*bike.BbDrop)) + geometry.RearCenterHoriz(bike.ChainstayLength, bike.BbDrop)
-				}
 				for _, s := range setups {
-					// Pre-BikeScene/C4: check cup vs A2C interchangeability on CalculateDynamicGeometry
-					// and strict monotonic slackening through AnalyzeBikeFitWithSaddle.
-					dynBase, err := geometry.CalculateDynamicGeometry(bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg, bike.BbDrop, baseStruct, s.A2cMm+bike.GeoHeadsetSpacerMm, wb, bike.ChainstayLength)
-					if err != nil {
-						t.Fatalf("CalculateDynamicGeometry(%s, %s): %v", frame.ID, sz, err)
-					}
-					dynCup, err := geometry.CalculateDynamicGeometry(bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg, bike.BbDrop, baseStruct, s.A2cMm+(bike.GeoHeadsetSpacerMm+extraMm), wb, bike.ChainstayLength)
-					if err != nil {
-						t.Fatalf("CalculateDynamicGeometry(%s, %s): %v", frame.ID, sz, err)
-					}
-					dynA2c, err := geometry.CalculateDynamicGeometry(bike.Reach, bike.Stack, bike.HtaDeg, bike.StaDeg, bike.BbDrop, baseStruct, (s.A2cMm+extraMm)+bike.GeoHeadsetSpacerMm, wb, bike.ChainstayLength)
-					if err != nil {
-						t.Fatalf("CalculateDynamicGeometry(%s, %s): %v", frame.ID, sz, err)
-					}
-
-					if d := math.Abs(dynCup.NewReach - dynA2c.NewReach); d > 1e-9 {
-						t.Errorf("%s %s (%s): Reach cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
-					}
-					if d := math.Abs(dynCup.NewStack - dynA2c.NewStack); d > 1e-9 {
-						t.Errorf("%s %s (%s): Stack cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
-					}
-					if d := (dynCup.NewHta - dynA2c.NewHta).Abs(); d > 1e-9 {
-						t.Errorf("%s %s (%s): HTA cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
-					}
-					if d := (dynCup.NewSta - dynA2c.NewSta).Abs(); d > 1e-9 {
-						t.Errorf("%s %s (%s): STA cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
-					}
-					if d := math.Abs(dynCup.NewBbDrop - dynA2c.NewBbDrop); d > 1e-9 {
-						t.Errorf("%s %s (%s): BbDrop cup vs A2C diff %.12f", frame.ID, sz, s.DisplayLabel, d)
-					}
-					if !(dynA2c.NewHta < dynBase.NewHta) {
-						t.Errorf("%s %s (%s): longer front end steepened/unchanged HTA: %.4f -> %.4f", frame.ID, sz, s.DisplayLabel, dynBase.NewHta, dynA2c.NewHta)
-					}
-
 					fitBase, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Some(s.A2cMm), model.Some(s.RakeMm), profile, saddle)
 					if err != nil {
 						t.Fatalf("AnalyzeBikeFitWithSaddle base (%s %s %s): %v", frame.ID, sz, s.DisplayLabel, err)

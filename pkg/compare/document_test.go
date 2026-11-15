@@ -596,8 +596,8 @@ func TestCompare_SingleStepIntegerRounding(t *testing.T) {
 	}
 	tbl := tables[0]
 	colIdx := map[string]int{}
-	for i, h := range tbl.Headers() {
-		colIdx[h] = i
+	for i, c := range tbl.Columns {
+		colIdx[c.Label] = i
 	}
 	findVal := func(framePrefix, col string) string {
 		ci, ok := colIdx[col]

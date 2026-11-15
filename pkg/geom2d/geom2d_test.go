@@ -27,44 +27,6 @@ func TestAngle(t *testing.T) {
 	assertAlmostEqual(t, "Neg()", b.Neg().Deg(), -30.0, eps)
 }
 
-func TestAngleFromLift(t *testing.T) {
-	// 500mm arm with 250mm lift = sin(theta) = 0.5 => 30 degrees
-	ang, err := AngleFromLift(500.0, 250.0)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertAlmostEqual(t, "AngleFromLift(500, 250)", ang.Deg(), 30.0, 1e-6)
-
-	// Clamp when dy exceeds arm
-	angClamp, err := AngleFromLift(100.0, 200.0)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertAlmostEqual(t, "AngleFromLift clamped", angClamp.Deg(), 90.0, 1e-6)
-
-	// Error on invalid arm
-	_, err = AngleFromLift(0, 10)
-	if err == nil {
-		t.Errorf("expected error on arm <= 0")
-	}
-}
-
-func TestSolveTriangleSSS(t *testing.T) {
-	// 3-4-5 right triangle: angle opposite to hypotenuse 5 should be 90 degrees
-	ang, err := SolveTriangleSSS(3.0, 4.0, 5.0)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertAlmostEqual(t, "SolveTriangleSSS 3-4-5", ang.Deg(), 90.0, 1e-6)
-
-	// Equilateral triangle: all angles 60 degrees
-	angEq, err := SolveTriangleSSS(10.0, 10.0, 10.0)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertAlmostEqual(t, "SolveTriangleSSS 10-10-10", angEq.Deg(), 60.0, 1e-6)
-}
-
 func TestUnitFromPolar(t *testing.T) {
 	// 60 deg polar: X = cos(60) = 0.5, Y = sin(60) = 0.866025
 	v60 := UnitFromPolar(FromDeg(60.0))
@@ -152,24 +114,22 @@ func TestAxis2(t *testing.T) {
 	assertAlmostEqual(t, "intersect.X", pt.X, expectedIntersectX, eps)
 }
 
-func TestTransform2AndRotationForLift(t *testing.T) {
+func TestTransform2(t *testing.T) {
 	rearAxle := Point2{X: -450, Y: 70}
 	frontAxle := Point2{X: 700, Y: 70}
 	wheelbase := frontAxle.DistanceTo(rearAxle) // 1150 mm
 
 	deltaY := 20.0
-	transform, err := RotationForLift(rearAxle, frontAxle, deltaY)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	ang := FromRad(math.Asin(deltaY / wheelbase))
+	transform := NewRotation(rearAxle, ang)
 
 	newRearAxle := transform.Apply(rearAxle)
 	assertAlmostEqual(t, "pivot unchanged X", newRearAxle.X, rearAxle.X, eps)
 	assertAlmostEqual(t, "pivot unchanged Y", newRearAxle.Y, rearAxle.Y, eps)
 
 	newFrontAxle := transform.Apply(frontAxle)
-	// New front axle should be lifted by approximately deltaY
-	assertAlmostEqual(t, "lifted front axle Y", newFrontAxle.Y, frontAxle.Y+deltaY, 0.2)
+	// New front axle should be lifted by deltaY
+	assertAlmostEqual(t, "lifted front axle Y", newFrontAxle.Y, frontAxle.Y+deltaY, eps)
 	// Wheelbase distance preserved
 	assertAlmostEqual(t, "wheelbase preserved", newRearAxle.DistanceTo(newFrontAxle), wheelbase, eps)
 }
