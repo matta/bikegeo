@@ -176,11 +176,6 @@ func ScoreAllRows(rows []model.CanonicalComparisonRow, prof *ideal.Profile) []Re
 	return results
 }
 
-// DescribeLoss generates plain-English explanation for why points were lost on an attribute.
-func DescribeLoss(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val float64, dist float64, zone ideal.ZoneType) string {
-	return DescribeLossWithRow(spec, meta, val, dist, zone, nil)
-}
-
 func formatCockpitOffset(hb model.HBPoint, oval model.FitOval, targetRef model.TargetRef, refBar model.Opt[model.HandlebarSpec]) string {
 	if oval.CenterX == 0 && oval.CenterY == 0 {
 		return ""

@@ -28,11 +28,6 @@ func AtLeast(min float64) *Range {
 	return &Range{Min: model.Some(min)}
 }
 
-// AtMost returns an upper-bounded Range (-inf, max].
-func AtMost(max float64) *Range {
-	return &Range{Max: model.Some(max)}
-}
-
 // Cost is a band's price in points of total per unit outside its free range
 // (the AttributeSpec Ideal range). Total = 100 − Σ points lost, so each band's
 // cost stands on its own: adding or removing a band never rescales the others.
@@ -143,16 +138,6 @@ func (p *Profile) Spec(id MetricID) (AttributeSpec, bool) {
 		}
 	}
 	return AttributeSpec{}, false
-}
-
-// ProfileSummary provides high-level metadata for listing profiles.
-type ProfileSummary struct {
-	Name           string
-	Description    string
-	SaddleHeightMm model.Opt[float64]
-	TargetRef      model.TargetRef
-	AttributeCount int
-	ScoredCount    int
 }
 
 // ZoneType defines which region a metric value falls into.

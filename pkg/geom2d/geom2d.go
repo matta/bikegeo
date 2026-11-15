@@ -286,18 +286,6 @@ func (a Axis2) IntersectHorizontalLine(y float64) (Point2, bool) {
 	return a.PointAt(t), true
 }
 
-// Intersect finds the intersection of two axes.
-// Returns false if the axes are parallel.
-func (a Axis2) Intersect(other Axis2) (Point2, bool) {
-	cross := a.Direction.Cross(other.Direction)
-	if math.Abs(cross) < 1e-12 {
-		return Point2{}, false
-	}
-	dp := other.Origin.Sub(a.Origin)
-	t := dp.Cross(other.Direction) / cross
-	return a.PointAt(t), true
-}
-
 // Transform2 represents a 2D isometric rigid-body transform (rotation around a pivot point).
 type Transform2 struct {
 	Pivot    Point2
@@ -331,16 +319,6 @@ func RotationForLift(pivot, point Point2, dy float64) (Transform2, error) {
 func (t Transform2) Apply(p Point2) Point2 {
 	rel := p.Sub(t.Pivot).Rotate(t.Rotation)
 	return t.Pivot.Add(rel)
-}
-
-// ApplyVec rotates vector v by t.Rotation.
-func (t Transform2) ApplyVec(v Vec2) Vec2 {
-	return v.Rotate(t.Rotation)
-}
-
-// Inverse returns the inverse transformation.
-func (t Transform2) Inverse() Transform2 {
-	return Transform2{Pivot: t.Pivot, Rotation: t.Rotation.Neg()}
 }
 
 // Ellipse2 represents a 2D oriented ellipse for cockpit fit evaluation.

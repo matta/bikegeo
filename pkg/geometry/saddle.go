@@ -282,15 +282,6 @@ func TranslateSaddleFit(
 	}
 }
 
-// CalculateSaddleBRPPoint computes saddle coordinates for a specific SaddleSpec.
-func CalculateSaddleBRPPoint(
-	staDeg model.Deg, seatHeight, seatpostSetbackMm float64,
-	saddle model.SaddleSpec,
-	railOffsetMm float64,
-) model.BRPPoint {
-	return saddle.CalculatePoint(staDeg, seatHeight, seatpostSetbackMm, railOffsetMm)
-}
-
 // MapPossibleSaddleBRPs maps candidate BRP points within the clamp window
 // of the given saddle and clamp length.
 func MapPossibleSaddleBRPs(

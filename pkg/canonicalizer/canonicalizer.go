@@ -22,16 +22,8 @@ func GetCatalogFork(id string) (model.ForkCatalogEntry, bool) {
 	return catalog.GetCatalogFork(id)
 }
 
-func GetForkPreset(id string) (model.ForkCatalogEntry, bool) {
-	return catalog.GetCatalogFork(id)
-}
-
 func GetStandardForkForTravel(travelMm float64) (model.ForkCatalogEntry, bool) {
 	return catalog.GetStandardForkForTravel(travelMm)
-}
-
-func FindForkSuggestions(targetA2c, targetRake float64) []ForkSuggestion {
-	return catalog.FindForkSuggestions(targetA2c, targetRake)
 }
 
 // AllowedSagPcts defines the standard allowed suspension fork sag percentages (20%, 25%, 30%).
@@ -530,16 +522,6 @@ func ResolveForkToken(
 	}
 
 	return ResolvedFork{}, fmt.Errorf("unrecognized fork specification %q for frame \"%s %s\"", token, frame.Manufacturer, frame.Model)
-}
-
-// ResolveFrameForkSetup resolves a ComparisonSetup against a FrameModel, enforcing physical validity
-// and legal fork limits, and canonicalizes to the comparison model using the default saddle.
-func ResolveFrameForkSetup(
-	frame model.FrameModel,
-	setup model.ComparisonSetup,
-	profile model.RiderProfile,
-) (model.CanonicalComparisonRow, error) {
-	return ResolveFrameForkSetupWithSaddle(frame, setup, profile, catalog.DefaultSaddle())
 }
 
 // ResolveFrameForkSetupWithSaddle resolves a ComparisonSetup against a FrameModel using an explicit SaddleSpec.

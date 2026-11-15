@@ -225,29 +225,3 @@ func GetProfile(name string) (*Profile, error) {
 
 	return nil, fmt.Errorf("ideal profile %q not found", cleanName)
 }
-
-// ListProfiles returns summaries of all compiled ideal profiles.
-func ListProfiles() []ProfileSummary {
-	var summaries []ProfileSummary
-	for _, p := range AllProfiles() {
-		summaries = append(summaries, summarizeProfile(p))
-	}
-	return summaries
-}
-
-func summarizeProfile(p *Profile) ProfileSummary {
-	scoredCount := 0
-	for _, attr := range p.Attributes {
-		if attr.IsScored() {
-			scoredCount++
-		}
-	}
-	return ProfileSummary{
-		Name:           p.Name,
-		Description:    p.Description,
-		SaddleHeightMm: p.SaddleHeightMm,
-		TargetRef:      p.TargetRef,
-		AttributeCount: len(p.Attributes),
-		ScoredCount:    scoredCount,
-	}
-}

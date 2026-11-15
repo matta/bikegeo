@@ -1,4 +1,4 @@
-.PHONY: all fix fmt vet exhaustive test check pre-commit build run serve watch watch-serve clean
+.PHONY: all fix fmt vet exhaustive deadcode test check pre-commit build run serve watch watch-serve clean
 
 export PATH := $(HOME)/go/bin:$(PATH)
 
@@ -20,10 +20,18 @@ vet:
 exhaustive:
 	go tool exhaustive ./...
 
+# Fails when a function is unreachable from main or from any test. -test makes
+# tests roots, so code that only tests exercise is kept; delete a function that
+# nothing needs, or move it into the test that does. Like exhaustive, deadcode
+# is a `tool` dependency in go.mod and is never linked into the bikegeo binary.
+deadcode:
+	@out="$$(go tool deadcode -test ./...)"; \
+	if [ -n "$$out" ]; then echo "$$out"; echo "deadcode: unreachable functions found"; exit 1; fi
+
 test:
 	go test -v ./...
 
-check: vet exhaustive test
+check: vet exhaustive deadcode test
 
 # Required pre-commit workflow: modernize with go fix, then run full check.
 pre-commit: fix check

@@ -660,9 +660,6 @@ func (s BikeScene) BbDrop() float64 { return s.RearAxle.Y }
 // FrontCenter returns the active horizontal front-center in mm (FrontAxle.X).
 func (s BikeScene) FrontCenter() float64 { return s.FrontAxle.X }
 
-// FrontCenter3D returns the active 3D Euclidean distance from BB to FrontAxle in mm.
-func (s BikeScene) FrontCenter3D() float64 { return s.FrontAxle.DistanceToOrigin() }
-
 // RearCenter returns the active horizontal rear-center in mm (-RearAxle.X).
 func (s BikeScene) RearCenter() float64 { return -s.RearAxle.X }
 
@@ -723,15 +720,6 @@ func (s BikeScene) GripDistFromBrpMm() float64 { return s.HandGrip.DistanceTo(s.
 
 // GripRiseAboveSitBonesMm returns HandGrip.Y - SitBones.Y in mm.
 func (s BikeScene) GripRiseAboveSitBonesMm() float64 { return s.HandGrip.Y - s.SitBones.Y }
-
-// GripRiseAboveBrpMm returns HandGrip.Y - BRP.Y in mm.
-func (s BikeScene) GripRiseAboveBrpMm() float64 { return s.HandGrip.Y - s.BRP.Y }
-
-// StemClampDistFromBrpMm returns the 2D Euclidean distance from BRP to StemClamp in mm.
-func (s BikeScene) StemClampDistFromBrpMm() float64 { return s.StemClamp.DistanceTo(s.BRP) }
-
-// StemClampRiseAboveSitBonesMm returns StemClamp.Y - SitBones.Y in mm.
-func (s BikeScene) StemClampRiseAboveSitBonesMm() float64 { return s.StemClamp.Y - s.SitBones.Y }
 
 // EvaluatedCockpitPoint returns the physical cockpit point compared against TargetPoint for s.TargetRef.
 func (s BikeScene) EvaluatedCockpitPoint() geom2d.Point2 {

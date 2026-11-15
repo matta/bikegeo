@@ -22,14 +22,6 @@ func (b *docb) fail(format string, args ...any) {
 	}
 }
 
-func (b *docb) text(s string) {
-	if s = strings.Trim(s, "\n"); strings.TrimSpace(s) != "" {
-		b.doc.AddText(s)
-	}
-}
-
-func (b *docb) textf(format string, args ...any) { b.text(fmt.Sprintf(format, args...)) }
-
 func (b *docb) render(title, subtitle string, headers []string, rows [][]string) error {
 	return b.renderFooters(title, subtitle, headers, rows, nil)
 }

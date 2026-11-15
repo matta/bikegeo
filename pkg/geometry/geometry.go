@@ -165,29 +165,6 @@ func SelectCheapestBRP(possible []model.BRPPoint, cost func(model.BRPPoint) floa
 	return best, true
 }
 
-// CalculateHandlebarOffset calculates the 2D offset vector (rearward X, upward Y)
-// from the stem clamp center to the rider's hand contact position.
-// It uses the kinematic transformation model for a handlebar with the specified rise, backsweep, and width.
-func CalculateHandlebarOffset(riseMm float64, sweepDeg model.Deg, widthMm float64) geom2d.Vec2 {
-	if widthMm <= 0 {
-		widthMm = 800.0
-	}
-	spec := model.HandlebarSpec{
-		StockWidthMm:         widthMm,
-		CurrentWidthMm:       widthMm,
-		StatedRiseMm:         riseMm,
-		BacksweepDeg:         sweepDeg,
-		UpsweepDeg:           4.0,
-		EffectiveBendStartMm: 135.0,
-		RiseMode:             model.RiseModeBarEndCenter,
-	}
-	off := GetHandlebarOffset(spec, model.DefaultGripInsetMm, 0.0)
-	return geom2d.Vec2{
-		X: Round(off.X, 1),
-		Y: Round(off.Y, 1),
-	}
-}
-
 // DefaultHandlebarOffset returns the default handlebar offset for the reference baseline handlebar
 // (Tumbleweed Persuader 20° 800mm at neutral roll: X = -72.8mm, Y = +45.5mm).
 func DefaultHandlebarOffset() geom2d.Vec2 {
@@ -573,12 +550,6 @@ func CalculateFrontCenter(reach, htl float64, htaDeg model.Deg, rake, structural
 	downSteerer := steererDir.Scale(-(structuralA2c + htl))
 	rakeOffset := steererDir.Perpendicular(geom2d.Clockwise).Scale(rake)
 	return reach + downSteerer.X + rakeOffset.X
-}
-
-// CalculateFrontCenter3D calculates direct point-to-point Front-Center from the bottom bracket spindle to the front axle.
-func CalculateFrontCenter3D(reach, htl float64, htaDeg model.Deg, rake, structuralA2c, bbDrop float64) float64 {
-	fcHoriz := CalculateFrontCenter(reach, htl, htaDeg, rake, structuralA2c)
-	return geom2d.Point2{X: fcHoriz, Y: -bbDrop}.DistanceToOrigin()
 }
 
 // CalculateTrail calculates ground trail in mm from head tube angle (deg),

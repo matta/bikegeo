@@ -700,34 +700,9 @@ type Point3D struct {
 	Z float64 `json:"z"`
 }
 
-// Add returns the vector sum p + other.
-func (p Point3D) Add(other Point3D) Point3D {
-	return Point3D{X: p.X + other.X, Y: p.Y + other.Y, Z: p.Z + other.Z}
-}
-
 // Sub returns the vector difference p - other.
 func (p Point3D) Sub(other Point3D) Point3D {
 	return Point3D{X: p.X - other.X, Y: p.Y - other.Y, Z: p.Z - other.Z}
-}
-
-// Scale multiplies p by scalar s.
-func (p Point3D) Scale(s float64) Point3D {
-	return Point3D{X: p.X * s, Y: p.Y * s, Z: p.Z * s}
-}
-
-// DistanceTo returns the 3D Euclidean distance between p and other.
-func (p Point3D) DistanceTo(other Point3D) float64 {
-	dx := p.X - other.X
-	dy := p.Y - other.Y
-	dz := p.Z - other.Z
-	return math.Sqrt(dx*dx + dy*dy + dz*dz)
-}
-
-// Distance2D returns the 2D Euclidean distance in the sagittal (X-Y) plane.
-func (p Point3D) Distance2D(other Point3D) float64 {
-	dx := p.X - other.X
-	dy := p.Y - other.Y
-	return math.Sqrt(dx*dx + dy*dy)
 }
 
 // RiseMeasurementMode specifies how a manufacturer measures handlebar rise.
