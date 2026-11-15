@@ -509,11 +509,41 @@ Every commit below has a single responsibility, is independently reviewable, and
 - **`AETT` Definition**: Keep `AETT` as a pure frame-only metric at radial `seatHeight` (`746 mm`) along the seat-tube axis (`SeatAxisPoint`), independent of saddle model, seatpost setback, and rail offset (preserving zero diff when `BikeScene` lands).
 - **Scoring & Diet Strategy**: Execute Conservative Consolidation through Phase 4 (keeping the 0–100 continuous curve score alongside the closed-form 2×2 hardware solve), then decide in Phase 5 whether to retire composite scoring.
 
-**Compute Tier Summary (Hydrogen vs. Argon for Remaining Commits 10–25)**:
-- **Commits 1–8**: Completed on `main`.
-- **Commit 9**: Implemented and verified in the working tree (ready to commit).
-- **Hydrogen (11 of 16 remaining commits)**: **10, 11, 13, 14, 15, 16, 18, 20, 21, 22, 25** — well-specified refactors with strict zero-output-change invariants, localized math/enum/fixture updates, additive tables, or dead-code removal guarded by `go vet`, `exhaustive`, `deadcode`, and existing tests.
-- **Argon (5 of 16 remaining commits)**: **12, 17, 19 (optional), 23, 24** — cross-package coordinate-model replacement (`SitBones` normalization), new multi-element SVG route (`/bike` + zoom/overlay panels), and the Phase 5 scoring and web-surface diet decisions.
+**Compute Tiers & Agent Selection**:
+- **Commits 1–22**: Completed on `main`. Earlier commits were tiered as Hydrogen (10, 11, 13, 14, 15, 16, 18, 20, 21, 22) or Argon (12, 17, 19).
+- **Tier → model mapping.** Non-Claude agents map by tier name.
+
+  | Tier | Claude model | Use for |
+  | --- | --- | --- |
+  | Hydrogen | Sonnet 5.5 (`claude-sonnet-5-5`) | Fully specified changes guarded by the compiler, `exhaustive`, `deadcode`, zero-diff invariants or expected golden-test diffs |
+  | Argon | Opus 5.5 (`claude-opus-5-5`) | Cross-package semantic replacement, new design inside a decided spec, or a decision that needs the user |
+  | — | Fable 5.2 (`claude-fable-5-2`) | Not required for any remaining step; acceptable wherever Argon is recommended |
+  | — | Haiku 5.5 (`claude-haiku-5-5`) | Not recommended for any remaining step; each one needs judgment about what a changed test was protecting |
+
+- **Remaining assignments:**
+
+  | Step | Tier / model | Why |
+  | --- | --- | --- |
+  | 23a dropper baseline | Hydrogen / Sonnet | One constant and the header disclosure, with expected golden diffs. Afterwards, re-measure the fit-gate population (setback shortfall and oval hits per frame) with a scratch dump outside the repo, and report it before committing |
+  | 23b points-lost ledger | Argon / Opus | Rewrites the scoring core (`ScoreRow`, `ideal.Evaluate`, profile types, breakdown table, loss and head-to-head text). The frame ranking must match today apart from the decided oval change, so each changed test needs a judgment about what it was protecting |
+  | 23c new bands + hardware scan | Argon / Opus | Replaces cockpit and BRP selection (`EvaluateCockpitFit*`, `SelectBest*`, `ApplyIdealCockpitTargets`) with the 189-combination scan, feeding `/bike` Panel B and the ledger. The rail→setback and stem/spacer→oval hand-offs must stay continuous |
+  | 23d gate, ✓/✗, CAD-fork fix | Hydrogen / Sonnet, with an escalation point | The gate is a sort key and ✓/✗ is formatting. The CAD-fork candidate fix needs investigation of sag pruning and the fork expansion; if it requires catalog or canonicalizer redesign rather than "always include the CAD fork", stop and escalate to Opus |
+  | 23e deletions + AGENTS.md | Hydrogen / Sonnet | Compiler-guided deletion; the AGENTS.md rule text comes straight from step 23 |
+  | 24 web surface diet | Argon / Opus | Route-by-route decisions with the user, plus the capability tables in AGENTS.md and docs/WEB.md |
+  | 25 deadcode + `make check` | Hydrogen / Sonnet | `go tool deadcode`-guided deletion plus a `Makefile` line |
+
+- **Agent-tier check (required before starting any step):**
+  1. After committing the prior step (simplify-step skill, Step 1) and before reading or searching any code for step `N`, the agent compares its own model with step `N`'s recommended model above.
+  2. **If they differ, in either direction,** the agent stops without investigating or editing. It tells the user, in one short message, which step is next, which model it is, which model the step recommends, and the one-line reason from the table.
+  3. It then offers the quickest switch the harness supports, best first:
+     - starting the step in a new session on the recommended model, if the harness can do that (for example the Claude Code desktop app's session tools with a `model` setting), with a brief naming the step and this section;
+     - otherwise, the user switching this session with `/model <id>` and re-running the step;
+     - otherwise, opening the recommended agent themselves.
+
+     It starts nothing until the user agrees in chat.
+  4. It proceeds on the current model only when the user says so explicitly in chat for that step. Agreement for one step does not carry over to the next.
+  5. **Mid-step escalation:** if a Hydrogen step turns out to need design judgment its spec doesn't cover (as anticipated for 23d), the agent stops, leaves the work uncommitted, summarizes what it found, and recommends the Argon model. The same switch options apply.
+  6. If the agent cannot tell which model or tier it is, it asks the user before starting.
 
 #### Phase 1: Provenance Docs, User-Facing Disambiguation & Guardrail Tests
 1. **`docs: record C1 target convention and C4 lower-cup provenance`** *(Completed)*
@@ -610,13 +640,13 @@ Every commit below has a single responsibility, is independently reviewable, and
     - **AGENTS.md:** replace "Score Curves Live in `pkg/curve`" with the ledger rule above.
     - **Suggested split** (each passes `make pre-commit`): 23a zero-setback dropper baseline; 23b points-lost ledger with straight-line bands (same terms as today); 23c rail/stem/spacer/angle/RC-WB bands and the 189-combination hardware scan; 23d fit gate, ✓/✗ display, CAD-fork candidate fix; 23e deletions and the AGENTS.md rule.
     - **Re-measure after 23a:** the dropper-shifted setback shortfalls (about 1.5 mm for the ECR up to 25 mm for most frames) are hand estimates, so the gate population must be checked in code.
-    - **Compute: Argon** — Cross-package scoring replacement across `scoring`, `curve`, `compare`, `ideal`, `geometry`, `web`, and `AGENTS.md`.
+    - **Compute: per sub-step** — 23a Hydrogen (Sonnet), 23b Argon (Opus), 23c Argon (Opus), 23d Hydrogen (Sonnet, with an escalation point), 23e Hydrogen (Sonnet). See *Compute Tiers & Agent Selection* above for reasons and the required agent-tier check.
 24. **`refactor(web): fold or remove redundant web catalog/tool sub-pages into /bike`**
     - Decide which of the 6 catalog/tool routes (`/saddles`, `/saddle-swap`, `/handlebars`, `/stems`, `/forks`, `/ideals`) to fold into `/bike` or remove vs. retain, and update the capability table in [AGENTS.md](AGENTS.md) and [docs/WEB.md](docs/WEB.md) to match.
-    - **Compute: Argon** — High-judgment web surface diet across `web`, `AGENTS.md`, and `docs/WEB.md`.
+    - **Compute: Argon (Opus)** — High-judgment web surface diet across `web`, `AGENTS.md`, and `docs/WEB.md`.
 25. **`chore(build): delete unreferenced exports and add go tool deadcode to make check`**
     - Run `go tool deadcode ./...` to confirm and delete any remaining unreferenced exported functions/types left after Commits 1–24, and add `go tool deadcode ./...` to `make check` in `Makefile`.
-    - **Compute: Hydrogen** — Mechanical dead-code removal and `Makefile` / `go.mod` tool check guarded by `go tool deadcode ./...` and `make pre-commit`.
+    - **Compute: Hydrogen (Sonnet)** — Mechanical dead-code removal and `Makefile` / `go.mod` tool check guarded by `go tool deadcode ./...` and `make pre-commit`.
 
 ### 4. Repository Rules This Plan Changes
 
