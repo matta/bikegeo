@@ -830,7 +830,7 @@ func TestFrames_RejectsUnknownCategoryAndSize(t *testing.T) {
 			opts = append(opts, v)
 		}
 	})
-	want := compare.AvailableCategories()
+	want := compare.AvailableCategories(frames.AllFrames())
 	if strings.Join(opts, ",") != strings.Join(want, ",") {
 		t.Errorf("/frames category options = %v, want %v", opts, want)
 	}

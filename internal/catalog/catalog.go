@@ -259,22 +259,12 @@ var CommonStemCatalog = []model.StemCatalogEntry{
 	},
 }
 
-// GetCatalogStem looks up a stem set by ID.
-func GetCatalogStem(id string) (model.StemCatalogEntry, bool) {
-	for _, p := range CommonStemCatalog {
-		if strings.EqualFold(p.ID, id) {
-			return p, true
-		}
-	}
-	return model.StemCatalogEntry{}, false
-}
-
-// ExpandStemSets expands and deduplicates a slice of stem catalog IDs into []model.StemSpec.
-func ExpandStemSets(ids []string) []model.StemSpec {
+// ExpandStemSetsFrom expands and deduplicates a slice of stem catalog IDs using the given stem catalog.
+func ExpandStemSetsFrom(stems []model.StemCatalogEntry, ids []string) []model.StemSpec {
 	var results []model.StemSpec
 	seen := make(map[string]bool)
 	for _, id := range ids {
-		entry, found := GetCatalogStem(id)
+		entry, found := FindStemFrom(stems, id)
 		if !found {
 			continue
 		}
@@ -289,25 +279,35 @@ func ExpandStemSets(ids []string) []model.StemSpec {
 	return results
 }
 
-// GetCatalogFork looks up a fork entry by ID or Name.
-func GetCatalogFork(id string) (model.ForkCatalogEntry, bool) {
-	for _, p := range CommonForkCatalog {
-		if strings.EqualFold(p.ID, id) || strings.EqualFold(p.Name, id) {
+// FindStemFrom looks up a stem entry in stems by case-insensitive ID.
+func FindStemFrom(stems []model.StemCatalogEntry, id string) (model.StemCatalogEntry, bool) {
+	for _, s := range stems {
+		if strings.EqualFold(s.ID, id) {
+			return s, true
+		}
+	}
+	return model.StemCatalogEntry{}, false
+}
+
+// FindForkFrom looks up a fork entry in forks by case-insensitive ID or Name.
+func FindForkFrom(forks []model.ForkCatalogEntry, idOrName string) (model.ForkCatalogEntry, bool) {
+	for _, p := range forks {
+		if strings.EqualFold(p.ID, idOrName) || strings.EqualFold(p.Name, idOrName) {
 			return p, true
 		}
 	}
 	return model.ForkCatalogEntry{}, false
 }
 
-// GetStandardForkForTravel returns the standard catalog fork for a given travel in mm.
-func GetStandardForkForTravel(travelMm float64) (model.ForkCatalogEntry, bool) {
-	for _, p := range CommonForkCatalog {
+// FindStandardForkForTravelFrom returns the standard fork in forks for a given travel in mm,
+// falling back to the first matching travel entry if none is marked Standard.
+func FindStandardForkForTravelFrom(forks []model.ForkCatalogEntry, travelMm float64) (model.ForkCatalogEntry, bool) {
+	for _, p := range forks {
 		if p.Standard && p.TravelMm > 0 && math.Abs(p.TravelMm-travelMm) < 0.1 {
 			return p, true
 		}
 	}
-	// Fallback to first matching travel if no standard flag
-	for _, p := range CommonForkCatalog {
+	for _, p := range forks {
 		if p.TravelMm > 0 && math.Abs(p.TravelMm-travelMm) < 0.1 {
 			return p, true
 		}
@@ -325,11 +325,11 @@ type ForkSuggestion struct {
 	TravelMm  float64
 }
 
-// FindForkSuggestions searches CommonForkCatalog for forks capable of satisfying the target (A2C, rake).
-func FindForkSuggestions(targetA2c, targetRake float64) []ForkSuggestion {
+// FindForkSuggestionsFrom searches the given fork catalog slice for forks capable of satisfying the target (A2C, rake).
+func FindForkSuggestionsFrom(forks []model.ForkCatalogEntry, targetA2c, targetRake float64) []ForkSuggestion {
 	var suggestions []ForkSuggestion
 
-	for _, fork := range CommonForkCatalog {
+	for _, fork := range forks {
 		for _, opt := range fork.Options {
 			if targetRake > 0 && math.Abs(opt.RakeMm-targetRake) > 0.1 {
 				continue

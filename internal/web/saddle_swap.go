@@ -13,6 +13,7 @@ import (
 	"bikegeo/internal/geometry"
 	"bikegeo/internal/model"
 	"bikegeo/internal/report"
+	"bikegeo/internal/validator"
 )
 
 const (
@@ -361,7 +362,10 @@ func (db *docb) saddleSwap(v url.Values) int {
 			riderProfile.SaddleHeightMm = saddleHeight
 
 			// Canonicalize with source saddle
-			canonRow, err := canonicalizer.ResolveFrameForkSetupWithSaddle(frame, setup, riderProfile, sourceSaddle)
+			canonRow, err := canonicalizer.ResolveFrameForkSetupWithSaddle(frame, setup, riderProfile, sourceSaddle, validator.Catalog{
+				Forks: catalog.CommonForkCatalog,
+				Stems: catalog.CommonStemCatalog,
+			})
 			if err != nil {
 				db.fail("Error canonicalizing frame %s: %v", frame.ID, err)
 				return 1

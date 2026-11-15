@@ -9,7 +9,9 @@ import (
 	"bikegeo/internal/catalog"
 	"bikegeo/internal/compare"
 	"bikegeo/internal/frames"
+	"bikegeo/internal/ideal"
 	"bikegeo/internal/model"
+	"bikegeo/internal/validator"
 )
 
 func (a *App) runCompare(args []string) int {
@@ -62,10 +64,35 @@ func (a *App) runCompare(args []string) int {
 		return 0
 	}
 
+	defSaddle := catalog.DefaultSaddle()
+	defBar := catalog.DefaultHandlebar()
+	var saddle model.Opt[model.SaddleSpec]
+	if saddleFlag != "" {
+		s, err := catalog.ResolveSaddle(saddleFlag)
+		if err != nil {
+			fmt.Fprintf(a.Err, "Error: %v\n", err)
+			return 1
+		}
+		saddle = model.Some(s)
+	}
+	var bar model.Opt[model.HandlebarSpec]
+	if handlebarFlag != "" {
+		b, err := catalog.ResolveHandlebar(handlebarFlag)
+		if err != nil {
+			fmt.Fprintf(a.Err, "Error: %v\n", err)
+			return 1
+		}
+		bar = model.Some(b)
+	}
+
 	opts := compare.Options{
+		Frames:     frames.AllFrames(),
+		Baseline:   compare.DefaultComparisonState(defSaddle, defBar, catalog.DefaultRiderProfile()),
+		Profile:    ideal.IdmatchProfile(),
+		Catalog:    validator.Catalog{Forks: catalog.CommonForkCatalog, Stems: catalog.CommonStemCatalog},
 		Specs:      posArgs,
-		Saddle:     saddleFlag,
-		Handlebar:  handlebarFlag,
+		Saddle:     saddle,
+		Handlebar:  bar,
 		All:        allFlag,
 		AllConfigs: allConfigsFlag,
 		Top:        topLimitFlag,

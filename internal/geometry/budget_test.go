@@ -113,7 +113,7 @@ func TestBudgetsEncloseRoundingPerturbations(t *testing.T) {
 
 	for _, frame := range frames.AllFrames() {
 		for _, sz := range frame.GetSizes() {
-			bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+			bike, err := geometry.MaterializeBikeGeometry(frame, sz, nil)
 			if err != nil {
 				t.Fatalf("%s %s: %v", frame.ID, sz, err)
 			}
@@ -202,7 +202,7 @@ func TestInferChartPrecision(t *testing.T) {
 
 // TestBudgetNarrowerPrecisionNeverWidens: a more precise chart can only tighten a budget.
 func TestBudgetNarrowerPrecisionNeverWidens(t *testing.T) {
-	bike, err := geometry.MaterializeBikeGeometry(frames.RevelElJefe, "L")
+	bike, err := geometry.MaterializeBikeGeometry(frames.RevelElJefe, "L", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

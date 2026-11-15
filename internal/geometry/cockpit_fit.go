@@ -3,7 +3,6 @@ package geometry
 import (
 	"math"
 
-	"bikegeo/internal/catalog"
 	"bikegeo/internal/geom2d"
 	"bikegeo/internal/model"
 )
@@ -34,9 +33,6 @@ func MapPossibleHBsWithHandlebar(
 	bar model.HandlebarSpec,
 	gripInsetMm float64, rollDeg model.Deg,
 ) []model.HBPoint {
-	if bar.ID == "" {
-		bar = catalog.DefaultHandlebar()
-	}
 	stems := bike.Stems
 	if len(stems) == 0 && bike.CanonicalStem.LengthMm > 0 {
 		stems = []model.StemSpec{bike.CanonicalStem}

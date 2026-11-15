@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"bikegeo/internal/frames"
 	"bikegeo/internal/geometry"
 	"bikegeo/internal/model"
 	"bikegeo/internal/report"
@@ -18,11 +17,11 @@ type ListFilter struct {
 	AllSizes              bool
 }
 
-// AvailableCategories returns the sorted unique categories present across all registered frames.
-func AvailableCategories() []string {
+// AvailableCategories returns the sorted unique categories present across the given frames.
+func AvailableCategories(allFrames []model.FrameModel) []string {
 	seen := make(map[string]bool)
 	var cats []string
-	for _, fm := range frames.AllFrames() {
+	for _, fm := range allFrames {
 		c := strings.ToLower(strings.TrimSpace(string(fm.Category)))
 		if c != "" && !seen[c] {
 			seen[c] = true
@@ -33,11 +32,11 @@ func AvailableCategories() []string {
 	return cats
 }
 
-// AvailableSizes returns the unique size labels offered across all registered frames, in catalog encounter order.
-func AvailableSizes() []string {
+// AvailableSizes returns the unique size labels offered across the given frames, in encounter order.
+func AvailableSizes(allFrames []model.FrameModel) []string {
 	seen := make(map[string]bool)
 	var sizes []string
-	for _, fm := range frames.AllFrames() {
+	for _, fm := range allFrames {
 		for _, sz := range fm.GetSizes() {
 			low := strings.ToLower(sz)
 			if !seen[low] {
@@ -53,19 +52,18 @@ func AvailableSizes() []string {
 // one row per frame, or one row per size with headline geometry when
 // f.AllSizes is set. Returns an error if f.Category or f.Size does not match
 // any registered category or size.
-func BuildFrameListDocument(f ListFilter) (report.Document, error) {
+func BuildFrameListDocument(allFrames []model.FrameModel, f ListFilter) (report.Document, error) {
 	q := strings.ToLower(strings.TrimSpace(f.Query))
 	cat := strings.ToLower(strings.TrimSpace(f.Category))
 	szF := strings.ToLower(strings.TrimSpace(f.Size))
 
 	if cat != "" {
-		availCats := AvailableCategories()
+		availCats := AvailableCategories(allFrames)
 		if !slices.Contains(availCats, cat) {
 			return report.Document{}, fmt.Errorf("unknown category %q (available: %s)", strings.TrimSpace(f.Category), strings.Join(availCats, ", "))
 		}
 	}
 
-	allFrames := frames.AllFrames()
 	if szF != "" {
 		foundSize := false
 		for _, fm := range allFrames {
@@ -75,7 +73,7 @@ func BuildFrameListDocument(f ListFilter) (report.Document, error) {
 			}
 		}
 		if !foundSize {
-			return report.Document{}, fmt.Errorf("unknown size %q (available: %s)", strings.TrimSpace(f.Size), strings.Join(AvailableSizes(), ", "))
+			return report.Document{}, fmt.Errorf("unknown size %q (available: %s)", strings.TrimSpace(f.Size), strings.Join(AvailableSizes(allFrames), ", "))
 		}
 	}
 
@@ -105,7 +103,7 @@ func BuildFrameListDocument(f ListFilter) (report.Document, error) {
 				if szF != "" && strings.ToLower(sz) != szF {
 					continue
 				}
-				b, err := geometry.MaterializeBikeGeometry(fm, sz)
+				b, err := geometry.MaterializeBikeGeometry(fm, sz, nil)
 				if err != nil {
 					continue
 				}

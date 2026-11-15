@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"bikegeo/internal/canonicalizer"
-	"bikegeo/internal/catalog"
 	"bikegeo/internal/ideal"
 	"bikegeo/internal/model"
 	"bikegeo/internal/report"
@@ -80,11 +79,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 	}
 
 	if prof == nil {
-		def, err := ideal.GetProfile("idmatch")
-		if err != nil {
-			return doc, err
-		}
-		prof = def
+		return doc, fmt.Errorf("ideal profile is required")
 	}
 
 	canonicalizer.ApplyIdealCockpitTargets(rows, prof)
@@ -179,9 +174,6 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 
 		if strings.EqualFold(prof.Name, "idmatch") {
 			saddle := state.Saddle
-			if saddle.ID == "" {
-				saddle = catalog.DefaultSaddle()
-			}
 			targetSitBones := prof.TargetSitBoneSetbackMm.Or(model.DefaultTargetSitBoneSetbackMm)
 			targetBRP := saddle.BrpSetbackFromSitBones(targetSitBones)
 			footers = append(footers, report.Footer{
@@ -216,9 +208,6 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 
 	title := "Apples-to-Apples Geometry Comparison Matrix"
 	saddle := state.Saddle
-	if saddle.ID == "" {
-		saddle = catalog.DefaultSaddle()
-	}
 	saddleName := saddle.Name
 	refSitBones := model.ReferenceSitBonePoint(state.SaddleHeightMm, prof.TargetSitBoneSetbackMm.Or(model.DefaultTargetSitBoneSetbackMm))
 	activeBrpH := saddle.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
@@ -227,9 +216,6 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		hText = fmt.Sprintf("%.1fmm (translated from %.0fmm)", activeBrpH, state.SaddleHeightMm)
 	}
 	bar := state.Handlebar
-	if bar.ID == "" {
-		bar = catalog.DefaultHandlebar()
-	}
 	baseBarName := bar.Name
 	if idx := strings.Index(baseBarName, " ("); idx != -1 {
 		baseBarName = baseBarName[:idx]

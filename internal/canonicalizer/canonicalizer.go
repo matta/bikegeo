@@ -13,19 +13,6 @@ import (
 	"bikegeo/internal/validator"
 )
 
-// Re-export catalog types and helpers for canonicalizer callers
-type ForkSuggestion = catalog.ForkSuggestion
-
-var CommonForkCatalog = catalog.CommonForkCatalog
-
-func GetCatalogFork(id string) (model.ForkCatalogEntry, bool) {
-	return catalog.GetCatalogFork(id)
-}
-
-func GetStandardForkForTravel(travelMm float64) (model.ForkCatalogEntry, bool) {
-	return catalog.GetStandardForkForTravel(travelMm)
-}
-
 // AllowedSagPcts defines the standard allowed suspension fork sag percentages (20%, 25%, 30%).
 var AllowedSagPcts = []float64{20.0, 25.0, 30.0}
 
@@ -48,6 +35,7 @@ func IsAllowedSag(sag float64) bool {
 func ExpandPlausibleForkSetups(
 	frame model.FrameModel,
 	sagOverride model.Opt[float64],
+	forks []model.ForkCatalogEntry,
 ) ([]model.ComparisonSetup, error) {
 	var setups []model.ComparisonSetup
 	seen := make(map[string]bool)
@@ -133,7 +121,7 @@ func ExpandPlausibleForkSetups(
 				// Check frame.Forks first
 				for _, fRef := range frame.Forks {
 					if fRef.Fork != "" {
-						if entry, ok := GetCatalogFork(fRef.Fork); ok && entry.TravelMm == tr && len(entry.Options) > 0 {
+						if entry, ok := catalog.FindForkFrom(forks, fRef.Fork); ok && entry.TravelMm == tr && len(entry.Options) > 0 {
 							stdFork = entry
 							preferredRake = fRef.RakeMm
 							found = true
@@ -143,7 +131,7 @@ func ExpandPlausibleForkSetups(
 				}
 				// Check frame.CadFork
 				if !found && frame.CadFork.Fork != "" {
-					if entry, ok := GetCatalogFork(frame.CadFork.Fork); ok && entry.TravelMm == tr && len(entry.Options) > 0 {
+					if entry, ok := catalog.FindForkFrom(forks, frame.CadFork.Fork); ok && entry.TravelMm == tr && len(entry.Options) > 0 {
 						stdFork = entry
 						preferredRake = frame.CadFork.RakeMm
 						found = true
@@ -151,7 +139,7 @@ func ExpandPlausibleForkSetups(
 				}
 				// Catalog standard fork fallback
 				if !found {
-					if f, ok := GetStandardForkForTravel(tr); ok && len(f.Options) > 0 {
+					if f, ok := catalog.FindStandardForkForTravelFrom(forks, tr); ok && len(f.Options) > 0 {
 						stdFork = f
 						found = true
 					}
@@ -255,11 +243,12 @@ type ResolvedFork struct {
 }
 
 // ResolveForkToken resolves a user comparison modifier (e.g. "120mm", "rigid", "stock", "a2c=506/44")
-// against the fork catalog and frame constraints.
+// against the given fork catalog and frame constraints.
 func ResolveForkToken(
 	token string,
 	sagOverride model.Opt[float64],
 	frame model.FrameModel,
+	forks []model.ForkCatalogEntry,
 ) (ResolvedFork, error) {
 	if sag, ok := sagOverride.Get(); ok {
 		if math.IsNaN(sag) || math.IsInf(sag, 0) || sag < 0 || math.Signbit(sag) {
@@ -297,7 +286,7 @@ func ResolveForkToken(
 		targetRake = def.RakeMm
 		staticA2c = def.A2cMm
 		if def.Fork != "" {
-			if entry, ok := GetCatalogFork(def.Fork); ok {
+			if entry, ok := catalog.FindForkFrom(forks, def.Fork); ok {
 				if entry.TravelMm == 0 && sagOverride.OrZero() > 0 {
 					return ResolvedFork{}, fmt.Errorf("cannot apply %.0f%% sag to rigid fork on \"%s %s\"; rigid forks have 0mm travel", sagOverride.OrZero(), frame.Manufacturer, frame.Model)
 				}
@@ -434,7 +423,7 @@ func ResolveForkToken(
 		var frameRake float64
 		for _, fRef := range frame.Forks {
 			if fRef.Fork != "" {
-				if entry, ok := GetCatalogFork(fRef.Fork); ok && entry.TravelMm == travelVal && len(entry.Options) > 0 {
+				if entry, ok := catalog.FindForkFrom(forks, fRef.Fork); ok && entry.TravelMm == travelVal && len(entry.Options) > 0 {
 					stdFork = entry
 					frameRake = fRef.RakeMm
 					foundFrameFork = true
@@ -443,14 +432,14 @@ func ResolveForkToken(
 			}
 		}
 		if !foundFrameFork && frame.CadFork.Fork != "" {
-			if entry, ok := GetCatalogFork(frame.CadFork.Fork); ok && entry.TravelMm == travelVal && len(entry.Options) > 0 {
+			if entry, ok := catalog.FindForkFrom(forks, frame.CadFork.Fork); ok && entry.TravelMm == travelVal && len(entry.Options) > 0 {
 				stdFork = entry
 				frameRake = frame.CadFork.RakeMm
 				foundFrameFork = true
 			}
 		}
 		if !foundFrameFork {
-			f, ok := GetStandardForkForTravel(travelVal)
+			f, ok := catalog.FindStandardForkForTravelFrom(forks, travelVal)
 			if !ok {
 				return ResolvedFork{}, fmt.Errorf("no catalog fork found for %.0fmm suspension travel", travelVal)
 			}
@@ -486,7 +475,7 @@ func ResolveForkToken(
 	}
 
 	// 5. Explicit catalog fork ID lookup
-	if entry, ok := GetCatalogFork(token); ok {
+	if entry, ok := catalog.FindForkFrom(forks, token); ok {
 		if len(entry.Options) == 0 {
 			return ResolvedFork{}, fmt.Errorf("fork %s has no options", entry.ID)
 		}
@@ -524,22 +513,23 @@ func ResolveForkToken(
 	return ResolvedFork{}, fmt.Errorf("unrecognized fork specification %q for frame \"%s %s\"", token, frame.Manufacturer, frame.Model)
 }
 
-// ResolveFrameForkSetupWithSaddle resolves a ComparisonSetup against a FrameModel using an explicit SaddleSpec.
+// ResolveFrameForkSetupWithSaddle resolves a ComparisonSetup against a FrameModel using an explicit SaddleSpec and validator.Catalog.
 func ResolveFrameForkSetupWithSaddle(
 	frame model.FrameModel,
 	setup model.ComparisonSetup,
 	profile model.RiderProfile,
 	saddle model.SaddleSpec,
+	cat validator.Catalog,
 ) (model.CanonicalComparisonRow, error) {
 	if saddle.ID == "" {
-		saddle = catalog.DefaultSaddle()
+		return model.CanonicalComparisonRow{}, fmt.Errorf("saddle.ID must be non-empty")
 	}
 	if profile.SaddleHeightMm <= 0 {
 		return model.CanonicalComparisonRow{}, fmt.Errorf("profile.SaddleHeightMm must be positive, got %.1f", profile.SaddleHeightMm)
 	}
 
 	// 0. Centralized frame validity gate
-	frameVal := validator.ValidateFrame(frame)
+	frameVal := validator.ValidateFrame(frame, cat)
 	if !frameVal.IsValid {
 		return model.CanonicalComparisonRow{}, fmt.Errorf("%s", frameVal.ErrorSummary())
 	}
@@ -573,7 +563,7 @@ func ResolveFrameForkSetupWithSaddle(
 
 	// If A2C is not pre-resolved, resolve default fork
 	if targetA2c <= 0 {
-		resolved, err := ResolveForkToken("", model.Opt[float64]{}, frame)
+		resolved, err := ResolveForkToken("", model.Opt[float64]{}, frame, cat.Forks)
 		if err != nil {
 			return model.CanonicalComparisonRow{}, err
 		}
@@ -604,7 +594,7 @@ func ResolveFrameForkSetupWithSaddle(
 	}
 
 	// 3. Materialize baseline geometry
-	bike, err := geometry.MaterializeBikeGeometry(frame, size)
+	bike, err := geometry.MaterializeBikeGeometry(frame, size, catalog.ExpandStemSetsFrom(cat.Stems, frame.Stems))
 	if err != nil {
 		return model.CanonicalComparisonRow{}, err
 	}
@@ -675,7 +665,7 @@ func CanonicalizeBikes(
 		}
 		bar := config.RiderProfile.Handlebar
 		if bar.ID == "" {
-			bar = catalog.DefaultHandlebar()
+			return nil, fmt.Errorf("config.RiderProfile.Handlebar.ID must be non-empty")
 		}
 		cadBuild := geometry.BuildSpec{
 			Fork:               frame.CadFork,
@@ -703,7 +693,7 @@ func CanonicalizeBikes(
 		}
 		saddle := config.Saddle
 		if saddle.ID == "" {
-			saddle = catalog.DefaultSaddle()
+			return nil, fmt.Errorf("config.Saddle.ID must be non-empty")
 		}
 		cadSeat := geometry.SeatSpec{
 			PostSetbackMm: model.DefaultSeatpostSetbackMm,
@@ -753,7 +743,7 @@ func CanonicalizeBikes(
 			model.Some(config.TargetA2c),
 			model.Some(targetRake),
 			config.RiderProfile,
-			config.Saddle,
+			saddle,
 		)
 		if err != nil {
 			return nil, err
@@ -812,9 +802,6 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 			}
 			// Re-map PossibleHBs referencing the selected BRP and configured handlebar.
 			bar := can.Handlebar
-			if bar.ID == "" {
-				bar = catalog.DefaultHandlebar()
-			}
 			can.PossibleHBs = geometry.MapPossibleHBsWithHandlebar(row.Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP, bar, model.DefaultGripInsetMm, 0.0)
 		}
 

@@ -10,7 +10,13 @@ import (
 	"bikegeo/internal/geometry"
 	"bikegeo/internal/ideal"
 	"bikegeo/internal/model"
+	"bikegeo/internal/validator"
 )
+
+var testCat = validator.Catalog{
+	Forks: catalog.CommonForkCatalog,
+	Stems: catalog.CommonStemCatalog,
+}
 
 func TestCanonicalizeBikes(t *testing.T) {
 	bikes := []model.BikeGeometry{
@@ -36,6 +42,7 @@ func TestCanonicalizeBikes(t *testing.T) {
 	prof.SaddleHeightMm = 760.0
 	config := model.CanonicalConfig{
 		TargetA2c:    515.0,
+		Saddle:       catalog.DefaultSaddle(),
 		RiderProfile: prof,
 		SagPercent:   20.0,
 	}
@@ -57,8 +64,8 @@ func TestCanonicalizeBikes(t *testing.T) {
 	}
 }
 
-func TestGetCatalogFork(t *testing.T) {
-	entry, found := canonicalizer.GetCatalogFork("fox34_130")
+func TestFindForkFrom(t *testing.T) {
+	entry, found := catalog.FindForkFrom(catalog.CommonForkCatalog, "fox34_130")
 	if !found {
 		t.Fatalf("Expected fox34_130 to be found in catalog")
 	}
@@ -96,6 +103,7 @@ func TestCanonicalizeBentSeatTube(t *testing.T) {
 
 	config := model.CanonicalConfig{
 		TargetA2c:    510.0,
+		Saddle:       catalog.DefaultSaddle(),
 		RiderProfile: catalog.DefaultRiderProfile(),
 		SagPercent:   20.0,
 	}
@@ -166,7 +174,7 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get frame: %v", err)
 		}
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Opt[float64]{})
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Opt[float64]{}, testCat.Forks)
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
 		}
@@ -186,7 +194,7 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get frame: %v", err)
 		}
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Opt[float64]{})
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Opt[float64]{}, testCat.Forks)
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
 		}
@@ -206,7 +214,7 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get frame: %v", err)
 		}
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Opt[float64]{})
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Opt[float64]{}, testCat.Forks)
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
 		}
@@ -230,7 +238,7 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get frame: %v", err)
 		}
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Opt[float64]{})
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Opt[float64]{}, testCat.Forks)
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
 		}
@@ -247,7 +255,7 @@ func TestExpandPlausibleForkSetups(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get frame: %v", err)
 		}
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Some(20.0))
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Some(20.0), testCat.Forks)
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups failed: %v", err)
 		}
@@ -283,7 +291,7 @@ func TestPelvicAndCockpitInvarianceAcrossSaddles(t *testing.T) {
 	// 1. Resolve row with SQlab 610
 	riderSQ := catalog.DefaultRiderProfile()
 	riderSQ.SaddleHeightMm = 746.0
-	rowSQ, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, setup, riderSQ, sqlab)
+	rowSQ, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, setup, riderSQ, sqlab, testCat)
 	if err != nil {
 		t.Fatalf("Failed to resolve SQlab row: %v", err)
 	}
@@ -293,7 +301,7 @@ func TestPelvicAndCockpitInvarianceAcrossSaddles(t *testing.T) {
 	// 2. Resolve row with Berthoud Aspin
 	riderAspin := catalog.DefaultRiderProfile()
 	riderAspin.SaddleHeightMm = 746.0 // Reference idmatch SH
-	rowAspin, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, setup, riderAspin, aspin)
+	rowAspin, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, setup, riderAspin, aspin, testCat)
 	if err != nil {
 		t.Fatalf("Failed to resolve Aspin row: %v", err)
 	}
@@ -351,12 +359,12 @@ func TestAllowedSagPercentages(t *testing.T) {
 	}
 
 	// ExpandPlausibleForkSetups with unallowed 15% sag should error
-	if _, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Some(15.0)); err == nil {
+	if _, err := canonicalizer.ExpandPlausibleForkSetups(*frame, model.Some(15.0), testCat.Forks); err == nil {
 		t.Errorf("expected ExpandPlausibleForkSetups to error for 15%% sag override")
 	}
 
 	// ResolveForkToken with unallowed 15% sag should error
-	if _, err := canonicalizer.ResolveForkToken("110mm", model.Some(15.0), *frame); err == nil {
+	if _, err := canonicalizer.ResolveForkToken("110mm", model.Some(15.0), *frame, testCat.Forks); err == nil {
 		t.Errorf("expected ResolveForkToken to error for 15%% sag override")
 	}
 }
@@ -372,7 +380,7 @@ func scanRow(t *testing.T, frameID, size string, a2c, rake float64) model.Canoni
 	rider.SaddleHeightMm = 746.0
 	row, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, model.ComparisonSetup{
 		FrameID: frame.ID, Size: size, A2cMm: a2c, RakeMm: rake,
-	}, rider, catalog.DefaultSaddle())
+	}, rider, catalog.DefaultSaddle(), testCat)
 	if err != nil {
 		t.Fatalf("resolve %s:%s: %v", frameID, size, err)
 	}
@@ -518,7 +526,7 @@ func TestApplyIdealCockpitTargets_HandOffsAreContinuous(t *testing.T) {
 
 func TestExpandPlausibleForkSetups_AlwaysIncludesCadFork(t *testing.T) {
 	for _, f := range frames.AllFrames() {
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(f, model.Opt[float64]{})
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(f, model.Opt[float64]{}, testCat.Forks)
 		if err != nil {
 			t.Fatalf("%s: %v", f.ID, err)
 		}
@@ -545,7 +553,7 @@ func TestExpandPlausibleForkSetups_CadForkOutsideSagSweep(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	setups, err := canonicalizer.ExpandPlausibleForkSetups(*f, model.Opt[float64]{})
+	setups, err := canonicalizer.ExpandPlausibleForkSetups(*f, model.Opt[float64]{}, testCat.Forks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -561,7 +569,7 @@ func TestExpandPlausibleForkSetups_CadForkOutsideSagSweep(t *testing.T) {
 
 	// An explicit sag override keeps only a CAD fork that agrees with it.
 	for _, sag := range []float64{20, 25, 30} {
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(*f, model.Some(sag))
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*f, model.Some(sag), testCat.Forks)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -570,5 +578,88 @@ func TestExpandPlausibleForkSetups_CadForkOutsideSagSweep(t *testing.T) {
 				t.Errorf("binary-kinetik @ sag %v: CAD fork %+v survives a conflicting override", sag, s)
 			}
 		}
+	}
+}
+
+func TestCustomCatalogForkResolution(t *testing.T) {
+	customCat := validator.Catalog{
+		Forks: []model.ForkCatalogEntry{
+			{
+				ID:       "custom_sid_120",
+				Name:     "Custom SID 120mm",
+				TravelMm: 120,
+				Standard: true,
+				Options:  []model.ForkCatalogOption{{A2cMm: 530, RakeMm: 44}},
+			},
+			{
+				ID:       "custom_rigid_510",
+				Name:     "Custom Rigid 510mm",
+				TravelMm: 0,
+				Options:  []model.ForkCatalogOption{{A2cMm: 510, RakeMm: 44}},
+			},
+		},
+		Stems: []model.StemCatalogEntry{
+			{
+				ID:            "custom_stems",
+				LengthRangeMm: []float64{60, 70},
+				AnglesDeg:     []model.Deg{-6},
+			},
+		},
+	}
+
+	frame := frames.RevelElJefe.Clone()
+	frame.ID = "custom-el-jefe"
+	frame.Stems = []string{"custom_stems"}
+	frame.CadFork = model.ForkRef{Fork: "custom_sid_120", TravelMm: 120, SagPct: 20, A2cMm: 506, RakeMm: 44}
+	frame.Forks = []model.ForkRef{
+		{Fork: "custom_sid_120", TravelMm: 120, A2cMm: 530, RakeMm: 44},
+		{Fork: "custom_rigid_510", A2cMm: 510, RakeMm: 44},
+	}
+
+	rider := catalog.DefaultRiderProfile()
+	rider.SaddleHeightMm = 746.0
+	row, err := canonicalizer.ResolveFrameForkSetupWithSaddle(frame, model.ComparisonSetup{
+		FrameID: frame.ID,
+		Size:    "L",
+	}, rider, catalog.DefaultSaddle(), customCat)
+	if err != nil {
+		t.Fatalf("ResolveFrameForkSetupWithSaddle with custom catalog failed: %v", err)
+	}
+	if math.Abs(row.EffectiveA2c-506.0) > 0.05 {
+		t.Errorf("default fork EffectiveA2c = %.1f, want 506.0 (20%% sagged from custom 530mm entry)", row.EffectiveA2c)
+	}
+	if row.DisplayLabel != "120mm @ 20% sag" {
+		t.Errorf("default fork DisplayLabel = %q, want %q", row.DisplayLabel, "120mm @ 20% sag")
+	}
+	if len(row.Bike.Stems) != 2 {
+		t.Errorf("expected 2 expanded stems from custom_stems, got %d (%+v)", len(row.Bike.Stems), row.Bike.Stems)
+	}
+
+	// Resolving the custom fork token explicitly uses the injected catalog.
+	rf, err := canonicalizer.ResolveForkToken("custom_sid_120", model.Opt[float64]{}, frame, customCat.Forks)
+	if err != nil {
+		t.Fatalf("ResolveForkToken(custom_sid_120) failed: %v", err)
+	}
+	if math.Abs(rf.TargetA2c-506.0) > 0.05 {
+		t.Errorf("ResolveForkToken(custom_sid_120) TargetA2c = %.1f, want 506.0", rf.TargetA2c)
+	}
+	if _, err := canonicalizer.ResolveForkToken("custom_sid_120", model.Opt[float64]{}, frame, catalog.CommonForkCatalog); err == nil {
+		t.Errorf("expected ResolveForkToken(custom_sid_120) to fail against CommonForkCatalog")
+	}
+
+	// Expanding plausible forks uses the custom catalog's A2C rather than CommonForkCatalog.
+	customCat.Forks[0].Options[0].A2cMm = 535
+	setups, err := canonicalizer.ExpandPlausibleForkSetups(frame, model.Some(20.0), customCat.Forks)
+	if err != nil {
+		t.Fatalf("ExpandPlausibleForkSetups(customCat) failed: %v", err)
+	}
+	found511 := false
+	for _, s := range setups {
+		if s.TravelMm == 120 && s.SagPct == 20 && math.Abs(s.A2cMm-511.0) < 0.05 {
+			found511 = true
+		}
+	}
+	if !found511 {
+		t.Errorf("ExpandPlausibleForkSetups did not produce 511.0mm (20%% sagged from custom 535mm static), got %+v", setups)
 	}
 }

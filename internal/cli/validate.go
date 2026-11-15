@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 
+	"bikegeo/internal/catalog"
 	"bikegeo/internal/compare"
+	"bikegeo/internal/frames"
 	"bikegeo/internal/validator"
 )
 
@@ -31,12 +33,15 @@ func (a *App) runValidate(args []string) int {
 	if allFlag {
 		tokens = nil
 	}
-	targets, err := compare.ResolveValidationTargets(tokens, sizeFlag)
+	targets, err := compare.ResolveValidationTargets(frames.AllFrames(), tokens, sizeFlag)
 	if err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1
 	}
-	doc, allValid, err := validator.BuildValidationDocument(targets)
+	doc, allValid, err := validator.BuildValidationDocument(targets, validator.Catalog{
+		Forks: catalog.CommonForkCatalog,
+		Stems: catalog.CommonStemCatalog,
+	})
 	if err != nil {
 		fmt.Fprintf(a.Err, "Error: %v\n", err)
 		return 1

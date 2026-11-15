@@ -3,15 +3,14 @@ package compare
 import (
 	"fmt"
 
-	"bikegeo/internal/frames"
+	"bikegeo/internal/model"
 	"bikegeo/internal/validator"
 )
 
 // ResolveValidationTargets turns frame tokens ("frame" or "frame:size") and an
 // optional size override into validation targets. No tokens means every frame
 // at its default size (or at size, when given).
-func ResolveValidationTargets(tokens []string, size string) ([]validator.Target, error) {
-	all := frames.AllFrames()
+func ResolveValidationTargets(all []model.FrameModel, tokens []string, size string) ([]validator.Target, error) {
 	if len(all) == 0 {
 		return nil, fmt.Errorf("no bike frames found")
 	}

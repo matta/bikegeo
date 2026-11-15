@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 
-	"bikegeo/internal/catalog"
 	"bikegeo/internal/model"
 )
 
@@ -17,7 +16,7 @@ func AnalyzeBikeFitWithSaddle(
 	saddle model.SaddleSpec,
 ) (model.BikeFitAnalysis, error) {
 	if saddle.ID == "" {
-		saddle = catalog.DefaultSaddle()
+		return model.BikeFitAnalysis{}, fmt.Errorf("saddle.ID must be non-empty")
 	}
 	if profile.SaddleHeightMm <= 0 {
 		return model.BikeFitAnalysis{}, fmt.Errorf("profile.SaddleHeightMm must be positive, got %.1f", profile.SaddleHeightMm)
@@ -75,7 +74,7 @@ func AnalyzeBikeFitWithSaddle(
 
 	bar := profile.Handlebar
 	if bar.ID == "" {
-		bar = catalog.DefaultHandlebar()
+		return model.BikeFitAnalysis{}, fmt.Errorf("profile.Handlebar.ID must be non-empty")
 	}
 	stems := bike.Stems
 	if len(stems) == 0 && bike.CanonicalStem.LengthMm > 0 {

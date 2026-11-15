@@ -14,6 +14,11 @@ import (
 	"bikegeo/internal/validator"
 )
 
+var testCat = validator.Catalog{
+	Forks: catalog.CommonForkCatalog,
+	Stems: catalog.CommonStemCatalog,
+}
+
 func TestValidateBinaryHavok(t *testing.T) {
 	binaryHavok := model.BikeGeometry{
 		ID:                 "binary-havok-l",
@@ -213,7 +218,7 @@ func TestValidateForkRef_ValidAndSuggestions(t *testing.T) {
 		A2cMm:  506.0,
 		RakeMm: 44.0,
 	}
-	issues := validator.ValidateForkRef("test-frame", "cad_fork", validRef)
+	issues := validator.ValidateForkRef("test-frame", "cad_fork", validRef, catalog.CommonForkCatalog)
 	if len(issues) != 0 {
 		t.Fatalf("Expected valid ForkRef to have 0 issues, got %d: %+v", len(issues), issues)
 	}
@@ -223,7 +228,7 @@ func TestValidateForkRef_ValidAndSuggestions(t *testing.T) {
 		A2cMm:  506.0,
 		RakeMm: 44.0,
 	}
-	issues = validator.ValidateForkRef("test-frame", "cad_fork", missingForkRef)
+	issues = validator.ValidateForkRef("test-frame", "cad_fork", missingForkRef, catalog.CommonForkCatalog)
 	if len(issues) == 0 {
 		t.Fatalf("Expected error for missing fork catalog ID")
 	}
@@ -240,7 +245,7 @@ func TestValidateForkRef_ValidAndSuggestions(t *testing.T) {
 		A2cMm:  506.0,
 		RakeMm: 44.0,
 	}
-	issues = validator.ValidateForkRef("test-frame", "cad_fork", missingSagRef)
+	issues = validator.ValidateForkRef("test-frame", "cad_fork", missingSagRef, catalog.CommonForkCatalog)
 	if len(issues) == 0 || issues[0].ID != "missing_cad_fork_sag_pct" {
 		t.Errorf("Expected missing_cad_fork_sag_pct issue, got %+v", issues)
 	}
@@ -252,7 +257,7 @@ func TestValidateForkRef_ValidAndSuggestions(t *testing.T) {
 		A2cMm:  520.0,
 		RakeMm: 44.0,
 	}
-	issues = validator.ValidateForkRef("test-frame", "cad_fork", mismatchedA2cRef)
+	issues = validator.ValidateForkRef("test-frame", "cad_fork", mismatchedA2cRef, catalog.CommonForkCatalog)
 	if len(issues) == 0 || issues[0].ID != "invalid_cad_fork_invariant" {
 		t.Fatalf("Expected invalid_cad_fork_invariant issue, got %+v", issues)
 	}
@@ -267,7 +272,7 @@ func TestValidateForkRef_ValidAndSuggestions(t *testing.T) {
 		A2cMm:  506.0,
 		RakeMm: 51.0,
 	}
-	issues = validator.ValidateForkRef("test-frame", "cad_fork", unsupportedRakeRef)
+	issues = validator.ValidateForkRef("test-frame", "cad_fork", unsupportedRakeRef, catalog.CommonForkCatalog)
 	if len(issues) == 0 || issues[0].ID != "unsupported_cad_fork_rake" {
 		t.Errorf("Expected unsupported_cad_fork_rake issue, got %+v", issues)
 	}
@@ -276,7 +281,7 @@ func TestValidateForkRef_ValidAndSuggestions(t *testing.T) {
 func TestValidateRevelElJefe(t *testing.T) {
 	jefe := frames.RevelElJefe.Clone()
 
-	report := validator.ValidateFrame(jefe)
+	report := validator.ValidateFrame(jefe, testCat)
 	if !report.IsValid {
 		t.Fatalf("Expected Revel El Jefe to pass validation: %s", report.ErrorSummary())
 	}
@@ -287,7 +292,7 @@ func TestValidateRevelElJefe(t *testing.T) {
 	// Verify invalid actual_sta_deg fails validation
 	invalidJefe := jefe
 	invalidJefe.ActualStaDeg = 92.0
-	invReport := validator.ValidateFrame(invalidJefe)
+	invReport := validator.ValidateFrame(invalidJefe, testCat)
 	if invReport.IsValid {
 		t.Errorf("Expected invalid actual_sta_deg (92.0°) to fail validation")
 	}
@@ -322,7 +327,7 @@ func TestValidateTumbleweedSunliner(t *testing.T) {
 		},
 	}
 
-	report := validator.ValidateFrame(sunliner)
+	report := validator.ValidateFrame(sunliner, testCat)
 	if !report.IsValid {
 		t.Fatalf("Expected Tumbleweed Sunliner to pass validation: %s", report.ErrorSummary())
 	}
@@ -357,7 +362,7 @@ func TestValidateForks(t *testing.T) {
 		},
 	}
 
-	report := validator.ValidateFrame(missingForksFrame)
+	report := validator.ValidateFrame(missingForksFrame, testCat)
 	if report.IsValid {
 		t.Fatalf("Expected frame with missing forks to fail validation")
 	}
@@ -382,14 +387,14 @@ func TestAllFrameData(t *testing.T) {
 
 	for _, frame := range allFrames {
 		// 1. Verify FrameModel validation passes
-		report := validator.ValidateFrame(frame)
+		report := validator.ValidateFrame(frame, testCat)
 		if !report.IsValid {
 			t.Errorf("Frame %s failed validation: %s", frame.ID, report.ErrorSummary())
 		}
 
 		// 2. Verify all declared sizes materialize and validate
 		for _, sz := range frame.GetSizes() {
-			bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+			bike, err := geometry.MaterializeBikeGeometry(frame, sz, catalog.ExpandStemSetsFrom(catalog.CommonStemCatalog, frame.Stems))
 			if err != nil {
 				t.Errorf("Frame %s failed to materialize size %s: %v", frame.ID, sz, err)
 				continue
@@ -404,7 +409,7 @@ func TestAllFrameData(t *testing.T) {
 		if frame.CadFork.Fork == "" || frame.CadFork.A2cMm <= 0 {
 			t.Errorf("Frame %s has invalid cad_fork: %+v", frame.ID, frame.CadFork)
 		}
-		if entry, ok := catalog.GetCatalogFork(frame.CadFork.Fork); ok && frame.CadFork.TravelMm != entry.TravelMm {
+		if entry, ok := catalog.FindForkFrom(catalog.CommonForkCatalog, frame.CadFork.Fork); ok && frame.CadFork.TravelMm != entry.TravelMm {
 			t.Errorf("Frame %s CadFork %q TravelMm = %.0f, catalog has %.0f", frame.ID, frame.CadFork.Fork, frame.CadFork.TravelMm, entry.TravelMm)
 		}
 
@@ -413,7 +418,7 @@ func TestAllFrameData(t *testing.T) {
 			t.Errorf("Frame %s missing forks", frame.ID)
 		}
 		for _, f := range frame.Forks {
-			if entry, ok := catalog.GetCatalogFork(f.Fork); ok && f.TravelMm != entry.TravelMm {
+			if entry, ok := catalog.FindForkFrom(catalog.CommonForkCatalog, f.Fork); ok && f.TravelMm != entry.TravelMm {
 				t.Errorf("Frame %s Fork %q TravelMm = %.0f, catalog has %.0f", frame.ID, f.Fork, f.TravelMm, entry.TravelMm)
 			}
 		}
@@ -477,7 +482,7 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 	validFrame := allFrames[0]
 
 	// 1. Valid frame passes
-	rep := validator.ValidateFrame(validFrame)
+	rep := validator.ValidateFrame(validFrame, testCat)
 	if !rep.IsValid {
 		t.Fatalf("Expected valid frame to pass, got: %s", rep.ErrorSummary())
 	}
@@ -485,7 +490,7 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 	// 2. Negative MaxSpacerMm
 	fNegSpacer := validFrame.Clone()
 	fNegSpacer.MaxSpacerMm = -5.0
-	rep = validator.ValidateFrame(fNegSpacer)
+	rep = validator.ValidateFrame(fNegSpacer, testCat)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Invalid Maximum Spacer Stack") {
 		t.Errorf("Expected Invalid Maximum Spacer Stack error, got: %s", rep.ErrorSummary())
 	}
@@ -493,7 +498,7 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 	// 3. Zero/negative CanonicalStem length
 	fBadCanon := validFrame.Clone()
 	fBadCanon.CanonicalStem = model.StemSpec{LengthMm: 0, AngleDeg: -6}
-	rep = validator.ValidateFrame(fBadCanon)
+	rep = validator.ValidateFrame(fBadCanon, testCat)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "canonical_stem length_mm must be positive") {
 		t.Errorf("Expected canonical stem positive length error, got: %s", rep.ErrorSummary())
 	}
@@ -501,7 +506,7 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 	// 4. Missing Stems
 	fNoStems := validFrame.Clone()
 	fNoStems.Stems = nil
-	rep = validator.ValidateFrame(fNoStems)
+	rep = validator.ValidateFrame(fNoStems, testCat)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Missing Stems") {
 		t.Errorf("Expected Missing Stems error, got: %s", rep.ErrorSummary())
 	}
@@ -509,7 +514,7 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 	// 5. CanonicalStem not included in Stems
 	fCanonNotInStems := validFrame.Clone()
 	fCanonNotInStems.CanonicalStem = model.StemSpec{LengthMm: 125, AngleDeg: -17}
-	rep = validator.ValidateFrame(fCanonNotInStems)
+	rep = validator.ValidateFrame(fCanonNotInStems, testCat)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Canonical Stem Not in Stems List") {
 		t.Errorf("Expected Canonical Stem Not in Stems List error, got: %s", rep.ErrorSummary())
 	}
@@ -517,7 +522,7 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 	// 6. Unknown Stem Set in Stems
 	fUnknownStem := validFrame.Clone()
 	fUnknownStem.Stems = []string{"nonexistent_stem"}
-	rep = validator.ValidateFrame(fUnknownStem)
+	rep = validator.ValidateFrame(fUnknownStem, testCat)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "not defined in data/stems.json") {
 		t.Errorf("Expected Unknown Stem Set error, got: %s", rep.ErrorSummary())
 	}
@@ -525,7 +530,7 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 	// 7. Invalid ExpectedStemRangeMm
 	fBadRange := validFrame.Clone()
 	fBadRange.ExpectedStemRangeMm = []float64{100, 60}
-	rep = validator.ValidateFrame(fBadRange)
+	rep = validator.ValidateFrame(fBadRange, testCat)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Invalid Expected Stem Range") {
 		t.Errorf("Expected Invalid Expected Stem Range error, got: %s", rep.ErrorSummary())
 	}
@@ -534,7 +539,7 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 	fCanonOutsideRange := validFrame.Clone()
 	fCanonOutsideRange.ExpectedStemRangeMm = []float64{70, 100}
 	// validFrame has CanonicalStem 60mm
-	rep = validator.ValidateFrame(fCanonOutsideRange)
+	rep = validator.ValidateFrame(fCanonOutsideRange, testCat)
 	if rep.IsValid || !strings.Contains(rep.ErrorSummary(), "Canonical Stem Outside Expected Range") {
 		t.Errorf("Expected Canonical Stem Outside Expected Range error, got: %s", rep.ErrorSummary())
 	}
@@ -542,7 +547,7 @@ func TestValidateFrameStemSpacerRequirements(t *testing.T) {
 	// 9. Valid ExpectedStemRangeMm
 	fValidRange := validFrame.Clone()
 	fValidRange.ExpectedStemRangeMm = []float64{50, 90}
-	rep = validator.ValidateFrame(fValidRange)
+	rep = validator.ValidateFrame(fValidRange, testCat)
 	if !rep.IsValid {
 		t.Errorf("Expected valid frame with ExpectedStemRangeMm [50, 90], got: %s", rep.ErrorSummary())
 	}
@@ -655,7 +660,7 @@ func TestValidateSaggedFrameStaticA2cLabel(t *testing.T) {
 	doc, allValid, err := validator.BuildValidationDocument([]validator.Target{
 		{Frame: frames.RevelElJefe, Size: frames.RevelElJefe.DefaultSize},
 		{Frame: frames.SurlyECR, Size: frames.SurlyECR.DefaultSize},
-	})
+	}, testCat)
 	if err != nil {
 		t.Fatalf("BuildValidationDocument failed: %v", err)
 	}
@@ -675,7 +680,7 @@ func TestValidateSaggedFrameStaticA2cLabel(t *testing.T) {
 
 	detailDoc, valid, err := validator.BuildValidationDocument([]validator.Target{
 		{Frame: frames.RevelElJefe, Size: frames.RevelElJefe.DefaultSize},
-	})
+	}, testCat)
 	if err != nil || !valid {
 		t.Fatalf("BuildValidationDocument detail failed: valid=%v err=%v", valid, err)
 	}
@@ -693,7 +698,7 @@ func TestValidateSaggedFrameStaticA2cLabel(t *testing.T) {
 func TestFrontCenterConventionConsistent(t *testing.T) {
 	// F-p4d-2: Front Center validation must always use 3D convention (matching Calculated Front Center (3D)
 	// and fit), never silently flipping to horizontal on sklar-pbj:XL (3D residual = 2.7mm).
-	bike, err := geometry.MaterializeBikeGeometry(frames.SklarPBJ, "XL")
+	bike, err := geometry.MaterializeBikeGeometry(frames.SklarPBJ, "XL", catalog.ExpandStemSetsFrom(catalog.CommonStemCatalog, frames.SklarPBJ.Stems))
 	if err != nil {
 		t.Fatalf("MaterializeBikeGeometry failed: %v", err)
 	}
@@ -728,7 +733,7 @@ func TestRoundingBudgetRows(t *testing.T) {
 	// declared allowance; there is no fixed wheelbase floor and no "cross:" tolerance.
 	rowsOf := func(f model.FrameModel) map[string]string {
 		t.Helper()
-		doc, valid, err := validator.BuildValidationDocument([]validator.Target{{Frame: f, Size: f.DefaultSize}})
+		doc, valid, err := validator.BuildValidationDocument([]validator.Target{{Frame: f, Size: f.DefaultSize}}, testCat)
 		if err != nil || !valid {
 			t.Fatalf("BuildValidationDocument(%s) failed: valid=%v err=%v", f.ID, valid, err)
 		}
@@ -778,13 +783,13 @@ func TestRoundingBudgetRows(t *testing.T) {
 	for _, v := range []float64{-1.5, 10.5} {
 		badFrame := frames.SurlyECR.Clone()
 		badFrame.GeoSlopMm = &model.GeoSlopMm{Wheelbase: model.Some(v), Reason: "out of range"}
-		if validator.ValidateFrame(badFrame).IsValid {
+		if validator.ValidateFrame(badFrame, testCat).IsValid {
 			t.Errorf("Expected ValidateFrame to reject GeoSlopMm.Wheelbase=%.1f", v)
 		}
 	}
 	okFrame := frames.SurlyECR.Clone()
 	okFrame.GeoSlopMm = &model.GeoSlopMm{Wheelbase: model.Some(1.5), Reason: "small allowance"}
-	if rep := validator.ValidateFrame(okFrame); !rep.IsValid {
+	if rep := validator.ValidateFrame(okFrame, testCat); !rep.IsValid {
 		t.Errorf("Expected GeoSlopMm.Wheelbase=1.5 to be accepted now that there is no floor: %s", rep.ErrorSummary())
 	}
 }
@@ -793,7 +798,7 @@ func TestDeclaredModeLabel(t *testing.T) {
 	// F-p4d-4: Detail table uses "CAD Convention" matching the summary table rather than "Inferred Published Mode".
 	doc, valid, err := validator.BuildValidationDocument([]validator.Target{
 		{Frame: frames.EskerHayduke, Size: frames.EskerHayduke.DefaultSize},
-	})
+	}, testCat)
 	if err != nil || !valid {
 		t.Fatalf("BuildValidationDocument(esker-hayduke) failed: valid=%v err=%v", valid, err)
 	}
@@ -869,7 +874,7 @@ func TestDeclaredAllowancesAreNecessary(t *testing.T) {
 			slop := *frame.GeoSlopMm
 			*f.ptr(&slop) = model.Opt[float64]{}
 			without.GeoSlopMm = &slop
-			rep := validator.ValidateFrame(without)
+			rep := validator.ValidateFrame(without, testCat)
 			if rep.IsValid {
 				t.Errorf("%s: geo_slop_mm.%s = %.1fmm is unnecessary; every size passes within its rounding budget", frame.ID, f.name, declared)
 				continue
@@ -893,7 +898,7 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 
 	frameSetups := func(t *testing.T, frame model.FrameModel) []model.ComparisonSetup {
 		t.Helper()
-		setups, err := canonicalizer.ExpandPlausibleForkSetups(frame, model.Opt[float64]{})
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(frame, model.Opt[float64]{}, testCat.Forks)
 		if err != nil {
 			t.Fatalf("ExpandPlausibleForkSetups(%s): %v", frame.ID, err)
 		}
@@ -924,7 +929,7 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 		for _, frame := range frames.AllFrames() {
 			setups := frameSetups(t, frame)
 			for _, sz := range frame.GetSizes() {
-				bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+				bike, err := geometry.MaterializeBikeGeometry(frame, sz, catalog.ExpandStemSetsFrom(catalog.CommonStemCatalog, frame.Stems))
 				if err != nil {
 					t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frame.ID, sz, err)
 				}
@@ -990,7 +995,7 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 	t.Run("CADForkReproducesPublishedChart", func(t *testing.T) {
 		for _, frame := range frames.AllFrames() {
 			for _, sz := range frame.GetSizes() {
-				bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+				bike, err := geometry.MaterializeBikeGeometry(frame, sz, catalog.ExpandStemSetsFrom(catalog.CommonStemCatalog, frame.Stems))
 				if err != nil {
 					t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frame.ID, sz, err)
 				}
@@ -1077,7 +1082,7 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 		for _, frame := range frames.AllFrames() {
 			setups := frameSetups(t, frame)
 			for _, sz := range frame.GetSizes() {
-				bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+				bike, err := geometry.MaterializeBikeGeometry(frame, sz, catalog.ExpandStemSetsFrom(catalog.CommonStemCatalog, frame.Stems))
 				if err != nil {
 					t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frame.ID, sz, err)
 				}
@@ -1125,7 +1130,7 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 		for _, frame := range frames.AllFrames() {
 			setups := frameSetups(t, frame)
 			for _, sz := range frame.GetSizes() {
-				bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+				bike, err := geometry.MaterializeBikeGeometry(frame, sz, catalog.ExpandStemSetsFrom(catalog.CommonStemCatalog, frame.Stems))
 				if err != nil {
 					t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frame.ID, sz, err)
 				}
@@ -1151,4 +1156,57 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestCatalogLookupCompatibility_AndCustomCatalog(t *testing.T) {
+	// Case-insensitive fork ID, fork Name, and stem ID preserve pre-refactor lookup rules.
+	havok := frames.BinaryHavok.Clone()
+	havok.Stems = []string{"MTB"}
+	havok.CadFork = model.ForkRef{Fork: "SID_100", TravelMm: 100, SagPct: 20, A2cMm: 486, RakeMm: 44}
+	havok.Forks = []model.ForkRef{
+		{Fork: "rockshox sid 100mm", TravelMm: 100, SagPct: 20, A2cMm: 486, RakeMm: 44},
+	}
+	havok.GeoSlopMm = &model.GeoSlopMm{A2c: model.Some(10.0), FrontCenter: model.Some(10.0), Wheelbase: model.Some(10.0), Reason: "test lookup only"}
+
+	rep := validator.ValidateFrame(havok, testCat)
+	if !rep.IsValid {
+		t.Fatalf("expected case-insensitive fork/stem lookup to pass ValidateFrame, got: %s", rep.ErrorSummary())
+	}
+
+	if issues := validator.ValidateForkRef("test", "cad_fork", model.ForkRef{Fork: "SID_100", TravelMm: 100, SagPct: 20, A2cMm: 486, RakeMm: 44}, catalog.CommonForkCatalog); len(issues) != 0 {
+		t.Errorf("ValidateForkRef(SID_100) returned issues: %+v", issues)
+	}
+	if issues := validator.ValidateForkRef("test", "cad_fork", model.ForkRef{Fork: "rockshox sid 100mm", TravelMm: 100, SagPct: 20, A2cMm: 486, RakeMm: 44}, catalog.CommonForkCatalog); len(issues) != 0 {
+		t.Errorf("ValidateForkRef(rockshox sid 100mm) returned issues: %+v", issues)
+	}
+
+	// Custom catalog validation is independent of compiled defaults.
+	customCat := validator.Catalog{
+		Forks: []model.ForkCatalogEntry{
+			{
+				ID:       "custom_sid_120",
+				Name:     "Custom SID 120mm",
+				TravelMm: 120,
+				Options:  []model.ForkCatalogOption{{A2cMm: 530, RakeMm: 44}},
+			},
+		},
+		Stems: []model.StemCatalogEntry{
+			{
+				ID:            "custom_stems",
+				LengthRangeMm: []float64{60, 70},
+				AnglesDeg:     []model.Deg{-6},
+			},
+		},
+	}
+	jefe := frames.RevelElJefe.Clone()
+	jefe.Stems = []string{"CUSTOM_STEMS"}
+	jefe.CadFork = model.ForkRef{Fork: "CUSTOM_SID_120", TravelMm: 120, SagPct: 20, A2cMm: 506, RakeMm: 44}
+	jefe.Forks = []model.ForkRef{{Fork: "Custom SID 120mm", TravelMm: 120, A2cMm: 530, RakeMm: 44}}
+
+	if rep := validator.ValidateFrame(jefe, customCat); !rep.IsValid {
+		t.Fatalf("expected custom catalog frame to pass ValidateFrame, got: %s", rep.ErrorSummary())
+	}
+	if rep := validator.ValidateFrame(jefe, testCat); rep.IsValid {
+		t.Errorf("expected custom catalog frame to fail against compiled default catalog")
+	}
 }

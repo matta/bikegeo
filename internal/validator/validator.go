@@ -10,6 +10,12 @@ import (
 	"bikegeo/internal/model"
 )
 
+// Catalog provides fork and stem definitions for frame validation.
+type Catalog struct {
+	Forks []model.ForkCatalogEntry
+	Stems []model.StemCatalogEntry
+}
+
 // ValidateBikeGeometry validates a bike dataset for internal consistency,
 // hardtail CAD conventions (static vs. sagged charts), headset cup requirements,
 // and mathematical coherence between Stack, Reach, A2C, HTL, and BB Drop.
@@ -442,7 +448,7 @@ func validateGeoSlop(slop *model.GeoSlopMm) []model.ValidationIssue {
 // ValidateFrame is the centralized validation gate for an entire FrameModel.
 // It validates frame metadata, all sizes across all configurations, and cross-configuration coherence.
 // If ValidateFrame returns IsValid == false, the frame is in an error state and must not be used.
-func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
+func ValidateFrame(frame model.FrameModel, cat Catalog) model.FrameValidationReport {
 	report := model.FrameValidationReport{
 		FrameID:     frame.ID,
 		IsValid:     true,
@@ -599,7 +605,7 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 				})
 				continue
 			}
-			entry, found := catalog.GetCatalogStem(stemID)
+			entry, found := catalog.FindStemFrom(cat.Stems, stemID)
 			if !found {
 				report.IsValid = false
 				report.Issues = append(report.Issues, model.ValidationIssue{
@@ -646,7 +652,7 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 	}
 
 	// Validate Fork References
-	cadForkIssues := ValidateForkRef(frame.ID, "cad_fork", frame.CadFork)
+	cadForkIssues := ValidateForkRef(frame.ID, "cad_fork", frame.CadFork, cat.Forks)
 	if len(cadForkIssues) > 0 {
 		report.IsValid = false
 		report.Issues = append(report.Issues, cadForkIssues...)
@@ -664,7 +670,7 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 	} else {
 		for i, ref := range frame.Forks {
 			fName := fmt.Sprintf("forks[%d]", i)
-			rIssues := ValidateForkRef(frame.ID, fName, ref)
+			rIssues := ValidateForkRef(frame.ID, fName, ref, cat.Forks)
 			if len(rIssues) > 0 {
 				report.IsValid = false
 				report.Issues = append(report.Issues, rIssues...)
@@ -719,7 +725,7 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 	}
 
 	for _, sz := range sizes {
-		bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+		bike, err := geometry.MaterializeBikeGeometry(frame, sz, nil)
 		if err != nil {
 			report.IsValid = false
 			report.Issues = append(report.Issues, model.ValidationIssue{
@@ -740,8 +746,8 @@ func ValidateFrame(frame model.FrameModel) model.FrameValidationReport {
 	return report
 }
 
-// ValidateForkRef validates a ForkRef for required fields and invariant correctness against the catalog.
-func ValidateForkRef(frameID string, fieldName string, fref model.ForkRef) []model.ValidationIssue {
+// ValidateForkRef validates a ForkRef for required fields and invariant correctness against forks.
+func ValidateForkRef(frameID string, fieldName string, fref model.ForkRef, forks []model.ForkCatalogEntry) []model.ValidationIssue {
 	var issues []model.ValidationIssue
 
 	if fref.A2cMm <= 0 {
@@ -764,7 +770,7 @@ func ValidateForkRef(frameID string, fieldName string, fref model.ForkRef) []mod
 	}
 
 	if fref.Fork == "" {
-		suggestions := catalog.FindForkSuggestions(fref.A2cMm, fref.RakeMm)
+		suggestions := catalog.FindForkSuggestionsFrom(forks, fref.A2cMm, fref.RakeMm)
 		var msg string
 		if len(suggestions) > 0 {
 			var lines []string
@@ -789,7 +795,7 @@ func ValidateForkRef(frameID string, fieldName string, fref model.ForkRef) []mod
 		return issues
 	}
 
-	entry, found := catalog.GetCatalogFork(fref.Fork)
+	entry, found := catalog.FindForkFrom(forks, fref.Fork)
 	if !found {
 		issues = append(issues, model.ValidationIssue{
 			ID:       "unknown_" + fieldName + "_fork",

@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"bikegeo/internal/catalog"
 	"bikegeo/internal/model"
 )
 
 // MaterializeBikeGeometry projects a FrameModel for a given size into a BikeGeometry instance.
-func MaterializeBikeGeometry(frame model.FrameModel, size string) (model.BikeGeometry, error) {
+// Callers pass expanded stems explicitly (e.g. via catalog.ExpandStemSetsFrom(catalog.CommonStemCatalog, frame.Stems)).
+func MaterializeBikeGeometry(frame model.FrameModel, size string, stems []model.StemSpec) (model.BikeGeometry, error) {
 	if size == "" {
 		size = frame.GetDefaultSize()
 	}
@@ -62,7 +62,7 @@ func MaterializeBikeGeometry(frame model.FrameModel, size string) (model.BikeGeo
 		ChainstayRangeMm:    frame.ChainstayRangeMm,
 		MaxSpacerMm:         frame.MaxSpacerMm,
 		CanonicalStem:       frame.CanonicalStem,
-		Stems:               catalog.ExpandStemSets(frame.Stems),
+		Stems:               stems,
 		ExpectedStemRangeMm: frame.ExpectedStemRangeMm,
 	}, nil
 }

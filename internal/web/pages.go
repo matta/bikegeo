@@ -90,7 +90,7 @@ func pages() []page {
 			Controls: func(v url.Values) []Control {
 				return []Control{
 					{Name: "q", Label: "Search", Kind: "text", Value: v.Get("q"), Hint: "manufacturer, model or ID"},
-					{Name: "category", Label: "Category", Kind: "select", Value: v.Get("category"), Options: options(compare.AvailableCategories(), v.Get("category"), "Any")},
+					{Name: "category", Label: "Category", Kind: "select", Value: v.Get("category"), Options: options(compare.AvailableCategories(frames.AllFrames()), v.Get("category"), "Any")},
 					{Name: "size", Label: "Size", Kind: "text", Value: v.Get("size"), Hint: "e.g. L"},
 					{Name: "all-sizes", Label: "One row per size", Kind: "checkbox", Value: v.Get("all-sizes")},
 				}
@@ -108,7 +108,7 @@ func pages() []page {
 				return args, true
 			},
 			Build: func(v url.Values) (report.Document, string) {
-				doc, err := compare.BuildFrameListDocument(compare.ListFilter{
+				doc, err := compare.BuildFrameListDocument(frames.AllFrames(), compare.ListFilter{
 					Query:    v.Get("q"),
 					Category: v.Get("category"),
 					Size:     v.Get("size"),
@@ -192,11 +192,14 @@ func pages() []page {
 				if f := strings.TrimSpace(v.Get("frame")); f != "" {
 					tokens = []string{f}
 				}
-				targets, err := compare.ResolveValidationTargets(tokens, strings.TrimSpace(v.Get("size")))
+				targets, err := compare.ResolveValidationTargets(frames.AllFrames(), tokens, strings.TrimSpace(v.Get("size")))
 				if err != nil {
 					return report.Document{}, err.Error()
 				}
-				doc, _, err := validator.BuildValidationDocument(targets)
+				doc, _, err := validator.BuildValidationDocument(targets, validator.Catalog{
+					Forks: catalog.CommonForkCatalog,
+					Stems: catalog.CommonStemCatalog,
+				})
 				if err != nil {
 					return doc, err.Error()
 				}

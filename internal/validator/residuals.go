@@ -56,7 +56,7 @@ func SizeResiduals(frame model.FrameModel) ([]SizeResidual, error) {
 	var results []SizeResidual
 
 	for _, sz := range sizes {
-		bike, err := geometry.MaterializeBikeGeometry(frame, sz)
+		bike, err := geometry.MaterializeBikeGeometry(frame, sz, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to materialize size %s: %w", sz, err)
 		}

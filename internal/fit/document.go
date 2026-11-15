@@ -6,6 +6,7 @@ import (
 
 	"bikegeo/internal/model"
 	"bikegeo/internal/report"
+	"bikegeo/internal/validator"
 )
 
 func passFail(ok bool) report.Cell {
@@ -78,7 +79,7 @@ func candidatesTable(cands []ComboResult) report.Table {
 
 // BuildSweepDocument lays out the results of RunSweeps. With detail it follows
 // the summary with each combination's per-size residual table and error notices.
-func BuildSweepDocument(frame model.FrameModel, combos []ComboResult, detail bool) report.Document {
+func BuildSweepDocument(frame model.FrameModel, combos []ComboResult, detail bool, cat validator.Catalog) report.Document {
 	var doc report.Document
 	t := report.Table{
 		ID:    "fit-sweep",
@@ -141,7 +142,7 @@ func BuildSweepDocument(frame model.FrameModel, combos []ComboResult, detail boo
 				configID = combos[0].FitResult.ConfigID
 			}
 		}
-		if cands, err := SolveFit(solverFrame, configID, frame.GetDefaultSize()); err == nil && len(cands) > 0 {
+		if cands, err := SolveFit(solverFrame, configID, frame.GetDefaultSize(), cat); err == nil && len(cands) > 0 {
 			doc.AddTable(candidatesTable(cands))
 		}
 	}
@@ -151,9 +152,9 @@ func BuildSweepDocument(frame model.FrameModel, combos []ComboResult, detail boo
 // BuildAnalysisDocument lays out a single-configuration fit: residuals, the
 // minimax summary, slop requirements, validation status and (when the frame
 // does not fit) candidate physical solutions.
-func BuildAnalysisDocument(frame model.FrameModel, configID, targetSize string) (report.Document, error) {
+func BuildAnalysisDocument(frame model.FrameModel, configID, targetSize string, cat validator.Catalog) (report.Document, error) {
 	var doc report.Document
-	res, err := AnalyzeFit(frame, configID)
+	res, err := AnalyzeFit(frame, configID, cat)
 	if err != nil {
 		return doc, err
 	}
@@ -208,7 +209,7 @@ func BuildAnalysisDocument(frame model.FrameModel, configID, targetSize string) 
 	doc.AddText(sb.String())
 
 	if !res.IsValid || res.BeyondLengthRounding {
-		if cands, err := SolveFit(frame, configID, targetSize); err == nil && len(cands) > 0 {
+		if cands, err := SolveFit(frame, configID, targetSize, cat); err == nil && len(cands) > 0 {
 			doc.AddTable(candidatesTable(cands))
 		}
 	}

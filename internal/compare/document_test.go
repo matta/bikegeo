@@ -2,20 +2,43 @@ package compare
 
 import (
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
+	"bikegeo/internal/catalog"
 	"bikegeo/internal/frames"
 	"bikegeo/internal/ideal"
 	"bikegeo/internal/model"
 	"bikegeo/internal/report"
 	"bikegeo/internal/scoring"
+	"bikegeo/internal/validator"
 )
+
+func testBaseline() model.SavedComparisonState {
+	return DefaultComparisonState(catalog.DefaultSaddle(), catalog.DefaultHandlebar(), catalog.DefaultRiderProfile())
+}
+
+func withDefaults(opts Options) Options {
+	if opts.Frames == nil {
+		opts.Frames = frames.AllFrames()
+	}
+	if len(opts.Baseline.Columns) == 0 {
+		opts.Baseline = testBaseline()
+	}
+	if opts.Profile == nil {
+		opts.Profile = ideal.IdmatchProfile()
+	}
+	if len(opts.Catalog.Forks) == 0 && len(opts.Catalog.Stems) == 0 {
+		opts.Catalog = validator.Catalog{Forks: catalog.CommonForkCatalog, Stems: catalog.CommonStemCatalog}
+	}
+	return opts
+}
 
 func mustRun(t *testing.T, opts Options) *Result {
 	t.Helper()
-	res, err := Run(opts)
+	res, err := Run(withDefaults(opts))
 	if err != nil {
 		t.Fatalf("Run(%+v): %v", opts, err)
 	}
@@ -24,7 +47,7 @@ func mustRun(t *testing.T, opts Options) *Result {
 
 func TestRunDefaultBaseline(t *testing.T) {
 	res := mustRun(t, Options{})
-	if got, want := len(res.Rows), len(DefaultComparisonState().Columns); got != want {
+	if got, want := len(res.Rows), len(testBaseline().Columns); got != want {
 		t.Errorf("default rows = %d, want %d", got, want)
 	}
 	if !res.State.Transpose {
@@ -34,11 +57,11 @@ func TestRunDefaultBaseline(t *testing.T) {
 
 func TestRunErrors(t *testing.T) {
 	for _, opts := range []Options{
-		{Specs: []string{"nosuchframe"}},
-		{Specs: []string{"fenrir@17%"}},
-		{Saddle: "nope"},
-		{Handlebar: "nope"},
-		{Specs: []string{"-all"}},
+		withDefaults(Options{Specs: []string{"nosuchframe"}}),
+		withDefaults(Options{Specs: []string{"fenrir@17%"}}),
+		withDefaults(Options{Specs: []string{"-all"}}),
+		{Frames: nil, Baseline: testBaseline(), Profile: ideal.IdmatchProfile()},
+		{Frames: frames.AllFrames(), Baseline: testBaseline(), Profile: nil},
 	} {
 		if _, err := Run(opts); err == nil {
 			t.Errorf("Run(%+v) succeeded, want error", opts)
@@ -190,7 +213,15 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 		t.Fatalf("FormatAttrRange(handlebar_clamp_fit) = %q, want ≥1", wantIdeal)
 	}
 
-	for _, saddle := range []string{"", "berthoud-aspin-open", "selle-italia-slr-boost-superflow-l3"} {
+	for _, saddleID := range []string{"", "berthoud-aspin-open", "selle-italia-slr-boost-superflow-l3"} {
+		var saddle model.Opt[model.SaddleSpec]
+		if saddleID != "" {
+			s, ok := catalog.GetSaddle(saddleID)
+			if !ok {
+				t.Fatalf("unknown test saddle %q", saddleID)
+			}
+			saddle = model.Some(s)
+		}
 		res := mustRun(t, Options{All: true, Saddle: saddle})
 		doc, err := BuildDocument(res, DocOptions{Scoring: true, Detail: true})
 		if err != nil {
@@ -221,10 +252,10 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 			t.Fatal("missing handlebar_clamp_fit column in fit-cockpit")
 		}
 		if got := fit.Rows[0].Cells[clampCol].Text; got != wantIdeal {
-			t.Errorf("saddle=%q Ideal ref = %q, want %q", saddle, got, wantIdeal)
+			t.Errorf("saddle=%q Ideal ref = %q, want %q", saddleID, got, wantIdeal)
 		}
 		if fit.Rows[1].Kind != report.KindData {
-			t.Errorf("saddle=%q: the Ideal row must be the only reference row", saddle)
+			t.Errorf("saddle=%q: the Ideal row must be the only reference row", saddleID)
 		}
 
 		bdClampCol := -1
@@ -270,18 +301,18 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 			if bestR <= 1.0 {
 				wantZone = report.ZoneIdeal
 				if !strings.HasSuffix(cell.Text, " "+ideal.SymbolIdeal) {
-					t.Errorf("saddle=%q row=%s R=%.2f: cell=%q, want free marker %s", saddle, r.ID, bestR, cell.Text, ideal.SymbolIdeal)
+					t.Errorf("saddle=%q row=%s R=%.2f: cell=%q, want free marker %s", saddleID, r.ID, bestR, cell.Text, ideal.SymbolIdeal)
 				}
 			} else {
 				fields := strings.Fields(cell.Text)
 				if len(fields) < 3 || fields[1] != ideal.SymbolOutside {
-					t.Errorf("saddle=%q row=%s R=%.2f: cell=%q, want %s with points lost", saddle, r.ID, bestR, cell.Text, ideal.SymbolOutside)
+					t.Errorf("saddle=%q row=%s R=%.2f: cell=%q, want %s with points lost", saddleID, r.ID, bestR, cell.Text, ideal.SymbolOutside)
 				} else if lost := strings.TrimPrefix(strings.Fields(breakdownText[r.ID])[0], "-"); fields[2] != lost && fields[2] != "<1" {
-					t.Errorf("saddle=%q row=%s: matrix cell %q vs breakdown points lost -%s", saddle, r.ID, cell.Text, lost)
+					t.Errorf("saddle=%q row=%s: matrix cell %q vs breakdown points lost -%s", saddleID, r.ID, cell.Text, lost)
 				}
 			}
 			if cell.Zone != wantZone {
-				t.Errorf("saddle=%q row=%s R=%.2f: zone=%q, want %q", saddle, r.ID, bestR, cell.Zone, wantZone)
+				t.Errorf("saddle=%q row=%s R=%.2f: zone=%q, want %q", saddleID, r.ID, bestR, cell.Zone, wantZone)
 			}
 		}
 	}
@@ -293,7 +324,15 @@ func TestDocument_AllConfigsZonesAndDeltasConsistent(t *testing.T) {
 		ideal.SymbolOutside: report.ZoneOutside,
 	}
 
-	for _, saddle := range []string{"", "berthoud-aspin-open"} {
+	for _, saddleID := range []string{"", "berthoud-aspin-open"} {
+		var saddle model.Opt[model.SaddleSpec]
+		if saddleID != "" {
+			s, ok := catalog.GetSaddle(saddleID)
+			if !ok {
+				t.Fatalf("unknown test saddle %q", saddleID)
+			}
+			saddle = model.Some(s)
+		}
 		res := mustRun(t, Options{All: true, Saddle: saddle})
 		doc, err := BuildDocument(res, DocOptions{Scoring: true, Detail: true})
 		if err != nil {
@@ -336,7 +375,7 @@ func TestDocument_AllConfigsZonesAndDeltasConsistent(t *testing.T) {
 				}
 				if wantZone := markerToZone[fields[1]]; c.Zone != wantZone {
 					t.Errorf("saddle=%q row=%s col=%s cell=%q: zone=%q, want %q",
-						saddle, r.ID, col.ID, c.Text, c.Zone, wantZone)
+						saddleID, r.ID, col.ID, c.Text, c.Zone, wantZone)
 				}
 				shownVal, err := strconv.ParseFloat(fields[0], 64)
 				if err != nil {
@@ -351,11 +390,11 @@ func TestDocument_AllConfigsZonesAndDeltasConsistent(t *testing.T) {
 				if expectedDelta == 0 {
 					if len(fields) != 2 || fields[1] != ideal.SymbolIdeal {
 						t.Errorf("saddle=%q row=%s col=%s: shown=%v in [%v,%v] but cell=%q",
-							saddle, r.ID, col.ID, shownVal, idealMin, idealMax, c.Text)
+							saddleID, r.ID, col.ID, shownVal, idealMin, idealMax, c.Text)
 					}
 				} else {
 					if len(fields) != 4 || fields[1] != ideal.SymbolOutside {
-						t.Errorf("saddle=%q row=%s col=%s: expected %s with a cost or delta in %q", saddle, r.ID, col.ID, ideal.SymbolOutside, c.Text)
+						t.Errorf("saddle=%q row=%s col=%s: expected %s with a cost or delta in %q", saddleID, r.ID, col.ID, ideal.SymbolOutside, c.Text)
 						continue
 					}
 					if last := fields[3]; last == "pt" || last == "pts" {
@@ -368,7 +407,7 @@ func TestDocument_AllConfigsZonesAndDeltasConsistent(t *testing.T) {
 					}
 					if math.Abs(shownDelta-expectedDelta) > 1e-6 {
 						t.Errorf("saddle=%q row=%s col=%s cell=%q: shown=%v ideal=[%v,%v] delta=%v, want %v",
-							saddle, r.ID, col.ID, c.Text, shownVal, idealMin, idealMax, shownDelta, expectedDelta)
+							saddleID, r.ID, col.ID, c.Text, shownVal, idealMin, idealMax, shownDelta, expectedDelta)
 					}
 				}
 			}
@@ -377,10 +416,11 @@ func TestDocument_AllConfigsZonesAndDeltasConsistent(t *testing.T) {
 }
 
 func TestBuildFrameListDocument_RejectsUnknownFilters(t *testing.T) {
-	if _, err := BuildFrameListDocument(ListFilter{Category: "hardtail"}); err != nil {
+	allFrames := frames.AllFrames()
+	if _, err := BuildFrameListDocument(allFrames, ListFilter{Category: "hardtail"}); err != nil {
 		t.Fatalf("valid category hardtail failed: %v", err)
 	}
-	if _, err := BuildFrameListDocument(ListFilter{Size: "L"}); err != nil {
+	if _, err := BuildFrameListDocument(allFrames, ListFilter{Size: "L"}); err != nil {
 		t.Fatalf("valid size L failed: %v", err)
 	}
 	for _, f := range []ListFilter{
@@ -388,7 +428,7 @@ func TestBuildFrameListDocument_RejectsUnknownFilters(t *testing.T) {
 		{Category: "full-suspension"},
 		{Size: "ZZ"},
 	} {
-		if _, err := BuildFrameListDocument(f); err == nil {
+		if _, err := BuildFrameListDocument(allFrames, f); err == nil {
 			t.Errorf("BuildFrameListDocument(%+v) succeeded, want error", f)
 		}
 	}
@@ -415,7 +455,7 @@ func TestParseComparisonSpecs_RejectsInvalidSagAndRigidTypos(t *testing.T) {
 		"fenrir@rigidXYZ",
 	}
 	for _, spec := range badSpecs {
-		if _, err := ParseComparisonSpecs(allFrames, spec); err == nil {
+		if _, err := ParseComparisonSpecs(allFrames, catalog.CommonForkCatalog, spec); err == nil {
 			t.Errorf("ParseComparisonSpecs(%q) succeeded, want error", spec)
 		}
 	}
@@ -423,8 +463,8 @@ func TestParseComparisonSpecs_RejectsInvalidSagAndRigidTypos(t *testing.T) {
 
 func TestResolveValidationTargets_UnifiedUnknownSizeError(t *testing.T) {
 	allFrames := frames.AllFrames()
-	_, errCmp := ParseComparisonSpecs(allFrames, "fenrir:ZZ")
-	_, errVal := ResolveValidationTargets([]string{"fenrir"}, "ZZ")
+	_, errCmp := ParseComparisonSpecs(allFrames, catalog.CommonForkCatalog, "fenrir:ZZ")
+	_, errVal := ResolveValidationTargets(allFrames, []string{"fenrir"}, "ZZ")
 	if errCmp == nil || errVal == nil {
 		t.Fatalf("expected both compare and validate to reject size ZZ: cmp=%v val=%v", errCmp, errVal)
 	}
@@ -625,9 +665,13 @@ func TestCompare_SingleStepIntegerRounding(t *testing.T) {
 }
 
 func TestCompare_BreakdownSubtitleAndTranslatedH(t *testing.T) {
+	saddle, ok := catalog.GetSaddle("berthoud-aspin-open")
+	if !ok {
+		t.Fatalf("unknown test saddle berthoud-aspin-open")
+	}
 	res := mustRun(t, Options{
 		Specs:  []string{"sklar-pbj:L"},
-		Saddle: "berthoud-aspin-open",
+		Saddle: model.Some(saddle),
 	})
 	doc, err := BuildDocument(res, DocOptions{Scoring: true, Detail: true})
 	if err != nil {
@@ -688,5 +732,154 @@ func TestRunAll_CadForkSurvivesSagPruningAndRanksByGate(t *testing.T) {
 	}
 	if !sawMiss {
 		t.Fatal("expected at least one setup that fails the gate")
+	}
+}
+
+func TestRun_CustomCatalogForkAndStemIndependence(t *testing.T) {
+	customCat := validator.Catalog{
+		Forks: []model.ForkCatalogEntry{
+			{
+				ID:       "custom_sid_120",
+				Name:     "Custom SID 120mm",
+				TravelMm: 120,
+				Standard: true,
+				Options:  []model.ForkCatalogOption{{A2cMm: 530, RakeMm: 44}},
+			},
+			{
+				ID:       "custom_rigid_510",
+				Name:     "Custom Rigid 510mm",
+				TravelMm: 0,
+				Options:  []model.ForkCatalogOption{{A2cMm: 510, RakeMm: 44}},
+			},
+		},
+		Stems: []model.StemCatalogEntry{
+			{
+				ID:            "custom_trail",
+				LengthRangeMm: []float64{60, 70},
+				AnglesDeg:     []model.Deg{-6},
+			},
+		},
+	}
+
+	customFrame := frames.RevelElJefe.Clone()
+	customFrame.ID = "custom-el-jefe"
+	customFrame.Stems = []string{"custom_trail"}
+	customFrame.CadFork = model.ForkRef{Fork: "custom_sid_120", TravelMm: 120, SagPct: 20, A2cMm: 506, RakeMm: 44}
+	customFrame.Forks = []model.ForkRef{
+		{Fork: "custom_sid_120", TravelMm: 120, A2cMm: 530, RakeMm: 44},
+		{Fork: "custom_rigid_510", A2cMm: 510, RakeMm: 44},
+	}
+
+	runWith := func(cat validator.Catalog, specs ...string) (*Result, error) {
+		return Run(Options{
+			Frames:   []model.FrameModel{customFrame},
+			Baseline: testBaseline(),
+			Profile:  ideal.IdmatchProfile(),
+			Catalog:  cat,
+			Specs:    specs,
+		})
+	}
+
+	// Default fork resolves using the injected 120mm entry (506mm sagged), not raw 530mm.
+	res, err := runWith(customCat, "custom-el-jefe:L")
+	if err != nil {
+		t.Fatalf("Run default fork with custom catalog failed: %v", err)
+	}
+	if len(res.Rows) != 1 {
+		t.Fatalf("got %d rows, want 1", len(res.Rows))
+	}
+	if math.Abs(res.Rows[0].EffectiveA2c-506.0) > 0.05 {
+		t.Errorf("EffectiveA2c = %.1f, want 506.0", res.Rows[0].EffectiveA2c)
+	}
+	if len(res.Rows[0].Bike.Stems) != 2 {
+		t.Errorf("Bike.Stems = %+v, want 2 stems from custom_trail", res.Rows[0].Bike.Stems)
+	}
+
+	// Explicit injected fork ID works in compare.Run.
+	resByID, err := runWith(customCat, "custom-el-jefe:L@custom_sid_120")
+	if err != nil {
+		t.Fatalf("Run(@custom_sid_120) failed: %v", err)
+	}
+	if math.Abs(resByID.Rows[0].EffectiveA2c-506.0) > 0.05 {
+		t.Errorf("@custom_sid_120 EffectiveA2c = %.1f, want 506.0", resByID.Rows[0].EffectiveA2c)
+	}
+
+	// @all expansion uses injected forks.
+	resAll, err := runWith(customCat, "custom-el-jefe:L@all")
+	if err != nil {
+		t.Fatalf("Run(@all) with custom catalog failed: %v", err)
+	}
+	if len(resAll.Rows) < 2 {
+		t.Errorf("expected multiple @all rows from custom catalog, got %d", len(resAll.Rows))
+	}
+
+	// Same frame fails when only the compiled default catalog is supplied.
+	defaultCat := validator.Catalog{Forks: catalog.CommonForkCatalog, Stems: catalog.CommonStemCatalog}
+	if _, err := runWith(defaultCat, "custom-el-jefe:L@custom_sid_120"); err == nil {
+		t.Errorf("expected Run(@custom_sid_120) to fail with CommonForkCatalog")
+	}
+}
+
+func TestRun_BaselineNotMutated(t *testing.T) {
+	baseline := testBaseline()
+	if len(baseline.Columns) < 3 {
+		t.Fatalf("expected at least 3 baseline columns, got %d", len(baseline.Columns))
+	}
+	origCols := slices.Clone(baseline.Columns)
+
+	run := func(specs ...string) *Result {
+		t.Helper()
+		res, err := Run(Options{
+			Frames:   frames.AllFrames(),
+			Baseline: baseline,
+			Profile:  ideal.IdmatchProfile(),
+			Catalog:  validator.Catalog{Forks: catalog.CommonForkCatalog, Stems: catalog.CommonStemCatalog},
+			Specs:    specs,
+		})
+		if err != nil {
+			t.Fatalf("Run(%v): %v", specs, err)
+		}
+		return res
+	}
+
+	res1 := run("-1")
+	if !slices.Equal(baseline.Columns, origCols) {
+		t.Fatalf("baseline.Columns mutated after -1:\ngot:  %+v\nwant: %+v", baseline.Columns, origCols)
+	}
+	if len(res1.Rows) != len(origCols)-1 {
+		t.Errorf("len(res1.Rows) = %d, want %d", len(res1.Rows), len(origCols)-1)
+	}
+	for _, r := range res1.Rows {
+		if r.Setup.FrameID == origCols[0].FrameID && r.Setup.Size == origCols[0].Size {
+			t.Errorf("removed column %s:%s still present after -1", origCols[0].FrameID, origCols[0].Size)
+		}
+	}
+
+	_ = run("-2")
+	if !slices.Equal(baseline.Columns, origCols) {
+		t.Fatalf("baseline.Columns mutated after -2")
+	}
+
+	resPlus := run("+fenrir:L")
+	if !slices.Equal(baseline.Columns, origCols) {
+		t.Fatalf("baseline.Columns mutated after +fenrir:L")
+	}
+	if len(resPlus.Rows) != len(origCols)+1 {
+		t.Errorf("len(resPlus.Rows) = %d, want %d", len(resPlus.Rows), len(origCols)+1)
+	}
+}
+
+func TestRun_ForkLookupCompatibility(t *testing.T) {
+	for _, spec := range []string{
+		"fenrir:L@SID_100",
+		"fenrir:L@rockshox sid 100mm",
+	} {
+		res := mustRun(t, Options{Specs: []string{spec}})
+		if len(res.Rows) != 1 {
+			t.Fatalf("%s: got %d rows, want 1", spec, len(res.Rows))
+		}
+		if math.Abs(res.Rows[0].EffectiveA2c-486.0) > 0.05 {
+			t.Errorf("%s: EffectiveA2c = %.1f, want 486.0", spec, res.Rows[0].EffectiveA2c)
+		}
 	}
 }

@@ -46,11 +46,11 @@ func PublishModeShort(mode model.PublishMode) string {
 // document: a summary table when there are several targets, then the detailed
 // proof for a single target or for each invalid one. allValid is false if any
 // target failed.
-func BuildValidationDocument(targets []Target) (doc report.Document, allValid bool, err error) {
+func BuildValidationDocument(targets []Target, cat Catalog) (doc report.Document, allValid bool, err error) {
 	var bundles []Bundle
 	allValid = true
 	for _, t := range targets {
-		bike, err := geometry.MaterializeBikeGeometry(t.Frame, t.Size)
+		bike, err := geometry.MaterializeBikeGeometry(t.Frame, t.Size, nil)
 		if err != nil {
 			return doc, false, fmt.Errorf("materializing %s (%s): %w", t.Frame.ID, t.Size, err)
 		}
@@ -59,7 +59,7 @@ func BuildValidationDocument(targets []Target) (doc report.Document, allValid bo
 			Size:        t.Size,
 			Bike:        bike,
 			Report:      ValidateBikeGeometry(bike),
-			FrameReport: ValidateFrame(t.Frame),
+			FrameReport: ValidateFrame(t.Frame, cat),
 		}
 		if !b.Valid() {
 			allValid = false

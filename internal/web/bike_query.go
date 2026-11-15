@@ -44,7 +44,7 @@ func parseBikeQuery(v url.Values, allFrames []model.FrameModel) (bikeParams, []s
 			p.size = reqSize
 		}
 
-		choices := forkChoices(*fm)
+		choices := forkChoices(*fm, catalog.CommonForkCatalog)
 		reqFork := strings.TrimSpace(v.Get("fork"))
 		switch {
 		case reqFork == "":

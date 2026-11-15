@@ -6,15 +6,8 @@ import (
 	"bikegeo/internal/model"
 )
 
-func TestGetCatalogFork(t *testing.T) {
-	// Backup original catalog and restore after test
-	originalCatalog := CommonForkCatalog
-	t.Cleanup(func() {
-		CommonForkCatalog = originalCatalog
-	})
-
-	// Set up dummy catalog
-	CommonForkCatalog = []model.ForkCatalogEntry{
+func TestFindForkFrom(t *testing.T) {
+	forks := []model.ForkCatalogEntry{
 		{ID: "fox36_factory", Name: "Fox 36 Factory", TravelMm: 160},
 		{ID: "lyrik_ult", Name: "RockShox Lyrik Ultimate", TravelMm: 150},
 		{ID: "rigid_1", Name: "Generic Rigid", TravelMm: 0},
@@ -59,12 +52,12 @@ func TestGetCatalogFork(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, found := GetCatalogFork(tt.searchID)
+			got, found := FindForkFrom(forks, tt.searchID)
 			if found != tt.wantFound {
-				t.Errorf("GetCatalogFork() found = %v, want %v", found, tt.wantFound)
+				t.Errorf("FindForkFrom() found = %v, want %v", found, tt.wantFound)
 			}
 			if found && got.ID != tt.wantID {
-				t.Errorf("GetCatalogFork() got ID = %v, want %v", got.ID, tt.wantID)
+				t.Errorf("FindForkFrom() got ID = %v, want %v", got.ID, tt.wantID)
 			}
 		})
 	}

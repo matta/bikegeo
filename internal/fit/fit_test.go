@@ -5,10 +5,17 @@ import (
 	"strings"
 	"testing"
 
+	"bikegeo/internal/catalog"
 	"bikegeo/internal/fit"
 	"bikegeo/internal/frames"
 	"bikegeo/internal/model"
+	"bikegeo/internal/validator"
 )
+
+var testCat = validator.Catalog{
+	Forks: catalog.CommonForkCatalog,
+	Stems: catalog.CommonStemCatalog,
+}
 
 func sampleFrame() model.FrameModel {
 	fork := model.ForkRef{
@@ -56,7 +63,7 @@ func sampleFrame() model.FrameModel {
 
 func TestAnalyzeFit(t *testing.T) {
 	frame := sampleFrame()
-	res, err := fit.AnalyzeFit(frame, "stock")
+	res, err := fit.AnalyzeFit(frame, "stock", testCat)
 	if err != nil {
 		t.Fatalf("AnalyzeFit failed: %v", err)
 	}
@@ -87,14 +94,14 @@ func TestApplyAssignment(t *testing.T) {
 	frame := sampleFrame()
 
 	// 1. Frame-level spacer & slop
-	if err := fit.ApplyAssignment(&frame, "stock", "", "spacer=12.5"); err != nil {
+	if err := fit.ApplyAssignment(&frame, "stock", "", "spacer=12.5", testCat); err != nil {
 		t.Fatalf("Failed to set spacer: %v", err)
 	}
 	if frame.GetGeoHeadsetSpacerMm() != 12.5 {
 		t.Errorf("Expected spacer 12.5, got %.1f", frame.GetGeoHeadsetSpacerMm())
 	}
 
-	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.a2c=2.0"); err != nil {
+	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.a2c=2.0", testCat); err != nil {
 		t.Fatalf("Failed to set slop: %v", err)
 	}
 	if frame.GeoSlopMm.A2c.OrZero() != 2.0 {
@@ -102,21 +109,21 @@ func TestApplyAssignment(t *testing.T) {
 	}
 
 	// 2. Fork-level attributes
-	if err := fit.ApplyAssignment(&frame, "stock", "", "fork.a2c=540"); err != nil {
+	if err := fit.ApplyAssignment(&frame, "stock", "", "fork.a2c=540", testCat); err != nil {
 		t.Fatalf("Failed to set fork.a2c: %v", err)
 	}
 	if frame.CadFork.A2cMm != 540 {
 		t.Errorf("Expected fork.a2c 540, got %.1f", frame.CadFork.A2cMm)
 	}
 
-	if err := fit.ApplyAssignment(&frame, "stock", "", "fork.rake=51"); err != nil {
+	if err := fit.ApplyAssignment(&frame, "stock", "", "fork.rake=51", testCat); err != nil {
 		t.Fatalf("Failed to set fork.rake: %v", err)
 	}
 	if frame.CadFork.RakeMm != 51 {
 		t.Errorf("Expected fork.rake 51, got %.1f", frame.CadFork.RakeMm)
 	}
 
-	if err := fit.ApplyAssignment(&frame, "stock", "", "sag=20"); err != nil {
+	if err := fit.ApplyAssignment(&frame, "stock", "", "sag=20", testCat); err != nil {
 		t.Fatalf("Failed to set sag: %v", err)
 	}
 	if frame.CadFork.SagPct != 20 {
@@ -124,7 +131,7 @@ func TestApplyAssignment(t *testing.T) {
 	}
 
 	// 3. Per-size overrides
-	if err := fit.ApplyAssignment(&frame, "stock", "", "M:stack=625"); err != nil {
+	if err := fit.ApplyAssignment(&frame, "stock", "", "M:stack=625", testCat); err != nil {
 		t.Fatalf("Failed to set M:stack: %v", err)
 	}
 	if frame.Geometries["M"].Stack != 625 {
@@ -132,7 +139,7 @@ func TestApplyAssignment(t *testing.T) {
 	}
 
 	// 4. Default size fallback
-	if err := fit.ApplyAssignment(&frame, "stock", "L", "reach=460"); err != nil {
+	if err := fit.ApplyAssignment(&frame, "stock", "L", "reach=460", testCat); err != nil {
 		t.Fatalf("Failed to set reach on default size: %v", err)
 	}
 	if frame.Geometries["L"].Reach != 460 {
@@ -140,19 +147,19 @@ func TestApplyAssignment(t *testing.T) {
 	}
 
 	// 5. Invalid assignments
-	if err := fit.ApplyAssignment(&frame, "stock", "", "invalid_no_equal"); err == nil {
+	if err := fit.ApplyAssignment(&frame, "stock", "", "invalid_no_equal", testCat); err == nil {
 		t.Errorf("Expected error for missing '='")
 	}
-	if err := fit.ApplyAssignment(&frame, "stock", "", "NonExistent:stack=600"); err == nil {
+	if err := fit.ApplyAssignment(&frame, "stock", "", "NonExistent:stack=600", testCat); err == nil {
 		t.Errorf("Expected error for unknown size")
 	}
-	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.wb=1.0"); err != nil {
+	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.wb=1.0", testCat); err != nil {
 		t.Errorf("Expected slop.wb=1.0 to be accepted (allowances have no floor): %v", err)
 	}
-	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.wb=-1.0"); err == nil {
+	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.wb=-1.0", testCat); err == nil {
 		t.Errorf("Expected error for negative slop.wb")
 	}
-	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.cross_config=1.0"); err == nil {
+	if err := fit.ApplyAssignment(&frame, "stock", "", "slop.cross_config=1.0", testCat); err == nil {
 		t.Errorf("Expected error for removed slop.cross_config")
 	}
 }
@@ -165,7 +172,7 @@ func TestRunSweeps(t *testing.T) {
 		"spacer=10,12",
 	}
 
-	combos, err := fit.RunSweeps(frame, "stock", "L", tryFlags)
+	combos, err := fit.RunSweeps(frame, "stock", "L", tryFlags, testCat)
 	if err != nil {
 		t.Fatalf("RunSweeps failed: %v", err)
 	}
@@ -193,7 +200,7 @@ func TestRunSweepsCombinationLimit(t *testing.T) {
 		"fork.rake=44,48,51",
 	}
 
-	_, err := fit.RunSweeps(frame, "stock", "L", tryFlags)
+	_, err := fit.RunSweeps(frame, "stock", "L", tryFlags, testCat)
 	if err == nil {
 		t.Fatalf("Expected error when exceeding 200 combinations, got nil")
 	}
@@ -201,7 +208,7 @@ func TestRunSweepsCombinationLimit(t *testing.T) {
 
 func TestSolveFit(t *testing.T) {
 	frame := sampleFrame()
-	combos, err := fit.SolveFit(frame, "stock", "L")
+	combos, err := fit.SolveFit(frame, "stock", "L", testCat)
 	if err != nil {
 		t.Fatalf("SolveFit failed: %v", err)
 	}
@@ -216,11 +223,11 @@ func TestSolveFit(t *testing.T) {
 
 func TestSweepDetailIncludesFailureReason(t *testing.T) {
 	// F-p4d-5: Sweep table includes Failure Reason and --detail prints frame+size [ERROR] notices.
-	combos, err := fit.RunSweeps(frames.OtsoFenrirStainless, "stock", "L", []string{"sag=0,20"})
+	combos, err := fit.RunSweeps(frames.OtsoFenrirStainless, "stock", "L", []string{"sag=0,20"}, testCat)
 	if err != nil {
 		t.Fatalf("RunSweeps failed: %v", err)
 	}
-	doc := fit.BuildSweepDocument(frames.OtsoFenrirStainless, combos, true)
+	doc := fit.BuildSweepDocument(frames.OtsoFenrirStainless, combos, true, testCat)
 
 	tables := doc.Tables()
 	if len(tables) == 0 {
@@ -259,11 +266,11 @@ func TestSweepDetailIncludesFailureReason(t *testing.T) {
 	}
 
 	// Size-level failure (stack perturbation on Surly ECR:L)
-	stackCombos, err := fit.RunSweeps(frames.SurlyECR, "stock", "L", []string{"stack=604.5,633"})
+	stackCombos, err := fit.RunSweeps(frames.SurlyECR, "stock", "L", []string{"stack=604.5,633"}, testCat)
 	if err != nil {
 		t.Fatalf("RunSweeps(surly-ecr stack) failed: %v", err)
 	}
-	stackDoc := fit.BuildSweepDocument(frames.SurlyECR, stackCombos, true)
+	stackDoc := fit.BuildSweepDocument(frames.SurlyECR, stackCombos, true, testCat)
 	var stackText strings.Builder
 	for _, s := range stackDoc.Sections {
 		if s.Text != "" {
@@ -278,11 +285,11 @@ func TestSweepDetailIncludesFailureReason(t *testing.T) {
 
 func TestSweepInvokesSolverWhenAllFail(t *testing.T) {
 	// F-p4d-6: When all --try perturbations fail, BuildSweepDocument invokes SolveFit.
-	combos, err := fit.RunSweeps(frames.SurlyECR, "stock", "L", []string{"spacer=0"})
+	combos, err := fit.RunSweeps(frames.SurlyECR, "stock", "L", []string{"spacer=0"}, testCat)
 	if err != nil {
 		t.Fatalf("RunSweeps failed: %v", err)
 	}
-	doc := fit.BuildSweepDocument(frames.SurlyECR, combos, false)
+	doc := fit.BuildSweepDocument(frames.SurlyECR, combos, false, testCat)
 	foundCandidates := false
 	for _, tbl := range doc.Tables() {
 		if tbl.ID == "fit-candidates" {
@@ -304,7 +311,7 @@ func TestSolveFitFindsDeclaredSaggedConfigs(t *testing.T) {
 		frames.EskerHayduke,
 	}
 	for _, fr := range targets {
-		cands, err := fit.SolveFit(fr, "stock", fr.DefaultSize)
+		cands, err := fit.SolveFit(fr, "stock", fr.DefaultSize, testCat)
 		if err != nil {
 			t.Fatalf("SolveFit(%s) failed: %v", fr.ID, err)
 		}
@@ -330,5 +337,73 @@ func TestSolveFitFindsDeclaredSaggedConfigs(t *testing.T) {
 			t.Errorf("%s: declared config (%s %s %s %s) not found among top-10 PASS candidates",
 				fr.ID, wantA2c, wantSag, wantSpacer, wantFork)
 		}
+	}
+}
+
+func TestApplyAssignment_LookupCompatibilityAndCustomCatalog(t *testing.T) {
+	frame := frames.RevelElJefe.Clone()
+
+	// Case-insensitive stem ID (--try stems=MTB) must succeed.
+	if err := fit.ApplyAssignment(&frame, "stock", "L", "stems=MTB", testCat); err != nil {
+		t.Fatalf("ApplyAssignment(stems=MTB) failed: %v", err)
+	}
+	if len(frame.Stems) != 1 || frame.Stems[0] != "MTB" {
+		t.Errorf("frame.Stems = %v, want [MTB]", frame.Stems)
+	}
+	res, err := fit.AnalyzeFit(frame, "stock", testCat)
+	if err != nil {
+		t.Fatalf("AnalyzeFit after stems=MTB failed: %v", err)
+	}
+	if !res.IsValid {
+		t.Errorf("expected frame with stems=MTB to validate: %s", res.FrameReport.ErrorSummary())
+	}
+
+	// Case-insensitive fork ID and Name in default_fork.
+	fID := frames.RevelElJefe.Clone()
+	if err := fit.ApplyAssignment(&fID, "stock", "L", "default_fork=PIKE_120", testCat); err != nil {
+		t.Fatalf("ApplyAssignment(default_fork=PIKE_120) failed: %v", err)
+	}
+	if fID.Forks[0].Fork != "pike_120" {
+		t.Errorf("Forks[0].Fork = %q, want %q", fID.Forks[0].Fork, "pike_120")
+	}
+
+	fName := frames.RevelElJefe.Clone()
+	if err := fit.ApplyAssignment(&fName, "stock", "L", "default_fork=rockshox pike 120mm", testCat); err != nil {
+		t.Fatalf("ApplyAssignment(default_fork=rockshox pike 120mm) failed: %v", err)
+	}
+	if fName.Forks[0].Fork != "pike_120" {
+		t.Errorf("Forks[0].Fork = %q, want %q", fName.Forks[0].Fork, "pike_120")
+	}
+
+	// Custom catalog sweeps succeed with injected entries and reject compiled defaults when absent.
+	customCat := validator.Catalog{
+		Forks: []model.ForkCatalogEntry{
+			{
+				ID:       "custom_sid_120",
+				Name:     "Custom SID 120mm",
+				TravelMm: 120,
+				Options:  []model.ForkCatalogOption{{A2cMm: 530, RakeMm: 44}},
+			},
+		},
+		Stems: []model.StemCatalogEntry{
+			{
+				ID:            "custom_stems",
+				LengthRangeMm: []float64{60, 70},
+				AnglesDeg:     []model.Deg{-6},
+			},
+		},
+	}
+	customFrame := frames.RevelElJefe.Clone()
+	customFrame.CadFork.Fork = "custom_sid_120"
+	customFrame.Forks = []model.ForkRef{{Fork: "custom_sid_120", TravelMm: 120, A2cMm: 530, RakeMm: 44}}
+	combos, err := fit.RunSweeps(customFrame, "stock", "L", []string{"stems=CUSTOM_STEMS"}, customCat)
+	if err != nil {
+		t.Fatalf("RunSweeps with custom catalog failed: %v", err)
+	}
+	if len(combos) != 1 || !combos[0].IsValid {
+		t.Errorf("expected custom catalog sweep to pass, got %+v", combos)
+	}
+	if _, err := fit.RunSweeps(customFrame, "stock", "L", []string{"stems=CUSTOM_STEMS"}, testCat); err == nil {
+		t.Errorf("expected RunSweeps(stems=CUSTOM_STEMS) to fail against compiled default catalog")
 	}
 }

@@ -43,7 +43,7 @@ const FitBrpToleranceMm = 10.0
 // does not carry is not enforced.
 func Fits(row model.CanonicalComparisonRow, prof *ideal.Profile) bool {
 	if prof == nil {
-		prof = ideal.IdmatchProfile()
+		panic("scoring: nil *ideal.Profile")
 	}
 	prof = prof.ForSaddle(row.Canonical.Saddle)
 	if _, ok := prof.Spec(ideal.MetricHandlebarClampFit); ok {
@@ -104,7 +104,7 @@ func formatValue(unit string, v float64) string {
 // on row.Canonical (e.g., via canonicalizer.ApplyIdealCockpitTargets).
 func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	if prof == nil {
-		prof = ideal.IdmatchProfile()
+		panic("scoring: nil *ideal.Profile")
 	}
 	prof = prof.ForSaddle(row.Canonical.Saddle)
 
@@ -157,6 +157,9 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 
 // ScoreAllRows scores an array of CanonicalComparisonRow against an ideal profile and assigns ranks.
 func ScoreAllRows(rows []model.CanonicalComparisonRow, prof *ideal.Profile) []Result {
+	if prof == nil {
+		panic("scoring: nil *ideal.Profile")
+	}
 	results := make([]Result, len(rows))
 	order := make([]int, len(rows))
 
@@ -340,7 +343,7 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 // ExplainProfile generates plain-English summary explanations for frames scored against an ideal profile.
 func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 	if prof == nil {
-		prof = ideal.IdmatchProfile()
+		panic("scoring: nil *ideal.Profile")
 	}
 
 	// Sort frames by total score descending (matching rank)

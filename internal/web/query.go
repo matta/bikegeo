@@ -127,8 +127,6 @@ func at(s []string, i int) string {
 func (q CompareQuery) Options() compare.Options {
 	o := compare.Options{
 		Specs:       q.Specs,
-		Saddle:      q.Saddle,
-		Handlebar:   q.Handlebar,
 		All:         q.All,
 		Top:         q.Top,
 		TopPerFrame: q.TopPerFrame,

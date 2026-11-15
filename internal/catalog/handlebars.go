@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"fmt"
 	"strings"
 
 	"bikegeo/internal/model"
@@ -252,4 +253,17 @@ func normalizeHandlebarKey(k string) string {
 	s = strings.ReplaceAll(s, "-", "_")
 	s = strings.ReplaceAll(s, " ", "_")
 	return s
+}
+
+// ResolveHandlebar looks up a handlebar by ID, preset key, or name, returning an error listing available IDs if not found.
+func ResolveHandlebar(idOrName string) (model.HandlebarSpec, error) {
+	if b, ok := GetHandlebar(idOrName); ok {
+		return b, nil
+	}
+	bars := AllHandlebars()
+	ids := make([]string, len(bars))
+	for i, item := range bars {
+		ids[i] = item.ID
+	}
+	return model.HandlebarSpec{}, fmt.Errorf("unrecognized handlebar %q (available: %s)", idOrName, strings.Join(ids, ", "))
 }

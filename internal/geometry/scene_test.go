@@ -133,7 +133,7 @@ func TestBuildScene_CADBaselineAndResiduals(t *testing.T) {
 	_, _, cockpit, seat, fit := baseTestInputs()
 	for _, frameModel := range frames.AllFrames() {
 		for _, sz := range frameModel.GetSizes() {
-			bike, err := geometry.MaterializeBikeGeometry(frameModel, sz)
+			bike, err := geometry.MaterializeBikeGeometry(frameModel, sz, catalog.ExpandStemSetsFrom(catalog.CommonStemCatalog, frameModel.Stems))
 			if err != nil {
 				t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frameModel.ID, sz, err)
 			}
@@ -181,7 +181,7 @@ func TestBuildScene_LevelsBothAxlesOnRakeAndCupChanges(t *testing.T) {
 	_, _, cockpit, seat, fit := baseTestInputs()
 	for _, frameModel := range frames.AllFrames() {
 		for _, sz := range frameModel.GetSizes() {
-			bike, err := geometry.MaterializeBikeGeometry(frameModel, sz)
+			bike, err := geometry.MaterializeBikeGeometry(frameModel, sz, catalog.ExpandStemSetsFrom(catalog.CommonStemCatalog, frameModel.Stems))
 			if err != nil {
 				t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frameModel.ID, sz, err)
 			}

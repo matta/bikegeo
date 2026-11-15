@@ -12,6 +12,7 @@ import (
 	"bikegeo/internal/canonicalizer"
 	"bikegeo/internal/catalog"
 	"bikegeo/internal/model"
+	"bikegeo/internal/validator"
 )
 
 // ResolveFrameSize matches size case-insensitively against frame's declared sizes,
@@ -106,6 +107,7 @@ func ResolveFrameByToken(frames []model.FrameModel, token string) (*model.FrameM
 // If the fork modifier is "@all", it expands across all plausible forks and sags.
 func ParseComparisonSpecs(
 	frames []model.FrameModel,
+	forks []model.ForkCatalogEntry,
 	spec string,
 ) ([]model.ComparisonSetup, error) {
 	parts := strings.Split(spec, "@")
@@ -127,7 +129,7 @@ func ParseComparisonSpecs(
 		}
 
 		for _, f := range frames {
-			setups, err := parseFrameSetups(f, explicitSize, mods)
+			setups, err := parseFrameSetups(f, forks, explicitSize, mods)
 			if err != nil {
 				// Frame did not support the requested size or fork modifier; skip gracefully
 				continue
@@ -147,11 +149,12 @@ func ParseComparisonSpecs(
 	if explicitSize == "" {
 		explicitSize = implicitSize
 	}
-	return parseFrameSetups(*frame, explicitSize, parts[1:])
+	return parseFrameSetups(*frame, forks, explicitSize, parts[1:])
 }
 
 func parseFrameSetups(
 	frame model.FrameModel,
+	forks []model.ForkCatalogEntry,
 	explicitSize string,
 	rawMods []string,
 ) ([]model.ComparisonSetup, error) {
@@ -251,7 +254,7 @@ func parseFrameSetups(
 		}
 
 		// 7. Fork preset ID or name in catalog
-		if _, ok := canonicalizer.GetCatalogFork(mod); ok {
+		if _, ok := catalog.FindForkFrom(forks, mod); ok {
 			forkToken = mod
 			continue
 		}
@@ -290,13 +293,13 @@ func parseFrameSetups(
 	// Determine fork setups
 	var forkSetups []model.ComparisonSetup
 	if allForks {
-		expForks, err := canonicalizer.ExpandPlausibleForkSetups(frame, sagOverride)
+		expForks, err := canonicalizer.ExpandPlausibleForkSetups(frame, sagOverride, forks)
 		if err != nil {
 			return nil, err
 		}
 		forkSetups = expForks
 	} else {
-		resolved, err := canonicalizer.ResolveForkToken(forkToken, sagOverride, frame)
+		resolved, err := canonicalizer.ResolveForkToken(forkToken, sagOverride, frame, forks)
 		if err != nil {
 			return nil, err
 		}
@@ -332,9 +335,10 @@ func parseFrameSetups(
 // If the token resolves to multiple sizes (e.g. ":all"), the first setup is returned.
 func ParseComparisonSpec(
 	frames []model.FrameModel,
+	forks []model.ForkCatalogEntry,
 	spec string,
 ) (model.ComparisonSetup, error) {
-	setups, err := ParseComparisonSpecs(frames, spec)
+	setups, err := ParseComparisonSpecs(frames, forks, spec)
 	if err != nil {
 		return model.ComparisonSetup{}, err
 	}
@@ -355,6 +359,7 @@ func isLikelySizeToken(low string) bool {
 func ResolveAllColumns(
 	frames []model.FrameModel,
 	state model.SavedComparisonState,
+	cat validator.Catalog,
 ) ([]model.CanonicalComparisonRow, []model.ComparisonSetup, error) {
 	var rows []model.CanonicalComparisonRow
 	var normalized []model.ComparisonSetup
@@ -364,7 +369,7 @@ func ResolveAllColumns(
 		if err != nil {
 			return nil, nil, err
 		}
-		row, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, col, state.RiderProfile, state.Saddle)
+		row, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, col, state.RiderProfile, state.Saddle, cat)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -375,12 +380,12 @@ func ResolveAllColumns(
 	return rows, normalized, nil
 }
 
-// DefaultComparisonState returns the compiled baseline comparison configuration.
-func DefaultComparisonState() model.SavedComparisonState {
-	defSaddle := catalog.DefaultSaddle()
-	defBar := catalog.DefaultHandlebar()
+// DefaultComparisonState returns the compiled baseline comparison configuration
+// using the caller-provided default saddle, handlebar, and rider profile.
+func DefaultComparisonState(defSaddle model.SaddleSpec, defBar model.HandlebarSpec, rider model.RiderProfile) model.SavedComparisonState {
+	rider.Handlebar = defBar
 	return model.SavedComparisonState{
-		RiderProfile: catalog.DefaultRiderProfile(),
+		RiderProfile: rider,
 		Transpose:    true,
 		RefIndex:     1,
 		IdealProfile: "idmatch",

@@ -51,7 +51,7 @@ type FitResult struct {
 
 // AnalyzeFit computes the minimax best-fit structural A2C, implied spacer, implied static fork A2C,
 // per-size residuals, rounding-budget usage, and the allowance each check needs beyond rounding.
-func AnalyzeFit(frame model.FrameModel, configID string) (*FitResult, error) {
+func AnalyzeFit(frame model.FrameModel, configID string, cat validator.Catalog) (*FitResult, error) {
 	residuals, err := validator.SizeResiduals(frame)
 	if err != nil {
 		return nil, err
@@ -140,7 +140,7 @@ func AnalyzeFit(frame model.FrameModel, configID string) (*FitResult, error) {
 	impliedSpacer := geometry.Round(bestFit-effectiveForkA2c, 2)
 	impliedStaticForkA2c := geometry.Round(bestFit-declaredSpacer+sagComp, 2)
 
-	frameReport := validator.ValidateFrame(frame)
+	frameReport := validator.ValidateFrame(frame, cat)
 
 	return &FitResult{
 		Frame:                 frame,
@@ -181,7 +181,7 @@ func CloneFrame(frame model.FrameModel) model.FrameModel {
 // Supports size prefixes (e.g. "XL:stack=655" or "stack=655" with defaultSize),
 // fork fields ("fork.a2c=472", "fork.rake=52", "fork.travel=120", "sag=20"),
 // hardware fields ("spacer=11", "headset_cup_type=EC44"), and slop ("slop.a2c=1.5").
-func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assignment string) error {
+func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assignment string, cat validator.Catalog) error {
 	parts := strings.SplitN(assignment, "=", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid assignment %q (expected field=value)", assignment)
@@ -270,7 +270,7 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 				return nil
 			}
 		}
-		if entry, ok := catalog.GetCatalogFork(val); ok && len(entry.Options) > 0 {
+		if entry, ok := catalog.FindForkFrom(cat.Forks, val); ok && len(entry.Options) > 0 {
 			newRef := model.ForkRef{
 				Fork:     entry.ID,
 				TravelMm: entry.TravelMm,
@@ -413,9 +413,9 @@ func ApplyAssignment(frame *model.FrameModel, targetConfigID, defaultSize, assig
 			if part == "" {
 				continue
 			}
-			if _, found := catalog.GetCatalogStem(part); !found {
+			if _, found := catalog.FindStemFrom(cat.Stems, part); !found {
 				var available []string
-				for _, entry := range catalog.CommonStemCatalog {
+				for _, entry := range cat.Stems {
 					available = append(available, entry.ID)
 				}
 				return fmt.Errorf("unknown stem set %q in stems (available: %s)", part, strings.Join(available, ", "))
@@ -576,7 +576,7 @@ const MaxTryCombinations = 200
 // RunSweeps executes a combinatorial sweep across all provided --try specifications.
 // Combinations are capped at MaxTryCombinations (200).
 // Results are returned sorted with valid results first, then lowest max |ΔA2C|, then lowest |ΔWB| and |ΔFC|.
-func RunSweeps(frame model.FrameModel, configID, defaultSize string, tryFlags []string) ([]ComboResult, error) {
+func RunSweeps(frame model.FrameModel, configID, defaultSize string, tryFlags []string, cat validator.Catalog) ([]ComboResult, error) {
 	if len(tryFlags) == 0 {
 		return nil, nil
 	}
@@ -620,13 +620,13 @@ func RunSweeps(frame model.FrameModel, configID, defaultSize string, tryFlags []
 		clone := CloneFrame(frame)
 		var descParts []string
 		for _, a := range assigns {
-			if err := ApplyAssignment(&clone, configID, defaultSize, a); err != nil {
+			if err := ApplyAssignment(&clone, configID, defaultSize, a, cat); err != nil {
 				return nil, fmt.Errorf("failed to apply %q: %w", a, err)
 			}
 			descParts = append(descParts, a)
 		}
 
-		fitRes, err := AnalyzeFit(clone, configID)
+		fitRes, err := AnalyzeFit(clone, configID, cat)
 		if err != nil {
 			return nil, err
 		}
@@ -669,8 +669,8 @@ func RunSweeps(frame model.FrameModel, configID, defaultSize string, tryFlags []
 
 // SolveFit automatically explores candidate physical explanations for CAD geometry
 // (plausible fork travels, standard sag points, static A2C values, rakes including 44, 51, 55mm, and lower spacers).
-func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResult, error) {
-	baseFit, err := AnalyzeFit(frame, configID)
+func SolveFit(frame model.FrameModel, configID, defaultSize string, cat validator.Catalog) ([]ComboResult, error) {
+	baseFit, err := AnalyzeFit(frame, configID, cat)
 	if err != nil {
 		return nil, err
 	}
@@ -749,7 +749,7 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 				for _, a := range []float64{440, 468, 470, 472, 480, 483, 485, 490, 492, 495, 500, 510} {
 					staticA2cs = append(staticA2cs, a)
 				}
-				for _, f := range catalog.CommonForkCatalog {
+				for _, f := range cat.Forks {
 					if f.TravelMm == 0 {
 						for _, opt := range f.Options {
 							staticA2cs = append(staticA2cs, opt.A2cMm)
@@ -758,7 +758,7 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 				}
 			} else {
 				staticA2cs = []float64{travel + 406, travel + 410, travel + 411, travel + 412, travel + 414, travel + 420}
-				for _, f := range catalog.CommonForkCatalog {
+				for _, f := range cat.Forks {
 					if math.Abs(f.TravelMm-travel) < 0.1 {
 						for _, opt := range f.Options {
 							staticA2cs = append(staticA2cs, opt.A2cMm)
@@ -808,10 +808,10 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 
 		clone := CloneFrame(frame)
 		for _, a := range assigns {
-			_ = ApplyAssignment(&clone, configID, defaultSize, a)
+			_ = ApplyAssignment(&clone, configID, defaultSize, a, cat)
 		}
 
-		fitRes, err := AnalyzeFit(clone, configID)
+		fitRes, err := AnalyzeFit(clone, configID, cat)
 		if err != nil {
 			return
 		}
@@ -839,7 +839,7 @@ func SolveFit(frame model.FrameModel, configID, defaultSize string) ([]ComboResu
 				fmt.Sprintf("spacer=%s", formatFitNum(fc.spacer)),
 			}
 
-			suggs := catalog.FindForkSuggestions(fc.effA2c, rake)
+			suggs := catalog.FindForkSuggestionsFrom(cat.Forks, fc.effA2c, rake)
 			if len(suggs) > 0 {
 				for _, s := range suggs {
 					assigns := append(append([]string(nil), baseAssigns...), fmt.Sprintf("cad_fork.fork=%s", s.ForkID))

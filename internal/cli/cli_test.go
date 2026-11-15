@@ -385,14 +385,15 @@ func TestCompare_TumbleweedSunlinerFixedForkConstraints(t *testing.T) {
 
 		badA2C := sunliner.Clone()
 		badA2C.Forks[0].A2cMm = 485.0
-		res := validator.ValidateFrame(badA2C)
+		cat := validator.Catalog{Forks: catalog.CommonForkCatalog, Stems: catalog.CommonStemCatalog}
+		res := validator.ValidateFrame(badA2C, cat)
 		if res.IsValid {
 			t.Errorf("expected validation failure when Sunliner fork A2C is modified to 485mm")
 		}
 
 		badRake := sunliner.Clone()
 		badRake.Forks[0].RakeMm = 51.0
-		resRake := validator.ValidateFrame(badRake)
+		resRake := validator.ValidateFrame(badRake, cat)
 		if resRake.IsValid {
 			t.Errorf("expected validation failure when Sunliner fork rake is modified to 51mm")
 		}

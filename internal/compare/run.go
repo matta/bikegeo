@@ -4,25 +4,30 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
-	"bikegeo/internal/catalog"
-	"bikegeo/internal/frames"
 	"bikegeo/internal/ideal"
 	"bikegeo/internal/model"
+	"bikegeo/internal/validator"
 )
 
 // Options is the transport-neutral description of a comparison request. The
 // CLI fills it from flags and positional args; the web layer from a URL query.
 type Options struct {
+	Frames   []model.FrameModel
+	Baseline model.SavedComparisonState
+	Profile  *ideal.Profile
+	Catalog  validator.Catalog
+
 	// Specs are positional specs: bare replaces the baseline, "+spec" appends,
 	// "-spec" / "-N" removes.
 	Specs []string
 
-	Saddle     string          // saddle catalog ID; "" keeps the default
-	Handlebar  string          // handlebar catalog ID; "" keeps the default
-	Transpose  model.Opt[bool] // unset means automatic
+	Saddle     model.Opt[model.SaddleSpec]    // unset keeps Baseline.Saddle
+	Handlebar  model.Opt[model.HandlebarSpec] // unset keeps Baseline.Handlebar
+	Transpose  model.Opt[bool]                // unset means automatic
 	All        bool
 	AllConfigs bool
 
@@ -37,14 +42,18 @@ type Result struct {
 	Profile *ideal.Profile
 }
 
-// Run resolves opts against the compiled default baseline.
+// Run resolves opts against opts.Frames, opts.Baseline, and opts.Profile.
 func Run(opts Options) (*Result, error) {
-	allFrames := frames.AllFrames()
+	allFrames := opts.Frames
 	if len(allFrames) == 0 {
 		return nil, errors.New("no bike frames found")
 	}
+	if opts.Profile == nil {
+		return nil, errors.New("ideal profile is required")
+	}
 
-	state := DefaultComparisonState()
+	state := opts.Baseline
+	state.Columns = slices.Clone(opts.Baseline.Columns)
 	if transpose, ok := opts.Transpose.Get(); ok {
 		state.Transpose = transpose
 	}
@@ -118,7 +127,7 @@ func Run(opts Options) (*Result, error) {
 		if isIncremental {
 			for _, arg := range posArgs {
 				if after, ok := strings.CutPrefix(arg, "+"); ok {
-					cols, err := ParseComparisonSpecs(allFrames, after)
+					cols, err := ParseComparisonSpecs(allFrames, opts.Catalog.Forks, after)
 					if err != nil {
 						return nil, err
 					}
@@ -132,7 +141,7 @@ func Run(opts Options) (*Result, error) {
 						}
 						state.Columns = append(state.Columns[:colIdx], state.Columns[colIdx+1:]...)
 					} else if strings.Contains(rmToken, "@") {
-						targetCol, err := ParseComparisonSpec(allFrames, rmToken)
+						targetCol, err := ParseComparisonSpec(allFrames, opts.Catalog.Forks, rmToken)
 						if err != nil {
 							return nil, err
 						}
@@ -171,7 +180,7 @@ func Run(opts Options) (*Result, error) {
 
 			for _, specStr := range posArgs {
 				specStr = strings.TrimPrefix(specStr, "+")
-				cols, err := ParseComparisonSpecs(allFrames, specStr)
+				cols, err := ParseComparisonSpecs(allFrames, opts.Catalog.Forks, specStr)
 				if err != nil {
 					return nil, err
 				}
@@ -209,54 +218,32 @@ func Run(opts Options) (*Result, error) {
 		state.Transpose = true
 	}
 
-	prof, err := ideal.GetProfile("idmatch")
-	if err != nil {
-		return nil, err
-	}
+	prof := opts.Profile
 	state.IdealProfile = prof.Name
 
 	if sh, ok := prof.SaddleHeightMm.Get(); ok && sh > 0 {
 		state.SaddleHeightMm = sh
 	}
 
-	if opts.Saddle != "" {
-		s, ok := catalog.GetSaddle(opts.Saddle)
-		if !ok {
-			saddles := catalog.AllSaddles()
-			ids := make([]string, len(saddles))
-			for i, item := range saddles {
-				ids[i] = item.ID
-			}
-			return nil, fmt.Errorf("unrecognized saddle %q (available: %s)", opts.Saddle, strings.Join(ids, ", "))
+	if s, ok := opts.Saddle.Get(); ok {
+		if s.ID == "" {
+			return nil, errors.New("saddle override must have a non-empty ID")
 		}
 		state.SaddleID = s.ID
 		state.Saddle = s
-	} else if state.Saddle.ID == "" {
-		state.Saddle = catalog.DefaultSaddle()
-		state.SaddleID = state.Saddle.ID
 	}
 
-	if opts.Handlebar != "" {
-		b, ok := catalog.GetHandlebar(opts.Handlebar)
-		if !ok {
-			bars := catalog.AllHandlebars()
-			ids := make([]string, len(bars))
-			for i, item := range bars {
-				ids[i] = item.ID
-			}
-			return nil, fmt.Errorf("unrecognized handlebar %q (available: %s)", opts.Handlebar, strings.Join(ids, ", "))
+	if b, ok := opts.Handlebar.Get(); ok {
+		if b.ID == "" {
+			return nil, errors.New("handlebar override must have a non-empty ID")
 		}
 		state.HandlebarID = b.ID
 		state.Handlebar = b
 		state.RiderProfile.Handlebar = b
-	} else if state.Handlebar.ID == "" {
-		state.Handlebar = catalog.DefaultHandlebar()
-		state.HandlebarID = state.Handlebar.ID
-		state.RiderProfile.Handlebar = state.Handlebar
 	}
 
 	// Resolve and validate all columns against frame constraints
-	rows, normalizedCols, err := ResolveAllColumns(allFrames, state)
+	rows, normalizedCols, err := ResolveAllColumns(allFrames, state, opts.Catalog)
 	if err != nil {
 		return nil, err
 	}

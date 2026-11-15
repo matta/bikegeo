@@ -6,10 +6,12 @@ import (
 	"io"
 	"strings"
 
+	"bikegeo/internal/catalog"
 	"bikegeo/internal/compare"
 	"bikegeo/internal/fit"
 	"bikegeo/internal/frames"
 	"bikegeo/internal/report"
+	"bikegeo/internal/validator"
 )
 
 type stringSliceFlag []string
@@ -68,16 +70,21 @@ func (a *App) runFit(args []string) int {
 
 	const configID = "stock"
 
+	cat := validator.Catalog{
+		Forks: catalog.CommonForkCatalog,
+		Stems: catalog.CommonStemCatalog,
+	}
+
 	var doc report.Document
 	if len(tryFlags) > 0 {
-		combos, err := fit.RunSweeps(frame, configID, targetSize, tryFlags)
+		combos, err := fit.RunSweeps(frame, configID, targetSize, tryFlags, cat)
 		if err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1
 		}
-		doc = fit.BuildSweepDocument(frame, combos, detailFlag)
+		doc = fit.BuildSweepDocument(frame, combos, detailFlag, cat)
 	} else {
-		doc, err = fit.BuildAnalysisDocument(frame, configID, targetSize)
+		doc, err = fit.BuildAnalysisDocument(frame, configID, targetSize, cat)
 		if err != nil {
 			fmt.Fprintf(a.Err, "Error: %v\n", err)
 			return 1

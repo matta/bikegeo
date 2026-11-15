@@ -11,9 +11,11 @@ import (
 	"bikegeo/internal/catalog"
 	"bikegeo/internal/compare"
 	"bikegeo/internal/frames"
+	"bikegeo/internal/ideal"
 	"bikegeo/internal/model"
 	"bikegeo/internal/report"
 	"bikegeo/internal/scoring"
+	"bikegeo/internal/validator"
 )
 
 // Option is one entry of a <select>.
@@ -94,7 +96,7 @@ func sagOptions(current, blankLabel string) []Option {
 // (the compiled default baseline carries hand-entered values that can differ
 // from the frame's catalog fork by a millimetre), it falls back to the exact
 // "a2c=<static>/<rake>" form so the URL reproduces what is on screen.
-func forkToken(f model.FrameModel, r model.CanonicalComparisonRow) string {
+func forkToken(f model.FrameModel, r model.CanonicalComparisonRow, forks []model.ForkCatalogEntry) string {
 	tok := "rigid"
 	if !r.Setup.IsRigid {
 		tok = canonicalizer.FormatForkType(r)
@@ -103,7 +105,7 @@ func forkToken(f model.FrameModel, r model.CanonicalComparisonRow) string {
 	if r.Setup.SagPct > 0 {
 		sag = model.Some(r.Setup.SagPct)
 	}
-	rf, err := canonicalizer.ResolveForkToken(tok, sag, f)
+	rf, err := canonicalizer.ResolveForkToken(tok, sag, f, forks)
 	exact := err == nil && math.Abs(rf.TargetRake-r.Setup.RakeMm) < 0.5 &&
 		(math.Abs(rf.TargetA2c-r.Setup.A2cMm) < 0.5 || math.Abs(rf.StaticA2c-r.Setup.A2cMm) < 0.5)
 	if !exact && tok != "rigid" {
@@ -113,8 +115,8 @@ func forkToken(f model.FrameModel, r model.CanonicalComparisonRow) string {
 }
 
 // forkChoices lists the fork tokens a frame supports.
-func forkChoices(f model.FrameModel) []string {
-	setups, err := canonicalizer.ExpandPlausibleForkSetups(f, model.Opt[float64]{})
+func forkChoices(f model.FrameModel, forks []model.ForkCatalogEntry) []string {
+	setups, err := canonicalizer.ExpandPlausibleForkSetups(f, model.Opt[float64]{}, forks)
 	if err != nil {
 		return nil
 	}
@@ -164,7 +166,40 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 	}
 	d.Scores = []Option{{"1", "Score and rank", !q.NoScore}, {"0", "Geometry only", q.NoScore}}
 
-	res, err := compare.Run(q.Options())
+	defSaddle := catalog.DefaultSaddle()
+	defBar := catalog.DefaultHandlebar()
+	var saddle model.Opt[model.SaddleSpec]
+	var resolveErr error
+	if q.Saddle != "" {
+		s, err := catalog.ResolveSaddle(q.Saddle)
+		if err != nil {
+			resolveErr = err
+		} else {
+			saddle = model.Some(s)
+		}
+	}
+	var bar model.Opt[model.HandlebarSpec]
+	if resolveErr == nil && q.Handlebar != "" {
+		b, err := catalog.ResolveHandlebar(q.Handlebar)
+		if err != nil {
+			resolveErr = err
+		} else {
+			bar = model.Some(b)
+		}
+	}
+
+	var res *compare.Result
+	err := resolveErr
+	if err == nil {
+		opts := q.Options()
+		opts.Frames = allFrames
+		opts.Baseline = compare.DefaultComparisonState(defSaddle, defBar, catalog.DefaultRiderProfile())
+		opts.Profile = ideal.IdmatchProfile()
+		opts.Catalog = validator.Catalog{Forks: catalog.CommonForkCatalog, Stems: catalog.CommonStemCatalog}
+		opts.Saddle = saddle
+		opts.Handlebar = bar
+		res, err = compare.Run(opts)
+	}
 	if err != nil {
 		d.Banner = append(d.Banner, err.Error())
 		d.FieldErr["col"] = err.Error()
@@ -183,7 +218,7 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 	type formCol struct{ frame, size, fork, sag string }
 	cols := make([]formCol, len(res.Rows))
 	for i, row := range res.Rows {
-		fc := formCol{frame: row.Setup.FrameID, size: row.Setup.Size, fork: forkToken(frameByID[row.Setup.FrameID], row)}
+		fc := formCol{frame: row.Setup.FrameID, size: row.Setup.Size, fork: forkToken(frameByID[row.Setup.FrameID], row, catalog.CommonForkCatalog)}
 		if row.Setup.SagPct > 0 {
 			fc.sag = strconv.FormatFloat(row.Setup.SagPct, 'f', -1, 64)
 		}
@@ -222,7 +257,7 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 			Frame:      fc.frame,
 			FrameName:  f.Manufacturer + " " + f.Model,
 			Sizes:      options(f.GetSizes(), fc.size, ""),
-			Forks:      options(forkChoices(f), fc.fork, ""),
+			Forks:      options(forkChoices(f, catalog.CommonForkCatalog), fc.fork, ""),
 			Sags:       sagOptions(fc.sag, "—"),
 			BikeHref:   "/bike?" + bikeVals.Encode(),
 			RemoveHref: "/?" + v.Encode() + "#columns",

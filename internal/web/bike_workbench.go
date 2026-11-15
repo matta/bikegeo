@@ -15,6 +15,7 @@ import (
 	"bikegeo/internal/ideal"
 	"bikegeo/internal/model"
 	"bikegeo/internal/scoring"
+	"bikegeo/internal/validator"
 )
 
 func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []string) (bikeData, int) {
@@ -45,7 +46,7 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 			d.Frames = append(d.Frames, Option{Value: f.ID, Label: f.Manufacturer + " " + f.Model, Selected: f.ID == p.frameModel.ID})
 		}
 		d.Sizes = options(p.frameModel.GetSizes(), p.size, "")
-		d.Forks = options(forkChoices(p.frameModel), p.fork, "")
+		d.Forks = options(forkChoices(p.frameModel, catalog.CommonForkCatalog), p.fork, "")
 		d.Sags = sagOptions(p.sag, "—")
 	} else {
 		for _, f := range allFrames {
@@ -85,7 +86,7 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 	if p.sag != "" {
 		spec += "@" + p.sag + "%"
 	}
-	setup, err := compare.ParseComparisonSpec(allFrames, spec)
+	setup, err := compare.ParseComparisonSpec(allFrames, catalog.CommonForkCatalog, spec)
 	if err != nil {
 		d.Banner = append(d.Banner, err.Error())
 		return d, http.StatusBadRequest
@@ -97,7 +98,10 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 	riderProf.TargetRef = p.targetRef
 	riderProf.ReferenceBar = model.Some(catalog.DefaultHandlebar())
 
-	row, err := canonicalizer.ResolveFrameForkSetupWithSaddle(p.frameModel, setup, riderProf, p.saddle)
+	row, err := canonicalizer.ResolveFrameForkSetupWithSaddle(p.frameModel, setup, riderProf, p.saddle, validator.Catalog{
+		Forks: catalog.CommonForkCatalog,
+		Stems: catalog.CommonStemCatalog,
+	})
 	if err != nil {
 		d.Banner = append(d.Banner, err.Error())
 		return d, http.StatusBadRequest
@@ -109,13 +113,13 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 	canonicalizer.ApplyIdealCockpitTargets(scanned, prof)
 	row = scanned[0]
 
-	d.Fork = forkToken(p.frameModel, row)
+	d.Fork = forkToken(p.frameModel, row, catalog.CommonForkCatalog)
 	if row.Setup.SagPct > 0 {
 		d.Sag = strconv.FormatFloat(row.Setup.SagPct, 'f', -1, 64)
 	} else {
 		d.Sag = ""
 	}
-	d.Forks = options(forkChoices(p.frameModel), d.Fork, "")
+	d.Forks = options(forkChoices(p.frameModel, catalog.CommonForkCatalog), d.Fork, "")
 	d.Sags = sagOptions(d.Sag, "—")
 
 	// Resolve effective stem/spacer defaults from ApplyIdealCockpitTargets if not overridden in query.

@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"fmt"
 	"strings"
 
 	"bikegeo/internal/model"
@@ -72,4 +73,17 @@ func GetSaddle(idOrName string) (model.SaddleSpec, bool) {
 	}
 
 	return model.SaddleSpec{}, false
+}
+
+// ResolveSaddle looks up a saddle by ID or name, returning an error listing available IDs if not found.
+func ResolveSaddle(idOrName string) (model.SaddleSpec, error) {
+	if s, ok := GetSaddle(idOrName); ok {
+		return s, nil
+	}
+	saddles := AllSaddles()
+	ids := make([]string, len(saddles))
+	for i, item := range saddles {
+		ids[i] = item.ID
+	}
+	return model.SaddleSpec{}, fmt.Errorf("unrecognized saddle %q (available: %s)", idOrName, strings.Join(ids, ", "))
 }
