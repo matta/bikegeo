@@ -247,9 +247,10 @@ func TestSaddleSpec_CalculatePoint_And_PelvicDerivation(t *testing.T) {
 		t.Errorf("Expected SLR Boost target BRP 209.0mm, got %.1fmm", slr.BrpSetbackFromSitBones(pelvicSetback))
 	}
 
-	// 3. Vector math on 72.0° STA with Redshift sagged (11mm setback)
+	// 3. Vector math on 72.0° STA with an explicit 11mm setback post (Redshift ShockStop sagged); the baseline post is now zero-setback.
+	const sag11PostSetbackMm = 11.0
 	seatHeight := 746.0
-	pt72 := sqlab.CalculatePoint(72.0, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
+	pt72 := sqlab.CalculatePoint(72.0, seatHeight, sag11PostSetbackMm, 0.0)
 	if math.Abs(pt72.BrpSetbackMm-219.1) > 0.3 {
 		t.Errorf("Expected 72.0° STA dead-center BRP ~219.1mm, got %.1fmm", pt72.BrpSetbackMm)
 	}
@@ -258,11 +259,11 @@ func TestSaddleSpec_CalculatePoint_And_PelvicDerivation(t *testing.T) {
 	}
 
 	// 4. Steep 75.0° STA (Binary Kinetik) runs out of rearward rail travel
-	pt75DeadCenter := sqlab.CalculatePoint(75.0, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
+	pt75DeadCenter := sqlab.CalculatePoint(75.0, seatHeight, sag11PostSetbackMm, 0.0)
 	if math.Abs(pt75DeadCenter.BrpSetbackMm-181.5) > 0.5 {
 		t.Errorf("Expected 75.0° STA dead-center BRP ~181.5mm, got %.1fmm", pt75DeadCenter.BrpSetbackMm)
 	}
-	pt75MaxRail := sqlab.CalculatePoint(75.0, seatHeight, model.DefaultSeatpostSetbackMm, 15.0)
+	pt75MaxRail := sqlab.CalculatePoint(75.0, seatHeight, sag11PostSetbackMm, 15.0)
 	if pt75MaxRail.BrpSetbackMm > 197.0 {
 		t.Errorf("Expected 75.0° STA max rail BRP <= 197mm (cannot reach 219mm), got %.1fmm", pt75MaxRail.BrpSetbackMm)
 	}

@@ -551,15 +551,9 @@ func (s SaddleSpec) SitSurfaceHeightFromBrpHeight(brpSaddleHeightMm, brpSetbackM
 	return geom2d.Point2{X: brp.X, Y: sitBone.Y}.DistanceToOrigin()
 }
 
-// DefaultSeatpostStaticSetbackMm is the perpendicular rearward offset (in mm) of the static Redshift ShockStop post.
-const DefaultSeatpostStaticSetbackMm = 7.0
-
-// DefaultSeatpostSagMm is the typical dynamic sag setback (in mm) for a suspension seatpost under rider weight.
-const DefaultSeatpostSagMm = 4.0
-
-// DefaultSeatpostSetbackMm is the active perpendicular rearward offset (in mm) of the seatpost clamp
-// from the seat tube centerline, hardcoded to a Redshift ShockStop suspension seatpost sagged under rider weight (7 + 4 = 11mm).
-const DefaultSeatpostSetbackMm = DefaultSeatpostStaticSetbackMm + DefaultSeatpostSagMm
+// DefaultSeatpostSetbackMm is the perpendicular rearward offset (in mm) of the seatpost clamp from the
+// seat tube centerline. The baseline is a zero-setback dropper post, so the saddle rails clamp on the seat tube axis.
+const DefaultSeatpostSetbackMm = 0.0
 
 // DefaultSeatpostClampLengthMm is the standard seatpost clamp length (in mm).
 const DefaultSeatpostClampLengthMm = 30.0
@@ -572,7 +566,7 @@ const DropBestClampLengthMm = 45.0
 const DefaultSaddleBrpOffsetMm = 0.0
 
 // DefaultBrpOffsetMm is the total perpendicular offset (in mm) from the seat tube centerline
-// to the BRP when the saddle is clamped at dead center (0mm) on the rails (7.0 + 0.0 = 7.0mm).
+// to the BRP when the saddle is clamped at dead center (0mm) on the rails (0.0 + 0.0 = 0.0mm).
 const DefaultBrpOffsetMm = DefaultSeatpostSetbackMm + DefaultSaddleBrpOffsetMm
 
 // SaddleRailIdealMarginMm is the fore-aft rail offset window (±mm from dead center of rails) considered ideal.

@@ -584,7 +584,7 @@ func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
 		t.Errorf("Expected 0 rail offset without target, got %.1f", bestNoTarget.RailOffsetMm)
 	}
 
-	// 2. Target 219mm on STA=72.0° with Redshift sagged 11mm: dead-center setback is 219.1mm
+	// 2. Target 219mm on STA=72.0° with the zero-setback dropper: dead-center setback is 208.5mm, so the rails must move back ~11mm
 	tMin := 218.5
 	tMax := 219.5
 	bestTarget, ok := geometry.SelectBestBRP(points, model.Some(tMin), model.Some(tMax))
@@ -594,8 +594,8 @@ func TestMapPossibleBRPs_And_SelectBestBRP(t *testing.T) {
 	if math.Abs(bestTarget.BrpSetbackMm-219.0) > 0.5 {
 		t.Errorf("Expected BrpSetbackMm ~ 219.0, got %.1f", bestTarget.BrpSetbackMm)
 	}
-	if math.Abs(bestTarget.RailOffsetMm) > 1.0 {
-		t.Errorf("Expected RailOffsetMm near 0mm on 72.0° STA, got %.1f", bestTarget.RailOffsetMm)
+	if math.Abs(bestTarget.RailOffsetMm-11.0) > 1.0 {
+		t.Errorf("Expected RailOffsetMm near +11mm on 72.0° STA, got %.1f", bestTarget.RailOffsetMm)
 	}
 
 	// 3. Target 219mm on steep STA=75.0° (Binary Kinetik): dead center is ~181.5mm, requires +37.5mm (clamps to +15mm)

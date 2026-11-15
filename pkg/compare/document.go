@@ -188,7 +188,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 				Title: "Biomechanical Pelvic Fit & Seatpost Baseline",
 				Lines: []string{
 					fmt.Sprintf("Primary Pelvic Invariant: Sit Bone Setback is %.0fmm behind BB (derived from idmatch BRP 219mm + SQlab delta 73mm).", targetSitBones),
-					"Seatpost Hardware Baseline: Hardcoded to Redshift ShockStop suspension post with 11mm sagged setback (7mm static + 4mm sag).",
+					"Seatpost Hardware Baseline: Hardcoded to a zero-setback dropper post (0mm setback). Fork length or a setback post is never used as a fit fix.",
 					fmt.Sprintf("Active Saddle Target: %s has BRP %.0fmm behind BB (Delta BRP-to-SitBones = %.0fmm).", saddle.Name, targetBRP, saddle.DeltaBrpToSitBonesMm()),
 				},
 			})
@@ -236,7 +236,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 	}
 
 	line1 := fmt.Sprintf(
-		"H (saddle height): %s | Saddle: %s | Seatpost: Redshift ShockStop (sagged 11mm) | Headset Top Stack: %.0fmm",
+		"H (saddle height): %s | Saddle: %s | Seatpost: zero-setback dropper (0mm) | Headset Top Stack: %.0fmm",
 		hText, saddleName, model.DefaultHeadsetTopStackMm,
 	)
 	cockpitTargetPart := ""

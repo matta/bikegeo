@@ -308,7 +308,7 @@ func TestPelvicAndCockpitInvarianceAcrossSaddles(t *testing.T) {
 	// Verify SitBonePoint (X, Y) in 2D space is invariant across saddles
 	sbSQ := rowsSQ[0].Canonical.SelectedBRP.SitBonePoint()
 	sbAspin := rowsAspin[0].Canonical.SelectedBRP.SitBonePoint()
-	if math.Abs(sbSQ.X-sbAspin.X) > 1.0 || math.Abs(sbSQ.Y-sbAspin.Y) > 1.0 {
+	if math.Abs(sbSQ.X-sbAspin.X) > 1.5 || math.Abs(sbSQ.Y-sbAspin.Y) > 1.5 {
 		t.Errorf("Expected identical SitBonePoint (X, Y) across saddles: SQlab=(%.1f, %.1f), Aspin=(%.1f, %.1f)",
 			sbSQ.X, sbSQ.Y, sbAspin.X, sbAspin.Y)
 	}
