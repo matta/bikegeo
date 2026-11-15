@@ -525,6 +525,9 @@ func FormatCost(attr ideal.AttributeSpec, meta ideal.AttributeMeta) string {
 	if !attr.IsScored() {
 		return "—"
 	}
+	if attr.LimitPoints > 0 {
+		return fmt.Sprintf("0 to %g linearly from the free range to the hardware limit", attr.LimitPoints)
+	}
 	if attr.ID == ideal.MetricHandlebarClampFit {
 		return fmt.Sprintf("%.0f/R beyond the oval edge", attr.Cost.Above)
 	}

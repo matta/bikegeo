@@ -1252,9 +1252,19 @@ func TestComputationLedger_BikeAndCompare(t *testing.T) {
 	if !strings.Contains(bikeBody, "2×2 Linear Fit Solve") {
 		t.Error("/bike ledger missing 2×2 Linear Fit Solve row")
 	}
+	// The cockpit scan's cheapest stock build is itemised per band, and Panel B
+	// marks exactly that candidate.
+	for _, want := range []string{"Cheapest Stock Build", "lost Oval Fits", "Stem Length", "Stem Angle", "Spacers"} {
+		if !strings.Contains(bikeBody, want) {
+			t.Errorf("/bike ledger missing %q:\n%s", want, bikeBody)
+		}
+	}
+	if n := bikeDoc.Find(`svg.cockpit-zoom-svg circle.cand-best`).Length(); n != 1 {
+		t.Errorf("/bike Panel B cheapest-build markers = %d, want 1", n)
+	}
 
 	// 2. / (compare) renders one 5-stage computation ledger per compared setup in <details class="ledger">,
-	// including Nearest Stock Fit & Score when scoring is enabled.
+	// including the itemised Cheapest Stock Build when scoring is enabled.
 	recCmp, cmpDoc := do(t, twoBikes)
 	mustStatus(t, recCmp, http.StatusOK)
 	ledgers := cmpDoc.Find(`details.ledger table[data-table^="ledger-"]`)
@@ -1267,7 +1277,7 @@ func TestComputationLedger_BikeAndCompare(t *testing.T) {
 			t.Errorf("compare ledger missing stage %q", st)
 		}
 	}
-	if !strings.Contains(cmpBody, "Nearest Stock Fit & Score") {
-		t.Error("compare ledger missing Nearest Stock Fit & Score row")
+	if !strings.Contains(cmpBody, "Cheapest Stock Build") || !strings.Contains(cmpBody, "lost Oval Fits") {
+		t.Errorf("compare ledger missing itemised Cheapest Stock Build row:\n%s", cmpBody)
 	}
 }

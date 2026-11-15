@@ -275,15 +275,30 @@ func TestValidation_StrictRejections(t *testing.T) {
 		t.Errorf("Expected missing edge_score error, got: %v", err)
 	}
 
-	// 5. Missing falloff
+	// 5. A scored band needs only a free range and a cost: no falloff is required.
 	pNoFalloff := &Profile{
 		Name: "test",
 		Attributes: []AttributeSpec{
 			{ID: "hta", Cost: CostEach(1), Ideal: Exact(68)},
 		},
 	}
-	if _, err := NormalizeAndValidate(pNoFalloff); err == nil || !strings.Contains(err.Error(), "must define positive falloff") {
-		t.Errorf("Expected missing falloff error, got: %v", err)
+	if _, err := NormalizeAndValidate(pNoFalloff); err != nil {
+		t.Errorf("Expected a band without falloff to validate, got: %v", err)
+	}
+
+	// 5b. Hardware bands: limit_points only on attributes with hardware limits, never with cost.
+	for _, tc := range []struct {
+		attr AttributeSpec
+		want string
+	}{
+		{AttributeSpec{ID: "hta", LimitPoints: 8, Ideal: Exact(68)}, "has no hardware limit"},
+		{AttributeSpec{ID: "spacers", LimitPoints: 8, Cost: CostEach(1), Ideal: Between(0, 20)}, "not both"},
+		{AttributeSpec{ID: "spacers", LimitPoints: -1, Ideal: Between(0, 20)}, "limit_points must be non-negative"},
+	} {
+		p := &Profile{Name: "test", Attributes: []AttributeSpec{tc.attr}}
+		if _, err := NormalizeAndValidate(p); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%+v: expected error containing %q, got: %v", tc.attr, tc.want, err)
+		}
 	}
 
 	// 6. Non-negative floor
@@ -386,8 +401,10 @@ func TestEvaluate_DirectionalWordsAndBoundaryRounding(t *testing.T) {
 		{"bbdrop", 64, "64 ~ 1 hi"}, // free range is 65–75
 		{"bbdrop", 66, "66 ✓"},
 		{"bbdrop", 77, "77 ~ 2 lo"},
-		{"hta", 67.7, "67.7"},         // DisplayOnly attribute
-		{"rc_wb_ratio", 38.9, "38.9"}, // DisplayOnly attribute
+		{"hta", 67.7, "67.7"}, // DisplayOnly attribute
+		{"rc_wb_ratio", 38.9, "38.9 ✓"},
+		{"rc_wb_ratio", 36.5, "36.5 ✗ 0.5% lo"},
+		{"rc_wb_ratio", 39.6, "39.6 ✗ 0.6% hi"},
 		{"trail", 83, "83 ✗ 15 qck"},
 		{"trail", 101, "101 ✓"},
 		{"trail", 108, "108 ~ 2 slw"},
@@ -437,6 +454,9 @@ func TestIdmatchProfile_BandsAreFreeInsideAndLinearOutside(t *testing.T) {
 	for _, spec := range IdmatchProfile().Attributes {
 		if spec.Ideal == nil || spec.ID == MetricHandlebarClampFit {
 			continue // Oval Fits is priced on R; see TestOvalPointsLost.
+		}
+		if spec.LimitPoints > 0 {
+			continue // Hardware bands need a row's limits; see TestLimitPointsLost_LinearToHardwareLimit.
 		}
 		meta, ok := LookupAttribute(spec.ID)
 		if !ok {
@@ -805,5 +825,73 @@ func TestOvalPointsLost(t *testing.T) {
 		if ev.DistanceToIdeal != tc.r {
 			t.Errorf("R=%.2f: DistanceToIdeal = %v, want R", tc.r, ev.DistanceToIdeal)
 		}
+	}
+}
+
+func TestLimitPointsLost_LinearToHardwareLimit(t *testing.T) {
+	stem := AttributeSpec{ID: MetricStemLength, LimitPoints: 8, Ideal: Between(70, 80)}
+	cases := []struct {
+		val, lo, hi, want float64
+	}{
+		{75, 40, 100, 0},
+		{70, 40, 100, 0},
+		{80, 40, 100, 0},
+		{40, 40, 100, 8},               // mtb catalog limit
+		{55, 40, 100, 4},               // halfway to the limit
+		{100, 40, 100, 8},              // mtb catalog limit
+		{90, 40, 100, 4},               // halfway to the limit
+		{60, 60, 110, 8},               // gravel catalog limit
+		{110, 60, 110, 8},              // gravel catalog limit
+		{30, 40, 100, 8 * 40.0 / 30.0}, // past the limit keeps the same slope
+	}
+	for _, tc := range cases {
+		if got := LimitPointsLost(stem, tc.val, tc.lo, tc.hi); math.Abs(got-tc.want) > 1e-9 {
+			t.Errorf("stem %.0f in [%.0f, %.0f]: lost %.4f, want %.4f", tc.val, tc.lo, tc.hi, got, tc.want)
+		}
+	}
+	// A side whose hardware limit sits inside the free range is never priced.
+	rail := AttributeSpec{ID: MetricRailOffset, LimitPoints: 8, Ideal: Between(-5, 5)}
+	if got := LimitPointsLost(rail, 5, -5, 5); got != 0 {
+		t.Errorf("rail at the edge of a ±5 window lost %v, want 0", got)
+	}
+	if got := LimitPointsLost(rail, 15, -15, 15); got != 8 {
+		t.Errorf("rail at +15 of a ±15 window lost %v, want 8", got)
+	}
+	angle := AttributeSpec{ID: MetricStemAngle, LimitPoints: 1, Ideal: Exact(0)}
+	for _, a := range []float64{-6, 6} {
+		if got := LimitPointsLost(angle, a, -6, 6); got != 1 {
+			t.Errorf("stem angle %v° lost %v, want 1", a, got)
+		}
+	}
+}
+
+func TestHardwareLimits_FromRow(t *testing.T) {
+	row := &model.CanonicalComparisonRow{
+		Bike: model.BikeGeometry{
+			MaxSpacerMm: 40,
+			Stems: []model.StemSpec{
+				{LengthMm: 60, AngleDeg: -6}, {LengthMm: 110, AngleDeg: 6}, {LengthMm: 80, AngleDeg: 0},
+			},
+		},
+		Canonical: model.BikeFitAnalysis{
+			PossibleBRPs: []model.BRPPoint{{RailOffsetMm: -15}, {RailOffsetMm: 0}, {RailOffsetMm: 15}},
+		},
+	}
+	for _, tc := range []struct {
+		id     MetricID
+		lo, hi float64
+	}{
+		{MetricRailOffset, -15, 15},
+		{MetricStemLength, 60, 110},
+		{MetricStemAngle, -6, 6},
+		{MetricSpacers, 0, 40},
+	} {
+		lo, hi, ok := HardwareLimits(tc.id, row)
+		if !ok || lo != tc.lo || hi != tc.hi {
+			t.Errorf("%s: limits (%v, %v, %v), want (%v, %v)", tc.id, lo, hi, ok, tc.lo, tc.hi)
+		}
+	}
+	if _, _, ok := HardwareLimits(MetricStemLength, nil); ok {
+		t.Error("nil row must have no hardware limits")
 	}
 }

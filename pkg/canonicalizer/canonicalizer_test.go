@@ -7,6 +7,7 @@ import (
 	"bikegeo/pkg/canonicalizer"
 	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/frames"
+	"bikegeo/pkg/geometry"
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 )
@@ -357,5 +358,160 @@ func TestAllowedSagPercentages(t *testing.T) {
 	// ResolveForkToken with unallowed 15% sag should error
 	if _, err := canonicalizer.ResolveForkToken("110mm", model.Some(15.0), *frame); err == nil {
 		t.Errorf("expected ResolveForkToken to error for 15%% sag override")
+	}
+}
+
+// scanRow resolves a real setup with the default saddle at the idmatch height.
+func scanRow(t *testing.T, frameID, size string, a2c, rake float64) model.CanonicalComparisonRow {
+	t.Helper()
+	frame, err := frames.GetFrameByID(frameID)
+	if err != nil {
+		t.Fatalf("GetFrameByID(%q): %v", frameID, err)
+	}
+	rider := catalog.DefaultRiderProfile()
+	rider.SaddleHeightMm = 746.0
+	row, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, model.ComparisonSetup{
+		FrameID: frame.ID, Size: size, A2cMm: a2c, RakeMm: rake,
+	}, rider, catalog.DefaultSaddle())
+	if err != nil {
+		t.Fatalf("resolve %s:%s: %v", frameID, size, err)
+	}
+	return row
+}
+
+func specOf(t *testing.T, prof *ideal.Profile, id ideal.MetricID) ideal.AttributeSpec {
+	t.Helper()
+	spec, ok := prof.Spec(id)
+	if !ok {
+		t.Fatalf("profile has no %s", id)
+	}
+	return spec
+}
+
+// The saddle and cockpit scans keep the cheapest stock build: no other rail
+// position, and no other stem length × angle × spacer combination, loses fewer
+// points on the bands that price it.
+func TestApplyIdealCockpitTargets_KeepsCheapestStockBuild(t *testing.T) {
+	prof := ideal.IdmatchProfile()
+	setback := specOf(t, prof, ideal.MetricBrpSetback)
+	rail := specOf(t, prof, ideal.MetricRailOffset)
+	oval := specOf(t, prof, ideal.MetricHandlebarClampFit)
+	stemLen := specOf(t, prof, ideal.MetricStemLength)
+	stemAng := specOf(t, prof, ideal.MetricStemAngle)
+	spacers := specOf(t, prof, ideal.MetricSpacers)
+
+	for _, tc := range []struct {
+		frame, size string
+		a2c, rake   float64
+	}{
+		{"surly-krampus", "XL", 500, 51},
+		{"binary-havok", "L", 499, 44},
+		{"salsa-cutthroat", "56cm", 483, 51}, // gravel stem catalog (60–110mm)
+	} {
+		rows := []model.CanonicalComparisonRow{scanRow(t, tc.frame, tc.size, tc.a2c, tc.rake)}
+		canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+		row := rows[0]
+		can := row.Canonical
+		if can.SelectedBRP == nil || can.CockpitFitResult == nil || can.SelectedHB == nil {
+			t.Fatalf("%s: scan did not select a build", tc.frame)
+		}
+
+		brpLost := func(b model.BRPPoint) float64 {
+			return ideal.RowPointsLost(setback, b.BrpSetbackMm, &row) + ideal.RowPointsLost(rail, b.RailOffsetMm, &row)
+		}
+		chosen := brpLost(*can.SelectedBRP)
+		for _, b := range can.PossibleBRPs {
+			if brpLost(b) < chosen-1e-9 {
+				t.Errorf("%s: rail %+.0fmm loses %.3f, cheaper than the chosen rail %+.0fmm (%.3f)",
+					tc.frame, b.RailOffsetMm, brpLost(b), can.SelectedBRP.RailOffsetMm, chosen)
+			}
+		}
+
+		if n := len(can.PossibleHBs); n != len(row.Bike.Stems)*len(row.Bike.GetSpacersMm()) {
+			t.Fatalf("%s: %d cockpit candidates, want every stem × spacer", tc.frame, n)
+		}
+		cfr := can.CockpitFitResult
+		cockpitLost := func(pt model.HBPoint) float64 {
+			evalPt := geometry.EvaluatedPointForHB(pt, cfr.TargetRef, cfr.ReferenceBar)
+			r, _ := geometry.EvaluateFitOval(cfr.TargetOval, evalPt.X, evalPt.Y)
+			return ideal.OvalPointsLost(&model.CockpitFitResult{BestR: r}, oval.Cost) +
+				ideal.RowPointsLost(stemLen, pt.Stem.LengthMm, &row) +
+				ideal.RowPointsLost(stemAng, float64(pt.Stem.AngleDeg), &row) +
+				ideal.RowPointsLost(spacers, pt.SpacerMm, &row)
+		}
+		chosenHB := cockpitLost(*can.SelectedHB)
+		for _, pt := range can.PossibleHBs {
+			if c := cockpitLost(pt); c < chosenHB-1e-9 {
+				t.Errorf("%s: %.0fmm %+.0f° +%.0fmm loses %.3f, cheaper than the chosen %.0fmm %+.0f° +%.0fmm (%.3f)",
+					tc.frame, pt.Stem.LengthMm, pt.Stem.AngleDeg, pt.SpacerMm, c,
+					can.SelectedHB.Stem.LengthMm, can.SelectedHB.Stem.AngleDeg, can.SelectedHB.SpacerMm, chosenHB)
+			}
+		}
+	}
+}
+
+// Moving the published reach (and, separately, the BRP) in small steps must move
+// the cheapest build's points lost continuously: past a hardware limit the oval
+// (or the setback band) absorbs the miss without a jump.
+func TestApplyIdealCockpitTargets_HandOffsAreContinuous(t *testing.T) {
+	prof := ideal.IdmatchProfile()
+	base := scanRow(t, "surly-krampus", "XL", 500, 51)
+
+	buildBands := map[ideal.MetricID]bool{
+		ideal.MetricBrpSetback: true, ideal.MetricRailOffset: true, ideal.MetricHandlebarClampFit: true,
+		ideal.MetricStemLength: true, ideal.MetricStemAngle: true, ideal.MetricSpacers: true,
+	}
+	total := func(row model.CanonicalComparisonRow) float64 {
+		rows := []model.CanonicalComparisonRow{row}
+		canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+		res := 0.0
+		for _, spec := range prof.ForSaddle(rows[0].Canonical.Saddle).Attributes {
+			meta, ok := ideal.LookupAttribute(spec.ID)
+			if !ok || !spec.IsScored() {
+				continue
+			}
+			if !buildBands[spec.ID] {
+				continue
+			}
+			if v, ok := meta.Extract(rows[0]); ok {
+				res += ideal.Evaluate(spec, meta, v, &rows[0]).PointsLost
+			}
+		}
+		return res
+	}
+
+	// Cockpit hand-off: sweep reach 80mm short to 80mm long of the frame (0.25mm steps).
+	// The steepest band is the oval at 22 points per unit R over a 10mm semi-minor
+	// axis, so no step may move the total by more than 22 × 0.25 / 10 plus slack.
+	prev := math.NaN()
+	for d := -80.0; d <= 80.0; d += 0.25 {
+		row := base
+		row.Canonical.ActiveReach = base.Canonical.ActiveReach + d
+		got := total(row)
+		if !math.IsNaN(prev) && math.Abs(got-prev) > 0.6 {
+			t.Fatalf("reach %+0.2fmm: cockpit points lost jumped %.3f -> %.3f", d, prev, got)
+		}
+		prev = got
+	}
+
+	// Saddle hand-off: shift every rail position's setback 40mm each way (0.25mm steps).
+	// The setback band is the steepest at 1.2 points per mm.
+	prev = math.NaN()
+	for d := -40.0; d <= 40.0; d += 0.25 {
+		row := base
+		row.Canonical.PossibleBRPs = append([]model.BRPPoint(nil), base.Canonical.PossibleBRPs...)
+		for k := range row.Canonical.PossibleBRPs {
+			row.Canonical.PossibleBRPs[k].BrpSetbackMm += d
+		}
+		row.Canonical.SelectedBRP = nil
+		rows := []model.CanonicalComparisonRow{row}
+		canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+		brp := rows[0].Canonical.SelectedBRP
+		got := ideal.RowPointsLost(specOf(t, prof, ideal.MetricBrpSetback), brp.BrpSetbackMm, &rows[0]) +
+			ideal.RowPointsLost(specOf(t, prof, ideal.MetricRailOffset), brp.RailOffsetMm, &rows[0])
+		if !math.IsNaN(prev) && math.Abs(got-prev) > 1.2*0.25+0.05 {
+			t.Fatalf("setback shift %+0.2fmm: saddle points lost jumped %.3f -> %.3f", d, prev, got)
+		}
+		prev = got
 	}
 }

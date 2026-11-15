@@ -270,7 +270,8 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 		ideal.MetricReach, ideal.MetricStack, ideal.MetricWheelbase, ideal.MetricRcWbRatio,
 		ideal.MetricSeatTube, ideal.MetricStandover, ideal.MetricBrpSetback,
 		ideal.MetricSaddleHb, ideal.MetricSaddleHbDrop, ideal.MetricBestStem,
-		ideal.MetricStemSpacerFit, ideal.MetricSitBoneSetback, ideal.MetricIdealSta:
+		ideal.MetricStemSpacerFit, ideal.MetricSitBoneSetback, ideal.MetricIdealSta,
+		ideal.MetricRailOffset, ideal.MetricStemLength, ideal.MetricStemAngle, ideal.MetricSpacers:
 	default:
 	}
 

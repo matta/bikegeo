@@ -102,6 +102,7 @@ section.report { margin-bottom: 1.2rem; }
 .bike-workbench svg.zoom-svg line.steer-ray, .bike-workbench svg.zoom-svg line.axis, .bike-workbench svg.zoom-svg line.target-err { stroke-width: 1.2; stroke-dasharray: 4 3; }
 .bike-workbench svg.zoom-svg polygon.reach-env { fill: var(--accent); fill-opacity: .08; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 2; }
 .bike-workbench svg.zoom-svg circle.cand-dot { fill: var(--muted); opacity: .65; }
+.bike-workbench svg.zoom-svg circle.cand-dot.cand-best { fill: var(--accent); opacity: 1; stroke: var(--bg); stroke-width: .8; }
 .bike-workbench svg.zoom-svg ellipse.fit-oval { fill: var(--ideal); fill-opacity: .35; stroke: var(--ideal-fg); stroke-width: 1.5; }
 .bike-workbench svg.zoom-svg line.rail-win { stroke: var(--ideal-fg); stroke-width: 6; stroke-linecap: round; opacity: .35; }
 .bike-workbench svg.zoom-svg .pt circle { stroke-width: .7; }

@@ -61,10 +61,98 @@ func OvalPointsLost(cfr *model.CockpitFitResult, cost *Cost) float64 {
 	return perR * math.Max(0, cfr.BestR-1.0)
 }
 
+// hardwareLimitAttributes lists the attributes whose hardware limits HardwareLimits knows.
+var hardwareLimitAttributes = map[MetricID]struct{}{
+	MetricRailOffset: {},
+	MetricStemLength: {},
+	MetricStemAngle:  {},
+	MetricSpacers:    {},
+}
+
+// HardwareLimits returns the [lo, hi] range the setup's stock hardware allows for a
+// hardware band: the saddle rail window (from the mapped BRP candidates), the stem
+// catalog's length and angle range, and 0 up to the frame's steerer spacer stack.
+func HardwareLimits(id MetricID, row *model.CanonicalComparisonRow) (lo, hi float64, ok bool) {
+	if row == nil {
+		return 0, 0, false
+	}
+	switch id {
+	case MetricRailOffset:
+		brps := row.Canonical.PossibleBRPs
+		if len(brps) == 0 {
+			return 0, 0, false
+		}
+		lo, hi = brps[0].RailOffsetMm, brps[0].RailOffsetMm
+		for _, b := range brps[1:] {
+			lo, hi = math.Min(lo, b.RailOffsetMm), math.Max(hi, b.RailOffsetMm)
+		}
+		return lo, hi, true
+	case MetricStemLength:
+		return row.Bike.GetExpectedStemRangeMm()
+	case MetricStemAngle:
+		stems := row.Bike.Stems
+		if len(stems) == 0 {
+			return 0, 0, false
+		}
+		lo, hi = float64(stems[0].AngleDeg), float64(stems[0].AngleDeg)
+		for _, s := range stems[1:] {
+			lo, hi = math.Min(lo, float64(s.AngleDeg)), math.Max(hi, float64(s.AngleDeg))
+		}
+		return lo, hi, true
+	case MetricSpacers:
+		return 0, math.Max(0, row.Bike.GetMaxSpacerMm()), true
+	case MetricSetback, MetricEtt, MetricAett, MetricSpareVert, MetricSpareAxial,
+		MetricSeatpostExtension, MetricSeatToRc, MetricChainstay, MetricBbDrop,
+		MetricHta, MetricTrail, MetricSta, MetricReach, MetricStack, MetricWheelbase,
+		MetricRcWbRatio, MetricSeatTube, MetricStandover, MetricBrpSetback,
+		MetricSaddleHb, MetricSaddleHbDrop, MetricBestStem, MetricStemSpacerFit,
+		MetricSitBoneSetback, MetricIdealSta, MetricHandlebarClampFit:
+		return 0, 0, false
+	default:
+		return 0, 0, false
+	}
+}
+
+// LimitPointsLost prices val under a hardware band: free inside spec.Ideal, then
+// linear from 0 at the free bound to spec.LimitPoints at the hardware limit lo/hi
+// on that side (continuing at the same slope past it). A side whose limit lies
+// inside the free range is never priced.
+func LimitPointsLost(spec AttributeSpec, val, lo, hi float64) float64 {
+	if spec.Ideal == nil || spec.LimitPoints <= 0 {
+		return 0
+	}
+	if minV, ok := spec.Ideal.Min.Get(); ok && val < minV {
+		if span := minV - lo; span > 0 {
+			return spec.LimitPoints * (minV - val) / span
+		}
+		return 0
+	}
+	if maxV, ok := spec.Ideal.Max.Get(); ok && val > maxV {
+		if span := hi - maxV; span > 0 {
+			return spec.LimitPoints * (val - maxV) / span
+		}
+		return 0
+	}
+	return 0
+}
+
+// RowPointsLost returns the points of total lost by val under spec for a row,
+// resolving hardware limits for LimitPoints bands (0 when the row is unknown).
+func RowPointsLost(spec AttributeSpec, val float64, row *model.CanonicalComparisonRow) float64 {
+	if spec.LimitPoints > 0 {
+		lo, hi, ok := HardwareLimits(spec.ID, row)
+		if !ok {
+			return 0
+		}
+		return LimitPointsLost(spec, val, lo, hi)
+	}
+	return PointsLost(spec, val)
+}
+
 // PointsLost returns the points of total lost by an unrounded value under spec:
 // zero inside the Ideal (free) range, and Cost per unit outside it.
 func PointsLost(spec AttributeSpec, val float64) float64 {
-	if !spec.IsScored() {
+	if !spec.IsScored() || spec.Cost == nil {
 		return 0
 	}
 	if minV, ok := spec.Ideal.Min.Get(); ok && val < minV {
@@ -133,7 +221,7 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 	}
 
 	// Points lost use the unrounded value so the cost stays linear.
-	lost := PointsLost(spec, val)
+	lost := RowPointsLost(spec, val, row)
 
 	// Zone, marker, and delta are decided from the value and bounds as printed.
 	printedDist := PrintedDistanceToIdeal(spec.Ideal, printedVal, meta.Decimals)

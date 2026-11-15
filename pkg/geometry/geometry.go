@@ -228,6 +228,23 @@ func SelectBestBRP(
 	return best, true
 }
 
+// SelectCheapestBRP returns the BRP candidate (saddle rail position) with the
+// lowest cost. Ties go to the position nearer dead center on the rails, then to
+// the earlier candidate.
+func SelectCheapestBRP(possible []model.BRPPoint, cost func(model.BRPPoint) float64) (model.BRPPoint, bool) {
+	if len(possible) == 0 || cost == nil {
+		return model.BRPPoint{}, false
+	}
+	best, bestCost := possible[0], cost(possible[0])
+	for _, pt := range possible[1:] {
+		c := cost(pt)
+		if c < bestCost-1e-9 || (math.Abs(c-bestCost) <= 1e-9 && math.Abs(pt.RailOffsetMm) < math.Abs(best.RailOffsetMm)-1e-9) {
+			best, bestCost = pt, c
+		}
+	}
+	return best, true
+}
+
 // CalculateHandlebarOffset calculates the 2D offset vector (rearward X, upward Y)
 // from the stem clamp center to the rider's hand contact position.
 // It uses the kinematic transformation model for a handlebar with the specified rise, backsweep, and width.
@@ -559,51 +576,7 @@ func EvaluateCockpitFitForTarget(
 		hasRange = true
 	}
 
-	type evaluatedPoint struct {
-		pt          model.HBPoint
-		r           float64
-		membership  float64 // 1 - R inside the oval, 0 outside
-		baseScore   float64
-		stemPenalty float64
-		stemDevU    float64
-		bonus       float64
-		finalScore  float64
-	}
-
-	evaluated := make([]evaluatedPoint, len(possible))
-	countInside := 0
-	totalMembership := 0.0
-
-	for i, pt := range possible {
-		evalPt := EvaluatedPointForHB(pt, targetRef, refBar)
-		r, inside := EvaluateFitOval(oval, evalPt.X, evalPt.Y)
-		ep := evaluatedPoint{
-			pt:         pt,
-			r:          r,
-			membership: math.Max(0, 1.0-r),
-			baseScore:  CalculateCockpitBaseScore(r),
-		}
-		if hasRange {
-			ep.stemPenalty, ep.stemDevU = curve.StemPenalty(pt.Stem.LengthMm, minStem, maxStem)
-		}
-		if inside {
-			countInside++
-		}
-		totalMembership += ep.membership
-		evaluated[i] = ep
-	}
-
-	// Score every candidate as if it were the one chosen. The versatility bonus
-	// rewards the spare setups (all the others) sitting near the oval center,
-	// filling part of the headroom above the base score. Each candidate's score is
-	// a continuous function of the inputs, and the result is their maximum, so the
-	// final score is continuous no matter which candidate wins.
-	for i := range evaluated {
-		ep := &evaluated[i]
-		spare := totalMembership - ep.membership
-		ep.bonus = (curve.Peak - ep.baseScore) * curve.Saturating(maxVersatilityShare, versatilityHalfCapacity, spare)
-		ep.finalScore = ep.baseScore + ep.bonus - ep.stemPenalty
-	}
+	evaluated, countInside := evaluateCockpitCandidates(possible, oval, targetRef, refBar, minStem, maxStem, hasRange)
 
 	better := func(a, b evaluatedPoint) bool {
 		if diff := a.finalScore - b.finalScore; math.Abs(diff) > 0.001 {
@@ -643,6 +616,113 @@ func EvaluateCockpitFitForTarget(
 		}
 	}
 
+	return cockpitFitResult(oval, targetRef, refBar, best, countInside)
+}
+
+// CockpitCost prices one stock cockpit candidate (stem length × angle × spacer
+// stack) whose evaluated point sits at normalized oval radius r.
+type CockpitCost func(pt model.HBPoint, r float64) float64
+
+// EvaluateCockpitFitByCost scans every stock cockpit candidate against a FitOval
+// and keeps the cheapest under cost. Ties go to the candidate nearer the oval
+// center, then to the earlier candidate. BaseScore, VersatilityBonus, StemPenalty
+// and FinalSubScore are still reported for the selected candidate (they drive the
+// Oval Fits display marker only).
+func EvaluateCockpitFitByCost(
+	possible []model.HBPoint,
+	oval model.FitOval,
+	targetRef model.TargetRef,
+	refBar model.Opt[model.HandlebarSpec],
+	cost CockpitCost,
+	expectedStemRange ...[]float64,
+) model.CockpitFitResult {
+	if targetRef == "" {
+		targetRef = TargetHandGrip
+	}
+	if len(possible) == 0 || cost == nil {
+		return model.CockpitFitResult{
+			TargetOval:    oval,
+			TargetRef:     targetRef,
+			ReferenceBar:  refBar,
+			BestR:         999,
+			BaseScore:     -200.0,
+			FinalSubScore: -200.0,
+		}
+	}
+	var minStem, maxStem float64
+	hasRange := false
+	if len(expectedStemRange) > 0 && len(expectedStemRange[0]) == 2 && expectedStemRange[0][0] > 0 && expectedStemRange[0][1] > expectedStemRange[0][0] {
+		minStem, maxStem, hasRange = expectedStemRange[0][0], expectedStemRange[0][1], true
+	}
+
+	evaluated, countInside := evaluateCockpitCandidates(possible, oval, targetRef, refBar, minStem, maxStem, hasRange)
+	bestIdx, bestCost := 0, cost(evaluated[0].pt, evaluated[0].r)
+	for i := 1; i < len(evaluated); i++ {
+		c := cost(evaluated[i].pt, evaluated[i].r)
+		if c < bestCost-1e-9 || (math.Abs(c-bestCost) <= 1e-9 && evaluated[i].r < evaluated[bestIdx].r-1e-9) {
+			bestIdx, bestCost = i, c
+		}
+	}
+	return cockpitFitResult(oval, targetRef, refBar, evaluated[bestIdx], countInside)
+}
+
+type evaluatedPoint struct {
+	pt          model.HBPoint
+	r           float64
+	membership  float64 // 1 - R inside the oval, 0 outside
+	baseScore   float64
+	stemPenalty float64
+	stemDevU    float64
+	bonus       float64
+	finalScore  float64
+}
+
+// evaluateCockpitCandidates computes each candidate's oval radius and the legacy
+// proximity, versatility and stem-penalty figures.
+func evaluateCockpitCandidates(
+	possible []model.HBPoint,
+	oval model.FitOval,
+	targetRef model.TargetRef,
+	refBar model.Opt[model.HandlebarSpec],
+	minStem, maxStem float64,
+	hasRange bool,
+) ([]evaluatedPoint, int) {
+	evaluated := make([]evaluatedPoint, len(possible))
+	countInside := 0
+	totalMembership := 0.0
+
+	for i, pt := range possible {
+		evalPt := EvaluatedPointForHB(pt, targetRef, refBar)
+		r, inside := EvaluateFitOval(oval, evalPt.X, evalPt.Y)
+		ep := evaluatedPoint{
+			pt:         pt,
+			r:          r,
+			membership: math.Max(0, 1.0-r),
+			baseScore:  CalculateCockpitBaseScore(r),
+		}
+		if hasRange {
+			ep.stemPenalty, ep.stemDevU = curve.StemPenalty(pt.Stem.LengthMm, minStem, maxStem)
+		}
+		if inside {
+			countInside++
+		}
+		totalMembership += ep.membership
+		evaluated[i] = ep
+	}
+
+	// Score every candidate as if it were the one chosen. The versatility bonus
+	// rewards the spare setups (all the others) sitting near the oval center,
+	// filling part of the headroom above the base score.
+	for i := range evaluated {
+		ep := &evaluated[i]
+		spare := totalMembership - ep.membership
+		ep.bonus = (curve.Peak - ep.baseScore) * curve.Saturating(maxVersatilityShare, versatilityHalfCapacity, spare)
+		ep.finalScore = ep.baseScore + ep.bonus - ep.stemPenalty
+	}
+	return evaluated, countInside
+}
+
+func cockpitFitResult(oval model.FitOval, targetRef model.TargetRef, refBar model.Opt[model.HandlebarSpec], best evaluatedPoint, countInside int) model.CockpitFitResult {
 	return model.CockpitFitResult{
 		TargetOval:        oval,
 		TargetRef:         targetRef,
@@ -685,6 +765,33 @@ func ApplyCockpitFitForTarget(
 	targetRef model.TargetRef,
 	refBar model.Opt[model.HandlebarSpec],
 ) {
+	applyCockpitFit(can, bike, canonicalStem, distMin, distMax, dropMin, dropMax, targetRef, refBar, nil)
+}
+
+// ApplyCockpitFitByCost is ApplyCockpitFitForTarget with the stock cockpit
+// candidate chosen by the cheapest cost (see EvaluateCockpitFitByCost) instead of
+// the legacy proximity score and tie-breaks. Without a distance target it falls
+// back to SelectBestHBWithDropForTarget.
+func ApplyCockpitFitByCost(
+	can *model.BikeFitAnalysis,
+	bike model.BikeGeometry,
+	distMin, distMax, dropMin, dropMax model.Opt[float64],
+	targetRef model.TargetRef,
+	refBar model.Opt[model.HandlebarSpec],
+	cost CockpitCost,
+) {
+	applyCockpitFit(can, bike, bike.GetCanonicalStem(), distMin, distMax, dropMin, dropMax, targetRef, refBar, cost)
+}
+
+func applyCockpitFit(
+	can *model.BikeFitAnalysis,
+	bike model.BikeGeometry,
+	canonicalStem model.StemSpec,
+	distMin, distMax, dropMin, dropMax model.Opt[float64],
+	targetRef model.TargetRef,
+	refBar model.Opt[model.HandlebarSpec],
+	cost CockpitCost,
+) {
 	if len(can.PossibleHBs) == 0 {
 		return
 	}
@@ -710,7 +817,12 @@ func ApplyCockpitFitForTarget(
 		if minStem, maxStem, ok := bike.GetExpectedStemRangeMm(); ok {
 			expectedRangeOpt = append(expectedRangeOpt, []float64{minStem, maxStem})
 		}
-		fitRes := EvaluateCockpitFitForTarget(can.PossibleHBs, canonicalStem, oval, targetRef, refBar, expectedRangeOpt...)
+		var fitRes model.CockpitFitResult
+		if cost != nil {
+			fitRes = EvaluateCockpitFitByCost(can.PossibleHBs, oval, targetRef, refBar, cost, expectedRangeOpt...)
+		} else {
+			fitRes = EvaluateCockpitFitForTarget(can.PossibleHBs, canonicalStem, oval, targetRef, refBar, expectedRangeOpt...)
+		}
 		can.CockpitFitResult = &fitRes
 		can.SelectedHB = &fitRes.SelectedHB
 		can.SaddleHbMm = fitRes.SelectedHB.SaddleHbMm

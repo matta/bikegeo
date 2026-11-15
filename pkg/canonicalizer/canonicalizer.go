@@ -746,17 +746,26 @@ func CanonicalizeBikes(
 	return rows, nil
 }
 
-// ApplyIdealCockpitTargets updates each row's canonical SelectedBRP, SelectedHB, SaddleHbMm, and SaddleHbDropMm
-// by first selecting the optimal BRP position along the saddle rails against the brp_setback target,
-// re-mapping possible HB points from that BRP, and then selecting the optimal HB point against saddle_hb (primary)
-// and saddle_hb_drop (secondary) targets.
+// ApplyIdealCockpitTargets selects each row's stock build against the profile's
+// points-lost ledger and records it on the row's canonical SelectedBRP, SelectedHB,
+// CockpitFitResult, SaddleHbMm and SaddleHbDropMm.
+//
+//  1. Saddle: every rail position is priced by the brp_setback and rail_offset bands
+//     and the cheapest is kept. Past the rail limit the setback band absorbs the miss.
+//  2. Cockpit: every stock combination (stem length × angle × spacer stack) is placed
+//     relative to the chosen BRP and priced by the Oval Fits, stem_length, stem_angle
+//     and spacers bands; the cheapest is kept. Past the hardware limits the oval
+//     absorbs the miss.
+//
+// Profiles without those scored bands fall back to the legacy range selectors.
 func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.Profile) {
 	if prof == nil {
 		return
 	}
 
 	for i := range rows {
-		can := &rows[i].Canonical
+		row := &rows[i]
+		can := &row.Canonical
 		rowProf := prof.ForSaddle(can.Saddle)
 
 		var rowBrpMin, rowBrpMax model.Opt[float64]
@@ -779,35 +788,103 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 			}
 		}
 
-		// 1. Optimize BRP on saddle rails if candidate BRPs exist
+		// 1. Saddle position on the rails.
 		activeBRP := can.DeadCenterBRP
 		if can.SelectedBRP != nil {
 			activeBRP = *can.SelectedBRP
 		}
 		if len(can.PossibleBRPs) > 0 {
-			if bestBRP, ok := geometry.SelectBestBRP(can.PossibleBRPs, rowBrpMin, rowBrpMax); ok {
+			var bestBRP model.BRPPoint
+			var ok bool
+			if cost := brpCost(rowProf, row); cost != nil {
+				bestBRP, ok = geometry.SelectCheapestBRP(can.PossibleBRPs, cost)
+			} else {
+				bestBRP, ok = geometry.SelectBestBRP(can.PossibleBRPs, rowBrpMin, rowBrpMax)
+			}
+			if ok {
 				can.SelectedBRP = &bestBRP
 				can.SitBoneSetbackMm = bestBRP.SitBoneSetbackMm
 				can.AchievedClampOffset = bestBRP.AchievedClampOffsetMm
 				activeBRP = bestBRP
 			}
-			// 2. Re-map PossibleHBs referencing the selected BRP and configured handlebar
+			// Re-map PossibleHBs referencing the selected BRP and configured handlebar.
 			bar := can.Handlebar
 			if bar.ID == "" {
 				bar = catalog.DefaultHandlebar()
 			}
-			can.PossibleHBs = geometry.MapPossibleHBsWithHandlebar(rows[i].Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP, bar, model.DefaultGripInsetMm, 0.0)
+			can.PossibleHBs = geometry.MapPossibleHBsWithHandlebar(row.Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP, bar, model.DefaultGripInsetMm, 0.0)
 		}
 
-		// 3. Evaluate Cockpit Fit
-		if hasClampFit && (rowDistMin.IsSet() || rowDistMax.IsSet()) {
-			geometry.ApplyCockpitFitForTarget(can, rows[i].Bike, rows[i].Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax, prof.TargetRef, prof.ReferenceBar)
-		} else if len(can.PossibleHBs) > 0 {
-			if bestHB, ok := geometry.SelectBestHBWithDropForTarget(can.PossibleHBs, rows[i].Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax, activeBRP, prof.TargetRef, prof.ReferenceBar); ok {
+		// 2. Cockpit hardware.
+		switch {
+		case hasClampFit && (rowDistMin.IsSet() || rowDistMax.IsSet()):
+			if cost := cockpitCost(rowProf, row); cost != nil {
+				geometry.ApplyCockpitFitByCost(can, row.Bike, rowDistMin, rowDistMax, rowDropMin, rowDropMax, prof.TargetRef, prof.ReferenceBar, cost)
+			} else {
+				geometry.ApplyCockpitFitForTarget(can, row.Bike, row.Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax, prof.TargetRef, prof.ReferenceBar)
+			}
+		case len(can.PossibleHBs) > 0:
+			if bestHB, ok := geometry.SelectBestHBWithDropForTarget(can.PossibleHBs, row.Bike.GetCanonicalStem(), rowDistMin, rowDistMax, rowDropMin, rowDropMax, activeBRP, prof.TargetRef, prof.ReferenceBar); ok {
 				can.SelectedHB = &bestHB
 				can.SaddleHbMm = bestHB.SaddleHbMm
 				can.SaddleHbDropMm = bestHB.SaddleHbDropMm
 			}
 		}
+	}
+}
+
+// brpCost prices a saddle rail position by the profile's brp_setback and
+// rail_offset bands, or returns nil when neither band is scored.
+func brpCost(prof *ideal.Profile, row *model.CanonicalComparisonRow) func(model.BRPPoint) float64 {
+	setback, hasSetback := prof.Spec(ideal.MetricBrpSetback)
+	rail, hasRail := prof.Spec(ideal.MetricRailOffset)
+	hasSetback = hasSetback && setback.IsScored()
+	hasRail = hasRail && rail.IsScored()
+	if !hasSetback && !hasRail {
+		return nil
+	}
+	return func(b model.BRPPoint) float64 {
+		lost := 0.0
+		if hasSetback {
+			lost += ideal.RowPointsLost(setback, b.BrpSetbackMm, row)
+		}
+		if hasRail {
+			lost += ideal.RowPointsLost(rail, b.RailOffsetMm, row)
+		}
+		return lost
+	}
+}
+
+// cockpitCost prices a stock cockpit candidate by the profile's Oval Fits,
+// stem_length, stem_angle and spacers bands, or returns nil when Oval Fits is
+// not scored.
+func cockpitCost(prof *ideal.Profile, row *model.CanonicalComparisonRow) geometry.CockpitCost {
+	oval, ok := prof.Spec(ideal.MetricHandlebarClampFit)
+	if !ok || !oval.IsScored() {
+		return nil
+	}
+	type band struct {
+		spec  ideal.AttributeSpec
+		value func(model.HBPoint) float64
+	}
+	var scored []band
+	for _, b := range []struct {
+		id    ideal.MetricID
+		value func(model.HBPoint) float64
+	}{
+		{ideal.MetricStemLength, func(pt model.HBPoint) float64 { return pt.Stem.LengthMm }},
+		{ideal.MetricStemAngle, func(pt model.HBPoint) float64 { return float64(pt.Stem.AngleDeg) }},
+		{ideal.MetricSpacers, func(pt model.HBPoint) float64 { return pt.SpacerMm }},
+	} {
+		if spec, ok := prof.Spec(b.id); ok && spec.IsScored() {
+			scored = append(scored, band{spec: spec, value: b.value})
+		}
+	}
+	return func(pt model.HBPoint, r float64) float64 {
+		lost := ideal.OvalPointsLost(&model.CockpitFitResult{BestR: r}, oval.Cost)
+		for _, b := range scored {
+			lost += ideal.RowPointsLost(b.spec, b.value(pt), row)
+		}
+		return lost
 	}
 }

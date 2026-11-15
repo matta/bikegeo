@@ -45,9 +45,10 @@ make pre-commit
   - The web is strictly Web 1.0: `GET` forms, URL query as the only state, full-page responses, no JavaScript, no cookies. Controls must be populated from the parsed query.
   - `bikegeo fit` can list tied candidate solutions in a varying order between runs; that is pre-existing.
 - **Scores Are a Points-Lost Ledger**:
-  - `Total = 100 − Σ points lost` (`scoring.ScoreRow`). Each scored band (`ideal.AttributeSpec.Cost`) is free inside its ideal range and costs a stated number of points of total per unit outside it, linearly. There are no weights, weighted averages, floors or curve tails, and totals may go below 0. Adding or removing a band never rescales the others.
+  - `Total = 100 − Σ points lost` (`scoring.ScoreRow`). Each scored band is free inside its ideal range and linear outside it: `ideal.AttributeSpec.Cost` points of total per unit, or for hardware bands (rail, stem length, stem angle, spacers) `LimitPoints` reached at the setup's hardware limit. There are no weights, weighted averages, floors or curve tails, and totals may go below 0. Adding or removing a band never rescales the others.
   - Never clamp, round, or add stepped (count-based or fixed) bonuses and penalties to points lost in scoring code. A new band states its free range and its cost per unit.
-  - `pkg/curve` still shapes cockpit candidate selection (proximity, stem penalty, versatility bonus) only; none of it contributes to the total.
+  - Each setup's stock build is the cheapest on those same bands (`canonicalizer.ApplyIdealCockpitTargets`): first the saddle rail position, then every stem length × angle × spacer stack relative to that BRP. Never add separate tie-break or preference rules to selection; price the preference as a band instead.
+  - `pkg/curve` now only feeds the Oval Fits display marker (`FinalSubScore`); none of it chooses the build or contributes to the total.
 - **Per-Column Comparison Model (`ComparisonSetup`)**:
   - Every comparison column specifies `FrameID + Size + Fork (travel in mm or "rigid") + Sag %`.
   - Allows comparing the same frame across multiple sag points or fork capacities alongside different frames.

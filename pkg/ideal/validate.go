@@ -41,7 +41,11 @@ func (p *Profile) HasCockpitTargets() bool {
 			MetricBestStem,
 			MetricStemSpacerFit,
 			MetricSitBoneSetback,
-			MetricIdealSta:
+			MetricIdealSta,
+			MetricRailOffset,
+			MetricStemLength,
+			MetricStemAngle,
+			MetricSpacers:
 			continue
 		default:
 			continue
@@ -93,6 +97,21 @@ func ValidateProfile(p *Profile) error {
 			return fmt.Errorf("profile %q attribute %q is not a recognized attribute id", p.Name, attr.ID)
 		}
 
+		if attr.LimitPoints < 0 {
+			return fmt.Errorf("profile %q attribute %q limit_points must be non-negative, got %.2f", p.Name, attr.ID, attr.LimitPoints)
+		}
+		if attr.LimitPoints > 0 && attr.Cost != nil {
+			return fmt.Errorf("profile %q attribute %q must price with either cost or limit_points, not both", p.Name, attr.ID)
+		}
+		if attr.LimitPoints > 0 {
+			if attr.Ideal == nil {
+				return fmt.Errorf("profile %q scored attribute %q must define an ideal (free) range", p.Name, attr.ID)
+			}
+			if _, ok := hardwareLimitAttributes[attr.ID]; !ok {
+				return fmt.Errorf("profile %q attribute %q has no hardware limit for limit_points", p.Name, attr.ID)
+			}
+			hasScored = true
+		}
 		if c := attr.Cost; c != nil {
 			if c.Below < 0 || c.Above < 0 {
 				return fmt.Errorf("profile %q attribute %q cost must be non-negative, got below %.2f / above %.2f", p.Name, attr.ID, c.Below, c.Above)
@@ -178,10 +197,12 @@ func ValidateProfile(p *Profile) error {
 				return fmt.Errorf("profile %q attribute %q floor (%.1f) must be negative", p.Name, attr.ID, fl)
 			}
 
-			// Compile the score curves: rejects missing falloffs and any shape
-			// that would be flat, rising or discontinuous.
-			if _, err := attr.compileCurves(); err != nil {
-				return fmt.Errorf("profile %q %w", p.Name, err)
+			// Legacy curve fields no longer affect scores; when present they must
+			// still compile (no flat, rising or discontinuous shape).
+			if attr.Falloff != nil {
+				if _, err := attr.compileCurves(); err != nil {
+					return fmt.Errorf("profile %q %w", p.Name, err)
+				}
 			}
 		}
 	}

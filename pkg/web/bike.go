@@ -18,6 +18,7 @@ import (
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/report"
+	"bikegeo/pkg/scoring"
 )
 
 // NudgeLink is one zero-JS GET hyperlink that shifts a single parameter on /bike.
@@ -234,7 +235,9 @@ func (s *server) bike(w http.ResponseWriter, r *http.Request) {
 	prof := ideal.IdmatchProfile()
 	prof.TargetRef = p.targetRef
 	prof.ReferenceBar = model.Some(catalog.DefaultHandlebar())
-	canonicalizer.ApplyIdealCockpitTargets([]model.CanonicalComparisonRow{row}, prof)
+	scanned := []model.CanonicalComparisonRow{row}
+	canonicalizer.ApplyIdealCockpitTargets(scanned, prof)
+	row = scanned[0]
 
 	d.Fork = forkToken(p.frameModel, row)
 	if row.Setup.SagPct > 0 {
@@ -411,7 +414,8 @@ func (s *server) bike(w http.ResponseWriter, r *http.Request) {
 	d.CockpitSVG = buildCockpitZoomSVG(scene, row)
 	d.SaddleSVG = buildSaddleZoomSVG(scene)
 	d.SummaryTable = toView(buildBikeSummaryTable(scene))
-	d.LedgerTable = toView(buildComputationLedger("bike-ledger", "5-stage arithmetic computation ledger", scene, row.Canonical.CockpitFitResult, nil))
+	score := scoring.ScoreRow(row, prof)
+	d.LedgerTable = toView(buildComputationLedger("bike-ledger", "5-stage arithmetic computation ledger", scene, row.Canonical.CockpitFitResult, &score))
 
 	s.render(w, http.StatusOK, "bike.html", d)
 }
@@ -938,16 +942,27 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 		row.Bike, sc.Reach(), sc.Stack(), sc.HtaDeg, brp,
 		sc.Cockpit.Handlebar, sc.Cockpit.GripInsetMm, sc.Cockpit.BarRollDeg,
 	)
+	// The cheapest stock build from the ledger scan is drawn last, on top.
+	selected := row.Canonical.SelectedHB
+	isSelected := func(hb model.HBPoint) bool {
+		return selected != nil && hb.Stem.LengthMm == selected.Stem.LengthMm &&
+			hb.Stem.AngleDeg == selected.Stem.AngleDeg && hb.SpacerMm == selected.SpacerMm
+	}
 	circles := make([]svgCircle, 0, len(candHBs))
+	var best *svgCircle
 	for _, hb := range candHBs {
 		p := geometry.EvaluatedPointForHB(hb, sc.TargetRef, sc.Fit.ReferenceBar)
-		circles = append(circles, svgCircle{
-			CX:    f2(p.X),
-			CY:    f2(p.Y),
-			R:     "1.80",
-			Class: "cand-dot",
-		})
+		c := svgCircle{CX: f2(p.X), CY: f2(p.Y), R: "1.80", Class: "cand-dot"}
+		if isSelected(hb) {
+			c.R, c.Class = "3.20", "cand-dot cand-best"
+			best = &c
+		} else {
+			circles = append(circles, c)
+		}
 		boxPts = append(boxPts, p)
+	}
+	if best != nil {
+		circles = append(circles, *best)
 	}
 
 	// 30-degree rotated FitOval centered on TargetPoint.

@@ -210,10 +210,12 @@ var registry = []AttributeMeta{
 		},
 	},
 	{
-		ID:       "rc_wb_ratio",
-		Label:    "RC / WB",
-		Unit:     "%",
-		Decimals: 1,
+		ID:        "rc_wb_ratio",
+		Label:     "RC / WB",
+		Unit:      "%",
+		Decimals:  1,
+		BelowWord: "lo",
+		AboveWord: "hi",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
 			return row.Canonical.RearCenterWheelbaseRatio * 100.0, true
 		},
@@ -386,6 +388,62 @@ var registry = []AttributeMeta{
 			return fmt.Sprintf("%.0f", val)
 		},
 	},
+	{
+		ID:        "rail_offset",
+		Label:     "Rail Offset",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "fwd",
+		AboveWord: "aft",
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.SelectedBRP == nil {
+				return 0, false
+			}
+			return row.Canonical.SelectedBRP.RailOffsetMm, true
+		},
+	},
+	{
+		ID:        "stem_length",
+		Label:     "Stem Length",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "sht",
+		AboveWord: "lng",
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.SelectedHB == nil || row.Canonical.SelectedHB.Stem.LengthMm <= 0 {
+				return 0, false
+			}
+			return row.Canonical.SelectedHB.Stem.LengthMm, true
+		},
+	},
+	{
+		ID:        "stem_angle",
+		Label:     "Stem Angle",
+		Unit:      "°",
+		Decimals:  1,
+		BelowWord: "dn",
+		AboveWord: "up",
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.SelectedHB == nil || row.Canonical.SelectedHB.Stem.LengthMm <= 0 {
+				return 0, false
+			}
+			return float64(row.Canonical.SelectedHB.Stem.AngleDeg), true
+		},
+	},
+	{
+		ID:        "spacers",
+		Label:     "Spacers",
+		Unit:      "mm",
+		Decimals:  0,
+		BelowWord: "lo",
+		AboveWord: "hi",
+		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.SelectedHB == nil || row.Canonical.SelectedHB.Stem.LengthMm <= 0 {
+				return 0, false
+			}
+			return row.Canonical.SelectedHB.SpacerMm, true
+		},
+	},
 }
 
 var registryMap = func() map[MetricID]AttributeMeta {
@@ -424,7 +482,11 @@ func LookupAttribute(id MetricID) (AttributeMeta, bool) {
 		MetricStemSpacerFit,
 		MetricSitBoneSetback,
 		MetricIdealSta,
-		MetricHandlebarClampFit:
+		MetricHandlebarClampFit,
+		MetricRailOffset,
+		MetricStemLength,
+		MetricStemAngle,
+		MetricSpacers:
 		meta, ok := registryMap[id]
 		return meta, ok
 	default:

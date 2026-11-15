@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"bikegeo/pkg/catalog"
 	"bikegeo/pkg/geom2d"
@@ -276,26 +277,35 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 	})
 
 	if cfr != nil && cfr.SelectedHB.Stem.LengthMm > 0 {
-		pointsLost := 0.0
-		if score != nil {
-			for _, cr := range score.Criteria {
-				if cr.ID == ideal.MetricHandlebarClampFit {
-					pointsLost = cr.PointsLost
-					break
-				}
-			}
-		}
 		hbX, hbY := cfr.SelectedHB.HbX, cfr.SelectedHB.HbY
 		if cfr.TargetRef == model.TargetStemClamp {
 			hbX, hbY = cfr.SelectedHB.ClampX, cfr.SelectedHB.ClampY
 		}
+		// The cockpit scan keeps the stock build with the fewest points lost on
+		// these bands; show each band's share.
+		var parts []string
+		total := 0.0
+		if score != nil {
+			for _, id := range []ideal.MetricID{ideal.MetricHandlebarClampFit, ideal.MetricStemLength, ideal.MetricStemAngle, ideal.MetricSpacers} {
+				for _, cr := range score.Criteria {
+					if cr.ID == id && !cr.IsDisplayOnly && !cr.Missing {
+						parts = append(parts, fmt.Sprintf("%s %.1f", cr.Label, cr.PointsLost))
+						total += cr.PointsLost
+					}
+				}
+			}
+		}
+		lostStr := fmt.Sprintf("R=%.2f", cfr.BestR)
+		if len(parts) > 0 {
+			lostStr = fmt.Sprintf("R=%.2f; lost %s = %.1f", cfr.BestR, strings.Join(parts, " + "), total)
+		}
 		rows = append(rows, []string{
 			"5. Fit Target & Solve",
-			"Nearest Stock Fit & Score",
-			"FitOval R, Oval PointsLost = 22 × max(0, R − 1)",
+			"Cheapest Stock Build",
+			"min over stem length × angle × spacers of Oval Fits 22 × max(0, R − 1) + Stem Length + Stem Angle + Spacers",
 			fmt.Sprintf("Stem %.0fmm %+.0f° + %.0fmm sp (|Δ|=%.1f)",
 				cfr.SelectedHB.Stem.LengthMm, cfr.SelectedHB.Stem.AngleDeg, cfr.SelectedHB.SpacerMm, math.Hypot(hbX-cfr.TargetOval.CenterX, hbY-cfr.TargetOval.CenterY)),
-			fmt.Sprintf("R=%.2f, Lost=%.1f", cfr.BestR, pointsLost),
+			lostStr,
 		})
 	}
 

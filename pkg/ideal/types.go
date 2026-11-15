@@ -104,24 +104,33 @@ const (
 	MetricSitBoneSetback    MetricID = "sit_bone_setback"
 	MetricIdealSta          MetricID = "ideal_sta"
 	MetricHandlebarClampFit MetricID = "handlebar_clamp_fit"
+	MetricRailOffset        MetricID = "rail_offset"
+	MetricStemLength        MetricID = "stem_length"
+	MetricStemAngle         MetricID = "stem_angle"
+	MetricSpacers           MetricID = "spacers"
 )
 
 // AttributeSpec describes the scoring and display configuration for a single geometry or fit metric.
 type AttributeSpec struct {
 	ID MetricID
 	// Cost prices the distance outside Ideal (the free range). A nil Cost
-	// means the attribute is display-only.
-	Cost       *Cost
-	Ideal      *Range
-	Acceptable *Range
-	EdgeScore  model.Opt[float64]
-	Falloff    *Falloff
-	Floor      model.Opt[float64]
+	// (and zero LimitPoints) means the attribute is display-only.
+	Cost *Cost
+	// LimitPoints prices a hardware band: free inside Ideal, then linear up to
+	// LimitPoints at the setup's hardware limit on each side (see HardwareLimits).
+	// The per-unit cost therefore depends on the row's hardware (stem catalog,
+	// saddle rail window, steerer spacer stack).
+	LimitPoints float64
+	Ideal       *Range
+	Acceptable  *Range
+	EdgeScore   model.Opt[float64]
+	Falloff     *Falloff
+	Floor       model.Opt[float64]
 }
 
 // IsScored reports whether the attribute contributes points lost to the total.
 func (s AttributeSpec) IsScored() bool {
-	return s.Cost != nil && s.Ideal != nil
+	return (s.Cost != nil || s.LimitPoints > 0) && s.Ideal != nil
 }
 
 // DisplayOnly returns an unscored, display-only AttributeSpec for the given attribute ID.
@@ -152,6 +161,19 @@ type Profile struct {
 	TargetRef              model.TargetRef
 	ReferenceBar           model.Opt[model.HandlebarSpec]
 	Attributes             []AttributeSpec
+}
+
+// Spec returns the profile's attribute spec for id.
+func (p *Profile) Spec(id MetricID) (AttributeSpec, bool) {
+	if p == nil {
+		return AttributeSpec{}, false
+	}
+	for _, a := range p.Attributes {
+		if a.ID == id {
+			return a, true
+		}
+	}
+	return AttributeSpec{}, false
 }
 
 // ProfileSummary provides high-level metadata for listing profiles.

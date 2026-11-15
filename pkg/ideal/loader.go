@@ -33,6 +33,11 @@ func IdmatchProfile() *Profile {
 				Falloff:    FalloffBoth(20, 20),
 				Floor:      model.Some(-200.0),
 			},
+			{
+				ID:          "rail_offset",
+				LimitPoints: 8,
+				Ideal:       Between(-5, 5),
+			},
 			DisplayOnlyWithTarget("saddle_hb", Between(695, 705), Between(685, 715), model.Some(75.0), FalloffBoth(15, 15)),
 			DisplayOnlyWithTarget("saddle_hb_drop", Between(-2, 8), Between(-10, 16), model.Some(75.0), FalloffBoth(10, 10)),
 			DisplayOnly("best_stem"),
@@ -50,6 +55,21 @@ func IdmatchProfile() *Profile {
 				Floor:      model.Some(-200.0),
 			},
 			{
+				ID:          "stem_length",
+				LimitPoints: 8,
+				Ideal:       Between(70, 80),
+			},
+			{
+				ID:          "stem_angle",
+				LimitPoints: 1,
+				Ideal:       Exact(0),
+			},
+			{
+				ID:          "spacers",
+				LimitPoints: 8,
+				Ideal:       Between(0, 20),
+			},
+			{
 				ID:         "seatpost_extension",
 				Cost:       CostBoth(0.18, 0.21),
 				Ideal:      Between(250, 310),
@@ -58,7 +78,11 @@ func IdmatchProfile() *Profile {
 				Falloff:    FalloffBoth(25, 25),
 				Floor:      model.Some(-100.0),
 			},
-			DisplayOnly("rc_wb_ratio"),
+			{
+				ID:    "rc_wb_ratio",
+				Cost:  CostEach(4),
+				Ideal: Between(37, 39),
+			},
 			{
 				ID:         "bbdrop",
 				Cost:       CostEach(0.44),
@@ -138,7 +162,7 @@ func NormalizeAndValidate(p *Profile) (*Profile, error) {
 				MetricHta, MetricTrail, MetricSta, MetricReach, MetricStack, MetricWheelbase,
 				MetricRcWbRatio, MetricSeatTube, MetricStandover, MetricSaddleHb,
 				MetricBestStem, MetricStemSpacerFit, MetricSitBoneSetback, MetricIdealSta,
-				MetricHandlebarClampFit:
+				MetricHandlebarClampFit, MetricRailOffset, MetricStemLength, MetricStemAngle, MetricSpacers:
 			default:
 			}
 		}
@@ -236,7 +260,7 @@ func (p *Profile) ForSaddle(saddle model.SaddleSpec) *Profile {
 			MetricHta, MetricTrail, MetricSta, MetricReach, MetricStack, MetricWheelbase,
 			MetricRcWbRatio, MetricSeatTube, MetricStandover, MetricSaddleHbDrop,
 			MetricBestStem, MetricStemSpacerFit, MetricSitBoneSetback, MetricIdealSta,
-			MetricHandlebarClampFit:
+			MetricHandlebarClampFit, MetricRailOffset, MetricStemLength, MetricStemAngle, MetricSpacers:
 		default:
 		}
 		copied.Attributes[i] = attr
