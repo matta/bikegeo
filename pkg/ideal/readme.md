@@ -39,7 +39,7 @@ From an idmatch Bikelab report (e.g. `206563 - Matt Armstrong - Report idmatch B
 ## Hardware Modeling & Saddle Rails
 
 On a real bicycle, the BRP sits offset from the seat tube centerline due to:
-- **Seatpost Setback**: `model.DefaultSeatpostSetbackMm = 0.0 mm` (a zero-setback dropper post; the earlier Redshift ShockStop baseline of 7 mm static + 4 mm sag was retired in SIMPLIFY_G step 23a).
+- **Seatpost Setback**: `model.DefaultSeatpostSetbackMm = 0.0 mm` (a zero-setback dropper post).
 - **Saddle Geometry**: Defined in the Canonical Saddle Coordinate System (`X_RC = 0.0 mm` at the rail center; inspect with `bikegeo saddles`).
   - For the reference **SQlab 610 Ergolux Active 2.1**: `RailCenterToBrpMm = +23.0 mm`, `RailCenterToSitBonesMm = -50.0 mm`.
   - For the **Berthoud Aspin Open**: `RailCenterToBrpMm = +43.5 mm`, `RailCenterToSitBonesMm = -44.5 mm`.

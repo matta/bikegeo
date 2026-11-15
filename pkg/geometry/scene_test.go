@@ -465,7 +465,7 @@ func TestBuildScene_ValidationAndZeroDefaults(t *testing.T) {
 }
 
 func TestSolveStemSpacerFit(t *testing.T) {
-	// Seven Custom geometry from SIMPLIFY_G.md Part II §3:
+	// Seven Custom cockpit reference setup:
 	// HT = (424, 631), HTA = 70°, HeadsetTopStackMm = 11, StemClampHeight = 40.
 	persuader := catalog.DefaultHandlebar()
 	saddle := catalog.DefaultSaddle()

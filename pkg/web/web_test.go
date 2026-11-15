@@ -668,8 +668,8 @@ func TestPages_UnknownIDsAre400(t *testing.T) {
 	}
 }
 
-// /forks, /stems and /ideals were folded away (SIMPLIFY_G step 24): the routes are
-// gone, the nav no longer links them, and /help carries the profile summary and
+// /forks, /stems and /ideals were folded into /help: those routes return 404,
+// the nav no longer links them, and /help carries the profile summary and
 // the stock stem catalogs instead.
 func TestPages_FoldedRoutesAreGone(t *testing.T) {
 	for _, target := range []string{"/forks", "/stems", "/ideals", "/ideals?name=idmatch"} {
