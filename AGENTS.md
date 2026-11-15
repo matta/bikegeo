@@ -44,9 +44,10 @@ make pre-commit
   - Do not add a CLI subcommand for a human-browsing feature, or a web page for an agent-only tool. If both audiences need it, share a builder.
   - The web is strictly Web 1.0: `GET` forms, URL query as the only state, full-page responses, no JavaScript, no cookies. Controls must be populated from the parsed query.
   - `bikegeo fit` can list tied candidate solutions in a varying order between runs; that is pre-existing.
-- **Score Curves Live in `pkg/curve`**:
-  - Every scoring shape (attribute falloffs, cockpit proximity, stem penalty, versatility bonus) is built from `pkg/curve`, which cannot express flat stretches or jumps: curves are continuous, strictly decreasing and approach their floor asymptotically, so two different failures never tie.
-  - Never clamp, round, or add stepped (count-based or fixed) bonuses and penalties to a score in scoring code. If a new curve shape is needed, add it to `pkg/curve` with property tests.
+- **Scores Are a Points-Lost Ledger**:
+  - `Total = 100 − Σ points lost` (`scoring.ScoreRow`). Each scored band (`ideal.AttributeSpec.Cost`) is free inside its ideal range and costs a stated number of points of total per unit outside it, linearly. There are no weights, weighted averages, floors or curve tails, and totals may go below 0. Adding or removing a band never rescales the others.
+  - Never clamp, round, or add stepped (count-based or fixed) bonuses and penalties to points lost in scoring code. A new band states its free range and its cost per unit.
+  - `pkg/curve` still shapes cockpit candidate selection (proximity, stem penalty, versatility bonus) only; none of it contributes to the total.
 - **Per-Column Comparison Model (`ComparisonSetup`)**:
   - Every comparison column specifies `FrameID + Size + Fork (travel in mm or "rigid") + Sag %`.
   - Allows comparing the same frame across multiple sag points or fork capacities alongside different frames.

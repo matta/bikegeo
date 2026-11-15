@@ -55,6 +55,25 @@ func FalloffAbove(above float64) *Falloff {
 	return &Falloff{Above: model.Some(above)}
 }
 
+// Cost is a band's price in points of total per unit outside its free range
+// (the AttributeSpec Ideal range). Total = 100 − Σ points lost, so each band's
+// cost stands on its own: adding or removing a band never rescales the others.
+// A zero side is free.
+type Cost struct {
+	Below float64
+	Above float64
+}
+
+// CostBoth returns a Cost with separate prices below and above the free range.
+func CostBoth(below, above float64) *Cost {
+	return &Cost{Below: below, Above: above}
+}
+
+// CostEach returns a Cost with the same price on both sides of the free range.
+func CostEach(perUnit float64) *Cost {
+	return &Cost{Below: perUnit, Above: perUnit}
+}
+
 // MetricID identifies a known bike geometry or fit metric in the attribute registry.
 type MetricID string
 
@@ -89,13 +108,20 @@ const (
 
 // AttributeSpec describes the scoring and display configuration for a single geometry or fit metric.
 type AttributeSpec struct {
-	ID         MetricID
-	Weight     float64
+	ID MetricID
+	// Cost prices the distance outside Ideal (the free range). A nil Cost
+	// means the attribute is display-only.
+	Cost       *Cost
 	Ideal      *Range
 	Acceptable *Range
 	EdgeScore  model.Opt[float64]
 	Falloff    *Falloff
 	Floor      model.Opt[float64]
+}
+
+// IsScored reports whether the attribute contributes points lost to the total.
+func (s AttributeSpec) IsScored() bool {
+	return s.Cost != nil && s.Ideal != nil
 }
 
 // DisplayOnly returns an unscored, display-only AttributeSpec for the given attribute ID.
@@ -107,7 +133,6 @@ func DisplayOnly(id MetricID) AttributeSpec {
 func DisplayOnlyWithTarget(id MetricID, ideal, acceptable *Range, edgeScore model.Opt[float64], falloff *Falloff) AttributeSpec {
 	return AttributeSpec{
 		ID:         id,
-		Weight:     0,
 		Ideal:      ideal,
 		Acceptable: acceptable,
 		EdgeScore:  edgeScore,
@@ -159,7 +184,7 @@ type Evaluation struct {
 	Value           float64
 	Zone            ZoneType
 	DistanceToIdeal float64
-	SubScore        float64
+	PointsLost      float64
 	FormattedCell   string
 	IsDisplayOnly   bool
 }

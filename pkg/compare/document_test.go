@@ -237,26 +237,32 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 			t.Fatal("missing handlebar_clamp_fit column in breakdown")
 		}
 
-		// Map breakdown row ID -> printed subscore.
-		bdByRow := map[string]int{}
+		// Breakdown cells print the Oval Fits points lost (0 or negative) first.
+		seenBreakdown := map[string]bool{}
 		for _, r := range breakdown.Rows {
 			fields := strings.Fields(r.Cells[bdClampCol].Text)
 			if len(fields) == 0 {
 				t.Fatalf("empty breakdown cell for row %s", r.ID)
 			}
-			sub, err := strconv.Atoi(fields[0])
-			if err != nil {
-				t.Fatalf("parse breakdown subscore %q: %v", r.Cells[bdClampCol].Text, err)
+			lost, err := strconv.Atoi(fields[0])
+			if err != nil || lost > 0 {
+				t.Fatalf("breakdown Oval Fits cell %q must start with points lost (<= 0): %v", r.Cells[bdClampCol].Text, err)
 			}
-			bdByRow[r.ID] = sub
+			seenBreakdown[r.ID] = true
 		}
 
+		// The matrix marker still follows the oval sub-score against the ≥100 / ≥75
+		// reference rows until the ✓/✗ display replaces it.
 		for _, r := range fit.Rows[2:] {
 			cell := r.Cells[clampCol]
-			sub, ok := bdByRow[r.ID]
-			if !ok {
+			if !seenBreakdown[r.ID] {
 				t.Fatalf("missing breakdown row for %s", r.ID)
 			}
+			idx, err := strconv.Atoi(r.ID)
+			if err != nil || idx < 1 || idx > len(res.Rows) || res.Rows[idx-1].Canonical.CockpitFitResult == nil {
+				t.Fatalf("row %s has no cockpit fit result", r.ID)
+			}
+			sub := int(math.Round(res.Rows[idx-1].Canonical.CockpitFitResult.FinalSubScore))
 			wantMarker := ideal.SymbolOutside
 			wantZone := report.ZoneOutside
 			if sub >= 100 {
@@ -634,8 +640,10 @@ func TestCompare_BreakdownSubtitleAndTranslatedH(t *testing.T) {
 
 	bdSub := tables[len(tables)-1].Subtitle
 	for _, want := range []string{
-		"-100 or -200",
-		"> -174 to +100",
+		"Total = 100 − Σ points lost",
+		"BRP Setback 1.20/mm",
+		"Oval Fits 22/R beyond the oval edge",
+		"Seatpost Ext 0.18/mm below, 0.21/mm above",
 		"±1–2",
 	} {
 		if !strings.Contains(bdSub, want) {

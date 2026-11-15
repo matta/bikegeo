@@ -424,71 +424,43 @@ func buildBreakdown(
 ) report.Table {
 	t := report.Table{ID: TableBreakdown, Title: "Scoring Breakdown"}
 	t.Columns = []report.Column{{ID: "rank", Label: "Rank"}, {ID: "col", Label: "#"}, {ID: "frame", Label: "Frame"}}
-	var weightedAttrs []ideal.AttributeSpec
-	var weightParts []string
-	var totalWeight, weightedFloorSum float64
-	floorSeen := make(map[int]bool)
-	var floors []int
+	var scoredAttrs []ideal.AttributeSpec
+	var costParts []string
 	for _, attr := range prof.Attributes {
-		if attr.Weight > 0 && attr.Ideal != nil {
-			meta, _ := ideal.LookupAttribute(attr.ID)
-			t.Columns = append(t.Columns, report.Column{ID: string(attr.ID), Label: meta.Label, Numeric: true})
-			weightedAttrs = append(weightedAttrs, attr)
-			weightParts = append(weightParts, fmt.Sprintf("%s %.0f", meta.Label, attr.Weight))
-
-			fl := attr.Floor.Or(-200.0)
-			totalWeight += attr.Weight
-			weightedFloorSum += attr.Weight * fl
-			flInt := int(math.Round(fl))
-			if !floorSeen[flInt] {
-				floorSeen[flInt] = true
-				floors = append(floors, flInt)
-			}
+		if !attr.IsScored() {
+			continue
 		}
-	}
-	sort.Sort(sort.Reverse(sort.IntSlice(floors)))
-	floorParts := make([]string, len(floors))
-	for i, f := range floors {
-		floorParts[i] = strconv.Itoa(f)
-	}
-	floorLabel := "per-criterion floor " + strings.Join(floorParts, " or ")
-	if len(floors) > 1 {
-		floorLabel = "per-criterion floors " + strings.Join(floorParts, " or ")
-	}
-	totalFloorBound := -200.0
-	if totalWeight > 0 {
-		totalFloorBound = math.Floor(weightedFloorSum / totalWeight)
+		meta, _ := ideal.LookupAttribute(attr.ID)
+		t.Columns = append(t.Columns, report.Column{ID: string(attr.ID), Label: meta.Label, Numeric: true})
+		scoredAttrs = append(scoredAttrs, attr)
+		costParts = append(costParts, fmt.Sprintf("%s %s", meta.Label, FormatCost(attr, meta)))
 	}
 	t.Columns = append(t.Columns, report.Column{ID: "total", Label: "Total", Numeric: true})
 	t.Subtitle = fmt.Sprintf(
-		"Sub-scores (%s to +100; points lost on total score in parens — criterion losses rounded independently, may differ from 100 - Total by ±1–2). Total = weighted average (> %.0f to +100; weights: %s)",
-		floorLabel, totalFloorBound, strings.Join(weightParts, ", "),
+		"Points lost per band (free inside the ideal range, linear outside it; band losses rounded independently, may differ from 100 - Total by ±1–2). Total = 100 − Σ points lost, may go below 0. Costs: %s",
+		strings.Join(costParts, "; "),
 	)
 	if withFooters {
 		t.Footers = footers
 	}
 
 	for _, item := range items {
-		subScores := make(map[ideal.MetricID]float64)
 		pointsLost := make(map[ideal.MetricID]float64)
 		missingMap := make(map[ideal.MetricID]bool)
 		zones := make(map[ideal.MetricID]string)
 		for _, c := range item.score.Criteria {
-			subScores[c.ID] = c.SubScore
 			pointsLost[c.ID] = c.PointsLost
 			missingMap[c.ID] = c.Missing
 			zones[c.ID] = c.Zone
 		}
 
-		formatSubScoreCell := func(id ideal.MetricID) report.Cell {
+		formatLostCell := func(id ideal.MetricID) report.Cell {
 			if missingMap[id] {
 				return report.Cell{Text: "—", Zone: report.ZoneMissing, MetricID: string(id)}
 			}
-			sub := math.Round(subScores[id])
-			lost := math.Round(pointsLost[id])
-			scorePart := fmt.Sprintf("%.0f", sub)
-			if lost >= 1 {
-				scorePart = fmt.Sprintf("%.0f (-%.0f)", sub, lost)
+			scorePart := "0"
+			if lost := math.Round(pointsLost[id]); lost >= 1 {
+				scorePart = fmt.Sprintf("-%.0f", lost)
 			}
 			text := scorePart
 
@@ -500,11 +472,7 @@ func buildBreakdown(
 				if hb.SpacerMm < 0 {
 					sign = ""
 				}
-				stemPenStr := ""
-				if cfr.StemPenalty > 0 {
-					stemPenStr = fmt.Sprintf(" [-%.0f stem]", cfr.StemPenalty)
-				}
-				text = fmt.Sprintf("%s [%.0fmm %.0f° %s%.0fmm]%s (%d in oval)", scorePart, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, stemPenStr, cfr.CountInside)
+				text = fmt.Sprintf("%s [R=%.2f, %.0fmm %.0f° %s%.0fmm] (%d in oval)", scorePart, cfr.BestR, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.CountInside)
 			case id == ideal.MetricBrpSetback && item.row.Canonical.SelectedBRP != nil:
 				brp := item.row.Canonical.SelectedBRP
 				sign := "+"
@@ -542,11 +510,30 @@ func buildBreakdown(
 			plain(strconv.Itoa(item.origIdx + 1)),
 			plain(item.displayName),
 		}
-		for _, wa := range weightedAttrs {
-			cells = append(cells, formatSubScoreCell(wa.ID))
+		for _, sa := range scoredAttrs {
+			cells = append(cells, formatLostCell(sa.ID))
 		}
 		cells = append(cells, plain(totalText))
 		t.Rows = append(t.Rows, report.Row{ID: strconv.Itoa(item.origIdx + 1), Kind: report.KindData, Attrs: rowAttrs(item), Cells: cells})
 	}
 	return t
+}
+
+// FormatCost renders a band's price in points of total per unit outside its free
+// range ("—" for a display-only attribute).
+func FormatCost(attr ideal.AttributeSpec, meta ideal.AttributeMeta) string {
+	if !attr.IsScored() {
+		return "—"
+	}
+	if attr.ID == ideal.MetricHandlebarClampFit {
+		return fmt.Sprintf("%.0f/R beyond the oval edge", attr.Cost.Above)
+	}
+	unit := meta.Unit
+	if unit == "" {
+		unit = "unit"
+	}
+	if attr.Cost.Below == attr.Cost.Above {
+		return fmt.Sprintf("%.2f/%s", attr.Cost.Below, unit)
+	}
+	return fmt.Sprintf("%.2f/%s below, %.2f/%s above", attr.Cost.Below, unit, attr.Cost.Above, unit)
 }

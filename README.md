@@ -35,13 +35,11 @@ All bike frame definitions ([`pkg/frames/`](pkg/frames)), fork and stem catalogs
 
 5. **Ideal Frame Profiles & Sweet-Spot Scoring (`pkg/ideal`, `pkg/scoring`)**:
    - Frames are evaluated against parameterized sweet-spot ranges defined in [`pkg/ideal/loader.go`](pkg/ideal/loader.go) (`idmatch` biomechanical fit profile).
-   - Evaluates criteria across nested ranges:
-     - **Ideal (`✓`)**: Scores 100.0 (e.g. BRP Setback 219mm, Handlebar Clamp Fit ≥100 pts, BB Drop 70mm, Trail 98–106mm).
-     - **Acceptable (`~`)**: Scores `EdgeScore` (typically 75–80) to 100 with linear ramp towards ideal. Cell displays offset to ideal (e.g. `221 ~ 2 aft`).
-     - **Outside (`✗`)**: Falloff beyond acceptable crosses 0 at the profile's falloff distance, then keeps losing points on an asymptotic tail towards the floor without ever reaching it, so two different failures never tie. Cell displays offset to ideal (e.g. `204 ✗ 15 fwd`).
+   - Scores are a points-lost ledger: `Total = 100 − Σ points lost`. Each scored band is free inside its ideal range (e.g. BRP Setback 219mm, inside the fit oval, BB Drop 65–75mm, Trail 98–106mm) and loses a stated number of points of total per unit outside it, linearly and with no floor, so totals can go below 0.
+     - Cells show `✓` inside the ideal range, `~` inside the display-only acceptable range, and `✗` beyond it, with the offset to ideal (e.g. `221 ~ 2 aft`, `204 ✗ 15 fwd`).
    - Tables are automatically sorted by score descending (with original `[#]` identifiers preserved).
    - Generates plain-English footer explanations (`Biggest Losses vs. Ideal` and `Head-to-Head Deciding Factors`).
-   - Disable scoring with `--no-score`, or inspect sub-scores with `--score-detail`.
+   - Disable scoring with `--no-score`, or inspect points lost per band with `--score-detail`.
 
 6. **Catalogs and Analysis in the Web UI**:
    - Ideal profiles, forks, stems, saddles, saddle swap and handlebars are browsed and tuned in the web app only (see [docs/WEB.md](docs/WEB.md)).
@@ -76,7 +74,7 @@ make build
 ./bin/bikegeo compare                      # the default baseline
 ./bin/bikegeo compare +surly-ecr:XL        # add to / remove from the baseline
 ./bin/bikegeo compare -salsa-fargo:all
-./bin/bikegeo compare --score-detail       # sub-score loss breakdown
+./bin/bikegeo compare --score-detail       # points-lost breakdown
 
 # Validate frame CAD math across all sizes and configurations:
 ./bin/bikegeo validate binary-havok

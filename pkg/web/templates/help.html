@@ -15,15 +15,15 @@
 
 <section id="zones">
 <h2>Reading the colours</h2>
-<p>Every scored cell shows its value plus <span class="zone-ideal key">✓ inside the ideal range</span>, <span class="zone-acceptable key">~ acceptable</span> or <span class="zone-outside key">✗ outside</span>, with the distance to the ideal. Sub-scores run from +100 (ideal) down toward per-criterion floors (-100 or -200); a bike's total is their weighted average (> -166 to +100). The ranges below are the default <em>idmatch</em> profile.</p>
+<p>Every scored cell shows its value plus <span class="zone-ideal key">✓ inside the ideal range</span>, <span class="zone-acceptable key">~ acceptable</span> or <span class="zone-outside key">✗ outside</span>, with the distance to the ideal. Each scored band is free inside its ideal range and loses points linearly outside it at the cost listed below (points of total per unit). A bike's total is 100 minus the points lost across all bands, so it has no floor and may go below 0. The ranges below are the default <em>idmatch</em> profile.</p>
 </section>
 
 <section id="metrics">
 <h2>Metrics</h2>
 <div class="scroll"><table data-table="glossary">
-<thead><tr><th scope="col">Metric</th><th scope="col">ID</th><th scope="col">Unit</th><th scope="col">Ideal</th><th scope="col">Acceptable</th><th scope="col">Weight</th></tr></thead>
+<thead><tr><th scope="col">Metric</th><th scope="col">ID</th><th scope="col">Unit</th><th scope="col">Ideal</th><th scope="col">Acceptable</th><th scope="col">Cost</th></tr></thead>
 <tbody>
-{{range .Metrics}}<tr id="metric-{{.ID}}" data-metric="{{.ID}}"><th scope="row" class="sticky">{{.Label}}</th><td><code>{{.ID}}</code></td><td>{{.Unit}}</td><td class="num">{{.Ideal}}</td><td class="num">{{.Acceptable}}</td><td class="num">{{if .Scored}}{{.Weight}}{{else}}display only{{end}}</td></tr>
+{{range .Metrics}}<tr id="metric-{{.ID}}" data-metric="{{.ID}}"><th scope="row" class="sticky">{{.Label}}</th><td><code>{{.ID}}</code></td><td>{{.Unit}}</td><td class="num">{{.Ideal}}</td><td class="num">{{.Acceptable}}</td><td class="num">{{if .Scored}}{{.Cost}}{{else}}display only{{end}}</td></tr>
 {{end}}</tbody>
 </table></div>
 </section>

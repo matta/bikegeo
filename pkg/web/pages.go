@@ -309,7 +309,7 @@ type helpData struct {
 
 type helpMetric struct {
 	ID, Label, Unit, Ideal, Acceptable string
-	Weight                             float64
+	Cost                               string
 	Scored                             bool
 }
 
@@ -326,8 +326,8 @@ func (s *server) help(w http.ResponseWriter, _ *http.Request) {
 		hm := helpMetric{ID: string(m.ID), Label: m.Label, Unit: m.Unit}
 		if sp, ok := specs[m.ID]; ok {
 			hm.Ideal, hm.Acceptable = compare.FormatAttrRanges(sp, m)
-			hm.Weight = sp.Weight
-			hm.Scored = sp.Weight > 0 && sp.Ideal != nil
+			hm.Cost = compare.FormatCost(sp, m)
+			hm.Scored = sp.IsScored()
 		}
 		d.Metrics = append(d.Metrics, hm)
 	}

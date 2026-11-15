@@ -279,7 +279,7 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 		pointsLost := 0.0
 		if score != nil {
 			for _, cr := range score.Criteria {
-				if cr.ID == "grip_fit" || cr.ID == "handlebar_clamp_fit" {
+				if cr.ID == ideal.MetricHandlebarClampFit {
 					pointsLost = cr.PointsLost
 					break
 				}
@@ -292,10 +292,10 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 		rows = append(rows, []string{
 			"5. Fit Target & Solve",
 			"Nearest Stock Fit & Score",
-			"FitOval R, StemPenalty, FinalSubScore, PointsLost",
+			"FitOval R, Oval PointsLost = 22 × max(0, R − 1)",
 			fmt.Sprintf("Stem %.0fmm %+.0f° + %.0fmm sp (|Δ|=%.1f)",
 				cfr.SelectedHB.Stem.LengthMm, cfr.SelectedHB.Stem.AngleDeg, cfr.SelectedHB.SpacerMm, math.Hypot(hbX-cfr.TargetOval.CenterX, hbY-cfr.TargetOval.CenterY)),
-			fmt.Sprintf("R=%.2f, StemPen=%.1f, SubScore=%.1f, Lost=%.1f", cfr.BestR, cfr.StemPenalty, cfr.FinalSubScore, pointsLost),
+			fmt.Sprintf("R=%.2f, Lost=%.1f", cfr.BestR, pointsLost),
 		})
 	}
 

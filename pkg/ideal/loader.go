@@ -26,7 +26,7 @@ func IdmatchProfile() *Profile {
 		Attributes: []AttributeSpec{
 			{
 				ID:         "brp_setback",
-				Weight:     10,
+				Cost:       CostEach(1.2),
 				Ideal:      Exact(model.DefaultIdmatchBrpSetbackMm),
 				Acceptable: Between(214, 224),
 				EdgeScore:  model.Some(75.0),
@@ -38,8 +38,11 @@ func IdmatchProfile() *Profile {
 			DisplayOnly("best_stem"),
 			DisplayOnly("stem_spacer_fit"),
 			{
+				// Oval Fits is priced on the selected setup's normalized radius R,
+				// not on the displayed value: free inside the oval (R <= 1), then
+				// Cost.Above points per unit of R beyond the edge.
 				ID:         "handlebar_clamp_fit",
-				Weight:     15,
+				Cost:       &Cost{Above: OvalCostPerR},
 				Ideal:      AtLeast(100),
 				Acceptable: AtLeast(75),
 				EdgeScore:  model.Some(75.0),
@@ -48,7 +51,7 @@ func IdmatchProfile() *Profile {
 			},
 			{
 				ID:         "seatpost_extension",
-				Weight:     4,
+				Cost:       CostBoth(0.18, 0.21),
 				Ideal:      Between(250, 310),
 				Acceptable: Between(210, 340),
 				EdgeScore:  model.Some(75.0),
@@ -58,8 +61,8 @@ func IdmatchProfile() *Profile {
 			DisplayOnly("rc_wb_ratio"),
 			{
 				ID:         "bbdrop",
-				Weight:     3,
-				Ideal:      Exact(70),
+				Cost:       CostEach(0.44),
+				Ideal:      Between(65, 75),
 				Acceptable: Between(60, 80),
 				EdgeScore:  model.Some(75.0),
 				Falloff:    FalloffBoth(10, 10),
@@ -67,7 +70,7 @@ func IdmatchProfile() *Profile {
 			},
 			{
 				ID:         "trail",
-				Weight:     2,
+				Cost:       CostEach(0.41),
 				Ideal:      Between(98, 106),
 				Acceptable: Between(92, 109),
 				EdgeScore:  model.Some(75.0),
@@ -269,7 +272,7 @@ func ListProfiles() []ProfileSummary {
 func summarizeProfile(p *Profile) ProfileSummary {
 	scoredCount := 0
 	for _, attr := range p.Attributes {
-		if attr.Weight > 0 && attr.Ideal != nil {
+		if attr.IsScored() {
 			scoredCount++
 		}
 	}

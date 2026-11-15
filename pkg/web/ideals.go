@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"bikegeo/pkg/compare"
 	"bikegeo/pkg/ideal"
 )
 
@@ -35,7 +36,7 @@ func (db *docb) listIdeals() int {
 	}
 
 	title := fmt.Sprintf("Ideal Frame Profiles (%d)", len(summaries))
-	subtitle := "Select a profile above or follow a profile link to view attribute weights, ranges, and sample evaluations"
+	subtitle := "Select a profile above or follow a profile link to view band costs, ranges, and sample evaluations"
 	if err := db.render(title, subtitle, headers, rows); err != nil {
 		db.fail("Error rendering output: %v", err)
 		return 1
@@ -66,12 +67,9 @@ func (db *docb) showIdeal(name string) int {
 
 	headers := []string{
 		"Attribute",
-		"Weight",
-		"Ideal Range",
+		"Cost (points lost outside the ideal range)",
+		"Ideal Range (free)",
 		"Acceptable Range",
-		"Edge Score",
-		"Falloff (Below / Above)",
-		"Floor (asymptote)",
 	}
 
 	var rows [][]string
@@ -81,9 +79,9 @@ func (db *docb) showIdeal(name string) int {
 			continue
 		}
 
-		wtStr := "display only"
-		if attr.Weight > 0 {
-			wtStr = fmt.Sprintf("%.0f", attr.Weight)
+		costStr := "display only"
+		if attr.IsScored() {
+			costStr = compare.FormatCost(attr, meta)
 		}
 
 		idealStr := ideal.FormatRange(attr.Ideal, meta.Unit, meta.Decimals)
@@ -96,40 +94,11 @@ func (db *docb) showIdeal(name string) int {
 			accStr = "—"
 		}
 
-		edgeStr := "—"
-		if edge, ok := attr.EdgeScore.Get(); ok {
-			edgeStr = fmt.Sprintf("%.0f", edge)
-		}
-
-		falloffStr := "—"
-		if attr.Falloff != nil {
-			var parts []string
-			if below, ok := attr.Falloff.Below.Get(); ok {
-				parts = append(parts, fmt.Sprintf("-%.1f%s", below, meta.Unit))
-			} else {
-				parts = append(parts, "—")
-			}
-			if above, ok := attr.Falloff.Above.Get(); ok {
-				parts = append(parts, fmt.Sprintf("+%.1f%s", above, meta.Unit))
-			} else {
-				parts = append(parts, "—")
-			}
-			falloffStr = strings.Join(parts, " / ")
-		}
-
-		floorStr := "—"
-		if fl, ok := attr.Floor.Get(); ok {
-			floorStr = fmt.Sprintf("%.0f", fl)
-		}
-
 		rows = append(rows, []string{
 			fmt.Sprintf("%s (%s)", meta.Label, attr.ID),
-			wtStr,
+			costStr,
 			idealStr,
 			accStr,
-			edgeStr,
-			falloffStr,
-			floorStr,
 		})
 	}
 
@@ -140,11 +109,12 @@ func (db *docb) showIdeal(name string) int {
 
 	// In table or markdown mode, also render sample evaluation points
 	{
-		sampleHeaders := []string{"Attribute", "Test Value", "Zone", "Score", "Table Display"}
+		sampleHeaders := []string{"Attribute", "Test Value", "Zone", "Points Lost", "Table Display"}
 		var sampleRows [][]string
 
 		for _, attr := range p.Attributes {
-			if attr.Weight <= 0 || attr.Ideal == nil {
+			// Oval Fits is priced on a setup's oval radius R, which needs a resolved row.
+			if !attr.IsScored() || attr.ID == ideal.MetricHandlebarClampFit {
 				continue
 			}
 			meta, _ := ideal.LookupAttribute(attr.ID)
@@ -152,7 +122,7 @@ func (db *docb) showIdeal(name string) int {
 			sampleVals := generateSampleValues(attr)
 			for _, val := range sampleVals {
 				ev := ideal.Evaluate(attr, meta, val, nil)
-				scoreStr := fmt.Sprintf("%.0f", math.Round(ev.SubScore))
+				scoreStr := fmt.Sprintf("%.1f", ev.PointsLost)
 				sampleRows = append(sampleRows, []string{
 					meta.Label,
 					fmt.Sprintf("%.*f %s", meta.Decimals, val, meta.Unit),
@@ -164,7 +134,7 @@ func (db *docb) showIdeal(name string) int {
 		}
 
 		if len(sampleRows) > 0 {
-			_ = db.render("Sample Evaluation Points", "Key checkpoints across ideal, acceptable, and falloff zones", sampleHeaders, sampleRows)
+			_ = db.render("Sample Evaluation Points", "Key checkpoints inside and outside the free (ideal) range", sampleHeaders, sampleRows)
 		}
 	}
 
@@ -207,16 +177,12 @@ func generateSampleValues(spec ideal.AttributeSpec) []float64 {
 		}
 	}
 
-	if spec.Falloff != nil && spec.Acceptable != nil {
-		if below, ok := spec.Falloff.Below.Get(); ok {
-			if minVal, ok := spec.Acceptable.Min.Get(); ok {
-				add(minVal - below)
-			}
+	if spec.Acceptable != nil {
+		if minVal, ok := spec.Acceptable.Min.Get(); ok {
+			add(minVal - 10)
 		}
-		if above, ok := spec.Falloff.Above.Get(); ok {
-			if maxVal, ok := spec.Acceptable.Max.Get(); ok {
-				add(maxVal + above)
-			}
+		if maxVal, ok := spec.Acceptable.Max.Get(); ok {
+			add(maxVal + 10)
 		}
 	}
 

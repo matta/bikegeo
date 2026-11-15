@@ -43,14 +43,14 @@ func TestScoreRow_MissingDataRenormalization(t *testing.T) {
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:        "setback",
-				Weight:    10,
+				Cost:      ideal.CostEach(1),
 				Ideal:     &ideal.Range{Min: model.Some(230.0), Max: model.Some(230.0)},
 				EdgeScore: model.Some(80.0),
 				Falloff:   &ideal.Falloff{Below: model.Some(10.0), Above: model.Some(10.0)},
 			},
 			{
 				ID:        "standover",
-				Weight:    10,
+				Cost:      ideal.CostEach(1),
 				Ideal:     &ideal.Range{Min: model.Some(700.0), Max: model.Some(750.0)},
 				EdgeScore: model.Some(80.0),
 				Falloff:   &ideal.Falloff{Below: model.Some(50.0), Above: model.Some(50.0)},
@@ -58,7 +58,7 @@ func TestScoreRow_MissingDataRenormalization(t *testing.T) {
 		},
 	}
 
-	// Frame A has both setback=230 (100) and standover=720 (100) -> total 100
+	// Frame A has both setback=230 and standover=720 inside their free ranges -> total 100
 	rowA := model.CanonicalComparisonRow{
 		Bike: model.BikeGeometry{
 			StandoverHeight: 720,
@@ -72,8 +72,8 @@ func TestScoreRow_MissingDataRenormalization(t *testing.T) {
 		t.Errorf("Frame A expected total 100, got %.1f", resA.Total)
 	}
 
-	// Frame B has setback=230 (100) and standover=0 (missing)
-	// Active weight should renormalize to 10/10 -> total 100
+	// Frame B has setback=230 (free) and standover=0 (missing)
+	// A missing band loses no points -> total 100
 	rowB := model.CanonicalComparisonRow{
 		Bike: model.BikeGeometry{
 			StandoverHeight: 0,
@@ -84,7 +84,7 @@ func TestScoreRow_MissingDataRenormalization(t *testing.T) {
 	}
 	resB := ScoreRow(rowB, prof)
 	if math.Round(resB.Total) != 100 {
-		t.Errorf("Frame B expected total 100 with renormalized weight, got %.1f", resB.Total)
+		t.Errorf("Frame B expected total 100 (missing band loses nothing), got %.1f", resB.Total)
 	}
 	if !resB.Criteria[1].Missing {
 		t.Errorf("Expected standover criterion on Frame B to have Missing=true")
@@ -174,7 +174,7 @@ func TestScoreRow_SaddleHb(t *testing.T) {
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:        "saddle_hb",
-				Weight:    10,
+				Cost:      ideal.CostEach(1),
 				Ideal:     &ideal.Range{Min: model.Some(695.0), Max: model.Some(705.0)},
 				EdgeScore: model.Some(80.0),
 				Falloff:   &ideal.Falloff{Below: model.Some(50.0), Above: model.Some(50.0)},
@@ -250,7 +250,7 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "brp_setback",
-				Weight:     10,
+				Cost:       ideal.CostEach(1),
 				Ideal:      &ideal.Range{Min: model.Some(219.0), Max: model.Some(219.0)}, // target 219mm
 				Acceptable: &ideal.Range{Min: model.Some(214.0), Max: model.Some(224.0)}, // within ±5mm of rail center
 				EdgeScore:  model.Some(75.0),
@@ -258,7 +258,7 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 			},
 			{
 				ID:         "saddle_hb",
-				Weight:     10,
+				Cost:       ideal.CostEach(1),
 				Ideal:      &ideal.Range{Min: model.Some(695.0), Max: model.Some(705.0)},
 				Acceptable: &ideal.Range{Min: model.Some(685.0), Max: model.Some(715.0)},
 				EdgeScore:  model.Some(75.0),
@@ -266,7 +266,7 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 			},
 			{
 				ID:         "saddle_hb_drop",
-				Weight:     5,
+				Cost:       ideal.CostEach(1),
 				Ideal:      &ideal.Range{Min: model.Some(-2.0), Max: model.Some(8.0)},
 				Acceptable: &ideal.Range{Min: model.Some(-10.0), Max: model.Some(16.0)},
 				EdgeScore:  model.Some(75.0),
@@ -326,8 +326,8 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 			}
 		}
 		if c.ID == "saddle_hb" {
-			if c.SubScore < 95.0 {
-				t.Errorf("Expected saddle_hb subscore >= 95, got %.1f (%q)", c.SubScore, c.FormattedCell)
+			if c.PointsLost > 2.0 {
+				t.Errorf("Expected saddle_hb within ~2mm of its free range (<= 2 points lost), got %.1f (%q)", c.PointsLost, c.FormattedCell)
 			}
 		}
 	}
@@ -352,7 +352,7 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	}
 	fenrirRes := scoreRowWithTargets(fenrirRow, prof)
 	if fenrirRes.Total > 50.0 {
-		t.Errorf("Expected score < 50 for Otso Fenrir on Redshift post alone (cannot reach 219mm), got %.1f", fenrirRes.Total)
+		t.Errorf("Expected score < 50 for Otso Fenrir on the zero-setback dropper (cannot reach 219mm), got %.1f", fenrirRes.Total)
 	}
 }
 
@@ -388,15 +388,15 @@ func TestScoreRow_SeatpostExtension(t *testing.T) {
 	if critIdeal == nil {
 		t.Fatalf("seatpost_extension criterion not found in idmatch results")
 	}
-	if critIdeal.SubScore != 100.0 {
-		t.Errorf("Expected subscore 100.0 for 280mm extension, got %.1f", critIdeal.SubScore)
+	if critIdeal.PointsLost != 0 {
+		t.Errorf("Expected 0 points lost for 280mm extension, got %.1f", critIdeal.PointsLost)
 	}
 	if critIdeal.Zone != string(ideal.ZoneIdeal) {
 		t.Errorf("Expected ZoneIdeal for 280mm extension, got %s", critIdeal.Zone)
 	}
 
 	// 2. Acceptable low extension: seat tube 526mm -> extension = 220mm (within acceptable [210, 340], ideal min 250)
-	// Ratio: (220 - 210) / (250 - 210) = 10 / 40 = 0.25 -> 75 + 25*0.25 = 81.25
+	// 30mm below the 250mm free bound at 0.18 points/mm -> 5.4 points lost
 	rowAcc := buildRow(526.0)
 	resAcc := ScoreRow(rowAcc, prof)
 	var critAcc *CriterionResult
@@ -406,15 +406,15 @@ func TestScoreRow_SeatpostExtension(t *testing.T) {
 			break
 		}
 	}
-	if critAcc == nil || math.Abs(critAcc.SubScore-81.25) > 0.5 {
-		t.Errorf("Expected subscore ~81.25 for 220mm extension, got %+v", critAcc)
+	if critAcc == nil || math.Abs(critAcc.PointsLost-5.4) > 0.05 {
+		t.Errorf("Expected ~5.4 points lost for 220mm extension, got %+v", critAcc)
 	}
 	if critAcc.Zone != string(ideal.ZoneAcceptable) {
 		t.Errorf("Expected ZoneAcceptable for 220mm extension, got %s", critAcc.Zone)
 	}
 
 	// 3. Severely short extension: Fargo XL (seat tube 558.8mm) -> extension = 187.2mm
-	// 22.8mm below acceptable min (210mm) -> with 25mm falloff, slope 75/25=3 -> subscore = 75 - 22.8*3 = 6.6
+	// 62.8mm below the 250mm free bound at 0.18 points/mm -> 11.3 points lost
 	rowFargoXL := buildRow(558.8)
 	resFargoXL := ScoreRow(rowFargoXL, prof)
 	var critFargoXL *CriterionResult
@@ -424,8 +424,8 @@ func TestScoreRow_SeatpostExtension(t *testing.T) {
 			break
 		}
 	}
-	if critFargoXL == nil || critFargoXL.SubScore > 15.0 {
-		t.Errorf("Expected severe penalty (< 15 subscore) for Fargo XL 187.2mm extension, got %+v", critFargoXL)
+	if critFargoXL == nil || math.Abs(critFargoXL.PointsLost-11.3) > 0.05 {
+		t.Errorf("Expected ~11.3 points lost for Fargo XL 187.2mm extension, got %+v", critFargoXL)
 	}
 	if critFargoXL.Zone != string(ideal.ZoneOutside) {
 		t.Errorf("Expected ZoneOutside for Fargo XL 187.2mm extension, got %s", critFargoXL.Zone)
@@ -441,7 +441,7 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "handlebar_clamp_fit",
-				Weight:     15,
+				Cost:       &ideal.Cost{Above: ideal.OvalCostPerR},
 				Ideal:      ideal.AtLeast(100),
 				Acceptable: ideal.AtLeast(75),
 				EdgeScore:  model.Some(75.0),
@@ -507,7 +507,7 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 
 	resMulti := scoreRowWithTargets(rowMulti, prof)
 	if resMulti.Total != 100.0 {
-		t.Errorf("Expected total score 100 for exact center with multi-setup bonus, got %.1f", resMulti.Total)
+		t.Errorf("Expected total score 100 for exact center (free inside the oval), got %.1f", resMulti.Total)
 	}
 
 	var critClamp *CriterionResult
@@ -548,9 +548,9 @@ func TestScoreRow_HandlebarClampFit(t *testing.T) {
 		},
 	}
 	resZero := scoreRowWithTargets(rowZero, prof)
-	// BaseScore at R=1.10 is ~65.1 (continuous past the oval edge, no flat penalty).
-	if math.Abs(resZero.Total-65.1) > 0.5 {
-		t.Errorf("Expected score ~65.1 for R=1.10, got %.1f", resZero.Total)
+	// R=1.10 is 0.10 past the oval edge at 22 points per unit R -> 2.2 points lost.
+	if math.Abs(resZero.Total-97.8) > 0.05 {
+		t.Errorf("Expected score ~97.8 for R=1.10, got %.1f", resZero.Total)
 	}
 }
 
@@ -562,7 +562,7 @@ func TestScoreRow_HandlebarClampFit_StemExtremityPenalty(t *testing.T) {
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "handlebar_clamp_fit",
-				Weight:     15,
+				Cost:       &ideal.Cost{Above: ideal.OvalCostPerR},
 				Ideal:      ideal.AtLeast(100),
 				Acceptable: ideal.AtLeast(75),
 				EdgeScore:  model.Some(75.0),
@@ -608,7 +608,7 @@ func TestScoreRow_HandlebarClampFit_StemExtremityPenalty(t *testing.T) {
 	geometry.ApplyCockpitFit(&row100.Canonical, row100.Bike, row100.Bike.GetCanonicalStem(), model.Some(700.0), model.Some(700.0), model.Some(13.0), model.Some(13.0))
 
 	res100 := ScoreRow(row100, prof)
-	// BaseScore = 100.0, bonus = 0 (1 setup). StemPenalty = 15.0 -> SubScore = 85.0
+	// R = 0 (free inside the oval). The 15pt StemPenalty only steers selection and costs no points.
 	var critClamp *CriterionResult
 	for i := range res100.Criteria {
 		if res100.Criteria[i].ID == "handlebar_clamp_fit" {
@@ -619,16 +619,16 @@ func TestScoreRow_HandlebarClampFit_StemExtremityPenalty(t *testing.T) {
 	if critClamp == nil {
 		t.Fatalf("Expected handlebar_clamp_fit criterion")
 	}
-	if math.Abs(critClamp.SubScore-85.0) > 0.1 {
-		t.Errorf("Expected subscore 85.0 due to 15pt stem penalty, got %.1f", critClamp.SubScore)
+	if critClamp.PointsLost != 0 {
+		t.Errorf("Expected 0 points lost inside the oval despite the 15pt stem penalty, got %.2f", critClamp.PointsLost)
 	}
 
-	// Verify loss explanation mentions stem penalty and omits reach/stack offset when R=0.00
+	// Verify loss explanation omits the unpriced stem penalty and the reach/stack offset when R=0.00
 	meta, _ := ideal.LookupAttribute("handlebar_clamp_fit")
 	spec := prof.Attributes[0]
 	lossDesc := DescribeLossWithRow(spec, meta, critClamp.Value, critClamp.DistanceToIdeal, ideal.ZoneAcceptable, &row100)
-	if !strings.Contains(lossDesc, "-15 stem penalty") {
-		t.Errorf("Expected loss explanation to mention '-15 stem penalty', got: %s", lossDesc)
+	if strings.Contains(lossDesc, "stem penalty") {
+		t.Errorf("Expected loss explanation not to mention the unpriced stem penalty, got: %s", lossDesc)
 	}
 	if strings.Contains(lossDesc, "reach:") || strings.Contains(lossDesc, "stack:") {
 		t.Errorf("Expected loss explanation to omit reach and stack offsets when R=0.0, got: %s", lossDesc)
@@ -660,7 +660,7 @@ func TestDescribeLoss_CockpitFitOffset_InsideOval(t *testing.T) {
 	}
 
 	desc := DescribeLossWithRow(spec, meta, 85, 0.97, ideal.ZoneAcceptable, &row)
-	expected := "Oval Fits: closest stem is 100mm -6° +0mm (R=0.97, reach: 11mm short, stack: 2mm low, 1 valid setup in fit window, -15 stem penalty)"
+	expected := "Oval Fits: closest stem is 100mm -6° +0mm (R=0.97, reach: 11mm short, stack: 2mm low, 1 valid setup in fit window)"
 	if desc != expected {
 		t.Errorf("\nExpected: %s\nGot:      %s", expected, desc)
 	}
@@ -691,7 +691,7 @@ func TestDescribeLoss_CockpitFitOffset_ZeroFits(t *testing.T) {
 	}
 
 	desc := DescribeLossWithRow(spec, meta, -200, 5.37, ideal.ZoneOutside, &row)
-	expected := "Oval Fits: 0 valid setups in fit window (closest is 100mm -6° +0mm, R=5.37, reach: 26mm short, stack: 56mm high, -15 stem penalty)"
+	expected := "Oval Fits: 0 valid setups in fit window (closest is 100mm -6° +0mm, R=5.37, reach: 26mm short, stack: 56mm high)"
 	if desc != expected {
 		t.Errorf("\nExpected: %s\nGot:      %s", expected, desc)
 	}
@@ -708,7 +708,7 @@ func TestScoreAllRows_FarOutsideCockpitStillRanksByDistance(t *testing.T) {
 		Attributes: []ideal.AttributeSpec{
 			{
 				ID:         "handlebar_clamp_fit",
-				Weight:     15,
+				Cost:       &ideal.Cost{Above: ideal.OvalCostPerR},
 				Ideal:      ideal.AtLeast(100),
 				Acceptable: ideal.AtLeast(75),
 				EdgeScore:  model.Some(75.0),
@@ -775,7 +775,7 @@ func TestLossDeltaMatchesCell(t *testing.T) {
 	specs = append(specs,
 		ideal.AttributeSpec{
 			ID:         "hta",
-			Weight:     2,
+			Cost:       ideal.CostEach(1),
 			Ideal:      ideal.Between(67.5, 68.5),
 			Acceptable: ideal.Between(66.5, 69.5),
 			EdgeScore:  model.Some(75.0),
@@ -784,7 +784,7 @@ func TestLossDeltaMatchesCell(t *testing.T) {
 		},
 		ideal.AttributeSpec{
 			ID:         "sta",
-			Weight:     2,
+			Cost:       ideal.CostEach(1),
 			Ideal:      ideal.Between(73.0, 74.5),
 			Acceptable: ideal.Between(72.0, 75.5),
 			EdgeScore:  model.Some(75.0),
@@ -964,8 +964,8 @@ func TestLossAndHeadToHeadUseRegistryLabel(t *testing.T) {
 	}
 
 	h2hJoined := strings.Join(expl.HeadToHead, "\n")
-	if !strings.Contains(h2hJoined, meta.Label+" sub-score ") {
-		t.Errorf("head-to-head should label Oval Fits values as sub-score: %s", h2hJoined)
+	if !strings.Contains(h2hJoined, meta.Label+" R=1.20 vs R=3.50") {
+		t.Errorf("head-to-head should compare Oval Fits by oval radius R: %s", h2hJoined)
 	}
 }
 
@@ -992,10 +992,16 @@ func TestExplainProfile_HeadToHeadReconcilesAllFactors(t *testing.T) {
 		t.Fatalf("GetProfile(idmatch): %v", err)
 	}
 
-	// Build two frames differing in 3 positive factors (+5, +4, +2), 2 negative
-	// factors (-3, -2), and a <1 pt factor (+0.4): total gap = 65 - 59 = 6.
+	// Build two frames differing in 3 positive factors (+5, +4, +2), 1 negative
+	// factor (-2), and a <1 pt factor (+0.4): total gap = 65 - 59 = 6.
+	// Each band's points lost is 40 minus its listed points, so A gains
+	// (B lost − A lost) = (A pts − B pts) on it.
 	makeCrit := func(id ideal.MetricID, label, unit string, val, pts float64) CriterionResult {
-		return CriterionResult{ID: id, Label: label, Unit: unit, Value: val, Points: pts, Weight: 1}
+		return CriterionResult{ID: id, Label: label, Unit: unit, Value: val, PointsLost: 40 - pts}
+	}
+	withR := func(c CriterionResult, r float64) CriterionResult {
+		c.DistanceToIdeal = r
+		return c
 	}
 	fa := ScoredFrame{
 		Name: "Frame A (L)",
@@ -1003,7 +1009,7 @@ func TestExplainProfile_HeadToHeadReconcilesAllFactors(t *testing.T) {
 			Total: 65.4,
 			Criteria: []CriterionResult{
 				makeCrit("brp_setback", "BRP Setback", "mm", 215, 25),
-				makeCrit("handlebar_clamp_fit", "Oval Fits", "", 80, 34),
+				withR(makeCrit("handlebar_clamp_fit", "Oval Fits", "", 80, 34), 1.2),
 				makeCrit("seatpost_extension", "Seatpost Ext", "mm", 270, 12),
 				makeCrit("bbdrop", "BB Drop", "mm", 62, 5),
 				makeCrit("trail", "Trail", "mm", 102, 10.4),
@@ -1016,7 +1022,7 @@ func TestExplainProfile_HeadToHeadReconcilesAllFactors(t *testing.T) {
 			Total: 59.0,
 			Criteria: []CriterionResult{
 				makeCrit("brp_setback", "BRP Setback", "mm", 205, 20),
-				makeCrit("handlebar_clamp_fit", "Oval Fits", "", 65, 30),
+				withR(makeCrit("handlebar_clamp_fit", "Oval Fits", "", 65, 30), 1.5),
 				makeCrit("seatpost_extension", "Seatpost Ext", "mm", 250, 10),
 				makeCrit("bbdrop", "BB Drop", "mm", 70, 7),
 				makeCrit("trail", "Trail", "mm", 101, 10.0),
@@ -1031,7 +1037,7 @@ func TestExplainProfile_HeadToHeadReconcilesAllFactors(t *testing.T) {
 	line := expl.HeadToHead[0]
 	for _, want := range []string{
 		"BRP Setback 215mm vs 205mm (+5)",
-		"Oval Fits sub-score 80 vs 65 (+4)",
+		"Oval Fits R=1.20 vs R=1.50 (+4)",
 		"Seatpost Ext 270mm vs 250mm (+2)",
 		"BB Drop 62mm vs 70mm (-2)",
 	} {
@@ -1107,27 +1113,24 @@ func TestScoreRow_CockpitTargetRefModes(t *testing.T) {
 			Attributes: []ideal.AttributeSpec{
 				{
 					ID:         "handlebar_clamp_fit",
-					Weight:     10,
+					Cost:       &ideal.Cost{Above: ideal.OvalCostPerR},
 					Ideal:      &ideal.Range{Min: model.Some(100.0)},
 					Acceptable: &ideal.Range{Min: model.Some(75.0)},
 				},
 				{
 					ID:        "saddle_hb",
-					Weight:    0,
 					Ideal:     ideal.Exact(targetDist),
 					EdgeScore: model.Some(80.0),
 					Falloff:   &ideal.Falloff{Below: model.Some(50.0), Above: model.Some(50.0)},
 				},
 				{
 					ID:        "saddle_hb_drop",
-					Weight:    0,
 					Ideal:     ideal.Exact(targetDrop),
 					EdgeScore: model.Some(80.0),
 					Falloff:   &ideal.Falloff{Below: model.Some(50.0), Above: model.Some(50.0)},
 				},
 				{
-					ID:     "best_stem",
-					Weight: 0,
+					ID: "best_stem",
 				},
 			},
 		}

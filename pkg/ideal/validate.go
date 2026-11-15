@@ -78,7 +78,7 @@ func ValidateProfile(p *Profile) error {
 	}
 
 	seenIDs := make(map[MetricID]bool)
-	hasWeighted := false
+	hasScored := false
 
 	for idx, attr := range p.Attributes {
 		if attr.ID == "" {
@@ -93,15 +93,17 @@ func ValidateProfile(p *Profile) error {
 			return fmt.Errorf("profile %q attribute %q is not a recognized attribute id", p.Name, attr.ID)
 		}
 
-		if attr.Weight < 0 {
-			return fmt.Errorf("profile %q attribute %q weight must be non-negative, got %.1f", p.Name, attr.ID, attr.Weight)
-		}
-
-		if attr.Weight > 0 {
-			hasWeighted = true
-			if attr.Ideal == nil {
-				return fmt.Errorf("profile %q weighted attribute %q must define an ideal range", p.Name, attr.ID)
+		if c := attr.Cost; c != nil {
+			if c.Below < 0 || c.Above < 0 {
+				return fmt.Errorf("profile %q attribute %q cost must be non-negative, got below %.2f / above %.2f", p.Name, attr.ID, c.Below, c.Above)
 			}
+			if c.Below == 0 && c.Above == 0 {
+				return fmt.Errorf("profile %q attribute %q cost must price at least one side", p.Name, attr.ID)
+			}
+			if attr.Ideal == nil {
+				return fmt.Errorf("profile %q scored attribute %q must define an ideal (free) range", p.Name, attr.ID)
+			}
+			hasScored = true
 		}
 
 		if attr.Ideal != nil {
@@ -184,8 +186,8 @@ func ValidateProfile(p *Profile) error {
 		}
 	}
 
-	if !hasWeighted {
-		return fmt.Errorf("profile %q must define at least one weighted attribute", p.Name)
+	if !hasScored {
+		return fmt.Errorf("profile %q must define at least one scored (costed) attribute", p.Name)
 	}
 
 	return nil

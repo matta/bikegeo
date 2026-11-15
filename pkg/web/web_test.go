@@ -933,18 +933,23 @@ func TestRunServe_RenderInMemory(t *testing.T) {
 	})
 }
 
-func TestHelp_StatesPerCriterionFloorsAndTotalRange(t *testing.T) {
+func TestHelp_StatesPointsLostLedger(t *testing.T) {
 	rec, doc := do(t, "/help")
 	mustStatus(t, rec, http.StatusOK)
 
 	body := doc.Find("#zones").Text()
-	for _, want := range []string{"-100 or -200", "> -166 to +100"} {
+	for _, want := range []string{"100 minus the points lost", "no floor", "may go below 0"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("/help #zones missing %q:\n%s", want, body)
 		}
 	}
-	if strings.Contains(body, "down to -200") {
-		t.Errorf("/help #zones still claims scores run down to -200:\n%s", body)
+	for _, stale := range []string{"weighted average", "floors", "Sub-scores"} {
+		if strings.Contains(body, stale) {
+			t.Errorf("/help #zones still describes the composite curve score (%q):\n%s", stale, body)
+		}
+	}
+	if got := doc.Find(`#metric-brp_setback td`).Last().Text(); got != "1.20/mm" {
+		t.Errorf("/help BRP Setback cost = %q, want %q", got, "1.20/mm")
 	}
 }
 

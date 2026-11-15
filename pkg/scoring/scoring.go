@@ -11,16 +11,13 @@ import (
 	"bikegeo/pkg/model"
 )
 
-// CriterionResult stores the calculated score breakdown for a single criterion.
+// CriterionResult stores one band's line in the points-lost ledger.
 type CriterionResult struct {
 	ID              ideal.MetricID
 	Label           string
 	Unit            string
 	Value           float64
-	SubScore        float64
-	Weight          float64
-	Points          float64
-	PointsLost      float64
+	PointsLost      float64 // points of total lost on this band (0 inside its free range)
 	Zone            string
 	DistanceToIdeal float64
 	FormattedCell   string
@@ -29,6 +26,7 @@ type CriterionResult struct {
 }
 
 // Result holds the overall score, ranking, and per-criterion details for a frame setup.
+// Total = 100 − Σ Criteria[i].PointsLost and may go below 0.
 type Result struct {
 	Total    float64
 	Rank     int
@@ -56,7 +54,9 @@ func formatValue(unit string, v float64) string {
 	return fmt.Sprintf("%.0f%s", v, unit)
 }
 
-// ScoreRow scores a single CanonicalComparisonRow against an ideal profile.
+// ScoreRow scores a single CanonicalComparisonRow against an ideal profile as a
+// points-lost ledger: Total = 100 − Σ points lost, with each scored band free
+// inside its Ideal range and priced linearly (AttributeSpec.Cost) outside it.
 // Cockpit fit (SelectedBRP, SelectedHB, CockpitFitResult) must already be populated
 // on row.Canonical (e.g., via canonicalizer.ApplyIdealCockpitTargets).
 func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
@@ -65,16 +65,8 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	}
 	prof = prof.ForSaddle(row.Canonical.Saddle)
 
-	type attrEval struct {
-		spec   ideal.AttributeSpec
-		meta   ideal.AttributeMeta
-		eval   ideal.Evaluation
-		val    float64
-		hasVal bool
-	}
-
-	var evals []attrEval
-	totalActiveWeight := 0.0
+	var results []CriterionResult
+	totalLost := 0.0
 
 	for _, spec := range prof.Attributes {
 		meta, ok := ideal.LookupAttribute(spec.ID)
@@ -82,82 +74,39 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 			continue
 		}
 
-		evalSpec := spec
-
 		val, ok := meta.Extract(row)
 		if !ok {
-			evals = append(evals, attrEval{spec: evalSpec, meta: meta, hasVal: false})
-			continue
-		}
-
-		ev := ideal.Evaluate(evalSpec, meta, val, &row)
-		evals = append(evals, attrEval{spec: evalSpec, meta: meta, eval: ev, val: val, hasVal: true})
-
-		if evalSpec.Weight > 0 && evalSpec.Ideal != nil {
-			totalActiveWeight += evalSpec.Weight
-		}
-	}
-
-	if totalActiveWeight <= 0 {
-		totalActiveWeight = 1.0
-	}
-
-	var results []CriterionResult
-	totalScore := 0.0
-
-	for _, item := range evals {
-		if !item.hasVal {
 			results = append(results, CriterionResult{
-				ID:            item.spec.ID,
-				Label:         item.meta.Label,
-				Unit:          item.meta.Unit,
+				ID:            spec.ID,
+				Label:         meta.Label,
+				Unit:          meta.Unit,
 				Missing:       true,
 				FormattedCell: "— (no data)",
-				Weight:        item.spec.Weight,
+				IsDisplayOnly: !spec.IsScored(),
 			})
 			continue
 		}
 
-		if item.eval.IsDisplayOnly || item.spec.Weight <= 0 {
-			results = append(results, CriterionResult{
-				ID:              item.spec.ID,
-				Label:           item.meta.Label,
-				Unit:            item.meta.Unit,
-				Value:           item.val,
-				Zone:            string(item.eval.Zone),
-				DistanceToIdeal: item.eval.DistanceToIdeal,
-				IsDisplayOnly:   true,
-				FormattedCell:   item.eval.FormattedCell,
-			})
-			continue
+		ev := ideal.Evaluate(spec, meta, val, &row)
+		cr := CriterionResult{
+			ID:              spec.ID,
+			Label:           meta.Label,
+			Unit:            meta.Unit,
+			Value:           val,
+			Zone:            string(ev.Zone),
+			DistanceToIdeal: ev.DistanceToIdeal,
+			FormattedCell:   ev.FormattedCell,
+			IsDisplayOnly:   ev.IsDisplayOnly || !spec.IsScored(),
 		}
-
-		sub := item.eval.SubScore
-		pts := item.spec.Weight * sub / totalActiveWeight
-		totalScore += pts
-
-		lost := item.spec.Weight * (100.0 - sub) / totalActiveWeight
-		if lost < 0 {
-			lost = 0
+		if !cr.IsDisplayOnly {
+			cr.PointsLost = ev.PointsLost
+			totalLost += ev.PointsLost
 		}
-
-		results = append(results, CriterionResult{
-			ID:              item.spec.ID,
-			Label:           item.meta.Label,
-			Unit:            item.meta.Unit,
-			Value:           item.val,
-			SubScore:        sub,
-			Weight:          item.spec.Weight,
-			Points:          pts,
-			PointsLost:      lost,
-			Zone:            string(item.eval.Zone),
-			DistanceToIdeal: item.eval.DistanceToIdeal,
-			FormattedCell:   item.eval.FormattedCell,
-		})
+		results = append(results, cr)
 	}
 
 	return Result{
-		Total:    totalScore,
+		Total:    100.0 - totalLost,
 		Criteria: results,
 	}
 }
@@ -260,29 +209,21 @@ func DescribeLossWithRow(spec ideal.AttributeSpec, meta ideal.AttributeMeta, val
 			if hb.SpacerMm < 0 {
 				sign = ""
 			}
-			stemNote := ""
-			if cfr.StemPenalty > 0 {
-				stemNote = fmt.Sprintf(", -%.0f stem penalty", cfr.StemPenalty)
-			}
 			offsetStr := formatCockpitOffset(hb, cfr.TargetOval, cfr.TargetRef, cfr.ReferenceBar)
 			offsetPart := ""
 			if offsetStr != "" && (cfr.CountInside == 0 || cfr.BestR > 0) {
 				offsetPart = ", " + offsetStr
 			}
 			if cfr.CountInside == 0 {
-				return fmt.Sprintf("%s: 0 valid setups in fit window (closest is %.0fmm %.0f° %s%.0fmm, R=%.2f%s%s)",
-					label, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, stemNote)
+				return fmt.Sprintf("%s: 0 valid setups in fit window (closest is %.0fmm %.0f° %s%.0fmm, R=%.2f%s)",
+					label, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart)
 			}
 			plural := "s"
 			if cfr.CountInside == 1 {
 				plural = ""
 			}
-			if cfr.VersatilityBonus > 0 {
-				return fmt.Sprintf("%s: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f%s, %d valid setup%s%s, +%.0f bonus)",
-					label, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, cfr.CountInside, plural, stemNote, cfr.VersatilityBonus)
-			}
-			return fmt.Sprintf("%s: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f%s, %d valid setup%s in fit window%s)",
-				label, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, cfr.CountInside, plural, stemNote)
+			return fmt.Sprintf("%s: closest stem is %.0fmm %.0f° %s%.0fmm (R=%.2f%s, %d valid setup%s in fit window)",
+				label, hb.Stem.LengthMm, hb.Stem.AngleDeg, sign, hb.SpacerMm, cfr.BestR, offsetPart, cfr.CountInside, plural)
 		}
 	case ideal.MetricHta, ideal.MetricSta:
 		target := 68.0
@@ -389,7 +330,7 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 		}
 
 		for _, cr := range f.Score.Criteria {
-			if cr.Missing || cr.IsDisplayOnly || cr.Weight <= 0 {
+			if cr.Missing || cr.IsDisplayOnly {
 				continue
 			}
 			spec, ok := rowSpecMap[cr.ID]
@@ -450,6 +391,8 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 			unit  string
 			valA  float64
 			valB  float64
+			rA    float64
+			rB    float64
 		}
 		var pro []diffItem
 		var con []diffItem
@@ -461,15 +404,16 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 		}
 
 		for _, ca := range fa.Score.Criteria {
-			if ca.Missing || ca.IsDisplayOnly || ca.Weight <= 0 {
+			if ca.Missing || ca.IsDisplayOnly {
 				continue
 			}
 			cb, ok := critBMap[ca.ID]
-			if !ok || cb.Missing || cb.IsDisplayOnly || cb.Weight <= 0 {
+			if !ok || cb.Missing || cb.IsDisplayOnly {
 				continue
 			}
 
-			diff := ca.Points - cb.Points
+			// A gains what B lost beyond A on this band.
+			diff := cb.PointsLost - ca.PointsLost
 			item := diffItem{
 				id:    ca.ID,
 				diff:  diff,
@@ -477,6 +421,8 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 				unit:  ca.Unit,
 				valA:  ca.Value,
 				valB:  cb.Value,
+				rA:    ca.DistanceToIdeal,
+				rB:    cb.DistanceToIdeal,
 			}
 			if diff >= 1.0 {
 				pro = append(pro, item)
@@ -496,16 +442,15 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 
 		shownSum := 0
 		formatH2H := func(d diffItem) string {
-			// Oval Fits matrix cells show setup count, while CriterionResult.Value
-			// stores the sub-score; label it explicitly so the two aren't conflated.
-			valKind := ""
-			if d.id == ideal.MetricHandlebarClampFit {
-				valKind = "sub-score "
-			}
 			roundedDiff := int(math.Round(d.diff))
 			shownSum += roundedDiff
-			return fmt.Sprintf("%s %s%s vs %s (%+d)",
-				d.label, valKind, formatValue(d.unit, d.valA), formatValue(d.unit, d.valB), roundedDiff)
+			// Oval Fits matrix cells show the setup count, but the band is priced
+			// on the selected setup's oval radius R, so compare R.
+			if d.id == ideal.MetricHandlebarClampFit {
+				return fmt.Sprintf("%s R=%.2f vs R=%.2f (%+d)", d.label, d.rA, d.rB, roundedDiff)
+			}
+			return fmt.Sprintf("%s %s vs %s (%+d)",
+				d.label, formatValue(d.unit, d.valA), formatValue(d.unit, d.valB), roundedDiff)
 		}
 
 		var proParts []string

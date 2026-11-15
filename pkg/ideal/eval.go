@@ -5,7 +5,6 @@ import (
 	"math"
 	"strconv"
 
-	"bikegeo/pkg/curve"
 	"bikegeo/pkg/model"
 )
 
@@ -44,13 +43,45 @@ func PrintedDistanceToIdeal(idealRange *Range, printedVal float64, decimals int)
 	return 0
 }
 
+// OvalCostPerR is the Oval Fits price in points of total per unit of normalized
+// radius R beyond the oval edge (R = 1). Inside the oval is free; there is no tail.
+const OvalCostPerR = 22.0
+
+// OvalPointsLost returns the Oval Fits points lost for a selected cockpit setup:
+// OvalCostPerR per unit of R beyond the oval edge. The selector's stem penalty
+// only steers which setup is selected; it costs no points.
+func OvalPointsLost(cfr *model.CockpitFitResult, cost *Cost) float64 {
+	if cfr == nil {
+		return 0
+	}
+	perR := OvalCostPerR
+	if cost != nil {
+		perR = cost.Above
+	}
+	return perR * math.Max(0, cfr.BestR-1.0)
+}
+
+// PointsLost returns the points of total lost by an unrounded value under spec:
+// zero inside the Ideal (free) range, and Cost per unit outside it.
+func PointsLost(spec AttributeSpec, val float64) float64 {
+	if !spec.IsScored() {
+		return 0
+	}
+	if minV, ok := spec.Ideal.Min.Get(); ok && val < minV {
+		return spec.Cost.Below * (minV - val)
+	}
+	if maxV, ok := spec.Ideal.Max.Get(); ok && val > maxV {
+		return spec.Cost.Above * (val - maxV)
+	}
+	return 0
+}
+
 // Evaluate evaluates a metric value against an AttributeSpec and returns an Evaluation.
 // row can be nil if evaluating abstract test values.
 func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.CanonicalComparisonRow) Evaluation {
 	if spec.ID == MetricHandlebarClampFit && row != nil && row.Canonical.CockpitFitResult != nil {
 		cfr := row.Canonical.CockpitFitResult
-		subScore := cfr.FinalSubScore
-		printedSub := math.Round(subScore)
+		printedSub := math.Round(cfr.FinalSubScore)
 		idealMin := 100.0
 		if spec.Ideal != nil {
 			if v, ok := spec.Ideal.Min.Get(); ok {
@@ -73,14 +104,17 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 			sym = SymbolAcceptable
 		}
 
-		formatted := fmt.Sprintf("%d %s", cfr.CountInside, sym)
+		lost := 0.0
+		if spec.IsScored() {
+			lost = OvalPointsLost(cfr, spec.Cost)
+		}
 
 		return Evaluation{
-			Value:           subScore,
+			Value:           cfr.FinalSubScore,
 			Zone:            zone,
 			DistanceToIdeal: cfr.BestR,
-			SubScore:        subScore,
-			FormattedCell:   formatted,
+			PointsLost:      lost,
+			FormattedCell:   fmt.Sprintf("%d %s", cfr.CountInside, sym),
 		}
 	}
 
@@ -98,18 +132,8 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 		}
 	}
 
-	curves, err := spec.compileCurves()
-	if err != nil {
-		panic(fmt.Sprintf("ideal: cannot evaluate invalid attribute spec: %v", err))
-	}
-
-	// Score keeps using the unrounded value so curves remain strictly decreasing.
-	subScore := curve.Peak
-	if minV, ok := spec.Ideal.Min.Get(); ok && val < minV {
-		subScore = curves.below.falloff.Score(minV - val)
-	} else if maxV, ok := spec.Ideal.Max.Get(); ok && val > maxV {
-		subScore = curves.above.falloff.Score(val - maxV)
-	}
+	// Points lost use the unrounded value so the cost stays linear.
+	lost := PointsLost(spec, val)
 
 	// Zone, marker, and delta are decided from the value and bounds as printed.
 	printedDist := PrintedDistanceToIdeal(spec.Ideal, printedVal, meta.Decimals)
@@ -118,7 +142,7 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 			Value:           val,
 			Zone:            ZoneIdeal,
 			DistanceToIdeal: 0.0,
-			SubScore:        subScore,
+			PointsLost:      lost,
 			FormattedCell:   fmt.Sprintf("%s %s", baseValStr, SymbolIdeal),
 		}
 	}
@@ -140,7 +164,7 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 		Value:           val,
 		Zone:            zone,
 		DistanceToIdeal: printedDist,
-		SubScore:        subScore,
+		PointsLost:      lost,
 		FormattedCell:   formatCellWithDelta(baseValStr, symbol, printedDist, meta),
 	}
 }

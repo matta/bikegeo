@@ -98,10 +98,10 @@ func TestIdmatchProfileValid(t *testing.T) {
 }
 
 func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
-	// Seat-RC: ideal >= 235, acceptable >= 220, edge_score 70, falloff below 20, floor -100
+	// Seat-RC: free >= 235, acceptable >= 220 (display only), 0.5 points per mm below.
 	spec := AttributeSpec{
 		ID:         "seat_to_rc",
-		Weight:     4,
+		Cost:       CostBoth(0.5, 0),
 		Ideal:      AtLeast(235),
 		Acceptable: AtLeast(220),
 		EdgeScore:  model.Some(70.0),
@@ -113,31 +113,30 @@ func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
 		t.Fatalf("LookupAttribute('seat_to_rc') failed")
 	}
 
-	// 235 -> Ideal (100)
-	if res := Evaluate(spec, meta, 235, nil); res.Zone != ZoneIdeal || res.SubScore != 100 {
-		t.Errorf("Seat-RC 235 expected ZoneIdeal / 100, got %v / %.1f", res.Zone, res.SubScore)
+	for _, tc := range []struct {
+		val      float64
+		wantZone ZoneType
+		wantLost float64
+	}{
+		{235, ZoneIdeal, 0},
+		{250, ZoneIdeal, 0},
+		{1e6, ZoneIdeal, 0}, // unbounded above: never priced
+		{220, ZoneAcceptable, 7.5},
+		{200, ZoneOutside, 17.5},
+	} {
+		if res := Evaluate(spec, meta, tc.val, nil); res.Zone != tc.wantZone || math.Abs(res.PointsLost-tc.wantLost) > 1e-9 {
+			t.Errorf("Seat-RC %.0f expected %v / -%.1f, got %v / -%.4f", tc.val, tc.wantZone, tc.wantLost, res.Zone, res.PointsLost)
+		}
 	}
-	// 250 -> Ideal (100)
-	if res := Evaluate(spec, meta, 250, nil); res.Zone != ZoneIdeal || res.SubScore != 100 {
-		t.Errorf("Seat-RC 250 expected ZoneIdeal / 100, got %v / %.1f", res.Zone, res.SubScore)
-	}
-	// 220 -> Acceptable edge (70)
-	if res := Evaluate(spec, meta, 220, nil); res.Zone != ZoneAcceptable || res.SubScore != 70 {
-		t.Errorf("Seat-RC 220 expected ZoneAcceptable / 70, got %v / %.1f", res.Zone, res.SubScore)
-	}
-	// 200 -> 20 below acceptable (0)
-	if res := Evaluate(spec, meta, 200, nil); res.Zone != ZoneOutside || math.Abs(res.SubScore-0) > 0.001 {
-		t.Errorf("Seat-RC 200 expected ZoneOutside / 0, got %v / %.1f", res.Zone, res.SubScore)
-	}
-	// Far below: keeps losing points, approaching but never reaching the -100 floor.
-	assertStrictlyDecreasingAboveFloor(t, spec, meta, []float64{199, 180, 150, 100, 0, -1000, -1e6}, -100)
+	// Far below: keeps losing points linearly, with no floor.
+	assertLinearLoss(t, spec, meta, 235, -1, []float64{199, 180, 150, 100, 0, -1000, -1e6})
 }
 
 func TestEvaluate_DesignDocTable(t *testing.T) {
-	// AETT with acceptable 606–642, ideal 630–642, edge_score 60, falloff below 10 / above 5
+	// AETT free 630–642, acceptable 606–642 (display only), 2 points/mm below, 3 above.
 	spec := AttributeSpec{
 		ID:         "aett",
-		Weight:     10,
+		Cost:       CostBoth(2, 3),
 		Ideal:      Between(630, 642),
 		Acceptable: Between(606, 642),
 		EdgeScore:  model.Some(60.0),
@@ -152,18 +151,18 @@ func TestEvaluate_DesignDocTable(t *testing.T) {
 	testCases := []struct {
 		val          float64
 		expectedZone ZoneType
-		expectedSub  float64
+		expectedLost float64
 		expectedCell string
 	}{
-		{596, ZoneOutside, 0, "596 ✗ 34 sht"},
-		{601, ZoneOutside, 26.1, "601 ✗ 29 sht"},
-		{606, ZoneAcceptable, 60, "606 ~ 24 sht"},
-		{618, ZoneAcceptable, 80, "618 ~ 12 sht"},
-		{630, ZoneIdeal, 100, "630 ✓"},
-		{635, ZoneIdeal, 100, "635 ✓"},
-		{642, ZoneIdeal, 100, "642 ✓"},
-		{645, ZoneOutside, 30.8, "645 ✗ 3 lng"},
-		{647, ZoneOutside, 0, "647 ✗ 5 lng"},
+		{596, ZoneOutside, 68, "596 ✗ 34 sht"},
+		{601, ZoneOutside, 58, "601 ✗ 29 sht"},
+		{606, ZoneAcceptable, 48, "606 ~ 24 sht"},
+		{618, ZoneAcceptable, 24, "618 ~ 12 sht"},
+		{630, ZoneIdeal, 0, "630 ✓"},
+		{635, ZoneIdeal, 0, "635 ✓"},
+		{642, ZoneIdeal, 0, "642 ✓"},
+		{645, ZoneOutside, 9, "645 ✗ 3 lng"},
+		{647, ZoneOutside, 15, "647 ✗ 5 lng"},
 	}
 
 	for _, tc := range testCases {
@@ -171,8 +170,8 @@ func TestEvaluate_DesignDocTable(t *testing.T) {
 		if res.Zone != tc.expectedZone {
 			t.Errorf("val %.0f: expected zone %v, got %v", tc.val, tc.expectedZone, res.Zone)
 		}
-		if math.Abs(res.SubScore-tc.expectedSub) > 0.05 {
-			t.Errorf("val %.0f: expected sub-score %.1f, got %.1f", tc.val, tc.expectedSub, res.SubScore)
+		if math.Abs(res.PointsLost-tc.expectedLost) > 1e-9 {
+			t.Errorf("val %.0f: expected points lost %.1f, got %.4f", tc.val, tc.expectedLost, res.PointsLost)
 		}
 		if res.FormattedCell != tc.expectedCell {
 			t.Errorf("val %.0f: expected cell %q, got %q", tc.val, tc.expectedCell, res.FormattedCell)
@@ -181,10 +180,10 @@ func TestEvaluate_DesignDocTable(t *testing.T) {
 }
 
 func TestEvaluate_OneSidedChainstay(t *testing.T) {
-	// Chainstay: ideal >= 470, acceptable >= 445, edge_score 70, falloff below 25, floor -100
+	// Chainstay: free >= 470, acceptable >= 445 (display only), 0.4 points per mm below.
 	spec := AttributeSpec{
 		ID:         "chainstay",
-		Weight:     4,
+		Cost:       CostBoth(0.4, 0),
 		Ideal:      AtLeast(470),
 		Acceptable: AtLeast(445),
 		EdgeScore:  model.Some(70.0),
@@ -196,24 +195,22 @@ func TestEvaluate_OneSidedChainstay(t *testing.T) {
 		t.Fatalf("LookupAttribute('chainstay') failed")
 	}
 
-	// 470 -> Ideal (100)
-	if res := Evaluate(spec, meta, 470, nil); res.Zone != ZoneIdeal || res.SubScore != 100 {
-		t.Errorf("Chainstay 470 expected ZoneIdeal / 100, got %v / %.1f", res.Zone, res.SubScore)
+	for _, tc := range []struct {
+		val      float64
+		wantZone ZoneType
+		wantLost float64
+	}{
+		{470, ZoneIdeal, 0},
+		{480, ZoneIdeal, 0},
+		{445, ZoneAcceptable, 10},
+		{420, ZoneOutside, 20},
+	} {
+		if res := Evaluate(spec, meta, tc.val, nil); res.Zone != tc.wantZone || math.Abs(res.PointsLost-tc.wantLost) > 1e-9 {
+			t.Errorf("Chainstay %.0f expected %v / -%.1f, got %v / -%.4f", tc.val, tc.wantZone, tc.wantLost, res.Zone, res.PointsLost)
+		}
 	}
-	// 480 -> Ideal (100)
-	if res := Evaluate(spec, meta, 480, nil); res.Zone != ZoneIdeal || res.SubScore != 100 {
-		t.Errorf("Chainstay 480 expected ZoneIdeal / 100, got %v / %.1f", res.Zone, res.SubScore)
-	}
-	// 445 -> Acceptable edge (70)
-	if res := Evaluate(spec, meta, 445, nil); res.Zone != ZoneAcceptable || res.SubScore != 70 {
-		t.Errorf("Chainstay 445 expected ZoneAcceptable / 70, got %v / %.1f", res.Zone, res.SubScore)
-	}
-	// 420 -> 25 below acceptable (0)
-	if res := Evaluate(spec, meta, 420, nil); res.Zone != ZoneOutside || math.Abs(res.SubScore-0) > 0.001 {
-		t.Errorf("Chainstay 420 expected ZoneOutside / 0, got %v / %.1f", res.Zone, res.SubScore)
-	}
-	// Far below: keeps losing points, approaching but never reaching the -100 floor.
-	assertStrictlyDecreasingAboveFloor(t, spec, meta, []float64{419, 400, 350, 200, 0, -1000, -1e6}, -100)
+	// Far below: keeps losing points linearly, with no floor.
+	assertLinearLoss(t, spec, meta, 470, -1, []float64{419, 400, 350, 200, 0, -1000, -1e6})
 }
 
 func TestEvaluate_DisplayOnly(t *testing.T) {
@@ -237,7 +234,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 	pBadID := &Profile{
 		Name: "test",
 		Attributes: []AttributeSpec{
-			{ID: "nonexistent_attr", Weight: 5, Ideal: AtLeast(10)},
+			{ID: "nonexistent_attr", Cost: CostEach(1), Ideal: AtLeast(10)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pBadID); err == nil || !strings.Contains(err.Error(), "not a recognized attribute id") {
@@ -260,7 +257,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 	pInverted := &Profile{
 		Name: "test",
 		Attributes: []AttributeSpec{
-			{ID: "hta", Weight: 2, Ideal: Between(69, 67), Falloff: FalloffBoth(1, 1)},
+			{ID: "hta", Cost: CostEach(1), Ideal: Between(69, 67), Falloff: FalloffBoth(1, 1)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pInverted); err == nil || !strings.Contains(err.Error(), "exceeds max") {
@@ -271,7 +268,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 	pMissingEdge := &Profile{
 		Name: "test",
 		Attributes: []AttributeSpec{
-			{ID: "hta", Weight: 2, Ideal: Exact(68), Acceptable: Between(67, 69), Falloff: FalloffBoth(1, 1)},
+			{ID: "hta", Cost: CostEach(1), Ideal: Exact(68), Acceptable: Between(67, 69), Falloff: FalloffBoth(1, 1)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pMissingEdge); err == nil || !strings.Contains(err.Error(), "edge_score is not defined") {
@@ -282,7 +279,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 	pNoFalloff := &Profile{
 		Name: "test",
 		Attributes: []AttributeSpec{
-			{ID: "hta", Weight: 2, Ideal: Exact(68)},
+			{ID: "hta", Cost: CostEach(1), Ideal: Exact(68)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pNoFalloff); err == nil || !strings.Contains(err.Error(), "must define positive falloff") {
@@ -293,7 +290,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 	pBadFloor := &Profile{
 		Name: "test",
 		Attributes: []AttributeSpec{
-			{ID: "hta", Weight: 2, Ideal: Exact(68), Falloff: FalloffBoth(1, 1), Floor: model.Some(10.0)},
+			{ID: "hta", Cost: CostEach(1), Ideal: Exact(68), Falloff: FalloffBoth(1, 1), Floor: model.Some(10.0)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pBadFloor); err == nil || !strings.Contains(err.Error(), "floor (10.0) must be negative") {
@@ -305,7 +302,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 		Name:      "test-bad-ref",
 		TargetRef: "hb",
 		Attributes: []AttributeSpec{
-			{ID: "hta", Weight: 2, Ideal: Exact(68), Falloff: FalloffBoth(1, 1)},
+			{ID: "hta", Cost: CostEach(1), Ideal: Exact(68), Falloff: FalloffBoth(1, 1)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pBadTargetRef); err == nil || !strings.Contains(err.Error(), "target_ref") {
@@ -316,7 +313,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 	pMissingTargetRef := &Profile{
 		Name: "test-missing-ref",
 		Attributes: []AttributeSpec{
-			{ID: "saddle_hb", Weight: 10, Ideal: Exact(700), Falloff: FalloffBoth(20, 20)},
+			{ID: "saddle_hb", Cost: CostEach(1), Ideal: Exact(700), Falloff: FalloffBoth(20, 20)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pMissingTargetRef); err == nil || !strings.Contains(err.Error(), "target_ref") {
@@ -328,7 +325,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 		Name:      "test-missing-ref-bar",
 		TargetRef: model.TargetReferenceBarClamp,
 		Attributes: []AttributeSpec{
-			{ID: "saddle_hb", Weight: 10, Ideal: Exact(630), Falloff: FalloffBoth(20, 20)},
+			{ID: "saddle_hb", Cost: CostEach(1), Ideal: Exact(630), Falloff: FalloffBoth(20, 20)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pMissingRefBar); err == nil || !strings.Contains(err.Error(), "reference_bar") {
@@ -341,7 +338,7 @@ func TestValidation_StrictRejections(t *testing.T) {
 		TargetRef:    model.TargetReferenceBarClamp,
 		ReferenceBar: model.Some(model.HandlebarSpec{ID: "flat", StockWidthMm: 760, CurrentWidthMm: 760}),
 		Attributes: []AttributeSpec{
-			{ID: "saddle_hb", Weight: 10, Ideal: Exact(630), Falloff: FalloffBoth(20, 20)},
+			{ID: "saddle_hb", Cost: CostEach(1), Ideal: Exact(630), Falloff: FalloffBoth(20, 20)},
 		},
 	}
 	if _, err := NormalizeAndValidate(pValidRefBar); err != nil {
@@ -383,11 +380,12 @@ func TestEvaluate_DirectionalWordsAndBoundaryRounding(t *testing.T) {
 		{"brp_setback", 221, "221 ~ 2 aft"},
 		{"seatpost_extension", 221, "221 ~ 29 sht"},
 		{"seatpost_extension", 335, "335 ~ 25 lng"},
-		{"seat_to_rc", 221, "221"}, // DisplayOnly attribute
-		{"sparevert", 60, "60"},    // DisplayOnly attribute
-		{"sparevert", 60, "60"},    // DisplayOnly attribute
-		{"bbdrop", 66, "66 ~ 4 hi"},
-		{"bbdrop", 77, "77 ~ 7 lo"},
+		{"seat_to_rc", 221, "221"},  // DisplayOnly attribute
+		{"sparevert", 60, "60"},     // DisplayOnly attribute
+		{"sparevert", 60, "60"},     // DisplayOnly attribute
+		{"bbdrop", 64, "64 ~ 1 hi"}, // free range is 65–75
+		{"bbdrop", 66, "66 ✓"},
+		{"bbdrop", 77, "77 ~ 2 lo"},
 		{"hta", 67.7, "67.7"},         // DisplayOnly attribute
 		{"rc_wb_ratio", 38.9, "38.9"}, // DisplayOnly attribute
 		{"trail", 83, "83 ✗ 15 qck"},
@@ -409,58 +407,75 @@ func TestEvaluate_DirectionalWordsAndBoundaryRounding(t *testing.T) {
 	}
 }
 
-// assertStrictlyDecreasingAboveFloor checks that each successive value (ordered
-// from least to most extreme) scores strictly lower, and always above floor.
-func assertStrictlyDecreasingAboveFloor(t *testing.T, spec AttributeSpec, meta AttributeMeta, vals []float64, floor float64) {
+// assertLinearLoss checks that each successive value (ordered from least to most
+// extreme, all on the dir side of bound) loses strictly more points, exactly
+// Cost × distance past bound, with no floor.
+func assertLinearLoss(t *testing.T, spec AttributeSpec, meta AttributeMeta, bound, dir float64, vals []float64) {
 	t.Helper()
-	prev := math.Inf(1)
+	perUnit := spec.Cost.Above
+	if dir < 0 {
+		perUnit = spec.Cost.Below
+	}
+	prev := 0.0
 	for _, v := range vals {
-		got := Evaluate(spec, meta, v, nil).SubScore
-		if !(got < prev) {
-			t.Errorf("%s at %v: score %.4f is not below the previous %.4f", spec.ID, v, got, prev)
+		got := Evaluate(spec, meta, v, nil).PointsLost
+		if !(got > prev) {
+			t.Errorf("%s at %v: points lost %.4f is not above the previous %.4f", spec.ID, v, got, prev)
 		}
-		if !(got > floor) {
-			t.Errorf("%s at %v: score %.4f reached floor %.1f", spec.ID, v, got, floor)
+		want := perUnit * math.Abs(v-bound)
+		if math.Abs(got-want) > 1e-9*math.Max(1, want) {
+			t.Errorf("%s at %v: points lost %.6f, want linear %.6f", spec.ID, v, got, want)
 		}
 		prev = got
 	}
 }
 
-// TestIdmatchProfile_CurvesHaveNoFlatsOrJumps sweeps every scored attribute of the
-// compiled profile far beyond its acceptable range on both sides.
-func TestIdmatchProfile_CurvesHaveNoFlatsOrJumps(t *testing.T) {
+// TestIdmatchProfile_BandsAreFreeInsideAndLinearOutside sweeps every attribute with a
+// free range far beyond it on both sides: scored bands lose nothing inside and exactly
+// Cost per unit outside (no flats, jumps, tails or floors); display-only ones never lose.
+func TestIdmatchProfile_BandsAreFreeInsideAndLinearOutside(t *testing.T) {
 	for _, spec := range IdmatchProfile().Attributes {
-		if spec.Ideal == nil {
-			continue
+		if spec.Ideal == nil || spec.ID == MetricHandlebarClampFit {
+			continue // Oval Fits is priced on R; see TestOvalPointsLost.
 		}
 		meta, ok := LookupAttribute(spec.ID)
 		if !ok {
 			t.Fatalf("unknown attribute %q", spec.ID)
 		}
-		floor := spec.Floor.OrZero()
-
-		sweep := func(start, dir float64) {
-			prev := Evaluate(spec, meta, start, nil).SubScore
-			for i := 1; i <= 20000; i++ {
-				v := start + dir*float64(i)*0.05
-				got := Evaluate(spec, meta, v, nil).SubScore
-				if !(got < prev) {
-					t.Fatalf("%s: score not strictly decreasing at %v: %v then %v", spec.ID, v, prev, got)
+		minV, hasMin := spec.Ideal.Min.Get()
+		maxV, hasMax := spec.Ideal.Max.Get()
+		if hasMin && hasMax {
+			for _, v := range []float64{minV, (minV + maxV) / 2, maxV} {
+				if got := Evaluate(spec, meta, v, nil).PointsLost; got != 0 {
+					t.Errorf("%s: %v inside the free range lost %v", spec.ID, v, got)
 				}
-				if !(got > floor) {
-					t.Fatalf("%s: score %v at %v reached floor %v", spec.ID, got, v, floor)
-				}
-				if prev-got > 5 {
-					t.Fatalf("%s: jump of %v at %v", spec.ID, prev-got, v)
-				}
-				prev = got
 			}
 		}
-		if minV, ok := spec.Ideal.Min.Get(); ok {
-			sweep(minV, -1)
+		if !spec.IsScored() {
+			for _, v := range []float64{minV - 100, maxV + 100} {
+				if got := Evaluate(spec, meta, v, nil).PointsLost; got != 0 {
+					t.Errorf("%s: display-only attribute lost %v at %v", spec.ID, got, v)
+				}
+			}
+			continue
 		}
-		if maxV, ok := spec.Ideal.Max.Get(); ok {
-			sweep(maxV, 1)
+		var vals []float64
+		for i := 1; i <= 2000; i++ {
+			vals = append(vals, float64(i)*0.5)
+		}
+		if hasMin {
+			below := make([]float64, len(vals))
+			for i, d := range vals {
+				below[i] = minV - d
+			}
+			assertLinearLoss(t, spec, meta, minV, -1, below)
+		}
+		if hasMax {
+			above := make([]float64, len(vals))
+			for i, d := range vals {
+				above[i] = maxV + d
+			}
+			assertLinearLoss(t, spec, meta, maxV, 1, above)
 		}
 	}
 }
@@ -469,7 +484,7 @@ func TestValidateProfile_RejectsFlatCurve(t *testing.T) {
 	p := &Profile{
 		Name: "flat",
 		Attributes: []AttributeSpec{
-			{ID: "hta", Weight: 2, Ideal: Exact(68), Acceptable: Between(66, 70), EdgeScore: model.Some(100.0), Falloff: FalloffBoth(1, 1)},
+			{ID: "hta", Cost: CostEach(1), Ideal: Exact(68), Acceptable: Between(66, 70), EdgeScore: model.Some(100.0), Falloff: FalloffBoth(1, 1)},
 		},
 	}
 	if _, err := NormalizeAndValidate(p); err == nil {
@@ -516,7 +531,7 @@ func testSpecsForSweep() []AttributeSpec {
 		DisplayOnlyWithTarget("saddle_hb", Between(679.9, 689.9), Between(669.9, 699.9), model.Some(75.0), FalloffBoth(15, 15)),
 		AttributeSpec{
 			ID:         "brp_setback",
-			Weight:     10,
+			Cost:       CostEach(1.2),
 			Ideal:      Exact(228.4),
 			Acceptable: Between(223.4, 233.4),
 			EdgeScore:  model.Some(75.0),
@@ -595,7 +610,7 @@ func TestCellDeltaMatchesDisplayedValue(t *testing.T) {
 	// Verify signed numeric delta path (when BelowWord/AboveWord are empty) also uses printed tie-to-even.
 	noWordSpec := AttributeSpec{
 		ID:         "reach",
-		Weight:     1,
+		Cost:       CostEach(1),
 		Ideal:      Exact(450),
 		Acceptable: Between(440, 460),
 		EdgeScore:  model.Some(75.0),
@@ -696,7 +711,8 @@ func TestMarkerAgreesWithZone(t *testing.T) {
 		}
 	}
 
-	// Owner decision F-p4c-3: 106 ✓ with sub-score 97-99 is intended; Zone must match ✓.
+	// Owner decision F-p4c-3: 106 ✓ at the printed bound while 106.2 still pays a
+	// sliver past the unrounded free range is intended; Zone must match ✓.
 	var trailSpec AttributeSpec
 	for _, a := range IdmatchProfile().Attributes {
 		if a.ID == "trail" {
@@ -709,8 +725,8 @@ func TestMarkerAgreesWithZone(t *testing.T) {
 	if ev.FormattedCell != "106 ✓" || ev.Zone != ZoneIdeal {
 		t.Errorf("trail(106.2) = %q (%s), want %q (ideal)", ev.FormattedCell, ev.Zone, "106 ✓")
 	}
-	if !(ev.SubScore > 97 && ev.SubScore < 99) {
-		t.Errorf("trail(106.2) SubScore = %.2f, want in (97, 99)", ev.SubScore)
+	if want := 0.41 * 0.2; math.Abs(ev.PointsLost-want) > 1e-9 {
+		t.Errorf("trail(106.2) PointsLost = %.4f, want %.4f (0.2mm past 106 at 0.41/mm)", ev.PointsLost, want)
 	}
 }
 
@@ -753,6 +769,41 @@ func TestEvaluate_HandlebarClampFitZones(t *testing.T) {
 		if ev.Zone != tc.wantZone || ev.FormattedCell != tc.wantCell {
 			t.Errorf("subScore=%.1f count=%d: got %q (%s), want %q (%s)",
 				tc.subScore, tc.count, ev.FormattedCell, ev.Zone, tc.wantCell, tc.wantZone)
+		}
+	}
+}
+
+func TestOvalPointsLost(t *testing.T) {
+	var spec AttributeSpec
+	for _, a := range IdmatchProfile().Attributes {
+		if a.ID == MetricHandlebarClampFit {
+			spec = a
+			break
+		}
+	}
+	meta, _ := LookupAttribute(MetricHandlebarClampFit)
+
+	cases := []struct {
+		r, stemPenalty, want float64
+	}{
+		{0.0, 0, 0},
+		{0.97, 0, 0}, // inside the oval is free
+		{1.0, 0, 0},
+		{1.5, 0, 11},
+		{2.8, 0, 39.6},
+		{11.07, 0, 221.54}, // linear, no tail
+		{2.8, 15, 39.6},    // the selector's stem penalty costs no points
+	}
+	for _, tc := range cases {
+		row := model.CanonicalComparisonRow{Canonical: model.BikeFitAnalysis{
+			CockpitFitResult: &model.CockpitFitResult{BestR: tc.r, StemPenalty: tc.stemPenalty},
+		}}
+		ev := Evaluate(spec, meta, 0, &row)
+		if math.Abs(ev.PointsLost-tc.want) > 1e-9 {
+			t.Errorf("R=%.2f stem=%.0f: PointsLost = %.4f, want %.4f", tc.r, tc.stemPenalty, ev.PointsLost, tc.want)
+		}
+		if ev.DistanceToIdeal != tc.r {
+			t.Errorf("R=%.2f: DistanceToIdeal = %v, want R", tc.r, ev.DistanceToIdeal)
 		}
 	}
 }
