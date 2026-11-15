@@ -70,9 +70,9 @@ func TestCompare_DefaultRendersFullMatrix(t *testing.T) {
 	}).Length(); got != 1 {
 		t.Errorf("reset links = %d, want 1", got)
 	}
-	// Ideal / Acceptable reference rows live in the (sticky) thead.
-	if got := doc.Find(`table[data-table="fit-cockpit"] thead tr.ref`).Length(); got != 2 {
-		t.Errorf("reference rows in thead = %d, want 2", got)
+	// The Ideal reference row lives in the (sticky) thead; there is no Acceptable row.
+	if got := doc.Find(`table[data-table="fit-cockpit"] thead tr.ref`).Length(); got != 1 {
+		t.Errorf("reference rows in thead = %d, want 1", got)
 	}
 	if doc.Find("script").Length() != 0 {
 		t.Error("page must not contain scripts")
@@ -557,9 +557,11 @@ func TestHelp_HandlebarClampFitMatchesIdeals(t *testing.T) {
 		t.Fatal("missing handlebar_clamp_fit header on /")
 	}
 	cmpIdeal := text(cmp.Find(`table[data-table="fit-cockpit"] thead tr.ref.ideal td, table[data-table="fit-cockpit"] thead tr.ref.ideal th`).Eq(clampIdx))
-	cmpAcc := text(cmp.Find(`table[data-table="fit-cockpit"] thead tr.ref.acceptable td, table[data-table="fit-cockpit"] thead tr.ref.acceptable th`).Eq(clampIdx))
-	if cmpIdeal != "≥100" || cmpAcc != "≥75" {
-		t.Errorf("/ Oval Fits reference = (%q, %q), want (≥100, ≥75)", cmpIdeal, cmpAcc)
+	if cmpIdeal != "≥100" {
+		t.Errorf("/ Oval Fits reference = %q, want ≥100", cmpIdeal)
+	}
+	if n := cmp.Find(`table[data-table="fit-cockpit"] thead tr.ref.acceptable`).Length(); n != 0 {
+		t.Errorf("/ has %d acceptable reference rows, want none", n)
 	}
 }
 
@@ -695,7 +697,6 @@ func TestMarkedCellsHaveZone(t *testing.T) {
 		zone string
 	}{
 		{"✓", "ideal"},
-		{"~", "acceptable"},
 		{"✗", "outside"},
 	}
 
@@ -729,7 +730,7 @@ func TestMarkedCellsHaveZone(t *testing.T) {
 	checkPage("/")
 	checkPage("/?layout=columns&col=otso-fenrir-stainless:L@110mm@20%25&col=salsa-fargo:XL@rigid")
 
-	// Verify Otso Fenrir (L) @ 110mm Trail cell reflects 12mm EC44 physical lower cup (acceptable zone).
+	// Verify Otso Fenrir (L) @ 110mm Trail cell reflects 12mm EC44 physical lower cup (1 point lost, outside the free range).
 	_, doc := do(t, "/")
 	var fenrir110Trail *goquery.Selection
 	doc.Find(`table[data-table="fit-cockpit"] tbody tr[data-frame-id="otso-fenrir-stainless"][data-size="L"]`).Each(func(_ int, tr *goquery.Selection) {
@@ -740,11 +741,11 @@ func TestMarkedCellsHaveZone(t *testing.T) {
 	if fenrir110Trail == nil || fenrir110Trail.Length() != 1 {
 		t.Fatal("missing Fenrir L @ 110mm trail cell")
 	}
-	if got := text(fenrir110Trail); got != "108 ~ 2 slw" {
-		t.Errorf("Fenrir L @ 110mm trail = %q, want %q", got, "108 ~ 2 slw")
+	if got := text(fenrir110Trail); got != "108 ✗ 1 pt" {
+		t.Errorf("Fenrir L @ 110mm trail = %q, want %q", got, "108 ✗ 1 pt")
 	}
-	if got := fenrir110Trail.AttrOr("data-zone", ""); got != "acceptable" || !fenrir110Trail.HasClass("zone-acceptable") {
-		t.Errorf("Fenrir L @ 110mm trail zone=%q class=%q, want acceptable / zone-acceptable", got, fenrir110Trail.AttrOr("class", ""))
+	if got := fenrir110Trail.AttrOr("data-zone", ""); got != "outside" || !fenrir110Trail.HasClass("zone-outside") {
+		t.Errorf("Fenrir L @ 110mm trail zone=%q class=%q, want outside / zone-outside", got, fenrir110Trail.AttrOr("class", ""))
 	}
 }
 

@@ -69,12 +69,12 @@ func TestCompare_SameFrameDifferentSagsAndRigid(t *testing.T) {
 		if !ok {
 			t.Fatalf("missing row %q in CSV output:\n%s", label, out)
 		}
-		if len(row) < 3+len(expected) {
-			t.Fatalf("row %q has %d cols, expected at least %d: %v", label, len(row), 3+len(expected), row)
+		if len(row) < 2+len(expected) {
+			t.Fatalf("row %q has %d cols, expected at least %d: %v", label, len(row), 2+len(expected), row)
 		}
 		for i, exp := range expected {
-			if row[i+3] != exp {
-				t.Errorf("row %q col %d: expected %q, got %q", label, i+1, exp, row[i+3])
+			if row[i+2] != exp {
+				t.Errorf("row %q col %d: expected %q, got %q", label, i+1, exp, row[i+2])
 			}
 		}
 	}
@@ -83,11 +83,11 @@ func TestCompare_SameFrameDifferentSagsAndRigid(t *testing.T) {
 
 	// Verify Reach increases monotonically as effective A2C drops (499 -> 494 -> 485)
 	reachRow := rowByLabel["Reach"]
-	if len(reachRow) < 6 {
+	if len(reachRow) < 5 {
 		t.Fatalf("missing Reach columns: %v", reachRow)
 	}
-	if reachRow[3] >= reachRow[4] || reachRow[4] >= reachRow[5] {
-		t.Errorf("expected Reach to increase monotonically as A2C decreases, got %v", reachRow[3:6])
+	if reachRow[2] >= reachRow[3] || reachRow[3] >= reachRow[4] {
+		t.Errorf("expected Reach to increase monotonically as A2C decreases, got %v", reachRow[2:5])
 	}
 }
 
@@ -303,7 +303,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Score,,,27 (#1),-127 (#2),-127 (#3)") {
+		if !strings.Contains(out, "Score,,27 (#1),-127 (#2),-127 (#3)") {
 			t.Errorf("expected CSV Score row, got:\n%s", out)
 		}
 	})
@@ -314,7 +314,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "| Score |  |  | 27 (#1) | -127 (#2) | -127 (#3) |") {
+		if !strings.Contains(out, "| Score |  | 27 (#1) | -127 (#2) | -127 (#3) |") {
 			t.Errorf("expected Markdown Score row, got:\n%s", out)
 		}
 	})
@@ -361,7 +361,7 @@ func TestCompare_TumbleweedSunlinerFixedForkConstraints(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Fork & Eff A2C,,,Rigid (440mm),Rigid (440mm)") {
+		if !strings.Contains(out, "Fork & Eff A2C,,Rigid (440mm),Rigid (440mm)") {
 			t.Errorf("expected Rigid (440mm) in CSV output, got:\n%s", out)
 		}
 	})
@@ -564,9 +564,9 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 		}
 
 		lines := strings.Split(strings.TrimSpace(out), "\n")
-		// Header + Ideal + Acceptable = 3 rows, followed by 18 frame rows
+		// Header + Ideal = 2 rows, followed by 18 frame rows
 		var dataLines []string
-		for _, l := range lines[3:] {
+		for _, l := range lines[2:] {
 			if strings.TrimSpace(l) != "" {
 				dataLines = append(dataLines, l)
 			}
@@ -613,7 +613,7 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 
 		lines := strings.Split(strings.TrimSpace(out), "\n")
 		var dataLines []string
-		for _, l := range lines[3:] {
+		for _, l := range lines[2:] {
 			if strings.TrimSpace(l) != "" {
 				dataLines = append(dataLines, l)
 			}
@@ -631,7 +631,7 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 
 		lines := strings.Split(strings.TrimSpace(out), "\n")
 		frameCounts := make(map[string]int)
-		for _, l := range lines[3:] {
+		for _, l := range lines[2:] {
 			parts := strings.Split(l, ",")
 			if len(parts) > 1 {
 				// Base frame name without (Size) or @ modifier
@@ -655,7 +655,7 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 
 		lines := strings.Split(strings.TrimSpace(out), "\n")
 		var dataLines []string
-		for _, l := range lines[3:] {
+		for _, l := range lines[2:] {
 			if strings.TrimSpace(l) != "" {
 				dataLines = append(dataLines, l)
 			}
@@ -688,7 +688,7 @@ func TestCompare_AllFramesAndPlausibleConfigurations(t *testing.T) {
 
 		lines := strings.Split(strings.TrimSpace(out), "\n")
 		var dataLines []string
-		for _, l := range lines[3:] {
+		for _, l := range lines[2:] {
 			if strings.TrimSpace(l) != "" {
 				dataLines = append(dataLines, l)
 			}

@@ -179,7 +179,10 @@ Comparison State & Column Management:
 
   Two-Stage Ranking & Pruning Funnel:
     - Stage 1 (Optimal Sag): When expanding plausible forks and sags, each (Frame, Size, Fork)
-      selects its single highest-scoring sag point (breaking score ties toward 20%% sag).
+      selects its single best sag point (breaking score ties toward 20%% sag). The frame's CAD fork
+      is always kept as its own candidate.
+    - Ranking: a setup fits when some stock build puts the hands inside the oval and the BRP lands
+      within 10mm of 219mm. Every fitting setup ranks above every non-fitting one; points order each group.
     - Stage 2 (Top N per Frame): Keeps at most N manifestations per frame (--top-per-frame).
       Defaults to 1 for all-frames comparison and 5 for specific frame @all sweeps.
     - Stage 3 (Global Top Limit): Optionally restricts output to top M setups overall (--top).
@@ -201,9 +204,9 @@ Comparison State & Column Management:
 
 Table Layout & Auto-Transposition:
   - Standard View (Columns): Each bike is a vertical column; metrics are rows.
-    Ideal and Acceptable ranges appear as reference columns.
+    The Ideal range appears as a reference column.
   - Transposed View (Rows): Each bike is a row; metrics are columns.
-    Ideal and Acceptable ranges appear as top header rows.
+    The Ideal range appears as a top header row.
     Enabled with --transpose.
   - Automatic Transposition: When a comparison has more than 4 columns (such as
     expanding ':all' or '--all'), the table automatically renders in transposed mode unless
@@ -211,8 +214,8 @@ Table Layout & Auto-Transposition:
 
 Scoring & Ranking:
   - Setups are scored against sweet-spot curves defined in an Ideal Profile (default: 'idmatch').
-  - Metrics display their evaluated zone (✓ ideal, ~ acceptable, ✗ outside) and distance to ideal.
-  - Displayed rows are sorted descending by total score, placing the top-match #1 at the top.
+  - Scored metrics display ✓ when free and ✗ with the points lost (e.g. "✗ 3 pts").
+  - Displayed rows are sorted fitting setups first, then descending by total score, placing the top match #1 at the top.
   - Explanations section highlights Biggest Losses vs. Ideal and Head-to-Head Deciding Factors.
   - Use --score-detail to view the full criteria breakdown table.
   - Use --no-score to disable scoring and view columns in their original configuration order.

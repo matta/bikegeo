@@ -205,7 +205,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 
 		// Sort displayed rows/columns descending by score
 		sort.SliceStable(scoredItems, func(i, j int) bool {
-			return scoredItems[i].score.Total > scoredItems[j].score.Total
+			return scoring.Better(scoredItems[i].score, scoredItems[j].score)
 		})
 	} else {
 		footers = append(footers, refDefFooter)
@@ -306,7 +306,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 	} else {
 		// Default orientation: Metrics as rows, Bike Setups as columns
 		t := report.Table{ID: TableMatrix, Title: title, Subtitle: subtitle, Footers: primaryFooters}
-		t.Columns = []report.Column{{ID: "metric", Label: "Metric"}, {ID: "ideal", Label: "Ideal"}, {ID: "acceptable", Label: "Acceptable"}}
+		t.Columns = []report.Column{{ID: "metric", Label: "Metric"}, {ID: "ideal", Label: "Ideal"}}
 		for _, item := range scoredItems {
 			r := item.row
 			forkLine := r.DisplayLabel
@@ -321,8 +321,8 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 			})
 		}
 
-		addRow := func(id, metric, idealStr, accStr string, cellFn func(item scoredRowItem) report.Cell) {
-			cells := []report.Cell{plain(metric), plain(idealStr), plain(accStr)}
+		addRow := func(id, metric, idealStr string, cellFn func(item scoredRowItem) report.Cell) {
+			cells := []report.Cell{plain(metric), plain(idealStr)}
 			for _, item := range scoredItems {
 				cells = append(cells, cellFn(item))
 			}
@@ -330,19 +330,19 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		}
 
 		if scoringEnabled {
-			addRow("score", "Score", "", "", func(item scoredRowItem) report.Cell {
+			addRow("score", "Score", "", func(item scoredRowItem) report.Cell {
 				return plain(fmt.Sprintf("%.0f (#%d)", math.Round(item.score.Total), item.score.Rank))
 			})
 		}
-		addRow("fork", "Fork & Eff A2C", "", "", func(item scoredRowItem) report.Cell {
+		addRow("fork", "Fork & Eff A2C", "", func(item scoredRowItem) report.Cell {
 			return plain(canonicalizer.FormatForkEffA2c(item.row))
 		})
 
 		activeProf := prof.ForSaddle(state.Saddle)
 		for _, evalAttr := range activeProf.Attributes {
 			meta, _ := ideal.LookupAttribute(evalAttr.ID)
-			idealStr, accStr := FormatAttrRanges(evalAttr, meta)
-			addRow(string(evalAttr.ID), meta.Label, idealStr, accStr, func(item scoredRowItem) report.Cell {
+			idealStr, _ := FormatAttrRanges(evalAttr, meta)
+			addRow(string(evalAttr.ID), meta.Label, idealStr, func(item scoredRowItem) report.Cell {
 				return metricCell(item, evalAttr, meta)
 			})
 		}
@@ -390,13 +390,11 @@ func buildTransposedTable(
 
 	if withRefRows {
 		idealRow := report.Row{ID: "ideal", Kind: report.KindIdeal, Cells: make([]report.Cell, len(t.Columns))}
-		accRow := report.Row{ID: "acceptable", Kind: report.KindAcceptable, Cells: make([]report.Cell, len(t.Columns))}
 		idealRow.Cells[1].Text = "Ideal"
-		accRow.Cells[1].Text = "Acceptable"
 		for idx := range evalAttrs {
-			idealRow.Cells[offset+idx].Text, accRow.Cells[offset+idx].Text = FormatAttrRanges(evalAttrs[idx], metas[idx])
+			idealRow.Cells[offset+idx].Text, _ = FormatAttrRanges(evalAttrs[idx], metas[idx])
 		}
-		t.Rows = append(t.Rows, idealRow, accRow)
+		t.Rows = append(t.Rows, idealRow)
 	}
 
 	for _, item := range items {

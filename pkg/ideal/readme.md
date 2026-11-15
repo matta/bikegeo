@@ -112,7 +112,7 @@ Each setup gets its cheapest stock build on the points-lost ledger, in two scans
 
 Both totals are continuous in the frame geometry: each candidate's cost is continuous and the scan keeps their minimum. The closed-form 2×2 solve (`Stem/Spacer Fit`) still explains the result ("needs a 127 mm stem") and measures the excess past the hardware limits.
 
-The legacy proximity figures (`BaseScore`, the versatility bonus, `StemPenalty`, `FinalSubScore`) are still computed for the selected setup only because the Oval Fits ✓/~/✗ marker follows `FinalSubScore` against `≥100` / `≥75`; they do not choose the build and cost no points.
+The legacy proximity figures (`BaseScore`, the versatility bonus, `StemPenalty`, `FinalSubScore`) are still computed for the selected setup but drive nothing: the Oval Fits marker is ✓ when R ≤ 1 and `✗ N pts` otherwise, and they are slated for deletion.
 
 When a profile does not score `handlebar_clamp_fit` (or `brp_setback` / `rail_offset` for the saddle), the legacy selectors run instead: `SelectBestBRP`, and for the cockpit `SelectBestHBWithDrop` selects the optimal stem and spacer combination using strict hierarchy:
 1. **Primary (`saddle_hb`)**: Minimum rounded mm distance to the distance target range `(d)`.
@@ -150,6 +150,7 @@ Built directly around the idmatch Bikelab report:
 `Total = 100 − Σ points lost`, and it may go below 0.
 
 - Each scored attribute is free inside its `Ideal` range and linear outside it: either `Cost.Below` / `Cost.Above` points of total per unit, or (hardware bands) `LimitPoints` reached at the setup's hardware limit (`ideal.HardwareLimits`: rail clamp window, stem catalog length and angle range, spacer stack). There are no weights, weighted averages, floors or curve tails, so adding or removing a band never rescales the others.
-- `Acceptable` ranges only choose the `~` display marker; they do not change the points.
+- A scored cell is `✓` when the printed value is inside the free range (or the band costs nothing) and `✗ N pts` otherwise; display-only bands keep a `✗` with their distance. `Acceptable` ranges are no longer shown and do not change the points.
+- **Fit gate** (`scoring.Fits`): a setup fits when some stock build puts the hands inside the oval (`CountInside > 0`, or `R ≤ 1` for the selected build) and the BRP lands within 10 mm of the `brp_setback` free range. Every fitting setup ranks above every non-fitting one (`scoring.Better`); points order each group.
 - Points use the unrounded value; the cell's marker and delta use the printed value.
-- `EdgeScore`, `Falloff` and `Floor` are still validated (`AttributeSpec.compileCurves`) but no longer affect scores; a profile no longer needs them; when `Falloff` is set the curve must still compile. They are slated for deletion along with `pkg/curve`, which now only feeds the Oval Fits display marker.
+- `EdgeScore`, `Falloff` and `Floor` are still validated (`AttributeSpec.compileCurves`) but no longer affect scores; a profile no longer needs them; when `Falloff` is set the curve must still compile. They are slated for deletion along with `pkg/curve`, which no longer feeds any display.

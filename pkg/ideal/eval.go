@@ -169,33 +169,11 @@ func PointsLost(spec AttributeSpec, val float64) float64 {
 func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.CanonicalComparisonRow) Evaluation {
 	if spec.ID == MetricHandlebarClampFit && row != nil && row.Canonical.CockpitFitResult != nil {
 		cfr := row.Canonical.CockpitFitResult
-		printedSub := math.Round(cfr.FinalSubScore)
-		idealMin := 100.0
-		if spec.Ideal != nil {
-			if v, ok := spec.Ideal.Min.Get(); ok {
-				idealMin = math.Round(v)
-			}
-		}
-		accMin := 75.0
-		if spec.Acceptable != nil {
-			if v, ok := spec.Acceptable.Min.Get(); ok {
-				accMin = math.Round(v)
-			}
-		}
-		zone := ZoneOutside
-		sym := SymbolOutside
-		if printedSub >= idealMin {
-			zone = ZoneIdeal
-			sym = SymbolIdeal
-		} else if printedSub >= accMin {
-			zone = ZoneAcceptable
-			sym = SymbolAcceptable
-		}
-
 		lost := 0.0
 		if spec.IsScored() {
 			lost = OvalPointsLost(cfr, spec.Cost)
 		}
+		zone, sym := freeOrLost(lost)
 
 		return Evaluation{
 			Value:           cfr.FinalSubScore,
@@ -236,16 +214,10 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 	}
 
 	zone, symbol := ZoneOutside, SymbolOutside
-	if spec.Acceptable != nil {
-		if printedDist < 0 {
-			if accMin, ok := spec.Acceptable.Min.Get(); !ok || printedVal >= RoundPrinted(accMin, meta.Decimals) {
-				zone, symbol = ZoneAcceptable, SymbolAcceptable
-			}
-		} else {
-			if accMax, ok := spec.Acceptable.Max.Get(); !ok || printedVal <= RoundPrinted(accMax, meta.Decimals) {
-				zone, symbol = ZoneAcceptable, SymbolAcceptable
-			}
-		}
+	cell := formatCellWithDelta(baseValStr, symbol, printedDist, meta)
+	if pricedForRow(spec, row) {
+		zone, symbol = freeOrLost(lost)
+		cell = fmt.Sprintf("%s %s", baseValStr, symbol)
 	}
 
 	return Evaluation{
@@ -253,7 +225,41 @@ func Evaluate(spec AttributeSpec, meta AttributeMeta, val float64, row *model.Ca
 		Zone:            zone,
 		DistanceToIdeal: printedDist,
 		PointsLost:      lost,
-		FormattedCell:   formatCellWithDelta(baseValStr, symbol, printedDist, meta),
+		FormattedCell:   cell,
+	}
+}
+
+// pricedForRow reports whether the band's price is known for this row: a scored
+// band is, unless it is priced against hardware limits the row cannot supply, in
+// which case the cell falls back to the plain distance past the free range.
+func pricedForRow(spec AttributeSpec, row *model.CanonicalComparisonRow) bool {
+	if !spec.IsScored() {
+		return false
+	}
+	if spec.LimitPoints > 0 {
+		_, _, ok := HardwareLimits(spec.ID, row)
+		return ok
+	}
+	return true
+}
+
+// freeOrLost returns the zone and marker for a scored band: "✓" when it costs
+// nothing, otherwise "✗ N pts" with the points it costs.
+func freeOrLost(lost float64) (ZoneType, string) {
+	if lost <= 1e-9 {
+		return ZoneIdeal, SymbolIdeal
+	}
+	return ZoneOutside, fmt.Sprintf("%s %s", SymbolOutside, formatPointsLost(lost))
+}
+
+func formatPointsLost(lost float64) string {
+	switch rounded := math.Round(lost); {
+	case rounded < 1:
+		return "<1 pt"
+	case rounded == 1:
+		return "1 pt"
+	default:
+		return fmt.Sprintf("%.0f pts", rounded)
 	}
 }
 

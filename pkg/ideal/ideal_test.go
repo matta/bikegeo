@@ -98,7 +98,7 @@ func TestIdmatchProfileValid(t *testing.T) {
 }
 
 func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
-	// Seat-RC: free >= 235, acceptable >= 220 (display only), 0.5 points per mm below.
+	// Seat-RC: free >= 235, 0.5 points per mm below.
 	spec := AttributeSpec{
 		ID:         "seat_to_rc",
 		Cost:       CostBoth(0.5, 0),
@@ -121,7 +121,7 @@ func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
 		{235, ZoneIdeal, 0},
 		{250, ZoneIdeal, 0},
 		{1e6, ZoneIdeal, 0}, // unbounded above: never priced
-		{220, ZoneAcceptable, 7.5},
+		{220, ZoneOutside, 7.5},
 		{200, ZoneOutside, 17.5},
 	} {
 		if res := Evaluate(spec, meta, tc.val, nil); res.Zone != tc.wantZone || math.Abs(res.PointsLost-tc.wantLost) > 1e-9 {
@@ -133,7 +133,7 @@ func TestEvaluate_OneSidedSeatToRc(t *testing.T) {
 }
 
 func TestEvaluate_DesignDocTable(t *testing.T) {
-	// AETT free 630–642, acceptable 606–642 (display only), 2 points/mm below, 3 above.
+	// AETT free 630–642, 2 points/mm below, 3 above.
 	spec := AttributeSpec{
 		ID:         "aett",
 		Cost:       CostBoth(2, 3),
@@ -154,15 +154,15 @@ func TestEvaluate_DesignDocTable(t *testing.T) {
 		expectedLost float64
 		expectedCell string
 	}{
-		{596, ZoneOutside, 68, "596 ✗ 34 sht"},
-		{601, ZoneOutside, 58, "601 ✗ 29 sht"},
-		{606, ZoneAcceptable, 48, "606 ~ 24 sht"},
-		{618, ZoneAcceptable, 24, "618 ~ 12 sht"},
+		{596, ZoneOutside, 68, "596 ✗ 68 pts"},
+		{601, ZoneOutside, 58, "601 ✗ 58 pts"},
+		{606, ZoneOutside, 48, "606 ✗ 48 pts"},
+		{618, ZoneOutside, 24, "618 ✗ 24 pts"},
 		{630, ZoneIdeal, 0, "630 ✓"},
 		{635, ZoneIdeal, 0, "635 ✓"},
 		{642, ZoneIdeal, 0, "642 ✓"},
-		{645, ZoneOutside, 9, "645 ✗ 3 lng"},
-		{647, ZoneOutside, 15, "647 ✗ 5 lng"},
+		{645, ZoneOutside, 9, "645 ✗ 9 pts"},
+		{647, ZoneOutside, 15, "647 ✗ 15 pts"},
 	}
 
 	for _, tc := range testCases {
@@ -180,7 +180,7 @@ func TestEvaluate_DesignDocTable(t *testing.T) {
 }
 
 func TestEvaluate_OneSidedChainstay(t *testing.T) {
-	// Chainstay: free >= 470, acceptable >= 445 (display only), 0.4 points per mm below.
+	// Chainstay: free >= 470, 0.4 points per mm below.
 	spec := AttributeSpec{
 		ID:         "chainstay",
 		Cost:       CostBoth(0.4, 0),
@@ -202,7 +202,7 @@ func TestEvaluate_OneSidedChainstay(t *testing.T) {
 	}{
 		{470, ZoneIdeal, 0},
 		{480, ZoneIdeal, 0},
-		{445, ZoneAcceptable, 10},
+		{445, ZoneOutside, 10},
 		{420, ZoneOutside, 20},
 	} {
 		if res := Evaluate(spec, meta, tc.val, nil); res.Zone != tc.wantZone || math.Abs(res.PointsLost-tc.wantLost) > 1e-9 {
@@ -391,24 +391,24 @@ func TestEvaluate_DirectionalWordsAndBoundaryRounding(t *testing.T) {
 		val      float64
 		expected string
 	}{
-		{"brp_setback", 204, "204 ✗ 15 fwd"},
-		{"brp_setback", 221, "221 ~ 2 aft"},
-		{"seatpost_extension", 221, "221 ~ 29 sht"},
-		{"seatpost_extension", 335, "335 ~ 25 lng"},
-		{"seat_to_rc", 221, "221"},  // DisplayOnly attribute
-		{"sparevert", 60, "60"},     // DisplayOnly attribute
-		{"sparevert", 60, "60"},     // DisplayOnly attribute
-		{"bbdrop", 64, "64 ~ 1 hi"}, // free range is 65–75
+		{"brp_setback", 204, "204 ✗ 18 pts"},
+		{"brp_setback", 221, "221 ✗ 2 pts"},
+		{"seatpost_extension", 221, "221 ✗ 5 pts"},
+		{"seatpost_extension", 335, "335 ✗ 5 pts"},
+		{"seat_to_rc", 221, "221"},   // DisplayOnly attribute
+		{"sparevert", 60, "60"},      // DisplayOnly attribute
+		{"sparevert", 60, "60"},      // DisplayOnly attribute
+		{"bbdrop", 64, "64 ✗ <1 pt"}, // free range is 65–75
 		{"bbdrop", 66, "66 ✓"},
-		{"bbdrop", 77, "77 ~ 2 lo"},
+		{"bbdrop", 77, "77 ✗ 1 pt"},
 		{"hta", 67.7, "67.7"}, // DisplayOnly attribute
 		{"rc_wb_ratio", 38.9, "38.9 ✓"},
-		{"rc_wb_ratio", 36.5, "36.5 ✗ 0.5% lo"},
-		{"rc_wb_ratio", 39.6, "39.6 ✗ 0.6% hi"},
-		{"trail", 83, "83 ✗ 15 qck"},
+		{"rc_wb_ratio", 36.5, "36.5 ✗ 2 pts"},
+		{"rc_wb_ratio", 39.6, "39.6 ✗ 2 pts"},
+		{"trail", 83, "83 ✗ 6 pts"},
 		{"trail", 101, "101 ✓"},
-		{"trail", 108, "108 ~ 2 slw"},
-		{"trail", 115, "115 ✗ 9 slw"},
+		{"trail", 108, "108 ✗ 1 pt"},
+		{"trail", 115, "115 ✗ 4 pts"},
 	}
 
 	for _, tc := range cases {
@@ -512,7 +512,10 @@ func TestValidateProfile_RejectsFlatCurve(t *testing.T) {
 	}
 }
 
-func parseFormattedCell(t *testing.T, cell string, unit string) (shownVal float64, marker string, hasDelta bool, shownDelta float64, word string) {
+// parseFormattedCell splits a cell into its shown value, marker and trailing text
+// ("" for a bare value and marker; "N pts" for a scored band's lost points; a signed
+// delta and direction word for a display-only band).
+func parseFormattedCell(t *testing.T, cell string) (shownVal float64, marker string, rest string) {
 	t.Helper()
 	fields := strings.Fields(cell)
 	if len(fields) < 2 {
@@ -522,19 +525,7 @@ func parseFormattedCell(t *testing.T, cell string, unit string) (shownVal float6
 	if err != nil {
 		t.Fatalf("parse cell value %q from %q: %v", fields[0], cell, err)
 	}
-	marker = fields[1]
-	if len(fields) == 2 {
-		return v, marker, false, 0, ""
-	}
-	if len(fields) != 4 {
-		t.Fatalf("unexpected cell field count in %q", cell)
-	}
-	dStr := strings.TrimSuffix(fields[2], unit)
-	d, err := strconv.ParseFloat(dStr, 64)
-	if err != nil {
-		t.Fatalf("parse cell delta %q from %q: %v", fields[2], cell, err)
-	}
-	return v, marker, true, d, fields[3]
+	return v, fields[1], strings.Join(fields[2:], " ")
 }
 
 func testSpecsForSweep() []AttributeSpec {
@@ -597,21 +588,36 @@ func TestCellDeltaMatchesDisplayedValue(t *testing.T) {
 		}
 		for _, v := range sweepGridForSpec(spec, meta) {
 			ev := Evaluate(spec, meta, v, nil)
-			shownVal, marker, hasDelta, shownDelta, word := parseFormattedCell(t, ev.FormattedCell, meta.Unit)
+			shownVal, marker, rest := parseFormattedCell(t, ev.FormattedCell)
 
 			expectedDist := PrintedDistanceToIdeal(spec.Ideal, shownVal, meta.Decimals)
 			expectedAbs := math.Abs(expectedDist)
 
 			if expectedAbs == 0 {
-				if hasDelta || marker != SymbolIdeal {
-					t.Errorf("%s(%.3f) -> %q: expected ideal with no delta, got hasDelta=%v marker=%q",
-						spec.ID, v, ev.FormattedCell, hasDelta, marker)
+				if rest != "" || marker != SymbolIdeal {
+					t.Errorf("%s(%.3f) -> %q: expected a bare ✓ at the printed bound", spec.ID, v, ev.FormattedCell)
 				}
 				continue
 			}
-			if !hasDelta {
-				t.Errorf("%s(%.3f) -> %q: expected delta %.2f, got no delta", spec.ID, v, ev.FormattedCell, expectedAbs)
+			if marker != SymbolOutside {
+				t.Errorf("%s(%.3f) -> %q: marker %q, want %q", spec.ID, v, ev.FormattedCell, marker, SymbolOutside)
 				continue
+			}
+			if spec.IsScored() && spec.LimitPoints == 0 {
+				// A scored band shows the points it costs, not a distance.
+				if want := formatPointsLost(ev.PointsLost); rest != want {
+					t.Errorf("%s(%.3f) -> %q: shows %q, want points lost %q", spec.ID, v, ev.FormattedCell, rest, want)
+				}
+				continue
+			}
+			fields := strings.Fields(rest)
+			if len(fields) != 2 {
+				t.Errorf("%s(%.3f) -> %q: expected delta and direction word", spec.ID, v, ev.FormattedCell)
+				continue
+			}
+			shownDelta, err := strconv.ParseFloat(strings.TrimSuffix(fields[0], meta.Unit), 64)
+			if err != nil {
+				t.Fatalf("parse cell delta %q: %v", fields[0], err)
 			}
 			if math.Abs(shownDelta-expectedAbs) > 1e-9 {
 				t.Errorf("%s(%.3f) -> %q: |shown %.2f - bound| = %.2f, cell delta = %.2f",
@@ -621,13 +627,13 @@ func TestCellDeltaMatchesDisplayedValue(t *testing.T) {
 			if expectedDist < 0 {
 				wantWord = meta.BelowWord
 			}
-			if word != wantWord {
-				t.Errorf("%s(%.3f) -> %q: word = %q, want %q", spec.ID, v, ev.FormattedCell, word, wantWord)
+			if fields[1] != wantWord {
+				t.Errorf("%s(%.3f) -> %q: word = %q, want %q", spec.ID, v, ev.FormattedCell, fields[1], wantWord)
 			}
 		}
 	}
 
-	// Verify signed numeric delta path (when BelowWord/AboveWord are empty) also uses printed tie-to-even.
+	// A scored band without direction words shows points lost, rounded to whole points.
 	noWordSpec := AttributeSpec{
 		ID:         "reach",
 		Cost:       CostEach(1),
@@ -638,11 +644,16 @@ func TestCellDeltaMatchesDisplayedValue(t *testing.T) {
 		Floor:      model.Some(-100.0),
 	}
 	noWordMeta := AttributeMeta{ID: "reach", Label: "Reach", Unit: "mm", Decimals: 0}
-	if ev := Evaluate(noWordSpec, noWordMeta, 434.5, nil); ev.FormattedCell != "434 ✗ −16" {
-		t.Errorf("434.5 tie = %q, want %q", ev.FormattedCell, "434 ✗ −16")
+	if ev := Evaluate(noWordSpec, noWordMeta, 434.5, nil); ev.FormattedCell != "434 ✗ 16 pts" {
+		t.Errorf("434.5 = %q, want %q", ev.FormattedCell, "434 ✗ 16 pts")
 	}
-	if ev := Evaluate(noWordSpec, noWordMeta, 435.5, nil); ev.FormattedCell != "436 ✗ −14" {
-		t.Errorf("435.5 tie = %q, want %q", ev.FormattedCell, "436 ✗ −14")
+	if ev := Evaluate(noWordSpec, noWordMeta, 450.2, nil); ev.FormattedCell != "450 ✓" {
+		t.Errorf("450.2 = %q, want %q", ev.FormattedCell, "450 ✓")
+	}
+	// A display-only band with a target keeps its signed delta.
+	displaySpec := DisplayOnlyWithTarget("reach", Exact(450), Between(440, 460), model.Some(75.0), FalloffBoth(10, 10))
+	if ev := Evaluate(displaySpec, noWordMeta, 434.5, nil); ev.FormattedCell != "434 ✗ −16" {
+		t.Errorf("display-only 434.5 tie = %q, want %q", ev.FormattedCell, "434 ✗ −16")
 	}
 }
 
@@ -655,32 +666,27 @@ func TestZoneMatchesDisplayedText(t *testing.T) {
 		seen := map[float64]Evaluation{}
 		for _, v := range sweepGridForSpec(spec, meta) {
 			ev := Evaluate(spec, meta, v, nil)
-			shownVal, _, _, _, _ := parseFormattedCell(t, ev.FormattedCell, meta.Unit)
+			shownVal, _, _ := parseFormattedCell(t, ev.FormattedCell)
 
+			// Within a sweep, one shown value never carries two different zones.
 			if prev, exists := seen[shownVal]; exists {
-				if prev.Zone != ev.Zone || prev.FormattedCell != ev.FormattedCell {
-					t.Errorf("%s: same shown value %v produced different outputs: %+v vs %+v",
+				if prev.Zone != ev.Zone {
+					t.Errorf("%s: same shown value %v produced different zones: %+v vs %+v",
 						spec.ID, shownVal, prev, ev)
 				}
 			} else {
 				seen[shownVal] = ev
 			}
 
-			// Verify Zone against printed Ideal and Acceptable bounds.
+			// ✓ means free: the value prints inside the printed free range, or costs nothing.
 			wantZone := ZoneIdeal
 			idealMin, hasIdealMin := spec.Ideal.Min.Get()
 			idealMax, hasIdealMax := spec.Ideal.Max.Get()
 			if hasIdealMin && shownVal < RoundPrinted(idealMin, meta.Decimals) ||
 				hasIdealMax && shownVal > RoundPrinted(idealMax, meta.Decimals) {
 				wantZone = ZoneOutside
-				if spec.Acceptable != nil {
-					accMin, hasAccMin := spec.Acceptable.Min.Get()
-					accMax, hasAccMax := spec.Acceptable.Max.Get()
-					inMin := !hasAccMin || shownVal >= RoundPrinted(accMin, meta.Decimals)
-					inMax := !hasAccMax || shownVal <= RoundPrinted(accMax, meta.Decimals)
-					if inMin && inMax {
-						wantZone = ZoneAcceptable
-					}
+				if spec.IsScored() && spec.LimitPoints == 0 && ev.PointsLost <= 1e-9 {
+					wantZone = ZoneIdeal
 				}
 			}
 			if ev.Zone != wantZone {
@@ -697,14 +703,14 @@ func TestZoneMatchesDisplayedText(t *testing.T) {
 		attrMap[a.ID] = a
 	}
 	brpMeta, _ := LookupAttribute("brp_setback")
-	if ev := Evaluate(attrMap["brp_setback"], brpMeta, 183.5, nil); ev.FormattedCell != "184 ✗ 35 fwd" {
-		t.Errorf("183.5 -> %q, want %q", ev.FormattedCell, "184 ✗ 35 fwd")
+	if ev := Evaluate(attrMap["brp_setback"], brpMeta, 183.5, nil); ev.FormattedCell != "184 ✗ 43 pts" {
+		t.Errorf("183.5 -> %q, want %q", ev.FormattedCell, "184 ✗ 43 pts")
 	}
-	if ev := Evaluate(attrMap["brp_setback"], brpMeta, 188.5, nil); ev.FormattedCell != "188 ✗ 31 fwd" {
-		t.Errorf("188.5 -> %q, want %q", ev.FormattedCell, "188 ✗ 31 fwd")
+	if ev := Evaluate(attrMap["brp_setback"], brpMeta, 188.5, nil); ev.FormattedCell != "188 ✗ 37 pts" {
+		t.Errorf("188.5 -> %q, want %q", ev.FormattedCell, "188 ✗ 37 pts")
 	}
-	if ev := Evaluate(attrMap["brp_setback"], brpMeta, 213.6, nil); ev.FormattedCell != "214 ~ 5 fwd" || ev.Zone != ZoneAcceptable {
-		t.Errorf("213.6 -> %q (%s), want %q (acceptable)", ev.FormattedCell, ev.Zone, "214 ~ 5 fwd")
+	if ev := Evaluate(attrMap["brp_setback"], brpMeta, 213.6, nil); ev.FormattedCell != "214 ✗ 6 pts" || ev.Zone != ZoneOutside {
+		t.Errorf("213.6 -> %q (%s), want %q (outside)", ev.FormattedCell, ev.Zone, "214 ✗ 6 pts")
 	}
 	trailMeta, _ := LookupAttribute("trail")
 	if ev := Evaluate(attrMap["trail"], trailMeta, 106.5, nil); ev.FormattedCell != "106 ✓" || ev.Zone != ZoneIdeal {
@@ -714,16 +720,15 @@ func TestZoneMatchesDisplayedText(t *testing.T) {
 
 func TestMarkerAgreesWithZone(t *testing.T) {
 	markerToZone := map[string]ZoneType{
-		SymbolIdeal:      ZoneIdeal,
-		SymbolAcceptable: ZoneAcceptable,
-		SymbolOutside:    ZoneOutside,
+		SymbolIdeal:   ZoneIdeal,
+		SymbolOutside: ZoneOutside,
 	}
 
 	for _, spec := range testSpecsForSweep() {
 		meta, _ := LookupAttribute(spec.ID)
 		for _, v := range sweepGridForSpec(spec, meta) {
 			ev := Evaluate(spec, meta, v, nil)
-			_, marker, _, _, _ := parseFormattedCell(t, ev.FormattedCell, meta.Unit)
+			_, marker, _ := parseFormattedCell(t, ev.FormattedCell)
 			if wantZone, ok := markerToZone[marker]; !ok || ev.Zone != wantZone {
 				t.Fatalf("%s(%.3f): cell=%q marker=%q Zone=%q (want %q)",
 					spec.ID, v, ev.FormattedCell, marker, ev.Zone, wantZone)
@@ -750,7 +755,7 @@ func TestMarkerAgreesWithZone(t *testing.T) {
 	}
 }
 
-func TestEvaluate_HandlebarClampFitZones(t *testing.T) {
+func TestEvaluate_HandlebarClampFitMarkers(t *testing.T) {
 	var spec AttributeSpec
 	for _, a := range IdmatchProfile().Attributes {
 		if a.ID == "handlebar_clamp_fit" {
@@ -760,35 +765,36 @@ func TestEvaluate_HandlebarClampFitZones(t *testing.T) {
 	}
 	meta, _ := LookupAttribute("handlebar_clamp_fit")
 
+	// ✓ means free (R ≤ 1); otherwise ✗ shows the 22 points per unit of R past the edge.
 	cases := []struct {
-		subScore float64
+		bestR    float64
 		count    int
 		wantZone ZoneType
 		wantCell string
 	}{
-		{100.0, 3, ZoneIdeal, "3 ✓"},
-		{96.0, 27, ZoneAcceptable, "27 ~"},
-		{91.0, 27, ZoneAcceptable, "27 ~"},
-		{75.0, 1, ZoneAcceptable, "1 ~"},
-		{74.2, 3, ZoneOutside, "3 ✗"},
-		{65.0, 1, ZoneOutside, "1 ✗"},
-		{48.0, 0, ZoneOutside, "0 ✗"},
+		{0.4, 3, ZoneIdeal, "3 ✓"},
+		{1.0, 1, ZoneIdeal, "1 ✓"},
+		{1.5, 0, ZoneOutside, "0 ✗ 11 pts"},
+		{1.02, 0, ZoneOutside, "0 ✗ <1 pt"},
+		{2.0, 0, ZoneOutside, "0 ✗ 22 pts"},
 	}
 
 	for _, tc := range cases {
 		row := model.CanonicalComparisonRow{
 			Canonical: model.BikeFitAnalysis{
 				CockpitFitResult: &model.CockpitFitResult{
-					HasFit:        tc.count > 0,
-					CountInside:   tc.count,
-					FinalSubScore: tc.subScore,
+					HasFit:      tc.count > 0,
+					CountInside: tc.count,
+					BestR:       tc.bestR,
+					// The legacy sub-score no longer picks the marker.
+					FinalSubScore: 100,
 				},
 			},
 		}
-		ev := Evaluate(spec, meta, tc.subScore, &row)
+		ev := Evaluate(spec, meta, 0, &row)
 		if ev.Zone != tc.wantZone || ev.FormattedCell != tc.wantCell {
-			t.Errorf("subScore=%.1f count=%d: got %q (%s), want %q (%s)",
-				tc.subScore, tc.count, ev.FormattedCell, ev.Zone, tc.wantCell, tc.wantZone)
+			t.Errorf("R=%.2f count=%d: got %q (%s), want %q (%s)",
+				tc.bestR, tc.count, ev.FormattedCell, ev.Zone, tc.wantCell, tc.wantZone)
 		}
 	}
 }

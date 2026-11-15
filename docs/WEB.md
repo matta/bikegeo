@@ -77,9 +77,9 @@ Invalid input returns `400` and re-renders the page with an alert banner (`#erro
 ## HTML conventions
 
 - Semantic tables: `table[data-table=<id>]`, `thead`, `tbody`, `th scope`, `td`.
-- Rows: `tr[data-frame-id][data-size][data-rank][data-col]`. Metric cells: `td[data-metric][data-zone]` with class `zone-ideal|zone-acceptable|zone-outside|zone-missing`. In the one-column-per-bike layout the frame attributes are on the cells and column headers instead.
-- Ideal and Acceptable reference rows are `thead tr.ref`, so they stay visible with the header.
-- Colour is never the only signal: values keep their `✓ ~ ✗` markers.
+- Rows: `tr[data-frame-id][data-size][data-rank][data-col]`. Metric cells: `td[data-metric][data-zone]` with class `zone-ideal|zone-outside|zone-missing`. In the one-column-per-bike layout the frame attributes are on the cells and column headers instead.
+- The Ideal reference row is `thead tr.ref`, so it stays visible with the header. There is no Acceptable row.
+- Colour is never the only signal: values keep their `✓` (free) and `✗ N pts` markers.
 - `th.sticky` pins the frame/metric column; `font-variant-numeric: tabular-nums` aligns digits.
 - Form controls are populated from the parsed query, so the form cannot drift from the URL. The form posts to `/#results` so the browser returns to the results after a reload.
 

@@ -29,8 +29,51 @@ type CriterionResult struct {
 // Total = 100 − Σ Criteria[i].PointsLost and may go below 0.
 type Result struct {
 	Total    float64
+	Fits     bool // passes the fit gate; every fitting setup ranks above every non-fitting one
 	Rank     int
 	Criteria []CriterionResult
+}
+
+// FitBrpToleranceMm is how far the BRP may sit from the ideal setback and still fit.
+const FitBrpToleranceMm = 10.0
+
+// Fits reports the fit gate: some stock build puts the hands inside the oval
+// (CountInside > 0, or R ≤ 1 for the selected build) and the BRP lands within
+// FitBrpToleranceMm of the ideal setback. A condition whose band the profile
+// does not carry is not enforced.
+func Fits(row model.CanonicalComparisonRow, prof *ideal.Profile) bool {
+	if prof == nil {
+		prof = ideal.IdmatchProfile()
+	}
+	prof = prof.ForSaddle(row.Canonical.Saddle)
+	if _, ok := prof.Spec(ideal.MetricHandlebarClampFit); ok {
+		cfr := row.Canonical.CockpitFitResult
+		if cfr == nil || (cfr.CountInside == 0 && cfr.BestR > 1.0) {
+			return false
+		}
+	}
+	if spec, ok := prof.Spec(ideal.MetricBrpSetback); ok && spec.Ideal != nil {
+		brp := row.Canonical.SelectedBRP
+		if brp == nil {
+			return false
+		}
+		if lo, ok := spec.Ideal.Min.Get(); ok && brp.BrpSetbackMm < lo-FitBrpToleranceMm {
+			return false
+		}
+		if hi, ok := spec.Ideal.Max.Get(); ok && brp.BrpSetbackMm > hi+FitBrpToleranceMm {
+			return false
+		}
+	}
+	return true
+}
+
+// Better reports whether a ranks strictly above b: a fitting setup beats a
+// non-fitting one, and points of total order each group.
+func Better(a, b Result) bool {
+	if a.Fits != b.Fits {
+		return a.Fits
+	}
+	return a.Total > b.Total
 }
 
 // ScoredFrame encapsulates a canonical comparison row together with its score Result and original setup index.
@@ -107,6 +150,7 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 
 	return Result{
 		Total:    100.0 - totalLost,
+		Fits:     Fits(row, prof),
 		Criteria: results,
 	}
 }
@@ -114,24 +158,19 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 // ScoreAllRows scores an array of CanonicalComparisonRow against an ideal profile and assigns ranks.
 func ScoreAllRows(rows []model.CanonicalComparisonRow, prof *ideal.Profile) []Result {
 	results := make([]Result, len(rows))
-	type item struct {
-		index int
-		total float64
-	}
-	items := make([]item, len(rows))
+	order := make([]int, len(rows))
 
 	for i, r := range rows {
-		res := ScoreRow(r, prof)
-		results[i] = res
-		items[i] = item{index: i, total: res.Total}
+		results[i] = ScoreRow(r, prof)
+		order[i] = i
 	}
 
-	sort.SliceStable(items, func(i, j int) bool {
-		return items[i].total > items[j].total
+	sort.SliceStable(order, func(i, j int) bool {
+		return Better(results[order[i]], results[order[j]])
 	})
 
-	for rank, it := range items {
-		results[it.index].Rank = rank + 1
+	for rank, idx := range order {
+		results[idx].Rank = rank + 1
 	}
 
 	return results
@@ -313,7 +352,7 @@ func ExplainProfile(frames []ScoredFrame, prof *ideal.Profile) Explanations {
 	sorted := make([]ScoredFrame, len(frames))
 	copy(sorted, frames)
 	sort.SliceStable(sorted, func(i, j int) bool {
-		return sorted[i].Score.Total > sorted[j].Score.Total
+		return Better(sorted[i].Score, sorted[j].Score)
 	})
 
 	var lossesList []string

@@ -1411,6 +1411,9 @@ type ComparisonSetup struct {
 	DisplayLabel string
 	SagPct       float64
 	AutoExpanded bool
+	// IsCadFork marks the frame's own CAD fork configuration among the auto-expanded
+	// candidates; sag pruning never discards it.
+	IsCadFork bool
 }
 
 // SavedComparisonState holds the active comparison configuration.

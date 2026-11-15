@@ -515,3 +515,60 @@ func TestApplyIdealCockpitTargets_HandOffsAreContinuous(t *testing.T) {
 		prev = got
 	}
 }
+
+func TestExpandPlausibleForkSetups_AlwaysIncludesCadFork(t *testing.T) {
+	for _, f := range frames.AllFrames() {
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(f, model.Opt[float64]{})
+		if err != nil {
+			t.Fatalf("%s: %v", f.ID, err)
+		}
+		var cad []model.ComparisonSetup
+		for _, s := range setups {
+			if s.IsCadFork {
+				cad = append(cad, s)
+			}
+		}
+		if len(cad) != 1 {
+			t.Errorf("%s: %d CAD fork candidates, want 1 (%+v)", f.ID, len(cad), f.CadFork)
+			continue
+		}
+		if math.Abs(cad[0].A2cMm-f.CadFork.A2cMm) > 0.05 || math.Abs(cad[0].RakeMm-f.CadFork.RakeMm) > 0.05 ||
+			cad[0].TravelMm != f.CadFork.TravelMm || cad[0].SagPct != f.CadFork.SagPct {
+			t.Errorf("%s: CAD candidate %+v does not match CadFork %+v", f.ID, cad[0], f.CadFork)
+		}
+	}
+}
+
+func TestExpandPlausibleForkSetups_CadForkOutsideSagSweep(t *testing.T) {
+	// binary-kinetik is drawn on a 120mm fork at 15% sag, which the 20/25/30% sweep never visits.
+	f, err := frames.GetFrameByID("binary-kinetik")
+	if err != nil {
+		t.Fatal(err)
+	}
+	setups, err := canonicalizer.ExpandPlausibleForkSetups(*f, model.Opt[float64]{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, s := range setups {
+		if s.IsCadFork && s.DisplayLabel == "120mm @ 15% sag" && s.TravelMm == 120 {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("binary-kinetik: missing the 120mm @ 15%% sag CAD fork in %+v", setups)
+	}
+
+	// An explicit sag override keeps only a CAD fork that agrees with it.
+	for _, sag := range []float64{20, 25, 30} {
+		setups, err := canonicalizer.ExpandPlausibleForkSetups(*f, model.Some(sag))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range setups {
+			if s.IsCadFork {
+				t.Errorf("binary-kinetik @ sag %v: CAD fork %+v survives a conflicting override", sag, s)
+			}
+		}
+	}
+}

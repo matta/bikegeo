@@ -50,6 +50,7 @@ func PruneRows(
 		frameID  string
 		size     string
 		forkType string
+		cadFork  bool // the CAD fork is never pruned against another sag
 	}
 	sagGroups := make(map[sagGroupKey][]scoredCandidate)
 	var sagGroupOrder []sagGroupKey
@@ -64,6 +65,7 @@ func PruneRows(
 			frameID:  strings.ToLower(c.row.Setup.FrameID),
 			size:     strings.ToLower(c.row.Setup.Size),
 			forkType: ft,
+			cadFork:  c.row.Setup.IsCadFork,
 		}
 		if _, exists := sagGroups[key]; !exists {
 			sagGroupOrder = append(sagGroupOrder, key)
@@ -79,7 +81,11 @@ func PruneRows(
 		}
 		best := group[0]
 		for _, cand := range group[1:] {
-			if cand.score.Total > best.score.Total+1e-4 {
+			if cand.score.Fits != best.score.Fits {
+				if cand.score.Fits {
+					best = cand
+				}
+			} else if cand.score.Total > best.score.Total+1e-4 {
 				best = cand
 			} else if math.Abs(cand.score.Total-best.score.Total) <= 1e-4 {
 				// Score tie-break:
@@ -121,6 +127,9 @@ func PruneRows(
 
 			sort.SliceStable(group, func(i, j int) bool {
 				a, b := group[i], group[j]
+				if a.score.Fits != b.score.Fits {
+					return a.score.Fits
+				}
 				if math.Abs(a.score.Total-b.score.Total) > 1e-4 {
 					return a.score.Total > b.score.Total
 				}
@@ -164,6 +173,9 @@ func PruneRows(
 
 	// Always sort surviving candidates globally descending by total score
 	sort.SliceStable(stage2, func(i, j int) bool {
+		if stage2[i].score.Fits != stage2[j].score.Fits {
+			return stage2[i].score.Fits
+		}
 		if math.Abs(stage2[i].score.Total-stage2[j].score.Total) > 1e-4 {
 			return stage2[i].score.Total > stage2[j].score.Total
 		}

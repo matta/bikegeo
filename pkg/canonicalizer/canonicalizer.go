@@ -201,11 +201,55 @@ func ExpandPlausibleForkSetups(
 		}
 	}
 
+	addCadForkSetup(&setups, frame, sagOverride, minA2c, maxA2c, hasRange)
+
 	if len(setups) == 0 {
 		return nil, fmt.Errorf("no plausible fork configurations found for frame %q", frame.ID)
 	}
 
 	return setups, nil
+}
+
+// addCadForkSetup makes the frame's own CAD fork a candidate and marks it IsCadFork.
+// The CAD sag (for example 15%, or 0% for an unsagged drawing) need not be one of
+// the plausible sags, so the sag sweep alone can miss it. An explicit sag override
+// keeps only a CAD fork that already agrees with it, and a CAD fork outside the
+// frame's legal A2C range cannot be resolved, so it is skipped.
+func addCadForkSetup(setups *[]model.ComparisonSetup, frame model.FrameModel, sagOverride model.Opt[float64], minA2c, maxA2c float64, hasRange bool) {
+	cad := frame.CadFork
+	if cad.A2cMm <= 0 || cad.RakeMm <= 0 {
+		return
+	}
+	isRigid := cad.TravelMm == 0
+	if sag, ok := sagOverride.Get(); ok {
+		if isRigid != (sag == 0) || (!isRigid && math.Abs(cad.SagPct-sag) > 0.01) {
+			return
+		}
+	}
+	if hasRange && (cad.A2cMm < minA2c-0.1 || cad.A2cMm > maxA2c+0.1) {
+		return
+	}
+	label := FormatSuspensionFork(cad.TravelMm, cad.SagPct)
+	if isRigid {
+		label = FormatRigidFork(cad.A2cMm)
+	}
+	for i, s := range *setups {
+		if s.DisplayLabel == label && math.Abs(s.A2cMm-cad.A2cMm) < 0.1 && math.Abs(s.RakeMm-cad.RakeMm) < 0.1 {
+			(*setups)[i].IsCadFork = true
+			return
+		}
+	}
+	*setups = append(*setups, model.ComparisonSetup{
+		FrameID:      frame.ID,
+		A2cMm:        cad.A2cMm,
+		RakeMm:       cad.RakeMm,
+		TravelMm:     cad.TravelMm,
+		IsRigid:      isRigid,
+		DisplayLabel: label,
+		SagPct:       cad.SagPct,
+		AutoExpanded: true,
+		IsCadFork:    true,
+	})
 }
 
 // ResolvedFork holds the typed physical properties resolved from a fork modifier token.
@@ -608,6 +652,7 @@ func ResolveFrameForkSetupWithSaddle(
 		DisplayLabel: displayLabel,
 		SagPct:       setup.SagPct,
 		AutoExpanded: setup.AutoExpanded,
+		IsCadFork:    setup.IsCadFork,
 	}
 	row.DisplayLabel = displayLabel
 	row.EffectiveA2c = targetA2c

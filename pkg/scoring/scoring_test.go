@@ -409,8 +409,8 @@ func TestScoreRow_SeatpostExtension(t *testing.T) {
 	if critAcc == nil || math.Abs(critAcc.PointsLost-5.4) > 0.05 {
 		t.Errorf("Expected ~5.4 points lost for 220mm extension, got %+v", critAcc)
 	}
-	if critAcc.Zone != string(ideal.ZoneAcceptable) {
-		t.Errorf("Expected ZoneAcceptable for 220mm extension, got %s", critAcc.Zone)
+	if critAcc.Zone != string(ideal.ZoneOutside) {
+		t.Errorf("Expected ZoneOutside (not free) for 220mm extension, got %s", critAcc.Zone)
 	}
 
 	// 3. Severely short extension: Fargo XL (seat tube 558.8mm) -> extension = 187.2mm
@@ -850,6 +850,13 @@ func TestLossDeltaMatchesCell(t *testing.T) {
 				}
 				lossVal := matches[0][1]
 				lossDelta := matches[1][1]
+				if spec.IsScored() && spec.LimitPoints == 0 {
+					// A scored cell shows points lost; the sentence still names the distance.
+					if lossVal != cellVal {
+						t.Fatalf("%s(%.3f): cell=%q vs loss=%q", spec.ID, v, ev.FormattedCell, desc)
+					}
+					continue
+				}
 				if lossVal != cellVal || lossDelta != cellDelta {
 					t.Fatalf("%s(%.3f) dist=%.3f: cell=%q (val=%s delta=%s) vs loss=%q (val=%s delta=%s)",
 						spec.ID, v, distArg, ev.FormattedCell, cellVal, cellDelta, desc, lossVal, lossDelta)
@@ -897,7 +904,7 @@ func TestScoreRow_DisplayOnlyWithTargetCarriesZone(t *testing.T) {
 			PossibleHBs: []model.HBPoint{
 				{
 					Stem:           model.StemSpec{LengthMm: 90, AngleDeg: -6},
-					SaddleHbMm:     685.0, // acceptable for [695,705] / [685,715]
+					SaddleHbMm:     685.0, // outside the free [695,705]
 					SaddleHbDropMm: 2.0,   // ideal for [-2,8]
 				},
 			},
@@ -912,8 +919,8 @@ func TestScoreRow_DisplayOnlyWithTargetCarriesZone(t *testing.T) {
 	for _, c := range res.Criteria {
 		byID[c.ID] = c
 	}
-	if c := byID["saddle_hb"]; !c.IsDisplayOnly || c.Zone != string(ideal.ZoneAcceptable) {
-		t.Errorf("saddle_hb = %+v, want IsDisplayOnly=true Zone=acceptable", c)
+	if c := byID["saddle_hb"]; !c.IsDisplayOnly || c.Zone != string(ideal.ZoneOutside) {
+		t.Errorf("saddle_hb = %+v, want IsDisplayOnly=true Zone=outside", c)
 	}
 	if c := byID["saddle_hb_drop"]; !c.IsDisplayOnly || c.Zone != string(ideal.ZoneIdeal) {
 		t.Errorf("saddle_hb_drop = %+v, want IsDisplayOnly=true Zone=ideal", c)
@@ -1211,5 +1218,59 @@ func TestScoreRow_CockpitTargetRefModes(t *testing.T) {
 		model.Some(targetDist), model.Some(targetDist), model.Some(targetDrop), model.Some(targetDrop),
 		brp, model.TargetStemClamp, model.Opt[model.HandlebarSpec]{}); !ok || got.Stem.LengthMm != 80 {
 		t.Errorf("SelectBestHBWithDropForTarget(TargetStemClamp) selected %.0fmm (ok=%v), want 80mm", got.Stem.LengthMm, ok)
+	}
+}
+
+func gateRow(brp float64, countInside int, bestR float64) model.CanonicalComparisonRow {
+	return model.CanonicalComparisonRow{
+		Canonical: model.BikeFitAnalysis{
+			SelectedBRP:      &model.BRPPoint{BrpSetbackMm: brp},
+			CockpitFitResult: &model.CockpitFitResult{CountInside: countInside, BestR: bestR},
+		},
+	}
+}
+
+func TestFits_Gate(t *testing.T) {
+	prof := ideal.IdmatchProfile()
+	for _, tc := range []struct {
+		name string
+		row  model.CanonicalComparisonRow
+		want bool
+	}{
+		{"hands in the oval and BRP on target", gateRow(219, 3, 0.4), true},
+		{"hands inside via the selected build only", gateRow(219, 0, 1.0), true},
+		{"BRP exactly 10mm short is still fit", gateRow(209, 1, 0.9), true},
+		{"BRP exactly 10mm long is still fit", gateRow(229, 1, 0.9), true},
+		{"BRP 11mm short is out", gateRow(208, 1, 0.9), false},
+		{"BRP 11mm long is out", gateRow(230, 1, 0.9), false},
+		{"no build puts the hands inside the oval", gateRow(219, 0, 1.2), false},
+		{"no cockpit result", model.CanonicalComparisonRow{Canonical: model.BikeFitAnalysis{SelectedBRP: &model.BRPPoint{BrpSetbackMm: 219}}}, false},
+		{"no selected BRP", model.CanonicalComparisonRow{Canonical: model.BikeFitAnalysis{CockpitFitResult: &model.CockpitFitResult{CountInside: 2, BestR: 0.5}}}, false},
+	} {
+		if got := Fits(tc.row, prof); got != tc.want {
+			t.Errorf("%s: Fits = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestScoreAllRows_FittingSetupsRankAboveHigherScoringMisses(t *testing.T) {
+	prof := ideal.IdmatchProfile()
+	// The first row misses the gate but is the cheaper build on points; the second fits.
+	miss := gateRow(219, 0, 1.05)
+	miss.Canonical.ActiveBbDrop, miss.Canonical.TrailMm = 70, 102
+	fit := gateRow(212, 2, 0.8)
+	fit.Canonical.ActiveBbDrop, fit.Canonical.TrailMm = 80, 130
+	res := ScoreAllRows([]model.CanonicalComparisonRow{miss, fit}, prof)
+	if !(res[0].Total > res[1].Total) {
+		t.Fatalf("fixture must have the miss outscoring the fit: %.1f vs %.1f", res[0].Total, res[1].Total)
+	}
+	if res[0].Fits || !res[1].Fits {
+		t.Fatalf("Fits = %v/%v, want false/true", res[0].Fits, res[1].Fits)
+	}
+	if res[1].Rank != 1 || res[0].Rank != 2 {
+		t.Errorf("ranks = %d/%d, want the fitting setup #1 and the miss #2", res[1].Rank, res[0].Rank)
+	}
+	if !Better(res[1], res[0]) || Better(res[0], res[1]) {
+		t.Error("Better must put the fitting setup first whatever its points")
 	}
 }

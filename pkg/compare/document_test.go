@@ -10,6 +10,7 @@ import (
 	"bikegeo/pkg/ideal"
 	"bikegeo/pkg/model"
 	"bikegeo/pkg/report"
+	"bikegeo/pkg/scoring"
 )
 
 func mustRun(t *testing.T, opts Options) *Result {
@@ -68,11 +69,11 @@ func TestBuildDocumentSplitLayout(t *testing.T) {
 	}
 
 	fit := doc.Tables()[0]
-	if fit.Rows[0].Kind != report.KindIdeal || fit.Rows[1].Kind != report.KindAcceptable {
-		t.Error("first two rows should be ideal/acceptable references")
+	if fit.Rows[0].Kind != report.KindIdeal || fit.Rows[1].Kind != report.KindData {
+		t.Error("only the ideal reference row precedes the data rows (no acceptable row)")
 	}
 	zones := map[string]int{}
-	for _, r := range fit.Rows[2:] {
+	for _, r := range fit.Rows[1:] {
 		if r.Attrs["frame-id"] == "" || r.Attrs["rank"] == "" {
 			t.Errorf("data row missing attrs: %+v", r.Attrs)
 		}
@@ -85,7 +86,7 @@ func TestBuildDocumentSplitLayout(t *testing.T) {
 	if zones[report.ZoneIdeal]+zones[report.ZoneAcceptable]+zones[report.ZoneOutside] == 0 {
 		t.Errorf("no zoned metric cells found: %v", zones)
 	}
-	if got := len(fit.Rows) - 2; got != len(res.Rows) {
+	if got := len(fit.Rows) - 1; got != len(res.Rows) {
 		t.Errorf("data rows = %d, want %d", got, len(res.Rows))
 	}
 }
@@ -184,9 +185,9 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 			break
 		}
 	}
-	wantIdeal, wantAcc := FormatAttrRanges(clampSpec, meta)
-	if wantIdeal != "≥100" || wantAcc != "≥75" {
-		t.Fatalf("FormatAttrRanges(handlebar_clamp_fit) = (%q, %q), want (≥100, ≥75)", wantIdeal, wantAcc)
+	wantIdeal, _ := FormatAttrRanges(clampSpec, meta)
+	if wantIdeal != "≥100" {
+		t.Fatalf("FormatAttrRanges(handlebar_clamp_fit) = %q, want ≥100", wantIdeal)
 	}
 
 	for _, saddle := range []string{"", "berthoud-aspin-open", "selle-italia-slr-boost-superflow-l3"} {
@@ -208,7 +209,7 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 			t.Fatal("missing breakdown table")
 		}
 
-		// Verify reference rows in fit-cockpit show ≥100 / ≥75 for handlebar_clamp_fit.
+		// The fit-cockpit Ideal reference row stays; there is no Acceptable row.
 		clampCol := -1
 		for i, c := range fit.Columns {
 			if c.ID == "handlebar_clamp_fit" {
@@ -222,8 +223,8 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 		if got := fit.Rows[0].Cells[clampCol].Text; got != wantIdeal {
 			t.Errorf("saddle=%q Ideal ref = %q, want %q", saddle, got, wantIdeal)
 		}
-		if got := fit.Rows[1].Cells[clampCol].Text; got != wantAcc {
-			t.Errorf("saddle=%q Acceptable ref = %q, want %q", saddle, got, wantAcc)
+		if fit.Rows[1].Kind == report.KindAcceptable {
+			t.Errorf("saddle=%q: unexpected Acceptable reference row", saddle)
 		}
 
 		bdClampCol := -1
@@ -239,6 +240,7 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 
 		// Breakdown cells print the Oval Fits points lost (0 or negative) first.
 		seenBreakdown := map[string]bool{}
+		breakdownText := map[string]string{}
 		for _, r := range breakdown.Rows {
 			fields := strings.Fields(r.Cells[bdClampCol].Text)
 			if len(fields) == 0 {
@@ -249,11 +251,12 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 				t.Fatalf("breakdown Oval Fits cell %q must start with points lost (<= 0): %v", r.Cells[bdClampCol].Text, err)
 			}
 			seenBreakdown[r.ID] = true
+			breakdownText[r.ID] = r.Cells[bdClampCol].Text
 		}
 
-		// The matrix marker still follows the oval sub-score against the ≥100 / ≥75
-		// reference rows until the ✓/✗ display replaces it.
-		for _, r := range fit.Rows[2:] {
+		// The matrix marker is ✓ when the selected build is free (R ≤ 1) and otherwise
+		// ✗ with the same points lost the breakdown prints.
+		for _, r := range fit.Rows[1:] {
 			cell := r.Cells[clampCol]
 			if !seenBreakdown[r.ID] {
 				t.Fatalf("missing breakdown row for %s", r.ID)
@@ -262,21 +265,23 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 			if err != nil || idx < 1 || idx > len(res.Rows) || res.Rows[idx-1].Canonical.CockpitFitResult == nil {
 				t.Fatalf("row %s has no cockpit fit result", r.ID)
 			}
-			sub := int(math.Round(res.Rows[idx-1].Canonical.CockpitFitResult.FinalSubScore))
-			wantMarker := ideal.SymbolOutside
+			bestR := res.Rows[idx-1].Canonical.CockpitFitResult.BestR
 			wantZone := report.ZoneOutside
-			if sub >= 100 {
-				wantMarker = ideal.SymbolIdeal
+			if bestR <= 1.0 {
 				wantZone = report.ZoneIdeal
-			} else if sub >= 75 {
-				wantMarker = ideal.SymbolAcceptable
-				wantZone = report.ZoneAcceptable
-			}
-			if !strings.HasSuffix(cell.Text, " "+wantMarker) {
-				t.Errorf("saddle=%q row=%s sub=%d: cell=%q, want marker %s", saddle, r.ID, sub, cell.Text, wantMarker)
+				if !strings.HasSuffix(cell.Text, " "+ideal.SymbolIdeal) {
+					t.Errorf("saddle=%q row=%s R=%.2f: cell=%q, want free marker %s", saddle, r.ID, bestR, cell.Text, ideal.SymbolIdeal)
+				}
+			} else {
+				fields := strings.Fields(cell.Text)
+				if len(fields) < 3 || fields[1] != ideal.SymbolOutside {
+					t.Errorf("saddle=%q row=%s R=%.2f: cell=%q, want %s with points lost", saddle, r.ID, bestR, cell.Text, ideal.SymbolOutside)
+				} else if lost := strings.TrimPrefix(strings.Fields(breakdownText[r.ID])[0], "-"); fields[2] != lost && fields[2] != "<1" {
+					t.Errorf("saddle=%q row=%s: matrix cell %q vs breakdown points lost -%s", saddle, r.ID, cell.Text, lost)
+				}
 			}
 			if cell.Zone != wantZone {
-				t.Errorf("saddle=%q row=%s sub=%d: zone=%q, want %q", saddle, r.ID, sub, cell.Zone, wantZone)
+				t.Errorf("saddle=%q row=%s R=%.2f: zone=%q, want %q", saddle, r.ID, bestR, cell.Zone, wantZone)
 			}
 		}
 	}
@@ -284,9 +289,8 @@ func TestOvalFitsReferenceMatchesMarker(t *testing.T) {
 
 func TestDocument_AllConfigsZonesAndDeltasConsistent(t *testing.T) {
 	markerToZone := map[string]string{
-		ideal.SymbolIdeal:      report.ZoneIdeal,
-		ideal.SymbolAcceptable: report.ZoneAcceptable,
-		ideal.SymbolOutside:    report.ZoneOutside,
+		ideal.SymbolIdeal:   report.ZoneIdeal,
+		ideal.SymbolOutside: report.ZoneOutside,
 	}
 
 	for _, saddle := range []string{"", "berthoud-aspin-open"} {
@@ -321,7 +325,7 @@ func TestDocument_AllConfigsZonesAndDeltasConsistent(t *testing.T) {
 				idealMax = idealMin
 			}
 
-			for _, r := range fit.Rows[2:] {
+			for _, r := range fit.Rows[1:] {
 				c := r.Cells[colIdx]
 				if c.Zone == report.ZoneMissing {
 					continue
@@ -350,8 +354,12 @@ func TestDocument_AllConfigsZonesAndDeltasConsistent(t *testing.T) {
 							saddle, r.ID, col.ID, shownVal, idealMin, idealMax, c.Text)
 					}
 				} else {
-					if len(fields) != 4 {
-						t.Errorf("saddle=%q row=%s col=%s: expected delta in %q", saddle, r.ID, col.ID, c.Text)
+					if len(fields) != 4 || fields[1] != ideal.SymbolOutside {
+						t.Errorf("saddle=%q row=%s col=%s: expected %s with a cost or delta in %q", saddle, r.ID, col.ID, ideal.SymbolOutside, c.Text)
+						continue
+					}
+					if last := fields[3]; last == "pt" || last == "pts" {
+						// Scored band: "✗ N pts", "✗ 1 pt" or "✗ <1 pt".
 						continue
 					}
 					shownDelta, err := strconv.ParseFloat(strings.TrimSuffix(fields[2], meta.Unit), 64)
@@ -550,11 +558,11 @@ func TestCompare_BrpSetbackUsesSelectedBRPAndFooterUsesSitBones(t *testing.T) {
 	brpCell := ""
 	for _, r := range doc.Tables()[0].Rows {
 		if r.Kind == report.KindData && r.Attrs["metric"] == "brp_setback" {
-			brpCell = r.Cells[3].Text
+			brpCell = r.Cells[2].Text
 		}
 	}
-	if brpCell != "217 ~ 2 fwd" {
-		t.Errorf("surly-ecr:L brp_setback cell = %q, want %q", brpCell, "217 ~ 2 fwd")
+	if brpCell != "217 ✗ 3 pts" {
+		t.Errorf("surly-ecr:L brp_setback cell = %q, want %q", brpCell, "217 ✗ 3 pts")
 	}
 
 	// F-p4ab-2: Footer defines HandGrip Rise relative to Sit Bones, not Saddle BRP.
@@ -649,5 +657,34 @@ func TestCompare_BreakdownSubtitleAndTranslatedH(t *testing.T) {
 		if !strings.Contains(bdSub, want) {
 			t.Errorf("breakdown subtitle missing %q:\n%s", want, bdSub)
 		}
+	}
+}
+
+func TestRunAll_CadForkSurvivesSagPruningAndRanksByGate(t *testing.T) {
+	res := mustRun(t, Options{All: true, TopPerFrame: model.Some(0)})
+	cad := map[string]bool{}
+	for _, r := range res.Rows {
+		if r.Setup.IsCadFork {
+			cad[r.Setup.FrameID] = true
+		}
+	}
+	for _, f := range frames.AllFrames() {
+		if !cad[f.ID] {
+			t.Errorf("%s: the CAD fork was pruned from the candidates", f.ID)
+		}
+	}
+
+	// Every fitting setup ranks above every one that does not fit.
+	sawMiss := false
+	for _, r := range res.Rows {
+		fits := scoring.Fits(r, res.Profile)
+		if !fits {
+			sawMiss = true
+		} else if sawMiss {
+			t.Fatalf("%s %s %s fits but ranks below a setup that does not", r.Setup.FrameID, r.Setup.Size, r.Setup.DisplayLabel)
+		}
+	}
+	if !sawMiss {
+		t.Fatal("expected at least one setup that fails the gate")
 	}
 }

@@ -50,7 +50,7 @@
 
 {{if .Tables}}
 <section id="results">
-<p class="summary">{{.Count}} setups. <a href="{{.Permalink}}">Permalink to this exact view</a>. Cells are coloured by how far each value is from the ideal range: <span class="zone-ideal key">✓ ideal</span> <span class="zone-acceptable key">~ acceptable</span> <span class="zone-outside key">✗ outside</span>. Metric headers link to their definitions.</p>
+<p class="summary">{{.Count}} setups. <a href="{{.Permalink}}">Permalink to this exact view</a>. Each scored cell is <span class="zone-ideal key">✓ free</span> or <span class="zone-outside key">✗ N pts</span>, the points it costs. Metric headers link to their definitions.</p>
 {{range .Tables}}{{if eq .ID "breakdown"}}<details class="breakdown" open><summary>Scoring breakdown</summary>{{template "table" .}}</details>
 {{else}}{{template "table" .}}
 {{end}}{{end}}
