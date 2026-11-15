@@ -81,6 +81,14 @@ func options(values []string, current string, blankLabel string) []Option {
 	return out
 }
 
+func sagOptions(current, blankLabel string) []Option {
+	values := make([]string, 0, len(canonicalizer.AllowedSagPcts))
+	for _, sag := range canonicalizer.AllowedSagPcts {
+		values = append(values, strconv.FormatFloat(sag, 'f', -1, 64))
+	}
+	return options(values, current, blankLabel)
+}
+
 // forkToken names a row's fork the way a user would type it ("110mm",
 // "rigid"). If that token would not resolve to the row's exact A2C and rake
 // (the compiled default baseline carries hand-entered values that can differ
@@ -215,7 +223,7 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 			FrameName:  f.Manufacturer + " " + f.Model,
 			Sizes:      options(f.GetSizes(), fc.size, ""),
 			Forks:      options(forkChoices(f), fc.fork, ""),
-			Sags:       options([]string{"20", "25", "30"}, fc.sag, "—"),
+			Sags:       sagOptions(fc.sag, "—"),
 			BikeHref:   "/bike?" + bikeVals.Encode(),
 			RemoveHref: "/?" + v.Encode() + "#columns",
 		})
