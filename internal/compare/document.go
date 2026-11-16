@@ -174,12 +174,12 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 
 		if strings.EqualFold(prof.Name, "idmatch") {
 			saddle := state.Saddle
-			targetSitBones := prof.TargetSitBoneSetbackMm.Or(model.DefaultTargetSitBoneSetbackMm)
+			targetSitBones := prof.TargetSitBoneSetbackMm.Or(model.DefaultTargetSitBoneSetbackMm())
 			targetBRP := saddle.BrpSetbackFromSitBones(targetSitBones)
 			footers = append(footers, report.Footer{
 				Title: "Biomechanical Pelvic Fit & Seatpost Baseline",
 				Lines: []string{
-					fmt.Sprintf("Primary Pelvic Invariant: Sit Bone Setback is %.0fmm behind BB (derived from idmatch BRP 219mm + SQlab delta 73mm).", targetSitBones),
+					fmt.Sprintf("Modeled Support Landmark: Sit Bone Setback is %.0fmm behind BB (reference idmatch BRP %.0fmm + SQlab delta %.0fmm, assuming level rails).", targetSitBones, model.DefaultIdmatchBrpSetbackMm, model.ReferenceIdmatchSaddle().DeltaBrpToSitBonesMm()),
 					"Seatpost Hardware Baseline: Hardcoded to a zero-setback dropper post (0mm setback). Fork length or a setback post is never used as a fit fix.",
 					fmt.Sprintf("Active Saddle Target: %s has BRP %.0fmm behind BB (Delta BRP-to-SitBones = %.0fmm).", saddle.Name, targetBRP, saddle.DeltaBrpToSitBonesMm()),
 				},
@@ -209,7 +209,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 	title := "Apples-to-Apples Geometry Comparison Matrix"
 	saddle := state.Saddle
 	saddleName := saddle.Name
-	refSitBones := model.ReferenceSitBonePoint(state.SaddleHeightMm, prof.TargetSitBoneSetbackMm.Or(model.DefaultTargetSitBoneSetbackMm))
+	refSitBones := model.ReferenceSitBonePoint(state.SaddleHeightMm, prof.TargetSitBoneSetbackMm.Or(model.DefaultTargetSitBoneSetbackMm()))
 	activeBrpH := saddle.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 	hText := fmt.Sprintf("%.0fmm", state.SaddleHeightMm)
 	if math.Abs(activeBrpH-state.SaddleHeightMm) >= 0.05 {

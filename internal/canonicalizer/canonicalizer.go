@@ -708,7 +708,7 @@ func CanonicalizeBikes(
 		cadFit := geometry.RiderFit{
 			FrameSeatAxisHeightMm: seatHeight,
 			BrpHeightMm:           seatHeight,
-			TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm,
+			TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm(),
 			Target:                geometry.RiderTarget{Ref: targetRef},
 			ReferenceSaddle:       saddle,
 			ReferenceBar:          config.RiderProfile.ReferenceBar,

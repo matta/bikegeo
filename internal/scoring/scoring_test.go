@@ -257,8 +257,8 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 		},
 	}
 
-	// Frame geometry with ideal 72.0° STA at saddle height 746mm
-	staDeg := model.Deg(72.0)
+	// Synthetic frame whose 71.5° STA can reach the report target at 746mm height.
+	staDeg := model.Deg(71.5)
 	seatHeight := 746.0
 	saddle := model.ReferenceIdmatchSaddle()
 	deadCenterBRP := saddle.CalculatePoint(staDeg, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
@@ -298,10 +298,10 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 
 	res := scoreRowWithTargets(row, prof)
 	if res.Total < 90.0 {
-		t.Errorf("Expected score > 90 for 72.0° frame (ideal setback match), got %.1f", res.Total)
+		t.Errorf("Expected score > 90 for 71.5° frame (ideal setback match), got %.1f", res.Total)
 	}
 
-	// Verify criteria results for 72.0° frame
+	// Verify criteria results for 71.5° frame
 	for _, c := range res.Criteria {
 		if c.ID == "brp_setback" {
 			if c.FormattedCell != "219 ✓" {

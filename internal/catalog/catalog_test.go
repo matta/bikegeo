@@ -122,3 +122,18 @@ func TestHandlebarCatalog(t *testing.T) {
 		t.Errorf("Expected not found for non_existent_handlebar_12345")
 	}
 }
+
+// Catalog lookups and fit defaults must use the same owner-measured saddle.
+func TestReferenceSaddle(t *testing.T) {
+	ref := model.ReferenceIdmatchSaddle()
+	if got := DefaultSaddle(); got != ref {
+		t.Errorf("catalog default = %+v, want idmatch reference %+v", got, ref)
+	}
+	if got, ok := GetSaddle(ref.ID); !ok || got != ref {
+		t.Errorf("catalog lookup = %+v, %t; want idmatch reference %+v", got, ok, ref)
+	}
+	// Positive forward from R0: W70 is +32mm, SIT is -48mm.
+	if ref.RailCenterToBrpMm != 32 || ref.RailCenterToSitBonesMm != -48 || ref.SitBonesElevationMm != 10 || ref.RailLengthMm != 60 {
+		t.Errorf("reference saddle differs from measured geometry: %+v", ref)
+	}
+}

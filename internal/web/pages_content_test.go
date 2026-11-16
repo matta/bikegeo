@@ -41,3 +41,22 @@ func TestPages_ContentCarriedOverFromCLI(t *testing.T) {
 		})
 	}
 }
+
+func TestSaddleDefaultSupportTarget(t *testing.T) {
+	for _, path := range []string{"/saddles", "/saddle-swap"} {
+		t.Run(path, func(t *testing.T) {
+			rec, doc := do(t, path)
+			mustStatus(t, rec, http.StatusOK)
+			body := doc.Text()
+			if got := doc.Find(`input[name="sit-bone-setback"]`).AttrOr("placeholder", ""); got != "behind BB, default 299" {
+				t.Error("default support-target hint must reflect the corrected reference")
+			}
+			if path == "/saddles" && !strings.Contains(body, "Target Sit Bone Setback: 299mm") {
+				t.Error("saddle calculations must use the corrected default support target")
+			}
+			if path == "/saddle-swap" && !strings.Contains(body, "-299.0") {
+				t.Error("saddle swap must preserve the corrected reference support point")
+			}
+		})
+	}
+}

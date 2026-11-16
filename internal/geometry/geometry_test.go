@@ -470,7 +470,7 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 }
 
 func TestMapPossibleBRPs_And_SelectCheapestBRP(t *testing.T) {
-	staDeg := model.Deg(72.0)
+	staDeg := model.Deg(71.5)
 	seatHeight := 746.0
 	refSaddle := model.ReferenceIdmatchSaddle()
 
@@ -489,7 +489,7 @@ func TestMapPossibleBRPs_And_SelectCheapestBRP(t *testing.T) {
 		t.Errorf("Expected 0 rail offset on a tie, got %.1f", bestFlat.RailOffsetMm)
 	}
 
-	// 2. Cost = distance from 219mm on STA=72.0° with the zero-setback dropper: dead-center setback is 208.5mm, so the rails must move back ~11mm
+	// 2. At 71.5° with a zero-setback post, the target is inside the clamp window, near +13mm.
 	toSetback := func(b model.BRPPoint) float64 { return math.Abs(b.BrpSetbackMm - 219.0) }
 	bestTarget, ok := geometry.SelectCheapestBRP(points, toSetback)
 	if !ok {
@@ -498,11 +498,11 @@ func TestMapPossibleBRPs_And_SelectCheapestBRP(t *testing.T) {
 	if math.Abs(bestTarget.BrpSetbackMm-219.0) > 0.5 {
 		t.Errorf("Expected BrpSetbackMm ~ 219.0, got %.1f", bestTarget.BrpSetbackMm)
 	}
-	if math.Abs(bestTarget.RailOffsetMm-11.0) > 1.0 {
-		t.Errorf("Expected RailOffsetMm near +11mm on 72.0° STA, got %.1f", bestTarget.RailOffsetMm)
+	if math.Abs(bestTarget.RailOffsetMm-13.0) > 1.0 {
+		t.Errorf("Expected RailOffsetMm near +13mm on 71.5° STA, got %.1f", bestTarget.RailOffsetMm)
 	}
 
-	// 3. Target 219mm on steep STA=75.0° (Binary Kinetik): dead center is ~181.5mm, requires +37.5mm (clamps to +15mm)
+	// 3. Target 219mm on steep STA=75.0° requires more rearward travel than the +15mm limit.
 	steepPoints := refSaddle.MapPossibleBRPs(75.0, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
 	bestClamped, ok := geometry.SelectCheapestBRP(steepPoints, toSetback)
 	if !ok {
@@ -716,30 +716,30 @@ func TestSaddleElevationAndTranslationMethods(t *testing.T) {
 	// 2. SitBonePointFromBrp & BrpPointFromSitBones
 	refBrp := sqlab.BrpPointAtHeightAndSetback(746.0, 219.0)
 	sitBonePt := sqlab.SitBonePointFromBrp(refBrp)
-	if math.Abs(sitBonePt.X-(-292.0)) > 0.1 || math.Abs(sitBonePt.Y-723.15) > 0.1 {
-		t.Errorf("Expected SitBonePoint (-292.0, 723.15), got (%.2f, %.2f)", sitBonePt.X, sitBonePt.Y)
+	if math.Abs(sitBonePt.X-(-299.0)) > 0.1 || math.Abs(sitBonePt.Y-723.15) > 0.1 {
+		t.Errorf("Expected SitBonePoint (-299.0, 723.15), got (%.2f, %.2f)", sitBonePt.X, sitBonePt.Y)
 	}
 
 	// SQlab (ref) -> Berthoud Aspin via SitBones
 	aspinBrp := aspin.BrpPointFromSitBones(sitBonePt)
-	if math.Abs(aspinBrp.X-(-204.0)) > 0.1 || math.Abs(aspinBrp.Y-723.15) > 0.1 {
-		t.Errorf("Expected Aspin BRP (-204.0, 723.15), got (%.2f, %.2f)", aspinBrp.X, aspinBrp.Y)
+	if math.Abs(aspinBrp.X-(-211.0)) > 0.1 || math.Abs(aspinBrp.Y-723.15) > 0.1 {
+		t.Errorf("Expected Aspin BRP (-211.0, 723.15), got (%.2f, %.2f)", aspinBrp.X, aspinBrp.Y)
 	}
 	shAspin := aspinBrp.DistanceToOrigin()
-	if math.Abs(shAspin-751.37) > 0.1 {
-		t.Errorf("Expected Aspin SH ~751.37mm, got %.2fmm", shAspin)
+	if math.Abs(shAspin-753.29) > 0.1 {
+		t.Errorf("Expected Aspin SH ~753.29mm, got %.2fmm", shAspin)
 	}
 
 	// SQlab (ref) -> SLR Boost via SitBones
 	shSLR := slr.BrpPointFromSitBones(sitBonePt).DistanceToOrigin()
-	if math.Abs(shSLR-752.73) > 0.1 {
-		t.Errorf("Expected SLR Boost SH ~752.73mm, got %.2fmm", shSLR)
+	if math.Abs(shSLR-754.70) > 0.1 {
+		t.Errorf("Expected SLR Boost SH ~754.70mm, got %.2fmm", shSLR)
 	}
 
 	// 3. 2D Vector Translation (BrpToSitBonesVec)
 	sqVec := sqlab.BrpToSitBonesVec()
-	if sqVec.X != -73.0 || sqVec.Y != 10.0 {
-		t.Errorf("Expected SQlab BrpToSitBonesVec (-73.0, 10.0), got (%.1f, %.1f)", sqVec.X, sqVec.Y)
+	if sqVec.X != -80.0 || sqVec.Y != 10.0 {
+		t.Errorf("Expected SQlab BrpToSitBonesVec (-80.0, 10.0), got (%.1f, %.1f)", sqVec.X, sqVec.Y)
 	}
 	aspinVec := aspin.BrpToSitBonesVec()
 	if aspinVec.X != -88.0 || aspinVec.Y != 0.0 {

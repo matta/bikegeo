@@ -43,12 +43,14 @@ From an idmatch Bikelab report (e.g. `206563 - Matt Armstrong - Report idmatch B
 On a real bicycle, the BRP sits offset from the seat tube centerline due to:
 - **Seatpost Setback**: `model.DefaultSeatpostSetbackMm = 0.0 mm` (a zero-setback dropper post).
 - **Saddle Geometry**: Defined in the Canonical Saddle Coordinate System (`X_RC = 0.0 mm` at the rail center; inspect with `bikegeo saddles`).
-  - For the reference **SQlab 610 Ergolux Active 2.1**: `RailCenterToBrpMm = +23.0 mm`, `RailCenterToSitBonesMm = -50.0 mm`.
+  - For the reference **SQlab 610 Ergolux Active 2.1**: `RailCenterToBrpMm = +32.0 mm`, `RailCenterToSitBonesMm = -48.0 mm`, with Matt's measured `SitBonesElevationMm = +10.0 mm`. See [the saddle specification](../../docs/SQLAB_SADDLE.md) for measurements and W70 verification status. The catalog reuses `model.ReferenceIdmatchSaddle()` as its shared compiled definition.
   - For the **Berthoud Aspin Open**: `RailCenterToBrpMm = +43.5 mm`, `RailCenterToSitBonesMm = -44.5 mm`.
-  - Pelvic fit equivalence between them differs by only `5.5 mm` on the rails (`0.44°` of Seat Tube Angle).
-- **Primary Pelvic Invariant**: Sit Bone Setback is `292.0 mm` behind the BB (derived from idmatch BRP 219 mm + SQlab span 73 mm).
+  - Their rail-center-to-SIT offsets differ by `3.5 mm`; a full equivalent placement also accounts for the measured elevation difference and seatpost geometry.
+- **Modeled Support Target**: SIT setback is `299.0 mm` behind the BB under the level-rail approximation (`219 mm` report BRP setback + `80 mm` SQlab span). `model.DefaultTargetSitBoneSetbackMm()` derives it from the reference saddle rather than storing another independent constant. This is a saddle-landmark target, not an independent pelvic measurement. Equivalent BRP setbacks are `211 mm` for Aspin and `216 mm` for SLR Boost.
 - **Usable Rail Range**: Determined by `(L_rail - L_clamp) / 2` (bounded by `[-half, +half]` along the straight clamping rails).
 - **Ideal Seat Tube Angle**: Use `bikegeo saddles` to compute the required custom frame Seat Tube Angle to clamp any catalog saddle dead-center (`0.0 mm`) on your seatpost.
+
+The shared saddle data and derived defaults are updated. The current rail/STA placement solver still uses its existing seat-perpendicular offset approximation; replacing it with a consistent rail-axis transform is the next step in [the update plan](../../docs/PLAN.md).
 
 ### Constant-Radius Rail Adjustment
 
@@ -101,7 +103,7 @@ Under `TargetHandGrip`, to place the rider's hands at `(GripX, GripY)` from an i
 
 ### Handlebar Clamp Fit (`handlebar_clamp_fit`)
 When scoring cockpits against biomechanical profiles, handlebar positions are assessed against an **Area of Reasonable Fit** oval:
-- **Ideal Center**: `(BrpX + ΔX_0, SitBoneY + c_0)` where `ΔX_0 = √(d_0² - (SitBoneY + c_0 - BrpY)²)`, from the profile's explicit cockpit target: `d_0 = CockpitTargetDistMm` (700 mm from the BRP) and `c_0 = CockpitTargetRiseMm` (3 mm above the sit bones), defined for the reference saddle. For another saddle `Profile.CockpitTarget` keeps the hands where they sit relative to the sit bones: it re-measures `d_0` from that saddle's BRP (Berthoud Aspin `684.9 mm`, SLR Boost `689.9 mm`).
+- **Ideal Center**: `(BrpX + ΔX_0, SitBoneY + c_0)` where `ΔX_0 = √(d_0² - (SitBoneY + c_0 - BrpY)²)`, from the profile's explicit cockpit target: `d_0 = CockpitTargetDistMm` (700 mm from the BRP) and `c_0 = CockpitTargetRiseMm` (3 mm above the sit bones), defined for the reference saddle. For another saddle `Profile.CockpitTarget` keeps the hands where they sit relative to the sit bones: it re-measures `d_0` from that saddle's BRP (Berthoud Aspin `691.9 mm`, SLR Boost `696.9 mm`).
 - **Dimensions**: Semi-minor axis `a = 10.0 mm` (±1 cm horizontal) and semi-major axis `b = 20.0 mm` (±2 cm vertical).
 - **Rotation**: 30° clockwise tilt, matching frame sizing geometry where longer reach requires taller stack.
 - **Normalized Radius `R`**: `R = √((p_minor / 10)² + (p_major / 20)²)`

@@ -128,7 +128,7 @@ func pages() []page {
 				return []Control{
 					{Name: "id", Label: "Saddle", Kind: "select", Value: v.Get("id"), Options: saddleOptions(v.Get("id"), "Whole catalog")},
 					numberControl(v, "saddle-height", "Saddle height (mm)", "BB to BRP, default 746"),
-					numberControl(v, "sit-bone-setback", "Sit-bone setback (mm)", "behind BB, default 292"),
+					numberControl(v, "sit-bone-setback", "Sit-bone setback (mm)", fmt.Sprintf("behind BB, default %.0f", model.DefaultTargetSitBoneSetbackMm())),
 				}
 			},
 			Build: run(func(db *docb, v url.Values) int { return db.saddles(v) }),
@@ -144,7 +144,7 @@ func pages() []page {
 					{Name: "all", Label: "Compare against every saddle", Kind: "checkbox", Value: v.Get("all")},
 					{Name: "frame", Label: "On frame", Kind: "select", Value: v.Get("frame"), Options: frameOptions(v.Get("frame"), "No frame")},
 					numberControl(v, "saddle-height", "Saddle height (mm)", "BB to BRP, default 746"),
-					numberControl(v, "sit-bone-setback", "Sit-bone setback (mm)", "behind BB, default 292"),
+					numberControl(v, "sit-bone-setback", "Sit-bone setback (mm)", fmt.Sprintf("behind BB, default %.0f", model.DefaultTargetSitBoneSetbackMm())),
 					numberControl(v, "brp-setback", "BRP setback (mm)", "derives sit-bone setback"),
 					numberControl(v, "seatpost", "Seatpost setback (mm)", "default 0 (zero-setback dropper)"),
 					numberControl(v, "clamp-length", "Clamp length (mm)", "default 30"),

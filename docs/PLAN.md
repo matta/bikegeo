@@ -1,6 +1,6 @@
 # SQlab Saddle Geometry and Rider-Fit Update Plan
 
-Status: step 1 completed on 2026-11-16. The saddle specification and rider-fit provenance record are updated; steps 2–7, including program geometry and default changes, remain planned.
+Status: steps 1 and 2 completed on 2026-11-16. The provenance records, shared saddle data and derived defaults are updated; steps 3–7, including the rail-axis geometry correction, remain planned.
 
 ## Established inputs and boundaries
 
@@ -22,11 +22,11 @@ Status: step 1 completed on 2026-11-16. The saddle specification and rider-fit p
 
 Acceptance met: both records distinguish owner measurements, fit-report readings, derived coordinates and installation assumptions, without questioning the confirmed 10 mm elevation. The unsagged same-saddle transfer, recorded report values and riding observations are preserved.
 
-## 2. Consolidate the canonical saddle data and derived defaults
+## 2. Consolidate the canonical saddle data and derived defaults (completed 2026-11-16)
 
 Affected starting points: `internal/model/bike_components.go`, `internal/catalog/saddles.go`, `internal/ideal/loader.go`.
 
-| Quantity | Existing program value | Corrected value in the program's positive-forward convention |
+| Quantity | Before step 2 | Current value in the program's positive-forward convention |
 | --- | ---: | ---: |
 | Rail center to W70 / BRP | +23 mm | +32 mm |
 | Rail center to SIT | -50 mm | -48 mm |
@@ -34,12 +34,12 @@ Affected starting points: `internal/model/bike_components.go`, `internal/catalog
 | SIT elevation | +10 mm | +10 mm, owner-measured |
 | Marked rail span | 60 mm | 60 mm |
 
-- Use one shared compiled saddle definition for the catalog and idmatch reference, without introducing an import cycle.
-- Keep the specification and program on the same positive-forward / positive-upward convention. Relative to R0, R+30 is at `+30 mm` and R-30 at `-30 mm`; the specification's signed clamp coordinate has the same sign as the program's rail offset. Distinguish unsigned measurement lengths from signed coordinates, and label TIP-relative versus rail-centered origins explicitly.
-- Derive the default support target from the reference saddle and recorded BRP instead of maintaining an independent `292` or `299` constant. Replace all production uses, help hints and explanatory literals that would otherwise diverge.
-- Keep geometry for the other catalog saddles unchanged; recalculate their translated targets from the corrected reference.
+- [x] Use one shared compiled saddle definition for the catalog and idmatch reference, without introducing an import cycle.
+- [x] Keep the specification and program on the same positive-forward / positive-upward convention. Relative to R0, R+30 is at `+30 mm` and R-30 at `-30 mm`; the specification's signed clamp coordinate has the same sign as the program's rail offset. Distinguish unsigned measurement lengths from signed coordinates, and label TIP-relative versus rail-centered origins explicitly.
+- [x] Derive the default support target from the reference saddle and recorded BRP instead of maintaining an independent `292` or `299` constant. Replace all production uses, help hints and explanatory literals that would otherwise diverge.
+- [x] Keep geometry for the other catalog saddles unchanged; recalculate their translated targets from the corrected reference.
 
-Acceptance: all default consumers use the same reference data and derive a level-rail 299 mm SIT setback while retaining a 219 mm reference BRP setback and 746 mm radial BRP height.
+Acceptance met: all default consumers use the same reference data and derive a level-rail 299 mm SIT setback while retaining a 219 mm reference BRP setback and 746 mm radial BRP height. The catalog uses `model.ReferenceIdmatchSaddle()`; `model.DefaultTargetSitBoneSetbackMm()` derives the default support setback. Regression checks cover catalog/reference agreement, profile and translated targets, preserved report anchors, and both saddle pages' derived defaults and hints. Existing derived-output assertions were refreshed; the rail-placement equations remain unchanged for step 3.
 
 ## 3. Correct rail placement and inverse geometry
 

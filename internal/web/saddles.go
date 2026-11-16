@@ -16,7 +16,7 @@ import (
 func (db *docb) saddles(v url.Values) int {
 	fl := &floats{v: v}
 	saddleHeight := fl.get("saddle-height", model.DefaultIdmatchSaddleHeightMm)
-	sitBoneSetback := fl.get("sit-bone-setback", model.DefaultTargetSitBoneSetbackMm)
+	sitBoneSetback := fl.get("sit-bone-setback", model.DefaultTargetSitBoneSetbackMm())
 	if fl.err != nil {
 		db.fail("%v", fl.err)
 		return 1
@@ -284,7 +284,7 @@ func (db *docb) saddles(v url.Values) int {
 				Title: "Framebuilder Compromise Recommendations",
 				Lines: []string{
 					"A frame built with the Compromise STA guarantees that any saddle in the catalog mounts within the specified Max Rail Offset of dead-center.",
-					"Between SQlab (-50.0mm sit bones), Aspin (-44.5mm), and SLR Boost (-65.3mm), the sit bone span across the catalog is 20.8mm, leading to a ±10.4mm compromise clamp offset.",
+					fmt.Sprintf("Rail-center support offsets: SQlab %+.1fmm, Aspin %+.1fmm, SLR Boost %+.1fmm. Modeled compromise rail offsets are listed per hardware option.", sqlab.RailCenterToSitBonesMm, aspin.RailCenterToSitBonesMm, slr.RailCenterToSitBonesMm),
 					"Due to the SLR Boost's rearward sit-bone placement and 40mm straight rails, universal ±5mm compatibility across all three saddles requires varying seatpost setback (e.g. 0–10mm setback for SLR Boost vs 15–25mm for SQlab/Aspin).",
 				},
 			},

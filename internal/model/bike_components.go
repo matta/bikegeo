@@ -192,20 +192,24 @@ const DefaultIdmatchBrpSetbackMm = 219.0
 // DefaultIdmatchSaddleHeightMm is the baseline radial saddle height (in mm) from BB to BRP in the idmatch fit report.
 const DefaultIdmatchSaddleHeightMm = 746.0
 
-// DefaultTargetSitBoneSetbackMm is the primary pelvic sit-bone setback (in mm) behind the BB.
-const DefaultTargetSitBoneSetbackMm = 292.0
+// DefaultTargetSitBoneSetbackMm derives the modeled support-landmark setback behind BB
+// from the recorded idmatch BRP and reference saddle, assuming level rails.
+func DefaultTargetSitBoneSetbackMm() float64 {
+	return ReferenceIdmatchSaddle().SitBoneSetbackFromBrp(DefaultIdmatchBrpSetbackMm)
+}
 
 // ReferenceIdmatchSaddle returns the canonical reference saddle used during idmatch fitting (SQlab 610).
-// Since the idmatch protocol was conducted on an SQlab saddle (Delta BRP-to-SitBones = 73mm),
-// any idmatch BRP specification derives a primary pelvic Sit Bone Setback via SitBonePointFromBrp.
+// Owner measurements and derivations are recorded in docs/SQLAB_SADDLE.md.
+// Longitudinal offsets are positive forward along the rails; SIT is a physical
+// support landmark, not an independently measured pelvic coordinate.
 func ReferenceIdmatchSaddle() SaddleSpec {
 	return SaddleSpec{
 		ID:                     "sqlab-610-ergolux",
 		Name:                   "SQlab 610 Ergolux Active 2.1",
 		RailLengthMm:           60.0,
-		RailCenterToBrpMm:      23.0,
-		RailCenterToSitBonesMm: -50.0,
-		SitBonesElevationMm:    10.0,
+		RailCenterToBrpMm:      32.0, // Derived W70 station; direct width verification remains pending.
+		RailCenterToSitBonesMm: -48.0,
+		SitBonesElevationMm:    10.0, // Physically measured by Matt; confirmed 2026-11-16.
 	}
 }
 

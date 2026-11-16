@@ -981,8 +981,8 @@ func TestSaddlesAndHandlebarsProseMatchesTables(t *testing.T) {
 	if text(doc260.Find("body")) == text(doc320.Find("body")) {
 		t.Error("/saddles output did not vary between sit-bone-setback=260 and 320")
 	}
-	if !strings.Contains(text(doc260.Find("body")), "Equivalent Saddle Height: 752mm") {
-		t.Errorf("expected dynamic Aspin Equivalent Saddle Height 752mm at SB=260")
+	if !strings.Contains(text(doc260.Find("body")), "Equivalent Saddle Height: 754mm") {
+		t.Errorf("expected dynamic Aspin Equivalent Saddle Height 754mm at SB=260")
 	}
 
 	// /saddles?id= must filter catalog to a single row and omit cross-saddle footer.

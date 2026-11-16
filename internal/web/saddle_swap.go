@@ -27,7 +27,7 @@ const (
 func (db *docb) saddleSwap(v url.Values) int {
 	fl := &floats{v: v}
 	saddleHeight := fl.get("saddle-height", model.DefaultIdmatchSaddleHeightMm)
-	sitBoneSetback := fl.get("sit-bone-setback", model.DefaultTargetSitBoneSetbackMm)
+	sitBoneSetback := fl.get("sit-bone-setback", model.DefaultTargetSitBoneSetbackMm())
 	brpSetback := fl.get("brp-setback", 0.0)
 	postSetback := fl.get("seatpost", model.DefaultSeatpostSetbackMm)
 	clampLength := fl.get("clamp-length", model.DefaultSeatpostClampLengthMm)

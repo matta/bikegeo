@@ -177,7 +177,7 @@ func AnalyzeSaddleSwap(
 	// Fixed seatpost hardware setback = source.RailCenterSetbackFromBrp(sourceBrpSetback).
 	// Required clamp offset = fixedHardware - targetRailCenterSetback = -(target.RailCenterToBrpMm - source.RailCenterToBrpMm)
 	// Positive clamp offset pushes saddle rearward, negative pushes saddle forward.
-	// Since target BRP is further forward on target saddle (+43.5 vs +23.0), the saddle must move forward relative to clamp,
+	// When the target BRP is farther forward on its rails, the saddle must move forward relative to the clamp,
 	// meaning clamp offset = -rcBrpDelta.
 	naiveClampOffset := -rcBrpDelta
 	naiveFeasible := naiveClampOffset >= tMinClamp-0.001 && naiveClampOffset <= tMaxClamp+0.001

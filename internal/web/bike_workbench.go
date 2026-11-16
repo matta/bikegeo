@@ -198,7 +198,7 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 		return d, http.StatusBadRequest
 	}
 
-	refSitBones := model.ReferenceSitBonePoint(p.saddleH, model.DefaultTargetSitBoneSetbackMm)
+	refSitBones := model.ReferenceSitBonePoint(p.saddleH, model.DefaultTargetSitBoneSetbackMm())
 	brpH := p.saddle.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 
 	target := geometry.DefaultRiderTarget(p.targetRef)
@@ -218,7 +218,7 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 	fit := geometry.RiderFit{
 		FrameSeatAxisHeightMm: p.saddleH,
 		BrpHeightMm:           brpH,
-		TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm,
+		TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm(),
 		Target:                target,
 		ReferenceSaddle:       catalog.DefaultSaddle(),
 		ReferenceBar:          model.Some(catalog.DefaultHandlebar()),

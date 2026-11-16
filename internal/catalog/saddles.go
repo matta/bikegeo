@@ -9,14 +9,7 @@ import (
 
 // CommonSaddleCatalog holds standard compiled saddle models.
 var CommonSaddleCatalog = []model.SaddleSpec{
-	{
-		ID:                     "sqlab-610-ergolux",
-		Name:                   "SQlab 610 Ergolux Active 2.1",
-		RailLengthMm:           60.0,
-		RailCenterToBrpMm:      23.0,
-		RailCenterToSitBonesMm: -50.0,
-		SitBonesElevationMm:    10.0, // SQlab Ergolux step: rear sit bone platform is elevated 10mm above the 70mm BRP horizontal plane
-	},
+	model.ReferenceIdmatchSaddle(),
 	{
 		ID:                     "berthoud-aspin-open",
 		Name:                   "Berthoud Aspin Open",

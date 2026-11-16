@@ -85,12 +85,12 @@ func buildSceneForComparisonRow(row model.CanonicalComparisonRow, prof *ideal.Pr
 		}
 	}
 	saddleH := model.DefaultIdmatchSaddleHeightMm
-	refSitBones := model.ReferenceSitBonePoint(saddleH, model.DefaultTargetSitBoneSetbackMm)
+	refSitBones := model.ReferenceSitBonePoint(saddleH, model.DefaultTargetSitBoneSetbackMm())
 	brpH := saddle.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 	fit := geometry.RiderFit{
 		FrameSeatAxisHeightMm: saddleH,
 		BrpHeightMm:           brpH,
-		TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm,
+		TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm(),
 		Target:                target,
 		ReferenceSaddle:       catalog.DefaultSaddle(),
 		ReferenceBar:          model.Some(catalog.DefaultHandlebar()),

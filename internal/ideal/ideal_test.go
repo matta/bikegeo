@@ -876,9 +876,9 @@ func TestCockpitTarget_ReferenceSaddleAndSitBoneInvariant(t *testing.T) {
 		}
 	}
 
-	// Pin the non-reference saddles at the centres the replaced ForSaddle range
-	// projection produced (the midpoint of its 695–705 mm range).
-	for id, want := range map[string]float64{"berthoud-aspin-open": 684.9, "selle-italia-slr-boost-superflow-l3": 689.9} {
+	// The corrected reference span shifts the non-reference BRP-to-hand distances
+	// while preserving the same reference hand point.
+	for id, want := range map[string]float64{"berthoud-aspin-open": 691.9, "selle-italia-slr-boost-superflow-l3": 696.9} {
 		saddle, ok := catalog.GetSaddle(id)
 		if !ok {
 			t.Fatalf("saddle %q missing", id)
@@ -886,6 +886,33 @@ func TestCockpitTarget_ReferenceSaddleAndSitBoneInvariant(t *testing.T) {
 		dist, _, _ := p.CockpitTarget(saddle)
 		if math.Abs(dist-want) > 0.051 {
 			t.Errorf("%s: target distance %.1f, want %.1f", id, dist, want)
+		}
+	}
+}
+
+func TestIdmatchReferenceSaddleTargets(t *testing.T) {
+	p := IdmatchProfile()
+	if got := model.DefaultTargetSitBoneSetbackMm(); got != 299 {
+		t.Errorf("default support setback = %g, want 299mm", got)
+	}
+	if p.TargetSitBoneSetbackMm != model.Some(model.DefaultTargetSitBoneSetbackMm()) || p.ReferenceSitBones.X != -299 {
+		t.Errorf("profile support target = %v, point %+v; want shared 299mm setback", p.TargetSitBoneSetbackMm, p.ReferenceSitBones)
+	}
+	if p.ReferenceBrp.X != -219 || math.Abs(p.ReferenceBrp.DistanceToOrigin()-746) > 1e-9 || math.Abs(p.ReferenceSitBones.Y-p.ReferenceBrp.Y-10) > 1e-9 {
+		t.Errorf("report BRP anchor or measured elevation changed: BRP %+v, SIT %+v", p.ReferenceBrp, p.ReferenceSitBones)
+	}
+	for id, want := range map[string]float64{"sqlab-610-ergolux": 219, "berthoud-aspin-open": 211, "selle-italia-slr-boost-superflow-l3": 216} {
+		saddle, ok := catalog.GetSaddle(id)
+		if !ok {
+			t.Fatalf("missing saddle %q", id)
+		}
+		adapted := p.ForSaddle(saddle)
+		spec, ok := adapted.Spec(MetricBrpSetback)
+		if !ok || spec.Ideal == nil {
+			t.Fatalf("%s: missing BRP target", id)
+		}
+		if spec.Ideal.Min != model.Some(want) || spec.Ideal.Max != model.Some(want) {
+			t.Errorf("%s: BRP target = %+v, want exactly %gmm", id, spec.Ideal, want)
 		}
 	}
 }
