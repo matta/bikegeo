@@ -1,6 +1,6 @@
 # SQlab Saddle Geometry and Rider-Fit Update Plan
 
-Status: planned. The measured 10 mm SIT elevation has been documented in [SQLAB_SADDLE.md](SQLAB_SADDLE.md); the program changes below remain to be implemented.
+Status: step 1 completed on 2026-11-16. The saddle specification and rider-fit provenance record are updated; steps 2–7, including program geometry and default changes, remain planned.
 
 ## Established inputs and boundaries
 
@@ -12,15 +12,15 @@ Status: planned. The measured 10 mm SIT elevation has been documented in [SQLAB_
 - SIT is a physical saddle landmark. A model preserving it does not independently measure Matt's pelvis, contact-pressure center, physiological leg extension, or preferred setback range.
 - Keep the zero-dependency runtime, pure-Go compiled data, existing points-lost scoring costs and published frame geometry. Keep human saddle tools on the web and use GET forms with URL state if an installation control is necessary.
 
-## 1. Clarify the saddle specification and rider-fit record
+## 1. Clarify the saddle specification and rider-fit record (completed 2026-11-16)
 
-- Retain the newly documented measured elevation and cross-link the two records.
-- Clarify the W70 / BRP terminology: W70 names the saddle-local longitudinal station of the physical BRP landmark; bicycle-relative BRP coordinates describe that landmark after installation. BRP is not a term reserved for bicycle-coordinate values.
-- Keep W70's provenance explicit: its 120 mm station behind TIP is inferred from the reported 80 mm W70-to-SIT distance, pending direct width verification. The old 23 mm rail-center estimate is superseded by the canonical 32 mm value; their 9 mm disagreement is not a calibrated uncertainty interval.
-- Update `RIDER_FIT.md` to identify SIT, the corrected longitudinal geometry and the measured elevation. Replace the old derived 292 mm support setback with 299 mm under the level-rail approximation: `219 + 80 = 299 mm`. With the measured elevation, the corresponding modeled SIT point is approximately `(-299, 723.1) mm`.
-- Identify those SIT coordinates as model-derived under an orientation assumption, not a new fit-report reading, independent pelvic measurement, or demonstrated optimum. Preserve the riding observations and the untested preferred-setback range.
+- [x] Retain the newly documented measured elevation and cross-link the two records.
+- [x] Clarify the W70 / BRP terminology: W70 names the saddle-local longitudinal station of the physical BRP landmark; bicycle-relative BRP coordinates describe that landmark after installation. BRP is not a term reserved for bicycle-coordinate values.
+- [x] Keep W70's provenance explicit: its 120 mm station behind TIP is inferred from the reported 80 mm W70-to-SIT distance, pending direct width verification. The old 23 mm rail-center estimate is superseded by the canonical 32 mm value; their 9 mm disagreement is not a calibrated uncertainty interval.
+- [x] Update `RIDER_FIT.md` to identify SIT, the corrected longitudinal geometry and the measured elevation. Replace the old derived 292 mm support setback with 299 mm under the level-rail approximation: `219 + 80 = 299 mm`. With the measured elevation, the corresponding modeled SIT point is approximately `(-299, 723.1) mm`.
+- [x] Identify those SIT coordinates as model-derived under an orientation assumption, not a new fit-report reading, independent pelvic measurement, or demonstrated optimum. Preserve the riding observations and the untested preferred-setback range.
 
-Acceptance: both records distinguish owner measurements, fit-report readings, derived coordinates and installation assumptions, without questioning the confirmed 10 mm elevation.
+Acceptance met: both records distinguish owner measurements, fit-report readings, derived coordinates and installation assumptions, without questioning the confirmed 10 mm elevation. The unsagged same-saddle transfer, recorded report values and riding observations are preserved.
 
 ## 2. Consolidate the canonical saddle data and derived defaults
 

@@ -1,6 +1,6 @@
 # Matt's Rider Fit: Facts and Measurement Provenance
 
-This is the persistent record of Matt's fit history, confirmed directly by Matt on 2026-11-15. Consult it before asking about his saddle, seatpost, fit measurements, or transfer procedure. The facts below are established history; the biomechanical suitability of the resulting position remains open to testing.
+This is the persistent record of Matt's fit history, confirmed directly by Matt on 2026-11-15, with saddle measurements clarified on 2026-11-16. Consult it before asking about his saddle, seatpost, fit measurements, or transfer procedure. The facts below are established history; the biomechanical suitability of the resulting position remains open to testing.
 
 ## Confirmed Equipment
 
@@ -10,6 +10,8 @@ This is the persistent record of Matt's fit history, confirmed directly by Matt 
 - **Setback adapter:** FAIR bicycle Drop Best compatible with the Redshift post. FAIR lists the corresponding [Drop Best UC M6 redshift](https://www.fairbicycle.com/product-page/drop-best-uc-m6-redshift) with 27 mm of nominal forward or rearward offset. This specification does not independently establish the exact change in Matt's BRP coordinates after installation and adjustment.
 
 The confirmed saddle matches bikegeo's reference `sqlab-610-ergolux` / SQlab 610 Ergolux Active 2.1. An earlier conversational description of it as an Ergowave was superseded by the exact order description above.
+
+The owner-measured geometry of that actual saddle is recorded in [SQLAB_SADDLE.md](SQLAB_SADDLE.md), including Matt's physically measured 10 mm SIT elevation above the W70 / BRP reference plane.
 
 ## Confirmed idmatch Measurement and Transfer Procedure
 
@@ -36,7 +38,31 @@ Matt confirmed that the fit report's BRP and handlebar X/Y coordinates match the
 
 See [the ideal-profile documentation](../internal/ideal/readme.md) for the report's coordinate definitions and the existing distinction between stem-clamp and hand-grip references. The procedure above establishes the saddle measurement state; it does not resolve that separate handlebar-reference question.
 
-The model's 292 mm sit-bone setback is derived from the BRP and the reference saddle geometry. It is not an independent measurement of Matt's pelvis. The report values document the tested setup; they do not establish that 219 mm is uniquely optimal or that nearby saddle positions were compared.
+The report values document the tested setup; they do not establish that 219 mm is uniquely optimal or that nearby saddle positions were compared.
+
+## Saddle Measurements and Derived SIT Coordinates
+
+**SIT** denotes the physical saddle landmark at the front foot of the raised rear lip, on the middle seating shelf. It is a support reference, not an independently measured location of Matt's pelvis, sit bones or contact-pressure center. **W70** names the saddle-local longitudinal station of the physical BRP landmark; bicycle-relative BRP coordinates describe that landmark after installation. BRP is not a term reserved for bicycle-coordinate values.
+
+The saddle specification records the following owner measurements and their derived geometry:
+
+| Quantity | Value | Status |
+| --- | --- | --- |
+| TIP-to-SIT longitudinal distance | 200 mm | Owner-measured, corrected from 215 mm |
+| W70-to-SIT longitudinal distance | 80 mm | Owner-reported measurement |
+| SIT elevation above W70 / BRP reference plane | +10 mm | Physically measured by Matt; confirmed 2026-11-16 |
+| W70 station behind TIP | 120 mm | Derived from 200 − 80 mm; identification as the actual 70 mm-width station awaits direct width verification |
+| Rail center to W70 | +32 mm | Derived; positive forward along the rails |
+| Rail center to SIT | −48 mm | Derived; negative rearward along the rails |
+
+The canonical +32 mm rail-center-to-W70 value supersedes the earlier +23 mm external estimate. Their 9 mm disagreement is not a calibrated uncertainty interval. The measured longitudinal distances run parallel to the rails; they must not be applied perpendicular to the seat tube.
+
+Under the **level-rail approximation**, the W70-to-SIT displacement is `(-80, +10) mm` in positive-forward / positive-upward coordinates. Applying that displacement to the reported BRP gives:
+
+- Modeled SIT setback: `219 + 80 = 299 mm` behind BB.
+- Modeled SIT coordinates: approximately `(-299, 723.1) mm`, from `(-219, 713.1) + (-80, +10) mm`.
+
+This corrected derivation supersedes the earlier model-derived 292 mm setback based on a 73 mm span. It is not a new fit-report reading, an independent pelvic measurement or a demonstrated optimal position. The 10 mm elevation is measured; the level-rail installation orientation is an assumption. No numerical installed rail pitch has been supplied. Program geometry and default updates are tracked separately in [PLAN.md](PLAN.md).
 
 ## Owner-Reported Riding History and Observations
 

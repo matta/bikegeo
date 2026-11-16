@@ -25,6 +25,8 @@ https://www.sq-lab.com/en/products/610-ergolux-active-2-1-57230-2017
 
 The longitudinal geometry and SIT elevation below are based primarily on the owner's physical measurements of one 14 cm saddle.
 
+For Matt's confirmed equipment, fit-report measurements, unsagged same-saddle transfer and riding observations, see [RIDER_FIT.md](RIDER_FIT.md).
+
 ## 2. Reference points and conventions
 
 ### 2.1 Reference definitions
@@ -39,13 +41,9 @@ The longitudinal geometry and SIT elevation below are based primarily on the own
 | R0 | Midpoint between the +30 and -30 rail markings |
 | R-30 | Center of the -30 rail marking |
 
-The W70 reference corresponds to the saddle landmark used by the idmatch system to identify its Biomechanical Reference Point (BRP).
+W70 names the saddle-local longitudinal station of the physical Biomechanical Reference Point (BRP) landmark used by the idmatch system. Bicycle-relative BRP coordinates describe that landmark after installation, typically relative to the bottom bracket. BRP can also be described in saddle-local coordinates; the term is not reserved for bicycle-coordinate values.
 
-**W70 and BRP are not interchangeable coordinates.**
-
-- W70 is defined in the saddle's intrinsic coordinate system.
-- BRP is a point expressed in the bicycle-fitting coordinate system, typically relative to the bottom bracket.
-- This specification uses W70 exclusively for saddle geometry.
+This specification uses W70 for the longitudinal station and BRP when discussing the fitting reference. A longitudinal station alone does not supply a complete installed 2D coordinate. The identification of the inferred W70 station as the actual 70 mm-width location remains subject to the verification described in section 7.
 
 The idmatch 70 mm criterion is documented at:
 
