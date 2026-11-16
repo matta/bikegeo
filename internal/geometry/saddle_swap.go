@@ -104,19 +104,22 @@ func AnalyzeSaddleSwap(
 	hbDistanceMm float64,
 	hbDropMm float64,
 ) (SaddleSwapReport, error) {
-	if saddleHeightMm <= 0 {
+	if !isPositive(saddleHeightMm) {
 		return SaddleSwapReport{}, fmt.Errorf("saddleHeightMm must be positive, got %v", saddleHeightMm)
 	}
-	if sitBoneSetbackMm <= 0 {
+	if !isPositive(sitBoneSetbackMm) {
 		return SaddleSwapReport{}, fmt.Errorf("sitBoneSetbackMm must be positive, got %v", sitBoneSetbackMm)
 	}
-	if clampLengthMm <= 0 {
+	if !isPositive(clampLengthMm) {
 		return SaddleSwapReport{}, fmt.Errorf("clampLengthMm must be positive, got %v", clampLengthMm)
 	}
-	if hbDistanceMm <= 0 {
+	if !isPositive(hbDistanceMm) {
 		return SaddleSwapReport{}, fmt.Errorf("hbDistanceMm must be positive, got %v", hbDistanceMm)
 	}
 
+	if !isNonNegative(seatpostSetbackMm) || !isFinite(hbDropMm) || math.Abs(hbDropMm) > hbDistanceMm {
+		return SaddleSwapReport{}, fmt.Errorf("invalid seatpost setback or cockpit distance/rise")
+	}
 	sourceSpan := source.DeltaBrpToSitBonesMm()
 	targetSpan := target.DeltaBrpToSitBonesMm()
 	spanDelta := targetSpan - sourceSpan
@@ -126,6 +129,18 @@ func AnalyzeSaddleSwap(
 	// 1. Baseline Coordinates (Source Saddle clamped at dead-center 0.0mm)
 	srcBrpSetback := source.BrpSetbackFromSitBones(sitBoneSetbackMm)
 	srcBrp := source.BrpPointAtHeightAndSetback(saddleHeightMm, srcBrpSetback)
+	if !(srcBrp.Y > 0) {
+		return SaddleSwapReport{}, fmt.Errorf("source BRP setback exceeds saddle height")
+	}
+	sourceSTA := source.StaForBrpAndOffset(srcBrpSetback, saddleHeightMm, seatpostSetbackMm, 0)
+	reference, err := source.CalculatePoint(sourceSTA, saddleHeightMm, seatpostSetbackMm, 0)
+	if err != nil {
+		return SaddleSwapReport{}, err
+	}
+	translation, err := TranslateSaddleFit(reference, target, sourceSTA, clampLengthMm)
+	if err != nil {
+		return SaddleSwapReport{}, err
+	}
 	srcBrpY := srcBrp.Y
 	srcBrpAngle := model.DegOf(geom2d.Point2{X: srcBrpSetback, Y: srcBrpY}.PolarAngle())
 
@@ -135,7 +150,7 @@ func AnalyzeSaddleSwap(
 	baseLegExt := baseSitBone.DistanceToOrigin()
 	baseStaDeg := model.DegOf(geom2d.Point2{X: -baseSitBone.X, Y: baseSitBone.Y}.PolarAngle())
 
-	hbDeltaX := math.Sqrt(math.Max(0, hbDistanceMm*hbDistanceMm-hbDropMm*hbDropMm))
+	hbDeltaX := math.Sqrt(hbDistanceMm*hbDistanceMm - hbDropMm*hbDropMm)
 	hb := geom2d.Point2{
 		X: srcBrp.X + hbDeltaX,
 		Y: srcBrp.Y + hbDropMm,
@@ -172,15 +187,9 @@ func AnalyzeSaddleSwap(
 	naiveStaDeg := model.DegOf(geom2d.Point2{X: naiveSitBoneSetback, Y: naiveSitBone.Y}.PolarAngle())
 	naiveCockpit := hb.DistanceTo(naiveSitBone)
 
-	// Required clamp offset to put Target BRP at sourceBrpSetback:
-	// Rail center setback on target = naiveBrpSetback + target.RailCenterToBrpMm.
-	// Fixed seatpost hardware setback = source.RailCenterSetbackFromBrp(sourceBrpSetback).
-	// Required clamp offset = fixedHardware - targetRailCenterSetback = -(target.RailCenterToBrpMm - source.RailCenterToBrpMm)
-	// Positive clamp offset pushes saddle rearward, negative pushes saddle forward.
-	// When the target BRP is farther forward on its rails, the saddle must move forward relative to the clamp,
-	// meaning clamp offset = -rcBrpDelta.
-	naiveClampOffset := -rcBrpDelta
-	naiveFeasible := naiveClampOffset >= tMinClamp-0.001 && naiveClampOffset <= tMaxClamp+0.001
+	// Keep the source frame axis and post; solve the target's full placement.
+	naiveClampOffset := target.RailOffsetForBrpAtSta(sourceSTA, srcBrpSetback, saddleHeightMm, seatpostSetbackMm)
+	naiveFeasible := target.RailLengthMm >= clampLengthMm && naiveClampOffset >= tMinClamp-0.001 && naiveClampOffset <= tMaxClamp+0.001
 	var naiveMargin float64
 	if naiveClampOffset < tMinClamp {
 		naiveMargin = naiveClampOffset - tMinClamp
@@ -217,8 +226,8 @@ func AnalyzeSaddleSwap(
 
 	// 4. True Pelvic Alignment:
 	// Target Sit Bone Setback and Height are held invariant at (baseSitBone.X, baseSitBone.Y):
-	pelvicClampOffset := rcSitBoneDelta
-	pelvicFeasible := pelvicClampOffset >= tMinClamp-0.001 && pelvicClampOffset <= tMaxClamp+0.001
+	pelvicClampOffset := translation.TargetClampOffset
+	pelvicFeasible := translation.IsFeasible
 	var pelvicMargin float64
 	if pelvicClampOffset < tMinClamp {
 		pelvicMargin = pelvicClampOffset - tMinClamp
@@ -227,8 +236,6 @@ func AnalyzeSaddleSwap(
 	} else {
 		pelvicMargin = math.Min(pelvicClampOffset-tMinClamp, tMaxClamp-pelvicClampOffset)
 	}
-
-	targetIdealSTA := target.IdealSeatTubeAngle(sitBoneSetbackMm, tgtEquivSaddleHeight, seatpostSetbackMm)
 
 	pelvicOutcome := SwapFitOutcome{
 		Mode:                    "True Pelvic Alignment",
@@ -278,9 +285,11 @@ func AnalyzeSaddleSwap(
 		resSrc := CalculateIdealSeatTubeAngle(source, sitBoneSetbackMm, saddleHeightMm, p.setback, p.name, model.DefaultSeatpostClampLengthMm)
 		resTgt := CalculateIdealSeatTubeAngle(target, sitBoneSetbackMm, tgtEquivSaddleHeight, p.setback, p.name, model.DefaultSeatpostClampLengthMm)
 
-		feasible30 := pelvicClampOffset >= tMin30-0.001 && pelvicClampOffset <= tMax30+0.001
+		// Each hardware example uses its own source-centered frame axis.
+		offset := target.RailOffsetForBrpAtSta(resSrc.IdealStaDeg, tgtEquivBrpSetback, tgtEquivSaddleHeight, p.setback)
+		feasible30 := target.RailLengthMm >= model.DefaultSeatpostClampLengthMm && offset >= tMin30-0.001 && offset <= tMax30+0.001
 		feasible45 := target.RailLengthMm >= model.DropBestClampLengthMm &&
-			pelvicClampOffset >= tMin45-0.001 && pelvicClampOffset <= tMax45+0.001
+			offset >= tMin45-0.001 && offset <= tMax45+0.001
 
 		hwRows = append(hwRows, HardwareSwapRow{
 			PostName:           p.name,
@@ -289,7 +298,7 @@ func AnalyzeSaddleSwap(
 			SourceIdealStaDeg:  resSrc.IdealStaDeg,
 			TargetIdealStaDeg:  resTgt.IdealStaDeg,
 			StaDeltaDeg:        Round(resTgt.IdealStaDeg-resSrc.IdealStaDeg, 2),
-			TargetRailOffsetMm: Round(pelvicClampOffset, 1),
+			TargetRailOffsetMm: Round(offset, 1),
 			IsFeasible30Mm:     feasible30,
 			IsFeasible45Mm:     feasible45,
 		})
@@ -330,7 +339,7 @@ func AnalyzeSaddleSwap(
 		RailCenterToSitBonesDeltaMm:    Round(rcSitBoneDelta, 1),
 		BaselineCockpitReachMm:         Round(baseCockpit, 1),
 		BaselineLegExtensionMm:         Round(baseLegExt, 1),
-		BaselineStaDeg:                 Round(targetIdealSTA, 2),
+		BaselineStaDeg:                 Round(sourceSTA, 2),
 		Naive:                          naiveOutcome,
 		Pelvic:                         pelvicOutcome,
 		SeatpostRows:                   hwRows,

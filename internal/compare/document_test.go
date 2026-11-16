@@ -594,15 +594,15 @@ func TestCompare_BrpSetbackUsesSelectedBRPAndFooterUsesSitBones(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// F-p4ab-1: with the zero-setback dropper baseline, Surly ECR L lands 11mm short of 219 on the rails (+15mm limit) rather than DeadCenterBRP.
+	// F-p4ab-1: with the zero-setback dropper baseline, Surly ECR L lands 10mm short of 219 on the rails (+15mm limit) rather than DeadCenterBRP.
 	brpCell := ""
 	for _, r := range doc.Tables()[0].Rows {
 		if r.Kind == report.KindData && r.Attrs["metric"] == "brp_setback" {
 			brpCell = r.Cells[2].Text
 		}
 	}
-	if brpCell != "208 ✗ 13 pts" {
-		t.Errorf("surly-ecr:L brp_setback cell = %q, want %q", brpCell, "208 ✗ 13 pts")
+	if brpCell != "209 ✗ 12 pts" {
+		t.Errorf("surly-ecr:L brp_setback cell = %q, want %q", brpCell, "209 ✗ 12 pts")
 	}
 
 	// F-p4ab-2: Footer defines HandGrip Rise relative to Sit Bones, not Saddle BRP.
@@ -659,8 +659,8 @@ func TestCompare_SingleStepIntegerRounding(t *testing.T) {
 	if got := findVal("Fairlight Holt 2.0 (S)", "ETT"); got != "587" {
 		t.Errorf("Fairlight Holt 2.0 (S) ETT = %q, want 587 (single-step from ~586.55mm)", got)
 	}
-	if got := findVal("Surly ECR (L)", "BRP–HandGrip"); got != "642" {
-		t.Errorf("Surly ECR (L) BRP–HandGrip = %q, want 642 (display-only, with 11 mm HeadsetTopStackMm)", got)
+	if got := findVal("Surly ECR (L)", "BRP–HandGrip"); got != "643" {
+		t.Errorf("Surly ECR (L) BRP–HandGrip = %q, want 643 (display-only, with 11 mm HeadsetTopStackMm)", got)
 	}
 }
 

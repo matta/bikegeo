@@ -72,8 +72,8 @@ func TestAnalyzeSaddleSwap_SQlabToBerthoudAspin(t *testing.T) {
 	if math.Abs(naive.LegExtensionDeltaMm-(-6.1)) > 0.5 {
 		t.Errorf("Expected naive leg extension drop ~-6.1mm, got %.1fmm", naive.LegExtensionDeltaMm)
 	}
-	if naive.RequiredClampOffsetMm != -11.5 {
-		t.Errorf("Expected naive clamp offset -11.5mm, got %.1fmm", naive.RequiredClampOffsetMm)
+	if naive.RequiredClampOffsetMm != 11.5 {
+		t.Errorf("Expected naive clamp offset +11.5mm, got %.1fmm", naive.RequiredClampOffsetMm)
 	}
 	if !naive.IsFeasible {
 		t.Errorf("Expected naive BRP clamp offset to be feasible on Berthoud rails")
@@ -123,8 +123,8 @@ func TestAnalyzeSaddleSwap_SQlabToBerthoudAspin(t *testing.T) {
 	if pelvic.LegExtensionDeltaMm != 0.0 {
 		t.Errorf("Expected pelvic leg extension error 0.0mm, got %.1fmm", pelvic.LegExtensionDeltaMm)
 	}
-	if pelvic.RequiredClampOffsetMm != 3.5 {
-		t.Errorf("Expected pelvic clamp offset +3.5mm, got %.1fmm", pelvic.RequiredClampOffsetMm)
+	if pelvic.RequiredClampOffsetMm != 0.0 {
+		t.Errorf("Expected pelvic clamp offset 0.0mm, got %.1fmm", pelvic.RequiredClampOffsetMm)
 	}
 	if !pelvic.IsFeasible {
 		t.Errorf("Expected pelvic clamp offset to be marked FEASIBLE on Berthoud rails, got infeasible")
@@ -142,7 +142,7 @@ func TestAnalyzeSaddleSwap_SQlabToBerthoudAspin(t *testing.T) {
 	if !saggedRow.IsFeasible30Mm {
 		t.Errorf("Expected 30mm clamp to be feasible for Aspin pelvic fit on 11mm post")
 	}
-	if (saggedRow.StaDeltaDeg - (-0.05)).Abs() > 0.05 {
+	if (saggedRow.StaDeltaDeg - (0.0)).Abs() > 0.05 {
 		t.Errorf("Expected STA delta ~ -0.05°, got %.2f°", saggedRow.StaDeltaDeg)
 	}
 }
@@ -205,5 +205,25 @@ func TestAnalyzeSaddleSwap_ZeroDropAllowedAndInvalidRejected(t *testing.T) {
 		if _, err := AnalyzeSaddleSwap(sqlab, aspin, tc.sh, tc.sb, 25, tc.cl, tc.hb, 0); err == nil {
 			t.Errorf("%s: expected error, got nil", tc.name)
 		}
+	}
+}
+
+func TestSaddleSwapRejectsImpossibleGeometry(t *testing.T) {
+	s := model.ReferenceIdmatchSaddle()
+	for _, c := range []struct{ height, setback, post, distance, rise float64 }{
+		{100, 299, 0, 700, 13}, {746, 299, 0, 10, 13},
+		{746, 299, -1, 700, 13}, {746, math.NaN(), 0, 700, 13},
+	} {
+		if _, err := AnalyzeSaddleSwap(s, s, c.height, c.setback, c.post, 30, c.distance, c.rise); err == nil {
+			t.Errorf("accepted impossible swap %+v", c)
+		}
+	}
+	// Centering the same saddle does not make an overlong clamp fit its rails.
+	swap, err := AnalyzeSaddleSwap(s, s, 746, 299, 0, 61, 700, 13)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if swap.Naive.IsFeasible || swap.Pelvic.IsFeasible {
+		t.Error("overlong clamp reported feasible")
 	}
 }

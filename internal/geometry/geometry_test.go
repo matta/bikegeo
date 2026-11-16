@@ -298,7 +298,10 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	bar := catalog.DefaultHandlebar()
 
 	// BRP point with 0 offset matches bare seat tube top coordinates
-	brp := model.SaddleSpec{}.CalculatePoint(staDeg, seatHeight, 0.0, 0.0)
+	brp, placementErr := model.SaddleSpec{}.CalculatePoint(staDeg, seatHeight, 0.0, 0.0)
+	if placementErr != nil {
+		t.Fatal(placementErr)
+	}
 	barOffset := geometry.GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
 
 	// Case 1: HTA = 73°, stem -17° (90° - 73° - 17° = 0° => stem extends strictly horizontally forward)
@@ -392,7 +395,10 @@ func TestMapPossibleHBs_CoversEveryStemAndSpacer(t *testing.T) {
 		},
 	}
 
-	brp := model.SaddleSpec{}.CalculatePoint(staDeg, seatHeight, 0.0, 0.0)
+	brp, placementErr := model.SaddleSpec{}.CalculatePoint(staDeg, seatHeight, 0.0, 0.0)
+	if placementErr != nil {
+		t.Fatal(placementErr)
+	}
 	points := geometry.MapPossibleHBsWithHandlebar(bike, reach, stack, htaDeg, brp, catalog.DefaultHandlebar(), model.DefaultGripInsetMm, 0.0)
 	// 3 stems * 5 spacers = 15 points
 	if len(points) != 15 {
@@ -415,7 +421,10 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 	bar := catalog.DefaultHandlebar()
 
 	// Test 1: On a frame with STA = 72.9255° and 0 offset, BRP is exactly (-219.0, 713.0)
-	brpZero := model.SaddleSpec{}.CalculatePoint(72.9255, seatHeight, 0.0, 0.0)
+	brpZero, placementErr := model.SaddleSpec{}.CalculatePoint(72.9255, seatHeight, 0.0, 0.0)
+	if placementErr != nil {
+		t.Fatal(placementErr)
+	}
 	if math.Abs(brpZero.BrpX-(-219.0)) > 0.5 {
 		t.Errorf("Expected BrpX ~ -219.0, got %.1f", brpZero.BrpX)
 	}
@@ -431,7 +440,10 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 
 	// Test 2: Radial distance invariance hypot(BrpX, BrpY) == seatHeight across various offsets
 	for _, railOffset := range []float64{-20.0, -10.0, 0.0, 5.0, 15.0, 20.0} {
-		brp := refSaddle.CalculatePoint(74.0, seatHeight, model.DefaultSeatpostSetbackMm, railOffset)
+		brp, placementErr := refSaddle.CalculatePoint(74.0, seatHeight, model.DefaultSeatpostSetbackMm, railOffset)
+		if placementErr != nil {
+			t.Fatal(placementErr)
+		}
 		r := math.Hypot(brp.BrpX, brp.BrpY)
 		if math.Abs(r-seatHeight) > 0.15 {
 			t.Errorf("Radial distance violated for railOffset=%.1f: expected %.1f, got %.2f", railOffset, seatHeight, r)

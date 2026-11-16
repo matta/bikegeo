@@ -954,11 +954,11 @@ func TestSaddlesDetailClampExceedsRailAndSingleRounding(t *testing.T) {
 		t.Errorf("SLR Boost detail table missing N/A (clamp > rail):\n%s", slrTable.Text())
 	}
 
-	// SQlab 0mm post exact 2D inverse STA is 71.161° -> 71.2° (flat acos was 71.07° -> 71.1°),
+	// SQlab 0mm post uses independent level rails: atan2(BRP.Y, 219+32) -> 70.6°,
 	// and unrounded IdealStaDeg must not snap to a 0.01° grid.
 	sqTable := doc.Find("table").Eq(3)
-	if !strings.Contains(sqTable.Text(), "71.2°") {
-		t.Errorf("SQlab 0mm Ideal STA should reflect exact 2D inverse 71.2°:\n%s", sqTable.Text())
+	if !strings.Contains(sqTable.Text(), "70.6°") {
+		t.Errorf("SQlab 0mm Ideal STA should reflect level-rail inverse 70.6°:\n%s", sqTable.Text())
 	}
 }
 

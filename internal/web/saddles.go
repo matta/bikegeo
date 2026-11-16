@@ -89,10 +89,31 @@ func (db *docb) saddles(v url.Values) int {
 	slr, hasSLR := catalog.GetSaddle("selle-italia-slr-boost-superflow-l3")
 	refSitBones := model.ReferenceSitBonePoint(saddleHeight, sitBoneSetback)
 	if len(posArgs) == 0 && hasSQ && hasAspin && hasSLR {
-		transAspinDropBest := geometry.TranslateSaddleFit(sqlab, -15.0, aspin, model.DropBestClampLengthMm)
-		transAspinStd := geometry.TranslateSaddleFit(sqlab, 0.0, aspin, model.DefaultSeatpostClampLengthMm)
-		transSlrDropBest := geometry.TranslateSaddleFit(sqlab, -15.0, slr, model.DropBestClampLengthMm)
-		transSlrStd := geometry.TranslateSaddleFit(sqlab, 0.0, slr, model.DefaultSeatpostClampLengthMm)
+		// Illustrative source installations share the reference STA and zero-offset
+		// post; translate the complete geometry rather than only rail-local X deltas.
+		refSTA := sqlab.IdealSeatTubeAngle(sitBoneSetback, saddleHeight, model.DefaultSeatpostSetbackMm)
+		var translations [4]geometry.SaddleTranslationResult
+		for i, c := range []struct {
+			offset float64
+			saddle model.SaddleSpec
+			clamp  float64
+		}{
+			{-15, aspin, model.DropBestClampLengthMm}, {0, aspin, model.DefaultSeatpostClampLengthMm},
+			{-15, slr, model.DropBestClampLengthMm}, {0, slr, model.DefaultSeatpostClampLengthMm},
+		} {
+			reference, err := sqlab.CalculatePoint(refSTA, saddleHeight, model.DefaultSeatpostSetbackMm, c.offset)
+			if err != nil {
+				db.fail("%v", err)
+				return 1
+			}
+			translations[i], err = geometry.TranslateSaddleFit(reference, c.saddle, refSTA, c.clamp)
+			if err != nil {
+				db.fail("%v", err)
+				return 1
+			}
+		}
+		transAspinDropBest, transAspinStd := translations[0], translations[1]
+		transSlrDropBest, transSlrStd := translations[2], translations[3]
 
 		shSQDropper := sqlab.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 		shAspinDropper := aspin.BrpPointFromSitBones(refSitBones).DistanceToOrigin()

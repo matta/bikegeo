@@ -332,10 +332,13 @@ func TestPelvicAndCockpitInvarianceAcrossSaddles(t *testing.T) {
 		t.Errorf("Expected identical SelectedHB (HbX, HbY): SQlab=(%.1f, %.1f), Aspin=(%.1f, %.1f)",
 			hbSQ.HbX, hbSQ.HbY, hbAspin.HbX, hbAspin.HbY)
 	}
-	if math.Abs(hbSQ.SaddleHbDropMm-hbAspin.SaddleHbDropMm) > 0.5 {
-		t.Errorf("Expected identical sit-bone-relative SaddleHbDropMm across saddles: SQlab=%.1f, Aspin=%.1f",
-			hbSQ.SaddleHbDropMm, hbAspin.SaddleHbDropMm)
+	// The one-mm rail grid can leave different sub-mm support heights. Rise
+	// must use those achieved coordinates, not an assumed invariant height.
+	wantRiseDelta := (hbSQ.HbY - hbAspin.HbY) - (sbSQ.Y - sbAspin.Y)
+	if math.Abs((hbSQ.SaddleHbDropMm-hbAspin.SaddleHbDropMm)-wantRiseDelta) > 1e-9 {
+		t.Errorf("hand-grip rise disagrees with achieved support points")
 	}
+
 }
 
 func TestAllowedSagPercentages(t *testing.T) {

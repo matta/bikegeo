@@ -669,3 +669,94 @@ func evaluatedCockpitPoint(s geometry.BikeScene) geom2d.Point2 {
 		return s.HandGrip
 	}
 }
+
+func TestSceneSaddleAngleIndependentOfFrameAttitude(t *testing.T) {
+	frame, build, cockpit, seat, fit := baseTestInputs()
+	seat.PostSetbackMm, seat.RailOffsetMm = 11, 8
+	for _, sta := range []model.Deg{65, 73, 80} {
+		frame.StaDeg = sta
+		for _, pitch := range []model.Deg{model.LevelRailPitchDeg, 4} {
+			seat.Saddle.RailPitchDeg = pitch // Nonzero case is synthetic, not a rider measurement.
+			for _, forkDelta := range []float64{-30, 0, 40} {
+				build.Fork.StaticA2cMm = frame.CadFork.StaticA2cMm + forkDelta
+				sc, err := geometry.BuildScene(frame, build, cockpit, seat, fit)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if forkDelta != 0 && sc.PitchDeg == 0 {
+					t.Fatal("test requires a tilted frame")
+				}
+				// Saddle tilt is readjusted at the clamp for each configuration, so the
+				// rail angle above horizontal stays fixed even as the seat tube tilts.
+				p := pitch.Angle()
+				displacement := sc.BRP.Sub(sc.RailCenter)
+				want := geom2d.Vec2{X: 32 * p.Cos(), Y: 32 * p.Sin()}
+				if displacement.Sub(want).Norm() > 1e-9 {
+					t.Errorf("STA %v fork delta %v: rail direction = %+v, want %+v", sta, forkDelta, displacement, want)
+				}
+				sbDelta := sc.SitBones.Sub(sc.BRP)
+				wantSB := geom2d.Vec2{X: -80*p.Cos() - 10*p.Sin(), Y: -80*p.Sin() + 10*p.Cos()}
+				if sbDelta.Sub(wantSB).Norm() > 1e-9 {
+					t.Error("frame tilt changed the saddle landmark orientation")
+				}
+				if math.Abs(sc.BRP.DistanceToOrigin()-fit.BrpHeightMm) > 1e-9 {
+					t.Error("scene BRP radius changed")
+				}
+				solved := seat
+				solved.RailOffsetMm = sc.RequiredRailOffsetMm
+				targetScene, err := geometry.BuildScene(frame, build, cockpit, solved, fit)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if math.Abs(targetScene.SitBones.X-fit.TargetSitBonesXMm) > 1e-9 {
+					t.Error("scene rail inverse failed")
+				}
+			}
+		}
+	}
+}
+
+func TestAnalysisCandidatesUseSceneSaddleTransform(t *testing.T) {
+	frameModel, err := frames.GetFrameByID("salsa-fargo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bike, err := geometry.MaterializeBikeGeometry(*frameModel, "L", catalog.ExpandStemSetsFrom(catalog.CommonStemCatalog, frameModel.Stems))
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := catalog.DefaultRiderProfile()
+	saddle := model.ReferenceIdmatchSaddle()
+	analysis, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Some(510.0), model.Some(51.0), profile, saddle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if analysis.DeltaAngleDeg == 0 {
+		t.Fatal("test requires frame pitch")
+	}
+	if len(analysis.PossibleBRPs) == 0 {
+		t.Fatal("expected rail candidates")
+	}
+	for _, point := range analysis.PossibleBRPs {
+		if point.Transform.RailPitchDeg != model.LevelRailPitchDeg {
+			t.Error("candidate rails should remain level on a tilted frame")
+		}
+		// A scene evaluated at each candidate must reproduce the complete placement.
+		frame, err := geometry.FrameSizeFromBikeGeometry(bike)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, build, cockpit, seat, fit := baseTestInputs()
+		build.Fork = geometry.Fork{StaticA2cMm: 510, RakeMm: 51}
+		build.PhysicalLowerCupMm = bike.HeadsetCupType.CupStackMm()
+		seat.Saddle, seat.RailOffsetMm = saddle, point.RailOffsetMm
+		fit.BrpHeightMm = point.BrpPoint().DistanceToOrigin()
+		sc, err := geometry.BuildScene(frame, build, cockpit, seat, fit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sc.BRP.DistanceTo(point.BrpPoint()) > 1e-9 || sc.SitBones.DistanceTo(point.SitBonePoint()) > 1e-9 {
+			t.Error("analysis candidate disagrees with scene")
+		}
+	}
+}

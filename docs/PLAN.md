@@ -1,6 +1,6 @@
 # SQlab Saddle Geometry and Rider-Fit Update Plan
 
-Status: steps 1 and 2 completed on 2026-11-16. The provenance records, shared saddle data and derived defaults are updated; steps 3–7, including the rail-axis geometry correction, remain planned.
+Status: steps 1–3 completed on 2026-11-16. The provenance records, shared saddle data, derived defaults and shared forward/inverse rail geometry are updated; steps 4–7 remain planned.
 
 ## Established inputs and boundaries
 
@@ -41,19 +41,27 @@ Affected starting points: `internal/model/bike_components.go`, `internal/catalog
 
 Acceptance met: all default consumers use the same reference data and derive a level-rail 299 mm SIT setback while retaining a 219 mm reference BRP setback and 746 mm radial BRP height. The catalog uses `model.ReferenceIdmatchSaddle()`; `model.DefaultTargetSitBoneSetbackMm()` derives the default support setback. Regression checks cover catalog/reference agreement, profile and translated targets, preserved report anchors, and both saddle pages' derived defaults and hints. Existing derived-output assertions were refreshed; the rail-placement equations remain unchanged for step 3.
 
-## 3. Correct rail placement and inverse geometry
+## 3. Correct rail placement and inverse geometry (completed 2026-11-16)
 
 Affected starting points: `internal/model/bike_components.go`, `internal/geometry/scene.go`, `internal/geometry/saddle.go`, `internal/geometry/saddle_swap.go`, `internal/geometry/analysis.go`.
 
-- Separate the seatpost's existing perpendicular setback convention from saddle displacement along the rails. Stop adding rail offset and rail-to-BRP distance directly to seatpost perpendicular setback.
-- Define one shared saddle-local transform for rail center, W70 / BRP, SIT and clamp translations. Use positive forward along the rails and a clearly documented elevation convention. At the level-rail reference, BRP-to-SIT is `(-80, +10) mm`.
-- State the rail-pitch convention explicitly. Use a named level-rail approximation for the reference attitude, not a claim that Matt measured zero pitch. Keep saddle orientation independent of STA. Define how installation orientation follows frame attitude changes from fork configuration, and apply that convention consistently; do not silently make the rails perpendicular to each active seat tube.
-- Do not invent absolute rail-to-cover or clamp-to-cover heights from the nominal 55 mm effective height. Where the model needs an unmeasured vertical datum, document the approximation and distinguish inferred hardware coordinates from measured landmark separation.
-- Retain the exact radial BRP-height constraint when solving seatpost extension for each rail candidate. Handle impossible geometry explicitly rather than producing a plausible coordinate by silently clamping an invalid solution.
-- Update forward placement and inverse rail-offset / ideal-STA solutions together. Route scene construction, analysis, saddle swaps and stock selection through the same geometry, removing duplicate equations that implement the old seat-perpendicular approximation.
-- Review fields such as `TotalPerpOffsetMm` whose meaning becomes misleading when rail and seatpost offsets use different axes; replace or redefine them and their callers consistently.
+- [x] Separate the seatpost's existing perpendicular setback convention from saddle displacement along the rails. Stop adding rail offset and rail-to-BRP distance directly to seatpost perpendicular setback.
+- [x] Define one shared saddle-local transform for rail center, W70 / BRP, SIT and clamp translations. Use positive forward along the rails and a clearly documented elevation convention. At the level-rail reference, BRP-to-SIT is `(-80, +10) mm`.
+- [x] State the rail-pitch convention explicitly. Use a named level-rail approximation for the reference attitude, not a claim that Matt measured zero pitch. Keep saddle orientation independent of STA. Assume the rider readjusts saddle tilt at the clamp for each fork configuration: rails stay approximately level relative to the ground regardless of changes in frame attitude or STA. Any explicit nonzero rail pitch is also relative to horizontal, not the frame; do not make the rails perpendicular to each active seat tube.
+- [x] Do not invent absolute rail-to-cover or clamp-to-cover heights from the nominal 55 mm effective height. Where the model needs an unmeasured vertical datum, document the approximation and distinguish inferred hardware coordinates from measured landmark separation.
+- [x] Retain the exact radial BRP-height constraint when solving seatpost extension for each rail candidate. Handle impossible geometry explicitly rather than producing a plausible coordinate by silently clamping an invalid solution.
+- [x] Update forward placement and inverse rail-offset / ideal-STA solutions together. Route scene construction, analysis, saddle swaps and stock selection through the same geometry, removing duplicate equations that implement the old seat-perpendicular approximation.
+- [x] Review fields such as `TotalPerpOffsetMm` whose meaning becomes misleading when rail and seatpost offsets use different axes; replace or redefine them and their callers consistently.
 
-Acceptance: rail displacements project along the declared rail axis at different STAs, forward/inverse solutions round-trip, and every layer uses the same transformed landmarks and radial-height constraint.
+Acceptance met: `model.SaddleTransform` places rail center, BRP, SIT and clamp stations on a shared rail axis. `CalculatePoint` solves the positive seat-axis extension at the exact radial BRP height; impossible placements return errors and are omitted from candidate sets. Scalar inverse solvers return NaN for impossible targets instead of clamping them. Scene construction, analysis candidates, stock-selection inputs, ideal-STA/compromise solutions and saddle swaps use this geometry. The misleading `TotalPerpOffsetMm` and legacy perpendicular saddle-offset fields/helpers are removed; each placement carries its transform, projected clamp and solved `SeatAxisDistanceMm`.
+
+Adopted installation convention: positive rail pitch raises the nose. The named `LevelRailPitchDeg` reference is an approximation, not a measurement of Matt's installation. `SaddleSpec.RailPitchDeg` is the saddle model’s assumed rail angle above horizontal, independent of frame attitude and STA. The model assumes the rider readjusts saddle tilt at the clamp for each fork configuration, keeping the rails level by default. Fork-induced frame rotation is never added to rail pitch; a saddle model with a nonzero assumed pitch also stays fixed relative to horizontal. There is no per-setup pitch setting or separate pitch argument to the geometry functions. Local X is forward along the rails and local Y is normal toward the cover. Thus `(-80, +10) mm` is the reference BRP-to-SIT displacement before rotation. Rail center and clamp coordinates are projected datums in the BRP plane, not measurements of the hardware's absolute vertical position; no rail-to-cover height is inferred from 55 mm nominal saddle height.
+
+The placement equation is `BRP = axial * seatAxis + postSetback * seatNormal + (railToBrp - railOffset) * railAxis`. The positive circle intersection solves `|BRP| = saddleHeight` without adding offsets from different axes. Saddle translations recompute both rail position and extension to preserve the modeled support landmark, including different saddle elevations. Their feasibility remains conditional on the assumed rail segment and clamp footprint.
+
+Independent analytic tests cover multiple STAs, level and nonzero pitches, TIP-origin translation, exact BRP radius, forward/inverse rail and STA round trips, level rails despite fork-induced frame rotation, scene/analysis candidate agreement, support-preserving swaps and impossible geometry. Existing derived-output assertions were refreshed: for example, the reference zero-post ideal STA is about 70.61°, and the level-rail SQlab-to-Aspin swap on its source-centered zero-post axis needs approximately 0.0 mm of target rail offset rather than treating the +3.5 mm local longitudinal delta as the installed translation. The Sunliner L / Havok XL / Havok L comparison fixture now rounds to 3 / -149 / -150 points instead of 1 / -151 / -152; scoring costs and bands are unchanged.
+
+Verification: `go vet ./... && go test ./...`, `make pre-commit` (including exhaustive and both deadcode checks), and the runtime-dependency audit pass. No manufacturer frame geometry, report measurements or scoring costs changed. Step 4 still owns the target/selection/ledger propagation audit, including explicit nonzero saddle-pitch targets and selected-build metrics; step 5 still owns diagram reconstruction and presentation/hardware-assumption cleanup. W70 width verification, measured installation pitch and the cockpit-reference provenance question remain unresolved.
 
 ## 4. Propagate the correction through targets, selection and scoring
 
@@ -92,7 +100,7 @@ Acceptance: both sources remain attributable and the discrepancy is visible with
 ## 7. Regression checks and final verification
 
 - Add meaningful geometry checks for the shared positive-forward convention, TIP-to-R0 origin translation and `(-80, +10) mm` displacement, shared reference data, and derived default target.
-- Use independent analytic cases to check level rails at multiple STAs and a declared nonzero rail pitch, including the adopted frame-attitude convention. Verify rail offsets and landmark separations follow the rail transform rather than the seat-tube perpendicular.
+- Use independent analytic cases to check level rails at multiple STAs and a declared nonzero rail pitch, including the assumption that the rider readjusts saddle tilt to keep rails level across fork configurations. Verify rail offsets and landmark separations follow the rail transform rather than the seat-tube perpendicular.
 - Check radial BRP height, forward/inverse rail and STA round trips, exact modeled support-landmark preservation on saddle swaps, and unchanged report BRP/cockpit anchors.
 - Cover valid clamp windows and an overlong incompatible clamp without claiming that the marked span independently proves usable rail length.
 - Update existing geometry, ideal-profile, canonicalizer, scoring, CLI and browserless web assertions affected by the correction. Keep arbitrary synthetic test inputs distinct from obsolete reference-fit expectations; do not blindly replace every `292` in the repository.

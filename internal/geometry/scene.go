@@ -298,6 +298,7 @@ type BikeScene struct {
 	//Leveled rear cockpit landmarks
 	SeatAxisPoint        geom2d.Point2
 	SeatpostClamp        geom2d.Point2
+	SaddlePlacement      model.BRPPoint
 	RailCenter           geom2d.Point2
 	BRP                  geom2d.Point2
 	SitBones             geom2d.Point2
@@ -338,7 +339,7 @@ type frameLevelingInput struct {
 	WheelbaseBeforePitchMm float64
 }
 
-// frameLevelingResult holds the leveled frame landmarks (re-centered with BB at Origin) and clockwise pitch angle.
+// frameLevelingResult holds the leveled frame landmarks (re-centered with BB at Origin) and counter-clockwise pitch angle.
 type frameLevelingResult struct {
 	Leveled  frameLandmarks2D
 	PitchDeg model.Deg
@@ -578,20 +579,22 @@ func BuildScene(
 
 	sa := frameSeatAxis.PointAt(fit.FrameSeatAxisHeightMm)
 
-	brpPerp := seat.PostSetbackMm + seat.RailOffsetMm - seat.Saddle.RailCenterToBrpMm
-	if fit.BrpHeightMm <= math.Abs(brpPerp) {
-		return BikeScene{}, fmt.Errorf("saddle BRP perpendicular offset %.1f mm exceeds BRP height %.1f mm", math.Abs(brpPerp), fit.BrpHeightMm)
+	placement, err := seat.Saddle.CalculatePoint(effStaAct, fit.BrpHeightMm, seat.PostSetbackMm, seat.RailOffsetMm)
+	if err != nil {
+		return BikeScene{}, err
 	}
-	axial := math.Sqrt(fit.BrpHeightMm*fit.BrpHeightMm - brpPerp*brpPerp)
-	brp := effSeatAxis.PointWithOffset(axial, brpPerp, geom2d.CounterClockwise)
-	sb := seat.Saddle.SitBonePointFromBrp(brp)
-	seatpostClamp := effSeatAxis.PointWithOffset(axial, seat.PostSetbackMm, geom2d.CounterClockwise)
-	railCenter := effSeatAxis.PointWithOffset(axial, seat.PostSetbackMm+seat.RailOffsetMm, geom2d.CounterClockwise)
+	brp := placement.BrpPoint()
+	sb := placement.SitBonePoint()
+	seatpostClamp := placement.SeatpostClamp
+	railCenter := placement.Transform.RailCenter
 
 	reqRailOff := seat.RailOffsetMm
 	if fit.TargetSitBonesXMm < 0 {
 		targetBrpSetback := seat.Saddle.BrpSetbackFromSitBones(-fit.TargetSitBonesXMm)
 		reqRailOff = seat.Saddle.RailOffsetForBrpAtSta(effStaAct, targetBrpSetback, fit.BrpHeightMm, seat.PostSetbackMm)
+		if !isFinite(reqRailOff) {
+			return BikeScene{}, fmt.Errorf("impossible target saddle placement")
+		}
 	}
 	railMargin := seat.HalfRailWindowMm() - math.Abs(reqRailOff)
 
@@ -625,6 +628,7 @@ func BuildScene(
 		SeatAxisPoint:        sa,
 		SeatpostClamp:        seatpostClamp,
 		RailCenter:           railCenter,
+		SaddlePlacement:      placement,
 		BRP:                  brp,
 		SitBones:             sb,
 		RequiredRailOffsetMm: reqRailOff,
@@ -711,21 +715,6 @@ func (s BikeScene) SpareVerticalStackMm() float64 { return s.SeatAxisPoint.Y - s
 // SpareAxialSteererMm returns the axial steerer length needed to bridge SpareVerticalStackMm.
 func (s BikeScene) SpareAxialSteererMm() float64 {
 	return s.SpareVerticalStackMm() / s.HtaDeg.Angle().Sin()
-}
-
-// SitBoneSetbackMm returns the horizontal setback of SitBones behind BB in mm.
-func (s BikeScene) SitBoneSetbackMm() float64 { return -s.SitBones.X }
-
-// BrpSetbackMm returns the horizontal setback of the saddle 70mm BRP behind BB in mm.
-func (s BikeScene) BrpSetbackMm() float64 { return -s.BRP.X }
-
-// BrpAngleFromBbDeg returns the polar elevation angle from BB to the saddle BRP in degrees.
-func (s BikeScene) BrpAngleFromBbDeg() model.Deg {
-	setback := s.BrpSetbackMm()
-	if setback > 0 && s.BRP.Y > 0 {
-		return model.DegOf(geom2d.Point2{X: setback, Y: s.BRP.Y}.PolarAngle())
-	}
-	return 0
 }
 
 // GripDistFromBrpMm returns the 2D Euclidean distance from BRP to HandGrip in mm.
@@ -920,7 +909,7 @@ func validateSceneInputs(
 	if err := validateCockpitSpec(cockpit); err != nil {
 		return err
 	}
-	if !isNonNegative(seat.PostSetbackMm) || !isPositive(seat.ClampLengthMm) || !isPositive(seat.Saddle.RailLengthMm) || !isFinite(seat.RailOffsetMm) {
+	if !isNonNegative(seat.PostSetbackMm) || !isPositive(seat.ClampLengthMm) || !isPositive(seat.Saddle.RailLengthMm) || !isFinite(seat.RailOffsetMm) || !isFinite(float64(seat.Saddle.RailPitchDeg)) {
 		return fmt.Errorf("invalid SeatSpec (postSB=%.1f clamp=%.1f railLen=%.1f railOff=%.1f)", seat.PostSetbackMm, seat.ClampLengthMm, seat.Saddle.RailLengthMm, seat.RailOffsetMm)
 	}
 	if !isPositive(fit.FrameSeatAxisHeightMm) || !isPositive(fit.BrpHeightMm) {

@@ -1,6 +1,7 @@
 package geometry
 
 import (
+	"fmt"
 	"math"
 
 	"bikegeo/internal/model"
@@ -192,15 +193,16 @@ func CalculateIdealSeatTubeAngle(
 	}
 
 	// 1. Dead-center target BRP setback & seat-tube setback projection (nominal geometric reference):
-	railCenterSetback := targetSitBoneSetbackMm + saddle.RailCenterToSitBonesMm
-	stSetback := railCenterSetback - seatpostSetbackMm
 	targetBrpSetback := saddle.BrpSetbackFromSitBones(targetSitBoneSetbackMm)
+	targetBrp := saddle.BrpPointAtHeightAndSetback(saddleHeightMm, targetBrpSetback)
+	railCenterSetback := -saddle.TransformFromBrp(targetBrp).RailCenter.X
 
 	staForOffset := func(railOffset float64) model.Deg {
 		return saddle.StaForBrpAndOffset(targetBrpSetback, saddleHeightMm, seatpostSetbackMm, railOffset)
 	}
 
 	idealSTA := staForOffset(0.0)
+	stSetback := railCenterSetback - seatpostSetbackMm*idealSTA.Angle().Sin()
 
 	// 2. Clamp window bounds:
 	// Clamping forward on rails (positive rail offset) pushes saddle body rearward relative to clamp,
@@ -238,6 +240,7 @@ func CalculateIdealSeatTubeAngle(
 type SaddleTranslationResult struct {
 	ReferenceSaddle      model.SaddleSpec
 	TargetSaddle         model.SaddleSpec
+	TargetPoint          model.BRPPoint
 	ReferenceClampOffset float64
 	TargetClampOffset    float64
 	SitBoneDeltaMm       float64 // Difference in rail-to-sit-bone distance (target - ref)
@@ -248,46 +251,39 @@ type SaddleTranslationResult struct {
 	IsFeasible           bool
 }
 
-// TranslateSaddleFit translates a clamp position on refSaddle to targetSaddle to keep
-// the rider's sit bones in the exact same spatial coordinate.
+// TranslateSaddleFit preserves the reference's modeled support landmark on the
+// same frame and post. Both rail position and seatpost extension are recomputed;
+// a longitudinal saddle delta alone cannot compensate for differing elevations.
 func TranslateSaddleFit(
-	refSaddle model.SaddleSpec,
-	refClampOffset float64,
+	reference model.BRPPoint,
 	targetSaddle model.SaddleSpec,
+	staDeg model.Deg,
 	clampLengthMm float64,
-) SaddleTranslationResult {
+) (SaddleTranslationResult, error) {
 	if clampLengthMm <= 0 {
 		clampLengthMm = model.DefaultSeatpostClampLengthMm
 	}
-
-	sbDelta := targetSaddle.RailCenterToSitBonesMm - refSaddle.RailCenterToSitBonesMm
-	targetClamp := refClampOffset + sbDelta
-	brpDelta := targetSaddle.DeltaBrpToSitBonesMm() - refSaddle.DeltaBrpToSitBonesMm()
-
-	minClamp, maxClamp := targetSaddle.ClampWindowMm(clampLengthMm)
-
-	isFeasible := targetClamp >= minClamp-0.001 && targetClamp <= maxClamp+0.001
-
-	return SaddleTranslationResult{
-		ReferenceSaddle:      refSaddle,
-		TargetSaddle:         targetSaddle,
-		ReferenceClampOffset: Round(refClampOffset, 1),
-		TargetClampOffset:    Round(targetClamp, 1),
-		SitBoneDeltaMm:       Round(sbDelta, 1),
-		BrpDeltaMm:           Round(brpDelta, 1),
-		ClampLengthMm:        clampLengthMm,
-		TargetClampMin:       Round(minClamp, 1),
-		TargetClampMax:       Round(maxClamp, 1),
-		IsFeasible:           isFeasible,
+	brp := targetSaddle.BrpPointFromSitBones(reference.SitBonePoint())
+	targetClamp := targetSaddle.RailOffsetForBrpAtSta(staDeg, -brp.X, brp.DistanceToOrigin(), reference.SeatpostSetbackMm)
+	if !isFinite(targetClamp) {
+		return SaddleTranslationResult{}, fmt.Errorf("impossible saddle translation")
 	}
-}
-
-// MapPossibleSaddleBRPs maps candidate BRP points within the clamp window
-// of the given saddle and clamp length.
-func MapPossibleSaddleBRPs(
-	staDeg model.Deg, seatHeight, seatpostSetbackMm float64,
-	saddle model.SaddleSpec,
-	clampLengthMm float64,
-) []model.BRPPoint {
-	return saddle.MapPossibleBRPs(staDeg, seatHeight, seatpostSetbackMm, clampLengthMm)
+	targetPoint, err := targetSaddle.CalculatePoint(staDeg, brp.DistanceToOrigin(), reference.SeatpostSetbackMm, targetClamp)
+	if err != nil {
+		return SaddleTranslationResult{}, err
+	}
+	minClamp, maxClamp := targetSaddle.ClampWindowMm(clampLengthMm)
+	return SaddleTranslationResult{
+		ReferenceSaddle:      reference.Saddle,
+		TargetSaddle:         targetSaddle,
+		TargetPoint:          targetPoint,
+		ReferenceClampOffset: reference.RailOffsetMm,
+		TargetClampOffset:    targetClamp,
+		SitBoneDeltaMm:       targetSaddle.RailCenterToSitBonesMm - reference.Saddle.RailCenterToSitBonesMm,
+		BrpDeltaMm:           targetSaddle.DeltaBrpToSitBonesMm() - reference.Saddle.DeltaBrpToSitBonesMm(),
+		ClampLengthMm:        clampLengthMm,
+		TargetClampMin:       minClamp,
+		TargetClampMax:       maxClamp,
+		IsFeasible:           clampLengthMm <= targetSaddle.RailLengthMm && targetClamp >= minClamp-0.001 && targetClamp <= maxClamp+0.001,
+	}, nil
 }

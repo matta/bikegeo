@@ -168,28 +168,10 @@ func AnalyzeBikeFitWithSaddle(
 	}
 
 	// 6. Cockpit BRP & HB Points and Saddle-Handlebar Distance from BikeScene
-	deadCenterBRP := model.BRPPoint{
-		Saddle:                saddle,
-		SeatpostSetbackMm:     seat.PostSetbackMm,
-		SaddleBrpOffsetMm:     saddle.RailCenterToBrpMm,
-		RailOffsetMm:          seat.RailOffsetMm,
-		AchievedClampOffsetMm: seat.RailOffsetMm,
-		TotalPerpOffsetMm:     seat.PostSetbackMm + seat.RailOffsetMm - saddle.RailCenterToBrpMm,
-		BrpX:                  scene.BRP.X,
-		BrpY:                  scene.BRP.Y,
-		SitBoneX:              scene.SitBones.X,
-		SitBoneY:              scene.SitBones.Y,
-		BrpSetbackMm:          scene.BrpSetbackMm(),
-		SitBoneSetbackMm:      scene.SitBoneSetbackMm(),
-		BrpAngleFromBbDeg:     scene.BrpAngleFromBbDeg(),
-	}
-	possibleBRPs := MapPossibleSaddleBRPs(
-		activeSta,
-		brpSeatHeight,
-		model.DefaultSeatpostSetbackMm,
-		saddle,
-		model.DefaultSeatpostClampLengthMm,
-	)
+	deadCenterBRP := scene.SaddlePlacement
+	possibleBRPs := saddle.MapPossibleBRPs(
+		activeSta, brpSeatHeight, model.DefaultSeatpostSetbackMm,
+		model.DefaultSeatpostClampLengthMm)
 	selectedBRP := deadCenterBRP
 
 	spacers := bike.GetSpacersMm()

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"math"
 
 	"bikegeo/internal/geom2d"
@@ -52,14 +53,19 @@ func (e StemCatalogEntry) Expand() []StemSpec {
 // SaddleSpec defines a saddle's 2D geometry in the Canonical Saddle Coordinate System,
 // where the origin (0.0mm) is the midpoint of the nominal straight rail clamping section,
 // positive X (+) is forward toward the nose, and negative X (-) is rearward toward the tail.
-// Vertical elevation (Y) is measured upward from the 70mm BRP horizontal reference plane.
+// Local Y is normal to the rails, positive toward the cover, relative to the BRP plane.
+// It coincides with vertical elevation under the named level-rail approximation.
 type SaddleSpec struct {
 	ID                     string
 	Name                   string
 	RailLengthMm           float64 // Total straight clamping length on rails (e.g. 60mm for SQlab [-30 to +30])
 	RailCenterToBrpMm      float64 // Forward distance from rail center to 70mm BRP (+mm toward nose)
 	RailCenterToSitBonesMm float64 // Distance from rail center to sit bones (-mm toward tail)
-	SitBonesElevationMm    float64 // Vertical elevation of sit bones above the 70mm BRP horizontal plane (+mm upward, e.g. 10.0mm for SQlab Ergolux step)
+	SitBonesElevationMm    float64 // Local elevation above BRP plane; +Y is normal toward cover (10mm owner-measured on SQlab).
+	// RailPitchDeg is the assumed rail angle above horizontal; positive means nose
+	// up and zero assumes level rails. It stays independent of frame and seat tube
+	// angles. This models the saddle's installation, not a measured rider setup.
+	RailPitchDeg Deg
 }
 
 // BrpToSitBonesVec returns the 2D displacement vector from the saddle's 70mm BRP
@@ -82,24 +88,24 @@ func (s SaddleSpec) SitBonesToBrpVec() geom2d.Vec2 {
 	return s.BrpToSitBonesVec().Scale(-1)
 }
 
-// SitBonePointFromBrp translates a 2D BRP coordinate into the saddle's 2D sit-bone support coordinate:
-//
-//	SitBonePoint = brp + BrpToSitBonesVec()
+// SitBonePointFromBrp rotates the local BRP-to-support displacement by the
+// saddle's assumed rail angle, then adds it to the installed BRP.
 func (s SaddleSpec) SitBonePointFromBrp(brp geom2d.Point2) geom2d.Point2 {
-	return brp.Add(s.BrpToSitBonesVec())
+	return s.TransformFromBrp(brp).Point(s.RailCenterToSitBonesMm, s.SitBonesElevationMm)
 }
 
-// BrpPointFromSitBones translates a 2D sit-bone support coordinate into the saddle's 2D BRP coordinate:
-//
-//	BrpPoint = sitBones + SitBonesToBrpVec()
+// BrpPointFromSitBones preserves the modeled support landmark using the same
+// local transform and assumed rail angle as forward saddle placement.
 func (s SaddleSpec) BrpPointFromSitBones(sitBones geom2d.Point2) geom2d.Point2 {
-	return sitBones.Add(s.SitBonesToBrpVec())
+	t := SaddleTransform{RailPitchDeg: s.RailPitchDeg}
+	return sitBones.SubVec(t.Vector(s.RailCenterToSitBonesMm-s.RailCenterToBrpMm, s.SitBonesElevationMm))
 }
 
 // BrpPointAtHeightAndSetback returns the 2D BRP coordinate in the sagittal plane
 // for a given radial saddle height (BB to BRP) and horizontal BRP setback behind the BB.
+// An impossible radius/setback pair yields NaN Y, never a clamped plausible point.
 func (s SaddleSpec) BrpPointAtHeightAndSetback(saddleHeightMm, brpSetbackMm float64) geom2d.Point2 {
-	brpY := math.Sqrt(math.Max(0, saddleHeightMm*saddleHeightMm-brpSetbackMm*brpSetbackMm))
+	brpY := math.Sqrt(saddleHeightMm*saddleHeightMm - brpSetbackMm*brpSetbackMm)
 	return geom2d.Point2{X: -brpSetbackMm, Y: brpY}
 }
 
@@ -121,49 +127,70 @@ func (s SaddleSpec) BrpSetbackFromSitBones(sitBoneSetbackMm float64) float64 {
 	return -s.BrpPointFromSitBones(geom2d.Point2{X: -sitBoneSetbackMm}).X
 }
 
-// RailCenterSetbackFromBrp converts a BRP setback into the setback of the saddle's 0.0mm rail center mark:
-// RailCenterSetback = brpSetback + RailCenterToBrpMm.
-func (s SaddleSpec) RailCenterSetbackFromBrp(brpSetbackMm float64) float64 {
-	return brpSetbackMm + s.RailCenterToBrpMm
+// LevelRailPitchDeg names the reference installation approximation, not a measured
+// pitch of Matt's saddle. Positive pitch raises the nose (counter-clockwise).
+const LevelRailPitchDeg Deg = 0
+
+// SaddleTransform places saddle-local landmarks in bicycle coordinates. Local X
+// runs forward along the rails; local Y is normal toward the cover. RailCenter is
+// a projected datum in the BRP plane, not a measured rail or clamp surface height.
+// No absolute rail-to-cover dimension is inferred from nominal saddle height.
+type SaddleTransform struct {
+	RailCenter   geom2d.Point2
+	RailPitchDeg Deg
 }
 
-// ClampOffsetFromBrp calculates the position of the seatpost clamp center on the saddle rails
-// given the BRP setback, the frame's seat tube setback, and seatpost setback:
-// ClampOffset = RailCenterSetback - (SeatTubeSetback + SeatpostSetback).
-func (s SaddleSpec) ClampOffsetFromBrp(brpSetbackMm, seatTubeSetbackMm, seatpostSetbackMm float64) float64 {
-	return s.RailCenterSetbackFromBrp(brpSetbackMm) - (seatTubeSetbackMm + seatpostSetbackMm)
+func (t SaddleTransform) Vector(longitudinalMm, elevationMm float64) geom2d.Vec2 {
+	return (geom2d.Vec2{X: longitudinalMm, Y: elevationMm}).Rotate(t.RailPitchDeg.Angle())
 }
 
-func clampUnit(v float64) float64 {
-	if v < -1.0 {
-		return -1.0
-	}
-	if v > 1.0 {
-		return 1.0
-	}
-	return v
+func (t SaddleTransform) Point(longitudinalMm, elevationMm float64) geom2d.Point2 {
+	return t.RailCenter.Add(t.Vector(longitudinalMm, elevationMm))
 }
 
-// StaForBrpAndOffset returns the exact effective Seat Tube Angle (degrees) such that
-// CalculatePoint(staDeg, saddleHeightMm, seatpostSetbackMm, railOffsetMm).BrpSetbackMm equals brpSetbackMm.
+// TransformFromBrp anchors all local landmarks to an installed BRP.
+func (s SaddleSpec) TransformFromBrp(brp geom2d.Point2) SaddleTransform {
+	t := SaddleTransform{RailPitchDeg: s.RailPitchDeg}
+	t.RailCenter = brp.SubVec(t.Vector(s.RailCenterToBrpMm, 0))
+	return t
+}
+
+// StaForBrpAndOffset inverts CalculatePoint at the declared rail pitch. It returns
+// NaN when the target has no upper, rearward seat-axis solution in (0°, 90°).
 func (s SaddleSpec) StaForBrpAndOffset(brpSetbackMm, saddleHeightMm, seatpostSetbackMm, railOffsetMm float64) Deg {
-	if saddleHeightMm <= 0 {
-		return 0
+	brp := s.BrpPointAtHeightAndSetback(saddleHeightMm, brpSetbackMm)
+	t := s.TransformFromBrp(brp)
+	clamp := t.Point(railOffsetMm, 0)
+	radius := clamp.DistanceToOrigin()
+	if !(saddleHeightMm > 0 && brp.Y > 0 && radius >= math.Abs(seatpostSetbackMm)) {
+		return Deg(math.NaN())
 	}
-	brpPerp := seatpostSetbackMm + railOffsetMm - s.RailCenterToBrpMm
-	rad := math.Acos(clampUnit(brpSetbackMm/saddleHeightMm)) + math.Asin(clampUnit(brpPerp/saddleHeightMm))
-	return DegOf(geom2d.FromRad(rad))
+	sta := DegOf(geom2d.AngleFromSlope(-clamp.X, clamp.Y)) + DegOf(geom2d.FromRad(math.Asin(seatpostSetbackMm/radius)))
+	if !(sta > 0 && sta < 90) {
+		return Deg(math.NaN())
+	}
+	return sta
 }
 
-// RailOffsetForBrpAtSta returns the exact rail clamp offset (mm) such that
-// CalculatePoint(staDeg, saddleHeightMm, seatpostSetbackMm, railOffsetMm).BrpSetbackMm equals brpSetbackMm.
+// RailOffsetForBrpAtSta inverts CalculatePoint by projecting onto the seat-axis
+// normal. Rail offset is a saddle-local clamp coordinate, never a perpendicular
+// seatpost offset. NaN explicitly signals an impossible or parallel-axis target.
 func (s SaddleSpec) RailOffsetForBrpAtSta(staDeg Deg, brpSetbackMm, saddleHeightMm, seatpostSetbackMm float64) float64 {
-	if saddleHeightMm <= 0 {
-		return 0
+	brp := s.BrpPointAtHeightAndSetback(saddleHeightMm, brpSetbackMm)
+	axis := geom2d.NewAxisFromPolar(geom2d.Origin, (180 - staDeg).Angle())
+	normal := axis.Normal(geom2d.CounterClockwise)
+	t := SaddleTransform{RailPitchDeg: s.RailPitchDeg}
+	rail := t.Vector(1, 0)
+	denom := rail.Dot(normal)
+	if !(staDeg > 0 && staDeg < 90 && saddleHeightMm > 0 && brp.Y > 0) || math.Abs(denom) < 1e-12 {
+		return math.NaN()
 	}
-	staRad := staDeg.Angle().Rad()
-	delta := staRad - math.Acos(clampUnit(brpSetbackMm/saddleHeightMm))
-	return saddleHeightMm*math.Sin(delta) - seatpostSetbackMm + s.RailCenterToBrpMm
+	offset := s.RailCenterToBrpMm + (seatpostSetbackMm-brp.VecFromOrigin().Dot(normal))/denom
+	clamp := s.TransformFromBrp(brp).Point(offset, 0)
+	if !(clamp.VecFromOrigin().Dot(axis.Direction) >= 0 && brp.VecFromOrigin().Dot(axis.Direction) >= 0) {
+		return math.NaN()
+	}
+	return offset
 }
 
 // IdealSeatTubeAngle computes the exact effective Seat Tube Angle required to mount this saddle
@@ -207,6 +234,7 @@ func ReferenceIdmatchSaddle() SaddleSpec {
 		ID:                     "sqlab-610-ergolux",
 		Name:                   "SQlab 610 Ergolux Active 2.1",
 		RailLengthMm:           60.0,
+		RailPitchDeg:           LevelRailPitchDeg,
 		RailCenterToBrpMm:      32.0, // Derived W70 station; direct width verification remains pending.
 		RailCenterToSitBonesMm: -48.0,
 		SitBonesElevationMm:    10.0, // Physically measured by Matt; confirmed 2026-11-16.
@@ -242,14 +270,6 @@ const DefaultSeatpostClampLengthMm = 30.0
 // DropBestClampLengthMm is the clamp length (in mm) of a Fair Bicycle Drop Best UC M6 adapter.
 const DropBestClampLengthMm = 45.0
 
-// DefaultSaddleBrpOffsetMm is the legacy perpendicular rearward offset (in mm) from the center of the
-// saddle rails to the saddle's 70mm-width Biomechanical Reference Point (BRP).
-const DefaultSaddleBrpOffsetMm = 0.0
-
-// DefaultBrpOffsetMm is the total perpendicular offset (in mm) from the seat tube centerline
-// to the BRP when the saddle is clamped at dead center (0mm) on the rails (0.0 + 0.0 = 0.0mm).
-const DefaultBrpOffsetMm = DefaultSeatpostSetbackMm + DefaultSaddleBrpOffsetMm
-
 // SaddleRailIdealMarginMm is the fore-aft rail offset window (±mm from dead center of rails) considered ideal.
 const SaddleRailIdealMarginMm = 5.0
 
@@ -265,10 +285,11 @@ const SaddleRailStepMm = 1.0
 type BRPPoint struct {
 	Saddle                SaddleSpec
 	SeatpostSetbackMm     float64
-	SaddleBrpOffsetMm     float64
-	RailOffsetMm          float64
+	RailOffsetMm          float64 // Clamp station along rails; positive forward moves saddle body rearward.
 	AchievedClampOffsetMm float64
-	TotalPerpOffsetMm     float64
+	SeatAxisDistanceMm    float64 // Solved axial distance to the projected clamp datum.
+	Transform             SaddleTransform
+	SeatpostClamp         geom2d.Point2
 	BrpX                  float64
 	BrpY                  float64
 	SitBoneX              float64
@@ -293,49 +314,49 @@ func (p BRPPoint) SitBonePoint() geom2d.Point2 {
 	return p.Saddle.SitBonePointFromBrp(p.BrpPoint())
 }
 
-// CalculatePoint computes the Cartesian coordinates for BRP and Sit Bones
-// for a frame with the given effective STA at radial seatHeight, with perpendicular seatpost setback
-// and fore-aft rail clamp offset.
+// CalculatePoint solves the positive seatpost extension at an exact BB-to-BRP
+// radius. Post setback stays perpendicular to the seat axis; clamp translations
+// follow the independent rail axis. The hardware datum is projected into the BRP
+// plane because absolute clamp-to-cover height has not been measured.
 func (s SaddleSpec) CalculatePoint(
 	staDeg Deg, seatHeight, seatpostSetbackMm, railOffsetMm float64,
-) BRPPoint {
-	seatAxis := geom2d.NewAxisFromPolar(geom2d.Origin, (180.0 - staDeg).Angle())
-
-	// clampPerp is the perpendicular rearward offset of the seatpost clamp center from the seat tube axis.
-	// Positive railOffsetMm pushes the saddle body rearward relative to the clamp (clamp moves forward on rails).
-	clampPerp := seatpostSetbackMm + railOffsetMm
-
-	// Forward offset toward nose reduces rearward perpendicular offset from seat tube axis:
-	brpPerp := clampPerp - s.RailCenterToBrpMm
-
-	axial := math.Sqrt(math.Max(0, seatHeight*seatHeight-brpPerp*brpPerp))
-
-	brpPoint := seatAxis.PointWithOffset(axial, brpPerp, geom2d.CounterClockwise)
-	sitBonePoint := s.SitBonePointFromBrp(brpPoint)
-
-	setback := -brpPoint.X
-	sitBoneSetback := -sitBonePoint.X
-
-	angleFromBb := Deg(0.0)
-	if setback > 0 && brpPoint.Y > 0 {
-		angleFromBb = DegOf(geom2d.Point2{X: setback, Y: brpPoint.Y}.PolarAngle())
+) (BRPPoint, error) {
+	axis := geom2d.NewAxisFromPolar(geom2d.Origin, (180 - staDeg).Angle())
+	normal := axis.Normal(geom2d.CounterClockwise)
+	t := SaddleTransform{RailPitchDeg: s.RailPitchDeg}
+	q := normal.Scale(seatpostSetbackMm).Add(t.Vector(s.RailCenterToBrpMm-railOffsetMm, 0))
+	// B = axial*axis + q. Resolve q into axial and normal components;
+	// the positive circle intersection is -dot(q, axis) + sqrt(H²-dot(q, normal)²).
+	perp := q.Dot(normal)
+	discriminant := seatHeight*seatHeight - perp*perp
+	if !(staDeg > 0 && staDeg < 90 && seatHeight > 0 && discriminant >= 0) {
+		return BRPPoint{}, fmt.Errorf("impossible saddle placement: STA %.2f°, BRP radius %.1f mm, normal displacement %.1f mm", staDeg, seatHeight, perp)
 	}
-
+	axial := -q.Dot(axis.Direction) + math.Sqrt(discriminant)
+	brp := axis.PointAt(axial).Add(q)
+	if !(axial >= 0 && brp.Y > 0) || math.IsInf(axial, 0) || math.IsNaN(brp.X) {
+		return BRPPoint{}, fmt.Errorf("impossible saddle placement: no upper BRP with non-negative seatpost extension")
+	}
+	clamp := axis.PointWithOffset(axial, seatpostSetbackMm, geom2d.CounterClockwise)
+	t.RailCenter = clamp.SubVec(t.Vector(railOffsetMm, 0))
+	brp = t.Point(s.RailCenterToBrpMm, 0)
+	sit := t.Point(s.RailCenterToSitBonesMm, s.SitBonesElevationMm)
 	return BRPPoint{
 		Saddle:                s,
 		SeatpostSetbackMm:     seatpostSetbackMm,
-		SaddleBrpOffsetMm:     s.RailCenterToBrpMm,
 		RailOffsetMm:          railOffsetMm,
 		AchievedClampOffsetMm: railOffsetMm,
-		TotalPerpOffsetMm:     brpPerp,
-		BrpX:                  brpPoint.X,
-		BrpY:                  brpPoint.Y,
-		SitBoneX:              sitBonePoint.X,
-		SitBoneY:              sitBonePoint.Y,
-		BrpSetbackMm:          setback,
-		SitBoneSetbackMm:      sitBoneSetback,
-		BrpAngleFromBbDeg:     angleFromBb,
-	}
+		SeatAxisDistanceMm:    axial,
+		Transform:             t,
+		SeatpostClamp:         clamp,
+		BrpX:                  brp.X,
+		BrpY:                  brp.Y,
+		SitBoneX:              sit.X,
+		SitBoneY:              sit.Y,
+		BrpSetbackMm:          -brp.X,
+		SitBoneSetbackMm:      -sit.X,
+		BrpAngleFromBbDeg:     DegOf(geom2d.AngleFromSlope(-brp.X, brp.Y)),
+	}, nil
 }
 
 // MapPossibleBRPs generates all valid candidate BRP points within this saddle's
@@ -346,12 +367,17 @@ func (s SaddleSpec) MapPossibleBRPs(
 	if clampLengthMm <= 0 {
 		clampLengthMm = DefaultSeatpostClampLengthMm
 	}
+	if clampLengthMm > s.RailLengthMm {
+		return nil
+	}
 	minClamp, maxClamp := s.ClampWindowMm(clampLengthMm)
 
 	var points []BRPPoint
 	for r := minClamp; r <= maxClamp+0.001; r += SaddleRailStepMm {
-		pt := s.CalculatePoint(staDeg, seatHeight, seatpostSetbackMm, math.Round(r*10)/10)
-		points = append(points, pt)
+		pt, err := s.CalculatePoint(staDeg, seatHeight, seatpostSetbackMm, math.Round(r*10)/10)
+		if err == nil {
+			points = append(points, pt)
+		}
 	}
 	return points
 }

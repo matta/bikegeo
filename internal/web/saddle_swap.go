@@ -374,20 +374,25 @@ func (db *docb) saddleSwap(v url.Values) int {
 			frameSta := canonRow.Canonical.ActiveSta
 			stSetback := saddleHeight * frameSta.Angle().Cos()
 			srcBrpSetback := sourceSaddle.BrpSetbackFromSitBones(sitBoneSetback)
-			tgtBrpSetback := targetSaddle.BrpSetbackFromSitBones(sitBoneSetback)
-			srcSitBones := sourceSaddle.SitBonePointFromBrp(sourceSaddle.BrpPointAtHeightAndSetback(saddleHeight, srcBrpSetback))
-			tgtEquivSH := targetSaddle.BrpPointFromSitBones(srcSitBones).DistanceToOrigin()
-
-			// Required rail offsets on this frame via exact 2D CalculatePoint inverse:
 			srcRailOffset := sourceSaddle.RailOffsetForBrpAtSta(frameSta, srcBrpSetback, saddleHeight, postSetback)
-			tgtPelvicRailOffset := targetSaddle.RailOffsetForBrpAtSta(frameSta, tgtBrpSetback, tgtEquivSH, postSetback)
+			reference, err := sourceSaddle.CalculatePoint(frameSta, saddleHeight, postSetback, srcRailOffset)
+			if err != nil {
+				db.fail("%v", err)
+				return 1
+			}
+			translated, err := geometry.TranslateSaddleFit(reference, targetSaddle, frameSta, clampLength)
+			if err != nil {
+				db.fail("%v", err)
+				return 1
+			}
+			tgtPelvicRailOffset := translated.TargetClampOffset
 			tgtNaiveRailOffset := targetSaddle.RailOffsetForBrpAtSta(frameSta, srcBrpSetback, saddleHeight, postSetback)
 
 			sMin, sMax := sourceSaddle.ClampWindowMm(clampLength)
 			tMin, tMax := targetSaddle.ClampWindowMm(clampLength)
-			srcFeasible := srcRailOffset >= sMin-0.001 && srcRailOffset <= sMax+0.001
-			pelvicFeasible := tgtPelvicRailOffset >= tMin-0.001 && tgtPelvicRailOffset <= tMax+0.001
-			naiveFeasible := tgtNaiveRailOffset >= tMin-0.001 && tgtNaiveRailOffset <= tMax+0.001
+			srcFeasible := sourceSaddle.RailLengthMm >= clampLength && srcRailOffset >= sMin-0.001 && srcRailOffset <= sMax+0.001
+			pelvicFeasible := translated.IsFeasible
+			naiveFeasible := targetSaddle.RailLengthMm >= clampLength && tgtNaiveRailOffset >= tMin-0.001 && tgtNaiveRailOffset <= tMax+0.001
 
 			srcFeasStr := "Feasible"
 			if !srcFeasible {
@@ -441,7 +446,7 @@ func (db *docb) saddleSwap(v url.Values) int {
 					"Achieved Sit Bone Setback",
 					fmt.Sprintf("%.1f mm", sitBoneSetback),
 					fmt.Sprintf("%.1f mm", sitBoneSetback),
-					fmt.Sprintf("%.1f mm", sitBoneSetback+swap.Naive.SitBoneDeltaMm),
+					fmt.Sprintf("%.1f mm", -targetSaddle.TransformFromBrp(reference.BrpPoint()).Point(targetSaddle.RailCenterToSitBonesMm, targetSaddle.SitBonesElevationMm).X),
 					"Pelvic fit preserves exact target setback",
 				},
 			}
