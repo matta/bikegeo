@@ -153,25 +153,42 @@ func (s Saddle) RailOffsetDirection() geom2d.Vec2 {
 	return geom2d.Vec2{X: -p.axisX.X, Y: -p.axisX.Y}
 }
 
+func (s Saddle) railCenterPoseOn(base pose2, railOffsetMm float64) (pose2, geom2d.Point2, error) {
+	s.mustBeValid()
+	if !isFinite(railOffsetMm) {
+		return pose2{}, geom2d.Point2{}, fmt.Errorf("saddle rail offset must be finite, got %v mm", railOffsetMm)
+	}
+	railPose, err := s.railPoseOn(base)
+	if err != nil {
+		return pose2{}, geom2d.Point2{}, err
+	}
+	railCenterPose, err := railPose.translateLocal(localVec{x: -railOffsetMm, y: 0})
+	if err != nil {
+		return pose2{}, geom2d.Point2{}, err
+	}
+	brp, err := railCenterPose.transformPoint(localVec{x: s.railCenterToBrpMm, y: 0})
+	if err != nil {
+		return pose2{}, geom2d.Point2{}, err
+	}
+	return railCenterPose, brp, nil
+}
+
+// ClampToBRP returns the world-coordinate displacement from the projected
+// seatpost clamp datum to the saddle's BRP at railOffsetMm along the rails.
+func (s Saddle) ClampToBRP(railOffsetMm float64) (geom2d.Vec2, error) {
+	_, brp, err := s.railCenterPoseOn(identityPose2(), railOffsetMm)
+	if err != nil {
+		return geom2d.Vec2{}, err
+	}
+	return brp.VecFromOrigin(), nil
+}
+
 // AttachSaddle mounts saddle onto m at railOffsetMm (clamp station along the rails;
 // positive offset moves the saddle body rearward relative to the clamp) and returns
 // the immutable SaddlePlacement.
 func (m SeatpostClampMount) AttachSaddle(saddle Saddle, railOffsetMm float64) (SaddlePlacement, error) {
 	m.mustBeValid()
-	saddle.mustBeValid()
-	if !isFinite(railOffsetMm) {
-		return SaddlePlacement{}, fmt.Errorf("saddle rail offset must be finite, got %v mm", railOffsetMm)
-	}
-
-	railPose, err := saddle.railPoseOn(m.clampPose)
-	if err != nil {
-		return SaddlePlacement{}, err
-	}
-	railCenterPose, err := railPose.translateLocal(localVec{x: -railOffsetMm, y: 0})
-	if err != nil {
-		return SaddlePlacement{}, err
-	}
-	brp, err := railCenterPose.transformPoint(localVec{x: saddle.railCenterToBrpMm, y: 0})
+	railCenterPose, brp, err := saddle.railCenterPoseOn(m.clampPose, railOffsetMm)
 	if err != nil {
 		return SaddlePlacement{}, err
 	}

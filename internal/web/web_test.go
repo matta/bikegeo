@@ -1072,6 +1072,8 @@ func TestWebAnalysisInputValidation(t *testing.T) {
 		"/saddles?saddle-height=0",
 		"/saddles?saddle-height=-5",
 		"/saddles?sit-bone-setback=-10",
+		"/saddles?saddle-height=100&sit-bone-setback=299",
+		"/saddles?id=sqlab-610-ergolux&saddle-height=100&sit-bone-setback=299",
 		"/saddle-swap?saddle-height=0",
 		"/saddle-swap?saddle-height=-5",
 		"/saddle-swap?brp-setback=230&sit-bone-setback=350",

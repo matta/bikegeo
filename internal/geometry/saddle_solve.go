@@ -44,6 +44,165 @@ func (s SaddleRailSolution) Placement() assembly.SaddlePlacement {
 	return s.placement
 }
 
+// SaddleStaSolution is the checked immutable result of solving the effective
+// seat-tube angle and axial seat-axis distance for a target BRP position.
+type SaddleStaSolution struct {
+	effStaDeg model.Deg
+	placement assembly.SaddlePlacement
+	valid     bool
+}
+
+func (s SaddleStaSolution) mustBeValid() {
+	if !s.valid {
+		panic("geometry: uninitialized or invalid SaddleStaSolution")
+	}
+	if !isFinite(float64(s.effStaDeg)) || s.effStaDeg <= 0 || s.effStaDeg >= 90 {
+		panic(fmt.Sprintf("geometry: invalid SaddleStaSolution STA %v°", s.effStaDeg))
+	}
+	_ = s.placement.BRP()
+}
+
+// EffStaDeg returns the solved effective seat-tube angle in degrees.
+func (s SaddleStaSolution) EffStaDeg() model.Deg {
+	s.mustBeValid()
+	return s.effStaDeg
+}
+
+// Placement returns the verified forward-assembled SaddlePlacement.
+func (s SaddleStaSolution) Placement() assembly.SaddlePlacement {
+	s.mustBeValid()
+	return s.placement
+}
+
+func upperCircleBRPTarget(brpHeightMm, brpSetbackMm float64) (geom2d.Point2, error) {
+	if !isFinite(brpHeightMm) || brpHeightMm <= 0 {
+		return geom2d.Point2{}, fmt.Errorf("requested BRP height must be finite and positive, got %v mm", brpHeightMm)
+	}
+	if !isFinite(brpSetbackMm) {
+		return geom2d.Point2{}, fmt.Errorf("requested BRP setback must be finite, got %v mm", brpSetbackMm)
+	}
+	rSq := brpHeightMm * brpHeightMm
+	xSq := brpSetbackMm * brpSetbackMm
+	ySq := rSq - xSq
+	if !isFinite(rSq) || !isFinite(xSq) || !isFinite(ySq) {
+		return geom2d.Point2{}, fmt.Errorf("saddle BRP-target solve overflow for radius %.1f mm, setback %.1f mm", brpHeightMm, brpSetbackMm)
+	}
+	if math.Abs(brpSetbackMm) >= brpHeightMm || ySq <= 0 {
+		return geom2d.Point2{}, fmt.Errorf("unreachable upper-circle BRP target: radius %.1f mm, setback %.1f mm", brpHeightMm, brpSetbackMm)
+	}
+	targetY := math.Sqrt(ySq)
+	if !isFinite(targetY) || !(targetY > 0) {
+		return geom2d.Point2{}, fmt.Errorf("unreachable upper-circle BRP target: radius %.1f mm, setback %.1f mm", brpHeightMm, brpSetbackMm)
+	}
+	return geom2d.Point2{X: -brpSetbackMm, Y: targetY}, nil
+}
+
+// SolveSaddleSTAForBRPTarget solves the effective seat-tube angle in (0°, 90°)
+// and non-negative axial seat-axis distance that place the saddle's BRP at
+// (-brpSetbackMm, +sqrt(R^2 - setback^2)) on the upper half of the brpHeightMm
+// radius circle at railOffsetMm, executes checked forward assembly, and
+// verifies both target coordinates within 1e-8 mm.
+//
+// Equation:
+// Subtracting the assembly clamp-to-BRP displacement at railOffsetMm from the
+// BRP target gives the required clamp point C relative to BB. With rho = |C|
+// and perpendicular post setback p:
+//
+//	STA = atan2(C.Y, -C.X) + asin(p / rho)
+//	axial distance = sqrt(rho^2 - p^2)
+func SolveSaddleSTAForBRPTarget(
+	saddleSpec model.SaddleSpec,
+	brpHeightMm, brpSetbackMm, postSetbackMm, railOffsetMm float64,
+) (SaddleStaSolution, error) {
+	target, err := upperCircleBRPTarget(brpHeightMm, brpSetbackMm)
+	if err != nil {
+		return SaddleStaSolution{}, err
+	}
+	if !isFinite(postSetbackMm) || postSetbackMm < 0 {
+		return SaddleStaSolution{}, fmt.Errorf("seatpost setback must be finite and non-negative, got %v mm", postSetbackMm)
+	}
+	saddle, err := assembly.NewSaddle(saddleSpec)
+	if err != nil {
+		return SaddleStaSolution{}, err
+	}
+	disp, err := saddle.ClampToBRP(railOffsetMm)
+	if err != nil {
+		return SaddleStaSolution{}, err
+	}
+
+	clamp := target.SubVec(disp)
+	if !isFinite(clamp.X) || !isFinite(clamp.Y) {
+		return SaddleStaSolution{}, fmt.Errorf("saddle STA solve overflow for clamp point")
+	}
+	rho := clamp.DistanceToOrigin()
+	if !isFinite(rho) {
+		return SaddleStaSolution{}, fmt.Errorf("saddle STA solve overflow for clamp radius")
+	}
+	if !(rho > 0) {
+		return SaddleStaSolution{}, fmt.Errorf("impossible saddle placement: zero clamp radius leaves seat-axis angle undetermined")
+	}
+	if rho < postSetbackMm {
+		return SaddleStaSolution{}, fmt.Errorf("impossible saddle placement: post setback %.1f mm exceeds clamp radius %.1f mm", postSetbackMm, rho)
+	}
+	ratio := postSetbackMm / rho
+	if !isFinite(ratio) || ratio < 0 || ratio > 1 {
+		return SaddleStaSolution{}, fmt.Errorf("impossible saddle placement: invalid post setback ratio %v", ratio)
+	}
+	rhoSq := rho * rho
+	pSq := postSetbackMm * postSetbackMm
+	radicand := rhoSq - pSq
+	if !isFinite(rhoSq) || !isFinite(pSq) || !isFinite(radicand) {
+		return SaddleStaSolution{}, fmt.Errorf("saddle STA solve overflow for clamp radius %.1f mm, post setback %.1f mm", rho, postSetbackMm)
+	}
+	if radicand < 0 {
+		return SaddleStaSolution{}, fmt.Errorf("impossible saddle placement: negative axial distance radicand %v", radicand)
+	}
+	axialDist := math.Sqrt(radicand)
+	if !isFinite(axialDist) || axialDist < 0 {
+		return SaddleStaSolution{}, fmt.Errorf("saddle STA solve overflow for axial distance")
+	}
+
+	effStaDeg := model.DegOf(geom2d.AngleFromSlope(-clamp.X, clamp.Y)) + model.DegOf(geom2d.FromRad(math.Asin(ratio)))
+	if !isFinite(float64(effStaDeg)) || effStaDeg <= 0 || effStaDeg >= 90 {
+		return SaddleStaSolution{}, fmt.Errorf("impossible saddle placement: solved effective STA %.2f° outside (0°, 90°)", effStaDeg)
+	}
+
+	axis, err := assembly.NewSeatAxis(geom2d.Origin(), effStaDeg)
+	if err != nil {
+		return SaddleStaSolution{}, err
+	}
+	clampMount, err := axis.WithSeatpostClamp(axialDist, postSetbackMm)
+	if err != nil {
+		return SaddleStaSolution{}, err
+	}
+	placement, err := clampMount.AttachSaddle(saddle, railOffsetMm)
+	if err != nil {
+		return SaddleStaSolution{}, err
+	}
+
+	brp := placement.BRP()
+	if !isFinite(brp.X) || !isFinite(brp.Y) {
+		return SaddleStaSolution{}, fmt.Errorf("saddle STA verification failed: non-finite BRP (%v, %v)", brp.X, brp.Y)
+	}
+	if !(brp.Y > 0) {
+		return SaddleStaSolution{}, fmt.Errorf("impossible saddle placement: BRP Y=%.2f mm is not above BB", brp.Y)
+	}
+	resX := math.Abs(brp.X - target.X)
+	resY := math.Abs(brp.Y - target.Y)
+	if !isFinite(resX) || !isFinite(resY) || resX > brpRadiusResidualTolMm || resY > brpRadiusResidualTolMm {
+		return SaddleStaSolution{}, fmt.Errorf(
+			"saddle STA BRP-target verification failed: got (%.9f, %.9f) mm, want (%.9f, %.9f) mm (residual %.3e, %.3e mm)",
+			brp.X, brp.Y, target.X, target.Y, resX, resY,
+		)
+	}
+
+	return SaddleStaSolution{
+		effStaDeg: effStaDeg,
+		placement: placement,
+		valid:     true,
+	}, nil
+}
+
 // SolveSaddleForBRPTarget solves the axial seat-axis distance and saddle rail
 // clamp offset that place the saddle's BRP at (-brpSetbackMm, +sqrt(R^2 - setback^2))
 // on the upper half of the brpHeightMm radius circle, executes checked forward
@@ -58,11 +217,9 @@ func SolveSaddleForBRPTarget(
 	effStaDeg model.Deg,
 	brpHeightMm, brpSetbackMm, postSetbackMm float64,
 ) (SaddleRailSolution, error) {
-	if !isFinite(brpHeightMm) || brpHeightMm <= 0 {
-		return SaddleRailSolution{}, fmt.Errorf("requested BRP height must be finite and positive, got %v mm", brpHeightMm)
-	}
-	if !isFinite(brpSetbackMm) {
-		return SaddleRailSolution{}, fmt.Errorf("requested BRP setback must be finite, got %v mm", brpSetbackMm)
+	target, err := upperCircleBRPTarget(brpHeightMm, brpSetbackMm)
+	if err != nil {
+		return SaddleRailSolution{}, err
 	}
 	axis, err := assembly.NewSeatAxis(geom2d.Origin(), effStaDeg)
 	if err != nil {
@@ -72,21 +229,6 @@ func SolveSaddleForBRPTarget(
 	if err != nil {
 		return SaddleRailSolution{}, err
 	}
-
-	rSq := brpHeightMm * brpHeightMm
-	xSq := brpSetbackMm * brpSetbackMm
-	ySq := rSq - xSq
-	if !isFinite(rSq) || !isFinite(xSq) || !isFinite(ySq) {
-		return SaddleRailSolution{}, fmt.Errorf("saddle BRP-target solve overflow for radius %.1f mm, setback %.1f mm", brpHeightMm, brpSetbackMm)
-	}
-	if math.Abs(brpSetbackMm) >= brpHeightMm || ySq <= 0 {
-		return SaddleRailSolution{}, fmt.Errorf("unreachable upper-circle BRP target: radius %.1f mm, setback %.1f mm", brpHeightMm, brpSetbackMm)
-	}
-	targetY := math.Sqrt(ySq)
-	if !isFinite(targetY) || !(targetY > 0) {
-		return SaddleRailSolution{}, fmt.Errorf("unreachable upper-circle BRP target: radius %.1f mm, setback %.1f mm", brpHeightMm, brpSetbackMm)
-	}
-	target := geom2d.Point2{X: -brpSetbackMm, Y: targetY}
 
 	zeroClamp, err := axis.WithSeatpostClamp(0, postSetbackMm)
 	if err != nil {

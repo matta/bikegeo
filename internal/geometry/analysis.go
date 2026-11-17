@@ -220,7 +220,12 @@ func AnalyzeBikeFitWithSaddle(
 		}
 	}
 
-	idealSTA := saddle.IdealSeatTubeAngle(-fitTarget.TargetSitBonesXMm, brpSeatHeight, seat.PostSetbackMm)
+	idealBrpSetback := saddle.BrpSetbackFromSitBones(-fitTarget.TargetSitBonesXMm)
+	idealStaSol, err := SolveSaddleSTAForBRPTarget(saddle, brpSeatHeight, idealBrpSetback, seat.PostSetbackMm, 0.0)
+	if err != nil {
+		return model.BikeFitAnalysis{}, fmt.Errorf("ideal seat tube angle: %w", err)
+	}
+	idealSTA := idealStaSol.EffStaDeg()
 
 	return model.BikeFitAnalysis{
 		StructuralA2c:       activeStructuralA2c,

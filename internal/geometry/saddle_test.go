@@ -125,25 +125,37 @@ func TestCalculateIdealSeatTubeAngle(t *testing.T) {
 
 	// 1. Illustrative 39 mm perpendicular setback
 	// Exact 2D inverse of CalculatePoint: angle of BRP minus its 32mm rail vector, plus the post correction = 73.57°
-	resFenrir := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 39.0, "39 mm perpendicular example", model.DropBestClampLengthMm)
+	resFenrir, err := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 39.0, "39 mm perpendicular example", model.DropBestClampLengthMm)
+	if err != nil {
+		t.Fatalf("CalculateIdealSeatTubeAngle(39mm): %v", err)
+	}
 	if (resFenrir.IdealStaDeg - 73.57).Abs() > 0.05 {
 		t.Errorf("Expected IdealStaDeg ~ 73.57°, got %.2f°", resFenrir.IdealStaDeg)
 	}
 
 	// 2. Standard 15mm setback post
-	res15 := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 15.0, "15mm Setback", model.DefaultSeatpostClampLengthMm)
+	res15, err := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 15.0, "15mm Setback", model.DefaultSeatpostClampLengthMm)
+	if err != nil {
+		t.Fatalf("CalculateIdealSeatTubeAngle(15mm): %v", err)
+	}
 	if (res15.IdealStaDeg - 71.75).Abs() > 0.01 {
 		t.Errorf("Expected IdealStaDeg ~ 71.75° for 15mm post, got %.2f°", res15.IdealStaDeg)
 	}
 
 	// 3. Standard 25mm setback post
-	res25 := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 25.0, "25mm Setback", model.DefaultSeatpostClampLengthMm)
+	res25, err := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 25.0, "25mm Setback", model.DefaultSeatpostClampLengthMm)
+	if err != nil {
+		t.Fatalf("CalculateIdealSeatTubeAngle(25mm): %v", err)
+	}
 	if (res25.IdealStaDeg - 72.50).Abs() > 0.01 {
 		t.Errorf("Expected IdealStaDeg ~ 72.50° for 25mm post, got %.2f°", res25.IdealStaDeg)
 	}
 
 	// 4. Illustrative 11 mm perpendicular setback
-	resRedshiftSag := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 11.0, "11 mm perpendicular example", model.DefaultSeatpostClampLengthMm)
+	resRedshiftSag, err := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 11.0, "11 mm perpendicular example", model.DefaultSeatpostClampLengthMm)
+	if err != nil {
+		t.Fatalf("CalculateIdealSeatTubeAngle(11mm): %v", err)
+	}
 	if (resRedshiftSag.IdealStaDeg - 71.44).Abs() > 0.01 {
 		t.Errorf("Expected IdealStaDeg ~ 71.44° for 11 mm perpendicular offset, got %.2f°", resRedshiftSag.IdealStaDeg)
 	}
@@ -282,7 +294,10 @@ func TestIdealStaRoundTripsCalculatePoint(t *testing.T) {
 	for _, postSetback := range []float64{0, 7, 11, 15, 25, 35, 39} {
 		for _, s := range saddles {
 			eqH := s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
-			res := geometry.CalculateIdealSeatTubeAngle(s, targetSB, eqH, postSetback, "post", model.DefaultSeatpostClampLengthMm)
+			res, err := geometry.CalculateIdealSeatTubeAngle(s, targetSB, eqH, postSetback, "post", model.DefaultSeatpostClampLengthMm)
+			if err != nil {
+				t.Fatalf("CalculateIdealSeatTubeAngle(%s post=%.0f): %v", s.ID, postSetback, err)
+			}
 			pt, placementErr := geometry.SolveBRPPoint(s, res.IdealStaDeg, eqH, postSetback, 0.0)
 			if placementErr != nil {
 				t.Fatal(placementErr)

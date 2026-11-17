@@ -7,6 +7,8 @@ Commit `d1beda7` simplified stem completion; `45e67e2` added handlebar attachmen
 and propagated handlebar errors. The saddle assembly and separate BRP-height
 solve slice designed below is also implemented, separating forward saddle
 placement in `internal/assembly` from the BRP-radius solver in `internal/geometry`.
+Commit `8b1bf7f` adds checked rail-offset target solving and its production callers.
+The next bounded step is the STA inverse, followed by a consolidation review.
 
 Read this before the seed documents, [Kinematic Assembly](KINEMATIC_ASSEMBLY.md)
 and [Kinematic Stronger](KINEMATIC_STRONGER.md). They were written independently
@@ -516,7 +518,7 @@ solver should explain the target equation and selected branch; the recipe should
 explain the physical offsets without requiring knowledge of the inverse equation.
 Do not extend this slice to a whole-bike solver or revise rider/catalog facts.
 
-## Next slice: checked rail-offset target solving
+## Implemented slice: checked rail-offset target solving
 
 ### Decision and scope
 
@@ -630,13 +632,150 @@ use this solver, the legacy implementation is removed, and the acceptance tests
 pass. Review whether the second solver reuses assembly without duplicated
 physical formulas. Plan the STA inverse separately after that evidence exists.
 
+## Next slice: checked effective-STA target solving
+
+### Decision and boundary
+
+Replace `SaddleSpec.StaForBrpAndOffset` and its centered convenience method
+`IdealSeatTubeAngle` with a specialized solver in `internal/geometry`. Given a
+BRP target, saddle, rail station, and perpendicular post setback, solve the
+required effective seat-axis angle and axial distance. Verify the answer through
+forward assembly and return the verified placement with the angle.
+
+This completes the three saddle inverse operations already in use: radius,
+rail station, and effective STA. It does not infer an actual bent seat tube,
+change a frame's published geometry, or choose a new rider target. Retain the
+existing compromise objective, search iterations, pitch conventions, and report
+rounding. Do not build a general constraint framework or make the whole scene
+opaque in this slice.
+
+### Input and result contract
+
+Accept a saddle definition, positive BB-to-BRP radius, signed BRP setback
+(positive rearward), nonnegative perpendicular post setback, and signed rail
+offset. Require finite inputs and intermediate/output geometry. Resolve the
+upper-circle target with `abs(setback) < radius`; reject unreachable targets
+and overflow explicitly. Reuse the rail-target solver's target validation where
+practical, as a private helper with production consumers.
+
+Return a private immutable solution with accessors for `model.Deg` effective STA
+and checked saddle placement. Zero solutions and ignored errors must reject use.
+Successful angles lie strictly in `(0°, 90°)` and axial distance is nonnegative.
+Keep invalid input, geometric no-solution, and invariant failures consistent with
+the existing failure policy. Do not return NaN, zero angles, or a partially filled
+successful report to represent failure.
+
+### Shared geometry and selected solution
+
+The component definition owns the vector from the projected clamp datum to BRP
+at the specified rail station and world-relative pitch. Obtain that vector from
+assembly, using the same local geometry as `AttachSaddle`; the solver must not
+reproduce saddle landmark or rail-pitch trigonometry. A read-only displacement
+measurement is sufficient and must not grant a mounting capability.
+
+Subtract that displacement from the target to obtain the required clamp point
+`C`, relative to BB. Let `p` be post setback and `rho = distance(BB, C)`. Preserve
+the current analytical branch:
+
+```text
+STA = atan2(C.Y, -C.X) + asin(p / rho)
+axial distance = sqrt(rho² - p²)
+```
+
+Use the existing angle abstraction. Require `rho > 0`, `rho >= p`, and a finite
+solution in the supported angle domain. Reject the zero-clamp/zero-setback case:
+it leaves the axis orientation undetermined. The tangent case `rho == p > 0`
+may have zero axial distance and remains legal if the angle and target satisfy
+the contract. Reject other branches rather than wrapping an out-of-domain angle
+or switching roots. Do not silently clamp an invalid inverse-trig argument or
+negative radicand. Overflow is an error even for finite inputs.
+
+Construct the checked seat axis at the solved angle, place its projected clamp
+at the solved distance/setback, and attach the saddle at the requested rail
+station. Verify both BRP coordinates against the target within `1e-8 mm`, with
+separate finiteness checks. Use direct forward assembly for this verification;
+calling the radius or rail-offset inverse again could select a different branch
+or introduce that solver's additional domain restrictions.
+
+### Migrate the complete call path
+
+Remove both legacy model methods after moving all callers. Keep specs in
+`model` and orchestration in `geometry`; do not create an import cycle.
+
+- `CalculateIdealSeatTubeAngle` becomes fallible. Its centered result and each
+  requested rail-window endpoint use checked STA solutions. Derive rail-center
+  measurements from the returned placement where possible.
+- `CalculateUniversalCompromiseSTA` uses checked solutions for centered angles
+  and margin endpoints. Preserve its existing minimax rail-offset search.
+- `AnalyzeBikeFitWithSaddle` propagates failure of the required ideal angle.
+- `AnalyzeSaddleSwap` uses the source solution's placement directly, and checks
+  the target centered-angle solution before computing `CenteredStaDeltaDeg`.
+- Web saddle helpers, including `saddlePostExample.idealSTA`, and their report
+  builders propagate errors through existing failure responses. Replace the
+  separate centered solve followed by radius re-solving in the saddles page.
+
+Preserve each caller's established SIT-to-BRP conversion and fit-transfer
+semantics. Validate its output before solving. Do not reinterpret measured SIT
+support coordinates or alter the unsagged/level-rail assumptions in this work.
+
+Validate finite positive rail/clamp lengths in report boundaries that evaluate
+hardware ranges; resolve defaults before those boundaries. A positive clamp
+longer than the usable rail span is a known hardware incompatibility: retain
+`HasClampWindow=false` and do not solve fabricated zero-width endpoints. The
+centered geometric result can still be reported. Likewise, disjoint valid
+margin intervals mean no common margin, not a solver failure.
+
+If hardware fits but a requested endpoint has no supported geometric solution,
+return a contextual error naming that saddle and endpoint. Do not turn NaN into
+`HasClampWindow=false` or `HasUniversalMargin=false`. Computing clipped feasible
+angle intervals would require another explicit contract and is deferred. Thus
+some formerly incomplete/NaN reports will now fail explicitly; valid supported
+results must retain their behavior.
+
+### Acceptance evidence
+
+| Test | Required evidence |
+| --- | --- |
+| Independent example | Reference saddle, level rails, radius `20√21 mm`, setback 30 mm, post setback 0, rail offset +12 mm recovers STA 60°, axial distance 100 mm, and BRP (−30, 50√3) mm |
+| Independent nonzero setback | STA 60°, axial distance 100 mm, post setback 20 mm, and rail offset +12 mm gives clamp (−50 − 10√3, 50√3 − 10) mm and BRP (−30 − 10√3, 50√3 − 10) mm; solving that target recovers both angle and distance |
+| Orientation and reuse | Positive/negative rail pitch and rail station across catalog saddles agree with independently constructed coordinates and forward assembly; tests catch a reversed setback correction or duplicated pitch |
+| Branches and boundaries | Zero-radius clamp ambiguity, post setback exceeding clamp radius, tangent zero distance, angle endpoints/out-of-domain branch, invalid target, NaN, infinity, and overflow follow the stated contract |
+| Verified solution | Wrong angle/sign mutations fail coordinate checks; zero solutions and ignored solver errors cannot expose a valid-looking angle or placement |
+| Geometry versus hardware | Invalid dimensions error; an overlong positive clamp reports unavailable hardware range; an impossible endpoint errors rather than becoming a hardware flag; disjoint valid intervals remain a legitimate no-common-margin result |
+| End-to-end errors | Successful baselines precede injected failures in ideal-angle reports, compromise endpoints, fit analysis, source/target saddle swaps, and web builders; assert the relevant error reaches the consumer |
+| Regression | Existing supported results retain coordinates within `1e-8 mm`, independent worked angles within `1e-9°`, report rounding, and selection behavior |
+
+Run the fast verification loop during implementation, then `make pre-commit`
+and the runtime-dependency check. Remove obsolete tests/helpers instead of
+leaving a second implementation as a permanent oracle. Keep independent worked
+examples as the numerical evidence.
+
+### Stop and consolidate
+
+Stop when all production uses of the two legacy STA methods are removed and
+the migrated callers pass the acceptance checks. Then review the completed
+cockpit boundaries before planning more migration:
+
+- Can callers assemble and solve using physical operations without re-deriving
+  offsets or compensating for orientation conventions?
+- Which exported helpers or repeated input arguments can be removed because a
+  checked placement already carries the necessary evidence?
+- Are repeated validation and target construction small enough to inspect, and
+  do shared helpers have clear contracts rather than obscuring failure policy?
+- Which mutable legacy snapshots and trusted root adapters still limit the
+  guarantee? Record them explicitly instead of claiming whole-bike coverage.
+
+Record that assessment and any concrete simplification proposals. Broad API
+cleanup, opaque scenes, and further component migrations are separate changes;
+this checkpoint does not authorize bundling them into the STA implementation.
+
 ## Decisions deferred beyond this slice
 
 - Whether a full 3D pose kernel and tube-bending cursor improve the next real
   component. A planar first slice does not settle the eventual representation.
 - Whether additional target solvers justify a common constraint-solving layer.
-  The rail-offset solver is planned above; STA inverse calculations still need
-  their own checked contract.
+  The three specialized saddle solves should be evaluated together after
+  the STA slice, before introducing shared solver machinery.
 - How to ground unequal wheel radii and incorporate CAD rounding residuals. The
   current scene levels axle heights and preserves the published CAD baseline;
   the seed grounds loaded wheel radii directly. Reconcile that modeling choice
@@ -647,5 +786,5 @@ physical formulas. Plan the STA inverse separately after that evidence exists.
   consume construction evidence directly. That follows a successful placement
   slice rather than being a prerequisite for testing the idea.
 
-The next implementation is the bounded rail-offset slice above. Review that
-result before expanding either the assembly API or the solver machinery.
+The next implementation is the bounded STA slice above, followed by the explicit
+consolidation checkpoint before expanding the assembly or solver machinery.

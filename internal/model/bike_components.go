@@ -154,32 +154,6 @@ func (s SaddleSpec) TransformFromBrp(brp geom2d.Point2) SaddleTransform {
 	return t
 }
 
-// StaForBrpAndOffset inverts CalculatePoint at the declared rail pitch. It returns
-// NaN when the target has no upper, rearward seat-axis solution in (0°, 90°).
-func (s SaddleSpec) StaForBrpAndOffset(brpSetbackMm, saddleHeightMm, seatpostSetbackMm, railOffsetMm float64) Deg {
-	brp := s.BrpPointAtHeightAndSetback(saddleHeightMm, brpSetbackMm)
-	t := s.TransformFromBrp(brp)
-	clamp := t.Point(railOffsetMm, 0)
-	radius := clamp.DistanceToOrigin()
-	if !(saddleHeightMm > 0 && brp.Y > 0 && radius >= math.Abs(seatpostSetbackMm)) {
-		return Deg(math.NaN())
-	}
-	sta := DegOf(geom2d.AngleFromSlope(-clamp.X, clamp.Y)) + DegOf(geom2d.FromRad(math.Asin(seatpostSetbackMm/radius)))
-	if !(sta > 0 && sta < 90) {
-		return Deg(math.NaN())
-	}
-	return sta
-}
-
-// IdealSeatTubeAngle computes the exact effective Seat Tube Angle required to mount this saddle
-// with its clamp dead-center (0.0mm) on the rails for a given sit bone setback and saddle height.
-func (s SaddleSpec) IdealSeatTubeAngle(sitBoneSetbackMm, saddleHeightMm, seatpostSetbackMm float64) Deg {
-	if saddleHeightMm <= 0 {
-		return 0
-	}
-	return s.StaForBrpAndOffset(s.BrpSetbackFromSitBones(sitBoneSetbackMm), saddleHeightMm, seatpostSetbackMm, 0.0)
-}
-
 // ClampWindowMm returns the modeled interval for a clamp center along the rails.
 // The calculation assumes the catalog span is usable and the clamp is symmetric.
 func (s SaddleSpec) ClampWindowMm(clampLengthMm float64) (minX, maxX float64, ok bool) {

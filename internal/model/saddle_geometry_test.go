@@ -8,28 +8,6 @@ import (
 	"bikegeo/internal/model"
 )
 
-func TestSaddleInverseAxes(t *testing.T) {
-	s := model.ReferenceIdmatchSaddle()
-	for _, sta := range []model.Deg{60, 70, 80} {
-		for _, pitch := range []model.Deg{model.LevelRailPitchDeg, -7, 12} {
-			s.RailPitchDeg = pitch
-			for _, offset := range []float64{-15, 0, 15} {
-				// Build the landmarks independently from a known axial extension. This
-				// isolates rail direction from the STA-dependent post normal.
-				const axial, post = 700.0, 11.0
-				a, p := sta.Angle(), pitch.Angle()
-				clamp := geom2d.Point2{X: -axial*a.Cos() - post*a.Sin(), Y: axial*a.Sin() - post*a.Cos()}
-				center := geom2d.Point2{X: clamp.X - offset*p.Cos(), Y: clamp.Y - offset*p.Sin()}
-				brp := geom2d.Point2{X: center.X + 32*p.Cos(), Y: center.Y + 32*p.Sin()}
-				angle := s.StaForBrpAndOffset(-brp.X, brp.DistanceToOrigin(), post, offset)
-				if math.IsNaN(float64(angle)) || (angle-sta).Abs() > 1e-9 {
-					t.Errorf("STA inverse = %v, want %v", angle, sta)
-				}
-			}
-		}
-	}
-}
-
 func TestSaddleTransformReferenceLandmarks(t *testing.T) {
 	s := model.ReferenceIdmatchSaddle()
 	brp := geom2d.Point2{X: -219, Y: math.Sqrt(746*746 - 219*219)}
@@ -47,12 +25,5 @@ func TestSaddleTransformReferenceLandmarks(t *testing.T) {
 	}
 	if got := s.BrpPointFromSitBones(tr.Point(-48, 10)); got.DistanceTo(brp) > 1e-9 {
 		t.Error("landmark inverse failed")
-	}
-}
-
-func TestSaddleInverseImpossibleGeometry(t *testing.T) {
-	s := model.ReferenceIdmatchSaddle()
-	if got := s.StaForBrpAndOffset(800, 746, 0, 0); !math.IsNaN(float64(got)) {
-		t.Errorf("impossible STA inverse = %v", got)
 	}
 }

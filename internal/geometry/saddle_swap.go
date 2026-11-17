@@ -109,15 +109,13 @@ func AnalyzeSaddleSwap(
 
 	// 1. Baseline Coordinates (Source Saddle clamped at dead-center 0.0mm)
 	srcBrpSetback := source.BrpSetbackFromSitBones(sitBoneSetbackMm)
-	srcBrp := source.BrpPointAtHeightAndSetback(saddleHeightMm, srcBrpSetback)
-	if !(srcBrp.Y > 0) {
-		return SaddleSwapReport{}, fmt.Errorf("source BRP setback exceeds saddle height")
-	}
-	sourceSTA := source.StaForBrpAndOffset(srcBrpSetback, saddleHeightMm, seatpostSetbackMm, 0)
-	reference, err := SolveBRPPoint(source, sourceSTA, saddleHeightMm, seatpostSetbackMm, 0)
+	sourceSol, err := SolveSaddleSTAForBRPTarget(source, saddleHeightMm, srcBrpSetback, seatpostSetbackMm, 0)
 	if err != nil {
-		return SaddleSwapReport{}, err
+		return SaddleSwapReport{}, fmt.Errorf("source saddle centered STA: %w", err)
 	}
+	sourceSTA := sourceSol.EffStaDeg()
+	reference := BRPPointFromSaddlePlacement(source, seatpostSetbackMm, 0, sourceSol.Placement())
+	srcBrp := sourceSol.Placement().BRP()
 	translation, err := TranslateSaddleFit(reference, target, sourceSTA, clampLengthMm)
 	if err != nil {
 		return SaddleSwapReport{}, err
@@ -219,6 +217,12 @@ func AnalyzeSaddleSwap(
 		IsFeasible:              supportFeasible,
 	}
 
+	targetCenteredSol, err := SolveSaddleSTAForBRPTarget(target, tgtEquivSaddleHeight, tgtEquivBrpSetback, seatpostSetbackMm, 0)
+	if err != nil {
+		return SaddleSwapReport{}, fmt.Errorf("target saddle centered STA: %w", err)
+	}
+	centeredStaDeltaDeg := targetCenteredSol.EffStaDeg() - sourceSTA
+
 	return SaddleSwapReport{
 		SourceSaddle:                   source,
 		TargetSaddle:                   target,
@@ -252,7 +256,7 @@ func AnalyzeSaddleSwap(
 		BrpToSitBonesSpanDeltaMm:       Round(spanDelta, 1),
 		RailCenterToBrpDeltaMm:         Round(rcBrpDelta, 1),
 		RailCenterToSitBonesDeltaMm:    Round(rcSitBoneDelta, 1),
-		CenteredStaDeltaDeg:            target.StaForBrpAndOffset(tgtEquivBrpSetback, tgtEquivSaddleHeight, seatpostSetbackMm, 0) - sourceSTA,
+		CenteredStaDeltaDeg:            centeredStaDeltaDeg,
 		TargetBrpToCockpitMm:           hb.DistanceTo(tgtEquivBrp),
 		BaselineCockpitReachMm:         Round(baseCockpit, 1),
 		BaselineBBToSitDistanceMm:      Round(baseBBToSit, 1),

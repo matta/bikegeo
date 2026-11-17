@@ -83,22 +83,33 @@ func CalculateUniversalCompromiseSTA(
 	allClampsFit := true
 
 	for i, s := range saddles {
+		if !isFinite(s.RailLengthMm) || s.RailLengthMm <= 0 {
+			return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA saddle %q rail length must be finite and positive, got %v mm", s.ID, s.RailLengthMm)
+		}
 		eqSH := s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 		targetBrp := s.BrpSetbackFromSitBones(targetSitBoneSetbackMm)
 		fits[i] = saddleFit{spec: s, eqSH: eqSH, targetBrp: targetBrp}
 
-		sta0 := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, 0.0)
-		if !isFinite(float64(sta0)) || sta0 <= 0 || sta0 >= 90 {
-			return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA saddle %q: invalid centered STA %v°", s.ID, sta0)
+		centeredSol, err := SolveSaddleSTAForBRPTarget(s, eqSH, targetBrp, seatpostSetbackMm, 0.0)
+		if err != nil {
+			return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA saddle %q centered: %w", s.ID, err)
 		}
+		sta0 := centeredSol.EffStaDeg()
 		_, half, fitsClamp := s.ClampWindowMm(clampLengthMm)
-		allClampsFit = allClampsFit && fitsClamp
-		margin := min(half, model.SaddleRailIdealMarginMm)
-		mMin := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, margin)
-		mMax := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, -margin)
-		if !isFinite(float64(mMin)) || !isFinite(float64(mMax)) {
+		if !fitsClamp {
 			allClampsFit = false
 		} else {
+			margin := min(half, model.SaddleRailIdealMarginMm)
+			solMin, err := SolveSaddleSTAForBRPTarget(s, eqSH, targetBrp, seatpostSetbackMm, margin)
+			if err != nil {
+				return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA saddle %q margin endpoint (%+.1f mm): %w", s.ID, margin, err)
+			}
+			solMax, err := SolveSaddleSTAForBRPTarget(s, eqSH, targetBrp, seatpostSetbackMm, -margin)
+			if err != nil {
+				return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA saddle %q margin endpoint (%+.1f mm): %w", s.ID, -margin, err)
+			}
+			mMin := solMin.EffStaDeg()
+			mMax := solMax.EffStaDeg()
 			if mMin > mMax {
 				mMin, mMax = mMax, mMin
 			}
@@ -214,41 +225,74 @@ func CalculateIdealSeatTubeAngle(
 	seatpostSetbackMm float64,
 	seatpostDesc string,
 	clampLengthMm float64,
-) IdealStaResult {
-	if saddleHeightMm <= 0 {
-		return IdealStaResult{Saddle: saddle}
+) (IdealStaResult, error) {
+	if !isFinite(saddleHeightMm) || saddleHeightMm <= 0 {
+		return IdealStaResult{}, fmt.Errorf("ideal STA saddle height must be finite and positive, got %v mm", saddleHeightMm)
 	}
-	if clampLengthMm <= 0 {
-		clampLengthMm = model.DefaultSeatpostClampLengthMm
+	if !isFinite(targetSitBoneSetbackMm) {
+		return IdealStaResult{}, fmt.Errorf("ideal STA target sit-bone setback must be finite, got %v mm", targetSitBoneSetbackMm)
+	}
+	if !isFinite(seatpostSetbackMm) || seatpostSetbackMm < 0 {
+		return IdealStaResult{}, fmt.Errorf("ideal STA seatpost setback must be finite and non-negative, got %v mm", seatpostSetbackMm)
+	}
+	if !isFinite(clampLengthMm) || clampLengthMm <= 0 {
+		return IdealStaResult{}, fmt.Errorf("seatpost clamp length must be finite and positive, got %v mm", clampLengthMm)
+	}
+	if !isFinite(saddle.RailLengthMm) || saddle.RailLengthMm <= 0 {
+		return IdealStaResult{}, fmt.Errorf("ideal STA saddle %q rail length must be finite and positive, got %v mm", saddle.ID, saddle.RailLengthMm)
 	}
 
 	// 1. Dead-center target BRP setback & seat-tube setback projection (nominal geometric reference):
 	targetBrpSetback := saddle.BrpSetbackFromSitBones(targetSitBoneSetbackMm)
-	targetBrp := saddle.BrpPointAtHeightAndSetback(saddleHeightMm, targetBrpSetback)
-	railCenterSetback := -saddle.TransformFromBrp(targetBrp).RailCenter.X
-
-	staForOffset := func(railOffset float64) model.Deg {
-		return saddle.StaForBrpAndOffset(targetBrpSetback, saddleHeightMm, seatpostSetbackMm, railOffset)
+	if !isFinite(targetBrpSetback) {
+		return IdealStaResult{}, fmt.Errorf("ideal STA saddle %q BRP setback must be finite, got %v mm", saddle.ID, targetBrpSetback)
 	}
 
-	idealSTA := staForOffset(0.0)
+	centeredSol, err := SolveSaddleSTAForBRPTarget(saddle, saddleHeightMm, targetBrpSetback, seatpostSetbackMm, 0.0)
+	if err != nil {
+		return IdealStaResult{}, fmt.Errorf("ideal STA saddle %q centered: %w", saddle.ID, err)
+	}
+	idealSTA := centeredSol.EffStaDeg()
+	railCenterSetback := -centeredSol.Placement().RailCenter().X
 	stSetback := railCenterSetback - seatpostSetbackMm*idealSTA.Angle().Sin()
+	if !isFinite(railCenterSetback) || !isFinite(stSetback) {
+		return IdealStaResult{}, fmt.Errorf("ideal STA saddle %q setback overflow", saddle.ID)
+	}
 
 	// 2. Clamp window bounds:
 	// Clamping forward on rails (positive rail offset) pushes saddle body rearward relative to clamp,
 	// requiring steeper STA to keep BRP setback unchanged.
 	minClamp, maxClamp, hasWindow := saddle.ClampWindowMm(clampLengthMm)
-	sta1 := staForOffset(minClamp)
-	sta2 := staForOffset(maxClamp)
-	slackestSTA := min(sta1, sta2)
-	steepestSTA := max(sta1, sta2)
+	var slackestSTA, steepestSTA, marginSlackSTA, marginSteepSTA model.Deg
+	if hasWindow {
+		solMin, err := SolveSaddleSTAForBRPTarget(saddle, saddleHeightMm, targetBrpSetback, seatpostSetbackMm, minClamp)
+		if err != nil {
+			return IdealStaResult{}, fmt.Errorf("ideal STA saddle %q clamp min endpoint (%+.1f mm): %w", saddle.ID, minClamp, err)
+		}
+		solMax, err := SolveSaddleSTAForBRPTarget(saddle, saddleHeightMm, targetBrpSetback, seatpostSetbackMm, maxClamp)
+		if err != nil {
+			return IdealStaResult{}, fmt.Errorf("ideal STA saddle %q clamp max endpoint (%+.1f mm): %w", saddle.ID, maxClamp, err)
+		}
+		sta1 := solMin.EffStaDeg()
+		sta2 := solMax.EffStaDeg()
+		slackestSTA = min(sta1, sta2)
+		steepestSTA = max(sta1, sta2)
 
-	marginMinClamp := max(minClamp, -model.SaddleRailIdealMarginMm)
-	marginMaxClamp := min(maxClamp, model.SaddleRailIdealMarginMm)
-	mSta1 := staForOffset(marginMinClamp)
-	mSta2 := staForOffset(marginMaxClamp)
-	marginSlackSTA := min(mSta1, mSta2)
-	marginSteepSTA := max(mSta1, mSta2)
+		marginMinClamp := max(minClamp, -model.SaddleRailIdealMarginMm)
+		marginMaxClamp := min(maxClamp, model.SaddleRailIdealMarginMm)
+		mSolMin, err := SolveSaddleSTAForBRPTarget(saddle, saddleHeightMm, targetBrpSetback, seatpostSetbackMm, marginMinClamp)
+		if err != nil {
+			return IdealStaResult{}, fmt.Errorf("ideal STA saddle %q margin min endpoint (%+.1f mm): %w", saddle.ID, marginMinClamp, err)
+		}
+		mSolMax, err := SolveSaddleSTAForBRPTarget(saddle, saddleHeightMm, targetBrpSetback, seatpostSetbackMm, marginMaxClamp)
+		if err != nil {
+			return IdealStaResult{}, fmt.Errorf("ideal STA saddle %q margin max endpoint (%+.1f mm): %w", saddle.ID, marginMaxClamp, err)
+		}
+		mSta1 := mSolMin.EffStaDeg()
+		mSta2 := mSolMax.EffStaDeg()
+		marginSlackSTA = min(mSta1, mSta2)
+		marginSteepSTA = max(mSta1, mSta2)
+	}
 
 	return IdealStaResult{
 		Saddle:                    saddle,
@@ -264,7 +308,7 @@ func CalculateIdealSeatTubeAngle(
 		MaxStaDeg:                 steepestSTA,
 		IdealMarginMinStaDeg:      marginSlackSTA,
 		IdealMarginMaxStaDeg:      marginSteepSTA,
-	}
+	}, nil
 }
 
 // SaddleTranslationResult encapsulates the cross-saddle translation for a preserved modeled support point.

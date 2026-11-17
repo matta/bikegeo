@@ -37,7 +37,7 @@ func (p saddlePostExample) fitInputs(s model.SaddleSpec, sit geom2d.Point2) (set
 	return -sit.X, s.BrpPointFromSitBones(sit).DistanceToOrigin()
 }
 
-func (p saddlePostExample) idealSTA(s model.SaddleSpec, sit geom2d.Point2) geometry.IdealStaResult {
+func (p saddlePostExample) idealSTA(s model.SaddleSpec, sit geom2d.Point2) (geometry.IdealStaResult, error) {
 	setback, height := p.fitInputs(s, sit)
 	return geometry.CalculateIdealSeatTubeAngle(s, setback, height, p.perpendicularMm, p.name, p.clamp)
 }
@@ -122,12 +122,14 @@ func (db *docb) saddles(v url.Values) int {
 	slr, hasSLR := catalog.GetSaddle("selle-italia-slr-boost-superflow-l3")
 	refSitBones := model.ReferenceSitBonePoint(saddleHeight, sitBoneSetback)
 	if len(posArgs) == 0 {
-		refSTA := sqlab.IdealSeatTubeAngle(sitBoneSetback, saddleHeight, model.DefaultSeatpostSetbackMm)
-		reference, err := geometry.SolveBRPPoint(sqlab, refSTA, saddleHeight, model.DefaultSeatpostSetbackMm, 0)
+		refBrpSetback := sqlab.BrpSetbackFromSitBones(sitBoneSetback)
+		refSol, err := geometry.SolveSaddleSTAForBRPTarget(sqlab, saddleHeight, refBrpSetback, model.DefaultSeatpostSetbackMm, 0)
 		if err != nil {
 			db.fail("%v", err)
 			return 1
 		}
+		refSTA := refSol.EffStaDeg()
+		reference := geometry.BRPPointFromSaddlePlacement(sqlab, model.DefaultSeatpostSetbackMm, 0, refSol.Placement())
 		lines := []string{fmt.Sprintf("Start with a centered %s at %.0f mm radial BRP height and %.1f mm SIT setback, using the comparison's zero-setback dropper and assumed %.0f mm clamp footprint.", sqlab.Name, saddleHeight, sitBoneSetback, model.DefaultSeatpostClampLengthMm)}
 		for _, target := range saddles {
 			if target.ID == sqlab.ID {
@@ -184,9 +186,21 @@ func (db *docb) saddles(v url.Values) int {
 		maxSLRDelta := model.Deg(math.Inf(-1))
 
 		for _, p := range posts {
-			resSQ := p.idealSTA(sqlab, refSitBones)
-			resAspin := p.idealSTA(aspin, refSitBones)
-			resSLR := p.idealSTA(slr, refSitBones)
+			resSQ, err := p.idealSTA(sqlab, refSitBones)
+			if err != nil {
+				db.fail("Error: %v", err)
+				return 1
+			}
+			resAspin, err := p.idealSTA(aspin, refSitBones)
+			if err != nil {
+				db.fail("Error: %v", err)
+				return 1
+			}
+			resSLR, err := p.idealSTA(slr, refSitBones)
+			if err != nil {
+				db.fail("Error: %v", err)
+				return 1
+			}
 			if d := (resSQ.IdealStaDeg - resAspin.IdealStaDeg).Abs(); d > maxSQAspinDiff {
 				maxSQAspinDiff = d
 			}
@@ -313,7 +327,11 @@ func (db *docb) saddles(v url.Values) int {
 
 		sh := s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 		for _, p := range posts {
-			res := p.idealSTA(s, refSitBones)
+			res, err := p.idealSTA(s, refSitBones)
+			if err != nil {
+				db.fail("Error: %v", err)
+				return 1
+			}
 			marginRange := fmt.Sprintf("%.1f°–%.1f°", res.IdealMarginMinStaDeg, res.IdealMarginMaxStaDeg)
 			if !res.HasClampWindow {
 				marginRange = "N/A (clamp > rail)"
