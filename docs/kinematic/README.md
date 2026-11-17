@@ -367,7 +367,7 @@ calculations. This is evidence of composition beyond the first stem example;
 it does not yet establish whole-bike correctness or eliminate legacy mutable
 scene snapshots. Further stages must earn their cost in the same way.
 
-## Next slice: saddle assembly and a separate BRP-height solve
+## Implemented slice: saddle assembly and a separate BRP-height solve
 
 ### Separate the responsibilities
 
@@ -516,13 +516,127 @@ solver should explain the target equation and selected branch; the recipe should
 explain the physical offsets without requiring knowledge of the inverse equation.
 Do not extend this slice to a whole-bike solver or revise rider/catalog facts.
 
+## Next slice: checked rail-offset target solving
+
+### Decision and scope
+
+Migrate `SaddleSpec.RailOffsetForBrpAtSta` into a specialized solver in
+`internal/geometry`. Given a fixed effective seat axis, post setback, saddle,
+BRP radius, and BRP setback, solve the axial distance and rail station that
+place BRP at that target. Verify the answer through checked forward assembly.
+This extends the existing separation of assembly from target solving.
+
+The preceding review findings have follow-up commits: `7c3f06e` replaces mutable
+origin access, `cc8949b` rejects invalid candidate clamp lengths, and `60c6e09`
+repairs the propagation test's valid baseline. Preserve those regressions while
+implementing this slice. Do not interpret their resolution as verification of
+the remaining legacy inverse calculations.
+
+Keep `StaForBrpAndOffset` and `IdealSeatTubeAngle` outside this migration. Do not
+change the compromise search objective, its iteration count, scoring, catalog
+facts, rider assumptions, or frame effective-angle selection. No general solver
+framework is needed for this two-variable linear problem.
+
+### Inputs, result, and ownership
+
+Inputs are a saddle definition, effective STA in `(0°, 90°)`, nonnegative post
+setback, positive BB-to-BRP radius, and signed BRP setback (positive rearward).
+All numeric inputs must be finite. Resolve the target on the upper half of the
+radius circle: `target.X = -setback`, `target.Y > 0`. Reject targets with
+`abs(setback) >= radius`, invalid geometry, and arithmetic overflow. A forward
+BRP is allowed if it meets the remaining modeled branch constraints; do not
+invent a new rearward-only restriction.
+
+Return a checked immutable solution containing the required rail offset and
+its checked saddle placement. A failed solve returns an unusable result; its
+accessors panic if the caller ignores the error. Do not replace NaN with a
+successful-looking zero offset. A legacy snapshot adapter may remain outside
+this guarantee, as in the radius slice.
+
+The solver owns the target equation and solution selection. Assembly owns post
+setback, saddle offsets, rail direction, and landmark placement. Expose only the
+small read-only measurements needed by the solver; they grant no mounting
+capability. The scene adapter continues to choose the effective axis, including
+bent-frame and active-attitude rules. Rail pitch remains world-relative.
+
+### Equation and execution contract
+
+For fixed inputs, express the target as `target = q + d*u + r*v`, where `d` is
+axial distance and `r` is rail offset. Obtain `q` by forward assembly at zero
+axial distance and zero rail offset. Obtain the checked seat-axis direction `u`
+from the axis and rail-offset direction `v` from the saddle's orientation.
+Increasing the clamp station moves the saddle backward, so `v` points backward
+along the rails. Reuse the orientation used by attachment; do not reproduce the
+pitch trigonometry or local landmark formulas in the solver. Avoid deriving a
+unit direction by subtracting large world coordinates.
+
+Solve this two-by-two linear system directly. Reject parallel or nearly parallel
+axes using the existing dimensionless threshold `abs(cross(u, v)) < 1e-12`.
+Even coincident lines have no unique adjustment and return an explicit error.
+Preserve the current branch restrictions: nonnegative axial distance and
+nonnegative projection of the target BRP onto the upward seat axis. Do not clamp
+negative distances, change the requested target, or switch branches to succeed.
+
+Assemble at the solved axial distance and rail offset, then check both target
+coordinates within `1e-8 mm`, with separate finiteness checks. Checking only the
+radius is insufficient: another point on the same circle can have the wrong
+setback. Return the verified placement with the adjustment so callers do not
+need to reconstruct or re-solve it. A direct forward check is the authority;
+do not use a second inverse routine as the sole verification.
+
+Rail-window feasibility remains separate. A finite solution outside the usable
+rail window is useful diagnostic geometry and must retain its signed margin.
+It is not a certified installable assembly. Missing insertion and hardware
+measurements remain unknown.
+
+### Production migration and failure handling
+
+Replace every `RailOffsetForBrpAtSta` caller, then remove that model method and
+its duplicate math. Keep the solver in `geometry` to avoid a model/assembly
+import cycle. Migrate these paths together:
+
+- `BuildScene` required rail-offset calculation.
+- `TranslateSaddleFit` and saddle-swap BRP-alignment calculations. Reuse the
+  returned placement where they currently solve again for the same target.
+- `CalculateUniversalCompromiseSTA`, including `offsetBounds`, each iteration,
+  and final offset reporting. A failed inner solve must terminate with context,
+  not become a NaN comparison that chooses an arbitrary search direction.
+- Web saddle-swap builders and affected report callers. Propagate errors to
+  their existing user-facing failure boundaries.
+
+Update signatures through the complete call chain. A geometric no-solution
+error must not become a zero offset, omitted saddle, or merely an out-of-rail
+flag. The latter describes a valid geometric solution outside hardware bounds.
+Leave the existing minimax selection rule unchanged for valid inputs. Legacy
+STA-inverse results passed into the new solver must be validated; this does not
+make every other use of those legacy routines checked.
+
+### Acceptance evidence and stopping point
+
+| Test | Required evidence |
+| --- | --- |
+| Independent target example | STA 60°, zero post setback, level reference saddle, radius `20√21 mm`, setback 30 mm yields axial distance 100 mm, rail offset +12 mm, and BRP (−30, 50√3) mm |
+| Offset signs and independent axes | Known forward constructions with nonzero post setback, signed rail offsets, and positive/negative pitch recover both adjustments and all landmarks; include independent coordinates, not only round trips |
+| Target verification | A deliberately wrong setback or rail-sign implementation fails even when the radius is correct; both coordinate residuals are enforced |
+| Singular and invalid cases | Parallel/coincident axes, near-parallel axes on either side of the threshold, unreachable upper-circle targets, rejected branches, NaN, infinity, and overflow fail explicitly |
+| Hardware versus geometry | An out-of-window solution remains geometrically successful and reports the correct negative margin; an impossible target returns an error |
+| Misuse | Ignored solver errors and zero solution values cannot expose plausible adjustments or landmarks |
+| Error propagation | Establish a successful baseline before injecting invalid geometry into scene, transfer, swap, and compromise-search paths; assert the relevant failure survives to the consuming boundary |
+| Regression | Existing valid scene, saddle-swap, compromise, scoring, and rendering results retain their numerical tolerances and report rounding |
+
+Run the repository fast loop during implementation, then `make pre-commit` and
+the runtime-dependency check. Stop when all production rail-offset inverse calls
+use this solver, the legacy implementation is removed, and the acceptance tests
+pass. Review whether the second solver reuses assembly without duplicated
+physical formulas. Plan the STA inverse separately after that evidence exists.
+
 ## Decisions deferred beyond this slice
 
 - Whether a full 3D pose kernel and tube-bending cursor improve the next real
   component. A planar first slice does not settle the eventual representation.
 - Whether additional target solvers justify a common constraint-solving layer.
-  Rail-offset and STA inverse calculations still need checked contracts; the
-  BRP-radius migration does not cover them.
+  The rail-offset solver is planned above; STA inverse calculations still need
+  their own checked contract.
 - How to ground unequal wheel radii and incorporate CAD rounding residuals. The
   current scene levels axle heights and preserves the published CAD baseline;
   the seed grounds loaded wheel radii directly. Reconcile that modeling choice
@@ -533,6 +647,5 @@ Do not extend this slice to a whole-bike solver or revise rider/catalog facts.
   consume construction evidence directly. That follows a successful placement
   slice rather than being a prerequisite for testing the idea.
 
-The next implementation is the bounded saddle slice above. Its forward assembly
-and inverse solve have separate responsibilities and acceptance evidence. Review
-that result before expanding either the assembly API or the solver machinery.
+The next implementation is the bounded rail-offset slice above. Review that
+result before expanding either the assembly API or the solver machinery.
