@@ -3,7 +3,10 @@
 Status: the first production slice is implemented and reviewed on
 `codex/checked-bicycle-assembly`. Commit `e25d28e` introduced checked stem
 assembly; `3622cc9` closed stage-conversion and mutable-identity loopholes.
-The next steps are to simplify stem completion, then evaluate handlebar attachment.
+Commit `d1beda7` simplified stem completion; `45e67e2` added handlebar attachment
+and propagated handlebar errors. The next slice is designed below: separate
+forward saddle assembly from solving a requested BRP height. It is not yet
+implemented.
 
 Read this before the seed documents, [Kinematic Assembly](KINEMATIC_ASSEMBLY.md)
 and [Kinematic Stronger](KINEMATIC_STRONGER.md). They were written independently
@@ -18,9 +21,9 @@ next step and identifies the guarantees that implementation must establish.
 Pursue a small trusted geometry kernel, explicit bicycle assembly recipes, and
 immutable solved results. Make physical intent visible at the call site. The
 upper headset, spacer stack, and stem placement now use this approach in
-production. Continue the experiment after simplifying that first slice, then
-test component composition through handlebar attachment. Preserve the existing
-mathematical model and outputs while changing how correctness is enforced.
+production, followed by handlebar attachment. Continue with saddle placement,
+keeping inverse target solving outside assembly. Preserve the existing
+mathematical model and valid outputs while changing how correctness is enforced.
 
 Do not begin with a whole-program rewrite or a general 3D CAD framework. First
 demonstrate that one real production path is easier to audit, rejects its stated
@@ -222,7 +225,7 @@ to each domain, not expressing parsing, scoring, or HTML as tube geometry.
 ## First implementation: upper stack and stem placement
 
 The following contract describes the migrated production path. Its recipe has
-been revised to reflect the agreed simplification, which is still pending.
+been revised to reflect the completed stem-completion simplification.
 
 Scope: replace the stem-placement portion of `placeFrontCockpit`, ending at the
 handlebar clamp center. Keep the existing handlebar offset calculation after it.
@@ -341,72 +344,185 @@ equivalence comparison have not been recorded. Existing scene and catalog tests
 provide regression coverage; the acceptance table above remains the target for
 the evidence we claim.
 
-The new package contains five public types and roughly 330 lines of production
-code for a small placement calculation. Some of that is reusable mathematics
-and validation. Every additional stage should enforce a distinct obligation.
+The original stem slice introduced five public types and roughly 330 lines of
+production code. Removing `MountedStem` and `Finish` eliminated a stage with no
+remaining obligation. Every additional stage should enforce a distinct obligation.
 
 The conversion bypass and mutable identity were weaknesses introduced by the
 new implementation. Their regression tests improve the abstraction's safety.
 The longer-term justification must come from preventing ordinary bicycle-modeling
 mistakes and reducing the geometry knowledge required at call sites.
 
-Only one component definition currently exercises the approach. Reuse across
-components, meaningful downstream mounts, and shared construction evidence for
-measurements and rendering still need to be demonstrated.
+### Completed follow-ups
 
-## Next step 1: simplify stem completion
+`StemBase.AttachStem` now returns `StemPlacement` directly. The checked placement
+exposes a `BarClampMount`; its `AttachHandlebar` operation produces the grip
+landmark. The bar definition owns the existing rise, sweep, width, and grip-inset
+calculation. Roll is relative to world horizontal in the leveled bicycle, so a
+changed stem angle does not also rotate the bar's grip offset.
 
-Have `StemBase.AttachStem` return the checked immutable `StemPlacement` directly.
-Remove `MountedStem` and `Finish`, and adapt callers and tests. Successful
-attachment already computes both landmarks and completes the subassembly. There
-is no remaining part or unresolved constraint that justifies another stage.
+The front cockpit now composes two component definitions through a meaningful
+mount. Handlebar errors propagate through offset helpers and dependent target
+calculations. This is evidence of composition beyond the first stem example;
+it does not yet establish whole-bike correctness or eliminate legacy mutable
+scene snapshots. Further stages must earn their cost in the same way.
 
-Retain validation, unusable zero values, immutable results, and the distinction
-between head-tube and stem-base stages. Preserve the compile-negative tests for
-skipping or repeating the upper stack and the regression test for independence
-from mutable geometry globals. Remove tests whose only purpose is enforcing the
-redundant completion stage. Run the repository verification loop and review this
-simplification before extending the assembly.
+## Next slice: saddle assembly and a separate BRP-height solve
 
-## Next step 2: evaluate handlebar attachment
+### Separate the responsibilities
 
-Use the handlebar as the second component to test whether the primitives and
-assembly boundaries compose well. Begin by making the existing rise, sweep,
-width, grip-inset, and roll conventions explicit in the component contract.
-In particular, define the reference attitude for roll and preserve current
-world-relative grip behavior when frame attitude or stem angle changes.
+Assembly answers: given the parts and their adjustments, where are the landmarks?
+A target solver answers: which adjustment satisfies the requested measurement?
+Keep those responsibilities separate. The existing `SaddleSpec.CalculatePoint`
+mixes them: it solves an axial distance from a BB-to-BRP radius, then places the
+clamp, rail datum, BRP, and saddle support landmark.
 
-The placed stem should expose a meaningful handlebar mount. Attaching the bar
-should produce checked hand-contact landmarks through the component definition
-and placement operations. The caller should select parts and state their
-connection, with coordinate conversion and orientation rules owned by those
-operations. Choose any additional pose representation needed from that concrete
-requirement.
+Move forward placement into `internal/assembly`. Put the specialized BRP-radius
+solver in `internal/geometry`, alongside its scene orchestration. It should find
+an adjustment, execute forward assembly, and check the target against the actual
+result before reporting success. Fit search and scoring choose among candidates
+above these operations; assembly does not choose a rider target or optimum.
 
-Route existing cockpit placement through this composition and remove the
-superseded placement calculation. Preserve catalog measurement conventions and
-exercise supported rise modes, widths, nonzero roll, stem angles, and frame
-attitudes against independent examples and existing behavior. Measurements and
-the cockpit drawing should consume the same resulting landmarks.
+This is already a constraint problem with one unknown and a closed-form solution.
+It does not require a general constraint graph, iterative optimizer, or solver
+package. Consider shared solver machinery only after another migrated problem
+exposes a concrete common need. A future solver can use the same forward model.
 
-Apply the error-propagation requirement to `GetHandlebarOffset` and all affected
-callers, including required-clamp calculations and handlebar comparisons. Verify
-that a rejected bar or roll produces an error at those boundaries. Passing
-component tests is insufficient if an adapter still substitutes a zero offset.
+Conceptual orchestration (names are illustrative; each fallible step checks its
+error):
 
-Review the resulting call site against the current one. The next slice earns
-its complexity if adding the bar requires less geometry knowledge from its
-caller and reuses the trusted placement primitives. If callers still manage
-coordinate conversions or compensate for angle conventions, revise the boundary
-before expanding further. Larger whole-bike claims require this evidence.
+```text
+rear = checked rear-cockpit inputs in the active bicycle attitude
+distance = solveBRPRadius(rear, requestedBRPHeight)
+placement = rear.PlaceAtAxisDistance(distance)
+verifyBRPRadius(placement, requestedBRPHeight)
+```
 
-## Decisions deferred beyond these steps
+Keep that sequence inside the public target-solving operation. It returns a
+checked placement only after verification; on error it returns an unusable
+result. Callers must not have to remember the final verification, or receive a
+successful-looking zero adjustment after ignoring a solver error.
+
+Within forward placement, the recipe reads as locating the projected seatpost
+clamp at a known axis distance and post setback, then attaching the saddle at its
+rail station and declared pitch. The solver supplies an adjustment, never a raw
+clamp point to be promoted into a mount. Start with the smallest immutable API
+that expresses that recipe; no separate `Finish` or general assembly builder.
+
+### Preserve the modeled geometry
+
+The following are contracts of the existing approximation, not new hardware facts:
+
+- Coordinates remain BB-relative, +X forward and +Y up. The trusted scene adapter
+  selects `frame.EffectiveStaDegAt(fit.BrpHeightMm) - leveled.PitchDeg`, as today.
+  Freeze that effective axis for this solve. Bent-tube effective-angle selection
+  remains outside assembly; do not substitute the nominal or actual shaft angle,
+  or iterate the angle using the solved clamp distance.
+- Axial distance is measured from BB along that effective axis. Post setback is
+  perpendicular to it, toward the rear/downward normal. This is a projected clamp
+  datum, not physical insertion depth or a measured collar-to-clamp length.
+- Rail offset is the clamp's station along the saddle-local rails. Positive
+  offset moves the saddle body rearward relative to the clamp. The rail-center
+  datum is projected into the BRP plane; absolute rail-to-cover height is unknown.
+- Saddle-local +X runs forward along the rails and +Y toward the cover. Positive
+  rail pitch raises the nose. Pitch is specified relative to world horizontal in
+  the leveled bicycle, independently of frame attitude. It must not inherit the
+  seat-axis rotation a second time.
+- BRP height is the radial distance from BB, not vertical height. The named
+  `SitBones` landmark is a modeled support point on the saddle, not an independent
+  measurement of the rider's pelvis. Preserve [rider provenance](../RIDER_FIT.md),
+  including the level-rail assumption and unsagged reference transfer.
+
+Forward placement returns private, immutable state with read-only access to the
+projected clamp, rail center, BRP, support point, and axial distance. A copied
+coordinate is a measurement, not a mounting capability. Zero values and ignored
+constructor failures must reject use. Distinct mount types must resist explicit
+Go conversion as well as accidental argument substitution.
+
+Validate finite geometry and operation outputs, nonnegative axial distance and
+post setback, and the current effective STA domain `(0°, 90°)`. Signed rail
+offsets and finite rail pitch remain supported. Rail-window feasibility remains
+an explicit separate check: current diagnostic calculations may locate a target
+outside the window and report its margin. A geometric placement must not imply
+that rail limits, insertion, clearance, or clamp compatibility passed.
+
+### Solver contract and shared geometry
+
+For fixed rear-cockpit inputs the BRP travels on a straight line:
+`BRP(d) = d * u + q`, relative to BB. Here `u` is the checked unit seat-axis
+direction; `q` is the displacement at zero axial distance. Assembly owns the
+component offsets that determine this line. The solver must obtain it from the
+same forward definition, without reproducing post, rail, or saddle-offset math.
+One minimal implementation evaluates forward placement at zero distance for `q`
+and uses the checked axis direction for `u`. Zero distance is valid geometry;
+the target solver separately requires an upper BRP and a feasible solution.
+
+Solve the line/circle intersection using the existing plus-square-root branch.
+Require a finite positive target radius, nonnegative solved axial distance, and
+BRP above BB. Preserve the current branch even if another mathematical root
+exists; do not silently switch to a different assembly. Reject impossible
+intersections and arithmetic overflow explicitly. Do not clamp an infeasible
+discriminant to zero merely to produce a result.
+
+After forward assembly, require `abs(distance(BB, BRP) - target) <= 1e-8 mm` for
+a successful solve, with separate finiteness checks. This is a numerical residual
+budget, not chart rounding allowance. Use `1e-9 mm` for ordinary-scale independent
+coordinate examples. If numerical evidence requires a different budget, record
+that evidence before changing the contract. The residual check catches a solver
+mistake; independent examples are still needed to catch a shared model mistake.
+
+### Migration boundary and error propagation
+
+`assembly` already imports `model`; a `model.SaddleSpec` method cannot delegate
+back to assembly without creating an import cycle. Move the orchestration now
+in `SaddleSpec.CalculatePoint` and its candidate loop `MapPossibleBRPs` into
+`geometry`, update their callers, and remove the old implementations. Keep
+catalog specs in `model`. A temporary adapter may populate legacy `model.BRPPoint`
+from the checked placement for existing consumers; that mutable snapshot remains
+outside the new guarantee.
+
+Route scene placement, saddle transfer/swap callers, and candidate analysis
+through the same solver and forward assembly. Carry errors through their report
+and application boundaries. In particular, the existing candidate loop silently
+drops every failed `CalculatePoint`; replace that behavior with an error naming
+the failed candidate. An empty or shortened successful list must not hide invalid
+inputs, overflow, or a failed residual check. A future search may explicitly
+represent infeasible candidates, but that requires a defined result contract;
+do not introduce that additional search policy in this slice.
+
+The separate inverse operations `RailOffsetForBrpAtSta` and `StaForBrpAndOffset`
+remain legacy calculations in this slice. Their NaN signaling and broader target
+solving need their own migration. Invalid output from them entering the migrated
+path must be rejected and propagated. Do not claim that all saddle calculations
+are checked merely because the BRP-radius path is checked.
+
+### Acceptance evidence and stopping point
+
+| Test | Required evidence |
+| --- | --- |
+| Independent forward example | At STA 60°, axial distance 100 mm, zero post setback, rail offset +12 mm, level rails, local BRP +32 mm and support point (−48, +10) mm: clamp is (−50, 50√3), rail center (−62, 50√3), BRP (−30, 50√3), support point (−110, 50√3 + 10), all in mm |
+| Independent inverse example | The same setup with requested BRP radius `20√21 mm` solves axial distance 100 mm and reproduces those landmarks |
+| Offset ownership and signs | At the same fixed axial distance, adding 20 mm post setback translates every landmark by (−10√3, −10) mm; increasing rail offset moves saddle landmarks backward along the rails while leaving the clamp fixed |
+| Nonzero pitch and frame attitude | Positive pitch raises the nose; varying fork/frame attitude retains the declared world-relative rail pitch. Preserve the existing scene tests and bent-seat-axis selection |
+| Forward/inverse consistency | Across supported saddles, angles, pitches, and offsets, solve then assemble satisfies the target; forward then solve recovers the selected branch. Include tangent, no-intersection, and rejected-branch cases |
+| Boundary and misuse | NaN, infinity, overflow, invalid axis/distance, and failed residual checks cannot produce success; zero handles panic; mount-role and conversion fixtures fail for the intended reason |
+| End-to-end failure | Invalid saddle geometry fails through scene construction and candidate analysis; a failed candidate cannot disappear into a successful partial list |
+| Regression | Existing saddle transfer, swap, fit, scoring, scene, and rendering tests retain valid results and report rounding; rail feasibility remains distinct from geometric placement |
+
+The implementation ends when this one solve and its production consumers use
+checked forward assembly, the duplicated placement body is removed, and the
+repository verification passes. Review the solver and recipe separately: the
+solver should explain the target equation and selected branch; the recipe should
+explain the physical offsets without requiring knowledge of the inverse equation.
+Do not extend this slice to a whole-bike solver or revise rider/catalog facts.
+
+## Decisions deferred beyond this slice
 
 - Whether a full 3D pose kernel and tube-bending cursor improve the next real
   component. A planar first slice does not settle the eventual representation.
-- How to preserve saddle reference semantics in later component definitions.
-  Saddle tilt needs an explicitly declared reference attitude. Handlebar
-  conventions will be addressed in the next component contract.
+- Whether additional target solvers justify a common constraint-solving layer.
+  Rail-offset and STA inverse calculations still need checked contracts; the
+  BRP-radius migration does not cover them.
 - How to ground unequal wheel radii and incorporate CAD rounding residuals. The
   current scene levels axle heights and preserves the published CAD baseline;
   the seed grounds loaded wheel radii directly. Reconcile that modeling choice
@@ -417,6 +533,6 @@ before expanding further. Larger whole-bike claims require this evidence.
   consume construction evidence directly. That follows a successful placement
   slice rather than being a prerequisite for testing the idea.
 
-The agreed direction is to simplify the completed stem slice and then evaluate
-handlebar composition. Each step should yield a small, reviewable change and
-concrete evidence for the broader architecture.
+The next implementation is the bounded saddle slice above. Its forward assembly
+and inverse solve have separate responsibilities and acceptance evidence. Review
+that result before expanding either the assembly API or the solver machinery.
