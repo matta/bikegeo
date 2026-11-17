@@ -1,6 +1,6 @@
 # SQlab Saddle Geometry and Rider-Fit Update Plan
 
-Status: steps 1–5 completed on 2026-11-16. Steps 6 and 7 remain.
+Status: steps 1–6 completed on 2026-11-16. Step 7 remains.
 
 ## Established inputs and boundaries
 
@@ -97,13 +97,13 @@ The hardware examples use Redshift's nominal 7 mm static and 12 mm at 25% travel
 
 Browserless checks cover the rendered rail endpoints and ledger, source-specific cockpit distances, nominal hardware examples and the center-only versus overlong clamp case. `go vet ./... && go test ./...`, `make pre-commit`, and the runtime dependency audit pass.
 
-## 6. Record the Seven fit-sheet discrepancy
+## 6. Record the Seven fit-sheet discrepancy (completed 2026-11-16)
 
-- The existing Seven provenance in `internal/ideal/readme.md` and `internal/frames/seven_custom.go` cites a 245 mm saddle length; Matt's actual saddle measures 280 mm. Record this unresolved discrepancy alongside the associated nose-setback and tail-coordinate claims.
-- Preserve each source's reported values and distinguish them from coordinates derived from the measured saddle. Do not silently reconcile the records, assume a saddle substitution, or alter the confirmed same-saddle idmatch transfer history.
-- If updating the frame's provenance note, change only explanatory text. Leave every published or already-recorded frame geometry field unchanged.
+- [x] The existing Seven provenance in `internal/ideal/readme.md` and `internal/frames/seven_custom.go` cites a 245 mm saddle length; Matt's actual saddle measures 280 mm. Record this unresolved discrepancy alongside the associated nose-setback and tail-coordinate claims.
+- [x] Preserve each source's reported values and distinguish them from coordinates derived from the measured saddle. Do not silently reconcile the records, assume a saddle substitution, or alter the confirmed same-saddle idmatch transfer history.
+- [x] If updating the frame's provenance note, change only explanatory text. Leave every published or already-recorded frame geometry field unchanged.
 
-Acceptance: both sources remain attributable and the discrepancy is visible without fabricated replacement measurements.
+Acceptance met. The fit documentation and Seven frame note attribute 245 mm saddle length and 76 mm nose setback to the Seven sheet and explain the derived −321 mm tail coordinate. They record the owner-measured 280 mm SQlab length and label the idmatch-based tip and tail coordinates as model estimates under the level-rail assumption. The 35 mm source discrepancy remains unresolved. The confirmed unsagged same-saddle transfer is retained. Only the Seven frame note changed.
 
 ## 7. Regression checks and final verification
 
