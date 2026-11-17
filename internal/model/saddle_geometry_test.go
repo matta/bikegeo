@@ -105,3 +105,18 @@ func TestSaddlePlacementImpossibleGeometry(t *testing.T) {
 		t.Error("overlong clamp produced a candidate")
 	}
 }
+
+func TestSaddleCandidatesStayWithinFractionalClampWindow(t *testing.T) {
+	s := model.ReferenceIdmatchSaddle()
+	const clampLength = 59.88 // 60 mm marks leave 0.06 mm on each side.
+	candidates := s.MapPossibleBRPs(73, 746, 0, clampLength)
+	if len(candidates) != 2 {
+		t.Fatalf("a window shorter than 1 mm should offer its two endpoints, got %d candidates", len(candidates))
+	}
+	for i, want := range []float64{-0.06, 0.06} {
+		got := candidates[i].RailOffsetMm
+		if math.Abs(got-want) > 1e-9 || !s.ClampFitsAt(clampLength, got) {
+			t.Errorf("candidate %d = %+.4f mm, want %+.4f mm inside the modeled window", i, got, want)
+		}
+	}
+}

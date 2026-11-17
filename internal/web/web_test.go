@@ -1337,6 +1337,22 @@ func TestSaddlePresentationUsesModeledCoordinatesAndClampWindow(t *testing.T) {
 		}
 	}
 
+	ledgerRow := bike.Find(`table[data-table="bike-ledger"] tbody tr`).FilterFunction(func(_ int, row *goquery.Selection) bool {
+		return text(row.Find("td").Eq(1)) == "Projected Rail Center, BRP & SIT"
+	})
+	var coords [6]float64
+	ledgerResult := text(ledgerRow.Find("td").Last())
+	if _, err := fmt.Sscanf(ledgerResult, "Rail center (%f, %f) mm, BRP (%f, %f) mm, SIT (%f, %f) mm",
+		&coords[0], &coords[1], &coords[2], &coords[3], &coords[4], &coords[5]); err != nil {
+		t.Fatalf("cannot read saddle landmark coordinates from ledger %q: %v", ledgerResult, err)
+	}
+	// The ledger rounds to tenths and the SVG uses hundredths.
+	for i, svgCoord := range []float64{rcX, rcY, brpX, brpY, sitX, sitY} {
+		if math.Abs(coords[i]-svgCoord) > 0.056 {
+			t.Errorf("ledger coordinate %d = %.1f mm, SVG = %.2f mm", i, coords[i], svgCoord)
+		}
+	}
+
 	// A centered same-saddle swap exposes the difference between a one-point
 	// window and an incompatible clamp. A rounded zero cannot imply feasibility.
 	const sameSLR = "/saddle-swap?from=selle-italia-slr-boost-superflow-l3&to=selle-italia-slr-boost-superflow-l3"

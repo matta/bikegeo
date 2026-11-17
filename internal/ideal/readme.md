@@ -114,12 +114,14 @@ When scoring cockpits against biomechanical profiles, handlebar positions are as
 
 ### Stock Build Selection (`canonicalizer.ApplyIdealCockpitTargets`)
 Each setup gets its cheapest stock build on the points-lost ledger, in two scans:
-1. **Saddle**: every position in the assumed clamp window (1 mm steps) is priced by `brp_setback + rail_offset + seatpost_extension`, where published seat tube length is available. The cheapest wins (ties: nearer dead center). Beyond the clamp limit, the setback band absorbs the miss.
+1. **Saddle**: each 1 mm step and both endpoints of the assumed clamp window is priced by `brp_setback + rail_offset + seatpost_extension`, where published seat tube length is available. The cheapest wins (ties: nearer dead center). Beyond the clamp limit, the setback band absorbs the miss.
 2. **Cockpit**: every stock combination (stem lengths in 10 mm steps × −6°/0°/+6° × spacers 0–`max_spacer_mm` in 5 mm steps; 189 on the `mtb` catalog) is placed relative to the chosen BRP and priced by `handlebar_clamp_fit + stem_length + stem_angle + spacers`; the cheapest is kept (ties: smaller R). Past the hardware limits the oval absorbs the miss.
 
 Both totals are continuous in the frame geometry: each candidate's cost is continuous and the scan keeps their minimum. The closed-form 2×2 solve (`Stem/Spacer Fit`) still explains the result ("needs a 127 mm stem") and measures the excess past the hardware limits.
 
 A profile without a scored `handlebar_clamp_fit` (or without a cockpit target) keeps the row's default selection: the canonical stem with no spacers. There is no separate range-based selector.
+
+The saddle correction moved the modeled support setback from 292 to 299 mm and the translated BRP setbacks from 204 to 211 mm for Aspin and 209 to 216 mm for SLR Boost. The rail-centered SQlab example with a zero-setback post now solves to 70.61° STA. With the corrected geometry and projected clamp extension, the comparison regression fixture scores the rigid Sunliner L at 3 points and the 110 mm Havok XL and L at −148 and −149 points at 20% sag. The idmatch scoring bands retain their original costs and free ranges.
 
 ---
 

@@ -374,7 +374,7 @@ func (s SaddleSpec) CalculatePoint(
 }
 
 // MapPossibleBRPs generates all valid candidate BRP points within this saddle's
-// straight rail clamp window in 1mm steps.
+// modeled clamp window in 1 mm steps, including both endpoints.
 func (s SaddleSpec) MapPossibleBRPs(
 	staDeg Deg, seatHeight, seatpostSetbackMm, clampLengthMm float64,
 ) []BRPPoint {
@@ -387,11 +387,16 @@ func (s SaddleSpec) MapPossibleBRPs(
 	}
 
 	var points []BRPPoint
-	for r := minClamp; r <= maxClamp+0.001; r += SaddleRailStepMm {
-		pt, err := s.CalculatePoint(staDeg, seatHeight, seatpostSetbackMm, math.Round(r*10)/10)
+	for r := minClamp; ; {
+		pt, err := s.CalculatePoint(staDeg, seatHeight, seatpostSetbackMm, r)
 		if err == nil {
 			points = append(points, pt)
 		}
+		next := min(r+SaddleRailStepMm, maxClamp)
+		if next <= r {
+			break
+		}
+		r = next
 	}
 	return points
 }

@@ -62,7 +62,7 @@ Under the **level-rail approximation**, the W70-to-SIT displacement is `(-80, +1
 - Modeled SIT setback: `219 + 80 = 299 mm` behind BB.
 - Modeled SIT coordinates: approximately `(-299, 723.1) mm`, from `(-219, 713.1) + (-80, +10) mm`.
 
-This corrected derivation supersedes the earlier model-derived 292 mm setback based on a 73 mm span. It is not a new fit-report reading, an independent pelvic measurement or a demonstrated optimal position. The 10 mm elevation is measured; the level-rail installation orientation is an assumption. No numerical installed rail pitch has been supplied. Program geometry and default updates are tracked separately in [PLAN.md](PLAN.md).
+This corrected derivation supersedes the earlier model-derived 292 mm setback based on a 73 mm span. It is not a new fit-report reading, an independent pelvic measurement or a demonstrated optimal position. The 10 mm elevation is measured; the level-rail installation orientation is an assumption. No numerical installed rail pitch has been supplied. The [ideal profile documentation](../internal/ideal/readme.md) records the rail placement equations and translated saddle targets.
 
 ## Owner-Reported Riding History and Observations
 
