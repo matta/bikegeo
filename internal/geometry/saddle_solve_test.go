@@ -177,9 +177,11 @@ func TestMapPossibleBRPs_CandidatesAndFailures(t *testing.T) {
 		t.Errorf("expected error naming failing candidate, got: %v", err)
 	}
 
-	// Overlong clamp must return an error.
-	if _, err := geometry.MapPossibleBRPs(s, 73, 746, 0, 61); err == nil {
-		t.Error("expected error for overlong clamp, got nil")
+	// Overlong or non-positive/non-finite clamp lengths must return an error.
+	for _, badClamp := range []float64{0, -1, math.NaN(), math.Inf(-1), math.Inf(1), 61} {
+		if _, err := geometry.MapPossibleBRPs(s, 73, 746, 0, badClamp); err == nil {
+			t.Errorf("expected error for clamp length %v, got nil", badClamp)
+		}
 	}
 }
 

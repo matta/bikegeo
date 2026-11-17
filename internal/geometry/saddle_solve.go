@@ -144,8 +144,8 @@ func MapPossibleBRPs(
 	staDeg model.Deg,
 	brpHeightMm, postSetbackMm, clampLengthMm float64,
 ) ([]model.BRPPoint, error) {
-	if clampLengthMm <= 0 {
-		clampLengthMm = model.DefaultSeatpostClampLengthMm
+	if !isFinite(clampLengthMm) || clampLengthMm <= 0 {
+		return nil, fmt.Errorf("seatpost clamp length must be finite and positive, got %v mm", clampLengthMm)
 	}
 	minClamp, maxClamp, ok := s.ClampWindowMm(clampLengthMm)
 	if !ok {
