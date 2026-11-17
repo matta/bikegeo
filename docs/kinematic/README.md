@@ -92,93 +92,131 @@ it protects a concrete, worthwhile property.
 Readability refactors must preserve these meanings. A change to the physical
 model needs a separate decision and independent evidence.
 
-## Next slice: simplify front-cockpit placement
+## Next slice: simplify saddle placement and its result plumbing
+
+The front-cockpit simplification has been reviewed through `401dd1f`. Apply that
+style to the remaining saddle stages before expanding into chassis geometry.
+The opportunity is concrete: `assembly/saddle.go` still wraps a short placement
+recipe in constructors, validity flags, and repeatedly checked getters.
 
 ### Scope and intended shape
 
-Replace the front-cockpit stage scaffolding with a small value-based placement
-API. Work at `geometry.placeFrontCockpit` and the stem/handlebar implementation
-it calls. Preserve the reusable handlebar-offset calculation used by comparisons
-and required-clamp calculations.
-
-Use named input fields instead of a long list of interchangeable scalar
-arguments. Return ordinary landmark values. Illustrative orchestration:
+Introduce a direct forward operation, conceptually:
 
 ```text
-stemPlacement = PlaceStem(headTubeTop, activeHTA, stemAndStackSettings)
-handGrip = PlaceHandlebar(stemPlacement.BarClamp, handlebarSettings)
+placement = PlaceSaddle(bb, effectiveSTA, SaddleSetup{
+    Saddle: saddleSpec,
+    AxialDistanceMm: axialDistance,
+    PostSetbackMm: postSetback,
+    RailOffsetMm: railOffset,
+})
 ```
 
-Both operations may return errors at their validation boundaries. Exact names
-are an implementation choice. Within `PlaceStem`, the recipe should expose:
+This returns `(SaddlePlacement, error)`. Settings have named fields and use the
+existing `model.SaddleSpec`. The axial distance is an input already known to the
+caller; finding it from a requested BRP radius remains the solver's job.
+
+Use the existing private pose vocabulary to make this construction visible:
 
 ```text
-start at the head-tube top, oriented up the steerer
-advance by upper cover and spacers
-advance by half the stem clamp height; record steerer clamp center
-turn toward the stem extension, including the stated stem angle
-advance by stem length; record handlebar clamp center
+start at BB, oriented along the effective seat axis
+advance by axial distance
+move perpendicular rearward/downward by post setback; record projected clamp
+start a world-horizontal reference at that clamp and turn by saddle rail pitch
+move backward along the rails by rail offset; record rail center
+locate BRP and modeled sit-bone support from their saddle-local offsets
 ```
 
-The bar's placement starts a world-relative reference attitude at that clamp;
-it must not inherit the stem's extension angle. Keep handlebar geometry in its
-component calculation, including the lateral grip coordinate required by the
-existing offset API.
+Positive rail offset moves the saddle body rearward; negative offsets are legal.
+Pitch is world-relative, so it does not inherit seat-axis rotation. Post setback
+is perpendicular to the seat axis, not a horizontal translation. Zero axial
+distance and zero setback remain legal, including solver reference placements.
+
+`SaddlePlacement` becomes an ordinary value containing the four landmarks
+(`SeatpostClamp`, `RailCenter`, `BRP`, `SitBones`) and the construction facts
+(saddle specification, axial distance, post setback, rail offset). Retain these
+facts as copies so `BRPPointFromSaddlePlacement` still takes only the placement;
+do not restore duplicate specification/setting arguments to snapshot export.
+Callers check errors and treat a successful result as a snapshot. Mutation-proof
+results and zero-value panic guarantees are no longer requirements.
+
+### Solver integration without a solver rewrite
+
+Keep `SolveSaddleForBRPRadius`, `SolveSaddleForBRPTarget`, and
+`SolveSaddleSTAForBRPTarget` in `geometry`. Adapt their forward evaluations to
+`PlaceSaddle`. Preserve equations, root/branch choices, supported domains,
+parallel-axis rejection, and existing residual tolerances. Do not combine this
+with a general constraint solver or a numerical-algorithm cleanup.
+
+The solvers also need seat-axis direction, rearward rail direction, and the
+clamp-to-BRP displacement. Preserve these as small named geometry queries in
+`assembly`, sharing the pose/component calculations used by forward placement.
+They may be standalone functions with ordinary values and boundary errors;
+they must not require building staged mounts. Keep the query surface limited to
+these actual consumers. Do not move component trigonometry into solvers or
+estimate directions by subtracting two nearby placements.
+
+Simplify `SaddleRailSolution` and `SaddleStaSolution` to ordinary results too:
+the former carries its placement; the latter carries effective STA and its
+placement. Read solved rail offset from the placement rather than storing a
+second copy. Remove validity flags and getters that only guard access. Keep the
+existing solver entry points and adapt consumers mechanically. A successful
+solve still requires forward placement and the existing residual check before
+returning; removing checked result wrappers must not remove those checks.
 
 ### Implementation boundaries
 
-1. Consolidate stem input validation at the placement entry point. Preserve
-   supported dimensions/angles and descriptive errors for invalid requests.
-   Name intermediate physical quantities rather than inline trigonometry.
-2. Replace `HeadTubeTop`, `StemBase`, and `BarClampMount` transitions with the
-   ordinary placement operations above. Retain a separate stem definition only
-   if a real production caller benefits from it; do not preserve a type solely
-   to narrate a stage. Remove superseded APIs and test fixtures.
-3. Expose result landmarks directly where getters only repeat validity checks.
-   Drop front-cockpit validity flags and mandatory zero-value panics. Document
-   that callers must check returned errors, following normal Go conventions.
-4. Reuse a compact pose vocabulary for movement and turning. Simplify the private
-   pose implementation if needed to remove per-step checking from the recipe;
-   use value semantics, not a shared mutable cursor. If shared pose signatures
-   change, adapt saddle internals mechanically while retaining saddle inputs,
-   outputs, solver checks, and public APIs. Do not simultaneously redesign rear
-   cockpit assembly. Avoid adding a second permanent pose engine.
-5. Route scene construction, `WithCockpit`, and
-   `CalculateHBPointWithHandlebar` through the same implementation. Preserve
-   error propagation from handlebar-offset helpers to their callers. A thin
-   wrapper around all the old stages does not complete this slice: remove the
-   machinery that no longer serves a production purpose.
-
-This slice changes expression and structure, not geometry, catalog data,
-scoring, fit selection, presentation, or the language/toolchain. Leave broader
-scene immutability, additional components, and general constraint solving out.
+1. Replace `SeatAxis` / `SeatpostClampMount` attachment stages and the checked
+   `Saddle` wrapper with direct placement and the needed geometry queries.
+   Remove superseded constructors, getters, and unused helpers after migration.
+   Prefer a few shared private helpers over another public builder hierarchy.
+2. Validate placement inputs at its public boundary and retain useful final
+   landmark checks. Do not require catalog identity, rail length, or clamp-window
+   membership to locate a saddle: synthetic geometry and out-of-window solutions
+   remain valid diagnostic results. Hardware feasibility stays with its existing
+   consumers. Keep solver validation/residual logic intact in this slice.
+3. Update `geometry/saddle_solve.go`, scene construction, snapshot export, and
+   result consumers in saddle fitting/swapping and their callers. Preserve error
+   propagation and candidate context all the way to reports. Never turn an error
+   into successful zero geometry or silently skip a failed candidate.
+4. Preserve height-dependent effective-STA resolution, reference-saddle transfer,
+   search/scoring objectives, rail-window reporting, and rendering conventions.
+   Do not alter catalog facts, default resolution, frame leveling, or chassis
+   assembly. Leave `BikeScene`, `BRPPoint`, and unrelated result APIs as they are.
 
 ### Evidence and stopping point
 
-Keep or adapt these tests to the simpler API:
+Adapt the existing tests; most needed evidence already exists:
 
-- Independent stem example: HTA 60°, head top (0, 0), cover 10, spacers 20,
-  clamp height 40, stem length 100, angle 0° gives steerer clamp (−25, 25√3)
-  and bar clamp (50√3 − 25, 50 + 25√3), all in millimeters.
-- Nonzero stem-angle examples, stem-length separation, and spacer translation
-  along the steerer; rigid transformation of stem placement applies once.
-- Handlebar rise modes and nonzero roll; changed frame/stem attitude preserves
-  the declared world-relative bar orientation.
-- Invalid requests fail through a real consuming boundary; successful baselines
-  precede injected errors. Include representative nonfinite inputs and verify
-  successful scene landmarks are finite, without testing every arithmetic step.
-- Existing scene, comparison, fit, saddle, and rendering regressions retain
-  valid outputs within their current tolerances and preserve report rounding.
+- Independent forward example: STA 60°, axial distance 100 mm, zero post setback,
+  rail offset +12 mm, level rails, local BRP (+32, 0) and support (−48, +10) give
+  clamp (−50, 50√3), rail center (−62, 50√3), BRP (−30, 50√3), and support
+  (−110, 50√3 + 10), all in millimeters.
+- Perpendicular post-setback translation, signed rail movement with a fixed
+  clamp, rigid translation, and nonzero world-relative pitch across different
+  seat angles. Geometry queries agree with the corresponding forward movements.
+- Independent inverse examples and forward/inverse round trips for all three
+  solvers, including tangent, unreachable, and nearly parallel cases. Keep
+  existing residual tolerances and distinguish geometric success outside the
+  hardware window from a failed solve.
+- Snapshot facts and landmarks agree for synthetic and catalog saddles across
+  all three solvers. Changing an input or exported snapshot does not alias another
+  result; do not require public result fields themselves to be immutable.
+- Representative invalid/nonfinite inputs fail through placement and real
+  consuming boundaries. Keep successful baselines and end-to-end failure tests,
+  plus scene, saddle-swap, ideal/compromise-STA, scoring, and report regressions.
 
-Delete front-cockpit compile-negative and zero-handle tests whose requirements
-are intentionally retired. Do not add AST checks to enforce API spelling.
+Delete saddle compile-negative fixtures and zero-handle/getter-panic tests that
+only enforce retired guarantees, including those embedded in otherwise useful
+solver tests. Remove the compile-negative harness if no fixtures remain. Keep
+independent numerical assertions; a forward/inverse round trip alone can hide
+an error shared by both paths.
 
 Run `go vet ./... && go test ./...` after code changes, then `make pre-commit`
 and the repository runtime-dependency check. Review any modernization separately.
 
-Stop when the recipe exposes the physical construction, obsolete stages are
-removed, and the tests pass. Compare the whole affected implementation before
-and after: it should have fewer concepts, less repeated validation, and fewer
-production lines, not merely move complexity behind a new facade. Explain any
-remaining complexity in terms of a real component convention or caller need.
-Review that result before applying the style to saddle placement or the chassis.
+Stop after the production paths use the direct recipe, obsolete scaffolding is
+deleted, and behavior tests pass. Review the net change across placement, queries,
+solvers, and callers: fewer concepts and production lines should accompany the
+clearer recipe. Do not count code merely moved elsewhere as simplification.
+Chassis work and any deeper solver simplification need a separate next decision.
