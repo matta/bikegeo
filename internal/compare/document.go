@@ -82,7 +82,9 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		return doc, fmt.Errorf("ideal profile is required")
 	}
 
-	canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+	if err := canonicalizer.ApplyIdealCockpitTargets(rows, prof); err != nil {
+		return doc, err
+	}
 
 	var scoreResults []scoring.Result
 	if scoringEnabled {

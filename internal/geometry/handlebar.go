@@ -77,9 +77,9 @@ func CalculateHBPointWithHandlebar(
 	spacerMm float64,
 	bar model.HandlebarSpec,
 	gripInsetMm float64, rollDeg model.Deg,
-) model.HBPoint {
+) (model.HBPoint, error) {
 	headTubeTop := geom2d.Point2{X: reach, Y: stack}
-	cockpitPts := placeFrontCockpit(headTubeTop, htaDeg, CockpitSpec{
+	cockpitPts, err := placeFrontCockpit(headTubeTop, htaDeg, CockpitSpec{
 		HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
 		SpacerMm:          spacerMm,
 		Stem:              stem,
@@ -88,6 +88,9 @@ func CalculateHBPointWithHandlebar(
 		BarRollDeg:        rollDeg,
 		GripInsetMm:       gripInsetMm,
 	})
+	if err != nil {
+		return model.HBPoint{}, err
+	}
 
 	clampPoint := cockpitPts.StemClamp
 	hbPoint := cockpitPts.HandGrip
@@ -105,5 +108,5 @@ func CalculateHBPointWithHandlebar(
 		HbY:            hbPoint.Y,
 		SaddleHbMm:     dist,
 		SaddleHbDropMm: drop,
-	}
+	}, nil
 }

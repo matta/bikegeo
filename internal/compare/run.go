@@ -250,7 +250,10 @@ func Run(opts Options) (*Result, error) {
 	state.Columns = normalizedCols
 
 	// Two-stage ranking and pruning for combinatorial sanity
-	rows = PruneRows(allFrames, rows, prof, topPerFrame, opts.Top)
+	rows, err = PruneRows(allFrames, rows, prof, topPerFrame, opts.Top)
+	if err != nil {
+		return nil, err
+	}
 	if len(rows) == 0 {
 		return nil, errors.New("no valid setups found for comparison")
 	}

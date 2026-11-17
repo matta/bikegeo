@@ -296,7 +296,9 @@ func TestPelvicAndCockpitInvarianceAcrossSaddles(t *testing.T) {
 		t.Fatalf("Failed to resolve SQlab row: %v", err)
 	}
 	rowsSQ := []model.CanonicalComparisonRow{rowSQ}
-	canonicalizer.ApplyIdealCockpitTargets(rowsSQ, prof)
+	if err := canonicalizer.ApplyIdealCockpitTargets(rowsSQ, prof); err != nil {
+		t.Fatalf("ApplyIdealCockpitTargets(SQlab): %v", err)
+	}
 
 	// 2. Resolve row with Berthoud Aspin
 	riderAspin := catalog.DefaultRiderProfile()
@@ -306,7 +308,9 @@ func TestPelvicAndCockpitInvarianceAcrossSaddles(t *testing.T) {
 		t.Fatalf("Failed to resolve Aspin row: %v", err)
 	}
 	rowsAspin := []model.CanonicalComparisonRow{rowAspin}
-	canonicalizer.ApplyIdealCockpitTargets(rowsAspin, prof)
+	if err := canonicalizer.ApplyIdealCockpitTargets(rowsAspin, prof); err != nil {
+		t.Fatalf("ApplyIdealCockpitTargets(Aspin): %v", err)
+	}
 
 	// Verify Sit Bone Setback is invariant
 	if math.Abs(rowsSQ[0].Canonical.SitBoneSetbackMm-rowsAspin[0].Canonical.SitBoneSetbackMm) > 1.5 {
@@ -420,7 +424,9 @@ func TestApplyIdealCockpitTargets_KeepsCheapestStockBuild(t *testing.T) {
 		{"salsa-cutthroat", "56cm", 483, 51}, // gravel stem catalog (60–110mm)
 	} {
 		rows := []model.CanonicalComparisonRow{scanRow(t, tc.frame, tc.size, tc.a2c, tc.rake)}
-		canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+		if err := canonicalizer.ApplyIdealCockpitTargets(rows, prof); err != nil {
+			t.Fatalf("%s: ApplyIdealCockpitTargets: %v", tc.frame, err)
+		}
 		row := rows[0]
 		can := row.Canonical
 		if can.SelectedBRP == nil || can.CockpitFitResult == nil || can.SelectedHB == nil {
@@ -478,7 +484,9 @@ func TestApplyIdealCockpitTargets_HandOffsAreContinuous(t *testing.T) {
 	}
 	total := func(row model.CanonicalComparisonRow) float64 {
 		rows := []model.CanonicalComparisonRow{row}
-		canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+		if err := canonicalizer.ApplyIdealCockpitTargets(rows, prof); err != nil {
+			t.Fatalf("ApplyIdealCockpitTargets: %v", err)
+		}
 		res := 0.0
 		for _, spec := range prof.ForSaddle(rows[0].Canonical.Saddle).Attributes {
 			meta, ok := ideal.LookupAttribute(spec.ID)
@@ -520,7 +528,9 @@ func TestApplyIdealCockpitTargets_HandOffsAreContinuous(t *testing.T) {
 		}
 		row.Canonical.SelectedBRP = nil
 		rows := []model.CanonicalComparisonRow{row}
-		canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+		if err := canonicalizer.ApplyIdealCockpitTargets(rows, prof); err != nil {
+			t.Fatalf("ApplyIdealCockpitTargets: %v", err)
+		}
 		brp := rows[0].Canonical.SelectedBRP
 		got := ideal.RowPointsLost(specOf(t, prof, ideal.MetricBrpSetback), brp.BrpSetbackMm, &rows[0]) +
 			ideal.RowPointsLost(specOf(t, prof, ideal.MetricRailOffset), brp.RailOffsetMm, &rows[0])

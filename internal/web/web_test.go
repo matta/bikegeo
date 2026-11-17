@@ -1383,7 +1383,9 @@ func TestLedgerAndWorkbenchUseSelectedSaddleGeometry(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows := []model.CanonicalComparisonRow{row}
-	canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+	if err := canonicalizer.ApplyIdealCockpitTargets(rows, prof); err != nil {
+		t.Fatal(err)
+	}
 	row = rows[0]
 	sc, err := buildSceneForComparisonRow(row, prof, rider.SaddleHeightMm)
 	if err != nil {

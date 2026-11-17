@@ -313,7 +313,10 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	// HbX = ClampX + barOffset.X
 	// HbY = ClampY + barOffset.Y
 	stem1 := model.StemSpec{LengthMm: 100.0, AngleDeg: -17.0}
-	hb1 := geometry.CalculateHBPointWithHandlebar(reach, stack, 73.0, brp, stem1, 0.0, bar, model.DefaultGripInsetMm, 0.0)
+	hb1, err := geometry.CalculateHBPointWithHandlebar(reach, stack, 73.0, brp, stem1, 0.0, bar, model.DefaultGripInsetMm, 0.0)
+	if err != nil {
+		t.Fatalf("CalculateHBPointWithHandlebar(hb1): %v", err)
+	}
 
 	expectedSteererX1 := reach - 31.0*math.Cos(73.0*math.Pi/180.0)
 	expectedSteererY1 := stack + 31.0*math.Sin(73.0*math.Pi/180.0)
@@ -347,7 +350,10 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	// d_steerer = 11 (HeadsetTopStackMm) + 10 + 20 = 41 mm
 	// theta_stem = (90 - 70) + (-6) = 14°
 	stem2 := model.StemSpec{LengthMm: 80.0, AngleDeg: -6.0}
-	hb2 := geometry.CalculateHBPointWithHandlebar(reach, stack, 70.0, brp, stem2, 10.0, bar, model.DefaultGripInsetMm, 0.0)
+	hb2, err := geometry.CalculateHBPointWithHandlebar(reach, stack, 70.0, brp, stem2, 10.0, bar, model.DefaultGripInsetMm, 0.0)
+	if err != nil {
+		t.Fatalf("CalculateHBPointWithHandlebar(hb2): %v", err)
+	}
 
 	expectedSteererX2 := reach - 41.0*math.Cos(70.0*math.Pi/180.0)
 	expectedSteererY2 := stack + 41.0*math.Sin(70.0*math.Pi/180.0)
@@ -399,7 +405,10 @@ func TestMapPossibleHBs_CoversEveryStemAndSpacer(t *testing.T) {
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}
-	points := geometry.MapPossibleHBsWithHandlebar(bike, reach, stack, htaDeg, brp, catalog.DefaultHandlebar(), model.DefaultGripInsetMm, 0.0)
+	points, err := geometry.MapPossibleHBsWithHandlebar(bike, reach, stack, htaDeg, brp, catalog.DefaultHandlebar(), model.DefaultGripInsetMm, 0.0)
+	if err != nil {
+		t.Fatalf("MapPossibleHBsWithHandlebar: %v", err)
+	}
 	// 3 stems * 5 spacers = 15 points
 	if len(points) != 15 {
 		t.Fatalf("Expected 15 possible HB points, got %d", len(points))
@@ -465,7 +474,10 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 	reach := 400.0 + dSteerer*math.Cos(90.0*math.Pi/180.0) // 400
 	stack := clampY - dSteerer*math.Sin(90.0*math.Pi/180.0)
 	stem := model.StemSpec{LengthMm: clampX - 400.0, AngleDeg: 0.0}
-	hb := geometry.CalculateHBPointWithHandlebar(reach, stack, 90.0, brpReport, stem, 0.0, bar, model.DefaultGripInsetMm, 0.0)
+	hb, err := geometry.CalculateHBPointWithHandlebar(reach, stack, 90.0, brpReport, stem, 0.0, bar, model.DefaultGripInsetMm, 0.0)
+	if err != nil {
+		t.Fatalf("CalculateHBPointWithHandlebar(90 deg): %v", err)
+	}
 
 	if math.Abs(hb.HbX-481.0) > 0.1 {
 		t.Errorf("Expected HbX ~ 481.0, got %.1f", hb.HbX)

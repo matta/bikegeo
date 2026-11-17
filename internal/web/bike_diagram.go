@@ -211,19 +211,22 @@ func zoomViewBox(pts []geom2d.Point2, padX, padY, minW, minH float64) string {
 	return fmt.Sprintf("%.0f %.0f %.0f %.0f", math.Floor(minX), -math.Ceil(maxY), math.Ceil(maxX-minX), math.Ceil(maxY-minY))
 }
 
-func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow) bikeSVGView {
+func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow) (bikeSVGView, error) {
 	f2 := func(x float64) string { return fmt.Sprintf("%.2f", x) }
 	addLine := func(a, b geom2d.Point2, cls string) svgLine {
 		return svgLine{X1: f2(a.X), Y1: f2(a.Y), X2: f2(b.X), Y2: f2(b.Y), Class: cls}
 	}
 
 	brp := sc.SaddlePlacement
-	evalPt := func(st model.StemSpec, sp float64) geom2d.Point2 {
-		hb := geometry.CalculateHBPointWithHandlebar(
+	evalPt := func(st model.StemSpec, sp float64) (geom2d.Point2, error) {
+		hb, err := geometry.CalculateHBPointWithHandlebar(
 			sc.Reach(), sc.Stack(), sc.HtaDeg, brp,
 			st, sp, sc.Cockpit.Handlebar, sc.Cockpit.GripInsetMm, sc.Cockpit.BarRollDeg,
 		)
-		return geometry.EvaluatedPointForHB(hb, sc.Fit.Target.Ref, sc.Fit.ReferenceBar)
+		if err != nil {
+			return geom2d.Point2{}, err
+		}
+		return geometry.EvaluatedPointForHB(hb, sc.Fit.Target.Ref, sc.Fit.ReferenceBar), nil
 	}
 
 	// Build reachable [MinStem..MaxStem] x [0..MaxSpacerMm] envelope polygon per stem angle.
@@ -266,14 +269,21 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 	}
 	for _, ang := range angles {
 		lr := byAngle[ang]
-		corners := []geom2d.Point2{
-			evalPt(model.StemSpec{LengthMm: lr.minLen, AngleDeg: ang}, 0),
-			evalPt(model.StemSpec{LengthMm: lr.maxLen, AngleDeg: ang}, 0),
-			evalPt(model.StemSpec{LengthMm: lr.maxLen, AngleDeg: ang}, maxSpacer),
-			evalPt(model.StemSpec{LengthMm: lr.minLen, AngleDeg: ang}, maxSpacer),
+		cornerSpecs := []struct {
+			len float64
+			sp  float64
+		}{
+			{lr.minLen, 0},
+			{lr.maxLen, 0},
+			{lr.maxLen, maxSpacer},
+			{lr.minLen, maxSpacer},
 		}
 		var ptsStr []string
-		for _, c := range corners {
+		for _, cs := range cornerSpecs {
+			c, err := evalPt(model.StemSpec{LengthMm: cs.len, AngleDeg: ang}, cs.sp)
+			if err != nil {
+				return bikeSVGView{}, err
+			}
 			ptsStr = append(ptsStr, fmt.Sprintf("%.2f,%.2f", c.X, c.Y))
 			boxPts = append(boxPts, c)
 		}
@@ -284,10 +294,13 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 	}
 
 	// Discrete candidate stock-stem grid dots.
-	candHBs := geometry.MapPossibleHBsWithHandlebar(
+	candHBs, err := geometry.MapPossibleHBsWithHandlebar(
 		row.Bike, sc.Reach(), sc.Stack(), sc.HtaDeg, brp,
 		sc.Cockpit.Handlebar, sc.Cockpit.GripInsetMm, sc.Cockpit.BarRollDeg,
 	)
+	if err != nil {
+		return bikeSVGView{}, err
+	}
 	// The cheapest stock build from the ledger scan is drawn last, on top.
 	selected := row.Canonical.SelectedHB
 	isSelected := func(hb model.HBPoint) bool {
@@ -354,7 +367,7 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 		Lines:    lines,
 		Circles:  circles,
 		Points:   points,
-	}
+	}, nil
 }
 
 func buildSaddleZoomSVG(sc geometry.BikeScene) bikeSVGView {

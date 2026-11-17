@@ -15,12 +15,16 @@ import (
 
 func scoreRowWithTargets(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	rows := []model.CanonicalComparisonRow{row}
-	canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+	if err := canonicalizer.ApplyIdealCockpitTargets(rows, prof); err != nil {
+		panic(err)
+	}
 	return ScoreRow(rows[0], prof)
 }
 
 func scoreAllRowsWithTargets(rows []model.CanonicalComparisonRow, prof *ideal.Profile) []Result {
-	canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+	if err := canonicalizer.ApplyIdealCockpitTargets(rows, prof); err != nil {
+		panic(err)
+	}
 	return ScoreAllRows(rows, prof)
 }
 

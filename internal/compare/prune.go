@@ -17,9 +17,9 @@ func PruneRows(
 	prof *ideal.Profile,
 	topPerFrame int,
 	topLimit int,
-) []model.CanonicalComparisonRow {
+) ([]model.CanonicalComparisonRow, error) {
 	if len(rows) <= 1 {
-		return rows
+		return rows, nil
 	}
 
 	frameMap := make(map[string]model.FrameModel, len(allFrames))
@@ -27,7 +27,9 @@ func PruneRows(
 		frameMap[strings.ToLower(f.ID)] = f
 	}
 
-	canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+	if err := canonicalizer.ApplyIdealCockpitTargets(rows, prof); err != nil {
+		return nil, err
+	}
 
 	type scoredCandidate struct {
 		row   model.CanonicalComparisonRow
@@ -191,5 +193,5 @@ func PruneRows(
 	for i, c := range stage2 {
 		result[i] = c.row
 	}
-	return result
+	return result, nil
 }

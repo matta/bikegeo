@@ -253,7 +253,10 @@ func TestCalculateHBPointWithHandlebar(t *testing.T) {
 	spacerMm := 15.0
 
 	bar := catalog.HandlebarPresets["sqlab3OX_16_30"]
-	hb := geometry.CalculateHBPointWithHandlebar(reach, stack, htaDeg, brp, stem, spacerMm, bar, 65.0, 0.0)
+	hb, err := geometry.CalculateHBPointWithHandlebar(reach, stack, htaDeg, brp, stem, spacerMm, bar, 65.0, 0.0)
+	if err != nil {
+		t.Fatalf("CalculateHBPointWithHandlebar: %v", err)
+	}
 
 	if hb.HbX <= 0 || hb.HbY <= 0 {
 		t.Fatalf("Expected positive HbX and HbY, got X=%.1f, Y=%.1f", hb.HbX, hb.HbY)
@@ -272,5 +275,12 @@ func TestCalculateHBPointWithHandlebar(t *testing.T) {
 	}
 	if math.Abs(hb.HbY-expectedHbY) > 0.1 {
 		t.Errorf("HbY mismatch: expected %.1f, got %.1f", expectedHbY, hb.HbY)
+	}
+
+	if _, err := geometry.CalculateHBPointWithHandlebar(reach, stack, 0.0, brp, stem, spacerMm, bar, 65.0, 0.0); err == nil {
+		t.Error("expected error for invalid HTA 0.0")
+	}
+	if _, err := geometry.CalculateHBPointWithHandlebar(reach, stack, htaDeg, brp, stem, -5.0, bar, 65.0, 0.0); err == nil {
+		t.Error("expected error for negative spacer")
 	}
 }

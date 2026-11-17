@@ -110,7 +110,10 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 	prof.TargetRef = p.targetRef
 	prof.ReferenceBar = model.Some(catalog.DefaultHandlebar())
 	scanned := []model.CanonicalComparisonRow{row}
-	canonicalizer.ApplyIdealCockpitTargets(scanned, prof)
+	if err := canonicalizer.ApplyIdealCockpitTargets(scanned, prof); err != nil {
+		d.Banner = append(d.Banner, err.Error())
+		return d, http.StatusBadRequest
+	}
 	row = scanned[0]
 
 	d.Fork = forkToken(p.frameModel, row, catalog.CommonForkCatalog)
@@ -256,7 +259,12 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 
 	d.Nudges = buildBikeNudges(baseVals, stemLen, stemAng, spacer, p.barRoll, p.saddleH, railOff, halfWin)
 	d.SVG = buildBikeSVG(scene)
-	d.CockpitSVG = buildCockpitZoomSVG(scene, row)
+	cockpitSVG, err := buildCockpitZoomSVG(scene, row)
+	if err != nil {
+		d.Banner = append(d.Banner, err.Error())
+		return d, http.StatusBadRequest
+	}
+	d.CockpitSVG = cockpitSVG
 	d.SaddleSVG = buildSaddleZoomSVG(scene)
 	d.SummaryTable = toView(buildBikeSummaryTable(scene))
 	score := scoring.ScoreRow(row, prof)

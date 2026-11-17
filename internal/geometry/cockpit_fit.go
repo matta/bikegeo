@@ -32,21 +32,24 @@ func MapPossibleHBsWithHandlebar(
 	brp model.BRPPoint,
 	bar model.HandlebarSpec,
 	gripInsetMm float64, rollDeg model.Deg,
-) []model.HBPoint {
+) ([]model.HBPoint, error) {
 	stems := bike.Stems
 	if len(stems) == 0 && bike.CanonicalStem.LengthMm > 0 {
 		stems = []model.StemSpec{bike.CanonicalStem}
 	}
 	spacers := bike.GetSpacersMm()
 
-	var points []model.HBPoint
+	points := make([]model.HBPoint, 0, len(stems)*len(spacers))
 	for _, st := range stems {
 		for _, sp := range spacers {
-			pt := CalculateHBPointWithHandlebar(activeReach, activeStack, activeHta, brp, st, sp, bar, gripInsetMm, rollDeg)
+			pt, err := CalculateHBPointWithHandlebar(activeReach, activeStack, activeHta, brp, st, sp, bar, gripInsetMm, rollDeg)
+			if err != nil {
+				return nil, err
+			}
 			points = append(points, pt)
 		}
 	}
-	return points
+	return points, nil
 }
 
 // EvaluatedPointForHB returns the 2D cockpit point on pt evaluated against targets

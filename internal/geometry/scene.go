@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"bikegeo/internal/assembly"
 	"bikegeo/internal/geom2d"
 	"bikegeo/internal/model"
 )
@@ -404,21 +405,35 @@ func levelFrame2D(in frameLevelingInput) frameLevelingResult {
 }
 
 // placeFrontCockpit positions SteererClamp, StemClamp, and HandGrip from the leveled head-tube top
-// and head-tube angle.
-func placeFrontCockpit(headTubeTop geom2d.Point2, htaDeg model.Deg, cockpit CockpitSpec) frontCockpitPoints {
-	uAct := SteererTubeDir(htaDeg)
-	nAct := uAct.Perpendicular(geom2d.Clockwise)
-	dSteerer := cockpit.HeadsetTopStackMm + cockpit.SpacerMm + cockpit.StemClampHeightMm/2.0
-	steererClamp := headTubeTop.Add(uAct.Scale(dSteerer))
-	stemDir := nAct.Rotate(cockpit.Stem.AngleDeg.Angle())
-	stemClamp := steererClamp.Add(stemDir.Scale(cockpit.Stem.LengthMm))
+// and head-tube angle using the checked assembly recipe, followed by the handlebar grip offset.
+func placeFrontCockpit(headTubeTop geom2d.Point2, htaDeg model.Deg, cockpit CockpitSpec) (frontCockpitPoints, error) {
+	headTube, err := assembly.NewHeadTubeTop(headTubeTop, htaDeg)
+	if err != nil {
+		return frontCockpitPoints{}, err
+	}
+	stemBase, err := headTube.WithUpperStack(cockpit.HeadsetTopStackMm, cockpit.SpacerMm)
+	if err != nil {
+		return frontCockpitPoints{}, err
+	}
+	stem, err := assembly.NewStem(cockpit.StemClampHeightMm, cockpit.Stem.LengthMm, cockpit.Stem.AngleDeg)
+	if err != nil {
+		return frontCockpitPoints{}, err
+	}
+	mountedStem, err := stemBase.AttachStem(stem)
+	if err != nil {
+		return frontCockpitPoints{}, err
+	}
+	placement := mountedStem.Finish()
+
+	steererClamp := placement.SteererClamp()
+	stemClamp := placement.BarClamp()
 	barOff := GetHandlebarOffset(cockpit.Handlebar, cockpit.GripInsetMm, cockpit.BarRollDeg)
 	handGrip := stemClamp.Add(geom2d.Vec2{X: barOff.X, Y: barOff.Y})
 	return frontCockpitPoints{
 		SteererClamp: steererClamp,
 		StemClamp:    stemClamp,
 		HandGrip:     handGrip,
-	}
+	}, nil
 }
 
 // ChartClosureInput holds the published chart inputs and CAD fork hypothesis
@@ -577,7 +592,10 @@ func BuildScene(
 	steererAxis := geom2d.Axis2{Origin: fr.HeadTubeTop, Direction: uAct}
 
 	// 3. Front cockpit on leveled frame
-	cockpitPts := placeFrontCockpit(fr.HeadTubeTop, fr.HtaDeg, cockpit)
+	cockpitPts, err := placeFrontCockpit(fr.HeadTubeTop, fr.HtaDeg, cockpit)
+	if err != nil {
+		return BikeScene{}, err
+	}
 
 	// 4. Rear cockpit on leveled frame
 	nominalStaAct := frame.StaDeg - leveled.PitchDeg
@@ -667,7 +685,10 @@ func (s BikeScene) WithCockpit(cockpit CockpitSpec) (BikeScene, error) {
 	if err != nil {
 		return BikeScene{}, err
 	}
-	cockpitPts := placeFrontCockpit(s.HeadTubeTop, s.HtaDeg, cockpit)
+	cockpitPts, err := placeFrontCockpit(s.HeadTubeTop, s.HtaDeg, cockpit)
+	if err != nil {
+		return BikeScene{}, err
+	}
 	s.Cockpit = cockpit
 	s.SteererClamp = cockpitPts.SteererClamp
 	s.StemClamp = cockpitPts.StemClamp

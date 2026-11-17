@@ -770,9 +770,9 @@ func CanonicalizeBikes(
 //
 // A profile without a cockpit target, or without a scored Oval Fits band, leaves
 // the row's default selection in place.
-func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.Profile) {
+func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.Profile) error {
 	if prof == nil {
-		return
+		return nil
 	}
 
 	for i := range rows {
@@ -800,7 +800,11 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 			// Re-map the cockpit distances from the selected BRP. Refresh the
 			// default build too, in case the profile does not score cockpit fit.
 			bar := can.Handlebar
-			can.PossibleHBs = geometry.MapPossibleHBsWithHandlebar(row.Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP, bar, model.DefaultGripInsetMm, 0.0)
+			possibleHBs, err := geometry.MapPossibleHBsWithHandlebar(row.Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP, bar, model.DefaultGripInsetMm, 0.0)
+			if err != nil {
+				return err
+			}
+			can.PossibleHBs = possibleHBs
 			if hb := can.SelectedHB; hb != nil {
 				for _, candidate := range can.PossibleHBs {
 					if candidate.Stem == hb.Stem && candidate.SpacerMm == hb.SpacerMm {
@@ -822,6 +826,7 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 			geometry.ApplyCockpitFitByCost(can, distMm, riseMm, prof.TargetRef, prof.ReferenceBar, cost)
 		}
 	}
+	return nil
 }
 
 // brpCost prices a rail position by the scored bands it changes before the
