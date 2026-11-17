@@ -157,24 +157,7 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 		frameSize.ChainstayMm = math.Max(430.0, math.Abs(frameSize.BbDropMm)+1.0)
 	}
 
-	buildFork := frameSize.CadFork
-	buildFork.RakeMm = row.EffectiveRake
-	buildSag := frameSize.CadSagPct
-	physicalLowerCup := frameSize.CadLowerCupMm
-	if row.Bike.CadFork.A2cMm <= 0 || math.Abs(row.EffectiveA2c-row.Bike.CadFork.A2cMm) > 1e-6 {
-		buildFork = geometry.Fork{StaticA2cMm: row.EffectiveA2c, RakeMm: row.EffectiveRake}
-		buildSag = 0
-		if row.Bike.HeadsetCupType.IsValid() {
-			physicalLowerCup = row.Bike.HeadsetCupType.CupStackMm()
-		}
-	}
-	build := geometry.BuildSpec{
-		Fork:               buildFork,
-		SagPct:             buildSag,
-		PhysicalLowerCupMm: physicalLowerCup,
-		WheelRadiusFrontMm: row.Bike.WheelRadiusMm(),
-		WheelRadiusRearMm:  row.Bike.WheelRadiusMm(),
-	}
+	build := geometry.ComparisonBuild(row.Bike, frameSize, model.Some(row.EffectiveA2c), row.EffectiveRake)
 
 	cockpit := geometry.CockpitSpec{
 		HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
@@ -198,9 +181,6 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 		return d, http.StatusBadRequest
 	}
 
-	refSitBones := model.ReferenceSitBonePoint(p.saddleH, model.DefaultTargetSitBoneSetbackMm())
-	brpH := p.saddle.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
-
 	target := geometry.DefaultRiderTarget(p.targetRef)
 	if p.targetRef != model.TargetStemClamp && row.Canonical.CockpitFitResult != nil {
 		ov := row.Canonical.CockpitFitResult.TargetOval
@@ -215,27 +195,25 @@ func buildBikeWorkbench(allFrames []model.FrameModel, p bikeParams, errs []strin
 		target.Point.Y = p.targetY
 	}
 
-	fit := geometry.RiderFit{
-		FrameSeatAxisHeightMm: p.saddleH,
-		BrpHeightMm:           brpH,
-		TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm(),
-		Target:                target,
-		ReferenceSaddle:       catalog.DefaultSaddle(),
-		ReferenceBar:          model.Some(catalog.DefaultHandlebar()),
-	}
-
-	scene, err := geometry.BuildScene(frameSize, build, cockpit, seat, fit)
-	if err != nil {
-		d.Banner = append(d.Banner, err.Error())
-		return d, http.StatusBadRequest
-	}
+	fit := geometry.IdmatchSaddleFit(p.saddleH, p.saddle)
+	fit.Target = target
+	fit.ReferenceBar = riderProf.ReferenceBar
 
 	railOff := p.railOff
 	if !p.hasRailOff {
-		railOff = math.Max(-halfWin, math.Min(halfWin, scene.RequiredRailOffsetMm))
+		if p.postSB == model.DefaultSeatpostSetbackMm && row.Canonical.SelectedBRP != nil {
+			railOff = row.Canonical.SelectedBRP.RailOffsetMm
+		} else {
+			centered, err := geometry.BuildScene(frameSize, build, cockpit, seat, fit)
+			if err != nil {
+				d.Banner = append(d.Banner, err.Error())
+				return d, http.StatusBadRequest
+			}
+			railOff = math.Max(-halfWin, math.Min(halfWin, centered.RequiredRailOffsetMm))
+		}
 	}
 	seat.RailOffsetMm = railOff
-	scene, err = geometry.BuildScene(frameSize, build, cockpit, seat, fit)
+	scene, err := geometry.BuildScene(frameSize, build, cockpit, seat, fit)
 	if err != nil {
 		d.Banner = append(d.Banner, err.Error())
 		return d, http.StatusBadRequest

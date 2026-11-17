@@ -865,14 +865,17 @@ func TestCockpitTarget_ReferenceSaddleAndSitBoneInvariant(t *testing.T) {
 	handY := p.ReferenceSitBones.Y + 3
 	dyRef := handY - p.ReferenceBrp.Y
 	hand := geom2d.Point2{X: p.ReferenceBrp.X + math.Sqrt(700*700-dyRef*dyRef), Y: handY}
+	if dyRef != 13 || math.Abs(hand.X-480.9) > 0.1 || math.Abs(hand.Y-726.1) > 0.1 {
+		t.Fatalf("report cockpit anchor moved: point %+v, rise above BRP %.2f mm", hand, dyRef)
+	}
 	for _, saddle := range catalog.AllSaddles() {
 		dist, rise, ok := p.CockpitTarget(saddle)
 		if !ok || rise != 3 {
 			t.Fatalf("%s: CockpitTarget = (%v, %v, %v), want rise 3", saddle.ID, dist, rise, ok)
 		}
 		brp := saddle.BrpPointFromSitBones(p.ReferenceSitBones)
-		if got := hand.DistanceTo(brp); math.Abs(got-dist) > 0.051 {
-			t.Errorf("%s: target distance %.2f, want %.2f (within 0.05 of the reference hand point)", saddle.ID, dist, got)
+		if got := hand.DistanceTo(brp); math.Abs(got-dist) > 1e-9 {
+			t.Errorf("%s: target distance %.2f, want %.2f from the reference hand point", saddle.ID, dist, got)
 		}
 	}
 
@@ -914,5 +917,23 @@ func TestIdmatchReferenceSaddleTargets(t *testing.T) {
 		if spec.Ideal.Min != model.Some(want) || spec.Ideal.Max != model.Some(want) {
 			t.Errorf("%s: BRP target = %+v, want exactly %gmm", id, spec.Ideal, want)
 		}
+	}
+}
+
+func TestTargetsUseInstalledPitchEvenForReferenceSaddleID(t *testing.T) {
+	p := IdmatchProfile()
+	saddle := p.ReferenceSaddle
+	saddle.RailPitchDeg = 8
+	a := saddle.RailPitchDeg.Angle()
+	// Rotate the measured BRP-to-SIT displacement, preserving the source SIT point.
+	targetBrp := geom2d.Point2{X: -299 + 80*a.Cos() + 10*a.Sin(), Y: p.ReferenceBrp.Y + 10 + 80*a.Sin() - 10*a.Cos()}
+	hand := geom2d.Point2{X: -219 + math.Sqrt(700*700-13*13), Y: p.ReferenceBrp.Y + 13}
+	spec, _ := p.ForSaddle(saddle).Spec(MetricBrpSetback)
+	if math.Abs(spec.Ideal.Min.OrZero()+targetBrp.X) > 1e-9 {
+		t.Errorf("pitched BRP ideal = %v, want %.3f", spec.Ideal, -targetBrp.X)
+	}
+	dist, rise, ok := p.CockpitTarget(saddle)
+	if !ok || rise != 3 || math.Abs(dist-hand.DistanceTo(targetBrp)) > 1e-9 {
+		t.Errorf("pitched cockpit target = %.3f / %.3f, want %.3f / 3", dist, rise, hand.DistanceTo(targetBrp))
 	}
 }

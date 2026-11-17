@@ -7,6 +7,31 @@ import (
 	"bikegeo/internal/model"
 )
 
+// ComparisonBuild maps an effective fork request to the physical build used by
+// both comparison analysis and its scene. An unset A2C uses the CAD cup and fork.
+func ComparisonBuild(bike model.BikeGeometry, frame FrameSize, targetA2c model.Opt[float64], rake float64) BuildSpec {
+	buildFork := frame.CadFork
+	buildFork.RakeMm = rake
+	buildSag := frame.CadSagPct
+	physicalLowerCup := frame.CadLowerCupMm
+	if tA2c, ok := targetA2c.Get(); ok {
+		if !(bike.CadFork.A2cMm > 0 && tA2c == bike.CadFork.A2cMm) {
+			buildFork = Fork{StaticA2cMm: tA2c, RakeMm: rake}
+			buildSag = 0
+		}
+		if bike.HeadsetCupType.IsValid() {
+			physicalLowerCup = bike.HeadsetCupType.CupStackMm()
+		}
+	}
+	return BuildSpec{
+		Fork:               buildFork,
+		SagPct:             buildSag,
+		PhysicalLowerCupMm: physicalLowerCup,
+		WheelRadiusFrontMm: bike.WheelRadiusMm(),
+		WheelRadiusRearMm:  bike.WheelRadiusMm(),
+	}
+}
+
 // AnalyzeBikeFitWithSaddle runs the master analysis pipeline using an explicit SaddleSpec.
 func AnalyzeBikeFitWithSaddle(
 	bike model.BikeGeometry,
@@ -22,10 +47,8 @@ func AnalyzeBikeFitWithSaddle(
 		return model.BikeFitAnalysis{}, fmt.Errorf("profile.SaddleHeightMm must be positive, got %.1f", profile.SaddleHeightMm)
 	}
 
-	seatHeight := profile.SaddleHeightMm
-	refSQ := model.ReferenceIdmatchSaddle()
-	refSitBones := model.ReferenceSitBonePoint(seatHeight, model.DefaultTargetSitBoneSetbackMm())
-	brpSeatHeight := saddle.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
+	fitTarget := IdmatchSaddleFit(profile.SaddleHeightMm, saddle)
+	brpSeatHeight := fitTarget.BrpHeightMm
 
 	// 1. Validate rake and reverse-engineer baseline CAD geometric A2C for publish-mode inference.
 	rake := targetRake.Or(bike.ForkRake)
@@ -51,26 +74,7 @@ func AnalyzeBikeFitWithSaddle(
 		return model.BikeFitAnalysis{}, err
 	}
 
-	buildFork := frame.CadFork
-	buildFork.RakeMm = rake
-	buildSag := frame.CadSagPct
-	physicalLowerCup := frame.CadLowerCupMm
-	if tA2c, ok := targetA2c.Get(); ok {
-		if !(bike.CadFork.A2cMm > 0 && tA2c == bike.CadFork.A2cMm) {
-			buildFork = Fork{StaticA2cMm: tA2c, RakeMm: rake}
-			buildSag = 0
-		}
-		if bike.HeadsetCupType.IsValid() {
-			physicalLowerCup = bike.HeadsetCupType.CupStackMm()
-		}
-	}
-	build := BuildSpec{
-		Fork:               buildFork,
-		SagPct:             buildSag,
-		PhysicalLowerCupMm: physicalLowerCup,
-		WheelRadiusFrontMm: bike.WheelRadiusMm(),
-		WheelRadiusRearMm:  bike.WheelRadiusMm(),
-	}
+	build := ComparisonBuild(bike, frame, targetA2c, rake)
 
 	bar := profile.Handlebar
 	if bar.ID == "" {
@@ -109,14 +113,8 @@ func AnalyzeBikeFitWithSaddle(
 	} else if !targetRef.IsValid() {
 		return model.BikeFitAnalysis{}, fmt.Errorf("invalid RiderProfile TargetRef %q", profile.TargetRef)
 	}
-	fitTarget := RiderFit{
-		FrameSeatAxisHeightMm: seatHeight,
-		BrpHeightMm:           brpSeatHeight,
-		TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm(),
-		Target:                DefaultRiderTarget(targetRef),
-		ReferenceSaddle:       refSQ,
-		ReferenceBar:          profile.ReferenceBar,
-	}
+	fitTarget.Target = DefaultRiderTarget(targetRef)
+	fitTarget.ReferenceBar = profile.ReferenceBar
 
 	scene, err := BuildScene(frame, build, cockpit, seat, fitTarget)
 	if err != nil {
@@ -219,7 +217,7 @@ func AnalyzeBikeFitWithSaddle(
 		}
 	}
 
-	idealSTA := saddle.IdealSeatTubeAngle(model.DefaultTargetSitBoneSetbackMm(), brpSeatHeight, model.DefaultSeatpostSetbackMm)
+	idealSTA := saddle.IdealSeatTubeAngle(-fitTarget.TargetSitBonesXMm, brpSeatHeight, seat.PostSetbackMm)
 
 	return model.BikeFitAnalysis{
 		StructuralA2c:       activeStructuralA2c,

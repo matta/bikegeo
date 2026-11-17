@@ -86,6 +86,11 @@ var registry = []AttributeMeta{
 		BelowWord: "sht",
 		AboveWord: "lng",
 		Extract: func(row model.CanonicalComparisonRow) (float64, bool) {
+			if row.Canonical.SelectedBRP != nil {
+				if ext, ok := row.Canonical.SelectedBRP.SeatpostExtension(row.Bike.SeatTubeLength); ok {
+					return ext, true
+				}
+			}
 			if row.Canonical.SeatpostExtensionMm > 0 {
 				return row.Canonical.SeatpostExtensionMm, true
 			}

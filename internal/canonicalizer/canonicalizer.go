@@ -643,7 +643,6 @@ func CanonicalizeBikes(
 	if config.RiderProfile.SaddleHeightMm <= 0 {
 		return nil, fmt.Errorf("canonical config requires positive saddle height, got %.1f", config.RiderProfile.SaddleHeightMm)
 	}
-	seatHeight := config.RiderProfile.SaddleHeightMm
 	var rows []model.CanonicalComparisonRow
 
 	for _, bike := range bikes {
@@ -705,14 +704,9 @@ func CanonicalizeBikes(
 		if targetRef == "" {
 			targetRef = geometry.TargetHandGrip
 		}
-		cadFit := geometry.RiderFit{
-			FrameSeatAxisHeightMm: seatHeight,
-			BrpHeightMm:           seatHeight,
-			TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm(),
-			Target:                geometry.RiderTarget{Ref: targetRef},
-			ReferenceSaddle:       saddle,
-			ReferenceBar:          config.RiderProfile.ReferenceBar,
-		}
+		cadFit := geometry.IdmatchSaddleFit(config.RiderProfile.SaddleHeightMm, saddle)
+		cadFit.Target.Ref = targetRef
+		cadFit.ReferenceBar = config.RiderProfile.ReferenceBar
 		cadScene, err := geometry.BuildScene(frame, cadBuild, cadCockpit, cadSeat, cadFit)
 		if err != nil {
 			return nil, err
@@ -767,8 +761,8 @@ func CanonicalizeBikes(
 // points-lost ledger and records it on the row's canonical SelectedBRP, SelectedHB,
 // CockpitFitResult, SaddleHbMm and SaddleHbDropMm.
 //
-//  1. Saddle: every rail position is priced by the brp_setback and rail_offset bands
-//     and the cheapest is kept. Past the rail limit the setback band absorbs the miss.
+//  1. Saddle: every rail position is priced by the brp_setback, rail_offset and
+//     seatpost_extension bands. Past the rail limit the setback band absorbs the miss.
 //  2. Cockpit: every stock combination (stem length × angle × spacer stack) is placed
 //     relative to the chosen BRP and priced by the Oval Fits, stem_length, stem_angle
 //     and spacers bands; the cheapest is kept. Past the hardware limits the oval
@@ -798,11 +792,25 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 					can.SitBoneSetbackMm = bestBRP.SitBoneSetbackMm
 					can.AchievedClampOffset = bestBRP.AchievedClampOffsetMm
 					activeBRP = bestBRP
+					if ext, ok := bestBRP.SeatpostExtension(row.Bike.SeatTubeLength); ok {
+						can.SeatpostExtensionMm = ext
+					}
 				}
 			}
-			// Re-map PossibleHBs referencing the selected BRP and configured handlebar.
+			// Re-map the cockpit distances from the selected BRP. Refresh the
+			// default build too, in case the profile does not score cockpit fit.
 			bar := can.Handlebar
 			can.PossibleHBs = geometry.MapPossibleHBsWithHandlebar(row.Bike, can.ActiveReach, can.ActiveStack, can.ActiveHta, activeBRP, bar, model.DefaultGripInsetMm, 0.0)
+			if hb := can.SelectedHB; hb != nil {
+				for _, candidate := range can.PossibleHBs {
+					if candidate.Stem == hb.Stem && candidate.SpacerMm == hb.SpacerMm {
+						can.SelectedHB = &candidate
+						can.SaddleHbMm = candidate.SaddleHbMm
+						can.SaddleHbDropMm = candidate.SaddleHbDropMm
+						break
+					}
+				}
+			}
 		}
 
 		// 2. Cockpit hardware.
@@ -816,14 +824,16 @@ func ApplyIdealCockpitTargets(rows []model.CanonicalComparisonRow, prof *ideal.P
 	}
 }
 
-// brpCost prices a saddle rail position by the profile's brp_setback and
-// rail_offset bands, or returns nil when neither band is scored.
+// brpCost prices a rail position by the scored bands it changes before the
+// independent cockpit hardware scan.
 func brpCost(prof *ideal.Profile, row *model.CanonicalComparisonRow) func(model.BRPPoint) float64 {
 	setback, hasSetback := prof.Spec(ideal.MetricBrpSetback)
 	rail, hasRail := prof.Spec(ideal.MetricRailOffset)
+	extension, hasExtension := prof.Spec(ideal.MetricSeatpostExtension)
 	hasSetback = hasSetback && setback.IsScored()
 	hasRail = hasRail && rail.IsScored()
-	if !hasSetback && !hasRail {
+	hasExtension = hasExtension && extension.IsScored() && row.Bike.SeatTubeLength > 0
+	if !hasSetback && !hasRail && !hasExtension {
 		return nil
 	}
 	return func(b model.BRPPoint) float64 {
@@ -833,6 +843,11 @@ func brpCost(prof *ideal.Profile, row *model.CanonicalComparisonRow) func(model.
 		}
 		if hasRail {
 			lost += ideal.RowPointsLost(rail, b.RailOffsetMm, row)
+		}
+		if hasExtension {
+			if ext, ok := b.SeatpostExtension(row.Bike.SeatTubeLength); ok {
+				lost += ideal.RowPointsLost(extension, ext, row)
+			}
 		}
 		return lost
 	}

@@ -1,6 +1,6 @@
 # SQlab Saddle Geometry and Rider-Fit Update Plan
 
-Status: steps 1–3 completed on 2026-11-16. The provenance records, shared saddle data, derived defaults and shared forward/inverse rail geometry are updated; steps 4–7 remain planned.
+Status: steps 1–4 completed on 2026-11-16. The corrected rail geometry now feeds saddle targets, stock selection, scoring and the computation ledger. Steps 5–7 remain planned.
 
 ## Established inputs and boundaries
 
@@ -63,16 +63,20 @@ Independent analytic tests cover multiple STAs, level and nonzero pitches, TIP-o
 
 Verification: `go vet ./... && go test ./...`, `make pre-commit` (including exhaustive and both deadcode checks), and the runtime-dependency audit pass. No manufacturer frame geometry, report measurements or scoring costs changed. Step 4 still owns the target/selection/ledger propagation audit, including explicit nonzero saddle-pitch targets and selected-build metrics; step 5 still owns diagram reconstruction and presentation/hardware-assumption cleanup. W70 width verification, measured installation pitch and the cockpit-reference provenance question remain unresolved.
 
-## 4. Propagate the correction through targets, selection and scoring
+## 4. Propagate the correction through targets, selection and scoring (completed 2026-11-16)
 
 Affected starting points: `internal/ideal/loader.go`, `internal/canonicalizer/canonicalizer.go`, `internal/geometry/analysis.go`, `internal/web/ledger.go`.
 
-- Preserve the report's reference BRP and cockpit anchors. The current cockpit target is 700 mm from BRP and 3 mm above SIT, corresponding to 13 mm above BRP with the measured 10 mm elevation. Keep that relationship explicit and do not move the recorded cockpit coordinate as an accidental consequence of changing saddle geometry.
-- Carry targets to other saddles through the modeled support landmark, consistently with the shared transform. At the level-rail reference, equivalent BRP setbacks are 211 mm for Aspin and 216 mm for SLR Boost, replacing 204 and 209 mm.
-- Recompute equivalent radial heights, cockpit distances, rail requirements, ideal STA, fit gates, selected stock builds and comparison totals from the corrected geometry. Do not preserve obsolete results by changing scoring costs, ideal bands, tie rules or published frame dimensions.
-- Update rail-center-to-SIT differences: Aspin versus SQlab becomes `+3.5 mm`, and SLR Boost versus SQlab becomes `-17.3 mm`. Recompute full placement and feasibility rather than treating these longitudinal deltas alone as exact installed translations.
+- [x] Preserve the report's reference BRP and cockpit anchors. The current cockpit target is 700 mm from BRP and 3 mm above SIT, corresponding to 13 mm above BRP with the measured 10 mm elevation. Keep that relationship explicit and do not move the recorded cockpit coordinate as an accidental consequence of changing saddle geometry.
+- [x] Carry targets to other saddles through the modeled support landmark, consistently with the shared transform. At the level-rail reference, equivalent BRP setbacks are 211 mm for Aspin and 216 mm for SLR Boost, replacing 204 and 209 mm.
+- [x] Recompute equivalent radial heights, cockpit distances, rail requirements, ideal STA, fit gates, selected stock builds and comparison totals from the corrected geometry. Do not preserve obsolete results by changing scoring costs, ideal bands, tie rules or published frame dimensions.
+- [x] Update rail-center-to-SIT differences: Aspin versus SQlab becomes `+3.5 mm`, and SLR Boost versus SQlab becomes `-17.3 mm`. Recompute full placement and feasibility rather than treating these longitudinal deltas alone as exact installed translations.
 
-Acceptance: documented report anchors stay fixed, derived saddle targets update coherently, and any ranking changes can be traced to geometry and the existing points-lost ledger.
+Acceptance met: the 219 mm setback and 746 mm radial BRP height stay fixed. The reference cockpit point stays about `(480.9, 726.1) mm`; the 13 mm rise above BRP yields 3 mm above SIT with the measured 10 mm step. Translations use the shared support point and each saddle's assumed rail angle. With level rails, Aspin and SLR Boost reproduce that point at 211 and 216 mm of BRP setback, about 753.3 and 754.7 mm of radial height, and about 691.9 and 696.9 mm from BRP to the cockpit target. The `+3.5 mm` and `−17.3 mm` rail-center-to-SIT differences remain local measurements of model coordinates; swap offsets and feasibility come from full placement.
+
+The rail scan now prices the existing seatpost extension band at each candidate's solved axial clamp position, along with the existing setback and rail bands. The extension estimate subtracts published seat tube length from the projected clamp's axial distance; it is a model proxy for exposed length, not a verified hardware clearance. The cockpit scan still uses the same points-lost bands and tie rules. It keeps unrounded geometry for scoring, and the fit gate applies saddle translation once. In the existing Sunliner L / Havok XL / Havok L fixture, scores round to `3 / −148 / −149` instead of `3 / −149 / −150`; the Havok extension estimates increase by about 5 mm, which reduces their losses in the existing extension band. This fixture keeps the same order.
+
+The comparison ledger and `/bike` use the same translated height and physical fork/cup configuration as stock analysis; `/bike` opens on the selected rail for the default post. Independent checks cover the report anchors, nonzero assumed rail pitch, near-edge fit gating, the minimum-cost stock build and ledger agreement. `go vet ./... && go test ./...`, `make pre-commit` and the runtime-dependency audit pass. Scoring costs, free ranges, tie rules and published frame geometry are unchanged. Step 5 still covers the saddle diagram and the wider presentation and hardware assumption audit.
 
 ## 5. Update diagrams, descriptions and hardware assumptions
 

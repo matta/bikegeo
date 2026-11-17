@@ -106,6 +106,7 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 	if prof == nil {
 		panic("scoring: nil *ideal.Profile")
 	}
+	fits := Fits(row, prof)
 	prof = prof.ForSaddle(row.Canonical.Saddle)
 
 	var results []CriterionResult
@@ -150,7 +151,7 @@ func ScoreRow(row model.CanonicalComparisonRow, prof *ideal.Profile) Result {
 
 	return Result{
 		Total:    100.0 - totalLost,
-		Fits:     Fits(row, prof),
+		Fits:     fits,
 		Criteria: results,
 	}
 }

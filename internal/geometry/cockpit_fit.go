@@ -149,7 +149,7 @@ func EvaluateCockpitFitByCost(
 		TargetRef:    targetRef,
 		ReferenceBar: refBar,
 		SelectedHB:   best.pt,
-		BestR:        Round(best.r, 3),
+		BestR:        best.r,
 		CountInside:  countInside,
 		HasFit:       countInside > 0,
 	}

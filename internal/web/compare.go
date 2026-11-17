@@ -300,7 +300,7 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 			scores = scoring.ScoreAllRows(res.Rows, res.Profile)
 		}
 		for i, row := range res.Rows {
-			sc, err := buildSceneForComparisonRow(row, res.Profile)
+			sc, err := buildSceneForComparisonRow(row, res.Profile, res.State.SaddleHeightMm)
 			if err != nil {
 				continue
 			}

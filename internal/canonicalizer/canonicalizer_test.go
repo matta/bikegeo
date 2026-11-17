@@ -338,7 +338,6 @@ func TestPelvicAndCockpitInvarianceAcrossSaddles(t *testing.T) {
 	if math.Abs((hbSQ.SaddleHbDropMm-hbAspin.SaddleHbDropMm)-wantRiseDelta) > 1e-9 {
 		t.Errorf("hand-grip rise disagrees with achieved support points")
 	}
-
 }
 
 func TestAllowedSagPercentages(t *testing.T) {
@@ -406,6 +405,7 @@ func TestApplyIdealCockpitTargets_KeepsCheapestStockBuild(t *testing.T) {
 	prof := ideal.IdmatchProfile()
 	setback := specOf(t, prof, ideal.MetricBrpSetback)
 	rail := specOf(t, prof, ideal.MetricRailOffset)
+	extension := specOf(t, prof, ideal.MetricSeatpostExtension)
 	oval := specOf(t, prof, ideal.MetricHandlebarClampFit)
 	stemLen := specOf(t, prof, ideal.MetricStemLength)
 	stemAng := specOf(t, prof, ideal.MetricStemAngle)
@@ -427,8 +427,12 @@ func TestApplyIdealCockpitTargets_KeepsCheapestStockBuild(t *testing.T) {
 			t.Fatalf("%s: scan did not select a build", tc.frame)
 		}
 
+		if can.SeatpostExtensionMm != can.SelectedBRP.SeatAxisDistanceMm-row.Bike.SeatTubeLength {
+			t.Errorf("%s: extension was not recomputed for the selected rail", tc.frame)
+		}
 		brpLost := func(b model.BRPPoint) float64 {
-			return ideal.RowPointsLost(setback, b.BrpSetbackMm, &row) + ideal.RowPointsLost(rail, b.RailOffsetMm, &row)
+			ext := b.SeatAxisDistanceMm - row.Bike.SeatTubeLength
+			return ideal.RowPointsLost(setback, b.BrpSetbackMm, &row) + ideal.RowPointsLost(rail, b.RailOffsetMm, &row) + ideal.RowPointsLost(extension, ext, &row)
 		}
 		chosen := brpLost(*can.SelectedBRP)
 		for _, b := range can.PossibleBRPs {

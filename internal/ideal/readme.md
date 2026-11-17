@@ -111,7 +111,7 @@ When scoring cockpits against biomechanical profiles, handlebar positions are as
 
 ### Stock Build Selection (`canonicalizer.ApplyIdealCockpitTargets`)
 Each setup gets its cheapest stock build on the points-lost ledger, in two scans:
-1. **Saddle**: every rail position in the saddle's clamp window (1 mm steps) is priced by `brp_setback + rail_offset`, and the cheapest is kept (ties: nearer dead center). Rail costs less per mm than setback, so the rails move toward 219 mm until they reach the clamp limit; past it the setback band absorbs the miss.
+1. **Saddle**: every position in the assumed clamp window (1 mm steps) is priced by `brp_setback + rail_offset + seatpost_extension`, where published seat tube length is available. The cheapest wins (ties: nearer dead center). Beyond the clamp limit, the setback band absorbs the miss.
 2. **Cockpit**: every stock combination (stem lengths in 10 mm steps × −6°/0°/+6° × spacers 0–`max_spacer_mm` in 5 mm steps; 189 on the `mtb` catalog) is placed relative to the chosen BRP and priced by `handlebar_clamp_fit + stem_length + stem_angle + spacers`; the cheapest is kept (ties: smaller R). Past the hardware limits the oval absorbs the miss.
 
 Both totals are continuous in the frame geometry: each candidate's cost is continuous and the scan keeps their minimum. The closed-form 2×2 solve (`Stem/Spacer Fit`) still explains the result ("needs a 127 mm stem") and measures the excess past the hardware limits.
@@ -132,7 +132,7 @@ Built directly around the idmatch Bikelab report:
 - `stem_angle`: Free at `0°`; `1` point at `−6°` or `+6°`
 - `spacers`: Free `0–20 mm`; linear to `8` points at `max_spacer_mm` (`40 mm`)
 - `saddle_hb`, `saddle_hb_drop`: Display-only with no ranges. The cockpit target is the profile's explicit `CockpitTargetDistMm = 700` (from the BRP) and `CockpitTargetRiseMm = +3` (above the sit bones; `+13 mm` above the lowered SQlab 70 mm BRP plane)
-- `seatpost_extension`: Free `250–310 mm`; `0.18` points per mm below, `0.21` per mm above — Proxy for standover clearance and seatpost/dropper fitment: `SaddleHeightMm - SeatTubeLength`.
+- `seatpost_extension`: Free `250–310 mm`; `0.18` points per mm below, `0.21` per mm above — Axial extension estimate: solved seat-axis distance to the projected clamp minus published seat tube length. The projected clamp uses the BRP plane as its height datum, so this is a proxy rather than a direct hardware fit measurement.
 - `rc_wb_ratio`: Free `37–39 %` (`RearCenter / Wheelbase`); `4` points per percentage point either side
 - `bbdrop`: Free `65–75 mm`; `0.44` points per mm either side
 - `trail`: Free `98–106 mm`; `0.41` points per mm either side — Steering feel ground trail based on active HTA, fork rake, and 29x2.4" baseline tires (372mm wheel radius).

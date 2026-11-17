@@ -104,8 +104,12 @@ func TestBuildScene_DerivedMetricsAndCockpit(t *testing.T) {
 
 	// Seatpost extension
 	ext, ok := sc.SeatpostExtensionMm()
-	if !ok || math.Abs(ext-(746.0-450.0)) > 1e-9 {
-		t.Errorf("SeatpostExtensionMm = (%.4f, %v), want (296.0, true)", ext, ok)
+	// At zero clamp offset with level rails and no post setback, BRP is 32 mm
+	// forward of the clamp. Solve the circle on this straight 73° seat axis.
+	a := frame.StaDeg.Angle()
+	wantExtension := 32*a.Cos() + math.Sqrt(746*746-math.Pow(32*a.Sin(), 2)) - 450
+	if !ok || math.Abs(ext-wantExtension) > 1e-9 {
+		t.Errorf("SeatpostExtensionMm = (%.4f, %v), want (%.4f, true)", ext, ok, wantExtension)
 	}
 
 	// Direct cockpit point checks (StemClamp, HandGrip, GripDistFromBrpMm, GripRiseAboveSitBonesMm)

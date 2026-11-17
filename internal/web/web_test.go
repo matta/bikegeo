@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"math"
 	"net"
 	"net/http"
@@ -13,8 +14,13 @@ import (
 	"strings"
 	"testing"
 
+	"bikegeo/internal/canonicalizer"
+	"bikegeo/internal/catalog"
 	"bikegeo/internal/compare"
 	"bikegeo/internal/frames"
+	"bikegeo/internal/ideal"
+	"bikegeo/internal/model"
+	"bikegeo/internal/validator"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -1269,5 +1275,65 @@ func TestComputationLedger_BikeAndCompare(t *testing.T) {
 	}
 	if !strings.Contains(cmpBody, "Cheapest Stock Build") || !strings.Contains(cmpBody, "lost Oval Fits") {
 		t.Errorf("compare ledger missing itemised Cheapest Stock Build row:\n%s", cmpBody)
+	}
+}
+
+func TestLedgerAndWorkbenchUseSelectedSaddleGeometry(t *testing.T) {
+	frame, err := frames.GetFrameByID("salsa-fargo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	saddle, _ := catalog.GetSaddle("berthoud-aspin-open")
+	rider := catalog.DefaultRiderProfile()
+	rider.SaddleHeightMm = 760
+	prof := ideal.IdmatchProfile()
+	// The stock 483 mm fork uses a physical lower cup even though its A2C equals CAD.
+	row, err := canonicalizer.ResolveFrameForkSetupWithSaddle(*frame, model.ComparisonSetup{Size: "L"}, rider, saddle, validator.Catalog{
+		Forks: catalog.CommonForkCatalog, Stems: catalog.CommonStemCatalog,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := []model.CanonicalComparisonRow{row}
+	canonicalizer.ApplyIdealCockpitTargets(rows, prof)
+	row = rows[0]
+	sc, err := buildSceneForComparisonRow(row, prof, rider.SaddleHeightMm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sel := row.Canonical.SelectedBRP
+	stc := row.Canonical.SelectedHB
+	if sc.PitchDeg == 0 || sc.BRP.DistanceTo(sel.BrpPoint()) > 1e-9 || sc.EffectiveStaDeg != row.Canonical.ActiveSta {
+		t.Errorf("ledger scene disagrees with selected placement: pitch %v, BRP %+v vs %+v", sc.PitchDeg, sc.BRP, sel.BrpPoint())
+	}
+	wantH := math.Hypot(211, math.Sqrt(760*760-219*219)+10)
+	if math.Abs(sc.BRP.DistanceToOrigin()-wantH) > 1e-9 || sc.Fit.FrameSeatAxisHeightMm != rider.SaddleHeightMm {
+		t.Errorf("ledger did not carry the custom reference height to the Aspin: %+v", sc.Fit)
+	}
+	ext, ok := sc.SeatpostExtensionMm()
+	if !ok || math.Abs(ext-row.Canonical.SeatpostExtensionMm) > 1e-9 {
+		t.Errorf("ledger extension %.3f differs from scored extension %.3f", ext, row.Canonical.SeatpostExtensionMm)
+	}
+	if math.Hypot(sc.StemClamp.X-stc.ClampX, sc.StemClamp.Y-stc.ClampY) > 1e-9 {
+		t.Error("ledger stem clamp differs from selected cockpit")
+	}
+
+	rec, doc := do(t, "/bike?frame=salsa-fargo&size=L&saddle=berthoud-aspin-open&saddle_h=760")
+	mustStatus(t, rec, http.StatusOK)
+	ledger := doc.Find(`table[data-table="bike-ledger"]`)
+	for qty, want := range map[string]string{
+		"BB-to-BRP Saddle Height":     fmt.Sprintf("%.1f mm", wantH),
+		"Seatpost Extension Estimate": fmt.Sprintf("%.1f mm", ext),
+	} {
+		r := ledger.Find("tbody tr").FilterFunction(func(_ int, row *goquery.Selection) bool { return text(row.Find("td").Eq(1)) == qty })
+		if got := text(r.Find("td").Last()); got != want {
+			t.Errorf("/bike %s = %q, want %q", qty, got, want)
+		}
+	}
+	if got := doc.Find(`input[name="rail_off"]`).AttrOr("value", ""); got != formatFloatInput(sel.RailOffsetMm) {
+		t.Errorf("/bike default rail %q differs from selected stock rail %.1f", got, sel.RailOffsetMm)
+	}
+	if !strings.Contains(text(ledger), "Stock Rail Selection") {
+		t.Error("ledger missing rail costs")
 	}
 }

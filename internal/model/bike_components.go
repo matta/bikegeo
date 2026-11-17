@@ -304,6 +304,15 @@ func (p BRPPoint) BrpPoint() geom2d.Point2 {
 	return geom2d.Point2{X: p.BrpX, Y: p.BrpY}
 }
 
+// SeatpostExtension estimates exposed axial length to the projected clamp datum.
+// The published seat tube length is a collar proxy; absolute hardware stack is unknown.
+func (p BRPPoint) SeatpostExtension(seatTubeLengthMm float64) (float64, bool) {
+	if seatTubeLengthMm <= 0 || p.SeatAxisDistanceMm <= 0 {
+		return 0, false
+	}
+	return p.SeatAxisDistanceMm - seatTubeLengthMm, true
+}
+
 // SitBonePoint returns the 2D sit-bone support coordinate (SitBoneX, SitBoneY).
 // If SitBoneX and SitBoneY were not explicitly populated (e.g. in a struct literal),
 // it translates BrpPoint() via Saddle.SitBonePointFromBrp.

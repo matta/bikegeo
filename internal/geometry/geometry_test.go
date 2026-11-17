@@ -596,14 +596,14 @@ func TestEvaluateCockpitFitByCost(t *testing.T) {
 	// Nothing inside: the cheapest candidate is still selected and the miss is its R.
 	outside := []model.HBPoint{
 		ovalPoint(model.StemSpec{LengthMm: 90, AngleDeg: 0}, 0, 1.6),
-		ovalPoint(model.StemSpec{LengthMm: 100, AngleDeg: 0}, 0, 1.1),
+		ovalPoint(model.StemSpec{LengthMm: 100, AngleDeg: 0}, 0, 1.0002),
 	}
 	resZero := geometry.EvaluateCockpitFitByCost(outside, oval, "", model.Opt[model.HandlebarSpec]{}, byR)
 	if resZero.CountInside != 0 || resZero.HasFit {
 		t.Errorf("Expected 0 inside, got %d (HasFit=%v)", resZero.CountInside, resZero.HasFit)
 	}
-	if math.Abs(resZero.BestR-1.1) > 1e-3 {
-		t.Errorf("Expected BestR 1.1, got %.3f", resZero.BestR)
+	if math.Abs(resZero.BestR-1.0002) > 1e-9 {
+		t.Errorf("Expected unrounded BestR 1.0002 for a near miss, got %.6f", resZero.BestR)
 	}
 
 	// No candidates, or no cost: the empty result reports no fit.

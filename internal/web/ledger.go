@@ -14,7 +14,7 @@ import (
 	"bikegeo/internal/scoring"
 )
 
-func buildSceneForComparisonRow(row model.CanonicalComparisonRow, prof *ideal.Profile) (geometry.BikeScene, error) {
+func buildSceneForComparisonRow(row model.CanonicalComparisonRow, prof *ideal.Profile, referenceHeightMm float64) (geometry.BikeScene, error) {
 	frameSize, err := geometry.FrameSizeFromBikeGeometry(row.Bike)
 	if err != nil {
 		return geometry.BikeScene{}, err
@@ -22,24 +22,7 @@ func buildSceneForComparisonRow(row model.CanonicalComparisonRow, prof *ideal.Pr
 	if frameSize.ChainstayMm <= 0 {
 		frameSize.ChainstayMm = math.Max(430.0, math.Abs(frameSize.BbDropMm)+1.0)
 	}
-	buildFork := frameSize.CadFork
-	buildFork.RakeMm = row.EffectiveRake
-	buildSag := frameSize.CadSagPct
-	physicalLowerCup := frameSize.CadLowerCupMm
-	if row.Bike.CadFork.A2cMm <= 0 || math.Abs(row.EffectiveA2c-row.Bike.CadFork.A2cMm) > 1e-6 {
-		buildFork = geometry.Fork{StaticA2cMm: row.EffectiveA2c, RakeMm: row.EffectiveRake}
-		buildSag = 0
-		if row.Bike.HeadsetCupType.IsValid() {
-			physicalLowerCup = row.Bike.HeadsetCupType.CupStackMm()
-		}
-	}
-	build := geometry.BuildSpec{
-		Fork:               buildFork,
-		SagPct:             buildSag,
-		PhysicalLowerCupMm: physicalLowerCup,
-		WheelRadiusFrontMm: row.Bike.WheelRadiusMm(),
-		WheelRadiusRearMm:  row.Bike.WheelRadiusMm(),
-	}
+	build := geometry.ComparisonBuild(row.Bike, frameSize, model.Some(row.EffectiveA2c), row.EffectiveRake)
 	stem := model.StemSpec{LengthMm: 70, AngleDeg: -6}
 	spacer := 0.0
 	if row.Canonical.SelectedHB != nil {
@@ -84,16 +67,16 @@ func buildSceneForComparisonRow(row model.CanonicalComparisonRow, prof *ideal.Pr
 			target.Point = geom2d.Point2{X: ov.CenterX, Y: ov.CenterY}
 		}
 	}
-	saddleH := model.DefaultIdmatchSaddleHeightMm
-	refSitBones := model.ReferenceSitBonePoint(saddleH, model.DefaultTargetSitBoneSetbackMm())
-	brpH := saddle.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
-	fit := geometry.RiderFit{
-		FrameSeatAxisHeightMm: saddleH,
-		BrpHeightMm:           brpH,
-		TargetSitBonesXMm:     -model.DefaultTargetSitBoneSetbackMm(),
-		Target:                target,
-		ReferenceSaddle:       catalog.DefaultSaddle(),
-		ReferenceBar:          model.Some(catalog.DefaultHandlebar()),
+	fit := geometry.IdmatchSaddleFit(referenceHeightMm, saddle)
+	fit.Target = target
+	if prof != nil {
+		fit.ReferenceBar = prof.ReferenceBar
+	}
+	if cfr := row.Canonical.CockpitFitResult; cfr != nil {
+		fit.ReferenceBar = cfr.ReferenceBar
+	}
+	if !fit.ReferenceBar.IsSet() {
+		fit.ReferenceBar = model.Some(catalog.DefaultHandlebar())
 	}
 	return geometry.BuildScene(frameSize, build, cockpit, seat, fit)
 }
@@ -193,7 +176,7 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 		[]string{
 			"3. Rear Cockpit",
 			"Effective STA & Clamp",
-			"EffectiveSTA(ActualSTA, Ox, H_brp) + PostSetback",
+			"Solve |BRP − BB| = H_brp with post setback perpendicular to the seat axis",
 			fmt.Sprintf("Nominal %.2f°, H_brp %.1f mm, PostSB %.1f mm", sc.NominalStaDeg, sc.Fit.BrpHeightMm, sc.Seat.PostSetbackMm),
 			fmt.Sprintf("STA %.2f°, Clamp %s", sc.EffectiveStaDeg, pt(sc.SeatpostClamp)),
 		},
@@ -207,25 +190,32 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 		[]string{
 			"3. Rear Cockpit",
 			"SitBones & Workshop BRP",
-			"BRP = RailCenter + RailCenterToBrp; SitBones from BRP",
-			fmt.Sprintf("Saddle: %s", sc.Seat.Saddle.Name),
+			"BRP and SIT from rail center using the saddle’s rail angle",
+			fmt.Sprintf("%s, rail angle %+.1f°, selected clamp %+.1f mm", sc.Seat.Saddle.Name, sc.Seat.Saddle.RailPitchDeg, sc.Seat.RailOffsetMm),
 			fmt.Sprintf("SB %s, BRP %s", pt(sc.SitBones), pt(sc.BRP)),
 		},
 		[]string{
 			"3. Rear Cockpit",
 			"BB-to-BRP Saddle Height",
-			"H_brp (− SeatTubeLength when published)",
+			"|BRP − BB|",
+			pt(sc.BRP),
+			fmt.Sprintf("%.1f mm", sc.BRP.DistanceTo(sc.BB)),
+		},
+		[]string{
+			"3. Rear Cockpit",
+			"Seatpost Extension Estimate",
+			"Solved axial clamp distance − published seat tube length",
 			func() string {
-				if ext, ok := sc.SeatpostExtensionMm(); ok {
-					return fmt.Sprintf("H_brp %.1f − STL %.1f", sc.Fit.BrpHeightMm, sc.Fit.BrpHeightMm-ext)
+				if stl, ok := sc.Frame.SeatTubeLengthMm.Get(); ok {
+					return fmt.Sprintf("%.1f − %.1f mm", sc.SaddlePlacement.SeatAxisDistanceMm, stl)
 				}
-				return fmt.Sprintf("H_brp %.1f mm", sc.Fit.BrpHeightMm)
+				return "Seat tube length unavailable"
 			}(),
 			func() string {
 				if ext, ok := sc.SeatpostExtensionMm(); ok {
-					return fmt.Sprintf("H_brp %.1f mm (ext %.1f mm)", sc.Fit.BrpHeightMm, ext)
+					return fmt.Sprintf("%.1f mm", ext)
 				}
-				return fmt.Sprintf("H_brp %.1f mm", sc.Fit.BrpHeightMm)
+				return "—"
 			}(),
 		},
 		[]string{
@@ -275,17 +265,11 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 		solvedVal,
 	})
 
-	if cfr != nil && cfr.SelectedHB.Stem.LengthMm > 0 {
-		hbX, hbY := cfr.SelectedHB.HbX, cfr.SelectedHB.HbY
-		if cfr.TargetRef == model.TargetStemClamp {
-			hbX, hbY = cfr.SelectedHB.ClampX, cfr.SelectedHB.ClampY
-		}
-		// The cockpit scan keeps the stock build with the fewest points lost on
-		// these bands; show each band's share.
+	lossParts := func(ids ...ideal.MetricID) ([]string, float64) {
 		var parts []string
 		total := 0.0
 		if score != nil {
-			for _, id := range []ideal.MetricID{ideal.MetricHandlebarClampFit, ideal.MetricStemLength, ideal.MetricStemAngle, ideal.MetricSpacers} {
+			for _, id := range ids {
 				for _, cr := range score.Criteria {
 					if cr.ID == id && !cr.IsDisplayOnly && !cr.Missing {
 						parts = append(parts, fmt.Sprintf("%s %.1f", cr.Label, cr.PointsLost))
@@ -294,6 +278,18 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 				}
 			}
 		}
+		return parts, total
+	}
+	if parts, total := lossParts(ideal.MetricBrpSetback, ideal.MetricRailOffset, ideal.MetricSeatpostExtension); len(parts) > 0 {
+		rows = append(rows, []string{
+			"5. Fit Target & Solve", "Stock Rail Selection",
+			"Lowest points lost across stock rail positions",
+			strings.Join(parts, " + "), fmt.Sprintf("%.1f points lost", total),
+		})
+	}
+	if cfr != nil && cfr.SelectedHB.Stem.LengthMm > 0 {
+		eval := geometry.EvaluatedPointForHB(cfr.SelectedHB, cfr.TargetRef, cfr.ReferenceBar)
+		parts, total := lossParts(ideal.MetricHandlebarClampFit, ideal.MetricStemLength, ideal.MetricStemAngle, ideal.MetricSpacers)
 		lostStr := fmt.Sprintf("R=%.2f", cfr.BestR)
 		if len(parts) > 0 {
 			lostStr = fmt.Sprintf("R=%.2f; lost %s = %.1f", cfr.BestR, strings.Join(parts, " + "), total)
@@ -301,9 +297,9 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 		rows = append(rows, []string{
 			"5. Fit Target & Solve",
 			"Cheapest Stock Build",
-			"min over stem length × angle × spacers of Oval Fits 22 × max(0, R − 1) + Stem Length + Stem Angle + Spacers",
+			"min over stem length × angle × spacers of Oval Fits + Stem Length + Stem Angle + Spacers points lost",
 			fmt.Sprintf("Stem %.0fmm %+.0f° + %.0fmm sp (|Δ|=%.1f)",
-				cfr.SelectedHB.Stem.LengthMm, cfr.SelectedHB.Stem.AngleDeg, cfr.SelectedHB.SpacerMm, math.Hypot(hbX-cfr.TargetOval.CenterX, hbY-cfr.TargetOval.CenterY)),
+				cfr.SelectedHB.Stem.LengthMm, cfr.SelectedHB.Stem.AngleDeg, cfr.SelectedHB.SpacerMm, math.Hypot(eval.X-cfr.TargetOval.CenterX, eval.Y-cfr.TargetOval.CenterY)),
 			lostStr,
 		})
 	}

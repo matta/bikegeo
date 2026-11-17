@@ -240,11 +240,11 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "3 (#1)") {
 			t.Errorf("expected '3 (#1)' in output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "-149 (#2)") {
-			t.Errorf("expected '-149 (#2)' in output, got:\n%s", out)
+		if !strings.Contains(out, "-148 (#2)") {
+			t.Errorf("expected '-148 (#2)' in output, got:\n%s", out)
 		}
-		if !strings.Contains(out, "-150 (#3)") {
-			t.Errorf("expected '-150 (#3)' in output, got:\n%s", out)
+		if !strings.Contains(out, "-149 (#3)") {
+			t.Errorf("expected '-149 (#3)' in output, got:\n%s", out)
 		}
 	})
 
@@ -304,7 +304,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "Score,,3 (#1),-149 (#2),-150 (#3)") {
+		if !strings.Contains(out, "Score,,3 (#1),-148 (#2),-149 (#3)") {
 			t.Errorf("expected CSV Score row, got:\n%s", out)
 		}
 	})
@@ -315,7 +315,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut)
 		}
-		if !strings.Contains(out, "| Score |  | 3 (#1) | -149 (#2) | -150 (#3) |") {
+		if !strings.Contains(out, "| Score |  | 3 (#1) | -148 (#2) | -149 (#3) |") {
 			t.Errorf("expected Markdown Score row, got:\n%s", out)
 		}
 	})
@@ -346,7 +346,7 @@ func TestCompare_ScoringAndFlags(t *testing.T) {
 		if !strings.Contains(out, "Seat Axis–HT Drop: vertical drop from the Seat Axis Point to head tube top") {
 			t.Errorf("expected Seat Axis–HT Drop definition in footer, got:\n%s", out)
 		}
-		if !strings.Contains(out, "Seatpost Ext: Exposed seatpost length from collar to saddle rails") {
+		if !strings.Contains(out, "Seatpost Ext: Estimated exposed length along the seat axis") {
 			t.Errorf("expected Seatpost Ext definition in footer, got:\n%s", out)
 		}
 	})

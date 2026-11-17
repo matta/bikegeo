@@ -124,13 +124,13 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		refDefLines = append(refDefLines, "Chainstay (*): Asterisk indicates adjustable/sliding dropouts; displayed at maximum stay position (most rearward axle). RC / WB and Seat Axis–Rear Axle are calculated at this exact position.")
 	}
 	if state.SaddleHeightMm > 0 {
-		refDefLines = append(refDefLines, "H: the saddle height entered for the comparison. It is used both as the length along the seat-tube axis (Seat Axis Point) and as the radial BB-to-BRP distance (Saddle BRP).")
+		refDefLines = append(refDefLines, "H: reference radial saddle height. The frame-only Seat Axis Point uses the reference height; other saddles use a translated BB-to-BRP radius to preserve the modeled support point.")
 	}
 	if hasAttr("aett", "seat_to_rc", "sparevert") {
 		refDefLines = append(refDefLines, "Seat Axis Point: the point H mm from the BB center along the effective seat-tube axis (at-sag attitude). Frame-only: independent of saddle model, seatpost setback, rail position, stem and handlebar.")
 	}
 	if hasAttr("brp_setback", "saddle_hb", "saddle_hb_drop") {
-		refDefLines = append(refDefLines, "Saddle BRP: the selected saddle's 70mm Biomechanical Reference Point, placed H mm (radial) from the BB using seatpost setback and rail position. Depends on saddle and seatpost.")
+		refDefLines = append(refDefLines, "Saddle BRP: the selected saddle's 70mm Biomechanical Reference Point, placed at its target BB-to-BRP radius using seatpost setback and rail position.")
 	}
 	if hasAttr("ett") {
 		refDefLines = append(refDefLines, "ETT: horizontal distance from the head-tube top center (Reach/Stack point) back to the seat-tube axis at stack height; the industry-standard effective top tube. Independent of H, saddle, seatpost, stem and bar.")
@@ -148,7 +148,7 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 		refDefLines = append(refDefLines, "BRP Setback: horizontal distance from the BB center back to the Saddle BRP. BRP–HandGrip: distance from the Saddle BRP to the hand grip center (HandGrip); HandGrip Rise: hand grip height relative to the Sit Bones (both depend on saddle, stem and bar).")
 	}
 	if hasAttr("seatpost_extension") {
-		refDefLines = append(refDefLines, "Seatpost Ext: Exposed seatpost length from collar to saddle rails (available vertical height for dropper post fitment).")
+		refDefLines = append(refDefLines, "Seatpost Ext: Estimated exposed length along the seat axis, from the published seat tube length to the projected saddle clamp.")
 	}
 
 	var adjustableStayLines []string
@@ -211,6 +211,9 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 	saddleName := saddle.Name
 	refSitBones := model.ReferenceSitBonePoint(state.SaddleHeightMm, prof.TargetSitBoneSetbackMm.Or(model.DefaultTargetSitBoneSetbackMm()))
 	activeBrpH := saddle.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
+	if brp := rows[0].Canonical.SelectedBRP; brp != nil {
+		activeBrpH = brp.BrpPoint().DistanceToOrigin()
+	}
 	hText := fmt.Sprintf("%.0fmm", state.SaddleHeightMm)
 	if math.Abs(activeBrpH-state.SaddleHeightMm) >= 0.05 {
 		hText = fmt.Sprintf("%.1fmm (translated from %.0fmm)", activeBrpH, state.SaddleHeightMm)

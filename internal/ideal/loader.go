@@ -14,6 +14,9 @@ func IdmatchProfile() *Profile {
 	refSaddle := model.ReferenceIdmatchSaddle()
 	refBrp := refSaddle.BrpPointAtHeightAndSetback(model.DefaultIdmatchSaddleHeightMm, model.DefaultIdmatchBrpSetbackMm)
 	refSitBones := refSaddle.SitBonePointFromBrp(refBrp)
+	// The report's cockpit anchor is 13 mm above BRP. Express it in the
+	// profile's support-relative convention without shifting the report point.
+	const reportRiseAboveBrpMm = 13.0
 	p := &Profile{
 		Name:                   "idmatch",
 		Description:            "Biomechanical fit profile based on idmatch Bikelab report (BRP -> HandGrip)",
@@ -24,7 +27,7 @@ func IdmatchProfile() *Profile {
 		ReferenceSaddle:        refSaddle,
 		TargetRef:              model.TargetHandGrip,
 		CockpitTargetDistMm:    700,
-		CockpitTargetRiseMm:    3,
+		CockpitTargetRiseMm:    refBrp.Y + reportRiseAboveBrpMm - refSitBones.Y,
 		Attributes: []AttributeSpec{
 			{
 				ID:    "brp_setback",
@@ -157,7 +160,7 @@ func (p *Profile) ForSaddle(saddle model.SaddleSpec) *Profile {
 	if ref.ID == "" {
 		ref = model.ReferenceIdmatchSaddle()
 	}
-	if saddle.ID == ref.ID {
+	if saddle == ref {
 		return p
 	}
 
@@ -179,7 +182,7 @@ func (p *Profile) ForSaddle(saddle model.SaddleSpec) *Profile {
 // saddle's BRP to the hands, and their rise above the sit bones. For the reference
 // saddle these are CockpitTargetDistMm and CockpitTargetRiseMm. For another saddle
 // the hands keep their position relative to the sit bones, so the distance is
-// re-measured from that saddle's BRP (rounded to 0.1 mm); the rise is unchanged.
+// re-measured from that saddle's BRP; the rise is unchanged.
 // ok is false when the profile has no cockpit target.
 func (p *Profile) CockpitTarget(saddle model.SaddleSpec) (distMm, riseMm float64, ok bool) {
 	if p == nil || p.CockpitTargetDistMm <= 0 {
@@ -190,7 +193,7 @@ func (p *Profile) CockpitTarget(saddle model.SaddleSpec) (distMm, riseMm float64
 	if ref.ID == "" {
 		ref = model.ReferenceIdmatchSaddle()
 	}
-	if saddle.ID == "" || saddle.ID == ref.ID {
+	if saddle.ID == "" || saddle == ref {
 		return distMm, riseMm, true
 	}
 	refBrp := p.ReferenceBrp
@@ -205,9 +208,12 @@ func (p *Profile) CockpitTarget(saddle model.SaddleSpec) (distMm, riseMm float64
 
 	handY := sitBones.Y + riseMm
 	dyRef := handY - refBrp.Y
-	dxRef := math.Sqrt(math.Max(0, distMm*distMm-dyRef*dyRef))
+	if math.Abs(dyRef) > distMm {
+		return 0, 0, false
+	}
+	dxRef := math.Sqrt(distMm*distMm - dyRef*dyRef)
 	hand := geom2d.Point2{X: refBrp.X + dxRef, Y: handY}
-	return math.Round(hand.DistanceTo(targetBrp)*10) / 10, riseMm, true
+	return hand.DistanceTo(targetBrp), riseMm, true
 }
 
 // GetProfile looks up a compiled ideal profile by name (defaults to "idmatch" when empty).

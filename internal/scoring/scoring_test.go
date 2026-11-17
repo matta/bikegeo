@@ -1241,3 +1241,25 @@ func TestScoreAllRows_FittingSetupsRankAboveHigherScoringMisses(t *testing.T) {
 		t.Error("Better must put the fitting setup first whatever its points")
 	}
 }
+
+func TestScoreRowUsesOneSaddleTranslationForFitGate(t *testing.T) {
+	p := ideal.IdmatchProfile()
+	aspin, _ := catalog.GetSaddle("berthoud-aspin-open")
+	for _, tc := range []struct {
+		brp, radius float64
+		want        bool
+	}{
+		{220, 0.9, true},     // 9 mm from the Aspin target of 211, but 17 mm from a twice-shifted target.
+		{194, 0.9, false},    // 17 mm from the Aspin target, but only 9 mm from a twice-shifted target.
+		{211, 1.0002, false}, // A near miss is still outside the oval.
+	} {
+		row := model.CanonicalComparisonRow{Canonical: model.BikeFitAnalysis{
+			Saddle: aspin, SelectedBRP: &model.BRPPoint{BrpSetbackMm: tc.brp},
+			CockpitFitResult: &model.CockpitFitResult{BestR: tc.radius},
+		}}
+		got := ScoreRow(row, p)
+		if got.Fits != tc.want || Fits(row, p) != got.Fits {
+			t.Errorf("Aspin BRP %.1f, R %.4f: score gate %t, direct gate %t, want %t", tc.brp, tc.radius, got.Fits, Fits(row, p), tc.want)
+		}
+	}
+}

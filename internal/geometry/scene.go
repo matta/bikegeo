@@ -240,6 +240,19 @@ type RiderFit struct {
 	ReferenceBar model.Opt[model.HandlebarSpec]
 }
 
+// IdmatchSaddleFit carries the reference support point at the requested reference
+// BRP height onto the active saddle. Frame-only dimensions still use referenceHeightMm.
+func IdmatchSaddleFit(referenceHeightMm float64, saddle model.SaddleSpec) RiderFit {
+	ref := model.ReferenceIdmatchSaddle()
+	sit := model.ReferenceSitBonePoint(referenceHeightMm, model.DefaultTargetSitBoneSetbackMm())
+	return RiderFit{
+		FrameSeatAxisHeightMm: referenceHeightMm,
+		BrpHeightMm:           saddle.BrpPointFromSitBones(sit).DistanceToOrigin(),
+		TargetSitBonesXMm:     sit.X,
+		ReferenceSaddle:       ref,
+	}
+}
+
 // RequiredStemClamp converts fit.Target into the required 2D StemClamp coordinate C*
 // for the configured handlebar, grip inset, and roll.
 func RequiredStemClamp(fit RiderFit, cockpit CockpitSpec) (geom2d.Point2, error) {
@@ -756,13 +769,9 @@ func (s BikeScene) SolveStemSpacerFit(stemAngleDeg model.Deg) (StemSpacerFit, bo
 // TargetPointError returns RequiredStemClamp - StemClamp (equivalently TargetPoint - EvaluatedCockpitPoint).
 func (s BikeScene) TargetPointError() geom2d.Vec2 { return s.RequiredStemClamp.Sub(s.StemClamp) }
 
-// SeatpostExtensionMm returns BrpHeightMm minus nominal SeatTubeLengthMm if SeatTubeLengthMm was provided.
+// SeatpostExtensionMm estimates exposed axial length for the installed saddle.
 func (s BikeScene) SeatpostExtensionMm() (float64, bool) {
-	stl, ok := s.Frame.SeatTubeLengthMm.Get()
-	if !ok || stl <= 0 {
-		return 0, false
-	}
-	return s.Fit.BrpHeightMm - stl, true
+	return s.SaddlePlacement.SeatpostExtension(s.Frame.SeatTubeLengthMm.OrZero())
 }
 
 // RearCenterWheelbaseRatio returns RearCenter / Wheelbase.
