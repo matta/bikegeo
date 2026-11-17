@@ -17,25 +17,22 @@ const (
 // SaddleRailSolution is the checked immutable result of solving the saddle rail
 // clamp offset and axial seat-axis distance for a target BRP position.
 type SaddleRailSolution struct {
-	railOffsetMm float64
-	placement    assembly.SaddlePlacement
-	valid        bool
+	placement assembly.SaddlePlacement
+	valid     bool
 }
 
 func (s SaddleRailSolution) mustBeValid() {
 	if !s.valid {
 		panic("geometry: uninitialized or invalid SaddleRailSolution")
 	}
-	if !isFinite(s.railOffsetMm) {
-		panic(fmt.Sprintf("geometry: non-finite SaddleRailSolution rail offset %v", s.railOffsetMm))
-	}
+	_ = s.placement.RailOffsetMm()
 	_ = s.placement.BRP()
 }
 
 // RailOffsetMm returns the solved saddle rail clamp offset in mm.
 func (s SaddleRailSolution) RailOffsetMm() float64 {
 	s.mustBeValid()
-	return s.railOffsetMm
+	return s.placement.RailOffsetMm()
 }
 
 // Placement returns the verified forward-assembled SaddlePlacement.
@@ -296,9 +293,8 @@ func SolveSaddleForBRPTarget(
 	}
 
 	return SaddleRailSolution{
-		railOffsetMm: r,
-		placement:    placement,
-		valid:        true,
+		placement: placement,
+		valid:     true,
 	}, nil
 }
 
@@ -385,11 +381,10 @@ func SolveSaddleForBRPRadius(
 
 // BRPPointFromSaddlePlacement adapts a checked assembly.SaddlePlacement into a
 // legacy model.BRPPoint snapshot for existing consumers.
-func BRPPointFromSaddlePlacement(
-	s model.SaddleSpec,
-	postSetbackMm, railOffsetMm float64,
-	p assembly.SaddlePlacement,
-) model.BRPPoint {
+func BRPPointFromSaddlePlacement(p assembly.SaddlePlacement) model.BRPPoint {
+	s := p.SaddleSpec()
+	postSetbackMm := p.PostSetbackMm()
+	railOffsetMm := p.RailOffsetMm()
 	brp := p.BRP()
 	sit := p.SitBones()
 	return model.BRPPoint{
@@ -424,7 +419,7 @@ func SolveBRPPoint(
 	if err != nil {
 		return model.BRPPoint{}, err
 	}
-	return BRPPointFromSaddlePlacement(s, postSetbackMm, railOffsetMm, placement), nil
+	return BRPPointFromSaddlePlacement(placement), nil
 }
 
 // MapPossibleBRPs generates all candidate BRP points within s's modeled clamp

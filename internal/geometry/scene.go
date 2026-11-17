@@ -621,7 +621,7 @@ func BuildScene(
 	if err != nil {
 		return BikeScene{}, err
 	}
-	placement := BRPPointFromSaddlePlacement(seat.Saddle, seat.PostSetbackMm, seat.RailOffsetMm, saddlePlacement)
+	placement := BRPPointFromSaddlePlacement(saddlePlacement)
 	brp := saddlePlacement.BRP()
 	sb := saddlePlacement.SitBones()
 	seatpostClamp := saddlePlacement.SeatpostClamp()

@@ -114,7 +114,7 @@ func AnalyzeSaddleSwap(
 		return SaddleSwapReport{}, fmt.Errorf("source saddle centered STA: %w", err)
 	}
 	sourceSTA := sourceSol.EffStaDeg()
-	reference := BRPPointFromSaddlePlacement(source, seatpostSetbackMm, 0, sourceSol.Placement())
+	reference := BRPPointFromSaddlePlacement(sourceSol.Placement())
 	srcBrp := sourceSol.Placement().BRP()
 	translation, err := TranslateSaddleFit(reference, target, sourceSTA, clampLengthMm)
 	if err != nil {

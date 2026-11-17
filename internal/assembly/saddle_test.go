@@ -259,16 +259,80 @@ func TestSaddleZeroValueAndIgnoredErrorPanics(t *testing.T) {
 		var p assembly.SaddlePlacement
 		_ = p.AxialDistanceMm()
 	})
+	assertPanics(t, "zero SaddlePlacement SaddleSpec", func() {
+		var p assembly.SaddlePlacement
+		_ = p.SaddleSpec()
+	})
+	assertPanics(t, "zero SaddlePlacement PostSetbackMm", func() {
+		var p assembly.SaddlePlacement
+		_ = p.PostSetbackMm()
+	})
+	assertPanics(t, "zero SaddlePlacement RailOffsetMm", func() {
+		var p assembly.SaddlePlacement
+		_ = p.RailOffsetMm()
+	})
 	assertPanics(t, "ignored error SaddlePlacement", func() {
 		sa, _ := assembly.NewSeatAxis(geom2d.Origin(), 73)
 		m, _ := sa.WithSeatpostClamp(700, 0)
 		p, _ := m.AttachSaddle(validSaddle, math.NaN())
 		_ = p.BRP()
 	})
+	assertPanics(t, "ignored error SaddlePlacement SaddleSpec", func() {
+		sa, _ := assembly.NewSeatAxis(geom2d.Origin(), 73)
+		m, _ := sa.WithSeatpostClamp(700, 15)
+		p, _ := m.AttachSaddle(validSaddle, math.NaN())
+		_ = p.SaddleSpec()
+	})
 	assertPanics(t, "zero Saddle RailOffsetDirection", func() {
 		var s assembly.Saddle
 		_ = s.RailOffsetDirection()
 	})
+}
+
+func TestSaddlePlacementRetainsImmutableFactsAndSyntheticSpec(t *testing.T) {
+	// Synthetic geometric fixture without catalog ID or rail span metadata.
+	spec := model.SaddleSpec{
+		RailCenterToBrpMm:      32,
+		RailCenterToSitBonesMm: -48,
+		SitBonesElevationMm:    12,
+		RailPitchDeg:           5,
+	}
+	s, err := assembly.NewSaddle(spec)
+	if err != nil {
+		t.Fatalf("NewSaddle(synthetic): %v", err)
+	}
+	// Mutating the original spec must not affect s or subsequent placements.
+	spec.RailPitchDeg = -25
+	spec.RailCenterToBrpMm = 999
+	spec.ID = "mutated"
+
+	sa, err := assembly.NewSeatAxis(geom2d.Origin(), 73)
+	if err != nil {
+		t.Fatalf("NewSeatAxis: %v", err)
+	}
+	m, err := sa.WithSeatpostClamp(700, 15)
+	if err != nil {
+		t.Fatalf("WithSeatpostClamp: %v", err)
+	}
+	p, err := m.AttachSaddle(s, -8)
+	if err != nil {
+		t.Fatalf("AttachSaddle: %v", err)
+	}
+
+	got := p.SaddleSpec()
+	if got.RailPitchDeg != 5 || got.RailCenterToBrpMm != 32 || got.ID != "" {
+		t.Errorf("placement SaddleSpec() = %+v, want unmutated synthetic spec", got)
+	}
+	if p.PostSetbackMm() != 15 || p.RailOffsetMm() != -8 {
+		t.Errorf("placement adjustments = (post=%.1f, rail=%.1f), want (15, -8)", p.PostSetbackMm(), p.RailOffsetMm())
+	}
+
+	// Mutating the returned spec copy must not affect later calls.
+	got.RailPitchDeg = 45
+	got.RailCenterToSitBonesMm = 0
+	if again := p.SaddleSpec(); again.RailPitchDeg != 5 || again.RailCenterToSitBonesMm != -48 {
+		t.Errorf("placement SaddleSpec() was mutated via returned copy: %+v", again)
+	}
 }
 
 func TestSaddleRailOffsetDirection(t *testing.T) {

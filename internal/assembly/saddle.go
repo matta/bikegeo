@@ -69,9 +69,10 @@ func (s SeatAxis) WithSeatpostClamp(axialDistanceMm, postSetbackMm float64) (Sea
 		return SeatpostClampMount{}, err
 	}
 	return SeatpostClampMount{
-		clampPose: clampPose,
-		axialDist: axialDistanceMm,
-		valid:     true,
+		clampPose:     clampPose,
+		axialDist:     axialDistanceMm,
+		postSetbackMm: postSetbackMm,
+		valid:         true,
 	}, nil
 }
 
@@ -79,9 +80,10 @@ func (s SeatAxis) WithSeatpostClamp(axialDistanceMm, postSetbackMm float64) (Sea
 // ready to accept a Saddle.
 type SeatpostClampMount struct {
 	// Distinct field names prevent conversion to or from HeadTubeTop, StemBase, or BarClampMount.
-	clampPose pose2
-	axialDist float64
-	valid     bool
+	clampPose     pose2
+	axialDist     float64
+	postSetbackMm float64
+	valid         bool
 }
 
 func (m SeatpostClampMount) mustBeValid() {
@@ -92,16 +94,16 @@ func (m SeatpostClampMount) mustBeValid() {
 	if !isFinite(m.axialDist) || m.axialDist < 0 {
 		panic(fmt.Sprintf("assembly: invalid SeatpostClampMount axial distance %v", m.axialDist))
 	}
+	if !isFinite(m.postSetbackMm) || m.postSetbackMm < 0 {
+		panic(fmt.Sprintf("assembly: invalid SeatpostClampMount post setback %v", m.postSetbackMm))
+	}
 }
 
 // Saddle represents a validated saddle component in its own local coordinate frame
 // (origin at rail center, +X forward along rails toward nose, +Y normal toward cover).
 type Saddle struct {
-	railCenterToBrpMm      float64
-	railCenterToSitBonesMm float64
-	sitBonesElevationMm    float64
-	railPitchDeg           model.Deg
-	valid                  bool
+	spec  model.SaddleSpec
+	valid bool
 }
 
 // NewSaddle validates saddle geometry and rail pitch and constructs a Saddle component definition.
@@ -119,11 +121,8 @@ func NewSaddle(spec model.SaddleSpec) (Saddle, error) {
 		return Saddle{}, fmt.Errorf("saddle rail pitch must be finite, got %v°", spec.RailPitchDeg)
 	}
 	return Saddle{
-		railCenterToBrpMm:      spec.RailCenterToBrpMm,
-		railCenterToSitBonesMm: spec.RailCenterToSitBonesMm,
-		sitBonesElevationMm:    spec.SitBonesElevationMm,
-		railPitchDeg:           spec.RailPitchDeg,
-		valid:                  true,
+		spec:  spec,
+		valid: true,
 	}, nil
 }
 
@@ -131,8 +130,8 @@ func (s Saddle) mustBeValid() {
 	if !s.valid {
 		panic("assembly: uninitialized or invalid Saddle")
 	}
-	if !isFinite(s.railCenterToBrpMm) || !isFinite(s.railCenterToSitBonesMm) ||
-		!isFinite(s.sitBonesElevationMm) || !isFinite(float64(s.railPitchDeg)) {
+	if !isFinite(s.spec.RailCenterToBrpMm) || !isFinite(s.spec.RailCenterToSitBonesMm) ||
+		!isFinite(s.spec.SitBonesElevationMm) || !isFinite(float64(s.spec.RailPitchDeg)) {
 		panic("assembly: non-finite Saddle local coordinates")
 	}
 }
@@ -140,7 +139,7 @@ func (s Saddle) mustBeValid() {
 func (s Saddle) railPoseOn(base pose2) (pose2, error) {
 	s.mustBeValid()
 	// Positive rail pitch raises the nose (counter-clockwise in +X/+Y).
-	return base.rotateLocal(s.railPitchDeg.Angle())
+	return base.rotateLocal(s.spec.RailPitchDeg.Angle())
 }
 
 // RailOffsetDirection returns the checked unit vector along which increasing
@@ -166,7 +165,7 @@ func (s Saddle) railCenterPoseOn(base pose2, railOffsetMm float64) (pose2, geom2
 	if err != nil {
 		return pose2{}, geom2d.Point2{}, err
 	}
-	brp, err := railCenterPose.transformPoint(localVec{x: s.railCenterToBrpMm, y: 0})
+	brp, err := railCenterPose.transformPoint(localVec{x: s.spec.RailCenterToBrpMm, y: 0})
 	if err != nil {
 		return pose2{}, geom2d.Point2{}, err
 	}
@@ -192,12 +191,15 @@ func (m SeatpostClampMount) AttachSaddle(saddle Saddle, railOffsetMm float64) (S
 	if err != nil {
 		return SaddlePlacement{}, err
 	}
-	sitBones, err := railCenterPose.transformPoint(localVec{x: saddle.railCenterToSitBonesMm, y: saddle.sitBonesElevationMm})
+	sitBones, err := railCenterPose.transformPoint(localVec{x: saddle.spec.RailCenterToSitBonesMm, y: saddle.spec.SitBonesElevationMm})
 	if err != nil {
 		return SaddlePlacement{}, err
 	}
 
 	return SaddlePlacement{
+		spec:            saddle.spec,
+		postSetbackMm:   m.postSetbackMm,
+		railOffsetMm:    railOffsetMm,
 		seatpostClamp:   m.clampPose.origin,
 		railCenter:      railCenterPose.origin,
 		brp:             brp,
@@ -209,6 +211,9 @@ func (m SeatpostClampMount) AttachSaddle(saddle Saddle, railOffsetMm float64) (S
 
 // SaddlePlacement is the immutable solved placement of the seatpost clamp and saddle.
 type SaddlePlacement struct {
+	spec            model.SaddleSpec
+	postSetbackMm   float64
+	railOffsetMm    float64
 	seatpostClamp   geom2d.Point2
 	railCenter      geom2d.Point2
 	brp             geom2d.Point2
@@ -221,13 +226,35 @@ func (p SaddlePlacement) mustBeValid() {
 	if !p.valid {
 		panic("assembly: uninitialized or invalid SaddlePlacement")
 	}
-	if !isFinite(p.seatpostClamp.X) || !isFinite(p.seatpostClamp.Y) ||
+	if !isFinite(p.spec.RailCenterToBrpMm) || !isFinite(p.spec.RailCenterToSitBonesMm) ||
+		!isFinite(p.spec.SitBonesElevationMm) || !isFinite(float64(p.spec.RailPitchDeg)) ||
+		!isFinite(p.postSetbackMm) || p.postSetbackMm < 0 ||
+		!isFinite(p.railOffsetMm) ||
+		!isFinite(p.seatpostClamp.X) || !isFinite(p.seatpostClamp.Y) ||
 		!isFinite(p.railCenter.X) || !isFinite(p.railCenter.Y) ||
 		!isFinite(p.brp.X) || !isFinite(p.brp.Y) ||
 		!isFinite(p.sitBones.X) || !isFinite(p.sitBones.Y) ||
 		!isFinite(p.axialDistanceMm) {
 		panic("assembly: non-finite SaddlePlacement landmarks")
 	}
+}
+
+// SaddleSpec returns a copy of the saddle specification used to construct this placement.
+func (p SaddlePlacement) SaddleSpec() model.SaddleSpec {
+	p.mustBeValid()
+	return p.spec
+}
+
+// PostSetbackMm returns the perpendicular seatpost setback used to construct this placement.
+func (p SaddlePlacement) PostSetbackMm() float64 {
+	p.mustBeValid()
+	return p.postSetbackMm
+}
+
+// RailOffsetMm returns the rail clamp offset applied when mounting this saddle.
+func (p SaddlePlacement) RailOffsetMm() float64 {
+	p.mustBeValid()
+	return p.railOffsetMm
 }
 
 // SeatpostClamp returns the world coordinates of the projected seatpost clamp datum.

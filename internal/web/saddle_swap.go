@@ -343,7 +343,7 @@ func (db *docb) saddleSwap(v url.Values) int {
 				return 1
 			}
 			srcRailOffset := srcSol.RailOffsetMm()
-			reference := geometry.BRPPointFromSaddlePlacement(sourceSaddle, postSetback, srcRailOffset, srcSol.Placement())
+			reference := geometry.BRPPointFromSaddlePlacement(srcSol.Placement())
 			targetHeight := targetSaddle.BrpPointFromSitBones(reference.SitBonePoint()).DistanceToOrigin()
 			targetSTA := frameSize.EffectiveStaDegAt(targetHeight) - pitch
 			translated, err := geometry.TranslateSaddleFit(reference, targetSaddle, targetSTA, clampLength)

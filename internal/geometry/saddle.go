@@ -342,7 +342,7 @@ func TranslateSaddleFit(
 		return SaddleTranslationResult{}, fmt.Errorf("translate saddle fit: %w", err)
 	}
 	targetClamp := sol.RailOffsetMm()
-	targetPoint := BRPPointFromSaddlePlacement(targetSaddle, reference.SeatpostSetbackMm, targetClamp, sol.Placement())
+	targetPoint := BRPPointFromSaddlePlacement(sol.Placement())
 	return SaddleTranslationResult{
 		ReferenceSaddle:      reference.Saddle,
 		TargetSaddle:         targetSaddle,

@@ -850,3 +850,103 @@ func TestIdealAndCompromiseSTA_GeometryVsHardware(t *testing.T) {
 		t.Error("expected HasUniversalMargin=false for disjoint 3-saddle margin intervals")
 	}
 }
+
+func TestBRPPointFromSaddlePlacement_SingleSourceAndImmutable(t *testing.T) {
+	// Synthetic geometric fixture (no catalog ID or RailLengthMm) with nonzero pitch, nonzero post, signed rail offset.
+	orig := model.SaddleSpec{
+		Name:                   "Synthetic Pitched",
+		RailCenterToBrpMm:      32,
+		RailCenterToSitBonesMm: -48,
+		SitBonesElevationMm:    12,
+		RailPitchDeg:           -6,
+	}
+	specCopy := orig
+	axis, err := assembly.NewSeatAxis(geom2d.Origin(), 72)
+	if err != nil {
+		t.Fatalf("NewSeatAxis: %v", err)
+	}
+	clamp, err := axis.WithSeatpostClamp(680, 15)
+	if err != nil {
+		t.Fatalf("WithSeatpostClamp: %v", err)
+	}
+	saddle, err := assembly.NewSaddle(specCopy)
+	if err != nil {
+		t.Fatalf("NewSaddle: %v", err)
+	}
+	placement, err := clamp.AttachSaddle(saddle, -7.5)
+	if err != nil {
+		t.Fatalf("AttachSaddle: %v", err)
+	}
+
+	// Mutate original specCopy after construction; placement and exported snapshot must be unaffected.
+	specCopy.RailPitchDeg = 35
+	specCopy.RailCenterToBrpMm = 100
+	specCopy.Name = "Mutated"
+
+	snap1 := geometry.BRPPointFromSaddlePlacement(placement)
+	if snap1.Saddle != orig {
+		t.Errorf("exported Saddle = %+v, want %+v", snap1.Saddle, orig)
+	}
+	if snap1.SeatpostSetbackMm != 15 || snap1.RailOffsetMm != -7.5 || snap1.AchievedClampOffsetMm != -7.5 {
+		t.Errorf("exported adjustments = (post=%.1f, rail=%.1f, achieved=%.1f), want (15, -7.5, -7.5)",
+			snap1.SeatpostSetbackMm, snap1.RailOffsetMm, snap1.AchievedClampOffsetMm)
+	}
+	if snap1.Transform.RailPitchDeg != orig.RailPitchDeg {
+		t.Errorf("Transform.RailPitchDeg = %v, want %v", snap1.Transform.RailPitchDeg, orig.RailPitchDeg)
+	}
+	// Transform must reproduce BRP and SitBones landmarks within 1e-9 mm.
+	reproBRP := snap1.Transform.Point(orig.RailCenterToBrpMm, 0)
+	if d := reproBRP.DistanceTo(placement.BRP()); d > 1e-9 {
+		t.Errorf("Transform BRP residual = %.3e mm", d)
+	}
+	reproSit := snap1.Transform.Point(orig.RailCenterToSitBonesMm, orig.SitBonesElevationMm)
+	if d := reproSit.DistanceTo(placement.SitBones()); d > 1e-9 {
+		t.Errorf("Transform SitBones residual = %.3e mm", d)
+	}
+
+	// Mutating snap1 must not affect subsequent exports from the same placement.
+	snap1.Saddle.RailPitchDeg = 40
+	snap1.SeatpostSetbackMm = 99
+	snap1.BrpX = 0
+	snap2 := geometry.BRPPointFromSaddlePlacement(placement)
+	if snap2.Saddle != orig || snap2.SeatpostSetbackMm != 15 || snap2.BrpX != placement.BRP().X {
+		t.Errorf("subsequent export was affected by mutating snap1: %+v", snap2)
+	}
+
+	// All three solvers (radius, rail-offset with negative/zero/positive offsets, STA) export consistent facts.
+	radPlacement, err := geometry.SolveSaddleForBRPRadius(orig, 72, 746, 15, -4)
+	if err != nil {
+		t.Fatalf("SolveSaddleForBRPRadius: %v", err)
+	}
+	radSnap := geometry.BRPPointFromSaddlePlacement(radPlacement)
+	if radSnap.Saddle != orig || radSnap.SeatpostSetbackMm != 15 || radSnap.RailOffsetMm != -4 {
+		t.Errorf("radius snapshot mismatch: %+v", radSnap)
+	}
+
+	for _, wantOffset := range []float64{-10, 0, 10} {
+		probe, err := geometry.SolveSaddleForBRPRadius(orig, 72, 746, 15, wantOffset)
+		if err != nil {
+			t.Fatalf("probe SolveSaddleForBRPRadius(%.0f): %v", wantOffset, err)
+		}
+		railSol, err := geometry.SolveSaddleForBRPTarget(orig, 72, 746, -probe.BRP().X, 15)
+		if err != nil {
+			t.Fatalf("SolveSaddleForBRPTarget(%.0f): %v", wantOffset, err)
+		}
+		if math.Abs(railSol.RailOffsetMm()-wantOffset) > 1e-8 {
+			t.Errorf("SaddleRailSolution.RailOffsetMm() = %.9f, want %.1f", railSol.RailOffsetMm(), wantOffset)
+		}
+		railSnap := geometry.BRPPointFromSaddlePlacement(railSol.Placement())
+		if math.Abs(railSnap.RailOffsetMm-railSol.RailOffsetMm()) > 1e-12 || railSnap.Saddle != orig || railSnap.SeatpostSetbackMm != 15 {
+			t.Errorf("rail snapshot mismatch for offset %.0f: %+v", wantOffset, railSnap)
+		}
+	}
+
+	staSol, err := geometry.SolveSaddleSTAForBRPTarget(orig, 746, 219, 15, 6)
+	if err != nil {
+		t.Fatalf("SolveSaddleSTAForBRPTarget: %v", err)
+	}
+	staSnap := geometry.BRPPointFromSaddlePlacement(staSol.Placement())
+	if staSnap.Saddle != orig || staSnap.SeatpostSetbackMm != 15 || staSnap.RailOffsetMm != 6 {
+		t.Errorf("STA snapshot mismatch: %+v", staSnap)
+	}
+}
