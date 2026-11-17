@@ -61,11 +61,15 @@ func PlaceStem(headTubeTop geom2d.Point2, activeHtaDeg model.Deg, setup StemSetu
 
 	// Start at the head-tube top, oriented up the steerer.
 	p := newPose2(headTubeTop, steererHeading)
+	// Advance by upper cover and spacers.
 	p = p.advance(upperStackMm)
+	// Advance by half the stem clamp height; record steerer clamp center.
 	p = p.advance(halfClampMm)
 	steererClamp := p.origin
 
+	// Turn toward the stem extension, including the stated stem angle.
 	p = p.turn(stemExtensionTurn)
+	// Advance by stem length; record handlebar clamp center.
 	p = p.advance(setup.LengthMm)
 	barClamp := p.origin
 
