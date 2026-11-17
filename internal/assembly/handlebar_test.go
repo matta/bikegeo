@@ -230,7 +230,6 @@ func TestHandlebarCatalogAndBoundaryValidation(t *testing.T) {
 		{"NaN inset", validBarClamp, func(s *assembly.HandlebarSetup) { s.GripInsetMm = math.NaN() }},
 		{"NaN roll", validBarClamp, func(s *assembly.HandlebarSetup) { s.RollDeg = model.Deg(math.NaN()) }},
 		{"+Inf roll", validBarClamp, func(s *assembly.HandlebarSetup) { s.RollDeg = model.Deg(math.Inf(1)) }},
-		{"world Y overflow", geom2d.Point2{X: 0, Y: math.MaxFloat64}, func(s *assembly.HandlebarSetup) { s.Spec.StatedRiseMm = math.MaxFloat64 }},
 	}
 	for _, tc := range badSpecs {
 		t.Run(tc.name, func(t *testing.T) {

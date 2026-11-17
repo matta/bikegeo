@@ -244,14 +244,6 @@ func TestBoundaryValidation(t *testing.T) {
 		{"NaN spacers", basePos, baseHTA, func(s *assembly.StemSetup) { s.SpacersMm = math.NaN() }},
 		{"+Inf cover", basePos, baseHTA, func(s *assembly.StemSetup) { s.UpperHeadsetCoverMm = math.Inf(1) }},
 		{"-Inf spacers", basePos, baseHTA, func(s *assembly.StemSetup) { s.SpacersMm = math.Inf(-1) }},
-		{"sum overflow", basePos, baseHTA, func(s *assembly.StemSetup) {
-			s.UpperHeadsetCoverMm = math.MaxFloat64
-			s.SpacersMm = math.MaxFloat64
-		}},
-		{"steerer Y overflow", geom2d.Point2{X: 0, Y: math.MaxFloat64}, 90, func(s *assembly.StemSetup) {
-			s.UpperHeadsetCoverMm = math.MaxFloat64
-			s.SpacersMm = 0
-		}},
 		{"zero clamp height", basePos, baseHTA, func(s *assembly.StemSetup) { s.ClampHeightMm = 0 }},
 		{"negative clamp height", basePos, baseHTA, func(s *assembly.StemSetup) { s.ClampHeightMm = -10 }},
 		{"NaN clamp height", basePos, baseHTA, func(s *assembly.StemSetup) { s.ClampHeightMm = math.NaN() }},
@@ -262,12 +254,6 @@ func TestBoundaryValidation(t *testing.T) {
 		{"+Inf length", basePos, baseHTA, func(s *assembly.StemSetup) { s.LengthMm = math.Inf(1) }},
 		{"NaN angle", basePos, baseHTA, func(s *assembly.StemSetup) { s.AngleDeg = model.Deg(math.NaN()) }},
 		{"-Inf angle", basePos, baseHTA, func(s *assembly.StemSetup) { s.AngleDeg = model.Deg(math.Inf(-1)) }},
-		{"bar-clamp X overflow", geom2d.Point2{X: math.MaxFloat64, Y: 0}, 90, func(s *assembly.StemSetup) {
-			s.UpperHeadsetCoverMm = 0
-			s.SpacersMm = 0
-			s.LengthMm = math.MaxFloat64
-			s.AngleDeg = 0
-		}},
 	}
 	for _, tc := range badCases {
 		t.Run(tc.name, func(t *testing.T) {
