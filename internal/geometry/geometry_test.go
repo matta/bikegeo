@@ -301,7 +301,7 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	bar := catalog.DefaultHandlebar()
 
 	// BRP point with 0 offset matches bare seat tube top coordinates
-	brp, placementErr := model.SaddleSpec{}.CalculatePoint(staDeg, seatHeight, 0.0, 0.0)
+	brp, placementErr := geometry.SolveBRPPoint(model.SaddleSpec{}, staDeg, seatHeight, 0.0, 0.0)
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}
@@ -407,7 +407,7 @@ func TestMapPossibleHBs_CoversEveryStemAndSpacer(t *testing.T) {
 		},
 	}
 
-	brp, placementErr := model.SaddleSpec{}.CalculatePoint(staDeg, seatHeight, 0.0, 0.0)
+	brp, placementErr := geometry.SolveBRPPoint(model.SaddleSpec{}, staDeg, seatHeight, 0.0, 0.0)
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}
@@ -436,7 +436,7 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 	bar := catalog.DefaultHandlebar()
 
 	// Test 1: On a frame with STA = 72.9255° and 0 offset, BRP is exactly (-219.0, 713.0)
-	brpZero, placementErr := model.SaddleSpec{}.CalculatePoint(72.9255, seatHeight, 0.0, 0.0)
+	brpZero, placementErr := geometry.SolveBRPPoint(model.SaddleSpec{}, 72.9255, seatHeight, 0.0, 0.0)
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}
@@ -455,7 +455,7 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 
 	// Test 2: Radial distance invariance hypot(BrpX, BrpY) == seatHeight across various offsets
 	for _, railOffset := range []float64{-20.0, -10.0, 0.0, 5.0, 15.0, 20.0} {
-		brp, placementErr := refSaddle.CalculatePoint(74.0, seatHeight, model.DefaultSeatpostSetbackMm, railOffset)
+		brp, placementErr := geometry.SolveBRPPoint(refSaddle, 74.0, seatHeight, model.DefaultSeatpostSetbackMm, railOffset)
 		if placementErr != nil {
 			t.Fatal(placementErr)
 		}
@@ -507,7 +507,10 @@ func TestMapPossibleBRPs_And_SelectCheapestBRP(t *testing.T) {
 	seatHeight := 746.0
 	refSaddle := model.ReferenceIdmatchSaddle()
 
-	points := refSaddle.MapPossibleBRPs(staDeg, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
+	points, err := geometry.MapPossibleBRPs(refSaddle, staDeg, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// SQlab 610 with 30mm clamp: straight rails 60mm -> clamp window [-15, +15] in 1mm steps = 31 points
 	if len(points) != 31 {
 		t.Fatalf("Expected 31 candidate BRP points, got %d", len(points))
@@ -536,7 +539,10 @@ func TestMapPossibleBRPs_And_SelectCheapestBRP(t *testing.T) {
 	}
 
 	// 3. Target 219mm on steep STA=75.0° requires more rearward travel than the +15mm limit.
-	steepPoints := refSaddle.MapPossibleBRPs(75.0, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
+	steepPoints, err := geometry.MapPossibleBRPs(refSaddle, 75.0, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
+	if err != nil {
+		t.Fatal(err)
+	}
 	bestClamped, ok := geometry.SelectCheapestBRP(steepPoints, toSetback)
 	if !ok {
 		t.Fatalf("SelectCheapestBRP returned false for steep points")

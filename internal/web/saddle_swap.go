@@ -338,7 +338,7 @@ func (db *docb) saddleSwap(v url.Values) int {
 			stSetback := saddleHeight * frameSta.Angle().Cos()
 			srcBrpSetback := sourceSaddle.BrpSetbackFromSitBones(sitBoneSetback)
 			srcRailOffset := sourceSaddle.RailOffsetForBrpAtSta(frameSta, srcBrpSetback, saddleHeight, postSetback)
-			reference, err := sourceSaddle.CalculatePoint(frameSta, saddleHeight, postSetback, srcRailOffset)
+			reference, err := geometry.SolveBRPPoint(sourceSaddle, frameSta, saddleHeight, postSetback, srcRailOffset)
 			if err != nil {
 				db.fail("%v", err)
 				return 1

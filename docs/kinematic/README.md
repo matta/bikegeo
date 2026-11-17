@@ -1,12 +1,12 @@
 # Locally checkable bicycle assembly
 
-Status: the first production slice is implemented and reviewed on
+Status: the front-cockpit and rear-cockpit slices are implemented on
 `codex/checked-bicycle-assembly`. Commit `e25d28e` introduced checked stem
 assembly; `3622cc9` closed stage-conversion and mutable-identity loopholes.
 Commit `d1beda7` simplified stem completion; `45e67e2` added handlebar attachment
-and propagated handlebar errors. The next slice is designed below: separate
-forward saddle assembly from solving a requested BRP height. It is not yet
-implemented.
+and propagated handlebar errors. The saddle assembly and separate BRP-height
+solve slice designed below is also implemented, separating forward saddle
+placement in `internal/assembly` from the BRP-radius solver in `internal/geometry`.
 
 Read this before the seed documents, [Kinematic Assembly](KINEMATIC_ASSEMBLY.md)
 and [Kinematic Stronger](KINEMATIC_STRONGER.md). They were written independently

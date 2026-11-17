@@ -8,7 +8,7 @@ import (
 	"bikegeo/internal/model"
 )
 
-func TestSaddlePlacementIndependentAxes(t *testing.T) {
+func TestSaddleInverseAxes(t *testing.T) {
 	s := model.ReferenceIdmatchSaddle()
 	for _, sta := range []model.Deg{60, 70, 80} {
 		for _, pitch := range []model.Deg{model.LevelRailPitchDeg, -7, 12} {
@@ -21,20 +21,6 @@ func TestSaddlePlacementIndependentAxes(t *testing.T) {
 				clamp := geom2d.Point2{X: -axial*a.Cos() - post*a.Sin(), Y: axial*a.Sin() - post*a.Cos()}
 				center := geom2d.Point2{X: clamp.X - offset*p.Cos(), Y: clamp.Y - offset*p.Sin()}
 				brp := geom2d.Point2{X: center.X + 32*p.Cos(), Y: center.Y + 32*p.Sin()}
-				sit := geom2d.Point2{X: center.X - 48*p.Cos() - 10*p.Sin(), Y: center.Y - 48*p.Sin() + 10*p.Cos()}
-				got, err := s.CalculatePoint(sta, brp.DistanceToOrigin(), post, offset)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if got.BrpPoint().DistanceTo(brp) > 1e-9 || got.SitBonePoint().DistanceTo(sit) > 1e-9 || got.SeatpostClamp.DistanceTo(clamp) > 1e-9 || got.Transform.RailCenter.DistanceTo(center) > 1e-9 {
-					t.Errorf("STA %v pitch %v offset %v: landmarks disagree: %+v", sta, pitch, offset, got)
-				}
-				if math.Abs(got.SeatAxisDistanceMm-axial) > 1e-9 {
-					t.Error("incorrect solved seatpost extension")
-				}
-				if math.Abs(got.BrpPoint().DistanceToOrigin()-brp.DistanceToOrigin()) > 1e-9 {
-					t.Error("BRP radius changed")
-				}
 				rail := s.RailOffsetForBrpAtSta(sta, -brp.X, brp.DistanceToOrigin(), post)
 				if math.IsNaN(rail) || math.Abs(rail-offset) > 1e-9 {
 					t.Errorf("rail inverse = %g, want %g", rail, offset)
@@ -68,25 +54,8 @@ func TestSaddleTransformReferenceLandmarks(t *testing.T) {
 	}
 }
 
-func TestSaddlePlacementImpossibleGeometry(t *testing.T) {
+func TestSaddleInverseImpossibleGeometry(t *testing.T) {
 	s := model.ReferenceIdmatchSaddle()
-	for _, c := range []struct {
-		sta                model.Deg
-		height, post, rail float64
-		pitch              model.Deg
-	}{
-		{73, 10, 100, 0, 0}, // no radial intersection
-		{73, 0, 0, 0, 0}, {0, 746, 0, 0, 0}, {90, 746, 0, 0, 0},
-		{73, 746, 0, math.NaN(), 0}, {73, 746, 0, 0, model.Deg(math.NaN())},
-		{73, math.Inf(1), 0, 0, 0},
-		{73, 10, 0, 164, -73}, // rail parallel to seat axis; only negative extension reaches the circle
-	} {
-		s.RailPitchDeg = c.pitch
-		if _, err := s.CalculatePoint(c.sta, c.height, c.post, c.rail); err == nil {
-			t.Errorf("accepted impossible placement %+v", c)
-		}
-	}
-	s.RailPitchDeg = model.LevelRailPitchDeg
 	if got := s.RailOffsetForBrpAtSta(73, 800, 746, 0); !math.IsNaN(got) {
 		t.Errorf("impossible rail inverse = %v", got)
 	}
@@ -97,26 +66,5 @@ func TestSaddlePlacementImpossibleGeometry(t *testing.T) {
 	}
 	if got := s.StaForBrpAndOffset(800, 746, 0, 0); !math.IsNaN(float64(got)) {
 		t.Errorf("impossible STA inverse = %v", got)
-	}
-	if got := s.MapPossibleBRPs(73, 10, 100, 30); len(got) != 0 {
-		t.Error("impossible candidates survived")
-	}
-	if got := s.MapPossibleBRPs(73, 746, 0, 61); len(got) != 0 {
-		t.Error("overlong clamp produced a candidate")
-	}
-}
-
-func TestSaddleCandidatesStayWithinFractionalClampWindow(t *testing.T) {
-	s := model.ReferenceIdmatchSaddle()
-	const clampLength = 59.88 // 60 mm marks leave 0.06 mm on each side.
-	candidates := s.MapPossibleBRPs(73, 746, 0, clampLength)
-	if len(candidates) != 2 {
-		t.Fatalf("a window shorter than 1 mm should offer its two endpoints, got %d candidates", len(candidates))
-	}
-	for i, want := range []float64{-0.06, 0.06} {
-		got := candidates[i].RailOffsetMm
-		if math.Abs(got-want) > 1e-9 || !s.ClampFitsAt(clampLength, got) {
-			t.Errorf("candidate %d = %+.4f mm, want %+.4f mm inside the modeled window", i, got, want)
-		}
 	}
 }

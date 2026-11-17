@@ -123,7 +123,7 @@ func (db *docb) saddles(v url.Values) int {
 	refSitBones := model.ReferenceSitBonePoint(saddleHeight, sitBoneSetback)
 	if len(posArgs) == 0 {
 		refSTA := sqlab.IdealSeatTubeAngle(sitBoneSetback, saddleHeight, model.DefaultSeatpostSetbackMm)
-		reference, err := sqlab.CalculatePoint(refSTA, saddleHeight, model.DefaultSeatpostSetbackMm, 0)
+		reference, err := geometry.SolveBRPPoint(sqlab, refSTA, saddleHeight, model.DefaultSeatpostSetbackMm, 0)
 		if err != nil {
 			db.fail("%v", err)
 			return 1

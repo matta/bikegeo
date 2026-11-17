@@ -617,14 +617,15 @@ func BuildScene(
 
 	sa := frameSeatAxis.PointAt(fit.FrameSeatAxisHeightMm)
 
-	placement, err := seat.Saddle.CalculatePoint(effStaAct, fit.BrpHeightMm, seat.PostSetbackMm, seat.RailOffsetMm)
+	saddlePlacement, err := SolveSaddleForBRPRadius(seat.Saddle, effStaAct, fit.BrpHeightMm, seat.PostSetbackMm, seat.RailOffsetMm)
 	if err != nil {
 		return BikeScene{}, err
 	}
-	brp := placement.BrpPoint()
-	sb := placement.SitBonePoint()
-	seatpostClamp := placement.SeatpostClamp
-	railCenter := placement.Transform.RailCenter
+	placement := BRPPointFromSaddlePlacement(seat.Saddle, seat.PostSetbackMm, seat.RailOffsetMm, saddlePlacement)
+	brp := saddlePlacement.BRP()
+	sb := saddlePlacement.SitBones()
+	seatpostClamp := saddlePlacement.SeatpostClamp()
+	railCenter := saddlePlacement.RailCenter()
 
 	reqRailOff := seat.RailOffsetMm
 	if fit.TargetSitBonesXMm < 0 {

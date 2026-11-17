@@ -265,11 +265,14 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 	staDeg := model.Deg(71.5)
 	seatHeight := 746.0
 	saddle := model.ReferenceIdmatchSaddle()
-	deadCenterBRP, placementErr := saddle.CalculatePoint(staDeg, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
+	deadCenterBRP, placementErr := geometry.SolveBRPPoint(saddle, staDeg, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}
-	possibleBRPs := saddle.MapPossibleBRPs(staDeg, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
+	possibleBRPs, mapErr := geometry.MapPossibleBRPs(saddle, staDeg, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
+	if mapErr != nil {
+		t.Fatal(mapErr)
+	}
 
 	canonicalStem := model.StemSpec{LengthMm: 60, AngleDeg: -6}
 	maxSpacer := 30.0
@@ -324,11 +327,14 @@ func TestScoreRow_IdmatchFit(t *testing.T) {
 
 	// Verify that steep STA = 74.53° (Otso Fenrir) is properly penalized without a Drop Best
 	fenrirSTA := model.Deg(74.53)
-	fenrirDeadCenter, placementErr := saddle.CalculatePoint(fenrirSTA, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
+	fenrirDeadCenter, placementErr := geometry.SolveBRPPoint(saddle, fenrirSTA, seatHeight, model.DefaultSeatpostSetbackMm, 0.0)
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}
-	fenrirPossible := saddle.MapPossibleBRPs(fenrirSTA, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
+	fenrirPossible, mapErr := geometry.MapPossibleBRPs(saddle, fenrirSTA, seatHeight, model.DefaultSeatpostSetbackMm, model.DefaultSeatpostClampLengthMm)
+	if mapErr != nil {
+		t.Fatal(mapErr)
+	}
 	fenrirBike := bike
 	fenrirBike.StaDeg = fenrirSTA
 	fenrirRow := model.CanonicalComparisonRow{

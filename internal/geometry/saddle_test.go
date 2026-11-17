@@ -92,7 +92,7 @@ func TestTranslateSaddleFit_PreservesSupportLandmark(t *testing.T) {
 		for _, pitch := range []model.Deg{0, -6, 5} {
 			reference.RailPitchDeg = pitch
 			for _, offset := range []float64{-15, 0, 12} {
-				ref, err := reference.CalculatePoint(sta, 746, 11, offset)
+				ref, err := geometry.SolveBRPPoint(reference, sta, 746, 11, offset)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -230,7 +230,7 @@ func TestSaddleSpec_CalculatePoint_And_PelvicDerivation(t *testing.T) {
 	// 3. Vector math on 72.0° STA with an synthetic 11 mm perpendicular setback post; the baseline post is now zero-setback.
 	const postSetbackMm = 11.0
 	seatHeight := 746.0
-	pt72, placementErr := sqlab.CalculatePoint(72.0, seatHeight, postSetbackMm, 0.0)
+	pt72, placementErr := geometry.SolveBRPPoint(sqlab, 72.0, seatHeight, postSetbackMm, 0.0)
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}
@@ -242,14 +242,14 @@ func TestSaddleSpec_CalculatePoint_And_PelvicDerivation(t *testing.T) {
 	}
 
 	// 4. Steep 75.0° STA (Binary Kinetik) runs out of rearward rail travel
-	pt75DeadCenter, placementErr := sqlab.CalculatePoint(75.0, seatHeight, postSetbackMm, 0.0)
+	pt75DeadCenter, placementErr := geometry.SolveBRPPoint(sqlab, 75.0, seatHeight, postSetbackMm, 0.0)
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}
 	if math.Abs(pt75DeadCenter.BrpSetbackMm-173.8) > 0.5 {
 		t.Errorf("Expected 75.0° STA dead-center BRP ~173.8mm, got %.1fmm", pt75DeadCenter.BrpSetbackMm)
 	}
-	pt75MaxRail, placementErr := sqlab.CalculatePoint(75.0, seatHeight, postSetbackMm, 15.0)
+	pt75MaxRail, placementErr := geometry.SolveBRPPoint(sqlab, 75.0, seatHeight, postSetbackMm, 15.0)
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}
@@ -271,12 +271,12 @@ func TestIdealStaRoundTripsCalculatePoint(t *testing.T) {
 		for _, s := range saddles {
 			eqH := s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 			res := geometry.CalculateIdealSeatTubeAngle(s, targetSB, eqH, postSetback, "post", model.DefaultSeatpostClampLengthMm)
-			pt, placementErr := s.CalculatePoint(res.IdealStaDeg, eqH, postSetback, 0.0)
+			pt, placementErr := geometry.SolveBRPPoint(s, res.IdealStaDeg, eqH, postSetback, 0.0)
 			if placementErr != nil {
 				t.Fatal(placementErr)
 			}
 			if math.Abs(pt.SitBoneSetbackMm-targetSB) > 0.01 {
-				t.Errorf("%s post=%.0f: CalculatePoint(%.4f°, %.2f, %.0f, 0).SitBoneSetbackMm = %.4f, want %.1f",
+				t.Errorf("%s post=%.0f: SolveBRPPoint(%.4f°, %.2f, %.0f, 0).SitBoneSetbackMm = %.4f, want %.1f",
 					s.ID, postSetback, res.IdealStaDeg, eqH, postSetback, pt.SitBoneSetbackMm, targetSB)
 			}
 		}
@@ -284,7 +284,7 @@ func TestIdealStaRoundTripsCalculatePoint(t *testing.T) {
 		comp := geometry.CalculateUniversalCompromiseSTA(saddles, targetSB, baseSH, postSetback, "post", model.DefaultSeatpostClampLengthMm)
 		for i, s := range saddles {
 			eqH := s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
-			pt, placementErr := s.CalculatePoint(comp.CompromiseStaDeg, eqH, postSetback, comp.SaddleOffsets[i].OffsetMm)
+			pt, placementErr := geometry.SolveBRPPoint(s, comp.CompromiseStaDeg, eqH, postSetback, comp.SaddleOffsets[i].OffsetMm)
 			if placementErr != nil {
 				t.Fatal(placementErr)
 			}

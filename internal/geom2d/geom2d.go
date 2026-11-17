@@ -247,11 +247,6 @@ func (a Axis2) PointAt(axialDist float64) Point2 {
 	return a.Origin.Add(a.Direction.Scale(axialDist))
 }
 
-// PointWithOffset returns a point at axial distance along the axis, then offset by normalDist along the axis normal.
-func (a Axis2) PointWithOffset(axialDist, normalDist float64, turn TurnDirection) Point2 {
-	return a.PointAt(axialDist).Add(a.Normal(turn).Scale(normalDist))
-}
-
 // IntersectHorizontalLine finds the intersection of the axis with the horizontal line Y = y.
 // Returns false if the axis is parallel to the horizontal line (Direction.Y == 0).
 func (a Axis2) IntersectHorizontalLine(y float64) (Point2, bool) {

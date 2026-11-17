@@ -114,7 +114,7 @@ func AnalyzeSaddleSwap(
 		return SaddleSwapReport{}, fmt.Errorf("source BRP setback exceeds saddle height")
 	}
 	sourceSTA := source.StaForBrpAndOffset(srcBrpSetback, saddleHeightMm, seatpostSetbackMm, 0)
-	reference, err := source.CalculatePoint(sourceSTA, saddleHeightMm, seatpostSetbackMm, 0)
+	reference, err := SolveBRPPoint(source, sourceSTA, saddleHeightMm, seatpostSetbackMm, 0)
 	if err != nil {
 		return SaddleSwapReport{}, err
 	}

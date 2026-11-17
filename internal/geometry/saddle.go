@@ -272,7 +272,7 @@ func TranslateSaddleFit(
 	if !isFinite(targetClamp) {
 		return SaddleTranslationResult{}, fmt.Errorf("impossible saddle translation")
 	}
-	targetPoint, err := targetSaddle.CalculatePoint(staDeg, brp.DistanceToOrigin(), reference.SeatpostSetbackMm, targetClamp)
+	targetPoint, err := SolveBRPPoint(targetSaddle, staDeg, brp.DistanceToOrigin(), reference.SeatpostSetbackMm, targetClamp)
 	if err != nil {
 		return SaddleTranslationResult{}, err
 	}
