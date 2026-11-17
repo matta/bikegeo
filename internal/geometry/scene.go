@@ -419,11 +419,10 @@ func placeFrontCockpit(headTubeTop geom2d.Point2, htaDeg model.Deg, cockpit Cock
 	if err != nil {
 		return frontCockpitPoints{}, err
 	}
-	mountedStem, err := stemBase.AttachStem(stem)
+	placement, err := stemBase.AttachStem(stem)
 	if err != nil {
 		return frontCockpitPoints{}, err
 	}
-	placement := mountedStem.Finish()
 
 	steererClamp := placement.SteererClamp()
 	stemClamp := placement.BarClamp()

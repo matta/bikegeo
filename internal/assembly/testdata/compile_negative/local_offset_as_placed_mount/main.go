@@ -6,8 +6,8 @@ import (
 )
 
 func mountStem(base assembly.StemBase, stem assembly.Stem) assembly.StemPlacement {
-	ms, _ := base.AttachStem(stem)
-	return ms.Finish()
+	p, _ := base.AttachStem(stem)
+	return p
 }
 
 func main() {

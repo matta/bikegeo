@@ -33,11 +33,11 @@ func mustAssembleStem(
 	if err != nil {
 		t.Fatalf("NewStem(%v, %v, %v): %v", clampHeightMm, stemLengthMm, stemAngleDeg, err)
 	}
-	mounted, err := base.AttachStem(stem)
+	placement, err := base.AttachStem(stem)
 	if err != nil {
 		t.Fatalf("AttachStem: %v", err)
 	}
-	return mounted.Finish()
+	return placement
 }
 
 func assertPointNear(t *testing.T, label string, got, want geom2d.Point2, tol float64) {
@@ -215,17 +215,15 @@ func TestDimensionPropertiesAndImmutableReuse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mountedA, err := base1.AttachStem(stemA)
+	placeA, err := base1.AttachStem(stemA)
 	if err != nil {
 		t.Fatal(err)
 	}
-	placeA := mountedA.Finish()
 
-	mountedB, err := base1.AttachStem(stemB)
+	placeB, err := base1.AttachStem(stemB)
 	if err != nil {
 		t.Fatal(err)
 	}
-	placeB := mountedB.Finish()
 
 	// Both stems share the same steerer clamp center (same clamp height on same base).
 	assertPointNear(t, "shared SteererClamp", placeA.SteererClamp(), placeB.SteererClamp(), 1e-12)
@@ -249,11 +247,10 @@ func TestDimensionPropertiesAndImmutableReuse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mountedA2, err := base2.AttachStem(stemA)
+	placeA2, err := base2.AttachStem(stemA)
 	if err != nil {
 		t.Fatal(err)
 	}
-	placeA2 := mountedA2.Finish()
 
 	steerStep := geom2d.FromPolar(delta, (180.0 - hta).Angle())
 	assertPointNear(t, "SteererClamp+delta", placeA2.SteererClamp(), placeA.SteererClamp().Add(steerStep), 1e-11)
@@ -415,23 +412,26 @@ func TestZeroValueAndIgnoredErrorMisusePanics(t *testing.T) {
 		st, _ := assembly.NewStem(0, 80, 0)
 		_, _ = validSB.AttachStem(st)
 	})
-	assertPanics(t, "zero MountedStem Finish", func() {
-		var ms assembly.MountedStem
-		_ = ms.Finish()
-	})
-	assertPanics(t, "ignored error MountedStem Finish", func() {
-		htMax, _ := assembly.NewHeadTubeTop(geom2d.Point2{X: math.MaxFloat64, Y: 0}, 90)
-		sbMax, _ := htMax.WithUpperStack(0, 0)
-		stMax, _ := assembly.NewStem(40, math.MaxFloat64, 0)
-		ms, _ := sbMax.AttachStem(stMax)
-		_ = ms.Finish()
-	})
 	assertPanics(t, "zero StemPlacement SteererClamp", func() {
 		var p assembly.StemPlacement
 		_ = p.SteererClamp()
 	})
 	assertPanics(t, "zero StemPlacement BarClamp", func() {
 		var p assembly.StemPlacement
+		_ = p.BarClamp()
+	})
+	assertPanics(t, "ignored error StemPlacement SteererClamp", func() {
+		htMax, _ := assembly.NewHeadTubeTop(geom2d.Point2{X: math.MaxFloat64, Y: 0}, 90)
+		sbMax, _ := htMax.WithUpperStack(0, 0)
+		stMax, _ := assembly.NewStem(40, math.MaxFloat64, 0)
+		p, _ := sbMax.AttachStem(stMax)
+		_ = p.SteererClamp()
+	})
+	assertPanics(t, "ignored error StemPlacement BarClamp", func() {
+		htMax, _ := assembly.NewHeadTubeTop(geom2d.Point2{X: math.MaxFloat64, Y: 0}, 90)
+		sbMax, _ := htMax.WithUpperStack(0, 0)
+		stMax, _ := assembly.NewStem(40, math.MaxFloat64, 0)
+		p, _ := sbMax.AttachStem(stMax)
 		_ = p.BarClamp()
 	})
 }
@@ -446,16 +446,6 @@ func TestExternalCompileNegativeFixtures(t *testing.T) {
 			dir:      "headtube_attach_stem",
 			wantSub1: "HeadTubeTop",
 			wantSub2: "AttachStem",
-		},
-		{
-			dir:      "headtube_finish",
-			wantSub1: "HeadTubeTop",
-			wantSub2: "Finish",
-		},
-		{
-			dir:      "stembase_finish",
-			wantSub1: "StemBase",
-			wantSub2: "Finish",
 		},
 		{
 			dir:      "stembase_with_upper_stack",
@@ -473,24 +463,9 @@ func TestExternalCompileNegativeFixtures(t *testing.T) {
 			wantSub2: "to type assembly.HeadTubeTop",
 		},
 		{
-			dir:      "mounted_attach_stem",
-			wantSub1: "MountedStem",
-			wantSub2: "AttachStem",
-		},
-		{
-			dir:      "mounted_to_placement",
-			wantSub1: "cannot convert mounted",
-			wantSub2: "to type assembly.StemPlacement",
-		},
-		{
 			dir:      "local_offset_as_placed_mount",
 			wantSub1: "cannot use",
 			wantSub2: "assembly.StemBase",
-		},
-		{
-			dir:      "local_stem_as_mount",
-			wantSub1: "Stem",
-			wantSub2: "Finish",
 		},
 		{
 			dir:      "unexported_field_forge",
