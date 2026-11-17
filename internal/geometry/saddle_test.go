@@ -55,32 +55,34 @@ func TestSaddleSpec_Methods(t *testing.T) {
 
 	// 4. Clamp Windows with 45mm clamp (Drop Best) and 30mm clamp (standard)
 	// SQlab 60mm rail (-30 to +30): clamp center is [-7.5, +7.5] with 45mm clamp
-	sqMin45, sqMax45 := sqlab.ClampWindowMm(model.DropBestClampLengthMm)
+	sqMin45, sqMax45, _ := sqlab.ClampWindowMm(model.DropBestClampLengthMm)
 	if sqMin45 != -7.5 || sqMax45 != 7.5 {
 		t.Errorf("Expected SQlab 45mm clamp window [-7.5, +7.5], got [%.1f, %.1f]", sqMin45, sqMax45)
 	}
 	// SQlab 60mm rail with 30mm clamp: [-15.0, +15.0]
-	sqMin30, sqMax30 := sqlab.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
+	sqMin30, sqMax30, _ := sqlab.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
 	if sqMin30 != -15.0 || sqMax30 != 15.0 {
 		t.Errorf("Expected SQlab 30mm clamp window [-15.0, +15.0], got [%.1f, %.1f]", sqMin30, sqMax30)
 	}
 
 	// Berthoud Aspin 64mm rail: [-9.5, +9.5] with 45mm clamp
-	aspinMin, aspinMax := aspin.ClampWindowMm(model.DropBestClampLengthMm)
+	aspinMin, aspinMax, _ := aspin.ClampWindowMm(model.DropBestClampLengthMm)
 	if aspinMin != -9.5 || aspinMax != 9.5 {
 		t.Errorf("Expected Aspin 45mm clamp window [-9.5, +9.5], got [%.1f, %.1f]", aspinMin, aspinMax)
 	}
 
 	// Selle Italia SLR Boost 40mm rail:
 	// 30mm clamp: [-5.0, +5.0]
-	slrMin30, slrMax30 := slr.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
+	slrMin30, slrMax30, _ := slr.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
 	if slrMin30 != -5.0 || slrMax30 != 5.0 {
 		t.Errorf("Expected SLR Boost 30mm clamp window [-5.0, +5.0], got [%.1f, %.1f]", slrMin30, slrMax30)
 	}
-	// 45mm clamp: clamp length > rail length (incompatible -> [0.0, 0.0])
-	slrMin45, slrMax45 := slr.ClampWindowMm(model.DropBestClampLengthMm)
-	if slrMin45 != 0.0 || slrMax45 != 0.0 {
-		t.Errorf("Expected SLR Boost 45mm clamp window [0.0, 0.0], got [%.1f, %.1f]", slrMin45, slrMax45)
+	// 45 mm footprint exceeds the assumed span. The valid 40 mm footprint permits only the center.
+	if _, _, ok := slr.ClampWindowMm(model.DropBestClampLengthMm); ok || slr.ClampFitsAt(model.DropBestClampLengthMm, 0) {
+		t.Error("45 mm clamp should have no interval on the assumed 40 mm span")
+	}
+	if lo, hi, ok := slr.ClampWindowMm(40); !ok || lo != 0 || hi != 0 || !slr.ClampFitsAt(40, 0) {
+		t.Error("equal assumed span and footprint should allow exactly the center")
 	}
 }
 
@@ -105,7 +107,7 @@ func TestTranslateSaddleFit_PreservesSupportLandmark(t *testing.T) {
 					if target.ID == reference.ID && target.RailPitchDeg == reference.RailPitchDeg && math.Abs(result.TargetClampOffset-offset) > 1e-9 {
 						t.Error("same-saddle offset changed")
 					}
-					minClamp, maxClamp := target.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
+					minClamp, maxClamp, _ := target.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
 					wantFeasible := result.TargetClampOffset >= minClamp-0.001 && result.TargetClampOffset <= maxClamp+0.001
 					if result.IsFeasible != wantFeasible {
 						t.Error("incorrect clamp feasibility")
@@ -121,9 +123,9 @@ func TestCalculateIdealSeatTubeAngle(t *testing.T) {
 	targetSitBoneSetback := model.DefaultTargetSitBoneSetbackMm()
 	saddleHeight := 746.0
 
-	// 1. Redshift + Drop Best sagged (39mm hardware setback)
+	// 1. Illustrative 39 mm perpendicular setback
 	// Exact 2D inverse of CalculatePoint: angle of BRP minus its 32mm rail vector, plus the post correction = 73.57°
-	resFenrir := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 39.0, "Redshift + Drop Best (sagged)", model.DropBestClampLengthMm)
+	resFenrir := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 39.0, "39 mm perpendicular example", model.DropBestClampLengthMm)
 	if (resFenrir.IdealStaDeg - 73.57).Abs() > 0.05 {
 		t.Errorf("Expected IdealStaDeg ~ 73.57°, got %.2f°", resFenrir.IdealStaDeg)
 	}
@@ -140,10 +142,10 @@ func TestCalculateIdealSeatTubeAngle(t *testing.T) {
 		t.Errorf("Expected IdealStaDeg ~ 72.50° for 25mm post, got %.2f°", res25.IdealStaDeg)
 	}
 
-	// 4. Redshift suspension post sagged (11mm setback)
-	resRedshiftSag := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 11.0, "Redshift ShockStop (sagged)", model.DefaultSeatpostClampLengthMm)
+	// 4. Illustrative 11 mm perpendicular setback
+	resRedshiftSag := geometry.CalculateIdealSeatTubeAngle(sqlab, targetSitBoneSetback, saddleHeight, 11.0, "11 mm perpendicular example", model.DefaultSeatpostClampLengthMm)
 	if (resRedshiftSag.IdealStaDeg - 71.44).Abs() > 0.01 {
-		t.Errorf("Expected IdealStaDeg ~ 71.44° for Redshift sagged, got %.2f°", resRedshiftSag.IdealStaDeg)
+		t.Errorf("Expected IdealStaDeg ~ 71.44° for 11 mm perpendicular offset, got %.2f°", resRedshiftSag.IdealStaDeg)
 	}
 }
 
@@ -185,8 +187,8 @@ func TestCalculateUniversalCompromiseSTA(t *testing.T) {
 		t.Fatalf("Expected 3 saddle offsets, got %d", len(res15_3.SaddleOffsets))
 	}
 
-	// 3. Redshift + Drop Best sagged (39mm hardware setback) across 2 saddles vs 3 saddles
-	res39_2 := geometry.CalculateUniversalCompromiseSTA(saddles2, targetSitBoneSetback, saddleHeight, 39.0, "Redshift + Drop Best (sagged 39mm)", model.DropBestClampLengthMm)
+	// 3. Illustrative 39 mm perpendicular setback across 2 saddles vs 3 saddles
+	res39_2 := geometry.CalculateUniversalCompromiseSTA(saddles2, targetSitBoneSetback, saddleHeight, 39.0, "39 mm perpendicular example", model.DropBestClampLengthMm)
 	if (res39_2.CompromiseStaDeg - 73.55).Abs() > 0.01 {
 		t.Errorf("Expected CompromiseStaDeg ~ 73.55° for 39mm hardware setback, got %.2f°", res39_2.CompromiseStaDeg)
 	}
@@ -194,7 +196,7 @@ func TestCalculateUniversalCompromiseSTA(t *testing.T) {
 		t.Errorf("Expected MaxRailOffsetMm ~ 0.27mm, got %.2fmm", res39_2.MaxRailOffsetMm)
 	}
 
-	res39_3 := geometry.CalculateUniversalCompromiseSTA(saddles3, targetSitBoneSetback, saddleHeight, 39.0, "Redshift + Drop Best (sagged 39mm)", model.DropBestClampLengthMm)
+	res39_3 := geometry.CalculateUniversalCompromiseSTA(saddles3, targetSitBoneSetback, saddleHeight, 39.0, "39 mm perpendicular example", model.DropBestClampLengthMm)
 	if (res39_3.CompromiseStaDeg - 74.28).Abs() > 0.01 {
 		t.Errorf("Expected 3-saddle CompromiseStaDeg ~ 74.28° for 39mm hardware setback, got %.2f°", res39_3.CompromiseStaDeg)
 	}
@@ -225,10 +227,10 @@ func TestSaddleSpec_CalculatePoint_And_PelvicDerivation(t *testing.T) {
 		t.Errorf("Expected SLR Boost target BRP 216.0mm, got %.1fmm", slr.BrpSetbackFromSitBones(pelvicSetback))
 	}
 
-	// 3. Vector math on 72.0° STA with an explicit 11mm setback post (Redshift ShockStop sagged); the baseline post is now zero-setback.
-	const sag11PostSetbackMm = 11.0
+	// 3. Vector math on 72.0° STA with an synthetic 11 mm perpendicular setback post; the baseline post is now zero-setback.
+	const postSetbackMm = 11.0
 	seatHeight := 746.0
-	pt72, placementErr := sqlab.CalculatePoint(72.0, seatHeight, sag11PostSetbackMm, 0.0)
+	pt72, placementErr := sqlab.CalculatePoint(72.0, seatHeight, postSetbackMm, 0.0)
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}
@@ -240,14 +242,14 @@ func TestSaddleSpec_CalculatePoint_And_PelvicDerivation(t *testing.T) {
 	}
 
 	// 4. Steep 75.0° STA (Binary Kinetik) runs out of rearward rail travel
-	pt75DeadCenter, placementErr := sqlab.CalculatePoint(75.0, seatHeight, sag11PostSetbackMm, 0.0)
+	pt75DeadCenter, placementErr := sqlab.CalculatePoint(75.0, seatHeight, postSetbackMm, 0.0)
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}
 	if math.Abs(pt75DeadCenter.BrpSetbackMm-173.8) > 0.5 {
 		t.Errorf("Expected 75.0° STA dead-center BRP ~173.8mm, got %.1fmm", pt75DeadCenter.BrpSetbackMm)
 	}
-	pt75MaxRail, placementErr := sqlab.CalculatePoint(75.0, seatHeight, sag11PostSetbackMm, 15.0)
+	pt75MaxRail, placementErr := sqlab.CalculatePoint(75.0, seatHeight, postSetbackMm, 15.0)
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}

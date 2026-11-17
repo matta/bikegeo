@@ -177,10 +177,10 @@ func BuildDocument(res *Result, o DocOptions) (report.Document, error) {
 			targetSitBones := prof.TargetSitBoneSetbackMm.Or(model.DefaultTargetSitBoneSetbackMm())
 			targetBRP := saddle.BrpSetbackFromSitBones(targetSitBones)
 			footers = append(footers, report.Footer{
-				Title: "Biomechanical Pelvic Fit & Seatpost Baseline",
+				Title: "Modeled Saddle Support & Seatpost Baseline",
 				Lines: []string{
 					fmt.Sprintf("Modeled Support Landmark: Sit Bone Setback is %.0fmm behind BB (reference idmatch BRP %.0fmm + SQlab delta %.0fmm, assuming level rails).", targetSitBones, model.DefaultIdmatchBrpSetbackMm, model.ReferenceIdmatchSaddle().DeltaBrpToSitBonesMm()),
-					"Seatpost Hardware Baseline: Hardcoded to a zero-setback dropper post (0mm setback). Fork length or a setback post is never used as a fit fix.",
+					"Seatpost Hardware Baseline: The comparison assumes a zero-setback dropper post. The idmatch transfer was measured with the rider’s Redshift post uncompressed.",
 					fmt.Sprintf("Active Saddle Target: %s has BRP %.0fmm behind BB (Delta BRP-to-SitBones = %.0fmm).", saddle.Name, targetBRP, saddle.DeltaBrpToSitBonesMm()),
 				},
 			})

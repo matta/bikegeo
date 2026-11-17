@@ -192,12 +192,10 @@ type SeatSpec struct {
 	RailOffsetMm  float64
 }
 
-// HalfRailWindowMm returns half the usable straight rail travel window in mm.
+// HalfRailWindowMm returns half the modeled travel for a valid scene's clamp.
 func (s SeatSpec) HalfRailWindowMm() float64 {
-	if s.Saddle.RailLengthMm <= s.ClampLengthMm {
-		return 0
-	}
-	return (s.Saddle.RailLengthMm - s.ClampLengthMm) / 2.0
+	_, half, _ := s.Saddle.ClampWindowMm(s.ClampLengthMm)
+	return half
 }
 
 // RiderTarget groups the cockpit target coordinate with the physical point it describes.
@@ -920,6 +918,9 @@ func validateSceneInputs(
 	}
 	if !isNonNegative(seat.PostSetbackMm) || !isPositive(seat.ClampLengthMm) || !isPositive(seat.Saddle.RailLengthMm) || !isFinite(seat.RailOffsetMm) || !isFinite(float64(seat.Saddle.RailPitchDeg)) {
 		return fmt.Errorf("invalid SeatSpec (postSB=%.1f clamp=%.1f railLen=%.1f railOff=%.1f)", seat.PostSetbackMm, seat.ClampLengthMm, seat.Saddle.RailLengthMm, seat.RailOffsetMm)
+	}
+	if _, _, ok := seat.Saddle.ClampWindowMm(seat.ClampLengthMm); !ok {
+		return fmt.Errorf("%.1f mm clamp exceeds the assumed %.1f mm rail span", seat.ClampLengthMm, seat.Saddle.RailLengthMm)
 	}
 	if !isPositive(fit.FrameSeatAxisHeightMm) || !isPositive(fit.BrpHeightMm) {
 		return fmt.Errorf("RiderFit FrameSeatAxisHeightMm (%.1f) and BrpHeightMm (%.1f) must be positive", fit.FrameSeatAxisHeightMm, fit.BrpHeightMm)

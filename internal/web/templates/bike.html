@@ -25,8 +25,8 @@
 <label>Stem ang <input type="number" step="any" name="stem_ang" value="{{.StemAng}}"></label>
 <label>Spacers <input type="number" step="any" name="spacer" value="{{.Spacer}}"></label>
 <label>Bar roll <input type="number" step="any" name="bar_roll" value="{{.BarRoll}}"></label>
-<label>Post SB <input type="number" step="any" name="post_sb" value="{{.PostSB}}"></label>
-<label>Rail off <input type="number" step="any" name="rail_off" value="{{.RailOff}}"></label>
+<label>Post setback (perpendicular) <input type="number" step="any" name="post_sb" value="{{.PostSB}}"></label>
+<label>Clamp station <input type="number" step="any" name="rail_off" value="{{.RailOff}}"></label>
 <label>Target X <input type="number" step="any" name="target_x" value="{{.TargetX}}"></label>
 <label>Target Y <input type="number" step="any" name="target_y" value="{{.TargetY}}"></label>
 </fieldset>
@@ -56,10 +56,11 @@
 <p class="zoom-legend">Gray dots: <strong>{{.TargetRefLabel}}</strong> (X, Y) for each allowed stock stem × spacer (5 mm steps). Dashed blue boxes: reachable [min..max] stem × [0..max] spacer envelope per angle. Green oval: FitOval centered on TargetPoint. Large accent dot: the cheapest stock build, chosen by pricing every stem length × angle × spacer stack on the Oval Fits, Stem Length, Stem Angle and Spacers bands.</p>
 </figure>
 <figure class="zoom-panel">
-<figcaption>Panel C: Rear Saddle &amp; Seatpost Rail Zoom (Usable Rail Window &amp; BRP)</figcaption>
-<svg class="zoom-svg saddle-zoom-svg" viewBox="{{.SaddleSVG.ViewBox}}" role="img" aria-label="Rear saddle and rail zoom blueprint">
+<figcaption>Panel C: Saddle landmarks and assumed clamp window</figcaption>
+<svg class="zoom-svg saddle-zoom-svg" viewBox="{{.SaddleSVG.ViewBox}}" role="img" aria-label="Projected clamp, rail center, BRP, and SIT">
 {{template "bike_svg_body" .SaddleSVG}}
 </svg>
+<p>The rail center and clamp are projected onto the BRP plane. The window uses the catalog rail span and assumed clamp footprint shown in the ledger. The comparison starts with a zero-setback dropper.</p>
 </figure>
 </div>
 </section>

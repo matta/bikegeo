@@ -1,6 +1,6 @@
 # SQlab Saddle Geometry and Rider-Fit Update Plan
 
-Status: steps 1–4 completed on 2026-11-16. The corrected rail geometry now feeds saddle targets, stock selection, scoring and the computation ledger. Steps 5–7 remain planned.
+Status: steps 1–5 completed on 2026-11-16. Steps 6 and 7 remain.
 
 ## Established inputs and boundaries
 
@@ -78,20 +78,24 @@ The rail scan now prices the existing seatpost extension band at each candidate'
 
 The comparison ledger and `/bike` use the same translated height and physical fork/cup configuration as stock analysis; `/bike` opens on the selected rail for the default post. Independent checks cover the report anchors, nonzero assumed rail pitch, near-edge fit gating, the minimum-cost stock build and ledger agreement. `go vet ./... && go test ./...`, `make pre-commit` and the runtime-dependency audit pass. Scoring costs, free ranges, tie rules and published frame geometry are unchanged. Step 5 still covers the saddle diagram and the wider presentation and hardware assumption audit.
 
-## 5. Update diagrams, descriptions and hardware assumptions
+## 5. Update diagrams, descriptions and hardware assumptions (completed 2026-11-16)
 
 Affected starting points: `internal/web/saddles.go`, `internal/web/saddle_swap.go`, `internal/web/pages.go`, `internal/web/bike_diagram.go`, `internal/web/ledger.go`, `internal/ideal/readme.md`.
 
-- Draw rail windows, clamp, rail center, BRP and SIT using the shared transform. Remove the diagram's independent reconstruction of rails as perpendicular to the seat tube. Explain the coordinate calculation in the ledger using the same convention.
-- Replace claims such as “True Pelvic Alignment”, exact physiological leg-extension preservation and unconditional framebuilder guarantees with descriptions of preserving the modeled support landmark. Name any BB-to-SIT distance as a geometric proxy.
-- Generate saddle comparison explanations from the current data instead of hard-coded `-50`, 73 mm, 5.5 mm or STA examples. Refresh all derived heights, cockpit distances and compromise-STA examples after the geometry correction.
-- Distinguish the measured 60 mm marking span from verified usable clamping length. Label windows calculated from rail span and clamp footprint as conditional on those assumptions. A marking endpoint alone does not prove a particular clamp fits there.
-- Review the incompatible-clamp case: a clamp longer than the assumed usable rail segment must not be reported as feasible merely because the current window helper returns `[0, 0]`.
-- Label the fixed Redshift static/sagged and Redshift-plus-Drop-Best examples as hardware assumptions or illustrative cases, not measurements of Matt's setup. Audit the offset arithmetic against the documented nominal 27 mm adapter offset while keeping horizontal and seat-perpendicular conventions distinct. Do not apply an invented sag correction to the transferred fit.
-- Refresh form hints and descriptions that currently say “default 292”. Clarify that the default zero-setback dropper is a comparison assumption, not Matt's confirmed Redshift equipment.
-- Update `internal/ideal/readme.md` with the new data, formulas, terminology and provenance. Replace obsolete saddle CLI references with the existing web routes; do not add saddle CLI commands.
+- [x] Draw rail windows, clamp, rail center, BRP and SIT using the shared transform. Remove the diagram's independent reconstruction of rails as perpendicular to the seat tube. Explain the coordinate calculation in the ledger using the same convention.
+- [x] Replace claims such as “True Pelvic Alignment”, exact physiological leg-extension preservation and unconditional framebuilder guarantees with descriptions of preserving the modeled support landmark. Name any BB-to-SIT distance as a geometric proxy.
+- [x] Generate saddle comparison explanations from the current data instead of hard-coded `-50`, 73 mm, 5.5 mm or STA examples. Refresh all derived heights, cockpit distances and compromise-STA examples after the geometry correction.
+- [x] Distinguish the measured 60 mm marking span from verified usable clamping length. Label windows calculated from rail span and clamp footprint as conditional on those assumptions. A marking endpoint alone does not prove a particular clamp fits there.
+- [x] Review the incompatible-clamp case: a clamp longer than the assumed usable rail segment must not be reported as feasible merely because the current window helper returns `[0, 0]`.
+- [x] Label the fixed Redshift static/sagged and Redshift-plus-Drop-Best examples as hardware assumptions or illustrative cases, not measurements of Matt's setup. Audit the offset arithmetic against the documented nominal 27 mm adapter offset while keeping horizontal and seat-perpendicular conventions distinct. Do not apply an invented sag correction to the transferred fit.
+- [x] Refresh form hints and descriptions that currently say “default 292”. Clarify that the default zero-setback dropper is a comparison assumption, not Matt's confirmed Redshift equipment.
+- [x] Update `internal/ideal/readme.md` with the new data, formulas, terminology and provenance. Replace obsolete saddle CLI references with the existing web routes; do not add saddle CLI commands.
 
-Acceptance: diagrams and ledgers agree numerically with geometry, all derived prose reflects current data, and modeled fit or hardware feasibility is not presented as independently measured rider fit or verified clamp compatibility.
+Acceptance met. The saddle zoom and ledger use the same projected clamp, rail center, BRP and SIT coordinates. The clamp model distinguishes no interval from a valid center-only interval. The saddle pages show estimates and required clamp stations, including the offsets that fall outside the assumed windows. The swap page derives BRP-to-cockpit distance from the selected source saddle and identifies BB-to-SIT distance as a geometric proxy.
+
+The hardware examples use Redshift's nominal 7 mm static and 12 mm at 25% travel, with FAIR's nominal 27 mm added in the rearward adapter examples. Treating those specs as horizontal is an explicit model assumption. The example solver applies 34 and 39 mm horizontally and keeps the seat-perpendicular convention for generic posts. The adapter example assumes a 45 mm footprint. The reference support point still comes from the unsagged same-saddle transfer. Sources and the corrected rail-axis equations are in [the ideal profile documentation](../internal/ideal/readme.md).
+
+Browserless checks cover the rendered rail endpoints and ledger, source-specific cockpit distances, nominal hardware examples and the center-only versus overlong clamp case. `go vet ./... && go test ./...`, `make pre-commit`, and the runtime dependency audit pass.
 
 ## 6. Record the Seven fit-sheet discrepancy
 

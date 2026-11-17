@@ -17,6 +17,7 @@ type IdealStaResult struct {
 	TargetRailCenterSetbackMm float64
 	SeatTubeSetbackMm         float64
 	IdealStaDeg               model.Deg // STA with saddle clamped dead-center (0.0mm)
+	HasClampWindow            bool
 	MinStaDeg                 model.Deg // Slackest STA within clamp window
 	MaxStaDeg                 model.Deg // Steepest STA within clamp window
 	IdealMarginMinStaDeg      model.Deg // Slackest STA within ±5mm ideal rail margin
@@ -73,6 +74,7 @@ func CalculateUniversalCompromiseSTA(
 	var minSta0, maxSta0 model.Deg
 	var univMarginMin, univMarginMax model.Deg
 	marginInit := false
+	allClampsFit := true
 
 	for i, s := range saddles {
 		eqSH := s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
@@ -80,8 +82,11 @@ func CalculateUniversalCompromiseSTA(
 		fits[i] = saddleFit{spec: s, eqSH: eqSH, targetBrp: targetBrp}
 
 		sta0 := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, 0.0)
-		mMin := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, model.SaddleRailIdealMarginMm)
-		mMax := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, -model.SaddleRailIdealMarginMm)
+		_, half, fitsClamp := s.ClampWindowMm(clampLengthMm)
+		allClampsFit = allClampsFit && fitsClamp
+		margin := min(half, model.SaddleRailIdealMarginMm)
+		mMin := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, margin)
+		mMax := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, -margin)
 		if mMin > mMax {
 			mMin, mMax = mMax, mMin
 		}
@@ -145,7 +150,7 @@ func CalculateUniversalCompromiseSTA(
 	loR, hiR := offsetBounds(compSTA)
 	maxOffset := math.Max(math.Abs(loR), math.Abs(hiR))
 
-	hasUnivMargin := marginInit && univMarginMin <= univMarginMax
+	hasUnivMargin := allClampsFit && marginInit && univMarginMin <= univMarginMax
 	var uMinSTA, uMaxSTA model.Deg
 	if hasUnivMargin {
 		uMinSTA = univMarginMin
@@ -207,14 +212,14 @@ func CalculateIdealSeatTubeAngle(
 	// 2. Clamp window bounds:
 	// Clamping forward on rails (positive rail offset) pushes saddle body rearward relative to clamp,
 	// requiring steeper STA to keep BRP setback unchanged.
-	minClamp, maxClamp := saddle.ClampWindowMm(clampLengthMm)
+	minClamp, maxClamp, hasWindow := saddle.ClampWindowMm(clampLengthMm)
 	sta1 := staForOffset(minClamp)
 	sta2 := staForOffset(maxClamp)
 	slackestSTA := min(sta1, sta2)
 	steepestSTA := max(sta1, sta2)
 
-	marginMinClamp := -model.SaddleRailIdealMarginMm
-	marginMaxClamp := model.SaddleRailIdealMarginMm
+	marginMinClamp := max(minClamp, -model.SaddleRailIdealMarginMm)
+	marginMaxClamp := min(maxClamp, model.SaddleRailIdealMarginMm)
 	mSta1 := staForOffset(marginMinClamp)
 	mSta2 := staForOffset(marginMaxClamp)
 	marginSlackSTA := min(mSta1, mSta2)
@@ -229,6 +234,7 @@ func CalculateIdealSeatTubeAngle(
 		TargetRailCenterSetbackMm: Round(railCenterSetback, 1),
 		SeatTubeSetbackMm:         Round(stSetback, 1),
 		IdealStaDeg:               idealSTA,
+		HasClampWindow:            hasWindow,
 		MinStaDeg:                 slackestSTA,
 		MaxStaDeg:                 steepestSTA,
 		IdealMarginMinStaDeg:      marginSlackSTA,
@@ -236,7 +242,7 @@ func CalculateIdealSeatTubeAngle(
 	}
 }
 
-// SaddleTranslationResult encapsulates the cross-saddle translation for pelvic equivalence.
+// SaddleTranslationResult encapsulates the cross-saddle translation for a preserved modeled support point.
 type SaddleTranslationResult struct {
 	ReferenceSaddle      model.SaddleSpec
 	TargetSaddle         model.SaddleSpec
@@ -246,8 +252,6 @@ type SaddleTranslationResult struct {
 	SitBoneDeltaMm       float64 // Difference in rail-to-sit-bone distance (target - ref)
 	BrpDeltaMm           float64 // Difference in BRP-to-sit-bone span (target - ref)
 	ClampLengthMm        float64
-	TargetClampMin       float64
-	TargetClampMax       float64
 	IsFeasible           bool
 }
 
@@ -272,7 +276,6 @@ func TranslateSaddleFit(
 	if err != nil {
 		return SaddleTranslationResult{}, err
 	}
-	minClamp, maxClamp := targetSaddle.ClampWindowMm(clampLengthMm)
 	return SaddleTranslationResult{
 		ReferenceSaddle:      reference.Saddle,
 		TargetSaddle:         targetSaddle,
@@ -282,8 +285,6 @@ func TranslateSaddleFit(
 		SitBoneDeltaMm:       targetSaddle.RailCenterToSitBonesMm - reference.Saddle.RailCenterToSitBonesMm,
 		BrpDeltaMm:           targetSaddle.DeltaBrpToSitBonesMm() - reference.Saddle.DeltaBrpToSitBonesMm(),
 		ClampLengthMm:        clampLengthMm,
-		TargetClampMin:       minClamp,
-		TargetClampMax:       maxClamp,
-		IsFeasible:           clampLengthMm <= targetSaddle.RailLengthMm && targetClamp >= minClamp-0.001 && targetClamp <= maxClamp+0.001,
+		IsFeasible:           targetSaddle.ClampFitsAt(clampLengthMm, targetClamp),
 	}, nil
 }

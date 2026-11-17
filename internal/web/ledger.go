@@ -183,16 +183,16 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 		[]string{
 			"3. Rear Cockpit",
 			"Rail Offset & Margin",
-			"RailOff_req for SitBones.X; Margin = HalfWin − |RailOff|",
-			fmt.Sprintf("Target SB.X %.1f mm, HalfWin %.1f mm", sc.Fit.TargetSitBonesXMm, sc.Seat.HalfRailWindowMm()),
+			"Required clamp station for target SIT.X. Margin = half window − |required station|",
+			fmt.Sprintf("SIT.X %.1f mm, assumed span %.1f mm, footprint %.1f mm", sc.Fit.TargetSitBonesXMm, sc.Seat.Saddle.RailLengthMm, sc.Seat.ClampLengthMm),
 			fmt.Sprintf("%+.1f mm (margin %+.1f mm)", sc.RequiredRailOffsetMm, sc.RailMarginMm),
 		},
 		[]string{
 			"3. Rear Cockpit",
-			"SitBones & Workshop BRP",
-			"BRP and SIT from rail center using the saddle’s rail angle",
-			fmt.Sprintf("%s, rail angle %+.1f°, selected clamp %+.1f mm", sc.Seat.Saddle.Name, sc.Seat.Saddle.RailPitchDeg, sc.Seat.RailOffsetMm),
-			fmt.Sprintf("SB %s, BRP %s", pt(sc.SitBones), pt(sc.BRP)),
+			"Projected Rail Center, BRP & SIT",
+			"Rail center = clamp − rotate(offset, 0). BRP and SIT = rail center + their rotated local coordinates.",
+			fmt.Sprintf("Clamp %s, angle %+.1f°, clamp station %+.1f mm, local BRP (%.1f, 0), local SIT (%.1f, %.1f) mm", pt(sc.SeatpostClamp), sc.Seat.Saddle.RailPitchDeg, sc.Seat.RailOffsetMm, sc.Seat.Saddle.RailCenterToBrpMm, sc.Seat.Saddle.RailCenterToSitBonesMm, sc.Seat.Saddle.SitBonesElevationMm),
+			fmt.Sprintf("Rail center %s, BRP %s, SIT %s", pt(sc.RailCenter), pt(sc.BRP), pt(sc.SitBones)),
 		},
 		[]string{
 			"3. Rear Cockpit",

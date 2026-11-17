@@ -632,7 +632,7 @@ func TestRunServe_FlagValidationAndShutdown(t *testing.T) {
 func TestPages_SaddleHeightParameterReachesTheEngine(t *testing.T) {
 	rec, doc := do(t, "/saddles?saddle-height=760")
 	mustStatus(t, rec, http.StatusOK)
-	if !strings.Contains(doc.Text(), "760mm SH") {
+	if !strings.Contains(doc.Text(), "760 mm radial BRP height") {
 		t.Error("saddle-height=760 should appear in the translation footers")
 	}
 	if got, _ := doc.Find(`input[name="saddle-height"]`).Attr("value"); got != "760" {
@@ -968,6 +968,31 @@ func TestSaddlesDetailClampExceedsRailAndSingleRounding(t *testing.T) {
 	}
 }
 
+func TestSaddleHardwareExamplesKeepHorizontalOffsetSeparate(t *testing.T) {
+	rec, doc := do(t, "/saddles?id=sqlab-610-ergolux")
+	mustStatus(t, rec, http.StatusOK)
+	table := doc.Find("table").Last()
+	brpY := math.Sqrt(746*746 - 219*219)
+	for _, tc := range []struct {
+		label, offset string
+		rearward      float64
+	}{
+		{"Redshift + Drop Best (static example)", "34 mm horizontal rearward", 34},
+		{"Redshift + Drop Best (25% travel example)", "39 mm horizontal rearward", 39},
+	} {
+		row := table.Find("tbody tr").FilterFunction(func(_ int, r *goquery.Selection) bool { return text(r.Find("td").First()) == tc.label })
+		if got := text(row.Find("td").Eq(1)); got != tc.offset {
+			t.Errorf("%s offset = %q, want %q", tc.label, got, tc.offset)
+		}
+		// The rail center's target setback is 219+32. A horizontal offset
+		// reduces the axis setback by its full amount at the same vertical height.
+		want := fmt.Sprintf("%.1f°", math.Atan2(brpY, 251-tc.rearward)*180/math.Pi)
+		if got := text(row.Find("td").Eq(3)); got != want {
+			t.Errorf("%s centered STA = %q, want %q", tc.label, got, want)
+		}
+	}
+}
+
 func TestSaddlesAndHandlebarsProseMatchesTables(t *testing.T) {
 	// Vary saddle-height and sit-bone-setback on /saddles: prose must update rather than stay hardcoded.
 	rec, doc800 := do(t, "/saddles?saddle-height=800&sit-bone-setback=320")
@@ -987,8 +1012,8 @@ func TestSaddlesAndHandlebarsProseMatchesTables(t *testing.T) {
 	if text(doc260.Find("body")) == text(doc320.Find("body")) {
 		t.Error("/saddles output did not vary between sit-bone-setback=260 and 320")
 	}
-	if !strings.Contains(text(doc260.Find("body")), "Equivalent Saddle Height: 754mm") {
-		t.Errorf("expected dynamic Aspin Equivalent Saddle Height 754mm at SB=260")
+	if !strings.Contains(text(doc260.Find("body")), "Equivalent Saddle Height: 753.8mm") {
+		t.Errorf("expected dynamic Aspin Equivalent Saddle Height 753.8mm at SIT=260")
 	}
 
 	// /saddles?id= must filter catalog to a single row and omit cross-saddle footer.
@@ -1275,6 +1300,53 @@ func TestComputationLedger_BikeAndCompare(t *testing.T) {
 	}
 	if !strings.Contains(cmpBody, "Cheapest Stock Build") || !strings.Contains(cmpBody, "lost Oval Fits") {
 		t.Errorf("compare ledger missing itemised Cheapest Stock Build row:\n%s", cmpBody)
+	}
+}
+
+func TestSaddlePresentationUsesModeledCoordinatesAndClampWindow(t *testing.T) {
+	rec, bike := do(t, "/bike?frame=salsa-fargo&size=L&post_sb=11&rail_off=8")
+	mustStatus(t, rec, http.StatusOK)
+	zoom := bike.Find("svg.saddle-zoom-svg")
+	number := func(sel *goquery.Selection, attr string) float64 {
+		t.Helper()
+		n, err := strconv.ParseFloat(sel.AttrOr(attr, ""), 64)
+		if err != nil {
+			t.Fatalf("missing coordinate %s: %v", attr, err)
+		}
+		return n
+	}
+	coord := func(id string) (float64, float64) {
+		point := zoom.Find(`[data-point="` + id + `"]`)
+		return number(point, "data-x"), number(point, "data-y")
+	}
+	rcX, rcY := coord("RC")
+	clampX, clampY := coord("SPC")
+	brpX, brpY := coord("BRP")
+	sitX, sitY := coord("SB")
+	if math.Abs(clampX-rcX-8) > 0.02 || math.Abs(clampY-rcY) > 0.02 || math.Abs(brpX-rcX-32) > 0.02 || math.Abs(brpY-rcY) > 0.02 || math.Abs(sitX-rcX+48) > 0.02 || math.Abs(sitY-rcY-10) > 0.02 {
+		t.Fatal("projected clamp and saddle landmarks should follow the level rails")
+	}
+	window := zoom.Find("line.rail-win")
+	if math.Abs(number(window, "x1")-rcX+15) > 0.02 || math.Abs(number(window, "x2")-rcX-15) > 0.02 || math.Abs(number(window, "y1")-rcY) > 0.02 || math.Abs(number(window, "y2")-rcY) > 0.02 {
+		t.Fatal("assumed ±15 mm window should lie on the same rail axis as the clamp and BRP")
+	}
+	ledger := text(bike.Find(`table[data-table="bike-ledger"]`))
+	for _, want := range []string{"Projected Rail Center, BRP & SIT", "assumed span 60.0 mm, footprint 30.0 mm", "local SIT (-48.0, 10.0) mm"} {
+		if !strings.Contains(ledger, want) {
+			t.Errorf("ledger missing %q", want)
+		}
+	}
+
+	// A centered same-saddle swap exposes the difference between a one-point
+	// window and an incompatible clamp. A rounded zero cannot imply feasibility.
+	const sameSLR = "/saddle-swap?from=selle-italia-slr-boost-superflow-l3&to=selle-italia-slr-boost-superflow-l3"
+	for _, tc := range []struct{ footprint, want string }{{"40", "Within assumed window"}, {"45", "Clamp exceeds assumed rail span"}} {
+		rec, swap := do(t, sameSLR+"&clamp-length="+tc.footprint)
+		mustStatus(t, rec, http.StatusOK)
+		row := swap.Find("tbody tr").FilterFunction(func(_ int, row *goquery.Selection) bool { return text(row.Find("td").First()) == "Rail Clamp Position" })
+		if got := text(row.Find("td").Last()); !strings.Contains(got, tc.want) {
+			t.Errorf("%s mm footprint fit = %q, want %q", tc.footprint, got, tc.want)
+		}
 	}
 }
 

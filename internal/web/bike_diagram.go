@@ -128,9 +128,9 @@ func buildBikeSVG(sc geometry.BikeScene) bikeSVGView {
 		{"STT", "SeatTubeTop", stTop, -125, -8, 6, "frame"},
 		{"HTB", "HeadTubeBottom", sc.HeadTubeBottom, 12, 20, 6, "frame"},
 		{"HT", "HeadTubeTop", sc.HeadTubeTop, 12, 24, 7, "frame"},
-		{"SPC", "SeatpostClamp", sc.SeatpostClamp, 14, 18, 6, "seat"},
-		{"RC", "RailCenter", sc.RailCenter, -110, 26, 5, "seat"},
-		{"SB", "SitBones", sc.SitBones, -100, -24, 8, "contact"},
+		{"SPC", "Projected clamp", sc.SeatpostClamp, 14, 18, 6, "seat"},
+		{"RC", "Projected rail center", sc.RailCenter, -110, 26, 5, "seat"},
+		{"SB", "SIT (modeled support)", sc.SitBones, -100, -24, 8, "contact"},
 		{"BRP", "BRP", sc.BRP, 14, -14, 7, "contact"},
 		{"SC", "SteererClamp", sc.SteererClamp, -135, -8, 6, "cockpit"},
 		{"STC", "StemClamp", sc.StemClamp, 12, 24, 7, "contact"},
@@ -217,7 +217,7 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 		return svgLine{X1: f2(a.X), Y1: f2(a.Y), X2: f2(b.X), Y2: f2(b.Y), Class: cls}
 	}
 
-	brp := model.BRPPoint{BrpX: sc.BRP.X, BrpY: sc.BRP.Y, SitBoneX: sc.SitBones.X, SitBoneY: sc.SitBones.Y}
+	brp := sc.SaddlePlacement
 	evalPt := func(st model.StemSpec, sp float64) geom2d.Point2 {
 		hb := geometry.CalculateHBPointWithHandlebar(
 			sc.Reach(), sc.Stack(), sc.HtaDeg, brp,
@@ -363,16 +363,15 @@ func buildSaddleZoomSVG(sc geometry.BikeScene) bikeSVGView {
 		return svgLine{X1: f2(a.X), Y1: f2(a.Y), X2: f2(b.X), Y2: f2(b.Y), Class: cls}
 	}
 
+	placement := sc.SaddlePlacement
+	rail := placement.Transform
 	uSeat := sc.EffectiveSeatAxis.Direction
-	uRail := uSeat.Perpendicular(geom2d.CounterClockwise)
-	brpPerp := sc.Seat.PostSetbackMm + sc.Seat.RailOffsetMm - sc.Seat.Saddle.RailCenterToBrpMm
-	axial := math.Sqrt(math.Max(0, sc.Fit.BrpHeightMm*sc.Fit.BrpHeightMm-brpPerp*brpPerp))
-	axisHead := sc.EffectiveSeatAxis.PointAt(axial)
+	axisHead := sc.EffectiveSeatAxis.PointAt(placement.SeatAxisDistanceMm)
 	postBase := axisHead.SubVec(uSeat.Scale(60))
 	axisTop := axisHead.Add(uSeat.Scale(35))
 	halfWin := sc.Seat.HalfRailWindowMm()
-	railWinStart := sc.RailCenter.Add(uRail.Scale(-halfWin))
-	railWinEnd := sc.RailCenter.Add(uRail.Scale(halfWin))
+	railWinStart := rail.Point(-halfWin, 0)
+	railWinEnd := rail.Point(halfWin, 0)
 	brpCaliperStart := geom2d.Point2{X: sc.SitBones.X, Y: sc.BRP.Y}
 
 	lines := []svgLine{
@@ -387,9 +386,9 @@ func buildSaddleZoomSVG(sc geometry.BikeScene) bikeSVGView {
 	}
 
 	points := projectSVGPoints([]svgPointSpec{
-		{"SPC", "SeatpostClamp", sc.SeatpostClamp, 6, 9, 2.8, "seat"},
-		{"RC", "RailCenter", sc.RailCenter, -44, 11, 2.6, "seat"},
-		{"SB", "SitBones", sc.SitBones, -38, -8, 3.3, "contact"},
+		{"SPC", "Projected clamp", sc.SeatpostClamp, 6, 9, 2.8, "seat"},
+		{"RC", "Projected rail center", sc.RailCenter, -44, 11, 2.6, "seat"},
+		{"SB", "SIT (modeled support)", sc.SitBones, -38, -8, 3.3, "contact"},
 		{"BRP", "BRP (70mm)", sc.BRP, 6, -6, 3.0, "contact"},
 	})
 

@@ -9,9 +9,8 @@ import (
 )
 
 // SwapFitOutcome encapsulates the quantitative fit metrics resulting from either
-// naive BRP alignment or true pelvic (sit-bone) fit translation in 2D space.
+// matching BRP coordinates or preserving the modeled support point.
 type SwapFitOutcome struct {
-	Mode                    string    // e.g. "Naive BRP Alignment" or "True Pelvic Alignment"
 	TargetBrpSetbackMm      float64   // Caliper setback to 70mm BRP
 	BrpSetbackShiftMm       float64   // Shift in BRP setback relative to baseline source BRP
 	TargetBrpHeightMm       float64   // Vertical height of BRP above BB spindle
@@ -19,34 +18,17 @@ type SwapFitOutcome struct {
 	BrpXMm                  float64   // Horizontal X coordinate of BRP from BB spindle
 	BrpYMm                  float64   // Vertical Y coordinate of BRP from BB spindle
 	BrpAngleDeg             model.Deg // Polar angle from BB spindle to BRP
-	AchievedSitBoneMm       float64   // Actual horizontal sit bone setback behind BB
-	AchievedSitBoneHeightMm float64   // Actual vertical sit bone height above BB
+	AchievedSitBoneMm       float64   // Modeled horizontal SIT setback behind BB
+	AchievedSitBoneHeightMm float64   // Modeled vertical SIT height above BB
 	SitBoneDeltaMm          float64   // Difference from baseline sit bone setback (Achieved - Desired)
 	SitBoneDeltaYMm         float64   // Difference from baseline sit bone height (Achieved - Desired)
 	EffectiveStaDeg         model.Deg // Polar seat tube angle from BB to sit bone support point
 	CockpitReachMm          float64   // Direct 2D Euclidean distance from sit bones to handlebar clamp
 	CockpitDeltaMm          float64   // Change in cockpit reach from baseline
-	LegExtensionMm          float64   // Radial Euclidean distance from BB spindle to sit bones
-	LegExtensionDeltaMm     float64   // Change in leg extension from baseline
+	BBToSitDistanceMm       float64   // Radial Euclidean distance from BB spindle to sit bones
+	BBToSitDistanceDeltaMm  float64   // Change in BB-to-SIT distance from baseline
 	RequiredClampOffsetMm   float64   // Required fore-aft rail clamp offset
-	ClampMinMm              float64   // Minimum safe rail clamp offset
-	ClampMaxMm              float64   // Maximum safe rail clamp offset
-	IsFeasible              bool      // Whether required offset falls within [ClampMin, ClampMax]
-	MarginFromLimitMm       float64   // Distance to closest rail limit (negative if exceeded)
-}
-
-// HardwareSwapRow captures seat tube angle and rail clamp requirements across
-// standard seatpost hardware options for the true pelvic fit.
-type HardwareSwapRow struct {
-	PostName           string
-	PostSetbackMm      float64
-	SeatTubeSetbackMm  float64
-	SourceIdealStaDeg  model.Deg
-	TargetIdealStaDeg  model.Deg
-	StaDeltaDeg        model.Deg
-	TargetRailOffsetMm float64
-	IsFeasible30Mm     bool
-	IsFeasible45Mm     bool
+	IsFeasible              bool      // Whether the assumed clamp fits at the required offset
 }
 
 // SaddleSwapReport encapsulates the complete comparative analysis between
@@ -68,32 +50,31 @@ type SaddleSwapReport struct {
 	TargetEquivalentBrpSetbackMm   float64
 	TargetEquivalentBrpHeightMm    float64
 	TargetEquivalentSaddleHeightMm float64
-	BrpSetbackShiftMm              float64 // Target equivalent BRP setback - Source BRP setback (-15.0mm)
-	BrpHeightShiftMm               float64 // Target equivalent BRP height - Source BRP height (+10.0mm)
-	BrpSaddleHeightShiftMm         float64 // Target equivalent SH - Source SH (+5.4mm)
+	BrpSetbackShiftMm              float64 // Target equivalent BRP setback - Source BRP setback
+	BrpHeightShiftMm               float64 // Target equivalent BRP height - Source BRP height
+	BrpSaddleHeightShiftMm         float64 // Target equivalent SH - Source SH
 	TargetEquivalentBrpX           float64
 	TargetEquivalentBrpY           float64
 	TargetEquivalentBrpAngleDeg    model.Deg
-	BrpDeltaXMm                    float64   // Target X - Source X (+15.0mm forward)
-	BrpDeltaYMm                    float64   // Target Y - Source Y (+10.0mm vertical)
-	BrpDeltaAngleDeg               model.Deg // Target angle - Source angle (+1.31deg)
+	BrpDeltaXMm                    float64   // Target X - Source X
+	BrpDeltaYMm                    float64   // Target Y - Source Y
+	BrpDeltaAngleDeg               model.Deg // Target angle - Source angle
 	SeatpostSetbackMm              float64
 	ClampLengthMm                  float64
 	HbDistanceMm                   float64
 	HbDropMm                       float64
 	BrpToSitBonesSpanDeltaMm       float64 // Target span - Source span (BRP skew)
 	RailCenterToBrpDeltaMm         float64 // Target - Source
-	RailCenterToSitBonesDeltaMm    float64 // Target - Source (true pelvic rail delta)
+	RailCenterToSitBonesDeltaMm    float64 // Target - Source (local rail coordinates)
+	CenteredStaDeltaDeg            model.Deg
+	TargetBrpToCockpitMm           float64
 	BaselineCockpitReachMm         float64
-	BaselineLegExtensionMm         float64
-	BaselineStaDeg                 model.Deg
+	BaselineBBToSitDistanceMm      float64
 	Naive                          SwapFitOutcome
-	Pelvic                         SwapFitOutcome
-	SeatpostRows                   []HardwareSwapRow
+	PreserveSIT                    SwapFitOutcome
 }
 
-// AnalyzeSaddleSwap performs a rigorous biomechanical and physical comparison
-// of transferring a fit from source to target saddle.
+// AnalyzeSaddleSwap compares two ways to transfer a modeled saddle position.
 func AnalyzeSaddleSwap(
 	source model.SaddleSpec,
 	target model.SaddleSpec,
@@ -144,10 +125,10 @@ func AnalyzeSaddleSwap(
 	srcBrpY := srcBrp.Y
 	srcBrpAngle := model.DegOf(geom2d.Point2{X: srcBrpSetback, Y: srcBrpY}.PolarAngle())
 
-	// Pelvic Coordinates in Sagittal 2D Plane:
+	// Modeled support point in the sagittal plane.
 	// Sit position is translated from BRP via source saddle's 2D BRP-to-SitBones vector.
 	baseSitBone := source.SitBonePointFromBrp(srcBrp)
-	baseLegExt := baseSitBone.DistanceToOrigin()
+	baseBBToSit := baseSitBone.DistanceToOrigin()
 	baseStaDeg := model.DegOf(geom2d.Point2{X: -baseSitBone.X, Y: baseSitBone.Y}.PolarAngle())
 
 	hbDeltaX := math.Sqrt(hbDistanceMm*hbDistanceMm - hbDropMm*hbDropMm)
@@ -157,8 +138,7 @@ func AnalyzeSaddleSwap(
 	}
 	baseCockpit := hb.DistanceTo(baseSitBone)
 
-	// 2. Target Saddle Equivalent Coordinates (Preserving Exact 2D Pelvic Position):
-	// To hold the rider's pelvis invariant at baseSitBone:
+	// 2. Translate the target BRP to preserve the modeled SIT point.
 	tgtEquivBrp := target.BrpPointFromSitBones(baseSitBone)
 	tgtEquivBrpSetback := -tgtEquivBrp.X
 	tgtEquivSaddleHeight := tgtEquivBrp.DistanceToOrigin()
@@ -173,9 +153,6 @@ func AnalyzeSaddleSwap(
 	brpDeltaAngle := tgtEquivBrpAngle - srcBrpAngle
 	stepElevationDelta := target.BrpToSitBonesVec().Y - source.BrpToSitBonesVec().Y
 
-	// Clamp window for target saddle
-	tMinClamp, tMaxClamp := target.ClampWindowMm(clampLengthMm)
-
 	// 3. Naive BRP Alignment:
 	// Naively matches 70mm BRP caliper setback and radial saddle height (target BRP placed at srcBrp):
 	naiveSitBone := target.SitBonePointFromBrp(srcBrp)
@@ -183,24 +160,15 @@ func AnalyzeSaddleSwap(
 	naiveSitBoneSetback := -naiveSitBone.X
 	naiveSitBoneDelta := naiveSitBoneSetback - sitBoneSetbackMm
 	naiveSitBoneDeltaY := naiveSitBone.Y - baseSitBone.Y
-	naiveLegExt := naiveSitBone.DistanceToOrigin()
+	naiveBBToSit := naiveSitBone.DistanceToOrigin()
 	naiveStaDeg := model.DegOf(geom2d.Point2{X: naiveSitBoneSetback, Y: naiveSitBone.Y}.PolarAngle())
 	naiveCockpit := hb.DistanceTo(naiveSitBone)
 
 	// Keep the source frame axis and post; solve the target's full placement.
 	naiveClampOffset := target.RailOffsetForBrpAtSta(sourceSTA, srcBrpSetback, saddleHeightMm, seatpostSetbackMm)
-	naiveFeasible := target.RailLengthMm >= clampLengthMm && naiveClampOffset >= tMinClamp-0.001 && naiveClampOffset <= tMaxClamp+0.001
-	var naiveMargin float64
-	if naiveClampOffset < tMinClamp {
-		naiveMargin = naiveClampOffset - tMinClamp
-	} else if naiveClampOffset > tMaxClamp {
-		naiveMargin = tMaxClamp - naiveClampOffset
-	} else {
-		naiveMargin = math.Min(naiveClampOffset-tMinClamp, tMaxClamp-naiveClampOffset)
-	}
+	naiveFeasible := target.ClampFitsAt(clampLengthMm, naiveClampOffset)
 
 	naiveOutcome := SwapFitOutcome{
-		Mode:                    "Naive BRP Alignment",
 		TargetBrpSetbackMm:      Round(naiveBrpSetback, 1),
 		BrpSetbackShiftMm:       0.0,
 		TargetBrpHeightMm:       Round(srcBrp.Y, 1),
@@ -215,30 +183,18 @@ func AnalyzeSaddleSwap(
 		EffectiveStaDeg:         Round(naiveStaDeg, 1),
 		CockpitReachMm:          Round(naiveCockpit, 1),
 		CockpitDeltaMm:          Round(naiveCockpit-baseCockpit, 1),
-		LegExtensionMm:          Round(naiveLegExt, 1),
-		LegExtensionDeltaMm:     Round(naiveLegExt-baseLegExt, 1),
-		RequiredClampOffsetMm:   Round(naiveClampOffset, 1),
-		ClampMinMm:              Round(tMinClamp, 1),
-		ClampMaxMm:              Round(tMaxClamp, 1),
+		BBToSitDistanceMm:       Round(naiveBBToSit, 1),
+		BBToSitDistanceDeltaMm:  Round(naiveBBToSit-baseBBToSit, 1),
+		RequiredClampOffsetMm:   naiveClampOffset,
 		IsFeasible:              naiveFeasible,
-		MarginFromLimitMm:       Round(naiveMargin, 1),
 	}
 
-	// 4. True Pelvic Alignment:
+	// 4. Preserve SIT coordinates.
 	// Target Sit Bone Setback and Height are held invariant at (baseSitBone.X, baseSitBone.Y):
-	pelvicClampOffset := translation.TargetClampOffset
-	pelvicFeasible := translation.IsFeasible
-	var pelvicMargin float64
-	if pelvicClampOffset < tMinClamp {
-		pelvicMargin = pelvicClampOffset - tMinClamp
-	} else if pelvicClampOffset > tMaxClamp {
-		pelvicMargin = tMaxClamp - pelvicClampOffset
-	} else {
-		pelvicMargin = math.Min(pelvicClampOffset-tMinClamp, tMaxClamp-pelvicClampOffset)
-	}
+	supportClampOffset := translation.TargetClampOffset
+	supportFeasible := translation.IsFeasible
 
-	pelvicOutcome := SwapFitOutcome{
-		Mode:                    "True Pelvic Alignment",
+	supportOutcome := SwapFitOutcome{
 		TargetBrpSetbackMm:      Round(tgtEquivBrpSetback, 1),
 		BrpSetbackShiftMm:       Round(brpSetbackShift, 1),
 		TargetBrpHeightMm:       Round(tgtEquivBrp.Y, 1),
@@ -253,55 +209,10 @@ func AnalyzeSaddleSwap(
 		EffectiveStaDeg:         Round(baseStaDeg, 1),
 		CockpitReachMm:          Round(baseCockpit, 1),
 		CockpitDeltaMm:          0.0,
-		LegExtensionMm:          Round(baseLegExt, 1),
-		LegExtensionDeltaMm:     0.0,
-		RequiredClampOffsetMm:   Round(pelvicClampOffset, 1),
-		ClampMinMm:              Round(tMinClamp, 1),
-		ClampMaxMm:              Round(tMaxClamp, 1),
-		IsFeasible:              pelvicFeasible,
-		MarginFromLimitMm:       Round(pelvicMargin, 1),
-	}
-
-	// 4. Hardware Rows Across Seatposts (True Pelvic Fit)
-	type postSpec struct {
-		name    string
-		setback float64
-	}
-	posts := []postSpec{
-		{"0mm Inline Post", 0.0},
-		{"Redshift ShockStop (static 7mm)", 7.0},
-		{"Redshift ShockStop (sagged 11mm)", 11.0},
-		{"Standard 15mm Setback", 15.0},
-		{"Standard 25mm Setback", 25.0},
-		{"Redshift + Drop Best (static 35mm)", 35.0},
-		{"Redshift + Drop Best (sagged 39mm)", 39.0},
-	}
-
-	tMin30, tMax30 := target.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
-	tMin45, tMax45 := target.ClampWindowMm(model.DropBestClampLengthMm)
-
-	var hwRows []HardwareSwapRow
-	for _, p := range posts {
-		resSrc := CalculateIdealSeatTubeAngle(source, sitBoneSetbackMm, saddleHeightMm, p.setback, p.name, model.DefaultSeatpostClampLengthMm)
-		resTgt := CalculateIdealSeatTubeAngle(target, sitBoneSetbackMm, tgtEquivSaddleHeight, p.setback, p.name, model.DefaultSeatpostClampLengthMm)
-
-		// Each hardware example uses its own source-centered frame axis.
-		offset := target.RailOffsetForBrpAtSta(resSrc.IdealStaDeg, tgtEquivBrpSetback, tgtEquivSaddleHeight, p.setback)
-		feasible30 := target.RailLengthMm >= model.DefaultSeatpostClampLengthMm && offset >= tMin30-0.001 && offset <= tMax30+0.001
-		feasible45 := target.RailLengthMm >= model.DropBestClampLengthMm &&
-			offset >= tMin45-0.001 && offset <= tMax45+0.001
-
-		hwRows = append(hwRows, HardwareSwapRow{
-			PostName:           p.name,
-			PostSetbackMm:      p.setback,
-			SeatTubeSetbackMm:  Round(resTgt.SeatTubeSetbackMm, 1),
-			SourceIdealStaDeg:  resSrc.IdealStaDeg,
-			TargetIdealStaDeg:  resTgt.IdealStaDeg,
-			StaDeltaDeg:        Round(resTgt.IdealStaDeg-resSrc.IdealStaDeg, 2),
-			TargetRailOffsetMm: Round(offset, 1),
-			IsFeasible30Mm:     feasible30,
-			IsFeasible45Mm:     feasible45,
-		})
+		BBToSitDistanceMm:       Round(baseBBToSit, 1),
+		BBToSitDistanceDeltaMm:  0.0,
+		RequiredClampOffsetMm:   supportClampOffset,
+		IsFeasible:              supportFeasible,
 	}
 
 	return SaddleSwapReport{
@@ -337,11 +248,11 @@ func AnalyzeSaddleSwap(
 		BrpToSitBonesSpanDeltaMm:       Round(spanDelta, 1),
 		RailCenterToBrpDeltaMm:         Round(rcBrpDelta, 1),
 		RailCenterToSitBonesDeltaMm:    Round(rcSitBoneDelta, 1),
+		CenteredStaDeltaDeg:            target.StaForBrpAndOffset(tgtEquivBrpSetback, tgtEquivSaddleHeight, seatpostSetbackMm, 0) - sourceSTA,
+		TargetBrpToCockpitMm:           hb.DistanceTo(tgtEquivBrp),
 		BaselineCockpitReachMm:         Round(baseCockpit, 1),
-		BaselineLegExtensionMm:         Round(baseLegExt, 1),
-		BaselineStaDeg:                 Round(sourceSTA, 2),
+		BaselineBBToSitDistanceMm:      Round(baseBBToSit, 1),
 		Naive:                          naiveOutcome,
-		Pelvic:                         pelvicOutcome,
-		SeatpostRows:                   hwRows,
+		PreserveSIT:                    supportOutcome,
 	}, nil
 }

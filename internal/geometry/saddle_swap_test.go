@@ -69,10 +69,10 @@ func TestAnalyzeSaddleSwap_SQlabToBerthoudAspin(t *testing.T) {
 	if math.Abs(naive.CockpitDeltaMm-8.1) > 0.5 {
 		t.Errorf("Expected naive cockpit reach increase ~8.1mm, got %.1fmm", naive.CockpitDeltaMm)
 	}
-	if math.Abs(naive.LegExtensionDeltaMm-(-6.1)) > 0.5 {
-		t.Errorf("Expected naive leg extension drop ~-6.1mm, got %.1fmm", naive.LegExtensionDeltaMm)
+	if math.Abs(naive.BBToSitDistanceDeltaMm-(-6.1)) > 0.5 {
+		t.Errorf("Expected BRP-matched BB-to-SIT change ~-6.1mm, got %.1fmm", naive.BBToSitDistanceDeltaMm)
 	}
-	if naive.RequiredClampOffsetMm != 11.5 {
+	if math.Abs(naive.RequiredClampOffsetMm-11.5) > 1e-9 {
 		t.Errorf("Expected naive clamp offset +11.5mm, got %.1fmm", naive.RequiredClampOffsetMm)
 	}
 	if !naive.IsFeasible {
@@ -80,7 +80,7 @@ func TestAnalyzeSaddleSwap_SQlabToBerthoudAspin(t *testing.T) {
 	}
 
 	// 3. True Pelvic Alignment outcomes (2D coordinates)
-	pelvic := report.Pelvic
+	pelvic := report.PreserveSIT
 	if pelvic.TargetBrpSetbackMm != 211.0 {
 		t.Errorf("Expected pelvic target BRP setback 211.0mm, got %.1fmm", pelvic.TargetBrpSetbackMm)
 	}
@@ -120,30 +120,17 @@ func TestAnalyzeSaddleSwap_SQlabToBerthoudAspin(t *testing.T) {
 	if pelvic.CockpitDeltaMm != 0.0 {
 		t.Errorf("Expected pelvic cockpit reach error 0.0mm, got %.1fmm", pelvic.CockpitDeltaMm)
 	}
-	if pelvic.LegExtensionDeltaMm != 0.0 {
-		t.Errorf("Expected pelvic leg extension error 0.0mm, got %.1fmm", pelvic.LegExtensionDeltaMm)
+	if pelvic.BBToSitDistanceDeltaMm != 0.0 {
+		t.Errorf("Expected BB-to-SIT distance error 0.0mm, got %.1fmm", pelvic.BBToSitDistanceDeltaMm)
 	}
-	if pelvic.RequiredClampOffsetMm != 0.0 {
-		t.Errorf("Expected pelvic clamp offset 0.0mm, got %.1fmm", pelvic.RequiredClampOffsetMm)
+	// The target rail center is at X = −254.5, 10 mm above the source BRP.
+	// On the centered zero-setback source axis, X moves back by 251/BRP.Y per mm up.
+	wantStation := 254.5 - 251*(1+10/math.Sqrt(746*746-219*219))
+	if math.Abs(pelvic.RequiredClampOffsetMm-wantStation) > 1e-9 {
+		t.Errorf("support-preserving clamp station = %.5f, want %.5f", pelvic.RequiredClampOffsetMm, wantStation)
 	}
 	if !pelvic.IsFeasible {
-		t.Errorf("Expected pelvic clamp offset to be marked FEASIBLE on Berthoud rails, got infeasible")
-	}
-
-	// 4. Hardware Rows
-	if len(report.SeatpostRows) != 7 {
-		t.Fatalf("Expected 7 seatpost hardware rows, got %d", len(report.SeatpostRows))
-	}
-	// For sagged Redshift post (11mm), verify feasibility
-	saggedRow := report.SeatpostRows[2]
-	if saggedRow.PostSetbackMm != 11.0 {
-		t.Errorf("Expected row 2 to be 11mm post, got %.1fmm", saggedRow.PostSetbackMm)
-	}
-	if !saggedRow.IsFeasible30Mm {
-		t.Errorf("Expected 30mm clamp to be feasible for Aspin pelvic fit on 11mm post")
-	}
-	if (saggedRow.StaDeltaDeg - (0.0)).Abs() > 0.05 {
-		t.Errorf("Expected STA delta ~ -0.05°, got %.2f°", saggedRow.StaDeltaDeg)
+		t.Errorf("expected the station within the modeled Berthoud clamp window")
 	}
 }
 
@@ -175,7 +162,7 @@ func TestAnalyzeSaddleSwap_SQlabToSLRBoost(t *testing.T) {
 	}
 	// 40mm straight rail with 30mm clamp allows [-5.0, +5.0] window
 	// Pelvic clamp offset is -17.3mm, which exceeds [-5, +5] on 11mm post
-	if report.Pelvic.IsFeasible {
+	if report.PreserveSIT.IsFeasible {
 		t.Errorf("Expected SLR Boost pelvic fit on 11mm post to exceed ±5mm clamp window")
 	}
 }
@@ -223,7 +210,7 @@ func TestSaddleSwapRejectsImpossibleGeometry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if swap.Naive.IsFeasible || swap.Pelvic.IsFeasible {
+	if swap.Naive.IsFeasible || swap.PreserveSIT.IsFeasible {
 		t.Error("overlong clamp reported feasible")
 	}
 }

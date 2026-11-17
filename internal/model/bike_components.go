@@ -58,7 +58,7 @@ func (e StemCatalogEntry) Expand() []StemSpec {
 type SaddleSpec struct {
 	ID                     string
 	Name                   string
-	RailLengthMm           float64 // Total straight clamping length on rails (e.g. 60mm for SQlab [-30 to +30])
+	RailLengthMm           float64 // Assumed clamping span. For SQlab this is the measured 60 mm marking span.
 	RailCenterToBrpMm      float64 // Forward distance from rail center to 70mm BRP (+mm toward nose)
 	RailCenterToSitBonesMm float64 // Distance from rail center to sit bones (-mm toward tail)
 	SitBonesElevationMm    float64 // Local elevation above BRP plane; +Y is normal toward cover (10mm owner-measured on SQlab).
@@ -202,15 +202,20 @@ func (s SaddleSpec) IdealSeatTubeAngle(sitBoneSetbackMm, saddleHeightMm, seatpos
 	return s.StaForBrpAndOffset(s.BrpSetbackFromSitBones(sitBoneSetbackMm), saddleHeightMm, seatpostSetbackMm, 0.0)
 }
 
-// ClampWindowMm returns the clamp-center travel bounds [minX, maxX]
-// for a seatpost clamp of length clampLengthMm (L_clamp):
-// X_clamp_min = -((L_rail - L_clamp) / 2), X_clamp_max = +((L_rail - L_clamp) / 2).
-func (s SaddleSpec) ClampWindowMm(clampLengthMm float64) (minX float64, maxX float64) {
-	if s.RailLengthMm <= clampLengthMm {
-		return 0, 0
+// ClampWindowMm returns the modeled interval for a clamp center along the rails.
+// The calculation assumes the catalog span is usable and the clamp is symmetric.
+func (s SaddleSpec) ClampWindowMm(clampLengthMm float64) (minX, maxX float64, ok bool) {
+	if !(clampLengthMm > 0 && clampLengthMm <= s.RailLengthMm) {
+		return 0, 0, false
 	}
-	half := (s.RailLengthMm - clampLengthMm) / 2.0
-	return -half, half
+	half := (s.RailLengthMm - clampLengthMm) / 2
+	return -half, half, true
+}
+
+// ClampFitsAt reports whether the clamp fits within the assumed rail span.
+func (s SaddleSpec) ClampFitsAt(clampLengthMm, offsetMm float64) bool {
+	lo, hi, ok := s.ClampWindowMm(clampLengthMm)
+	return ok && offsetMm >= lo-0.001 && offsetMm <= hi+0.001
 }
 
 // DefaultIdmatchBrpSetbackMm is the baseline BRP setback (in mm) from the idmatch fit report.
@@ -264,10 +269,10 @@ func (s SaddleSpec) SitSurfaceHeightFromBrpHeight(brpSaddleHeightMm, brpSetbackM
 // seat tube centerline. The baseline is a zero-setback dropper post, so the saddle rails clamp on the seat tube axis.
 const DefaultSeatpostSetbackMm = 0.0
 
-// DefaultSeatpostClampLengthMm is the standard seatpost clamp length (in mm).
+// DefaultSeatpostClampLengthMm is the assumed clamp footprint (in mm) for comparison.
 const DefaultSeatpostClampLengthMm = 30.0
 
-// DropBestClampLengthMm is the clamp length (in mm) of a Fair Bicycle Drop Best UC M6 adapter.
+// DropBestClampLengthMm is the assumed 45 mm footprint in the Drop Best examples.
 const DropBestClampLengthMm = 45.0
 
 // SaddleRailIdealMarginMm is the fore-aft rail offset window (±mm from dead center of rails) considered ideal.
@@ -376,10 +381,10 @@ func (s SaddleSpec) MapPossibleBRPs(
 	if clampLengthMm <= 0 {
 		clampLengthMm = DefaultSeatpostClampLengthMm
 	}
-	if clampLengthMm > s.RailLengthMm {
+	minClamp, maxClamp, ok := s.ClampWindowMm(clampLengthMm)
+	if !ok {
 		return nil
 	}
-	minClamp, maxClamp := s.ClampWindowMm(clampLengthMm)
 
 	var points []BRPPoint
 	for r := minClamp; r <= maxClamp+0.001; r += SaddleRailStepMm {

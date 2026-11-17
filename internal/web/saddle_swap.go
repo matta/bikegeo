@@ -10,19 +10,30 @@ import (
 	"bikegeo/internal/catalog"
 	"bikegeo/internal/compare"
 	"bikegeo/internal/frames"
+	"bikegeo/internal/geom2d"
 	"bikegeo/internal/geometry"
+	"bikegeo/internal/ideal"
 	"bikegeo/internal/model"
 	"bikegeo/internal/report"
 	"bikegeo/internal/validator"
 )
 
-const (
-	// defaultSwapTarget is the target used when only a source saddle is chosen.
-	defaultSwapTarget = "berthoud-aspin-open"
-	// AnalyzeSaddleSwap takes nominal cockpit dimensions (unused by /saddle-swap tables).
-	defaultSwapHbDistance = 700.0
-	defaultSwapHbDrop     = 13.0
-)
+// defaultSwapTarget is the target used when only a source saddle is chosen.
+const defaultSwapTarget = "berthoud-aspin-open"
+
+func clampPositionStatus(s model.SaddleSpec, footprint, offset float64) string {
+	lo, hi, ok := s.ClampWindowMm(footprint)
+	if !ok {
+		return "Clamp exceeds assumed rail span"
+	}
+	if math.IsNaN(offset) || math.IsInf(offset, 0) {
+		return "No modeled clamp position"
+	}
+	if !s.ClampFitsAt(footprint, offset) {
+		return fmt.Sprintf("Outside assumed window [%+.1f, %+.1f] mm", lo, hi)
+	}
+	return fmt.Sprintf("Within assumed window [%+.1f, %+.1f] mm", lo, hi)
+}
 
 func (db *docb) saddleSwap(v url.Values) int {
 	fl := &floats{v: v}
@@ -61,8 +72,6 @@ func (db *docb) saddleSwap(v url.Values) int {
 		db.fail("Error: clamp-length must be positive (got %g)", clampLength)
 		return 1
 	}
-	hbDistance := defaultSwapHbDistance
-	hbDrop := defaultSwapHbDrop
 	compareAll := isTrue(v.Get("all"))
 	frameSpec := strings.TrimSpace(v.Get("frame"))
 	var posArgs []string
@@ -134,20 +143,24 @@ func (db *docb) saddleSwap(v url.Values) int {
 		}
 	}
 
-	// 1. Optional Summary Matrix if --all
+	hbDistance, riseAboveSit, _ := ideal.IdmatchProfile().CockpitTarget(sourceSaddle)
+	hbDrop := riseAboveSit + sourceSaddle.SitBonePointFromBrp(geom2d.Origin).Y
+
+	// Catalog overview when every target saddle is requested.
 	if compareAll && len(targetSaddles) > 0 {
 		summaryHeaders := []string{
 			"Target Saddle",
-			"Rail",
-			"BRP Span (ΔX)",
+			"Catalog Rail Span",
+			"BRP to SIT (rearward)",
 			"Step Ht (ΔY)",
 			"Equivalent BRP (X, Y)",
 			"Target Saddle Height (BRP)",
-			"Pelvic Rail Δ",
-			"STA Δ",
+			"Local Rail-to-SIT Δ",
+			"Required Clamp Station",
+			"Centered STA Δ",
 			"30mm Clamp",
 			"45mm Clamp",
-			"Compatibility Verdict",
+			fmt.Sprintf("Selected %.1f mm Footprint", clampLength),
 		}
 		var summaryRows [][]string
 
@@ -167,24 +180,7 @@ func (db *docb) saddleSwap(v url.Values) int {
 				return 1
 			}
 
-			c30 := "Feasible"
-			if !rep.Pelvic.IsFeasible {
-				c30 = "Infeasible"
-			}
-			tMin45, tMax45 := tgt.ClampWindowMm(model.DropBestClampLengthMm)
-			c45 := "Feasible"
-			if tgt.RailLengthMm < model.DropBestClampLengthMm || rep.Pelvic.RequiredClampOffsetMm < tMin45 || rep.Pelvic.RequiredClampOffsetMm > tMax45 {
-				c45 = "Infeasible"
-			}
-
-			verdict := "Fully Compatible (minor rail adjustment)"
-			if !rep.Pelvic.IsFeasible {
-				if rep.RailCenterToSitBonesDeltaMm < 0 {
-					verdict = "Requires zero/low-setback post (rearward sit bones)"
-				} else {
-					verdict = "Requires high-setback post"
-				}
-			}
+			offset := rep.PreserveSIT.RequiredClampOffsetMm
 
 			summaryRows = append(summaryRows, []string{
 				tgt.Name,
@@ -194,15 +190,16 @@ func (db *docb) saddleSwap(v url.Values) int {
 				fmt.Sprintf("(-%.1f, %.1f) mm (%+.1f, %+.1f)", rep.TargetEquivalentBrpSetbackMm, rep.TargetEquivalentBrpHeightMm, rep.BrpDeltaXMm, rep.BrpDeltaYMm),
 				fmt.Sprintf("%.1f mm (%+.1f mm)", rep.TargetEquivalentSaddleHeightMm, rep.BrpSaddleHeightShiftMm),
 				fmt.Sprintf("%+.1f mm", rep.RailCenterToSitBonesDeltaMm),
-				fmt.Sprintf("%+.2f°", rep.BaselineStaDeg-sourceSaddle.IdealSeatTubeAngle(sitBoneSetback, saddleHeight, postSetback)),
-				c30,
-				c45,
-				verdict,
+				fmt.Sprintf("%+.1f mm", offset),
+				fmt.Sprintf("%+.2f°", rep.CenteredStaDeltaDeg),
+				clampPositionStatus(tgt, model.DefaultSeatpostClampLengthMm, offset),
+				clampPositionStatus(tgt, model.DropBestClampLengthMm, offset),
+				clampPositionStatus(tgt, clampLength, offset),
 			})
 		}
 
 		sumTitle := fmt.Sprintf("Saddle Swap Catalog Overview (Baseline: %s)", sourceSaddle.Name)
-		sumSub := fmt.Sprintf("Source Saddle Height (to BRP): %.0fmm | Sit Bone Setback: %.0fmm behind BB | Post Setback: %.1fmm",
+		sumSub := fmt.Sprintf("Source Saddle Height (to BRP): %.0fmm | SIT Setback: %.0fmm behind BB | Post Setback: %.1fmm",
 			saddleHeight, sitBoneSetback, postSetback)
 
 		if err := db.render(sumTitle, sumSub, summaryHeaders, summaryRows); err != nil {
@@ -229,101 +226,61 @@ func (db *docb) saddleSwap(v url.Values) int {
 			return 1
 		}
 
-		// 1. Unified Saddle Swap Table (Sit Position Invariant, BRP Shifts, Workshop Actions)
+		// Show the modeled placement with SIT held fixed.
 		title := fmt.Sprintf("Saddle Swap Analysis: %s → %s", sourceSaddle.Name, targetSaddle.Name)
-		subtitle := fmt.Sprintf("Active Seatpost Setback: %.1fmm (sagged)", postSetback)
+		subtitle := fmt.Sprintf("Assumed seat-perpendicular setback: %.1f mm", postSetback)
 		headers := []string{
 			"Fit Dimension / Checkpoint",
 			fmt.Sprintf("Source: %s", sourceSaddle.Name),
 			fmt.Sprintf("Target: %s", targetSaddle.Name),
-			"Difference / Workshop Action",
-		}
-
-		// Saddle height delta to BRP
-		var shAction string
-		if swap.BrpSaddleHeightShiftMm > 0 {
-			shAction = fmt.Sprintf("%+.1f mm (Raise seatpost collar)", swap.BrpSaddleHeightShiftMm)
-		} else if swap.BrpSaddleHeightShiftMm < 0 {
-			shAction = fmt.Sprintf("%.1f mm (Lower seatpost collar)", swap.BrpSaddleHeightShiftMm)
-		} else {
-			shAction = "0.0 mm (Keep collar unchanged)"
-		}
-
-		// 70mm BRP 2D point shift direction
-		var brpDir string
-		if swap.BrpDeltaXMm > 0 && swap.BrpDeltaYMm > 0 {
-			brpDir = "Forward & upward"
-		} else if swap.BrpDeltaXMm > 0 && swap.BrpDeltaYMm < 0 {
-			brpDir = "Forward & downward"
-		} else if swap.BrpDeltaXMm > 0 && swap.BrpDeltaYMm == 0 {
-			brpDir = "Forward"
-		} else if swap.BrpDeltaXMm < 0 && swap.BrpDeltaYMm > 0 {
-			brpDir = "Rearward & upward"
-		} else if swap.BrpDeltaXMm < 0 && swap.BrpDeltaYMm < 0 {
-			brpDir = "Rearward & downward"
-		} else if swap.BrpDeltaXMm < 0 && swap.BrpDeltaYMm == 0 {
-			brpDir = "Rearward"
-		} else if swap.BrpDeltaXMm == 0 && swap.BrpDeltaYMm > 0 {
-			brpDir = "Upward"
-		} else if swap.BrpDeltaXMm == 0 && swap.BrpDeltaYMm < 0 {
-			brpDir = "Downward"
-		} else {
-			brpDir = "Unmoved"
-		}
-		brpDiff := fmt.Sprintf("(%+.1f, %+.1f) mm (%s)", swap.BrpDeltaXMm, swap.BrpDeltaYMm, brpDir)
-
-		// Clamp adjustment
-		var clampDiff string
-		if swap.Pelvic.IsFeasible {
-			if swap.RailCenterToSitBonesDeltaMm > 0 {
-				clampDiff = fmt.Sprintf("Slide %.1f mm forward (Safe, margin %.1fmm)", math.Abs(swap.RailCenterToSitBonesDeltaMm), swap.Pelvic.MarginFromLimitMm)
-			} else if swap.RailCenterToSitBonesDeltaMm < 0 {
-				clampDiff = fmt.Sprintf("Slide %.1f mm rearward (Safe, margin %.1fmm)", math.Abs(swap.RailCenterToSitBonesDeltaMm), swap.Pelvic.MarginFromLimitMm)
-			} else {
-				clampDiff = fmt.Sprintf("Centered (Safe, margin %.1fmm)", swap.Pelvic.MarginFromLimitMm)
-			}
-		} else {
-			clampDiff = fmt.Sprintf("Infeasible (exceeds rails by %.1f mm)", math.Abs(swap.Pelvic.MarginFromLimitMm))
+			"Modeled Change",
 		}
 
 		swapRows := [][]string{
 			{
-				"BB to Sit Bones Distance",
-				fmt.Sprintf("%.1f mm", swap.BaselineLegExtensionMm),
-				fmt.Sprintf("%.1f mm", swap.Pelvic.LegExtensionMm),
+				"BB-to-SIT Distance (geometric proxy)",
+				fmt.Sprintf("%.1f mm", swap.BaselineBBToSitDistanceMm),
+				fmt.Sprintf("%.1f mm", swap.PreserveSIT.BBToSitDistanceMm),
 				"0.0 mm (Preserved)",
 			},
 			{
-				"Sit Bone Point (X, Y)",
+				"Modeled SIT Point (X, Y)",
 				fmt.Sprintf("(-%.1f, %.1f) mm", sitBoneSetback, swap.SourceSitBoneHeightMm),
-				fmt.Sprintf("(-%.1f, %.1f) mm", swap.Pelvic.AchievedSitBoneMm, swap.Pelvic.AchievedSitBoneHeightMm),
+				fmt.Sprintf("(-%.1f, %.1f) mm", swap.PreserveSIT.AchievedSitBoneMm, swap.PreserveSIT.AchievedSitBoneHeightMm),
 				"(0.0, 0.0) mm (Preserved)",
 			},
 			{
 				"Saddle Height (BB to 70mm BRP)",
 				fmt.Sprintf("%.1f mm", saddleHeight),
 				fmt.Sprintf("%.1f mm", swap.TargetEquivalentSaddleHeightMm),
-				shAction,
+				fmt.Sprintf("%+.1f mm of radial BRP height", swap.BrpSaddleHeightShiftMm),
 			},
 			{
 				"70mm BRP Point (X, Y)",
 				fmt.Sprintf("(-%.1f, %.1f) mm", swap.SourceBrpSetbackMm, swap.SourceBrpHeightMm),
 				fmt.Sprintf("(-%.1f, %.1f) mm", swap.TargetEquivalentBrpSetbackMm, swap.TargetEquivalentBrpHeightMm),
-				brpDiff,
+				fmt.Sprintf("(%+.1f, %+.1f) mm", swap.BrpDeltaXMm, swap.BrpDeltaYMm),
+			},
+			{
+				"BRP-to-Cockpit Distance",
+				fmt.Sprintf("%.1f mm", hbDistance),
+				fmt.Sprintf("%.1f mm", swap.TargetBrpToCockpitMm),
+				"Same modeled cockpit point",
 			},
 			{
 				"Rail Clamp Position",
-				"0.0 mm (Centered)",
-				fmt.Sprintf("%+.1f mm", swap.Pelvic.RequiredClampOffsetMm),
-				clampDiff,
+				fmt.Sprintf("0.0 mm (%s)", clampPositionStatus(sourceSaddle, clampLength, 0)),
+				fmt.Sprintf("%+.1f mm", swap.PreserveSIT.RequiredClampOffsetMm),
+				clampPositionStatus(targetSaddle, clampLength, swap.PreserveSIT.RequiredClampOffsetMm),
 			},
 		}
 
 		var footers []report.Footer
 		footers = append(footers, report.Footer{
-			Title: "Note",
+			Title: "How to read the swap",
 			Lines: []string{
-				fmt.Sprintf("Naively matching 70mm BRP coordinates would misplace pelvis by %+.1fmm setback and %+.1fmm height.",
+				clampAssumption,
+				fmt.Sprintf("Matching the source BRP alone would change the modeled SIT setback by %+.1f mm and its height by %+.1f mm.",
 					swap.Naive.SitBoneDeltaMm, swap.Naive.SitBoneDeltaYMm),
 			},
 		})
@@ -371,7 +328,13 @@ func (db *docb) saddleSwap(v url.Values) int {
 				return 1
 			}
 
-			frameSta := canonRow.Canonical.ActiveSta
+			frameSize, err := geometry.FrameSizeFromBikeGeometry(canonRow.Bike)
+			if err != nil {
+				db.fail("%v", err)
+				return 1
+			}
+			pitch := canonRow.Canonical.DeltaAngleDeg
+			frameSta := frameSize.EffectiveStaDegAt(saddleHeight) - pitch
 			stSetback := saddleHeight * frameSta.Angle().Cos()
 			srcBrpSetback := sourceSaddle.BrpSetbackFromSitBones(sitBoneSetback)
 			srcRailOffset := sourceSaddle.RailOffsetForBrpAtSta(frameSta, srcBrpSetback, saddleHeight, postSetback)
@@ -380,41 +343,15 @@ func (db *docb) saddleSwap(v url.Values) int {
 				db.fail("%v", err)
 				return 1
 			}
-			translated, err := geometry.TranslateSaddleFit(reference, targetSaddle, frameSta, clampLength)
+			targetHeight := targetSaddle.BrpPointFromSitBones(reference.SitBonePoint()).DistanceToOrigin()
+			targetSTA := frameSize.EffectiveStaDegAt(targetHeight) - pitch
+			translated, err := geometry.TranslateSaddleFit(reference, targetSaddle, targetSTA, clampLength)
 			if err != nil {
 				db.fail("%v", err)
 				return 1
 			}
-			tgtPelvicRailOffset := translated.TargetClampOffset
-			tgtNaiveRailOffset := targetSaddle.RailOffsetForBrpAtSta(frameSta, srcBrpSetback, saddleHeight, postSetback)
-
-			sMin, sMax := sourceSaddle.ClampWindowMm(clampLength)
-			tMin, tMax := targetSaddle.ClampWindowMm(clampLength)
-			srcFeasible := sourceSaddle.RailLengthMm >= clampLength && srcRailOffset >= sMin-0.001 && srcRailOffset <= sMax+0.001
-			pelvicFeasible := translated.IsFeasible
-			naiveFeasible := targetSaddle.RailLengthMm >= clampLength && tgtNaiveRailOffset >= tMin-0.001 && tgtNaiveRailOffset <= tMax+0.001
-
-			srcFeasStr := "Feasible"
-			if !srcFeasible {
-				srcFeasStr = fmt.Sprintf("false (%.1fmm)", srcRailOffset)
-			}
-			tgtFeasStr := "Feasible"
-			if !pelvicFeasible {
-				tgtFeasStr = fmt.Sprintf("false (%.1fmm)", tgtPelvicRailOffset)
-			}
-			tgtNaiveFeasStr := "Feasible"
-			if !naiveFeasible {
-				tgtNaiveFeasStr = fmt.Sprintf("false (%.1fmm)", tgtNaiveRailOffset)
-			}
-
-			evalMsg := "Pelvic fit is feasible within rails"
-			if !pelvicFeasible {
-				if tgtPelvicRailOffset > tMax {
-					evalMsg = "Requires more seatpost setback (or slacker STA)"
-				} else {
-					evalMsg = "Requires less seatpost setback (or steeper STA)"
-				}
-			}
+			tgtSupportRailOffset := translated.TargetClampOffset
+			tgtBrpRailOffset := targetSaddle.RailOffsetForBrpAtSta(frameSta, srcBrpSetback, saddleHeight, postSetback)
 
 			t4Title := fmt.Sprintf("Frame-Specific Saddle Swap: %s %s (Size %s)", frame.Manufacturer, frame.Model, targetSize)
 			t4Subtitle := fmt.Sprintf("Saddle Height (to BRP): %.0fmm | Effective STA: %.2f° | Seat Tube Setback: %.1fmm | Post: %.1fmm",
@@ -422,8 +359,8 @@ func (db *docb) saddleSwap(v url.Values) int {
 			t4Headers := []string{
 				"Fit Parameter",
 				fmt.Sprintf("Source: %s", sourceSaddle.Name),
-				fmt.Sprintf("Target: %s (Pelvic)", targetSaddle.Name),
-				fmt.Sprintf("Target: %s (Naive BRP)", targetSaddle.Name),
+				fmt.Sprintf("Target: %s (match SIT)", targetSaddle.Name),
+				fmt.Sprintf("Target: %s (match BRP)", targetSaddle.Name),
 				"Feasibility & Evaluation",
 			}
 
@@ -431,23 +368,23 @@ func (db *docb) saddleSwap(v url.Values) int {
 				{
 					"Required Rail Clamp Offset",
 					fmt.Sprintf("%+.1f mm", srcRailOffset),
-					fmt.Sprintf("%+.1f mm", tgtPelvicRailOffset),
-					fmt.Sprintf("%+.1f mm", tgtNaiveRailOffset),
-					fmt.Sprintf("Safe range: [%.1f, +%.1f] mm", tMin, tMax),
+					fmt.Sprintf("%+.1f mm", tgtSupportRailOffset),
+					fmt.Sprintf("%+.1f mm", tgtBrpRailOffset),
+					"Positive toward the nose",
 				},
 				{
-					"Physical Clamp Feasibility",
-					srcFeasStr,
-					tgtFeasStr,
-					tgtNaiveFeasStr,
-					evalMsg,
+					"Modeled Clamp Fit",
+					clampPositionStatus(sourceSaddle, clampLength, srcRailOffset),
+					clampPositionStatus(targetSaddle, clampLength, tgtSupportRailOffset),
+					clampPositionStatus(targetSaddle, clampLength, tgtBrpRailOffset),
+					fmt.Sprintf("Assumed %.1f mm footprint", clampLength),
 				},
 				{
-					"Achieved Sit Bone Setback",
+					"Modeled SIT Setback",
 					fmt.Sprintf("%.1f mm", sitBoneSetback),
 					fmt.Sprintf("%.1f mm", sitBoneSetback),
-					fmt.Sprintf("%.1f mm", -targetSaddle.TransformFromBrp(reference.BrpPoint()).Point(targetSaddle.RailCenterToSitBonesMm, targetSaddle.SitBonesElevationMm).X),
-					"Pelvic fit preserves exact target setback",
+					fmt.Sprintf("%.1f mm", -targetSaddle.SitBonePointFromBrp(reference.BrpPoint()).X),
+					"Matching SIT keeps the support point fixed",
 				},
 			}
 

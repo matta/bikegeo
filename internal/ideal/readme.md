@@ -40,30 +40,29 @@ From an idmatch Bikelab report (e.g. `206563 - Matt Armstrong - Report idmatch B
 
 ## Hardware Modeling & Saddle Rails
 
-On a real bicycle, the BRP sits offset from the seat tube centerline due to:
-- **Seatpost Setback**: `model.DefaultSeatpostSetbackMm = 0.0 mm` (a zero-setback dropper post).
-- **Saddle Geometry**: Defined in the Canonical Saddle Coordinate System (`X_RC = 0.0 mm` at the rail center; inspect with `bikegeo saddles`).
-  - For the reference **SQlab 610 Ergolux Active 2.1**: `RailCenterToBrpMm = +32.0 mm`, `RailCenterToSitBonesMm = -48.0 mm`, with Matt's measured `SitBonesElevationMm = +10.0 mm`. See [the saddle specification](../../docs/SQLAB_SADDLE.md) for measurements and W70 verification status. The catalog reuses `model.ReferenceIdmatchSaddle()` as its shared compiled definition.
-  - For the **Berthoud Aspin Open**: `RailCenterToBrpMm = +43.5 mm`, `RailCenterToSitBonesMm = -44.5 mm`.
-  - Their rail-center-to-SIT offsets differ by `3.5 mm`; a full equivalent placement also accounts for the measured elevation difference and seatpost geometry.
-- **Modeled Support Target**: SIT setback is `299.0 mm` behind the BB under the level-rail approximation (`219 mm` report BRP setback + `80 mm` SQlab span). `model.DefaultTargetSitBoneSetbackMm()` derives it from the reference saddle rather than storing another independent constant. This is a saddle-landmark target, not an independent pelvic measurement. Equivalent BRP setbacks are `211 mm` for Aspin and `216 mm` for SLR Boost.
-- **Usable Rail Range**: Determined by `(L_rail - L_clamp) / 2` (bounded by `[-half, +half]` along the straight clamping rails).
-- **Ideal Seat Tube Angle**: Use `bikegeo saddles` to compute the required custom frame Seat Tube Angle to clamp any catalog saddle dead-center (`0.0 mm`) on your seatpost.
+Open `/saddles` in `bikegeo serve` for the catalog, modeled clamp windows and centered seat tube angles. Use `/saddle-swap` to compare matching BRP coordinates with preserving SIT, and `/bike` to inspect the installed landmarks and computation ledger.
 
-The shared saddle data and derived defaults are updated. The current rail/STA placement solver still uses its existing seat-perpendicular offset approximation; replacing it with a consistent rail-axis transform is the next step in [the update plan](../../docs/PLAN.md).
+- **Rail coordinates.** R0 is the center of the catalog rail span. Positive X points toward the nose along the rails. Positive Y is normal to the rails toward the saddle cover. `SaddleSpec.RailPitchDeg` is the assumed angle above horizontal. Catalog saddles assume level rails across fork configurations. Matt's installed rail pitch remains unmeasured.
+- **Landmarks.** W70 is the longitudinal station of BRP. SIT is the modeled support landmark at the front foot of the raised rear lip on the SQlab. The W70 station is inferred from the owner-reported span and awaits direct width verification. The 10 mm elevation is owner-measured. See [the saddle specification](../../docs/SQLAB_SADDLE.md).
+
+| Saddle | R0 to BRP | R0 to SIT | SIT elevation | Catalog rail span |
+| --- | ---: | ---: | ---: | ---: |
+| SQlab 610 Ergolux Active 2.1 | +32.0 mm | −48.0 mm | +10.0 mm | 60 mm |
+| Berthoud Aspin Open | +43.5 mm | −44.5 mm | 0.0 mm | 64 mm |
+| Selle Italia SLR Boost Superflow L3 | +17.7 mm | −65.3 mm | 0.0 mm | 40 mm |
+
+- **Modeled support target.** The level-rail SQlab BRP-to-SIT vector is `(−80, +10) mm`. The report's 219 mm BRP setback and 746 mm radius put BRP at about `(−219, 713.1) mm` and SIT at about `(−299, 723.1) mm`. At that SIT point, the Aspin needs 211 mm setback and 753.3 mm radial height, and the SLR Boost needs 216 mm setback and 754.7 mm radial height. Their local rail-center-to-SIT offsets differ from the SQlab by +3.5 and −17.3 mm respectively. A swap solves for the clamp position and axial extension using both coordinates. BB-to-SIT distance is a geometric proxy for comparing those placements.
+- **Clamp windows.** The modeled half window is `(rail span − clamp footprint) / 2`. An equal footprint permits only rail center. A longer footprint has no interval. SQlab's 60 mm is the measured span between marks. Usable rail length also depends on clamp shape, rail profile and shell clearance. The standard and Drop Best examples assume symmetric 30 mm and 45 mm footprints.
+- **Seatpost examples.** Comparisons use a zero-setback dropper. Matt's Redshift was unsagged when his saddle position was transferred to the jig with the same physical saddle. The [rider fit record](../../docs/RIDER_FIT.md) documents that transfer. The hardware examples treat the [Redshift PRO nominal offsets](https://redshiftsports.com/products/shockstop-pro-suspension-seatpost) of 7 mm static and 12 mm at 25% travel as horizontal. The [FAIR Drop Best UC M6 redshift](https://www.fairbicycle.com/product-page/drop-best-uc-m6-redshift) adds a nominal 27 mm. In the rearward examples this gives 34 and 39 mm horizontal offset. The solver applies that displacement separately from any seat-perpendicular setback. Those examples retain the report's unsagged fit target.
 
 ### Constant-Radius Rail Adjustment
 
-Every candidate position on the saddle rails maintains exact radial distance `L = SaddleHeightMm` (`746 mm`) from the Bottom Bracket:
-- `clamp_perp = SeatpostSetback + RailOffsetMm`
-- `brp_perp = clamp_perp - RailCenterToBrpMm` (forward offset toward nose reduces rearward perpendicular offset from seat tube axis)
-- `sit_bone_perp = clamp_perp - RailCenterToSitBonesMm`
-- `d_axial = sqrt(L² - brp_perp²)`
-- `BrpX = -d_axial * cos(STA) - brp_perp * sin(STA)` (`BrpSetback = -BrpX`)
-- `BrpY =  d_axial * sin(STA) - brp_perp * cos(STA)`
-- `SitBoneX = -d_axial * cos(STA) - sit_bone_perp * sin(STA)` (`SitBoneSetback = -SitBoneX`)
+Let `u` be the seat axis pointing up and rearward, `n` its rearward perpendicular, and `r` the rail axis pointing forward at the saddle's assumed pitch. Let `p` be perpendicular seatpost setback, `o` the signed clamp station from R0, and `b` the local R0-to-BRP distance.
 
-When a target setback is specified (e.g. `219 mm` in `idmatch`), `SelectBestBRP` slides the saddle on its rails toward that target (bounded by the saddle's physical clamp window), scoring the frame on how close the required rail offset is to dead center (`0 mm`), while `Saddle-HB` distance `(d)` and drop `(c)` are measured directly from the achieved BRP to HB.
+- `BRP = d × u + q`, where `q = p × n + (b − o) × r`.
+- Choose the positive circle intersection `d = −dot(q, u) + sqrt(H² − dot(q, n)²)` to keep the BRP exactly `H` mm from the BB. A negative radicand or invalid extension has no placement.
+- `Clamp = d × u + p × n` and `R0 = Clamp − o × r`. Apply the shared rotation about R0 to the local BRP and SIT coordinates. R0 and the clamp use a projected datum in the BRP plane because absolute clamp-to-cover height is unavailable.
+- The inverse rail solve projects the target onto `n`. The inverse STA solve uses the required clamp point for a chosen rail station. The compromise STA minimizes the largest required rail offset across saddles. The catalog reports whether the resulting stations fall within the assumed windows.
 
 ---
 
@@ -76,7 +75,7 @@ The steerer tube extends upward and rearward at polar angle `180° - HTA`. With 
 - `StemClampY = SteererY + LengthMm * sin((90° - HTA) + AngleDeg)`
 
 ### Handlebar Component Geometry & Contact Point Offset
-A handlebar component translates the stem clamp center (`StemClamp`) to the hand grip center (`HandGrip`) and vice versa. Rather than relying solely on naive trigonometry (`Width/2 * tan(sweep)`), `bikegeo` implements a complete 3D piecewise linear kinematic transformation model (`pkg/geometry/handlebar.go`, `pkg/catalog/handlebars.go`):
+A handlebar component translates the stem clamp center (`StemClamp`) to the hand grip center (`HandGrip`) and vice versa. Rather than relying solely on naive trigonometry (`Width/2 * tan(sweep)`), `bikegeo` implements a complete 3D piecewise linear kinematic transformation model (`internal/geometry/handlebar.go`, `internal/catalog/handlebars.go`):
 
 1. **Lateral Hand Coordinate**: `z_hand = W / 2 - d_grip` (with standard `d_grip = 65 mm` inboard of bar tip, or `70 mm` for wing grips).
 2. **Swept Lever Arm**: `L_z = max(0, z_hand - z_b)`, where `z_b` is the effective lateral bend start.
@@ -140,7 +139,7 @@ Built directly around the idmatch Bikelab report:
 - `seat_to_rc`: Display-only Seat Axis–Rear Axle (horizontal distance from the Seat Axis Point to rear axle)
 - `sparevert`: Display-only Seat Axis–HT Drop (vertical drop from the Seat Axis Point to head tube top `SaddleHeight * sin(STA) - Stack`)
 
-## Points-Lost Ledger (`pkg/scoring`)
+## Points-Lost Ledger (`internal/scoring`)
 
 `Total = 100 − Σ points lost`, and it may go below 0.
 

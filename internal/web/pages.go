@@ -123,12 +123,12 @@ func pages() []page {
 		},
 		{
 			Path: "/saddles", Title: "Saddles",
-			Blurb: "Saddle catalog with pelvic-fit translation between saddles.",
+			Blurb: "Saddle dimensions and seat tube angles for a modeled support point.",
 			Controls: func(v url.Values) []Control {
 				return []Control{
 					{Name: "id", Label: "Saddle", Kind: "select", Value: v.Get("id"), Options: saddleOptions(v.Get("id"), "Whole catalog")},
-					numberControl(v, "saddle-height", "Saddle height (mm)", "BB to BRP, default 746"),
-					numberControl(v, "sit-bone-setback", "Sit-bone setback (mm)", fmt.Sprintf("behind BB, default %.0f", model.DefaultTargetSitBoneSetbackMm())),
+					numberControl(v, "saddle-height", "Saddle height (mm)", fmt.Sprintf("BB to BRP, default %.0f", model.DefaultIdmatchSaddleHeightMm)),
+					numberControl(v, "sit-bone-setback", "SIT setback (mm)", fmt.Sprintf("behind BB, default %.0f", model.DefaultTargetSitBoneSetbackMm())),
 				}
 			},
 			Build: run(func(db *docb, v url.Values) int { return db.saddles(v) }),
@@ -136,18 +136,18 @@ func pages() []page {
 		},
 		{
 			Path: "/saddle-swap", Title: "Saddle swap",
-			Blurb: "What changes when you swap saddles: naive BRP setback versus true pelvic fit.",
+			Blurb: "Compare matching the BRP with preserving SIT, the modeled saddle support point.",
 			Controls: func(v url.Values) []Control {
 				return []Control{
 					{Name: "from", Label: "From", Kind: "select", Value: v.Get("from"), Options: saddleOptions(v.Get("from"), "Reference saddle")},
 					{Name: "to", Label: "To", Kind: "select", Value: v.Get("to"), Options: saddleOptions(v.Get("to"), "Default target")},
 					{Name: "all", Label: "Compare against every saddle", Kind: "checkbox", Value: v.Get("all")},
 					{Name: "frame", Label: "On frame", Kind: "select", Value: v.Get("frame"), Options: frameOptions(v.Get("frame"), "No frame")},
-					numberControl(v, "saddle-height", "Saddle height (mm)", "BB to BRP, default 746"),
-					numberControl(v, "sit-bone-setback", "Sit-bone setback (mm)", fmt.Sprintf("behind BB, default %.0f", model.DefaultTargetSitBoneSetbackMm())),
-					numberControl(v, "brp-setback", "BRP setback (mm)", "derives sit-bone setback"),
-					numberControl(v, "seatpost", "Seatpost setback (mm)", "default 0 (zero-setback dropper)"),
-					numberControl(v, "clamp-length", "Clamp length (mm)", "default 30"),
+					numberControl(v, "saddle-height", "Saddle height (mm)", fmt.Sprintf("BB to BRP, default %.0f", model.DefaultIdmatchSaddleHeightMm)),
+					numberControl(v, "sit-bone-setback", "SIT setback (mm)", fmt.Sprintf("behind BB, default %.0f", model.DefaultTargetSitBoneSetbackMm())),
+					numberControl(v, "brp-setback", "BRP setback (mm)", "derives the modeled SIT setback"),
+					numberControl(v, "seatpost", "Seatpost setback (mm)", "perpendicular to the seat axis, default 0 for comparison"),
+					numberControl(v, "clamp-length", "Clamp footprint (mm)", fmt.Sprintf("assumed length along the rail, default %.0f", model.DefaultSeatpostClampLengthMm)),
 				}
 			},
 			Build: run(func(db *docb, v url.Values) int { return db.saddleSwap(v) }),
@@ -343,8 +343,8 @@ func (s *server) help(w http.ResponseWriter, _ *http.Request) {
 	}
 	d.Spacers = fmt.Sprintf("0 to each frame's max_spacer_mm in %.0f mm steps", model.SpacerStepMm)
 	saddle := catalog.DefaultSaddle()
-	railLo, railHi := saddle.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
-	d.RailNote = fmt.Sprintf("the saddle's clamp window in 1 mm steps (%s: %+.0f to %+.0f mm)", saddle.Name, railLo, railHi)
+	railLo, railHi, _ := saddle.ClampWindowMm(model.DefaultSeatpostClampLengthMm)
+	d.RailNote = fmt.Sprintf("the assumed clamp window in 1 mm steps (%s: %+.0f to %+.0f mm)", saddle.Name, railLo, railHi)
 	for _, m := range ideal.AllAttributes() {
 		hm := helpMetric{ID: string(m.ID), Label: m.Label, Unit: m.Unit}
 		if sp, ok := specs[m.ID]; ok {
