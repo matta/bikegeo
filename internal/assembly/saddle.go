@@ -27,10 +27,7 @@ func NewSeatAxis(bb geom2d.Point2, effStaDeg model.Deg) (SeatAxis, error) {
 	}
 	// Upward seat axis is at polar angle (180° - effStaDeg); its forward normal (+X)
 	// is 90° clockwise from the seat axis, at polar angle (90° - effStaDeg).
-	p, err := newPose2(bb, (90.0 - effStaDeg).Angle())
-	if err != nil {
-		return SeatAxis{}, err
-	}
+	p := newPose2(bb, (90.0 - effStaDeg).Angle())
 	return SeatAxis{seatPose: p, valid: true}, nil
 }
 
@@ -38,7 +35,6 @@ func (s SeatAxis) mustBeValid() {
 	if !s.valid {
 		panic("assembly: uninitialized or invalid SeatAxis")
 	}
-	s.seatPose.mustBeValid()
 }
 
 // AxisDirection returns the checked unit vector pointing upward along the seat axis.
@@ -60,14 +56,11 @@ func (s SeatAxis) WithSeatpostClamp(axialDistanceMm, postSetbackMm float64) (Sea
 	if !isFinite(postSetbackMm) || postSetbackMm < 0 {
 		return SeatpostClampMount{}, fmt.Errorf("seatpost setback must be finite and non-negative, got %v mm", postSetbackMm)
 	}
-	nextPose, err := s.seatPose.translateLocal(localVec{x: -postSetbackMm, y: axialDistanceMm})
-	if err != nil {
-		return SeatpostClampMount{}, err
+	nextPose := s.seatPose.translate(-postSetbackMm, axialDistanceMm)
+	if !isFinitePoint(nextPose.origin) {
+		return SeatpostClampMount{}, fmt.Errorf("seatpost clamp translation overflow")
 	}
-	clampPose, err := newPose2(nextPose.origin, 0)
-	if err != nil {
-		return SeatpostClampMount{}, err
-	}
+	clampPose := newPose2(nextPose.origin, 0)
 	return SeatpostClampMount{
 		clampPose:     clampPose,
 		axialDist:     axialDistanceMm,
@@ -79,7 +72,7 @@ func (s SeatAxis) WithSeatpostClamp(axialDistanceMm, postSetbackMm float64) (Sea
 // SeatpostClampMount represents the checked projected seatpost clamp mount,
 // ready to accept a Saddle.
 type SeatpostClampMount struct {
-	// Distinct field names prevent conversion to or from HeadTubeTop, StemBase, or BarClampMount.
+	// Distinct field names prevent conversion to or from SeatAxis.
 	clampPose     pose2
 	axialDist     float64
 	postSetbackMm float64
@@ -90,7 +83,9 @@ func (m SeatpostClampMount) mustBeValid() {
 	if !m.valid {
 		panic("assembly: uninitialized or invalid SeatpostClampMount")
 	}
-	m.clampPose.mustBeValid()
+	if !isFinitePoint(m.clampPose.origin) {
+		panic(fmt.Sprintf("assembly: non-finite SeatpostClampMount origin (%v, %v)", m.clampPose.origin.X, m.clampPose.origin.Y))
+	}
 	if !isFinite(m.axialDist) || m.axialDist < 0 {
 		panic(fmt.Sprintf("assembly: invalid SeatpostClampMount axial distance %v", m.axialDist))
 	}
@@ -136,19 +131,16 @@ func (s Saddle) mustBeValid() {
 	}
 }
 
-func (s Saddle) railPoseOn(base pose2) (pose2, error) {
+func (s Saddle) railPoseOn(base pose2) pose2 {
 	s.mustBeValid()
 	// Positive rail pitch raises the nose (counter-clockwise in +X/+Y).
-	return base.rotateLocal(s.spec.RailPitchDeg.Angle())
+	return base.turn(s.spec.RailPitchDeg.Angle())
 }
 
 // RailOffsetDirection returns the checked unit vector along which increasing
 // railOffsetMm moves the saddle (rearward along the rails, in world coordinates).
 func (s Saddle) RailOffsetDirection() geom2d.Vec2 {
-	p, err := s.railPoseOn(identityPose2())
-	if err != nil {
-		panic(fmt.Sprintf("assembly: invalid saddle rail pose: %v", err))
-	}
+	p := s.railPoseOn(identityPose2())
 	return geom2d.Vec2{X: -p.axisX.X, Y: -p.axisX.Y}
 }
 
@@ -157,17 +149,11 @@ func (s Saddle) railCenterPoseOn(base pose2, railOffsetMm float64) (pose2, geom2
 	if !isFinite(railOffsetMm) {
 		return pose2{}, geom2d.Point2{}, fmt.Errorf("saddle rail offset must be finite, got %v mm", railOffsetMm)
 	}
-	railPose, err := s.railPoseOn(base)
-	if err != nil {
-		return pose2{}, geom2d.Point2{}, err
-	}
-	railCenterPose, err := railPose.translateLocal(localVec{x: -railOffsetMm, y: 0})
-	if err != nil {
-		return pose2{}, geom2d.Point2{}, err
-	}
-	brp, err := railCenterPose.transformPoint(localVec{x: s.spec.RailCenterToBrpMm, y: 0})
-	if err != nil {
-		return pose2{}, geom2d.Point2{}, err
+	railPose := s.railPoseOn(base)
+	railCenterPose := railPose.translate(-railOffsetMm, 0)
+	brp := railCenterPose.point(s.spec.RailCenterToBrpMm, 0)
+	if !isFinitePoint(railCenterPose.origin) || !isFinitePoint(brp) {
+		return pose2{}, geom2d.Point2{}, fmt.Errorf("saddle rail placement overflow")
 	}
 	return railCenterPose, brp, nil
 }
@@ -191,9 +177,9 @@ func (m SeatpostClampMount) AttachSaddle(saddle Saddle, railOffsetMm float64) (S
 	if err != nil {
 		return SaddlePlacement{}, err
 	}
-	sitBones, err := railCenterPose.transformPoint(localVec{x: saddle.spec.RailCenterToSitBonesMm, y: saddle.spec.SitBonesElevationMm})
-	if err != nil {
-		return SaddlePlacement{}, err
+	sitBones := railCenterPose.point(saddle.spec.RailCenterToSitBonesMm, saddle.spec.SitBonesElevationMm)
+	if !isFinitePoint(sitBones) {
+		return SaddlePlacement{}, fmt.Errorf("saddle sit-bones placement overflow")
 	}
 
 	return SaddlePlacement{

@@ -20,18 +20,18 @@ func mustMountCockpit(
 	spec model.HandlebarSpec,
 	gripInsetMm float64,
 	rollDeg model.Deg,
-) (assembly.StemPlacement, assembly.HandlebarPlacement) {
+) (assembly.StemPlacement, geom2d.Point2) {
 	t.Helper()
 	stemPlace := mustAssembleStem(t, pos, htaDeg, coverMm, spacersMm, clampHeightMm, stemLengthMm, stemAngleDeg)
-	bar, err := assembly.NewHandlebar(spec, gripInsetMm)
+	handGrip, err := assembly.PlaceHandlebar(stemPlace.BarClamp, assembly.HandlebarSetup{
+		Spec:        spec,
+		GripInsetMm: gripInsetMm,
+		RollDeg:     rollDeg,
+	})
 	if err != nil {
-		t.Fatalf("NewHandlebar(%q, %v): %v", spec.Name, gripInsetMm, err)
+		t.Fatalf("PlaceHandlebar(%q, inset=%v, roll=%v): %v", spec.Name, gripInsetMm, rollDeg, err)
 	}
-	barPlace, err := stemPlace.BarClampMount().AttachHandlebar(bar, rollDeg)
-	if err != nil {
-		t.Fatalf("AttachHandlebar(%v): %v", rollDeg, err)
-	}
-	return stemPlace, barPlace
+	return stemPlace, handGrip
 }
 
 func TestHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
@@ -52,7 +52,7 @@ func TestHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 		EffectiveBendStartMm: 85,
 		RiseMode:             model.RiseModeStandardKnuckle,
 	}
-	stemPlace, barPlace := mustMountCockpit(
+	stemPlace, handGrip := mustMountCockpit(
 		t, geom2d.Point2{X: 400, Y: 600}, 70, 10, 15, 40, 80, -6,
 		knuckleSpec, 65, 10,
 	)
@@ -61,17 +61,29 @@ func TestHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	dy0 := 30.0 + 250.0*math.Tan(4.0*math.Pi/180.0)
 	c10, s10 := math.Cos(10.0*math.Pi/180.0), math.Sin(10.0*math.Pi/180.0)
 	wantOff := geom2d.Vec2{X: dx0*c10 + dy0*s10, Y: -dx0*s10 + dy0*c10}
-	wantGrip := stemPlace.BarClamp().Add(wantOff)
+	wantGrip := stemPlace.BarClamp.Add(wantOff)
 
-	assertPointNear(t, "Knuckle HandGrip(+10°)", barPlace.HandGrip(), wantGrip, 1e-11)
+	assertPointNear(t, "Knuckle HandGrip(+10°)", handGrip, wantGrip, 1e-11)
+
+	off3D, err := assembly.HandlebarOffset3D(assembly.HandlebarSetup{
+		Spec:        knuckleSpec,
+		GripInsetMm: 65,
+		RollDeg:     10,
+	})
+	if err != nil {
+		t.Fatalf("HandlebarOffset3D: %v", err)
+	}
+	if math.Abs(off3D.X-wantOff.X) > 1e-11 || math.Abs(off3D.Y-wantOff.Y) > 1e-11 || math.Abs(off3D.Z-335.0) > 1e-12 {
+		t.Errorf("HandlebarOffset3D = %+v, want (%.12f, %.12f, 335)", off3D, wantOff.X, wantOff.Y)
+	}
 
 	// Reversing roll sign (-10°) must negate the roll contribution on a nonzero-rise/sweep bar.
-	_, barNeg := mustMountCockpit(
+	_, gripNeg := mustMountCockpit(
 		t, geom2d.Point2{X: 400, Y: 600}, 70, 10, 15, 40, 80, -6,
 		knuckleSpec, 65, -10,
 	)
 	wantOffNeg := geom2d.Vec2{X: dx0*c10 - dy0*s10, Y: dx0*s10 + dy0*c10}
-	assertPointNear(t, "Knuckle HandGrip(-10°)", barNeg.HandGrip(), stemPlace.BarClamp().Add(wantOffNeg), 1e-11)
+	assertPointNear(t, "Knuckle HandGrip(-10°)", gripNeg, stemPlace.BarClamp.Add(wantOffNeg), 1e-11)
 
 	// 2. Bar-end center mode, cut narrower than stock width:
 	//    StockWidth=800, CurrentWidth=760, inset=65, zb=135, upsweep=4°, backsweep=20°, statedRise=50
@@ -88,7 +100,7 @@ func TestHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 		EffectiveBendStartMm: 135,
 		RiseMode:             model.RiseModeBarEndCenter,
 	}
-	stemPlace2, barPlace2 := mustMountCockpit(
+	stemPlace2, handGrip2 := mustMountCockpit(
 		t, geom2d.Origin(), 65, 10, 20, 40, 60, 0,
 		cutBarEndSpec, 65, 0,
 	)
@@ -97,16 +109,16 @@ func TestHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 		X: -180.0 * math.Tan(20.0*math.Pi/180.0),
 		Y: yk + 180.0*math.Tan(4.0*math.Pi/180.0),
 	}
-	assertPointNear(t, "BarEndCenter Cut HandGrip", barPlace2.HandGrip(), stemPlace2.BarClamp().Add(wantOff2), 1e-11)
+	assertPointNear(t, "BarEndCenter Cut HandGrip", handGrip2, stemPlace2.BarClamp.Add(wantOff2), 1e-11)
 
 	// 3. Narrow bar where zHand <= EffectiveBendStartMm => lz clamps to 0 (no sweep/upsweep outboard).
 	narrowSpec := knuckleSpec
 	narrowSpec.CurrentWidthMm = 280 // zHand = 140 - 65 = 75 < 85
-	stemPlace3, barPlace3 := mustMountCockpit(
+	stemPlace3, handGrip3 := mustMountCockpit(
 		t, geom2d.Origin(), 70, 10, 0, 40, 70, 0,
 		narrowSpec, 65, 0,
 	)
-	assertPointNear(t, "Clamped lz HandGrip", barPlace3.HandGrip(), stemPlace3.BarClamp().Add(geom2d.Vec2{X: 0, Y: 30}), 1e-12)
+	assertPointNear(t, "Clamped lz HandGrip", handGrip3, stemPlace3.BarClamp.Add(geom2d.Vec2{X: 0, Y: 30}), 1e-12)
 }
 
 func TestHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
@@ -116,11 +128,11 @@ func TestHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 	barSpec := catalog.HandlebarPresets["sqlab3OX_16_30"]
 	const rollDeg = model.Deg(-7.5)
 
-	refStemPlace, refBarPlace := mustMountCockpit(
+	refStemPlace, refGrip := mustMountCockpit(
 		t, geom2d.Point2{X: 430, Y: 625}, 70, 11, 15, 40, 80, -6,
 		barSpec, model.DefaultGripInsetMm, rollDeg,
 	)
-	refVec := refBarPlace.HandGrip().Sub(refStemPlace.BarClamp())
+	refVec := refGrip.Sub(refStemPlace.BarClamp)
 
 	configs := []struct {
 		hta     model.Deg
@@ -132,153 +144,103 @@ func TestHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 		{73.5, 25.0},
 	}
 	for _, cfg := range configs {
-		sp, bp := mustMountCockpit(
+		sp, grip := mustMountCockpit(
 			t, geom2d.Point2{X: 430, Y: 625}, cfg.hta, 11, 15, 40, 80, cfg.stemAng,
 			barSpec, model.DefaultGripInsetMm, rollDeg,
 		)
-		gotVec := bp.HandGrip().Sub(sp.BarClamp())
+		gotVec := grip.Sub(sp.BarClamp)
 		if math.Abs(gotVec.X-refVec.X) > 1e-11 || math.Abs(gotVec.Y-refVec.Y) > 1e-11 {
 			t.Errorf("HTA=%.1f StemAng=%.1f: grip offset (%.12f, %.12f) != ref (%.12f, %.12f)",
 				cfg.hta, cfg.stemAng, gotVec.X, gotVec.Y, refVec.X, refVec.Y)
 		}
 	}
 
-	// Immutable reuse of StemPlacement.BarClampMount() across different bars and roll angles.
+	// Placing different bars and roll angles on the same BarClamp yields distinct HandGrip positions.
 	stemPlace := mustAssembleStem(t, geom2d.Point2{X: 430, Y: 625}, 69.5, 11, 10, 40, 80, -6)
-	mount := stemPlace.BarClampMount()
-	barA, err := assembly.NewHandlebar(catalog.HandlebarPresets["persuader20_800"], model.DefaultGripInsetMm)
+	gripA, err := assembly.PlaceHandlebar(stemPlace.BarClamp, assembly.HandlebarSetup{
+		Spec:        catalog.HandlebarPresets["persuader20_800"],
+		GripInsetMm: model.DefaultGripInsetMm,
+		RollDeg:     0,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	barB, err := assembly.NewHandlebar(catalog.HandlebarPresets["sqlab3OX_16_45"], model.DefaultGripInsetMm)
+	gripB, err := assembly.PlaceHandlebar(stemPlace.BarClamp, assembly.HandlebarSetup{
+		Spec:        catalog.HandlebarPresets["sqlab3OX_16_45"],
+		GripInsetMm: model.DefaultGripInsetMm,
+		RollDeg:     12,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	placeA, err := mount.AttachHandlebar(barA, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	placeB, err := mount.AttachHandlebar(barB, 12)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if placeA.HandGrip().DistanceTo(placeB.HandGrip()) < 10.0 {
-		t.Errorf("expected different bars/rolls on same mount to yield distinct HandGrip positions")
+	if gripA.DistanceTo(gripB) < 10.0 {
+		t.Errorf("expected different bars/rolls on same clamp to yield distinct HandGrip positions")
 	}
 }
 
 func TestHandlebarCatalogAndBoundaryValidation(t *testing.T) {
+	validBarClamp := geom2d.Point2{X: 480, Y: 675}
 	for _, b := range catalog.AllHandlebars() {
-		if _, err := assembly.NewHandlebar(b, model.DefaultGripInsetMm); err != nil {
-			t.Errorf("catalog handlebar %q failed validation: %v", b.ID, err)
+		setup := assembly.HandlebarSetup{
+			Spec:        b,
+			GripInsetMm: model.DefaultGripInsetMm,
+			RollDeg:     0,
+		}
+		if _, err := assembly.PlaceHandlebar(validBarClamp, setup); err != nil {
+			t.Errorf("catalog handlebar %q failed PlaceHandlebar: %v", b.ID, err)
+		}
+		if _, err := assembly.HandlebarOffset3D(setup); err != nil {
+			t.Errorf("catalog handlebar %q failed HandlebarOffset3D: %v", b.ID, err)
 		}
 	}
 
 	validSpec := catalog.DefaultHandlebar()
+	baseSetup := assembly.HandlebarSetup{
+		Spec:        validSpec,
+		GripInsetMm: model.DefaultGripInsetMm,
+		RollDeg:     0,
+	}
+	if _, err := assembly.PlaceHandlebar(validBarClamp, baseSetup); err != nil {
+		t.Fatalf("baseline PlaceHandlebar failed: %v", err)
+	}
+
 	badSpecs := []struct {
-		name  string
-		mut   func(*model.HandlebarSpec)
-		inset float64
+		name     string
+		barClamp geom2d.Point2
+		mut      func(*assembly.HandlebarSetup)
 	}{
-		{"zero width", func(s *model.HandlebarSpec) { s.StockWidthMm = 0; s.CurrentWidthMm = 0 }, 65},
-		{"negative width", func(s *model.HandlebarSpec) { s.StockWidthMm = -700; s.CurrentWidthMm = -700 }, 65},
-		{"NaN width", func(s *model.HandlebarSpec) { s.StockWidthMm = math.NaN(); s.CurrentWidthMm = 0 }, 65},
-		{"unknown rise mode", func(s *model.HandlebarSpec) { s.RiseMode = "bogus" }, 65},
-		{"bar_end_center zero stock width", func(s *model.HandlebarSpec) {
-			s.RiseMode = model.RiseModeBarEndCenter
-			s.StockWidthMm = 0
-			s.CurrentWidthMm = 760
-		}, 65},
-		{"negative bend start", func(s *model.HandlebarSpec) { s.EffectiveBendStartMm = -1 }, 65},
-		{"NaN stated rise", func(s *model.HandlebarSpec) { s.StatedRiseMm = math.NaN() }, 65},
-		{"backsweep 90", func(s *model.HandlebarSpec) { s.BacksweepDeg = 90 }, 65},
-		{"upsweep -90", func(s *model.HandlebarSpec) { s.UpsweepDeg = -90 }, 65},
-		{"zero inset", func(s *model.HandlebarSpec) {}, 0},
-		{"negative inset", func(s *model.HandlebarSpec) {}, -10},
-		{"inset >= half width", func(s *model.HandlebarSpec) {}, validSpec.EffectiveWidthMm() / 2.0},
-		{"NaN inset", func(s *model.HandlebarSpec) {}, math.NaN()},
+		{"NaN barClamp X", geom2d.Point2{X: math.NaN(), Y: 600}, nil},
+		{"+Inf barClamp Y", geom2d.Point2{X: 400, Y: math.Inf(1)}, nil},
+		{"zero width", validBarClamp, func(s *assembly.HandlebarSetup) { s.Spec.StockWidthMm = 0; s.Spec.CurrentWidthMm = 0 }},
+		{"negative width", validBarClamp, func(s *assembly.HandlebarSetup) { s.Spec.StockWidthMm = -700; s.Spec.CurrentWidthMm = -700 }},
+		{"NaN width", validBarClamp, func(s *assembly.HandlebarSetup) { s.Spec.StockWidthMm = math.NaN(); s.Spec.CurrentWidthMm = 0 }},
+		{"unknown rise mode", validBarClamp, func(s *assembly.HandlebarSetup) { s.Spec.RiseMode = "bogus" }},
+		{"bar_end_center zero stock width", validBarClamp, func(s *assembly.HandlebarSetup) {
+			s.Spec.RiseMode = model.RiseModeBarEndCenter
+			s.Spec.StockWidthMm = 0
+			s.Spec.CurrentWidthMm = 760
+		}},
+		{"negative bend start", validBarClamp, func(s *assembly.HandlebarSetup) { s.Spec.EffectiveBendStartMm = -1 }},
+		{"NaN stated rise", validBarClamp, func(s *assembly.HandlebarSetup) { s.Spec.StatedRiseMm = math.NaN() }},
+		{"backsweep 90", validBarClamp, func(s *assembly.HandlebarSetup) { s.Spec.BacksweepDeg = 90 }},
+		{"upsweep -90", validBarClamp, func(s *assembly.HandlebarSetup) { s.Spec.UpsweepDeg = -90 }},
+		{"zero inset", validBarClamp, func(s *assembly.HandlebarSetup) { s.GripInsetMm = 0 }},
+		{"negative inset", validBarClamp, func(s *assembly.HandlebarSetup) { s.GripInsetMm = -10 }},
+		{"inset >= half width", validBarClamp, func(s *assembly.HandlebarSetup) { s.GripInsetMm = validSpec.EffectiveWidthMm() / 2.0 }},
+		{"NaN inset", validBarClamp, func(s *assembly.HandlebarSetup) { s.GripInsetMm = math.NaN() }},
+		{"NaN roll", validBarClamp, func(s *assembly.HandlebarSetup) { s.RollDeg = model.Deg(math.NaN()) }},
+		{"+Inf roll", validBarClamp, func(s *assembly.HandlebarSetup) { s.RollDeg = model.Deg(math.Inf(1)) }},
+		{"world Y overflow", geom2d.Point2{X: 0, Y: math.MaxFloat64}, func(s *assembly.HandlebarSetup) { s.Spec.StatedRiseMm = math.MaxFloat64 }},
 	}
 	for _, tc := range badSpecs {
 		t.Run(tc.name, func(t *testing.T) {
-			s := validSpec
-			tc.mut(&s)
-			if _, err := assembly.NewHandlebar(s, tc.inset); err == nil {
-				t.Errorf("%s: expected error, got nil", tc.name)
+			s := baseSetup
+			if tc.mut != nil {
+				tc.mut(&s)
+			}
+			if _, err := assembly.PlaceHandlebar(tc.barClamp, s); err == nil {
+				t.Errorf("%s: expected error from PlaceHandlebar, got nil", tc.name)
 			}
 		})
 	}
-
-	t.Run("AttachHandlebar non-finite roll and overflow", func(t *testing.T) {
-		stemPlace := mustAssembleStem(t, geom2d.Origin(), 70, 10, 0, 40, 80, 0)
-		bar, err := assembly.NewHandlebar(validSpec, model.DefaultGripInsetMm)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := stemPlace.BarClampMount().AttachHandlebar(bar, model.Deg(math.NaN())); err == nil {
-			t.Errorf("NaN roll should return error")
-		}
-		if _, err := stemPlace.BarClampMount().AttachHandlebar(bar, model.Deg(math.Inf(1))); err == nil {
-			t.Errorf("+Inf roll should return error")
-		}
-
-		htMax, err := assembly.NewHeadTubeTop(geom2d.Point2{X: 0, Y: math.MaxFloat64}, 90)
-		if err != nil {
-			t.Fatal(err)
-		}
-		sbMax, err := htMax.WithUpperStack(0, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		stMax, err := assembly.NewStem(40, 10, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		spMax, err := sbMax.AttachStem(stMax)
-		if err != nil {
-			t.Fatal(err)
-		}
-		tallBarSpec := validSpec
-		tallBarSpec.StatedRiseMm = math.MaxFloat64
-		tallBar, err := assembly.NewHandlebar(tallBarSpec, model.DefaultGripInsetMm)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := spMax.BarClampMount().AttachHandlebar(tallBar, 0); err == nil {
-			t.Errorf("world Y overflow in AttachHandlebar should return error")
-		}
-	})
-}
-
-func TestHandlebarZeroValueAndIgnoredErrorPanics(t *testing.T) {
-	stemPlace := mustAssembleStem(t, geom2d.Origin(), 70, 10, 0, 40, 80, 0)
-	validMount := stemPlace.BarClampMount()
-	validBar, err := assembly.NewHandlebar(catalog.DefaultHandlebar(), model.DefaultGripInsetMm)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assertPanics(t, "zero BarClampMount AttachHandlebar", func() {
-		var m assembly.BarClampMount
-		_, _ = m.AttachHandlebar(validBar, 0)
-	})
-	assertPanics(t, "zero Handlebar in AttachHandlebar", func() {
-		var b assembly.Handlebar
-		_, _ = validMount.AttachHandlebar(b, 0)
-	})
-	assertPanics(t, "ignored error Handlebar in AttachHandlebar", func() {
-		b, _ := assembly.NewHandlebar(catalog.DefaultHandlebar(), -1)
-		_, _ = validMount.AttachHandlebar(b, 0)
-	})
-	assertPanics(t, "zero Handlebar GripOffset3D", func() {
-		var b assembly.Handlebar
-		_, _ = b.GripOffset3D(0)
-	})
-	assertPanics(t, "zero HandlebarPlacement HandGrip", func() {
-		var p assembly.HandlebarPlacement
-		_ = p.HandGrip()
-	})
-	assertPanics(t, "ignored error HandlebarPlacement HandGrip", func() {
-		p, _ := validMount.AttachHandlebar(validBar, model.Deg(math.NaN()))
-		_ = p.HandGrip()
-	})
 }

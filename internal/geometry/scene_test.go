@@ -396,6 +396,24 @@ func TestBuildScene_TargetRefModes(t *testing.T) {
 func TestBuildScene_ValidationAndZeroDefaults(t *testing.T) {
 	frame, build, cockpit, seat, fit := baseTestInputs()
 
+	baseScene, err := geometry.BuildScene(frame, build, cockpit, seat, fit)
+	if err != nil {
+		t.Fatalf("baseline BuildScene failed: %v", err)
+	}
+	for _, pt := range []geom2d.Point2{
+		baseScene.HeadTubeTop,
+		baseScene.SteererClamp,
+		baseScene.StemClamp,
+		baseScene.HandGrip,
+		baseScene.RequiredStemClamp,
+		baseScene.BRP,
+		baseScene.SitBones,
+	} {
+		if math.IsNaN(pt.X) || math.IsInf(pt.X, 0) || math.IsNaN(pt.Y) || math.IsInf(pt.Y, 0) {
+			t.Fatalf("baseline scene produced non-finite landmark: %+v", pt)
+		}
+	}
+
 	badCases := []struct {
 		name   string
 		mutate func(*geometry.FrameSize, *geometry.BuildSpec, *geometry.CockpitSpec, *geometry.SeatSpec, *geometry.RiderFit)
@@ -429,6 +447,15 @@ func TestBuildScene_ValidationAndZeroDefaults(t *testing.T) {
 		{"zero stem clamp height", func(_ *geometry.FrameSize, _ *geometry.BuildSpec, c *geometry.CockpitSpec, _ *geometry.SeatSpec, _ *geometry.RiderFit) {
 			c.StemClampHeightMm = 0
 		}},
+		{"NaN spacer", func(_ *geometry.FrameSize, _ *geometry.BuildSpec, c *geometry.CockpitSpec, _ *geometry.SeatSpec, _ *geometry.RiderFit) {
+			c.SpacerMm = math.NaN()
+		}},
+		{"+Inf stem angle", func(_ *geometry.FrameSize, _ *geometry.BuildSpec, c *geometry.CockpitSpec, _ *geometry.SeatSpec, _ *geometry.RiderFit) {
+			c.Stem.AngleDeg = model.Deg(math.Inf(1))
+		}},
+		{"NaN bar roll", func(_ *geometry.FrameSize, _ *geometry.BuildSpec, c *geometry.CockpitSpec, _ *geometry.SeatSpec, _ *geometry.RiderFit) {
+			c.BarRollDeg = model.Deg(math.NaN())
+		}},
 		{"zero frame seat axis height", func(_ *geometry.FrameSize, _ *geometry.BuildSpec, _ *geometry.CockpitSpec, _ *geometry.SeatSpec, fi *geometry.RiderFit) {
 			fi.FrameSeatAxisHeightMm = 0
 		}},
@@ -449,6 +476,34 @@ func TestBuildScene_ValidationAndZeroDefaults(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("WithCockpit validation", func(t *testing.T) {
+		validUpdate := cockpit
+		validUpdate.SpacerMm = 10
+		validUpdate.Stem.LengthMm = 80
+		updated, err := baseScene.WithCockpit(validUpdate)
+		if err != nil {
+			t.Fatalf("valid WithCockpit failed: %v", err)
+		}
+		if math.IsNaN(updated.HandGrip.X) || math.IsInf(updated.HandGrip.Y, 0) {
+			t.Fatalf("WithCockpit returned non-finite HandGrip: %+v", updated.HandGrip)
+		}
+		for _, bad := range []struct {
+			name string
+			mut  func(*geometry.CockpitSpec)
+		}{
+			{"negative spacer", func(c *geometry.CockpitSpec) { c.SpacerMm = -1 }},
+			{"zero stem length", func(c *geometry.CockpitSpec) { c.Stem.LengthMm = 0 }},
+			{"NaN bar roll", func(c *geometry.CockpitSpec) { c.BarRollDeg = model.Deg(math.NaN()) }},
+			{"NaN grip inset", func(c *geometry.CockpitSpec) { c.GripInsetMm = math.NaN() }},
+		} {
+			c := validUpdate
+			bad.mut(&c)
+			if _, err := baseScene.WithCockpit(c); err == nil {
+				t.Errorf("WithCockpit(%s): expected error, got nil", bad.name)
+			}
+		}
+	})
 
 	// Explicit 0.0 values must be honored cleanly (never replaced by silent fallbacks).
 	cockpitZero := cockpit

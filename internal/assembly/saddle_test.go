@@ -36,6 +36,18 @@ func mustAssembleSaddle(
 	return placement
 }
 
+func assertPanics(t *testing.T, name string, fn func()) {
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Errorf("%s: expected panic, succeeded silently", name)
+			}
+		}()
+		fn()
+	})
+}
+
 func TestSaddleIndependent60DegForwardExample(t *testing.T) {
 	// At STA 60°, axial distance 100 mm, zero post setback, rail offset +12 mm,
 	// level rails, local BRP +32 mm and support point (-48, +10) mm:

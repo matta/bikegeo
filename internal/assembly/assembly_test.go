@@ -21,21 +21,15 @@ func mustAssembleStem(
 	stemAngleDeg model.Deg,
 ) assembly.StemPlacement {
 	t.Helper()
-	ht, err := assembly.NewHeadTubeTop(pos, htaDeg)
+	placement, err := assembly.PlaceStem(pos, htaDeg, assembly.StemSetup{
+		UpperHeadsetCoverMm: coverMm,
+		SpacersMm:           spacersMm,
+		ClampHeightMm:       clampHeightMm,
+		LengthMm:            stemLengthMm,
+		AngleDeg:            stemAngleDeg,
+	})
 	if err != nil {
-		t.Fatalf("NewHeadTubeTop(%+v, %v): %v", pos, htaDeg, err)
-	}
-	base, err := ht.WithUpperStack(coverMm, spacersMm)
-	if err != nil {
-		t.Fatalf("WithUpperStack(%v, %v): %v", coverMm, spacersMm, err)
-	}
-	stem, err := assembly.NewStem(clampHeightMm, stemLengthMm, stemAngleDeg)
-	if err != nil {
-		t.Fatalf("NewStem(%v, %v, %v): %v", clampHeightMm, stemLengthMm, stemAngleDeg, err)
-	}
-	placement, err := base.AttachStem(stem)
-	if err != nil {
-		t.Fatalf("AttachStem: %v", err)
+		t.Fatalf("PlaceStem(%+v, %v): %v", pos, htaDeg, err)
 	}
 	return placement
 }
@@ -46,18 +40,6 @@ func assertPointNear(t *testing.T, label string, got, want geom2d.Point2, tol fl
 		t.Errorf("%s = (%.12f, %.12f), want (%.12f, %.12f) (dist=%.3e > tol=%.3e)",
 			label, got.X, got.Y, want.X, want.Y, d, tol)
 	}
-}
-
-func assertPanics(t *testing.T, name string, fn func()) {
-	t.Helper()
-	t.Run(name, func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Errorf("%s: expected panic, succeeded silently", name)
-			}
-		}()
-		fn()
-	})
 }
 
 func TestIndependent60DegWorkedExample(t *testing.T) {
@@ -72,8 +54,8 @@ func TestIndependent60DegWorkedExample(t *testing.T) {
 	wantSteerer := geom2d.Point2{X: -25.0, Y: 25.0 * math.Sqrt(3)}
 	wantBar := geom2d.Point2{X: 50.0*math.Sqrt(3) - 25.0, Y: 50.0 + 25.0*math.Sqrt(3)}
 
-	assertPointNear(t, "SteererClamp", p.SteererClamp(), wantSteerer, 1e-12)
-	assertPointNear(t, "BarClamp", p.BarClamp(), wantBar, 1e-12)
+	assertPointNear(t, "SteererClamp", p.SteererClamp, wantSteerer, 1e-12)
+	assertPointNear(t, "BarClamp", p.BarClamp, wantBar, 1e-12)
 }
 
 func TestNonzeroStemAngleAndIndependentFaultSensitivity(t *testing.T) {
@@ -87,8 +69,8 @@ func TestNonzeroStemAngleAndIndependentFaultSensitivity(t *testing.T) {
 	cos70 := math.Cos(70.0 * math.Pi / 180.0)
 	wantSC := geom2d.Point2{X: -46.0 * cos70, Y: 46.0 * sin70}
 	wantBCNeg20 := geom2d.Point2{X: wantSC.X + 80.0, Y: wantSC.Y}
-	assertPointNear(t, "SteererClamp(70°,-20°)", pNeg20.SteererClamp(), wantSC, 1e-11)
-	assertPointNear(t, "BarClamp(70°,-20°)", pNeg20.BarClamp(), wantBCNeg20, 1e-11)
+	assertPointNear(t, "SteererClamp(70°,-20°)", pNeg20.SteererClamp, wantSC, 1e-11)
+	assertPointNear(t, "BarClamp(70°,-20°)", pNeg20.BarClamp, wantBCNeg20, 1e-11)
 
 	// Reversing stem angle (+20° instead of -20°) aims at 40° above +X instead of 0°:
 	// detects sign-inversion faults that zero-angle tests cannot see.
@@ -96,18 +78,18 @@ func TestNonzeroStemAngleAndIndependentFaultSensitivity(t *testing.T) {
 	cos40 := math.Cos(40.0 * math.Pi / 180.0)
 	sin40 := math.Sin(40.0 * math.Pi / 180.0)
 	wantBCPos20 := geom2d.Point2{X: wantSC.X + 80.0*cos40, Y: wantSC.Y + 80.0*sin40}
-	assertPointNear(t, "BarClamp(70°,+20°)", pPos20.BarClamp(), wantBCPos20, 1e-11)
-	if pPos20.BarClamp().DistanceTo(pNeg20.BarClamp()) < 50.0 {
+	assertPointNear(t, "BarClamp(70°,+20°)", pPos20.BarClamp, wantBCPos20, 1e-11)
+	if pPos20.BarClamp.DistanceTo(pNeg20.BarClamp) < 50.0 {
 		t.Fatalf("expected reversed stem angle to diverge significantly")
 	}
 
 	// Verify sensitivity to cover and half-clamp height independently:
 	pNoCover := mustAssembleStem(t, geom2d.Origin(), 70.0, 0.0, 15.0, 40.0, 80.0, -20.0)
-	if d := pNeg20.SteererClamp().DistanceTo(pNoCover.SteererClamp()); math.Abs(d-11.0) > 1e-11 {
+	if d := pNeg20.SteererClamp.DistanceTo(pNoCover.SteererClamp); math.Abs(d-11.0) > 1e-11 {
 		t.Errorf("cover contribution = %.12f, want 11.0", d)
 	}
 	pSmallClamp := mustAssembleStem(t, geom2d.Origin(), 70.0, 11.0, 15.0, 20.0, 80.0, -20.0)
-	if d := pNeg20.SteererClamp().DistanceTo(pSmallClamp.SteererClamp()); math.Abs(d-10.0) > 1e-11 {
+	if d := pNeg20.SteererClamp.DistanceTo(pSmallClamp.SteererClamp); math.Abs(d-10.0) > 1e-11 {
 		t.Errorf("half-clamp contribution delta = %.12f, want 10.0", d)
 	}
 }
@@ -170,256 +152,134 @@ func TestRigidTransformationProperty(t *testing.T) {
 			ht1Hta := tc.hta - tc.rotCCWDeg
 			p1 := mustAssembleStem(t, ht1Pos, ht1Hta, tc.cover, tc.spacers, tc.clampH, tc.stemLen, tc.stemAng)
 
-			assertPointNear(t, "SteererClamp", p1.SteererClamp(), transform(p0.SteererClamp()), 1e-11)
-			assertPointNear(t, "BarClamp", p1.BarClamp(), transform(p0.BarClamp()), 1e-11)
+			assertPointNear(t, "SteererClamp", p1.SteererClamp, transform(p0.SteererClamp), 1e-11)
+			assertPointNear(t, "BarClamp", p1.BarClamp, transform(p0.BarClamp), 1e-11)
 		})
 	}
 }
 
-func TestDimensionPropertiesAndImmutableReuse(t *testing.T) {
+func TestDimensionPropertiesAndSpacerTranslation(t *testing.T) {
 	pos := geom2d.Point2{X: 430, Y: 625}
 	hta := model.Deg(69.5)
 	cover := 11.0
 	spacers := 10.0
 	clampH := 40.0
 
-	ht, err := assembly.NewHeadTubeTop(pos, hta)
-	if err != nil {
-		t.Fatal(err)
-	}
-	base1, err := ht.WithUpperStack(cover, spacers)
-	if err != nil {
-		t.Fatal(err)
-	}
+	placeA := mustAssembleStem(t, pos, hta, cover, spacers, clampH, 70.0, -6.0)
+	placeB := mustAssembleStem(t, pos, hta, cover, spacers, clampH, 110.0, 17.0)
 
-	// Reusing the immutable StemBase for two different stems must yield independent placements.
-	stemA, err := assembly.NewStem(clampH, 70.0, -6.0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	stemB, err := assembly.NewStem(clampH, 110.0, 17.0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	placeA, err := base1.AttachStem(stemA)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	placeB, err := base1.AttachStem(stemB)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Both stems share the same steerer clamp center (same clamp height on same base).
-	assertPointNear(t, "shared SteererClamp", placeA.SteererClamp(), placeB.SteererClamp(), 1e-12)
+	// Both stems share the same steerer clamp center (same clamp height and upper stack).
+	assertPointNear(t, "shared SteererClamp", placeA.SteererClamp, placeB.SteererClamp, 1e-12)
 
 	// Clamp separation equals stem length.
-	if d := placeA.SteererClamp().DistanceTo(placeA.BarClamp()); math.Abs(d-70.0) > 1e-11 {
+	if d := placeA.SteererClamp.DistanceTo(placeA.BarClamp); math.Abs(d-70.0) > 1e-11 {
 		t.Errorf("stemA separation = %.12f, want 70.0", d)
 	}
-	if d := placeB.SteererClamp().DistanceTo(placeB.BarClamp()); math.Abs(d-110.0) > 1e-11 {
+	if d := placeB.SteererClamp.DistanceTo(placeB.BarClamp); math.Abs(d-110.0) > 1e-11 {
 		t.Errorf("stemB separation = %.12f, want 110.0", d)
 	}
 
 	// Distance from head-tube top to steerer clamp equals cover + spacers + clampH/2.
-	if d := pos.DistanceTo(placeA.SteererClamp()); math.Abs(d-(cover+spacers+clampH/2.0)) > 1e-11 {
+	if d := pos.DistanceTo(placeA.SteererClamp); math.Abs(d-(cover+spacers+clampH/2.0)) > 1e-11 {
 		t.Errorf("steerer advance = %.12f, want %.12f", d, cover+spacers+clampH/2.0)
 	}
 
 	// Adding delta spacers translates both landmarks along the steerer axis by delta.
 	delta := 15.0
-	base2, err := ht.WithUpperStack(cover, spacers+delta)
-	if err != nil {
-		t.Fatal(err)
-	}
-	placeA2, err := base2.AttachStem(stemA)
-	if err != nil {
-		t.Fatal(err)
-	}
+	placeA2 := mustAssembleStem(t, pos, hta, cover, spacers+delta, clampH, 70.0, -6.0)
 
 	steerStep := geom2d.FromPolar(delta, (180.0 - hta).Angle())
-	assertPointNear(t, "SteererClamp+delta", placeA2.SteererClamp(), placeA.SteererClamp().Add(steerStep), 1e-11)
-	assertPointNear(t, "BarClamp+delta", placeA2.BarClamp(), placeA.BarClamp().Add(steerStep), 1e-11)
+	assertPointNear(t, "SteererClamp+delta", placeA2.SteererClamp, placeA.SteererClamp.Add(steerStep), 1e-11)
+	assertPointNear(t, "BarClamp+delta", placeA2.BarClamp, placeA.BarClamp.Add(steerStep), 1e-11)
 }
 
 func TestBoundaryValidation(t *testing.T) {
-	t.Run("NewHeadTubeTop", func(t *testing.T) {
-		badCases := []struct {
-			name string
-			pos  geom2d.Point2
-			hta  model.Deg
-		}{
-			{"NaN X", geom2d.Point2{X: math.NaN(), Y: 600}, 70},
-			{"+Inf X", geom2d.Point2{X: math.Inf(1), Y: 600}, 70},
-			{"-Inf Y", geom2d.Point2{X: 400, Y: math.Inf(-1)}, 70},
-			{"HTA 0", geom2d.Origin(), 0},
-			{"HTA negative", geom2d.Origin(), -10},
-			{"HTA > 90", geom2d.Origin(), 90.1},
-			{"HTA 180", geom2d.Origin(), 180},
-			{"HTA NaN", geom2d.Origin(), model.Deg(math.NaN())},
-			{"HTA +Inf", geom2d.Origin(), model.Deg(math.Inf(1))},
+	basePos := geom2d.Point2{X: 430, Y: 625}
+	baseHTA := model.Deg(70.0)
+	baseSetup := assembly.StemSetup{
+		UpperHeadsetCoverMm: 11.0,
+		SpacersMm:           15.0,
+		ClampHeightMm:       40.0,
+		LengthMm:            80.0,
+		AngleDeg:            -6.0,
+	}
+	// Baseline succeeds with finite landmarks.
+	basePlace, err := assembly.PlaceStem(basePos, baseHTA, baseSetup)
+	if err != nil {
+		t.Fatalf("baseline PlaceStem failed: %v", err)
+	}
+	if math.IsNaN(basePlace.SteererClamp.X) || math.IsInf(basePlace.SteererClamp.X, 0) ||
+		math.IsNaN(basePlace.BarClamp.Y) || math.IsInf(basePlace.BarClamp.Y, 0) {
+		t.Fatalf("baseline PlaceStem returned non-finite landmarks: %+v", basePlace)
+	}
+
+	// Zero cover and zero spacers, and boundary HTA values (0°, 90°], remain legal.
+	for _, hta := range []model.Deg{0.1, 60.0, 90.0} {
+		zeroStack := baseSetup
+		zeroStack.UpperHeadsetCoverMm = 0
+		zeroStack.SpacersMm = 0
+		if _, err := assembly.PlaceStem(geom2d.Origin(), hta, zeroStack); err != nil {
+			t.Errorf("HTA %v with zero cover/spacers should be valid, got %v", hta, err)
 		}
-		for _, tc := range badCases {
-			t.Run(tc.name, func(t *testing.T) {
-				if _, err := assembly.NewHeadTubeTop(tc.pos, tc.hta); err == nil {
-					t.Errorf("%s: expected error, got nil", tc.name)
-				}
-			})
-		}
-		for _, hta := range []model.Deg{0.1, 60.0, 90.0} {
-			if _, err := assembly.NewHeadTubeTop(geom2d.Origin(), hta); err != nil {
-				t.Errorf("HTA %v should be valid, got %v", hta, err)
+	}
+
+	badCases := []struct {
+		name string
+		pos  geom2d.Point2
+		hta  model.Deg
+		mut  func(*assembly.StemSetup)
+	}{
+		{"NaN X", geom2d.Point2{X: math.NaN(), Y: 600}, baseHTA, nil},
+		{"+Inf X", geom2d.Point2{X: math.Inf(1), Y: 600}, baseHTA, nil},
+		{"-Inf Y", geom2d.Point2{X: 400, Y: math.Inf(-1)}, baseHTA, nil},
+		{"HTA 0", basePos, 0, nil},
+		{"HTA negative", basePos, -10, nil},
+		{"HTA > 90", basePos, 90.1, nil},
+		{"HTA 180", basePos, 180, nil},
+		{"HTA NaN", basePos, model.Deg(math.NaN()), nil},
+		{"HTA +Inf", basePos, model.Deg(math.Inf(1)), nil},
+		{"negative cover", basePos, baseHTA, func(s *assembly.StemSetup) { s.UpperHeadsetCoverMm = -0.1 }},
+		{"negative spacers", basePos, baseHTA, func(s *assembly.StemSetup) { s.SpacersMm = -5 }},
+		{"NaN cover", basePos, baseHTA, func(s *assembly.StemSetup) { s.UpperHeadsetCoverMm = math.NaN() }},
+		{"NaN spacers", basePos, baseHTA, func(s *assembly.StemSetup) { s.SpacersMm = math.NaN() }},
+		{"+Inf cover", basePos, baseHTA, func(s *assembly.StemSetup) { s.UpperHeadsetCoverMm = math.Inf(1) }},
+		{"-Inf spacers", basePos, baseHTA, func(s *assembly.StemSetup) { s.SpacersMm = math.Inf(-1) }},
+		{"sum overflow", basePos, baseHTA, func(s *assembly.StemSetup) {
+			s.UpperHeadsetCoverMm = math.MaxFloat64
+			s.SpacersMm = math.MaxFloat64
+		}},
+		{"steerer Y overflow", geom2d.Point2{X: 0, Y: math.MaxFloat64}, 90, func(s *assembly.StemSetup) {
+			s.UpperHeadsetCoverMm = math.MaxFloat64
+			s.SpacersMm = 0
+		}},
+		{"zero clamp height", basePos, baseHTA, func(s *assembly.StemSetup) { s.ClampHeightMm = 0 }},
+		{"negative clamp height", basePos, baseHTA, func(s *assembly.StemSetup) { s.ClampHeightMm = -10 }},
+		{"NaN clamp height", basePos, baseHTA, func(s *assembly.StemSetup) { s.ClampHeightMm = math.NaN() }},
+		{"+Inf clamp height", basePos, baseHTA, func(s *assembly.StemSetup) { s.ClampHeightMm = math.Inf(1) }},
+		{"zero length", basePos, baseHTA, func(s *assembly.StemSetup) { s.LengthMm = 0 }},
+		{"negative length", basePos, baseHTA, func(s *assembly.StemSetup) { s.LengthMm = -50 }},
+		{"NaN length", basePos, baseHTA, func(s *assembly.StemSetup) { s.LengthMm = math.NaN() }},
+		{"+Inf length", basePos, baseHTA, func(s *assembly.StemSetup) { s.LengthMm = math.Inf(1) }},
+		{"NaN angle", basePos, baseHTA, func(s *assembly.StemSetup) { s.AngleDeg = model.Deg(math.NaN()) }},
+		{"-Inf angle", basePos, baseHTA, func(s *assembly.StemSetup) { s.AngleDeg = model.Deg(math.Inf(-1)) }},
+		{"bar-clamp X overflow", geom2d.Point2{X: math.MaxFloat64, Y: 0}, 90, func(s *assembly.StemSetup) {
+			s.UpperHeadsetCoverMm = 0
+			s.SpacersMm = 0
+			s.LengthMm = math.MaxFloat64
+			s.AngleDeg = 0
+		}},
+	}
+	for _, tc := range badCases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := baseSetup
+			if tc.mut != nil {
+				tc.mut(&s)
 			}
-		}
-	})
-
-	t.Run("WithUpperStack", func(t *testing.T) {
-		ht, err := assembly.NewHeadTubeTop(geom2d.Origin(), 70)
-		if err != nil {
-			t.Fatal(err)
-		}
-		badStacks := []struct {
-			name    string
-			cover   float64
-			spacers float64
-		}{
-			{"negative cover", -0.1, 0},
-			{"negative spacers", 0, -5},
-			{"NaN cover", math.NaN(), 0},
-			{"NaN spacers", 0, math.NaN()},
-			{"+Inf cover", math.Inf(1), 0},
-			{"-Inf spacers", 0, math.Inf(-1)},
-			{"sum overflow", math.MaxFloat64, math.MaxFloat64},
-		}
-		for _, tc := range badStacks {
-			t.Run(tc.name, func(t *testing.T) {
-				if _, err := ht.WithUpperStack(tc.cover, tc.spacers); err == nil {
-					t.Errorf("%s: expected error, got nil", tc.name)
-				}
-			})
-		}
-		// Zero cover and zero spacers remain legal.
-		if _, err := ht.WithUpperStack(0, 0); err != nil {
-			t.Errorf("zero cover and spacers should be legal, got %v", err)
-		}
-		// World translation overflow on finite inputs.
-		htHigh, err := assembly.NewHeadTubeTop(geom2d.Point2{X: 0, Y: math.MaxFloat64}, 90)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := htHigh.WithUpperStack(math.MaxFloat64, 0); err == nil {
-			t.Errorf("translation overflow should return error, got nil")
-		}
-	})
-
-	t.Run("NewStem", func(t *testing.T) {
-		badStems := []struct {
-			name   string
-			clampH float64
-			lenMm  float64
-			ang    model.Deg
-		}{
-			{"zero clamp height", 0, 80, 0},
-			{"negative clamp height", -10, 80, 0},
-			{"NaN clamp height", math.NaN(), 80, 0},
-			{"+Inf clamp height", math.Inf(1), 80, 0},
-			{"zero length", 40, 0, 0},
-			{"negative length", 40, -50, 0},
-			{"NaN length", 40, math.NaN(), 0},
-			{"+Inf length", 40, math.Inf(1), 0},
-			{"NaN angle", 40, 80, model.Deg(math.NaN())},
-			{"-Inf angle", 40, 80, model.Deg(math.Inf(-1))},
-			{"local Y overflow", math.MaxFloat64, math.MaxFloat64, 90},
-		}
-		for _, tc := range badStems {
-			t.Run(tc.name, func(t *testing.T) {
-				if _, err := assembly.NewStem(tc.clampH, tc.lenMm, tc.ang); err == nil {
-					t.Errorf("%s: expected error, got nil", tc.name)
-				}
-			})
-		}
-	})
-
-	t.Run("AttachStem overflow", func(t *testing.T) {
-		ht, err := assembly.NewHeadTubeTop(geom2d.Point2{X: math.MaxFloat64, Y: 0}, 90)
-		if err != nil {
-			t.Fatal(err)
-		}
-		sb, err := ht.WithUpperStack(0, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		stem, err := assembly.NewStem(40, math.MaxFloat64, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := sb.AttachStem(stem); err == nil {
-			t.Errorf("world X overflow in AttachStem should return error, got nil")
-		}
-	})
-}
-
-func TestZeroValueAndIgnoredErrorMisusePanics(t *testing.T) {
-	validHT, err := assembly.NewHeadTubeTop(geom2d.Origin(), 70)
-	if err != nil {
-		t.Fatal(err)
+			if _, err := assembly.PlaceStem(tc.pos, tc.hta, s); err == nil {
+				t.Errorf("%s: expected error, got nil", tc.name)
+			}
+		})
 	}
-	validSB, err := validHT.WithUpperStack(10, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	validStem, err := assembly.NewStem(40, 80, -6)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assertPanics(t, "zero HeadTubeTop WithUpperStack", func() {
-		var ht assembly.HeadTubeTop
-		_, _ = ht.WithUpperStack(10, 0)
-	})
-	assertPanics(t, "ignored error HeadTubeTop", func() {
-		ht, _ := assembly.NewHeadTubeTop(geom2d.Point2{X: math.NaN()}, 70)
-		_, _ = ht.WithUpperStack(10, 0)
-	})
-	assertPanics(t, "zero StemBase AttachStem", func() {
-		var sb assembly.StemBase
-		_, _ = sb.AttachStem(validStem)
-	})
-	assertPanics(t, "ignored error StemBase", func() {
-		sb, _ := validHT.WithUpperStack(-1, 0)
-		_, _ = sb.AttachStem(validStem)
-	})
-	assertPanics(t, "zero Stem in AttachStem", func() {
-		var st assembly.Stem
-		_, _ = validSB.AttachStem(st)
-	})
-	assertPanics(t, "ignored error Stem in AttachStem", func() {
-		st, _ := assembly.NewStem(0, 80, 0)
-		_, _ = validSB.AttachStem(st)
-	})
-	assertPanics(t, "zero StemPlacement SteererClamp", func() {
-		var p assembly.StemPlacement
-		_ = p.SteererClamp()
-	})
-	assertPanics(t, "zero StemPlacement BarClamp", func() {
-		var p assembly.StemPlacement
-		_ = p.BarClamp()
-	})
-	assertPanics(t, "ignored error StemPlacement SteererClamp", func() {
-		htMax, _ := assembly.NewHeadTubeTop(geom2d.Point2{X: math.MaxFloat64, Y: 0}, 90)
-		sbMax, _ := htMax.WithUpperStack(0, 0)
-		stMax, _ := assembly.NewStem(40, math.MaxFloat64, 0)
-		p, _ := sbMax.AttachStem(stMax)
-		_ = p.SteererClamp()
-	})
-	assertPanics(t, "ignored error StemPlacement BarClamp", func() {
-		htMax, _ := assembly.NewHeadTubeTop(geom2d.Point2{X: math.MaxFloat64, Y: 0}, 90)
-		sbMax, _ := htMax.WithUpperStack(0, 0)
-		stMax, _ := assembly.NewStem(40, math.MaxFloat64, 0)
-		p, _ := sbMax.AttachStem(stMax)
-		_ = p.BarClamp()
-	})
 }
 
 func TestExternalCompileNegativeFixtures(t *testing.T) {
@@ -428,56 +288,6 @@ func TestExternalCompileNegativeFixtures(t *testing.T) {
 		wantSub1 string
 		wantSub2 string
 	}{
-		{
-			dir:      "headtube_attach_stem",
-			wantSub1: "HeadTubeTop",
-			wantSub2: "AttachStem",
-		},
-		{
-			dir:      "stembase_with_upper_stack",
-			wantSub1: "StemBase",
-			wantSub2: "WithUpperStack",
-		},
-		{
-			dir:      "headtube_to_stembase",
-			wantSub1: "cannot convert headTube",
-			wantSub2: "to type assembly.StemBase",
-		},
-		{
-			dir:      "stembase_to_headtube",
-			wantSub1: "cannot convert stemBase",
-			wantSub2: "to type assembly.HeadTubeTop",
-		},
-		{
-			dir:      "local_offset_as_placed_mount",
-			wantSub1: "cannot use",
-			wantSub2: "assembly.StemBase",
-		},
-		{
-			dir:      "unexported_field_forge",
-			wantSub1: "cannot refer to unexported field valid",
-			wantSub2: "assembly.HeadTubeTop",
-		},
-		{
-			dir:      "stembase_attach_handlebar",
-			wantSub1: "StemBase",
-			wantSub2: "AttachHandlebar",
-		},
-		{
-			dir:      "barclampmount_attach_stem",
-			wantSub1: "BarClampMount",
-			wantSub2: "AttachStem",
-		},
-		{
-			dir:      "stembase_to_barclampmount",
-			wantSub1: "cannot convert stemBase",
-			wantSub2: "to type assembly.BarClampMount",
-		},
-		{
-			dir:      "unexported_barclampmount_forge",
-			wantSub1: "cannot refer to unexported field valid",
-			wantSub2: "assembly.BarClampMount",
-		},
 		{
 			dir:      "seataxis_attach_saddle",
 			wantSub1: "SeatAxis",
@@ -492,11 +302,6 @@ func TestExternalCompileNegativeFixtures(t *testing.T) {
 			dir:      "seatpostclampmount_to_seataxis",
 			wantSub1: "cannot convert clamp",
 			wantSub2: "to type assembly.SeatAxis",
-		},
-		{
-			dir:      "seatpostclampmount_to_barclampmount",
-			wantSub1: "cannot convert clamp",
-			wantSub2: "to type assembly.BarClampMount",
 		},
 		{
 			dir:      "unexported_seataxis_forge",

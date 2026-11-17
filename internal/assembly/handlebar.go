@@ -8,149 +8,92 @@ import (
 	"bikegeo/internal/model"
 )
 
-// Handlebar represents a validated swept/riser handlebar component in its own
-// neutral (roll = 0°) local coordinate frame:
-//   - Origin (0, 0, 0): stem bar-clamp center
-//   - +X: forward horizontal
-//   - +Y: upward vertical
-//   - +Z: lateral right from centerline (symmetric for left)
+// HandlebarSetup specifies a handlebar, grip inset, and clamp roll angle.
 //
-// Rise, sweep, width, and grip-inset conventions:
-//   - Effective width is CurrentWidthMm if positive, otherwise StockWidthMm.
-//   - Lateral hand center is z_hand = EffectiveWidth/2 - gripInsetMm.
-//   - Swept span outboard of the bend start is lz = max(0, z_hand - EffectiveBendStartMm).
-//   - Base rise at the bend intersection (y_k) is StatedRiseMm for RiseModeStandardKnuckle
-//     (or unset), and StatedRiseMm - (StockWidthMm/2 - EffectiveBendStartMm)*tan(UpsweepDeg)
-//     for RiseModeBarEndCenter.
-//   - Neutral grip coordinates are (-lz*tan(BacksweepDeg), y_k + lz*tan(UpsweepDeg), z_hand).
-type Handlebar struct {
-	gripLocal localVec
-	zHandMm   float64
-	valid     bool
+// Roll convention:
+//   - RollDeg is measured relative to the leveled bicycle world frame
+//     (+X forward horizontal, +Y upward vertical), not the stem extension angle.
+//   - Positive RollDeg rolls the top of the bar forward (clockwise in +X/+Y).
+type HandlebarSetup struct {
+	Spec        model.HandlebarSpec
+	GripInsetMm float64
+	RollDeg     model.Deg
 }
 
-// NewHandlebar validates handlebar geometry and grip inset and constructs a
-// Handlebar component definition in its neutral (roll = 0°) local frame.
-func NewHandlebar(spec model.HandlebarSpec, gripInsetMm float64) (Handlebar, error) {
+// PlaceHandlebar places a handlebar at barClamp using a world-relative reference
+// attitude and returns the sagittal hand-grip position.
+// Callers must check the returned error before using the result.
+func PlaceHandlebar(barClamp geom2d.Point2, setup HandlebarSetup) (geom2d.Point2, error) {
+	handGrip, _, err := placeHandlebar(barClamp, setup)
+	return handGrip, err
+}
+
+// HandlebarOffset3D returns the 3D offset (ΔX, ΔY, ΔZ) from the bar-clamp center
+// to the hand-grip center in the world-relative reference frame.
+// Callers must check the returned error before using the result.
+func HandlebarOffset3D(setup HandlebarSetup) (model.Point3D, error) {
+	handGrip, zHand, err := placeHandlebar(geom2d.Origin(), setup)
+	if err != nil {
+		return model.Point3D{}, err
+	}
+	return model.Point3D{X: handGrip.X, Y: handGrip.Y, Z: zHand}, nil
+}
+
+// placeHandlebar computes the sagittal hand-grip coordinate from barClamp and the
+// lateral grip coordinate zHand in the handlebar's world-relative reference frame:
+//   - Effective width is CurrentWidthMm if positive, otherwise StockWidthMm.
+//   - Lateral hand center is z_hand = EffectiveWidth/2 - GripInsetMm.
+//   - Swept span outboard of the bend start is lz = max(0, z_hand - EffectiveBendStartMm).
+//   - Base rise at the bend intersection (y_k) is Spec.BaseRiseAtBend().
+//   - Neutral grip coordinates are (-lz*tan(BacksweepDeg), y_k + lz*tan(UpsweepDeg), z_hand).
+func placeHandlebar(barClamp geom2d.Point2, setup HandlebarSetup) (handGrip geom2d.Point2, zHand float64, err error) {
+	if !isFinitePoint(barClamp) {
+		return geom2d.Point2{}, 0, fmt.Errorf("bar clamp position must be finite, got (%v, %v)", barClamp.X, barClamp.Y)
+	}
+	spec := setup.Spec
 	width := spec.EffectiveWidthMm()
 	if !isFinite(width) || width <= 0 {
-		return Handlebar{}, fmt.Errorf("handlebar effective width must be finite and positive, got %v mm", width)
+		return geom2d.Point2{}, 0, fmt.Errorf("handlebar effective width must be finite and positive, got %v mm", width)
 	}
 	switch spec.RiseMode {
 	case "", model.RiseModeStandardKnuckle, model.RiseModeBarEndCenter:
 	default:
-		return Handlebar{}, fmt.Errorf("unsupported handlebar rise mode %q", spec.RiseMode)
+		return geom2d.Point2{}, 0, fmt.Errorf("unsupported handlebar rise mode %q", spec.RiseMode)
 	}
 	if spec.RiseMode == model.RiseModeBarEndCenter && (!isFinite(spec.StockWidthMm) || spec.StockWidthMm <= 0) {
-		return Handlebar{}, fmt.Errorf("handlebar stock width must be finite and positive for bar_end_center rise mode, got %v mm", spec.StockWidthMm)
+		return geom2d.Point2{}, 0, fmt.Errorf("handlebar stock width must be finite and positive for bar_end_center rise mode, got %v mm", spec.StockWidthMm)
 	}
 	if !isFinite(spec.EffectiveBendStartMm) || spec.EffectiveBendStartMm < 0 {
-		return Handlebar{}, fmt.Errorf("handlebar bend start must be finite and non-negative, got %v mm", spec.EffectiveBendStartMm)
+		return geom2d.Point2{}, 0, fmt.Errorf("handlebar bend start must be finite and non-negative, got %v mm", spec.EffectiveBendStartMm)
 	}
 	if !isFinite(spec.StatedRiseMm) {
-		return Handlebar{}, fmt.Errorf("handlebar stated rise must be finite, got %v mm", spec.StatedRiseMm)
+		return geom2d.Point2{}, 0, fmt.Errorf("handlebar stated rise must be finite, got %v mm", spec.StatedRiseMm)
 	}
 	if !isFinite(float64(spec.BacksweepDeg)) || spec.BacksweepDeg <= -90 || spec.BacksweepDeg >= 90 {
-		return Handlebar{}, fmt.Errorf("handlebar backsweep %v° must be in (-90°, 90°)", spec.BacksweepDeg)
+		return geom2d.Point2{}, 0, fmt.Errorf("handlebar backsweep %v° must be in (-90°, 90°)", spec.BacksweepDeg)
 	}
 	if !isFinite(float64(spec.UpsweepDeg)) || spec.UpsweepDeg <= -90 || spec.UpsweepDeg >= 90 {
-		return Handlebar{}, fmt.Errorf("handlebar upsweep %v° must be in (-90°, 90°)", spec.UpsweepDeg)
+		return geom2d.Point2{}, 0, fmt.Errorf("handlebar upsweep %v° must be in (-90°, 90°)", spec.UpsweepDeg)
 	}
-	if !isFinite(gripInsetMm) || gripInsetMm <= 0 || gripInsetMm >= width/2.0 {
-		return Handlebar{}, fmt.Errorf("grip inset %v mm must be in (0, %.1f)", gripInsetMm, width/2.0)
+	if !isFinite(setup.GripInsetMm) || setup.GripInsetMm <= 0 || setup.GripInsetMm >= width/2.0 {
+		return geom2d.Point2{}, 0, fmt.Errorf("grip inset %v mm must be in (0, %.1f)", setup.GripInsetMm, width/2.0)
 	}
-
-	zHand := width/2.0 - gripInsetMm
-	lz := math.Max(0, zHand-spec.EffectiveBendStartMm)
-	yk := spec.BaseRiseAtBend()
-	dx0 := -lz * spec.BacksweepDeg.Angle().Tan()
-	dy0 := yk + lz*spec.UpsweepDeg.Angle().Tan()
-
-	if !isFinite(zHand) || !isFinite(yk) || !isFinite(dx0) || !isFinite(dy0) {
-		return Handlebar{}, fmt.Errorf("handlebar local grip calculation overflow")
+	if !isFinite(float64(setup.RollDeg)) {
+		return geom2d.Point2{}, 0, fmt.Errorf("bar roll angle must be finite, got %v°", setup.RollDeg)
 	}
 
-	return Handlebar{
-		gripLocal: localVec{x: dx0, y: dy0},
-		zHandMm:   zHand,
-		valid:     true,
-	}, nil
-}
+	zHand = width/2.0 - setup.GripInsetMm
+	sweptSpan := math.Max(0, zHand-spec.EffectiveBendStartMm)
+	baseRise := spec.BaseRiseAtBend()
+	dx0 := -sweptSpan * spec.BacksweepDeg.Angle().Tan()
+	dy0 := baseRise + sweptSpan*spec.UpsweepDeg.Angle().Tan()
 
-func (h Handlebar) mustBeValid() {
-	if !h.valid {
-		panic("assembly: uninitialized or invalid Handlebar")
+	// World-relative reference attitude at barClamp; positive RollDeg rolls the
+	// top of the bar forward (clockwise = -RollDeg counter-clockwise).
+	rolledPose := newPose2(barClamp, 0).turn((-setup.RollDeg).Angle())
+	handGrip = rolledPose.point(dx0, dy0)
+	if !isFinite(zHand) || !isFinitePoint(handGrip) {
+		return geom2d.Point2{}, 0, fmt.Errorf("handlebar placement overflow from bar clamp (%v, %v)", barClamp.X, barClamp.Y)
 	}
-	if !isFinite(h.gripLocal.x) || !isFinite(h.gripLocal.y) || !isFinite(h.zHandMm) {
-		panic("assembly: non-finite Handlebar local coordinates")
-	}
-}
-
-// GripOffset3D returns the 3D offset (ΔX, ΔY, ΔZ) from the bar clamp center to
-// the hand grip center when rolled by rollDeg in the clamp.
-func (h Handlebar) GripOffset3D(rollDeg model.Deg) (model.Point3D, error) {
-	h.mustBeValid()
-	if !isFinite(float64(rollDeg)) {
-		return model.Point3D{}, fmt.Errorf("bar roll angle must be finite, got %v°", rollDeg)
-	}
-	rolledPose, err := identityPose2().rotateLocal((-rollDeg).Angle())
-	if err != nil {
-		return model.Point3D{}, err
-	}
-	pt, err := rolledPose.transformPoint(h.gripLocal)
-	if err != nil {
-		return model.Point3D{}, err
-	}
-	return model.Point3D{X: pt.X, Y: pt.Y, Z: h.zHandMm}, nil
-}
-
-// AttachHandlebar mounts bar onto m with clamp roll angle rollDeg and returns
-// the immutable HandlebarPlacement.
-//
-// Roll convention:
-//   - rollDeg is measured relative to BarClampMount's reference attitude
-//     (leveled bicycle world horizontal +X forward, vertical +Y up).
-//   - Positive rollDeg rolls the top of the bar forward (clockwise in the +X/+Y
-//     sagittal plane).
-func (m BarClampMount) AttachHandlebar(bar Handlebar, rollDeg model.Deg) (HandlebarPlacement, error) {
-	m.mustBeValid()
-	bar.mustBeValid()
-	if !isFinite(float64(rollDeg)) {
-		return HandlebarPlacement{}, fmt.Errorf("bar roll angle must be finite, got %v°", rollDeg)
-	}
-
-	// Positive rollDeg rolls the top of the bar forward (clockwise = -rollDeg CCW).
-	rolledPose, err := m.barPose.rotateLocal((-rollDeg).Angle())
-	if err != nil {
-		return HandlebarPlacement{}, err
-	}
-	handGrip, err := rolledPose.transformPoint(bar.gripLocal)
-	if err != nil {
-		return HandlebarPlacement{}, err
-	}
-	return HandlebarPlacement{
-		handGrip: handGrip,
-		valid:    true,
-	}, nil
-}
-
-// HandlebarPlacement is the immutable solved placement of a handlebar on a stem.
-type HandlebarPlacement struct {
-	handGrip geom2d.Point2
-	valid    bool
-}
-
-func (p HandlebarPlacement) mustBeValid() {
-	if !p.valid {
-		panic("assembly: uninitialized or invalid HandlebarPlacement")
-	}
-	if !isFinite(p.handGrip.X) || !isFinite(p.handGrip.Y) {
-		panic("assembly: non-finite HandlebarPlacement landmarks")
-	}
-}
-
-// HandGrip returns the world coordinates of the hand-grip center in the sagittal plane.
-func (p HandlebarPlacement) HandGrip() geom2d.Point2 {
-	p.mustBeValid()
-	return p.handGrip
+	return handGrip, zHand, nil
 }

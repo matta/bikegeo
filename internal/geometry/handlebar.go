@@ -22,11 +22,11 @@ func GetHandlebarOffset(spec model.HandlebarSpec, gripInsetMm float64, rollDeg m
 	if gripInsetMm <= 0 {
 		gripInsetMm = model.DefaultGripInsetMm
 	}
-	bar, err := assembly.NewHandlebar(spec, gripInsetMm)
-	if err != nil {
-		return model.Point3D{}, err
-	}
-	return bar.GripOffset3D(rollDeg)
+	return assembly.HandlebarOffset3D(assembly.HandlebarSetup{
+		Spec:        spec,
+		GripInsetMm: gripInsetMm,
+		RollDeg:     rollDeg,
+	})
 }
 
 // HandlebarDelta computes the hand grip coordinate shift when switching from specFrom to specTo

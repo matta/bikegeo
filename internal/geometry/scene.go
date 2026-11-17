@@ -411,37 +411,31 @@ func levelFrame2D(in frameLevelingInput) frameLevelingResult {
 }
 
 // placeFrontCockpit positions SteererClamp, StemClamp, and HandGrip from the leveled head-tube top
-// and head-tube angle using the checked assembly recipe.
+// and head-tube angle using assembly placement.
 func placeFrontCockpit(headTubeTop geom2d.Point2, htaDeg model.Deg, cockpit CockpitSpec) (frontCockpitPoints, error) {
-	headTube, err := assembly.NewHeadTubeTop(headTubeTop, htaDeg)
+	stemPlacement, err := assembly.PlaceStem(headTubeTop, htaDeg, assembly.StemSetup{
+		UpperHeadsetCoverMm: cockpit.HeadsetTopStackMm,
+		SpacersMm:           cockpit.SpacerMm,
+		ClampHeightMm:       cockpit.StemClampHeightMm,
+		LengthMm:            cockpit.Stem.LengthMm,
+		AngleDeg:            cockpit.Stem.AngleDeg,
+	})
 	if err != nil {
 		return frontCockpitPoints{}, err
 	}
-	stemBase, err := headTube.WithUpperStack(cockpit.HeadsetTopStackMm, cockpit.SpacerMm)
-	if err != nil {
-		return frontCockpitPoints{}, err
-	}
-	stem, err := assembly.NewStem(cockpit.StemClampHeightMm, cockpit.Stem.LengthMm, cockpit.Stem.AngleDeg)
-	if err != nil {
-		return frontCockpitPoints{}, err
-	}
-	stemPlacement, err := stemBase.AttachStem(stem)
-	if err != nil {
-		return frontCockpitPoints{}, err
-	}
-	bar, err := assembly.NewHandlebar(cockpit.Handlebar, cockpit.GripInsetMm)
-	if err != nil {
-		return frontCockpitPoints{}, err
-	}
-	barPlacement, err := stemPlacement.BarClampMount().AttachHandlebar(bar, cockpit.BarRollDeg)
+	handGrip, err := assembly.PlaceHandlebar(stemPlacement.BarClamp, assembly.HandlebarSetup{
+		Spec:        cockpit.Handlebar,
+		GripInsetMm: cockpit.GripInsetMm,
+		RollDeg:     cockpit.BarRollDeg,
+	})
 	if err != nil {
 		return frontCockpitPoints{}, err
 	}
 
 	return frontCockpitPoints{
-		SteererClamp: stemPlacement.SteererClamp(),
-		StemClamp:    stemPlacement.BarClamp(),
-		HandGrip:     barPlacement.HandGrip(),
+		SteererClamp: stemPlacement.SteererClamp,
+		StemClamp:    stemPlacement.BarClamp,
+		HandGrip:     handGrip,
 	}, nil
 }
 
@@ -530,7 +524,7 @@ func BuildScene(
 	seat SeatSpec,
 	fit RiderFit,
 ) (BikeScene, error) {
-	if err := validateSceneInputs(frame, build, cockpit, seat, fit); err != nil {
+	if err := validateSceneInputs(frame, build, seat, fit); err != nil {
 		return BikeScene{}, err
 	}
 
@@ -689,9 +683,6 @@ func BuildScene(
 
 // WithCockpit returns a copy of s with the front cockpit re-evaluated for cockpit without re-pitching the frame.
 func (s BikeScene) WithCockpit(cockpit CockpitSpec) (BikeScene, error) {
-	if err := validateCockpitSpec(cockpit); err != nil {
-		return BikeScene{}, err
-	}
 	reqClamp, err := RequiredStemClamp(s.Fit, cockpit)
 	if err != nil {
 		return BikeScene{}, err
@@ -889,23 +880,9 @@ func validateCockpitTargetInputs(fit RiderFit, cockpit CockpitSpec) error {
 	return nil
 }
 
-func validateCockpitSpec(cockpit CockpitSpec) error {
-	if !isNonNegative(cockpit.HeadsetTopStackMm) || !isNonNegative(cockpit.SpacerMm) {
-		return fmt.Errorf("headset top stack (%.1f) and spacers (%.1f) must be non-negative", cockpit.HeadsetTopStackMm, cockpit.SpacerMm)
-	}
-	if !isPositive(cockpit.Stem.LengthMm) || !isPositive(cockpit.StemClampHeightMm) || !isFinite(float64(cockpit.Stem.AngleDeg)) {
-		return fmt.Errorf("stem requires positive LengthMm and StemClampHeightMm, got len=%.1f h=%.1f", cockpit.Stem.LengthMm, cockpit.StemClampHeightMm)
-	}
-	if !isFinite(float64(cockpit.BarRollDeg)) {
-		return fmt.Errorf("BarRollDeg must be finite")
-	}
-	return nil
-}
-
 func validateSceneInputs(
 	frame FrameSize,
 	build BuildSpec,
-	cockpit CockpitSpec,
 	seat SeatSpec,
 	fit RiderFit,
 ) error {
@@ -944,9 +921,6 @@ func validateSceneInputs(
 	}
 	if !isPositive(build.WheelRadiusFrontMm) || !isPositive(build.WheelRadiusRearMm) {
 		return fmt.Errorf("wheel radii must be positive, got front=%.1f rear=%.1f", build.WheelRadiusFrontMm, build.WheelRadiusRearMm)
-	}
-	if err := validateCockpitSpec(cockpit); err != nil {
-		return err
 	}
 	if !isNonNegative(seat.PostSetbackMm) || !isPositive(seat.ClampLengthMm) || !isPositive(seat.Saddle.RailLengthMm) || !isFinite(seat.RailOffsetMm) || !isFinite(float64(seat.Saddle.RailPitchDeg)) {
 		return fmt.Errorf("invalid SeatSpec (postSB=%.1f clamp=%.1f railLen=%.1f railOff=%.1f)", seat.PostSetbackMm, seat.ClampLengthMm, seat.Saddle.RailLengthMm, seat.RailOffsetMm)
