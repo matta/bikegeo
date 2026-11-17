@@ -24,10 +24,12 @@ states the current direction.
 
 ## What is already useful
 
-- `internal/assembly` owns stem, handlebar, and saddle placement. Its pose
-  operations centralize local movement and rotation.
-- `geometry.placeFrontCockpit` supplies common landmarks to scene construction,
-  cockpit replacement, and handlebar calculations.
+- `internal/assembly` owns stem, handlebar, and saddle placement. Its value-based
+  `pose2` operations centralize local movement and rotation.
+- Front-cockpit placement is simplified to `PlaceStem`, `PlaceHandlebar`, and
+  `HandlebarOffset3D` with named setup structs and plain landmark results;
+  `geometry.placeFrontCockpit` routes scene construction, cockpit replacement,
+  and handlebar calculations through them.
 - The saddle radius, rail-offset, and effective-STA solvers use forward assembly
   and verify their results against the requested target.
 - Saddle placements retain their construction facts; legacy snapshot export
@@ -35,8 +37,8 @@ states the current direction.
 - Independent examples, transformation properties, and application tests cover
   the migrated behavior. Keep that evidence during simplification.
 
-These paths are implemented through commit `d369c4e`. They still contain more
-checked handles, getters, and repeated validation than the clarified goal needs.
+The front-cockpit slice is complete. Saddle placement and its solvers still
+contain checked handles, getters, and repeated validation from earlier stages.
 Legacy `BikeScene` and `BRPPoint` remain ordinary mutable snapshots. This is not a
 whole-bike correctness proof or certification of physical hardware safety.
 
