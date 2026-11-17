@@ -7,5 +7,5 @@ import (
 
 func main() {
 	_ = assembly.HeadTubeTop{valid: true}
-	_ = geom2d.Origin
+	_ = geom2d.Origin()
 }

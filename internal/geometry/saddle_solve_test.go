@@ -52,7 +52,7 @@ func TestSolveSaddleForwardInverseConsistency(t *testing.T) {
 				s.RailPitchDeg = pitch
 				for _, offset := range []float64{-15, 0, 15} {
 					const axial, post = 700.0, 11.0
-					axis, err := assembly.NewSeatAxis(geom2d.Origin, sta)
+					axis, err := assembly.NewSeatAxis(geom2d.Origin(), sta)
 					if err != nil {
 						t.Fatal(err)
 					}

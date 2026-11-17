@@ -78,14 +78,8 @@ type Vec2 struct {
 	X, Y float64
 }
 
-// Origin is the (0, 0) point.
-var Origin = Point2{X: 0, Y: 0}
-
-// UnitX is a unit vector pointing along the positive X-axis (forward).
-var UnitX = Vec2{X: 1, Y: 0}
-
-// UnitY is a unit vector pointing along the positive Y-axis (upward).
-var UnitY = Vec2{X: 0, Y: 1}
+// Origin returns the (0, 0) point.
+func Origin() Point2 { return Point2{} }
 
 // FromPolar creates a Vec2 from polar coordinates (length r and angle theta).
 func FromPolar(r float64, theta Angle) Vec2 {

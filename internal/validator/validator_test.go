@@ -933,7 +933,7 @@ func TestRegistryGeometricInvariants(t *testing.T) {
 				if err != nil {
 					t.Fatalf("MaterializeBikeGeometry(%s, %s): %v", frame.ID, sz, err)
 				}
-				bb := geom2d.Origin
+				bb := geom2d.Origin()
 				u0 := geometry.SteererTubeDir(bike.HtaDeg)
 				ht0 := geom2d.Point2{X: bike.Reach, Y: bike.Stack}
 				htb0 := ht0.SubVec(u0.Scale(bike.Htl))

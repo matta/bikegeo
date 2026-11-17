@@ -6,6 +6,6 @@ import (
 )
 
 func main() {
-	sa, _ := assembly.NewSeatAxis(geom2d.Origin, 73)
+	sa, _ := assembly.NewSeatAxis(geom2d.Origin(), 73)
 	_ = assembly.SeatpostClampMount(sa)
 }

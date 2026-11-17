@@ -76,27 +76,13 @@ func TestIndependent60DegWorkedExample(t *testing.T) {
 	assertPointNear(t, "BarClamp", p.BarClamp(), wantBar, 1e-12)
 }
 
-func TestStemLocalFrameIndependentOfGeom2DGlobals(t *testing.T) {
-	origin, unitX, unitY := geom2d.Origin, geom2d.UnitX, geom2d.UnitY
-	t.Cleanup(func() { geom2d.Origin, geom2d.UnitX, geom2d.UnitY = origin, unitX, unitY })
-	// This shifted, rotated basis is still a valid pose, so a general pose check
-	// would accept it. The stem's local identity must be fixed independently.
-	geom2d.Origin = geom2d.Point2{X: 100}
-	geom2d.UnitX = geom2d.Vec2{Y: 1}
-	geom2d.UnitY = geom2d.Vec2{X: -1}
-
-	p := mustAssembleStem(t, geom2d.Point2{}, 90, 10, 20, 40, 80, 0)
-	assertPointNear(t, "SteererClamp", p.SteererClamp(), geom2d.Point2{Y: 50}, 1e-12)
-	assertPointNear(t, "BarClamp", p.BarClamp(), geom2d.Point2{X: 80, Y: 50}, 1e-12)
-}
-
 func TestNonzeroStemAngleAndIndependentFaultSensitivity(t *testing.T) {
 	// At HTA = 70°, perpendicular forward is 90° - 70° = 20° above +X.
 	// Case A: stem angle = -20° cancels the 20° slope so the stem points strictly +X (horizontal).
 	//   dSteerer = 11 (cover) + 15 (spacers) + 20 (40/2 half-clamp) = 46 mm
 	//   SteererClamp = (-46*cos(70°), 46*sin(70°))
 	//   BarClamp     = SteererClamp + (80, 0)
-	pNeg20 := mustAssembleStem(t, geom2d.Origin, 70.0, 11.0, 15.0, 40.0, 80.0, -20.0)
+	pNeg20 := mustAssembleStem(t, geom2d.Origin(), 70.0, 11.0, 15.0, 40.0, 80.0, -20.0)
 	sin70 := math.Sin(70.0 * math.Pi / 180.0)
 	cos70 := math.Cos(70.0 * math.Pi / 180.0)
 	wantSC := geom2d.Point2{X: -46.0 * cos70, Y: 46.0 * sin70}
@@ -106,7 +92,7 @@ func TestNonzeroStemAngleAndIndependentFaultSensitivity(t *testing.T) {
 
 	// Reversing stem angle (+20° instead of -20°) aims at 40° above +X instead of 0°:
 	// detects sign-inversion faults that zero-angle tests cannot see.
-	pPos20 := mustAssembleStem(t, geom2d.Origin, 70.0, 11.0, 15.0, 40.0, 80.0, 20.0)
+	pPos20 := mustAssembleStem(t, geom2d.Origin(), 70.0, 11.0, 15.0, 40.0, 80.0, 20.0)
 	cos40 := math.Cos(40.0 * math.Pi / 180.0)
 	sin40 := math.Sin(40.0 * math.Pi / 180.0)
 	wantBCPos20 := geom2d.Point2{X: wantSC.X + 80.0*cos40, Y: wantSC.Y + 80.0*sin40}
@@ -116,11 +102,11 @@ func TestNonzeroStemAngleAndIndependentFaultSensitivity(t *testing.T) {
 	}
 
 	// Verify sensitivity to cover and half-clamp height independently:
-	pNoCover := mustAssembleStem(t, geom2d.Origin, 70.0, 0.0, 15.0, 40.0, 80.0, -20.0)
+	pNoCover := mustAssembleStem(t, geom2d.Origin(), 70.0, 0.0, 15.0, 40.0, 80.0, -20.0)
 	if d := pNeg20.SteererClamp().DistanceTo(pNoCover.SteererClamp()); math.Abs(d-11.0) > 1e-11 {
 		t.Errorf("cover contribution = %.12f, want 11.0", d)
 	}
-	pSmallClamp := mustAssembleStem(t, geom2d.Origin, 70.0, 11.0, 15.0, 20.0, 80.0, -20.0)
+	pSmallClamp := mustAssembleStem(t, geom2d.Origin(), 70.0, 11.0, 15.0, 20.0, 80.0, -20.0)
 	if d := pNeg20.SteererClamp().DistanceTo(pSmallClamp.SteererClamp()); math.Abs(d-10.0) > 1e-11 {
 		t.Errorf("half-clamp contribution delta = %.12f, want 10.0", d)
 	}
@@ -152,7 +138,7 @@ func TestRigidTransformationProperty(t *testing.T) {
 			clampH:    40.0,
 			stemLen:   80.0,
 			stemAng:   -17.0,
-			pivot:     geom2d.Origin,
+			pivot:     geom2d.Origin(),
 			rotCCWDeg: 12.0, // new HTA = 58°
 			trans:     geom2d.Vec2{X: -35.0, Y: 42.0},
 		},
@@ -267,12 +253,12 @@ func TestBoundaryValidation(t *testing.T) {
 			{"NaN X", geom2d.Point2{X: math.NaN(), Y: 600}, 70},
 			{"+Inf X", geom2d.Point2{X: math.Inf(1), Y: 600}, 70},
 			{"-Inf Y", geom2d.Point2{X: 400, Y: math.Inf(-1)}, 70},
-			{"HTA 0", geom2d.Origin, 0},
-			{"HTA negative", geom2d.Origin, -10},
-			{"HTA > 90", geom2d.Origin, 90.1},
-			{"HTA 180", geom2d.Origin, 180},
-			{"HTA NaN", geom2d.Origin, model.Deg(math.NaN())},
-			{"HTA +Inf", geom2d.Origin, model.Deg(math.Inf(1))},
+			{"HTA 0", geom2d.Origin(), 0},
+			{"HTA negative", geom2d.Origin(), -10},
+			{"HTA > 90", geom2d.Origin(), 90.1},
+			{"HTA 180", geom2d.Origin(), 180},
+			{"HTA NaN", geom2d.Origin(), model.Deg(math.NaN())},
+			{"HTA +Inf", geom2d.Origin(), model.Deg(math.Inf(1))},
 		}
 		for _, tc := range badCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -282,14 +268,14 @@ func TestBoundaryValidation(t *testing.T) {
 			})
 		}
 		for _, hta := range []model.Deg{0.1, 60.0, 90.0} {
-			if _, err := assembly.NewHeadTubeTop(geom2d.Origin, hta); err != nil {
+			if _, err := assembly.NewHeadTubeTop(geom2d.Origin(), hta); err != nil {
 				t.Errorf("HTA %v should be valid, got %v", hta, err)
 			}
 		}
 	})
 
 	t.Run("WithUpperStack", func(t *testing.T) {
-		ht, err := assembly.NewHeadTubeTop(geom2d.Origin, 70)
+		ht, err := assembly.NewHeadTubeTop(geom2d.Origin(), 70)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -375,7 +361,7 @@ func TestBoundaryValidation(t *testing.T) {
 }
 
 func TestZeroValueAndIgnoredErrorMisusePanics(t *testing.T) {
-	validHT, err := assembly.NewHeadTubeTop(geom2d.Origin, 70)
+	validHT, err := assembly.NewHeadTubeTop(geom2d.Origin(), 70)
 	if err != nil {
 		t.Fatal(err)
 	}

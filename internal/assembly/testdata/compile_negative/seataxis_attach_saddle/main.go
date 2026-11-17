@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	sa, _ := assembly.NewSeatAxis(geom2d.Origin, 73)
+	sa, _ := assembly.NewSeatAxis(geom2d.Origin(), 73)
 	saddle, _ := assembly.NewSaddle(model.ReferenceIdmatchSaddle())
 	_, _ = sa.AttachSaddle(saddle, 0)
 }

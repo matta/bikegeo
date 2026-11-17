@@ -176,7 +176,7 @@ func (s SaddleSpec) StaForBrpAndOffset(brpSetbackMm, saddleHeightMm, seatpostSet
 // seatpost offset. NaN explicitly signals an impossible or parallel-axis target.
 func (s SaddleSpec) RailOffsetForBrpAtSta(staDeg Deg, brpSetbackMm, saddleHeightMm, seatpostSetbackMm float64) float64 {
 	brp := s.BrpPointAtHeightAndSetback(saddleHeightMm, brpSetbackMm)
-	axis := geom2d.NewAxisFromPolar(geom2d.Origin, (180 - staDeg).Angle())
+	axis := geom2d.NewAxisFromPolar(geom2d.Origin(), (180 - staDeg).Angle())
 	normal := axis.Normal(geom2d.CounterClockwise)
 	t := SaddleTransform{RailPitchDeg: s.RailPitchDeg}
 	rail := t.Vector(1, 0)

@@ -44,7 +44,7 @@ func TestSaddleIndependent60DegForwardExample(t *testing.T) {
 	//   BRP         = (-30, 50√3)
 	//   sit bones   = (-110, 50√3 + 10)
 	spec := model.ReferenceIdmatchSaddle()
-	p := mustAssembleSaddle(t, geom2d.Origin, 60.0, 100.0, 0.0, 12.0, spec)
+	p := mustAssembleSaddle(t, geom2d.Origin(), 60.0, 100.0, 0.0, 12.0, spec)
 
 	sqrt3 := math.Sqrt(3)
 	assertPointNear(t, "SeatpostClamp", p.SeatpostClamp(), geom2d.Point2{X: -50, Y: 50 * sqrt3}, 1e-9)
@@ -58,8 +58,8 @@ func TestSaddleIndependent60DegForwardExample(t *testing.T) {
 
 func TestSaddleOffsetOwnershipAndSigns(t *testing.T) {
 	spec := model.ReferenceIdmatchSaddle()
-	base := mustAssembleSaddle(t, geom2d.Origin, 60.0, 100.0, 0.0, 12.0, spec)
-	withSetback := mustAssembleSaddle(t, geom2d.Origin, 60.0, 100.0, 20.0, 12.0, spec)
+	base := mustAssembleSaddle(t, geom2d.Origin(), 60.0, 100.0, 0.0, 12.0, spec)
+	withSetback := mustAssembleSaddle(t, geom2d.Origin(), 60.0, 100.0, 20.0, 12.0, spec)
 
 	// At STA 60°, adding 20 mm post setback translates every landmark by (-10√3, -10) mm.
 	wantShift := geom2d.Vec2{X: -10.0 * math.Sqrt(3), Y: -10.0}
@@ -79,7 +79,7 @@ func TestSaddleOffsetOwnershipAndSigns(t *testing.T) {
 	}
 
 	// Increasing rail offset moves saddle landmarks backward along the rails while leaving clamp fixed.
-	moreRailOffset := mustAssembleSaddle(t, geom2d.Origin, 60.0, 100.0, 0.0, 22.0, spec)
+	moreRailOffset := mustAssembleSaddle(t, geom2d.Origin(), 60.0, 100.0, 0.0, 22.0, spec)
 	assertPointNear(t, "SeatpostClamp unchanged", moreRailOffset.SeatpostClamp(), base.SeatpostClamp(), 1e-12)
 	assertPointNear(t, "RailCenter shifted -10", moreRailOffset.RailCenter(), base.RailCenter().Add(geom2d.Vec2{X: -10, Y: 0}), 1e-12)
 	assertPointNear(t, "BRP shifted -10", moreRailOffset.BRP(), base.BRP().Add(geom2d.Vec2{X: -10, Y: 0}), 1e-12)
@@ -93,8 +93,8 @@ func TestSaddleNonzeroPitchAndFrameAttitude(t *testing.T) {
 	// Evaluate at two different STAs with the same clamp world position? Better:
 	// compare the saddle-local offset vectors (BRP - RailCenter) and (SitBones - RailCenter)
 	// across different STAs; they must remain identical and strictly world-pitch-relative.
-	p60 := mustAssembleSaddle(t, geom2d.Origin, 60.0, 100.0, 0.0, 5.0, spec)
-	p75 := mustAssembleSaddle(t, geom2d.Origin, 75.0, 100.0, 0.0, 5.0, spec)
+	p60 := mustAssembleSaddle(t, geom2d.Origin(), 60.0, 100.0, 0.0, 5.0, spec)
+	p75 := mustAssembleSaddle(t, geom2d.Origin(), 75.0, 100.0, 0.0, 5.0, spec)
 
 	// Nose (BRP is +32 mm along rails) must be higher than RailCenter when pitch > 0.
 	if p60.BRP().Y <= p60.RailCenter().Y {
@@ -116,8 +116,8 @@ func TestSaddleRigidTranslationProperty(t *testing.T) {
 	spec := model.ReferenceIdmatchSaddle()
 	spec.RailPitchDeg = -4.0
 	shift := geom2d.Vec2{X: 120.0, Y: -35.0}
-	base := mustAssembleSaddle(t, geom2d.Origin, 73.0, 700.0, 15.0, -8.0, spec)
-	shifted := mustAssembleSaddle(t, geom2d.Origin.Add(shift), 73.0, 700.0, 15.0, -8.0, spec)
+	base := mustAssembleSaddle(t, geom2d.Origin(), 73.0, 700.0, 15.0, -8.0, spec)
+	shifted := mustAssembleSaddle(t, geom2d.Origin().Add(shift), 73.0, 700.0, 15.0, -8.0, spec)
 
 	assertPointNear(t, "SeatpostClamp", shifted.SeatpostClamp(), base.SeatpostClamp().Add(shift), 1e-9)
 	assertPointNear(t, "RailCenter", shifted.RailCenter(), base.RailCenter().Add(shift), 1e-9)
@@ -128,8 +128,8 @@ func TestSaddleRigidTranslationProperty(t *testing.T) {
 func TestSaddleAssemblyBoundaryTable(t *testing.T) {
 	// Zero axial distance and zero post setback are legal.
 	spec := model.ReferenceIdmatchSaddle()
-	pZero := mustAssembleSaddle(t, geom2d.Origin, 73.0, 0.0, 0.0, 0.0, spec)
-	assertPointNear(t, "zero clamp", pZero.SeatpostClamp(), geom2d.Origin, 1e-12)
+	pZero := mustAssembleSaddle(t, geom2d.Origin(), 73.0, 0.0, 0.0, 0.0, spec)
+	assertPointNear(t, "zero clamp", pZero.SeatpostClamp(), geom2d.Origin(), 1e-12)
 
 	// SeatAxis invalid inputs
 	for _, tc := range []struct {
@@ -139,19 +139,19 @@ func TestSaddleAssemblyBoundaryTable(t *testing.T) {
 	}{
 		{"NaN bb.X", geom2d.Point2{X: math.NaN()}, 73},
 		{"Inf bb.Y", geom2d.Point2{Y: math.Inf(1)}, 73},
-		{"STA 0", geom2d.Origin, 0},
-		{"STA negative", geom2d.Origin, -10},
-		{"STA 90", geom2d.Origin, 90},
-		{"STA > 90", geom2d.Origin, 95},
-		{"STA NaN", geom2d.Origin, model.Deg(math.NaN())},
-		{"STA Inf", geom2d.Origin, model.Deg(math.Inf(1))},
+		{"STA 0", geom2d.Origin(), 0},
+		{"STA negative", geom2d.Origin(), -10},
+		{"STA 90", geom2d.Origin(), 90},
+		{"STA > 90", geom2d.Origin(), 95},
+		{"STA NaN", geom2d.Origin(), model.Deg(math.NaN())},
+		{"STA Inf", geom2d.Origin(), model.Deg(math.Inf(1))},
 	} {
 		if _, err := assembly.NewSeatAxis(tc.bb, tc.sta); err == nil {
 			t.Errorf("NewSeatAxis(%s): expected error, got nil", tc.name)
 		}
 	}
 
-	validAxis, err := assembly.NewSeatAxis(geom2d.Origin, 73)
+	validAxis, err := assembly.NewSeatAxis(geom2d.Origin(), 73)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestSaddleZeroValueAndIgnoredErrorPanics(t *testing.T) {
 		_, _ = sa.WithSeatpostClamp(100, 0)
 	})
 	assertPanics(t, "ignored error SeatAxis", func() {
-		sa, _ := assembly.NewSeatAxis(geom2d.Origin, 0)
+		sa, _ := assembly.NewSeatAxis(geom2d.Origin(), 0)
 		_, _ = sa.WithSeatpostClamp(100, 0)
 	})
 	assertPanics(t, "zero SeatpostClampMount AttachSaddle", func() {
@@ -229,12 +229,12 @@ func TestSaddleZeroValueAndIgnoredErrorPanics(t *testing.T) {
 		_, _ = m.AttachSaddle(validSaddle, 0)
 	})
 	assertPanics(t, "ignored error SeatpostClampMount", func() {
-		sa, _ := assembly.NewSeatAxis(geom2d.Origin, 73)
+		sa, _ := assembly.NewSeatAxis(geom2d.Origin(), 73)
 		m, _ := sa.WithSeatpostClamp(-1, 0)
 		_, _ = m.AttachSaddle(validSaddle, 0)
 	})
 	assertPanics(t, "zero Saddle AttachSaddle", func() {
-		sa, _ := assembly.NewSeatAxis(geom2d.Origin, 73)
+		sa, _ := assembly.NewSeatAxis(geom2d.Origin(), 73)
 		m, _ := sa.WithSeatpostClamp(700, 0)
 		var s assembly.Saddle
 		_, _ = m.AttachSaddle(s, 0)
@@ -260,7 +260,7 @@ func TestSaddleZeroValueAndIgnoredErrorPanics(t *testing.T) {
 		_ = p.AxialDistanceMm()
 	})
 	assertPanics(t, "ignored error SaddlePlacement", func() {
-		sa, _ := assembly.NewSeatAxis(geom2d.Origin, 73)
+		sa, _ := assembly.NewSeatAxis(geom2d.Origin(), 73)
 		m, _ := sa.WithSeatpostClamp(700, 0)
 		p, _ := m.AttachSaddle(validSaddle, math.NaN())
 		_ = p.BRP()

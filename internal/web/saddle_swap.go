@@ -144,7 +144,7 @@ func (db *docb) saddleSwap(v url.Values) int {
 	}
 
 	hbDistance, riseAboveSit, _ := ideal.IdmatchProfile().CockpitTarget(sourceSaddle)
-	hbDrop := riseAboveSit + sourceSaddle.SitBonePointFromBrp(geom2d.Origin).Y
+	hbDrop := riseAboveSit + sourceSaddle.SitBonePointFromBrp(geom2d.Origin()).Y
 
 	// Catalog overview when every target saddle is requested.
 	if compareAll && len(targetSaddles) > 0 {

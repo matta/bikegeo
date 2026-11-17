@@ -384,7 +384,7 @@ func levelFrame2D(in frameLevelingInput) frameLevelingResult {
 	}
 
 	out := frameLandmarks2D{
-		BB:             geom2d.Origin,
+		BB:             geom2d.Origin(),
 		RearAxle:       init.RearAxle,
 		HeadTubeTop:    init.HeadTubeTop,
 		HeadTubeBottom: init.HeadTubeBottom,
@@ -394,7 +394,7 @@ func levelFrame2D(in frameLevelingInput) frameLevelingResult {
 	if theta != 0 {
 		rot := geom2d.NewRotation(init.RearAxle, theta)
 		bbRot := rot.Apply(init.BB)
-		shift := geom2d.Origin.Sub(bbRot)
+		shift := geom2d.Origin().Sub(bbRot)
 
 		out.RearAxle = init.RearAxle.Add(shift)
 		out.HeadTubeTop = rot.Apply(init.HeadTubeTop).Add(shift)
@@ -562,7 +562,7 @@ func BuildScene(
 	u0 := SteererTubeDir(hta0)               // (-cos HTA, sin HTA) up the steerer
 	n0 := u0.Perpendicular(geom2d.Clockwise) // (sin HTA, cos HTA) forward perp (rake direction)
 
-	bb0 := geom2d.Origin
+	bb0 := geom2d.Origin()
 	ra0 := closure.RearAxle
 	ht0 := closure.HeadTubeTop
 	htb0 := closure.HeadTubeBottom

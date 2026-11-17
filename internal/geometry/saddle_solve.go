@@ -30,7 +30,7 @@ func SolveSaddleForBRPRadius(
 	if !isFinite(brpHeightMm) || brpHeightMm <= 0 {
 		return assembly.SaddlePlacement{}, fmt.Errorf("requested BRP height must be finite and positive, got %v mm", brpHeightMm)
 	}
-	axis, err := assembly.NewSeatAxis(geom2d.Origin, effStaDeg)
+	axis, err := assembly.NewSeatAxis(geom2d.Origin(), effStaDeg)
 	if err != nil {
 		return assembly.SaddlePlacement{}, err
 	}

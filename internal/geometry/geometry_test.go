@@ -183,7 +183,7 @@ func TestBentSeatTubeElJefe(t *testing.T) {
 	for _, tc := range lookupCases {
 		ox := geometry.CalculateBentSeatTubeOffset(tc.stack, actualSta, nominalSta)
 		effSta := geometry.CalculateEffectiveSta(actualSta, ox, tc.saddleL)
-		setback := -geometry.SeatTubeAxis(geom2d.Origin, effSta).PointAt(tc.saddleL).X
+		setback := -geometry.SeatTubeAxis(geom2d.Origin(), effSta).PointAt(tc.saddleL).X
 
 		if (effSta - tc.expectedSta).Abs() > 0.015 {
 			t.Errorf("[%s at L=%.0f] expected effective STA %.2f°, got %.4f°", tc.sizeName, tc.saddleL, tc.expectedSta, effSta)
@@ -671,7 +671,7 @@ func TestEvaluateCockpitFitByCost_CheapestWins(t *testing.T) {
 
 func TestTubeAxisHelpers(t *testing.T) {
 	// SeatTubeAxis for STA 74° starting at origin (0,0)
-	seatAxis := geometry.SeatTubeAxis(geom2d.Origin, 74.0)
+	seatAxis := geometry.SeatTubeAxis(geom2d.Origin(), 74.0)
 
 	expectedX := -math.Cos(74.0 * math.Pi / 180.0)
 	expectedY := math.Sin(74.0 * math.Pi / 180.0)

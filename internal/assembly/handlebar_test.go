@@ -89,7 +89,7 @@ func TestHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 		RiseMode:             model.RiseModeBarEndCenter,
 	}
 	stemPlace2, barPlace2 := mustMountCockpit(
-		t, geom2d.Origin, 65, 10, 20, 40, 60, 0,
+		t, geom2d.Origin(), 65, 10, 20, 40, 60, 0,
 		cutBarEndSpec, 65, 0,
 	)
 	yk := 50.0 - 265.0*math.Tan(4.0*math.Pi/180.0)
@@ -103,7 +103,7 @@ func TestHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	narrowSpec := knuckleSpec
 	narrowSpec.CurrentWidthMm = 280 // zHand = 140 - 65 = 75 < 85
 	stemPlace3, barPlace3 := mustMountCockpit(
-		t, geom2d.Origin, 70, 10, 0, 40, 70, 0,
+		t, geom2d.Origin(), 70, 10, 0, 40, 70, 0,
 		narrowSpec, 65, 0,
 	)
 	assertPointNear(t, "Clamped lz HandGrip", barPlace3.HandGrip(), stemPlace3.BarClamp().Add(geom2d.Vec2{X: 0, Y: 30}), 1e-12)
@@ -209,7 +209,7 @@ func TestHandlebarCatalogAndBoundaryValidation(t *testing.T) {
 	}
 
 	t.Run("AttachHandlebar non-finite roll and overflow", func(t *testing.T) {
-		stemPlace := mustAssembleStem(t, geom2d.Origin, 70, 10, 0, 40, 80, 0)
+		stemPlace := mustAssembleStem(t, geom2d.Origin(), 70, 10, 0, 40, 80, 0)
 		bar, err := assembly.NewHandlebar(validSpec, model.DefaultGripInsetMm)
 		if err != nil {
 			t.Fatal(err)
@@ -250,7 +250,7 @@ func TestHandlebarCatalogAndBoundaryValidation(t *testing.T) {
 }
 
 func TestHandlebarZeroValueAndIgnoredErrorPanics(t *testing.T) {
-	stemPlace := mustAssembleStem(t, geom2d.Origin, 70, 10, 0, 40, 80, 0)
+	stemPlace := mustAssembleStem(t, geom2d.Origin(), 70, 10, 0, 40, 80, 0)
 	validMount := stemPlace.BarClampMount()
 	validBar, err := assembly.NewHandlebar(catalog.DefaultHandlebar(), model.DefaultGripInsetMm)
 	if err != nil {
