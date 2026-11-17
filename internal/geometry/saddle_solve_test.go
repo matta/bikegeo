@@ -206,32 +206,48 @@ func TestEndToEndSaddleFailurePropagation(t *testing.T) {
 		WheelRadiusRearMm:  bike.WheelRadiusMm(),
 	}
 	profile := catalog.DefaultRiderProfile()
-	badSaddle := model.ReferenceIdmatchSaddle()
-	badSaddle.RailCenterToBrpMm = math.NaN()
-
-	// 1. BuildScene must fail.
-	if _, err := geometry.BuildScene(
-		frame,
-		build,
-		geometry.CockpitSpec{
-			HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
-			Stem:              bike.GetCanonicalStem(),
-			StemClampHeightMm: model.StemThicknessMm,
-			Handlebar:         catalog.DefaultHandlebar(),
-			GripInsetMm:       model.DefaultGripInsetMm,
-		},
-		geometry.SeatSpec{
-			Saddle:        badSaddle,
-			PostSetbackMm: model.DefaultSeatpostSetbackMm,
-			ClampLengthMm: model.DefaultSeatpostClampLengthMm,
-		},
-		geometry.RiderFit{BrpHeightMm: profile.SaddleHeightMm},
-	); err == nil {
-		t.Error("BuildScene accepted NaN saddle geometry, want error")
+	goodSaddle := model.ReferenceIdmatchSaddle()
+	cockpit := geometry.CockpitSpec{
+		HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
+		Stem:              bike.GetCanonicalStem(),
+		StemClampHeightMm: model.StemThicknessMm,
+		Handlebar:         catalog.DefaultHandlebar(),
+		GripInsetMm:       model.DefaultGripInsetMm,
+	}
+	seat := geometry.SeatSpec{
+		Saddle:        goodSaddle,
+		PostSetbackMm: model.DefaultSeatpostSetbackMm,
+		ClampLengthMm: model.DefaultSeatpostClampLengthMm,
+	}
+	fit := geometry.RiderFit{
+		FrameSeatAxisHeightMm: profile.SaddleHeightMm,
+		BrpHeightMm:           profile.SaddleHeightMm,
+		Target:                geometry.RiderTarget{Point: geom2d.Point2{X: 480.9, Y: 726.1}, Ref: geometry.TargetHandGrip},
+		ReferenceSaddle:       goodSaddle,
 	}
 
-	// 2. AnalyzeBikeFitWithSaddle must fail.
-	if _, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Opt[float64]{}, model.Opt[float64]{}, profile, badSaddle); err == nil {
-		t.Error("AnalyzeBikeFitWithSaddle accepted NaN saddle geometry, want error")
+	// Valid baseline must succeed so failures below isolate saddle propagation.
+	if _, err := geometry.BuildScene(frame, build, cockpit, seat, fit); err != nil {
+		t.Fatalf("valid-saddle BuildScene baseline failed: %v", err)
+	}
+	if _, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Opt[float64]{}, model.Opt[float64]{}, profile, goodSaddle); err != nil {
+		t.Fatalf("valid-saddle AnalyzeBikeFitWithSaddle baseline failed: %v", err)
+	}
+
+	badSaddle := goodSaddle
+	badSaddle.RailCenterToBrpMm = math.NaN()
+	seat.Saddle = badSaddle
+
+	// 1. BuildScene must fail on invalid saddle geometry.
+	if _, err := geometry.BuildScene(frame, build, cockpit, seat, fit); err == nil || !strings.Contains(err.Error(), "saddle rail-center-to-BRP offset must be finite") {
+		t.Errorf("BuildScene: expected finite-offset saddle error, got %v", err)
+	}
+
+	// 2. AnalyzeBikeFitWithSaddle must fail when a candidate in MapPossibleBRPs fails
+	// (rather than silently dropping infeasible candidates).
+	infeasibleWindowSaddle := goodSaddle
+	infeasibleWindowSaddle.RailLengthMm = 2000 // yields candidate offsets up to ±985 mm, exceeding BRP radius
+	if _, err := geometry.AnalyzeBikeFitWithSaddle(bike, model.Opt[float64]{}, model.Opt[float64]{}, profile, infeasibleWindowSaddle); err == nil || !strings.Contains(err.Error(), "candidate rail offset") {
+		t.Errorf("AnalyzeBikeFitWithSaddle: expected failing candidate error, got %v", err)
 	}
 }
