@@ -21,10 +21,6 @@ func TestSaddleInverseAxes(t *testing.T) {
 				clamp := geom2d.Point2{X: -axial*a.Cos() - post*a.Sin(), Y: axial*a.Sin() - post*a.Cos()}
 				center := geom2d.Point2{X: clamp.X - offset*p.Cos(), Y: clamp.Y - offset*p.Sin()}
 				brp := geom2d.Point2{X: center.X + 32*p.Cos(), Y: center.Y + 32*p.Sin()}
-				rail := s.RailOffsetForBrpAtSta(sta, -brp.X, brp.DistanceToOrigin(), post)
-				if math.IsNaN(rail) || math.Abs(rail-offset) > 1e-9 {
-					t.Errorf("rail inverse = %g, want %g", rail, offset)
-				}
 				angle := s.StaForBrpAndOffset(-brp.X, brp.DistanceToOrigin(), post, offset)
 				if math.IsNaN(float64(angle)) || (angle-sta).Abs() > 1e-9 {
 					t.Errorf("STA inverse = %v, want %v", angle, sta)
@@ -56,14 +52,6 @@ func TestSaddleTransformReferenceLandmarks(t *testing.T) {
 
 func TestSaddleInverseImpossibleGeometry(t *testing.T) {
 	s := model.ReferenceIdmatchSaddle()
-	if got := s.RailOffsetForBrpAtSta(73, 800, 746, 0); !math.IsNaN(got) {
-		t.Errorf("impossible rail inverse = %v", got)
-	}
-	parallel := s
-	parallel.RailPitchDeg = -73
-	if got := parallel.RailOffsetForBrpAtSta(73, 219, 746, 0); !math.IsNaN(got) {
-		t.Errorf("parallel rail inverse = %v", got)
-	}
 	if got := s.StaForBrpAndOffset(800, 746, 0, 0); !math.IsNaN(float64(got)) {
 		t.Errorf("impossible STA inverse = %v", got)
 	}

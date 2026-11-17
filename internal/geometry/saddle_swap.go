@@ -165,7 +165,11 @@ func AnalyzeSaddleSwap(
 	naiveCockpit := hb.DistanceTo(naiveSitBone)
 
 	// Keep the source frame axis and post; solve the target's full placement.
-	naiveClampOffset := target.RailOffsetForBrpAtSta(sourceSTA, srcBrpSetback, saddleHeightMm, seatpostSetbackMm)
+	naiveSol, err := SolveSaddleForBRPTarget(target, sourceSTA, saddleHeightMm, srcBrpSetback, seatpostSetbackMm)
+	if err != nil {
+		return SaddleSwapReport{}, fmt.Errorf("naive BRP alignment: %w", err)
+	}
+	naiveClampOffset := naiveSol.RailOffsetMm()
 	naiveFeasible := target.ClampFitsAt(clampLengthMm, naiveClampOffset)
 
 	naiveOutcome := SwapFitOutcome{

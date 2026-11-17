@@ -265,4 +265,23 @@ func TestSaddleZeroValueAndIgnoredErrorPanics(t *testing.T) {
 		p, _ := m.AttachSaddle(validSaddle, math.NaN())
 		_ = p.BRP()
 	})
+	assertPanics(t, "zero Saddle RailOffsetDirection", func() {
+		var s assembly.Saddle
+		_ = s.RailOffsetDirection()
+	})
+}
+
+func TestSaddleRailOffsetDirection(t *testing.T) {
+	spec := model.ReferenceIdmatchSaddle()
+	spec.RailPitchDeg = 30
+	s, err := assembly.NewSaddle(spec)
+	if err != nil {
+		t.Fatalf("NewSaddle: %v", err)
+	}
+	v := s.RailOffsetDirection()
+	// Positive pitch (+30° nose up) means rearward along rails points at 210°: (-√3/2, -1/2).
+	want := geom2d.Vec2{X: -math.Sqrt(3) / 2, Y: -0.5}
+	if math.Abs(v.X-want.X) > 1e-12 || math.Abs(v.Y-want.Y) > 1e-12 {
+		t.Errorf("RailOffsetDirection(+30°) = (%.12f, %.12f), want (%.12f, %.12f)", v.X, v.Y, want.X, want.Y)
+	}
 }

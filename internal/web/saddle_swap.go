@@ -337,12 +337,13 @@ func (db *docb) saddleSwap(v url.Values) int {
 			frameSta := frameSize.EffectiveStaDegAt(saddleHeight) - pitch
 			stSetback := saddleHeight * frameSta.Angle().Cos()
 			srcBrpSetback := sourceSaddle.BrpSetbackFromSitBones(sitBoneSetback)
-			srcRailOffset := sourceSaddle.RailOffsetForBrpAtSta(frameSta, srcBrpSetback, saddleHeight, postSetback)
-			reference, err := geometry.SolveBRPPoint(sourceSaddle, frameSta, saddleHeight, postSetback, srcRailOffset)
+			srcSol, err := geometry.SolveSaddleForBRPTarget(sourceSaddle, frameSta, saddleHeight, srcBrpSetback, postSetback)
 			if err != nil {
 				db.fail("%v", err)
 				return 1
 			}
+			srcRailOffset := srcSol.RailOffsetMm()
+			reference := geometry.BRPPointFromSaddlePlacement(sourceSaddle, postSetback, srcRailOffset, srcSol.Placement())
 			targetHeight := targetSaddle.BrpPointFromSitBones(reference.SitBonePoint()).DistanceToOrigin()
 			targetSTA := frameSize.EffectiveStaDegAt(targetHeight) - pitch
 			translated, err := geometry.TranslateSaddleFit(reference, targetSaddle, targetSTA, clampLength)
@@ -351,7 +352,12 @@ func (db *docb) saddleSwap(v url.Values) int {
 				return 1
 			}
 			tgtSupportRailOffset := translated.TargetClampOffset
-			tgtBrpRailOffset := targetSaddle.RailOffsetForBrpAtSta(frameSta, srcBrpSetback, saddleHeight, postSetback)
+			tgtBrpSol, err := geometry.SolveSaddleForBRPTarget(targetSaddle, frameSta, saddleHeight, srcBrpSetback, postSetback)
+			if err != nil {
+				db.fail("%v", err)
+				return 1
+			}
+			tgtBrpRailOffset := tgtBrpSol.RailOffsetMm()
 
 			t4Title := fmt.Sprintf("Frame-Specific Saddle Swap: %s %s (Size %s)", frame.Manufacturer, frame.Model, targetSize)
 			t4Subtitle := fmt.Sprintf("Saddle Height (to BRP): %.0fmm | Effective STA: %.2f° | Seat Tube Setback: %.1fmm | Post: %.1fmm",

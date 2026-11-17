@@ -137,6 +137,22 @@ func (s Saddle) mustBeValid() {
 	}
 }
 
+func (s Saddle) railPoseOn(base pose2) (pose2, error) {
+	s.mustBeValid()
+	// Positive rail pitch raises the nose (counter-clockwise in +X/+Y).
+	return base.rotateLocal(s.railPitchDeg.Angle())
+}
+
+// RailOffsetDirection returns the checked unit vector along which increasing
+// railOffsetMm moves the saddle (rearward along the rails, in world coordinates).
+func (s Saddle) RailOffsetDirection() geom2d.Vec2 {
+	p, err := s.railPoseOn(identityPose2())
+	if err != nil {
+		panic(fmt.Sprintf("assembly: invalid saddle rail pose: %v", err))
+	}
+	return geom2d.Vec2{X: -p.axisX.X, Y: -p.axisX.Y}
+}
+
 // AttachSaddle mounts saddle onto m at railOffsetMm (clamp station along the rails;
 // positive offset moves the saddle body rearward relative to the clamp) and returns
 // the immutable SaddlePlacement.
@@ -147,8 +163,7 @@ func (m SeatpostClampMount) AttachSaddle(saddle Saddle, railOffsetMm float64) (S
 		return SaddlePlacement{}, fmt.Errorf("saddle rail offset must be finite, got %v mm", railOffsetMm)
 	}
 
-	// Positive rail pitch raises the nose (counter-clockwise in +X/+Y).
-	railPose, err := m.clampPose.rotateLocal(saddle.railPitchDeg.Angle())
+	railPose, err := saddle.railPoseOn(m.clampPose)
 	if err != nil {
 		return SaddlePlacement{}, err
 	}

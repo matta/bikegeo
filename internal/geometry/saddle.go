@@ -52,15 +52,21 @@ func CalculateUniversalCompromiseSTA(
 	seatpostSetbackMm float64,
 	seatpostDesc string,
 	clampLengthMm float64,
-) UniversalCompromiseStaResult {
-	if len(saddles) == 0 || saddleHeightMm <= 0 {
-		return UniversalCompromiseStaResult{
-			SeatpostDesc:      seatpostDesc,
-			SeatpostSetbackMm: Round(seatpostSetbackMm, 1),
-		}
+) (UniversalCompromiseStaResult, error) {
+	if len(saddles) == 0 {
+		return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA requires at least one saddle")
 	}
-	if clampLengthMm <= 0 {
-		clampLengthMm = model.DefaultSeatpostClampLengthMm
+	if !isFinite(saddleHeightMm) || saddleHeightMm <= 0 {
+		return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA saddle height must be finite and positive, got %v mm", saddleHeightMm)
+	}
+	if !isFinite(targetSitBoneSetbackMm) {
+		return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA target sit-bone setback must be finite, got %v mm", targetSitBoneSetbackMm)
+	}
+	if !isFinite(seatpostSetbackMm) || seatpostSetbackMm < 0 {
+		return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA seatpost setback must be finite and non-negative, got %v mm", seatpostSetbackMm)
+	}
+	if !isFinite(clampLengthMm) || clampLengthMm <= 0 {
+		return UniversalCompromiseStaResult{}, fmt.Errorf("seatpost clamp length must be finite and positive, got %v mm", clampLengthMm)
 	}
 
 	refSitBones := model.ReferenceSitBonePoint(saddleHeightMm, targetSitBoneSetbackMm)
@@ -82,13 +88,32 @@ func CalculateUniversalCompromiseSTA(
 		fits[i] = saddleFit{spec: s, eqSH: eqSH, targetBrp: targetBrp}
 
 		sta0 := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, 0.0)
+		if !isFinite(float64(sta0)) || sta0 <= 0 || sta0 >= 90 {
+			return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA saddle %q: invalid centered STA %v°", s.ID, sta0)
+		}
 		_, half, fitsClamp := s.ClampWindowMm(clampLengthMm)
 		allClampsFit = allClampsFit && fitsClamp
 		margin := min(half, model.SaddleRailIdealMarginMm)
 		mMin := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, margin)
 		mMax := s.StaForBrpAndOffset(targetBrp, eqSH, seatpostSetbackMm, -margin)
-		if mMin > mMax {
-			mMin, mMax = mMax, mMin
+		if !isFinite(float64(mMin)) || !isFinite(float64(mMax)) {
+			allClampsFit = false
+		} else {
+			if mMin > mMax {
+				mMin, mMax = mMax, mMin
+			}
+			if !marginInit {
+				univMarginMin = mMin
+				univMarginMax = mMax
+				marginInit = true
+			} else {
+				if mMin > univMarginMin {
+					univMarginMin = mMin
+				}
+				if mMax < univMarginMax {
+					univMarginMax = mMax
+				}
+			}
 		}
 
 		if i == 0 {
@@ -102,26 +127,17 @@ func CalculateUniversalCompromiseSTA(
 				maxSta0 = sta0
 			}
 		}
-
-		if !marginInit {
-			univMarginMin = mMin
-			univMarginMax = mMax
-			marginInit = true
-		} else {
-			if mMin > univMarginMin {
-				univMarginMin = mMin
-			}
-			if mMax < univMarginMax {
-				univMarginMax = mMax
-			}
-		}
 	}
 
 	// Solve for the minimax compromise STA where max(railOffset) + min(railOffset) == 0.
-	offsetBounds := func(sta model.Deg) (float64, float64) {
+	offsetBounds := func(sta model.Deg) (float64, float64, error) {
 		var lo, hi float64
 		for i, sf := range fits {
-			r := sf.spec.RailOffsetForBrpAtSta(sta, sf.targetBrp, sf.eqSH, seatpostSetbackMm)
+			sol, err := SolveSaddleForBRPTarget(sf.spec, sta, sf.eqSH, sf.targetBrp, seatpostSetbackMm)
+			if err != nil {
+				return 0, 0, fmt.Errorf("STA %.2f° saddle %q: %w", sta, sf.spec.ID, err)
+			}
+			r := sol.RailOffsetMm()
 			if i == 0 {
 				lo, hi = r, r
 			} else {
@@ -133,13 +149,16 @@ func CalculateUniversalCompromiseSTA(
 				}
 			}
 		}
-		return lo, hi
+		return lo, hi, nil
 	}
 
 	loSTA, hiSTA := minSta0, maxSta0
-	for range 64 {
+	for iter := range 64 {
 		midSTA := 0.5 * (loSTA + hiSTA)
-		loR, hiR := offsetBounds(midSTA)
+		loR, hiR, err := offsetBounds(midSTA)
+		if err != nil {
+			return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA iteration %d: %w", iter, err)
+		}
 		if loR+hiR < 0 {
 			loSTA = midSTA
 		} else {
@@ -147,7 +166,10 @@ func CalculateUniversalCompromiseSTA(
 		}
 	}
 	compSTA := 0.5 * (loSTA + hiSTA)
-	loR, hiR := offsetBounds(compSTA)
+	loR, hiR, err := offsetBounds(compSTA)
+	if err != nil {
+		return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA final evaluation: %w", err)
+	}
 	maxOffset := math.Max(math.Abs(loR), math.Abs(hiR))
 
 	hasUnivMargin := allClampsFit && marginInit && univMarginMin <= univMarginMax
@@ -159,11 +181,14 @@ func CalculateUniversalCompromiseSTA(
 
 	var offsets []SaddleClampOffset
 	for _, sf := range fits {
-		offset := sf.spec.RailOffsetForBrpAtSta(compSTA, sf.targetBrp, sf.eqSH, seatpostSetbackMm)
+		sol, err := SolveSaddleForBRPTarget(sf.spec, compSTA, sf.eqSH, sf.targetBrp, seatpostSetbackMm)
+		if err != nil {
+			return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA final saddle %q: %w", sf.spec.ID, err)
+		}
 		offsets = append(offsets, SaddleClampOffset{
 			SaddleID:   sf.spec.ID,
 			SaddleName: sf.spec.Name,
-			OffsetMm:   offset,
+			OffsetMm:   sol.RailOffsetMm(),
 		})
 	}
 
@@ -176,7 +201,7 @@ func CalculateUniversalCompromiseSTA(
 		UniversalMarginMaxSta: uMaxSTA,
 		HasUniversalMargin:    hasUnivMargin,
 		SaddleOffsets:         offsets,
-	}
+	}, nil
 }
 
 // CalculateIdealSeatTubeAngle calculates the ideal effective Seat Tube Angle for a custom frame
@@ -268,14 +293,12 @@ func TranslateSaddleFit(
 		clampLengthMm = model.DefaultSeatpostClampLengthMm
 	}
 	brp := targetSaddle.BrpPointFromSitBones(reference.SitBonePoint())
-	targetClamp := targetSaddle.RailOffsetForBrpAtSta(staDeg, -brp.X, brp.DistanceToOrigin(), reference.SeatpostSetbackMm)
-	if !isFinite(targetClamp) {
-		return SaddleTranslationResult{}, fmt.Errorf("impossible saddle translation")
-	}
-	targetPoint, err := SolveBRPPoint(targetSaddle, staDeg, brp.DistanceToOrigin(), reference.SeatpostSetbackMm, targetClamp)
+	sol, err := SolveSaddleForBRPTarget(targetSaddle, staDeg, brp.DistanceToOrigin(), -brp.X, reference.SeatpostSetbackMm)
 	if err != nil {
-		return SaddleTranslationResult{}, err
+		return SaddleTranslationResult{}, fmt.Errorf("translate saddle fit: %w", err)
 	}
+	targetClamp := sol.RailOffsetMm()
+	targetPoint := BRPPointFromSaddlePlacement(targetSaddle, reference.SeatpostSetbackMm, targetClamp, sol.Placement())
 	return SaddleTranslationResult{
 		ReferenceSaddle:      reference.Saddle,
 		TargetSaddle:         targetSaddle,

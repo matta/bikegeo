@@ -245,7 +245,11 @@ func (db *docb) saddles(v url.Values) int {
 
 		for _, p := range posts {
 			setback, height := p.fitInputs(sqlab, refSitBones)
-			resComp := geometry.CalculateUniversalCompromiseSTA(saddles, setback, height, p.perpendicularMm, p.name, p.clamp)
+			resComp, err := geometry.CalculateUniversalCompromiseSTA(saddles, setback, height, p.perpendicularMm, p.name, p.clamp)
+			if err != nil {
+				db.fail("Error: %v", err)
+				return 1
+			}
 
 			univWindowStr := "None"
 			if resComp.HasUniversalMargin {

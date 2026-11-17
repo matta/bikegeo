@@ -171,27 +171,6 @@ func (s SaddleSpec) StaForBrpAndOffset(brpSetbackMm, saddleHeightMm, seatpostSet
 	return sta
 }
 
-// RailOffsetForBrpAtSta inverts CalculatePoint by projecting onto the seat-axis
-// normal. Rail offset is a saddle-local clamp coordinate, never a perpendicular
-// seatpost offset. NaN explicitly signals an impossible or parallel-axis target.
-func (s SaddleSpec) RailOffsetForBrpAtSta(staDeg Deg, brpSetbackMm, saddleHeightMm, seatpostSetbackMm float64) float64 {
-	brp := s.BrpPointAtHeightAndSetback(saddleHeightMm, brpSetbackMm)
-	axis := geom2d.NewAxisFromPolar(geom2d.Origin(), (180 - staDeg).Angle())
-	normal := axis.Normal(geom2d.CounterClockwise)
-	t := SaddleTransform{RailPitchDeg: s.RailPitchDeg}
-	rail := t.Vector(1, 0)
-	denom := rail.Dot(normal)
-	if !(staDeg > 0 && staDeg < 90 && saddleHeightMm > 0 && brp.Y > 0) || math.Abs(denom) < 1e-12 {
-		return math.NaN()
-	}
-	offset := s.RailCenterToBrpMm + (seatpostSetbackMm-brp.VecFromOrigin().Dot(normal))/denom
-	clamp := s.TransformFromBrp(brp).Point(offset, 0)
-	if !(clamp.VecFromOrigin().Dot(axis.Direction) >= 0 && brp.VecFromOrigin().Dot(axis.Direction) >= 0) {
-		return math.NaN()
-	}
-	return offset
-}
-
 // IdealSeatTubeAngle computes the exact effective Seat Tube Angle required to mount this saddle
 // with its clamp dead-center (0.0mm) on the rails for a given sit bone setback and saddle height.
 func (s SaddleSpec) IdealSeatTubeAngle(sitBoneSetbackMm, saddleHeightMm, seatpostSetbackMm float64) Deg {

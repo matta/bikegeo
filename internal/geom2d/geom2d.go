@@ -231,11 +231,6 @@ func NewAxisFromPolar(origin Point2, angle Angle) Axis2 {
 	}
 }
 
-// Normal returns the unit normal vector perpendicular to the axis in turn direction.
-func (a Axis2) Normal(turn TurnDirection) Vec2 {
-	return a.Direction.Perpendicular(turn)
-}
-
 // PointAt returns a point at axial distance along the axis from origin.
 func (a Axis2) PointAt(axialDist float64) Point2 {
 	return a.Origin.Add(a.Direction.Scale(axialDist))

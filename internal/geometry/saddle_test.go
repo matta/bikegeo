@@ -158,7 +158,10 @@ func TestCalculateUniversalCompromiseSTA(t *testing.T) {
 	saddleHeight := 746.0
 
 	// 1. Standard 15mm setback post across 2 reference saddles (SQlab @ 746mm & Aspin @ 753.29mm eqSH)
-	res15_2 := geometry.CalculateUniversalCompromiseSTA(saddles2, targetSitBoneSetback, saddleHeight, 15.0, "Standard 15mm Setback", model.DefaultSeatpostClampLengthMm)
+	res15_2, err := geometry.CalculateUniversalCompromiseSTA(saddles2, targetSitBoneSetback, saddleHeight, 15.0, "Standard 15mm Setback", model.DefaultSeatpostClampLengthMm)
+	if err != nil {
+		t.Fatalf("CalculateUniversalCompromiseSTA(saddles2, 15): %v", err)
+	}
 	if (res15_2.CompromiseStaDeg - 71.74).Abs() > 0.01 {
 		t.Errorf("Expected 2-saddle CompromiseStaDeg ~ 71.74°, got %.2f°", res15_2.CompromiseStaDeg)
 	}
@@ -173,7 +176,10 @@ func TestCalculateUniversalCompromiseSTA(t *testing.T) {
 	}
 
 	// 2. Full 3-saddle catalog across 15mm post
-	res15_3 := geometry.CalculateUniversalCompromiseSTA(saddles3, targetSitBoneSetback, saddleHeight, 15.0, "Standard 15mm Setback", model.DefaultSeatpostClampLengthMm)
+	res15_3, err := geometry.CalculateUniversalCompromiseSTA(saddles3, targetSitBoneSetback, saddleHeight, 15.0, "Standard 15mm Setback", model.DefaultSeatpostClampLengthMm)
+	if err != nil {
+		t.Fatalf("CalculateUniversalCompromiseSTA(saddles3, 15): %v", err)
+	}
 	if (res15_3.CompromiseStaDeg - 72.47).Abs() > 0.01 {
 		t.Errorf("Expected 3-saddle CompromiseStaDeg ~ 72.47°, got %.2f°", res15_3.CompromiseStaDeg)
 	}
@@ -188,7 +194,10 @@ func TestCalculateUniversalCompromiseSTA(t *testing.T) {
 	}
 
 	// 3. Illustrative 39 mm perpendicular setback across 2 saddles vs 3 saddles
-	res39_2 := geometry.CalculateUniversalCompromiseSTA(saddles2, targetSitBoneSetback, saddleHeight, 39.0, "39 mm perpendicular example", model.DropBestClampLengthMm)
+	res39_2, err := geometry.CalculateUniversalCompromiseSTA(saddles2, targetSitBoneSetback, saddleHeight, 39.0, "39 mm perpendicular example", model.DropBestClampLengthMm)
+	if err != nil {
+		t.Fatalf("CalculateUniversalCompromiseSTA(saddles2, 39): %v", err)
+	}
 	if (res39_2.CompromiseStaDeg - 73.55).Abs() > 0.01 {
 		t.Errorf("Expected CompromiseStaDeg ~ 73.55° for 39mm hardware setback, got %.2f°", res39_2.CompromiseStaDeg)
 	}
@@ -196,7 +205,10 @@ func TestCalculateUniversalCompromiseSTA(t *testing.T) {
 		t.Errorf("Expected MaxRailOffsetMm ~ 0.27mm, got %.2fmm", res39_2.MaxRailOffsetMm)
 	}
 
-	res39_3 := geometry.CalculateUniversalCompromiseSTA(saddles3, targetSitBoneSetback, saddleHeight, 39.0, "39 mm perpendicular example", model.DropBestClampLengthMm)
+	res39_3, err := geometry.CalculateUniversalCompromiseSTA(saddles3, targetSitBoneSetback, saddleHeight, 39.0, "39 mm perpendicular example", model.DropBestClampLengthMm)
+	if err != nil {
+		t.Fatalf("CalculateUniversalCompromiseSTA(saddles3, 39): %v", err)
+	}
 	if (res39_3.CompromiseStaDeg - 74.28).Abs() > 0.01 {
 		t.Errorf("Expected 3-saddle CompromiseStaDeg ~ 74.28° for 39mm hardware setback, got %.2f°", res39_3.CompromiseStaDeg)
 	}
@@ -281,7 +293,10 @@ func TestIdealStaRoundTripsCalculatePoint(t *testing.T) {
 			}
 		}
 
-		comp := geometry.CalculateUniversalCompromiseSTA(saddles, targetSB, baseSH, postSetback, "post", model.DefaultSeatpostClampLengthMm)
+		comp, err := geometry.CalculateUniversalCompromiseSTA(saddles, targetSB, baseSH, postSetback, "post", model.DefaultSeatpostClampLengthMm)
+		if err != nil {
+			t.Fatalf("CalculateUniversalCompromiseSTA(post=%.0f): %v", postSetback, err)
+		}
 		for i, s := range saddles {
 			eqH := s.BrpPointFromSitBones(refSitBones).DistanceToOrigin()
 			pt, placementErr := geometry.SolveBRPPoint(s, comp.CompromiseStaDeg, eqH, postSetback, comp.SaddleOffsets[i].OffsetMm)

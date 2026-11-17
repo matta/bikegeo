@@ -9,7 +9,156 @@ import (
 	"bikegeo/internal/model"
 )
 
-const brpRadiusResidualTolMm = 1e-8
+const (
+	brpRadiusResidualTolMm = 1e-8
+	railAxisParallelTol    = 1e-12
+)
+
+// SaddleRailSolution is the checked immutable result of solving the saddle rail
+// clamp offset and axial seat-axis distance for a target BRP position.
+type SaddleRailSolution struct {
+	railOffsetMm float64
+	placement    assembly.SaddlePlacement
+	valid        bool
+}
+
+func (s SaddleRailSolution) mustBeValid() {
+	if !s.valid {
+		panic("geometry: uninitialized or invalid SaddleRailSolution")
+	}
+	if !isFinite(s.railOffsetMm) {
+		panic(fmt.Sprintf("geometry: non-finite SaddleRailSolution rail offset %v", s.railOffsetMm))
+	}
+	_ = s.placement.BRP()
+}
+
+// RailOffsetMm returns the solved saddle rail clamp offset in mm.
+func (s SaddleRailSolution) RailOffsetMm() float64 {
+	s.mustBeValid()
+	return s.railOffsetMm
+}
+
+// Placement returns the verified forward-assembled SaddlePlacement.
+func (s SaddleRailSolution) Placement() assembly.SaddlePlacement {
+	s.mustBeValid()
+	return s.placement
+}
+
+// SolveSaddleForBRPTarget solves the axial seat-axis distance and saddle rail
+// clamp offset that place the saddle's BRP at (-brpSetbackMm, +sqrt(R^2 - setback^2))
+// on the upper half of the brpHeightMm radius circle, executes checked forward
+// assembly, and verifies both target coordinates within 1e-8 mm.
+//
+// Equation:
+// For fixed rear-cockpit inputs, BRP(d, r) = q + d*u + r*v, where q is the BRP
+// at zero axial distance and zero rail offset, u is the checked unit seat-axis
+// direction, and v is the checked unit rearward rail-offset direction.
+func SolveSaddleForBRPTarget(
+	saddleSpec model.SaddleSpec,
+	effStaDeg model.Deg,
+	brpHeightMm, brpSetbackMm, postSetbackMm float64,
+) (SaddleRailSolution, error) {
+	if !isFinite(brpHeightMm) || brpHeightMm <= 0 {
+		return SaddleRailSolution{}, fmt.Errorf("requested BRP height must be finite and positive, got %v mm", brpHeightMm)
+	}
+	if !isFinite(brpSetbackMm) {
+		return SaddleRailSolution{}, fmt.Errorf("requested BRP setback must be finite, got %v mm", brpSetbackMm)
+	}
+	axis, err := assembly.NewSeatAxis(geom2d.Origin(), effStaDeg)
+	if err != nil {
+		return SaddleRailSolution{}, err
+	}
+	saddle, err := assembly.NewSaddle(saddleSpec)
+	if err != nil {
+		return SaddleRailSolution{}, err
+	}
+
+	rSq := brpHeightMm * brpHeightMm
+	xSq := brpSetbackMm * brpSetbackMm
+	ySq := rSq - xSq
+	if !isFinite(rSq) || !isFinite(xSq) || !isFinite(ySq) {
+		return SaddleRailSolution{}, fmt.Errorf("saddle BRP-target solve overflow for radius %.1f mm, setback %.1f mm", brpHeightMm, brpSetbackMm)
+	}
+	if math.Abs(brpSetbackMm) >= brpHeightMm || ySq <= 0 {
+		return SaddleRailSolution{}, fmt.Errorf("unreachable upper-circle BRP target: radius %.1f mm, setback %.1f mm", brpHeightMm, brpSetbackMm)
+	}
+	targetY := math.Sqrt(ySq)
+	if !isFinite(targetY) || !(targetY > 0) {
+		return SaddleRailSolution{}, fmt.Errorf("unreachable upper-circle BRP target: radius %.1f mm, setback %.1f mm", brpHeightMm, brpSetbackMm)
+	}
+	target := geom2d.Point2{X: -brpSetbackMm, Y: targetY}
+
+	zeroClamp, err := axis.WithSeatpostClamp(0, postSetbackMm)
+	if err != nil {
+		return SaddleRailSolution{}, err
+	}
+	zeroPlacement, err := zeroClamp.AttachSaddle(saddle, 0)
+	if err != nil {
+		return SaddleRailSolution{}, err
+	}
+
+	q := zeroPlacement.BRP()
+	u := axis.AxisDirection()
+	v := saddle.RailOffsetDirection()
+
+	det := u.Cross(v)
+	if !isFinite(det) {
+		return SaddleRailSolution{}, fmt.Errorf("saddle rail-offset solve overflow for STA %.2f°", effStaDeg)
+	}
+	if math.Abs(det) < railAxisParallelTol {
+		return SaddleRailSolution{}, fmt.Errorf("seat axis (%.2f°) and saddle rails (%.2f°) are parallel or nearly parallel (det=%.3e)", effStaDeg, saddleSpec.RailPitchDeg, det)
+	}
+
+	rhs := target.Sub(q)
+	if !isFinite(rhs.X) || !isFinite(rhs.Y) {
+		return SaddleRailSolution{}, fmt.Errorf("saddle rail-offset solve overflow for target (%.1f, %.1f) mm", target.X, target.Y)
+	}
+	numD := rhs.Cross(v)
+	numR := u.Cross(rhs)
+	d := numD / det
+	r := numR / det
+	if !isFinite(numD) || !isFinite(numR) || !isFinite(d) || !isFinite(r) {
+		return SaddleRailSolution{}, fmt.Errorf("saddle rail-offset solve overflow for STA %.2f°", effStaDeg)
+	}
+	if d < 0 {
+		return SaddleRailSolution{}, fmt.Errorf("impossible saddle placement: negative seatpost extension %.2f mm", d)
+	}
+	targetProj := target.VecFromOrigin().Dot(u)
+	if !isFinite(targetProj) {
+		return SaddleRailSolution{}, fmt.Errorf("saddle rail-offset solve overflow for target projection")
+	}
+	if targetProj < 0 {
+		return SaddleRailSolution{}, fmt.Errorf("impossible saddle placement: target BRP is behind/below upward seat axis")
+	}
+
+	clamp, err := axis.WithSeatpostClamp(d, postSetbackMm)
+	if err != nil {
+		return SaddleRailSolution{}, err
+	}
+	placement, err := clamp.AttachSaddle(saddle, r)
+	if err != nil {
+		return SaddleRailSolution{}, err
+	}
+
+	brp := placement.BRP()
+	if !(brp.Y > 0) {
+		return SaddleRailSolution{}, fmt.Errorf("impossible saddle placement: BRP Y=%.2f mm is not above BB", brp.Y)
+	}
+	resX := math.Abs(brp.X - target.X)
+	resY := math.Abs(brp.Y - target.Y)
+	if !isFinite(resX) || !isFinite(resY) || resX > brpRadiusResidualTolMm || resY > brpRadiusResidualTolMm {
+		return SaddleRailSolution{}, fmt.Errorf(
+			"saddle BRP-target verification failed: got (%.9f, %.9f) mm, want (%.9f, %.9f) mm (residual %.3e, %.3e mm)",
+			brp.X, brp.Y, target.X, target.Y, resX, resY,
+		)
+	}
+
+	return SaddleRailSolution{
+		railOffsetMm: r,
+		placement:    placement,
+		valid:        true,
+	}, nil
+}
 
 // SolveSaddleForBRPRadius solves the axial seat-axis distance that places the
 // saddle's BRP at brpHeightMm radial distance from BB using the forward assembly

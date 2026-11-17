@@ -630,10 +630,11 @@ func BuildScene(
 	reqRailOff := seat.RailOffsetMm
 	if fit.TargetSitBonesXMm < 0 {
 		targetBrpSetback := seat.Saddle.BrpSetbackFromSitBones(-fit.TargetSitBonesXMm)
-		reqRailOff = seat.Saddle.RailOffsetForBrpAtSta(effStaAct, targetBrpSetback, fit.BrpHeightMm, seat.PostSetbackMm)
-		if !isFinite(reqRailOff) {
-			return BikeScene{}, fmt.Errorf("impossible target saddle placement")
+		railSol, err := SolveSaddleForBRPTarget(seat.Saddle, effStaAct, fit.BrpHeightMm, targetBrpSetback, seat.PostSetbackMm)
+		if err != nil {
+			return BikeScene{}, fmt.Errorf("target saddle placement: %w", err)
 		}
+		reqRailOff = railSol.RailOffsetMm()
 	}
 	railMargin := seat.HalfRailWindowMm() - math.Abs(reqRailOff)
 
