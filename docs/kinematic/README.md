@@ -1,7 +1,9 @@
 # Locally checkable bicycle assembly
 
-Status: design decision and first implementation contract. No runtime migration
-has been made by this document.
+Status: the first production slice is implemented and reviewed on
+`codex/checked-bicycle-assembly`. Commit `e25d28e` introduced checked stem
+assembly; `3622cc9` closed stage-conversion and mutable-identity loopholes.
+The next steps are to simplify stem completion, then evaluate handlebar attachment.
 
 Read this before the seed documents, [Kinematic Assembly](KINEMATIC_ASSEMBLY.md)
 and [Kinematic Stronger](KINEMATIC_STRONGER.md). They were written independently
@@ -14,10 +16,11 @@ next step and identifies the guarantees that implementation must establish.
 ## Decision
 
 Pursue a small trusted geometry kernel, explicit bicycle assembly recipes, and
-immutable solved results. Make physical intent visible at the call site. Start
-with the upper headset, spacer stack, and stem placement already shared by the
-application. Preserve its existing mathematical model and outputs while changing
-how correctness is enforced.
+immutable solved results. Make physical intent visible at the call site. The
+upper headset, spacer stack, and stem placement now use this approach in
+production. Continue the experiment after simplifying that first slice, then
+test component composition through handlebar attachment. Preserve the existing
+mathematical model and outputs while changing how correctness is enforced.
 
 Do not begin with a whole-program rewrite or a general 3D CAD framework. First
 demonstrate that one real production path is easier to audit, rejects its stated
@@ -193,6 +196,9 @@ to each domain, not expressing parsing, scoring, or HTML as tube geometry.
 
 ## First implementation: upper stack and stem placement
 
+The following contract describes the migrated production path. Its recipe has
+been revised to reflect the agreed simplification, which is still pending.
+
 Scope: replace the stem-placement portion of `placeFrontCockpit`, ending at the
 handlebar clamp center. Keep the existing handlebar offset calculation after it.
 Do not change frame leveling, chart closure, saddle modeling, fit selection,
@@ -204,15 +210,15 @@ committed Go signature):
 ```text
 headTube = checked head-tube top in the active bicycle attitude
 stemBase = headTube.WithUpperStack(upperCover, spacers)
-mountedStem = stemBase.AttachStem(stem)
-placement = mountedStem.Finish()
+placement = stemBase.AttachStem(stem)
 ```
 
 The public boundary validates raw inputs and returns an error. The recipe uses
-validated values and typed stages; its root adapter is explicitly trusted to
-identify the actual head-tube top. Nobody outside that adapter may turn an
-arbitrary observation point into a mounting capability. Merely renaming a
-`Point2` to `HeadTubeTop` is not a provenance check.
+validated values and typed stages. The current root adapter, `NewHeadTubeTop`,
+accepts a finite point and a supported angle. Its caller remains responsible for
+identifying the actual head-tube top. Local reasoning begins after that choice.
+A later frame assembly should produce this mount to extend the guarantee
+upstream. Merely renaming a `Point2` to `HeadTubeTop` is not a provenance check.
 
 Keep the mathematical implementation private to a narrow package boundary,
 `internal/assembly`. A wrapper retaining the old unchecked formula in the caller
@@ -264,7 +270,7 @@ physical compatibility checks must distinguish “unknown” from “passed.”
 
 | Test | What it establishes |
 | --- | --- |
-| External-package compile-negative examples | Wrong stage/role cannot mount a stem or finish; a local offset cannot stand in for a placed mount |
+| External-package compile-negative examples | Wrong stage/role cannot mount a stem; explicit conversions cannot bypass or repeat the upper stack; a local offset cannot stand in for a placed mount |
 | Zero-value and ignored-error misuse | Every checked result/handle rejects use before successful construction |
 | Boundary table | Negative stacks, nonpositive dimensions, NaN, infinity, and overflow fail at the stated boundary; zero cover/spacers remain legal |
 | Independent 60° HTA example | With head-tube top (0, 0), cover 10, spacers 20, clamp height 40, stem length 100 and angle 0°, steerer clamp is (−25, 25√3) mm and bar clamp is (50√3 − 25, 50 + 25√3) mm |
@@ -288,25 +294,89 @@ Run the repository's fast verification after every code change, then
 `make pre-commit` and the runtime-dependency check before completing the slice.
 Review any modernization separately. No published frame values may change.
 
-### Stop and review
+### Progress and assessment
 
-The first implementation ends when the production seam is migrated, the above
-tests pass, and a reviewer can explain every placement step by reading the recipe
-and its component contracts without searching unrelated callers. Compare the
-actual result against the old short `placeFrontCockpit`; extra types are justified
-only by specific misuses they eliminate.
+The first slice demonstrates stronger safety more convincingly than simpler
+code. It is worthwhile to continue, with the amount of assembly scaffolding
+treated as an explicit cost.
 
-If the new recipe needs arbitrary pose promotion, unchecked coordinate escapes,
-or lengthy call-site gymnastics, simplify its API before extending the migration.
-Do not use more generic machinery to obscure those problems.
+| Objective | Evidence so far |
+| --- | --- |
+| Physical intent is visible | `WithUpperStack` and `AttachStem` name the actual operations |
+| Geometric decisions have local owners | Upper stack owns its steerer advance, stem owns its clamp midpoint and extension, attachment owns placement in bicycle coordinates |
+| Invalid inputs fail explicitly | Boundary tests cover dimensions, nonfinite inputs, and overflow |
+| Stages cannot be bypassed by direct conversion | External compile-negative fixtures cover both directions between head-tube and stem-base stages |
+| Solved placements remain valid | Private fields and value semantics protect stored coordinates; zero-value use panics |
+| Parent attitude is applied once | Worked geometry examples and rigid-transformation tests cover the stem placement |
+| Production callers share the implementation | `BuildScene`, `WithCockpit`, and `CalculateHBPointWithHandlebar` use the new path; repository checks passed |
 
-## Decisions deferred until that evidence exists
+The tests include independent coordinates, dimension properties, and sensitivity
+to geometric faults. A full deliberate mutation run and a new exhaustive catalog
+equivalence comparison have not been recorded. Existing scene and catalog tests
+provide regression coverage; the acceptance table above remains the target for
+the evidence we claim.
+
+The new package contains five public types and roughly 330 lines of production
+code for a small placement calculation. Some of that is reusable mathematics
+and validation. Every additional stage should enforce a distinct obligation.
+
+The conversion bypass and mutable identity were weaknesses introduced by the
+new implementation. Their regression tests improve the abstraction's safety.
+The longer-term justification must come from preventing ordinary bicycle-modeling
+mistakes and reducing the geometry knowledge required at call sites.
+
+Only one component definition currently exercises the approach. Reuse across
+components, meaningful downstream mounts, and shared construction evidence for
+measurements and rendering still need to be demonstrated.
+
+## Next step 1: simplify stem completion
+
+Have `StemBase.AttachStem` return the checked immutable `StemPlacement` directly.
+Remove `MountedStem` and `Finish`, and adapt callers and tests. Successful
+attachment already computes both landmarks and completes the subassembly. There
+is no remaining part or unresolved constraint that justifies another stage.
+
+Retain validation, unusable zero values, immutable results, and the distinction
+between head-tube and stem-base stages. Preserve the compile-negative tests for
+skipping or repeating the upper stack and the regression test for independence
+from mutable geometry globals. Remove tests whose only purpose is enforcing the
+redundant completion stage. Run the repository verification loop and review this
+simplification before extending the assembly.
+
+## Next step 2: evaluate handlebar attachment
+
+Use the handlebar as the second component to test whether the primitives and
+assembly boundaries compose well. Begin by making the existing rise, sweep,
+width, grip-inset, and roll conventions explicit in the component contract.
+In particular, define the reference attitude for roll and preserve current
+world-relative grip behavior when frame attitude or stem angle changes.
+
+The placed stem should expose a meaningful handlebar mount. Attaching the bar
+should produce checked hand-contact landmarks through the component definition
+and placement operations. The caller should select parts and state their
+connection, with coordinate conversion and orientation rules owned by those
+operations. Choose any additional pose representation needed from that concrete
+requirement.
+
+Route existing cockpit placement through this composition and remove the
+superseded placement calculation. Preserve catalog measurement conventions and
+exercise supported rise modes, widths, nonzero roll, stem angles, and frame
+attitudes against independent examples and existing behavior. Measurements and
+the cockpit drawing should consume the same resulting landmarks.
+
+Review the resulting call site against the current one. The next slice earns
+its complexity if adding the bar requires less geometry knowledge from its
+caller and reuses the trusted placement primitives. If callers still manage
+coordinate conversions or compensate for angle conventions, revise the boundary
+before expanding further. Larger whole-bike claims require this evidence.
+
+## Decisions deferred beyond these steps
 
 - Whether a full 3D pose kernel and tube-bending cursor improve the next real
   component. A planar first slice does not settle the eventual representation.
-- How to preserve the catalog's rise, sweep, roll, and saddle reference semantics
-  in later component definitions. Handlebar roll and saddle tilt need explicitly
-  declared reference attitudes rather than blindly inheriting every parent angle.
+- How to preserve saddle reference semantics in later component definitions.
+  Saddle tilt needs an explicitly declared reference attitude. Handlebar
+  conventions will be addressed in the next component contract.
 - How to ground unequal wheel radii and incorporate CAD rounding residuals. The
   current scene levels axle heights and preserves the published CAD baseline;
   the seed grounds loaded wheel radii directly. Reconcile that modeling choice
@@ -317,6 +387,6 @@ Do not use more generic machinery to obscure those problems.
   consume construction evidence directly. That follows a successful placement
   slice rather than being a prerequisite for testing the idea.
 
-No user decision is needed to attempt the first slice under these constraints.
-Its purpose is to obtain concrete evidence before committing to the broader
-architecture.
+The agreed direction is to simplify the completed stem slice and then evaluate
+handlebar composition. Each step should yield a small, reviewable change and
+concrete evidence for the broader architecture.
