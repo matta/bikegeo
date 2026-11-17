@@ -19,26 +19,26 @@ func isFinitePoint(p geom2d.Point2) bool {
 type pose2 struct {
 	origin geom2d.Point2
 	axisX  geom2d.Vec2
-	axisY  geom2d.Vec2
 }
 
 func identityPose2() pose2 {
 	return pose2{
 		origin: geom2d.Origin(),
 		axisX:  geom2d.Vec2{X: 1},
-		axisY:  geom2d.Vec2{Y: 1},
 	}
 }
 
 // newPose2 creates a right-handed 2D pose at origin whose local +X axis points
 // along heading (counter-clockwise from world +X).
 func newPose2(origin geom2d.Point2, heading geom2d.Angle) pose2 {
-	axisX := geom2d.UnitFromPolar(heading)
 	return pose2{
 		origin: origin,
-		axisX:  axisX,
-		axisY:  axisX.Perpendicular(geom2d.CounterClockwise),
+		axisX:  geom2d.UnitFromPolar(heading),
 	}
+}
+
+func (p pose2) axisY() geom2d.Vec2 {
+	return p.axisX.Perpendicular(geom2d.CounterClockwise)
 }
 
 func (p pose2) advance(dist float64) pose2 {
@@ -47,18 +47,15 @@ func (p pose2) advance(dist float64) pose2 {
 
 func (p pose2) translate(dx, dy float64) pose2 {
 	return pose2{
-		origin: p.origin.Add(p.axisX.Scale(dx)).Add(p.axisY.Scale(dy)),
+		origin: p.origin.Add(p.axisX.Scale(dx)).Add(p.axisY().Scale(dy)),
 		axisX:  p.axisX,
-		axisY:  p.axisY,
 	}
 }
 
 func (p pose2) turn(angle geom2d.Angle) pose2 {
-	axisX := p.axisX.Rotate(angle)
 	return pose2{
 		origin: p.origin,
-		axisX:  axisX,
-		axisY:  axisX.Perpendicular(geom2d.CounterClockwise),
+		axisX:  p.axisX.Rotate(angle),
 	}
 }
 

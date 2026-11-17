@@ -40,7 +40,7 @@ func (s SeatAxis) mustBeValid() {
 // AxisDirection returns the checked unit vector pointing upward along the seat axis.
 func (s SeatAxis) AxisDirection() geom2d.Vec2 {
 	s.mustBeValid()
-	return s.seatPose.axisY
+	return s.seatPose.axisY()
 }
 
 // WithSeatpostClamp locates the projected seatpost clamp at axialDistanceMm along
