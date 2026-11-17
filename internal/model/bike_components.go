@@ -348,9 +348,6 @@ func (h HandlebarSpec) EffectiveWidthMm() float64 {
 //
 //	z_hand = EffectiveWidth / 2.0 - gripInsetMm
 func (h HandlebarSpec) HandLateralMm(gripInsetMm float64) float64 {
-	if gripInsetMm <= 0 {
-		gripInsetMm = DefaultGripInsetMm
-	}
 	return h.EffectiveWidthMm()/2.0 - gripInsetMm
 }
 

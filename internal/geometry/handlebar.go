@@ -1,6 +1,8 @@
 package geometry
 
 import (
+	"fmt"
+
 	"bikegeo/internal/assembly"
 	"bikegeo/internal/geom2d"
 	"bikegeo/internal/model"
@@ -11,16 +13,16 @@ import (
 //
 // Parameters:
 //   - spec: Handlebar geometric specification
-//   - gripInsetMm: Distance from bar end to hand center along lateral axis (default 65mm if <= 0)
-//   - rollDeg: Bar roll angle in clamp in degrees (+ rolls top of bar forward, default 0)
+//   - gripInsetMm: Distance from bar end to hand center along lateral axis (must be in (0, EffectiveWidth/2))
+//   - rollDeg: Bar roll angle in clamp in degrees (+ rolls top of bar forward)
 //
 // Coordinate Frame:
 //   - X: Reach / Longitudinal axis (+ forward, horizontal)
 //   - Y: Stack / Vertical axis (+ upward, vertical)
 //   - Z: Lateral axis (+ right of centerline, symmetric for left)
 func GetHandlebarOffset(spec model.HandlebarSpec, gripInsetMm float64, rollDeg model.Deg) (model.Point3D, error) {
-	if gripInsetMm <= 0 {
-		gripInsetMm = model.DefaultGripInsetMm
+	if !isFinite(gripInsetMm) || gripInsetMm <= 0 {
+		return model.Point3D{}, fmt.Errorf("grip inset must be finite and positive, got %v mm", gripInsetMm)
 	}
 	return assembly.HandlebarOffset3D(assembly.HandlebarSetup{
 		Spec:        spec,

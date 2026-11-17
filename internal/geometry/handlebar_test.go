@@ -330,6 +330,12 @@ func TestHandlebarOffsetErrorPropagation(t *testing.T) {
 	if _, err := geometry.GetHandlebarOffset(invalidBar, model.DefaultGripInsetMm, 0.0); err == nil {
 		t.Errorf("GetHandlebarOffset(backsweep=90°): expected error, got nil")
 	}
+	if _, err := geometry.GetHandlebarOffset(validBar, 0, 0.0); err == nil {
+		t.Errorf("GetHandlebarOffset(gripInset=0): expected error, got nil")
+	}
+	if _, err := geometry.GetHandlebarOffset(validBar, -10, 0.0); err == nil {
+		t.Errorf("GetHandlebarOffset(gripInset=-10): expected error, got nil")
+	}
 	if _, err := geometry.HandlebarDelta(invalidBar, validBar, model.DefaultGripInsetMm, 0.0); err == nil {
 		t.Errorf("HandlebarDelta(invalid from): expected error, got nil")
 	}
