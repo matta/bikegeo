@@ -65,21 +65,22 @@ func (h HeadTubeTop) WithUpperStack(upperHeadsetCoverMm, spacersMm float64) (Ste
 	if err != nil {
 		return StemBase{}, err
 	}
-	return StemBase{pose: nextPose, valid: true}, nil
+	return StemBase{mountPose: nextPose, valid: true}, nil
 }
 
 // StemBase represents the checked steerer mount above the upper headset cover
 // and spacer stack, ready to accept a Stem.
 type StemBase struct {
-	pose  pose2
-	valid bool
+	// A distinct field name prevents conversion to or from HeadTubeTop.
+	mountPose pose2
+	valid     bool
 }
 
 func (b StemBase) mustBeValid() {
 	if !b.valid {
 		panic("assembly: uninitialized or invalid StemBase")
 	}
-	b.pose.mustBeValid()
+	b.mountPose.mustBeValid()
 }
 
 // Stem represents a validated stem component in its own local coordinate frame
@@ -139,11 +140,11 @@ func (b StemBase) AttachStem(stem Stem) (MountedStem, error) {
 	b.mustBeValid()
 	stem.mustBeValid()
 
-	steererClamp, err := b.pose.transformPoint(stem.steererClampLocal)
+	steererClamp, err := b.mountPose.transformPoint(stem.steererClampLocal)
 	if err != nil {
 		return MountedStem{}, err
 	}
-	barClamp, err := b.pose.transformPoint(stem.barClampLocal)
+	barClamp, err := b.mountPose.transformPoint(stem.barClampLocal)
 	if err != nil {
 		return MountedStem{}, err
 	}
@@ -174,38 +175,22 @@ func (m MountedStem) mustBeValid() {
 // Finish completes the stem subassembly and returns an immutable StemPlacement.
 func (m MountedStem) Finish() StemPlacement {
 	m.mustBeValid()
-	return StemPlacement{
-		steererClamp: m.steererClamp,
-		barClamp:     m.barClamp,
-		valid:        true,
-	}
+	return StemPlacement{mounted: m}
 }
 
 // StemPlacement is the immutable solved placement of the upper headset stack and stem.
 type StemPlacement struct {
-	steererClamp geom2d.Point2
-	barClamp     geom2d.Point2
-	valid        bool
-}
-
-func (p StemPlacement) mustBeValid() {
-	if !p.valid {
-		panic("assembly: uninitialized or invalid StemPlacement")
-	}
-	if !isFinite(p.steererClamp.X) || !isFinite(p.steererClamp.Y) ||
-		!isFinite(p.barClamp.X) || !isFinite(p.barClamp.Y) {
-		panic("assembly: non-finite StemPlacement landmarks")
-	}
+	mounted MountedStem
 }
 
 // SteererClamp returns the world coordinates of the stem's steerer-clamp center.
 func (p StemPlacement) SteererClamp() geom2d.Point2 {
-	p.mustBeValid()
-	return p.steererClamp
+	p.mounted.mustBeValid()
+	return p.mounted.steererClamp
 }
 
 // BarClamp returns the world coordinates of the stem's handlebar-clamp center.
 func (p StemPlacement) BarClamp() geom2d.Point2 {
-	p.mustBeValid()
-	return p.barClamp
+	p.mounted.mustBeValid()
+	return p.mounted.barClamp
 }

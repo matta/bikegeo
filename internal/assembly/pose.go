@@ -30,9 +30,9 @@ type pose2 struct {
 
 func identityPose2() pose2 {
 	return pose2{
-		origin: geom2d.Origin,
-		axisX:  geom2d.UnitX,
-		axisY:  geom2d.UnitY,
+		origin: geom2d.Point2{},
+		axisX:  geom2d.Vec2{X: 1},
+		axisY:  geom2d.Vec2{Y: 1},
 		valid:  true,
 	}
 }

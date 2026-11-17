@@ -76,6 +76,20 @@ func TestIndependent60DegWorkedExample(t *testing.T) {
 	assertPointNear(t, "BarClamp", p.BarClamp(), wantBar, 1e-12)
 }
 
+func TestStemLocalFrameIndependentOfGeom2DGlobals(t *testing.T) {
+	origin, unitX, unitY := geom2d.Origin, geom2d.UnitX, geom2d.UnitY
+	t.Cleanup(func() { geom2d.Origin, geom2d.UnitX, geom2d.UnitY = origin, unitX, unitY })
+	// This shifted, rotated basis is still a valid pose, so a general pose check
+	// would accept it. The stem's local identity must be fixed independently.
+	geom2d.Origin = geom2d.Point2{X: 100}
+	geom2d.UnitX = geom2d.Vec2{Y: 1}
+	geom2d.UnitY = geom2d.Vec2{X: -1}
+
+	p := mustAssembleStem(t, geom2d.Point2{}, 90, 10, 20, 40, 80, 0)
+	assertPointNear(t, "SteererClamp", p.SteererClamp(), geom2d.Point2{Y: 50}, 1e-12)
+	assertPointNear(t, "BarClamp", p.BarClamp(), geom2d.Point2{X: 80, Y: 50}, 1e-12)
+}
+
 func TestNonzeroStemAngleAndIndependentFaultSensitivity(t *testing.T) {
 	// At HTA = 70°, perpendicular forward is 90° - 70° = 20° above +X.
 	// Case A: stem angle = -20° cancels the 20° slope so the stem points strictly +X (horizontal).
@@ -449,9 +463,24 @@ func TestExternalCompileNegativeFixtures(t *testing.T) {
 			wantSub2: "WithUpperStack",
 		},
 		{
+			dir:      "headtube_to_stembase",
+			wantSub1: "cannot convert headTube",
+			wantSub2: "to type assembly.StemBase",
+		},
+		{
+			dir:      "stembase_to_headtube",
+			wantSub1: "cannot convert stemBase",
+			wantSub2: "to type assembly.HeadTubeTop",
+		},
+		{
 			dir:      "mounted_attach_stem",
 			wantSub1: "MountedStem",
 			wantSub2: "AttachStem",
+		},
+		{
+			dir:      "mounted_to_placement",
+			wantSub1: "cannot convert mounted",
+			wantSub2: "to type assembly.StemPlacement",
 		},
 		{
 			dir:      "local_offset_as_placed_mount",
