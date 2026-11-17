@@ -184,7 +184,10 @@ func formatCockpitOffset(hb model.HBPoint, oval model.FitOval, targetRef model.T
 	if oval.CenterX == 0 && oval.CenterY == 0 {
 		return ""
 	}
-	evalPt := geometry.EvaluatedPointForHB(hb, targetRef, refBar)
+	evalPt, err := geometry.EvaluatedPointForHB(hb, targetRef, refBar)
+	if err != nil {
+		return ""
+	}
 	dx := math.Round(evalPt.X - oval.CenterX)
 	dy := math.Round(evalPt.Y - oval.CenterY)
 

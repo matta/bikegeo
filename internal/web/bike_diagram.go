@@ -226,7 +226,7 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 		if err != nil {
 			return geom2d.Point2{}, err
 		}
-		return geometry.EvaluatedPointForHB(hb, sc.Fit.Target.Ref, sc.Fit.ReferenceBar), nil
+		return geometry.EvaluatedPointForHB(hb, sc.Fit.Target.Ref, sc.Fit.ReferenceBar)
 	}
 
 	// Build reachable [MinStem..MaxStem] x [0..MaxSpacerMm] envelope polygon per stem angle.
@@ -310,7 +310,10 @@ func buildCockpitZoomSVG(sc geometry.BikeScene, row model.CanonicalComparisonRow
 	circles := make([]svgCircle, 0, len(candHBs))
 	var best *svgCircle
 	for _, hb := range candHBs {
-		p := geometry.EvaluatedPointForHB(hb, target.Ref, sc.Fit.ReferenceBar)
+		p, err := geometry.EvaluatedPointForHB(hb, target.Ref, sc.Fit.ReferenceBar)
+		if err != nil {
+			return bikeSVGView{}, err
+		}
 		c := svgCircle{CX: f2(p.X), CY: f2(p.Y), R: "1.80", Class: "cand-dot"}
 		if isSelected(hb) {
 			c.R, c.Class = "3.20", "cand-dot cand-best"

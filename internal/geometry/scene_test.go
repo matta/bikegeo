@@ -120,7 +120,10 @@ func TestBuildScene_DerivedMetricsAndCockpit(t *testing.T) {
 	if d := sc.StemClamp.DistanceTo(wantClamp); d > 1e-9 {
 		t.Errorf("StemClamp diff %.12f", d)
 	}
-	barOff := geometry.GetHandlebarOffset(cockpit.Handlebar, cockpit.GripInsetMm, cockpit.BarRollDeg)
+	barOff, err := geometry.GetHandlebarOffset(cockpit.Handlebar, cockpit.GripInsetMm, cockpit.BarRollDeg)
+	if err != nil {
+		t.Fatalf("GetHandlebarOffset: %v", err)
+	}
 	wantGrip := wantClamp.Add(geom2d.Vec2{X: barOff.X, Y: barOff.Y})
 	if d := sc.HandGrip.DistanceTo(wantGrip); d > 1e-9 {
 		t.Errorf("HandGrip diff %.12f", d)
@@ -665,7 +668,10 @@ func evaluatedCockpitPoint(s geometry.BikeScene) geom2d.Point2 {
 		return s.StemClamp
 	case geometry.TargetReferenceBarClamp:
 		if refBar, ok := s.Fit.ReferenceBar.Get(); ok {
-			refOff := geometry.GetHandlebarOffset(refBar, s.Cockpit.GripInsetMm, 0.0)
+			refOff, err := geometry.GetHandlebarOffset(refBar, s.Cockpit.GripInsetMm, 0.0)
+			if err != nil {
+				panic(err)
+			}
 			return s.HandGrip.SubVec(geom2d.Vec2{X: refOff.X, Y: refOff.Y})
 		}
 		return s.StemClamp

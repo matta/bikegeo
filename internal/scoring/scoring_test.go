@@ -1041,7 +1041,10 @@ func TestExplainProfile_HeadToHeadReconcilesAllFactors(t *testing.T) {
 
 func TestScoreRow_CockpitTargetRefModes(t *testing.T) {
 	bar := catalog.DefaultHandlebar()
-	barOff := geometry.GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
+	barOff, err := geometry.GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	flatBar := model.HandlebarSpec{
 		ID:             "flat-zero-bar",
 		Name:           "Flat Zero",

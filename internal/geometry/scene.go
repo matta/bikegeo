@@ -258,7 +258,10 @@ func RequiredStemClamp(fit RiderFit, cockpit CockpitSpec) (geom2d.Point2, error)
 	if err := validateCockpitTargetInputs(fit, cockpit); err != nil {
 		return geom2d.Point2{}, err
 	}
-	barOff := GetHandlebarOffset(cockpit.Handlebar, cockpit.GripInsetMm, cockpit.BarRollDeg)
+	barOff, err := GetHandlebarOffset(cockpit.Handlebar, cockpit.GripInsetMm, cockpit.BarRollDeg)
+	if err != nil {
+		return geom2d.Point2{}, err
+	}
 	barVec := geom2d.Vec2{X: barOff.X, Y: barOff.Y}
 
 	switch fit.Target.Ref {
@@ -268,7 +271,10 @@ func RequiredStemClamp(fit RiderFit, cockpit CockpitSpec) (geom2d.Point2, error)
 		return fit.Target.Point, nil
 	case TargetReferenceBarClamp:
 		refBar, _ := fit.ReferenceBar.Get()
-		refOff := GetHandlebarOffset(refBar, cockpit.GripInsetMm, 0.0)
+		refOff, err := GetHandlebarOffset(refBar, cockpit.GripInsetMm, 0.0)
+		if err != nil {
+			return geom2d.Point2{}, err
+		}
 		refVec := geom2d.Vec2{X: refOff.X, Y: refOff.Y}
 		return fit.Target.Point.Add(refVec).SubVec(barVec), nil
 	default:
@@ -405,7 +411,7 @@ func levelFrame2D(in frameLevelingInput) frameLevelingResult {
 }
 
 // placeFrontCockpit positions SteererClamp, StemClamp, and HandGrip from the leveled head-tube top
-// and head-tube angle using the checked assembly recipe, followed by the handlebar grip offset.
+// and head-tube angle using the checked assembly recipe.
 func placeFrontCockpit(headTubeTop geom2d.Point2, htaDeg model.Deg, cockpit CockpitSpec) (frontCockpitPoints, error) {
 	headTube, err := assembly.NewHeadTubeTop(headTubeTop, htaDeg)
 	if err != nil {
@@ -419,19 +425,23 @@ func placeFrontCockpit(headTubeTop geom2d.Point2, htaDeg model.Deg, cockpit Cock
 	if err != nil {
 		return frontCockpitPoints{}, err
 	}
-	placement, err := stemBase.AttachStem(stem)
+	stemPlacement, err := stemBase.AttachStem(stem)
+	if err != nil {
+		return frontCockpitPoints{}, err
+	}
+	bar, err := assembly.NewHandlebar(cockpit.Handlebar, cockpit.GripInsetMm)
+	if err != nil {
+		return frontCockpitPoints{}, err
+	}
+	barPlacement, err := stemPlacement.BarClampMount().AttachHandlebar(bar, cockpit.BarRollDeg)
 	if err != nil {
 		return frontCockpitPoints{}, err
 	}
 
-	steererClamp := placement.SteererClamp()
-	stemClamp := placement.BarClamp()
-	barOff := GetHandlebarOffset(cockpit.Handlebar, cockpit.GripInsetMm, cockpit.BarRollDeg)
-	handGrip := stemClamp.Add(geom2d.Vec2{X: barOff.X, Y: barOff.Y})
 	return frontCockpitPoints{
-		SteererClamp: steererClamp,
-		StemClamp:    stemClamp,
-		HandGrip:     handGrip,
+		SteererClamp: stemPlacement.SteererClamp(),
+		StemClamp:    stemPlacement.BarClamp(),
+		HandGrip:     barPlacement.HandGrip(),
 	}, nil
 }
 

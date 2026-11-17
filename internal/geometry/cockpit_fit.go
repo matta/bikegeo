@@ -55,21 +55,24 @@ func MapPossibleHBsWithHandlebar(
 // EvaluatedPointForHB returns the 2D cockpit point on pt evaluated against targets
 // under targetRef (with optional refBar for TargetReferenceBarClamp).
 // An empty targetRef defaults to TargetHandGrip for legacy callers.
-func EvaluatedPointForHB(pt model.HBPoint, targetRef model.TargetRef, refBar model.Opt[model.HandlebarSpec]) geom2d.Point2 {
+func EvaluatedPointForHB(pt model.HBPoint, targetRef model.TargetRef, refBar model.Opt[model.HandlebarSpec]) (geom2d.Point2, error) {
 	handGrip := geom2d.Point2{X: pt.HbX, Y: pt.HbY}
 	switch targetRef {
 	case TargetHandGrip:
-		return handGrip
+		return handGrip, nil
 	case TargetStemClamp:
-		return geom2d.Point2{X: pt.ClampX, Y: pt.ClampY}
+		return geom2d.Point2{X: pt.ClampX, Y: pt.ClampY}, nil
 	case TargetReferenceBarClamp:
 		if bar, ok := refBar.Get(); ok {
-			refOff := GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
-			return handGrip.SubVec(geom2d.Vec2{X: refOff.X, Y: refOff.Y})
+			refOff, err := GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
+			if err != nil {
+				return geom2d.Point2{}, err
+			}
+			return handGrip.SubVec(geom2d.Vec2{X: refOff.X, Y: refOff.Y}), nil
 		}
-		return geom2d.Point2{X: pt.ClampX, Y: pt.ClampY}
+		return geom2d.Point2{X: pt.ClampX, Y: pt.ClampY}, nil
 	default:
-		return handGrip
+		return handGrip, nil
 	}
 }
 
@@ -131,7 +134,15 @@ func EvaluateCockpitFitByCost(
 	candidates := make([]candidate, len(possible))
 	countInside := 0
 	for i, pt := range possible {
-		evalPt := EvaluatedPointForHB(pt, targetRef, refBar)
+		evalPt, err := EvaluatedPointForHB(pt, targetRef, refBar)
+		if err != nil {
+			return model.CockpitFitResult{
+				TargetOval:   oval,
+				TargetRef:    targetRef,
+				ReferenceBar: refBar,
+				BestR:        999,
+			}
+		}
 		r, inside := EvaluateFitOval(oval, evalPt.X, evalPt.Y)
 		if inside {
 			countInside++

@@ -453,7 +453,10 @@ func TestApplyIdealCockpitTargets_KeepsCheapestStockBuild(t *testing.T) {
 		}
 		cfr := can.CockpitFitResult
 		cockpitLost := func(pt model.HBPoint) float64 {
-			evalPt := geometry.EvaluatedPointForHB(pt, cfr.TargetRef, cfr.ReferenceBar)
+			evalPt, err := geometry.EvaluatedPointForHB(pt, cfr.TargetRef, cfr.ReferenceBar)
+			if err != nil {
+				t.Fatal(err)
+			}
 			r, _ := geometry.EvaluateFitOval(cfr.TargetOval, evalPt.X, evalPt.Y)
 			return ideal.OvalPointsLost(&model.CockpitFitResult{BestR: r}, oval.Cost) +
 				ideal.RowPointsLost(stemLen, pt.Stem.LengthMm, &row) +

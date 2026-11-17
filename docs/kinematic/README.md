@@ -65,6 +65,31 @@ unusable result, whose operations reject use, rather than a plausible origin or
 empty “solved” bike. Panics are programmer failures, not routine user-input
 validation. Never recover a panic and substitute a successful zero result.
 
+### Error propagation across the complete call path
+
+Checked primitives provide their guarantee only when every caller preserves
+their failures. When a migrated operation becomes fallible, update compatibility
+helpers and their callers to carry the error through target calculations,
+comparisons, scoring, report builders, and CLI or HTTP entry points as applicable.
+Add useful context while preserving the underlying error. User-input failures
+must reach the user as errors, following the failure policy above.
+
+Never translate a failed calculation into a successful zero coordinate, zero
+delta, default geometry, or silently omitted candidate. Defaults belong in input
+resolution before validation. A successful calculation must depend on successful
+construction of every value it uses.
+
+The handlebar review exposed this failure in `GetHandlebarOffset`: its adapter
+discarded errors from `NewHandlebar` and `GripOffset3D` and returned `(0, 0, 0)`.
+A rejected 90° backsweep consequently let `RequiredStemClamp` return the hand
+target itself as a successful clamp position. Constructor tests alone did not
+detect the failure in that caller.
+
+For each migrated call path, add a regression test that supplies invalid geometry
+through a public calculation or application entry point and verifies that the
+error survives to that boundary. Include the adapters and dependent calculations
+in the migration's acceptance review.
+
 ## What already exists
 
 The current code is partly aligned with this direction:
@@ -363,6 +388,11 @@ superseded placement calculation. Preserve catalog measurement conventions and
 exercise supported rise modes, widths, nonzero roll, stem angles, and frame
 attitudes against independent examples and existing behavior. Measurements and
 the cockpit drawing should consume the same resulting landmarks.
+
+Apply the error-propagation requirement to `GetHandlebarOffset` and all affected
+callers, including required-clamp calculations and handlebar comparisons. Verify
+that a rejected bar or roll produces an error at those boundaries. Passing
+component tests is insufficient if an adapter still substitutes a zero offset.
 
 Review the resulting call site against the current one. The next slice earns
 its complexity if adding the bar requires less geometry knowledge from its

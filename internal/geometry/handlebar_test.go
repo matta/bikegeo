@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"bikegeo/internal/catalog"
+	"bikegeo/internal/geom2d"
 	"bikegeo/internal/geometry"
 	"bikegeo/internal/model"
 )
@@ -113,7 +114,10 @@ func TestWorkedComparisonTable(t *testing.T) {
 				t.Errorf("lz: expected %.1f, got %.1f", tc.expectedLz, lz)
 			}
 
-			offset := geometry.GetHandlebarOffset(tc.spec, 65.0, 0.0)
+			offset, err := geometry.GetHandlebarOffset(tc.spec, 65.0, 0.0)
+			if err != nil {
+				t.Fatalf("GetHandlebarOffset: %v", err)
+			}
 
 			if math.Abs(offset.X-tc.expectedDX) > 0.1 {
 				t.Errorf("Reach offset ΔX: expected %.1f mm, got %.2f mm", tc.expectedDX, offset.X)
@@ -136,8 +140,14 @@ func TestKeyInsights(t *testing.T) {
 	persuader800 := catalog.HandlebarPresets["persuader20_800"]
 	sqlab3OX30 := catalog.HandlebarPresets["sqlab3OX_16_30"]
 
-	offP := geometry.GetHandlebarOffset(persuader800, gripInset, 0.0)
-	offS := geometry.GetHandlebarOffset(sqlab3OX30, gripInset, 0.0)
+	offP, err := geometry.GetHandlebarOffset(persuader800, gripInset, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	offS, err := geometry.GetHandlebarOffset(sqlab3OX30, gripInset, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	reachDelta := offP.X - offS.X // -72.8 - (-69.7) = -3.1mm
 	stackDelta := offP.Y - offS.Y // 45.5 - 47.0 = -1.5mm
@@ -154,8 +164,14 @@ func TestKeyInsights(t *testing.T) {
 	sqlab311_25 := catalog.HandlebarPresets["sqlab311_20_16_25"]
 	sqlab311_50 := catalog.HandlebarPresets["sqlab311_20_16_50"]
 
-	off25 := geometry.GetHandlebarOffset(sqlab311_25, gripInset, 0.0)
-	off50 := geometry.GetHandlebarOffset(sqlab311_50, gripInset, 0.0)
+	off25, err := geometry.GetHandlebarOffset(sqlab311_25, gripInset, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	off50, err := geometry.GetHandlebarOffset(sqlab311_50, gripInset, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	reachGain := off50.X - off25.X // -58.8 - (-65.2) = +6.4mm
 	stackGain := off50.Y - off25.Y // 67.9 - 44.9 = +23.0mm
@@ -170,8 +186,14 @@ func TestKeyInsights(t *testing.T) {
 	// Insight 3: Bar Roll Sensitivity
 	// At ~70mm backsweep offset and ~46mm stack offset, every 5° of backward roll (-5°)
 	// shifts grips ~ -4.0mm further back (reach) and ~ -6.1mm lower (stack).
-	offNeutral := geometry.GetHandlebarOffset(sqlab3OX30, gripInset, 0.0)
-	offRolled := geometry.GetHandlebarOffset(sqlab3OX30, gripInset, -5.0)
+	offNeutral, err := geometry.GetHandlebarOffset(sqlab3OX30, gripInset, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	offRolled, err := geometry.GetHandlebarOffset(sqlab3OX30, gripInset, -5.0)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	deltaRollReach := offRolled.X - offNeutral.X
 	deltaRollStack := offRolled.Y - offNeutral.Y
@@ -193,8 +215,14 @@ func TestCutHandlebarWidth(t *testing.T) {
 	cut := uncut
 	cut.CurrentWidthMm = 760.0
 
-	offUncut := geometry.GetHandlebarOffset(uncut, 65.0, 0.0)
-	offCut := geometry.GetHandlebarOffset(cut, 65.0, 0.0)
+	offUncut, err := geometry.GetHandlebarOffset(uncut, 65.0, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	offCut, err := geometry.GetHandlebarOffset(cut, 65.0, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	expectedCutDX := -180.0 * math.Tan(20.0*math.Pi/180.0)
 	if math.Abs(offCut.X-expectedCutDX) > 0.05 {
@@ -222,7 +250,10 @@ func TestHandlebarStemCompensation(t *testing.T) {
 	// Moving from Persuader to SQlab:
 	// Persuader offset is (-72.8, +45.5). SQlab is (-69.7, +47.0).
 	// With clamp fixed, grips move +3.1mm forward (X) and +1.5mm upward (Y).
-	delta := geometry.HandlebarDelta(persuader, sqlab, 65.0, 0.0)
+	delta, err := geometry.HandlebarDelta(persuader, sqlab, 65.0, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if math.Abs(delta.X-3.1) > 0.15 {
 		t.Errorf("Expected grip shift X ~ +3.1mm, got %.2fmm", delta.X)
 	}
@@ -231,7 +262,10 @@ func TestHandlebarStemCompensation(t *testing.T) {
 	}
 
 	// To keep hands in the EXACT same spatial location, the stem clamp must move in the opposite direction:
-	comp := geometry.HandlebarStemCompensation(persuader, sqlab, 65.0, 0.0)
+	comp, err := geometry.HandlebarStemCompensation(persuader, sqlab, 65.0, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if math.Abs(comp.X-(-3.1)) > 0.15 {
 		t.Errorf("Expected stem comp X ~ -3.1mm, got %.2fmm", comp.X)
 	}
@@ -266,7 +300,10 @@ func TestCalculateHBPointWithHandlebar(t *testing.T) {
 	}
 
 	// Verify that HbX = ClampX + offset.X and HbY = ClampY + offset.Y
-	offset := geometry.GetHandlebarOffset(bar, 65.0, 0.0)
+	offset, err := geometry.GetHandlebarOffset(bar, 65.0, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	expectedHbX := math.Round((hb.ClampX+offset.X)*10) / 10
 	expectedHbY := math.Round((hb.ClampY+offset.Y)*10) / 10
 
@@ -282,5 +319,60 @@ func TestCalculateHBPointWithHandlebar(t *testing.T) {
 	}
 	if _, err := geometry.CalculateHBPointWithHandlebar(reach, stack, htaDeg, brp, stem, -5.0, bar, 65.0, 0.0); err == nil {
 		t.Error("expected error for negative spacer")
+	}
+}
+
+func TestHandlebarOffsetErrorPropagation(t *testing.T) {
+	validBar := catalog.DefaultHandlebar()
+	invalidBar := validBar
+	invalidBar.BacksweepDeg = 90
+
+	if _, err := geometry.GetHandlebarOffset(invalidBar, model.DefaultGripInsetMm, 0.0); err == nil {
+		t.Errorf("GetHandlebarOffset(backsweep=90°): expected error, got nil")
+	}
+	if _, err := geometry.HandlebarDelta(invalidBar, validBar, model.DefaultGripInsetMm, 0.0); err == nil {
+		t.Errorf("HandlebarDelta(invalid from): expected error, got nil")
+	}
+	if _, err := geometry.HandlebarDelta(validBar, invalidBar, model.DefaultGripInsetMm, 0.0); err == nil {
+		t.Errorf("HandlebarDelta(invalid to): expected error, got nil")
+	}
+	if _, err := geometry.HandlebarStemCompensation(invalidBar, validBar, model.DefaultGripInsetMm, 0.0); err == nil {
+		t.Errorf("HandlebarStemCompensation(invalid from): expected error, got nil")
+	}
+	if _, err := geometry.HandlebarStemCompensation(validBar, invalidBar, model.DefaultGripInsetMm, 0.0); err == nil {
+		t.Errorf("HandlebarStemCompensation(invalid to): expected error, got nil")
+	}
+
+	fit := geometry.RiderFit{
+		Target: geometry.RiderTarget{
+			Point: geom2d.Point2{X: 500, Y: 700},
+			Ref:   geometry.TargetHandGrip,
+		},
+	}
+	cockpit := geometry.CockpitSpec{
+		HeadsetTopStackMm: model.DefaultHeadsetTopStackMm,
+		StemClampHeightMm: model.StemThicknessMm,
+		Stem:              model.StemSpec{LengthMm: 80, AngleDeg: 0},
+		Handlebar:         invalidBar,
+		GripInsetMm:       model.DefaultGripInsetMm,
+	}
+	if _, err := geometry.RequiredStemClamp(fit, cockpit); err == nil {
+		t.Errorf("RequiredStemClamp(backsweep=90°): expected error, got nil")
+	}
+
+	refFit := geometry.RiderFit{
+		Target: geometry.RiderTarget{
+			Point: geom2d.Point2{X: 500, Y: 700},
+			Ref:   geometry.TargetReferenceBarClamp,
+		},
+		ReferenceBar: model.Some(invalidBar),
+	}
+	validCockpit := cockpit
+	validCockpit.Handlebar = validBar
+	if _, err := geometry.RequiredStemClamp(refFit, validCockpit); err == nil {
+		t.Errorf("RequiredStemClamp(invalid ReferenceBar): expected error, got nil")
+	}
+	if _, err := geometry.EvaluatedPointForHB(model.HBPoint{HbX: 500, HbY: 700}, geometry.TargetReferenceBarClamp, model.Some(invalidBar)); err == nil {
+		t.Errorf("EvaluatedPointForHB(invalid ReferenceBar): expected error, got nil")
 	}
 }

@@ -183,3 +183,31 @@ func (p StemPlacement) BarClamp() geom2d.Point2 {
 	p.mustBeValid()
 	return p.barClamp
 }
+
+// BarClampMount returns the checked handlebar mount at the stem's bar-clamp center.
+// Its reference attitude is the leveled bicycle world frame (+X forward horizontal,
+// +Y upward vertical), so bar roll is measured relative to world horizontal/vertical
+// rather than the stem extension axis.
+func (p StemPlacement) BarClampMount() BarClampMount {
+	p.mustBeValid()
+	pose, err := newPose2(p.barClamp, 0)
+	if err != nil {
+		panic(fmt.Sprintf("assembly: invalid BarClampMount pose: %v", err))
+	}
+	return BarClampMount{barPose: pose, valid: true}
+}
+
+// BarClampMount represents the checked handlebar mount on a placed stem,
+// ready to accept a Handlebar.
+type BarClampMount struct {
+	// A distinct field name prevents conversion to or from HeadTubeTop or StemBase.
+	barPose pose2
+	valid   bool
+}
+
+func (m BarClampMount) mustBeValid() {
+	if !m.valid {
+		panic("assembly: uninitialized or invalid BarClampMount")
+	}
+	m.barPose.mustBeValid()
+}

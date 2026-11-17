@@ -277,7 +277,10 @@ func TestAnalyzeBikeFitRequiresPositiveRake(t *testing.T) {
 }
 
 func TestCalculateHandlebarOffset(t *testing.T) {
-	offset := geometry.GetHandlebarOffset(catalog.DefaultHandlebar(), model.DefaultGripInsetMm, 0.0)
+	offset, err := geometry.GetHandlebarOffset(catalog.DefaultHandlebar(), model.DefaultGripInsetMm, 0.0)
+	if err != nil {
+		t.Fatalf("GetHandlebarOffset: %v", err)
+	}
 	// Tumbleweed Persuader 20° (800mm):
 	// zb = 135mm, zHand = 400 - 65 = 335mm, Lz = 200mm.
 	// OffsetX = -200 * tan(20°) = -72.8 mm
@@ -302,7 +305,10 @@ func TestCalculateHBPoint_TrigonometryAndRotation(t *testing.T) {
 	if placementErr != nil {
 		t.Fatal(placementErr)
 	}
-	barOffset := geometry.GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
+	barOffset, err := geometry.GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Case 1: HTA = 73°, stem -17° (90° - 73° - 17° = 0° => stem extends strictly horizontally forward)
 	// spacer = 0 mm => d_steerer = 11 (HeadsetTopStackMm) + 0 + 40/2 = 31 mm
@@ -466,7 +472,10 @@ func TestCalculateBRPPoint_IdmatchPDFMath(t *testing.T) {
 		BrpY:         713.0,
 		BrpSetbackMm: 219.0,
 	}
-	barOffset := geometry.GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
+	barOffset, err := geometry.GetHandlebarOffset(bar, model.DefaultGripInsetMm, 0.0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	clampX := 481.0 - barOffset.X
 	clampY := 726.0 - barOffset.Y
 

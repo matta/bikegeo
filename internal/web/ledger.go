@@ -96,7 +96,7 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 	dL := sc.StructuralA2cMm - (cadEffA2c + sc.Frame.CadLowerCupMm)
 	dRake := sc.Build.Fork.RakeMm - sc.Frame.CadFork.RakeMm
 	dSteerer := sc.Cockpit.HeadsetTopStackMm + sc.Cockpit.SpacerMm + sc.Cockpit.StemClampHeightMm/2.0
-	barOff := geometry.GetHandlebarOffset(sc.Cockpit.Handlebar, sc.Cockpit.GripInsetMm, sc.Cockpit.BarRollDeg)
+	barOff := sc.HandGrip.Sub(sc.StemClamp)
 	errVec := sc.TargetPointError()
 
 	rows := [][]string{
@@ -288,20 +288,22 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 		})
 	}
 	if cfr != nil && cfr.SelectedHB.Stem.LengthMm > 0 {
-		eval := geometry.EvaluatedPointForHB(cfr.SelectedHB, cfr.TargetRef, cfr.ReferenceBar)
-		parts, total := lossParts(ideal.MetricHandlebarClampFit, ideal.MetricStemLength, ideal.MetricStemAngle, ideal.MetricSpacers)
-		lostStr := fmt.Sprintf("R=%.2f", cfr.BestR)
-		if len(parts) > 0 {
-			lostStr = fmt.Sprintf("R=%.2f; lost %s = %.1f", cfr.BestR, strings.Join(parts, " + "), total)
+		eval, err := geometry.EvaluatedPointForHB(cfr.SelectedHB, cfr.TargetRef, cfr.ReferenceBar)
+		if err == nil {
+			parts, total := lossParts(ideal.MetricHandlebarClampFit, ideal.MetricStemLength, ideal.MetricStemAngle, ideal.MetricSpacers)
+			lostStr := fmt.Sprintf("R=%.2f", cfr.BestR)
+			if len(parts) > 0 {
+				lostStr = fmt.Sprintf("R=%.2f; lost %s = %.1f", cfr.BestR, strings.Join(parts, " + "), total)
+			}
+			rows = append(rows, []string{
+				"5. Fit Target & Solve",
+				"Cheapest Stock Build",
+				"min over stem length × angle × spacers of Oval Fits + Stem Length + Stem Angle + Spacers points lost",
+				fmt.Sprintf("Stem %.0fmm %+.0f° + %.0fmm sp (|Δ|=%.1f)",
+					cfr.SelectedHB.Stem.LengthMm, cfr.SelectedHB.Stem.AngleDeg, cfr.SelectedHB.SpacerMm, math.Hypot(eval.X-cfr.TargetOval.CenterX, eval.Y-cfr.TargetOval.CenterY)),
+				lostStr,
+			})
 		}
-		rows = append(rows, []string{
-			"5. Fit Target & Solve",
-			"Cheapest Stock Build",
-			"min over stem length × angle × spacers of Oval Fits + Stem Length + Stem Angle + Spacers points lost",
-			fmt.Sprintf("Stem %.0fmm %+.0f° + %.0fmm sp (|Δ|=%.1f)",
-				cfr.SelectedHB.Stem.LengthMm, cfr.SelectedHB.Stem.AngleDeg, cfr.SelectedHB.SpacerMm, math.Hypot(eval.X-cfr.TargetOval.CenterX, eval.Y-cfr.TargetOval.CenterY)),
-			lostStr,
-		})
 	}
 
 	return report.FromStrings(

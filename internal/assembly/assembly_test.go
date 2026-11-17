@@ -472,6 +472,26 @@ func TestExternalCompileNegativeFixtures(t *testing.T) {
 			wantSub1: "cannot refer to unexported field valid",
 			wantSub2: "assembly.HeadTubeTop",
 		},
+		{
+			dir:      "stembase_attach_handlebar",
+			wantSub1: "StemBase",
+			wantSub2: "AttachHandlebar",
+		},
+		{
+			dir:      "barclampmount_attach_stem",
+			wantSub1: "BarClampMount",
+			wantSub2: "AttachStem",
+		},
+		{
+			dir:      "stembase_to_barclampmount",
+			wantSub1: "cannot convert stemBase",
+			wantSub2: "to type assembly.BarClampMount",
+		},
+		{
+			dir:      "unexported_barclampmount_forge",
+			wantSub1: "cannot refer to unexported field valid",
+			wantSub2: "assembly.BarClampMount",
+		},
 	}
 
 	tmpOut := filepath.Join(t.TempDir(), "compile_neg_out")

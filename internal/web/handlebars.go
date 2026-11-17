@@ -128,7 +128,11 @@ func (db *docb) listHandlebars(gripInset float64, rollDeg model.Deg, cutWidth fl
 			b.CurrentWidthMm = cutWidth
 		}
 		byID[b.ID] = b
-		offset := geometry.GetHandlebarOffset(b, gripInset, rollDeg)
+		offset, err := geometry.GetHandlebarOffset(b, gripInset, rollDeg)
+		if err != nil {
+			db.fail("Error: %v", err)
+			return 1
+		}
 		yk := b.BaseRiseAtBend()
 		zHand := b.HandLateralMm(gripInset)
 
@@ -162,8 +166,16 @@ func (db *docb) listHandlebars(gripInset float64, rollDeg model.Deg, cutWidth fl
 	var insightLines []string
 	if p800, ok := byID["persuader20_800"]; ok {
 		if s30, ok := byID["sqlab3OX_16_30"]; ok {
-			op := geometry.GetHandlebarOffset(p800, gripInset, rollDeg)
-			os := geometry.GetHandlebarOffset(s30, gripInset, rollDeg)
+			op, err := geometry.GetHandlebarOffset(p800, gripInset, rollDeg)
+			if err != nil {
+				db.fail("Error: %v", err)
+				return 1
+			}
+			os, err := geometry.GetHandlebarOffset(s30, gripInset, rollDeg)
+			if err != nil {
+				db.fail("Error: %v", err)
+				return 1
+			}
 			dx := op.X - os.X
 			reachPhrase := fmt.Sprintf("pulling grips %.1fmm further forward", dx)
 			if dx < 0 {
@@ -176,16 +188,32 @@ func (db *docb) listHandlebars(gripInset float64, rollDeg model.Deg, cutWidth fl
 	}
 	if b25, ok := byID["sqlab311_20_16_25"]; ok {
 		if b50, ok := byID["sqlab311_20_16_50"]; ok {
-			o25 := geometry.GetHandlebarOffset(b25, gripInset, rollDeg)
-			o50 := geometry.GetHandlebarOffset(b50, gripInset, rollDeg)
+			o25, err := geometry.GetHandlebarOffset(b25, gripInset, rollDeg)
+			if err != nil {
+				db.fail("Error: %v", err)
+				return 1
+			}
+			o50, err := geometry.GetHandlebarOffset(b50, gripInset, rollDeg)
+			if err != nil {
+				db.fail("Error: %v", err)
+				return 1
+			}
 			insightLines = append(insightLines, fmt.Sprintf(
 				"2. Higher Rise Reduces Backsweep Reach Loss: On SQlab bars, higher rise consumes more lateral run in the 45°-50° riser section (z_b = 55 + 0.9*Rise). On 311 2.0, stepping from 25mm to 50mm rise gives %+.1fmm reach delta (%+.1fmm vs %+.1fmm) alongside %+.1fmm stack increase.",
 				o50.X-o25.X, o50.X, o25.X, o50.Y-o25.Y))
 		}
 	}
 	if s30, ok := byID["sqlab3OX_16_30"]; ok {
-		os0 := geometry.GetHandlebarOffset(s30, gripInset, rollDeg)
-		osM5 := geometry.GetHandlebarOffset(s30, gripInset, rollDeg-5.0)
+		os0, err := geometry.GetHandlebarOffset(s30, gripInset, rollDeg)
+		if err != nil {
+			db.fail("Error: %v", err)
+			return 1
+		}
+		osM5, err := geometry.GetHandlebarOffset(s30, gripInset, rollDeg-5.0)
+		if err != nil {
+			db.fail("Error: %v", err)
+			return 1
+		}
 		dRx := osM5.X - os0.X
 		dRy := osM5.Y - os0.Y
 		// Exact 2D rotation sensitivity at nominal (-70mm reach, +46mm stack) rolled from 0° to -5°.
@@ -219,7 +247,11 @@ func (db *docb) listHandlebars(gripInset float64, rollDeg model.Deg, cutWidth fl
 }
 
 func (db *docb) showHandlebarDetail(b model.HandlebarSpec, gripInset float64, rollDeg model.Deg) int {
-	offset := geometry.GetHandlebarOffset(b, gripInset, rollDeg)
+	offset, err := geometry.GetHandlebarOffset(b, gripInset, rollDeg)
+	if err != nil {
+		db.fail("Error: %v", err)
+		return 1
+	}
 	yk := b.BaseRiseAtBend()
 	zHand := b.HandLateralMm(gripInset)
 	sweptRun := math.Max(0, zHand-b.EffectiveBendStartMm)
@@ -248,10 +280,18 @@ func (db *docb) showHandlebarDetail(b model.HandlebarSpec, gripInset float64, ro
 	// Roll sweep table
 	rollHeaders := []string{"Roll Angle (θ)", "Reach Offset (ΔX)", "Stack Offset (ΔY)", "ΔReach vs Neutral", "ΔStack vs Neutral"}
 	var rollRows [][]string
-	neutralOff := geometry.GetHandlebarOffset(b, gripInset, 0.0)
+	neutralOff, err := geometry.GetHandlebarOffset(b, gripInset, 0.0)
+	if err != nil {
+		db.fail("Error: %v", err)
+		return 1
+	}
 
 	for r := model.Deg(-10.0); r <= 10.001; r += 2.5 {
-		rOff := geometry.GetHandlebarOffset(b, gripInset, r)
+		rOff, err := geometry.GetHandlebarOffset(b, gripInset, r)
+		if err != nil {
+			db.fail("Error: %v", err)
+			return 1
+		}
 		diffX := rOff.X - neutralOff.X
 		diffY := rOff.Y - neutralOff.Y
 		marker := ""
@@ -283,10 +323,26 @@ func (db *docb) showHandlebarDetail(b model.HandlebarSpec, gripInset float64, ro
 }
 
 func (db *docb) compareHandlebars(bar1, bar2 model.HandlebarSpec, gripInset float64, rollDeg model.Deg) int {
-	off1 := geometry.GetHandlebarOffset(bar1, gripInset, rollDeg)
-	off2 := geometry.GetHandlebarOffset(bar2, gripInset, rollDeg)
-	deltaGrip := geometry.HandlebarDelta(bar1, bar2, gripInset, rollDeg)
-	stemComp := geometry.HandlebarStemCompensation(bar1, bar2, gripInset, rollDeg)
+	off1, err := geometry.GetHandlebarOffset(bar1, gripInset, rollDeg)
+	if err != nil {
+		db.fail("Error: %v", err)
+		return 1
+	}
+	off2, err := geometry.GetHandlebarOffset(bar2, gripInset, rollDeg)
+	if err != nil {
+		db.fail("Error: %v", err)
+		return 1
+	}
+	deltaGrip, err := geometry.HandlebarDelta(bar1, bar2, gripInset, rollDeg)
+	if err != nil {
+		db.fail("Error: %v", err)
+		return 1
+	}
+	stemComp, err := geometry.HandlebarStemCompensation(bar1, bar2, gripInset, rollDeg)
+	if err != nil {
+		db.fail("Error: %v", err)
+		return 1
+	}
 
 	title := fmt.Sprintf("Handlebar Fit Translation: %s -> %s", bar1.Name, bar2.Name)
 	subtitle := fmt.Sprintf("Grip inset: %.0f mm | Roll angle: %+.1f°", gripInset, rollDeg)
