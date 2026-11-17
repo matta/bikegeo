@@ -8,7 +8,8 @@ and propagated handlebar errors. The saddle assembly and separate BRP-height
 solve slice designed below is also implemented, separating forward saddle
 placement in `internal/assembly` from the BRP-radius solver in `internal/geometry`.
 Commit `8b1bf7f` adds checked rail-offset target solving and its production callers.
-The next bounded step is the STA inverse, followed by a consolidation review.
+Commit `4f7be11` adds checked STA target solving. The consolidation assessment
+and next bounded simplification are recorded below.
 
 Read this before the seed documents, [Kinematic Assembly](KINEMATIC_ASSEMBLY.md)
 and [Kinematic Stronger](KINEMATIC_STRONGER.md). They were written independently
@@ -632,7 +633,7 @@ use this solver, the legacy implementation is removed, and the acceptance tests
 pass. Review whether the second solver reuses assembly without duplicated
 physical formulas. Plan the STA inverse separately after that evidence exists.
 
-## Next slice: checked effective-STA target solving
+## Implemented slice: checked effective-STA target solving
 
 ### Decision and boundary
 
@@ -769,13 +770,118 @@ Record that assessment and any concrete simplification proposals. Broad API
 cleanup, opaque scenes, and further component migrations are separate changes;
 this checkpoint does not authorize bundling them into the STA implementation.
 
+## Consolidation assessment and next slice: self-contained saddle snapshots
+
+Prerequisite: commit `4f7be11` still contains the duplicated STA test block in
+`internal/geometry/saddle_solve_test.go`, starting with the second
+`TestSolveSaddleSTAForBRPTarget_IndependentExamples`. Remove that duplicate and
+run the fast loop and `make pre-commit` successfully before starting this slice.
+The committed STA implementation is not yet a passing verification baseline.
+
+### Assessment after the three saddle solvers
+
+The cockpit experiment now has reusable component placement and three distinct
+inverse operations verified through the same forward model. Front-cockpit
+callers express attachment intent; saddle solvers own target equations while
+assembly owns physical offsets. Keep those responsibilities separate. Shared
+upper-circle target validation is justified by actual reuse; a generic solver
+framework is not yet justified.
+
+The remaining costs are explicit error handling, checked-value accessors, and
+legacy adapters. Repetition alone does not justify abstraction: leave the three
+solver equations and their postconditions visible. The strongest next
+simplification is eliminating facts that callers must repeat at the snapshot
+boundary.
+
+Today `BRPPointFromSaddlePlacement(saddle, postSetback, railOffset, placement)`
+accepts four independent arguments. The placement proves where its landmarks
+are, but the adapter cannot prove that the supplied saddle and adjustments
+produced them. For example, a caller can place saddle A and label its snapshot
+with saddle B's pitch and dimensions. The snapshot's `Transform` then disagrees
+with its stored landmarks. Current callers appear consistent; this is an API
+misuse opportunity, not a claim of an observed incorrect production result.
+
+The broader guarantee still stops at caller-selected root datums, mutable
+`BikeScene`/`BRPPoint` snapshots, and unverified catalog/physical assumptions.
+This slice improves consistency when exporting a snapshot; it does not make
+that snapshot immutable after export.
+
+### Decision and contract
+
+Make `assembly.SaddlePlacement` retain the saddle specification and adjustments
+that actually produced it. Change the geometry adapter to accept only the
+placement:
+
+```text
+snapshot = BRPPointFromSaddlePlacement(placement)
+```
+
+All snapshot facts must come from that one placement: saddle specification,
+world-relative rail pitch, post setback, rail offset, axial distance, and
+landmarks. Derived setback/angle fields retain their existing definitions.
+There is no geometry recomputation or target solving during export.
+
+Keep stored state private and accessors read-only. Preserve unusable zero values
+and ignored-error rejection. Copy the original `model.SaddleSpec` by value;
+currently its fields are scalars and strings. Mutating the original spec or a
+returned copy must not change the placement or a later export. If mutable
+fields are introduced in that spec later, copying must remain deep enough to
+preserve this contract.
+
+Retaining input facts does not validate every catalog field. In particular,
+`NewSaddle` validates placement geometry; rail length and clamp compatibility
+remain separate checks. Preserve synthetic geometric fixtures with no catalog
+identity or rail span. Do not add hardware rejection to geometric assembly just
+because the full specification is now retained.
+
+### Small implementation boundary
+
+- Let `NewSaddle` retain the source specification used for its geometry. Avoid
+  keeping independently editable copies of its numeric fields; use one private
+  authoritative representation for both placement and exported facts.
+- Carry the checked post setback through `SeatpostClampMount`. On attachment,
+  record that setback and the successfully applied rail offset in the placement,
+  along with the saddle facts. Callers cannot overwrite those facts afterward.
+- Add only the accessors needed by the production adapter. Keep report-specific
+  conversion in `geometry`; assembly must not produce legacy report structures.
+- Change `BRPPointFromSaddlePlacement` to its one-argument form, without a legacy
+  overload accepting replacement facts. Update scene construction, radius-solve
+  compatibility helpers, saddle transfer/swap, and web saddle builders.
+- Have `SaddleRailSolution.RailOffsetMm()` read the placement's retained offset
+  if this removes redundant storage without changing its public behavior. Keep
+  the distinct STA solution's angle and the existing solver APIs otherwise.
+
+Do not replace `BikeScene`, redesign candidate search, add new lifecycle stages,
+merge the three solvers, or introduce a general provenance graph. Preserve
+existing numerical results, rounding, defaults policy, and error propagation.
+No catalog or rider facts change.
+
+### Acceptance evidence and stop
+
+| Test | Required evidence |
+| --- | --- |
+| Single-source export | A nonzero-pitch, nonzero-post, signed-rail placement exports exactly its construction spec and adjustments; snapshot transform reproduces its BRP and support landmarks within existing tolerances |
+| Immutable facts | Mutating the original spec, a returned spec copy, or one exported legacy snapshot cannot change the placement or subsequent exports |
+| No replacement facts | External compile-negative coverage shows the adapter cannot accept a different saddle or adjustment alongside a placement; no alternative public adapter retains that escape |
+| Misuse | Zero placements and newly exposed accessors reject use; a failed attachment cannot export plausible metadata or coordinates |
+| Solver integration | Radius, rail-offset, and STA solves all export consistent facts; rail solution's reported offset equals the applied offset, including negative and zero values |
+| Scope preserved | Geometric fixtures without hardware/catalog metadata remain supported; hardware range checks and mutable legacy consumers keep their existing contracts |
+| Regression | Scene, transfer, swap, candidate, and web tests retain valid results and report rounding |
+
+Run the fast feedback loop during implementation, followed by `make pre-commit`
+and the runtime-dependency check. Stop after the one-argument adapter is used by
+all production consumers and superseded fields/helpers are removed. Compare
+before/after call sites and public API size: the added metadata/accessors must
+buy removal of independently supplied facts, not create another parallel result
+wrapper. Record the outcome before choosing the next migration.
+
 ## Decisions deferred beyond this slice
 
 - Whether a full 3D pose kernel and tube-bending cursor improve the next real
   component. A planar first slice does not settle the eventual representation.
 - Whether additional target solvers justify a common constraint-solving layer.
-  The three specialized saddle solves should be evaluated together after
-  the STA slice, before introducing shared solver machinery.
+  The three specialized saddle solves now share forward assembly; broader
+  solver machinery still needs a concrete additional requirement.
 - How to ground unequal wheel radii and incorporate CAD rounding residuals. The
   current scene levels axle heights and preserves the published CAD baseline;
   the seed grounds loaded wheel radii directly. Reconcile that modeling choice
@@ -786,5 +892,5 @@ this checkpoint does not authorize bundling them into the STA implementation.
   consume construction evidence directly. That follows a successful placement
   slice rather than being a prerequisite for testing the idea.
 
-The next implementation is the bounded STA slice above, followed by the explicit
-consolidation checkpoint before expanding the assembly or solver machinery.
+The next implementation is the self-contained saddle snapshot slice above.
+Further geometry migration follows review of that consolidation result.
