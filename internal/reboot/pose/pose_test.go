@@ -80,3 +80,79 @@ func TestTraceFreezeAndNilEquivalence(t *testing.T) {
 	assertNear(t, "Y equivalence", traced.Origin().Y, untraced.Origin().Y, 1e-12)
 	assertNear(t, "Heading equivalence", float64(traced.HeadingDeg()), float64(untraced.HeadingDeg()), 1e-12)
 }
+
+func TestTranslateAngleToAndDistanceTo(t *testing.T) {
+	tr := pose.NewTrace()
+	// At 90° heading (+Y is local +X, -X is local +Y).
+	p0 := pose.NewPose(pose.Point{X: 10, Y: 20}, 90, tr)
+	p1 := p0.Translate("local shift", 30, 40)
+
+	// World delta = (-40, +30) -> origin = (-30, 50).
+	assertNear(t, "p1.X", p1.Origin().X, -30, 1e-9)
+	assertNear(t, "p1.Y", p1.Origin().Y, 50, 1e-9)
+	assertNear(t, "p1.Heading", float64(p1.HeadingDeg()), 90, 1e-9)
+	assertNear(t, "p0.DistanceTo(p1)", p0.DistanceTo(p1), 50, 1e-9)
+	assertNear(t, "p0.AngleTo(p1)", float64(p0.AngleTo(p1)), float64(180.0-pose.DegFromRad(math.Atan2(30, 40))), 1e-9)
+	assertNear(t, "DegFromRad(Deg(45).Rad())", float64(pose.DegFromRad(pose.Deg(45).Rad())), 45, 1e-12)
+
+	untraced := pose.NewPose(pose.Point{X: 10, Y: 20}, 90, nil).
+		Translate("local shift", 30, 40)
+	assertNear(t, "untraced X", untraced.Origin().X, p1.Origin().X, 1e-12)
+	assertNear(t, "untraced Y", untraced.Origin().Y, p1.Origin().Y, 1e-12)
+
+	steps := tr.Steps()
+	if len(steps) != 1 || steps[0].Op != "translate" {
+		t.Fatalf("expected 1 translate step, got %+v", steps)
+	}
+}
+
+func TestFaceAbsoluteHeadingAndTrace(t *testing.T) {
+	tr := pose.NewTrace()
+	start := pose.NewPose(pose.Point{X: 100, Y: 72}, 382.75, tr)
+	step1 := start.Advance("offset", 10)
+	faced := step1.Face("down to ground", -90.0)
+
+	assertNear(t, "faced.X", faced.Origin().X, step1.Origin().X, 1e-12)
+	assertNear(t, "faced.Y", faced.Origin().Y, step1.Origin().Y, 1e-12)
+	assertNear(t, "faced.Heading", float64(faced.HeadingDeg()), -90.0, 1e-12)
+
+	tr.Freeze()
+	afterFreeze := faced.Face("ignored", 0)
+	assertNear(t, "afterFreeze.Heading", float64(afterFreeze.HeadingDeg()), 0, 1e-12)
+
+	steps := tr.Steps()
+	if len(steps) != 2 {
+		t.Fatalf("len(steps) = %d, want 2", len(steps))
+	}
+	if steps[1].Op != "face" || steps[1].Param != "-90.00°" {
+		t.Fatalf("step 1 = %+v, want Op=face Param=-90.00°", steps[1])
+	}
+	if steps[1].ParentID != steps[0].ID {
+		t.Fatalf("step 1 ParentID = %d, want %d", steps[1].ParentID, steps[0].ID)
+	}
+
+	untraced := pose.NewPose(pose.Point{X: 100, Y: 72}, 382.75, nil).
+		Advance("offset", 10).
+		Face("down to ground", -90.0)
+	assertNear(t, "untraced.X", untraced.Origin().X, faced.Origin().X, 1e-12)
+	assertNear(t, "untraced.Y", untraced.Origin().Y, faced.Origin().Y, 1e-12)
+	assertNear(t, "untraced.Heading", float64(untraced.HeadingDeg()), float64(faced.HeadingDeg()), 1e-12)
+
+	// Deg.Normalized, Step.TurnDeg, and PoseSnapshot.Pose.
+	assertNear(t, "Normalized(382.75)", float64(pose.Deg(382.75).Normalized()), 22.75, 1e-12)
+	assertNear(t, "Normalized(-270)", float64(pose.Deg(-270).Normalized()), 90.0, 1e-12)
+	assertNear(t, "Normalized(-180)", float64(pose.Deg(-180).Normalized()), 180.0, 1e-12)
+	assertNear(t, "face TurnDeg", float64(steps[1].TurnDeg()), -112.75, 1e-12)
+
+	turnTrace := pose.NewTrace()
+	_ = pose.NewPose(pose.Point{}, 0, turnTrace).Turn("quarter", -90)
+	turnSteps := turnTrace.Steps()
+	assertNear(t, "turn TurnDeg", float64(turnSteps[0].TurnDeg()), -90.0, 1e-12)
+
+	snapPt := steps[1].To.Pose().Advance("", 20).Origin()
+	assertNear(t, "snapshot Advance X", snapPt.X, faced.Origin().X, 1e-12)
+	assertNear(t, "snapshot Advance Y", snapPt.Y, faced.Origin().Y-20.0, 1e-12)
+	if len(tr.Steps()) != 2 {
+		t.Fatalf("snapshot Pose must not mutate trace, got %d steps", len(tr.Steps()))
+	}
+}

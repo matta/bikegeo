@@ -1,0 +1,15 @@
+{{define "trace-steps"}}
+        <g class="trace-steps"{{if gt .Opacity 0.0}} opacity="{{printf "%.2f" .Opacity}}"{{end}}>
+          {{range .Steps}}
+          {{if or (eq .Op "turn") (eq .Op "face")}}
+          {{if .Path}}
+          <path data-step-id="{{.ID}}" data-op="{{.Op}}" d="{{.Path}}" fill="none" stroke="{{if eq .Op "face"}}#0550ae{{else}}#6f42c1{{end}}" stroke-width="{{printf "%.1f" $.ArcWidth}}"{{if $.UseMarkers}} marker-end="url(#turn-arrow)"{{end}}/>
+          {{else}}
+          <circle data-step-id="{{.ID}}" data-op="{{.Op}}" cx="{{printf "%.2f" .X1}}" cy="{{printf "%.2f" .Y1}}" r="{{printf "%.1f" $.ZeroArcRadius}}" fill="none" stroke="{{if eq .Op "face"}}#0550ae{{else}}#6f42c1{{end}}" stroke-width="{{printf "%.1f" $.ArcWidth}}" stroke-dasharray="2 2"/>
+          {{end}}
+          {{else}}
+          <line data-step-id="{{.ID}}" data-op="{{.Op}}" x1="{{printf "%.2f" .X1}}" y1="{{printf "%.2f" .Y1}}" x2="{{printf "%.2f" .X2}}" y2="{{printf "%.2f" .Y2}}" stroke="{{if eq .Op "translate"}}#1a7f37{{else}}#b35900{{end}}" stroke-width="{{printf "%.1f" $.LineWidth}}"{{if $.DashArray}} stroke-dasharray="{{$.DashArray}}"{{end}}{{if $.UseMarkers}} marker-end="url(#arrow)"{{end}}/>
+          {{end}}
+          {{end}}
+        </g>
+{{end}}

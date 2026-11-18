@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bikegeo-reboot — Chassis Workbench</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f6f2;
+      --surface: #ffffff;
+      --border: #d8d5cc;
+      --text: #1f2328;
+      --muted: #59636e;
+      --accent: #0969da;
+      --step-advance: #b35900;
+      --step-turn: #6f42c1;
+      --step-face: #0550ae;
+      --step-translate: #1a7f37;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 1.5rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.35rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      background: #ddf4ff;
+      color: #0550ae;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    nav a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    nav a:hover { text-decoration: underline; }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1rem;
+      align-items: end;
+      margin-bottom: 1rem;
+      padding: 0.75rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .controls label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .controls select, .controls input {
+      padding: 0.35rem 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 0.88rem;
+      background: #fff;
+      color: var(--text);
+    }
+    .controls button {
+      padding: 0.42rem 0.9rem;
+      border: 1px solid var(--accent);
+      border-radius: 5px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(360px, 1.3fr) minmax(320px, 1fr);
+      gap: 1.25rem;
+      align-items: start;
+    }
+    @media (max-width: 1020px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.75rem 0;
+      font-size: 1rem;
+    }
+    .summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.25rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .summary strong { color: var(--text); }
+    svg.diagram {
+      width: 100%;
+      height: auto;
+      max-height: 560px;
+      display: block;
+      background: #fcfcfa;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.4rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.82rem;
+    }
+    .op-advance { color: var(--step-advance); font-weight: 600; }
+    .op-turn { color: var(--step-turn); font-weight: 600; }
+    .op-face { color: var(--step-face); font-weight: 600; }
+    .op-translate { color: var(--step-translate); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>bikegeo-reboot</h1>
+    <span class="badge">Milestone 1 Slice 2 · {{.BikeName}}</span>
+    <nav><a href="/">Stem Preview</a></nav>
+  </header>
+
+  <form class="controls" method="get" action="/chassis">
+    <input type="hidden" name="prev_fork" value="{{.PrevFork}}">
+    <label>
+      Fork
+      <select name="fork">
+        {{if .IsCadBaseline}}
+        <option value="" selected disabled>CAD Baseline ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm rake)</option>
+        {{end}}
+        {{range .Forks}}
+        <option value="{{.ID}}"{{if eq .ID $.SelectedForkID}} selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
+    <label>
+      Lower Cup (mm)
+      <input type="number" name="cup" step="0.5" min="0" value="{{printf "%.1f" .LowerCupMm}}">
+    </label>
+    <label>
+      Fork Sag (%)
+      <input type="number" name="sag" step="1" min="0" max="100" value="{{printf "%.1f" .SagPct}}">
+    </label>
+    <button type="submit">Update Chassis</button>
+    <a href="/chassis?baseline=cad" style="font-size: 0.85rem; color: var(--accent); align-self: center;">CAD Baseline ({{printf "%.0f" .CadFork.LowerCupMm}} mm cup)</a>
+  </form>
+
+  <div class="layout">
+    <section class="card" aria-label="Chassis diagram">
+      <h2>Leveled Chassis &amp; Fork</h2>
+      <div class="summary">
+        <span>Pitch: <strong class="mono" data-metric="frame-pitch">{{printf "%+.2f°" .PitchDeg}}</strong></span>
+        <span>Leveled HTA: <strong class="mono" data-metric="leveled-hta">{{printf "%.2f°" .LeveledHtaDeg}}</strong></span>
+        <span>Leveled STA: <strong class="mono" data-metric="leveled-sta">{{printf "%.2f°" .LeveledStaDeg}}</strong></span>
+        <span>Effective A2C: <strong class="mono" data-metric="effective-a2c">{{printf "%.1f mm" .EffectiveA2cMm}}</strong></span>
+        <span>Wheelbase: <strong class="mono" data-metric="wheelbase">{{printf "%.1f mm" .WheelbaseMm}}</strong></span>
+        <span>Leveled BB Drop: <strong class="mono" data-metric="bb-drop">{{printf "%.1f mm" .BbDropLeveledMm}}</strong></span>
+      </div>
+      <div class="summary" style="font-size: 0.82rem;">
+        <span>CAD Baseline ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm / {{printf "%.0f" .CadFork.LowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .CadHtaDeg}} HTA, {{printf "%.1f mm" .CadWheelbaseMm}} WB</strong> (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>)</span>
+        <span>ΔPitch vs CAD: <strong class="mono" data-metric="delta-pitch">{{printf "%+.2f°" .DeltaPitchDeg}}</strong></span>
+        <span>0° Closure Residuals: <strong class="mono" data-metric="residual-axle-y">{{printf "%+.2f mm" .ResidualAxleYMm}}</strong> axle Y, <strong class="mono" data-metric="residual-wheelbase">{{printf "%+.2f mm" .ResidualWheelbaseMm}}</strong> WB</span>
+      </div>
+
+      <svg class="diagram" viewBox="{{.ViewBox}}" role="img" aria-label="Leveled chassis and fork geometry">
+        <line x1="{{printf "%.2f" .GroundX1}}" y1="{{printf "%.2f" .GroundY1}}" x2="{{printf "%.2f" .GroundX2}}" y2="{{printf "%.2f" .GroundY2}}"
+              stroke="#8c959f" stroke-width="2" stroke-dasharray="10 6" data-element="ground-line" />
+
+        <g class="wheels" fill="none" stroke="#9ea7b3" stroke-width="3" opacity="0.55">
+          <circle cx="{{printf "%.2f" .RearAxleSVG.X}}" cy="{{printf "%.2f" .RearAxleSVG.Y}}" r="{{printf "%.2f" .WheelRadiusMm}}" data-wheel="rear" />
+          <circle cx="{{printf "%.2f" .FrontAxleSVG.X}}" cy="{{printf "%.2f" .FrontAxleSVG.Y}}" r="{{printf "%.2f" .WheelRadiusMm}}" data-wheel="front" />
+        </g>
+
+        <g class="chassis-segments" stroke-linecap="round">
+          {{range .Segments}}
+          <line data-segment="{{.Name}}"{{if .Illustrative}} data-illustrative="true" stroke-dasharray="12 6" opacity="0.8"{{end}}
+                x1="{{printf "%.2f" .X1}}" y1="{{printf "%.2f" .Y1}}"
+                x2="{{printf "%.2f" .X2}}" y2="{{printf "%.2f" .Y2}}"
+                stroke="{{.Color}}" stroke-width="{{printf "%.1f" .Width}}" />
+          {{end}}
+        </g>
+
+{{template "trace-steps" .TraceSteps}}
+
+        <g class="landmarks">
+          {{range .Landmarks}}
+          <g data-landmark="{{.Name}}" data-step-id="{{.StepID}}">
+            <circle cx="{{printf "%.2f" .X}}" cy="{{printf "%.2f" .Y}}" r="5" fill="#0969da" stroke="#ffffff" stroke-width="1.5" />
+            <text x="{{printf "%.2f" .LabelX}}" y="{{printf "%.2f" .LabelY}}"
+                  text-anchor="{{.Anchor}}" font-size="18" fill="#1f2328" font-family="ui-monospace, monospace">{{.Name}}</text>
+          </g>
+          {{end}}
+        </g>
+      </svg>
+      <p style="margin: 0.6rem 0 0 0; font-size: 0.8rem; color: var(--muted);">
+        Note: Dashed <code>seat-tube</code> (straight along effective STA) and <code>seatstay</code> (to <code>SeatTubeTop</code>) lines are illustrative schematic shapes, not measured frame tubes. Wheel circles use the declared {{.WheelLabel}} ({{printf "%.1f" .WheelRadiusMm}} mm) baseline radius.
+      </p>
+    </section>
+
+    <section class="card" aria-label="Construction trace">
+      <h2>Construction Trace ({{len .Steps}} steps)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Parent</th>
+            <th>Op</th>
+            <th>Label</th>
+            <th>Param</th>
+            <th>To (mm, °)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Steps}}
+          <tr data-step-id="{{.ID}}" data-parent-id="{{.ParentID}}">
+            <td class="mono">{{.ID}}</td>
+            <td class="mono">{{.ParentID}}</td>
+            <td class="mono op-{{.Op}}">{{.Op}}</td>
+            <td>{{.Label}}</td>
+            <td class="mono">{{.Param}}</td>
+            <td class="mono">({{printf "%.1f" .To.Origin.X}}, {{printf "%.1f" .To.Origin.Y}}) @ {{printf "%.2f" .To.HeadingDeg}}°</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </section>
+  </div>
+</body>
+</html>

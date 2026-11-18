@@ -7,13 +7,20 @@ import (
 	"math"
 )
 
+const radPerDeg = math.Pi / 180.0
+
 // Deg represents an angle in degrees in the sagittal 2D plane (0° along +X,
 // 90° along +Y; positive angles rotate counter-clockwise).
 type Deg float64
 
+// DegFromRad converts an angle in radians to Deg.
+func DegFromRad(rad float64) Deg {
+	return Deg(rad / radPerDeg)
+}
+
 // Rad converts the angle from degrees to radians.
 func (d Deg) Rad() float64 {
-	return float64(d) * math.Pi / 180.0
+	return float64(d) * radPerDeg
 }
 
 // Sin returns the sine of the angle.
@@ -24,6 +31,17 @@ func (d Deg) Sin() float64 {
 // Cos returns the cosine of the angle.
 func (d Deg) Cos() float64 {
 	return math.Cos(d.Rad())
+}
+
+// Normalized returns the angle wrapped into (-180°, +180°].
+func (d Deg) Normalized() Deg {
+	wrapped := math.Mod(float64(d), 360.0)
+	if wrapped > 180.0 {
+		wrapped -= 360.0
+	} else if wrapped <= -180.0 {
+		wrapped += 360.0
+	}
+	return Deg(wrapped)
 }
 
 // Point is a 2D position in millimeters in the sagittal plane (+X forward, +Y up).
@@ -38,6 +56,11 @@ type PoseSnapshot struct {
 	HeadingDeg Deg
 }
 
+// Pose returns an untraced Pose at this snapshot's origin and heading.
+func (s PoseSnapshot) Pose() Pose {
+	return NewPose(s.Origin, s.HeadingDeg, nil)
+}
+
 // Step records one Pose movement operation and its parent step ID.
 type Step struct {
 	ID       int
@@ -47,6 +70,17 @@ type Step struct {
 	Param    string
 	From     PoseSnapshot
 	To       PoseSnapshot
+}
+
+// TurnDeg returns the signed angular change of the step in degrees.
+// For "turn" steps this is the exact relative delta; for "face" steps it is
+// normalized to the shortest turn in (-180°, +180°].
+func (s Step) TurnDeg() Deg {
+	delta := s.To.HeadingDeg - s.From.HeadingDeg
+	if s.Op == "face" {
+		return delta.Normalized()
+	}
+	return delta
 }
 
 // Trace collects Pose construction steps during a traced assembly evaluation.
@@ -165,4 +199,52 @@ func (p Pose) Turn(label string, deltaDeg Deg) Pose {
 		next.stepID = p.trace.record(p.stepID, "turn", label, param, p.snapshot(), next.snapshot())
 	}
 	return next
+}
+
+// Face returns a new Pose at the same origin with heading set directly to
+// worldHeadingDeg (0° along +X, 90° along +Y).
+func (p Pose) Face(label string, worldHeadingDeg Deg) Pose {
+	next := Pose{
+		origin:     p.origin,
+		headingDeg: worldHeadingDeg,
+		trace:      p.trace,
+	}
+	if p.trace != nil && !p.trace.frozen {
+		param := fmt.Sprintf("%.2f°", worldHeadingDeg)
+		next.stepID = p.trace.record(p.stepID, "face", label, param, p.snapshot(), next.snapshot())
+	}
+	return next
+}
+
+// Translate returns a new Pose moved by (localX, localY) in the current
+// pose's local coordinate frame (+X along heading, +Y 90° counter-clockwise).
+func (p Pose) Translate(label string, localX, localY float64) Pose {
+	cos := p.headingDeg.Cos()
+	sin := p.headingDeg.Sin()
+	nextOrigin := Point{
+		X: p.origin.X + localX*cos - localY*sin,
+		Y: p.origin.Y + localX*sin + localY*cos,
+	}
+	next := Pose{
+		origin:     nextOrigin,
+		headingDeg: p.headingDeg,
+		trace:      p.trace,
+	}
+	if p.trace != nil && !p.trace.frozen {
+		param := fmt.Sprintf("(%.2f, %.2f) mm", localX, localY)
+		next.stepID = p.trace.record(p.stepID, "translate", label, param, p.snapshot(), next.snapshot())
+	}
+	return next
+}
+
+// AngleTo returns the world angle in degrees from p's origin to other's origin.
+func (p Pose) AngleTo(other Pose) Deg {
+	dx := other.origin.X - p.origin.X
+	dy := other.origin.Y - p.origin.Y
+	return DegFromRad(math.Atan2(dy, dx))
+}
+
+// DistanceTo returns the Euclidean distance in millimeters between p and other.
+func (p Pose) DistanceTo(other Pose) float64 {
+	return math.Hypot(other.origin.X-p.origin.X, other.origin.Y-p.origin.Y)
 }

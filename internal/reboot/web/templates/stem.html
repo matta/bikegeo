@@ -45,6 +45,12 @@
       font-size: 0.8rem;
       font-weight: 600;
     }
+    nav a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    nav a:hover { text-decoration: underline; }
     .layout {
       display: grid;
       grid-template-columns: minmax(320px, 1.1fr) minmax(320px, 1fr);
@@ -112,13 +118,14 @@
   <header>
     <h1>bikegeo-reboot</h1>
     <span class="badge">Milestone 1 Slice 1 · Stem Workbench</span>
+    <nav><a href="/chassis">Otso Fenrir Chassis</a></nav>
   </header>
 
   <div class="layout">
     <section class="card" aria-label="Stem diagram">
       <h2>Stem Assembly Preview</h2>
       <div class="summary">
-        <span>HTA: <strong>{{printf "%.2f°" .HtaDeg}}</strong></span>
+        <span>Leveled HTA: <strong data-metric="hta">{{printf "%.2f°" .HtaDeg}}</strong></span>
         <span>Cover: <strong>{{printf "%.1f mm" .Setup.UpperCoverMm}}</strong></span>
         <span>Spacers: <strong>{{printf "%.1f mm" .Setup.SpacersMm}}</strong></span>
         <span>Clamp: <strong>{{printf "%.1f mm" .Setup.ClampHeightMm}}</strong></span>
@@ -136,13 +143,15 @@
           </marker>
         </defs>
 
-        <!-- World axes at HeadTubeTop (0, 0) -->
-        <g class="axes" stroke="#9aa4b2" stroke-width="0.9" stroke-dasharray="3 3">
-          <line x1="-25" y1="0" x2="120" y2="0"/>
-          <line x1="0" y1="25" x2="0" y2="-110"/>
+        <!-- World axes centered at HeadTubeTop -->
+        <g transform="translate({{printf "%.2f" .HeadTubeTopSVG.X}} {{printf "%.2f" .HeadTubeTopSVG.Y}})">
+          <g class="axes" stroke="#9aa4b2" stroke-width="0.9" stroke-dasharray="3 3">
+            <line x1="-25" y1="0" x2="120" y2="0"/>
+            <line x1="0" y1="25" x2="0" y2="-110"/>
+          </g>
+          <text x="116" y="-4" font-size="7" fill="#59636e" text-anchor="end">+X</text>
+          <text x="4" y="-102" font-size="7" fill="#59636e">+Y</text>
         </g>
-        <text x="116" y="-4" font-size="7" fill="#59636e" text-anchor="end">+X</text>
-        <text x="4" y="-102" font-size="7" fill="#59636e">+Y</text>
 
         <!-- Physical component outlines in local Pose frames -->
         <g class="outlines" fill="rgba(9, 105, 218, 0.08)" stroke="#1f2328" stroke-width="1.2">
@@ -153,17 +162,7 @@
         </g>
 
         <!-- Trace step geometry -->
-        <g class="trace-steps">
-          {{range .SVGSteps}}
-          {{if eq .Op "advance"}}
-          <line x1="{{printf "%.2f" .X1}}" y1="{{printf "%.2f" .Y1}}" x2="{{printf "%.2f" .X2}}" y2="{{printf "%.2f" .Y2}}" stroke="#b35900" stroke-width="1.8" marker-end="url(#arrow)" data-step-id="{{.ID}}"/>
-          {{else if .Path}}
-          <path d="{{.Path}}" fill="none" stroke="#6f42c1" stroke-width="1.5" marker-end="url(#turn-arrow)" data-step-id="{{.ID}}"/>
-          {{else}}
-          <circle cx="{{printf "%.2f" .X1}}" cy="{{printf "%.2f" .Y1}}" r="4.5" fill="none" stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="2 2" data-step-id="{{.ID}}"/>
-          {{end}}
-          {{end}}
-        </g>
+{{template "trace-steps" .TraceSteps}}
 
         <!-- Named landmarks -->
         <g class="landmarks">

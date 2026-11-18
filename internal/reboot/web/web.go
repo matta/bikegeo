@@ -8,15 +8,33 @@ import (
 	"html/template"
 	"math"
 	"net/http"
+	"strconv"
 
 	"bikegeo/internal/reboot/assembly"
 	"bikegeo/internal/reboot/pose"
 )
 
-//go:embed templates/stem.html
+//go:embed templates/*.html
 var templateFS embed.FS
 
-var stemTemplate = template.Must(template.ParseFS(templateFS, "templates/stem.html"))
+var (
+	stemTemplate    = template.Must(template.ParseFS(templateFS, "templates/stem.html", "templates/trace_steps.html"))
+	chassisTemplate = template.Must(template.ParseFS(templateFS, "templates/chassis.html", "templates/trace_steps.html"))
+)
+
+func toSVG(p pose.Point) svgPoint {
+	return svgPoint{X: p.X, Y: -p.Y}
+}
+
+type svgTraceSteps struct {
+	Steps         []svgStep
+	LineWidth     float64
+	ArcWidth      float64
+	DashArray     string
+	Opacity       float64
+	UseMarkers    bool
+	ZeroArcRadius float64
+}
 
 type svgRect struct {
 	Name      string
@@ -66,12 +84,13 @@ const (
 type stemView struct {
 	HtaDeg           pose.Deg
 	Setup            assembly.StemSetup
+	HeadTubeTopSVG   svgPoint
 	BarClamp         pose.PoseSnapshot
 	BarClampSVG      svgPoint
 	BarClampRadiusMm float64
 	ViewBox          string
 	Rects            []svgRect
-	SVGSteps         []svgStep
+	TraceSteps       svgTraceSteps
 	Landmarks        []svgLandmark
 	Steps            []pose.Step
 }
@@ -80,6 +99,7 @@ type stemView struct {
 func NewHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleStemWorkbench)
+	mux.HandleFunc("/chassis", handleChassisWorkbench)
 	return mux
 }
 
@@ -89,25 +109,35 @@ func handleStemWorkbench(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const htaDeg = pose.Deg(68.25)
-	setup := assembly.StemSetup{
-		UpperCoverMm:  11.0,
-		SpacersMm:     20.0,
-		ClampHeightMm: 40.0,
-		LengthMm:      60.0,
-		AngleDeg:      -6.0,
+	fix := otsoFenrirFixture()
+	defaultFork, ok := findForkOption(fix.Forks, fix.DefaultForkID, fix.DefaultForkID)
+	if !ok {
+		http.Error(w, "missing default fork option", http.StatusInternalServerError)
+		return
+	}
+	forkSetup, err := defaultFork.Spec.Setup(defaultFork.DefaultSagPct, fix.DefaultLowerCupMm)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	chassis, err := assembly.PlaceChassis(fix.Chart.Frame, forkSetup, fix.Wheels, nil)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
+	// Slice 1 stem-only preview roots a fresh trace at the leveled HeadTubeTop;
+	// Slice 3 will trace one unified tree from BB across chassis and cockpits.
 	tr := pose.NewTrace()
-	steererUp := pose.NewPose(pose.Point{X: 0, Y: 0}, 180.0-htaDeg, tr)
-	placed, err := assembly.PlaceStem(steererUp, setup)
+	steererUp := pose.NewPose(chassis.HeadTubeTop.Origin(), chassis.HeadTubeTop.HeadingDeg(), tr)
+	placed, err := assembly.PlaceStem(steererUp, fix.DefaultStem)
 	tr.Freeze()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	view := buildStemView(htaDeg, setup, placed, tr.Steps())
+	view := buildStemView(chassis.LeveledHeadTubeAngleDeg(), fix.DefaultStem, placed, tr.Steps())
 
 	var buf bytes.Buffer
 	if err := stemTemplate.Execute(&buf, view); err != nil {
@@ -127,21 +157,7 @@ func buildStemView(htaDeg pose.Deg, setup assembly.StemSetup, placed assembly.St
 		poseRect("stem-body", placed.BarClamp, -setup.LengthMm, setup.LengthMm, stemBodyOutlineWidthMm),
 	}
 
-	svgSteps := make([]svgStep, 0, len(steps))
-	for _, s := range steps {
-		step := svgStep{
-			ID: s.ID,
-			Op: s.Op,
-			X1: s.From.Origin.X,
-			Y1: -s.From.Origin.Y,
-			X2: s.To.Origin.X,
-			Y2: -s.To.Origin.Y,
-		}
-		if s.Op != "advance" {
-			step.Path = turnArcPath(s, turnArcRadiusMm)
-		}
-		svgSteps = append(svgSteps, step)
-	}
+	svgSteps := buildSVGSteps(steps, turnArcRadiusMm)
 
 	landmarks := []svgLandmark{
 		makeLandmark("HeadTubeTop", placed.HeadTubeTop, -8, 10, "end"),
@@ -151,37 +167,63 @@ func buildStemView(htaDeg pose.Deg, setup assembly.StemSetup, placed assembly.St
 		makeLandmark("BarClamp", placed.BarClamp, 8, -18, "start"),
 	}
 
+	pts := make([]svgPoint, 0, len(landmarks))
+	for _, lm := range landmarks {
+		pts = append(pts, svgPoint{X: lm.X, Y: lm.Y})
+	}
+
 	return stemView{
-		HtaDeg: htaDeg,
-		Setup:  setup,
+		HtaDeg:         htaDeg,
+		Setup:          setup,
+		HeadTubeTopSVG: toSVG(placed.HeadTubeTop.Origin()),
 		BarClamp: pose.PoseSnapshot{
 			Origin:     placed.BarClamp.Origin(),
 			HeadingDeg: placed.BarClamp.HeadingDeg(),
 		},
-		BarClampSVG: svgPoint{
-			X: placed.BarClamp.Origin().X,
-			Y: -placed.BarClamp.Origin().Y,
-		},
+		BarClampSVG:      toSVG(placed.BarClamp.Origin()),
 		BarClampRadiusMm: barClampRingRadiusMm,
-		ViewBox:          computeViewBox(landmarks),
+		ViewBox:          computeViewBoxFromPoints(pts, 85.0, 85.0, 45.0, 40.0),
 		Rects:            rects,
-		SVGSteps:         svgSteps,
-		Landmarks:        landmarks,
-		Steps:            steps,
+		TraceSteps: svgTraceSteps{
+			Steps:         svgSteps,
+			LineWidth:     1.8,
+			ArcWidth:      1.5,
+			UseMarkers:    true,
+			ZeroArcRadius: 4.5,
+		},
+		Landmarks: landmarks,
+		Steps:     steps,
 	}
 }
 
+func buildSVGSteps(steps []pose.Step, turnRadiusMm float64) []svgStep {
+	svgSteps := make([]svgStep, 0, len(steps))
+	for _, s := range steps {
+		from := toSVG(s.From.Origin)
+		to := toSVG(s.To.Origin)
+		step := svgStep{
+			ID: s.ID,
+			Op: s.Op,
+			X1: from.X,
+			Y1: from.Y,
+			X2: to.X,
+			Y2: to.Y,
+		}
+		if s.Op == "turn" || s.Op == "face" {
+			step.Path = turnArcPath(s, turnRadiusMm)
+		}
+		svgSteps = append(svgSteps, step)
+	}
+	return svgSteps
+}
+
 func turnArcPath(s pose.Step, radiusMm float64) string {
-	delta := float64(s.To.HeadingDeg - s.From.HeadingDeg)
+	delta := float64(s.TurnDeg())
 	if math.Abs(delta) < 1e-6 {
 		return ""
 	}
-	cx := s.From.Origin.X
-	cy := -s.From.Origin.Y
-	x1 := cx + radiusMm*s.From.HeadingDeg.Cos()
-	y1 := cy - radiusMm*s.From.HeadingDeg.Sin()
-	x2 := cx + radiusMm*s.To.HeadingDeg.Cos()
-	y2 := cy - radiusMm*s.To.HeadingDeg.Sin()
+	p1 := toSVG(s.From.Pose().Advance("", radiusMm).Origin())
+	p2 := toSVG(s.To.Pose().Advance("", radiusMm).Origin())
 
 	largeArc := 0
 	if math.Abs(delta) > 180.0 {
@@ -193,48 +235,302 @@ func turnArcPath(s pose.Step, radiusMm float64) string {
 		sweep = 1
 	}
 	return fmt.Sprintf("M %.2f %.2f A %.2f %.2f 0 %d %d %.2f %.2f",
-		x1, y1, radiusMm, radiusMm, largeArc, sweep, x2, y2)
+		p1.X, p1.Y, radiusMm, radiusMm, largeArc, sweep, p2.X, p2.Y)
 }
 
 func poseRect(name string, p pose.Pose, startMm, lengthMm, thicknessMm float64) svgRect {
-	o := p.Origin()
+	o := toSVG(p.Origin())
 	return svgRect{
 		Name:      name,
 		X:         startMm,
 		Y:         -thicknessMm / 2.0,
 		Width:     lengthMm,
 		Height:    thicknessMm,
-		Transform: fmt.Sprintf("translate(%.2f %.2f) rotate(%.2f)", o.X, -o.Y, -float64(p.HeadingDeg())),
+		Transform: fmt.Sprintf("translate(%.2f %.2f) rotate(%.2f)", o.X, o.Y, -float64(p.HeadingDeg())),
 	}
 }
 
 func makeLandmark(name string, p pose.Pose, dx, dy float64, anchor string) svgLandmark {
-	o := p.Origin()
+	o := toSVG(p.Origin())
 	return svgLandmark{
 		Name:   name,
 		StepID: p.StepID(),
 		X:      o.X,
-		Y:      -o.Y,
+		Y:      o.Y,
 		LabelX: o.X + dx,
-		LabelY: -o.Y + dy,
+		LabelY: o.Y + dy,
 		Anchor: anchor,
 	}
 }
 
-func computeViewBox(landmarks []svgLandmark) string {
+func computeViewBoxFromPoints(pts []svgPoint, padLeft, padRight, padTop, padBottom float64) string {
 	minX, maxX := math.Inf(1), math.Inf(-1)
 	minY, maxY := math.Inf(1), math.Inf(-1)
-	for _, lm := range landmarks {
-		minX = min(minX, lm.X)
-		maxX = max(maxX, lm.X)
-		minY = min(minY, lm.Y)
-		maxY = max(maxY, lm.Y)
+	for _, pt := range pts {
+		minX = min(minX, pt.X)
+		maxX = max(maxX, pt.X)
+		minY = min(minY, pt.Y)
+		maxY = max(maxY, pt.Y)
 	}
-	const padLeft, padRight, padTop, padBottom = 85.0, 85.0, 45.0, 40.0
 	return fmt.Sprintf("%.2f %.2f %.2f %.2f",
 		minX-padLeft,
 		minY-padTop,
 		(maxX-minX)+padLeft+padRight,
 		(maxY-minY)+padTop+padBottom,
 	)
+}
+
+type svgSegment struct {
+	Name         string
+	X1           float64
+	Y1           float64
+	X2           float64
+	Y2           float64
+	Color        string
+	Width        float64
+	Illustrative bool
+}
+
+type chassisView struct {
+	BikeName             string
+	Forks                []forkOption
+	SelectedForkID       string
+	PrevFork             string
+	IsCadBaseline        bool
+	CadFork              assembly.ForkSetup
+	LowerCupMm           float64
+	SagPct               float64
+	EffectiveA2cMm       float64
+	PitchDeg             pose.Deg
+	LeveledHtaDeg        pose.Deg
+	LeveledStaDeg        pose.Deg
+	WheelbaseMm          float64
+	BbDropLeveledMm      float64
+	PublishedWheelbaseMm float64
+	CadHtaDeg            pose.Deg
+	CadWheelbaseMm       float64
+	DeltaPitchDeg        pose.Deg
+	ResidualAxleYMm      float64
+	ResidualWheelbaseMm  float64
+	WheelRadiusMm        float64
+	WheelLabel           string
+	RearAxleSVG          svgPoint
+	FrontAxleSVG         svgPoint
+	GroundY1             float64
+	GroundY2             float64
+	GroundX1             float64
+	GroundX2             float64
+	ViewBox              string
+	Segments             []svgSegment
+	TraceSteps           svgTraceSteps
+	Landmarks            []svgLandmark
+	Steps                []pose.Step
+}
+
+func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/chassis" {
+		http.NotFound(w, r)
+		return
+	}
+
+	fix := otsoFenrirFixture()
+	q := r.URL.Query()
+
+	isCadBaseline := q.Get("baseline") == "cad"
+	var (
+		selectedForkID string
+		prevForkForUI  string
+		sagPct         float64
+		forkSetup      assembly.ForkSetup
+	)
+
+	if isCadBaseline {
+		forkSetup = fix.Chart.CadFork
+		prevForkForUI = "cad"
+	} else {
+		selectedFork, ok := findForkOption(fix.Forks, q.Get("fork"), fix.DefaultForkID)
+		if !ok {
+			http.Error(w, "unknown fork option", http.StatusBadRequest)
+			return
+		}
+
+		lowerCupMm := fix.DefaultLowerCupMm
+		if rawCup := q.Get("cup"); rawCup != "" {
+			parsed, err := strconv.ParseFloat(rawCup, 64)
+			if err != nil {
+				http.Error(w, "invalid lower cup value", http.StatusBadRequest)
+				return
+			}
+			lowerCupMm = parsed
+		}
+
+		// When the user switches forks via the form, adopt the newly selected fork's
+		// default sag instead of carrying over the previous fork's sag field.
+		prevFork := q.Get("prev_fork")
+		forkSwitched := prevFork != "" && prevFork != selectedFork.ID
+
+		sagPct = selectedFork.DefaultSagPct
+		if rawSag := q.Get("sag"); rawSag != "" && !forkSwitched {
+			parsed, err := strconv.ParseFloat(rawSag, 64)
+			if err != nil {
+				http.Error(w, "invalid sag percentage", http.StatusBadRequest)
+				return
+			}
+			sagPct = parsed
+		}
+
+		var err error
+		forkSetup, err = selectedFork.Spec.Setup(sagPct, lowerCupMm)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		selectedForkID = selectedFork.ID
+		prevForkForUI = selectedFork.ID
+	}
+
+	tr := pose.NewTrace()
+	placed, err := assembly.PlaceChassis(fix.Chart.Frame, forkSetup, fix.Wheels, tr)
+	tr.Freeze()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	cadBaseline, err := assembly.PlaceCadBaseline(fix.Chart, fix.Wheels)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	view := buildChassisView(fix, selectedForkID, prevForkForUI, isCadBaseline, sagPct, forkSetup, placed, cadBaseline, tr.Steps())
+
+	var buf bytes.Buffer
+	if err := chassisTemplate.Execute(&buf, view); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = buf.WriteTo(w)
+}
+
+func findForkOption(forks []forkOption, requestedID, defaultID string) (forkOption, bool) {
+	target := requestedID
+	if target == "" {
+		target = defaultID
+	}
+	for _, f := range forks {
+		if f.ID == target {
+			return f, true
+		}
+	}
+	return forkOption{}, false
+}
+
+func makeSegment(name string, from, to pose.Pose, color string, width float64, illustrative bool) svgSegment {
+	p1 := toSVG(from.Origin())
+	p2 := toSVG(to.Origin())
+	return svgSegment{
+		Name:         name,
+		X1:           p1.X,
+		Y1:           p1.Y,
+		X2:           p2.X,
+		Y2:           p2.Y,
+		Color:        color,
+		Width:        width,
+		Illustrative: illustrative,
+	}
+}
+
+func buildChassisView(
+	fix bikeFixture,
+	forkID string,
+	prevFork string,
+	isCadBaseline bool,
+	sagPct float64,
+	fork assembly.ForkSetup,
+	placed assembly.ChassisPlacement,
+	cadBaseline assembly.ChartBaseline,
+	steps []pose.Step,
+) chassisView {
+	// seat-tube (straight along effective STA) and seatstay (to SeatTubeTop)
+	// are illustrative schematic lines rather than measured tube outlines.
+	segments := []svgSegment{
+		makeSegment("chainstay", placed.RearAxle, placed.BB, "#2f363d", 6, false),
+		makeSegment("seat-tube", placed.SeatAxis, placed.SeatTubeTop, "#2f363d", 7, true),
+		makeSegment("seatstay", placed.RearAxle, placed.SeatTubeTop, "#2f363d", 4, true),
+		makeSegment("head-tube", placed.HeadTubeTop, placed.HeadTubeBottom, "#2f363d", 9, false),
+		makeSegment("lower-cup", placed.HeadTubeBottom, placed.LowerCupBottom, "#0969da", 9, false),
+		makeSegment("fork-a2c", placed.LowerCupBottom, placed.ForkSteererBase, "#59636e", 7, false),
+		makeSegment("fork-rake", placed.ForkSteererBase, placed.FrontAxle, "#59636e", 5, false),
+	}
+
+	landmarks := []svgLandmark{
+		makeLandmark("RearAxle", placed.RearAxle, 0, -14, "middle"),
+		makeLandmark("RearContact", placed.RearTireContact, 0, 24, "middle"),
+		makeLandmark("BB", placed.BB, 0, 26, "middle"),
+		makeLandmark("SeatTubeTop", placed.SeatTubeTop, -14, -10, "end"),
+		makeLandmark("HeadTubeTop", placed.HeadTubeTop, 14, -10, "start"),
+		makeLandmark("HeadTubeBottom", placed.HeadTubeBottom, 16, 4, "start"),
+		makeLandmark("LowerCupBottom", placed.LowerCupBottom, 16, 18, "start"),
+		makeLandmark("FrontAxle", placed.FrontAxle, 0, -14, "middle"),
+		makeLandmark("FrontContact", placed.FrontTireContact, 0, 24, "middle"),
+	}
+
+	r := fix.Wheels.RadiusMm
+	rearSVG := toSVG(placed.RearAxle.Origin())
+	frontSVG := toSVG(placed.FrontAxle.Origin())
+	rearContactSVG := toSVG(placed.RearTireContact.Origin())
+	frontContactSVG := toSVG(placed.FrontTireContact.Origin())
+	pts := []svgPoint{
+		{X: rearSVG.X - r, Y: rearSVG.Y - r},
+		{X: frontSVG.X + r, Y: frontContactSVG.Y},
+		rearContactSVG,
+		toSVG(placed.HeadTubeTop.Origin()),
+		toSVG(placed.SeatTubeTop.Origin()),
+	}
+
+	return chassisView{
+		BikeName:             fix.Name,
+		Forks:                fix.Forks,
+		SelectedForkID:       forkID,
+		PrevFork:             prevFork,
+		IsCadBaseline:        isCadBaseline,
+		CadFork:              fix.Chart.CadFork,
+		LowerCupMm:           fork.LowerCupMm,
+		SagPct:               sagPct,
+		EffectiveA2cMm:       fork.A2cMm,
+		PitchDeg:             placed.PitchDeg(),
+		LeveledHtaDeg:        placed.LeveledHeadTubeAngleDeg(),
+		LeveledStaDeg:        placed.LeveledSeatTubeAngleDeg(),
+		WheelbaseMm:          placed.WheelbaseMm(),
+		BbDropLeveledMm:      placed.LeveledBbDropMm(),
+		PublishedWheelbaseMm: fix.Chart.PublishedWheelbaseMm,
+		CadHtaDeg:            cadBaseline.Placement.LeveledHeadTubeAngleDeg(),
+		CadWheelbaseMm:       cadBaseline.Placement.WheelbaseMm(),
+		DeltaPitchDeg:        cadBaseline.DeltaPitchDeg(placed),
+		ResidualAxleYMm:      cadBaseline.Residuals.AxleHeightDiffMm,
+		ResidualWheelbaseMm:  cadBaseline.Residuals.WheelbaseDiffMm,
+		WheelRadiusMm:        r,
+		WheelLabel:           fix.WheelLabel,
+		RearAxleSVG:          rearSVG,
+		FrontAxleSVG:         frontSVG,
+		GroundY1:             rearContactSVG.Y,
+		GroundY2:             frontContactSVG.Y,
+		GroundX1:             rearContactSVG.X - r - 40,
+		GroundX2:             frontContactSVG.X + r + 40,
+		ViewBox:              computeViewBoxFromPoints(pts, 60.0, 60.0, 50.0, 45.0),
+		Segments:             segments,
+		TraceSteps: svgTraceSteps{
+			Steps:         buildSVGSteps(steps, 40.0),
+			LineWidth:     2.0,
+			ArcWidth:      2.5,
+			DashArray:     "6 4",
+			Opacity:       0.7,
+			ZeroArcRadius: 12.0,
+		},
+		Landmarks: landmarks,
+		Steps:     steps,
+	}
 }
