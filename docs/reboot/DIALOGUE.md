@@ -501,3 +501,11 @@ DESIGN.md records the confirmed frontend choice and keeps the remaining Q3 miles
 
 
 
+
+---
+
+## Discussion — `assembly` builds and measures; `web` only renders — Claude recording (2026-11-18)
+
+- **Claude's review point:** The uncommitted seatpost/saddle slice chains `PlaceChassis → PlaceSeatpost → PlaceSaddle` and computes `|BRP - BB|` and the seat-axis readout in the chassis handler, with the same chain restated in `web_test.go` and `saddle_test.go`, and sizes outlines from fixture defaults rather than the placed setups.
+- **Matt's decision:** Asked to record the rule in [IMPLEMENTATION.md §1](IMPLEMENTATION.md): component composition and trace ending live in one `assembly` entry point, derived measurements are placement methods, and rendering reads only what was placed. Test: if Milestone 2 fit search would need it without HTTP, it belongs in `assembly`.
+- **Open:** The code fixes (an `assembly` whole-bike entry point and readout methods) are not yet made.

@@ -31,6 +31,12 @@ Use a reboot-owned named degree type in `pose` with the existing degree/radian c
 
 The initial dependency direction is `cmd/bikegeo-reboot → reboot/web → reboot/assembly → reboot/pose`. Web rendering can also use `reboot/pose`. Later search/catalog/agent packages belong under the same reboot root and call the same assembly implementation; choose their exact boundaries when their milestones arrive.
 
+**`assembly` builds and measures; `web` only renders.** Test: if fit search (Milestone 2) would need the code without HTTP, it belongs in `assembly`.
+
+- **Composition:** Chaining components (chassis → seatpost → saddle, stem → handlebar) and ending the trace happen in one `assembly` entry point, not in handlers or tests.
+- **Measurements:** Any scalar derived from placed poses (distances, angles, saddle height) is a method on a placement type. Callers, including tests, call it rather than restating the expression.
+- **Rendering:** Outlines and readouts take their dimensions from the placement and setup actually placed, never from fixture defaults or a second computation.
+
 ### Why isolate the new code rather than move the old code?
 
 - Moving current packages to `internal/legacy/` would change their imports, tests, and references before providing any new capability. The existing program is useful as a working reference throughout the reboot.
