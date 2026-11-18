@@ -47,9 +47,31 @@ The new runtime architecture and ordinary unit test suite are completely indepen
 | Existing production packages and types | **Zero imports** from reboot production code or ordinary `*_test.go` files (`model`, `geometry`, `geom2d`, `assembly`, `frames`, `catalog`, `ideal`, `scoring`, etc.). No reverse imports from old packages into reboot packages. |
 | Transitional parity tests (`*_parity_test.go`) | **Only files named `*_parity_test.go`** under `internal/reboot/...` may import legacy `bikegeo/internal/...` packages for transitional side-by-side comparisons. All regular `*_test.go` files in `internal/reboot/...` must remain 100% self-contained so deleting `*_parity_test.go` and the old tree at cutover leaves the reboot test suite intact. |
 | Small useful algorithms or geometric primitives | Read, audit, and port only what is needed into reboot-owned packages. Preserve appropriate independent examples and conventions. Do not wrap an old implementation behind a new name. |
-| Milestone 1 bike fixture (**Otso Fenrir Stainless**) | Copy the sourced **Otso Fenrir Stainless** (`otso-fenrir-stainless`) build fixture into the reboot with its published chart numbers, CAD rigid fork baseline (`495 mm` Lithic carbon rigid fork, `54 mm` rake, `0 mm` CAD lower cup), physical `12 mm` EC44 lower cup, and rigid/suspension fork options (`100 mm` SID @ `506 mm` A2C / `44 mm` rake; `120 mm` Fox 34 @ `530 mm` A2C / `44 mm` rake), paired with Matt's cockpit fixture (SQlab 610 Ergolux 2.1 saddle and Tumbleweed Persuader handlebar). Derive all placements through the new model; do not copy precomputed frame endpoints or import the old `frames`/`catalog` packages. |
+| Milestone 1 bike fixture (**Otso Fenrir Stainless**) | Copy the sourced **Otso Fenrir Stainless** (`otso-fenrir-stainless`) build fixture into the reboot with the exact default dimensions below. Derive all placements through the new model; do not copy precomputed frame endpoints or import the old `frames`/`catalog` packages. |
 | Rider-fit facts and physical conventions | Preserve the established meaning and provenance in `docs/RIDER_FIT.md` and the relevant domain documentation. Record any deliberate model changes separately. |
 | Later catalog migration | After Q4 selects the format, explicitly convert/import source observations and provenance into the reboot catalog. Review migrated values; never silently adjust published geometry to make the new engine agree. |
+
+### Exact Milestone 1 Default Fixture Values (**Otso Fenrir Stainless**, Size `L`)
+
+Use these exact sourced dimensions for Milestone 1 (`internal/reboot/web/fixture.go`, with the front cockpit defaults also used for Slice 1's initial stem preview):
+
+- **Published Frame Chart (Otso Fenrir Stainless, 2024, Size `L`, rear Tuning Chip in `450 mm` CS / `72 mm` BB drop position):**
+  - `ReachMm: 428.0`, `StackMm: 642.0`, `HtaDeg: 68.25°`, `StaDeg: 75.25°`, `HtlMm: 140.0`, `BbDropMm: 72.0`, `ChainstayMm: 450.0`, `WheelbaseMm: 1158.0`, `SeatTubeLengthMm: 490.0` (Sizes `XS`, `S`, `M`, `L`, `XL` from the published Otso chart may all be included in the fixture struct, with `L` as default).
+  - **Wheel Radius:** `29" × 2.4"` baseline (`WheelRadiusMm: 372.0`).
+- **CAD Fork & Headset Baseline:**
+  - Lithic Carbon Mountain rigid fork: `StaticA2cMm: 495.0`, `TravelMm: 0.0`, `RakeMm: 54.0`, `CadSagPct: 0.0`, `CadLowerCupMm: 0.0` (chart closes to the bare head tube around the 495 mm fork).
+- **Selectable Installed Forks & Physical Lower Headset Cup:**
+  - Default `PhysicalLowerCupMm: 12.0` (`EC44` external lower cup; editable to `0.0` to inspect the unpitched CAD chart baseline).
+  - Selectable forks:
+    1. `lithic_carbon_mountain` (default): `StaticA2cMm: 495.0`, `TravelMm: 0.0`, `RakeMm: 54.0`, `SagPct: 0.0`
+    2. `sid_100` (RockShox SID 100 mm): `StaticA2cMm: 506.0`, `TravelMm: 100.0`, `RakeMm: 44.0`, default `SagPct: 20.0`
+    3. `fox34_120` (Fox 34 120 mm): `StaticA2cMm: 530.0`, `TravelMm: 120.0`, `RakeMm: 44.0`, default `SagPct: 20.0`
+- **Default Front Cockpit (`PlaceStem` + `PlaceHandlebar`):**
+  - `UpperCoverMm: 11.0`, `SpacersMm: 20.0`, `StemLengthMm: 60.0`, `StemAngleDeg: -6.0°`, `StemClampHeightMm: 40.0`.
+  - Handlebar (**Tumbleweed Persuader** `800 mm` / `20°`): `WidthMm: 800.0`, `BacksweepDeg: 20.0°`, `UpsweepDeg: 4.0°`, `StatedRiseMm: 50.0` (bar-end center rise mode), `BendStartMm: 135.0`, `GripInsetMm: 70.0`, `BarRollDeg: 0.0°`.
+- **Default Rear Cockpit (`PlaceSaddle`, solver-free forward inputs):**
+  - Saddle (**SQlab 610 Ergolux Active 2.1**): `RailCenterToBrpMm: +32.0`, `RailCenterToSitBonesMm: -48.0`, `SitBonesElevationMm: +10.0`, `RailLengthMm: 60.0`, `RailPitchDeg: 0.0°`.
+  - Seatpost & clamp settings: `BBToClampAlongSeatAxisMm: 753.5` (which places `|BRP - BB| ≈ 746.0 mm` at `75.25°` STA with `0 mm` setback and `0 mm` rail offset), `PostSetbackMm: 0.0`, `ClampLengthMm: 30.0`, `RailOffsetMm: 0.0`.
 
 Deliberate duplication of a small audited primitive or fixture is acceptable during this transition. A shared runtime utility package extracted merely to avoid that duplication would weaken the boundary. Cross-implementation comparisons belong only in `*_parity_test.go` files (or a deliberately scoped migration tool), never in production files or standard `*_test.go` files.
 

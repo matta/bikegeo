@@ -44,20 +44,21 @@
 Go generates the HTML and SVG from placement geometry and frozen construction traces. Use a small, dependency-free vanilla JavaScript layer for control-driven updates, trace selection/highlighting, and diagram navigation (pan/zoom). Embed the web assets with Go; no frontend framework, npm dependencies, or frontend build step is required.
 
 **Milestone 1 Scope (One-Bike Visual Workbench) & Acceptance Criteria:**
-1. **Full single-bike traceable assembly (no hardcoded pre-leveled frame endpoints):**
+1. **Full single-bike traceable assembly (100% solver-free, no hardcoded pre-leveled frame endpoints):**
    - Assemble one known bike fixture (**Otso Fenrir Stainless**) starting from published chart dimensions (`Stack`, `Reach`, `HTA`, `STA`, `HTL`, `BB Drop`, `Chainstay`) and a declared fork (`StaticA2C`, `Travel`, `SagPct`, `Rake`, `LowerCup`) using traceable `Pose` steps:
-     1. Place unpitched chart landmarks (`BB`, `RearAxle`, `HeadTubeTop`, seat axis) and walk down the steerer axis through `HeadTubeBottom`, `LowerCupBottom`, and fork `EffectiveA2C`, turning perpendicular by `ForkRake` to locate `FrontAxle` (preserving the chart-baseline vs. declared-fork distinction).
-     2. Level the frame around `RearAxle` when fork length, lower cup, sag, or rake changes, returning `BB` to `(0, 0)`.
-     3. Mount the rear cockpit (`PlaceSaddle`: seatpost extension, setback, rail offset, rail pitch → `SeatpostClamp`, `RailCenter`, `BRP`, `SitBones`) and front cockpit (`PlaceStem` + `PlaceHandlebar`: upper cover, spacers, stem length/angle, bar sweep/rise/roll → `CoverTop`, `SpacerTop`, `SteererClamp`, `BarClamp`, `HandGrip`).
+     1. Compute the frame pitch angle `PitchDeg` from the installed fork/cup/sag/rake change relative to the chart's CAD fork baseline (preserving the chart-baseline vs. declared-fork distinction).
+     2. Construct the leveled chassis and fork as a single rooted `Pose` tree starting at `BB (0, 0)` (see **Frame Pitch & Leveling as a Rooted `Pose` Tree** below).
+     3. Mount the rear cockpit (`PlaceSaddle`: direct forward `BBToClampAlongSeatAxisMm`, `PostSetbackMm`, `RailOffsetMm`, `RailPitchDeg` → `SeatpostClamp`, `RailCenter`, `BRP`, `SitBones`) and front cockpit (`PlaceStem` + `PlaceHandlebar`: upper cover, spacers, stem length/angle, bar sweep/rise/roll → `CoverTop`, `SpacerTop`, `SteererClamp`, `BarClamp`, `HandGrip`).
+   - Milestone 1 is **strictly solver-free**: the seatpost height control edits the forward physical input `BBToClampAlongSeatAxisMm` directly, while radial saddle height (`|BRP - BB|`) and estimated seatpost extension (`BBToClampAlongSeatAxisMm - SeatTubeLengthMm`) are displayed as measured dimension readouts.
 2. **Side-view visual inspector:**
-   - Render physical outlines in local `Pose` frames, named landmarks, local coordinate axes (`+X`, `+Y`), key dimensions, declared wheel sizes/orientations, editable component controls (fork length/sag, spacers, stem length/angle, handlebar, seatpost/saddle settings), and a selectable construction trace table where clicking/hovering/focusing a step highlights its movement vector and frame on the SVG.
+   - Render physical outlines in local `Pose` frames, named landmarks, local coordinate axes (`+X`, `+Y`), key dimensions, declared wheel sizes/orientations, editable component controls (fork choice/length/sag, lower cup, spacers, stem length/angle, handlebar roll, seatpost clamp distance/setback, saddle rail offset/pitch), and a selectable construction trace table where clicking/hovering/focusing a step highlights its movement vector and frame on the SVG.
    - Multi-bike ghost overlays, fit solvers, chart-hypothesis solvers, and catalog file persistence are explicitly outside Milestone 1.
 3. **Verification:**
    - Matt can read each component/chassis recipe, predict the effect of a setting change, and inspect the result visually and in the trace.
    - Automated Go tests verify identical placements with tracing on/off, independent geometric fixtures (lengths, angles, leveling invariants, contact positions), and HTML/SVG step-ID correspondence, paired with a browser interaction check for control updates, highlighting, history, and pan/zoom.
 
 **Confirmed 4-Milestone Sequence:**
-1. **Milestone 1 — One-bike visual workbench `(a, b)`:** Single-bike traceable assembly (chassis/fork leveling + rear/front cockpits) and interactive Go-rendered HTML/SVG workbench.
+1. **Milestone 1 — One-bike visual workbench `(a, b)`:** Single-bike traceable assembly (chassis/fork leveling + rear/front cockpits, solver-free) and interactive Go-rendered HTML/SVG workbench.
 2. **Milestone 2 — One-bike fit search `(d)`:** Add explicit rider fit targets, hardware limits, and preference costs; search component permutations, verify returned builds through forward assembly, and open candidate builds directly in the workbench. Verify against a small exhaustive fixture and measure representative search responsiveness.
 3. **Milestone 3 — Chart reconstruction, catalog persistence & agent access `(c)`:** Preserve original chart observations and rounding budgets; evaluate candidate fork/sag/cup hypotheses, show residuals and ambiguous explanations, select structured catalog file persistence (`Q4`), and expose structured solver operations (MCP/CLI) for AI agents.
 4. **Milestone 4 — Frame comparison / chooser `(e)`:** Reuse fit search across a catalog of frames and sizes, return best builds and their explanations, support visual comparison in the workbench, and report search coverage and sensitivity to assumptions.
@@ -71,13 +72,46 @@ Go generates the HTML and SVG from placement geometry and frozen construction tr
    - **Only files named `*_parity_test.go`** under `internal/reboot/...` may import legacy `bikegeo/internal/...` packages for transitional side-by-side comparisons, so retiring the old codebase later only requires deleting `*_parity_test.go` alongside the old packages.
    - Legacy packages may never import `bikegeo/internal/reboot/...` or `bikegeo/cmd/bikegeo-reboot/...`.
    - Enforce these boundaries in `make check` / `make pre-commit` using shell + regex source checks and `go list -deps` (see [IMPLEMENTATION.md §4](IMPLEMENTATION.md)).
-3. **Initial Milestone 1 Bike Fixture:** Use the **Otso Fenrir Stainless** (`otso-fenrir-stainless`) as the Milestone 1 bike fixture (preserving its published chart values, `495 mm` / `54 mm` rigid CAD fork baseline with `0 mm` CAD lower cup, physical `12 mm` EC44 lower cup, and rigid + `100 mm`/`120 mm` suspension fork options, paired with the SQlab 610 Ergolux 2.1 saddle and Tumbleweed Persuader handlebar).
+3. **Initial Milestone 1 Bike Fixture:** Use the **Otso Fenrir Stainless** (`otso-fenrir-stainless`, default size `L`) as the Milestone 1 bike fixture (see [IMPLEMENTATION.md §2](IMPLEMENTATION.md) for the exact default dimensions).
+
+### Frame Pitch & Leveling as a Rooted `Pose` Tree, Plus Coordinate Conventions (Turn 7)
+
+**1. Frame Pitch & Leveling Model:**
+In 2D rigid-body geometry, pitching a rigid frame around `RearAxle` by `PitchDeg` and translating it so `BB` returns to `(0, 0)` is algebraically identical to rotating the frame around `BB (0, 0)` by `PitchDeg`:
+`P_leveled = (RA + Rotate(PitchDeg, P - RA)) - (RA - Rotate(PitchDeg, RA)) = Rotate(PitchDeg, P)`
+
+To keep every chassis, fork, and cockpit step in a single unbroken `Pose` tree whose coordinates match the leveled SVG drawing at every step:
+1. **Unpitched Chart Baseline & Pitch Angle (`PitchDeg`):**
+   - From the published chart (`Stack`, `Reach`, `HTA₀`, `HTL`, `BbDrop`, `Chainstay`) and declared CAD fork (`CadStaticA2C`, `CadTravel`, `CadSagPct`, `CadRake`, `CadLowerCup`), compute the unpitched rear axle `RA₀ = (-sqrt(Chainstay² - BbDrop²), +BbDrop)` and unpitched chart front axle `FA_chart₀` (preserving the chart-implied front-end length `L_chart = (Stack - BbDrop + CadRake*cos(HTA₀)) / sin(HTA₀)` and recording the CAD closure residual `ResidualA2C = (L_chart - HTL) - (CadEffectiveA2C + CadLowerCup)`).
+   - Apply the installed fork/cup change (`ΔL = (InstalledEffectiveA2C + PhysicalLowerCup) - (CadEffectiveA2C + CadLowerCup)`, `ΔRake = InstalledRake - CadRake`) along and perpendicular to the unpitched steerer axis from `FA_chart₀` to locate the unpitched installed front axle `FA₀`.
+   - Compute `PitchDeg = -atan2(FA₀.Y - RA₀.Y, FA₀.X - RA₀.X)` (exact `0°` when `ΔL == 0` and `ΔRake == 0`).
+2. **Leveled Chassis & Cockpit Construction from `BB (0, 0)`:**
+   - Start at world origin `bb := OriginPose(&trace)` (`Origin = (0, 0)`, `+X` world forward, `+Y` world up).
+   - Rotate into the pitched frame attitude:
+     `frameRoot := bb.Turn("frame pitch from fork/cup/sag change", PitchDeg)`
+   - Construct all frame tubes and axes directly from `frameRoot` using the published chart dimensions:
+     - `rearAxle := frameRoot.Translate("chart rear axle", RA₀.X, chart.BbDropMm)`
+     - `headTubeTop := frameRoot.Translate("chart head tube top (reach, stack)", chart.ReachMm, chart.StackMm)`
+     - `steererUp := headTubeTop.Turn("steerer axis (180° - HTA)", 180 - chart.HtaDeg)` (points up the steerer at leveled `180° - (HTA₀ - PitchDeg)` for `PlaceStem`).
+     - Walk down the steerer (`steererDown := steererUp.Turn("down steerer", 180)`) through `HeadTubeBottom` (`HTL`), `LowerCupBottom` (`PhysicalLowerCup`), and fork crown/axle (`L_chart - HTL - PhysicalLowerCup + ΔL`), then turn `-90°` (forward perpendicular to the downward steerer) by `InstalledRake` to place `FrontAxle` (which lands at `FrontAxle.Y == RearAxle.Y`).
+     - `seatAxis := frameRoot.Turn("seat tube axis (180° - STA)", 180 - chart.StaDeg)` (points up the leveled seat axis at `180° - (STA₀ - PitchDeg)` for `PlaceSaddle`).
+
+**2. Self-Contained Coordinate & Sign Conventions:**
+
+| Area | Convention |
+| --- | --- |
+| **World coordinates** | Planar sagittal 2D, `BB` fixed at `(0, 0)`, `+X` forward, `+Y` up; positive `Turn` angles are counter-clockwise (`CCW`). |
+| **Units** | Lengths are `float64` millimeters (`mm`); angles use the reboot's named `pose.Deg` type (`0°` along `+X`, `90°` along `+Y`). |
+| **Wheel & ground line** | With `BB` at `(0, 0)` and equal wheel radii `R_wheel`, leveled front and rear axle centers sit at `Y = +BbDrop_leveled`, and the ground line sits at `Y = +BbDrop_leveled - R_wheel`. |
+| **Steerer & stem (`PlaceStem`)** | Starting at `SteererUp` (`180° - HTA_leveled`, pointing up and rearward along the steerer): advance by `UpperCoverMm`, `SpacersMm`, and `ClampHeightMm / 2` to `SteererClamp`; turn `-90° + StemAngleDeg` (clockwise from steerer by `90°`, plus signed stem angle) and advance by `StemLengthMm` to `BarClamp`. |
+| **Handlebar (`PlaceHandlebar`)** | Takes `BarClamp` pose and applies the 3D piecewise handlebar offset (lateral grip station `Width/2 - GripInset`, knuckle vs. bar-end rise mode, backsweep, upsweep) rotated by `BarRollDeg` **relative to the leveled world horizontal** (positive `BarRollDeg` rotates clockwise in the `+X/+Y` plane) to place `HandGrip`. |
+| **Seatpost & saddle (`PlaceSaddle`)** | Starting at `SeatAxis` (`180° - STA_leveled`, pointing up and rearward along the effective seat axis; local `+Y` points `90°` CCW, i.e., perpendicular rearward/downward): advance by `BBToClampAlongSeatAxisMm` and translate along local `+Y` by `PostSetbackMm` to `SeatpostClamp`. From `SeatpostClamp`, orient a world-horizontal rail frame (`0°`) turned by `RailPitchDeg` (positive raises the saddle nose CCW), advance by `-RailOffsetMm` (so **positive `RailOffsetMm` moves the saddle body rearward** relative to the clamp) to `RailCenter`, then locate `BRP` at `(+RailCenterToBrpMm, 0)` and `SitBones` at `(RailCenterToSitBonesMm, +SitBonesElevationMm)` in the rail frame. |
+| **Chart immutability** | Published manufacturer chart values are sacred ground truth and are never nudged to hide closure residuals. |
 
 ---
 
 ## 2. Converged Proposals (Supporting Notes for Later Milestones)
 
-- **Spatial scope:** Sagittal 2D pose core (`+X` forward, `+Y` up, CCW positive rotation) for frame and cockpit assembly, while retaining lateral 3D handlebar sweep/upsweep/grip-inset and world-relative bar roll when computing `HandGrip`.
 - **Browser implementation hygiene:** Progressive enhancement over standard Go-rendered forms/links; replace diagram and trace together while ignoring superseded in-flight requests (`AbortController`); preserve input focus and URL history; support keyboard focus as well as hover/click for trace step highlighting.
 - **Forward evaluation supports search (Milestones 2–4):** Enumerate component choices and evaluate candidate assemblies for chart reconstruction and rider fit, using forward assembly as the shared evaluator and final check.
 - **Catalogs loaded as data (Milestone 3):** Use structured data definitions that can be ingested without recompilation (`Q4`).

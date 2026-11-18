@@ -449,5 +449,26 @@ DESIGN.md records the confirmed frontend choice and keeps the remaining Q3 miles
 - **Active Decision Queue:** Empty (`Q1`, `Q2`, `Q3`, and `Q5` are all confirmed; `Q4` is deferred to Milestone 3).
 - Design and implementation transition planning are complete and ready for Milestone 1 Slice 1 whenever authorized.
 
+---
+
+## Turn 7 — Gemini (2026-11-18)
+
+### 1. Human Guidance Applied
+- Matt approved four final specification details before starting Milestone 1 implementation:
+  1. **Rooted `Pose` tree for frame pitch & leveling:** Confirmed the algebraic identity that rotating a rigid frame around `RearAxle` by `PitchDeg` and recentering `BB` to `(0, 0)` is identical to rotating the chart frame around `BB (0, 0)` by `PitchDeg` (`frameRoot := bb.Turn("frame pitch from fork/cup/sag change", PitchDeg)`). Specified this construction in [DESIGN.md](DESIGN.md) so the entire leveled bike (chassis, fork, seatpost, stem, handlebar) is built as a single unbroken `Pose` tree in the exact leveled world coordinate system rendered by the SVG.
+  2. **100% solver-free Milestone 1:** Confirmed that Milestone 1 uses the direct forward physical input `BBToClampAlongSeatAxisMm` (default `753.5 mm`, yielding `|BRP - BB| ≈ 746.0 mm` on the Otso Fenrir L with the SQlab 610 saddle) rather than embedding a saddle-height solver in Milestone 1.
+  3. **Explicit Otso Fenrir Stainless default numbers:** Added the exact published chart numbers, CAD fork baseline (`495/54` rigid, `0 mm` CAD lower cup), physical `12 mm` EC44 lower cup, 3 selectable forks, and front/rear cockpit defaults to [IMPLEMENTATION.md §2](IMPLEMENTATION.md).
+  4. **Self-contained Coordinate & Sign Conventions table:** Added the full coordinate, angle, stem, handlebar, and saddle sign-convention table to [DESIGN.md](DESIGN.md) so `docs/reboot/` requires no cross-referencing to legacy docs.
+
+### 2. Points of Convergence
+- The Milestone 1 specification in [DESIGN.md](DESIGN.md) and [IMPLEMENTATION.md](IMPLEMENTATION.md) is now self-contained and unambiguous across all five slices.
+
+### 3. Critique, Ideas & Code Sketches
+- None needed; all four pre-implementation gaps are specified.
+
+### 4. Proposed Rulings for the Human
+- **Active Decision Queue:** Empty. Ready for Milestone 1, Slice 1 implementation whenever Matt authorizes it.
+
+
 
 
