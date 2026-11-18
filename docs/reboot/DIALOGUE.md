@@ -483,4 +483,13 @@ DESIGN.md records the confirmed frontend choice and keeps the remaining Q3 miles
 - **ChatGPT's feedback (endorsed by Matt):** Computing `PitchDeg` via closed-form formulas (`L_chart`, `ΔL`, `ΔRake`, `atan2`) outside the `Pose` tree reintroduces the scattered trigonometry that requirement `(a)` seeks to eliminate, and hides the fork step behind an adjusted length (`L_chart - HTL - PhysicalLowerCup + ΔL`) instead of the actual physical `EffectiveA2C`. Instead, build the chassis and fork at `0°` pitch using the `Pose` recipe (`placeChassisAtPitch`), measure the rear-to-front-axle angle (`PitchDeg = -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)`), and rebuild the leveled chassis with the exact same `Pose` recipe rooted at `bb.Turn("frame pitch to level axles", PitchDeg)`.
 - **Gemini's agreement & update:** Completely agree. This eliminates `L_chart`, `ΔL`, and `ΔRake` from chassis assembly, ensures every steerer step in the trace advances by its true physical dimension (`HTL`, `LowerCup`, `EffectiveA2C`, `Rake`), and uses one inspectable `Pose` recipe for both pitch measurement and leveled construction. Updated [DESIGN.md](DESIGN.md) accordingly.
 
+---
+
+## Discussion — World-relative `Pose.Face` for saddle rail pitch and handlebar roll — Gemini recording (2026-11-18)
+
+- **Matt's confirmation:** Confirmed that saddle `RailPitchDeg` and handlebar `BarRollDeg` are relative to the leveled world horizontal (`0°`), not the pitched frame—meaning when a fork change pitches the frame, the rider re-levels the saddle and handlebar to their world-relative pitch/roll.
+- **ChatGPT's API catch (endorsed by Matt):** With only relative `Turn`, setting a world-relative heading at `SeatpostClamp` or `BarClamp` would either require subtracting the accumulated seat-tube/stem heading by hand (fragile angle arithmetic) or constructing a fresh root pose at the clamp point (which severs the `ParentID -> ID` trace link). Adding `Pose.Face(label string, worldHeading Deg) Pose` keeps the current pose's position (`Origin`), sets its heading to an absolute world angle, and records a normal traced step linked to its parent (`seatpostClamp.Face("saddle rail pitch vs. world horizontal", saddle.RailPitchDeg)` and `barClamp.Face("bar roll vs. world horizontal", -setup.BarRollDeg)`).
+- **Gemini's agreement & update:** Completely agree; added `Face(label, worldHeadingDeg)` to the Q2 `Pose` movement vocabulary and the handlebar/saddle conventions in [DESIGN.md](DESIGN.md).
+
+
 
