@@ -113,9 +113,9 @@ func AnalyzeSaddleSwap(
 	if err != nil {
 		return SaddleSwapReport{}, fmt.Errorf("source saddle centered STA: %w", err)
 	}
-	sourceSTA := sourceSol.EffStaDeg()
-	reference := BRPPointFromSaddlePlacement(sourceSol.Placement())
-	srcBrp := sourceSol.Placement().BRP()
+	sourceSTA := sourceSol.EffStaDeg
+	reference := BRPPointFromSaddlePlacement(sourceSol.Placement)
+	srcBrp := sourceSol.Placement.BRP
 	translation, err := TranslateSaddleFit(reference, target, sourceSTA, clampLengthMm)
 	if err != nil {
 		return SaddleSwapReport{}, err
@@ -167,7 +167,7 @@ func AnalyzeSaddleSwap(
 	if err != nil {
 		return SaddleSwapReport{}, fmt.Errorf("naive BRP alignment: %w", err)
 	}
-	naiveClampOffset := naiveSol.RailOffsetMm()
+	naiveClampOffset := naiveSol.Placement.RailOffsetMm
 	naiveFeasible := target.ClampFitsAt(clampLengthMm, naiveClampOffset)
 
 	naiveOutcome := SwapFitOutcome{
@@ -221,7 +221,7 @@ func AnalyzeSaddleSwap(
 	if err != nil {
 		return SaddleSwapReport{}, fmt.Errorf("target saddle centered STA: %w", err)
 	}
-	centeredStaDeltaDeg := targetCenteredSol.EffStaDeg() - sourceSTA
+	centeredStaDeltaDeg := targetCenteredSol.EffStaDeg - sourceSTA
 
 	return SaddleSwapReport{
 		SourceSaddle:                   source,

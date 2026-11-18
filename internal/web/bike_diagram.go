@@ -382,7 +382,7 @@ func buildSaddleZoomSVG(sc geometry.BikeScene) bikeSVGView {
 	placement := sc.SaddlePlacement
 	rail := placement.Transform
 	uSeat := sc.EffectiveSeatAxis.Direction
-	axisHead := sc.EffectiveSeatAxis.PointAt(placement.SeatAxisDistanceMm)
+	axisHead := sc.EffectiveSeatAxis.PointAt(placement.BBToClampAlongSeatAxisMm)
 	postBase := axisHead.SubVec(uSeat.Scale(60))
 	axisTop := axisHead.Add(uSeat.Scale(35))
 	halfWin := sc.Seat.HalfRailWindowMm()

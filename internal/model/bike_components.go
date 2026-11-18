@@ -240,20 +240,20 @@ const SaddleRailStepMm = 1.0
 // and its associated 2D sit-bone support point for a specific fore-aft rail offset
 // along the constant-radius SaddleHeightMm arc.
 type BRPPoint struct {
-	Saddle                SaddleSpec
-	SeatpostSetbackMm     float64
-	RailOffsetMm          float64 // Clamp station along rails; positive forward moves saddle body rearward.
-	AchievedClampOffsetMm float64
-	SeatAxisDistanceMm    float64 // Solved axial distance to the projected clamp datum.
-	Transform             SaddleTransform
-	SeatpostClamp         geom2d.Point2
-	BrpX                  float64
-	BrpY                  float64
-	SitBoneX              float64
-	SitBoneY              float64
-	BrpSetbackMm          float64
-	SitBoneSetbackMm      float64
-	BrpAngleFromBbDeg     Deg
+	Saddle                   SaddleSpec
+	SeatpostSetbackMm        float64
+	RailOffsetMm             float64 // Clamp station along rails; positive forward moves saddle body rearward.
+	AchievedClampOffsetMm    float64
+	BBToClampAlongSeatAxisMm float64 // Distance from BB along the effective seat axis to the perpendicular projection of the seatpost clamp.
+	Transform                SaddleTransform
+	SeatpostClamp            geom2d.Point2
+	BrpX                     float64
+	BrpY                     float64
+	SitBoneX                 float64
+	SitBoneY                 float64
+	BrpSetbackMm             float64
+	SitBoneSetbackMm         float64
+	BrpAngleFromBbDeg        Deg
 }
 
 // BrpPoint returns the 2D BRP coordinate (BrpX, BrpY).
@@ -261,13 +261,13 @@ func (p BRPPoint) BrpPoint() geom2d.Point2 {
 	return geom2d.Point2{X: p.BrpX, Y: p.BrpY}
 }
 
-// SeatpostExtension estimates exposed axial length to the projected clamp datum.
+// SeatpostExtension estimates exposed length along the effective seat axis to the perpendicular projection of the clamp.
 // The published seat tube length is a collar proxy; absolute hardware stack is unknown.
 func (p BRPPoint) SeatpostExtension(seatTubeLengthMm float64) (float64, bool) {
-	if seatTubeLengthMm <= 0 || p.SeatAxisDistanceMm <= 0 {
+	if seatTubeLengthMm <= 0 || p.BBToClampAlongSeatAxisMm <= 0 {
 		return 0, false
 	}
-	return p.SeatAxisDistanceMm - seatTubeLengthMm, true
+	return p.BBToClampAlongSeatAxisMm - seatTubeLengthMm, true
 }
 
 // SitBonePoint returns the 2D sit-bone support coordinate (SitBoneX, SitBoneY).

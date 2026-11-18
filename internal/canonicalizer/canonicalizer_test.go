@@ -433,11 +433,11 @@ func TestApplyIdealCockpitTargets_KeepsCheapestStockBuild(t *testing.T) {
 			t.Fatalf("%s: scan did not select a build", tc.frame)
 		}
 
-		if can.SeatpostExtensionMm != can.SelectedBRP.SeatAxisDistanceMm-row.Bike.SeatTubeLength {
+		if can.SeatpostExtensionMm != can.SelectedBRP.BBToClampAlongSeatAxisMm-row.Bike.SeatTubeLength {
 			t.Errorf("%s: extension was not recomputed for the selected rail", tc.frame)
 		}
 		brpLost := func(b model.BRPPoint) float64 {
-			ext := b.SeatAxisDistanceMm - row.Bike.SeatTubeLength
+			ext := b.BBToClampAlongSeatAxisMm - row.Bike.SeatTubeLength
 			return ideal.RowPointsLost(setback, b.BrpSetbackMm, &row) + ideal.RowPointsLost(rail, b.RailOffsetMm, &row) + ideal.RowPointsLost(extension, ext, &row)
 		}
 		chosen := brpLost(*can.SelectedBRP)

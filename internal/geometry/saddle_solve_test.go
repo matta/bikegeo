@@ -15,7 +15,7 @@ import (
 
 func TestSolveSaddleIndependentInverseExample(t *testing.T) {
 	// At STA 60°, zero post setback, rail offset +12 mm, level rails, local BRP +32 mm,
-	// support (-48, +10) mm, BRP at axial=100 is (-30, 50√3), whose radius is
+	// support (-48, +10) mm, BRP at BBToClampAlongSeatAxisMm=100 is (-30, 50√3), whose radius is
 	// sqrt(900 + 7500) = sqrt(8400) = 20√21 mm.
 	spec := model.ReferenceIdmatchSaddle()
 	targetRadius := 20.0 * math.Sqrt(21.0)
@@ -24,8 +24,8 @@ func TestSolveSaddleIndependentInverseExample(t *testing.T) {
 		t.Fatalf("SolveSaddleForBRPRadius: %v", err)
 	}
 
-	if math.Abs(p.AxialDistanceMm()-100.0) > 1e-9 {
-		t.Errorf("AxialDistanceMm = %.12f, want 100", p.AxialDistanceMm())
+	if math.Abs(p.BBToClampAlongSeatAxisMm-100.0) > 1e-9 {
+		t.Errorf("BBToClampAlongSeatAxisMm = %.12f, want 100", p.BBToClampAlongSeatAxisMm)
 	}
 	sqrt3 := math.Sqrt(3)
 	for _, tc := range []struct {
@@ -33,10 +33,10 @@ func TestSolveSaddleIndependentInverseExample(t *testing.T) {
 		got  geom2d.Point2
 		want geom2d.Point2
 	}{
-		{"SeatpostClamp", p.SeatpostClamp(), geom2d.Point2{X: -50, Y: 50 * sqrt3}},
-		{"RailCenter", p.RailCenter(), geom2d.Point2{X: -62, Y: 50 * sqrt3}},
-		{"BRP", p.BRP(), geom2d.Point2{X: -30, Y: 50 * sqrt3}},
-		{"SitBones", p.SitBones(), geom2d.Point2{X: -110, Y: 50*sqrt3 + 10}},
+		{"SeatpostClamp", p.SeatpostClamp, geom2d.Point2{X: -50, Y: 50 * sqrt3}},
+		{"RailCenter", p.RailCenter, geom2d.Point2{X: -62, Y: 50 * sqrt3}},
+		{"BRP", p.BRP, geom2d.Point2{X: -30, Y: 50 * sqrt3}},
+		{"SitBones", p.SitBones, geom2d.Point2{X: -110, Y: 50*sqrt3 + 10}},
 	} {
 		if d := tc.got.DistanceTo(tc.want); d > 1e-9 {
 			t.Errorf("%s = (%.9f, %.9f), want (%.9f, %.9f) (dist=%.3e)", tc.name, tc.got.X, tc.got.Y, tc.want.X, tc.want.Y, d)
@@ -51,37 +51,30 @@ func TestSolveSaddleForwardInverseConsistency(t *testing.T) {
 				s := spec
 				s.RailPitchDeg = pitch
 				for _, offset := range []float64{-15, 0, 15} {
-					const axial, post = 700.0, 11.0
-					axis, err := assembly.NewSeatAxis(geom2d.Origin(), sta)
-					if err != nil {
-						t.Fatal(err)
-					}
-					clamp, err := axis.WithSeatpostClamp(axial, post)
-					if err != nil {
-						t.Fatal(err)
-					}
-					saddle, err := assembly.NewSaddle(s)
-					if err != nil {
-						t.Fatal(err)
-					}
-					fwd, err := clamp.AttachSaddle(saddle, offset)
+					const bbToClampAlongSeatAxisMm, post = 700.0, 11.0
+					fwd, err := assembly.PlaceSaddle(geom2d.Origin(), sta, assembly.SaddleSetup{
+						Saddle:                   s,
+						BBToClampAlongSeatAxisMm: bbToClampAlongSeatAxisMm,
+						PostSetbackMm:            post,
+						RailOffsetMm:             offset,
+					})
 					if err != nil {
 						t.Fatal(err)
 					}
 
-					targetRadius := fwd.BRP().DistanceToOrigin()
+					targetRadius := fwd.BRP.DistanceToOrigin()
 					inv, err := geometry.SolveSaddleForBRPRadius(s, sta, targetRadius, post, offset)
 					if err != nil {
 						t.Fatalf("%s STA=%v pitch=%v offset=%v: %v", s.ID, sta, pitch, offset, err)
 					}
-					if math.Abs(inv.AxialDistanceMm()-axial) > 1e-8 {
-						t.Errorf("%s STA=%v pitch=%v offset=%v: axial=%.9f, want %.9f",
-							s.ID, sta, pitch, offset, inv.AxialDistanceMm(), axial)
+					if math.Abs(inv.BBToClampAlongSeatAxisMm-bbToClampAlongSeatAxisMm) > 1e-8 {
+						t.Errorf("%s STA=%v pitch=%v offset=%v: BBToClampAlongSeatAxisMm=%.9f, want %.9f",
+							s.ID, sta, pitch, offset, inv.BBToClampAlongSeatAxisMm, bbToClampAlongSeatAxisMm)
 					}
-					if d := inv.BRP().DistanceTo(fwd.BRP()); d > 1e-8 {
+					if d := inv.BRP.DistanceTo(fwd.BRP); d > 1e-8 {
 						t.Errorf("%s STA=%v pitch=%v offset=%v: BRP diff=%.3e", s.ID, sta, pitch, offset, d)
 					}
-					if d := inv.SitBones().DistanceTo(fwd.SitBones()); d > 1e-8 {
+					if d := inv.SitBones.DistanceTo(fwd.SitBones); d > 1e-8 {
 						t.Errorf("%s STA=%v pitch=%v offset=%v: SitBones diff=%.3e", s.ID, sta, pitch, offset, d)
 					}
 				}
@@ -96,18 +89,18 @@ func TestSolveSaddleTangentAndImpossibleBranches(t *testing.T) {
 	// Tangent case (discriminant == 0):
 	// At sta=60°, postSetback=0, railOffset=0, RailCenterToBrpMm=100, pitch=0°:
 	// q = (100, 0), perp = -100*cos(30°). Setting targetRadius = 100*cos(30°)
-	// hits the tangent (discriminant == 0) with axial = 50 > 0 and BRP = (75, 25√3).
+	// hits the tangent (discriminant == 0) with BBToClampAlongSeatAxisMm = 50 > 0 and BRP = (75, 25√3).
 	tangentSpec := model.SaddleSpec{RailCenterToBrpMm: 100}
 	tangentRadius := math.Nextafter(100.0*model.Deg(30).Angle().Cos(), math.Inf(1))
 	pTan, err := geometry.SolveSaddleForBRPRadius(tangentSpec, 60.0, tangentRadius, 0.0, 0.0)
 	if err != nil {
 		t.Fatalf("tangent case should succeed: %v", err)
 	}
-	if math.Abs(pTan.AxialDistanceMm()-50.0) > 1e-5 {
-		t.Errorf("tangent axial = %.9f, want 50", pTan.AxialDistanceMm())
+	if math.Abs(pTan.BBToClampAlongSeatAxisMm-50.0) > 1e-5 {
+		t.Errorf("tangent BBToClampAlongSeatAxisMm = %.9f, want 50", pTan.BBToClampAlongSeatAxisMm)
 	}
-	if pTan.BRP().DistanceTo(geom2d.Point2{X: 75, Y: 25 * math.Sqrt(3)}) > 1e-5 {
-		t.Errorf("tangent BRP = %+v", pTan.BRP())
+	if pTan.BRP.DistanceTo(geom2d.Point2{X: 75, Y: 25 * math.Sqrt(3)}) > 1e-5 {
+		t.Errorf("tangent BRP = %+v", pTan.BRP)
 	}
 
 	// Just below tangent radius: no intersection (discriminant < 0).
@@ -142,7 +135,7 @@ func TestSolveSaddleTangentAndImpossibleBranches(t *testing.T) {
 	}
 
 	// BRP below BB (Y <= 0): at STA=60°, height=100, postSetback=95, railOffset=32,
-	// discriminant > 0 and axial > 0, but BRP Y = -20.46 mm <= 0.
+	// discriminant > 0 and BBToClampAlongSeatAxisMm > 0, but BRP Y = -20.46 mm <= 0.
 	_, err = geometry.SolveSaddleForBRPRadius(spec, 60, 100, 95, 32)
 	if err == nil || !strings.Contains(err.Error(), "not above BB") {
 		t.Errorf("BRP below BB: expected 'not above BB' error, got %v", err)
@@ -254,19 +247,19 @@ func TestEndToEndSaddleFailurePropagation(t *testing.T) {
 
 func TestSolveSaddleForBRPTarget_IndependentExample(t *testing.T) {
 	// STA 60°, zero post setback, level reference saddle, radius 20√21 mm, setback 30 mm
-	// yields axial distance 100 mm, rail offset +12 mm, and BRP (-30, 50√3) mm.
+	// yields BBToClampAlongSeatAxisMm 100 mm, rail offset +12 mm, and BRP (-30, 50√3) mm.
 	spec := model.ReferenceIdmatchSaddle()
 	targetRadius := 20.0 * math.Sqrt(21.0)
 	sol, err := geometry.SolveSaddleForBRPTarget(spec, 60.0, targetRadius, 30.0, 0.0)
 	if err != nil {
 		t.Fatalf("SolveSaddleForBRPTarget: %v", err)
 	}
-	if math.Abs(sol.RailOffsetMm()-12.0) > 1e-9 {
-		t.Errorf("RailOffsetMm = %.12f, want 12", sol.RailOffsetMm())
+	p := sol.Placement
+	if math.Abs(p.RailOffsetMm-12.0) > 1e-9 {
+		t.Errorf("RailOffsetMm = %.12f, want 12", p.RailOffsetMm)
 	}
-	p := sol.Placement()
-	if math.Abs(p.AxialDistanceMm()-100.0) > 1e-9 {
-		t.Errorf("AxialDistanceMm = %.12f, want 100", p.AxialDistanceMm())
+	if math.Abs(p.BBToClampAlongSeatAxisMm-100.0) > 1e-9 {
+		t.Errorf("BBToClampAlongSeatAxisMm = %.12f, want 100", p.BBToClampAlongSeatAxisMm)
 	}
 	sqrt3 := math.Sqrt(3)
 	for _, tc := range []struct {
@@ -274,10 +267,10 @@ func TestSolveSaddleForBRPTarget_IndependentExample(t *testing.T) {
 		got  geom2d.Point2
 		want geom2d.Point2
 	}{
-		{"SeatpostClamp", p.SeatpostClamp(), geom2d.Point2{X: -50, Y: 50 * sqrt3}},
-		{"RailCenter", p.RailCenter(), geom2d.Point2{X: -62, Y: 50 * sqrt3}},
-		{"BRP", p.BRP(), geom2d.Point2{X: -30, Y: 50 * sqrt3}},
-		{"SitBones", p.SitBones(), geom2d.Point2{X: -110, Y: 50*sqrt3 + 10}},
+		{"SeatpostClamp", p.SeatpostClamp, geom2d.Point2{X: -50, Y: 50 * sqrt3}},
+		{"RailCenter", p.RailCenter, geom2d.Point2{X: -62, Y: 50 * sqrt3}},
+		{"BRP", p.BRP, geom2d.Point2{X: -30, Y: 50 * sqrt3}},
+		{"SitBones", p.SitBones, geom2d.Point2{X: -110, Y: 50*sqrt3 + 10}},
 	} {
 		if d := tc.got.DistanceTo(tc.want); d > 1e-9 {
 			t.Errorf("%s = (%.9f, %.9f), want (%.9f, %.9f) (dist=%.3e)", tc.name, tc.got.X, tc.got.Y, tc.want.X, tc.want.Y, d)
@@ -294,9 +287,9 @@ func TestSolveSaddleForBRPTarget_IndependentAxesAndRoundTrips(t *testing.T) {
 			s.RailPitchDeg = pitch
 			for _, post := range []float64{0, 11, 25} {
 				for _, offset := range []float64{-15, 0, 15} {
-					const axial = 700.0
+					const bbToClampAlongSeatAxisMm = 700.0
 					a, p := sta.Angle(), pitch.Angle()
-					clamp := geom2d.Point2{X: -axial*a.Cos() - post*a.Sin(), Y: axial*a.Sin() - post*a.Cos()}
+					clamp := geom2d.Point2{X: -bbToClampAlongSeatAxisMm*a.Cos() - post*a.Sin(), Y: bbToClampAlongSeatAxisMm*a.Sin() - post*a.Cos()}
 					center := geom2d.Point2{X: clamp.X - offset*p.Cos(), Y: clamp.Y - offset*p.Sin()}
 					brp := geom2d.Point2{X: center.X + s.RailCenterToBrpMm*p.Cos(), Y: center.Y + s.RailCenterToBrpMm*p.Sin()}
 					sit := geom2d.Point2{
@@ -308,25 +301,25 @@ func TestSolveSaddleForBRPTarget_IndependentAxesAndRoundTrips(t *testing.T) {
 					if err != nil {
 						t.Fatalf("STA=%v pitch=%v post=%v offset=%v: %v", sta, pitch, post, offset, err)
 					}
-					if math.Abs(sol.RailOffsetMm()-offset) > 1e-9 {
+					pl := sol.Placement
+					if math.Abs(pl.RailOffsetMm-offset) > 1e-9 {
 						t.Errorf("STA=%v pitch=%v post=%v offset=%v: rail=%.9f, want %.9f",
-							sta, pitch, post, offset, sol.RailOffsetMm(), offset)
+							sta, pitch, post, offset, pl.RailOffsetMm, offset)
 					}
-					pl := sol.Placement()
-					if math.Abs(pl.AxialDistanceMm()-axial) > 1e-9 {
-						t.Errorf("STA=%v pitch=%v post=%v offset=%v: axial=%.9f, want %.9f",
-							sta, pitch, post, offset, pl.AxialDistanceMm(), axial)
+					if math.Abs(pl.BBToClampAlongSeatAxisMm-bbToClampAlongSeatAxisMm) > 1e-9 {
+						t.Errorf("STA=%v pitch=%v post=%v offset=%v: BBToClampAlongSeatAxisMm=%.9f, want %.9f",
+							sta, pitch, post, offset, pl.BBToClampAlongSeatAxisMm, bbToClampAlongSeatAxisMm)
 					}
-					if d := pl.SeatpostClamp().DistanceTo(clamp); d > 1e-9 {
+					if d := pl.SeatpostClamp.DistanceTo(clamp); d > 1e-9 {
 						t.Errorf("clamp diff = %.3e", d)
 					}
-					if d := pl.RailCenter().DistanceTo(center); d > 1e-9 {
+					if d := pl.RailCenter.DistanceTo(center); d > 1e-9 {
 						t.Errorf("railCenter diff = %.3e", d)
 					}
-					if d := pl.BRP().DistanceTo(brp); d > 1e-9 {
+					if d := pl.BRP.DistanceTo(brp); d > 1e-9 {
 						t.Errorf("BRP diff = %.3e", d)
 					}
-					if d := pl.SitBones().DistanceTo(sit); d > 1e-9 {
+					if d := pl.SitBones.DistanceTo(sit); d > 1e-9 {
 						t.Errorf("SitBones diff = %.3e", d)
 					}
 				}
@@ -341,38 +334,31 @@ func TestSolveSaddleForBRPTarget_IndependentAxesAndRoundTrips(t *testing.T) {
 				s := spec
 				s.RailPitchDeg = pitch
 				for _, offset := range []float64{-15, 0, 15} {
-					const axial, post = 700.0, 11.0
-					axis, err := assembly.NewSeatAxis(geom2d.Origin(), sta)
+					const bbToClampAlongSeatAxisMm, post = 700.0, 11.0
+					fwd, err := assembly.PlaceSaddle(geom2d.Origin(), sta, assembly.SaddleSetup{
+						Saddle:                   s,
+						BBToClampAlongSeatAxisMm: bbToClampAlongSeatAxisMm,
+						PostSetbackMm:            post,
+						RailOffsetMm:             offset,
+					})
 					if err != nil {
 						t.Fatal(err)
 					}
-					clamp, err := axis.WithSeatpostClamp(axial, post)
-					if err != nil {
-						t.Fatal(err)
-					}
-					saddle, err := assembly.NewSaddle(s)
-					if err != nil {
-						t.Fatal(err)
-					}
-					fwd, err := clamp.AttachSaddle(saddle, offset)
-					if err != nil {
-						t.Fatal(err)
-					}
-					brp := fwd.BRP()
+					brp := fwd.BRP
 					sol, err := geometry.SolveSaddleForBRPTarget(s, sta, brp.DistanceToOrigin(), -brp.X, post)
 					if err != nil {
 						t.Fatalf("%s STA=%v pitch=%v offset=%v: %v", s.ID, sta, pitch, offset, err)
 					}
-					if math.Abs(sol.RailOffsetMm()-offset) > 1e-8 {
+					pl := sol.Placement
+					if math.Abs(pl.RailOffsetMm-offset) > 1e-8 {
 						t.Errorf("%s STA=%v pitch=%v offset=%v: rail=%.9f, want %.9f",
-							s.ID, sta, pitch, offset, sol.RailOffsetMm(), offset)
+							s.ID, sta, pitch, offset, pl.RailOffsetMm, offset)
 					}
-					pl := sol.Placement()
-					if math.Abs(pl.AxialDistanceMm()-axial) > 1e-8 {
-						t.Errorf("%s STA=%v pitch=%v offset=%v: axial=%.9f, want %.9f",
-							s.ID, sta, pitch, offset, pl.AxialDistanceMm(), axial)
+					if math.Abs(pl.BBToClampAlongSeatAxisMm-bbToClampAlongSeatAxisMm) > 1e-8 {
+						t.Errorf("%s STA=%v pitch=%v offset=%v: BBToClampAlongSeatAxisMm=%.9f, want %.9f",
+							s.ID, sta, pitch, offset, pl.BBToClampAlongSeatAxisMm, bbToClampAlongSeatAxisMm)
 					}
-					if d := pl.BRP().DistanceTo(brp); d > 1e-8 {
+					if d := pl.BRP.DistanceTo(brp); d > 1e-8 {
 						t.Errorf("%s BRP diff=%.3e", s.ID, d)
 					}
 				}
@@ -381,17 +367,17 @@ func TestSolveSaddleForBRPTarget_IndependentAxesAndRoundTrips(t *testing.T) {
 	}
 
 	// Forward BRP (negative setback, BRP.X > 0) is allowed if branch constraints hold.
-	// At STA=60°, post=0, level reference saddle: BRP=(+10, 50√3) gives axial=100, rail=-28.
+	// At STA=60°, post=0, level reference saddle: BRP=(+10, 50√3) gives BBToClampAlongSeatAxisMm=100, rail=-28.
 	fwdRadius := math.Hypot(10.0, 50.0*math.Sqrt(3))
 	fwdSol, err := geometry.SolveSaddleForBRPTarget(base, 60.0, fwdRadius, -10.0, 0.0)
 	if err != nil {
 		t.Fatalf("forward BRP should succeed: %v", err)
 	}
-	if math.Abs(fwdSol.RailOffsetMm()-(-28.0)) > 1e-9 {
-		t.Errorf("forward BRP rail = %.9f, want -28", fwdSol.RailOffsetMm())
+	if math.Abs(fwdSol.Placement.RailOffsetMm-(-28.0)) > 1e-9 {
+		t.Errorf("forward BRP rail = %.9f, want -28", fwdSol.Placement.RailOffsetMm)
 	}
-	if math.Abs(fwdSol.Placement().BRP().X-10.0) > 1e-9 {
-		t.Errorf("forward BRP X = %.9f, want 10", fwdSol.Placement().BRP().X)
+	if math.Abs(fwdSol.Placement.BRP.X-10.0) > 1e-9 {
+		t.Errorf("forward BRP X = %.9f, want 10", fwdSol.Placement.BRP.X)
 	}
 }
 
@@ -447,9 +433,9 @@ func TestSolveSaddleForBRPTarget_SingularAndInvalid(t *testing.T) {
 		{"STA 0", 0, 746, 219, 0, 0},
 		{"STA 90", 90, 746, 219, 0, 0},
 		{"NaN pitch", 73, 746, 219, 0, model.Deg(math.NaN())},
-		// Negative axial extension branch: at STA=60°, pitch=+45°, post=0, d=-10, r=-100
+		// Negative BB-to-clamp along seat axis branch: at STA=60°, pitch=+45°, post=0, d=-10, r=-100
 		// gives target = (132/√2 + 5, 132/√2 - 5√3) with target.Y > 0 and target.Dot(u) > 0, but d < 0.
-		{"negative axial extension", 60, math.Hypot(132/math.Sqrt2+5, 132/math.Sqrt2-5*math.Sqrt(3)), -(132/math.Sqrt2 + 5), 0, 45},
+		{"negative BBToClampAlongSeatAxisMm", 60, math.Hypot(132/math.Sqrt2+5, 132/math.Sqrt2-5*math.Sqrt(3)), -(132/math.Sqrt2 + 5), 0, 45},
 		// Target behind/below upward seat axis: at STA=60°, u=(-0.5, √3/2).
 		// Target=(+100, 10) has dot(u) = -50 + 5√3 < 0.
 		{"target behind seat axis", 60, math.Hypot(100, 10), -100, 0, 0},
@@ -462,7 +448,7 @@ func TestSolveSaddleForBRPTarget_SingularAndInvalid(t *testing.T) {
 	}
 }
 
-func TestSolveSaddleForBRPTarget_HardwareVsGeometryAndMisuse(t *testing.T) {
+func TestSolveSaddleForBRPTarget_HardwareVsGeometry(t *testing.T) {
 	spec := model.ReferenceIdmatchSaddle()
 
 	// Out-of-window solution succeeds geometrically and retains negative rail margin.
@@ -474,39 +460,12 @@ func TestSolveSaddleForBRPTarget_HardwareVsGeometryAndMisuse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("out-of-window target should succeed geometrically: %v", err)
 	}
-	if math.Abs(sol.RailOffsetMm()-12.0) > 1e-9 {
-		t.Errorf("RailOffsetMm = %.9f, want 12", sol.RailOffsetMm())
+	if math.Abs(sol.Placement.RailOffsetMm-12.0) > 1e-9 {
+		t.Errorf("RailOffsetMm = %.9f, want 12", sol.Placement.RailOffsetMm)
 	}
-	if shortRail.ClampFitsAt(30, sol.RailOffsetMm()) {
+	if shortRail.ClampFitsAt(30, sol.Placement.RailOffsetMm) {
 		t.Error("expected ClampFitsAt to be false for out-of-window offset")
 	}
-
-	// Zero-value and failed SaddleRailSolution panic on access.
-	assertPanics := func(name string, fn func()) {
-		t.Helper()
-		defer func() {
-			if r := recover(); r == nil {
-				t.Errorf("%s: expected panic, got none", name)
-			}
-		}()
-		fn()
-	}
-	assertPanics("zero SaddleRailSolution RailOffsetMm", func() {
-		var s geometry.SaddleRailSolution
-		_ = s.RailOffsetMm()
-	})
-	assertPanics("zero SaddleRailSolution Placement", func() {
-		var s geometry.SaddleRailSolution
-		_ = s.Placement()
-	})
-	assertPanics("failed SaddleRailSolution RailOffsetMm", func() {
-		s, _ := geometry.SolveSaddleForBRPTarget(spec, 73, 746, 800, 0)
-		_ = s.RailOffsetMm()
-	})
-	assertPanics("failed SaddleRailSolution Placement", func() {
-		s, _ := geometry.SolveSaddleForBRPTarget(spec, 73, 746, 800, 0)
-		_ = s.Placement()
-	})
 }
 
 func TestEndToEndRailOffsetFailurePropagation(t *testing.T) {
@@ -627,24 +586,24 @@ func TestEndToEndRailOffsetFailurePropagation(t *testing.T) {
 func TestSolveSaddleSTAForBRPTarget_IndependentExamples(t *testing.T) {
 	ref := model.ReferenceIdmatchSaddle() // RailCenterToBrpMm = 32, level rails
 
-	// 1. Zero post setback: radius 20*sqrt(21) mm, setback 30 mm, rail offset +12 mm -> STA 60°, axial 100 mm, BRP (-30, 50*sqrt(3))
+	// 1. Zero post setback: radius 20*sqrt(21) mm, setback 30 mm, rail offset +12 mm -> STA 60°, BBToClampAlongSeatAxisMm 100 mm, BRP (-30, 50*sqrt(3))
 	radius0 := 20 * math.Sqrt(21)
 	sol0, err := geometry.SolveSaddleSTAForBRPTarget(ref, radius0, 30, 0, 12)
 	if err != nil {
 		t.Fatalf("SolveSaddleSTAForBRPTarget(zero post): %v", err)
 	}
-	if (sol0.EffStaDeg() - 60).Abs() > 1e-9 {
-		t.Errorf("zero-post STA = %.12f°, want 60°", sol0.EffStaDeg())
+	if (sol0.EffStaDeg - 60).Abs() > 1e-9 {
+		t.Errorf("zero-post STA = %.12f°, want 60°", sol0.EffStaDeg)
 	}
-	if math.Abs(sol0.Placement().AxialDistanceMm()-100) > 1e-8 {
-		t.Errorf("zero-post axial = %.10f mm, want 100 mm", sol0.Placement().AxialDistanceMm())
+	if math.Abs(sol0.Placement.BBToClampAlongSeatAxisMm-100) > 1e-8 {
+		t.Errorf("zero-post BBToClampAlongSeatAxisMm = %.10f mm, want 100 mm", sol0.Placement.BBToClampAlongSeatAxisMm)
 	}
 	wantBrp0 := geom2d.Point2{X: -30, Y: 50 * math.Sqrt(3)}
-	if d := sol0.Placement().BRP().DistanceTo(wantBrp0); d > 1e-8 {
-		t.Errorf("zero-post BRP = %+v, want %+v (dist %.3e)", sol0.Placement().BRP(), wantBrp0, d)
+	if d := sol0.Placement.BRP.DistanceTo(wantBrp0); d > 1e-8 {
+		t.Errorf("zero-post BRP = %+v, want %+v (dist %.3e)", sol0.Placement.BRP, wantBrp0, d)
 	}
 
-	// 2. Nonzero post setback: STA 60°, axial 100 mm, post setback 20 mm, rail offset +12 mm
+	// 2. Nonzero post setback: STA 60°, BBToClampAlongSeatAxisMm 100 mm, post setback 20 mm, rail offset +12 mm
 	// Clamp = (-50 - 10*sqrt(3), 50*sqrt(3) - 10), BRP = (-30 - 10*sqrt(3), 50*sqrt(3) - 10)
 	wantClamp := geom2d.Point2{X: -50 - 10*math.Sqrt(3), Y: 50*math.Sqrt(3) - 10}
 	wantBrp := geom2d.Point2{X: -30 - 10*math.Sqrt(3), Y: 50*math.Sqrt(3) - 10}
@@ -652,17 +611,17 @@ func TestSolveSaddleSTAForBRPTarget_IndependentExamples(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SolveSaddleSTAForBRPTarget(post=20): %v", err)
 	}
-	if (sol20.EffStaDeg() - 60).Abs() > 1e-9 {
-		t.Errorf("post=20 STA = %.12f°, want 60°", sol20.EffStaDeg())
+	if (sol20.EffStaDeg - 60).Abs() > 1e-9 {
+		t.Errorf("post=20 STA = %.12f°, want 60°", sol20.EffStaDeg)
 	}
-	if math.Abs(sol20.Placement().AxialDistanceMm()-100) > 1e-8 {
-		t.Errorf("post=20 axial = %.10f mm, want 100 mm", sol20.Placement().AxialDistanceMm())
+	if math.Abs(sol20.Placement.BBToClampAlongSeatAxisMm-100) > 1e-8 {
+		t.Errorf("post=20 BBToClampAlongSeatAxisMm = %.10f mm, want 100 mm", sol20.Placement.BBToClampAlongSeatAxisMm)
 	}
-	if d := sol20.Placement().SeatpostClamp().DistanceTo(wantClamp); d > 1e-8 {
-		t.Errorf("post=20 clamp = %+v, want %+v (dist %.3e)", sol20.Placement().SeatpostClamp(), wantClamp, d)
+	if d := sol20.Placement.SeatpostClamp.DistanceTo(wantClamp); d > 1e-8 {
+		t.Errorf("post=20 clamp = %+v, want %+v (dist %.3e)", sol20.Placement.SeatpostClamp, wantClamp, d)
 	}
-	if d := sol20.Placement().BRP().DistanceTo(wantBrp); d > 1e-8 {
-		t.Errorf("post=20 BRP = %+v, want %+v (dist %.3e)", sol20.Placement().BRP(), wantBrp, d)
+	if d := sol20.Placement.BRP.DistanceTo(wantBrp); d > 1e-8 {
+		t.Errorf("post=20 BRP = %+v, want %+v (dist %.3e)", sol20.Placement.BRP, wantBrp, d)
 	}
 }
 
@@ -674,11 +633,11 @@ func TestSolveSaddleSTAForBRPTarget_OrientationAndReuse(t *testing.T) {
 			for _, sta := range []model.Deg{60, 72, 80} {
 				for _, post := range []float64{0, 15, 25} {
 					for _, offset := range []float64{-15, 0, 15} {
-						const axial = 700.0
+						const bbToClampAlongSeatAxisMm = 700.0
 						a, p := sta.Angle(), pitch.Angle()
 						clamp := geom2d.Point2{
-							X: -axial*a.Cos() - post*a.Sin(),
-							Y: axial*a.Sin() - post*a.Cos(),
+							X: -bbToClampAlongSeatAxisMm*a.Cos() - post*a.Sin(),
+							Y: bbToClampAlongSeatAxisMm*a.Sin() - post*a.Cos(),
 						}
 						center := geom2d.Point2{
 							X: clamp.X - offset*p.Cos(),
@@ -692,13 +651,13 @@ func TestSolveSaddleSTAForBRPTarget_OrientationAndReuse(t *testing.T) {
 						if err != nil {
 							t.Fatalf("%s pitch=%v sta=%v post=%v off=%v: %v", s.ID, pitch, sta, post, offset, err)
 						}
-						if (sol.EffStaDeg() - sta).Abs() > 1e-9 {
-							t.Errorf("%s pitch=%v sta=%v post=%v off=%v: got STA %.12f°", s.ID, pitch, sta, post, offset, sol.EffStaDeg())
+						if (sol.EffStaDeg - sta).Abs() > 1e-9 {
+							t.Errorf("%s pitch=%v sta=%v post=%v off=%v: got STA %.12f°", s.ID, pitch, sta, post, offset, sol.EffStaDeg)
 						}
-						if math.Abs(sol.Placement().AxialDistanceMm()-axial) > 1e-8 {
-							t.Errorf("%s pitch=%v sta=%v post=%v off=%v: got axial %.10f mm", s.ID, pitch, sta, post, offset, sol.Placement().AxialDistanceMm())
+						if math.Abs(sol.Placement.BBToClampAlongSeatAxisMm-bbToClampAlongSeatAxisMm) > 1e-8 {
+							t.Errorf("%s pitch=%v sta=%v post=%v off=%v: got BBToClampAlongSeatAxisMm %.10f mm", s.ID, pitch, sta, post, offset, sol.Placement.BBToClampAlongSeatAxisMm)
 						}
-						if d := sol.Placement().BRP().DistanceTo(brp); d > 1e-8 {
+						if d := sol.Placement.BRP.DistanceTo(brp); d > 1e-8 {
 							t.Errorf("%s pitch=%v sta=%v post=%v off=%v: BRP residual %.3e mm", s.ID, pitch, sta, post, offset, d)
 						}
 					}
@@ -725,14 +684,14 @@ func TestSolveSaddleSTAForBRPTarget_BranchesAndBoundaries(t *testing.T) {
 
 	// Tangent zero distance (rho == p > 0) with legal STA in (0°, 90°) and BRP.Y > 0.
 	// With RailPitchDeg=90, RailCenterToBrpMm=32: disp=(0, 32). Target BRP=(-12, 16) (radius=20, setback=12)
-	// gives clamp=(-12, -16), rho=20 == postSetback=20, axial=0, STA = atan2(-16, 12) + 90° ≈ 36.87°.
+	// gives clamp=(-12, -16), rho=20 == postSetback=20, BBToClampAlongSeatAxisMm=0, STA = atan2(-16, 12) + 90° ≈ 36.87°.
 	solT, err := geometry.SolveSaddleSTAForBRPTarget(pitched90, 20, 12, 20, 0)
 	if err != nil {
 		t.Fatalf("tangent zero-distance legal case failed: %v", err)
 	}
 	wantTangentSTA := model.DegOf(geom2d.AngleFromSlope(12, -16)) + 90
-	if (solT.EffStaDeg()-wantTangentSTA).Abs() > 1e-9 || math.Abs(solT.Placement().AxialDistanceMm()) > 1e-8 {
-		t.Errorf("tangent zero-distance: got STA=%.9f° (want %.9f°), axial=%.9f mm", solT.EffStaDeg(), wantTangentSTA, solT.Placement().AxialDistanceMm())
+	if (solT.EffStaDeg-wantTangentSTA).Abs() > 1e-9 || math.Abs(solT.Placement.BBToClampAlongSeatAxisMm) > 1e-8 {
+		t.Errorf("tangent zero-distance: got STA=%.9f° (want %.9f°), BBToClampAlongSeatAxisMm=%.9f mm", solT.EffStaDeg, wantTangentSTA, solT.Placement.BBToClampAlongSeatAxisMm)
 	}
 
 	// Out-of-domain branches: STA = 90° (clamp directly above BB), STA > 90° (clamp forward of BB), STA <= 0°.
@@ -772,25 +731,6 @@ func TestSolveSaddleSTAForBRPTarget_BranchesAndBoundaries(t *testing.T) {
 		if _, err := geometry.SolveSaddleSTAForBRPTarget(ref, tc.radius, tc.setback, tc.post, tc.railOff); err == nil {
 			t.Errorf("%s: expected error, got nil", tc.name)
 		}
-	}
-
-	// Zero SaddleStaSolution must panic on accessors.
-	var zero geometry.SaddleStaSolution
-	for _, tc := range []struct {
-		name string
-		fn   func()
-	}{
-		{"EffStaDeg", func() { _ = zero.EffStaDeg() }},
-		{"Placement", func() { _ = zero.Placement() }},
-	} {
-		func() {
-			defer func() {
-				if r := recover(); r == nil {
-					t.Errorf("zero SaddleStaSolution.%s() did not panic", tc.name)
-				}
-			}()
-			tc.fn()
-		}()
 	}
 }
 
@@ -851,7 +791,7 @@ func TestIdealAndCompromiseSTA_GeometryVsHardware(t *testing.T) {
 	}
 }
 
-func TestBRPPointFromSaddlePlacement_SingleSourceAndImmutable(t *testing.T) {
+func TestBRPPointFromSaddlePlacement_SingleSourceAndSnapshots(t *testing.T) {
 	// Synthetic geometric fixture (no catalog ID or RailLengthMm) with nonzero pitch, nonzero post, signed rail offset.
 	orig := model.SaddleSpec{
 		Name:                   "Synthetic Pitched",
@@ -861,21 +801,14 @@ func TestBRPPointFromSaddlePlacement_SingleSourceAndImmutable(t *testing.T) {
 		RailPitchDeg:           -6,
 	}
 	specCopy := orig
-	axis, err := assembly.NewSeatAxis(geom2d.Origin(), 72)
+	placement, err := assembly.PlaceSaddle(geom2d.Origin(), 72, assembly.SaddleSetup{
+		Saddle:                   specCopy,
+		BBToClampAlongSeatAxisMm: 680,
+		PostSetbackMm:            15,
+		RailOffsetMm:             -7.5,
+	})
 	if err != nil {
-		t.Fatalf("NewSeatAxis: %v", err)
-	}
-	clamp, err := axis.WithSeatpostClamp(680, 15)
-	if err != nil {
-		t.Fatalf("WithSeatpostClamp: %v", err)
-	}
-	saddle, err := assembly.NewSaddle(specCopy)
-	if err != nil {
-		t.Fatalf("NewSaddle: %v", err)
-	}
-	placement, err := clamp.AttachSaddle(saddle, -7.5)
-	if err != nil {
-		t.Fatalf("AttachSaddle: %v", err)
+		t.Fatalf("PlaceSaddle: %v", err)
 	}
 
 	// Mutate original specCopy after construction; placement and exported snapshot must be unaffected.
@@ -896,11 +829,11 @@ func TestBRPPointFromSaddlePlacement_SingleSourceAndImmutable(t *testing.T) {
 	}
 	// Transform must reproduce BRP and SitBones landmarks within 1e-9 mm.
 	reproBRP := snap1.Transform.Point(orig.RailCenterToBrpMm, 0)
-	if d := reproBRP.DistanceTo(placement.BRP()); d > 1e-9 {
+	if d := reproBRP.DistanceTo(placement.BRP); d > 1e-9 {
 		t.Errorf("Transform BRP residual = %.3e mm", d)
 	}
 	reproSit := snap1.Transform.Point(orig.RailCenterToSitBonesMm, orig.SitBonesElevationMm)
-	if d := reproSit.DistanceTo(placement.SitBones()); d > 1e-9 {
+	if d := reproSit.DistanceTo(placement.SitBones); d > 1e-9 {
 		t.Errorf("Transform SitBones residual = %.3e mm", d)
 	}
 
@@ -909,7 +842,7 @@ func TestBRPPointFromSaddlePlacement_SingleSourceAndImmutable(t *testing.T) {
 	snap1.SeatpostSetbackMm = 99
 	snap1.BrpX = 0
 	snap2 := geometry.BRPPointFromSaddlePlacement(placement)
-	if snap2.Saddle != orig || snap2.SeatpostSetbackMm != 15 || snap2.BrpX != placement.BRP().X {
+	if snap2.Saddle != orig || snap2.SeatpostSetbackMm != 15 || snap2.BrpX != placement.BRP.X {
 		t.Errorf("subsequent export was affected by mutating snap1: %+v", snap2)
 	}
 
@@ -928,15 +861,15 @@ func TestBRPPointFromSaddlePlacement_SingleSourceAndImmutable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("probe SolveSaddleForBRPRadius(%.0f): %v", wantOffset, err)
 		}
-		railSol, err := geometry.SolveSaddleForBRPTarget(orig, 72, 746, -probe.BRP().X, 15)
+		railSol, err := geometry.SolveSaddleForBRPTarget(orig, 72, 746, -probe.BRP.X, 15)
 		if err != nil {
 			t.Fatalf("SolveSaddleForBRPTarget(%.0f): %v", wantOffset, err)
 		}
-		if math.Abs(railSol.RailOffsetMm()-wantOffset) > 1e-8 {
-			t.Errorf("SaddleRailSolution.RailOffsetMm() = %.9f, want %.1f", railSol.RailOffsetMm(), wantOffset)
+		if math.Abs(railSol.Placement.RailOffsetMm-wantOffset) > 1e-8 {
+			t.Errorf("SaddleRailSolution.Placement.RailOffsetMm = %.9f, want %.1f", railSol.Placement.RailOffsetMm, wantOffset)
 		}
-		railSnap := geometry.BRPPointFromSaddlePlacement(railSol.Placement())
-		if math.Abs(railSnap.RailOffsetMm-railSol.RailOffsetMm()) > 1e-12 || railSnap.Saddle != orig || railSnap.SeatpostSetbackMm != 15 {
+		railSnap := geometry.BRPPointFromSaddlePlacement(railSol.Placement)
+		if math.Abs(railSnap.RailOffsetMm-railSol.Placement.RailOffsetMm) > 1e-12 || railSnap.Saddle != orig || railSnap.SeatpostSetbackMm != 15 {
 			t.Errorf("rail snapshot mismatch for offset %.0f: %+v", wantOffset, railSnap)
 		}
 	}
@@ -945,7 +878,7 @@ func TestBRPPointFromSaddlePlacement_SingleSourceAndImmutable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SolveSaddleSTAForBRPTarget: %v", err)
 	}
-	staSnap := geometry.BRPPointFromSaddlePlacement(staSol.Placement())
+	staSnap := geometry.BRPPointFromSaddlePlacement(staSol.Placement)
 	if staSnap.Saddle != orig || staSnap.SeatpostSetbackMm != 15 || staSnap.RailOffsetMm != 6 {
 		t.Errorf("STA snapshot mismatch: %+v", staSnap)
 	}

@@ -106,21 +106,23 @@ Introduce a direct forward operation, conceptually:
 ```text
 placement = PlaceSaddle(bb, effectiveSTA, SaddleSetup{
     Saddle: saddleSpec,
-    AxialDistanceMm: axialDistance,
+    BBToClampAlongSeatAxisMm: bbToClampAlongSeatAxisMm,
     PostSetbackMm: postSetback,
     RailOffsetMm: railOffset,
 })
 ```
 
 This returns `(SaddlePlacement, error)`. Settings have named fields and use the
-existing `model.SaddleSpec`. The axial distance is an input already known to the
-caller; finding it from a requested BRP radius remains the solver's job.
+existing `model.SaddleSpec`. `BBToClampAlongSeatAxisMm` (the distance from BB
+along the effective seat axis to the perpendicular projection of the seatpost
+clamp) is an input already known to the caller; finding it from a requested BRP
+radius remains the solver's job.
 
 Use the existing private pose vocabulary to make this construction visible:
 
 ```text
 start at BB, oriented along the effective seat axis
-advance by axial distance
+advance by BBToClampAlongSeatAxisMm along the effective seat axis
 move perpendicular rearward/downward by post setback; record projected clamp
 start a world-horizontal reference at that clamp and turn by saddle rail pitch
 move backward along the rails by rail offset; record rail center
@@ -129,12 +131,13 @@ locate BRP and modeled sit-bone support from their saddle-local offsets
 
 Positive rail offset moves the saddle body rearward; negative offsets are legal.
 Pitch is world-relative, so it does not inherit seat-axis rotation. Post setback
-is perpendicular to the seat axis, not a horizontal translation. Zero axial
-distance and zero setback remain legal, including solver reference placements.
+is perpendicular to the seat axis, not a horizontal translation. Zero
+`BBToClampAlongSeatAxisMm` and zero setback remain legal, including solver
+reference placements.
 
 `SaddlePlacement` becomes an ordinary value containing the four landmarks
 (`SeatpostClamp`, `RailCenter`, `BRP`, `SitBones`) and the construction facts
-(saddle specification, axial distance, post setback, rail offset). Retain these
+(saddle specification, `BBToClampAlongSeatAxisMm`, post setback, rail offset). Retain these
 facts as copies so `BRPPointFromSaddlePlacement` still takes only the placement;
 do not restore duplicate specification/setting arguments to snapshot export.
 Callers check errors and treat a successful result as a snapshot. Mutation-proof
@@ -188,10 +191,11 @@ returning; removing checked result wrappers must not remove those checks.
 
 Adapt the existing tests; most needed evidence already exists:
 
-- Independent forward example: STA 60°, axial distance 100 mm, zero post setback,
-  rail offset +12 mm, level rails, local BRP (+32, 0) and support (−48, +10) give
-  clamp (−50, 50√3), rail center (−62, 50√3), BRP (−30, 50√3), and support
-  (−110, 50√3 + 10), all in millimeters.
+- Independent forward example: STA 60°, BB-to-clamp distance along the seat
+  axis (`BBToClampAlongSeatAxisMm`) 100 mm, zero post setback, rail offset +12 mm,
+  level rails, local BRP (+32, 0) and support (−48, +10) give clamp (−50, 50√3),
+  rail center (−62, 50√3), BRP (−30, 50√3), and support (−110, 50√3 + 10), all in
+  millimeters.
 - Perpendicular post-setback translation, signed rail movement with a fixed
   clamp, rigid translation, and nonzero world-relative pitch across different
   seat angles. Geometry queries agree with the corresponding forward movements.

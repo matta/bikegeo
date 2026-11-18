@@ -616,10 +616,10 @@ func BuildScene(
 		return BikeScene{}, err
 	}
 	placement := BRPPointFromSaddlePlacement(saddlePlacement)
-	brp := saddlePlacement.BRP()
-	sb := saddlePlacement.SitBones()
-	seatpostClamp := saddlePlacement.SeatpostClamp()
-	railCenter := saddlePlacement.RailCenter()
+	brp := saddlePlacement.BRP
+	sb := saddlePlacement.SitBones
+	seatpostClamp := saddlePlacement.SeatpostClamp
+	railCenter := saddlePlacement.RailCenter
 
 	reqRailOff := seat.RailOffsetMm
 	if fit.TargetSitBonesXMm < 0 {
@@ -628,7 +628,7 @@ func BuildScene(
 		if err != nil {
 			return BikeScene{}, fmt.Errorf("target saddle placement: %w", err)
 		}
-		reqRailOff = railSol.RailOffsetMm()
+		reqRailOff = railSol.Placement.RailOffsetMm
 	}
 	railMargin := seat.HalfRailWindowMm() - math.Abs(reqRailOff)
 
@@ -790,7 +790,7 @@ func (s BikeScene) SolveStemSpacerFit(stemAngleDeg model.Deg) (StemSpacerFit, bo
 // TargetPointError returns RequiredStemClamp - StemClamp (equivalently TargetPoint - EvaluatedCockpitPoint).
 func (s BikeScene) TargetPointError() geom2d.Vec2 { return s.RequiredStemClamp.Sub(s.StemClamp) }
 
-// SeatpostExtensionMm estimates exposed axial length for the installed saddle.
+// SeatpostExtensionMm estimates exposed length along the effective seat axis for the installed saddle.
 func (s BikeScene) SeatpostExtensionMm() (float64, bool) {
 	return s.SaddlePlacement.SeatpostExtension(s.Frame.SeatTubeLengthMm.OrZero())
 }

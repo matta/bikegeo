@@ -21,13 +21,6 @@ type pose2 struct {
 	axisX  geom2d.Vec2
 }
 
-func identityPose2() pose2 {
-	return pose2{
-		origin: geom2d.Origin(),
-		axisX:  geom2d.Vec2{X: 1},
-	}
-}
-
 // newPose2 creates a right-handed 2D pose at origin whose local +X axis points
 // along heading (counter-clockwise from world +X).
 func newPose2(origin geom2d.Point2, heading geom2d.Angle) pose2 {

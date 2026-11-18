@@ -128,8 +128,8 @@ func (db *docb) saddles(v url.Values) int {
 			db.fail("%v", err)
 			return 1
 		}
-		refSTA := refSol.EffStaDeg()
-		reference := geometry.BRPPointFromSaddlePlacement(refSol.Placement())
+		refSTA := refSol.EffStaDeg
+		reference := geometry.BRPPointFromSaddlePlacement(refSol.Placement)
 		lines := []string{fmt.Sprintf("Start with a centered %s at %.0f mm radial BRP height and %.1f mm SIT setback, using the comparison's zero-setback dropper and assumed %.0f mm clamp footprint.", sqlab.Name, saddleHeight, sitBoneSetback, model.DefaultSeatpostClampLengthMm)}
 		for _, target := range saddles {
 			if target.ID == sqlab.ID {

@@ -225,7 +225,7 @@ func AnalyzeBikeFitWithSaddle(
 	if err != nil {
 		return model.BikeFitAnalysis{}, fmt.Errorf("ideal seat tube angle: %w", err)
 	}
-	idealSTA := idealStaSol.EffStaDeg()
+	idealSTA := idealStaSol.EffStaDeg
 
 	return model.BikeFitAnalysis{
 		StructuralA2c:       activeStructuralA2c,

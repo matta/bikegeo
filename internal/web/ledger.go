@@ -204,10 +204,10 @@ func buildComputationLedger(id, title string, sc geometry.BikeScene, cfr *model.
 		[]string{
 			"3. Rear Cockpit",
 			"Seatpost Extension Estimate",
-			"Solved axial clamp distance − published seat tube length",
+			"Solved BB-to-clamp distance along seat axis − published seat tube length",
 			func() string {
 				if stl, ok := sc.Frame.SeatTubeLengthMm.Get(); ok {
-					return fmt.Sprintf("%.1f − %.1f mm", sc.SaddlePlacement.SeatAxisDistanceMm, stl)
+					return fmt.Sprintf("%.1f − %.1f mm", sc.SaddlePlacement.BBToClampAlongSeatAxisMm, stl)
 				}
 				return "Seat tube length unavailable"
 			}(),

@@ -94,7 +94,7 @@ func CalculateUniversalCompromiseSTA(
 		if err != nil {
 			return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA saddle %q centered: %w", s.ID, err)
 		}
-		sta0 := centeredSol.EffStaDeg()
+		sta0 := centeredSol.EffStaDeg
 		_, half, fitsClamp := s.ClampWindowMm(clampLengthMm)
 		if !fitsClamp {
 			allClampsFit = false
@@ -108,8 +108,8 @@ func CalculateUniversalCompromiseSTA(
 			if err != nil {
 				return UniversalCompromiseStaResult{}, fmt.Errorf("compromise STA saddle %q margin endpoint (%+.1f mm): %w", s.ID, -margin, err)
 			}
-			mMin := solMin.EffStaDeg()
-			mMax := solMax.EffStaDeg()
+			mMin := solMin.EffStaDeg
+			mMax := solMax.EffStaDeg
 			if mMin > mMax {
 				mMin, mMax = mMax, mMin
 			}
@@ -148,7 +148,7 @@ func CalculateUniversalCompromiseSTA(
 			if err != nil {
 				return 0, 0, fmt.Errorf("STA %.2f° saddle %q: %w", sta, sf.spec.ID, err)
 			}
-			r := sol.RailOffsetMm()
+			r := sol.Placement.RailOffsetMm
 			if i == 0 {
 				lo, hi = r, r
 			} else {
@@ -199,7 +199,7 @@ func CalculateUniversalCompromiseSTA(
 		offsets = append(offsets, SaddleClampOffset{
 			SaddleID:   sf.spec.ID,
 			SaddleName: sf.spec.Name,
-			OffsetMm:   sol.RailOffsetMm(),
+			OffsetMm:   sol.Placement.RailOffsetMm,
 		})
 	}
 
@@ -252,8 +252,8 @@ func CalculateIdealSeatTubeAngle(
 	if err != nil {
 		return IdealStaResult{}, fmt.Errorf("ideal STA saddle %q centered: %w", saddle.ID, err)
 	}
-	idealSTA := centeredSol.EffStaDeg()
-	railCenterSetback := -centeredSol.Placement().RailCenter().X
+	idealSTA := centeredSol.EffStaDeg
+	railCenterSetback := -centeredSol.Placement.RailCenter.X
 	stSetback := railCenterSetback - seatpostSetbackMm*idealSTA.Angle().Sin()
 	if !isFinite(railCenterSetback) || !isFinite(stSetback) {
 		return IdealStaResult{}, fmt.Errorf("ideal STA saddle %q setback overflow", saddle.ID)
@@ -273,8 +273,8 @@ func CalculateIdealSeatTubeAngle(
 		if err != nil {
 			return IdealStaResult{}, fmt.Errorf("ideal STA saddle %q clamp max endpoint (%+.1f mm): %w", saddle.ID, maxClamp, err)
 		}
-		sta1 := solMin.EffStaDeg()
-		sta2 := solMax.EffStaDeg()
+		sta1 := solMin.EffStaDeg
+		sta2 := solMax.EffStaDeg
 		slackestSTA = min(sta1, sta2)
 		steepestSTA = max(sta1, sta2)
 
@@ -288,8 +288,8 @@ func CalculateIdealSeatTubeAngle(
 		if err != nil {
 			return IdealStaResult{}, fmt.Errorf("ideal STA saddle %q margin max endpoint (%+.1f mm): %w", saddle.ID, marginMaxClamp, err)
 		}
-		mSta1 := mSolMin.EffStaDeg()
-		mSta2 := mSolMax.EffStaDeg()
+		mSta1 := mSolMin.EffStaDeg
+		mSta2 := mSolMax.EffStaDeg
 		marginSlackSTA = min(mSta1, mSta2)
 		marginSteepSTA = max(mSta1, mSta2)
 	}
@@ -341,8 +341,8 @@ func TranslateSaddleFit(
 	if err != nil {
 		return SaddleTranslationResult{}, fmt.Errorf("translate saddle fit: %w", err)
 	}
-	targetClamp := sol.RailOffsetMm()
-	targetPoint := BRPPointFromSaddlePlacement(sol.Placement())
+	targetClamp := sol.Placement.RailOffsetMm
+	targetPoint := BRPPointFromSaddlePlacement(sol.Placement)
 	return SaddleTranslationResult{
 		ReferenceSaddle:      reference.Saddle,
 		TargetSaddle:         targetSaddle,

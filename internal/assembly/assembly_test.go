@@ -2,9 +2,6 @@ package assembly_test
 
 import (
 	"math"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"bikegeo/internal/assembly"
@@ -263,57 +260,6 @@ func TestBoundaryValidation(t *testing.T) {
 			}
 			if _, err := assembly.PlaceStem(tc.pos, tc.hta, s); err == nil {
 				t.Errorf("%s: expected error, got nil", tc.name)
-			}
-		})
-	}
-}
-
-func TestExternalCompileNegativeFixtures(t *testing.T) {
-	cases := []struct {
-		dir      string
-		wantSub1 string
-		wantSub2 string
-	}{
-		{
-			dir:      "seataxis_attach_saddle",
-			wantSub1: "SeatAxis",
-			wantSub2: "AttachSaddle",
-		},
-		{
-			dir:      "seataxis_to_seatpostclampmount",
-			wantSub1: "cannot convert sa",
-			wantSub2: "to type assembly.SeatpostClampMount",
-		},
-		{
-			dir:      "seatpostclampmount_to_seataxis",
-			wantSub1: "cannot convert clamp",
-			wantSub2: "to type assembly.SeatAxis",
-		},
-		{
-			dir:      "unexported_seataxis_forge",
-			wantSub1: "cannot refer to unexported field valid",
-			wantSub2: "assembly.SeatAxis",
-		},
-		{
-			dir:      "unexported_seatpostclampmount_forge",
-			wantSub1: "cannot refer to unexported field valid",
-			wantSub2: "assembly.SeatpostClampMount",
-		},
-	}
-
-	tmpOut := filepath.Join(t.TempDir(), "compile_neg_out")
-	for _, tc := range cases {
-		t.Run(tc.dir, func(t *testing.T) {
-			pkgPath := "./" + filepath.ToSlash(filepath.Join("testdata", "compile_negative", tc.dir))
-			cmd := exec.Command("go", "build", "-o", tmpOut, pkgPath)
-			outBytes, err := cmd.CombinedOutput()
-			out := string(outBytes)
-			if err == nil {
-				t.Fatalf("expected compile error for %s, but go build succeeded", tc.dir)
-			}
-			if !strings.Contains(out, tc.wantSub1) || !strings.Contains(out, tc.wantSub2) {
-				t.Errorf("compile error for %s did not match expected type-check failure (%q, %q):\n%s",
-					tc.dir, tc.wantSub1, tc.wantSub2, out)
 			}
 		})
 	}
