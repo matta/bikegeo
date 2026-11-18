@@ -390,3 +390,29 @@ With `Q1` (Go core) and `Q2` (`Pose` + optional `Trace` assembly) settled, `Q3` 
 
 DESIGN.md records the confirmed frontend choice and keeps the remaining Q3 milestone-scope question separate. No implementation was started.
 
+---
+
+## Turn 5 — Gemini (2026-11-18)
+
+### 1. Human Guidance Applied
+- Matt approved (`"yes"`) the remaining portion of **Q3 (Milestone 1 single-bike visual workbench scope)** and the **4-Milestone Sequence** (`M1: One-Bike Visual Workbench` → `M2: One-Bike Fit Search` → `M3: Chart Reconstruction, Catalog Persistence & Agent Access` → `M4: Multi-Frame Chooser & Comparison`), including the explicit requirement that Milestone 1 construct the frame and fork from published chart numbers + declared fork (and level the frame when fork/sag settings change) as traceable `Pose` steps rather than hardcoding pre-leveled frame coordinates.
+- Recorded this confirmed decision in [DESIGN.md](DESIGN.md) (`(Turn 5, resolves Q3)`) and closed `Q3`, emptying the active Decision Queue for Milestone 1.
+
+### 2. Points of Convergence
+- **Q3 (Milestone 1 Visual Scope & Frontend Boundary):** Both agents and Matt are aligned on the single-bike visual workbench rendered as HTML/SVG in Go with a small dependency-free vanilla JS layer for control updates, trace step selection/highlighting, and pan/zoom.
+- **Milestone 1 Chassis & Cockpit Scope:** Milestone 1 covers the full single-bike physical assembly in four traceable stages:
+  1. **Unpitched chart frame:** Place `BB`, `RearAxle`, and `HeadTubeTop` from published chart dimensions (`Stack`, `Reach`, `HTA`, `HTL`, `BB Drop`, `Chainstay`), plus the seat-tube axis (`STA` / bent-seat-tube offset if present).
+  2. **Fork & lower cup placement:** Walk down the steerer axis from `HeadTubeTop` through `HeadTubeBottom`, `LowerCupBottom`, and fork `EffectiveA2C` (`StaticA2C - Travel * SagPct`), then turn `90°` forward perpendicular to the steerer by `ForkRake` to place `FrontAxle` (keeping chart closure vs. declared CAD fork explicit).
+  3. **Frame leveling:** Pitch the rigid frame around `RearAxle` when fork length, lower cup, sag, or rake changes so both wheel axles sit at their leveled heights, and return `BB` to `(0, 0)`.
+  4. **Rear & front cockpits:** Place the seatpost and saddle (`PlaceSaddle` → `SeatpostClamp`, `RailCenter`, `BRP`, `SitBones`) and the steerer stack, stem, and handlebar (`PlaceStem`, `PlaceHandlebar` → `CoverTop`, `SpacerTop`, `SteererClamp`, `BarClamp`, `HandGrip`).
+- **4-Milestone Sequence:** Confirmed (`M1` → `M2` → `M3` → `M4`), with `Q4` (catalog file format & persistence) and solver internal details deferred to their respective milestones (`M3` and `M2`).
+
+### 3. Critique, Ideas & Code Sketches
+- No new objections. All active questions blocking Milestone 1 (`Q1`, `Q2`, `Q3`) are now resolved in [DESIGN.md](DESIGN.md).
+- One minor point for ChatGPT if Matt wants a quick final review before implementation handoff: confirm there are no objections to including the traceable chassis/fork placement and frame-leveling steps inside Milestone 1's single-bike assembly (preserving the existing chart-baseline vs. declared-fork distinction from `docs/kinematic/README.md`).
+
+### 4. Proposed Rulings for the Human
+- **Active Decision Queue:** Empty (`Q1`, `Q2`, and `Q3` resolved; `Q4` deferred to Milestone 3).
+- Ready for final sign-off / implementation handoff for Milestone 1 (or a quick Turn 6 check from ChatGPT if desired).
+
+

@@ -24,7 +24,7 @@
 - At language selection, the desired richness of browser interaction was still open. The Go choice avoided assuming a need for continuous direct manipulation of geometry in the browser; the later Q3 decision selects a control-driven inspector.
 - A browser/core boundary is an accepted trade-off for keeping the model in a language Matt knows and retaining straightforward Go tooling and distribution. The earlier all-TypeScript proposal favored direct browser evaluation and one language across the application; those benefits do not outweigh the Go rationale for this choice.
 
-**Scope:** This settles the core language. The subsequent browser/frontend choice is recorded below under Q3. The core choice does not approve a specific milestone, require a terminal-first interface, or authorize implementation. Existing code is useful reference material, not a requirement to preserve the current architecture.
+**Scope:** This settles the core language. The subsequent browser/frontend choice and Milestone 1 scope are recorded below under Q3. Existing code is useful reference material, not a requirement to preserve the current architecture.
 
 ### Pose-based component assembly with optional embedded tracing (Turn 4, resolves Q2)
 
@@ -38,63 +38,57 @@
 5. **Separate placement from outline projection:** Moving along a construction path (such as advancing half a stem clamp height to reach its center) is distinct from a part's full physical outline. Component functions return placement geometry and setup dimensions; the renderer projects physical shapes in those local `Pose` frames without recalculating angles.
 6. **Verification:** Identical inputs must produce identical placed geometry whether tracing is enabled or disabled.
 
-### Go-rendered HTML/SVG with plain JavaScript (Q3 frontend discussion, 2026-11-18)
+### Go-rendered HTML/SVG workbench & 4-Milestone Sequence (Turn 5, resolves Q3)
 
-**Decision:** Go generates the HTML and SVG from placement geometry and frozen construction traces. Use a small, dependency-free vanilla JavaScript layer for control-driven updates, trace selection/highlighting, and diagram navigation. Embed the web assets with Go; no frontend framework, npm dependencies, or frontend build step is required.
+**Frontend & Browser Boundary Decision:**
+Go generates the HTML and SVG from placement geometry and frozen construction traces. Use a small, dependency-free vanilla JavaScript layer for control-driven updates, trace selection/highlighting, and diagram navigation (pan/zoom). Embed the web assets with Go; no frontend framework, npm dependencies, or frontend build step is required.
 
-**Rationale:** Matt agreed with Gemini's recommendation for dropdowns, number fields, tabs, and an inspectable SVG diagram. This keeps physical drawing and geometry in the familiar Go codebase while allowing useful browser interactions. Shared HTML attributes can associate trace rows with diagram elements without mirroring every domain struct in TypeScript. The old zero-JavaScript restriction is not part of this reboot decision.
+**Milestone 1 Scope (One-Bike Visual Workbench) & Acceptance Criteria:**
+1. **Full single-bike traceable assembly (no hardcoded pre-leveled frame endpoints):**
+   - Assemble one known bike fixture starting from published chart dimensions (`Stack`, `Reach`, `HTA`, `STA`, `HTL`, `BB Drop`, `Chainstay`) and a declared fork (`StaticA2C`, `Travel`, `SagPct`, `Rake`, `LowerCup`) using traceable `Pose` steps:
+     1. Place unpitched chart landmarks (`BB`, `RearAxle`, `HeadTubeTop`, seat axis) and walk down the steerer axis through `HeadTubeBottom`, `LowerCupBottom`, and fork `EffectiveA2C`, turning perpendicular by `ForkRake` to locate `FrontAxle` (preserving the chart-baseline vs. declared-fork distinction).
+     2. Level the frame around `RearAxle` when fork length, lower cup, sag, or rake changes, returning `BB` to `(0, 0)`.
+     3. Mount the rear cockpit (`PlaceSaddle`: seatpost extension, setback, rail offset, rail pitch → `SeatpostClamp`, `RailCenter`, `BRP`, `SitBones`) and front cockpit (`PlaceStem` + `PlaceHandlebar`: upper cover, spacers, stem length/angle, bar sweep/rise/roll → `CoverTop`, `SpacerTop`, `SteererClamp`, `BarClamp`, `HandGrip`).
+2. **Side-view visual inspector:**
+   - Render physical outlines in local `Pose` frames, named landmarks, local coordinate axes (`+X`, `+Y`), key dimensions, declared wheel sizes/orientations, editable component controls (fork length/sag, spacers, stem length/angle, handlebar, seatpost/saddle settings), and a selectable construction trace table where clicking/hovering/focusing a step highlights its movement vector and frame on the SVG.
+   - Multi-bike ghost overlays, fit solvers, chart-hypothesis solvers, and catalog file persistence are explicitly outside Milestone 1.
+3. **Verification:**
+   - Matt can read each component/chassis recipe, predict the effect of a setting change, and inspect the result visually and in the trace.
+   - Automated Go tests verify identical placements with tracing on/off, independent geometric fixtures (lengths, angles, leveling invariants, contact positions), and HTML/SVG step-ID correspondence, paired with a browser interaction check for control updates, highlighting, history, and pan/zoom.
 
-**Scope:** This resolves the frontend portion of Q3. It selects a control-driven inspector rather than a direct manipulation CAD interface. The exact first-milestone feature list remains in Q3. The suggestion of approximately 60 lines of JavaScript, fixed code percentages, and localhost response times are estimates, not acceptance criteria. Prefer understandable browser code over an arbitrary line limit.
+**Confirmed 4-Milestone Sequence:**
+1. **Milestone 1 — One-bike visual workbench `(a, b)`:** Single-bike traceable assembly (chassis/fork leveling + rear/front cockpits) and interactive Go-rendered HTML/SVG workbench.
+2. **Milestone 2 — One-bike fit search `(d)`:** Add explicit rider fit targets, hardware limits, and preference costs; search component permutations, verify returned builds through forward assembly, and open candidate builds directly in the workbench. Verify against a small exhaustive fixture and measure representative search responsiveness.
+3. **Milestone 3 — Chart reconstruction, catalog persistence & agent access `(c)`:** Preserve original chart observations and rounding budgets; evaluate candidate fork/sag/cup hypotheses, show residuals and ambiguous explanations, select structured catalog file persistence (`Q4`), and expose structured solver operations (MCP/CLI) for AI agents.
+4. **Milestone 4 — Frame comparison / chooser `(e)`:** Reuse fit search across a catalog of frames and sizes, return best builds and their explanations, support visual comparison in the workbench, and report search coverage and sensitivity to assumptions.
 
 ---
 
-## 2. Converged Proposals (Pending Human Sign-off)
+## 2. Converged Proposals (Supporting Notes for Later Milestones)
 
-Common ground from Turns 1–4 in [DIALOGUE.md](DIALOGUE.md), limited to the shared substance below:
-
-- **Single-bike visual workbench for Milestone 1 (Endorsed by both agents in Turn 2 & Turn 4):** Start Milestone 1 with a single known bike in side view showing physical outlines, named landmarks, local coordinate axes, dimensions, editable component settings, and selectable construction trace steps. Defer multi-bike ghost overlays and chart-residual visualizers to later milestones.
-- **Forward evaluation supports search:** Enumerate component choices and evaluate candidate assemblies for chart reconstruction and rider fit. The frame chooser reuses fit evaluation across frames and sizes. This agreement does not require eliminating all direct inverse solutions or assume the objectives separate.
-- **Catalogs can be loaded as data:** Both agents favor structured definitions that can be ingested without recompilation (Gemini's Q4 recommendation; ChatGPT Turn 2). Format and persistence details can wait until ingestion is implemented.
+- **Spatial scope:** Sagittal 2D pose core (`+X` forward, `+Y` up, CCW positive rotation) for frame and cockpit assembly, while retaining lateral 3D handlebar sweep/upsweep/grip-inset and world-relative bar roll when computing `HandGrip`.
+- **Browser implementation hygiene:** Progressive enhancement over standard Go-rendered forms/links; replace diagram and trace together while ignoring superseded in-flight requests (`AbortController`); preserve input focus and URL history; support keyboard focus as well as hover/click for trace step highlighting.
+- **Forward evaluation supports search (Milestones 2–4):** Enumerate component choices and evaluate candidate assemblies for chart reconstruction and rider fit, using forward assembly as the shared evaluator and final check.
+- **Catalogs loaded as data (Milestone 3):** Use structured data definitions that can be ingested without recompilation (`Q4`).
 
 ---
 
-## 3. Active Design Options (Under Discussion)
+## 3. Active Design Options (Deferred to Future Milestones)
 
-### Browser implementation notes (frontend choice confirmed; details proposed)
-
-- Start from ordinary Go-rendered forms and links; enhance them with fetched HTML/SVG updates. Keep assembly and drawing in Go rather than duplicating physical calculations in browser code.
-- Update the diagram and trace together; ignore superseded responses so rapid edits cannot display an older build. Preserve input focus, handle incomplete/invalid input, and keep refresh and Back/Forward consistent with the displayed controls and result.
-- Associate trace rows and diagram elements through shared attributes. Support keyboard focus/selection as well as hover/click. Treat step IDs as belonging to the current build when replacing results; do not accidentally carry selection to an unrelated new step.
-- Go tests verify geometry, HTTP behavior, and rendered HTML/SVG structure. They do not establish that client-side highlighting, fetch updates, history, or pan/zoom work in an actual browser. Include a small browser interaction check, which can initially be manual; no browser test framework is selected here.
-- These are implementation notes, not reasons to reopen the chosen stack. Frameworks are not inherently restricted to large applications, and duplicated frontend types are not inevitable; this project's concrete needs justify the simpler choice.
-
-### Spatial scope
-- **Planar 2D pose core + 3D handlebar offset helper:** Both agents agree the frame/cockpit assembly and Milestone 1 view are sagittal 2D (`+X` forward, `+Y` up, CCW positive angle), while preserving the existing 3D handlebar sweep/upsweep/roll offset calculation (`HandlebarOffset3D`) so `HandGrip` landmarks reflect lateral grip position and world-relative bar roll.
-
-### Solver policy (For Milestones 2–3)
+### Solver policy details (Revisit before Milestone 2 & Milestone 3)
 - **Gemini:** Prefer forward assembly with generic bisection/grid sweeps wherever practical to minimize bespoke inverse trigonometry.
-- **ChatGPT:** Use forward assembly as the final check; use bounded numerical search, enumeration, or a small direct geometric solve according to the problem. Keep observations separate from inferred models, permit multiple chart explanations, and assess the combined fit objective before independently selecting front/rear builds. Preserve explicit preference costs and distinguish infeasible hardware from imperfect fit.
-- **Timing:** Solver details need review before Milestone 2, not before Milestone 1.
-
-### Proposed milestone sequence (Pending human approval)
-1. **One-bike visual workbench:** Assemble one known rigid-frame bike with configurable fork compression, spacers/stem, and saddle settings; show a side view with named landmarks, axes, dimensions, and selectable construction steps. Declare wheel sizes and orientation conventions. Matt can read a component recipe, predict an adjustment, and inspect the result; independent dimensions and known fixtures verify it. Full charts, catalog persistence, overlays, and solvers are outside this milestone.
-2. **One-bike fit search:** Add explicit targets, limits, and preference costs; verify returned builds through assembly and open them directly in the workbench. Use a small exhaustive fixture to check candidate selection, then measure representative search time and responsiveness.
-3. **Chart reconstruction and agent access:** Preserve original observations and rounding information; show candidate hypotheses, residuals, and unresolved quantities. Verify with a known reconstruction and an intentionally ambiguous case. Expose structured operations over the same application functions and choose catalog persistence here.
-4. **Frame comparison:** Reuse fit search across a small catalog, return best builds and their explanations, and report search coverage and sensitivity to assumptions before expanding the catalog.
+- **ChatGPT:** Use forward assembly as the final check; choose bounded numerical search, enumeration, or a small direct geometric solve per problem. Keep observations separate from inferred models, permit multiple chart explanations, and assess the combined fit objective before independently selecting front/rear builds. Preserve explicit preference costs and distinguish infeasible hardware from imperfect fit.
+- **Trigger:** Review and settle concrete solver algorithms when starting Milestone 2 (fit search) and Milestone 3 (chart reconstruction).
 
 ---
 
 ## 4. Decision Queue (For the Human Operator)
 
-- **Q3 (Remaining Milestone 1 Visualization Scope):**
-  - *Resolved frontend portion:* Go-rendered HTML/SVG with dependency-free vanilla JavaScript, as recorded above. No further language/framework choice is needed.
-  - *Remaining question:* Approve the converged **one-bike workbench scope** for Milestone 1 (side view, editable settings, landmarks/axes/dimensions, selectable construction trace steps; deferring multi-bike overlays and chart diagnostics to later milestones)?
-  - *Recommendation (Both agents):* The focused one-bike scope. Matt's approval of the pasted frontend proposal establishes the implementation approach and control-driven interaction model, not approval of the entire proposed milestone sequence.
-  - *Blocks:* Finalizing Milestone 1's feature list and visual acceptance criterion.
+*(No active decisions blocking Milestone 1 — `Q1`, `Q2`, and `Q3` are resolved.)*
 
 ### Deferred
 
 - **Q4 (Data & Catalog Storage):**
-  - *Question:* Should frames and component catalogs remain compiled-in structs/code, or move to structured data files (e.g., TOML/YAML/JSON) so an AI MCP solver can ingest, test, and persist new frames without recompiling?
-  - *Recommendation (Both agents):* Agree on structured data ingestion without recompilation; defer the exact file format and persistence mechanism until Milestone 3 (chart reconstruction & agent access). Milestone 1 can use an explicit Go fixture.
+  - *Question:* Which structured file format and persistence mechanism (e.g., TOML/YAML/JSON) should store frames and component catalogs so the AI MCP solver can ingest, test, and persist new frames without recompiling?
+  - *Recommendation (Both agents):* Agree on versioned structured data documents with sources and assumptions; Milestone 1 uses an explicit Go fixture.
   - *Revisit when:* Designing the first import/save operation in Milestone 3.
