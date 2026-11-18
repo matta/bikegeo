@@ -1,6 +1,6 @@
 # Canonical Design Intent (`bikegeo` Reboot)
 
-> Governed by [README.md](README.md). Only the Human Operator may move items into **Human-Confirmed Decisions**.
+> Governed by [README.md](README.md). Only the Human Operator approves decisions; agents may record explicit approval in **Human-Confirmed Decisions**, with its source.
 
 ---
 
