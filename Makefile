@@ -1,4 +1,4 @@
-.PHONY: all fix fmt vet exhaustive deadcode test check pre-commit build run serve watch watch-serve clean
+.PHONY: all fix fmt vet boundary exhaustive deadcode test check pre-commit build build-reboot run serve serve-reboot watch watch-serve clean
 
 export PATH := $(HOME)/go/bin:$(PATH)
 
@@ -13,6 +13,39 @@ fmt:
 vet:
 	go fmt ./...
 	go vet ./...
+
+# Enforce strict import isolation between the legacy tree and internal/reboot/.
+# Only *_parity_test.go files under internal/reboot/ may import legacy packages.
+boundary:
+	@bad="$$({ \
+	  find cmd/bikegeo-reboot -type f -name '*.go' -exec grep -HnE '"bikegeo/' {} +; \
+	  find internal/reboot -type f -name '*.go' ! -name '*_parity_test.go' -exec grep -HnE '"bikegeo/' {} +; \
+	} | grep -vE '"bikegeo/(internal/reboot|cmd/bikegeo-reboot)(/|")' || true)"; \
+	if [ -n "$$bad" ]; then \
+	  echo "$$bad"; \
+	  echo "boundary: reboot non-parity files must not import legacy bikegeo packages"; \
+	  exit 1; \
+	fi
+	@bad="$$(find cmd/bikegeo internal -path internal/reboot -prune -o -type f -name '*.go' \
+	  -exec grep -HnE '"bikegeo/(internal/reboot|cmd/bikegeo-reboot)(/|")' {} + || true)"; \
+	if [ -n "$$bad" ]; then \
+	  echo "$$bad"; \
+	  echo "boundary: legacy packages must not import reboot packages"; \
+	  exit 1; \
+	fi
+	@bad="$$(go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo-reboot \
+	  | grep -vE '^bikegeo/(cmd/bikegeo-reboot|internal/reboot)(/|$$)' || true)"; \
+	if [ -n "$$bad" ]; then \
+	  echo "$$bad"; \
+	  echo "boundary: cmd/bikegeo-reboot must not depend on legacy or third-party packages"; \
+	  exit 1; \
+	fi
+	@bad="$$(go list -deps ./cmd/bikegeo | grep -E '^bikegeo/(cmd/bikegeo-reboot|internal/reboot)(/|$$)' || true)"; \
+	if [ -n "$$bad" ]; then \
+	  echo "$$bad"; \
+	  echo "boundary: cmd/bikegeo must not depend on reboot packages"; \
+	  exit 1; \
+	fi
 
 # Every switch on an enum-like type must list all of its constants, even when it
 # has a default case. The linter is a `tool` dependency in go.mod, so it is
@@ -33,7 +66,7 @@ deadcode:
 test:
 	go test -v ./...
 
-check: vet exhaustive deadcode test
+check: vet boundary exhaustive deadcode test
 
 # Required pre-commit workflow: modernize with go fix, then run full check.
 pre-commit: fix check
@@ -44,11 +77,17 @@ watch:
 build:
 	go build -o bin/bikegeo ./cmd/bikegeo
 
+build-reboot:
+	go build -o bin/bikegeo-reboot ./cmd/bikegeo-reboot
+
 run: build
 	./bin/bikegeo compare
 
 serve: build
 	./bin/bikegeo serve --open
+
+serve-reboot: build-reboot
+	./bin/bikegeo-reboot serve --port 8081 --open
 
 watch-serve:
 	watchexec -r -e go,html,css -- go run ./cmd/bikegeo serve
