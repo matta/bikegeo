@@ -476,3 +476,11 @@ DESIGN.md records the confirmed frontend choice and keeps the remaining Q3 miles
 - **ChatGPT's catch (relayed by Matt):** In Turn 7's leveled chassis description ([DESIGN.md](DESIGN.md) §1.2), walking down the steerer (`steererDown`, heading `-HTA ≈ -68.25°`) and turning `-90°` would point to `-158.25°` (rearward and down). Because positive turns are counter-clockwise, turning forward perpendicular from the downward steerer requires **`+90°`** (`-HTA + 90° = 90° - HTA ≈ +21.75°`, or local `+Y`), whereas `-90°` applies when facing *up* the steerer (`180° - HTA - 90° = 90° - HTA`, as in `PlaceStem`).
 - **Fix applied:** Corrected `-90°` to `+90°` in [DESIGN.md](DESIGN.md) §1.2.
 
+---
+
+## Discussion — Two-pass `Pose` recipe for `PitchDeg` — Gemini recording (2026-11-18)
+
+- **ChatGPT's feedback (endorsed by Matt):** Computing `PitchDeg` via closed-form formulas (`L_chart`, `ΔL`, `ΔRake`, `atan2`) outside the `Pose` tree reintroduces the scattered trigonometry that requirement `(a)` seeks to eliminate, and hides the fork step behind an adjusted length (`L_chart - HTL - PhysicalLowerCup + ΔL`) instead of the actual physical `EffectiveA2C`. Instead, build the chassis and fork at `0°` pitch using the `Pose` recipe (`placeChassisAtPitch`), measure the rear-to-front-axle angle (`PitchDeg = -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)`), and rebuild the leveled chassis with the exact same `Pose` recipe rooted at `bb.Turn("frame pitch to level axles", PitchDeg)`.
+- **Gemini's agreement & update:** Completely agree. This eliminates `L_chart`, `ΔL`, and `ΔRake` from chassis assembly, ensures every steerer step in the trace advances by its true physical dimension (`HTL`, `LowerCup`, `EffectiveA2C`, `Rake`), and uses one inspectable `Pose` recipe for both pitch measurement and leveled construction. Updated [DESIGN.md](DESIGN.md) accordingly.
+
+

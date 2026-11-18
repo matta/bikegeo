@@ -46,9 +46,8 @@ Go generates the HTML and SVG from placement geometry and frozen construction tr
 **Milestone 1 Scope (One-Bike Visual Workbench) & Acceptance Criteria:**
 1. **Full single-bike traceable assembly (100% solver-free, no hardcoded pre-leveled frame endpoints):**
    - Assemble one known bike fixture (**Otso Fenrir Stainless**) starting from published chart dimensions (`Stack`, `Reach`, `HTA`, `STA`, `HTL`, `BB Drop`, `Chainstay`) and a declared fork (`StaticA2C`, `Travel`, `SagPct`, `Rake`, `LowerCup`) using traceable `Pose` steps:
-     1. Compute the frame pitch angle `PitchDeg` from the installed fork/cup/sag/rake change relative to the chart's CAD fork baseline (preserving the chart-baseline vs. declared-fork distinction).
-     2. Construct the leveled chassis and fork as a single rooted `Pose` tree starting at `BB (0, 0)` (see **Frame Pitch & Leveling as a Rooted `Pose` Tree** below).
-     3. Mount the rear cockpit (`PlaceSaddle`: direct forward `BBToClampAlongSeatAxisMm`, `PostSetbackMm`, `RailOffsetMm`, `RailPitchDeg` → `SeatpostClamp`, `RailCenter`, `BRP`, `SitBones`) and front cockpit (`PlaceStem` + `PlaceHandlebar`: upper cover, spacers, stem length/angle, bar sweep/rise/roll → `CoverTop`, `SpacerTop`, `SteererClamp`, `BarClamp`, `HandGrip`).
+     1. Build the chassis and fork at `0°` pitch using the single forward `Pose` recipe (`placeChassisAtPitch`), measure the rear-to-front-axle angle (`PitchDeg = -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)`), and rebuild the leveled chassis with the exact same `Pose` recipe rooted at `bb.Turn("frame pitch to level axles", PitchDeg)` (see **Frame Pitch & Leveling as a Rooted `Pose` Tree** below).
+     2. Mount the rear cockpit (`PlaceSaddle`: direct forward `BBToClampAlongSeatAxisMm`, `PostSetbackMm`, `RailOffsetMm`, `RailPitchDeg` → `SeatpostClamp`, `RailCenter`, `BRP`, `SitBones`) and front cockpit (`PlaceStem` + `PlaceHandlebar`: upper cover, spacers, stem length/angle, bar sweep/rise/roll → `CoverTop`, `SpacerTop`, `SteererClamp`, `BarClamp`, `HandGrip`).
    - Milestone 1 is **strictly solver-free**: the seatpost height control edits the forward physical input `BBToClampAlongSeatAxisMm` directly, while radial saddle height (`|BRP - BB|`) and estimated seatpost extension (`BBToClampAlongSeatAxisMm - SeatTubeLengthMm`) are displayed as measured dimension readouts.
 2. **Side-view visual inspector:**
    - Render physical outlines in local `Pose` frames, named landmarks, local coordinate axes (`+X`, `+Y`), key dimensions, declared wheel sizes/orientations, editable component controls (fork choice/length/sag, lower cup, spacers, stem length/angle, handlebar roll, seatpost clamp distance/setback, saddle rail offset/pitch), and a selectable construction trace table where clicking/hovering/focusing a step highlights its movement vector and frame on the SVG.
@@ -76,25 +75,25 @@ Go generates the HTML and SVG from placement geometry and frozen construction tr
 
 ### Frame Pitch & Leveling as a Rooted `Pose` Tree, Plus Coordinate Conventions (Turn 7)
 
-**1. Frame Pitch & Leveling Model:**
+**1. Frame Pitch & Leveling Model (Two-Pass `Pose` Recipe, Zero Closed-Form Trig):**
 In 2D rigid-body geometry, pitching a rigid frame around `RearAxle` by `PitchDeg` and translating it so `BB` returns to `(0, 0)` is algebraically identical to rotating the frame around `BB (0, 0)` by `PitchDeg`:
 `P_leveled = (RA + Rotate(PitchDeg, P - RA)) - (RA - Rotate(PitchDeg, RA)) = Rotate(PitchDeg, P)`
 
-To keep every chassis, fork, and cockpit step in a single unbroken `Pose` tree whose coordinates match the leveled SVG drawing at every step:
-1. **Unpitched Chart Baseline & Pitch Angle (`PitchDeg`):**
-   - From the published chart (`Stack`, `Reach`, `HTA₀`, `HTL`, `BbDrop`, `Chainstay`) and declared CAD fork (`CadStaticA2C`, `CadTravel`, `CadSagPct`, `CadRake`, `CadLowerCup`), compute the unpitched rear axle `RA₀ = (-sqrt(Chainstay² - BbDrop²), +BbDrop)` and unpitched chart front axle `FA_chart₀` (preserving the chart-implied front-end length `L_chart = (Stack - BbDrop + CadRake*cos(HTA₀)) / sin(HTA₀)` and recording the CAD closure residual `ResidualA2C = (L_chart - HTL) - (CadEffectiveA2C + CadLowerCup)`).
-   - Apply the installed fork/cup change (`ΔL = (InstalledEffectiveA2C + PhysicalLowerCup) - (CadEffectiveA2C + CadLowerCup)`, `ΔRake = InstalledRake - CadRake`) along and perpendicular to the unpitched steerer axis from `FA_chart₀` to locate the unpitched installed front axle `FA₀`.
-   - Compute `PitchDeg = -atan2(FA₀.Y - RA₀.Y, FA₀.X - RA₀.X)` (exact `0°` when `ΔL == 0` and `ΔRake == 0`).
-2. **Leveled Chassis & Cockpit Construction from `BB (0, 0)`:**
-   - Start at world origin `bb := OriginPose(&trace)` (`Origin = (0, 0)`, `+X` world forward, `+Y` world up).
-   - Rotate into the pitched frame attitude:
-     `frameRoot := bb.Turn("frame pitch from fork/cup/sag change", PitchDeg)`
-   - Construct all frame tubes and axes directly from `frameRoot` using the published chart dimensions:
-     - `rearAxle := frameRoot.Translate("chart rear axle", RA₀.X, chart.BbDropMm)`
-     - `headTubeTop := frameRoot.Translate("chart head tube top (reach, stack)", chart.ReachMm, chart.StackMm)`
-     - `steererUp := headTubeTop.Turn("steerer axis (180° - HTA)", 180 - chart.HtaDeg)` (points up the steerer at leveled `180° - (HTA₀ - PitchDeg)` for `PlaceStem`).
-     - Walk down the steerer (`steererDown := steererUp.Turn("down steerer", 180)`) through `HeadTubeBottom` (`HTL`), `LowerCupBottom` (`PhysicalLowerCup`), and fork crown/axle (`L_chart - HTL - PhysicalLowerCup + ΔL`), then turn `+90°` (counter-clockwise from the downward steerer `-HTA`, pointing forward and up at `90° - HTA`) by `InstalledRake` to place `FrontAxle` (which lands at `FrontAxle.Y == RearAxle.Y`).
-     - `seatAxis := frameRoot.Turn("seat tube axis (180° - STA)", 180 - chart.StaDeg)` (points up the leveled seat axis at `180° - (STA₀ - PitchDeg)` for `PlaceSaddle`).
+Rather than computing `PitchDeg` with separate closed-form trigonometry (`L_chart`, `ΔL`, `ΔRake`) outside the `Pose` recipe, both the pitch measurement and the leveled frame construction use **one single `placeChassisAtPitch(frameRoot Pose, chart FrameChart, fork ForkBuild)` recipe**:
+1. **The Single Chassis & Fork `Pose` Recipe (`placeChassisAtPitch`):**
+   Given a `frameRoot` pose at `BB (0, 0)` (at heading `0°` when unpitched, or heading `PitchDeg` when leveled):
+   - `rearAxle := frameRoot.Translate("chart rear axle", -sqrt(Chainstay² - BbDrop²), chart.BbDropMm)`
+   - `headTubeTop := frameRoot.Translate("chart head tube top (reach, stack)", chart.ReachMm, chart.StackMm)`
+   - `steererUp := headTubeTop.Turn("steerer axis (180° - HTA)", 180 - chart.HtaDeg)` (points up the steerer for `PlaceStem`).
+   - Walk down the steerer (`steererDown := steererUp.Turn("down steerer", 180)`) using actual physical component dimensions:
+     - `headTubeBottom := steererDown.Advance("head tube length", chart.HtlMm)`
+     - `lowerCupBottom := headTubeBottom.Advance("lower headset cup", fork.LowerCupMm)`
+     - `forkSteererBase := lowerCupBottom.Advance("fork effective A2C", fork.EffectiveA2cMm)`
+     - `frontAxle := forkSteererBase.Turn("fork rake direction", +90).Advance("fork rake", fork.RakeMm)` (counter-clockwise `+90°` from the downward steerer `-HTA`, pointing forward and up at `90° - HTA`).
+   - `seatAxis := frameRoot.Turn("seat tube axis (180° - STA)", 180 - chart.StaDeg)` (points up the seat axis for `PlaceSaddle`).
+2. **Two-Pass Leveling Using That Same Recipe:**
+   - **Pass 1 (Measure `PitchDeg` at `0°` pitch):** Evaluate `unpitched := placeChassisAtPitch(OriginPose(nil), chart, installedFork)` at `0°` pitch and measure the rear-to-front-axle angle (`PitchDeg = -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)`). *(Running this same recipe at `0°` pitch with the chart's `cadFork` also exposes the raw unpitched chart-closure residuals `FrontAxle.Y - RearAxle.Y` and `FrontAxle.X - RearAxle.X - Wheelbase` without separate trig formulas.)*
+   - **Pass 2 (Build the Leveled Chassis at `PitchDeg`):** Evaluate `leveled := placeChassisAtPitch(OriginPose(&trace).Turn("frame pitch to level axles", PitchDeg), chart, installedFork)`. Because Pass 2 rotates `frameRoot` by `PitchDeg = -axleAngle`, `leveled.FrontAxle` and `leveled.RearAxle` automatically sit at equal height (`FrontAxle.Y == RearAxle.Y`), and every step in the trace uses the actual physical dimensions (`HTL`, `LowerCup`, `EffectiveA2C`, `Rake`) in the exact leveled coordinates rendered on the SVG.
 
 **2. Self-Contained Coordinate & Sign Conventions:**
 
