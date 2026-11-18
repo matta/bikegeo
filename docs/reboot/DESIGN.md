@@ -93,7 +93,7 @@ To keep every chassis, fork, and cockpit step in a single unbroken `Pose` tree w
      - `rearAxle := frameRoot.Translate("chart rear axle", RA₀.X, chart.BbDropMm)`
      - `headTubeTop := frameRoot.Translate("chart head tube top (reach, stack)", chart.ReachMm, chart.StackMm)`
      - `steererUp := headTubeTop.Turn("steerer axis (180° - HTA)", 180 - chart.HtaDeg)` (points up the steerer at leveled `180° - (HTA₀ - PitchDeg)` for `PlaceStem`).
-     - Walk down the steerer (`steererDown := steererUp.Turn("down steerer", 180)`) through `HeadTubeBottom` (`HTL`), `LowerCupBottom` (`PhysicalLowerCup`), and fork crown/axle (`L_chart - HTL - PhysicalLowerCup + ΔL`), then turn `-90°` (forward perpendicular to the downward steerer) by `InstalledRake` to place `FrontAxle` (which lands at `FrontAxle.Y == RearAxle.Y`).
+     - Walk down the steerer (`steererDown := steererUp.Turn("down steerer", 180)`) through `HeadTubeBottom` (`HTL`), `LowerCupBottom` (`PhysicalLowerCup`), and fork crown/axle (`L_chart - HTL - PhysicalLowerCup + ΔL`), then turn `+90°` (counter-clockwise from the downward steerer `-HTA`, pointing forward and up at `90° - HTA`) by `InstalledRake` to place `FrontAxle` (which lands at `FrontAxle.Y == RearAxle.Y`).
      - `seatAxis := frameRoot.Turn("seat tube axis (180° - STA)", 180 - chart.StaDeg)` (points up the leveled seat axis at `180° - (STA₀ - PitchDeg)` for `PlaceSaddle`).
 
 **2. Self-Contained Coordinate & Sign Conventions:**

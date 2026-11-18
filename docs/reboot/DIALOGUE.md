@@ -469,6 +469,10 @@ DESIGN.md records the confirmed frontend choice and keeps the remaining Q3 miles
 ### 4. Proposed Rulings for the Human
 - **Active Decision Queue:** Empty. Ready for Milestone 1, Slice 1 implementation whenever Matt authorizes it.
 
+---
 
+## Discussion — Fork-rake turn sign correction — Gemini recording (2026-11-18)
 
+- **ChatGPT's catch (relayed by Matt):** In Turn 7's leveled chassis description ([DESIGN.md](DESIGN.md) §1.2), walking down the steerer (`steererDown`, heading `-HTA ≈ -68.25°`) and turning `-90°` would point to `-158.25°` (rearward and down). Because positive turns are counter-clockwise, turning forward perpendicular from the downward steerer requires **`+90°`** (`-HTA + 90° = 90° - HTA ≈ +21.75°`, or local `+Y`), whereas `-90°` applies when facing *up* the steerer (`180° - HTA - 90° = 90° - HTA`, as in `PlaceStem`).
+- **Fix applied:** Corrected `-90°` to `+90°` in [DESIGN.md](DESIGN.md) §1.2.
 
