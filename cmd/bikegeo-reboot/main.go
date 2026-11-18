@@ -11,8 +11,7 @@ import (
 	"runtime"
 	"strconv"
 
-	"bikegeo/internal/reboot/assembly"
-	"bikegeo/internal/reboot/pose"
+	"bikegeo/internal/reboot/web"
 )
 
 func main() {
@@ -57,44 +56,11 @@ func run(args []string) int {
 		}
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", handleStemPreview)
-	if err := http.Serve(ln, mux); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := http.Serve(ln, web.NewHandler()); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
 	return 0
-}
-
-func handleStemPreview(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-	tr := pose.NewTrace()
-	steererUp := pose.NewPose(pose.Point{X: 0, Y: 0}, pose.Deg(180.0-68.25), tr)
-	placed, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
-		UpperCoverMm:  11.0,
-		SpacersMm:     20.0,
-		ClampHeightMm: 40.0,
-		LengthMm:      60.0,
-		AngleDeg:      -6.0,
-	})
-	tr.Freeze()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	fmt.Fprintf(w, "bikegeo-reboot (Milestone 1 Slice 1a: Stem Pose & Trace)\n")
-	fmt.Fprintf(w, "BarClamp: (%.2f, %.2f) mm @ %.2f° [step %d]\n\n",
-		placed.BarClamp.Origin().X, placed.BarClamp.Origin().Y,
-		placed.BarClamp.HeadingDeg(), placed.BarClamp.StepID())
-	for _, s := range tr.Steps() {
-		fmt.Fprintf(w, "#%d (parent %d) %-7s %-24s %-10s -> (%.2f, %.2f) @ %.2f°\n",
-			s.ID, s.ParentID, s.Op, s.Label, s.Param, s.To.Origin.X, s.To.Origin.Y, s.To.HeadingDeg)
-	}
 }
 
 func openBrowser(url string) error {

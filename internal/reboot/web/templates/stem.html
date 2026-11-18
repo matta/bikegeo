@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bikegeo-reboot — Stem Workbench</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f6f2;
+      --surface: #ffffff;
+      --border: #d8d5cc;
+      --text: #1f2328;
+      --muted: #59636e;
+      --accent: #0969da;
+      --step-advance: #b35900;
+      --step-turn: #6f42c1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 1.5rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.35rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      background: #ddf4ff;
+      color: #0550ae;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(320px, 1.1fr) minmax(320px, 1fr);
+      gap: 1.25rem;
+      align-items: start;
+    }
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.75rem 0;
+      font-size: 1rem;
+    }
+    .summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.25rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .summary strong { color: var(--text); }
+    svg.diagram {
+      width: 100%;
+      height: auto;
+      max-height: 520px;
+      display: block;
+      background: #fcfcfa;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.4rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.82rem;
+    }
+    .op-advance { color: var(--step-advance); font-weight: 600; }
+    .op-turn { color: var(--step-turn); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>bikegeo-reboot</h1>
+    <span class="badge">Milestone 1 Slice 1 · Stem Workbench</span>
+  </header>
+
+  <div class="layout">
+    <section class="card" aria-label="Stem diagram">
+      <h2>Stem Assembly Preview</h2>
+      <div class="summary">
+        <span>HTA: <strong>{{printf "%.2f°" .HtaDeg}}</strong></span>
+        <span>Cover: <strong>{{printf "%.1f mm" .Setup.UpperCoverMm}}</strong></span>
+        <span>Spacers: <strong>{{printf "%.1f mm" .Setup.SpacersMm}}</strong></span>
+        <span>Clamp: <strong>{{printf "%.1f mm" .Setup.ClampHeightMm}}</strong></span>
+        <span>Stem: <strong>{{printf "%.1f mm @ %.1f°" .Setup.LengthMm .Setup.AngleDeg}}</strong></span>
+        <span>BarClamp: <strong class="mono" data-metric="bar-clamp">{{printf "(%.2f, %.2f) mm @ %.2f°" .BarClamp.Origin.X .BarClamp.Origin.Y .BarClamp.HeadingDeg}}</strong></span>
+      </div>
+
+      <svg class="diagram" viewBox="{{.ViewBox}}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Stem construction diagram">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#b35900"/>
+          </marker>
+          <marker id="turn-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#6f42c1"/>
+          </marker>
+        </defs>
+
+        <!-- World axes at HeadTubeTop (0, 0) -->
+        <g class="axes" stroke="#9aa4b2" stroke-width="0.9" stroke-dasharray="3 3">
+          <line x1="-25" y1="0" x2="120" y2="0"/>
+          <line x1="0" y1="25" x2="0" y2="-110"/>
+        </g>
+        <text x="116" y="-4" font-size="7" fill="#59636e" text-anchor="end">+X</text>
+        <text x="4" y="-102" font-size="7" fill="#59636e">+Y</text>
+
+        <!-- Physical component outlines in local Pose frames -->
+        <g class="outlines" fill="rgba(9, 105, 218, 0.08)" stroke="#1f2328" stroke-width="1.2">
+          {{range .Rects}}
+          <rect x="{{printf "%.2f" .X}}" y="{{printf "%.2f" .Y}}" width="{{printf "%.2f" .Width}}" height="{{printf "%.2f" .Height}}" rx="1.5" transform="{{.Transform}}" data-component="{{.Name}}"/>
+          {{end}}
+          <circle cx="{{printf "%.2f" .BarClampSVG.X}}" cy="{{printf "%.2f" .BarClampSVG.Y}}" r="{{printf "%.2f" .BarClampRadiusMm}}" data-component="bar-clamp-ring"/>
+        </g>
+
+        <!-- Trace step geometry -->
+        <g class="trace-steps">
+          {{range .SVGSteps}}
+          {{if eq .Op "advance"}}
+          <line x1="{{printf "%.2f" .X1}}" y1="{{printf "%.2f" .Y1}}" x2="{{printf "%.2f" .X2}}" y2="{{printf "%.2f" .Y2}}" stroke="#b35900" stroke-width="1.8" marker-end="url(#arrow)" data-step-id="{{.ID}}"/>
+          {{else if .Path}}
+          <path d="{{.Path}}" fill="none" stroke="#6f42c1" stroke-width="1.5" marker-end="url(#turn-arrow)" data-step-id="{{.ID}}"/>
+          {{else}}
+          <circle cx="{{printf "%.2f" .X1}}" cy="{{printf "%.2f" .Y1}}" r="4.5" fill="none" stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="2 2" data-step-id="{{.ID}}"/>
+          {{end}}
+          {{end}}
+        </g>
+
+        <!-- Named landmarks -->
+        <g class="landmarks">
+          {{range .Landmarks}}
+          <circle cx="{{printf "%.2f" .X}}" cy="{{printf "%.2f" .Y}}" r="2.8" fill="#0969da" stroke="#ffffff" stroke-width="1" data-landmark="{{.Name}}"{{if .StepID}} data-step-id="{{.StepID}}"{{end}}/>
+          <text x="{{printf "%.2f" .LabelX}}" y="{{printf "%.2f" .LabelY}}" font-size="7.5" fill="#1f2328" text-anchor="{{.Anchor}}">{{.Name}}</text>
+          {{end}}
+        </g>
+      </svg>
+    </section>
+
+    <section class="card" aria-label="Construction trace">
+      <h2>Construction Trace ({{len .Steps}} steps)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>Parent</th>
+            <th>Op</th>
+            <th>Label</th>
+            <th>Param</th>
+            <th>From</th>
+            <th>To</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Steps}}
+          <tr data-step-id="{{.ID}}">
+            <td class="mono">#{{.ID}}</td>
+            <td class="mono">{{if .ParentID}}#{{.ParentID}}{{else}}root{{end}}</td>
+            <td class="mono op-{{.Op}}">{{.Op}}</td>
+            <td>{{.Label}}</td>
+            <td class="mono">{{.Param}}</td>
+            <td class="mono">{{printf "(%.2f, %.2f) @ %.2f°" .From.Origin.X .From.Origin.Y .From.HeadingDeg}}</td>
+            <td class="mono">{{printf "(%.2f, %.2f) @ %.2f°" .To.Origin.X .To.Origin.Y .To.HeadingDeg}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </section>
+  </div>
+</body>
+</html>
