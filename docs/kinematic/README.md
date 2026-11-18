@@ -30,15 +30,16 @@ states the current direction.
   `HandlebarOffset3D` with named setup structs and plain landmark results;
   `geometry.placeFrontCockpit` routes scene construction, cockpit replacement,
   and handlebar calculations through them.
-- The saddle radius, rail-offset, and effective-STA solvers use forward assembly
-  and verify their results against the requested target.
+- Saddle placement now uses `PlaceSaddle`, named settings, plain landmarks, and
+  small geometry queries. The radius, rail-offset, and effective-STA solvers
+  retain forward verification and return ordinary results.
 - Saddle placements retain their construction facts; legacy snapshot export
   takes only the placement. This removes repeated arguments from callers.
 - Independent examples, transformation properties, and application tests cover
   the migrated behavior. Keep that evidence during simplification.
 
-The front-cockpit slice is complete. Saddle placement and its solvers still
-contain checked handles, getters, and repeated validation from earlier stages.
+Front-cockpit and saddle simplification are complete through `f7f949e`, including
+`BBToClampAlongSeatAxisMm` naming and removal of the compile-negative harness.
 Legacy `BikeScene` and `BRPPoint` remain ordinary mutable snapshots. This is not a
 whole-bike correctness proof or certification of physical hardware safety.
 
@@ -92,135 +93,116 @@ it protects a concrete, worthwhile property.
 Readability refactors must preserve these meanings. A change to the physical
 model needs a separate decision and independent evidence.
 
-## Next slice: simplify saddle placement and its result plumbing
+## Next slice: make frame-and-fork placement a readable recipe
 
-The front-cockpit simplification has been reviewed through `401dd1f`. Apply that
-style to the remaining saddle stages before expanding into chassis geometry.
-The opportunity is concrete: `assembly/saddle.go` still wraps a short placement
-recipe in constructors, validity flags, and repeatedly checked getters.
+The next seam is the chassis construction embedded in `geometry.BuildScene`:
+chart geometry, a fork change, frame leveling, and lower headset placement.
+Separate that recipe from cockpit placement and fit measurements. The goal is
+that a reviewer can follow the change of fork without decoding `chartL`, `dL`,
+`fa0`, and several similar axle positions across the larger scene function.
 
 ### Scope and intended shape
 
-Introduce a direct forward operation, conceptually:
+Introduce a private `placeChassis(frame, build)` operation in `geometry`, returning
+an ordinary result and an error. A small `chassis.go` is a suitable home for it
+and the existing frame-leveling types/helper. Keep this in `geometry`: it combines
+chart interpretation and leveling with placement, rather than defining a reusable
+physical component. Reuse `geom2d` operations; no exported pose API, new checked
+handles, or general frame builder is needed.
+
+The recipe should read as these steps:
 
 ```text
-placement = PlaceSaddle(bb, effectiveSTA, SaddleSetup{
-    Saddle: saddleSpec,
-    BBToClampAlongSeatAxisMm: bbToClampAlongSeatAxisMm,
-    PostSetbackMm: postSetback,
-    RailOffsetMm: railOffset,
-})
+evaluate the published chart and declared CAD fork separately
+calculate the changes in fork-plus-lower-cup length and fork rake
+move the chart front axle down the steerer by the length change
+move it forward perpendicular to the steerer by the rake change
+level the frame using the existing rear-axle rotation
+return BB to the origin
+locate the physical lower cup below the leveled head-tube bottom
 ```
 
-This returns `(SaddlePlacement, error)`. Settings have named fields and use the
-existing `model.SaddleSpec`. `BBToClampAlongSeatAxisMm` (the distance from BB
-along the effective seat axis to the perpendicular projection of the seatpost
-clamp) is an input already known to the caller; finding it from a requested BRP
-radius remains the solver's job.
+Use descriptive names for the two signed changes, calculate them once, and use
+the same values for axle placement and leveling. A short private operation such
+as `frontAxleAfterForkChange` can own the two directional movements. Keep its
+inputs/results ordinary and its directions explicit: increasing fork length
+moves the axle down the steerer; increasing rake moves it forward perpendicular
+to the steerer. Negative changes undo those movements.
 
-Use the existing private pose vocabulary to make this construction visible:
+Return the existing chart closure, leveled frame landmarks, pitch, lower-cup
+bottom, steerer axis, and effective/structural fork lengths needed by `BuildScene`.
+Group existing values rather than inventing a second scene or duplicating its
+inputs and derived metrics. `BuildScene` should call this recipe, place its two
+cockpits, and assemble measurements/results. Keep all existing `BikeScene`
+fields and consumers compatible.
 
-```text
-start at BB, oriented along the effective seat axis
-advance by BBToClampAlongSeatAxisMm along the effective seat axis
-move perpendicular rearward/downward by post setback; record projected clamp
-start a world-horizontal reference at that clamp and turn by saddle rail pitch
-move backward along the rails by rail offset; record rail center
-locate BRP and modeled sit-bone support from their saddle-local offsets
-```
+### Preserve the chart baseline explicitly
 
-Positive rail offset moves the saddle body rearward; negative offsets are legal.
-Pitch is world-relative, so it does not inherit seat-axis rotation. Post setback
-is perpendicular to the seat axis, not a horizontal translation. Zero
-`BBToClampAlongSeatAxisMm` and zero setback remain legal, including solver
-reference placements.
+The active scene starts from **ChartFrontAxle**, not **DeclFrontAxle**. Those can
+differ because published chart values and the declared CAD fork do not close
+exactly. This distinction is part of the existing model, not an error for this
+slice to correct.
 
-`SaddlePlacement` becomes an ordinary value containing the four landmarks
-(`SeatpostClamp`, `RailCenter`, `BRP`, `SitBones`) and the construction facts
-(saddle specification, `BBToClampAlongSeatAxisMm`, post setback, rail offset). Retain these
-facts as copies so `BRPPointFromSaddlePlacement` still takes only the placement;
-do not restore duplicate specification/setting arguments to snapshot export.
-Callers check errors and treat a successful result as a snapshot. Mutation-proof
-results and zero-value panic guarantees are no longer requirements.
+Express the active, unpitched axle as the chart axle plus the two fork-change
+movements. This is algebraically equivalent to the existing calculation from
+head-tube top using `ChartL + deltaStructuralA2c`. It exposes the reason for the
+baseline and avoids presenting a chart-adjusted distance as a catalog fork fact.
+When fork, sag, cup, and rake match the CAD configuration, both changes are zero:
+retain the exact zero-pitch path and published frame dimensions.
 
-### Solver integration without a solver rewrite
+Do not rebuild the active axle from the declared physical fork alone, alter
+manufacturer values, hide the closure residual, or move the lower cup to absorb
+it. The cup bottom remains the head-tube bottom moved down the active steerer by
+the physical cup stack. Both chart and declared-fork diagnostic points remain
+in their original, unpitched chart coordinates.
 
-Keep `SolveSaddleForBRPRadius`, `SolveSaddleForBRPTarget`, and
-`SolveSaddleSTAForBRPTarget` in `geometry`. Adapt their forward evaluations to
-`PlaceSaddle`. Preserve equations, root/branch choices, supported domains,
-parallel-axis rejection, and existing residual tolerances. Do not combine this
-with a general constraint solver or a numerical-algorithm cleanup.
+### Boundaries
 
-The solvers also need seat-axis direction, rearward rail direction, and the
-clamp-to-BRP displacement. Preserve these as small named geometry queries in
-`assembly`, sharing the pose/component calculations used by forward placement.
-They may be standalone functions with ordinary values and boundary errors;
-they must not require building staged mounts. Keep the query surface limited to
-these actual consumers. Do not move component trigonometry into solvers or
-estimate directions by subtracting two nearby placements.
-
-Simplify `SaddleRailSolution` and `SaddleStaSolution` to ordinary results too:
-the former carries its placement; the latter carries effective STA and its
-placement. Read solved rail offset from the placement rather than storing a
-second copy. Remove validity flags and getters that only guard access. Keep the
-existing solver entry points and adapt consumers mechanically. A successful
-solve still requires forward placement and the existing residual check before
-returning; removing checked result wrappers must not remove those checks.
-
-### Implementation boundaries
-
-1. Replace `SeatAxis` / `SeatpostClampMount` attachment stages and the checked
-   `Saddle` wrapper with direct placement and the needed geometry queries.
-   Remove superseded constructors, getters, and unused helpers after migration.
-   Prefer a few shared private helpers over another public builder hierarchy.
-2. Validate placement inputs at its public boundary and retain useful final
-   landmark checks. Do not require catalog identity, rail length, or clamp-window
-   membership to locate a saddle: synthetic geometry and out-of-window solutions
-   remain valid diagnostic results. Hardware feasibility stays with its existing
-   consumers. Keep solver validation/residual logic intact in this slice.
-3. Update `geometry/saddle_solve.go`, scene construction, snapshot export, and
-   result consumers in saddle fitting/swapping and their callers. Preserve error
-   propagation and candidate context all the way to reports. Never turn an error
-   into successful zero geometry or silently skip a failed candidate.
-4. Preserve height-dependent effective-STA resolution, reference-saddle transfer,
-   search/scoring objectives, rail-window reporting, and rendering conventions.
-   Do not alter catalog facts, default resolution, frame leveling, or chassis
-   assembly. Leave `BikeScene`, `BRPPoint`, and unrelated result APIs as they are.
+- Leave `EvaluateChartClosure`, `frontEndLength`, chart rounding budgets, and
+  residual definitions unchanged. Diagnostic callers use partial hypotheses,
+  including zero fork length; do not route them through stricter physical-build
+  validation as part of this extraction.
+- Retain the current `levelFrame2D` algorithm, rotation sign, rear-axle pivot,
+  BB recentering, and zero-change shortcut. Do not replace its pitch calculation
+  with one based on tiny rounded chart axle-height differences. Update its
+  names/location only as needed to read with the recipe.
+- Keep existing `BuildScene` input validation and propagate closure/placement
+  errors. Preserve the positive-wheelbase check before leveling. No duplicate
+  validation hierarchy or silent fallback geometry is needed.
+- Continue leveling axle centers. Grounding unequal wheel radii would change the
+  physical model and is deferred. Keep sag conventions, seat-angle adjustment,
+  bent-seat-tube resolution, cockpit placement, scoring, and reports unchanged.
+- Remove the superseded chassis calculation from `BuildScene`. This must improve
+  the recipe itself, especially its chart-versus-declared baseline, rather than
+  only moving the same abbreviated arithmetic into a helper.
 
 ### Evidence and stopping point
 
-Adapt the existing tests; most needed evidence already exists:
+Use the existing catalog-wide tests as the main regression evidence:
+`TestBuildScene_CADBaselineAndResiduals` and
+`TestBuildScene_LevelsBothAxlesOnRakeAndCupChanges`. Preserve their tolerances and
+exact CAD-baseline assertions, including zero pitch. Keep scene, analysis,
+validator, fit, and rendering tests passing without refreshing expected output
+just to accommodate the refactor.
 
-- Independent forward example: STA 60°, BB-to-clamp distance along the seat
-  axis (`BBToClampAlongSeatAxisMm`) 100 mm, zero post setback, rail offset +12 mm,
-  level rails, local BRP (+32, 0) and support (−48, +10) give clamp (−50, 50√3),
-  rail center (−62, 50√3), BRP (−30, 50√3), and support (−110, 50√3 + 10), all in
-  millimeters.
-- Perpendicular post-setback translation, signed rail movement with a fixed
-  clamp, rigid translation, and nonzero world-relative pitch across different
-  seat angles. Geometry queries agree with the corresponding forward movements.
-- Independent inverse examples and forward/inverse round trips for all three
-  solvers, including tangent, unreachable, and nearly parallel cases. Keep
-  existing residual tolerances and distinguish geometric success outside the
-  hardware window from a failed solve.
-- Snapshot facts and landmarks agree for synthetic and catalog saddles across
-  all three solvers. Changing an input or exported snapshot does not alias another
-  result; do not require public result fields themselves to be immutable.
-- Representative invalid/nonfinite inputs fail through placement and real
-  consuming boundaries. Keep successful baselines and end-to-end failure tests,
-  plus scene, saddle-swap, ideal/compromise-STA, scoring, and report regressions.
+Add only focused evidence where the distinction needs an independent example:
 
-Delete saddle compile-negative fixtures and zero-handle/getter-panic tests that
-only enforce retired guarantees, including those embedded in otherwise useful
-solver tests. Remove the compile-negative harness if no fixtures remain. Keep
-independent numerical assertions; a forward/inverse round trip alone can hide
-an error shared by both paths.
+- At HTA 60°, increasing fork-plus-cup length by 20 mm and rake by 10 mm moves
+  the unpitched axle by `(10 + 5√3, 5 − 10√3)` mm. Test the two contributions and
+  their signs, including a decrease, independently of the implementation formula.
+- A synthetic chart with a deliberately nonzero declared-fork residual still
+  preserves its chart baseline when the build matches the CAD configuration.
+  Changing the fork starts from that chart axle and leaves the diagnostic
+  residuals unchanged. Use the existing closure behavior as the fixed reference.
+- Retain cup-versus-fork-length equivalence, rigid frame distances, and equal
+  leveled axle heights across rake, sag, and cup changes. These already have
+  production coverage; adapt it rather than duplicating the test matrix.
 
 Run `go vet ./... && go test ./...` after code changes, then `make pre-commit`
-and the repository runtime-dependency check. Review any modernization separately.
+and the runtime-dependency check. Review any modernization separately.
 
-Stop after the production paths use the direct recipe, obsolete scaffolding is
-deleted, and behavior tests pass. Review the net change across placement, queries,
-solvers, and callers: fewer concepts and production lines should accompany the
-clearer recipe. Do not count code merely moved elsewhere as simplification.
-Chassis work and any deeper solver simplification need a separate next decision.
+Stop when `BuildScene` delegates chassis placement, the recipe makes the chart
+baseline and fork movements explicit, and existing geometry/report behavior is
+preserved. A small helper and result type are justified by that separation;
+additional stage types or a new geometry engine are not. Review this slice before
+changing chart closure, leveling mathematics, wheel grounding, or renderer geometry.
