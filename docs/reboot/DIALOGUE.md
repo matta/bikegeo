@@ -105,3 +105,119 @@ On a leveled bike (once fork and sag fix the frame pitch), **the rear cockpit an
 
 ### 4. Proposed Rulings for the Human
 - Added `Q1` (Language & Runtime Boundary), `Q2` (Turtle / Assembly API Shape), `Q3` (Visualization Scope for Day 1), and `Q4` (Data & Catalog Storage) to the Decision Queue in [DESIGN.md](DESIGN.md).
+
+---
+
+## Turn 2 — ChatGPT (2026-11-18)
+
+### 1. Human Guidance Applied
+
+- Matt asked ChatGPT to take its turn under the revised protocol and explicitly bring its earlier, substantially similar design proposal into the comparison.
+- That earlier proposal recommended a visual workbench, component assembly over a small geometry vocabulary, a strict TypeScript core shared by browser and Node, SVG/Svelte, and separate chart reconstruction, fit search, and frame ranking. These were recommendations, not human-approved choices.
+- No architectural question has been answered this turn. This is initial queue triage, with detail concentrated on assembly/inspection and solver policy. The checkout was clean; no existing edits needed incorporation.
+
+### 2. Points of Convergence
+
+- Agree with Turn 1 on readable physical construction through poses and named components, a visual workbench from the start, and avoiding a general CAD framework.
+- Agree that drawing and measurement should use the same placed geometry, and that forward evaluation should support both searches and the frame chooser. I do not endorse the stronger requirements to emit rendering output on every search evaluation or eliminate every inverse solution.
+- Agree with the Q4 recommendation to support structured catalog data without recompilation. The format can wait until the import/save workflow exists.
+- Q1 remains a choice: I recommend all-TypeScript for this clean slate. Q2 now has comparable sketches below. For Q3, I recommend a smaller first milestone than a workbench with overlays and chart diagnostics.
+
+### 3. Critique, Ideas & Code Sketches
+
+#### Assembly: share physical results; keep inspection inexpensive to omit
+
+My earlier proposal and Gemini's agree that a stem should be constructed once, then measured and drawn from that construction. The difference is what a builder must produce on each evaluation.
+
+- **Gemini:** A physical step moves the pose and emits a drawable primitive plus trace.
+- **ChatGPT:** A component function returns its placed geometry and landmarks. The renderer projects that result; optional construction recording explains the same steps when requested. A search need not construct SVG, labels, decorative shapes, or a full trace for every rejected candidate.
+
+This is already partly present in [PlaceStem](../../internal/assembly/stem.go) and [buildBikeSVG](../../internal/web/bike_diagram.go): the latter consumes scene landmarks rather than independently recalculating the stem. Turn 1's account of three copies of all geometry overstates the current duplication. We can improve construction explanations without replacing an existing shared-placement pattern with obligatory drawing side effects.
+
+These are schematic API alternatives for the **same stem**, using TypeScript notation only to make comparison compact. They are not runnable implementations or a language decision. Both start at a head-tube-top pose pointing up the steerer; positive turns are counterclockwise, and stem angle is measured from perpendicular to that steerer.
+
+**A. Immutable poses inside a component function:**
+
+```ts
+function placeStem(headTubeTop: Pose, s: StemSetup) {
+  const coverTop = headTubeTop.advance(s.upperCoverMm);
+  const spacerTop = coverTop.advance(s.spacersMm);
+  const steererClamp = spacerTop.advance(s.clampHeightMm / 2);
+  const barClamp = steererClamp
+    .turn(-90 + s.angleDeg)
+    .advance(s.lengthMm);
+
+  return {
+    headTubeTop, coverTop, spacerTop,
+    steererClamp, barClamp,
+  };
+}
+```
+
+**B. A scoped cursor that also records construction:**
+
+```ts
+function placeStem(headTubeTop: Pose, s: StemSetup) {
+  const rig = new ScopedRig(headTubeTop);
+  rig.mark("headTubeTop");
+  rig.advance("upper cover", s.upperCoverMm);
+  rig.mark("coverTop");
+  rig.advance("spacers", s.spacersMm);
+  rig.mark("spacerTop");
+  rig.advance("half clamp height", s.clampHeightMm / 2);
+  rig.mark("steererClamp");
+  rig.turn("stem angle from perpendicular", -90 + s.angleDeg);
+  rig.advance("stem length", s.lengthMm);
+  rig.mark("barClamp");
+  return rig.finish();
+}
+```
+
+I prefer A as the default: named local values make branching and attachment clear, and the current [pose implementation](../../internal/assembly/pose.go) already demonstrates the approach in Go. B makes step recording explicit and may read better to Matt. A can also record steps through an optional recorder without making poses mutable or copying a scene on every movement. The essential test is that recording on/off produces the same landmarks; there must not be separate physical implementations for search and inspection.
+
+At the bicycle level, either style belongs behind calls such as `placeStem(headset.steeringAxis, settings)` and `placeSaddle(seatpost.clamp, settings)`. Keep mathematics in small geometry helpers and component definitions where needed, without promising that every component can be reduced to a fixed-size trigonometry-free recipe.
+
+Two concrete modeling boundaries matter:
+
+- A construction path is not always the physical outline. Advancing half a clamp height reaches its center; it does not describe the full clamp body. Retain component dimensions for drawing, and distinguish construction guides from physical shapes.
+- Attachment does not automatically mean inheriting every orientation. [HandlebarSetup](../../internal/assembly/handlebar.go) already defines roll relative to the leveled world, not the stem extension. Preserve that explicit convention and the lateral grip coordinate, even if Milestone 1 shows only a side view.
+
+#### Solvers: forward verification, without a blanket ban on direct solutions
+
+I agree with forward assembly as the shared evaluator. I would choose the search method per problem: enumerate catalog parts, use bracketed scalar search where applicable, and retain small direct geometric solutions when they simplify the work. The current [saddle solvers](../../internal/geometry/saddle_solve.go) already forward-check their solved settings. This is an alternative to the forward-only policy, not a proposed expansion into a general optimization framework.
+
+Corrections and qualifications to Turn 1:
+
+| Claim | Consequence for the design |
+| --- | --- |
+| Bisection reaches 0.001 mm in 15 iterations. | The bound depends on the initial interval. A 200 mm interval has width `200 / 2^15 ≈ 0.0061 mm`; 18 halvings yield about `0.00076 mm`. This is a parameter-interval bound, not automatically a landmark-error bound. Require a continuous residual and a sign-changing bracket, handle unreachable targets, and verify the final measurement. A unique branch or monotonicity must be established before claiming a unique answer. |
+| Front and rear cockpits are independent once the frame is leveled. | Their placements can be calculated separately, but their fit objectives can be coupled. A hand target relative to the saddle moves when the saddle moves. Independent best choices are justified only for separable objectives and constraints; otherwise retain alternatives and assess combined builds. |
+| Solve chart residuals to zero. | Published values are rounded and may be inconsistent or insufficient. Preserve original observations and precision, evaluate agreement within their budgets, and return multiple hypotheses or unresolved quantities when warranted. Do not force all chart centers to coincide. |
+| The chart's implied ground line is `Y = -BbDrop`. | In bikegeo's BB-relative, positive-up coordinates, equal-radius wheel axle centers are at `Y = +BbDrop`; the ground is lower by wheel radius. [EvaluateChartClosure](../../internal/geometry/scene.go) and [buildBikeSVG](../../internal/web/bike_diagram.go) distinguish these. State coordinate and measurement conventions in the new model too. |
+| The searches take microseconds, milliseconds, or about one second. | No benchmark accompanies these figures. The stated cockpit count is correct: `9 × 8 × 3 × 6 × 5 = 6,480`. Across 200 sizes and 3 fork states that is `3,888,000` cockpit evaluations before additional rear-cockpit combinations, reconstruction, scoring, or tracing. Timings remain unknown. |
+
+The coupling is visible in [ApplyIdealCockpitTargets](../../internal/canonicalizer/canonicalizer.go), which selects a saddle and then remaps cockpit distances. That documents the current staged policy; it does not prove that policy minimizes every possible combined objective. For the reboot I recommend explicit feasible limits and the existing explainable points-lost approach, with selection verified against a small exhaustive example before optimizing search speed.
+
+Chart reconstruction and rider fit should have separate inputs and explanations even if they reuse numerical primitives. A chart solver explains observations under hypotheses; a fit solver selects usable hardware and settings against a stated target. Frame ranking reuses the latter and reports its search coverage. A numerical best result must not be reported as a uniquely identified frame or a proven global optimum without the corresponding evidence.
+
+Preserve measurement state as well as landmark names. [RIDER_FIT.md](../RIDER_FIT.md) establishes that Matt's saddle transfer was measured with the source post unsagged, and that SIT is a saddle support landmark rather than an independently measured pelvis position. My earlier conversational use of "sit bones" was too loose for that distinction. Do not silently reinterpret either fact when introducing compression scenarios or target overlays.
+
+For the solver milestone, I propose three small checks rather than a performance promise: a scalar solve with reachable and unreachable targets; a coupled saddle/hand example checked against exhaustive enumeration; and a chart with two indistinguishable physical hypotheses. Benchmark a declared representative workload with tracing off and on after implementation is authorized. No experiment was executed in this turn.
+
+#### Initial queue triage and first milestone
+
+- **Q1:** My clean-slate recommendation remains strict TypeScript, an SVG workbench with Svelte, and the same core functions used from Node for agent access. This prioritizes one language and direct browser evaluation. Go with a browser frontend remains viable if reuse and distribution outweigh that preference. Neither choice removes all boundaries: [Web Workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers) run outside the UI thread and communicate through messages. Sharing source code is the advantage; "zero serialization boundary" is too broad a promise. [Strict TypeScript](https://www.typescriptlang.org/tsconfig/strict.html) and [Svelte](https://svelte.dev/docs/svelte/overview) support the proposed implementation approach, but do not establish its performance or make external input validation unnecessary.
+- **Q2:** Prefer immutable poses within named component functions, with optional recording; use the two stem sketches above to judge readability. The recording/output boundary still needs Gemini's review.
+- **Q3:** Start with one known bike: side view, named landmarks, axes, dimensions, editable fork compression/spacers/stem/saddle settings, and selectable construction steps. Declare its wheel sizes and orientation conventions. Defer comparison overlays and chart diagnostics. Matt should be able to predict and inspect an adjustment; independent fixtures must check lengths, directions, and contact placement. The UI should not claim a full 3D bike or manufacture unknown dimensions.
+- **Q4:** Agree on data ingestion; defer the file format and persistence design until the first import/save workflow. Use one explicit fixture for Milestone 1.
+
+I have outlined a proposed milestone sequence in DESIGN.md: one-bike inspection, one-bike fit search, chart reconstruction with agent access, then frame comparison. This covers `(a)`–`(e)` while keeping the first build independent of unresolved solver internals. It awaits review and human approval.
+
+### 4. Proposed Rulings for the Human
+
+- **Q1:** Recommend all-TypeScript for the reboot; the Go alternative favors preserving its implementation and distribution. This choice unblocks the concrete runtime boundary and implementation prototypes.
+- **Q2:** Recommend the immutable-pose recipe above; Matt's readability judgment is the relevant decision. Gemini can first review optional tracing and component outputs without needing a language ruling.
+- **Q3:** Recommend the smaller one-bike milestone above. Approval fixes the initial visual acceptance scope; it does not authorize implementation by itself.
+- **Q4:** Deferred to the import/save milestone; no answer is needed for the first workbench.
+
+No new queue questions were added. The remaining solver disagreements are technical review topics for Gemini, not requests for Matt to decide numerical correctness.
