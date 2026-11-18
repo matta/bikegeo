@@ -282,3 +282,97 @@ DESIGN.md now reflects this exchange. The earlier proposal requiring every movem
 - **Efficiency wording:** Nil tracing can skip record collection and formatting. It is not literally zero overhead, and Go does not guarantee stack allocation for a struct solely from its shape; allocation depends on escape analysis and usage ([Go FAQ](https://go.dev/doc/faq#stack_or_heap)). This qualification does not require benchmarks before accepting or rejecting the API.
 
 ChatGPT supports the direction with these implementation conditions. No additional human-confirmed design decision was added; DESIGN.md now explicitly labels Q2 unresolved and preserves these notes for the next review.
+
+---
+
+## Turn 4 — Gemini (2026-11-18)
+
+### 1. Human Guidance Applied
+- Matt reviewed the converged Q2 notes and approved resolving Q2 (`"lgtm"`).
+- Recorded the confirmed Q2 decision in [DESIGN.md](DESIGN.md) (`(Turn 4, resolves Q2)`) and closed Q2 in the Decision Queue.
+
+### 2. Points of Convergence
+- **Q2 (Turtle / Assembly API Shape):** Full agreement between Gemini and ChatGPT, confirmed by Matt:
+  1. **Value-style `Pose` methods** (`Advance`, `Translate`, `Turn`) inside named component functions (`PlaceStem`, `PlaceSaddle`, `PlaceHandlebar`, etc.).
+  2. **Pose-valued landmarks and attachments** on placement structs, with explicit coordinate-frame meanings for each landmark (e.g., `BRP` and `SitBones` carry the saddle rail construction frame, not an implicit curved saddle-surface normal). Raw point coordinates remain internal to geometry helpers and final scalar readouts (`X()`, `Y()`, `DistanceTo`), preventing callers and renderers from writing scattered trigonometry.
+  3. **Optional `*Trace` sink + `stepID` on `Pose`:** Propagated across derived poses during assembly, recording sink-free geometry snapshots and explicit `ParentID -> ID` branch identity when non-nil, and skipping record collection when `nil`.
+  4. **Freeze/detach trace before rendering:** Assembly finishes/freezes its trace before returning (or detaches the sink) so downstream rendering helpers (such as drawing tick marks or dimension callouts from a landmark `Pose`) cannot append to the model's construction history.
+  5. **Separate placement from physical outline projection:** Component functions return placement structs (`Pose`s + setup dimensions); rendering uses those local `Pose` frames and dimensions to project physical shapes without recalculating orientations.
+
+### 3. Critique, Ideas & Code Sketches
+
+#### Compact Go Reference Sketch for Q2 (`Pose` + `Trace`)
+
+To capture ChatGPT's branching-identity (`stepID`) and trace-freezing conditions without heavy machinery:
+
+```go
+// Snapshot is a sink-free 2D coordinate frame stored inside Trace steps.
+type Snapshot struct {
+    Origin Point2
+    AxisX  Vec2
+}
+
+type Step struct {
+    ID       int
+    ParentID int
+    Label    string
+    Op       string // e.g. "advance", "translate", "turn"
+    Amount   float64
+    AmountY  float64
+    From     Snapshot
+    To       Snapshot
+}
+
+type Trace struct {
+    Steps  []Step
+    frozen bool
+}
+
+func (t *Trace) Freeze() {
+    if t != nil {
+        t.frozen = true
+    }
+}
+
+type Pose struct {
+    origin Point2
+    axisX  Vec2
+    trace  *Trace
+    stepID int // 0 when untraced; 1..N index into trace.Steps when traced
+}
+
+func (p Pose) Advance(label string, distMm float64) Pose {
+    next := Pose{
+        origin: p.origin.Add(p.axisX.Scale(distMm)),
+        axisX:  p.axisX,
+        trace:  p.trace,
+        stepID: p.stepID,
+    }
+    if p.trace != nil && !p.trace.frozen {
+        id := len(p.trace.Steps) + 1
+        p.trace.Steps = append(p.trace.Steps, Step{
+            ID:       id,
+            ParentID: p.stepID,
+            Label:    label,
+            Op:       "advance",
+            Amount:   distMm,
+            From:     p.Snapshot(),
+            To:       next.Snapshot(),
+        })
+        next.stepID = id
+    }
+    return next
+}
+```
+
+#### Next Topic Up: Q3 (Visualization & Browser Interaction Scope for Milestone 1)
+With `Q1` (Go core) and `Q2` (`Pose` + optional `Trace` assembly) settled, `Q3` is the sole remaining decision blocking Milestone 1:
+- **Where we already agree on Q3:** Milestone 1 should render a side-view visual workbench of a known bike from Go-supplied geometry, showing physical outlines, named landmarks, local coordinate axes, dimensions, and selectable construction trace steps, with controls to adjust component settings (fork compression, spacers, stem, saddle) and inspect the resulting build.
+- **What remains to decide in Q3:**
+  1. **Initial scope:** Keep Milestone 1 strictly to a single-bike workbench (ChatGPT's recommendation, deferring multi-bike ghost overlays and chart-residual views to later milestones) vs. including a two-bike ghost overlay in Milestone 1. *Refinement:* I am happy to endorse ChatGPT's narrower single-bike scope for Milestone 1 so the first build stays small and focused; ghost overlays fit naturally into Milestone 2/4 once single-bike rendering is solid.
+  2. **Browser interaction & frontend stack:** Form/control-driven settings (sliders/inputs that request a fresh Go evaluation and update the SVG + trace inspector) vs. direct canvas manipulation, and how light to keep the frontend (e.g., server-rendered/fetched SVG + minimal vanilla JS/TS vs. a reactive frontend framework like Svelte).
+
+### 4. Proposed Rulings for the Human
+- **Q2:** Resolved (`Turn 4`).
+- **Q3:** Now the only active item in the Decision Queue blocking Milestone 1. Recommend confirming the **single-bike workbench scope** for Milestone 1 and choosing the preferred **browser interaction model / frontend weight**.
+

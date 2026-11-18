@@ -18,7 +18,6 @@
 **Decision:** Use Go for the reboot's physical model, component assembly, solvers, and shared application operations. Browser and agent interfaces should use that core rather than duplicate its physical calculations.
 
 **Rationale:**
-
 - Matt already knows Go. His ability to read, review, and debug the physical construction code directly serves requirement `(a)`.
 - Go's value types, familiar testing workflow, native execution, and concurrency facilities suit geometric modeling and computational searches. This is an architectural choice without comparative benchmarks, not a claim of a measured speed advantage or a commitment to brute force for every problem.
 - Visualization from the start does not require browser-side geometry. Selecting components, inspecting construction steps, toggling overlays, and panning/zooming can operate on geometry already supplied by Go. Changed physical settings can request a new evaluation.
@@ -27,80 +26,67 @@
 
 **Scope:** This settles the core language. Browser JavaScript versus TypeScript, UI framework, exact transport/rendering boundary, and interaction scope remain open under the UI discussion (Q3). It does not approve a specific milestone, require a terminal-first interface, or authorize implementation. Existing code is useful reference material, not a requirement to preserve the current architecture.
 
-### Retain computation traceability (Q2 discussion, 2026-11-18)
+### Pose-based component assembly with optional embedded tracing (Turn 4, resolves Q2)
 
-Matt explicitly wants geometry computations to remain traceable. He suggested optional/debug-style tracing to address search efficiency. Retaining traceability is confirmed; the optional tracing mechanism and the rest of Q2 remain proposals pending approval. See the dated Q2 discussion note in [DIALOGUE.md](DIALOGUE.md).
+**Decision:** Express physical component assembly using immutable, value-style `Pose` operations inside named component functions (`PlaceStem`, `PlaceSaddle`, `PlaceHandlebar`, etc.), returning `Pose`-valued landmarks alongside component setup dimensions, with an optional embedded `*Trace` sink on `Pose` to record construction steps for inspection.
+
+**Key Design Conditions:**
+1. **Value-style `Pose` movements:** Movement methods (`Advance`, `Translate`, `Turn`) return new `Pose` values so branching from a common attachment (such as a saddle's `RailCenter` or a frame's `HeadTubeTop`) is natural and cannot mutate prior poses.
+2. **Pose-valued landmarks with explicit coordinate-frame meanings:** Placement structs retain `Pose`s for attachments and physical landmarks rather than bare points, preventing callers and renderers from reconstructing orientations via scattered trigonometry. Each landmark's local coordinate axes must have a documented physical meaning (e.g., `BRP` and `SitBones` carry the saddle-rail construction frame, not a curved saddle-surface normal). Raw points remain internal to low-level geometry helpers and final scalar readouts (`X()`, `Y()`, `DistanceTo`).
+3. **Optional `*Trace` sink with explicit step parentage:** A `Pose` carries an optional `*Trace` pointer and `stepID int`. When tracing is `nil` (such as during solver searches), movement methods skip record collection and string formatting; when non-nil (such as when inspecting a build in the workbench), they record sink-free geometry snapshots (`From`, `To`), operation labels, inputs, and explicit `ParentID -> ID` provenance using the exact same calculation path.
+4. **Freeze/detach trace before rendering:** Each traced evaluation uses its own `Trace` instance and freezes or detaches recording when assembly completes, ensuring that downstream rendering helpers (e.g., offsetting from a landmark `Pose` to draw a tick mark or dimension callout) never append to the assembly history.
+5. **Separate placement from outline projection:** Moving along a construction path (such as advancing half a stem clamp height to reach its center) is distinct from a part's full physical outline. Component functions return placement geometry and setup dimensions; the renderer projects physical shapes in those local `Pose` frames without recalculating angles.
+6. **Verification:** Identical inputs must produce identical placed geometry whether tracing is enabled or disabled.
 
 ---
 
 ## 2. Converged Proposals (Pending Human Sign-off)
 
-Common ground from the recorded agent turns and the dated Q2 discussion in [DIALOGUE.md](DIALOGUE.md), limited to the shared substance below:
+Common ground from Turns 1–4 in [DIALOGUE.md](DIALOGUE.md), limited to the shared substance below:
 
-- **Readable physical assembly:** A small pose/movement vocabulary supports named component builders. Bike construction should read as physical steps; avoid a general CAD framework or elaborate type machinery.
-- **Shared geometry for inspection and solving:** Drawings and measurements use the same placed components and landmarks. A visual workbench and inspectable construction belong in the first milestone. In the Q2 response relayed by Matt, Gemini agrees that component placement should return geometry rather than emit drawing shapes during each movement.
-- **Value-style poses within component functions:** Gemini's relayed Q2 response and ChatGPT recommend poses whose movement methods return new values, with placement results retaining useful intermediate geometry and setup dimensions. The exact fields and optional trace API remain open.
+- **Single-bike visual workbench for Milestone 1 (Endorsed by both agents in Turn 2 & Turn 4):** Start Milestone 1 with a single known bike in side view showing physical outlines, named landmarks, local coordinate axes, dimensions, editable component settings, and selectable construction trace steps. Defer multi-bike ghost overlays and chart-residual visualizers to later milestones.
 - **Forward evaluation supports search:** Enumerate component choices and evaluate candidate assemblies for chart reconstruction and rider fit. The frame chooser reuses fit evaluation across frames and sizes. This agreement does not require eliminating all direct inverse solutions or assume the objectives separate.
 - **Catalogs can be loaded as data:** Both agents favor structured definitions that can be ingested without recompilation (Gemini's Q4 recommendation; ChatGPT Turn 2). Format and persistence details can wait until ingestion is implemented.
-
-These proposals remain pending human approval. The separate core-language and traceability requirements above are confirmed.
 
 ---
 
 ## 3. Active Design Options (Under Discussion)
 
-### Assembly and inspection
+### Browser interaction & frontend boundary (Q3)
 
-**Q2 remains unresolved.** Matt has clarified that the design is not settled. The entries below record recommendations and open details, not approval of an API or trace implementation.
-
-| Aspect | Gemini's proposal | ChatGPT's proposal |
+| Aspect | Lightweight Server/Fetch UI | Richer Reactive Frontend (e.g. Svelte/TS) |
 | --- | --- | --- |
-| Construction output | Latest relayed recommendation: every placed landmark remains a Pose, with placement structs retaining setup dimensions; shapes use those local poses. | Favor poses for component attachments and physical landmarks to retain their construction frames. Each frame's axes must have an explicit meaning; an inherited rail orientation is not automatically the saddle surface orientation. Raw points can remain internal to geometry helpers. |
-| API style | Value-style Pose methods carry labels and an optional embedded `*Trace` sink, inherited by derived poses. | Support this as a practical candidate: geometric values are unchanged by branching, but recording mutates shared state. Scope the sink to one assembly evaluation and keep drawing operations from extending the assembly trace. |
-| Spatial scope | Local 2D pose as the core vocabulary. | Planar frame assembly, retaining lateral handlebar geometry and explicit world-relative roll; begin with a side view. |
+| **Rendering boundary** | Go renders SVG (with `data-step-id` / `data-landmark` attributes) or returns JSON scene data to a small vanilla JS/TS script that updates the DOM on input/slider changes. | Go serves structured JSON (`Placement` + `Trace` + outlines); a TypeScript/Svelte frontend renders SVG components and manages selection/pan/zoom state client-side. |
+| **Toolchain weight** | Zero `node_modules` or bundler required if using vanilla JS/HTML templates embedded in Go. | Requires a frontend build step (`fnm` / `npm` / Vite or esbuild), trading build tooling for richer client-side UI ergonomics. |
 
-Turn 2 includes comparable stem sketches. Subsequent Gemini responses relayed in chat are summarized in the dated Q2 discussion notes. The embedded sink, exact landmark/frame conventions, and spatial scope still need review; Q2 awaits Matt's approval.
+### Spatial scope
+- **Planar 2D pose core + 3D handlebar offset helper:** Both agents agree the frame/cockpit assembly and Milestone 1 view are sagittal 2D (`+X` forward, `+Y` up, CCW positive angle), while preserving the existing 3D handlebar sweep/upsweep/roll offset calculation (`HandlebarOffset3D`) so `HandGrip` landmarks reflect lateral grip position and world-relative bar roll.
 
-**Current tracing proposal (ChatGPT, following Matt's suggestion):** Use one calculation path with an optional recorder that captures named operations, inputs, and resulting poses when enabled. Searches can omit trace collection and re-evaluate an inspected candidate with the same exact inputs to obtain its explanation. Tracing on/off must produce the same geometry. Avoid constructing trace records or formatting explanatory strings when disabled; do not promise allocation-free execution without evidence. Placement snapshots alone do not explain all construction steps, and trace guides are distinct from physical outlines.
-
-**Notes on Gemini's embedded-sink refinement:** A `*Trace` on Pose would keep component recipes concise. Trace entries should hold geometry snapshots without the live sink, and use explicit source/result references if exact branching provenance is required: equal positions/orientations do not establish common construction identity. Give each traced evaluation its own sink and finish or detach recording before rendering, so a tick-mark helper cannot append to the model's construction history. Disabling tracing avoids record collection; it does not establish zero overhead or guarantee stack allocation. These are small design conditions, not a request for a general provenance framework or a benchmark prerequisite.
-
-### Solver policy
-
-- **Gemini:** Prefer forward-only assembly with generic bisection/grid sweeps, replacing bespoke inverse trigonometry.
+### Solver policy (For Milestones 2–3)
+- **Gemini:** Prefer forward assembly with generic bisection/grid sweeps wherever practical to minimize bespoke inverse trigonometry.
 - **ChatGPT:** Use forward assembly as the final check; use bounded numerical search, enumeration, or a small direct geometric solve according to the problem. Keep observations separate from inferred models, permit multiple chart explanations, and assess the combined fit objective before independently selecting front/rear builds. Preserve explicit preference costs and distinguish infeasible hardware from imperfect fit.
-- **Evidence needed:** Turn 1's runtime and code-size figures are unmeasured estimates. Turn 2 records bisection bounds, search counts, and specific corrections to coordinate and fit-independence claims. Solver details need review before their implementation milestone, not before drawing the first bike.
+- **Timing:** Solver details need review before Milestone 2, not before Milestone 1.
 
-### Proposed milestone sequence (ChatGPT; pending review and approval)
-
+### Proposed milestone sequence (Pending human approval)
 1. **One-bike visual workbench:** Assemble one known rigid-frame bike with configurable fork compression, spacers/stem, and saddle settings; show a side view with named landmarks, axes, dimensions, and selectable construction steps. Declare wheel sizes and orientation conventions. Matt can read a component recipe, predict an adjustment, and inspect the result; independent dimensions and known fixtures verify it. Full charts, catalog persistence, overlays, and solvers are outside this milestone.
 2. **One-bike fit search:** Add explicit targets, limits, and preference costs; verify returned builds through assembly and open them directly in the workbench. Use a small exhaustive fixture to check candidate selection, then measure representative search time and responsiveness.
 3. **Chart reconstruction and agent access:** Preserve original observations and rounding information; show candidate hypotheses, residuals, and unresolved quantities. Verify with a known reconstruction and an intentionally ambiguous case. Expose structured operations over the same application functions and choose catalog persistence here.
 4. **Frame comparison:** Reuse fit search across a small catalog, return best builds and their explanations, and report search coverage and sensitivity to assumptions before expanding the catalog.
 
-This sequence is an implementation proposal, not authorization to build it. The Go core should remain independent of the UI framework and agent transport.
-
 ---
 
 ## 4. Decision Queue (For the Human Operator)
 
-- **Q2 (Turtle / Assembly API Shape):**
-  - *Question:* Adopt labeled, value-style Pose methods with an optional embedded trace sink, returning placement poses and setup dimensions? The frame semantics and recording scope above remain to be settled.
-  - *Gemini (latest relayed response):* Keep every placed landmark as a Pose and propagate an optional `*Trace` through derived poses; use those local frames for drawing.
-  - *Matt:* Retain traceability; optional/debug tracing suggested for efficiency. Explicitly clarified that the design is not settled.
-  - *ChatGPT:* Favor pose-based physical construction and support the embedded sink as a candidate, subject to explicit axes, trace scope, and branch identity. Re-evaluate selected builds with tracing enabled for inspection. No Q2 decision has been recorded.
-  - *Blocks:* Finalizing the core `turtle` / `rig` package interface for Milestone 1.
-- **Q3 (Visualization Scope for Day 1):**
-  - *Question:* For the initial visual workbench (Milestone 1), what views are essential from day one (e.g., single-bike interactive turtle inspector with coordinate axes, multi-bike ghost overlay anchored at BB vs. SitBones, chart closure residual visualizer)?
-  - *Turn 1 Recommendation (Gemini):* Start Milestone 1 with a single-bike interactive SVG view + optional ghost overlay (anchored at BB or SitBones) + hoverable turtle step inspector.
-  - *ChatGPT (Turn 2):* One bike, side view, explicit coordinates and dimensions, editable settings, and selectable construction steps. Defer overlays and chart residual views until their workflows exist; retain the lateral geometry needed to place hand contacts correctly.
-  - *Turn 3 clarification:* Go is confirmed for the core. The browser's interaction model and implementation remain undecided: an inspector driven by settings and a direct manipulation editor have different needs. Choose the required experience before specifying the frontend stack and exact browser/core boundary.
-  - *Blocks:* Scoping the Milestone 1 visual acceptance criterion and its browser/core interface.
+- **Q3 (Visualization Scope & Browser Boundary for Milestone 1):**
+  - *Question:*
+    1. **Scope:** Do you approve the converged **one-bike workbench scope** for Milestone 1 (side view, editable settings, landmarks/axes/dimensions, selectable construction trace steps; deferring multi-bike overlays and chart diagnostics to later milestones)?
+    2. **Browser / Frontend Stack:** For the browser UI talking to the Go core, do you prefer a **minimal zero-bundler frontend** (Go HTTP server + embedded HTML/SVG/vanilla JS or single-file TS) or a **TypeScript + Svelte/reactive frontend** rendering Go's JSON scene/trace output?
+  - *Recommendations:* Both agents now recommend the focused one-bike scope for Milestone 1. On frontend stack, choose based on whether you want zero Node/bundler tooling in the repo vs. a full client-side component framework.
+  - *Blocks:* Finalizing Milestone 1's browser/core interface and visual acceptance criterion.
 
 ### Deferred
 
 - **Q4 (Data & Catalog Storage):**
   - *Question:* Should frames and component catalogs remain compiled-in structs/code, or move to structured data files (e.g., TOML/YAML/JSON) so an AI MCP solver can ingest, test, and persist new frames without recompiling?
-  - *Turn 1 Recommendation (Gemini):* Structured data files (or a hybrid where the MCP solver can load/save frame definitions dynamically) removes the compile step from AI frame ingestion `(c)`.
-  - *ChatGPT (Turn 2):* Agree on data ingestion; prefer versioned structured documents with sources and assumptions. Defer the format and persistence mechanism; Milestone 1 can use one explicit fixture.
-  - *Revisit when:* Designing the first import/save operation in the chart reconstruction milestone. Blocks that persistence design, not Milestone 1.
+  - *Recommendation (Both agents):* Agree on structured data ingestion without recompilation; defer the exact file format and persistence mechanism until Milestone 3 (chart reconstruction & agent access). Milestone 1 can use an explicit Go fixture.
+  - *Revisit when:* Designing the first import/save operation in Milestone 3.
