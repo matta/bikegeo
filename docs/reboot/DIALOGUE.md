@@ -415,4 +415,39 @@ DESIGN.md records the confirmed frontend choice and keeps the remaining Q3 miles
 - **Active Decision Queue:** Empty (`Q1`, `Q2`, and `Q3` resolved; `Q4` deferred to Milestone 3).
 - Ready for final sign-off / implementation handoff for Milestone 1 (or a quick Turn 6 check from ChatGPT if desired).
 
+---
+
+## Discussion — Q5 implementation isolation and transition — ChatGPT recording (2026-11-18)
+
+- **Matt's concern:** The product design is settled, but implementation organization is unspecified: greenfield versus reuse, old/new package isolation, executable naming, and eventual coexistence or replacement. The prior milestone list did not answer these operational questions.
+- **ChatGPT's recommendation:** Keep old packages and `cmd/bikegeo` in place. Create an independent production tree under `internal/reboot/` and a temporary `cmd/bikegeo-reboot` / `bin/bikegeo-reboot`. Use the same Go module, with no production imports in either direction between the implementations. Do not relocate everything into `internal/legacy/` or link both engines into one command.
+- **Reuse policy:** Carry forward source observations, provenance, physical conventions, and independent tests. Audit and port useful small primitives into the new packages as needed; do not depend on legacy types through runtime adapters. Test-only comparisons can use both implementations. Copy one sourced input fixture for Milestone 1 and derive its geometry; defer full catalog migration until Q4 is settled.
+- **Concrete execution proposal:** Added IMPLEMENTATION.md covering package ownership, separate run/build commands and ports, import checks, existing verification/dead-code requirements, and five runnable slices within the confirmed Milestone 1 scope. The first slice draws a stem with a trace; subsequent slices build the complete chassis, leveling, cockpits, and interactive inspector. This is an incremental route to the approved milestone, not a smaller replacement scope.
+- **Cutover proposal:** After Matt decides the reboot meets his needs, preserve the old revision in Git, explicitly retain/migrate useful data and workflows, retire old production packages, and promote the reboot to the canonical `bikegeo` executable and package paths. No automatic retirement follows from completing Milestone 1.
+- **Status:** Q5 is a new implementation-organization decision, not a reopening of Q1–Q3 or the four approved milestones. The arrangement remains proposed, with Matt's naming refinement below incorporated. No code was moved, no build wiring changed, and no implementation was started.
+- **Matt's naming refinement during this exchange:** Use `bikegeo-reboot` to match `internal/reboot/`, replacing ChatGPT's initial suggestion of `bikegeo-next`. The proposal now uses `cmd/bikegeo-reboot`, `bin/bikegeo-reboot`, `build-reboot`, and `serve-reboot` consistently. The rest of the implementation arrangement remains under discussion.
+
+---
+
+## Turn 6 — Gemini (2026-11-18)
+
+### 1. Human Guidance Applied
+- Matt approved **Q5** ([IMPLEMENTATION.md](IMPLEMENTATION.md)) with three specific requirements:
+  1. **Initial bike fixture:** Use the **Otso Fenrir Stainless** (`otso-fenrir-stainless`) as the Milestone 1 bike fixture.
+  2. **Strict self-containment with `*_parity_test.go` exception:** Under `cmd/bikegeo-reboot` and `internal/reboot/...`, **only files named `*_parity_test.go`** may import legacy `bikegeo/internal/...` packages. All production `.go` files and ordinary `*_test.go` files must be 100% self-contained so deleting `*_parity_test.go` and the old codebase at cutover requires zero edits to the permanent reboot test suite.
+  3. **Pre-commit enforcement:** Add shell + regex boundary checks (alongside `go list -deps`) to `make check` / `make pre-commit` in Slice 1 to enforce this import rule mechanically.
+- Recorded this confirmed decision in [DESIGN.md](DESIGN.md) (`(Turn 6, resolves Q5)`) and updated [IMPLEMENTATION.md](IMPLEMENTATION.md).
+
+### 2. Points of Convergence
+- Full agreement between Matt, ChatGPT, and Gemini on **Q5** ([IMPLEMENTATION.md](IMPLEMENTATION.md)).
+- The **Otso Fenrir Stainless** fixture is an ideal Milestone 1 testbed because it exercises the CAD rigid fork baseline (`495 mm` A2C, `54 mm` rake, `0 mm` CAD lower cup), the physical `12 mm` EC44 lower cup delta, and both rigid and `100 mm`/`120 mm` suspension forks (`506 mm` / `530 mm` static A2C, `44 mm` rake, sag) on a single frame.
+
+### 3. Critique, Ideas & Code Sketches
+- Added the concrete `find` + `grep -HnE` shell/regex boundary checks to [IMPLEMENTATION.md §4](IMPLEMENTATION.md) so Slice 1 can wire them directly into `Makefile` (`make boundary` inside `make check`).
+
+### 4. Proposed Rulings for the Human
+- **Active Decision Queue:** Empty (`Q1`, `Q2`, `Q3`, and `Q5` are all confirmed; `Q4` is deferred to Milestone 3).
+- Design and implementation transition planning are complete and ready for Milestone 1 Slice 1 whenever authorized.
+
+
 

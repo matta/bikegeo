@@ -45,7 +45,7 @@ Go generates the HTML and SVG from placement geometry and frozen construction tr
 
 **Milestone 1 Scope (One-Bike Visual Workbench) & Acceptance Criteria:**
 1. **Full single-bike traceable assembly (no hardcoded pre-leveled frame endpoints):**
-   - Assemble one known bike fixture starting from published chart dimensions (`Stack`, `Reach`, `HTA`, `STA`, `HTL`, `BB Drop`, `Chainstay`) and a declared fork (`StaticA2C`, `Travel`, `SagPct`, `Rake`, `LowerCup`) using traceable `Pose` steps:
+   - Assemble one known bike fixture (**Otso Fenrir Stainless**) starting from published chart dimensions (`Stack`, `Reach`, `HTA`, `STA`, `HTL`, `BB Drop`, `Chainstay`) and a declared fork (`StaticA2C`, `Travel`, `SagPct`, `Rake`, `LowerCup`) using traceable `Pose` steps:
      1. Place unpitched chart landmarks (`BB`, `RearAxle`, `HeadTubeTop`, seat axis) and walk down the steerer axis through `HeadTubeBottom`, `LowerCupBottom`, and fork `EffectiveA2C`, turning perpendicular by `ForkRake` to locate `FrontAxle` (preserving the chart-baseline vs. declared-fork distinction).
      2. Level the frame around `RearAxle` when fork length, lower cup, sag, or rake changes, returning `BB` to `(0, 0)`.
      3. Mount the rear cockpit (`PlaceSaddle`: seatpost extension, setback, rail offset, rail pitch → `SeatpostClamp`, `RailCenter`, `BRP`, `SitBones`) and front cockpit (`PlaceStem` + `PlaceHandlebar`: upper cover, spacers, stem length/angle, bar sweep/rise/roll → `CoverTop`, `SpacerTop`, `SteererClamp`, `BarClamp`, `HandGrip`).
@@ -61,6 +61,17 @@ Go generates the HTML and SVG from placement geometry and frozen construction tr
 2. **Milestone 2 — One-bike fit search `(d)`:** Add explicit rider fit targets, hardware limits, and preference costs; search component permutations, verify returned builds through forward assembly, and open candidate builds directly in the workbench. Verify against a small exhaustive fixture and measure representative search responsiveness.
 3. **Milestone 3 — Chart reconstruction, catalog persistence & agent access `(c)`:** Preserve original chart observations and rounding budgets; evaluate candidate fork/sag/cup hypotheses, show residuals and ambiguous explanations, select structured catalog file persistence (`Q4`), and expose structured solver operations (MCP/CLI) for AI agents.
 4. **Milestone 4 — Frame comparison / chooser `(e)`:** Reuse fit search across a catalog of frames and sizes, return best builds and their explanations, support visual comparison in the workbench, and report search coverage and sensitivity to assumptions.
+
+### Side-by-side `internal/reboot/` isolation, `*_parity_test.go` import rule & Otso Fenrir fixture (Turn 6, resolves Q5)
+
+**Decision:** Adopt the side-by-side implementation arrangement, five vertical Milestone 1 slices, and transition plan in [IMPLEMENTATION.md](IMPLEMENTATION.md):
+1. **Package & Binary Isolation:** Leave existing `cmd/bikegeo` and `internal/*` packages in place. Build the reboot under `cmd/bikegeo-reboot` (temporary binary `bin/bikegeo-reboot`, default port `8081`) and `internal/reboot/{pose,assembly,web}`.
+2. **Strict Self-Containment + `*_parity_test.go` Exception:**
+   - Production `.go` files and ordinary `*_test.go` files under `cmd/bikegeo-reboot` and `internal/reboot/...` must be 100% self-contained and may **never** import any legacy `bikegeo/...` package outside `cmd/bikegeo-reboot` and `internal/reboot/...`.
+   - **Only files named `*_parity_test.go`** under `internal/reboot/...` may import legacy `bikegeo/internal/...` packages for transitional side-by-side comparisons, so retiring the old codebase later only requires deleting `*_parity_test.go` alongside the old packages.
+   - Legacy packages may never import `bikegeo/internal/reboot/...` or `bikegeo/cmd/bikegeo-reboot/...`.
+   - Enforce these boundaries in `make check` / `make pre-commit` using shell + regex source checks and `go list -deps` (see [IMPLEMENTATION.md §4](IMPLEMENTATION.md)).
+3. **Initial Milestone 1 Bike Fixture:** Use the **Otso Fenrir Stainless** (`otso-fenrir-stainless`) as the Milestone 1 bike fixture (preserving its published chart values, `495 mm` / `54 mm` rigid CAD fork baseline with `0 mm` CAD lower cup, physical `12 mm` EC44 lower cup, and rigid + `100 mm`/`120 mm` suspension fork options, paired with the SQlab 610 Ergolux 2.1 saddle and Tumbleweed Persuader handlebar).
 
 ---
 
@@ -84,11 +95,11 @@ Go generates the HTML and SVG from placement geometry and frozen construction tr
 
 ## 4. Decision Queue (For the Human Operator)
 
-*(No active decisions blocking Milestone 1 — `Q1`, `Q2`, and `Q3` are resolved.)*
+*(No active decisions blocking Milestone 1 — `Q1`, `Q2`, `Q3`, and `Q5` are resolved.)*
 
 ### Deferred
 
 - **Q4 (Data & Catalog Storage):**
   - *Question:* Which structured file format and persistence mechanism (e.g., TOML/YAML/JSON) should store frames and component catalogs so the AI MCP solver can ingest, test, and persist new frames without recompiling?
-  - *Recommendation (Both agents):* Agree on versioned structured data documents with sources and assumptions; Milestone 1 uses an explicit Go fixture.
+  - *Recommendation (Both agents):* Agree on versioned structured data documents with sources and assumptions; Milestone 1 uses the explicit **Otso Fenrir Stainless** Go fixture.
   - *Revisit when:* Designing the first import/save operation in Milestone 3.

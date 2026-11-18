@@ -27,7 +27,7 @@ The goal is to converge on a single, clear, actionable design intent for the cle
 
 ## 2. Shared Filesystem State (`docs/reboot/`)
 
-Durable collaboration state lives in three files in `docs/reboot/`; relevant chat developments are recorded through formal turns or short discussion notes:
+Durable collaboration state lives in the following files in `docs/reboot/`; relevant chat developments are recorded through formal turns or short discussion notes:
 
 1. **`docs/reboot/README.md`** *(this file)*
    - The directory entrypoint: rules of engagement, file structure, turn lifecycle, and commit conventions.
@@ -41,6 +41,8 @@ Durable collaboration state lives in three files in `docs/reboot/`; relevant cha
    - An append-only chronological log of numbered agent turns and unnumbered, dated discussion notes.
    - Holds the critique, counter-proposals, and reasoning behind changes made to `DESIGN.md` so neither agent overwrites the other's rationale in silence.
    - Correct an earlier claim in a later entry, referencing the original; do not silently rewrite history.
+4. **`docs/reboot/IMPLEMENTATION.md`** *(the execution and transition plan)*
+   - Describes package isolation, executable names, implementation slices, verification, and eventual cutover. Clearly distinguish proposed arrangements from confirmed decisions in DESIGN.md; a plan alone does not authorize code changes.
 
 ### Recording Ordinary Discussion
 
