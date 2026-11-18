@@ -13,7 +13,19 @@
 - **(d) Fit solvers:** Given a fit target, permute seatpost height, saddle fore/aft, fork A2C/sag, headset spacers, stem lengths/angles, and handlebar choices to find good fits.
 - **(e) Frame choosers:** Solve fit across many frames and rank them by best possible fit.
 
-*(Additional architectural decisions will be moved here from the Decision Queue as the Human Operator rules on them.)*
+### Go implementation core (Turn 3, resolves Q1)
+
+**Decision:** Use Go for the reboot's physical model, component assembly, solvers, and shared application operations. Browser and agent interfaces should use that core rather than duplicate its physical calculations.
+
+**Rationale:**
+
+- Matt already knows Go. His ability to read, review, and debug the physical construction code directly serves requirement `(a)`.
+- Go's value types, familiar testing workflow, native execution, and concurrency facilities suit geometric modeling and computational searches. This is an architectural choice without comparative benchmarks, not a claim of a measured speed advantage or a commitment to brute force for every problem.
+- Visualization from the start does not require browser-side geometry. Selecting components, inspecting construction steps, toggling overlays, and panning/zooming can operate on geometry already supplied by Go. Changed physical settings can request a new evaluation.
+- The desired richness of browser interaction is still open. We should not choose the core language on an unconfirmed assumption that the product needs continuous direct manipulation of geometry in the browser.
+- A browser/core boundary is an accepted trade-off for keeping the model in a language Matt knows and retaining straightforward Go tooling and distribution. The earlier all-TypeScript proposal favored direct browser evaluation and one language across the application; those benefits do not outweigh the Go rationale for this choice.
+
+**Scope:** This settles the core language. Browser JavaScript versus TypeScript, UI framework, exact transport/rendering boundary, and interaction scope remain open under the UI discussion (Q3). It does not approve a specific milestone, require a terminal-first interface, or authorize implementation. Existing code is useful reference material, not a requirement to preserve the current architecture.
 
 ---
 
@@ -26,7 +38,7 @@ Common ground from Gemini's Turn 1 and ChatGPT's Turn 2 in [DIALOGUE.md](DIALOGU
 - **Forward evaluation supports search:** Enumerate component choices and evaluate candidate assemblies for chart reconstruction and rider fit. The frame chooser reuses fit evaluation across frames and sizes. This agreement does not require eliminating all direct inverse solutions or assume the objectives separate.
 - **Catalogs can be loaded as data:** Both agents favor structured definitions that can be ingested without recompilation (Gemini's Q4 recommendation; ChatGPT Turn 2). Format and persistence details can wait until ingestion is implemented.
 
-None of these proposals, nor either agent's language preference, is human-confirmed yet.
+These proposals remain pending human approval. The separate core-language decision above is confirmed.
 
 ---
 
@@ -55,17 +67,12 @@ Turn 2 includes comparable stem sketches. ChatGPT's refinements await Gemini's r
 3. **Chart reconstruction and agent access:** Preserve original observations and rounding information; show candidate hypotheses, residuals, and unresolved quantities. Verify with a known reconstruction and an intentionally ambiguous case. Expose structured operations over the same application functions and choose catalog persistence here.
 4. **Frame comparison:** Reuse fit search across a small catalog, return best builds and their explanations, and report search coverage and sensitivity to assumptions before expanding the catalog.
 
-This sequence is an implementation proposal, not authorization to build it. Core code should remain independent of the UI framework and agent transport under either language option.
+This sequence is an implementation proposal, not authorization to build it. The Go core should remain independent of the UI framework and agent transport.
 
 ---
 
 ## 4. Decision Queue (For the Human Operator)
 
-- **Q1 (Language & Runtime Boundary):**
-  - *Question:* Do you prefer **Option A** (stay in Go for the geometry/solver core and MCP server, with a lightweight TypeScript/SVG frontend for interactive visuals) or **Option B** (all-TypeScript across browser UI and MCP server), or another stack?
-  - *Gemini:* **Option A (Go + TS/SVG)** if Go's value types, parallel search, and single-binary distribution matter most; **Option B (all-TypeScript)** if direct browser evaluation is the priority. Performance differences need measurement.
-  - *ChatGPT (Turn 2):* **Option B**, strict TypeScript core shared by browser and Node, with SVG and a small UI framework (Svelte preferred). This favors one language for an interactive product; Go remains viable if preserving its implementation and distribution is more important. Workers and MCP still have message boundaries in either design.
-  - *Blocks:* Concrete code prototypes for Milestone 1 and the UI/engine boundary.
 - **Q2 (Turtle / Assembly API Shape):**
   - *Question:* Which stem recipe in Turn 2 is easier to read: **immutable pose values** or a **scoped recording cursor**? Either can sit inside named component functions; neither requires copying an entire scene on each step.
   - *Turn 1 Recommendation (Gemini):* Compare concrete side-by-side sketches of both styles in Turn 2 before choosing.
@@ -75,7 +82,8 @@ This sequence is an implementation proposal, not authorization to build it. Core
   - *Question:* For the initial visual workbench (Milestone 1), what views are essential from day one (e.g., single-bike interactive turtle inspector with coordinate axes, multi-bike ghost overlay anchored at BB vs. SitBones, chart closure residual visualizer)?
   - *Turn 1 Recommendation (Gemini):* Start Milestone 1 with a single-bike interactive SVG view + optional ghost overlay (anchored at BB or SitBones) + hoverable turtle step inspector.
   - *ChatGPT (Turn 2):* One bike, side view, explicit coordinates and dimensions, editable settings, and selectable construction steps. Defer overlays and chart residual views until their workflows exist; retain the lateral geometry needed to place hand contacts correctly.
-  - *Blocks:* Scoping the Milestone 1 visual acceptance criterion.
+  - *Turn 3 clarification:* Go is confirmed for the core. The browser's interaction model and implementation remain undecided: an inspector driven by settings and a direct manipulation editor have different needs. Choose the required experience before specifying the frontend stack and exact browser/core boundary.
+  - *Blocks:* Scoping the Milestone 1 visual acceptance criterion and its browser/core interface.
 
 ### Deferred
 

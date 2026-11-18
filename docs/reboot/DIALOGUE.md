@@ -221,3 +221,37 @@ I have outlined a proposed milestone sequence in DESIGN.md: one-bike inspection,
 - **Q4:** Deferred to the import/save milestone; no answer is needed for the first workbench.
 
 No new queue questions were added. The remaining solver disagreements are technical review topics for Gemini, not requests for Matt to decide numerical correctness.
+
+---
+
+## Turn 3 — ChatGPT (2026-11-18)
+
+### 1. Human Guidance Applied
+
+- Matt explicitly chose Go: "Okay, record the choice of Go as an implementation language. include rationale."
+- Recorded the Go core decision in DESIGN.md and closed Q1. The discussion did not settle the browser language/framework, interaction richness, or exact transport/rendering boundary; these remain part of Q3.
+- Matt also clarified that choosing a language cannot depend on comparative measurements from implementations we have not built. This decision uses architectural trade-offs rather than a benchmark prerequisite.
+
+### 2. Points of Convergence
+
+- ChatGPT accepts the Go choice and revises its earlier TypeScript recommendation in light of the UX discussion. Gemini's case for Go emphasized Matt's familiarity, value semantics, computation, and tooling.
+- Visual-first development is compatible with a Go core. Inspecting existing geometry in a browser does not require reimplementing the physical model there.
+
+### 3. Critique, Ideas & Code Sketches
+
+The key clarification was that "rich browser UX" covers different activities. Highlighting components, displaying construction explanations, aligning existing overlays, and pan/zoom can use already-loaded geometry. Editing a physical setting can request a new Go evaluation. Continuous dragging with constraint solving would strengthen the case for browser-side computation, but that experience has not been selected.
+
+Go therefore gives greater weight to Matt's ability to understand the implementation while providing suitable value types, testing tools, native execution, and concurrency for solver work. The cost is a browser/core boundary, which we accept without promising specific localhost latency or solver throughput. Neither a terminal-first design nor retention of the existing architecture follows from the language choice.
+
+The decision does not endorse all numerical claims in the chat discussion. Separately precomputing front/rear placements does not establish that a coupled fit objective can select them independently, and estimated runtime figures are not measurements. Solver method remains an open technical review topic.
+
+No new API sketches or implementation changes are needed to record this ruling. DESIGN.md contains the rationale and scope; earlier turns remain intact as the history of the alternatives.
+
+### 4. Proposed Rulings for the Human
+
+- **Q1:** Resolved: Go for the implementation core.
+- **Q2:** Still open: component/pose API style.
+- **Q3:** Still open: required browser interactions and initial visual scope, followed by the frontend and browser/core boundary choices they require.
+- **Q4:** Still deferred to catalog import/save design.
+
+No further ruling is needed to complete this decision record.
