@@ -376,3 +376,17 @@ With `Q1` (Go core) and `Q2` (`Pose` + optional `Trace` assembly) settled, `Q3` 
 - **Q2:** Resolved (`Turn 4`).
 - **Q3:** Now the only active item in the Decision Queue blocking Milestone 1. Recommend confirming the **single-bike workbench scope** for Milestone 1 and choosing the preferred **browser interaction model / frontend weight**.
 
+---
+
+## Discussion — Q3 Go-rendered browser interface — ChatGPT recording (2026-11-18)
+
+- **Incoming context:** Turn 4 already records Matt's approval of Q2. This discussion addresses Q3; it does not reopen the Pose/Trace decision.
+- **Gemini's recommendation, relayed by Matt:** For dropdowns, number fields, tabs, and an inspectable SVG, render HTML/SVG in Go and use a small dependency-free JavaScript layer for fetched updates, trace highlighting, and pan/zoom. Embed assets with Go and avoid a frontend framework/build pipeline.
+- **Matt's ruling:** "I'm liking what Gemini had to say and I'm agreeing with it." Recorded approval of this frontend approach and control-driven interaction model. The pasted proposal did not explicitly settle the complete single-bike milestone feature list, so the scope portion of Q3 remains open.
+- **ChatGPT's agreement:** This fits the stated interface and Matt's familiarity with Go. Shared attributes can link SVG elements and trace rows without exporting the whole domain model into frontend types. Preserve ordinary forms/links and progressively enhance them; keep the geometry and physical drawing implementation in Go.
+- **Implementation notes:** Do not impose the proposed 60–100-line count or timing estimates as requirements. Handle superseded requests, invalid/incomplete input, focus, and URL history; replace diagram and trace consistently. Keyboard selection should accompany hover/click, and step IDs must be interpreted within the current build. Browser cancellation and history events support this approach ([AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController), [popstate](https://developer.mozilla.org/en-US/docs/Web/API/Window/popstate_event)).
+- **Testing correction:** Go's HTTP tests and HTML/SVG assertions verify server behavior and output structure; they do not execute browser JavaScript ([httptest](https://pkg.go.dev/net/http/httptest)). A short actual-browser interaction check is still needed when implementing the frontend and may initially be manual. No new testing framework is required by this decision.
+- **Comparison qualification:** Frameworks can serve small applications too, and mirroring every Go type is not inevitable. Those broad claims are unnecessary to justify a small plain-JavaScript interface here. This is agreement with the architectural recommendation, not endorsement of its exact size/performance predictions.
+
+DESIGN.md records the confirmed frontend choice and keeps the remaining Q3 milestone-scope question separate. No implementation was started.
+

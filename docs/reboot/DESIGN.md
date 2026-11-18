@@ -21,10 +21,10 @@
 - Matt already knows Go. His ability to read, review, and debug the physical construction code directly serves requirement `(a)`.
 - Go's value types, familiar testing workflow, native execution, and concurrency facilities suit geometric modeling and computational searches. This is an architectural choice without comparative benchmarks, not a claim of a measured speed advantage or a commitment to brute force for every problem.
 - Visualization from the start does not require browser-side geometry. Selecting components, inspecting construction steps, toggling overlays, and panning/zooming can operate on geometry already supplied by Go. Changed physical settings can request a new evaluation.
-- The desired richness of browser interaction is still open. We should not choose the core language on an unconfirmed assumption that the product needs continuous direct manipulation of geometry in the browser.
+- At language selection, the desired richness of browser interaction was still open. The Go choice avoided assuming a need for continuous direct manipulation of geometry in the browser; the later Q3 decision selects a control-driven inspector.
 - A browser/core boundary is an accepted trade-off for keeping the model in a language Matt knows and retaining straightforward Go tooling and distribution. The earlier all-TypeScript proposal favored direct browser evaluation and one language across the application; those benefits do not outweigh the Go rationale for this choice.
 
-**Scope:** This settles the core language. Browser JavaScript versus TypeScript, UI framework, exact transport/rendering boundary, and interaction scope remain open under the UI discussion (Q3). It does not approve a specific milestone, require a terminal-first interface, or authorize implementation. Existing code is useful reference material, not a requirement to preserve the current architecture.
+**Scope:** This settles the core language. The subsequent browser/frontend choice is recorded below under Q3. The core choice does not approve a specific milestone, require a terminal-first interface, or authorize implementation. Existing code is useful reference material, not a requirement to preserve the current architecture.
 
 ### Pose-based component assembly with optional embedded tracing (Turn 4, resolves Q2)
 
@@ -37,6 +37,14 @@
 4. **Freeze/detach trace before rendering:** Each traced evaluation uses its own `Trace` instance and freezes or detaches recording when assembly completes, ensuring that downstream rendering helpers (e.g., offsetting from a landmark `Pose` to draw a tick mark or dimension callout) never append to the assembly history.
 5. **Separate placement from outline projection:** Moving along a construction path (such as advancing half a stem clamp height to reach its center) is distinct from a part's full physical outline. Component functions return placement geometry and setup dimensions; the renderer projects physical shapes in those local `Pose` frames without recalculating angles.
 6. **Verification:** Identical inputs must produce identical placed geometry whether tracing is enabled or disabled.
+
+### Go-rendered HTML/SVG with plain JavaScript (Q3 frontend discussion, 2026-11-18)
+
+**Decision:** Go generates the HTML and SVG from placement geometry and frozen construction traces. Use a small, dependency-free vanilla JavaScript layer for control-driven updates, trace selection/highlighting, and diagram navigation. Embed the web assets with Go; no frontend framework, npm dependencies, or frontend build step is required.
+
+**Rationale:** Matt agreed with Gemini's recommendation for dropdowns, number fields, tabs, and an inspectable SVG diagram. This keeps physical drawing and geometry in the familiar Go codebase while allowing useful browser interactions. Shared HTML attributes can associate trace rows with diagram elements without mirroring every domain struct in TypeScript. The old zero-JavaScript restriction is not part of this reboot decision.
+
+**Scope:** This resolves the frontend portion of Q3. It selects a control-driven inspector rather than a direct manipulation CAD interface. The exact first-milestone feature list remains in Q3. The suggestion of approximately 60 lines of JavaScript, fixed code percentages, and localhost response times are estimates, not acceptance criteria. Prefer understandable browser code over an arbitrary line limit.
 
 ---
 
@@ -52,12 +60,13 @@ Common ground from Turns 1–4 in [DIALOGUE.md](DIALOGUE.md), limited to the sha
 
 ## 3. Active Design Options (Under Discussion)
 
-### Browser interaction & frontend boundary (Q3)
+### Browser implementation notes (frontend choice confirmed; details proposed)
 
-| Aspect | Lightweight Server/Fetch UI | Richer Reactive Frontend (e.g. Svelte/TS) |
-| --- | --- | --- |
-| **Rendering boundary** | Go renders SVG (with `data-step-id` / `data-landmark` attributes) or returns JSON scene data to a small vanilla JS/TS script that updates the DOM on input/slider changes. | Go serves structured JSON (`Placement` + `Trace` + outlines); a TypeScript/Svelte frontend renders SVG components and manages selection/pan/zoom state client-side. |
-| **Toolchain weight** | Zero `node_modules` or bundler required if using vanilla JS/HTML templates embedded in Go. | Requires a frontend build step (`fnm` / `npm` / Vite or esbuild), trading build tooling for richer client-side UI ergonomics. |
+- Start from ordinary Go-rendered forms and links; enhance them with fetched HTML/SVG updates. Keep assembly and drawing in Go rather than duplicating physical calculations in browser code.
+- Update the diagram and trace together; ignore superseded responses so rapid edits cannot display an older build. Preserve input focus, handle incomplete/invalid input, and keep refresh and Back/Forward consistent with the displayed controls and result.
+- Associate trace rows and diagram elements through shared attributes. Support keyboard focus/selection as well as hover/click. Treat step IDs as belonging to the current build when replacing results; do not accidentally carry selection to an unrelated new step.
+- Go tests verify geometry, HTTP behavior, and rendered HTML/SVG structure. They do not establish that client-side highlighting, fetch updates, history, or pan/zoom work in an actual browser. Include a small browser interaction check, which can initially be manual; no browser test framework is selected here.
+- These are implementation notes, not reasons to reopen the chosen stack. Frameworks are not inherently restricted to large applications, and duplicated frontend types are not inevitable; this project's concrete needs justify the simpler choice.
 
 ### Spatial scope
 - **Planar 2D pose core + 3D handlebar offset helper:** Both agents agree the frame/cockpit assembly and Milestone 1 view are sagittal 2D (`+X` forward, `+Y` up, CCW positive angle), while preserving the existing 3D handlebar sweep/upsweep/roll offset calculation (`HandlebarOffset3D`) so `HandGrip` landmarks reflect lateral grip position and world-relative bar roll.
@@ -77,12 +86,11 @@ Common ground from Turns 1–4 in [DIALOGUE.md](DIALOGUE.md), limited to the sha
 
 ## 4. Decision Queue (For the Human Operator)
 
-- **Q3 (Visualization Scope & Browser Boundary for Milestone 1):**
-  - *Question:*
-    1. **Scope:** Do you approve the converged **one-bike workbench scope** for Milestone 1 (side view, editable settings, landmarks/axes/dimensions, selectable construction trace steps; deferring multi-bike overlays and chart diagnostics to later milestones)?
-    2. **Browser / Frontend Stack:** For the browser UI talking to the Go core, do you prefer a **minimal zero-bundler frontend** (Go HTTP server + embedded HTML/SVG/vanilla JS or single-file TS) or a **TypeScript + Svelte/reactive frontend** rendering Go's JSON scene/trace output?
-  - *Recommendations:* Both agents now recommend the focused one-bike scope for Milestone 1. On frontend stack, choose based on whether you want zero Node/bundler tooling in the repo vs. a full client-side component framework.
-  - *Blocks:* Finalizing Milestone 1's browser/core interface and visual acceptance criterion.
+- **Q3 (Remaining Milestone 1 Visualization Scope):**
+  - *Resolved frontend portion:* Go-rendered HTML/SVG with dependency-free vanilla JavaScript, as recorded above. No further language/framework choice is needed.
+  - *Remaining question:* Approve the converged **one-bike workbench scope** for Milestone 1 (side view, editable settings, landmarks/axes/dimensions, selectable construction trace steps; deferring multi-bike overlays and chart diagnostics to later milestones)?
+  - *Recommendation (Both agents):* The focused one-bike scope. Matt's approval of the pasted frontend proposal establishes the implementation approach and control-driven interaction model, not approval of the entire proposed milestone sequence.
+  - *Blocks:* Finalizing Milestone 1's feature list and visual acceptance criterion.
 
 ### Deferred
 
