@@ -32,16 +32,14 @@ Durable collaboration state lives in three files in `docs/reboot/`; relevant hum
    - The directory entrypoint: rules of engagement, file structure, turn lifecycle, and commit conventions.
 2. **`docs/reboot/DESIGN.md`** *(the living canonical design intent)*
    - The single source of truth that the agents are working to converge on. It is organized into four strict sections:
-     1. **Human-Confirmed Decisions**: Architectural choices explicitly approved by the human, recorded with a stable decision ID and approval source. Agents must treat these as fixed constraints unless the human reopens them.
-     2. **Converged Proposals (Pending Human Sign-off)**: Specific proposals explicitly endorsed by both agents, with turn references and any conditions. Agreement is review evidence, not human approval or proof of correctness.
+     1. **Human-Confirmed Decisions**: Architectural choices explicitly approved by the human (tagged with the turn they were recorded, e.g. `(Turn 3)`). Agents must treat these as fixed constraints unless the human reopens them.
+     2. **Converged Proposals (Pending Human Sign-off)**: Specific proposals explicitly endorsed by both agents, awaiting human approval. Agreement between agents is review evidence, not human approval or proof of correctness.
      3. **Active Design Options (Under Discussion)**: Competing ideas or API shapes currently being compared, with brief pros/cons and small code sketches.
-     4. **Decision Queue (For the Human Operator)**: A short list of decisions needed now, with recommendations, consequences, and the work each blocks. Deferred decisions may be listed separately within this section with a trigger for revisiting them.
+     4. **Decision Queue (For the Human Operator)**: A short list of numbered questions (`Q1`, `Q2`, ...) needed now, stating the options, agent recommendations, and what work each blocks. Do not renumber or reuse `Q#` IDs once assigned so references in `DIALOGUE.md` stay unambiguous. Deferred decisions may be listed separately at the bottom of this section with a trigger for revisiting them.
 3. **`docs/reboot/DIALOGUE.md`** *(the turn-by-turn conversation log)*
    - An append-only chronological log of agent turns (`## Turn 1 — Gemini`, `## Turn 2 — ChatGPT`, etc.).
    - Holds the critique, counter-proposals, and reasoning behind changes made to `DESIGN.md` so neither agent overwrites the other's rationale in silence.
    - Correct an earlier claim in a later turn, referencing the original; do not silently rewrite history.
-
-Use stable IDs such as `P1` (proposal), `Q1` (question), and `D1` (confirmed decision). Do not renumber or reuse IDs when items move or close; retain references between the question, proposal, and resulting decision. Keep this bookkeeping brief.
 
 ---
 
@@ -55,8 +53,8 @@ When the human asks either **Gemini** or **ChatGPT** to continue the design conv
 3. Inspect existing edits, preserve unrelated work, and incorporate relevant explicit human guidance. Do not treat ambiguous edits as rulings. If another writer is active, coordinate the handoff before editing.
 
 ### Step 2: Process Human Guidance First
-1. Check whether the human operator provided rulings or feedback—either in the chat prompt invoking the turn, or via edits to `DESIGN.md` / `DIALOGUE.md`.
-2. Record explicit approvals in **Human-Confirmed Decisions**, including the decision ID, its scope, the recording turn, and the approval source (a short chat quotation or an identifiable explicit document instruction). Close the corresponding queue item while retaining its ID reference.
+1. Check whether the human operator provided rulings or feedback—either in the chat prompt invoking the turn, or via explicit edits to `DESIGN.md` / `DIALOGUE.md`.
+2. Move any explicitly answered `Q#` items from the **Decision Queue** into **Human-Confirmed Decisions** in `DESIGN.md` (recording `(Turn N, resolves Q#)`).
 3. If guidance is ambiguous, preserve the uncertainty and ask only for the clarification needed for dependent work. Do not turn a preference or partial approval into a broader ruling.
 
 ### Step 3: Draft the Turn in `DIALOGUE.md`
@@ -69,30 +67,30 @@ Append a new section to `docs/reboot/DIALOGUE.md` using this template:
 - Bullet summary of any human decisions or steering applied at the start of this turn (or "None this turn").
 
 ### 2. Points of Convergence
-- Reference proposal IDs and state agree, disagree, or agree with a condition.
+- State which proposals or `Q#` items you agree with, disagree with, or agree with under a condition.
 - Record only new or changed positions; "No new objection" is a valid outcome.
 
 ### 3. Critique, Ideas & Code Sketches
-- Focus on one main unresolved topic and explain what changed in your understanding.
+- Focus on 1–2 unresolved topics per turn (an initial review turn may triage the full initial queue).
 - Add critique or refinements only when useful; do not invent objections to fill the template.
 - For competing APIs, show the same real bicycle operation in short, comparable sketches.
-- Label consequential claims as measured, source-supported, inferred, or hypothetical; include supporting evidence or assumptions.
+- State the basis for nontrivial technical or performance claims (back-of-the-envelope math, existing `bikegeo` code, or a quick measurement) rather than asserting unverified numbers as fact.
 
 ### 4. Proposed Rulings for the Human
-- Reference queue IDs, recommendations, and the specific work blocked (or "None").
-- When evidence is missing, propose a small experiment with a question and success criterion instead of asking the human to settle a technical claim.
+- Reference `Q#` IDs, recommendations, and the specific work blocked (or "None").
+- When evidence is missing, propose a small experiment with a clear question and success criterion instead of asking the human to settle a technical claim by guesswork.
 ```
 
 ### Step 4: Update `docs/reboot/DESIGN.md`
 Update `DESIGN.md` so it reflects the latest state of convergence:
-- Promote a proposal to **Converged Proposals** only when both agents explicitly endorse the same version. Record each position's turn reference and conditions. An unreviewed proposal remains unreviewed; material revisions require renewed agreement.
+- Promote a proposal to **Converged Proposals** only when both agents explicitly endorse the same version. Material revisions require renewed agreement.
 - Refine **Active Design Options** so both agents' best variants are represented side-by-side when a trade-off remains open.
-- Keep the **Decision Queue** short (at most 3–5 active questions at a time). Each entry states the decision, why it matters now, the recommendation or specific disagreement, practical consequences of the options, and exactly what work is blocked.
-- Ask the human to judge preferences and trade-offs. Investigate technical claims with available evidence or propose a bounded experiment. Before asking which API is clearer, show comparable examples.
-- Defer decisions that do not block the next milestone, with a concrete trigger for revisiting them. Keep deferred items outside the active queue.
+- Keep the **Decision Queue** short (at most 3–5 active questions at a time). Each `Q#` entry states the decision, recommendation (or specific disagreement), practical consequences, and what work it blocks.
+- Ask the human to judge preferences and trade-offs. Before asking which API is clearer, show comparable code examples.
+- Defer decisions that do not block the next milestone, with a concrete trigger for revisiting them.
 
 ### Step 5: Commit the Turn to Git
-Review the diff and run the repository's required verification. Stage only the files or hunks belonging to the turn, not the entire directory indiscriminately. Preserve unrelated edits; identify any human edits incorporated into the turn in its dialogue entry. Inspect the staged diff and create a single atomic commit for the turn using this commit message format:
+Inspect `git diff` to review your changes (run code verification `go vet ./... && go test ./...` only if a turn modifies code; markdown-only turns in `docs/reboot/` do not need to run `make pre-commit`). Stage only the files or hunks belonging to the turn, preserving any unrelated edits. Create a single atomic commit for the turn using this commit message format:
 
 ```text
 reboot(turn-<N>/<agent>): <concise summary of turn>
@@ -124,10 +122,10 @@ Both agents must enforce these guardrails on themselves and on each other:
    - Published manufacturer charts are sacred ground truth with rounding budgets, not numbers to nudge.
    - `StemClamp` vs. `HandGrip` and `BRP` vs. `SitBones` are distinct physical landmarks.
    - Rear cockpit (seat tube → post → rail → saddle) and front cockpit (steerer → headset/spacers → stem → handlebar) sit on the leveled frame.
-5. **Make Evidence Visible:**
-   Distinguish measured results, source-supported facts, inferences, and hypotheses. Performance or code-size estimates must be labeled as estimates with assumptions; measurements must identify their workload and conditions. Both agents agreeing does not validate a claim. Preserve the distinction between established observations and revisable model assumptions.
+5. **Ground Technical Claims:**
+   Distinguish measured facts, existing `bikegeo` behavior, back-of-the-envelope estimates, and hypotheses. When estimating performance or search-space size, show the arithmetic and assumptions; both agents agreeing does not validate an unmeasured claim.
 6. **Stop Unproductive Debate:**
-   Focus each turn on one main unresolved topic. Do not repeat settled arguments or require new objections. After two consecutive review turns on a topic without new evidence or substantive progress, summarize the disagreement and recommend a human decision or a small experiment. Preserve useful dissent rather than forcing consensus. Resume detailed debate when new evidence or human guidance warrants it.
+   Focus each turn on at most 1–2 unresolved topics (after initial queue triage). Do not repeat settled arguments or require new objections. After two consecutive review turns on a topic without new evidence or substantive progress, summarize the disagreement and recommend a human decision or a small experiment. Preserve useful dissent rather than forcing consensus.
 7. **Converge on the Next Milestone:**
    The design phase is ready to hand off when the human confirms that:
    - All requirements (`a` through `e`) have an agreed architectural direction and an outline of how they will be verified in `DESIGN.md`.
