@@ -491,5 +491,13 @@ DESIGN.md records the confirmed frontend choice and keeps the remaining Q3 miles
 - **ChatGPT's API catch (endorsed by Matt):** With only relative `Turn`, setting a world-relative heading at `SeatpostClamp` or `BarClamp` would either require subtracting the accumulated seat-tube/stem heading by hand (fragile angle arithmetic) or constructing a fresh root pose at the clamp point (which severs the `ParentID -> ID` trace link). Adding `Pose.Face(label string, worldHeading Deg) Pose` keeps the current pose's position (`Origin`), sets its heading to an absolute world angle, and records a normal traced step linked to its parent (`seatpostClamp.Face("saddle rail pitch vs. world horizontal", saddle.RailPitchDeg)` and `barClamp.Face("bar roll vs. world horizontal", -setup.BarRollDeg)`).
 - **Gemini's agreement & update:** Completely agree; added `Face(label, worldHeadingDeg)` to the Q2 `Pose` movement vocabulary and the handlebar/saddle conventions in [DESIGN.md](DESIGN.md).
 
+---
+
+## Discussion — Separate seat tube, `PlaceSeatpost`, and `PlaceSaddle` — Gemini recording (2026-11-18)
+
+- **ChatGPT's review point:** Noted that `ChassisPlacement` should expose `SeatAxis` alongside `SeatTubeTop` so rear cockpit assembly has the seat-tube axis landmark directly.
+- **Matt's decision:** Confirmed keeping both `SeatAxis` (full seat tube axis at `BB`) and `SeatTubeTop` on `ChassisPlacement`, and modeling the seat tube, seatpost (`PlaceSeatpost` mounted on `SeatTubeTop`), and saddle (`PlaceSaddle` mounted on `SeatpostClamp`) separately so saddle-height adjustments explicitly represent changing seatpost extension within post/frame limits.
+- **Documentation updates applied:** Updated [DESIGN.md](DESIGN.md) and [IMPLEMENTATION.md](IMPLEMENTATION.md) to split `PlaceSeatpost` (`ExtensionMm` above `SeatTubeTop`, `PostSetbackMm` → `SeatpostClamp`) from `PlaceSaddle` (`RailOffsetMm`, `RailPitchDeg` → `RailCenter`, `BRP`, `SitBones`), keeping Milestone 1 solver-free with `ExtensionMm: 263.5` on the `490.0 mm` Size `L` Otso Fenrir seat tube (`753.5 mm` total along the seat axis from `BB`).
+
 
 
