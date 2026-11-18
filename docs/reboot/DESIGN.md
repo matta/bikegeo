@@ -51,15 +51,19 @@ These proposals remain pending human approval. The separate core-language and tr
 
 ### Assembly and inspection
 
+**Q2 remains unresolved.** Matt has clarified that the design is not settled. The entries below record recommendations and open details, not approval of an API or trace implementation.
+
 | Aspect | Gemini's proposal | ChatGPT's proposal |
 | --- | --- | --- |
-| Construction output | Revised Q2 recommendation: placement structs retain intermediate poses and setup dimensions; drawing is separate. | Agree on separate placement and drawing. Retain poses where orientation matters and points where only position matters; optionally record actual construction operations. |
-| API style | Revised Q2 recommendation: value-style poses inside named component functions, preferred over a mutable cursor for branching. | Agree on value-style poses and component functions. An optional recorder can collect steps without making the poses mutable. |
+| Construction output | Latest relayed recommendation: every placed landmark remains a Pose, with placement structs retaining setup dimensions; shapes use those local poses. | Favor poses for component attachments and physical landmarks to retain their construction frames. Each frame's axes must have an explicit meaning; an inherited rail orientation is not automatically the saddle surface orientation. Raw points can remain internal to geometry helpers. |
+| API style | Value-style Pose methods carry labels and an optional embedded `*Trace` sink, inherited by derived poses. | Support this as a practical candidate: geometric values are unchanged by branching, but recording mutates shared state. Scope the sink to one assembly evaluation and keep drawing operations from extending the assembly trace. |
 | Spatial scope | Local 2D pose as the core vocabulary. | Planar frame assembly, retaining lateral handlebar geometry and explicit world-relative roll; begin with a side view. |
 
-Turn 2 includes comparable stem sketches. Gemini's follow-up was relayed in chat and is summarized in the dated Q2 discussion note. Optional tracing, pose-versus-point field choices, and spatial scope still need review; the shared API direction awaits Matt's approval.
+Turn 2 includes comparable stem sketches. Subsequent Gemini responses relayed in chat are summarized in the dated Q2 discussion notes. The embedded sink, exact landmark/frame conventions, and spatial scope still need review; Q2 awaits Matt's approval.
 
 **Current tracing proposal (ChatGPT, following Matt's suggestion):** Use one calculation path with an optional recorder that captures named operations, inputs, and resulting poses when enabled. Searches can omit trace collection and re-evaluate an inspected candidate with the same exact inputs to obtain its explanation. Tracing on/off must produce the same geometry. Avoid constructing trace records or formatting explanatory strings when disabled; do not promise allocation-free execution without evidence. Placement snapshots alone do not explain all construction steps, and trace guides are distinct from physical outlines.
+
+**Notes on Gemini's embedded-sink refinement:** A `*Trace` on Pose would keep component recipes concise. Trace entries should hold geometry snapshots without the live sink, and use explicit source/result references if exact branching provenance is required: equal positions/orientations do not establish common construction identity. Give each traced evaluation its own sink and finish or detach recording before rendering, so a tick-mark helper cannot append to the model's construction history. Disabling tracing avoids record collection; it does not establish zero overhead or guarantee stack allocation. These are small design conditions, not a request for a general provenance framework or a benchmark prerequisite.
 
 ### Solver policy
 
@@ -81,10 +85,10 @@ This sequence is an implementation proposal, not authorization to build it. The 
 ## 4. Decision Queue (For the Human Operator)
 
 - **Q2 (Turtle / Assembly API Shape):**
-  - *Question:* Adopt value-style poses inside component functions, returning useful placement geometry and setup dimensions, with optional recording of construction steps?
-  - *Gemini (relayed Q2 response):* Prefer value-style poses and placement structs retaining intermediate poses plus setup dimensions; separate drawing from movement.
-  - *Matt:* Retain traceability; optional/debug tracing suggested for efficiency. This does not yet approve the whole API proposal.
-  - *ChatGPT:* Agree on the shared API direction; recommend poses only where orientation is useful and an optional structured trace from the same calculation path. Re-evaluate selected builds with tracing enabled for inspection.
+  - *Question:* Adopt labeled, value-style Pose methods with an optional embedded trace sink, returning placement poses and setup dimensions? The frame semantics and recording scope above remain to be settled.
+  - *Gemini (latest relayed response):* Keep every placed landmark as a Pose and propagate an optional `*Trace` through derived poses; use those local frames for drawing.
+  - *Matt:* Retain traceability; optional/debug tracing suggested for efficiency. Explicitly clarified that the design is not settled.
+  - *ChatGPT:* Favor pose-based physical construction and support the embedded sink as a candidate, subject to explicit axes, trace scope, and branch identity. Re-evaluate selected builds with tracing enabled for inspection. No Q2 decision has been recorded.
   - *Blocks:* Finalizing the core `turtle` / `rig` package interface for Milestone 1.
 - **Q3 (Visualization Scope for Day 1):**
   - *Question:* For the initial visual workbench (Milestone 1), what views are essential from day one (e.g., single-bike interactive turtle inspector with coordinate axes, multi-bike ghost overlay anchored at BB vs. SitBones, chart closure residual visualizer)?

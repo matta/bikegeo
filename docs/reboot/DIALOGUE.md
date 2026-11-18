@@ -269,3 +269,16 @@ This note captures the chat exchange following Turn 3. Gemini's response was pas
 - **Remaining refinement:** Gemini recommends pose-valued landmarks throughout; ChatGPT recommends retaining orientation where meaningful, with points for position-only landmarks. Optional recording does not require a shared mutable movement cursor. The API details and tracing mechanism remain open under Q2; Q3's browser interaction scope is also open.
 
 DESIGN.md now reflects this exchange. The earlier proposal requiring every movement to emit a drawing primitive is no longer Gemini's current recommendation.
+
+---
+
+## Discussion — Q2 embedded trace proposal — ChatGPT recording (2026-11-18)
+
+- **Matt's clarification:** The design is not settled; review Gemini's latest response as a proposal. Q2 stays open. The confirmed desire for traceability does not approve a particular representation or tracing mechanism.
+- **Gemini's proposal, relayed by Matt:** Every placed landmark retains a Pose. Labeled movement methods return new poses while propagating an optional `*Trace`; when enabled, they record the operation and its source/result. Render physical shapes in the supplied local frames. Gemini argues that this preserves both readable branching and automatic construction explanations.
+- **ChatGPT's position:** Favor poses for component attachments and physical landmarks, revising the earlier casual suggestion to discard orientation where only position is immediately needed. A BRP inherits a specified construction frame, however, not knowledge of the saddle surface: a rail-normal direction and a surface normal are not interchangeable. Keep raw points available internally to geometry helpers; callers should not reconstruct component orientations through scattered trigonometry.
+- **Embedded sink:** This is a practical candidate that preserves a short recipe. Geometry remains value-style while tracing has shared mutable state. Scope recording to one evaluation, with a separate sink for each concurrently traced build. Finish/detach it before drawing so constructing a tick mark does not modify the assembly history. The drawing must not change the physical model or its explanation.
+- **Trace contents:** Record geometry snapshots without the live sink. To promise an exact construction tree, retain source/result identities rather than infer parentage from equal poses; distinct construction paths can reach the same coordinates and orientation. A small recording-only reference is enough; no general graph framework is proposed.
+- **Efficiency wording:** Nil tracing can skip record collection and formatting. It is not literally zero overhead, and Go does not guarantee stack allocation for a struct solely from its shape; allocation depends on escape analysis and usage ([Go FAQ](https://go.dev/doc/faq#stack_or_heap)). This qualification does not require benchmarks before accepting or rejecting the API.
+
+ChatGPT supports the direction with these implementation conditions. No additional human-confirmed design decision was added; DESIGN.md now explicitly labels Q2 unresolved and preserves these notes for the next review.
