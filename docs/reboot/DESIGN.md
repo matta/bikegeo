@@ -27,18 +27,23 @@
 
 **Scope:** This settles the core language. Browser JavaScript versus TypeScript, UI framework, exact transport/rendering boundary, and interaction scope remain open under the UI discussion (Q3). It does not approve a specific milestone, require a terminal-first interface, or authorize implementation. Existing code is useful reference material, not a requirement to preserve the current architecture.
 
+### Retain computation traceability (Q2 discussion, 2026-11-18)
+
+Matt explicitly wants geometry computations to remain traceable. He suggested optional/debug-style tracing to address search efficiency. Retaining traceability is confirmed; the optional tracing mechanism and the rest of Q2 remain proposals pending approval. See the dated Q2 discussion note in [DIALOGUE.md](DIALOGUE.md).
+
 ---
 
 ## 2. Converged Proposals (Pending Human Sign-off)
 
-Common ground from Gemini's Turn 1 and ChatGPT's Turn 2 in [DIALOGUE.md](DIALOGUE.md), limited to the shared substance below:
+Common ground from the recorded agent turns and the dated Q2 discussion in [DIALOGUE.md](DIALOGUE.md), limited to the shared substance below:
 
 - **Readable physical assembly:** A small pose/movement vocabulary supports named component builders. Bike construction should read as physical steps; avoid a general CAD framework or elaborate type machinery.
-- **Shared geometry for inspection and solving:** Drawings and measurements use the same placed components and landmarks. A visual workbench and inspectable construction belong in the first milestone. Whether every evaluation emits drawable primitives and a trace remains open.
+- **Shared geometry for inspection and solving:** Drawings and measurements use the same placed components and landmarks. A visual workbench and inspectable construction belong in the first milestone. In the Q2 response relayed by Matt, Gemini agrees that component placement should return geometry rather than emit drawing shapes during each movement.
+- **Value-style poses within component functions:** Gemini's relayed Q2 response and ChatGPT recommend poses whose movement methods return new values, with placement results retaining useful intermediate geometry and setup dimensions. The exact fields and optional trace API remain open.
 - **Forward evaluation supports search:** Enumerate component choices and evaluate candidate assemblies for chart reconstruction and rider fit. The frame chooser reuses fit evaluation across frames and sizes. This agreement does not require eliminating all direct inverse solutions or assume the objectives separate.
 - **Catalogs can be loaded as data:** Both agents favor structured definitions that can be ingested without recompilation (Gemini's Q4 recommendation; ChatGPT Turn 2). Format and persistence details can wait until ingestion is implemented.
 
-These proposals remain pending human approval. The separate core-language decision above is confirmed.
+These proposals remain pending human approval. The separate core-language and traceability requirements above are confirmed.
 
 ---
 
@@ -48,11 +53,13 @@ These proposals remain pending human approval. The separate core-language decisi
 
 | Aspect | Gemini's proposal | ChatGPT's proposal |
 | --- | --- | --- |
-| Construction output | Each physical builder step emits a drawable primitive and trace entry. | Builders return placed components and landmarks; rendering projects that geometry. Construction tracing can be omitted during search without changing numerical results. |
-| API style | Compare immutable chaining and a scoped cursor before choosing. | Prefer immutable poses inside ordinary component functions; permit a scoped recorder if it improves readability. Pose mutation and trace recording are separate choices. |
+| Construction output | Revised Q2 recommendation: placement structs retain intermediate poses and setup dimensions; drawing is separate. | Agree on separate placement and drawing. Retain poses where orientation matters and points where only position matters; optionally record actual construction operations. |
+| API style | Revised Q2 recommendation: value-style poses inside named component functions, preferred over a mutable cursor for branching. | Agree on value-style poses and component functions. An optional recorder can collect steps without making the poses mutable. |
 | Spatial scope | Local 2D pose as the core vocabulary. | Planar frame assembly, retaining lateral handlebar geometry and explicit world-relative roll; begin with a side view. |
 
-Turn 2 includes comparable stem sketches. ChatGPT's refinements await Gemini's review; they are not additions to the converged section.
+Turn 2 includes comparable stem sketches. Gemini's follow-up was relayed in chat and is summarized in the dated Q2 discussion note. Optional tracing, pose-versus-point field choices, and spatial scope still need review; the shared API direction awaits Matt's approval.
+
+**Current tracing proposal (ChatGPT, following Matt's suggestion):** Use one calculation path with an optional recorder that captures named operations, inputs, and resulting poses when enabled. Searches can omit trace collection and re-evaluate an inspected candidate with the same exact inputs to obtain its explanation. Tracing on/off must produce the same geometry. Avoid constructing trace records or formatting explanatory strings when disabled; do not promise allocation-free execution without evidence. Placement snapshots alone do not explain all construction steps, and trace guides are distinct from physical outlines.
 
 ### Solver policy
 
@@ -74,9 +81,10 @@ This sequence is an implementation proposal, not authorization to build it. The 
 ## 4. Decision Queue (For the Human Operator)
 
 - **Q2 (Turtle / Assembly API Shape):**
-  - *Question:* Which stem recipe in Turn 2 is easier to read: **immutable pose values** or a **scoped recording cursor**? Either can sit inside named component functions; neither requires copying an entire scene on each step.
-  - *Turn 1 Recommendation (Gemini):* Compare concrete side-by-side sketches of both styles in Turn 2 before choosing.
-  - *ChatGPT (Turn 2):* Immutable pose values plus component functions, with optional recording for inspection. Ask Gemini to review the assembly/output distinction before treating it as agreed.
+  - *Question:* Adopt value-style poses inside component functions, returning useful placement geometry and setup dimensions, with optional recording of construction steps?
+  - *Gemini (relayed Q2 response):* Prefer value-style poses and placement structs retaining intermediate poses plus setup dimensions; separate drawing from movement.
+  - *Matt:* Retain traceability; optional/debug tracing suggested for efficiency. This does not yet approve the whole API proposal.
+  - *ChatGPT:* Agree on the shared API direction; recommend poses only where orientation is useful and an optional structured trace from the same calculation path. Re-evaluate selected builds with tracing enabled for inspection.
   - *Blocks:* Finalizing the core `turtle` / `rig` package interface for Milestone 1.
 - **Q3 (Visualization Scope for Day 1):**
   - *Question:* For the initial visual workbench (Milestone 1), what views are essential from day one (e.g., single-bike interactive turtle inspector with coordinate axes, multi-bike ghost overlay anchored at BB vs. SitBones, chart closure residual visualizer)?

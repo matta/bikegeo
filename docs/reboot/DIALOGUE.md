@@ -255,3 +255,17 @@ No new API sketches or implementation changes are needed to record this ruling. 
 - **Q4:** Still deferred to catalog import/save design.
 
 No further ruling is needed to complete this decision record.
+
+---
+
+## Discussion — Q2 tracing — ChatGPT recording (2026-11-18)
+
+This note captures the chat exchange following Turn 3. Gemini's response was pasted by Matt; it was not a new filesystem turn authored by Gemini. The summary preserves the main points without importing the full transcript.
+
+- **Gemini's revised recommendation:** Prefer value-style poses inside named component functions over a mutable cursor, particularly for branching from a common attachment. Return intermediate poses and setup dimensions so the renderer can use supplied orientations rather than reconstruct component placement. Accept ChatGPT's distinction between construction paths and physical outlines, and keep drawing out of the placement operation.
+- **Matt's requirement and suggestion:** Retain traceable geometry computations. Optional/debug tracing is a suggested way to balance inspection with search efficiency; Matt has not yet approved the entire Q2 API.
+- **ChatGPT's response:** Agree on value-style poses, placement results, and separate rendering. Intermediate poses show where geometry ended up; an optional recorder should also explain the operations that produced it. Record structured inputs/results and labels during the actual calculation, rather than separately reconstructing explanations afterward.
+- **Proposed usage:** Search without collecting traces, then re-evaluate an inspected candidate using its exact component choices and settings with tracing enabled. The same inputs must produce the same geometry in both modes. Tracing should be available in the ordinary workbench, without requiring a special developer build. No promise of zero allocations is established.
+- **Remaining refinement:** Gemini recommends pose-valued landmarks throughout; ChatGPT recommends retaining orientation where meaningful, with points for position-only landmarks. Optional recording does not require a shared mutable movement cursor. The API details and tracing mechanism remain open under Q2; Q3's browser interaction scope is also open.
+
+DESIGN.md now reflects this exchange. The earlier proposal requiring every movement to emit a drawing primitive is no longer Gemini's current recommendation.

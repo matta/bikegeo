@@ -2,7 +2,7 @@
 
 ## 1. Purpose & Roles
 
-This directory hosts an asynchronous, filesystem-and-Git-mediated design conversation between **Gemini** and **ChatGPT**, steered by the **Human Operator (Matt)**.
+This directory preserves a design conversation between **Gemini**, **ChatGPT**, and **Matt**. Discussion may happen in either agent's chat, with Matt copying responses between them. Files and Git provide the shared memory; they need not carry every conversational exchange.
 
 The goal is to converge on a single, clear, actionable design intent for the clean-slate `bikegeo` reboot without falling into premature over-engineering or endless agent back-and-forth.
 
@@ -17,7 +17,8 @@ The goal is to converge on a single, clear, actionable design intent for the cle
   - **Record, rather than infer, approval:** Only the human approves significant decisions; agents may record that explicit approval in **Human-Confirmed Decisions**. Silence, agreement between agents, and unexplained file edits are not approval.
 
 ### Scope of a Request
-- A request to continue the design conversation starts a **design turn** and follows the lifecycle below.
+- An explicit request to take an agent turn starts a **design turn** and follows the lifecycle below.
+- Ordinary design conversation with Matt uses the lightweight discussion notes below. The agent receiving the conversation is responsible for recording useful developments without waiting for Matt to request a formal turn or say "record this."
 - Requests to review, explain, or revise the protocol follow the requested scope; they do not automatically create a design turn, change design decisions, or require a turn commit.
 - Design turns may propose implementation or experiments. Executing them requires authorization covering that work; a design turn alone does not provide it. Authorization already given remains valid.
 - Use one active writer at a time. The human hands the conversation to the next agent; this protocol does not require agents to launch one another.
@@ -26,26 +27,38 @@ The goal is to converge on a single, clear, actionable design intent for the cle
 
 ## 2. Shared Filesystem State (`docs/reboot/`)
 
-Durable collaboration state lives in three files in `docs/reboot/`; relevant human guidance from chat is recorded there during design turns:
+Durable collaboration state lives in three files in `docs/reboot/`; relevant chat developments are recorded through formal turns or short discussion notes:
 
 1. **`docs/reboot/README.md`** *(this file)*
    - The directory entrypoint: rules of engagement, file structure, turn lifecycle, and commit conventions.
 2. **`docs/reboot/DESIGN.md`** *(the living canonical design intent)*
    - The single source of truth that the agents are working to converge on. It is organized into four strict sections:
-     1. **Human-Confirmed Decisions**: Architectural choices explicitly approved by the human (tagged with the turn they were recorded, e.g. `(Turn 3)`). Agents must treat these as fixed constraints unless the human reopens them.
+     1. **Human-Confirmed Decisions**: Architectural choices explicitly approved by the human (tagged with the recording turn or dated discussion note). Agents must treat these as fixed constraints unless the human reopens them.
      2. **Converged Proposals (Pending Human Sign-off)**: Specific proposals explicitly endorsed by both agents, awaiting human approval. Agreement between agents is review evidence, not human approval or proof of correctness.
      3. **Active Design Options (Under Discussion)**: Competing ideas or API shapes currently being compared, with brief pros/cons and small code sketches.
      4. **Decision Queue (For the Human Operator)**: A short list of numbered questions (`Q1`, `Q2`, ...) needed now, stating the options, agent recommendations, and what work each blocks. Do not renumber or reuse `Q#` IDs once assigned so references in `DIALOGUE.md` stay unambiguous. Deferred decisions may be listed separately at the bottom of this section with a trigger for revisiting them.
-3. **`docs/reboot/DIALOGUE.md`** *(the turn-by-turn conversation log)*
-   - An append-only chronological log of agent turns (`## Turn 1 — Gemini`, `## Turn 2 — ChatGPT`, etc.).
+3. **`docs/reboot/DIALOGUE.md`** *(the conversation log)*
+   - An append-only chronological log of numbered agent turns and unnumbered, dated discussion notes.
    - Holds the critique, counter-proposals, and reasoning behind changes made to `DESIGN.md` so neither agent overwrites the other's rationale in silence.
-   - Correct an earlier claim in a later turn, referencing the original; do not silently rewrite history.
+   - Correct an earlier claim in a later entry, referencing the original; do not silently rewrite history.
+
+### Recording Ordinary Discussion
+
+- Record a short note when a chat changes a requirement, recommendation, rationale, disagreement, or open question, including substantive responses pasted from the other agent. Routine explanations and acknowledgments that add nothing new need no entry.
+- Before editing, check the Git state and read the current design and latest log entries as in Step 1 below, preserving unrelated changes.
+- Capture the main points, not a transcript. Attribute them to Matt, Gemini, or ChatGPT; distinguish an explicit decision from a preference or tentative suggestion. A pasted agent proposal is not Matt's approval of it.
+- Use a heading such as `## Discussion — Q2 tracing — ChatGPT recording (2026-11-18)` and a few bullets covering what changed, why, and what remains open. No new numbering scheme or mandatory full turn template is needed.
+- Before finishing a substantive design response, append the note and update DESIGN.md if its current summary or queue has changed. Incorporate the reply being given as well as the incoming guidance. If the same exchange is already recorded, add only new information; do not duplicate it when it is pasted back.
+- Review and commit the documentation changes together using `reboot(notes/<agent>): <summary>`, following Step 5's diff-review and staging rules. One note and commit may cover an exchange with several points; do not create entries for every individual message or invent a formal agent turn.
+- The next agent reads DESIGN.md and the latest dialogue entries, including discussion notes. Matt can keep copying responses when convenient; he is not responsible for maintaining the durable summary.
+
+This is permission to maintain the design record during discussion, not to treat proposals as approved or start implementation. Protocol-only conversations remain scoped to the protocol and need no design-log entry.
 
 ---
 
 ## 3. Turn Lifecycle (Step-by-Step)
 
-When the human asks either **Gemini** or **ChatGPT** to continue the design conversation:
+When the human explicitly asks either **Gemini** or **ChatGPT** to take a formal design turn:
 
 ### Step 1: Sync Context from Git & Disk
 1. Run `git status -s` and `git log -n 10 --oneline -- docs/reboot/` to see recent turns and identify existing uncommitted changes. Git status alone does not establish who made them or whether they express approval.
