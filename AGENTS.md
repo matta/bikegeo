@@ -2,6 +2,16 @@
 
 This repository is a zero-dependency **Go** command-line application (`bikegeo`).
 
+## Reboot Tree Scope (`cmd/bikegeo-reboot`, `internal/reboot/...`)
+
+A clean-slate reboot is being built beside the existing application. Its design and plan live in [docs/reboot/](docs/reboot/README.md): [DESIGN.md](docs/reboot/DESIGN.md) (confirmed decisions) and [IMPLEMENTATION.md](docs/reboot/IMPLEMENTATION.md) (package layout, import boundary, slices). For code under `cmd/bikegeo-reboot` and `internal/reboot/...`, those documents take precedence over the **Architectural Guidelines** and **Adding or Modifying Bike Frame Datasets** sections below wherever they differ. In particular:
+
+- The reboot workbench uses Go-rendered HTML/SVG plus a small dependency-free vanilla JavaScript layer (no framework, npm, or build step). The "strictly Web 1.0, no JavaScript" rule applies only to the existing `internal/web`.
+- Reboot angles use the reboot-owned `pose.Deg`, not `model.Deg`. Reboot code never imports `bikegeo/internal/model` or any other legacy package, except in files named `*_parity_test.go`; legacy packages never import reboot packages (enforced by `make boundary`).
+- The Milestone 1 Otso Fenrir Stainless fixture lives in the reboot tree (`internal/reboot/web/fixture.go`), not in `internal/frames`, and is not registered in `frames.AllFrames()`. Chart immutability still applies: published chart values are never nudged.
+
+Everything else here still applies to the reboot: the verification loop, `make pre-commit`, zero runtime dependencies, `exhaustive`, `deadcode`, and the output formatting rules. Do not change the existing application while doing reboot work unless asked.
+
 ## Rider Fit Provenance
 
 Before analyzing Matt's personal bike fit, read [docs/RIDER_FIT.md](docs/RIDER_FIT.md). It records his confirmed saddle and seatpost, riding observations, and the idmatch transfer from his bike with an **unsagged Redshift post** to the test jig using the **same physical saddle**. Treat these owner-confirmed facts as established; do not ask him to repeat them. Keep reported measurements, model-derived sit-bone coordinates, and untested fit preferences distinct.
