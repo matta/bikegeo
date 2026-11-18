@@ -182,8 +182,19 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		t.Errorf("effective-a2c = %q, want 506.0 mm", got)
 	}
 
-	for _, name := range []string{"RearAxle", "RearContact", "BB", "SeatTubeTop", "HeadTubeTop", "HeadTubeBottom", "LowerCupBottom", "FrontAxle", "FrontContact"} {
+	for _, name := range []string{
+		"RearAxle", "RearContact", "BB", "SeatTubeTop",
+		"SeatpostClamp", "RailCenter", "BRP", "SitBones",
+		"HeadTubeTop", "HeadTubeBottom", "LowerCupBottom", "FrontAxle", "FrontContact",
+	} {
 		sel := fmt.Sprintf(`svg.diagram [data-landmark="%s"]`, name)
+		if doc.Find(sel).Length() != 1 {
+			t.Errorf("expected 1 element matching %s, got %d", sel, doc.Find(sel).Length())
+		}
+	}
+
+	for _, comp := range []string{"seatpost-clamp", "saddle-rail"} {
+		sel := fmt.Sprintf(`svg.diagram rect[data-component="%s"]`, comp)
 		if doc.Find(sel).Length() != 1 {
 			t.Errorf("expected 1 element matching %s, got %d", sel, doc.Find(sel).Length())
 		}
@@ -199,10 +210,17 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fox34 setup: %v", err)
 	}
-	placed, err := assembly.PlaceChassis(fix.Chart.Frame, forkSetup, fix.Wheels, nil)
+	bike, err := assembly.PlaceBike(assembly.BikeSetup{
+		Frame:    fix.Chart.Frame,
+		Fork:     forkSetup,
+		Wheels:   fix.Wheels,
+		Seatpost: fix.DefaultSeatpost,
+		Saddle:   fix.DefaultSaddle,
+	}, nil)
 	if err != nil {
-		t.Fatalf("PlaceChassis: %v", err)
+		t.Fatalf("PlaceBike: %v", err)
 	}
+	placed := bike.Chassis
 	wantGroundY := fmt.Sprintf("%.2f", -placed.RearTireContact.Origin().Y)
 	groundLine := doc.Find(`svg.diagram line[data-element="ground-line"]`)
 	if groundLine.Length() != 1 {
@@ -224,6 +242,13 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 	if got := strings.TrimSpace(doc.Find(`[data-metric="leveled-sta"]`).Text()); got != fmt.Sprintf("%.2f°", placed.LeveledSeatTubeAngleDeg()) {
 		t.Errorf("leveled-sta = %q, want %.2f°", got, placed.LeveledSeatTubeAngleDeg())
 	}
+	if got := strings.TrimSpace(doc.Find(`[data-metric="seat-axis-post-top"]`).Text()); got != "753.5 mm" {
+		t.Errorf("seat-axis-post-top = %q, want 753.5 mm", got)
+	}
+	wantSaddleHeight := fmt.Sprintf("%.1f mm", bike.SaddleHeightMm())
+	if got := strings.TrimSpace(doc.Find(`[data-metric="brp-height"]`).Text()); got != wantSaddleHeight {
+		t.Errorf("brp-height = %q, want %s", got, wantSaddleHeight)
+	}
 
 	cadBaseline, err := assembly.PlaceCadBaseline(fix.Chart, fix.Wheels)
 	if err != nil {
@@ -242,7 +267,7 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		t.Errorf("prev_fork hidden input = %q, want fox34_120", prevFork)
 	}
 
-	for _, name := range []string{"seat-tube", "seatstay"} {
+	for _, name := range []string{"seat-tube", "seatstay", "saddle-profile"} {
 		sel := fmt.Sprintf(`svg.diagram line[data-segment="%s"][data-illustrative="true"]`, name)
 		if doc.Find(sel).Length() != 1 {
 			t.Errorf("expected 1 illustrative segment matching %s, got %d", sel, doc.Find(sel).Length())
@@ -252,8 +277,8 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		t.Errorf("head-tube should not be marked data-illustrative")
 	}
 
-	if facePaths := doc.Find(`svg.diagram .trace-steps path[data-op="face"]`).Length(); facePaths != 2 {
-		t.Errorf("expected 2 face step paths in trace-steps, got %d", facePaths)
+	if facePaths := doc.Find(`svg.diagram .trace-steps path[data-op="face"]`).Length(); facePaths != 3 {
+		t.Errorf("expected 3 face step paths in trace-steps, got %d", facePaths)
 	}
 
 	rows := doc.Find("table tbody tr[data-step-id]")

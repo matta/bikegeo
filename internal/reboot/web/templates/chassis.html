@@ -197,6 +197,8 @@
         <span>Effective A2C: <strong class="mono" data-metric="effective-a2c">{{printf "%.1f mm" .EffectiveA2cMm}}</strong></span>
         <span>Wheelbase: <strong class="mono" data-metric="wheelbase">{{printf "%.1f mm" .WheelbaseMm}}</strong></span>
         <span>Leveled BB Drop: <strong class="mono" data-metric="bb-drop">{{printf "%.1f mm" .BbDropLeveledMm}}</strong></span>
+        <span>BB to post top (seat axis): <strong class="mono" data-metric="seat-axis-post-top">{{printf "%.1f mm" .SeatAxisToPostTopMm}}</strong></span>
+        <span>|BRP - BB| ({{.SaddleName}}): <strong class="mono" data-metric="brp-height">{{printf "%.1f mm" .SaddleHeightMm}}</strong></span>
       </div>
       <div class="summary" style="font-size: 0.82rem;">
         <span>CAD Baseline ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm / {{printf "%.0f" .CadFork.LowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .CadHtaDeg}} HTA, {{printf "%.1f mm" .CadWheelbaseMm}} WB</strong> (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>)</span>
@@ -219,6 +221,15 @@
                 x1="{{printf "%.2f" .X1}}" y1="{{printf "%.2f" .Y1}}"
                 x2="{{printf "%.2f" .X2}}" y2="{{printf "%.2f" .Y2}}"
                 stroke="{{.Color}}" stroke-width="{{printf "%.1f" .Width}}" />
+          {{end}}
+        </g>
+
+        <g class="component-outlines" fill="#d8dee4" fill-opacity="0.65" stroke="#59636e" stroke-width="1.5">
+          {{range .Rects}}
+          <rect data-component="{{.Name}}"
+                x="{{printf "%.2f" .X}}" y="{{printf "%.2f" .Y}}"
+                width="{{printf "%.2f" .Width}}" height="{{printf "%.2f" .Height}}"
+                rx="2" transform="{{.Transform}}" />
           {{end}}
         </g>
 

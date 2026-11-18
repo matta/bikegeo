@@ -37,6 +37,9 @@ type bikeFixture struct {
 	DefaultForkID     string
 	Forks             []forkOption
 	DefaultStem       assembly.StemSetup
+	DefaultSeatpost   assembly.SeatpostSetup
+	SaddleName        string
+	DefaultSaddle     assembly.SaddleSetup
 }
 
 // otsoFenrirFixture returns the Milestone 1 Otso Fenrir Stainless (2024, Size L)
@@ -89,6 +92,20 @@ func otsoFenrirFixture() bikeFixture {
 			ClampHeightMm: 40.0,
 			LengthMm:      60.0,
 			AngleDeg:      -6.0,
+		},
+		DefaultSeatpost: assembly.SeatpostSetup{
+			ExtensionMm:   263.5,
+			PostSetbackMm: 0.0,
+			ClampLengthMm: 30.0,
+		},
+		SaddleName: "SQlab 610 Ergolux Active 2.1",
+		DefaultSaddle: assembly.SaddleSetup{
+			RailCenterToBrpMm:      32.0,
+			RailCenterToSitBonesMm: -48.0,
+			SitBonesElevationMm:    10.0,
+			RailLengthMm:           60.0,
+			RailPitchDeg:           0.0,
+			RailOffsetMm:           0.0,
 		},
 	}
 }

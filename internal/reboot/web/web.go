@@ -78,6 +78,8 @@ const (
 	steererClampOutlineWidthMm = 38.0
 	stemBodyOutlineWidthMm     = 30.0
 	barClampRingRadiusMm       = 15.9 // nominal 31.8 mm clamp diameter; illustrative, not measured
+	seatpostClampOutlineHeight = 10.0 // illustrative rail-clamp head thickness
+	saddleRailOutlineHeight    = 5.0  // illustrative saddle rail thickness
 	turnArcRadiusMm            = 12.0 // illustrative radius for turn-step SVG arcs
 )
 
@@ -293,6 +295,7 @@ type svgSegment struct {
 
 type chassisView struct {
 	BikeName             string
+	SaddleName           string
 	Forks                []forkOption
 	SelectedForkID       string
 	PrevFork             string
@@ -306,6 +309,8 @@ type chassisView struct {
 	LeveledStaDeg        pose.Deg
 	WheelbaseMm          float64
 	BbDropLeveledMm      float64
+	SeatAxisToPostTopMm  float64
+	SaddleHeightMm       float64
 	PublishedWheelbaseMm float64
 	CadHtaDeg            pose.Deg
 	CadWheelbaseMm       float64
@@ -321,6 +326,7 @@ type chassisView struct {
 	GroundX1             float64
 	GroundX2             float64
 	ViewBox              string
+	Rects                []svgRect
 	Segments             []svgSegment
 	TraceSteps           svgTraceSteps
 	Landmarks            []svgLandmark
@@ -390,7 +396,13 @@ func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tr := pose.NewTrace()
-	placed, err := assembly.PlaceChassis(fix.Chart.Frame, forkSetup, fix.Wheels, tr)
+	bike, err := assembly.PlaceBike(assembly.BikeSetup{
+		Frame:    fix.Chart.Frame,
+		Fork:     forkSetup,
+		Wheels:   fix.Wheels,
+		Seatpost: fix.DefaultSeatpost,
+		Saddle:   fix.DefaultSaddle,
+	}, tr)
 	tr.Freeze()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -403,7 +415,7 @@ func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := buildChassisView(fix, selectedForkID, prevForkForUI, isCadBaseline, sagPct, forkSetup, placed, cadBaseline, tr.Steps())
+	view := buildChassisView(fix, selectedForkID, prevForkForUI, isCadBaseline, sagPct, forkSetup, bike, cadBaseline, tr.Steps())
 
 	var buf bytes.Buffer
 	if err := chassisTemplate.Execute(&buf, view); err != nil {
@@ -450,12 +462,17 @@ func buildChassisView(
 	isCadBaseline bool,
 	sagPct float64,
 	fork assembly.ForkSetup,
-	placed assembly.ChassisPlacement,
+	bike assembly.BikePlacement,
 	cadBaseline assembly.ChartBaseline,
 	steps []pose.Step,
 ) chassisView {
-	// seat-tube (straight along effective STA) and seatstay (to SeatTubeTop)
-	// are illustrative schematic lines rather than measured tube outlines.
+	placed := bike.Chassis
+	seatpost := bike.Seatpost
+	saddle := bike.Saddle
+
+	// seat-tube (straight along effective STA), seatstay (to SeatTubeTop), and
+	// saddle-profile (SitBones to BRP) are illustrative schematic lines rather
+	// than measured physical outlines.
 	segments := []svgSegment{
 		makeSegment("chainstay", placed.RearAxle, placed.BB, "#2f363d", 6, false),
 		makeSegment("seat-tube", placed.SeatAxis, placed.SeatTubeTop, "#2f363d", 7, true),
@@ -464,6 +481,14 @@ func buildChassisView(
 		makeSegment("lower-cup", placed.HeadTubeBottom, placed.LowerCupBottom, "#0969da", 9, false),
 		makeSegment("fork-a2c", placed.LowerCupBottom, placed.ForkSteererBase, "#59636e", 7, false),
 		makeSegment("fork-rake", placed.ForkSteererBase, placed.FrontAxle, "#59636e", 5, false),
+		makeSegment("seatpost", placed.SeatTubeTop, seatpost.ShaftTop, "#59636e", 5, false),
+		makeSegment("seatpost-setback", seatpost.ShaftTop, seatpost.SeatpostClamp, "#59636e", 5, false),
+		makeSegment("saddle-profile", saddle.SitBones, saddle.BRP, "#2f363d", 4, true),
+	}
+
+	rects := []svgRect{
+		poseRect("seatpost-clamp", saddle.RailFrame, -bike.Setup.Seatpost.ClampLengthMm/2.0, bike.Setup.Seatpost.ClampLengthMm, seatpostClampOutlineHeight),
+		poseRect("saddle-rail", saddle.RailCenter, -bike.Setup.Saddle.RailLengthMm/2.0, bike.Setup.Saddle.RailLengthMm, saddleRailOutlineHeight),
 	}
 
 	landmarks := []svgLandmark{
@@ -471,6 +496,10 @@ func buildChassisView(
 		makeLandmark("RearContact", placed.RearTireContact, 0, 24, "middle"),
 		makeLandmark("BB", placed.BB, 0, 26, "middle"),
 		makeLandmark("SeatTubeTop", placed.SeatTubeTop, -14, -10, "end"),
+		makeLandmark("SeatpostClamp", seatpost.SeatpostClamp, 16, 6, "start"),
+		makeLandmark("RailCenter", saddle.RailCenter, 16, 24, "start"),
+		makeLandmark("BRP", saddle.BRP, 14, -10, "start"),
+		makeLandmark("SitBones", saddle.SitBones, -14, -10, "end"),
 		makeLandmark("HeadTubeTop", placed.HeadTubeTop, 14, -10, "start"),
 		makeLandmark("HeadTubeBottom", placed.HeadTubeBottom, 16, 4, "start"),
 		makeLandmark("LowerCupBottom", placed.LowerCupBottom, 16, 18, "start"),
@@ -489,10 +518,13 @@ func buildChassisView(
 		rearContactSVG,
 		toSVG(placed.HeadTubeTop.Origin()),
 		toSVG(placed.SeatTubeTop.Origin()),
+		toSVG(saddle.BRP.Origin()),
+		toSVG(saddle.SitBones.Origin()),
 	}
 
 	return chassisView{
 		BikeName:             fix.Name,
+		SaddleName:           fix.SaddleName,
 		Forks:                fix.Forks,
 		SelectedForkID:       forkID,
 		PrevFork:             prevFork,
@@ -506,6 +538,8 @@ func buildChassisView(
 		LeveledStaDeg:        placed.LeveledSeatTubeAngleDeg(),
 		WheelbaseMm:          placed.WheelbaseMm(),
 		BbDropLeveledMm:      placed.LeveledBbDropMm(),
+		SeatAxisToPostTopMm:  bike.SeatAxisToPostTopMm(),
+		SaddleHeightMm:       bike.SaddleHeightMm(),
 		PublishedWheelbaseMm: fix.Chart.PublishedWheelbaseMm,
 		CadHtaDeg:            cadBaseline.Placement.LeveledHeadTubeAngleDeg(),
 		CadWheelbaseMm:       cadBaseline.Placement.WheelbaseMm(),
@@ -521,6 +555,7 @@ func buildChassisView(
 		GroundX1:             rearContactSVG.X - r - 40,
 		GroundX2:             frontContactSVG.X + r + 40,
 		ViewBox:              computeViewBoxFromPoints(pts, 60.0, 60.0, 50.0, 45.0),
+		Rects:                rects,
 		Segments:             segments,
 		TraceSteps: svgTraceSteps{
 			Steps:         buildSVGSteps(steps, 40.0),

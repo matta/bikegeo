@@ -4,7 +4,6 @@ package assembly
 
 import (
 	"fmt"
-	"math"
 
 	"bikegeo/internal/reboot/pose"
 )
@@ -34,20 +33,11 @@ type StemPlacement struct {
 	BarClamp     pose.Pose
 }
 
-func isFinite(v float64) bool {
-	return !math.IsNaN(v) && !math.IsInf(v, 0)
-}
-
-func isFinitePoint(p pose.Point) bool {
-	return isFinite(p.X) && isFinite(p.Y)
-}
-
 // PlaceStem mounts a stem assembly starting at steererUp (positioned at the
 // head-tube top and oriented up the steerer axis).
 func PlaceStem(steererUp pose.Pose, setup StemSetup) (StemPlacement, error) {
-	if !isFinitePoint(steererUp.Origin()) || !isFinite(float64(steererUp.HeadingDeg())) {
-		return StemPlacement{}, fmt.Errorf("steererUp pose must be finite, got (%v, %v) at %v°",
-			steererUp.Origin().X, steererUp.Origin().Y, steererUp.HeadingDeg())
+	if err := validatePose("steererUp", steererUp); err != nil {
+		return StemPlacement{}, err
 	}
 	if !isFinite(setup.UpperCoverMm) || setup.UpperCoverMm < 0 {
 		return StemPlacement{}, fmt.Errorf("upper cover must be finite and non-negative, got %v mm", setup.UpperCoverMm)
@@ -71,9 +61,8 @@ func PlaceStem(steererUp pose.Pose, setup StemSetup) (StemPlacement, error) {
 	stemAxis := steererClamp.Turn("perpendicular", -90.0).Turn("stem axis", setup.AngleDeg)
 	barClamp := stemAxis.Advance("stem length", setup.LengthMm)
 
-	if !isFinitePoint(steererClamp.Origin()) || !isFinitePoint(barClamp.Origin()) {
-		return StemPlacement{}, fmt.Errorf("stem placement overflow from (%v, %v)",
-			steererUp.Origin().X, steererUp.Origin().Y)
+	if err := validatePlacementPoses("stem", steererUp, steererClamp, barClamp); err != nil {
+		return StemPlacement{}, err
 	}
 
 	return StemPlacement{
