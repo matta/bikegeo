@@ -2340,3 +2340,47 @@ func TestBikeWorkbenchCloseUpsContainTheirOutlines(t *testing.T) {
 		}
 	}
 }
+
+// Every view draws the same build, so the trace rows, per-step SVG elements,
+// step frames and landmark step IDs must stay in one-to-one correspondence
+// whichever view is selected, and must not differ between views.
+func TestBikeWorkbenchStepIDsMatchInEveryView(t *testing.T) {
+	stepIDs := func(doc *goquery.Document, sel string) []string {
+		var ids []string
+		doc.Find(sel).Each(func(_ int, s *goquery.Selection) {
+			id, _ := s.Attr("data-step-id")
+			ids = append(ids, id)
+		})
+		return ids
+	}
+	var wantRows []string
+	for _, view := range []string{"bike", "seat", "stem"} {
+		t.Run(view, func(t *testing.T) {
+			doc := loadBikeDoc(t, "/bike?view="+view)
+			rows := stepIDs(doc, "table.trace-table tbody tr[data-step-id]")
+			if len(rows) == 0 {
+				t.Fatalf("no trace rows")
+			}
+			if wantRows == nil {
+				wantRows = rows
+			} else if strings.Join(rows, ",") != strings.Join(wantRows, ",") {
+				t.Errorf("trace row IDs differ from whole-bike view: %v vs %v", rows, wantRows)
+			}
+			for _, id := range rows {
+				if n := doc.Find(fmt.Sprintf(`svg.diagram .trace-steps [data-step-id=%q]`, id)).Length(); n != 1 {
+					t.Errorf("step %s: %d SVG trace elements, want 1", id, n)
+				}
+				if n := doc.Find(fmt.Sprintf(`svg.diagram .step-frames g[data-step-frame=%q]`, id)).Length(); n != 1 {
+					t.Errorf("step %s: %d step frames, want 1", id, n)
+				}
+			}
+			doc.Find("svg.diagram .landmarks [data-step-id]").Each(func(_ int, s *goquery.Selection) {
+				id, _ := s.Attr("data-step-id")
+				if doc.Find(fmt.Sprintf(`table.trace-table tbody tr[data-step-id=%q]`, id)).Length() != 1 {
+					name, _ := s.Attr("data-landmark")
+					t.Errorf("landmark %s step %q has no trace row", name, id)
+				}
+			})
+		})
+	}
+}
