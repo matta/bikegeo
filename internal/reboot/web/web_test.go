@@ -1551,6 +1551,13 @@ func TestWorkbenchStaticAssetServed(t *testing.T) {
 		t.Fatalf("GET /static/missing.js status = %d, want 404", missingRec.Code)
 	}
 
+	testAssetReq := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/static/workbench_test.js", nil)
+	testAssetRec := httptest.NewRecorder()
+	NewHandler().ServeHTTP(testAssetRec, testAssetReq)
+	if testAssetRec.Code != http.StatusNotFound {
+		t.Fatalf("GET /static/workbench_test.js status = %d, want 404", testAssetRec.Code)
+	}
+
 	for _, path := range []string{"/", "/bike"} {
 		doc := loadBikeDoc(t, path)
 		script := doc.Find(`script[src="/static/workbench.js"]`)

@@ -10,7 +10,7 @@ Conventional Commits are banned in this repository. Write concise, plain-languag
 
 A clean-slate reboot is being built beside the existing application. Its design and plan live in [docs/reboot/](docs/reboot/README.md): [DESIGN.md](docs/reboot/DESIGN.md) (confirmed decisions) and [IMPLEMENTATION.md](docs/reboot/IMPLEMENTATION.md) (package layout, import boundary, slices). For code under `cmd/bikegeo-reboot` and `internal/reboot/...`, those documents take precedence over the **Architectural Guidelines** and **Adding or Modifying Bike Frame Datasets** sections below wherever they differ. In particular:
 
-- The reboot workbench uses Go-rendered HTML/SVG plus a small dependency-free vanilla JavaScript layer (no framework, npm, or build step). The "strictly Web 1.0, no JavaScript" rule applies only to the existing `internal/web`.
+- The reboot workbench uses Go-rendered HTML/SVG plus a small dependency-free vanilla JavaScript layer (no framework, `package.json`, npm packages, or build step); JS controller regression tests run in Node's built-in `node:test` runner via `make test-js` using the major version pinned in `.node-version`. The "strictly Web 1.0, no JavaScript" rule applies only to the existing `internal/web`.
 - Reboot angles use the reboot-owned `pose.Deg`, not `model.Deg`. Reboot code never imports `bikegeo/internal/model` or any other legacy package, except in files named `*_parity_test.go`; legacy packages never import reboot packages (enforced by `make boundary`).
 - **Geometry & trigonometry live in `internal/reboot/pose`:** Non-test Go code under `internal/reboot/...` (outside `pose`) must delegate to semantic abstractions in `internal/reboot/pose` for all trigonometry, radian conversions, and geometric math; `pose` itself must keep raw trig and radian conversions package-private. Plain numeric/validation checks (such as `Abs`, `IsNaN`, `IsInf`) and independent `math` usage in `*_test.go` are fine; violations should be caught in code review.
 - The Milestone 1 Otso Fenrir Stainless fixture lives in the reboot tree (`internal/reboot/web/fixture.go`), not in `internal/frames`, and is not registered in `frames.AllFrames()`. Chart immutability still applies: published chart values are never nudged.
@@ -32,7 +32,7 @@ go vet ./... && go test ./...
 
 ## Final Verification & Pre-Commit Cleanup
 
-Formatting and modernization are not part of the fast feedback loop, but are required before committing or completing a task. Run the codified pre-commit target, which executes `go fix ./...`, `go fmt ./...`, `go vet ./...`, `go tool exhaustive ./...`, `go tool deadcode ./...`, `go tool deadcode -test ./...`, and `go test -v ./...`:
+Formatting and modernization are not part of the fast feedback loop, but are required before committing or completing a task. Run the codified pre-commit target, which executes `go fix ./...`, `go fmt ./...`, `go vet ./...`, `make boundary`, `go tool exhaustive ./...`, `go tool deadcode ./...`, `go tool deadcode -test ./...`, `go test -v ./...`, and `make test-js`:
 
 ```bash
 make pre-commit
@@ -115,7 +115,7 @@ When adding or editing frame files in `internal/frames/*.go`:
   - Domain math, validation, canonicalization, ideal profiles, scoring, fit solver, and CLI subcommands (`compare`, `validate`, `list`, `fit`) are tested in `internal/*/*_test.go`. CLI tests assert on cell values (`runCLIRows` flattens Markdown tables), not on padding.
   - HTTP handlers and templates are tested browserlessly in `internal/web/web_test.go`: `httptest.NewRequest` (set `req.Host = "127.0.0.1:8080"`) → `web.New().ServeHTTP` → `goquery` selectors such as `tr[data-frame-id="..."] td[data-metric="..."]`. No Playwright, Selenium, or other browser automation.
 - **Commands**:
-  - `make check` — formats, vets, runs `exhaustive`, runs `deadcode`, and runs the full test suite.
+  - `make check` — formats, vets, checks import/terminology boundaries, runs `exhaustive`, runs `deadcode`, and runs both Go and JS (`make test-js`) test suites.
   - `make pre-commit` — required pre-commit workflow (`fix` + `check`).
 
 ## Output Formatting & Markdown Guidelines

@@ -1,4 +1,4 @@
-.PHONY: all fix fmt vet boundary exhaustive deadcode test check pre-commit build build-reboot run serve serve-reboot watch watch-serve clean
+.PHONY: all fix fmt vet boundary exhaustive deadcode test test-js check pre-commit build build-reboot run serve serve-reboot watch watch-serve clean
 
 export PATH := $(HOME)/go/bin:$(PATH)
 
@@ -75,7 +75,16 @@ deadcode:
 test:
 	go test -v ./...
 
-check: vet boundary exhaustive deadcode test
+test-js:
+	@if command -v node >/dev/null 2>&1; then \
+	  node --test internal/reboot/web/static/*_test.js; \
+	elif command -v fnm >/dev/null 2>&1; then \
+	  fnm exec -- node --test internal/reboot/web/static/*_test.js; \
+	else \
+	  echo "test-js: node not found (install Node matching .node-version)" >&2; exit 1; \
+	fi
+
+check: vet boundary exhaustive deadcode test test-js
 
 # Required pre-commit workflow: modernize with go fix, then run full check.
 pre-commit: fix check

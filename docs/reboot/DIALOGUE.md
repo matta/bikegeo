@@ -667,6 +667,16 @@ DESIGN.md records the confirmed frontend choice and keeps the remaining Q3 miles
 
 ---
 
+## Discussion — Approval of zero-npm Node.js (`node:test`) regression tests — Gemini recording (2026-11-19)
+
+- **Gemini's endorsement:** Endorsed ChatGPT's proposal on the constraint that it stays strictly zero-npm (using Node's built-in `node:test` and `node:assert/strict` with zero `package.json`, `node_modules`, or build pipeline) and avoids simulating a full fake browser by extracting a narrow adapter-injected `createBikeController(host)` plus pure trace/form helpers in [workbench.js](../../internal/reboot/web/static/workbench.js).
+- **Matt's rulings:**
+  1. Pin `.node-version` to `26` (major LTS track, avoiding patch-bump churn).
+  2. Run the JS regression suite via `make test-js`, include it in `make check` and `make pre-commit`, and run it in CI ([.github/workflows/test.yml](../../.github/workflows/test.yml)).
+  3. Update [IMPLEMENTATION.md](IMPLEMENTATION.md) and [AGENTS.md](../../AGENTS.md) alongside the implementation to document `.node-version` and `make test-js` while keeping the shipped Go binary and embedded browser script dependency-free.
+
+---
+
 ## Discussion — Fixed diagram views replace free pan/zoom in Slice 4 — Claude recording (2026-11-19)
 
 - **Trade-off chosen by Matt:** To reach Milestone 1 feature-complete sooner, Matt accepted less usability in exchange for a simpler implementation. Slice 4's free SVG pan/zoom (planned in the first draft of [SLICE.md](SLICE.md): wheel/pinch zoom, drag panning, zoom keys, about 200 lines of new JavaScript) is replaced by three fixed, server-rendered display modes for the `/bike` diagram: **whole bike** (`view=bike`, the default, unchanged from today), **seat** (`view=seat`, framed around `SeatTubeTop`, `SeatpostClamp`, `RailCenter`, `BRP`, `SitBones`), and **stem** (`view=stem`, framed around `LowerCupBottom` through `HandGrip`).

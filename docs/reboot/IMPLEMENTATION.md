@@ -134,9 +134,9 @@ Add `make build-reboot` and `make serve-reboot` without changing existing `build
 - **Dead-code analysis (`make deadcode`):**
   Run `go tool deadcode ./...` and `go tool deadcode -test ./...` across both application entrypoints. Build vertical slices so every new non-test function in `internal/reboot/...` is reachable from `cmd/bikegeo-reboot/main.go` on every commit.
 - Adapt independent component examples, check dimensions and leveling invariants, and verify identical placements with tracing on/off. A comparison with old output in `*_parity_test.go` must explain differences rather than automatically declaring the old result correct.
-- Go handler/template tests cover generated output and trace/diagram correspondence. Check the real browser interactions as well, initially manually if appropriate. No new browser-test framework is required by this plan.
+- Go handler/template tests cover generated output and trace/diagram correspondence, while Node's built-in `node:test` runner (pinned in `.node-version`, zero npm packages, run via `make test-js`, `make check` / `make pre-commit`, and CI) covers deterministic JS controller and helper regression tests (`internal/reboot/web/static/*_test.js`). Keep complementing both with live browser interaction checks; no browser-test framework or npm dependency is required.
 
-The reboot retains the existing zero-runtime-dependency rule. Existing test/tool dependencies remain allowed in their appropriate roles; sharing `go.mod` does not make them production dependencies of either executable.
+The reboot retains the existing zero-runtime-dependency rule (both the Go binary and embedded browser JavaScript remain dependency-free). Existing test/tool dependencies remain allowed in their appropriate roles; sharing `go.mod` or `.node-version` does not make them production dependencies of either executable.
 
 ## 5. Milestone 1 in reviewable implementation slices
 

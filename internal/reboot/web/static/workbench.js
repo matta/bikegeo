@@ -1,6 +1,29 @@
 (() => {
   "use strict";
 
+  function ancestorIds(id, parentById, validIds) {
+    const ancestors = [];
+    const visited = new Set([id]);
+    let cur = parentById.get(id);
+    while (cur && cur !== "0" && validIds.has(cur) && !visited.has(cur)) {
+      visited.add(cur);
+      ancestors.push(cur);
+      cur = parentById.get(cur);
+    }
+    return ancestors;
+  }
+
+  function resolveInitialSelection(initialSelection, metaById) {
+    if (!initialSelection || !initialSelection.id) {
+      return null;
+    }
+    const meta = metaById.get(initialSelection.id);
+    if (meta && meta.op === initialSelection.op && meta.label === initialSelection.label) {
+      return initialSelection.id;
+    }
+    return null;
+  }
+
   function mountTraceWorkbench(root, initialSelection) {
     if (!root) {
       return null;
@@ -79,13 +102,7 @@
       list.push(el);
     }
 
-    let selectedId = null;
-    if (initialSelection && initialSelection.id) {
-      const meta = metaById.get(initialSelection.id);
-      if (meta && meta.op === initialSelection.op && meta.label === initialSelection.label) {
-        selectedId = initialSelection.id;
-      }
-    }
+    let selectedId = resolveInitialSelection(initialSelection, metaById);
     let hoveredId = null;
     let focusedId = null;
 
@@ -93,18 +110,6 @@
     let ancestorEls = [];
     let selectedRow = null;
     let selectedBtn = null;
-
-    function ancestorIds(id) {
-      const ancestors = [];
-      const visited = new Set([id]);
-      let cur = parentById.get(id);
-      while (cur && cur !== "0" && rowById.has(cur) && !visited.has(cur)) {
-        visited.add(cur);
-        ancestors.push(cur);
-        cur = parentById.get(cur);
-      }
-      return ancestors;
-    }
 
     function markActive(el) {
       if (!el) {
@@ -165,7 +170,7 @@
       }
 
       if (activeId) {
-        for (const ancId of ancestorIds(activeId)) {
+        for (const ancId of ancestorIds(activeId, parentById, rowById)) {
           markAncestor(rowById.get(ancId));
           markAncestor(stepElById.get(ancId));
         }
@@ -388,8 +393,8 @@
     return u.pathname + u.search;
   }
 
-  function historyURLForError(requestUrl) {
-    const u = new URL(requestUrl, window.location.href);
+  function historyURLForError(requestUrl, baseHref) {
+    const u = new URL(requestUrl, baseHref);
     const fork = u.searchParams.get("fork");
     const prevFork = u.searchParams.get("prev_fork");
     if (prevFork !== null && prevFork === fork) {
@@ -464,22 +469,15 @@
     }
   }
 
-  function mountBikeWorkbench(main) {
-    let activeInspector = null;
-    function mountInspector(selection) {
-      const traceRoot = main.querySelector("[data-trace-workbench]");
-      activeInspector = traceRoot ? mountTraceWorkbench(traceRoot, selection) : null;
-    }
-    mountInspector(null);
-
+  function createBikeController(host) {
     let inFlightController = null;
     let inFlightUrl = null;
     let inFlightSource = null;
     let requestSeq = 0;
     let editVersion = 0;
     let staleFormAfterAbort = false;
-    let currentLocationKey = window.location.pathname + window.location.search;
-    let presetPointerTarget = null;
+    let currentLocationKey = host.getLocation();
+    let presetPointerActive = false;
 
     function clearInFlight(controller) {
       if (inFlightController === controller) {
@@ -489,18 +487,11 @@
       }
     }
 
-    function fallbackNavigate(url, pushHistory) {
-      if (pushHistory) {
-        window.location.assign(url);
-      } else {
-        window.location.reload();
-      }
-    }
-
     async function navigate(targetUrl, { pushHistory, source }) {
-      const parsed = new URL(targetUrl, window.location.href);
-      if (parsed.origin !== window.location.origin || parsed.pathname !== "/bike") {
-        window.location.assign(parsed.href);
+      const baseHref = host.origin + "/";
+      const parsed = new URL(targetUrl, baseHref);
+      if (parsed.origin !== host.origin || parsed.pathname !== "/bike") {
+        host.navigateHard(parsed.href, true);
         return;
       }
       const requestUrl = parsed.pathname + parsed.search;
@@ -521,22 +512,18 @@
       inFlightUrl = requestUrl;
       inFlightSource = source;
       const seq = ++requestSeq;
-      main.setAttribute("aria-busy", "true");
+      host.setBusy(true);
 
-      let response;
+      let result;
       try {
-        response = await fetch(requestUrl, {
-          method: "GET",
-          headers: { Accept: "text/html" },
-          signal: controller.signal,
-        });
+        result = await host.fetchPage(requestUrl, controller.signal);
       } catch (err) {
         if (seq !== requestSeq || (err && err.name === "AbortError")) {
           return;
         }
         clearInFlight(controller);
-        main.removeAttribute("aria-busy");
-        fallbackNavigate(requestUrl, pushHistory);
+        host.setBusy(false);
+        host.navigateHard(requestUrl, pushHistory);
         return;
       }
 
@@ -544,96 +531,212 @@
         return;
       }
 
-      if (response.status !== 200 && response.status !== 400) {
+      if (!result || (result.status !== 200 && result.status !== 400)) {
         clearInFlight(controller);
-        main.removeAttribute("aria-busy");
-        fallbackNavigate(requestUrl, pushHistory);
+        host.setBusy(false);
+        host.navigateHard(requestUrl, pushHistory);
         return;
       }
 
-      let html;
-      try {
-        html = await response.text();
-      } catch (err) {
-        if (seq !== requestSeq || (err && err.name === "AbortError")) {
-          return;
-        }
+      const parsedPage = host.parsePage(result.html);
+      if (!parsedPage) {
         clearInFlight(controller);
-        main.removeAttribute("aria-busy");
-        fallbackNavigate(requestUrl, pushHistory);
-        return;
-      }
-
-      if (seq !== requestSeq) {
-        return;
-      }
-
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      const incomingMain = doc.querySelector("main[data-bike-workbench]");
-      if (!incomingMain) {
-        clearInFlight(controller);
-        main.removeAttribute("aria-busy");
-        fallbackNavigate(requestUrl, pushHistory);
+        host.setBusy(false);
+        host.navigateHard(requestUrl, pushHistory);
         return;
       }
 
       if (source !== "popstate" && editVersion !== startedEditVersion) {
         clearInFlight(controller);
-        main.removeAttribute("aria-busy");
+        host.setBusy(false);
         staleFormAfterAbort = true;
         return;
       }
 
-      const savedFocus = captureFocus(main);
-      const savedSelection = activeInspector ? activeInspector.getSelection() : null;
-      if (activeInspector) {
-        activeInspector.destroy();
-        activeInspector = null;
-      }
-
-      const canonicalUrl = incomingMain.getAttribute("data-canonical-url") || "";
-      if (canonicalUrl) {
-        main.setAttribute("data-canonical-url", canonicalUrl);
-      } else {
-        main.removeAttribute("data-canonical-url");
-      }
-
-      main.replaceChildren(...Array.from(incomingMain.childNodes));
-      if (doc.title) {
-        document.title = doc.title;
-      }
-
       clearInFlight(controller);
-      main.removeAttribute("aria-busy");
-
-      mountInspector(savedSelection);
-      restoreFocus(main, savedFocus, response.status);
+      host.setBusy(false);
+      host.applyPage(parsedPage, result.status);
 
       if (pushHistory) {
-        const currentUrl = window.location.pathname + window.location.search;
-        const nextHistoryUrl = (response.status === 200 && canonicalUrl) ? canonicalUrl : historyURLForError(requestUrl);
+        const currentUrl = host.getLocation();
+        const canonicalUrl = parsedPage.canonicalUrl || "";
+        const nextHistoryUrl = (result.status === 200 && canonicalUrl) ? canonicalUrl : historyURLForError(requestUrl, baseHref);
         if (nextHistoryUrl !== currentUrl) {
-          window.history.pushState({ bikeWorkbench: true }, "", nextHistoryUrl);
+          host.pushLocation(nextHistoryUrl);
         }
-        currentLocationKey = window.location.pathname + window.location.search;
+        currentLocationKey = host.getLocation();
       }
     }
 
+    return {
+      navigate,
+      handlePresetPointerDown(active) {
+        presetPointerActive = Boolean(active);
+      },
+      handlePresetPointerEnd() {
+        presetPointerActive = false;
+      },
+      handleInput() {
+        editVersion++;
+        if (inFlightController && inFlightSource !== "popstate") {
+          const controller = inFlightController;
+          requestSeq++;
+          clearInFlight(controller);
+          host.setBusy(false);
+          controller.abort();
+          staleFormAfterAbort = true;
+        }
+      },
+      handleFocusOut() {
+        if (!staleFormAfterAbort || presetPointerActive) {
+          return;
+        }
+        if (host.findBadInput(null)) {
+          return;
+        }
+        staleFormAfterAbort = false;
+        return navigate(host.readFormURL(), { pushHistory: true, source: "change" });
+      },
+      handleSubmit() {
+        const badEl = host.findBadInput(null);
+        if (badEl) {
+          host.reportInvalid(badEl);
+          return;
+        }
+        return navigate(host.readFormURL(), { pushHistory: true, source: "submit" });
+      },
+      handleChange(preferredTarget) {
+        if (presetPointerActive) {
+          return;
+        }
+        const badEl = host.findBadInput(preferredTarget || null);
+        if (badEl) {
+          host.reportInvalid(badEl);
+          return;
+        }
+        return navigate(host.readFormURL(), { pushHistory: true, source: "change" });
+      },
+      handlePresetClick(href) {
+        presetPointerActive = false;
+        return navigate(href, { pushHistory: true, source: "preset" });
+      },
+      handlePopState() {
+        const nextKey = host.getLocation();
+        if (nextKey === currentLocationKey) {
+          return;
+        }
+        currentLocationKey = nextKey;
+        return navigate(host.origin + nextKey, { pushHistory: false, source: "popstate" });
+      },
+    };
+  }
+
+  function mountBikeWorkbench(main) {
+    let activeInspector = null;
+    function mountInspector(selection) {
+      const traceRoot = main.querySelector("[data-trace-workbench]");
+      activeInspector = traceRoot ? mountTraceWorkbench(traceRoot, selection) : null;
+    }
+    mountInspector(null);
+
+    const controller = createBikeController({
+      origin: window.location.origin,
+      getLocation() {
+        return window.location.pathname + window.location.search;
+      },
+      pushLocation(url) {
+        window.history.pushState({ bikeWorkbench: true }, "", url);
+      },
+      navigateHard(url, pushHistory) {
+        if (pushHistory) {
+          window.location.assign(url);
+        } else {
+          window.location.reload();
+        }
+      },
+      setBusy(busy) {
+        if (busy) {
+          main.setAttribute("aria-busy", "true");
+        } else {
+          main.removeAttribute("aria-busy");
+        }
+      },
+      async fetchPage(requestUrl, signal) {
+        const response = await fetch(requestUrl, {
+          method: "GET",
+          headers: { Accept: "text/html" },
+          signal,
+        });
+        if (response.status !== 200 && response.status !== 400) {
+          return { status: response.status, html: "" };
+        }
+        const html = await response.text();
+        return { status: response.status, html };
+      },
+      parsePage(html) {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const incomingMain = doc.querySelector("main[data-bike-workbench]");
+        if (!incomingMain) {
+          return null;
+        }
+        return {
+          incomingMain,
+          canonicalUrl: incomingMain.getAttribute("data-canonical-url") || "",
+          title: doc.title || "",
+        };
+      },
+      applyPage(parsedPage, status) {
+        const savedFocus = captureFocus(main);
+        const savedSelection = activeInspector ? activeInspector.getSelection() : null;
+        if (activeInspector) {
+          activeInspector.destroy();
+          activeInspector = null;
+        }
+
+        if (parsedPage.canonicalUrl) {
+          main.setAttribute("data-canonical-url", parsedPage.canonicalUrl);
+        } else {
+          main.removeAttribute("data-canonical-url");
+        }
+
+        main.replaceChildren(...Array.from(parsedPage.incomingMain.childNodes));
+        if (parsedPage.title) {
+          document.title = parsedPage.title;
+        }
+
+        mountInspector(savedSelection);
+        restoreFocus(main, savedFocus, status);
+      },
+      readFormURL() {
+        const form = main.querySelector("form.controls");
+        return form ? buildFormURL(form) : (window.location.pathname + window.location.search);
+      },
+      findBadInput(preferredTarget) {
+        const form = main.querySelector("form.controls");
+        return form ? findBadInput(form, preferredTarget) : null;
+      },
+      reportInvalid(el) {
+        if (el && typeof el.reportValidity === "function") {
+          el.reportValidity();
+        }
+      },
+    });
+
     main.addEventListener("pointerdown", (e) => {
       if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
-        presetPointerTarget = null;
+        controller.handlePresetPointerDown(false);
         return;
       }
       const link = e.target && e.target.closest ? e.target.closest("a[data-preset]") : null;
-      presetPointerTarget = link && main.contains(link) ? link : null;
+      controller.handlePresetPointerDown(Boolean(link && main.contains(link)));
     });
 
     window.addEventListener("pointerup", () => {
-      presetPointerTarget = null;
+      controller.handlePresetPointerEnd();
     });
 
     window.addEventListener("pointercancel", () => {
-      presetPointerTarget = null;
+      controller.handlePresetPointerEnd();
     });
 
     main.addEventListener("input", (e) => {
@@ -641,15 +744,7 @@
       if (!form || !main.contains(form)) {
         return;
       }
-      editVersion++;
-      if (inFlightController && inFlightSource !== "popstate") {
-        const controller = inFlightController;
-        requestSeq++;
-        clearInFlight(controller);
-        main.removeAttribute("aria-busy");
-        controller.abort();
-        staleFormAfterAbort = true;
-      }
+      controller.handleInput();
     });
 
     main.addEventListener("focusout", (e) => {
@@ -657,14 +752,7 @@
       if (!form || !main.contains(form)) {
         return;
       }
-      if (!staleFormAfterAbort || presetPointerTarget) {
-        return;
-      }
-      if (findBadInput(form, null)) {
-        return;
-      }
-      staleFormAfterAbort = false;
-      navigate(buildFormURL(form), { pushHistory: true, source: "change" });
+      controller.handleFocusOut();
     });
 
     main.addEventListener("submit", (e) => {
@@ -673,14 +761,7 @@
         return;
       }
       e.preventDefault();
-      const badEl = findBadInput(form, null);
-      if (badEl) {
-        if (typeof badEl.reportValidity === "function") {
-          badEl.reportValidity();
-        }
-        return;
-      }
-      navigate(buildFormURL(form), { pushHistory: true, source: "submit" });
+      controller.handleSubmit();
     });
 
     main.addEventListener("change", (e) => {
@@ -688,17 +769,7 @@
       if (!form || !main.contains(form)) {
         return;
       }
-      if (presetPointerTarget) {
-        return;
-      }
-      const badEl = findBadInput(form, e.target);
-      if (badEl) {
-        if (typeof badEl.reportValidity === "function") {
-          badEl.reportValidity();
-        }
-        return;
-      }
-      navigate(buildFormURL(form), { pushHistory: true, source: "change" });
+      controller.handleChange(e.target);
     });
 
     main.addEventListener("click", (e) => {
@@ -710,28 +781,33 @@
         return;
       }
       e.preventDefault();
-      presetPointerTarget = null;
-      navigate(link.href, { pushHistory: true, source: "preset" });
+      controller.handlePresetClick(link.href);
     });
 
     window.addEventListener("popstate", () => {
-      const nextKey = window.location.pathname + window.location.search;
-      if (nextKey === currentLocationKey) {
-        return;
-      }
-      currentLocationKey = nextKey;
-      navigate(window.location.href, { pushHistory: false, source: "popstate" });
+      controller.handlePopState();
     });
   }
 
-  const bikeMain = document.querySelector("main[data-bike-workbench]");
-  if (bikeMain) {
-    mountBikeWorkbench(bikeMain);
-    return;
+  if (typeof document !== "undefined") {
+    const bikeMain = document.querySelector("main[data-bike-workbench]");
+    if (bikeMain) {
+      mountBikeWorkbench(bikeMain);
+    } else {
+      const traceRoot = document.querySelector("[data-trace-workbench]");
+      if (traceRoot) {
+        mountTraceWorkbench(traceRoot, null);
+      }
+    }
   }
 
-  const traceRoot = document.querySelector("[data-trace-workbench]");
-  if (traceRoot) {
-    mountTraceWorkbench(traceRoot, null);
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = {
+      ancestorIds,
+      createBikeController,
+      findBadInput,
+      historyURLForError,
+      resolveInitialSelection,
+    };
   }
 })();
