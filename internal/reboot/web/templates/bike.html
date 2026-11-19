@@ -203,8 +203,57 @@
       background: #fcfcfa;
       border: 1px solid var(--border);
       border-radius: 6px;
-      --active-step-width: 6;
-      --ancestor-step-width: 3.5;
+    }
+    .card-heading {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.25rem 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .card-heading h2 {
+      margin: 0;
+    }
+    .diagram-views {
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+    .diagram-views a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .diagram-views a:hover { text-decoration: underline; }
+    .diagram-views a[aria-current] {
+      color: var(--text);
+      font-weight: 700;
+      cursor: default;
+    }
+    .diagram-views a[aria-current]:hover { text-decoration: none; }
+    /* Labels are sized in screen units: --units-per-px converts CSS px to SVG
+       units (the server sends a nominal value; JavaScript measures the real
+       one), so 1rem follows the page font, browser font settings, and zoom. */
+    svg.diagram .landmarks text {
+      font-size: calc(1rem * var(--units-per-px, 1));
+      paint-order: stroke;
+      stroke: #fcfcfa;
+      stroke-width: 0.25em;
+      stroke-linejoin: round;
+    }
+    svg.diagram .axis-label {
+      font-size: calc(0.875rem * var(--units-per-px, 1));
+    }
+    /* Labels that would overlap a higher-priority label stay hidden until
+       their landmark is hovered, focused, or selected. */
+    svg.diagram .landmarks [data-label-hidden] text {
+      display: none;
+    }
+    svg.diagram .landmarks [data-label-hidden].is-active text {
+      display: inline;
+    }
+    /* A revealed label overlaps a neighbour by definition; fade the others. */
+    svg.diagram .landmarks:has([data-label-hidden].is-active) [data-landmark]:not(.is-active) text {
+      opacity: 0.2;
     }
     .step-frames {
       pointer-events: none;
@@ -241,7 +290,7 @@
     svg.diagram .landmarks [data-landmark].is-active circle {
       fill: #cf222e;
       stroke: #ffffff;
-      stroke-width: 2.5;
+      stroke-width: var(--active-landmark-stroke-width);
     }
     svg.diagram .landmarks [data-landmark].is-active text {
       fill: #cf222e;
@@ -370,6 +419,7 @@
     </div>
     {{end}}
     <input type="hidden" name="prev_fork" value="{{.Form.PrevFork}}">
+    <input type="hidden" name="view" value="{{.Form.View}}">
     <div class="control-groups">
       <fieldset class="control-group">
         <legend>Fork &amp; Headset</legend>
@@ -452,7 +502,7 @@
 
     <div class="control-actions">
       <button id="ctrl-submit" type="submit">Update Build</button>
-      <a id="preset-defaults" href="/bike" data-preset="defaults">Reset Defaults</a>
+      <a id="preset-defaults" href="{{.DefaultsURL}}" data-preset="defaults">Reset Defaults</a>
       <a id="preset-cad-baseline-fork" href="{{.CadBaselineForkURL}}" data-preset="cad-baseline-fork">CAD Baseline Fork ({{printf "%.0f" .CadLowerCupMm}} mm cup)</a>
     </div>
   </form>
@@ -460,7 +510,14 @@
   {{if .HasBuild}}
   <div class="layout" data-trace-workbench>
     <section class="card" aria-label="Bike diagram">
-      <h2>Leveled Bike Assembly</h2>
+      <div class="card-heading">
+        <h2>Leveled Bike Assembly</h2>
+        <nav class="diagram-views" aria-label="Diagram view">
+          {{- range $i, $link := .ViewLinks}}{{if $i}} <span aria-hidden="true">·</span>{{end}}
+          <a id="view-{{$link.View}}" href="{{$link.URL}}" data-diagram-view="{{$link.View}}"{{if $link.Current}} aria-current="true"{{end}}>{{$link.View.LinkText}}</a>
+          {{- end}}
+        </nav>
+      </div>
       <div class="summary">
         <span>Pitch: <strong class="mono" data-metric="frame-pitch">{{printf "%+.2f°" .PitchDeg}}</strong></span>
         <span>Leveled HTA: <strong class="mono" data-metric="leveled-hta">{{printf "%.2f°" .LeveledHtaDeg}}</strong></span>
@@ -485,41 +542,43 @@
         <button type="button" class="step-clear" data-step-clear hidden>Clear</button>
       </div>
 
-      <svg class="diagram" viewBox="{{.ViewBox}}" role="img" aria-label="Leveled bike geometry">
+      <svg class="diagram" viewBox="{{.ViewBox}}" role="img" aria-label="Leveled bike geometry, {{.View.Description}}" data-diagram-view="{{.View}}"
+           data-label-layout
+           style="--active-step-width: {{.Px 6}}; --ancestor-step-width: {{.Px 3.5}}; --active-landmark-stroke-width: {{.Px 2.5}}; --units-per-px: {{printf "%.4f" .UnitsPerPx}};">
         <defs>
 {{template "step-frame-defs"}}
         </defs>
 
-        <g data-element="world-axes" stroke="#9aa4b2" stroke-width="1.8" stroke-dasharray="6 4">
-          <line x1="0" y1="0" x2="110" y2="0" />
-          <line x1="0" y1="0" x2="0" y2="-110" />
-          <text x="114" y="4" font-size="14" stroke="none" fill="#59636e" font-family="ui-monospace, monospace">+X</text>
-          <text x="6" y="-106" font-size="14" stroke="none" fill="#59636e" font-family="ui-monospace, monospace">+Y</text>
+        <g data-element="world-axes" stroke="#9aa4b2" stroke-width="{{.Px 1.8}}" stroke-dasharray="{{.Px 6}} {{.Px 4}}">
+          <line x1="0" y1="0" x2="{{.Px 110}}" y2="0" />
+          <line x1="0" y1="0" x2="0" y2="{{.Px -110}}" />
+          <text class="axis-label" x="{{.Px 114}}" y="{{.Px 4}}" stroke="none" fill="#59636e" font-family="ui-monospace, monospace">+X</text>
+          <text class="axis-label" x="{{.Px 6}}" y="{{.Px -106}}" stroke="none" fill="#59636e" font-family="ui-monospace, monospace">+Y</text>
         </g>
 
         <line x1="{{printf "%.2f" .GroundX1}}" y1="{{printf "%.2f" .GroundY1}}" x2="{{printf "%.2f" .GroundX2}}" y2="{{printf "%.2f" .GroundY2}}"
-              stroke="#8c959f" stroke-width="2" stroke-dasharray="10 6" data-element="ground-line" />
+              stroke="#8c959f" stroke-width="{{.Px 2}}" stroke-dasharray="{{.Px 10}} {{.Px 6}}" data-element="ground-line" />
 
-        <g class="wheels" fill="none" stroke="#9ea7b3" stroke-width="3" opacity="0.55">
+        <g class="wheels" fill="none" stroke="#9ea7b3" stroke-width="{{.Px 3}}" opacity="0.55">
           <circle cx="{{printf "%.2f" .RearAxleSVG.X}}" cy="{{printf "%.2f" .RearAxleSVG.Y}}" r="{{printf "%.2f" .WheelRadiusMm}}" data-wheel="rear" />
           <circle cx="{{printf "%.2f" .FrontAxleSVG.X}}" cy="{{printf "%.2f" .FrontAxleSVG.Y}}" r="{{printf "%.2f" .WheelRadiusMm}}" data-wheel="front" />
         </g>
 
         <g class="bike-segments" stroke-linecap="round">
           {{range .Segments}}
-          <line data-segment="{{.Name}}"{{if .Illustrative}} data-illustrative="true" stroke-dasharray="12 6" opacity="0.8"{{end}}
+          <line data-segment="{{.Name}}"{{if .Illustrative}} data-illustrative="true" stroke-dasharray="{{$.Px 12}} {{$.Px 6}}" opacity="0.8"{{end}}
                 x1="{{printf "%.2f" .X1}}" y1="{{printf "%.2f" .Y1}}"
                 x2="{{printf "%.2f" .X2}}" y2="{{printf "%.2f" .Y2}}"
                 stroke="{{.Color}}" stroke-width="{{printf "%.1f" .Width}}" />
           {{end}}
         </g>
 
-        <g class="component-outlines" fill="#d8dee4" fill-opacity="0.65" stroke="#59636e" stroke-width="1.5">
+        <g class="component-outlines" fill="#d8dee4" fill-opacity="0.65" stroke="#59636e" stroke-width="{{.Px 1.5}}">
           {{range .Rects}}
           <rect data-component="{{.Name}}"
                 x="{{printf "%.2f" .X}}" y="{{printf "%.2f" .Y}}"
                 width="{{printf "%.2f" .Width}}" height="{{printf "%.2f" .Height}}"
-                rx="2" transform="{{.Transform}}" />
+                rx="{{$.Px 2}}" transform="{{.Transform}}" />
           {{end}}
         </g>
 
@@ -527,10 +586,10 @@
 
         <g class="landmarks">
           {{range .Landmarks}}
-          <g data-landmark="{{.Name}}" data-step-id="{{.StepID}}">
-            <circle cx="{{printf "%.2f" .X}}" cy="{{printf "%.2f" .Y}}" r="5" fill="#0969da" stroke="#ffffff" stroke-width="1.5" />
-            <text x="{{printf "%.2f" .LabelX}}" y="{{printf "%.2f" .LabelY}}"
-                  text-anchor="{{.Anchor}}" font-size="18" fill="#1f2328" font-family="ui-monospace, monospace">{{.Name}}</text>
+          <g data-landmark="{{.Name}}" data-step-id="{{.StepID}}" data-label-priority="{{.LabelPriority}}">
+            <circle cx="{{printf "%.2f" .X}}" cy="{{printf "%.2f" .Y}}" r="{{$.Px 5}}" fill="#0969da" stroke="#ffffff" stroke-width="{{$.Px 1.5}}" />
+            <text x="{{printf "%.2f" .LabelX}}" y="{{printf "%.2f" .LabelY}}" dx="{{.LabelDx}}" dy="{{.LabelDy}}"
+                  text-anchor="{{.Anchor}}" fill="#1f2328" font-family="ui-monospace, monospace">{{.Name}}</text>
           </g>
           {{end}}
         </g>

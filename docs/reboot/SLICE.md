@@ -21,8 +21,10 @@ The `/bike` diagram has three display modes:
 | `view` | Shows | Framed around |
 | --- | --- | --- |
 | `bike` (default) | The whole bike, exactly as today | Every point the diagram already fits |
-| `seat` | Seat tube top, seatpost, and saddle | `SeatTubeTop`, `SeatpostClamp`, `RailCenter`, `BRP`, `SitBones` |
-| `stem` | Head tube, lower cup, spacers, stem, and bar | `LowerCupBottom`, `HeadTubeBottom`, `HeadTubeTop`, `CoverTop`, `SpacerTop`, `SteererClamp`, `BarClamp`, `HandGrip` |
+| `seat` | Seatpost head and saddle | Every pose above `SeatTubeTop`: `ShaftTop`, `SeatpostClamp`, `RailFrame`, `RailCenter`, `BRP`, `SitBones` |
+| `stem` | Upper cover, spacers, stem, and bar | Every pose above `HeadTubeTop`: `CoverTop`, `SpacerTop`, `SteererClamp`, `BarClamp`, `BarRollFrame`, `HandGrip` |
+
+Each close-up also frames every corner of the component outlines it draws (seatpost clamp and saddle rail; upper cover, spacers, steerer clamp, and stem body), so no rendered part is cut off.
 
 Matt picks a mode with three links in the diagram card: **Whole bike · Seat · Stem**. The mode stays selected while he changes controls, and Back/Forward moves between modes like any other build change.
 
@@ -47,6 +49,7 @@ What this gives up compared with free pan/zoom: arbitrary zoom levels and framin
 3. **Label and line sizes in close-up views.** The close-up views are roughly 3–4× closer than the whole bike.
    - *Recommended:* Keep labels, landmark dots, label offsets, stroke widths, and trace arrows the same size on screen in every view. Go scales those drawing sizes by the view's zoom, which it knows exactly. Physical sizes (wheels, component outlines, tubes) are not scaled. With `view=bike` the rendered SVG is identical to today's.
    - *Alternative:* Let everything grow with the view. No work, but the labels and wide lines would cover the millimetre-scale detail the close-up views are for.
+   - *Amended during implementation (2026-11-19):* Labels render at 1rem on screen, set by CSS rather than by Go, and overlapping labels are hidden until hovered, focused, or selected. Dots, strokes, and trace arrows are still scaled by Go. See [DIALOGUE.md](DIALOGUE.md) ("Close-up framing and readable diagram labels").
 
 ## 5. Implementation outline
 
@@ -77,7 +80,7 @@ Keep this to one reviewable change covering Go rendering, template controls, the
 
 - **Go handler tests (`internal/reboot/web/web_test.go`)**
   - Default `/bike`: the canonical URL and hidden input carry `view=bike`. The `viewBox` and drawing sizes match today's output.
-  - `view=seat` and `view=stem`: the `viewBox` contains every framing landmark's centre for that view and leaves out a far landmark (`FrontAxle` for `seat`, `RearAxle` for `stem`). The aspect ratio matches the whole-bike box within 0.01. The landmark label `font-size` is smaller than in the `bike` view.
+  - `view=seat` and `view=stem`: the `viewBox` contains every framing landmark's centre for that view and leaves out the landmark just below it (`SeatTubeTop` for `seat`, `HeadTubeBottom` for `stem`). The aspect ratio matches the whole-bike box within 0.01. The landmark label `font-size` is smaller than in the `bike` view.
   - The view links: there are three, with the expected ids and `data-diagram-view` values, and none has `data-preset`. Each `href` carries the current build values plus its own view, and only the current view has `aria-current`.
   - A control change keeps the view: `view=stem&spacers=30` renders `view=stem` in the canonical URL and the hidden input.
   - The presets keep the view (§4 item 1).

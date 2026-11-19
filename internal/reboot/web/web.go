@@ -81,6 +81,13 @@ type svgLandmark struct {
 	LabelX float64
 	LabelY float64
 	Anchor string
+	// LabelDx and LabelDy offset the label in ems, so the offset follows the
+	// label's on-screen font size (used on /bike).
+	LabelDx string
+	LabelDy string
+	// LabelPriority orders labels when overlapping ones are hidden; lower
+	// numbers win.
+	LabelPriority int
 }
 
 // Illustrative outline dimensions (not measured hardware geometry) used only
@@ -187,13 +194,54 @@ func handleStemWorkbench(w http.ResponseWriter, r *http.Request) {
 	_, _ = buf.WriteTo(w)
 }
 
-func stemOutlineRects(placed assembly.StemPlacement, setup assembly.StemSetup) []svgRect {
-	return []svgRect{
-		poseRect("upper-cover", placed.HeadTubeTop, 0, setup.UpperCoverMm, upperCoverOutlineWidthMm),
-		poseRect("spacers", placed.CoverTop, 0, setup.SpacersMm, spacerOutlineWidthMm),
-		poseRect("steerer-clamp", placed.SteererClamp, -setup.ClampHeightMm/2.0, setup.ClampHeightMm, steererClampOutlineWidthMm),
-		poseRect("stem-body", placed.BarClamp, -setup.LengthMm, setup.LengthMm, stemBodyOutlineWidthMm),
+// poseOutline is a component silhouette drawn as a rectangle in a pose's
+// local frame: lengthMm along the heading starting at startMm, thicknessMm
+// across it, centred on the pose.
+type poseOutline struct {
+	name        string
+	pose        pose.Pose
+	startMm     float64
+	lengthMm    float64
+	thicknessMm float64
+}
+
+func (o poseOutline) rect() svgRect {
+	return poseRect(o.name, o.pose, o.startMm, o.lengthMm, o.thicknessMm)
+}
+
+// corners returns the outline's four corners in SVG coordinates.
+func (o poseOutline) corners() []svgPoint {
+	// Detach from the trace so measuring the outline records no steps.
+	p := pose.NewPose(o.pose.Origin(), o.pose.HeadingDeg(), nil)
+	half := o.thicknessMm / 2.0
+	pts := make([]svgPoint, 0, 4)
+	for _, along := range []float64{o.startMm, o.startMm + o.lengthMm} {
+		for _, across := range []float64{-half, half} {
+			pts = append(pts, toSVG(p.Translate("", along, across).Origin()))
+		}
 	}
+	return pts
+}
+
+func outlineRects(outlines []poseOutline) []svgRect {
+	rects := make([]svgRect, 0, len(outlines))
+	for _, o := range outlines {
+		rects = append(rects, o.rect())
+	}
+	return rects
+}
+
+func stemOutlines(placed assembly.StemPlacement, setup assembly.StemSetup) []poseOutline {
+	return []poseOutline{
+		{"upper-cover", placed.HeadTubeTop, 0, setup.UpperCoverMm, upperCoverOutlineWidthMm},
+		{"spacers", placed.CoverTop, 0, setup.SpacersMm, spacerOutlineWidthMm},
+		{"steerer-clamp", placed.SteererClamp, -setup.ClampHeightMm / 2.0, setup.ClampHeightMm, steererClampOutlineWidthMm},
+		{"stem-body", placed.BarClamp, -setup.LengthMm, setup.LengthMm, stemBodyOutlineWidthMm},
+	}
+}
+
+func stemOutlineRects(placed assembly.StemPlacement, setup assembly.StemSetup) []svgRect {
+	return outlineRects(stemOutlines(placed, setup))
 }
 
 func buildStemView(htaDeg pose.Deg, setup assembly.StemSetup, placed assembly.StemPlacement, steps []pose.Step) stemView {
@@ -224,7 +272,7 @@ func buildStemView(htaDeg pose.Deg, setup assembly.StemSetup, placed assembly.St
 		},
 		BarClampSVG:      toSVG(placed.BarClamp.Origin()),
 		BarClampRadiusMm: barClampRingRadiusMm,
-		ViewBox:          computeViewBoxFromPoints(pts, 85.0, 85.0, 45.0, 40.0),
+		ViewBox:          computeViewBoxFromPoints(pts, 85.0, 85.0, 45.0, 40.0).String(),
 		Rects:            rects,
 		TraceSteps: svgTraceSteps{
 			Steps:         svgSteps,
@@ -313,21 +361,71 @@ func makeLandmark(name string, p pose.Pose, dx, dy float64, anchor string) svgLa
 	}
 }
 
-func computeViewBoxFromPoints(pts []svgPoint, padLeft, padRight, padTop, padBottom float64) string {
-	minX, maxX := math.Inf(1), math.Inf(-1)
-	minY, maxY := math.Inf(1), math.Inf(-1)
+// svgViewBox is a numeric SVG viewBox in SVG user units (mm, Y down).
+type svgViewBox struct {
+	X float64
+	Y float64
+	W float64
+	H float64
+}
+
+func (b svgViewBox) String() string {
+	return fmt.Sprintf("%.2f %.2f %.2f %.2f", b.X, b.Y, b.W, b.H)
+}
+
+func pointBounds(pts []svgPoint) (minX, minY, maxX, maxY float64) {
+	minX, maxX = math.Inf(1), math.Inf(-1)
+	minY, maxY = math.Inf(1), math.Inf(-1)
 	for _, pt := range pts {
 		minX = min(minX, pt.X)
 		maxX = max(maxX, pt.X)
 		minY = min(minY, pt.Y)
 		maxY = max(maxY, pt.Y)
 	}
-	return fmt.Sprintf("%.2f %.2f %.2f %.2f",
-		minX-padLeft,
-		minY-padTop,
-		(maxX-minX)+padLeft+padRight,
-		(maxY-minY)+padTop+padBottom,
-	)
+	return minX, minY, maxX, maxY
+}
+
+func computeViewBoxFromPoints(pts []svgPoint, padLeft, padRight, padTop, padBottom float64) svgViewBox {
+	minX, minY, maxX, maxY := pointBounds(pts)
+	return svgViewBox{
+		X: minX - padLeft,
+		Y: minY - padTop,
+		W: (maxX - minX) + padLeft + padRight,
+		H: (maxY - minY) + padTop + padBottom,
+	}
+}
+
+// closeUpViewBox frames pts with the aspect ratio of whole, centred on pts.
+// padX and padY are the side and top/bottom margins around pts measured in
+// whole-view units, so they stay the same size on screen as the box zooms in.
+// The result is never larger than whole.
+func closeUpViewBox(pts []svgPoint, whole svgViewBox, padX, padY float64) svgViewBox {
+	minX, minY, maxX, maxY := pointBounds(pts)
+	aspect := whole.W / whole.H
+	// With pad = pad{X,Y} * W / whole.W on each side, solve for the smallest W
+	// whose padded box contains pts horizontally and vertically.
+	padXPerW := 2 * padX / whole.W
+	padYPerW := 2 * padY / whole.W
+	widthFit := (maxX - minX) / (1 - padXPerW)
+	heightFit := aspect * (maxY - minY) / (1 - aspect*padYPerW)
+	w := max(widthFit, heightFit)
+	if padXPerW >= 1 || aspect*padYPerW >= 1 || !(w > 0) || w >= whole.W {
+		return whole
+	}
+	h := w / aspect
+	cx, cy := (minX+maxX)/2, (minY+maxY)/2
+	return svgViewBox{X: cx - w/2, Y: cy - h/2, W: w, H: h}
+}
+
+// formatSVGSize prints a drawing size with at most two decimals and no
+// trailing zeros, so unscaled sizes print exactly like their literals ("18",
+// "1.5").
+func formatSVGSize(v float64) string {
+	s := strings.TrimSuffix(strings.TrimRight(strconv.FormatFloat(v, 'f', 2, 64), "0"), ".")
+	if s == "" || s == "-0" || s == "-" {
+		return "0"
+	}
+	return s
 }
 
 type svgSegment struct {
@@ -341,7 +439,56 @@ type svgSegment struct {
 	Illustrative bool
 }
 
+// diagramView is one of the fixed framings of the /bike diagram.
+type diagramView string
+
+const (
+	diagramViewBike diagramView = "bike"
+	diagramViewSeat diagramView = "seat"
+	diagramViewStem diagramView = "stem"
+)
+
+var diagramViews = []diagramView{diagramViewBike, diagramViewSeat, diagramViewStem}
+
+func parseDiagramView(raw string) (diagramView, bool) {
+	for _, v := range diagramViews {
+		if raw == string(v) {
+			return v, true
+		}
+	}
+	return diagramViewBike, false
+}
+
+// LinkText is the view's link text in the diagram card.
+func (v diagramView) LinkText() string {
+	switch v {
+	case diagramViewBike:
+		return "Whole bike"
+	case diagramViewSeat:
+		return "Seat"
+	case diagramViewStem:
+		return "Stem"
+	default:
+		return string(v)
+	}
+}
+
+// Description names the view in the diagram's accessible label.
+func (v diagramView) Description() string {
+	switch v {
+	case diagramViewBike:
+		return "whole bike"
+	case diagramViewSeat:
+		return "seat close-up"
+	case diagramViewStem:
+		return "stem close-up"
+	default:
+		return string(v)
+	}
+}
+
 type workbenchState struct {
+	View          diagramView
 	ForkID        string
 	ForkA2cMm     float64
 	LowerCupMm    float64
@@ -359,6 +506,7 @@ type workbenchState struct {
 func defaultWorkbenchState(fix bikeFixture) workbenchState {
 	defaultFork, _ := fix.resolveForkOption("")
 	return workbenchState{
+		View:          diagramViewBike,
 		ForkID:        defaultFork.ID,
 		ForkA2cMm:     defaultFork.Spec.StaticA2cMm,
 		LowerCupMm:    defaultFork.DefaultLowerCup.StackMm,
@@ -374,8 +522,9 @@ func defaultWorkbenchState(fix bikeFixture) workbenchState {
 	}
 }
 
-func workbenchStateFromSetup(forkID string, setup assembly.BikeSetup) workbenchState {
+func workbenchStateFromSetup(view diagramView, forkID string, setup assembly.BikeSetup) workbenchState {
 	return workbenchState{
+		View:          view,
 		ForkID:        forkID,
 		ForkA2cMm:     setup.Fork.Spec.StaticA2cMm,
 		LowerCupMm:    setup.LowerCup.StackMm,
@@ -399,8 +548,23 @@ func (s workbenchState) withCadBaselineFork(fix bikeFixture) workbenchState {
 	return s
 }
 
+func (s workbenchState) withView(view diagramView) workbenchState {
+	s.View = view
+	return s
+}
+
+// presetURLs returns the Reset Defaults and CAD Baseline Fork links. Both keep
+// view; decodeWorkbenchState resolves an unknown submitted view to
+// diagramViewBike so the presets recover a valid build. cadBase is the build
+// the CAD Baseline Fork preset applies the chart fork to.
+func presetURLs(fix bikeFixture, cadBase workbenchState, view diagramView) (defaultsURL, cadBaselineForkURL string) {
+	return defaultWorkbenchState(fix).withView(view).URL(),
+		cadBase.withView(view).withCadBaselineFork(fix).URL()
+}
+
 func (s workbenchState) URL() string {
 	q := url.Values{}
+	q.Set("view", string(s.View))
 	q.Set("fork", s.ForkID)
 	q.Set("fork_a2c", formatFormFloat(s.ForkA2cMm))
 	q.Set("cup", formatFormFloat(s.LowerCupMm))
@@ -418,6 +582,7 @@ func (s workbenchState) URL() string {
 
 func (s workbenchState) formValues() bikeFormValues {
 	return bikeFormValues{
+		View:        string(s.View),
 		Fork:        s.ForkID,
 		PrevFork:    s.ForkID,
 		ForkA2c:     formatFormFloat(s.ForkA2cMm),
@@ -435,6 +600,7 @@ func (s workbenchState) formValues() bikeFormValues {
 }
 
 type bikeFormValues struct {
+	View        string
 	Fork        string
 	PrevFork    string
 	ForkA2c     string
@@ -471,7 +637,12 @@ type bikeView struct {
 	InvalidField         string
 	Form                 bikeFormValues
 	CanonicalURL         string
+	DefaultsURL          string
 	CadBaselineForkURL   string
+	View                 diagramView
+	ViewLinks            []diagramViewLink
+	DrawScale            float64 // view width / whole-bike width; 1 for the whole bike
+	UnitsPerPx           float64 // SVG units per on-screen px at the nominal width; JavaScript measures the real value
 	MinPostExtensionMm   float64
 	MaxPostExtensionMm   float64
 	BikeName             string
@@ -522,6 +693,18 @@ type bikeView struct {
 	Steps                []pose.Step
 }
 
+type diagramViewLink struct {
+	View    diagramView
+	URL     string
+	Current bool
+}
+
+// Px scales a drawing-only size (label, dot, stroke, axis) by the view's zoom
+// so it keeps the same on-screen size in every view.
+func (v bikeView) Px(size float64) string {
+	return formatSVGSize(size * v.DrawScale)
+}
+
 func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/bike" {
 		http.NotFound(w, r)
@@ -556,6 +739,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 
 	view := buildBikeView(
 		fix,
+		resolved.State.View,
 		resolved.State.ForkID,
 		bike,
 		cadBaselineFork,
@@ -566,12 +750,14 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 
 func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolvedInput, invalidField, msg string) {
 	forkA2cRO, cupRO, sagRO, cupLabel, cadNote := forkFieldViewState(fix, resolved.State.ForkID, resolved.Form.Sag)
+	defaultsURL, cadURL := presetURLs(fix, defaultWorkbenchState(fix), resolved.State.View)
 	view := bikeView{
 		HasBuild:           false,
 		ErrorMessage:       msg,
 		InvalidField:       invalidField,
 		Form:               resolved.Form,
-		CadBaselineForkURL: defaultWorkbenchState(fix).withCadBaselineFork(fix).URL(),
+		DefaultsURL:        defaultsURL,
+		CadBaselineForkURL: cadURL,
 		MinPostExtensionMm: fix.DefaultSeatpost.MinExtensionMm,
 		MaxPostExtensionMm: fix.DefaultSeatpost.MaxExtensionMm,
 		BikeName:           fix.Name,
@@ -716,6 +902,18 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bi
 	state.PostSetbackMm = p.float("post_setback", defaults.PostSetbackMm, "seatpost setback", &form.PostSetback)
 	state.RailOffsetMm = p.float("rail_offset", defaults.RailOffsetMm, "saddle rail offset", &form.RailOffset)
 	state.RailPitchDeg = pose.Deg(p.float("rail_pitch", float64(defaults.RailPitchDeg), "saddle rail pitch", &form.RailPitch))
+
+	// An unknown view keeps its raw value in the form echo, but the state (and
+	// so both preset links) falls back to the whole bike.
+	form.View = string(defaults.View)
+	if raw := strings.TrimSpace(q.Get("view")); raw != "" {
+		form.View = raw
+		view, ok := parseDiagramView(raw)
+		if !ok {
+			p.fail("view", fmt.Errorf("unknown diagram view %q", raw))
+		}
+		state.View = view
+	}
 
 	stem := fix.DefaultStem
 	stem.SpacersMm = state.SpacersMm
@@ -871,8 +1069,42 @@ func makeSegment(name string, from, to pose.Pose, color string, width float64, i
 	}
 }
 
+const (
+	// nominalDiagramWidthPx is the diagram's typical on-screen width. It
+	// converts screen sizes to SVG units before JavaScript measures the real
+	// width, and when JavaScript is off.
+	nominalDiagramWidthPx = 720.0
+	// Margins around the landmarks a close-up view frames, in on-screen px at
+	// the nominal width. The side margin fits the longest 1rem label
+	// ("SeatpostClamp") beside a point on the edge of the framing.
+	closeUpPadXPx = 150.0
+	closeUpPadYPx = 40.0
+	// bikeLabelEmUnits converts the label offsets below, written in SVG units
+	// for the original 18-unit labels, to ems.
+	bikeLabelEmUnits = 18.0
+)
+
+// bikeLandmarkSpec places a landmark label at an offset from its point
+// (written in units of an 18-unit font, rendered in ems). Labels with a lower
+// priority number win when overlapping labels are hidden.
+type bikeLandmarkSpec struct {
+	name     string
+	pose     pose.Pose
+	dx, dy   float64
+	anchor   string
+	priority int
+}
+
+// Label priorities: frame reference points, then fit points, then the rest.
+const (
+	labelPriorityFrame = 1
+	labelPriorityFit   = 2
+	labelPriorityOther = 3
+)
+
 func buildBikeView(
 	fix bikeFixture,
+	view diagramView,
 	forkID string,
 	bike assembly.BikePlacement,
 	cadBaselineFork assembly.ChartBaseline,
@@ -883,50 +1115,6 @@ func buildBikeView(
 	saddle := bike.Saddle
 	stem := bike.Stem
 	handlebar := bike.Handlebar
-
-	// seat-tube (straight along effective STA), seatstay (to SeatTubeTop),
-	// saddle-profile (SitBones to BRP), and handlebar-rise-sweep (side projection
-	// from BarClamp to HandGrip) are illustrative schematic lines rather than
-	// measured physical outlines.
-	segments := []svgSegment{
-		makeSegment("chainstay", placed.RearAxle, placed.BB, "#2f363d", 6, false),
-		makeSegment("seat-tube", placed.SeatAxis, placed.SeatTubeTop, "#2f363d", 7, true),
-		makeSegment("seatstay", placed.RearAxle, placed.SeatTubeTop, "#2f363d", 4, true),
-		makeSegment("head-tube", placed.HeadTubeTop, placed.HeadTubeBottom, "#2f363d", 9, false),
-		makeSegment("lower-cup", placed.HeadTubeBottom, placed.LowerCupBottom, "#0969da", 9, false),
-		makeSegment("fork-a2c", placed.LowerCupBottom, placed.ForkSteererBase, "#59636e", 7, false),
-		makeSegment("fork-rake", placed.ForkSteererBase, placed.FrontAxle, "#59636e", 5, false),
-		makeSegment("seatpost", placed.SeatTubeTop, seatpost.ShaftTop, "#59636e", 5, false),
-		makeSegment("seatpost-setback", seatpost.ShaftTop, seatpost.SeatpostClamp, "#59636e", 5, false),
-		makeSegment("saddle-profile", saddle.SitBones, saddle.BRP, "#2f363d", 4, true),
-		makeSegment("handlebar-rise-sweep", handlebar.BarClamp, handlebar.HandGrip, "#2f363d", 5, true),
-	}
-
-	rects := append(stemOutlineRects(stem, bike.Setup.Stem),
-		poseRect("seatpost-clamp", saddle.RailFrame, -bike.Setup.Seatpost.ClampLengthMm/2.0, bike.Setup.Seatpost.ClampLengthMm, seatpostClampOutlineHeight),
-		poseRect("saddle-rail", saddle.RailCenter, -bike.Setup.Saddle.RailLengthMm/2.0, bike.Setup.Saddle.RailLengthMm, saddleRailOutlineHeight),
-	)
-
-	landmarks := []svgLandmark{
-		makeLandmark("RearAxle", placed.RearAxle, 0, -14, "middle"),
-		makeLandmark("RearContact", placed.RearTireContact, 0, 24, "middle"),
-		makeLandmark("BB", placed.BB, 0, 26, "middle"),
-		makeLandmark("SeatTubeTop", placed.SeatTubeTop, -14, -10, "end"),
-		makeLandmark("SeatpostClamp", seatpost.SeatpostClamp, 16, 6, "start"),
-		makeLandmark("RailCenter", saddle.RailCenter, 16, 24, "start"),
-		makeLandmark("BRP", saddle.BRP, 14, -10, "start"),
-		makeLandmark("SitBones", saddle.SitBones, -14, -10, "end"),
-		makeLandmark("HeadTubeTop", placed.HeadTubeTop, 14, 6, "start"),
-		makeLandmark("CoverTop", stem.CoverTop, -14, 8, "end"),
-		makeLandmark("SpacerTop", stem.SpacerTop, -14, -2, "end"),
-		makeLandmark("SteererClamp", stem.SteererClamp, -14, -14, "end"),
-		makeLandmark("BarClamp", stem.BarClamp, 14, 4, "start"),
-		makeLandmark("HandGrip", handlebar.HandGrip, -14, -12, "end"),
-		makeLandmark("HeadTubeBottom", placed.HeadTubeBottom, 16, 4, "start"),
-		makeLandmark("LowerCupBottom", placed.LowerCupBottom, 16, 18, "start"),
-		makeLandmark("FrontAxle", placed.FrontAxle, 0, -14, "middle"),
-		makeLandmark("FrontContact", placed.FrontTireContact, 0, 24, "middle"),
-	}
 
 	r := bike.Setup.Wheels.RadiusMm
 	rearSVG := toSVG(placed.RearAxle.Origin())
@@ -947,16 +1135,121 @@ func buildBikeView(
 		toSVG(stem.BarClamp.Origin()),
 		toSVG(handlebar.HandGrip.Origin()),
 	}
+	wholeBox := computeViewBoxFromPoints(pts, 95.0, 95.0, 95.0, 100.0)
 
-	state := workbenchStateFromSetup(forkID, bike.Setup)
+	stemParts := stemOutlines(stem, bike.Setup.Stem)
+	seatParts := []poseOutline{
+		{"seatpost-clamp", saddle.RailFrame, -bike.Setup.Seatpost.ClampLengthMm / 2.0, bike.Setup.Seatpost.ClampLengthMm, seatpostClampOutlineHeight},
+		{"saddle-rail", saddle.RailCenter, -bike.Setup.Saddle.RailLengthMm / 2.0, bike.Setup.Saddle.RailLengthMm, saddleRailOutlineHeight},
+	}
+
+	// A close-up frames its poses and every corner of the outlines drawn
+	// around them, so no rendered component is cut off at the edge.
+	var framingPoses []pose.Pose
+	var framingOutlines []poseOutline
+	switch view {
+	case diagramViewBike:
+	case diagramViewSeat:
+		// Every seatpost and saddle pose above SeatTubeTop, not the seat tube.
+		framingPoses = []pose.Pose{
+			seatpost.ShaftTop, seatpost.SeatpostClamp, saddle.RailFrame,
+			saddle.RailCenter, saddle.BRP, saddle.SitBones,
+		}
+		framingOutlines = seatParts
+	case diagramViewStem:
+		// Every headset, stem, and handlebar pose above HeadTubeTop, not the
+		// head tube. The upper cover outline starts at HeadTubeTop, so its
+		// corners keep that end of the stack in view.
+		framingPoses = []pose.Pose{
+			stem.CoverTop, stem.SpacerTop, stem.SteererClamp, stem.BarClamp,
+			handlebar.BarRollFrame, handlebar.HandGrip,
+		}
+		framingOutlines = stemParts
+	}
+	viewBox := wholeBox
+	if len(framingPoses) > 0 {
+		framingPts := make([]svgPoint, 0, len(framingPoses)+4*len(framingOutlines))
+		for _, p := range framingPoses {
+			framingPts = append(framingPts, toSVG(p.Origin()))
+		}
+		for _, o := range framingOutlines {
+			framingPts = append(framingPts, o.corners()...)
+		}
+		unitsPerNominalPx := wholeBox.W / nominalDiagramWidthPx
+		viewBox = closeUpViewBox(framingPts, wholeBox, closeUpPadXPx*unitsPerNominalPx, closeUpPadYPx*unitsPerNominalPx)
+	}
+	// Drawing-only sizes (labels, dots, strokes, trace arrows) scale with the
+	// view so they keep their on-screen size; physical outlines do not.
+	scale := viewBox.W / wholeBox.W
+
+	// seat-tube (straight along effective STA), seatstay (to SeatTubeTop),
+	// saddle-profile (SitBones to BRP), and handlebar-rise-sweep (side projection
+	// from BarClamp to HandGrip) are illustrative schematic lines rather than
+	// measured physical outlines.
+	segments := []svgSegment{
+		makeSegment("chainstay", placed.RearAxle, placed.BB, "#2f363d", 6*scale, false),
+		makeSegment("seat-tube", placed.SeatAxis, placed.SeatTubeTop, "#2f363d", 7*scale, true),
+		makeSegment("seatstay", placed.RearAxle, placed.SeatTubeTop, "#2f363d", 4*scale, true),
+		makeSegment("head-tube", placed.HeadTubeTop, placed.HeadTubeBottom, "#2f363d", 9*scale, false),
+		makeSegment("lower-cup", placed.HeadTubeBottom, placed.LowerCupBottom, "#0969da", 9*scale, false),
+		makeSegment("fork-a2c", placed.LowerCupBottom, placed.ForkSteererBase, "#59636e", 7*scale, false),
+		makeSegment("fork-rake", placed.ForkSteererBase, placed.FrontAxle, "#59636e", 5*scale, false),
+		makeSegment("seatpost", placed.SeatTubeTop, seatpost.ShaftTop, "#59636e", 5*scale, false),
+		makeSegment("seatpost-setback", seatpost.ShaftTop, seatpost.SeatpostClamp, "#59636e", 5*scale, false),
+		makeSegment("saddle-profile", saddle.SitBones, saddle.BRP, "#2f363d", 4*scale, true),
+		makeSegment("handlebar-rise-sweep", handlebar.BarClamp, handlebar.HandGrip, "#2f363d", 5*scale, true),
+	}
+
+	rects := append(outlineRects(stemParts), outlineRects(seatParts)...)
+
+	landmarkSpecs := []bikeLandmarkSpec{
+		{"RearAxle", placed.RearAxle, 0, -14, "middle", labelPriorityFrame},
+		{"RearContact", placed.RearTireContact, 0, 24, "middle", labelPriorityOther},
+		{"BB", placed.BB, 0, 26, "middle", labelPriorityFrame},
+		{"SeatTubeTop", placed.SeatTubeTop, -14, -10, "end", labelPriorityFrame},
+		{"SeatpostClamp", seatpost.SeatpostClamp, 16, 6, "start", labelPriorityOther},
+		{"RailCenter", saddle.RailCenter, 16, 24, "start", labelPriorityOther},
+		{"BRP", saddle.BRP, 14, -10, "start", labelPriorityFit},
+		{"SitBones", saddle.SitBones, -14, -10, "end", labelPriorityFit},
+		{"HeadTubeTop", placed.HeadTubeTop, 14, 6, "start", labelPriorityFrame},
+		{"CoverTop", stem.CoverTop, -14, 8, "end", labelPriorityOther},
+		{"SpacerTop", stem.SpacerTop, -14, -2, "end", labelPriorityOther},
+		{"SteererClamp", stem.SteererClamp, -14, -14, "end", labelPriorityOther},
+		{"BarClamp", stem.BarClamp, 14, 4, "start", labelPriorityFit},
+		{"HandGrip", handlebar.HandGrip, -14, -12, "end", labelPriorityFit},
+		{"HeadTubeBottom", placed.HeadTubeBottom, 16, 4, "start", labelPriorityOther},
+		{"LowerCupBottom", placed.LowerCupBottom, 16, 18, "start", labelPriorityOther},
+		{"FrontAxle", placed.FrontAxle, 0, -14, "middle", labelPriorityFrame},
+		{"FrontContact", placed.FrontTireContact, 0, 24, "middle", labelPriorityOther},
+	}
+	landmarks := make([]svgLandmark, 0, len(landmarkSpecs))
+	for _, spec := range landmarkSpecs {
+		lm := makeLandmark(spec.name, spec.pose, 0, 0, spec.anchor)
+		lm.LabelDx = formatSVGSize(spec.dx/bikeLabelEmUnits) + "em"
+		lm.LabelDy = formatSVGSize(spec.dy/bikeLabelEmUnits) + "em"
+		lm.LabelPriority = spec.priority
+		landmarks = append(landmarks, lm)
+	}
+
+	state := workbenchStateFromSetup(view, forkID, bike.Setup)
 	form := state.formValues()
 	forkA2cRO, cupRO, sagRO, cupLabel, cadNote := forkFieldViewState(fix, forkID, form.Sag)
+	defaultsURL, cadURL := presetURLs(fix, state, view)
+	viewLinks := make([]diagramViewLink, 0, len(diagramViews))
+	for _, v := range diagramViews {
+		viewLinks = append(viewLinks, diagramViewLink{View: v, URL: state.withView(v).URL(), Current: v == view})
+	}
 
 	return bikeView{
 		HasBuild:             true,
 		Form:                 form,
 		CanonicalURL:         state.URL(),
-		CadBaselineForkURL:   state.withCadBaselineFork(fix).URL(),
+		DefaultsURL:          defaultsURL,
+		CadBaselineForkURL:   cadURL,
+		View:                 view,
+		ViewLinks:            viewLinks,
+		DrawScale:            scale,
+		UnitsPerPx:           viewBox.W / nominalDiagramWidthPx,
 		MinPostExtensionMm:   bike.Setup.Seatpost.MinExtensionMm,
 		MaxPostExtensionMm:   bike.Setup.Seatpost.MaxExtensionMm,
 		BikeName:             fix.Name,
@@ -999,19 +1292,19 @@ func buildBikeView(
 		GroundY2:             frontContactSVG.Y,
 		GroundX1:             rearContactSVG.X - r - 40,
 		GroundX2:             frontContactSVG.X + r + 40,
-		ViewBox:              computeViewBoxFromPoints(pts, 95.0, 95.0, 95.0, 100.0),
+		ViewBox:              viewBox.String(),
 		Rects:                rects,
 		Segments:             segments,
 		TraceSteps: svgTraceSteps{
-			Steps:         buildSVGSteps(steps, bikeTurnArcRadiusMm, bikeAxisLengthMm, bikeAxisLabelOffsetMm),
-			LineWidth:     2.0,
-			ArcWidth:      2.5,
-			DashArray:     "6 4",
+			Steps:         buildSVGSteps(steps, bikeTurnArcRadiusMm*scale, bikeAxisLengthMm*scale, bikeAxisLabelOffsetMm*scale),
+			LineWidth:     2.0 * scale,
+			ArcWidth:      2.5 * scale,
+			DashArray:     formatSVGSize(6*scale) + " " + formatSVGSize(4*scale),
 			Opacity:       0.7,
-			ZeroArcRadius: 12.0,
-			AxisWidth:     3.5,
-			AxisFontSize:  18.0,
-			OriginRadius:  8.0,
+			ZeroArcRadius: 12.0 * scale,
+			AxisWidth:     3.5 * scale,
+			AxisFontSize:  18.0 * scale,
+			OriginRadius:  8.0 * scale,
 		},
 		Landmarks: landmarks,
 		Steps:     steps,

@@ -7,8 +7,10 @@ const {
   ancestorIds,
   createBikeController,
   findBadInput,
+  hiddenLabelItems,
   historyURLForError,
   resolveInitialSelection,
+  urlWithView,
 } = require("./workbench.js");
 
 function createTestHarness(initialLocation = "/bike") {
@@ -22,6 +24,7 @@ function createTestHarness(initialLocation = "/bike") {
   const pushed = [];
   const hardNavs = [];
   const invalidReported = [];
+  const deferred = [];
 
   const controller = createBikeController({
     origin: "http://127.0.0.1:8081",
@@ -72,6 +75,9 @@ function createTestHarness(initialLocation = "/bike") {
     reportInvalid(el) {
       invalidReported.push(el);
     },
+    defer(fn) {
+      deferred.push(fn);
+    },
   });
 
   return {
@@ -83,6 +89,13 @@ function createTestHarness(initialLocation = "/bike") {
     pushed,
     hardNavs,
     invalidReported,
+    runDeferred() {
+      const pending = deferred.splice(0);
+      return pending.map((fn) => fn());
+    },
+    deferredCount() {
+      return deferred.length;
+    },
     isBusy() {
       return busy;
     },
@@ -119,6 +132,48 @@ describe("pure workbench helpers", () => {
       historyURLForError("/bike?cup=0&spacers=20", "http://127.0.0.1:8081/"),
       "/bike?cup=0&spacers=20",
     );
+  });
+
+  test("urlWithView replaces only the view and keeps pending build values", () => {
+    const base = "http://127.0.0.1:8081/";
+    assert.equal(
+      urlWithView("/bike?view=bike&fork=fox34_120&prev_fork=lithic&spacers=35", "stem", base),
+      "/bike?view=stem&fork=fox34_120&prev_fork=lithic&spacers=35",
+    );
+    assert.equal(urlWithView("/bike", "seat", base), "/bike?view=seat");
+    assert.equal(urlWithView("http://127.0.0.1:8081/bike?spacers=30", "bike", base), "/bike?spacers=30&view=bike");
+  });
+
+  test("hiddenLabelItems hides labels that overlap a higher-priority label already shown", () => {
+    const view = { x: 0, y: 0, width: 1000, height: 500 };
+    const box = (x, y) => ({ x, y, width: 100, height: 20 });
+    const items = [
+      { name: "SpacerTop", priority: 3, order: 0, box: box(10, 10) },
+      { name: "BarClamp", priority: 2, order: 1, box: box(50, 15) },
+      { name: "CoverTop", priority: 3, order: 2, box: box(10, 40) },
+      { name: "SteererClamp", priority: 3, order: 3, box: box(20, 45) },
+      { name: "BB", priority: 1, order: 4, box: box(500, 300) },
+      // Outside the view: never shown, so it blocks nothing.
+      { name: "FrontAxle", priority: 1, order: 5, box: box(1200, 300) },
+      { name: "RearAxle", priority: 1, order: 6, box: null },
+    ];
+    const names = (list) => list.map((item) => item.name);
+
+    // BarClamp (priority 2) beats SpacerTop (priority 3) despite coming later;
+    // among equal priorities, document order wins (CoverTop over SteererClamp).
+    assert.deepEqual(names(hiddenLabelItems(items, view)), ["SpacerTop", "SteererClamp"]);
+
+    // A small gap between boxes still counts as touching.
+    const touching = [
+      { name: "a", priority: 1, order: 0, box: box(0, 0) },
+      { name: "b", priority: 1, order: 1, box: box(0, 21) },
+    ];
+    assert.deepEqual(names(hiddenLabelItems(touching, view)), ["b"]);
+    const apart = [
+      { name: "a", priority: 1, order: 0, box: box(0, 0) },
+      { name: "b", priority: 1, order: 1, box: box(0, 30) },
+    ];
+    assert.deepEqual(hiddenLabelItems(apart, view), []);
   });
 
   test("findBadInput checks preferred target and other enabled controls", () => {
@@ -432,5 +487,128 @@ describe("createBikeController", () => {
       { url: "http://127.0.0.1:8081/", pushHistory: true },
       { url: "https://example.com/bike", pushHistory: true },
     ]);
+  });
+
+  test("pressing a view link after an unsubmitted edit sends the edit and the view together", async () => {
+    const h = createTestHarness("/bike?view=bike&spacers=20.0");
+    h.setFormURL("/bike?view=bike&prev_fork=lithic&spacers=35");
+
+    // pointerdown -> blur/change/focusout -> pointerup -> click.
+    h.controller.handleViewPointerDown();
+    assert.equal(h.controller.handleChange(), undefined);
+    assert.equal(h.controller.handleFocusOut(), undefined);
+    h.controller.handlePresetPointerEnd();
+    assert.equal(h.deferredCount(), 0, "nothing held, nothing to resume");
+    assert.equal(h.fetches.length, 0);
+
+    const nav = h.controller.handleViewClick("stem");
+    assert.equal(h.fetches.length, 1);
+    assert.equal(h.fetches[0].requestUrl, "/bike?view=stem&prev_fork=lithic&spacers=35");
+    h.fetches[0].resolve({ status: 200, html: "/bike?view=stem&spacers=35.0" });
+    await nav;
+    assert.deepEqual(h.pushed, ["/bike?view=stem&spacers=35.0"]);
+  });
+
+  test("keyboard activation after a blur-submitted edit supersedes it with the combined request", async () => {
+    const h = createTestHarness("/bike?view=bike&spacers=20.0");
+    h.setFormURL("/bike?view=bike&spacers=35");
+
+    // Tab away from the edited input fires change; Enter on the link clicks it.
+    const change = h.controller.handleChange();
+    assert.equal(h.fetches.length, 1);
+    const nav = h.controller.handleViewClick("seat");
+    assert.equal(h.fetches[0].signal.aborted, true);
+    assert.equal(h.fetches[1].requestUrl, "/bike?view=seat&spacers=35");
+
+    // The superseded change response arriving late cannot overwrite the view.
+    h.fetches[0].resolve({ status: 200, html: "/bike?view=bike&spacers=35.0" });
+    await change;
+    assert.equal(h.applied.length, 0);
+
+    h.fetches[1].resolve({ status: 200, html: "/bike?view=seat&spacers=35.0" });
+    await nav;
+    assert.equal(h.applied.length, 1);
+    assert.deepEqual(h.pushed, ["/bike?view=seat&spacers=35.0"]);
+  });
+
+  test("pressing a view link holds an in-flight control request so its swap cannot eat the click", async () => {
+    const h = createTestHarness("/bike?view=bike&fork=lithic");
+    const forkChange = "/bike?view=bike&fork=fox34_120&prev_fork=lithic&spacers=30";
+    h.setFormURL(forkChange);
+    const change = h.controller.handleChange();
+    assert.equal(h.isBusy(), true);
+
+    h.controller.handleViewPointerDown();
+    assert.equal(h.fetches[0].signal.aborted, true);
+    assert.equal(h.isBusy(), false);
+
+    // A late response for the held request must not swap the page mid-press.
+    h.fetches[0].resolve({ status: 200, html: "/bike?view=bike&fork=fox34_120&spacers=30.0" });
+    await change;
+    assert.equal(h.applied.length, 0);
+
+    h.controller.handlePresetPointerEnd();
+    const nav = h.controller.handleViewClick("stem");
+    // The click claimed the held request, so the deferred resume does nothing.
+    h.runDeferred();
+    assert.equal(h.fetches.length, 2);
+    assert.equal(h.fetches[1].requestUrl, "/bike?view=stem&fork=fox34_120&prev_fork=lithic&spacers=30");
+
+    h.fetches[1].resolve({ status: 200, html: "/bike?view=stem&fork=fox34_120&spacers=30.0" });
+    await nav;
+    assert.deepEqual(h.pushed, ["/bike?view=stem&fork=fox34_120&spacers=30.0"]);
+  });
+
+  test("a view press released without a click resumes the held request unchanged", async () => {
+    const h = createTestHarness("/bike?view=seat");
+    h.setFormURL("/bike?view=seat&spacers=30");
+    const change = h.controller.handleChange();
+    h.controller.handleViewPointerDown();
+    h.fetches[0].reject(abortError());
+    await change;
+
+    h.controller.handlePresetPointerEnd();
+    assert.equal(h.fetches.length, 1);
+    const [resume] = h.runDeferred();
+    assert.equal(h.fetches.length, 2);
+    assert.equal(h.fetches[1].requestUrl, "/bike?view=seat&spacers=30");
+    h.fetches[1].resolve({ status: 200, html: "/bike?view=seat&spacers=30.0" });
+    await resume;
+    assert.deepEqual(h.pushed, ["/bike?view=seat&spacers=30.0"]);
+  });
+
+  test("switching view while a preset loads applies the view to the preset build", async () => {
+    const h = createTestHarness("/bike?view=bike&spacers=35.0");
+    h.setFormURL("/bike?view=bike&spacers=35");
+    const preset = h.controller.handlePresetClick("http://127.0.0.1:8081/bike?view=bike&spacers=20.0");
+    const nav = h.controller.handleViewClick("stem");
+    assert.equal(h.fetches[0].signal.aborted, true);
+    assert.equal(h.fetches[1].requestUrl, "/bike?view=stem&spacers=20.0");
+    h.fetches[0].reject(abortError());
+    h.fetches[1].resolve({ status: 200, html: "/bike?view=stem&spacers=20.0" });
+    await Promise.all([preset, nav]);
+    assert.deepEqual(h.pushed, ["/bike?view=stem&spacers=20.0"]);
+  });
+
+  test("an unparseable control blocks view navigation; a server error keeps the requested view", async () => {
+    const h = createTestHarness("/bike?view=bike");
+    const spacers = { id: "ctrl-spacers", disabled: false, validity: { badInput: true } };
+    h.setControls([spacers]);
+    h.setFormURL("/bike?view=bike&spacers=");
+
+    h.controller.handleViewPointerDown();
+    h.controller.handlePresetPointerEnd();
+    assert.equal(h.controller.handleViewClick("seat"), undefined);
+    assert.equal(h.fetches.length, 0);
+    assert.deepEqual(h.invalidReported, [spacers]);
+    assert.equal(h.applied.length, 0);
+
+    spacers.validity.badInput = false;
+    h.setFormURL("/bike?view=bike&prev_fork=lithic&fork=lithic&spacers=-1");
+    const nav = h.controller.handleViewClick("seat");
+    h.fetches[0].resolve({ status: 400, html: { canonicalUrl: "" } });
+    await nav;
+    assert.equal(h.applied[0].status, 400);
+    assert.deepEqual(h.pushed, ["/bike?view=seat&fork=lithic&spacers=-1"]);
   });
 });
