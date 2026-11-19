@@ -31,6 +31,7 @@ func makeForkOption(id, name string, spec assembly.ForkSpec, defaultSagPct float
 type bikeFixture struct {
 	Name              string
 	Chart             assembly.FrameChart
+	CadForkID         string
 	Wheels            assembly.WheelSetup
 	WheelLabel        string
 	DefaultLowerCupMm float64
@@ -80,6 +81,7 @@ func otsoFenrirFixture() bikeFixture {
 		Wheels:            assembly.WheelSetup{RadiusMm: 372.0},
 		WheelLabel:        `29" × 2.4"`,
 		DefaultLowerCupMm: 12.0, // EC44 external lower headset cup
+		CadForkID:         "lithic_carbon_mountain",
 		DefaultForkID:     "lithic_carbon_mountain",
 		Forks: []forkOption{
 			makeForkOption("lithic_carbon_mountain", "Lithic Carbon Mountain", assembly.ForkSpec{

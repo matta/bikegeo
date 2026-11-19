@@ -2,9 +2,11 @@ package web
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -368,8 +370,8 @@ func TestChassisWorkbenchForkSwitchAndCadBaseline(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
-			name:        "CAD baseline route uses fixture CadFork and 0 cup",
-			query:       "/chassis?baseline=cad",
+			name:        "CAD baseline preset uses fixture CadFork and 0 cup",
+			query:       defaultWorkbenchState(otsoFenrirFixture()).withCadBaseline(otsoFenrirFixture()).URL(),
 			wantCode:    http.StatusOK,
 			wantA2C:     "495.0 mm",
 			wantForkA2C: "495.0",
@@ -409,6 +411,13 @@ func TestChassisWorkbenchForkSwitchAndCadBaseline(t *testing.T) {
 			if tc.wantDelta != "" {
 				if got := strings.TrimSpace(doc.Find(`[data-metric="delta-pitch"]`).Text()); got != tc.wantDelta {
 					t.Errorf("delta-pitch = %q, want %q", got, tc.wantDelta)
+				}
+				selectedOpt := doc.Find(`select[name="fork"] option[selected]`)
+				if val, _ := selectedOpt.Attr("value"); val != "lithic_carbon_mountain" {
+					t.Errorf("CAD baseline selected fork option = %q, want lithic_carbon_mountain", val)
+				}
+				if _, disabled := selectedOpt.Attr("disabled"); disabled {
+					t.Errorf("CAD baseline selected fork option should not be disabled")
 				}
 			}
 		})
@@ -578,7 +587,7 @@ func TestChassisWorkbenchRejectsInvalidQuery(t *testing.T) {
 		{"/chassis?post_setback=-2", "post_setback", "-2"},
 		{"/chassis?rail_offset=NaN", "rail_offset", "NaN"},
 		{"/chassis?rail_pitch=Inf", "rail_pitch", "Inf"},
-		{"/chassis?baseline=cad&spacers=-1", "spacers", "-1"},
+		{"/chassis?fork=lithic_carbon_mountain&fork_a2c=495.0&cup=0.0&sag=0.0&spacers=-1", "spacers", "-1"},
 	}
 
 	for _, tc := range cases {
@@ -682,7 +691,7 @@ func TestBuildChassisViewUsesPlacedDimensions(t *testing.T) {
 		t.Fatalf("PlaceCadBaseline: %v", err)
 	}
 
-	view := buildChassisView(fix, "fox34_120", "fox34_120", false, 530.0, 20.0, bike, cadBaseline, tr.Steps())
+	view := buildChassisView(fix, "fox34_120", 530.0, 20.0, bike, cadBaseline, tr.Steps())
 
 	if view.WheelRadiusMm != customWheels.RadiusMm {
 		t.Errorf("view.WheelRadiusMm = %.1f, want placed radius %.1f (not fixture %.1f)", view.WheelRadiusMm, customWheels.RadiusMm, fix.Wheels.RadiusMm)
@@ -716,5 +725,339 @@ func TestBuildChassisViewUsesPlacedDimensions(t *testing.T) {
 	}
 	if view.Form != wantForm {
 		t.Errorf("view.Form = %+v, want %+v", view.Form, wantForm)
+	}
+
+	cadURL, err := url.Parse(view.CadBaselineURL)
+	if err != nil {
+		t.Fatalf("parse CadBaselineURL %q: %v", view.CadBaselineURL, err)
+	}
+	cadDecoded, inputErr := decodeWorkbenchState(fix, cadURL.Query())
+	if inputErr != nil {
+		t.Fatalf("decodeWorkbenchState(CadBaselineURL): %v", inputErr)
+	}
+	wantCadState := workbenchState{
+		ForkID:        fix.CadForkID,
+		ForkA2cMm:     fix.Chart.CadFork.A2cMm,
+		LowerCupMm:    fix.Chart.CadFork.LowerCupMm,
+		SagPct:        0.0,
+		SpacersMm:     15.0,
+		StemLengthMm:  70.0,
+		StemAngleDeg:  6.0,
+		BarRollDeg:    -4.0,
+		PostExtMm:     240.0,
+		PostSetbackMm: 15.0,
+		RailOffsetMm:  12.0,
+		RailPitchDeg:  -1.5,
+	}
+	if cadDecoded.State != wantCadState {
+		t.Errorf("decoded CadBaselineURL state = %+v, want %+v", cadDecoded.State, wantCadState)
+	}
+}
+
+func TestWorkbenchStateCodecRoundTrip(t *testing.T) {
+	fix := otsoFenrirFixture()
+	want := workbenchState{
+		ForkID:        "fox34_120",
+		ForkA2cMm:     535.0,
+		LowerCupMm:    12.5,
+		SagPct:        22.0,
+		SpacersMm:     35.0,
+		StemLengthMm:  80.0,
+		StemAngleDeg:  7.0,
+		BarRollDeg:    -5.0,
+		PostExtMm:     250.0,
+		PostSetbackMm: 20.0,
+		RailOffsetMm:  10.0,
+		RailPitchDeg:  -2.0,
+	}
+
+	u, err := url.Parse(want.URL())
+	if err != nil {
+		t.Fatalf("parse encoded URL %q: %v", want.URL(), err)
+	}
+	if u.Query().Has("prev_fork") || u.Query().Has("baseline") {
+		t.Errorf("encoded URL %q should not include prev_fork or baseline", want.URL())
+	}
+
+	decoded, inputErr := decodeWorkbenchState(fix, u.Query())
+	if inputErr != nil {
+		t.Fatalf("decodeWorkbenchState error: %v", inputErr)
+	}
+	if decoded.State != want {
+		t.Errorf("decoded State = %+v, want %+v", decoded.State, want)
+	}
+}
+
+func serializeForm(t *testing.T, form *goquery.Selection) url.Values {
+	t.Helper()
+	if form.Length() != 1 {
+		t.Fatalf("expected 1 form, got %d", form.Length())
+	}
+	vals := url.Values{}
+	form.Find("input, select, textarea").Each(func(_ int, el *goquery.Selection) {
+		if _, disabled := el.Attr("disabled"); disabled {
+			return
+		}
+		if el.ParentsFiltered("fieldset[disabled]").Length() > 0 {
+			return
+		}
+		name, hasName := el.Attr("name")
+		if !hasName || name == "" {
+			return
+		}
+		switch goquery.NodeName(el) {
+		case "select":
+			opt := el.Find("option[selected]").First()
+			if opt.Length() == 0 {
+				opt = el.Find("option:not([disabled])").First()
+			}
+			if opt.Length() == 0 {
+				return
+			}
+			if _, disabled := opt.Attr("disabled"); disabled {
+				return
+			}
+			val, _ := opt.Attr("value")
+			vals.Add(name, val)
+		case "textarea":
+			vals.Add(name, el.Text())
+		default:
+			typ, _ := el.Attr("type")
+			switch strings.ToLower(typ) {
+			case "submit", "button", "reset", "image":
+				return
+			case "checkbox", "radio":
+				if _, checked := el.Attr("checked"); !checked {
+					return
+				}
+			}
+			val, _ := el.Attr("value")
+			vals.Add(name, val)
+		}
+	})
+	return vals
+}
+
+func submitForm(t *testing.T, doc *goquery.Document, override map[string]string) (*httptest.ResponseRecorder, *goquery.Document) {
+	t.Helper()
+	form := doc.Find("form.controls")
+	if form.Length() != 1 {
+		t.Fatalf("expected 1 form.controls, got %d", form.Length())
+	}
+	action, ok := form.Attr("action")
+	if !ok || action == "" {
+		action = "/chassis"
+	}
+	vals := serializeForm(t, form)
+	for k, v := range override {
+		vals.Set(k, v)
+	}
+	target := "http://127.0.0.1:8081" + action + "?" + vals.Encode()
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	rec := httptest.NewRecorder()
+	NewHandler().ServeHTTP(rec, req)
+
+	nextDoc, err := goquery.NewDocumentFromReader(rec.Body)
+	if err != nil {
+		t.Fatalf("parse response HTML for %s: %v", target, err)
+	}
+	return rec, nextDoc
+}
+
+func collectMetrics(doc *goquery.Document) map[string]string {
+	metrics := map[string]string{}
+	doc.Find("[data-metric]").Each(func(_ int, el *goquery.Selection) {
+		if key, ok := el.Attr("data-metric"); ok {
+			metrics[key] = strings.TrimSpace(el.Text())
+		}
+	})
+	return metrics
+}
+
+func loadChassisDoc(t *testing.T, path string) *goquery.Document {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+path, nil)
+	rec := httptest.NewRecorder()
+	NewHandler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET %s status = %d, want 200 (body: %s)", path, rec.Code, rec.Body.String())
+	}
+	doc, err := goquery.NewDocumentFromReader(rec.Body)
+	if err != nil {
+		t.Fatalf("parse HTML for %s: %v", path, err)
+	}
+	return doc
+}
+
+func assertUnchangedSubmitIdempotent(t *testing.T, label string, doc *goquery.Document) *goquery.Document {
+	t.Helper()
+	wantMetrics := collectMetrics(doc)
+	wantForm := serializeForm(t, doc.Find("form.controls"))
+	wantSteps := doc.Find("table tbody tr[data-step-id]").Length()
+
+	rec, nextDoc := submitForm(t, doc, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%s unchanged submit status = %d, want 200 (body: %s)", label, rec.Code, rec.Body.String())
+	}
+	gotMetrics := collectMetrics(nextDoc)
+	if !maps.Equal(gotMetrics, wantMetrics) {
+		t.Errorf("%s unchanged submit changed metrics:\n got: %v\nwant: %v", label, gotMetrics, wantMetrics)
+	}
+	gotForm := serializeForm(t, nextDoc.Find("form.controls"))
+	if gotForm.Encode() != wantForm.Encode() {
+		t.Errorf("%s unchanged submit changed form values:\n got: %s\nwant: %s", label, gotForm.Encode(), wantForm.Encode())
+	}
+	if gotSteps := nextDoc.Find("table tbody tr[data-step-id]").Length(); gotSteps != wantSteps {
+		t.Errorf("%s unchanged submit trace rows = %d, want %d", label, gotSteps, wantSteps)
+	}
+	return nextDoc
+}
+
+func TestChassisWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
+	// 1. Default build.
+	defaultDoc := loadChassisDoc(t, "/chassis")
+	assertUnchangedSubmitIdempotent(t, "default build", defaultDoc)
+
+	// 2. Follow CAD Baseline preset from default build.
+	cadHref, ok := defaultDoc.Find(`a[data-preset="cad-baseline"]`).Attr("href")
+	if !ok || cadHref == "" {
+		t.Fatalf("missing a[data-preset=cad-baseline] href")
+	}
+	cadDoc := loadChassisDoc(t, cadHref)
+	if got, _ := cadDoc.Find(`input[name="cup"]`).Attr("value"); got != "0.0" {
+		t.Errorf("cad preset cup = %q, want 0.0", got)
+	}
+	if got := strings.TrimSpace(cadDoc.Find(`[data-metric="delta-pitch"]`).Text()); got != "+0.00°" {
+		t.Errorf("cad preset delta-pitch = %q, want +0.00°", got)
+	}
+	assertUnchangedSubmitIdempotent(t, "cad preset from default", cadDoc)
+
+	// 3. Fully customized build.
+	customURL := "/chassis?fork=fox34_120&fork_a2c=530&cup=12&sag=20" +
+		"&spacers=35&stem_length=80&stem_angle=7&bar_roll=-5" +
+		"&post_ext=250&post_setback=20&rail_offset=10&rail_pitch=-2"
+	customDoc := loadChassisDoc(t, customURL)
+	assertUnchangedSubmitIdempotent(t, "custom build", customDoc)
+
+	// 4. Follow CAD Baseline from customized build: preserves cockpit, sets cup=0,
+	//    round-trips unchanged, and keeps CAD baseline when spacers are later edited.
+	customCadHref, ok := customDoc.Find(`a[data-preset="cad-baseline"]`).Attr("href")
+	if !ok || customCadHref == "" {
+		t.Fatalf("missing a[data-preset=cad-baseline] href on custom build")
+	}
+	customCadDoc := loadChassisDoc(t, customCadHref)
+	if got, _ := customCadDoc.Find(`input[name="spacers"]`).Attr("value"); got != "35.0" {
+		t.Errorf("cad preset spacers = %q, want 35.0", got)
+	}
+	if got, _ := customCadDoc.Find(`input[name="stem_length"]`).Attr("value"); got != "80.0" {
+		t.Errorf("cad preset stem_length = %q, want 80.0", got)
+	}
+	if got, _ := customCadDoc.Find(`input[name="cup"]`).Attr("value"); got != "0.0" {
+		t.Errorf("cad preset cup = %q, want 0.0", got)
+	}
+	if got := strings.TrimSpace(customCadDoc.Find(`[data-metric="delta-pitch"]`).Text()); got != "+0.00°" {
+		t.Errorf("cad preset delta-pitch = %q, want +0.00°", got)
+	}
+	assertUnchangedSubmitIdempotent(t, "cad preset from custom build", customCadDoc)
+
+	rec, editedDoc := submitForm(t, customCadDoc, map[string]string{"spacers": "30"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("editing spacers on cad build status = %d, want 200", rec.Code)
+	}
+	if got, _ := editedDoc.Find(`input[name="cup"]`).Attr("value"); got != "0.0" {
+		t.Errorf("after spacer edit cup = %q, want 0.0", got)
+	}
+	if got, _ := editedDoc.Find(`input[name="spacers"]`).Attr("value"); got != "30.0" {
+		t.Errorf("after spacer edit spacers = %q, want 30.0", got)
+	}
+	if got := strings.TrimSpace(editedDoc.Find(`[data-metric="delta-pitch"]`).Text()); got != "+0.00°" {
+		t.Errorf("after spacer edit delta-pitch = %q, want +0.00°", got)
+	}
+
+	// 5. Follow Reset Defaults preset link.
+	defaultsHref, ok := customCadDoc.Find(`a[data-preset="defaults"]`).Attr("href")
+	if !ok || defaultsHref == "" {
+		t.Fatalf("missing a[data-preset=defaults] href")
+	}
+	resetDoc := loadChassisDoc(t, defaultsHref)
+	if got, _ := resetDoc.Find(`input[name="cup"]`).Attr("value"); got != "12.0" {
+		t.Errorf("reset defaults cup = %q, want 12.0", got)
+	}
+	if got, _ := resetDoc.Find(`input[name="spacers"]`).Attr("value"); got != "20.0" {
+		t.Errorf("reset defaults spacers = %q, want 20.0", got)
+	}
+	assertUnchangedSubmitIdempotent(t, "reset defaults", resetDoc)
+}
+
+func TestChassisWorkbenchEveryEnabledControlIsLive(t *testing.T) {
+	defaultDoc := loadChassisDoc(t, "/chassis")
+	cadHref, _ := defaultDoc.Find(`a[data-preset="cad-baseline"]`).Attr("href")
+	cadDoc := loadChassisDoc(t, cadHref)
+	cadMetrics := collectMetrics(cadDoc)
+
+	// On the rigid CAD baseline fork, changing sag to 10 must return 400 (not silently revert).
+	rec, errDoc := submitForm(t, cadDoc, map[string]string{"sag": "10"})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("mutating sag on rigid CAD baseline status = %d, want 400", rec.Code)
+	}
+	if inv, _ := errDoc.Find(`[name="sag"]`).Attr("aria-invalid"); inv != "true" {
+		t.Errorf("sag aria-invalid = %q, want true", inv)
+	}
+
+	// Every other enabled control on the CAD baseline page must take effect and change the build.
+	mutations := []struct {
+		field    string
+		val      string
+		isSelect bool
+	}{
+		{field: "fork", val: "sid_100", isSelect: true},
+		{field: "fork_a2c", val: "510.0"},
+		{field: "cup", val: "12.0"},
+		{field: "spacers", val: "30.0"},
+		{field: "stem_length", val: "80.0"},
+		{field: "stem_angle", val: "-12.0"},
+		{field: "bar_roll", val: "8.0"},
+		{field: "post_ext", val: "250.0"},
+		{field: "post_setback", val: "20.0"},
+		{field: "rail_offset", val: "15.0"},
+		{field: "rail_pitch", val: "-4.0"},
+	}
+	for _, m := range mutations {
+		t.Run("cad/"+m.field, func(t *testing.T) {
+			rec, nextDoc := submitForm(t, cadDoc, map[string]string{m.field: m.val})
+			if rec.Code != http.StatusOK {
+				t.Fatalf("submit %s=%s status = %d, want 200", m.field, m.val, rec.Code)
+			}
+			if m.isSelect {
+				got, _ := nextDoc.Find(fmt.Sprintf(`select[name="%s"] option[selected]`, m.field)).Attr("value")
+				if got != m.val {
+					t.Errorf("select[name=%q] selected = %q, want %q", m.field, got, m.val)
+				}
+			} else {
+				got, _ := nextDoc.Find(fmt.Sprintf(`input[name="%s"]`, m.field)).Attr("value")
+				if got != m.val {
+					t.Errorf("input[name=%q] value = %q, want %q", m.field, got, m.val)
+				}
+			}
+			if maps.Equal(collectMetrics(nextDoc), cadMetrics) {
+				t.Errorf("mutating %s=%s left all rendered metrics unchanged", m.field, m.val)
+			}
+		})
+	}
+
+	// On a suspension fork build, sag is also live and changes effective A2C.
+	sidDoc := loadChassisDoc(t, "/chassis?fork=sid_100&cup=12&sag=20")
+	if got := strings.TrimSpace(sidDoc.Find(`[data-metric="effective-a2c"]`).Text()); got != "486.0 mm" {
+		t.Fatalf("initial SID effective-a2c = %q, want 486.0 mm", got)
+	}
+	rec, nextSidDoc := submitForm(t, sidDoc, map[string]string{"sag": "15"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("submit sag=15 status = %d, want 200", rec.Code)
+	}
+	if got, _ := nextSidDoc.Find(`input[name="sag"]`).Attr("value"); got != "15.0" {
+		t.Errorf("sag input after submit = %q, want 15.0", got)
+	}
+	if got := strings.TrimSpace(nextSidDoc.Find(`[data-metric="effective-a2c"]`).Text()); got != "491.0 mm" {
+		t.Errorf("SID effective-a2c after sag=15 = %q, want 491.0 mm", got)
 	}
 }

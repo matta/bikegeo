@@ -243,9 +243,6 @@
           <div class="field field-full">
             <label for="ctrl-fork">Fork</label>
             <select id="ctrl-fork" name="fork"{{if and $.ErrorMessage (eq $.InvalidField "fork")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
-              {{if .IsCadBaseline}}
-              <option value="" selected disabled>CAD Baseline ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm rake)</option>
-              {{end}}
               {{range .Forks}}
               <option value="{{.ID}}"{{if eq .ID $.SelectedForkID}} selected{{end}}>{{.Label}}</option>
               {{end}}
@@ -313,8 +310,8 @@
 
     <div class="control-actions">
       <button type="submit">Update Build</button>
-      <a href="/chassis">Reset Defaults</a>
-      <a href="/chassis?baseline=cad">CAD Baseline ({{printf "%.0f" .CadFork.LowerCupMm}} mm cup)</a>
+      <a href="/chassis" data-preset="defaults">Reset Defaults</a>
+      <a href="{{.CadBaselineURL}}" data-preset="cad-baseline">CAD Baseline ({{printf "%.0f" .CadFork.LowerCupMm}} mm cup)</a>
     </div>
   </form>
 

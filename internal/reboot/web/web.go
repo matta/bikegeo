@@ -300,6 +300,99 @@ type svgSegment struct {
 	Illustrative bool
 }
 
+type workbenchState struct {
+	ForkID        string
+	ForkA2cMm     float64
+	LowerCupMm    float64
+	SagPct        float64
+	SpacersMm     float64
+	StemLengthMm  float64
+	StemAngleDeg  pose.Deg
+	BarRollDeg    pose.Deg
+	PostExtMm     float64
+	PostSetbackMm float64
+	RailOffsetMm  float64
+	RailPitchDeg  pose.Deg
+}
+
+func defaultWorkbenchState(fix bikeFixture) workbenchState {
+	defaultFork, _ := findForkOption(fix.Forks, fix.DefaultForkID, fix.DefaultForkID)
+	return workbenchState{
+		ForkID:        defaultFork.ID,
+		ForkA2cMm:     defaultFork.Spec.StaticA2cMm,
+		LowerCupMm:    fix.DefaultLowerCupMm,
+		SagPct:        defaultFork.DefaultSagPct,
+		SpacersMm:     fix.DefaultStem.SpacersMm,
+		StemLengthMm:  fix.DefaultStem.LengthMm,
+		StemAngleDeg:  fix.DefaultStem.AngleDeg,
+		BarRollDeg:    fix.DefaultHandlebar.BarRollDeg,
+		PostExtMm:     fix.DefaultSeatpost.ExtensionMm,
+		PostSetbackMm: fix.DefaultSeatpost.PostSetbackMm,
+		RailOffsetMm:  fix.DefaultSaddle.RailOffsetMm,
+		RailPitchDeg:  fix.DefaultSaddle.RailPitchDeg,
+	}
+}
+
+func workbenchStateFromSetup(forkID string, staticA2cMm, sagPct float64, setup assembly.BikeSetup) workbenchState {
+	return workbenchState{
+		ForkID:        forkID,
+		ForkA2cMm:     staticA2cMm,
+		LowerCupMm:    setup.Fork.LowerCupMm,
+		SagPct:        sagPct,
+		SpacersMm:     setup.Stem.SpacersMm,
+		StemLengthMm:  setup.Stem.LengthMm,
+		StemAngleDeg:  setup.Stem.AngleDeg,
+		BarRollDeg:    setup.Handlebar.BarRollDeg,
+		PostExtMm:     setup.Seatpost.ExtensionMm,
+		PostSetbackMm: setup.Seatpost.PostSetbackMm,
+		RailOffsetMm:  setup.Saddle.RailOffsetMm,
+		RailPitchDeg:  setup.Saddle.RailPitchDeg,
+	}
+}
+
+func (s workbenchState) withCadBaseline(fix bikeFixture) workbenchState {
+	s.ForkID = fix.CadForkID
+	s.ForkA2cMm = fix.Chart.CadFork.A2cMm
+	s.LowerCupMm = fix.Chart.CadFork.LowerCupMm
+	s.SagPct = 0.0
+	return s
+}
+
+func (s workbenchState) URL() string {
+	q := url.Values{}
+	q.Set("fork", s.ForkID)
+	q.Set("fork_a2c", formatFormFloat(s.ForkA2cMm))
+	q.Set("cup", formatFormFloat(s.LowerCupMm))
+	q.Set("sag", formatFormFloat(s.SagPct))
+	q.Set("spacers", formatFormFloat(s.SpacersMm))
+	q.Set("stem_length", formatFormFloat(s.StemLengthMm))
+	q.Set("stem_angle", formatFormFloat(float64(s.StemAngleDeg)))
+	q.Set("bar_roll", formatFormFloat(float64(s.BarRollDeg)))
+	q.Set("post_ext", formatFormFloat(s.PostExtMm))
+	q.Set("post_setback", formatFormFloat(s.PostSetbackMm))
+	q.Set("rail_offset", formatFormFloat(s.RailOffsetMm))
+	q.Set("rail_pitch", formatFormFloat(float64(s.RailPitchDeg)))
+	return "/chassis?" + q.Encode()
+}
+
+func (s workbenchState) formValues() chassisFormValues {
+	return chassisFormValues{
+		Fork:        s.ForkID,
+		PrevFork:    s.ForkID,
+		ForkA2c:     formatFormFloat(s.ForkA2cMm),
+		Cup:         formatFormFloat(s.LowerCupMm),
+		Sag:         formatFormFloat(s.SagPct),
+		Spacers:     formatFormFloat(s.SpacersMm),
+		StemLength:  formatFormFloat(s.StemLengthMm),
+		StemAngle:   formatFormFloat(float64(s.StemAngleDeg)),
+		BarRoll:     formatFormFloat(float64(s.BarRollDeg)),
+		PostExt:     formatFormFloat(s.PostExtMm),
+		PostSetback: formatFormFloat(s.PostSetbackMm),
+		RailOffset:  formatFormFloat(s.RailOffsetMm),
+		RailPitch:   formatFormFloat(float64(s.RailPitchDeg)),
+	}
+}
+
 type chassisFormValues struct {
 	Fork        string
 	PrevFork    string
@@ -326,13 +419,9 @@ func (e *chassisInputError) Error() string {
 }
 
 type chassisResolvedInput struct {
-	SelectedForkID string
-	PrevForkForUI  string
-	IsCadBaseline  bool
-	StaticA2cMm    float64
-	SagPct         float64
-	Form           chassisFormValues // submitted values, echoed on error pages
-	Setup          assembly.BikeSetup
+	State workbenchState
+	Form  chassisFormValues // submitted values, echoed on error pages
+	Setup assembly.BikeSetup
 }
 
 type chassisView struct {
@@ -340,6 +429,7 @@ type chassisView struct {
 	ErrorMessage         string
 	InvalidField         string
 	Form                 chassisFormValues
+	CadBaselineURL       string
 	MinPostExtensionMm   float64
 	MaxPostExtensionMm   float64
 	BikeName             string
@@ -347,7 +437,6 @@ type chassisView struct {
 	HandlebarName        string
 	Forks                []forkOption
 	SelectedForkID       string
-	IsCadBaseline        bool
 	CadFork              assembly.ForkSetup
 	LowerCupMm           float64
 	SagPct               float64
@@ -393,7 +482,7 @@ func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
 	fix := otsoFenrirFixture()
 	q := r.URL.Query()
 
-	resolved, inputErr := parseChassisInput(fix, q)
+	resolved, inputErr := decodeWorkbenchState(fix, q)
 	if inputErr != nil {
 		renderChassisError(w, fix, resolved, inputErr.Field, inputErr.Error())
 		return
@@ -414,11 +503,9 @@ func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
 
 	view := buildChassisView(
 		fix,
-		resolved.SelectedForkID,
-		resolved.PrevForkForUI,
-		resolved.IsCadBaseline,
-		resolved.StaticA2cMm,
-		resolved.SagPct,
+		resolved.State.ForkID,
+		resolved.State.ForkA2cMm,
+		resolved.State.SagPct,
 		bike,
 		cadBaseline,
 		tr.Steps(),
@@ -432,12 +519,12 @@ func renderChassisError(w http.ResponseWriter, fix bikeFixture, resolved chassis
 		ErrorMessage:       msg,
 		InvalidField:       invalidField,
 		Form:               resolved.Form,
+		CadBaselineURL:     defaultWorkbenchState(fix).withCadBaseline(fix).URL(),
 		MinPostExtensionMm: fix.DefaultSeatpost.MinExtensionMm,
 		MaxPostExtensionMm: fix.DefaultSeatpost.MaxExtensionMm,
 		BikeName:           fix.Name,
 		Forks:              fix.Forks,
-		SelectedForkID:     resolved.SelectedForkID,
-		IsCadBaseline:      resolved.IsCadBaseline,
+		SelectedForkID:     resolved.State.ForkID,
 		CadFork:            fix.Chart.CadFork,
 	}
 	renderChassisTemplate(w, http.StatusBadRequest, view)
@@ -488,90 +575,83 @@ func (p *chassisQueryParser) fail(field string, err error) {
 	}
 }
 
-// parseChassisInput resolves the query into a BikeSetup. The returned
-// chassisResolvedInput always carries Form, SelectedForkID, and IsCadBaseline,
-// even when parsing fails, so the error page can echo the submitted controls.
-func parseChassisInput(fix bikeFixture, q url.Values) (chassisResolvedInput, *chassisInputError) {
+// decodeWorkbenchState resolves the URL query into a BikeSetup. The returned
+// chassisResolvedInput always carries Form and State.ForkID even when parsing
+// fails, so the error page can echo the submitted controls.
+func decodeWorkbenchState(fix bikeFixture, q url.Values) (chassisResolvedInput, *chassisInputError) {
 	p := chassisQueryParser{q: q}
+	defaults := defaultWorkbenchState(fix)
+	state := defaults
 	var form chassisFormValues
-	isCadBaseline := q.Get("baseline") == "cad"
 
-	var (
-		selectedForkID string
-		staticA2cMm    float64
-		sagPct         float64
-		forkSetup      assembly.ForkSetup
-	)
-
-	if isCadBaseline {
-		forkSetup = fix.Chart.CadFork
-		staticA2cMm = fix.Chart.CadFork.A2cMm
-		sagPct = 0.0
-		form.PrevFork = "cad"
-		form.ForkA2c = formatFormFloat(staticA2cMm)
-		form.Cup = formatFormFloat(forkSetup.LowerCupMm)
-		form.Sag = formatFormFloat(sagPct)
+	selectedFork, ok := findForkOption(fix.Forks, q.Get("fork"), fix.DefaultForkID)
+	prevFork := q.Get("prev_fork")
+	form.PrevFork = prevFork
+	if ok {
+		state.ForkID = selectedFork.ID
+		form.Fork = selectedFork.ID
+		form.PrevFork = selectedFork.ID
 	} else {
-		selectedFork, ok := findForkOption(fix.Forks, q.Get("fork"), fix.DefaultForkID)
-		prevFork := q.Get("prev_fork")
-		form.PrevFork = prevFork
-		if ok {
-			selectedForkID = selectedFork.ID
-			form.Fork = selectedFork.ID
-			form.PrevFork = selectedFork.ID
-		} else {
-			p.fail("fork", fmt.Errorf("unknown fork option %q", q.Get("fork")))
-			// Echo the default fork's values beside the rejected selection.
-			selectedFork, _ = findForkOption(fix.Forks, fix.DefaultForkID, fix.DefaultForkID)
-		}
+		state.ForkID = ""
+		p.fail("fork", fmt.Errorf("unknown fork option %q", q.Get("fork")))
+		// Echo the default fork's values beside the rejected selection.
+		selectedFork, _ = findForkOption(fix.Forks, fix.DefaultForkID, fix.DefaultForkID)
+	}
 
-		// When the user switches forks via the form, adopt the newly selected fork's
-		// default static A2C and sag instead of carrying over the previous fork's values.
-		forkSwitched := ok && prevFork != "" && prevFork != selectedFork.ID
+	// When the user switches forks via the form, adopt the newly selected fork's
+	// default static A2C and sag instead of carrying over the previous fork's values.
+	forkSwitched := ok && prevFork != "" && prevFork != selectedFork.ID
 
-		lowerCupMm := p.float("cup", fix.DefaultLowerCupMm, "lower cup", &form.Cup)
-		staticA2cMm = selectedFork.Spec.StaticA2cMm
-		sagPct = selectedFork.DefaultSagPct
-		if forkSwitched {
-			form.ForkA2c = formatFormFloat(staticA2cMm)
-			form.Sag = formatFormFloat(sagPct)
-		} else {
-			staticA2cMm = p.float("fork_a2c", staticA2cMm, "fork static A2C", &form.ForkA2c)
-			sagPct = p.float("sag", sagPct, "fork sag", &form.Sag)
-		}
+	state.LowerCupMm = p.float("cup", defaults.LowerCupMm, "lower cup", &form.Cup)
+	state.ForkA2cMm = selectedFork.Spec.StaticA2cMm
+	state.SagPct = selectedFork.DefaultSagPct
+	if forkSwitched {
+		form.ForkA2c = formatFormFloat(state.ForkA2cMm)
+		form.Sag = formatFormFloat(state.SagPct)
+	} else {
+		state.ForkA2cMm = p.float("fork_a2c", state.ForkA2cMm, "fork static A2C", &form.ForkA2c)
+		state.SagPct = p.float("sag", state.SagPct, "fork sag", &form.Sag)
+	}
 
-		if p.err == nil {
-			spec := selectedFork.Spec
-			spec.StaticA2cMm = staticA2cMm
-			var err error
-			forkSetup, err = spec.Setup(sagPct, lowerCupMm)
-			if err != nil {
-				p.fail(chassisInputField(err), err)
-			}
+	var forkSetup assembly.ForkSetup
+	if p.err == nil {
+		spec := selectedFork.Spec
+		spec.StaticA2cMm = state.ForkA2cMm
+		var err error
+		forkSetup, err = spec.Setup(state.SagPct, state.LowerCupMm)
+		if err != nil {
+			p.fail(chassisInputField(err), err)
 		}
 	}
 
-	stem := fix.DefaultStem
-	bar := fix.DefaultHandlebar
-	post := fix.DefaultSeatpost
-	saddle := fix.DefaultSaddle
+	state.SpacersMm = p.float("spacers", defaults.SpacersMm, "spacers", &form.Spacers)
+	state.StemLengthMm = p.float("stem_length", defaults.StemLengthMm, "stem length", &form.StemLength)
+	state.StemAngleDeg = pose.Deg(p.float("stem_angle", float64(defaults.StemAngleDeg), "stem angle", &form.StemAngle))
+	state.BarRollDeg = pose.Deg(p.float("bar_roll", float64(defaults.BarRollDeg), "handlebar roll", &form.BarRoll))
+	state.PostExtMm = p.float("post_ext", defaults.PostExtMm, "seatpost extension", &form.PostExt)
+	state.PostSetbackMm = p.float("post_setback", defaults.PostSetbackMm, "seatpost setback", &form.PostSetback)
+	state.RailOffsetMm = p.float("rail_offset", defaults.RailOffsetMm, "saddle rail offset", &form.RailOffset)
+	state.RailPitchDeg = pose.Deg(p.float("rail_pitch", float64(defaults.RailPitchDeg), "saddle rail pitch", &form.RailPitch))
 
-	stem.SpacersMm = p.float("spacers", stem.SpacersMm, "spacers", &form.Spacers)
-	stem.LengthMm = p.float("stem_length", stem.LengthMm, "stem length", &form.StemLength)
-	stem.AngleDeg = pose.Deg(p.float("stem_angle", float64(stem.AngleDeg), "stem angle", &form.StemAngle))
-	bar.BarRollDeg = pose.Deg(p.float("bar_roll", float64(bar.BarRollDeg), "handlebar roll", &form.BarRoll))
-	post.ExtensionMm = p.float("post_ext", post.ExtensionMm, "seatpost extension", &form.PostExt)
-	post.PostSetbackMm = p.float("post_setback", post.PostSetbackMm, "seatpost setback", &form.PostSetback)
-	saddle.RailOffsetMm = p.float("rail_offset", saddle.RailOffsetMm, "saddle rail offset", &form.RailOffset)
-	saddle.RailPitchDeg = pose.Deg(p.float("rail_pitch", float64(saddle.RailPitchDeg), "saddle rail pitch", &form.RailPitch))
+	stem := fix.DefaultStem
+	stem.SpacersMm = state.SpacersMm
+	stem.LengthMm = state.StemLengthMm
+	stem.AngleDeg = state.StemAngleDeg
+
+	bar := fix.DefaultHandlebar
+	bar.BarRollDeg = state.BarRollDeg
+
+	post := fix.DefaultSeatpost
+	post.ExtensionMm = state.PostExtMm
+	post.PostSetbackMm = state.PostSetbackMm
+
+	saddle := fix.DefaultSaddle
+	saddle.RailOffsetMm = state.RailOffsetMm
+	saddle.RailPitchDeg = state.RailPitchDeg
 
 	return chassisResolvedInput{
-		SelectedForkID: selectedForkID,
-		PrevForkForUI:  form.PrevFork,
-		IsCadBaseline:  isCadBaseline,
-		StaticA2cMm:    staticA2cMm,
-		SagPct:         sagPct,
-		Form:           form,
+		State: state,
+		Form:  form,
 		Setup: assembly.BikeSetup{
 			Frame:     fix.Chart.Frame,
 			Fork:      forkSetup,
@@ -627,24 +707,6 @@ func formatFormFloat(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
-func chassisFormValuesFromBuild(forkID, prevFork string, staticA2cMm, sagPct float64, setup assembly.BikeSetup) chassisFormValues {
-	return chassisFormValues{
-		Fork:        forkID,
-		PrevFork:    prevFork,
-		ForkA2c:     formatFormFloat(staticA2cMm),
-		Cup:         formatFormFloat(setup.Fork.LowerCupMm),
-		Sag:         formatFormFloat(sagPct),
-		Spacers:     formatFormFloat(setup.Stem.SpacersMm),
-		StemLength:  formatFormFloat(setup.Stem.LengthMm),
-		StemAngle:   formatFormFloat(float64(setup.Stem.AngleDeg)),
-		BarRoll:     formatFormFloat(float64(setup.Handlebar.BarRollDeg)),
-		PostExt:     formatFormFloat(setup.Seatpost.ExtensionMm),
-		PostSetback: formatFormFloat(setup.Seatpost.PostSetbackMm),
-		RailOffset:  formatFormFloat(setup.Saddle.RailOffsetMm),
-		RailPitch:   formatFormFloat(float64(setup.Saddle.RailPitchDeg)),
-	}
-}
-
 func findForkOption(forks []forkOption, requestedID, defaultID string) (forkOption, bool) {
 	target := requestedID
 	if target == "" {
@@ -676,8 +738,6 @@ func makeSegment(name string, from, to pose.Pose, color string, width float64, i
 func buildChassisView(
 	fix bikeFixture,
 	forkID string,
-	prevFork string,
-	isCadBaseline bool,
 	staticA2cMm float64,
 	sagPct float64,
 	bike assembly.BikePlacement,
@@ -754,9 +814,12 @@ func buildChassisView(
 		toSVG(handlebar.HandGrip.Origin()),
 	}
 
+	state := workbenchStateFromSetup(forkID, staticA2cMm, sagPct, bike.Setup)
+
 	return chassisView{
 		HasBuild:             true,
-		Form:                 chassisFormValuesFromBuild(forkID, prevFork, staticA2cMm, sagPct, bike.Setup),
+		Form:                 state.formValues(),
+		CadBaselineURL:       state.withCadBaseline(fix).URL(),
 		MinPostExtensionMm:   bike.Setup.Seatpost.MinExtensionMm,
 		MaxPostExtensionMm:   bike.Setup.Seatpost.MaxExtensionMm,
 		BikeName:             fix.Name,
@@ -764,7 +827,6 @@ func buildChassisView(
 		HandlebarName:        fix.HandlebarName,
 		Forks:                fix.Forks,
 		SelectedForkID:       forkID,
-		IsCadBaseline:        isCadBaseline,
 		CadFork:              fix.Chart.CadFork,
 		LowerCupMm:           bike.Setup.Fork.LowerCupMm,
 		SagPct:               sagPct,
