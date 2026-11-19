@@ -37,6 +37,8 @@ type bikeFixture struct {
 	DefaultForkID     string
 	Forks             []forkOption
 	DefaultStem       assembly.StemSetup
+	HandlebarName     string
+	DefaultHandlebar  assembly.HandlebarSetup
 	DefaultSeatpost   assembly.SeatpostSetup
 	SaddleName        string
 	DefaultSaddle     assembly.SaddleSetup
@@ -92,6 +94,18 @@ func otsoFenrirFixture() bikeFixture {
 			ClampHeightMm: 40.0,
 			LengthMm:      60.0,
 			AngleDeg:      -6.0,
+		},
+		HandlebarName: "Tumbleweed Persuader 20° (800 mm)",
+		DefaultHandlebar: assembly.HandlebarSetup{
+			StockWidthMm:   800.0,
+			CurrentWidthMm: 800.0,
+			BacksweepDeg:   20.0,
+			UpsweepDeg:     4.0,
+			StatedRiseMm:   50.0,
+			RiseMode:       assembly.RiseModeBarEndCenter,
+			BendStartMm:    135.0,
+			GripInsetMm:    70.0,
+			BarRollDeg:     0.0,
 		},
 		DefaultSeatpost: assembly.SeatpostSetup{
 			ExtensionMm:   263.5,

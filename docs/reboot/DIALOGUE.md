@@ -509,3 +509,13 @@ DESIGN.md records the confirmed frontend choice and keeps the remaining Q3 miles
 - **Claude's review point:** The uncommitted seatpost/saddle slice chains `PlaceChassis → PlaceSeatpost → PlaceSaddle` and computes `|BRP - BB|` and the seat-axis readout in the chassis handler, with the same chain restated in `web_test.go` and `saddle_test.go`, and sizes outlines from fixture defaults rather than the placed setups.
 - **Matt's decision:** Asked to record the rule in [IMPLEMENTATION.md §1](IMPLEMENTATION.md): component composition and trace ending live in one `assembly` entry point, derived measurements are placement methods, and rendering reads only what was placed. Test: if Milestone 2 fit search would need it without HTTP, it belongs in `assembly`.
 - **Open:** The code fixes (an `assembly` whole-bike entry point and readout methods) are not yet made.
+
+---
+
+## Discussion — Seal raw trig inside `pose` and clarify `Deg` semantics — Gemini recording (2026-11-18)
+
+- **Matt's review point:** Flagged that exporting `Deg.Tan()` and calling it inside `internal/reboot/assembly/handlebar.go` reintroduces raw trigonometry in `assembly` and conflicted with `pose.Deg`'s previous doc comment claiming every `Deg` is an angle in the sagittal 2D plane (since `BacksweepDeg` and `UpsweepDeg` lie in the top and front views).
+- **Matt's ruling (Option A):**
+  1. Treat `pose.Deg` as a plane-agnostic angle in degrees with no implied coordinate system; document the sagittal `0° = +X, +CCW` world heading convention on `Pose` (`HeadingDeg`, `Turn`, `Face`) and per-component fields instead.
+  2. Seal raw trigonometry and radian conversions inside `internal/reboot/pose` (unexporting `Deg.Rad`, `Deg.Sin`, `Deg.Cos`, `Deg.Tan`, and `DegFromRad`), and expose named geometric primitives in `pose` (`DeflectionOverSpan`, `RightTriangleLeg`) so `assembly` calls only `Pose` moves and semantically named primitives.
+  3. Codify the mathematical/trigonometric restriction invariant for `internal/reboot/{assembly,web}` in [AGENTS.md](../../AGENTS.md) for code review (rather than adding a bespoke `make boundary` linter), update [DESIGN.md](DESIGN.md) and [IMPLEMENTATION.md](IMPLEMENTATION.md) to close the loophole, and tighten `PlaceHandlebar` validation (rejecting empty `RiseMode`, `CurrentWidthMm > StockWidthMm`, negative `StockWidthMm`, and `BendStartMm > StockWidthMm/2` in bar-end mode), split its trace into separate bend-rise and outboard-sweep steps, and unexport internal `HandlebarSetup` helpers.

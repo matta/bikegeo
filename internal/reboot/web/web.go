@@ -151,13 +151,17 @@ func handleStemWorkbench(w http.ResponseWriter, r *http.Request) {
 	_, _ = buf.WriteTo(w)
 }
 
-func buildStemView(htaDeg pose.Deg, setup assembly.StemSetup, placed assembly.StemPlacement, steps []pose.Step) stemView {
-	rects := []svgRect{
+func stemOutlineRects(placed assembly.StemPlacement, setup assembly.StemSetup) []svgRect {
+	return []svgRect{
 		poseRect("upper-cover", placed.HeadTubeTop, 0, setup.UpperCoverMm, upperCoverOutlineWidthMm),
 		poseRect("spacers", placed.CoverTop, 0, setup.SpacersMm, spacerOutlineWidthMm),
 		poseRect("steerer-clamp", placed.SteererClamp, -setup.ClampHeightMm/2.0, setup.ClampHeightMm, steererClampOutlineWidthMm),
 		poseRect("stem-body", placed.BarClamp, -setup.LengthMm, setup.LengthMm, stemBodyOutlineWidthMm),
 	}
+}
+
+func buildStemView(htaDeg pose.Deg, setup assembly.StemSetup, placed assembly.StemPlacement, steps []pose.Step) stemView {
+	rects := stemOutlineRects(placed, setup)
 
 	svgSteps := buildSVGSteps(steps, turnArcRadiusMm)
 
@@ -296,6 +300,7 @@ type svgSegment struct {
 type chassisView struct {
 	BikeName             string
 	SaddleName           string
+	HandlebarName        string
 	Forks                []forkOption
 	SelectedForkID       string
 	PrevFork             string
@@ -311,6 +316,9 @@ type chassisView struct {
 	BbDropLeveledMm      float64
 	SeatAxisToPostTopMm  float64
 	SaddleHeightMm       float64
+	BrpToGripDistMm      float64
+	SitBonesToGripRiseMm float64
+	HandLateralMm        float64
 	PublishedWheelbaseMm float64
 	CadHtaDeg            pose.Deg
 	CadWheelbaseMm       float64
@@ -397,13 +405,14 @@ func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
 
 	tr := pose.NewTrace()
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:    fix.Chart.Frame,
-		Fork:     forkSetup,
-		Wheels:   fix.Wheels,
-		Seatpost: fix.DefaultSeatpost,
-		Saddle:   fix.DefaultSaddle,
+		Frame:     fix.Chart.Frame,
+		Fork:      forkSetup,
+		Wheels:    fix.Wheels,
+		Seatpost:  fix.DefaultSeatpost,
+		Saddle:    fix.DefaultSaddle,
+		Stem:      fix.DefaultStem,
+		Handlebar: fix.DefaultHandlebar,
 	}, tr)
-	tr.Freeze()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -415,7 +424,7 @@ func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := buildChassisView(fix, selectedForkID, prevForkForUI, isCadBaseline, sagPct, forkSetup, bike, cadBaseline, tr.Steps())
+	view := buildChassisView(fix, selectedForkID, prevForkForUI, isCadBaseline, sagPct, bike, cadBaseline, tr.Steps())
 
 	var buf bytes.Buffer
 	if err := chassisTemplate.Execute(&buf, view); err != nil {
@@ -461,7 +470,6 @@ func buildChassisView(
 	prevFork string,
 	isCadBaseline bool,
 	sagPct float64,
-	fork assembly.ForkSetup,
 	bike assembly.BikePlacement,
 	cadBaseline assembly.ChartBaseline,
 	steps []pose.Step,
@@ -469,10 +477,13 @@ func buildChassisView(
 	placed := bike.Chassis
 	seatpost := bike.Seatpost
 	saddle := bike.Saddle
+	stem := bike.Stem
+	handlebar := bike.Handlebar
 
-	// seat-tube (straight along effective STA), seatstay (to SeatTubeTop), and
-	// saddle-profile (SitBones to BRP) are illustrative schematic lines rather
-	// than measured physical outlines.
+	// seat-tube (straight along effective STA), seatstay (to SeatTubeTop),
+	// saddle-profile (SitBones to BRP), and handlebar-rise-sweep (side projection
+	// from BarClamp to HandGrip) are illustrative schematic lines rather than
+	// measured physical outlines.
 	segments := []svgSegment{
 		makeSegment("chainstay", placed.RearAxle, placed.BB, "#2f363d", 6, false),
 		makeSegment("seat-tube", placed.SeatAxis, placed.SeatTubeTop, "#2f363d", 7, true),
@@ -484,12 +495,13 @@ func buildChassisView(
 		makeSegment("seatpost", placed.SeatTubeTop, seatpost.ShaftTop, "#59636e", 5, false),
 		makeSegment("seatpost-setback", seatpost.ShaftTop, seatpost.SeatpostClamp, "#59636e", 5, false),
 		makeSegment("saddle-profile", saddle.SitBones, saddle.BRP, "#2f363d", 4, true),
+		makeSegment("handlebar-rise-sweep", handlebar.BarClamp, handlebar.HandGrip, "#2f363d", 5, true),
 	}
 
-	rects := []svgRect{
+	rects := append(stemOutlineRects(stem, bike.Setup.Stem),
 		poseRect("seatpost-clamp", saddle.RailFrame, -bike.Setup.Seatpost.ClampLengthMm/2.0, bike.Setup.Seatpost.ClampLengthMm, seatpostClampOutlineHeight),
 		poseRect("saddle-rail", saddle.RailCenter, -bike.Setup.Saddle.RailLengthMm/2.0, bike.Setup.Saddle.RailLengthMm, saddleRailOutlineHeight),
-	}
+	)
 
 	landmarks := []svgLandmark{
 		makeLandmark("RearAxle", placed.RearAxle, 0, -14, "middle"),
@@ -500,14 +512,19 @@ func buildChassisView(
 		makeLandmark("RailCenter", saddle.RailCenter, 16, 24, "start"),
 		makeLandmark("BRP", saddle.BRP, 14, -10, "start"),
 		makeLandmark("SitBones", saddle.SitBones, -14, -10, "end"),
-		makeLandmark("HeadTubeTop", placed.HeadTubeTop, 14, -10, "start"),
+		makeLandmark("HeadTubeTop", placed.HeadTubeTop, 14, 6, "start"),
+		makeLandmark("CoverTop", stem.CoverTop, -14, 8, "end"),
+		makeLandmark("SpacerTop", stem.SpacerTop, -14, -2, "end"),
+		makeLandmark("SteererClamp", stem.SteererClamp, -14, -14, "end"),
+		makeLandmark("BarClamp", stem.BarClamp, 14, 4, "start"),
+		makeLandmark("HandGrip", handlebar.HandGrip, -14, -12, "end"),
 		makeLandmark("HeadTubeBottom", placed.HeadTubeBottom, 16, 4, "start"),
 		makeLandmark("LowerCupBottom", placed.LowerCupBottom, 16, 18, "start"),
 		makeLandmark("FrontAxle", placed.FrontAxle, 0, -14, "middle"),
 		makeLandmark("FrontContact", placed.FrontTireContact, 0, 24, "middle"),
 	}
 
-	r := fix.Wheels.RadiusMm
+	r := bike.Setup.Wheels.RadiusMm
 	rearSVG := toSVG(placed.RearAxle.Origin())
 	frontSVG := toSVG(placed.FrontAxle.Origin())
 	rearContactSVG := toSVG(placed.RearTireContact.Origin())
@@ -520,19 +537,22 @@ func buildChassisView(
 		toSVG(placed.SeatTubeTop.Origin()),
 		toSVG(saddle.BRP.Origin()),
 		toSVG(saddle.SitBones.Origin()),
+		toSVG(stem.BarClamp.Origin()),
+		toSVG(handlebar.HandGrip.Origin()),
 	}
 
 	return chassisView{
 		BikeName:             fix.Name,
 		SaddleName:           fix.SaddleName,
+		HandlebarName:        fix.HandlebarName,
 		Forks:                fix.Forks,
 		SelectedForkID:       forkID,
 		PrevFork:             prevFork,
 		IsCadBaseline:        isCadBaseline,
 		CadFork:              fix.Chart.CadFork,
-		LowerCupMm:           fork.LowerCupMm,
+		LowerCupMm:           bike.Setup.Fork.LowerCupMm,
 		SagPct:               sagPct,
-		EffectiveA2cMm:       fork.A2cMm,
+		EffectiveA2cMm:       bike.Setup.Fork.A2cMm,
 		PitchDeg:             placed.PitchDeg(),
 		LeveledHtaDeg:        placed.LeveledHeadTubeAngleDeg(),
 		LeveledStaDeg:        placed.LeveledSeatTubeAngleDeg(),
@@ -540,6 +560,9 @@ func buildChassisView(
 		BbDropLeveledMm:      placed.LeveledBbDropMm(),
 		SeatAxisToPostTopMm:  bike.SeatAxisToPostTopMm(),
 		SaddleHeightMm:       bike.SaddleHeightMm(),
+		BrpToGripDistMm:      bike.BrpToGripDistMm(),
+		SitBonesToGripRiseMm: bike.SitBonesToGripRiseMm(),
+		HandLateralMm:        handlebar.HandLateralMm,
 		PublishedWheelbaseMm: fix.Chart.PublishedWheelbaseMm,
 		CadHtaDeg:            cadBaseline.Placement.LeveledHeadTubeAngleDeg(),
 		CadWheelbaseMm:       cadBaseline.Placement.WheelbaseMm(),

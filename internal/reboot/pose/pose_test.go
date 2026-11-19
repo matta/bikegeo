@@ -66,7 +66,7 @@ func TestTraceFreezeAndNilEquivalence(t *testing.T) {
 
 	// Subsequent operations on a pose from a frozen trace must not append steps.
 	afterFreeze := traced.Advance("ignored", 100)
-	assertNear(t, "afterFreeze.X", afterFreeze.Origin().X, traced.Origin().X+100*pose.Deg(30).Cos(), 1e-9)
+	assertNear(t, "afterFreeze.X", afterFreeze.Origin().X, traced.Origin().X+100*math.Cos(30.0*math.Pi/180.0), 1e-9)
 	if got := len(tr.Steps()); got != 3 {
 		t.Fatalf("len(steps) after freeze = %d, want 3", got)
 	}
@@ -92,8 +92,10 @@ func TestTranslateAngleToAndDistanceTo(t *testing.T) {
 	assertNear(t, "p1.Y", p1.Origin().Y, 50, 1e-9)
 	assertNear(t, "p1.Heading", float64(p1.HeadingDeg()), 90, 1e-9)
 	assertNear(t, "p0.DistanceTo(p1)", p0.DistanceTo(p1), 50, 1e-9)
-	assertNear(t, "p0.AngleTo(p1)", float64(p0.AngleTo(p1)), float64(180.0-pose.DegFromRad(math.Atan2(30, 40))), 1e-9)
-	assertNear(t, "DegFromRad(Deg(45).Rad())", float64(pose.DegFromRad(pose.Deg(45).Rad())), 45, 1e-12)
+	assertNear(t, "p0.VerticalOffsetTo(p1)", p0.VerticalOffsetTo(p1), 30, 1e-9)
+	assertNear(t, "p1.VerticalOffsetTo(p0)", p1.VerticalOffsetTo(p0), -30, 1e-9)
+	assertNear(t, "p0.VerticalOffsetTo(p0)", p0.VerticalOffsetTo(p0), 0, 1e-12)
+	assertNear(t, "p0.AngleTo(p1)", float64(p0.AngleTo(p1)), 180.0-math.Atan2(30, 40)*180.0/math.Pi, 1e-9)
 
 	untraced := pose.NewPose(pose.Point{X: 10, Y: 20}, 90, nil).
 		Translate("local shift", 30, 40)
@@ -155,4 +157,14 @@ func TestFaceAbsoluteHeadingAndTrace(t *testing.T) {
 	if len(tr.Steps()) != 2 {
 		t.Fatalf("snapshot Pose must not mutate trace, got %d steps", len(tr.Steps()))
 	}
+}
+
+func TestPrimitivesDeflectionAndRightTriangleLeg(t *testing.T) {
+	assertNear(t, "DeflectionOverSpan(0 deg)", pose.DeflectionOverSpan(250, 0), 0, 1e-12)
+	assertNear(t, "DeflectionOverSpan(45 deg)", pose.DeflectionOverSpan(180, 45), 180, 1e-12)
+	assertNear(t, "DeflectionOverSpan(-20 deg)", pose.DeflectionOverSpan(195, -20), -195*math.Tan(20*math.Pi/180), 1e-12)
+	assertNear(t, "DeflectionOverSpan(0 span)", pose.DeflectionOverSpan(0, 20), 0, 1e-12)
+
+	assertNear(t, "RightTriangleLeg(3-4-5)", pose.RightTriangleLeg(5, 3), 4, 1e-12)
+	assertNear(t, "RightTriangleLeg(chainstay, bbDrop)", pose.RightTriangleLeg(450, 72), math.Sqrt(450*450-72*72), 1e-12)
 }

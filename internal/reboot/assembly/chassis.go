@@ -121,7 +121,7 @@ func (c ChassisPlacement) WheelbaseMm() float64 {
 
 // LeveledBbDropMm returns the vertical drop from the leveled axle line to BB.
 func (c ChassisPlacement) LeveledBbDropMm() float64 {
-	return c.RearAxle.Origin().Y - c.BB.Origin().Y
+	return c.BB.VerticalOffsetTo(c.RearAxle)
 }
 
 // FrameChart groups a frame's unpitched reference dimensions with its CAD
@@ -164,7 +164,7 @@ func PlaceCadBaseline(chart FrameChart, wheels WheelSetup) (ChartBaseline, error
 
 	unpitched, pitchDeg := measureUnpitchedChassis(chart.Frame, chart.CadFork)
 	residuals := ChartResiduals{
-		AxleHeightDiffMm: unpitched.FrontAxle.Origin().Y - unpitched.RearAxle.Origin().Y,
+		AxleHeightDiffMm: unpitched.RearAxle.VerticalOffsetTo(unpitched.FrontAxle),
 		WheelbaseDiffMm:  (unpitched.FrontAxle.Origin().X - unpitched.RearAxle.Origin().X) - chart.PublishedWheelbaseMm,
 	}
 
@@ -201,7 +201,7 @@ func placeLeveledChassis(frame FrameSetup, fork ForkSetup, wheels WheelSetup, pi
 }
 
 func placeChassisAtPitch(frameRoot pose.Pose, frame FrameSetup, fork ForkSetup) ChassisPlacement {
-	rearX := -math.Sqrt(frame.ChainstayMm*frame.ChainstayMm - frame.BbDropMm*frame.BbDropMm)
+	rearX := -pose.RightTriangleLeg(frame.ChainstayMm, frame.BbDropMm)
 	rearAxle := frameRoot.Translate("rear axle", rearX, frame.BbDropMm)
 
 	headTubeTop := frameRoot.Translate("head tube top (reach, stack)", frame.ReachMm, frame.StackMm).

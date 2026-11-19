@@ -158,7 +158,7 @@
 <body>
   <header>
     <h1>bikegeo-reboot</h1>
-    <span class="badge">Milestone 1 Slice 2 · {{.BikeName}}</span>
+    <span class="badge">Milestone 1 Slice 3 · {{.BikeName}}</span>
     <nav><a href="/">Stem Preview</a></nav>
   </header>
 
@@ -199,6 +199,9 @@
         <span>Leveled BB Drop: <strong class="mono" data-metric="bb-drop">{{printf "%.1f mm" .BbDropLeveledMm}}</strong></span>
         <span>BB to post top (seat axis): <strong class="mono" data-metric="seat-axis-post-top">{{printf "%.1f mm" .SeatAxisToPostTopMm}}</strong></span>
         <span>|BRP - BB| ({{.SaddleName}}): <strong class="mono" data-metric="brp-height">{{printf "%.1f mm" .SaddleHeightMm}}</strong></span>
+        <span>BRP to HandGrip ({{.HandlebarName}}): <strong class="mono" data-metric="brp-grip-dist">{{printf "%.1f mm" .BrpToGripDistMm}}</strong></span>
+        <span>Grip rise vs SitBones: <strong class="mono" data-metric="sitbones-grip-rise">{{printf "%+.1f mm" .SitBonesToGripRiseMm}}</strong></span>
+        <span>Lateral grip (±Z): <strong class="mono" data-metric="hand-lateral">{{printf "%.1f mm" .HandLateralMm}}</strong></span>
       </div>
       <div class="summary" style="font-size: 0.82rem;">
         <span>CAD Baseline ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm / {{printf "%.0f" .CadFork.LowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .CadHtaDeg}} HTA, {{printf "%.1f mm" .CadWheelbaseMm}} WB</strong> (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>)</span>
@@ -246,7 +249,7 @@
         </g>
       </svg>
       <p style="margin: 0.6rem 0 0 0; font-size: 0.8rem; color: var(--muted);">
-        Note: Dashed <code>seat-tube</code> (straight along effective STA) and <code>seatstay</code> (to <code>SeatTubeTop</code>) lines are illustrative schematic shapes, not measured frame tubes. Wheel circles use the declared {{.WheelLabel}} ({{printf "%.1f" .WheelRadiusMm}} mm) baseline radius.
+        Note: Dashed <code>seat-tube</code> (straight along effective STA), <code>seatstay</code> (to <code>SeatTubeTop</code>), <code>saddle-profile</code> (<code>SitBones</code> to <code>BRP</code>), and <code>handlebar-rise-sweep</code> (2D side projection from <code>BarClamp</code> to <code>HandGrip</code>) lines are illustrative schematic shapes, not measured frame tubes. Wheel circles use the declared {{.WheelLabel}} ({{printf "%.1f" .WheelRadiusMm}} mm) baseline radius.
       </p>
     </section>
 

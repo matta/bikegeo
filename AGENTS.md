@@ -8,6 +8,7 @@ A clean-slate reboot is being built beside the existing application. Its design 
 
 - The reboot workbench uses Go-rendered HTML/SVG plus a small dependency-free vanilla JavaScript layer (no framework, npm, or build step). The "strictly Web 1.0, no JavaScript" rule applies only to the existing `internal/web`.
 - Reboot angles use the reboot-owned `pose.Deg`, not `model.Deg`. Reboot code never imports `bikegeo/internal/model` or any other legacy package, except in files named `*_parity_test.go`; legacy packages never import reboot packages (enforced by `make boundary`).
+- **Geometry & trigonometry live in `internal/reboot/pose`:** Non-test Go code under `internal/reboot/...` (outside `pose`) must delegate to semantic abstractions in `internal/reboot/pose` for all trigonometry, radian conversions, and geometric math; `pose` itself must keep raw trig and radian conversions package-private. Plain numeric/validation checks (such as `Abs`, `IsNaN`, `IsInf`) and independent `math` usage in `*_test.go` are fine; violations should be caught in code review.
 - The Milestone 1 Otso Fenrir Stainless fixture lives in the reboot tree (`internal/reboot/web/fixture.go`), not in `internal/frames`, and is not registered in `frames.AllFrames()`. Chart immutability still applies: published chart values are never nudged.
 
 Everything else here still applies to the reboot: the verification loop, `make pre-commit`, zero runtime dependencies, `exhaustive`, `deadcode`, and the output formatting rules. Do not change the existing application while doing reboot work unless asked.

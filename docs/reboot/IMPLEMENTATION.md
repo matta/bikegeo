@@ -27,7 +27,7 @@ docs/reboot/
 
 This is a starting layout, not a requirement to create empty directories. Add packages and APIs only as a working slice needs them. Keep a component's setup and placement types with its assembly code rather than recreating the old all-purpose `model` package. The web fixture is application input; assembly must not import it or know about HTTP.
 
-Use a reboot-owned named degree type in `pose` with the existing degree/radian conversion conventions. This isolation deliberately replaces the old `model.Deg` import requirement for the new tree; existing packages retain their current type. Do not pull the old model package into the reboot solely for a unit type.
+Use a reboot-owned named degree type in `pose` and seal raw trigonometry and radian conversions behind `Pose` moves and `pose`'s named geometric primitives. This isolation deliberately replaces the old `model.Deg` import requirement for the new tree; existing packages retain their current type. Do not pull the old model package into the reboot solely for a unit type.
 
 The initial dependency direction is `cmd/bikegeo-reboot → reboot/web → reboot/assembly → reboot/pose`. Web rendering can also use `reboot/pose`. Later search/catalog/agent packages belong under the same reboot root and call the same assembly implementation; choose their exact boundaries when their milestones arrive.
 

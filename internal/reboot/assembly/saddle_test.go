@@ -217,17 +217,18 @@ func TestOtsoFenrirRearCockpitAndTraceEquivalence(t *testing.T) {
 	assertNear(t, "BB to clamp along seat axis", refSeatAxis.DistanceTo(refPost.ShaftTop), 753.5, 1e-9)
 	assertNear(t, "reference |BRP - BB|", refSeatAxis.DistanceTo(refSaddle.BRP), 746.0, 0.01)
 
-	// Full leveled chassis + rear cockpit via PlaceBike, with trace-on/off equivalence.
+	// Full leveled chassis + cockpits via PlaceBike, with trace-on/off equivalence.
 	bikeSetup := assembly.BikeSetup{
-		Frame:    frame,
-		Fork:     cadFork,
-		Wheels:   wheels,
-		Seatpost: postSetup,
-		Saddle:   saddleSetup,
+		Frame:     frame,
+		Fork:      cadFork,
+		Wheels:    wheels,
+		Seatpost:  postSetup,
+		Saddle:    saddleSetup,
+		Stem:      fenrirDefaultStem(),
+		Handlebar: persuader800DefaultHandlebar(),
 	}
 	tr := pose.NewTrace()
 	traced, err := assembly.PlaceBike(bikeSetup, tr)
-	tr.Freeze()
 	if err != nil {
 		t.Fatalf("PlaceBike traced: %v", err)
 	}

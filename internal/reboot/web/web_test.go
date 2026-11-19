@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -185,7 +186,8 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 	for _, name := range []string{
 		"RearAxle", "RearContact", "BB", "SeatTubeTop",
 		"SeatpostClamp", "RailCenter", "BRP", "SitBones",
-		"HeadTubeTop", "HeadTubeBottom", "LowerCupBottom", "FrontAxle", "FrontContact",
+		"HeadTubeTop", "CoverTop", "SpacerTop", "SteererClamp", "BarClamp", "HandGrip",
+		"HeadTubeBottom", "LowerCupBottom", "FrontAxle", "FrontContact",
 	} {
 		sel := fmt.Sprintf(`svg.diagram [data-landmark="%s"]`, name)
 		if doc.Find(sel).Length() != 1 {
@@ -193,7 +195,7 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		}
 	}
 
-	for _, comp := range []string{"seatpost-clamp", "saddle-rail"} {
+	for _, comp := range []string{"upper-cover", "spacers", "steerer-clamp", "stem-body", "seatpost-clamp", "saddle-rail"} {
 		sel := fmt.Sprintf(`svg.diagram rect[data-component="%s"]`, comp)
 		if doc.Find(sel).Length() != 1 {
 			t.Errorf("expected 1 element matching %s, got %d", sel, doc.Find(sel).Length())
@@ -211,11 +213,13 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		t.Fatalf("fox34 setup: %v", err)
 	}
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:    fix.Chart.Frame,
-		Fork:     forkSetup,
-		Wheels:   fix.Wheels,
-		Seatpost: fix.DefaultSeatpost,
-		Saddle:   fix.DefaultSaddle,
+		Frame:     fix.Chart.Frame,
+		Fork:      forkSetup,
+		Wheels:    fix.Wheels,
+		Seatpost:  fix.DefaultSeatpost,
+		Saddle:    fix.DefaultSaddle,
+		Stem:      fix.DefaultStem,
+		Handlebar: fix.DefaultHandlebar,
 	}, nil)
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
@@ -249,6 +253,18 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 	if got := strings.TrimSpace(doc.Find(`[data-metric="brp-height"]`).Text()); got != wantSaddleHeight {
 		t.Errorf("brp-height = %q, want %s", got, wantSaddleHeight)
 	}
+	wantBrpGripDist := fmt.Sprintf("%.1f mm", bike.BrpToGripDistMm())
+	if got := strings.TrimSpace(doc.Find(`[data-metric="brp-grip-dist"]`).Text()); got != wantBrpGripDist {
+		t.Errorf("brp-grip-dist = %q, want %s", got, wantBrpGripDist)
+	}
+	wantSitBonesGripRise := fmt.Sprintf("%+.1f mm", bike.SitBonesToGripRiseMm())
+	if got := strings.TrimSpace(doc.Find(`[data-metric="sitbones-grip-rise"]`).Text()); got != wantSitBonesGripRise {
+		t.Errorf("sitbones-grip-rise = %q, want %s", got, wantSitBonesGripRise)
+	}
+	wantHandLateral := fmt.Sprintf("%.1f mm", bike.Handlebar.HandLateralMm)
+	if got := strings.TrimSpace(doc.Find(`[data-metric="hand-lateral"]`).Text()); got != wantHandLateral {
+		t.Errorf("hand-lateral = %q, want %s", got, wantHandLateral)
+	}
 
 	cadBaseline, err := assembly.PlaceCadBaseline(fix.Chart, fix.Wheels)
 	if err != nil {
@@ -267,7 +283,7 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		t.Errorf("prev_fork hidden input = %q, want fox34_120", prevFork)
 	}
 
-	for _, name := range []string{"seat-tube", "seatstay", "saddle-profile"} {
+	for _, name := range []string{"seat-tube", "seatstay", "saddle-profile", "handlebar-rise-sweep"} {
 		sel := fmt.Sprintf(`svg.diagram line[data-segment="%s"][data-illustrative="true"]`, name)
 		if doc.Find(sel).Length() != 1 {
 			t.Errorf("expected 1 illustrative segment matching %s, got %d", sel, doc.Find(sel).Length())
@@ -277,8 +293,8 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		t.Errorf("head-tube should not be marked data-illustrative")
 	}
 
-	if facePaths := doc.Find(`svg.diagram .trace-steps path[data-op="face"]`).Length(); facePaths != 3 {
-		t.Errorf("expected 3 face step paths in trace-steps, got %d", facePaths)
+	if facePaths := doc.Find(`svg.diagram .trace-steps path[data-op="face"]`).Length(); facePaths != 4 {
+		t.Errorf("expected 4 face step paths in trace-steps, got %d", facePaths)
 	}
 
 	rows := doc.Find("table tbody tr[data-step-id]")
@@ -396,5 +412,47 @@ func TestChassisWorkbenchRejectsInvalidQuery(t *testing.T) {
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("GET %s status = %d, want 400", target, rec.Code)
 		}
+	}
+}
+
+func TestBuildChassisViewUsesPlacedDimensions(t *testing.T) {
+	fix := otsoFenrirFixture()
+	forkSetup := assembly.ForkSetup{A2cMm: 506.0, RakeMm: 44.0, LowerCupMm: 12.0}
+	customWheels := assembly.WheelSetup{RadiusMm: 340.0}
+
+	tr := pose.NewTrace()
+	bike, err := assembly.PlaceBike(assembly.BikeSetup{
+		Frame:     fix.Chart.Frame,
+		Fork:      forkSetup,
+		Wheels:    customWheels,
+		Seatpost:  fix.DefaultSeatpost,
+		Saddle:    fix.DefaultSaddle,
+		Stem:      fix.DefaultStem,
+		Handlebar: fix.DefaultHandlebar,
+	}, tr)
+	if err != nil {
+		t.Fatalf("PlaceBike: %v", err)
+	}
+	cadBaseline, err := assembly.PlaceCadBaseline(fix.Chart, customWheels)
+	if err != nil {
+		t.Fatalf("PlaceCadBaseline: %v", err)
+	}
+
+	view := buildChassisView(fix, "fox34_120", "fox34_120", false, 20.0, bike, cadBaseline, tr.Steps())
+
+	if view.WheelRadiusMm != customWheels.RadiusMm {
+		t.Errorf("view.WheelRadiusMm = %.1f, want placed radius %.1f (not fixture %.1f)", view.WheelRadiusMm, customWheels.RadiusMm, fix.Wheels.RadiusMm)
+	}
+	if wantGroundY := -bike.Chassis.RearTireContact.Origin().Y; math.Abs(view.GroundY1-wantGroundY) > 1e-12 {
+		t.Errorf("view.GroundY1 = %.6f, want %.6f", view.GroundY1, wantGroundY)
+	}
+	if gotSpan := view.GroundY1 - view.RearAxleSVG.Y; math.Abs(gotSpan-customWheels.RadiusMm) > 1e-9 {
+		t.Errorf("ground-to-axle span = %.6f, want %.6f", gotSpan, customWheels.RadiusMm)
+	}
+	if view.LowerCupMm != forkSetup.LowerCupMm {
+		t.Errorf("view.LowerCupMm = %.1f, want %.1f", view.LowerCupMm, forkSetup.LowerCupMm)
+	}
+	if view.EffectiveA2cMm != forkSetup.A2cMm {
+		t.Errorf("view.EffectiveA2cMm = %.1f, want %.1f", view.EffectiveA2cMm, forkSetup.A2cMm)
 	}
 }

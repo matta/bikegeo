@@ -36,7 +36,8 @@
 3. **Optional `*Trace` sink with explicit step parentage:** A `Pose` carries an optional `*Trace` pointer and `stepID int`. When tracing is `nil` (such as during solver searches), movement methods skip record collection and string formatting; when non-nil (such as when inspecting a build in the workbench), they record sink-free geometry snapshots (`From`, `To`), operation labels, inputs, and explicit `ParentID -> ID` provenance using the exact same calculation path.
 4. **Freeze/detach trace before rendering:** Each traced evaluation uses its own `Trace` instance and freezes or detaches recording when assembly completes, ensuring that downstream rendering helpers (e.g., offsetting from a landmark `Pose` to draw a tick mark or dimension callout) never append to the assembly history.
 5. **Separate placement from outline projection:** Moving along a construction path (such as advancing half a stem clamp height to reach its center) is distinct from a part's full physical outline. Component functions return placement geometry and setup dimensions; the renderer projects physical shapes in those local `Pose` frames without recalculating angles.
-6. **Verification:** Identical inputs must produce identical placed geometry whether tracing is enabled or disabled.
+6. **Geometry & trigonometry live in `pose`:** Non-test Go code under `internal/reboot/...` (outside `pose`) delegates to semantic abstractions in `internal/reboot/pose` for all trigonometry, radian conversions, and geometric math, while `pose` keeps raw trig and radian conversions package-private. Plain numeric/validation checks and independent `math` usage in `*_test.go` remain allowed; codified in `AGENTS.md` and checked in code review.
+7. **Verification:** Identical inputs must produce identical placed geometry whether tracing is enabled or disabled.
 
 ### Go-rendered HTML/SVG workbench & 4-Milestone Sequence (Turn 5, resolves Q3)
 
@@ -82,7 +83,7 @@ In 2D rigid-body geometry, pitching a rigid frame around `RearAxle` by `PitchDeg
 Rather than computing `PitchDeg` with separate closed-form trigonometry (`L_chart`, `ΔL`, `ΔRake`) outside the `Pose` recipe, both the pitch measurement and the leveled frame construction use **one single `placeChassisAtPitch(frameRoot Pose, chart FrameChart, fork ForkBuild)` recipe**:
 1. **The Single Chassis & Fork `Pose` Recipe (`placeChassisAtPitch`):**
    Given a `frameRoot` pose at `BB (0, 0)` (at heading `0°` when unpitched, or heading `PitchDeg` when leveled):
-   - `rearAxle := frameRoot.Translate("chart rear axle", -sqrt(Chainstay² - BbDrop²), chart.BbDropMm)`
+   - `rearAxle := frameRoot.Translate("chart rear axle", -pose.RightTriangleLeg(chart.ChainstayMm, chart.BbDropMm), chart.BbDropMm)`
    - `headTubeTop := frameRoot.Translate("chart head tube top (reach, stack)", chart.ReachMm, chart.StackMm)`
    - `steererUp := headTubeTop.Turn("steerer axis (180° - HTA)", 180 - chart.HtaDeg)` (points up the steerer for `PlaceStem`).
    - Walk down the steerer (`steererDown := steererUp.Turn("down steerer", 180)`) using actual physical component dimensions:
@@ -101,12 +102,13 @@ Rather than computing `PitchDeg` with separate closed-form trigonometry (`L_char
 | Area | Convention |
 | --- | --- |
 | **World coordinates** | Planar sagittal 2D, `BB` fixed at `(0, 0)`, `+X` forward, `+Y` up; positive `Turn` angles are counter-clockwise (`CCW`). |
-| **Units** | Lengths are `float64` millimeters (`mm`); angles use the reboot's named `pose.Deg` type (`0°` along `+X`, `90°` along `+Y`). |
+| **Units** | Lengths are `float64` millimeters (`mm`); angles use the reboot's named `pose.Deg` type, which is plane-agnostic with no implied coordinate system. The sagittal world heading convention (`0°` along `+X`, `90°` along `+Y`, positive CCW) belongs to `Pose` (`HeadingDeg`, `Turn`, `Face`), while component fields declare their own plane and sign conventions. |
 | **Wheel & ground line** | With `BB` at `(0, 0)` and equal wheel radii `R_wheel`, leveled front and rear axle centers sit at `Y = +BbDrop_leveled`, and the ground line sits at `Y = +BbDrop_leveled - R_wheel`. |
 | **Steerer & stem (`PlaceStem`)** | Starting at `SteererUp` (`180° - HTA_leveled`, pointing up and rearward along the steerer): advance by `UpperCoverMm`, `SpacersMm`, and `ClampHeightMm / 2` to `SteererClamp`; turn `-90° + StemAngleDeg` (clockwise from steerer by `90°`, plus signed stem angle) and advance by `StemLengthMm` to `BarClamp`. |
-| **Handlebar (`PlaceHandlebar`)** | Takes `BarClamp` pose, re-orients to world horizontal plus roll via `barClamp.Face("bar roll vs. world horizontal", -BarRollDeg)` (where positive `BarRollDeg` rotates clockwise in the leveled `+X/+Y` world plane), and translates by the 3D piecewise handlebar offset (lateral grip station `Width/2 - GripInset`, knuckle vs. bar-end rise mode, backsweep, upsweep) to place `HandGrip`. |
+| **Handlebar (`PlaceHandlebar`)** | Takes `BarClamp` pose, re-orients to world horizontal plus roll via `barClamp.Face("bar roll vs. world horizontal", -BarRollDeg)` (where positive `BarRollDeg` rotates clockwise in the leveled `+X/+Y` world plane), and translates by the 3D piecewise handlebar offset (lateral grip station `Width/2 - GripInset`, knuckle vs. bar-end rise mode, top-view `BacksweepDeg` positive rearward and front-view `UpsweepDeg` positive upward projected via `pose.DeflectionOverSpan`) to place `HandGrip`. |
 | **Seatpost (`PlaceSeatpost`)** | Starting at `SeatTubeTop` (`180° - STA_leveled`, pointing up and rearward along the seat tube axis; local `+Y` points `90°` CCW, i.e., perpendicular rearward/downward): advance by `ExtensionMm` (exposed seatpost length above the seat tube collar, within seatpost/frame extension and insertion limits) and translate along local `+Y` by `PostSetbackMm` to `SeatpostClamp`. |
 | **Saddle (`PlaceSaddle`)** | Starting at `SeatpostClamp`, set the world-relative rail orientation via `seatpostClamp.Face("saddle rail pitch vs. world horizontal", RailPitchDeg)` (positive raises the saddle nose CCW from world horizontal), advance by `-RailOffsetMm` (so **positive `RailOffsetMm` moves the saddle body rearward** relative to the clamp) to `RailCenter`, then locate `BRP` at `(+RailCenterToBrpMm, 0)` and `SitBones` at `(RailCenterToSitBonesMm, +SitBonesElevationMm)` in the rail frame. |
+| **Cockpit readouts** | `BrpToGripDistMm` measures `|HandGrip - BRP|`, whereas `SitBonesToGripRiseMm` measures `HandGrip.Y - SitBones.Y` (from `SitBones` rather than `BRP`) so rider-fit cockpit elevation carries consistently across saddles through the sit-bone contact point. |
 | **Chart immutability** | Published manufacturer chart values are sacred ground truth and are never nudged to hide closure residuals. |
 
 ---

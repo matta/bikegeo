@@ -9,28 +9,28 @@ import (
 
 const radPerDeg = math.Pi / 180.0
 
-// Deg represents an angle in degrees in the sagittal 2D plane (0° along +X,
-// 90° along +Y; positive angles rotate counter-clockwise).
+// Deg represents an angle in degrees with no implied coordinate system or plane.
+// Coordinate and sign conventions belong to the Pose or component field using it.
 type Deg float64
 
-// DegFromRad converts an angle in radians to Deg.
-func DegFromRad(rad float64) Deg {
+func degFromRad(rad float64) Deg {
 	return Deg(rad / radPerDeg)
 }
 
-// Rad converts the angle from degrees to radians.
-func (d Deg) Rad() float64 {
+func (d Deg) rad() float64 {
 	return float64(d) * radPerDeg
 }
 
-// Sin returns the sine of the angle.
-func (d Deg) Sin() float64 {
-	return math.Sin(d.Rad())
+func (d Deg) sin() float64 {
+	return math.Sin(d.rad())
 }
 
-// Cos returns the cosine of the angle.
-func (d Deg) Cos() float64 {
-	return math.Cos(d.Rad())
+func (d Deg) cos() float64 {
+	return math.Cos(d.rad())
+}
+
+func (d Deg) tan() float64 {
+	return math.Tan(d.rad())
 }
 
 // Normalized returns the angle wrapped into (-180°, +180°].
@@ -129,7 +129,9 @@ func (t *Trace) record(parentID int, op, label, param string, from, to PoseSnaps
 	return id
 }
 
-// Pose is an immutable 2D position and heading with an optional Trace sink.
+// Pose is an immutable 2D sagittal position and heading with an optional Trace sink.
+// Headings are measured in degrees in the sagittal world frame (0° along +X forward,
+// 90° along +Y up; positive angles rotate counter-clockwise).
 type Pose struct {
 	origin     Point
 	headingDeg Deg
@@ -137,7 +139,8 @@ type Pose struct {
 	stepID     int
 }
 
-// NewPose creates a Pose at origin with headingDeg, optionally attached to trace.
+// NewPose creates a Pose at origin with sagittal world headingDeg (0° along +X,
+// 90° along +Y, positive counter-clockwise), optionally attached to trace.
 func NewPose(origin Point, headingDeg Deg, trace *Trace) Pose {
 	return Pose{
 		origin:     origin,
@@ -151,7 +154,8 @@ func (p Pose) Origin() Point {
 	return p.origin
 }
 
-// HeadingDeg returns the Pose's world heading in degrees.
+// HeadingDeg returns the Pose's sagittal world heading in degrees (0° along +X,
+// 90° along +Y, positive counter-clockwise).
 func (p Pose) HeadingDeg() Deg {
 	return p.headingDeg
 }
@@ -171,8 +175,8 @@ func (p Pose) snapshot() PoseSnapshot {
 // Advance returns a new Pose moved distMm along the current heading.
 func (p Pose) Advance(label string, distMm float64) Pose {
 	nextOrigin := Point{
-		X: p.origin.X + distMm*p.headingDeg.Cos(),
-		Y: p.origin.Y + distMm*p.headingDeg.Sin(),
+		X: p.origin.X + distMm*p.headingDeg.cos(),
+		Y: p.origin.Y + distMm*p.headingDeg.sin(),
 	}
 	next := Pose{
 		origin:     nextOrigin,
@@ -187,7 +191,7 @@ func (p Pose) Advance(label string, distMm float64) Pose {
 }
 
 // Turn returns a new Pose at the same origin with heading rotated by deltaDeg
-// (positive angles rotate counter-clockwise).
+// (positive angles rotate counter-clockwise in the sagittal 2D plane).
 func (p Pose) Turn(label string, deltaDeg Deg) Pose {
 	next := Pose{
 		origin:     p.origin,
@@ -201,8 +205,8 @@ func (p Pose) Turn(label string, deltaDeg Deg) Pose {
 	return next
 }
 
-// Face returns a new Pose at the same origin with heading set directly to
-// worldHeadingDeg (0° along +X, 90° along +Y).
+// Face returns a new Pose at the same origin with sagittal world heading set
+// directly to worldHeadingDeg (0° along +X, 90° along +Y, positive counter-clockwise).
 func (p Pose) Face(label string, worldHeadingDeg Deg) Pose {
 	next := Pose{
 		origin:     p.origin,
@@ -219,8 +223,8 @@ func (p Pose) Face(label string, worldHeadingDeg Deg) Pose {
 // Translate returns a new Pose moved by (localX, localY) in the current
 // pose's local coordinate frame (+X along heading, +Y 90° counter-clockwise).
 func (p Pose) Translate(label string, localX, localY float64) Pose {
-	cos := p.headingDeg.Cos()
-	sin := p.headingDeg.Sin()
+	cos := p.headingDeg.cos()
+	sin := p.headingDeg.sin()
 	nextOrigin := Point{
 		X: p.origin.X + localX*cos - localY*sin,
 		Y: p.origin.Y + localX*sin + localY*cos,
@@ -237,14 +241,21 @@ func (p Pose) Translate(label string, localX, localY float64) Pose {
 	return next
 }
 
-// AngleTo returns the world angle in degrees from p's origin to other's origin.
+// AngleTo returns the sagittal world angle in degrees (0° along +X, positive
+// counter-clockwise) from p's origin to other's origin.
 func (p Pose) AngleTo(other Pose) Deg {
 	dx := other.origin.X - p.origin.X
 	dy := other.origin.Y - p.origin.Y
-	return DegFromRad(math.Atan2(dy, dx))
+	return degFromRad(math.Atan2(dy, dx))
 }
 
 // DistanceTo returns the Euclidean distance in millimeters between p and other.
 func (p Pose) DistanceTo(other Pose) float64 {
 	return math.Hypot(other.origin.X-p.origin.X, other.origin.Y-p.origin.Y)
+}
+
+// VerticalOffsetTo returns the signed vertical offset in millimeters from p to other
+// (positive when other is above p along world +Y).
+func (p Pose) VerticalOffsetTo(other Pose) float64 {
+	return other.origin.Y - p.origin.Y
 }
