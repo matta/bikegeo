@@ -280,3 +280,239 @@ func TestApplyFittingCopiesTarget(t *testing.T) {
 		t.Fatalf("Target.BRP = %v after caller mutation, want %v", *fit.Target.BRP, fitReportBRP)
 	}
 }
+
+// fitReportGrip is the idmatch fit report handlebar point (docs/RIDER_FIT.md).
+// Whether the report point is HandGrip or the stem clamp is unresolved.
+var fitReportGrip = pose.Point{X: 481, Y: 726}
+
+func gripPlacement(t *testing.T, setup assembly.BikeSetup) assembly.BikePlacement {
+	t.Helper()
+	p, err := assembly.PlaceBike(setup, nil)
+	if err != nil {
+		t.Fatalf("PlaceBike: %v", err)
+	}
+	return p
+}
+
+func gripOf(t *testing.T, setup assembly.BikeSetup) pose.Point {
+	t.Helper()
+	return gripPlacement(t, setup).Handlebar.HandGrip.Origin()
+}
+
+func withStem(setup assembly.BikeSetup, spacers, length float64) assembly.BikeSetup {
+	setup.Stem.SpacersMm = spacers
+	setup.Stem.LengthMm = length
+	return setup
+}
+
+func mustFitGrip(t *testing.T, setup assembly.BikeSetup, grip pose.Point) assembly.Fitting {
+	t.Helper()
+	fit, err := assembly.ApplyFitting(setup, assembly.FitTarget{HandGrip: &grip}, nil)
+	if err != nil {
+		t.Fatalf("ApplyFitting: %v", err)
+	}
+	return fit
+}
+
+func gripMissMm(t *testing.T, f assembly.Fitting) float64 {
+	t.Helper()
+	miss, ok := f.GripMiss()
+	if !ok {
+		t.Fatal("fitting has no HandGrip target")
+	}
+	return miss.Norm()
+}
+
+func stemValues(f assembly.Fitting) (spacers, length float64) {
+	return f.Placement.Setup.Stem.SpacersMm, f.Placement.Setup.Stem.LengthMm
+}
+
+func TestApplyFittingGripRoundTripReached(t *testing.T) {
+	known := withStem(fenrirFittingSetup(), 10, 90)
+	fit := mustFitGrip(t, fenrirFittingSetup(), gripOf(t, known))
+	spacers, length := stemValues(fit)
+	if fit.Outcome != assembly.FitReached || fit.LimitedBy != nil {
+		t.Fatalf("Outcome = %v, LimitedBy = %v, want reached", fit.Outcome, fit.LimitedBy)
+	}
+	assertNear(t, "spacers", spacers, 10, 1e-9)
+	assertNear(t, "length", length, 90, 1e-9)
+	assertNear(t, "miss", gripMissMm(t, fit), 0, 1e-9)
+	in := fenrirFittingSetup()
+	if fit.Placement.Setup.Seatpost != in.Seatpost || fit.Placement.Setup.Saddle != in.Saddle {
+		t.Fatal("seatpost or saddle changed without a BRP target")
+	}
+}
+
+func TestApplyFittingGripReachesTargetsOnBounds(t *testing.T) {
+	for _, c := range []struct{ spacers, length float64 }{{0, 40}, {40, 130}, {0, 130}} {
+		fit := mustFitGrip(t, fenrirFittingSetup(), gripOf(t, withStem(fenrirFittingSetup(), c.spacers, c.length)))
+		spacers, length := stemValues(fit)
+		if fit.Outcome != assembly.FitReached || fit.LimitedBy != nil {
+			t.Errorf("%v: Outcome = %v, LimitedBy = %v, want reached", c, fit.Outcome, fit.LimitedBy)
+		}
+		assertNear(t, "spacers", spacers, c.spacers, 1e-9)
+		assertNear(t, "length", length, c.length, 1e-9)
+	}
+}
+
+func TestApplyFittingFitReportGripLimitedByBoth(t *testing.T) {
+	for _, c := range []struct {
+		angle         pose.Deg
+		x, y, absMiss float64
+	}{
+		{-6, 17.007, -30.248, 34.701},
+		{-17, 12.342, -5.769, 13.624},
+	} {
+		setup := fenrirFittingSetup()
+		setup.Stem.AngleDeg = c.angle
+		fit := mustFitGrip(t, setup, fitReportGrip)
+		want := []assembly.InputField{assembly.InputStemSpacers, assembly.InputStemLength}
+		if fit.Outcome != assembly.FitLimited || !reflect.DeepEqual(fit.LimitedBy, want) {
+			t.Fatalf("angle %v: Outcome = %v, LimitedBy = %v, want %v", c.angle, fit.Outcome, fit.LimitedBy, want)
+		}
+		spacers, length := stemValues(fit)
+		assertNear(t, "spacers", spacers, 0, 0)
+		assertNear(t, "length", length, 130, 0)
+		miss, _ := fit.GripMiss()
+		assertNear(t, "miss.X", miss.X, c.x, 0.01)
+		assertNear(t, "miss.Y", miss.Y, c.y, 0.01)
+		assertNear(t, "|miss|", miss.Norm(), c.absMiss, 0.01)
+	}
+}
+
+// unitAt returns the unit vector at a heading, using independent math.
+func unitAt(h pose.Deg) pose.Point {
+	r := float64(h) * math.Pi / 180
+	return pose.Point{X: math.Cos(r), Y: math.Sin(r)}
+}
+
+func TestApplyFittingGripSpacersLimitOnly(t *testing.T) {
+	base := withStem(fenrirFittingSetup(), 0, 100)
+	u := unitAt(gripPlacement(t, base).Stem.SpacerTop.HeadingDeg())
+	g := gripOf(t, base)
+	target := pose.Point{X: g.X - 20*u.X, Y: g.Y - 20*u.Y}
+	fit := mustFitGrip(t, fenrirFittingSetup(), target)
+	if want := []assembly.InputField{assembly.InputStemSpacers}; !reflect.DeepEqual(fit.LimitedBy, want) {
+		t.Fatalf("LimitedBy = %v, want %v", fit.LimitedBy, want)
+	}
+	spacers, length := stemValues(fit)
+	assertNear(t, "spacers", spacers, 0, 0)
+	assertNear(t, "length", length, 100-20*math.Cos(96*math.Pi/180), 1e-6)
+	assertNear(t, "|miss|", gripMissMm(t, fit), 20*math.Sin(96*math.Pi/180), 1e-6)
+
+	// Minimality over a 1 mm forward-placement grid.
+	best := gripMissMm(t, fit)
+	setup := fenrirFittingSetup()
+	for sp := 0.0; sp <= 40; sp++ {
+		for ln := 40.0; ln <= 130; ln++ {
+			g := gripOf(t, withStem(setup, sp, ln))
+			if miss := math.Hypot(target.X-g.X, target.Y-g.Y); miss < best-1e-6 {
+				t.Fatalf("grid spacers %v length %v misses by %v, beating the fitting's %v", sp, ln, miss, best)
+			}
+		}
+	}
+}
+
+func TestApplyFittingGripLengthLimitOnly(t *testing.T) {
+	base := withStem(fenrirFittingSetup(), 20, 130)
+	v := unitAt(gripPlacement(t, base).Stem.BarClamp.HeadingDeg())
+	g := gripOf(t, base)
+	target := pose.Point{X: g.X + 15*v.X, Y: g.Y + 15*v.Y}
+	fit := mustFitGrip(t, fenrirFittingSetup(), target)
+	if want := []assembly.InputField{assembly.InputStemLength}; !reflect.DeepEqual(fit.LimitedBy, want) {
+		t.Fatalf("LimitedBy = %v, want %v", fit.LimitedBy, want)
+	}
+	spacers, length := stemValues(fit)
+	assertNear(t, "length", length, 130, 0)
+	assertNear(t, "spacers", spacers, 20+15*math.Cos(96*math.Pi/180), 1e-6)
+	assertNear(t, "|miss|", gripMissMm(t, fit), 15*math.Sin(96*math.Pi/180), 1e-6)
+}
+
+func TestApplyFittingGripKeepsFixedInputs(t *testing.T) {
+	in := fenrirFittingSetup()
+	fit := mustFitGrip(t, in, fitReportGrip)
+	got := fit.Placement.Setup
+	if got.Stem.AngleDeg != in.Stem.AngleDeg || got.Stem.UpperCoverMm != in.Stem.UpperCoverMm ||
+		got.Stem.ClampHeightMm != in.Stem.ClampHeightMm || got.Handlebar != in.Handlebar {
+		t.Fatalf("fixed cockpit inputs changed: %+v", got.Stem)
+	}
+}
+
+func TestApplyFittingBothLandmarksMatchSingleFits(t *testing.T) {
+	setup := fenrirFittingSetup()
+	brp, grip := fitReportBRP, fitReportGrip
+	both, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &brp, HandGrip: &grip}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []assembly.InputField{assembly.InputSaddleRailOffset, assembly.InputStemSpacers, assembly.InputStemLength}
+	if !reflect.DeepEqual(both.LimitedBy, want) {
+		t.Fatalf("LimitedBy = %v, want %v", both.LimitedBy, want)
+	}
+	saddle := mustFit(t, setup, fitReportBRP)
+	cockpit := mustFitGrip(t, setup, fitReportGrip)
+	ext, rail := fittedValues(both)
+	sExt, sRail := fittedValues(saddle)
+	spacers, length := stemValues(both)
+	cSpacers, cLength := stemValues(cockpit)
+	if ext != sExt || rail != sRail || spacers != cSpacers || length != cLength {
+		t.Fatalf("combined (%v %v %v %v) differs from single fits (%v %v %v %v)", ext, rail, spacers, length, sExt, sRail, cSpacers, cLength)
+	}
+}
+
+func TestApplyFittingBothLandmarksTraceEquivalence(t *testing.T) {
+	brp, grip := fitReportBRP, fitReportGrip
+	target := assembly.FitTarget{BRP: &brp, HandGrip: &grip}
+	tr := pose.NewTrace()
+	traced, err := assembly.ApplyFitting(fenrirFittingSetup(), target, tr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	untraced, err := assembly.ApplyFitting(fenrirFittingSetup(), target, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if traced.Placement.Setup != untraced.Placement.Setup ||
+		traced.Placement.Saddle.BRP.Origin() != untraced.Placement.Saddle.BRP.Origin() ||
+		traced.Placement.Handlebar.HandGrip.Origin() != untraced.Placement.Handlebar.HandGrip.Origin() ||
+		!reflect.DeepEqual(traced.LimitedBy, untraced.LimitedBy) {
+		t.Fatal("placements differ with tracing on vs off")
+	}
+	if len(tr.Steps()) == 0 {
+		t.Fatal("trace is empty")
+	}
+}
+
+func TestApplyFittingGripErrors(t *testing.T) {
+	var inputErr *assembly.InputError
+	for _, bad := range []pose.Point{{X: math.NaN(), Y: 700}, {X: 400, Y: math.Inf(-1)}} {
+		_, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{HandGrip: &bad}, nil)
+		if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputFitTargetGrip {
+			t.Fatalf("target %v: err = %v, want InputFitTargetGrip", bad, err)
+		}
+	}
+
+	grip, brp := fitReportGrip, fitReportBRP
+	for name, mutate := range map[string]func(*assembly.StemSetup){
+		"zero min":  func(s *assembly.StemSetup) { s.MinLengthMm = 0 },
+		"min > max": func(s *assembly.StemSetup) { s.MinLengthMm, s.MaxLengthMm = 100, 90 },
+		"NaN max":   func(s *assembly.StemSetup) { s.MaxLengthMm = math.NaN() },
+	} {
+		setup := fenrirFittingSetup()
+		mutate(&setup.Stem)
+		if _, err := assembly.ApplyFitting(setup, assembly.FitTarget{HandGrip: &grip}, nil); err == nil {
+			t.Errorf("%s with grip target: want error", name)
+		}
+		if _, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &brp}, nil); err != nil {
+			t.Errorf("%s with only BRP target: %v", name, err)
+		}
+	}
+
+	bad := fenrirFittingSetup()
+	bad.Stem.MaxSpacersMm = -1
+	_, fitErr := assembly.ApplyFitting(bad, assembly.FitTarget{HandGrip: &grip}, nil)
+	_, placeErr := assembly.PlaceBike(bad, nil)
+	if fitErr == nil || placeErr == nil || fitErr.Error() != placeErr.Error() {
+		t.Fatalf("fit error %v, want PlaceBike error %v", fitErr, placeErr)
+	}
+}

@@ -11,7 +11,8 @@ import (
 // (BB at origin, +X forward, +Y up, mm). A nil landmark is not fitted, and the
 // inputs that would fit it are kept from the setup.
 type FitTarget struct {
-	BRP *pose.Point // saddle BRP (Q7)
+	BRP      *pose.Point // saddle BRP (Q7)
+	HandGrip *pose.Point // handlebar HandGrip (Q11)
 }
 
 // FitOutcome says whether a Fitting reached its target or stopped at a hardware limit.
@@ -28,7 +29,10 @@ type Fitting struct {
 	Target    FitTarget     // copies of the requested landmark targets
 	Placement BikePlacement // PlaceBike(fitted setup); Placement.Setup is the fitted setup
 	Outcome   FitOutcome
-	LimitedBy []InputField // InputSeatpostExtension and/or InputSaddleRailOffset; nil when reached
+	// LimitedBy lists the fitted inputs that sit on a hardware bound, in the
+	// order InputSeatpostExtension, InputSaddleRailOffset, InputStemSpacers,
+	// InputStemLength; nil when every target was reached.
+	LimitedBy []InputField
 }
 
 // BrpMiss returns target − placed BRP (world mm), and false when the target has no BRP.
@@ -39,24 +43,47 @@ func (f Fitting) BrpMiss() (pose.Point, bool) {
 	return f.Target.BRP.Sub(f.Placement.Saddle.BRP.Origin()), true
 }
 
+// GripMiss returns target − placed HandGrip (world mm), and false when the target has no HandGrip.
+func (f Fitting) GripMiss() (pose.Point, bool) {
+	if f.Target.HandGrip == nil {
+		return pose.Point{}, false
+	}
+	return f.Target.HandGrip.Sub(f.Placement.Handlebar.HandGrip.Origin()), true
+}
+
 // ApplyFitting fits Seatpost.ExtensionMm and Saddle.RailOffsetMm so the saddle BRP
-// lands on a BRP target, within hardware limits. All other setup fields are kept.
+// lands on a BRP target, and Stem.SpacersMm and Stem.LengthMm so the HandGrip
+// lands on a HandGrip target, each within hardware limits. All other setup
+// fields are kept. LimitedBy lists limited inputs saddle first, then cockpit.
 // trace, if non-nil, records only the final PlaceBike of the fitted setup and is
 // frozen on return.
 func ApplyFitting(setup BikeSetup, target FitTarget, trace *pose.Trace) (Fitting, error) {
 	defer trace.Freeze()
-	if target.BRP == nil {
+	if target.BRP == nil && target.HandGrip == nil {
 		return Fitting{}, fmt.Errorf("fit target has no landmarks")
 	}
-	if !isFinitePoint(*target.BRP) {
+	if target.BRP != nil && !isFinitePoint(*target.BRP) {
 		return Fitting{}, invalidInput(InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", target.BRP.X, target.BRP.Y)
+	}
+	if target.HandGrip != nil && !isFinitePoint(*target.HandGrip) {
+		return Fitting{}, invalidInput(InputFitTargetGrip, "HandGrip fit target must be finite, got (%v, %v) mm", target.HandGrip.X, target.HandGrip.Y)
 	}
 
 	// Each landmark is linear in its two fitted inputs: place once at a probe
 	// and decompose the remaining offset along the two fixed directions.
 	probeSetup := setup
-	probeSetup.Seatpost.ExtensionMm = setup.Seatpost.MinExtensionMm
-	probeSetup.Saddle.RailOffsetMm = 0
+	if target.BRP != nil {
+		probeSetup.Seatpost.ExtensionMm = setup.Seatpost.MinExtensionMm
+		probeSetup.Saddle.RailOffsetMm = 0
+	}
+	if target.HandGrip != nil {
+		minLen, maxLen := setup.Stem.MinLengthMm, setup.Stem.MaxLengthMm
+		if !isFinite(minLen) || !isFinite(maxLen) || minLen <= 0 || minLen > maxLen {
+			return Fitting{}, fmt.Errorf("stem length range must be finite with 0 < min <= max, got [%v, %v] mm", minLen, maxLen)
+		}
+		probeSetup.Stem.SpacersMm = 0
+		probeSetup.Stem.LengthMm = minLen
+	}
 	probe, err := PlaceBike(probeSetup, nil)
 	if err != nil {
 		return Fitting{}, err
@@ -64,33 +91,65 @@ func ApplyFitting(setup BikeSetup, target FitTarget, trace *pose.Trace) (Fitting
 
 	fitted := setup
 	var limitedBy []InputField
-	var saddleLimited bool
-	ext, rail, limited, err := fitSaddle(setup, probe, *target.BRP)
-	if err != nil {
-		return Fitting{}, err
+	var saddleLimited, cockpitLimited bool
+	if target.BRP != nil {
+		ext, rail, limited, err := fitSaddle(setup, probe, *target.BRP)
+		if err != nil {
+			return Fitting{}, err
+		}
+		fitted.Seatpost.ExtensionMm, fitted.Saddle.RailOffsetMm = ext, rail
+		saddleLimited = len(limited) > 0
+		limitedBy = append(limitedBy, limited...)
 	}
-	fitted.Seatpost.ExtensionMm, fitted.Saddle.RailOffsetMm = ext, rail
-	saddleLimited = len(limited) > 0
-	limitedBy = append(limitedBy, limited...)
+	if target.HandGrip != nil {
+		spacers, length, limited, err := fitCockpit(setup, probe, *target.HandGrip)
+		if err != nil {
+			return Fitting{}, err
+		}
+		fitted.Stem.SpacersMm, fitted.Stem.LengthMm = spacers, length
+		cockpitLimited = len(limited) > 0
+		limitedBy = append(limitedBy, limited...)
+	}
 
 	placement, err := PlaceBike(fitted, trace)
 	if err != nil {
 		return Fitting{}, err
 	}
 
-	brp := *target.BRP
-	fit := Fitting{Target: FitTarget{BRP: &brp}, Placement: placement, Outcome: FitReached}
+	fit := Fitting{Placement: placement, Outcome: FitReached}
+	if target.BRP != nil {
+		p := *target.BRP
+		fit.Target.BRP = &p
+	}
+	if target.HandGrip != nil {
+		p := *target.HandGrip
+		fit.Target.HandGrip = &p
+	}
 	if len(limitedBy) > 0 {
 		fit.Outcome = FitLimited
 		fit.LimitedBy = limitedBy
 	}
-	if !saddleLimited {
-		miss, _ := fit.BrpMiss()
-		if m := miss.Norm(); m > 1e-6 {
-			return Fitting{}, fmt.Errorf("saddle fitting forward check missed target by %v mm", m)
-		}
+	if miss, ok := fit.BrpMiss(); ok && !saddleLimited && miss.Norm() > 1e-6 {
+		return Fitting{}, fmt.Errorf("saddle fitting forward check missed target by %v mm", miss.Norm())
+	}
+	if miss, ok := fit.GripMiss(); ok && !cockpitLimited && miss.Norm() > 1e-6 {
+		return Fitting{}, fmt.Errorf("cockpit fitting forward check missed target by %v mm", miss.Norm())
 	}
 	return fit, nil
+}
+
+// fitCockpit fits stem spacers and stem length to a HandGrip target, using
+// directions read from the probe placement (spacers 0, minimum stem length).
+func fitCockpit(setup BikeSetup, probe BikePlacement, grip pose.Point) (spacers, length float64, limited []InputField, err error) {
+	minLen, maxLen := setup.Stem.MinLengthMm, setup.Stem.MaxLengthMm
+	delta := grip.Sub(probe.Handlebar.HandGrip.Origin())
+	a := fitAxis{probe.Stem.SpacerTop.HeadingDeg(), 0, setup.Stem.MaxSpacersMm, InputStemSpacers}
+	b := fitAxis{probe.Stem.BarClamp.HeadingDeg(), 0, maxLen - minLen, InputStemLength}
+	ds, dl, limited, ok := fitBox(delta, a, b)
+	if !ok {
+		return 0, 0, nil, fmt.Errorf("stem axis is parallel to the steerer; cannot fit the cockpit")
+	}
+	return clampFit(ds, 0, setup.Stem.MaxSpacersMm), clampFit(minLen+dl, minLen, maxLen), limited, nil
 }
 
 // fitSaddle fits seatpost extension and saddle rail offset to a BRP target,

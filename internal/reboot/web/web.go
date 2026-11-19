@@ -832,7 +832,7 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 			fv.LimitedByRailOff = true
 		case assembly.InputForkA2c, assembly.InputForkSag, assembly.InputLowerCup, assembly.InputStemSpacers,
 			assembly.InputStemLength, assembly.InputStemAngle, assembly.InputHandlebarRoll,
-			assembly.InputSeatpostSetback, assembly.InputSaddleRailPitch, assembly.InputFitTargetBRP:
+			assembly.InputSeatpostSetback, assembly.InputSaddleRailPitch, assembly.InputFitTargetBRP, assembly.InputFitTargetGrip:
 			// Fitting never limits on these inputs.
 		}
 	}
@@ -1096,6 +1096,8 @@ func bikeInputField(err error) string {
 		return "sag"
 	case assembly.InputLowerCup:
 		return "cup"
+	case assembly.InputFitTargetGrip:
+		return "grip_x"
 	case assembly.InputStemSpacers:
 		return "spacers"
 	case assembly.InputStemLength:
