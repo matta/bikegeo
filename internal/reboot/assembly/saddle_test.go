@@ -222,6 +222,7 @@ func TestOtsoFenrirRearCockpitAndTraceEquivalence(t *testing.T) {
 	// Full leveled frameset + cockpits via PlaceBike, with trace-on/off equivalence.
 	bikeSetup := assembly.BikeSetup{
 		Frame:     frame,
+		LowerCup:  assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0.0},
 		Fork:      cadFork,
 		Wheels:    wheels,
 		Seatpost:  postSetup,

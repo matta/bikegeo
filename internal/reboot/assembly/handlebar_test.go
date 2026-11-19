@@ -191,7 +191,6 @@ func TestOtsoFenrirFullBikeFrontCockpitAndTraceEquivalence(t *testing.T) {
 	// Fox 34 120 mm at 20% sag (A2C = 506 mm, rake = 44 mm, 12 mm EC44 lower cup)
 	// with full rear + front cockpits on Otso Fenrir L.
 	frame := fenrirSizeLFrame()
-	frame.LowerCupMm = 12.0
 	forkSetup := assembly.ForkSetup{
 		Spec: assembly.ForkSpec{
 			StaticA2cMm: 530.0,
@@ -202,9 +201,10 @@ func TestOtsoFenrirFullBikeFrontCockpitAndTraceEquivalence(t *testing.T) {
 	}
 
 	bikeSetup := assembly.BikeSetup{
-		Frame:  frame,
-		Fork:   forkSetup,
-		Wheels: fenrirWheels(),
+		Frame:    frame,
+		LowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0},
+		Fork:     forkSetup,
+		Wheels:   fenrirWheels(),
 		Seatpost: assembly.SeatpostSetup{
 			ExtensionMm:   263.5,
 			PostSetbackMm: 0.0,

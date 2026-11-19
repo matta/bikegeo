@@ -58,13 +58,11 @@ func TestStemWorkbenchRendersSVGAndMatchingTrace(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing default fork option %q", fix.DefaultForkID)
 	}
-	frame := fix.Chart.Frame
-	frame.LowerCupMm = fix.DefaultLowerCupMm
 	forkSetup := assembly.ForkSetup{
 		Spec:   defaultFork.Spec,
 		SagPct: defaultFork.DefaultSagPct,
 	}
-	frameset, err := assembly.PlaceFrameset(frame, forkSetup, fix.Wheels, nil)
+	frameset, err := assembly.PlaceFrameset(fix.Chart.Frame, defaultFork.DefaultLowerCup, forkSetup, fix.Wheels, nil)
 	if err != nil {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
@@ -212,14 +210,13 @@ func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing fox34_120 fixture option")
 	}
-	frame := fix.Chart.Frame
-	frame.LowerCupMm = 12.0
 	forkSetup := assembly.ForkSetup{
 		Spec:   fox34.Spec,
 		SagPct: 20.0,
 	}
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:     frame,
+		Frame:     fix.Chart.Frame,
+		LowerCup:  fox34.DefaultLowerCup,
 		Fork:      forkSetup,
 		Wheels:    fix.Wheels,
 		Seatpost:  fix.DefaultSeatpost,
@@ -484,8 +481,6 @@ func TestBikeWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing sid_100 fixture option")
 	}
-	frame := fix.Chart.Frame
-	frame.LowerCupMm = 10.0
 	spec := sid.Spec
 	spec.StaticA2cMm = 515.0
 	forkSetup := assembly.ForkSetup{
@@ -506,7 +501,8 @@ func TestBikeWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
 	saddleSetup.RailPitchDeg = -2.0
 
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:     frame,
+		Frame:     fix.Chart.Frame,
+		LowerCup:  assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 10.0},
 		Fork:      forkSetup,
 		Wheels:    fix.Wheels,
 		Seatpost:  postSetup,
@@ -621,7 +617,10 @@ func TestBikeWorkbenchRejectsInvalidQuery(t *testing.T) {
 		{"/bike?post_setback=-2", "post_setback", "-2"},
 		{"/bike?rail_offset=NaN", "rail_offset", "NaN"},
 		{"/bike?rail_pitch=Inf", "rail_pitch", "Inf"},
-		{"/bike?fork=lithic_carbon_mountain&fork_a2c=495.0&cup=0.0&sag=0.0&spacers=-1", "spacers", "-1"},
+		{"/bike?fork=lithic_carbon_mountain&fork_a2c=495.0&cup=0.0&sag=0.0&spacers=-1", "cup", "0.0"},
+		{"/bike?fork=cad&fork_a2c=495.0&cup=0.0&sag=0.0&spacers=-1", "spacers", "-1"},
+		{"/bike?fork=lithic_carbon_mountain&cup=0", "cup", "0"},
+		{"/bike?fork=cad&cup=12", "cup", "12"},
 	}
 
 	for _, tc := range cases {
@@ -694,8 +693,6 @@ func TestBikeWorkbenchAcceptsSeatpostExtensionLimits(t *testing.T) {
 
 func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	fix := otsoFenrirFixture()
-	frame := fix.Chart.Frame
-	frame.LowerCupMm = 12.0
 	forkSetup := assembly.ForkSetup{
 		Spec: assembly.ForkSpec{
 			StaticA2cMm: 530.0,
@@ -704,6 +701,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 		},
 		SagPct: 20.0,
 	}
+	lowerCup := assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0}
 	customWheels := assembly.WheelSetup{RadiusMm: 340.0}
 	customSeatpost := assembly.SeatpostSetup{ExtensionMm: 240.0, PostSetbackMm: 15.0, ClampLengthMm: 30.0}
 	customSaddle := fix.DefaultSaddle
@@ -718,7 +716,8 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 
 	tr := pose.NewTrace()
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:     frame,
+		Frame:     fix.Chart.Frame,
+		LowerCup:  lowerCup,
 		Fork:      forkSetup,
 		Wheels:    customWheels,
 		Seatpost:  customSeatpost,
@@ -745,8 +744,8 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	if gotSpan := view.GroundY1 - view.RearAxleSVG.Y; math.Abs(gotSpan-customWheels.RadiusMm) > 1e-9 {
 		t.Errorf("ground-to-axle span = %.6f, want %.6f", gotSpan, customWheels.RadiusMm)
 	}
-	if view.LowerCupMm != bike.Setup.Frame.LowerCupMm {
-		t.Errorf("view.LowerCupMm = %.1f, want %.1f", view.LowerCupMm, bike.Setup.Frame.LowerCupMm)
+	if view.LowerCupMm != bike.Setup.LowerCup.StackMm {
+		t.Errorf("view.LowerCupMm = %.1f, want %.1f", view.LowerCupMm, bike.Setup.LowerCup.StackMm)
 	}
 	if view.SagPct != forkSetup.SagPct {
 		t.Errorf("view.SagPct = %.1f, want %.1f", view.SagPct, forkSetup.SagPct)
@@ -784,7 +783,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	wantCadState := workbenchState{
 		ForkID:        cadForkOptionID,
 		ForkA2cMm:     fix.Chart.CadFork.A2cMm,
-		LowerCupMm:    fix.Chart.Frame.LowerCupMm,
+		LowerCupMm:    fix.Chart.CadLowerCup.StackMm,
 		SagPct:        0.0,
 		SpacersMm:     15.0,
 		StemLengthMm:  70.0,
@@ -1048,13 +1047,20 @@ func TestBikeWorkbenchEveryEnabledControlIsLive(t *testing.T) {
 	cadDoc := loadBikeDoc(t, cadHref)
 	cadMetrics := collectMetrics(cadDoc)
 
-	// On the rigid CAD baseline fork, changing sag to 10 must return 400 (not silently revert).
+	// On the rigid CAD chart reference, changing sag to 10 or cup to 12 must return 400.
 	rec, errDoc := submitForm(t, cadDoc, map[string]string{"sag": "10"})
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("mutating sag on rigid CAD baseline fork status = %d, want 400", rec.Code)
+		t.Fatalf("mutating sag on rigid CAD chart reference status = %d, want 400", rec.Code)
 	}
 	if inv, _ := errDoc.Find(`[name="sag"]`).Attr("aria-invalid"); inv != "true" {
 		t.Errorf("sag aria-invalid = %q, want true", inv)
+	}
+	rec, errDoc = submitForm(t, cadDoc, map[string]string{"cup": "12.0"})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("mutating cup on BareHeadTube CAD chart reference status = %d, want 400", rec.Code)
+	}
+	if inv, _ := errDoc.Find(`[name="cup"]`).Attr("aria-invalid"); inv != "true" {
+		t.Errorf("cup aria-invalid = %q, want true", inv)
 	}
 
 	// Every other enabled control on the CAD baseline fork page must take effect and change the build.
@@ -1065,7 +1071,6 @@ func TestBikeWorkbenchEveryEnabledControlIsLive(t *testing.T) {
 	}{
 		{field: "fork", val: "sid_100", isSelect: true},
 		{field: "fork_a2c", val: "510.0"},
-		{field: "cup", val: "12.0"},
 		{field: "spacers", val: "30.0"},
 		{field: "stem_length", val: "80.0"},
 		{field: "stem_angle", val: "-12.0"},
@@ -1103,6 +1108,26 @@ func TestBikeWorkbenchEveryEnabledControlIsLive(t *testing.T) {
 		})
 	}
 
+	// On an EC44 physical fork build, cup is live for positive stacks and rejects 0.
+	defaultMetrics := collectMetrics(defaultDoc)
+	rec, nextCupDoc := submitForm(t, defaultDoc, map[string]string{"cup": "14.0"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("submit cup=14.0 on EC44 build status = %d, want 200", rec.Code)
+	}
+	if got, _ := nextCupDoc.Find(`input[name="cup"]`).Attr("value"); got != "14.0" {
+		t.Errorf("EC44 cup input after submit = %q, want 14.0", got)
+	}
+	if maps.Equal(collectMetrics(nextCupDoc), defaultMetrics) {
+		t.Errorf("mutating cup=14.0 left all rendered metrics unchanged")
+	}
+	rec, errCupDoc := submitForm(t, defaultDoc, map[string]string{"cup": "0"})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("mutating cup=0 on EC44 build status = %d, want 400", rec.Code)
+	}
+	if inv, _ := errCupDoc.Find(`[name="cup"]`).Attr("aria-invalid"); inv != "true" {
+		t.Errorf("EC44 cup=0 aria-invalid = %q, want true", inv)
+	}
+
 	// On a suspension fork build, sag is also live and changes effective A2C.
 	sidDoc := loadBikeDoc(t, "/bike?fork=sid_100&cup=12&sag=20")
 	if got := strings.TrimSpace(sidDoc.Find(`[data-metric="effective-a2c"]`).Text()); got != "486.0 mm" {
@@ -1126,7 +1151,7 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 		t.Fatalf("otsoFenrirFixture().validate(): %v", err)
 	}
 
-	// Decoding the CAD baseline fork preset link yields fork=cad, exact FrameChart frame/cup, and CAD fork geometry.
+	// Decoding the CAD baseline fork preset link yields fork=cad, exact bare frame, CadLowerCup, and CAD fork geometry.
 	cadURL, err := url.Parse(defaultWorkbenchState(fix).withCadBaselineFork(fix).URL())
 	if err != nil {
 		t.Fatalf("parse CAD URL: %v", err)
@@ -1141,6 +1166,9 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 	if decoded.Setup.Frame != fix.Chart.Frame {
 		t.Errorf("decoded Frame = %+v, want %+v", decoded.Setup.Frame, fix.Chart.Frame)
 	}
+	if decoded.Setup.LowerCup != fix.Chart.CadLowerCup {
+		t.Errorf("decoded LowerCup = %+v, want %+v", decoded.Setup.LowerCup, fix.Chart.CadLowerCup)
+	}
 	if err := decoded.Setup.Fork.Validate(); err != nil {
 		t.Fatalf("decoded Fork.Validate: %v", err)
 	}
@@ -1148,23 +1176,26 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 		t.Errorf("decoded Fork.Geometry() = %+v, want %+v", decoded.Setup.Fork.Geometry(), fix.Chart.CadFork)
 	}
 
-	// Fixture whose Chart.CadFork (481 mm / 51 mm) does not match any installable retail fork in Forks:
-	// fork=cad still reproduces Chart.CadFork with 0° delta pitch, and switching to a real fork restores physical defaults.
+	// Fixture whose Chart.CadFork (481 mm / 51 mm) does not match any installable retail fork in Forks,
+	// and whose installable forks pair with two different lower-cup standards (ZS44 0 mm vs EC44 12 mm):
+	// fork=cad still reproduces Chart.CadFork with 0° delta pitch, and switching standards updates cup automatically.
+	ec44Cup := assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0}
+	zs44Cup := assembly.LowerCupSetup{Standard: assembly.LowerCupZS44, StackMm: 0.0}
 	customFix := otsoFenrirFixture()
 	customFix.Chart.CadFork = assembly.ForkGeometry{A2cMm: 481.0, RakeMm: 51.0}
 	customFix.Forks = []forkOption{
-		makeForkOption("rigid_483", "Carbon Rigid", assembly.ForkSpec{
+		makeForkOption("rigid_straight_483", "Straight Steerer Rigid", assembly.ForkSpec{
 			StaticA2cMm: 483.0,
 			TravelMm:    0.0,
 			RakeMm:      51.0,
-		}, 0.0),
+		}, 0.0, zs44Cup),
 		makeForkOption("sid_100", "RockShox SID", assembly.ForkSpec{
 			StaticA2cMm: 506.0,
 			TravelMm:    100.0,
 			RakeMm:      51.0,
-		}, 20.0),
+		}, 20.0, ec44Cup),
 	}
-	customFix.DefaultForkID = "rigid_483"
+	customFix.DefaultForkID = "rigid_straight_483"
 	if err := customFix.validate(); err != nil {
 		t.Fatalf("customFix.validate(): %v", err)
 	}
@@ -1189,6 +1220,9 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 	if customDecoded.Setup.Frame != customFix.Chart.Frame {
 		t.Errorf("customFix decoded Frame = %+v, want %+v", customDecoded.Setup.Frame, customFix.Chart.Frame)
 	}
+	if customDecoded.Setup.LowerCup != customFix.Chart.CadLowerCup {
+		t.Errorf("customFix decoded LowerCup = %+v, want %+v", customDecoded.Setup.LowerCup, customFix.Chart.CadLowerCup)
+	}
 	if customDecoded.Setup.Fork.Geometry() != customFix.Chart.CadFork {
 		t.Errorf("customFix decoded Fork.Geometry() = %+v, want %+v", customDecoded.Setup.Fork.Geometry(), customFix.Chart.CadFork)
 	}
@@ -1196,7 +1230,7 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceCadBaselineFork(customFix): %v", err)
 	}
-	placedCustom, err := assembly.PlaceFrameset(customDecoded.Setup.Frame, customDecoded.Setup.Fork, customDecoded.Setup.Wheels, nil)
+	placedCustom, err := assembly.PlaceFrameset(customDecoded.Setup.Frame, customDecoded.Setup.LowerCup, customDecoded.Setup.Fork, customDecoded.Setup.Wheels, nil)
 	if err != nil {
 		t.Fatalf("PlaceFrameset(customDecoded): %v", err)
 	}
@@ -1204,19 +1238,32 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 		t.Errorf("customFix CAD DeltaPitchDeg = %.6f°, want 0°", gotDelta)
 	}
 
-	switchQ := url.Values{
-		"prev_fork": {cadForkOptionID},
+	switchToEC44, inputErr := decodeWorkbenchState(customFix, url.Values{
+		"prev_fork": {"rigid_straight_483"},
 		"fork":      {"sid_100"},
-		"fork_a2c":  {"481.0"},
+		"fork_a2c":  {"483.0"},
 		"cup":       {"0.0"},
 		"sag":       {"0.0"},
-	}
-	switched, inputErr := decodeWorkbenchState(customFix, switchQ)
+	})
 	if inputErr != nil {
-		t.Fatalf("decodeWorkbenchState(switch from cad to sid_100): %v", inputErr)
+		t.Fatalf("decodeWorkbenchState(ZS44 -> EC44): %v", inputErr)
 	}
-	if switched.State.LowerCupMm != 12.0 || switched.State.ForkA2cMm != 506.0 || switched.State.SagPct != 20.0 {
-		t.Errorf("switched state = %+v, want cup=12.0 fork_a2c=506.0 sag=20.0", switched.State)
+	if switchToEC44.State.LowerCupMm != 12.0 || switchToEC44.Setup.LowerCup != ec44Cup || switchToEC44.State.ForkA2cMm != 506.0 || switchToEC44.State.SagPct != 20.0 {
+		t.Errorf("ZS44 -> EC44 state = %+v (cup %+v), want EC44 12.0 mm / 506.0 mm / 20.0%%", switchToEC44.State, switchToEC44.Setup.LowerCup)
+	}
+
+	switchToZS44, inputErr := decodeWorkbenchState(customFix, url.Values{
+		"prev_fork": {"sid_100"},
+		"fork":      {"rigid_straight_483"},
+		"fork_a2c":  {"506.0"},
+		"cup":       {"12.0"},
+		"sag":       {"20.0"},
+	})
+	if inputErr != nil {
+		t.Fatalf("decodeWorkbenchState(EC44 -> ZS44): %v", inputErr)
+	}
+	if switchToZS44.State.LowerCupMm != 0.0 || switchToZS44.Setup.LowerCup != zs44Cup || switchToZS44.State.ForkA2cMm != 483.0 || switchToZS44.State.SagPct != 0.0 {
+		t.Errorf("EC44 -> ZS44 state = %+v (cup %+v), want ZS44 0.0 mm / 483.0 mm / 0.0%%", switchToZS44.State, switchToZS44.Setup.LowerCup)
 	}
 
 	// Invalid fixture configuration checks.
@@ -1232,8 +1279,21 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 		{"non-positive Chart.CadFork.A2cMm", func(f *bikeFixture) { f.Chart.CadFork.A2cMm = 0 }},
 		{"NaN Chart.CadFork.RakeMm", func(f *bikeFixture) { f.Chart.CadFork.RakeMm = math.NaN() }},
 		{"rigid fork option with non-zero DefaultSagPct", func(f *bikeFixture) { f.Forks[0].DefaultSagPct = 10.0 }},
-		{"negative Chart LowerCupMm", func(f *bikeFixture) { f.Chart.Frame.LowerCupMm = -1.0 }},
-		{"negative DefaultLowerCupMm", func(f *bikeFixture) { f.DefaultLowerCupMm = -1.0 }},
+		{"installable fork option uses bare_head_tube cup", func(f *bikeFixture) {
+			f.Forks[0].DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0.0}
+		}},
+		{"installable fork option missing lower cup standard", func(f *bikeFixture) {
+			f.Forks[0].DefaultLowerCup = assembly.LowerCupSetup{}
+		}},
+		{"installable fork option EC44 zero stack", func(f *bikeFixture) {
+			f.Forks[0].DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 0.0}
+		}},
+		{"Chart.CadLowerCup missing standard", func(f *bikeFixture) {
+			f.Chart.CadLowerCup = assembly.LowerCupSetup{}
+		}},
+		{"Chart.CadLowerCup bare_head_tube non-zero stack", func(f *bikeFixture) {
+			f.Chart.CadLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 12.0}
+		}},
 	}
 	for _, tc := range invalidCases {
 		t.Run(tc.name, func(t *testing.T) {

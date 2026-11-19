@@ -65,11 +65,11 @@ Use these exact sourced dimensions for Milestone 1 (`internal/reboot/web/fixture
 - **Published Frame Chart (Otso Fenrir Stainless, 2024, Size `L`, rear Tuning Chip in `450 mm` CS / `72 mm` BB drop position):**
   - `ReachMm: 428.0`, `StackMm: 642.0`, `HtaDeg: 68.25°`, `StaDeg: 75.25°`, `HtlMm: 140.0`, `BbDropMm: 72.0`, `ChainstayMm: 450.0`, `WheelbaseMm: 1158.0`, `SeatTubeLengthMm: 490.0` (Sizes `XS`, `S`, `M`, `L`, `XL` from the published Otso chart may all be included in the fixture struct, with `L` as default).
   - **Wheel Radius:** `29" × 2.4"` baseline (`WheelRadiusMm: 372.0`).
-- **CAD Chart Reference (`FrameChart.CadFork` + `FrameChart.Frame.LowerCupMm`):**
-  - Fixed CAD geometry (`ForkGeometry{A2cMm: 495.0, RakeMm: 54.0}`, `Frame.LowerCupMm: 0.0`): non-physical bare-headtube chart reference around `495 mm` / `54 mm` without an EC44 lower cup (selected as `fork=cad` in the workbench for chart inspection).
+- **CAD Chart Reference (`FrameChart.CadFork` + `FrameChart.CadLowerCup`):**
+  - Fixed CAD geometry (`ForkGeometry{A2cMm: 495.0, RakeMm: 54.0}`, `CadLowerCup: {Standard: LowerCupBareHeadTube, StackMm: 0.0}`): non-physical bare-headtube chart reference around `495 mm` / `54 mm` without an EC44 lower cup (selected as `fork=cad` in the workbench for chart inspection).
 - **Selectable Installed Forks & Physical Lower Headset Cup:**
-  - Default `DefaultLowerCupMm: 12.0` (`EC44` external lower cup; editable in the workbench, and restored automatically when switching from `fork=cad` to a real fork).
-  - Selectable forks:
+  - Each installable fork pairing declares its `DefaultLowerCup: {Standard: LowerCupEC44, StackMm: 12.0}` (`EC44` external lower cup; editable for positive stacks in the workbench, and switched automatically whenever the selected fork changes lower-cup standard).
+  - Selectable forks (`DefaultLowerCup: EC44 12.0 mm`):
     1. `lithic_carbon_mountain` (default): `StaticA2cMm: 495.0`, `TravelMm: 0.0`, `RakeMm: 54.0`, `SagPct: 0.0`
     2. `sid_100` (RockShox SID 100 mm): `StaticA2cMm: 506.0`, `TravelMm: 100.0`, `RakeMm: 44.0`, default `SagPct: 20.0`
     3. `fox34_120` (Fox 34 120 mm): `StaticA2cMm: 530.0`, `TravelMm: 120.0`, `RakeMm: 44.0`, default `SagPct: 20.0`

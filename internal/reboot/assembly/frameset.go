@@ -7,19 +7,65 @@ import (
 	"bikegeo/internal/reboot/pose"
 )
 
-// FrameSetup specifies the frame dimensions in its unpitched reference attitude
-// (where reference Reach is horizontal and reference Stack is vertical), along
-// with the installed lower headset cup stack (LowerCupMm).
+// FrameSetup specifies the bare frame dimensions in its unpitched reference
+// attitude (where reference Reach is horizontal and reference Stack is vertical).
 type FrameSetup struct {
 	ReachMm          float64
 	StackMm          float64
 	HeadTubeAngleDeg pose.Deg
 	HeadTubeLengthMm float64
-	LowerCupMm       float64
 	SeatTubeAngleDeg pose.Deg
 	SeatTubeLengthMm float64
 	BbDropMm         float64
 	ChainstayMm      float64
+}
+
+// LowerCupStandard identifies the SHIS lower headset cup interface marrying a
+// frame's head tube to a fork steerer (or BareHeadTube for an uncupped CAD chart).
+type LowerCupStandard string
+
+const (
+	LowerCupEC34         LowerCupStandard = "EC34"
+	LowerCupEC44         LowerCupStandard = "EC44"
+	LowerCupZS44         LowerCupStandard = "ZS44"
+	LowerCupZS56         LowerCupStandard = "ZS56"
+	LowerCupIS42         LowerCupStandard = "IS42"
+	LowerCupIS52         LowerCupStandard = "IS52"
+	LowerCupBareHeadTube LowerCupStandard = "bare_head_tube"
+)
+
+// LowerCupSetup specifies the lower headset cup standard and axial stack height
+// marrying a frame's head tube to a fork steerer.
+type LowerCupSetup struct {
+	Standard LowerCupStandard
+	StackMm  float64
+}
+
+// Validate checks that the lower headset cup standard is recognized and its
+// stack height satisfies the physical constraint for that standard.
+func (c LowerCupSetup) Validate() error {
+	if !isFinite(c.StackMm) {
+		return invalidInput(InputLowerCup, "lower headset cup must be finite, got %v mm", c.StackMm)
+	}
+	switch c.Standard {
+	case LowerCupEC34, LowerCupEC44:
+		if c.StackMm <= 0 {
+			return invalidInput(InputLowerCup, "%s external lower headset cup must have positive stack, got %v mm", c.Standard, c.StackMm)
+		}
+		return nil
+	case LowerCupZS44, LowerCupZS56, LowerCupIS42, LowerCupIS52:
+		if c.StackMm < 0 {
+			return invalidInput(InputLowerCup, "%s lower headset cup must be non-negative, got %v mm", c.Standard, c.StackMm)
+		}
+		return nil
+	case LowerCupBareHeadTube:
+		if c.StackMm != 0 {
+			return invalidInput(InputLowerCup, "bare head tube has no lower headset cup (must be 0 mm), got %v mm", c.StackMm)
+		}
+		return nil
+	default:
+		return invalidInput(InputLowerCup, "unknown or missing lower headset cup standard %q", c.Standard)
+	}
 }
 
 // ForkSpec describes a catalog fork before installation and sag.
@@ -145,11 +191,11 @@ func (f FramesetPlacement) LeveledBbDropMm() float64 {
 	return f.BB.VerticalOffsetTo(f.RearAxle)
 }
 
-// FrameChart groups a frame's unpitched reference dimensions (with Frame.LowerCupMm
-// holding the CAD lower headset cup stack), its fixed CAD baseline fork geometry,
-// and its published wheelbase.
+// FrameChart groups a bare frame's unpitched reference dimensions, its CAD
+// lower headset cup, its fixed CAD baseline fork geometry, and its published wheelbase.
 type FrameChart struct {
 	Frame                FrameSetup
+	CadLowerCup          LowerCupSetup
 	CadFork              ForkGeometry
 	PublishedWheelbaseMm float64
 }
@@ -183,7 +229,7 @@ func PlaceCadBaselineFork(chart FrameChart, wheels WheelSetup) (ChartBaseline, e
 	if err := validateForkGeometry(chart.CadFork); err != nil {
 		return ChartBaseline{}, err
 	}
-	if err := validateLowerCup(chart.Frame.LowerCupMm); err != nil {
+	if err := chart.CadLowerCup.Validate(); err != nil {
 		return ChartBaseline{}, err
 	}
 	if err := validateWheels(wheels); err != nil {
@@ -193,47 +239,47 @@ func PlaceCadBaselineFork(chart FrameChart, wheels WheelSetup) (ChartBaseline, e
 		return ChartBaseline{}, fmt.Errorf("published wheelbase must be finite and positive, got %v mm", chart.PublishedWheelbaseMm)
 	}
 
-	unpitched, pitchDeg := measureUnpitchedFrameset(chart.Frame, chart.CadFork)
+	unpitched, pitchDeg := measureUnpitchedFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork)
 	residuals := ChartResiduals{
 		AxleHeightDiffMm: unpitched.RearAxle.VerticalOffsetTo(unpitched.FrontAxle),
 		WheelbaseDiffMm:  (unpitched.FrontAxle.Origin().X - unpitched.RearAxle.Origin().X) - chart.PublishedWheelbaseMm,
 	}
 
 	return ChartBaseline{
-		Placement: placeLeveledFrameset(chart.Frame, chart.CadFork, wheels, pitchDeg, nil),
+		Placement: placeLeveledFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork, wheels, pitchDeg, nil),
 		Residuals: residuals,
 	}, nil
 }
 
-// PlaceFrameset constructs a leveled frameset (frame, fork, lower headset cup,
+// PlaceFrameset constructs a leveled frameset (frame, lower headset cup, fork,
 // and wheel-ground contacts) using a two-pass Pose recipe: Pass 1 measures the
 // axle-leveling pitch at 0° frame pitch, and Pass 2 builds the leveled frameset
 // rooted at BB rotated by that pitch and locates the wheel-ground contact
 // landmarks directly below each axle.
-func PlaceFrameset(frame FrameSetup, fork ForkSetup, wheels WheelSetup, trace *pose.Trace) (FramesetPlacement, error) {
-	if err := validateFramesetInputs(frame, fork, wheels); err != nil {
+func PlaceFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, wheels WheelSetup, trace *pose.Trace) (FramesetPlacement, error) {
+	if err := validateFramesetInputs(frame, lowerCup, fork, wheels); err != nil {
 		return FramesetPlacement{}, err
 	}
 
 	geom := fork.Geometry()
-	_, pitchDeg := measureUnpitchedFrameset(frame, geom)
-	return placeLeveledFrameset(frame, geom, wheels, pitchDeg, trace), nil
+	_, pitchDeg := measureUnpitchedFrameset(frame, lowerCup.StackMm, geom)
+	return placeLeveledFrameset(frame, lowerCup.StackMm, geom, wheels, pitchDeg, trace), nil
 }
 
-func measureUnpitchedFrameset(frame FrameSetup, fork ForkGeometry) (FramesetPlacement, pose.Deg) {
-	unpitched := placeFramesetAtPitch(pose.NewPose(pose.Point{}, 0, nil), frame, fork)
+func measureUnpitchedFrameset(frame FrameSetup, lowerCupMm float64, fork ForkGeometry) (FramesetPlacement, pose.Deg) {
+	unpitched := placeFramesetAtPitch(pose.NewPose(pose.Point{}, 0, nil), frame, lowerCupMm, fork)
 	return unpitched, -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)
 }
 
-func placeLeveledFrameset(frame FrameSetup, fork ForkGeometry, wheels WheelSetup, pitchDeg pose.Deg, trace *pose.Trace) FramesetPlacement {
+func placeLeveledFrameset(frame FrameSetup, lowerCupMm float64, fork ForkGeometry, wheels WheelSetup, pitchDeg pose.Deg, trace *pose.Trace) FramesetPlacement {
 	frameRoot := pose.NewPose(pose.Point{}, 0, trace).Turn("frame pitch to level axles", pitchDeg)
-	leveled := placeFramesetAtPitch(frameRoot, frame, fork)
+	leveled := placeFramesetAtPitch(frameRoot, frame, lowerCupMm, fork)
 	leveled.RearTireContact = leveled.RearAxle.Face("down to ground", -90.0).Advance("rear wheel radius", wheels.RadiusMm)
 	leveled.FrontTireContact = leveled.FrontAxle.Face("down to ground", -90.0).Advance("front wheel radius", wheels.RadiusMm)
 	return leveled
 }
 
-func placeFramesetAtPitch(frameRoot pose.Pose, frame FrameSetup, fork ForkGeometry) FramesetPlacement {
+func placeFramesetAtPitch(frameRoot pose.Pose, frame FrameSetup, lowerCupMm float64, fork ForkGeometry) FramesetPlacement {
 	rearX := -pose.RightTriangleLeg(frame.ChainstayMm, frame.BbDropMm)
 	rearAxle := frameRoot.Translate("rear axle", rearX, frame.BbDropMm)
 
@@ -241,7 +287,7 @@ func placeFramesetAtPitch(frameRoot pose.Pose, frame FrameSetup, fork ForkGeomet
 		Turn("steerer axis (180° - HTA)", 180.0-frame.HeadTubeAngleDeg)
 	steererDown := headTubeTop.Turn("down steerer", 180.0)
 	headTubeBottom := steererDown.Advance("head tube length", frame.HeadTubeLengthMm)
-	lowerCupBottom := headTubeBottom.Advance("lower headset cup", frame.LowerCupMm)
+	lowerCupBottom := headTubeBottom.Advance("lower headset cup", lowerCupMm)
 	forkSteererBase := lowerCupBottom.Advance("fork A2C", fork.A2cMm)
 	frontAxle := forkSteererBase.Turn("fork rake direction", 90.0).Advance("fork rake", fork.RakeMm)
 
@@ -267,13 +313,6 @@ func validateForkGeometry(fork ForkGeometry) error {
 	}
 	if !isFinite(fork.RakeMm) {
 		return fmt.Errorf("fork rake must be finite, got %v mm", fork.RakeMm)
-	}
-	return nil
-}
-
-func validateLowerCup(lowerCupMm float64) error {
-	if !isFinite(lowerCupMm) || lowerCupMm < 0 {
-		return invalidInput(InputLowerCup, "lower headset cup must be finite and non-negative, got %v mm", lowerCupMm)
 	}
 	return nil
 }
@@ -310,14 +349,14 @@ func validateFrameGeometry(frame FrameSetup) error {
 	return nil
 }
 
-func validateFramesetInputs(frame FrameSetup, fork ForkSetup, wheels WheelSetup) error {
+func validateFramesetInputs(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, wheels WheelSetup) error {
 	if err := validateFrameGeometry(frame); err != nil {
 		return err
 	}
 	if err := fork.Validate(); err != nil {
 		return err
 	}
-	if err := validateLowerCup(frame.LowerCupMm); err != nil {
+	if err := lowerCup.Validate(); err != nil {
 		return err
 	}
 	if err := validateWheels(wheels); err != nil {

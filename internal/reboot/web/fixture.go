@@ -9,13 +9,14 @@ import (
 const cadForkOptionID = "cad"
 
 type forkOption struct {
-	ID            string
-	Label         string
-	Spec          assembly.ForkSpec
-	DefaultSagPct float64
+	ID              string
+	Label           string
+	Spec            assembly.ForkSpec
+	DefaultSagPct   float64
+	DefaultLowerCup assembly.LowerCupSetup
 }
 
-func makeForkOption(id, name string, spec assembly.ForkSpec, defaultSagPct float64) forkOption {
+func makeForkOption(id, name string, spec assembly.ForkSpec, defaultSagPct float64, defaultLowerCup assembly.LowerCupSetup) forkOption {
 	var kind string
 	if spec.TravelMm == 0 {
 		kind = "Rigid"
@@ -23,27 +24,27 @@ func makeForkOption(id, name string, spec assembly.ForkSpec, defaultSagPct float
 		kind = fmt.Sprintf("%.0f mm travel", spec.TravelMm)
 	}
 	return forkOption{
-		ID:            id,
-		Label:         fmt.Sprintf("%s (%s, %.0f mm A2C / %.0f mm rake)", name, kind, spec.StaticA2cMm, spec.RakeMm),
-		Spec:          spec,
-		DefaultSagPct: defaultSagPct,
+		ID:              id,
+		Label:           fmt.Sprintf("%s (%s, %.0f mm A2C / %.0f mm rake)", name, kind, spec.StaticA2cMm, spec.RakeMm),
+		Spec:            spec,
+		DefaultSagPct:   defaultSagPct,
+		DefaultLowerCup: defaultLowerCup,
 	}
 }
 
 type bikeFixture struct {
-	Name              string
-	Chart             assembly.FrameChart
-	Wheels            assembly.WheelSetup
-	WheelLabel        string
-	DefaultLowerCupMm float64
-	DefaultForkID     string
-	Forks             []forkOption
-	DefaultStem       assembly.StemSetup
-	HandlebarName     string
-	DefaultHandlebar  assembly.HandlebarSetup
-	DefaultSeatpost   assembly.SeatpostSetup
-	SaddleName        string
-	DefaultSaddle     assembly.SaddleSetup
+	Name             string
+	Chart            assembly.FrameChart
+	Wheels           assembly.WheelSetup
+	WheelLabel       string
+	DefaultForkID    string
+	Forks            []forkOption
+	DefaultStem      assembly.StemSetup
+	HandlebarName    string
+	DefaultHandlebar assembly.HandlebarSetup
+	DefaultSeatpost  assembly.SeatpostSetup
+	SaddleName       string
+	DefaultSaddle    assembly.SaddleSetup
 }
 
 func (f bikeFixture) cadForkOption() forkOption {
@@ -51,14 +52,15 @@ func (f bikeFixture) cadForkOption() forkOption {
 		ID: cadForkOptionID,
 		Label: fmt.Sprintf(
 			"CAD Chart Reference (%.0f mm A2C / %.0f mm rake, %.0f mm cup — chart only)",
-			f.Chart.CadFork.A2cMm, f.Chart.CadFork.RakeMm, f.Chart.Frame.LowerCupMm,
+			f.Chart.CadFork.A2cMm, f.Chart.CadFork.RakeMm, f.Chart.CadLowerCup.StackMm,
 		),
 		Spec: assembly.ForkSpec{
 			StaticA2cMm: f.Chart.CadFork.A2cMm,
 			TravelMm:    0.0,
 			RakeMm:      f.Chart.CadFork.RakeMm,
 		},
-		DefaultSagPct: 0.0,
+		DefaultSagPct:   0.0,
+		DefaultLowerCup: f.Chart.CadLowerCup,
 	}
 }
 
@@ -95,6 +97,12 @@ func (f bikeFixture) validate() error {
 		if err := (assembly.ForkSetup{Spec: opt.Spec, SagPct: opt.DefaultSagPct}).Validate(); err != nil {
 			return fmt.Errorf("fixture %q fork option %q invalid: %w", f.Name, opt.ID, err)
 		}
+		if err := opt.DefaultLowerCup.Validate(); err != nil {
+			return fmt.Errorf("fixture %q fork option %q lower cup invalid: %w", f.Name, opt.ID, err)
+		}
+		if opt.DefaultLowerCup.Standard == assembly.LowerCupBareHeadTube {
+			return fmt.Errorf("fixture %q installable fork option %q cannot use %q lower cup", f.Name, opt.ID, assembly.LowerCupBareHeadTube)
+		}
 		if opt.ID == f.DefaultForkID {
 			defaultFound = true
 		}
@@ -105,11 +113,8 @@ func (f bikeFixture) validate() error {
 	if err := (assembly.ForkSetup{Spec: f.cadForkOption().Spec, SagPct: 0.0}).Validate(); err != nil {
 		return fmt.Errorf("fixture %q Chart.CadFork invalid: %w", f.Name, err)
 	}
-	if !isFiniteFloat(f.Chart.Frame.LowerCupMm) || f.Chart.Frame.LowerCupMm < 0 {
-		return fmt.Errorf("fixture %q Chart.Frame.LowerCupMm must be finite and non-negative, got %v", f.Name, f.Chart.Frame.LowerCupMm)
-	}
-	if !isFiniteFloat(f.DefaultLowerCupMm) || f.DefaultLowerCupMm < 0 {
-		return fmt.Errorf("fixture %q DefaultLowerCupMm must be finite and non-negative, got %v", f.Name, f.DefaultLowerCupMm)
+	if err := f.Chart.CadLowerCup.Validate(); err != nil {
+		return fmt.Errorf("fixture %q Chart.CadLowerCup invalid: %w", f.Name, err)
 	}
 	return nil
 }
@@ -127,6 +132,10 @@ func otsoFenrirFixture() bikeFixture {
 		// https://otsocycles.com/pages/bike-specs-tables
 		frameInsertionDepthMm = 290.0
 	)
+	ec44Cup := assembly.LowerCupSetup{
+		Standard: assembly.LowerCupEC44,
+		StackMm:  12.0,
+	}
 	return bikeFixture{
 		Name: "Otso Fenrir Stainless (2024, Size L)",
 		Chart: assembly.FrameChart{
@@ -136,10 +145,13 @@ func otsoFenrirFixture() bikeFixture {
 				HeadTubeAngleDeg: 68.25,
 				SeatTubeAngleDeg: 75.25,
 				HeadTubeLengthMm: 140.0,
-				LowerCupMm:       0.0,
 				BbDropMm:         72.0,
 				ChainstayMm:      450.0,
 				SeatTubeLengthMm: 490.0,
+			},
+			CadLowerCup: assembly.LowerCupSetup{
+				Standard: assembly.LowerCupBareHeadTube,
+				StackMm:  0.0,
 			},
 			PublishedWheelbaseMm: 1158.0,
 			CadFork: assembly.ForkGeometry{
@@ -147,26 +159,25 @@ func otsoFenrirFixture() bikeFixture {
 				RakeMm: 54.0,
 			},
 		},
-		Wheels:            assembly.WheelSetup{RadiusMm: 372.0},
-		WheelLabel:        `29" × 2.4"`,
-		DefaultLowerCupMm: 12.0, // EC44 external lower headset cup
-		DefaultForkID:     "lithic_carbon_mountain",
+		Wheels:        assembly.WheelSetup{RadiusMm: 372.0},
+		WheelLabel:    `29" × 2.4"`,
+		DefaultForkID: "lithic_carbon_mountain",
 		Forks: []forkOption{
 			makeForkOption("lithic_carbon_mountain", "Lithic Carbon Mountain", assembly.ForkSpec{
 				StaticA2cMm: 495.0,
 				TravelMm:    0.0,
 				RakeMm:      54.0,
-			}, 0.0),
+			}, 0.0, ec44Cup),
 			makeForkOption("sid_100", "RockShox SID", assembly.ForkSpec{
 				StaticA2cMm: 506.0,
 				TravelMm:    100.0,
 				RakeMm:      44.0,
-			}, 20.0),
+			}, 20.0, ec44Cup),
 			makeForkOption("fox34_120", "Fox 34", assembly.ForkSpec{
 				StaticA2cMm: 530.0,
 				TravelMm:    120.0,
 				RakeMm:      44.0,
-			}, 20.0),
+			}, 20.0, ec44Cup),
 		},
 		DefaultStem: assembly.StemSetup{
 			UpperCoverMm:  11.0,
