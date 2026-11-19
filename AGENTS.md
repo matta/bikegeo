@@ -2,6 +2,10 @@
 
 This repository is a zero-dependency **Go** command-line application (`bikegeo`).
 
+## Commit Messages
+
+Conventional Commits are banned in this repository. Write concise, plain-language commit subjects that describe the change (for example, `Fix fork sag validation`). Do not use type prefixes such as `feat:`, `fix:`, `docs:`, `chore:`, or `refactor:`, including scoped or breaking-change variants such as `fix(web):` or `feat!:`.
+
 ## Reboot Tree Scope (`cmd/bikegeo-reboot`, `internal/reboot/...`)
 
 A clean-slate reboot is being built beside the existing application. Its design and plan live in [docs/reboot/](docs/reboot/README.md): [DESIGN.md](docs/reboot/DESIGN.md) (confirmed decisions) and [IMPLEMENTATION.md](docs/reboot/IMPLEMENTATION.md) (package layout, import boundary, slices). For code under `cmd/bikegeo-reboot` and `internal/reboot/...`, those documents take precedence over the **Architectural Guidelines** and **Adding or Modifying Bike Frame Datasets** sections below wherever they differ. In particular:
