@@ -2528,3 +2528,18 @@ func TestBikeWorkbenchRailOffsetRange(t *testing.T) {
 		t.Errorf("ctrl-rail-offset aria-invalid = %q, want true", v)
 	}
 }
+
+func TestBikeWorkbenchSpacersMax(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike")
+	if v, _ := doc.Find("#ctrl-spacers").Attr("max"); v != "40" {
+		t.Errorf("ctrl-spacers max = %q, want 40", v)
+	}
+	loadBikeDocStatus(t, "/bike?spacers=40", http.StatusOK)
+	doc = loadBikeDocStatus(t, "/bike?spacers=45", http.StatusBadRequest)
+	if v, _ := doc.Find("#ctrl-spacers").Attr("aria-invalid"); v != "true" {
+		t.Errorf("ctrl-spacers aria-invalid = %q, want true", v)
+	}
+	if v, _ := doc.Find("#ctrl-spacers").Attr("max"); v != "40" {
+		t.Errorf("error page ctrl-spacers max = %q, want 40", v)
+	}
+}

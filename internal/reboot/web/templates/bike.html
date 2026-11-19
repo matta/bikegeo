@@ -460,7 +460,7 @@
         <div class="group-fields">
           <div class="field">
             <label for="ctrl-spacers">Spacers (mm)</label>
-            <input id="ctrl-spacers" type="number" name="spacers" step="0.5" min="0" value="{{.Form.Spacers}}"{{if and $.ErrorMessage (eq $.InvalidField "spacers")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+            <input id="ctrl-spacers" type="number" name="spacers" step="0.5" min="0" max="{{.MaxSpacersMm}}" value="{{.Form.Spacers}}"{{if and $.ErrorMessage (eq $.InvalidField "spacers")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
           </div>
           <div class="field">
             <label for="ctrl-stem-length">Stem Length (mm)</label>

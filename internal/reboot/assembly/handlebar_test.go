@@ -10,8 +10,11 @@ import (
 
 func fenrirDefaultStem() assembly.StemSetup {
 	return assembly.StemSetup{
+		MinLengthMm:   40,
+		MaxLengthMm:   130,
 		UpperCoverMm:  11.0,
 		SpacersMm:     20.0,
+		MaxSpacersMm:  40,
 		ClampHeightMm: 40.0,
 		LengthMm:      60.0,
 		AngleDeg:      -6.0,
@@ -55,6 +58,7 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	stem, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
 		UpperCoverMm:  10,
 		SpacersMm:     15,
+		MaxSpacersMm:  40,
 		ClampHeightMm: 40,
 		LengthMm:      80,
 		AngleDeg:      -6,
@@ -154,6 +158,7 @@ func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 		stem, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
 			UpperCoverMm:  11,
 			SpacersMm:     15,
+			MaxSpacersMm:  40,
 			ClampHeightMm: 40,
 			LengthMm:      80,
 			AngleDeg:      stemAngle,

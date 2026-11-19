@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"math"
 
 	"bikegeo/internal/reboot/assembly"
 	"bikegeo/internal/reboot/pose"
@@ -83,6 +84,11 @@ func (f bikeFixture) resolveForkOption(requestedID string) (forkOption, bool) {
 }
 
 func (f bikeFixture) validate() error {
+	if st := f.DefaultStem; !(!math.IsNaN(st.MinLengthMm) && !math.IsInf(st.MinLengthMm, 0) &&
+		!math.IsNaN(st.MaxLengthMm) && !math.IsInf(st.MaxLengthMm, 0) &&
+		st.MinLengthMm > 0 && st.MinLengthMm <= st.MaxLengthMm) {
+		return fmt.Errorf("fixture %q default stem length range must be finite with 0 < min <= max, got [%v, %v]", f.Name, st.MinLengthMm, st.MaxLengthMm)
+	}
 	if f.DefaultForkID == "" {
 		return fmt.Errorf("fixture %q missing DefaultForkID", f.Name)
 	}
@@ -188,6 +194,9 @@ func otsoFenrirFixture() bikeFixture {
 			ClampHeightMm: 40.0,
 			LengthMm:      60.0,
 			AngleDeg:      -6.0,
+			MaxSpacersMm:  40.0, // illustrative: steerer length not measured
+			MinLengthMm:   40.0, // illustrative stem length range
+			MaxLengthMm:   130.0,
 		},
 		HandlebarName: "Tumbleweed Persuader 20° (800 mm)",
 		DefaultHandlebar: assembly.HandlebarSetup{

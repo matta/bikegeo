@@ -1,6 +1,7 @@
 package assembly_test
 
 import (
+	"errors"
 	"math"
 	"testing"
 
@@ -32,6 +33,7 @@ func TestPlaceStemWorkedExample60DegHTA(t *testing.T) {
 	got, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
 		UpperCoverMm:  10,
 		SpacersMm:     20,
+		MaxSpacersMm:  40,
 		ClampHeightMm: 40,
 		LengthMm:      100,
 		AngleDeg:      0,
@@ -61,6 +63,7 @@ func TestPlaceStemWorkedExampleNonzeroAngle(t *testing.T) {
 	got, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
 		UpperCoverMm:  10,
 		SpacersMm:     20,
+		MaxSpacersMm:  40,
 		ClampHeightMm: 40,
 		LengthMm:      100,
 		AngleDeg:      30,
@@ -80,6 +83,7 @@ func TestPlaceStemDimensionsAndTraceEquivalence(t *testing.T) {
 	setup := assembly.StemSetup{
 		UpperCoverMm:  11.0,
 		SpacersMm:     20.0,
+		MaxSpacersMm:  40,
 		ClampHeightMm: 40.0,
 		LengthMm:      60.0,
 		AngleDeg:      -6.0,
@@ -118,6 +122,7 @@ func TestPlaceStemValidation(t *testing.T) {
 	validSetup := assembly.StemSetup{
 		UpperCoverMm:  11,
 		SpacersMm:     20,
+		MaxSpacersMm:  40,
 		ClampHeightMm: 40,
 		LengthMm:      60,
 		AngleDeg:      -6,
@@ -130,11 +135,14 @@ func TestPlaceStemValidation(t *testing.T) {
 	}{
 		{"NaN origin X", pose.NewPose(pose.Point{X: math.NaN(), Y: 0}, 111.75, nil), validSetup},
 		{"Inf heading", pose.NewPose(pose.Point{X: 0, Y: 0}, pose.Deg(math.Inf(1)), nil), validSetup},
-		{"negative cover", validPose, assembly.StemSetup{UpperCoverMm: -1, SpacersMm: 20, ClampHeightMm: 40, LengthMm: 60, AngleDeg: -6}},
-		{"negative spacers", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: -1, ClampHeightMm: 40, LengthMm: 60, AngleDeg: -6}},
-		{"zero clamp height", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 20, ClampHeightMm: 0, LengthMm: 60, AngleDeg: -6}},
-		{"zero length", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 20, ClampHeightMm: 40, LengthMm: 0, AngleDeg: -6}},
-		{"NaN angle", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 20, ClampHeightMm: 40, LengthMm: 60, AngleDeg: pose.Deg(math.NaN())}},
+		{"negative cover", validPose, assembly.StemSetup{UpperCoverMm: -1, SpacersMm: 20, MaxSpacersMm: 40, ClampHeightMm: 40, LengthMm: 60, AngleDeg: -6}},
+		{"negative spacers", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: -1, MaxSpacersMm: 40, ClampHeightMm: 40, LengthMm: 60, AngleDeg: -6}},
+		{"zero clamp height", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 20, MaxSpacersMm: 40, ClampHeightMm: 0, LengthMm: 60, AngleDeg: -6}},
+		{"zero length", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 20, MaxSpacersMm: 40, ClampHeightMm: 40, LengthMm: 0, AngleDeg: -6}},
+		{"spacers over max", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 41, MaxSpacersMm: 40, ClampHeightMm: 40, LengthMm: 60, AngleDeg: -6}},
+		{"negative max spacers", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 0, MaxSpacersMm: -1, ClampHeightMm: 40, LengthMm: 60, AngleDeg: -6}},
+		{"NaN max spacers", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 0, MaxSpacersMm: math.NaN(), ClampHeightMm: 40, LengthMm: 60, AngleDeg: -6}},
+		{"NaN angle", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 20, MaxSpacersMm: 40, ClampHeightMm: 40, LengthMm: 60, AngleDeg: pose.Deg(math.NaN())}},
 	}
 
 	for _, tc := range cases {
@@ -143,5 +151,21 @@ func TestPlaceStemValidation(t *testing.T) {
 				t.Fatalf("expected error for %s, got nil", tc.name)
 			}
 		})
+	}
+}
+
+func TestPlaceStemSpacersOverMaxIsInputError(t *testing.T) {
+	steererUp := pose.NewPose(pose.Point{}, 111.75, nil)
+	_, err := assembly.PlaceStem(steererUp, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 41, MaxSpacersMm: 40, ClampHeightMm: 40, LengthMm: 60})
+	var inputErr *assembly.InputError
+	if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputStemSpacers {
+		t.Fatalf("err = %v, want InputStemSpacers", err)
+	}
+}
+
+func TestPlaceStemSpacersExactlyAtMaxPlaces(t *testing.T) {
+	steererUp := pose.NewPose(pose.Point{}, 111.75, nil)
+	if _, err := assembly.PlaceStem(steererUp, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 40, MaxSpacersMm: 40, ClampHeightMm: 40, LengthMm: 60}); err != nil {
+		t.Fatalf("PlaceStem at max spacers: %v", err)
 	}
 }

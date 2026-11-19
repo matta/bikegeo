@@ -713,6 +713,7 @@ type bikeView struct {
 	MaxRailOffsetMm      float64
 	ExampleBrpX          string
 	ExampleBrpY          string
+	MaxSpacersMm         float64
 }
 
 // bikeFittingView is the saddle fitting summary for a submitted build and BRP target.
@@ -860,6 +861,7 @@ func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolv
 		MaxRailOffsetMm:    maxRail,
 		ExampleBrpX:        formatFormFloat(fix.ExampleBrpTarget.X),
 		ExampleBrpY:        formatFormFloat(fix.ExampleBrpTarget.Y),
+		MaxSpacersMm:       fix.DefaultStem.MaxSpacersMm,
 		HasBuild:           false,
 		ErrorMessage:       msg,
 		InvalidField:       invalidField,
@@ -1399,6 +1401,7 @@ func buildBikeView(
 		MaxRailOffsetMm:      maxRail,
 		ExampleBrpX:          formatFormFloat(fix.ExampleBrpTarget.X),
 		ExampleBrpY:          formatFormFloat(fix.ExampleBrpTarget.Y),
+		MaxSpacersMm:         fix.DefaultStem.MaxSpacersMm,
 		HasBuild:             true,
 		Form:                 form,
 		CanonicalURL:         state.URL(),
