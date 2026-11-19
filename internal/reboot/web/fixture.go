@@ -6,6 +6,8 @@ import (
 	"bikegeo/internal/reboot/assembly"
 )
 
+const cadForkOptionID = "cad"
+
 type forkOption struct {
 	ID            string
 	Label         string
@@ -31,7 +33,6 @@ func makeForkOption(id, name string, spec assembly.ForkSpec, defaultSagPct float
 type bikeFixture struct {
 	Name              string
 	Chart             assembly.FrameChart
-	CadForkID         string
 	Wheels            assembly.WheelSetup
 	WheelLabel        string
 	DefaultLowerCupMm float64
@@ -43,6 +44,74 @@ type bikeFixture struct {
 	DefaultSeatpost   assembly.SeatpostSetup
 	SaddleName        string
 	DefaultSaddle     assembly.SaddleSetup
+}
+
+func (f bikeFixture) cadForkOption() forkOption {
+	return forkOption{
+		ID: cadForkOptionID,
+		Label: fmt.Sprintf(
+			"CAD Chart Reference (%.0f mm A2C / %.0f mm rake, %.0f mm cup — chart only)",
+			f.Chart.CadFork.A2cMm, f.Chart.CadFork.RakeMm, f.Chart.Frame.LowerCupMm,
+		),
+		Spec: assembly.ForkSpec{
+			StaticA2cMm: f.Chart.CadFork.A2cMm,
+			TravelMm:    0.0,
+			RakeMm:      f.Chart.CadFork.RakeMm,
+		},
+		DefaultSagPct: 0.0,
+	}
+}
+
+func (f bikeFixture) resolveForkOption(requestedID string) (forkOption, bool) {
+	if requestedID == "" {
+		requestedID = f.DefaultForkID
+	}
+	if requestedID == cadForkOptionID {
+		return f.cadForkOption(), true
+	}
+	for _, opt := range f.Forks {
+		if opt.ID == requestedID {
+			return opt, true
+		}
+	}
+	return forkOption{}, false
+}
+
+func (f bikeFixture) validate() error {
+	if f.DefaultForkID == "" {
+		return fmt.Errorf("fixture %q missing DefaultForkID", f.Name)
+	}
+	if f.DefaultForkID == cadForkOptionID {
+		return fmt.Errorf("fixture %q DefaultForkID cannot be reserved ID %q", f.Name, cadForkOptionID)
+	}
+	defaultFound := false
+	for _, opt := range f.Forks {
+		if opt.ID == "" {
+			return fmt.Errorf("fixture %q has fork option with empty ID", f.Name)
+		}
+		if opt.ID == cadForkOptionID {
+			return fmt.Errorf("fixture %q has fork option using reserved ID %q", f.Name, cadForkOptionID)
+		}
+		if err := (assembly.ForkSetup{Spec: opt.Spec, SagPct: opt.DefaultSagPct}).Validate(); err != nil {
+			return fmt.Errorf("fixture %q fork option %q invalid: %w", f.Name, opt.ID, err)
+		}
+		if opt.ID == f.DefaultForkID {
+			defaultFound = true
+		}
+	}
+	if !defaultFound {
+		return fmt.Errorf("fixture %q DefaultForkID %q not found in Forks", f.Name, f.DefaultForkID)
+	}
+	if err := (assembly.ForkSetup{Spec: f.cadForkOption().Spec, SagPct: 0.0}).Validate(); err != nil {
+		return fmt.Errorf("fixture %q Chart.CadFork invalid: %w", f.Name, err)
+	}
+	if !isFiniteFloat(f.Chart.Frame.LowerCupMm) || f.Chart.Frame.LowerCupMm < 0 {
+		return fmt.Errorf("fixture %q Chart.Frame.LowerCupMm must be finite and non-negative, got %v", f.Name, f.Chart.Frame.LowerCupMm)
+	}
+	if !isFiniteFloat(f.DefaultLowerCupMm) || f.DefaultLowerCupMm < 0 {
+		return fmt.Errorf("fixture %q DefaultLowerCupMm must be finite and non-negative, got %v", f.Name, f.DefaultLowerCupMm)
+	}
+	return nil
 }
 
 // otsoFenrirFixture returns the Milestone 1 Otso Fenrir Stainless (2024, Size L)
@@ -81,7 +150,6 @@ func otsoFenrirFixture() bikeFixture {
 		Wheels:            assembly.WheelSetup{RadiusMm: 372.0},
 		WheelLabel:        `29" × 2.4"`,
 		DefaultLowerCupMm: 12.0, // EC44 external lower headset cup
-		CadForkID:         "lithic_carbon_mountain",
 		DefaultForkID:     "lithic_carbon_mountain",
 		Forks: []forkOption{
 			makeForkOption("lithic_carbon_mountain", "Lithic Carbon Mountain", assembly.ForkSpec{
