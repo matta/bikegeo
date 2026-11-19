@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>bikegeo-reboot — Bike Workbench</title>
+  <script src="/static/workbench.js" defer></script>
   <style>
     :root {
       color-scheme: light;
@@ -202,6 +203,120 @@
       background: #fcfcfa;
       border: 1px solid var(--border);
       border-radius: 6px;
+      --active-step-width: 6;
+      --ancestor-step-width: 3.5;
+    }
+    .step-frames {
+      pointer-events: none;
+    }
+    .step-frames .step-frame {
+      display: none;
+    }
+    .step-frames .step-frame.is-active {
+      display: inline;
+    }
+    .step-frame .axis-label {
+      paint-order: stroke;
+      stroke: #fcfcfa;
+      stroke-width: 0.25em;
+      stroke-linejoin: round;
+    }
+    .landmarks [data-step-id],
+    .trace-steps [data-step-id] {
+      cursor: pointer;
+    }
+    svg.diagram.has-active-step .trace-steps > * {
+      opacity: 0.2;
+    }
+    svg.diagram.has-active-step .trace-steps > .is-ancestor {
+      opacity: 0.75;
+      stroke-dasharray: none;
+      stroke-width: var(--ancestor-step-width);
+    }
+    svg.diagram.has-active-step .trace-steps > .is-active {
+      opacity: 1;
+      stroke-dasharray: none;
+      stroke-width: var(--active-step-width);
+    }
+    svg.diagram .landmarks [data-landmark].is-active circle {
+      fill: #cf222e;
+      stroke: #ffffff;
+      stroke-width: 2.5;
+    }
+    svg.diagram .landmarks [data-landmark].is-active text {
+      fill: #cf222e;
+      font-weight: 700;
+    }
+    table.trace-table tbody tr {
+      cursor: pointer;
+    }
+    table.trace-table tbody tr:hover {
+      background: #f3f7fc;
+    }
+    table.trace-table tbody tr.is-ancestor {
+      background: #f3f7fc;
+    }
+    table.trace-table tbody tr.is-active {
+      background: #ddf4ff;
+    }
+    table.trace-table tbody tr.is-selected {
+      box-shadow: inset 4px 0 0 var(--accent);
+    }
+    table.trace-table tbody tr.is-selected.is-active {
+      background: #cfe8ff;
+    }
+    .step-select {
+      min-block-size: 24px;
+      min-inline-size: 28px;
+      padding: 0.15rem 0.35rem;
+      font: inherit;
+      color: inherit;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: left;
+    }
+    .step-select[aria-pressed="true"] {
+      font-weight: 700;
+      border-color: var(--accent);
+      background: #ffffff;
+    }
+    .step-select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .step-inspector {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.65rem;
+      padding: 0.45rem 0.65rem;
+      background: #f3f7fc;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.82rem;
+      color: var(--text);
+    }
+    .step-inspector[hidden] {
+      display: none;
+    }
+    .step-clear {
+      min-block-size: 24px;
+      padding: 0.2rem 0.55rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #ffffff;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    .step-clear:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
     table {
       width: 100%;
@@ -234,10 +349,11 @@
 <body>
   <header>
     <h1>bikegeo-reboot</h1>
-    <span class="badge">Milestone 1 Slice 4 (controls) · {{.BikeName}}</span>
+    <span class="badge">Milestone 1 Slice 4 (controls &amp; inspection) · {{.BikeName}}</span>
     <nav><a href="/">Stem Preview</a></nav>
   </header>
 
+  <main>
   <form class="controls" method="get" action="/bike" aria-label="Bike build controls">
     {{if .ErrorMessage}}
     <div id="form-error" class="form-error" role="alert">
@@ -333,7 +449,7 @@
   </form>
 
   {{if .HasBuild}}
-  <div class="layout">
+  <div class="layout" data-trace-workbench>
     <section class="card" aria-label="Bike diagram">
       <h2>Leveled Bike Assembly</h2>
       <div class="summary">
@@ -355,7 +471,23 @@
         <span>0° Closure Residuals: <strong class="mono" data-metric="residual-axle-y">{{printf "%+.2f mm" .ResidualAxleYMm}}</strong> axle Y, <strong class="mono" data-metric="residual-wheelbase">{{printf "%+.2f mm" .ResidualWheelbaseMm}}</strong> WB</span>
       </div>
 
+      <div class="step-inspector" data-step-inspector hidden>
+        <span class="mono" data-step-inspector-text>Hover, focus, or select a trace step to highlight its movement vector and local +X/+Y frame.</span>
+        <button type="button" class="step-clear" data-step-clear hidden>Clear</button>
+      </div>
+
       <svg class="diagram" viewBox="{{.ViewBox}}" role="img" aria-label="Leveled bike geometry">
+        <defs>
+{{template "step-frame-defs"}}
+        </defs>
+
+        <g data-element="world-axes" stroke="#9aa4b2" stroke-width="1.8" stroke-dasharray="6 4">
+          <line x1="0" y1="0" x2="110" y2="0" />
+          <line x1="0" y1="0" x2="0" y2="-110" />
+          <text x="114" y="4" font-size="14" stroke="none" fill="#59636e" font-family="ui-monospace, monospace">+X</text>
+          <text x="6" y="-106" font-size="14" stroke="none" fill="#59636e" font-family="ui-monospace, monospace">+Y</text>
+        </g>
+
         <line x1="{{printf "%.2f" .GroundX1}}" y1="{{printf "%.2f" .GroundY1}}" x2="{{printf "%.2f" .GroundX2}}" y2="{{printf "%.2f" .GroundY2}}"
               stroke="#8c959f" stroke-width="2" stroke-dasharray="10 6" data-element="ground-line" />
 
@@ -393,6 +525,8 @@
           </g>
           {{end}}
         </g>
+
+{{template "step-frames" .TraceSteps}}
       </svg>
       <p style="margin: 0.6rem 0 0 0; font-size: 0.8rem; color: var(--muted);">
         Note: Dashed <code>seat-tube</code> (straight along effective STA), <code>seatstay</code> (to <code>SeatTubeTop</code>), <code>saddle-profile</code> (<code>SitBones</code> to <code>BRP</code>), and <code>handlebar-rise-sweep</code> (2D side projection from <code>BarClamp</code> to <code>HandGrip</code>) lines are illustrative schematic shapes, not measured frame tubes. Wheel circles use the declared {{.WheelLabel}} ({{printf "%.1f" .WheelRadiusMm}} mm) baseline radius.
@@ -401,21 +535,21 @@
 
     <section class="card" aria-label="Construction trace">
       <h2>Construction Trace ({{len .Steps}} steps)</h2>
-      <table>
+      <table class="trace-table">
         <thead>
           <tr>
-            <th>#</th>
-            <th>Parent</th>
-            <th>Op</th>
-            <th>Label</th>
-            <th>Param</th>
-            <th>To (mm, °)</th>
+            <th scope="col">#</th>
+            <th scope="col">Parent</th>
+            <th scope="col">Op</th>
+            <th scope="col">Label</th>
+            <th scope="col">Param</th>
+            <th scope="col">To (mm, °)</th>
           </tr>
         </thead>
         <tbody>
           {{range .Steps}}
-          <tr data-step-id="{{.ID}}" data-parent-id="{{.ParentID}}">
-            <td class="mono">{{.ID}}</td>
+          <tr data-step-id="{{.ID}}" data-parent-id="{{.ParentID}}" data-step-summary="#{{.ID}} ({{if .ParentID}}parent #{{.ParentID}}{{else}}root{{end}}) {{.Op}} {{.Label}} ({{.Param}}) → ({{printf "%.1f" .To.Origin.X}}, {{printf "%.1f" .To.Origin.Y}}) @ {{printf "%.2f" .To.HeadingDeg}}°">
+            <td class="mono"><button type="button" class="step-select" data-step-select="{{.ID}}" aria-pressed="false" aria-label="Inspect step {{.ID}}: {{.Op}} {{.Label}}">{{.ID}}</button></td>
             <td class="mono">{{.ParentID}}</td>
             <td class="mono op-{{.Op}}">{{.Op}}</td>
             <td>{{.Label}}</td>
@@ -428,5 +562,6 @@
     </section>
   </div>
   {{end}}
+  </main>
 </body>
 </html>

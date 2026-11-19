@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1496,5 +1497,305 @@ func TestBikeWorkbenchRecoversFromInvalidRigidForkSag(t *testing.T) {
 		if !hasReadOnly(cadErr, field) {
 			t.Errorf("cad baseline field %q on error page should stay readonly", field)
 		}
+	}
+}
+
+func TestWorkbenchStaticAssetServed(t *testing.T) {
+	if len(workbenchJS) == 0 {
+		t.Fatalf("embedded workbenchJS must not be empty")
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/static/workbench.js", nil)
+	rec := httptest.NewRecorder()
+	NewHandler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /static/workbench.js status = %d, want 200", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "text/javascript") {
+		t.Errorf("GET Content-Type = %q, want text/javascript", ct)
+	}
+	if nosniff := rec.Header().Get("X-Content-Type-Options"); nosniff != "nosniff" {
+		t.Errorf("GET X-Content-Type-Options = %q, want nosniff", nosniff)
+	}
+	if rec.Body.String() != string(workbenchJS) {
+		t.Errorf("GET /static/workbench.js body did not match embedded asset")
+	}
+
+	headReq := httptest.NewRequest(http.MethodHead, "http://127.0.0.1:8081/static/workbench.js", nil)
+	headRec := httptest.NewRecorder()
+	NewHandler().ServeHTTP(headRec, headReq)
+	if headRec.Code != http.StatusOK {
+		t.Fatalf("HEAD /static/workbench.js status = %d, want 200", headRec.Code)
+	}
+	if ct := headRec.Header().Get("Content-Type"); !strings.Contains(ct, "text/javascript") {
+		t.Errorf("HEAD Content-Type = %q, want text/javascript", ct)
+	}
+	if headRec.Body.Len() != 0 {
+		t.Errorf("HEAD /static/workbench.js body length = %d, want 0", headRec.Body.Len())
+	}
+
+	postReq := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8081/static/workbench.js", nil)
+	postRec := httptest.NewRecorder()
+	NewHandler().ServeHTTP(postRec, postReq)
+	if postRec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("POST /static/workbench.js status = %d, want 405", postRec.Code)
+	}
+	if allow := postRec.Header().Get("Allow"); allow != "GET, HEAD" {
+		t.Errorf("POST Allow = %q, want %q", allow, "GET, HEAD")
+	}
+
+	missingReq := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/static/missing.js", nil)
+	missingRec := httptest.NewRecorder()
+	NewHandler().ServeHTTP(missingRec, missingReq)
+	if missingRec.Code != http.StatusNotFound {
+		t.Fatalf("GET /static/missing.js status = %d, want 404", missingRec.Code)
+	}
+
+	for _, path := range []string{"/", "/bike"} {
+		doc := loadBikeDoc(t, path)
+		script := doc.Find(`script[src="/static/workbench.js"]`)
+		if script.Length() != 1 {
+			t.Errorf("%s: expected 1 script[src=/static/workbench.js], got %d", path, script.Length())
+			continue
+		}
+		if _, hasDefer := script.Attr("defer"); !hasDefer {
+			t.Errorf("%s: workbench.js script should have defer attribute", path)
+		}
+	}
+}
+
+func TestTraceInspectionMarkupAndLocalPoseFrames(t *testing.T) {
+	fix := otsoFenrirFixture()
+
+	defaultFork, ok := fix.resolveForkOption("")
+	if !ok {
+		t.Fatalf("missing default fork option")
+	}
+	stemFrameset, err := assembly.PlaceFrameset(
+		fix.Chart.Frame,
+		defaultFork.DefaultLowerCup,
+		assembly.ForkSetup{Spec: defaultFork.Spec, SagPct: defaultFork.DefaultSagPct},
+		fix.Wheels,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("PlaceFrameset: %v", err)
+	}
+	stemTrace := pose.NewTrace()
+	if _, err := assembly.PlaceStem(pose.NewPose(stemFrameset.HeadTubeTop.Origin(), stemFrameset.HeadTubeTop.HeadingDeg(), stemTrace), fix.DefaultStem); err != nil {
+		t.Fatalf("PlaceStem: %v", err)
+	}
+	stemTrace.Freeze()
+
+	defaultBikeTrace := pose.NewTrace()
+	if _, err := assembly.PlaceBike(assembly.BikeSetup{
+		Frame:     fix.Chart.Frame,
+		LowerCup:  defaultFork.DefaultLowerCup,
+		Fork:      assembly.ForkSetup{Spec: defaultFork.Spec, SagPct: defaultFork.DefaultSagPct},
+		Wheels:    fix.Wheels,
+		Seatpost:  fix.DefaultSeatpost,
+		Saddle:    fix.DefaultSaddle,
+		Stem:      fix.DefaultStem,
+		Handlebar: fix.DefaultHandlebar,
+	}, defaultBikeTrace); err != nil {
+		t.Fatalf("PlaceBike default: %v", err)
+	}
+
+	fox34, ok := fix.resolveForkOption("fox34_120")
+	if !ok {
+		t.Fatalf("missing fox34_120 option")
+	}
+	customBar := fix.DefaultHandlebar
+	customBar.BarRollDeg = 5.0
+	customSaddle := fix.DefaultSaddle
+	customSaddle.RailPitchDeg = -2.0
+	customBikeTrace := pose.NewTrace()
+	if _, err := assembly.PlaceBike(assembly.BikeSetup{
+		Frame:     fix.Chart.Frame,
+		LowerCup:  assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0},
+		Fork:      assembly.ForkSetup{Spec: fox34.Spec, SagPct: 20.0},
+		Wheels:    fix.Wheels,
+		Seatpost:  fix.DefaultSeatpost,
+		Saddle:    customSaddle,
+		Stem:      fix.DefaultStem,
+		Handlebar: customBar,
+	}, customBikeTrace); err != nil {
+		t.Fatalf("PlaceBike custom: %v", err)
+	}
+
+	parseFloatAttr := func(t *testing.T, sel *goquery.Selection, attr string) float64 {
+		t.Helper()
+		raw, ok := sel.Attr(attr)
+		if !ok {
+			t.Fatalf("missing attribute %q", attr)
+		}
+		v, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			t.Fatalf("parse attribute %s=%q: %v", attr, raw, err)
+		}
+		return v
+	}
+
+	cases := []struct {
+		name           string
+		path           string
+		steps          []pose.Step
+		axisLenMm      float64
+		expectWorldAxe bool
+	}{
+		{
+			name:           "stem",
+			path:           "/",
+			steps:          stemTrace.Steps(),
+			axisLenMm:      stemAxisLengthMm,
+			expectWorldAxe: false,
+		},
+		{
+			name:           "bike-default",
+			path:           "/bike",
+			steps:          defaultBikeTrace.Steps(),
+			axisLenMm:      bikeAxisLengthMm,
+			expectWorldAxe: true,
+		},
+		{
+			name:           "bike-pitched-custom",
+			path:           "/bike?fork=fox34_120&cup=12&sag=20&bar_roll=5&rail_pitch=-2",
+			steps:          customBikeTrace.Steps(),
+			axisLenMm:      bikeAxisLengthMm,
+			expectWorldAxe: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := loadBikeDoc(t, tc.path)
+			if doc.Find("main").Length() != 1 {
+				t.Errorf("expected 1 <main> landmark, got %d", doc.Find("main").Length())
+			}
+			if doc.Find("[data-trace-workbench]").Length() != 1 {
+				t.Errorf("expected 1 [data-trace-workbench], got %d", doc.Find("[data-trace-workbench]").Length())
+			}
+			if doc.Find("[data-step-inspector]").Length() != 1 {
+				t.Errorf("expected 1 [data-step-inspector], got %d", doc.Find("[data-step-inspector]").Length())
+			}
+			if doc.Find("[data-step-clear]").Length() != 1 {
+				t.Errorf("expected 1 [data-step-clear], got %d", doc.Find("[data-step-clear]").Length())
+			}
+			if tc.expectWorldAxe && doc.Find(`svg.diagram [data-element="world-axes"]`).Length() != 1 {
+				t.Errorf("expected 1 svg.diagram [data-element=world-axes]")
+			}
+			if doc.Find("svg.diagram .step-frames [data-step-id]").Length() != 0 {
+				t.Errorf("step-frames must not carry data-step-id")
+			}
+
+			ths := doc.Find("table.trace-table thead th")
+			if ths.Length() == 0 {
+				t.Fatalf("expected trace table header cells")
+			}
+			ths.Each(func(i int, th *goquery.Selection) {
+				if scope, _ := th.Attr("scope"); scope != "col" {
+					t.Errorf("thead th[%d] scope = %q, want col", i, scope)
+				}
+			})
+
+			rows := doc.Find("table.trace-table tbody tr[data-step-id]")
+			frames := doc.Find("svg.diagram .step-frames g[data-step-frame]")
+			if rows.Length() != len(tc.steps) {
+				t.Fatalf("trace rows = %d, want %d", rows.Length(), len(tc.steps))
+			}
+			if frames.Length() != len(tc.steps) {
+				t.Fatalf("step-frames = %d, want %d", frames.Length(), len(tc.steps))
+			}
+
+			for i, step := range tc.steps {
+				row := rows.Eq(i)
+				idStr := strconv.Itoa(step.ID)
+				if gotID, _ := row.Attr("data-step-id"); gotID != idStr {
+					t.Errorf("row %d data-step-id = %q, want %q", i, gotID, idStr)
+				}
+				if gotParent, _ := row.Attr("data-parent-id"); gotParent != strconv.Itoa(step.ParentID) {
+					t.Errorf("step %d data-parent-id = %q, want %d", step.ID, gotParent, step.ParentID)
+				}
+				if summary, ok := row.Attr("data-step-summary"); !ok || strings.TrimSpace(summary) == "" {
+					t.Errorf("step %d missing non-empty data-step-summary", step.ID)
+				}
+
+				btn := row.Find(fmt.Sprintf(`button[type="button"][data-step-select="%s"]`, idStr))
+				if btn.Length() != 1 {
+					t.Errorf("step %d: expected 1 step-select button, got %d", step.ID, btn.Length())
+				} else {
+					if pressed, _ := btn.Attr("aria-pressed"); pressed != "false" {
+						t.Errorf("step %d button aria-pressed = %q, want false", step.ID, pressed)
+					}
+					ariaLabel, _ := btn.Attr("aria-label")
+					visText := strings.TrimSpace(btn.Text())
+					if visText == "" || !strings.Contains(ariaLabel, visText) {
+						t.Errorf("step %d button aria-label %q must contain visible text %q", step.ID, ariaLabel, visText)
+					}
+				}
+
+				frame := doc.Find(fmt.Sprintf(`svg.diagram .step-frames g[data-step-frame="%s"]`, idStr))
+				if frame.Length() != 1 {
+					t.Errorf("step %d: expected 1 step-frame group, got %d", step.ID, frame.Length())
+					continue
+				}
+				lineX := frame.Find(`line[data-axis="x"]`)
+				lineY := frame.Find(`line[data-axis="y"]`)
+				if lineX.Length() != 1 || lineY.Length() != 1 {
+					t.Errorf("step %d: expected 1 x and 1 y axis line, got %d and %d", step.ID, lineX.Length(), lineY.Length())
+					continue
+				}
+
+				x1x := parseFloatAttr(t, lineX, "x1")
+				y1x := parseFloatAttr(t, lineX, "y1")
+				x2x := parseFloatAttr(t, lineX, "x2")
+				y2x := parseFloatAttr(t, lineX, "y2")
+
+				x1y := parseFloatAttr(t, lineY, "x1")
+				y1y := parseFloatAttr(t, lineY, "y1")
+				x2y := parseFloatAttr(t, lineY, "x2")
+				y2y := parseFloatAttr(t, lineY, "y2")
+
+				wantOX, wantOY := step.To.Origin.X, -step.To.Origin.Y
+				if math.Abs(x1x-wantOX) > 0.02 || math.Abs(y1x-wantOY) > 0.02 {
+					t.Errorf("step %d +X origin = (%.2f, %.2f), want (%.2f, %.2f)", step.ID, x1x, y1x, wantOX, wantOY)
+				}
+				if math.Abs(x1y-wantOX) > 0.02 || math.Abs(y1y-wantOY) > 0.02 {
+					t.Errorf("step %d +Y origin = (%.2f, %.2f), want (%.2f, %.2f)", step.ID, x1y, y1y, wantOX, wantOY)
+				}
+
+				dxX, dyX := x2x-x1x, y2x-y1x
+				dxY, dyY := x2y-x1y, y2y-y1y
+				lenX := math.Hypot(dxX, dyX)
+				lenY := math.Hypot(dxY, dyY)
+				if math.Abs(lenX-tc.axisLenMm) > 0.02 {
+					t.Errorf("step %d +X axis length = %.4f, want %.1f", step.ID, lenX, tc.axisLenMm)
+				}
+				if math.Abs(lenY-tc.axisLenMm) > 0.02 {
+					t.Errorf("step %d +Y axis length = %.4f, want %.1f", step.ID, lenY, tc.axisLenMm)
+				}
+
+				rad := float64(step.To.HeadingDeg) * math.Pi / 180.0
+				uxSVG, uySVG := dxX/lenX, dyX/lenX
+				if math.Abs(uxSVG-math.Cos(rad)) > 0.01 || math.Abs(uySVG-(-math.Sin(rad))) > 0.01 {
+					t.Errorf("step %d +X unit SVG dir = (%.4f, %.4f), want (%.4f, %.4f)",
+						step.ID, uxSVG, uySVG, math.Cos(rad), -math.Sin(rad))
+				}
+
+				// Convert SVG deltas back to world (+X right, +Y up) to verify +Y is 90° CCW from +X.
+				uxW, uyW := uxSVG, -uySVG
+				vxW, vyW := dxY/lenY, -dyY/lenY
+				dot := uxW*vxW + uyW*vyW
+				cross := uxW*vyW - uyW*vxW
+				if math.Abs(dot) > 0.01 || math.Abs(cross-1.0) > 0.01 {
+					t.Errorf("step %d world axes (+X,+Y) dot=%.4f cross=%.4f, want dot=0 cross=1", step.ID, dot, cross)
+				}
+			}
+		})
+	}
+
+	errDoc := loadBikeDocStatus(t, "/bike?spacers=-1", http.StatusBadRequest)
+	if errDoc.Find("[data-trace-workbench]").Length() != 0 {
+		t.Errorf("HTTP 400 error page should not render [data-trace-workbench]")
 	}
 }

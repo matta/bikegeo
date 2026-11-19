@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>bikegeo-reboot — Stem Workbench</title>
+  <script src="/static/workbench.js" defer></script>
   <style>
     :root {
       color-scheme: light;
@@ -87,6 +88,120 @@
       background: #fcfcfa;
       border: 1px solid var(--border);
       border-radius: 6px;
+      --active-step-width: 3.6;
+      --ancestor-step-width: 2.4;
+    }
+    .step-frames {
+      pointer-events: none;
+    }
+    .step-frames .step-frame {
+      display: none;
+    }
+    .step-frames .step-frame.is-active {
+      display: inline;
+    }
+    .step-frame .axis-label {
+      paint-order: stroke;
+      stroke: #fcfcfa;
+      stroke-width: 0.25em;
+      stroke-linejoin: round;
+    }
+    .landmarks [data-step-id],
+    .trace-steps [data-step-id] {
+      cursor: pointer;
+    }
+    svg.diagram.has-active-step .trace-steps > * {
+      opacity: 0.2;
+    }
+    svg.diagram.has-active-step .trace-steps > .is-ancestor {
+      opacity: 0.75;
+      stroke-dasharray: none;
+      stroke-width: var(--ancestor-step-width);
+    }
+    svg.diagram.has-active-step .trace-steps > .is-active {
+      opacity: 1;
+      stroke-dasharray: none;
+      stroke-width: var(--active-step-width);
+    }
+    svg.diagram .landmarks [data-landmark].is-active circle {
+      fill: #cf222e;
+      stroke: #ffffff;
+      stroke-width: 1.5;
+    }
+    svg.diagram .landmarks [data-landmark].is-active text {
+      fill: #cf222e;
+      font-weight: 700;
+    }
+    table.trace-table tbody tr {
+      cursor: pointer;
+    }
+    table.trace-table tbody tr:hover {
+      background: #f3f7fc;
+    }
+    table.trace-table tbody tr.is-ancestor {
+      background: #f3f7fc;
+    }
+    table.trace-table tbody tr.is-active {
+      background: #ddf4ff;
+    }
+    table.trace-table tbody tr.is-selected {
+      box-shadow: inset 4px 0 0 var(--accent);
+    }
+    table.trace-table tbody tr.is-selected.is-active {
+      background: #cfe8ff;
+    }
+    .step-select {
+      min-block-size: 24px;
+      min-inline-size: 28px;
+      padding: 0.15rem 0.35rem;
+      font: inherit;
+      color: inherit;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: left;
+    }
+    .step-select[aria-pressed="true"] {
+      font-weight: 700;
+      border-color: var(--accent);
+      background: #ffffff;
+    }
+    .step-select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .step-inspector {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.65rem;
+      padding: 0.45rem 0.65rem;
+      background: #f3f7fc;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.82rem;
+      color: var(--text);
+    }
+    .step-inspector[hidden] {
+      display: none;
+    }
+    .step-clear {
+      min-block-size: 24px;
+      padding: 0.2rem 0.55rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #ffffff;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    .step-clear:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
     table {
       width: 100%;
@@ -121,7 +236,8 @@
     <nav><a href="/bike">Otso Fenrir Bike</a></nav>
   </header>
 
-  <div class="layout">
+  <main>
+  <div class="layout" data-trace-workbench>
     <section class="card" aria-label="Stem diagram">
       <h2>Stem Assembly Preview</h2>
       <div class="summary">
@@ -133,6 +249,11 @@
         <span>BarClamp: <strong class="mono" data-metric="bar-clamp">{{printf "(%.2f, %.2f) mm @ %.2f°" .BarClamp.Origin.X .BarClamp.Origin.Y .BarClamp.HeadingDeg}}</strong></span>
       </div>
 
+      <div class="step-inspector" data-step-inspector hidden>
+        <span class="mono" data-step-inspector-text>Hover, focus, or select a trace step to highlight its movement vector and local +X/+Y frame.</span>
+        <button type="button" class="step-clear" data-step-clear hidden>Clear</button>
+      </div>
+
       <svg class="diagram" viewBox="{{.ViewBox}}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Stem construction diagram">
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -141,6 +262,7 @@
           <marker id="turn-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
             <path d="M 0 1 L 10 5 L 0 9 z" fill="#6f42c1"/>
           </marker>
+{{template "step-frame-defs"}}
         </defs>
 
         <!-- World axes centered at HeadTubeTop -->
@@ -167,31 +289,35 @@
         <!-- Named landmarks -->
         <g class="landmarks">
           {{range .Landmarks}}
-          <circle cx="{{printf "%.2f" .X}}" cy="{{printf "%.2f" .Y}}" r="2.8" fill="#0969da" stroke="#ffffff" stroke-width="1" data-landmark="{{.Name}}"{{if .StepID}} data-step-id="{{.StepID}}"{{end}}/>
-          <text x="{{printf "%.2f" .LabelX}}" y="{{printf "%.2f" .LabelY}}" font-size="7.5" fill="#1f2328" text-anchor="{{.Anchor}}">{{.Name}}</text>
+          <g data-landmark="{{.Name}}"{{if .StepID}} data-step-id="{{.StepID}}"{{end}}>
+            <circle cx="{{printf "%.2f" .X}}" cy="{{printf "%.2f" .Y}}" r="2.8" fill="#0969da" stroke="#ffffff" stroke-width="1"/>
+            <text x="{{printf "%.2f" .LabelX}}" y="{{printf "%.2f" .LabelY}}" font-size="7.5" fill="#1f2328" text-anchor="{{.Anchor}}">{{.Name}}</text>
+          </g>
           {{end}}
         </g>
+
+{{template "step-frames" .TraceSteps}}
       </svg>
     </section>
 
     <section class="card" aria-label="Construction trace">
       <h2>Construction Trace ({{len .Steps}} steps)</h2>
-      <table>
+      <table class="trace-table">
         <thead>
           <tr>
-            <th>Step</th>
-            <th>Parent</th>
-            <th>Op</th>
-            <th>Label</th>
-            <th>Param</th>
-            <th>From</th>
-            <th>To</th>
+            <th scope="col">Step</th>
+            <th scope="col">Parent</th>
+            <th scope="col">Op</th>
+            <th scope="col">Label</th>
+            <th scope="col">Param</th>
+            <th scope="col">From</th>
+            <th scope="col">To</th>
           </tr>
         </thead>
         <tbody>
           {{range .Steps}}
-          <tr data-step-id="{{.ID}}">
-            <td class="mono">#{{.ID}}</td>
+          <tr data-step-id="{{.ID}}" data-parent-id="{{.ParentID}}" data-step-summary="#{{.ID}} ({{if .ParentID}}parent #{{.ParentID}}{{else}}root{{end}}) {{.Op}} {{.Label}} ({{.Param}}) → ({{printf "%.2f" .To.Origin.X}}, {{printf "%.2f" .To.Origin.Y}}) @ {{printf "%.2f" .To.HeadingDeg}}°">
+            <td class="mono"><button type="button" class="step-select" data-step-select="{{.ID}}" aria-pressed="false" aria-label="Inspect step #{{.ID}}: {{.Op}} {{.Label}}">#{{.ID}}</button></td>
             <td class="mono">{{if .ParentID}}#{{.ParentID}}{{else}}root{{end}}</td>
             <td class="mono op-{{.Op}}">{{.Op}}</td>
             <td>{{.Label}}</td>
@@ -204,5 +330,6 @@
       </table>
     </section>
   </div>
+  </main>
 </body>
 </html>

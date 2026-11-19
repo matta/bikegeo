@@ -20,6 +20,9 @@ import (
 //go:embed templates/*.html
 var templateFS embed.FS
 
+//go:embed static/workbench.js
+var workbenchJS []byte
+
 var (
 	stemTemplate = template.Must(template.ParseFS(templateFS, "templates/stem.html", "templates/trace_steps.html"))
 	bikeTemplate = template.Must(template.ParseFS(templateFS, "templates/bike.html", "templates/trace_steps.html"))
@@ -37,6 +40,9 @@ type svgTraceSteps struct {
 	Opacity       float64
 	UseMarkers    bool
 	ZeroArcRadius float64
+	AxisWidth     float64
+	AxisFontSize  float64
+	OriginRadius  float64
 }
 
 type svgRect struct {
@@ -54,13 +60,17 @@ type svgPoint struct {
 }
 
 type svgStep struct {
-	ID   int
-	Op   string
-	X1   float64
-	Y1   float64
-	X2   float64
-	Y2   float64
-	Path string
+	ID         int
+	Op         string
+	X1         float64
+	Y1         float64
+	X2         float64
+	Y2         float64
+	Path       string
+	AxisXEnd   svgPoint
+	AxisYEnd   svgPoint
+	AxisXLabel svgPoint
+	AxisYLabel svgPoint
 }
 
 type svgLandmark struct {
@@ -84,6 +94,11 @@ const (
 	seatpostClampOutlineHeight = 10.0 // illustrative rail-clamp head thickness
 	saddleRailOutlineHeight    = 5.0  // illustrative saddle rail thickness
 	turnArcRadiusMm            = 12.0 // illustrative radius for turn-step SVG arcs
+	stemAxisLengthMm           = 20.0 // illustrative local +X/+Y frame arrow length on /
+	stemAxisLabelOffsetMm      = 6.0  // illustrative label offset past local axis tip on /
+	bikeTurnArcRadiusMm        = 40.0 // illustrative radius for turn-step SVG arcs on /bike
+	bikeAxisLengthMm           = 60.0 // illustrative local +X/+Y frame arrow length on /bike
+	bikeAxisLabelOffsetMm      = 18.0 // illustrative label offset past local axis tip on /bike
 )
 
 type stemView struct {
@@ -105,7 +120,22 @@ func NewHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleStemWorkbench)
 	mux.HandleFunc("/bike", handleBikeWorkbench)
+	mux.HandleFunc("/static/workbench.js", handleWorkbenchJS)
 	return mux
+}
+
+func handleWorkbenchJS(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if r.Method == http.MethodHead {
+		return
+	}
+	_, _ = w.Write(workbenchJS)
 }
 
 func handleStemWorkbench(w http.ResponseWriter, r *http.Request) {
@@ -169,7 +199,7 @@ func stemOutlineRects(placed assembly.StemPlacement, setup assembly.StemSetup) [
 func buildStemView(htaDeg pose.Deg, setup assembly.StemSetup, placed assembly.StemPlacement, steps []pose.Step) stemView {
 	rects := stemOutlineRects(placed, setup)
 
-	svgSteps := buildSVGSteps(steps, turnArcRadiusMm)
+	svgSteps := buildSVGSteps(steps, turnArcRadiusMm, stemAxisLengthMm, stemAxisLabelOffsetMm)
 
 	landmarks := []svgLandmark{
 		makeLandmark("HeadTubeTop", placed.HeadTubeTop, -8, 10, "end"),
@@ -202,24 +232,32 @@ func buildStemView(htaDeg pose.Deg, setup assembly.StemSetup, placed assembly.St
 			ArcWidth:      1.5,
 			UseMarkers:    true,
 			ZeroArcRadius: 4.5,
+			AxisWidth:     1.5,
+			AxisFontSize:  6.5,
+			OriginRadius:  3.5,
 		},
 		Landmarks: landmarks,
 		Steps:     steps,
 	}
 }
 
-func buildSVGSteps(steps []pose.Step, turnRadiusMm float64) []svgStep {
+func buildSVGSteps(steps []pose.Step, turnRadiusMm, axisLengthMm, axisLabelOffsetMm float64) []svgStep {
 	svgSteps := make([]svgStep, 0, len(steps))
 	for _, s := range steps {
 		from := toSVG(s.From.Origin)
 		to := toSVG(s.To.Origin)
+		toPose := s.To.Pose()
 		step := svgStep{
-			ID: s.ID,
-			Op: s.Op,
-			X1: from.X,
-			Y1: from.Y,
-			X2: to.X,
-			Y2: to.Y,
+			ID:         s.ID,
+			Op:         s.Op,
+			X1:         from.X,
+			Y1:         from.Y,
+			X2:         to.X,
+			Y2:         to.Y,
+			AxisXEnd:   toSVG(toPose.Advance("", axisLengthMm).Origin()),
+			AxisYEnd:   toSVG(toPose.Translate("", 0, axisLengthMm).Origin()),
+			AxisXLabel: toSVG(toPose.Advance("", axisLengthMm+axisLabelOffsetMm).Origin()),
+			AxisYLabel: toSVG(toPose.Translate("", 0, axisLengthMm+axisLabelOffsetMm).Origin()),
 		}
 		if s.Op == "turn" || s.Op == "face" {
 			step.Path = turnArcPath(s, turnRadiusMm)
@@ -959,16 +997,19 @@ func buildBikeView(
 		GroundY2:             frontContactSVG.Y,
 		GroundX1:             rearContactSVG.X - r - 40,
 		GroundX2:             frontContactSVG.X + r + 40,
-		ViewBox:              computeViewBoxFromPoints(pts, 60.0, 60.0, 50.0, 45.0),
+		ViewBox:              computeViewBoxFromPoints(pts, 95.0, 95.0, 95.0, 100.0),
 		Rects:                rects,
 		Segments:             segments,
 		TraceSteps: svgTraceSteps{
-			Steps:         buildSVGSteps(steps, 40.0),
+			Steps:         buildSVGSteps(steps, bikeTurnArcRadiusMm, bikeAxisLengthMm, bikeAxisLabelOffsetMm),
 			LineWidth:     2.0,
 			ArcWidth:      2.5,
 			DashArray:     "6 4",
 			Opacity:       0.7,
 			ZeroArcRadius: 12.0,
+			AxisWidth:     3.5,
+			AxisFontSize:  18.0,
+			OriginRadius:  8.0,
 		},
 		Landmarks: landmarks,
 		Steps:     steps,
