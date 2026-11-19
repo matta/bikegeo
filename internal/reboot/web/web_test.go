@@ -1716,6 +1716,12 @@ func TestTraceInspectionMarkupAndLocalPoseFrames(t *testing.T) {
 				if gotParent, _ := row.Attr("data-parent-id"); gotParent != strconv.Itoa(step.ParentID) {
 					t.Errorf("step %d data-parent-id = %q, want %d", step.ID, gotParent, step.ParentID)
 				}
+				if gotOp, _ := row.Attr("data-step-op"); gotOp != step.Op {
+					t.Errorf("step %d data-step-op = %q, want %q", step.ID, gotOp, step.Op)
+				}
+				if gotLabel, _ := row.Attr("data-step-label"); gotLabel != step.Label {
+					t.Errorf("step %d data-step-label = %q, want %q", step.ID, gotLabel, step.Label)
+				}
 				if summary, ok := row.Attr("data-step-summary"); !ok || strings.TrimSpace(summary) == "" {
 					t.Errorf("step %d missing non-empty data-step-summary", step.ID)
 				}
@@ -1797,5 +1803,109 @@ func TestTraceInspectionMarkupAndLocalPoseFrames(t *testing.T) {
 	errDoc := loadBikeDocStatus(t, "/bike?spacers=-1", http.StatusBadRequest)
 	if errDoc.Find("[data-trace-workbench]").Length() != 0 {
 		t.Errorf("HTTP 400 error page should not render [data-trace-workbench]")
+	}
+}
+
+func TestBikeWorkbenchFetchedUpdateHooks(t *testing.T) {
+	fix := otsoFenrirFixture()
+
+	stemDoc := loadBikeDoc(t, "/")
+	stemMain := stemDoc.Find("main")
+	if stemMain.Length() != 1 {
+		t.Fatalf("/ expected 1 <main>, got %d", stemMain.Length())
+	}
+	if _, hasBike := stemMain.Attr("data-bike-workbench"); hasBike {
+		t.Errorf("/ <main> must not carry data-bike-workbench")
+	}
+	if _, hasCanonical := stemMain.Attr("data-canonical-url"); hasCanonical {
+		t.Errorf("/ <main> must not carry data-canonical-url")
+	}
+
+	okCases := []struct {
+		name string
+		path string
+		want workbenchState
+	}{
+		{
+			name: "default",
+			path: "/bike",
+			want: defaultWorkbenchState(fix),
+		},
+		{
+			name: "fork-switch-omits-prev-fork",
+			path: "/bike?prev_fork=lithic_carbon_mountain&fork=fox34_120&fork_a2c=495&sag=0",
+			want: func() workbenchState {
+				s := defaultWorkbenchState(fix)
+				fox, _ := fix.resolveForkOption("fox34_120")
+				s.ForkID = fox.ID
+				s.ForkA2cMm = fox.Spec.StaticA2cMm
+				s.LowerCupMm = fox.DefaultLowerCup.StackMm
+				s.SagPct = fox.DefaultSagPct
+				return s
+			}(),
+		},
+		{
+			name: "cad-baseline-fork-overrides-locked",
+			path: "/bike?fork=cad&cup=12&fork_a2c=530&sag=20",
+			want: defaultWorkbenchState(fix).withCadBaselineFork(fix),
+		},
+	}
+
+	for _, tc := range okCases {
+		t.Run("ok/"+tc.name, func(t *testing.T) {
+			doc := loadBikeDoc(t, tc.path)
+			mainEl := doc.Find("main[data-bike-workbench]")
+			if mainEl.Length() != 1 {
+				t.Fatalf("expected 1 main[data-bike-workbench], got %d", mainEl.Length())
+			}
+			canonicalRaw, hasCanonical := mainEl.Attr("data-canonical-url")
+			if !hasCanonical || canonicalRaw == "" {
+				t.Fatalf("expected non-empty data-canonical-url attribute")
+			}
+			u, err := url.Parse(canonicalRaw)
+			if err != nil {
+				t.Fatalf("parse data-canonical-url %q: %v", canonicalRaw, err)
+			}
+			if u.Path != "/bike" {
+				t.Errorf("canonical URL path = %q, want /bike", u.Path)
+			}
+			if u.Query().Has("prev_fork") {
+				t.Errorf("canonical URL %q must omit transient prev_fork", canonicalRaw)
+			}
+			decoded, inputErr := decodeWorkbenchState(fix, u.Query())
+			if inputErr != nil {
+				t.Fatalf("decode canonical URL %q: %v", canonicalRaw, inputErr)
+			}
+			if decoded.State != tc.want {
+				t.Errorf("decoded canonical URL state = %+v, want %+v", decoded.State, tc.want)
+			}
+
+			form := mainEl.Find("form.controls")
+			if form.Find(`button#ctrl-submit[type="submit"]`).Length() != 1 {
+				t.Errorf("expected 1 button#ctrl-submit[type=submit] inside form.controls")
+			}
+			if href, ok := form.Find(`a#preset-defaults[data-preset="defaults"]`).Attr("href"); !ok || href != "/bike" {
+				t.Errorf("a#preset-defaults href = %q (ok=%v), want /bike", href, ok)
+			}
+			if href, ok := form.Find(`a#preset-cad-baseline-fork[data-preset="cad-baseline-fork"]`).Attr("href"); !ok || !strings.HasPrefix(href, "/bike?") {
+				t.Errorf("a#preset-cad-baseline-fork href = %q (ok=%v), want /bike?...", href, ok)
+			}
+		})
+	}
+
+	for _, errPath := range []string{"/bike?cup=0", "/bike?spacers=-1"} {
+		t.Run("err/"+errPath, func(t *testing.T) {
+			doc := loadBikeDocStatus(t, errPath, http.StatusBadRequest)
+			mainEl := doc.Find("main[data-bike-workbench]")
+			if mainEl.Length() != 1 {
+				t.Fatalf("expected 1 main[data-bike-workbench] on 400 page, got %d", mainEl.Length())
+			}
+			if _, hasCanonical := mainEl.Attr("data-canonical-url"); hasCanonical {
+				t.Errorf("HTTP 400 page must not expose data-canonical-url")
+			}
+			if mainEl.Find("[data-trace-workbench]").Length() != 0 {
+				t.Errorf("HTTP 400 page must not render [data-trace-workbench]")
+			}
+		})
 	}
 }

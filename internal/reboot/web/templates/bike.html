@@ -344,6 +344,15 @@
     .op-turn { color: var(--step-turn); font-weight: 600; }
     .op-face { color: var(--step-face); font-weight: 600; }
     .op-translate { color: var(--step-translate); font-weight: 600; }
+    main[data-bike-workbench][aria-busy="true"] .layout {
+      opacity: 0.65;
+      transition: opacity 120ms ease;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      main[data-bike-workbench][aria-busy="true"] .layout {
+        transition: none;
+      }
+    }
   </style>
 </head>
 <body>
@@ -353,7 +362,7 @@
     <nav><a href="/">Stem Preview</a></nav>
   </header>
 
-  <main>
+  <main data-bike-workbench{{if .CanonicalURL}} data-canonical-url="{{.CanonicalURL}}"{{end}}>
   <form class="controls" method="get" action="/bike" aria-label="Bike build controls">
     {{if .ErrorMessage}}
     <div id="form-error" class="form-error" role="alert">
@@ -442,9 +451,9 @@
     </div>
 
     <div class="control-actions">
-      <button type="submit">Update Build</button>
-      <a href="/bike" data-preset="defaults">Reset Defaults</a>
-      <a href="{{.CadBaselineForkURL}}" data-preset="cad-baseline-fork">CAD Baseline Fork ({{printf "%.0f" .CadLowerCupMm}} mm cup)</a>
+      <button id="ctrl-submit" type="submit">Update Build</button>
+      <a id="preset-defaults" href="/bike" data-preset="defaults">Reset Defaults</a>
+      <a id="preset-cad-baseline-fork" href="{{.CadBaselineForkURL}}" data-preset="cad-baseline-fork">CAD Baseline Fork ({{printf "%.0f" .CadLowerCupMm}} mm cup)</a>
     </div>
   </form>
 
@@ -548,7 +557,7 @@
         </thead>
         <tbody>
           {{range .Steps}}
-          <tr data-step-id="{{.ID}}" data-parent-id="{{.ParentID}}" data-step-summary="#{{.ID}} ({{if .ParentID}}parent #{{.ParentID}}{{else}}root{{end}}) {{.Op}} {{.Label}} ({{.Param}}) → ({{printf "%.1f" .To.Origin.X}}, {{printf "%.1f" .To.Origin.Y}}) @ {{printf "%.2f" .To.HeadingDeg}}°">
+          <tr data-step-id="{{.ID}}" data-parent-id="{{.ParentID}}" data-step-op="{{.Op}}" data-step-label="{{.Label}}" data-step-summary="#{{.ID}} ({{if .ParentID}}parent #{{.ParentID}}{{else}}root{{end}}) {{.Op}} {{.Label}} ({{.Param}}) → ({{printf "%.1f" .To.Origin.X}}, {{printf "%.1f" .To.Origin.Y}}) @ {{printf "%.2f" .To.HeadingDeg}}°">
             <td class="mono"><button type="button" class="step-select" data-step-select="{{.ID}}" aria-pressed="false" aria-label="Inspect step {{.ID}}: {{.Op}} {{.Label}}">{{.ID}}</button></td>
             <td class="mono">{{.ParentID}}</td>
             <td class="mono op-{{.Op}}">{{.Op}}</td>

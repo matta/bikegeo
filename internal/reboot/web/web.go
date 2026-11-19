@@ -470,6 +470,7 @@ type bikeView struct {
 	ErrorMessage         string
 	InvalidField         string
 	Form                 bikeFormValues
+	CanonicalURL         string
 	CadBaselineForkURL   string
 	MinPostExtensionMm   float64
 	MaxPostExtensionMm   float64
@@ -954,6 +955,7 @@ func buildBikeView(
 	return bikeView{
 		HasBuild:             true,
 		Form:                 form,
+		CanonicalURL:         state.URL(),
 		CadBaselineForkURL:   state.withCadBaselineFork(fix).URL(),
 		MinPostExtensionMm:   bike.Setup.Seatpost.MinExtensionMm,
 		MaxPostExtensionMm:   bike.Setup.Seatpost.MaxExtensionMm,

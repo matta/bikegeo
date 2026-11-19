@@ -316,7 +316,7 @@
         </thead>
         <tbody>
           {{range .Steps}}
-          <tr data-step-id="{{.ID}}" data-parent-id="{{.ParentID}}" data-step-summary="#{{.ID}} ({{if .ParentID}}parent #{{.ParentID}}{{else}}root{{end}}) {{.Op}} {{.Label}} ({{.Param}}) → ({{printf "%.2f" .To.Origin.X}}, {{printf "%.2f" .To.Origin.Y}}) @ {{printf "%.2f" .To.HeadingDeg}}°">
+          <tr data-step-id="{{.ID}}" data-parent-id="{{.ParentID}}" data-step-op="{{.Op}}" data-step-label="{{.Label}}" data-step-summary="#{{.ID}} ({{if .ParentID}}parent #{{.ParentID}}{{else}}root{{end}}) {{.Op}} {{.Label}} ({{.Param}}) → ({{printf "%.2f" .To.Origin.X}}, {{printf "%.2f" .To.Origin.Y}}) @ {{printf "%.2f" .To.HeadingDeg}}°">
             <td class="mono"><button type="button" class="step-select" data-step-select="{{.ID}}" aria-pressed="false" aria-label="Inspect step #{{.ID}}: {{.Op}} {{.Label}}">#{{.ID}}</button></td>
             <td class="mono">{{if .ParentID}}#{{.ParentID}}{{else}}root{{end}}</td>
             <td class="mono op-{{.Op}}">{{.Op}}</td>
