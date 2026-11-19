@@ -587,3 +587,52 @@ DESIGN.md records the confirmed frontend choice and keeps the remaining Q3 miles
   5. **Process note:** Turn 8 does not use the README turn template and did not update DESIGN.md.
 - **Matt's ruling:** Adopted the Claude entries above, with Turn 8's ignore policy, as the plan of record. Recorded in [DESIGN.md](DESIGN.md) (Human-Confirmed Decisions and the CAD Baseline Fork convention row) and [IMPLEMENTATION.md](IMPLEMENTATION.md) (fixture notes).
 - **Scope:** Documentation only; the application changes are not yet made.
+
+---
+
+## Discussion — Candidate next step (Slice 4 fetched updates & history) and HTMX evaluation — Gemini recording (2026-11-19)
+
+- **Status:** Candidate course of action (not approved or implemented). Open for discussion on implementation choices before coding begins.
+- **Candidate next step (Slice 4, part 1 — Fetched workbench updates and URL/history handling on `/bike`):**
+  - *Sequencing rationale:* Slices 1–3, Slice 4 controls/Go validation/CAD Baseline Fork locking, and Slice 4 interactive step inspection (`workbench.js`, 351 lines) are already implemented. Doing fetched updates and URL/history handling before diagram pan & zoom establishes the DOM-swap and teardown/rebind lifecycle once, so pan & zoom can layer cleanly onto it in the following atomic commit.
+  - *Proposed scope (progressive enhancement over Go-rendered HTML, no JSON API):*
+    1. Factor `internal/reboot/web/static/workbench.js`'s top-level step inspector into a re-mountable initializer with cleanup (removing its `document` `keydown` listener) while leaving `/` (`stem.html`) unaffected.
+    2. Add a canonical URL hook for `200 OK` builds (from `workbenchState.URL()`, omitting transient `prev_fork` and reflecting resolved fork-switch / `fork=cad` defaults) so address-bar history stays clean and bookmarkable.
+    3. Intercept `/bike` form submissions (`form.controls`), control changes (policy open below), unmodified clicks on preset links (`a[data-preset]`), and `window` `popstate` (Back/Forward).
+    4. Cancel superseded in-flight requests (`AbortController` or equivalent), swap `<main>` atomically for both `200 OK` and `400 Bad Request` responses (falling back to full-page navigation on unexpected status or non-abort network errors), show `aria-busy` feedback, preserve input focus across swaps, re-mount the step inspector (optionally preserving `selectedId` when the step still exists), and sync browser history cleanly (`pushState`, skipping pushes on `popstate`).
+  - *Explicitly out of scope for this step:* SVG pan & zoom (next atomic step), changes to `internal/reboot/assembly` or `internal/reboot/pose`, and JSON APIs.
+  - *Planned verification:* Go handler/template tests (`web_test.go`), `make pre-commit`, plus live browser checks covering fork switches, numeric edits, `400` validation error/recovery, rapid edits (stale-response cancellation), trace selection across swaps, and Back/Forward history.
+- **Matt's discussion topic — Is HTMX appropriate for `bikegeo-reboot`?**
+  - *Not previously evaluated in Q3:* Turn 5 (`DESIGN.md` Q3) contrasted Go HTML/SVG + small dependency-free vanilla JS against a reactive SPA framework (e.g., Svelte), not against a hypermedia library like HTMX.
+  - *What HTMX would and would not replace:*
+    - HTMX handles server-driven HTML exchanges (requests, swapping, cancellation, history). It does **not** replace client-side SVG/DOM interactivity: `workbench.js` already has 351 lines for the linked step inspector and will still need custom JS for SVG pan & zoom and future Milestone 4 overlays.
+    - Vendoring `htmx.min.js` (~50 KB minified / ~16 KB gzipped) via `//go:embed` needs no npm, build step, or Go module dependencies (so `make boundary` stays green), but it *does* introduce a third-party JS runtime dependency and would revise Q3's "dependency-free vanilla JavaScript" decision in `DESIGN.md`.
+  - *Concrete friction points between HTMX defaults and `/bike`'s existing Go invariants:*
+    1. **HTTP `400 Bad Request` swaps:** `renderBikeError` returns `400` with echoed controls and `#form-error`. HTMX ignores `4xx` responses by default, requiring explicit configuration (`htmx.config.responseHandling` / `htmx:beforeSwap`) to swap error pages without weakening HTTP status semantics.
+    2. **Canonical URLs (`prev_fork` & `fork=cad`):** `hx-push-url="true"` would push submitted query strings containing stale `prev_fork` / pre-switch values. HTMX can solve this cleanly via the server-sent `HX-Push-Url` response header (a real HTMX strength), at the cost of coupling `web.go` to HTMX headers.
+    3. **Cross-element cancellation:** Aborting superseded requests across both `form.controls` and preset `a[data-preset]` links requires placing `hx-sync` on a shared ancestor (`<main hx-sync="this:replace">`).
+    4. **Focus preservation on `<main>` swaps:** Default HTMX `innerHTML`/`outerHTML` swaps lose input focus just like naive `replaceWith`. Preserving focus requires either (a) splitting responses into targeted swaps + `hx-swap-oob` fragments (fragmenting `bike.html` and risking drift on `readonly`/`prev_fork`/cup labels/CAD note), (b) adding a second vendored library (`idiomorph`) for DOM morphing, or (c) writing the same ~15-line focus-restore hook in `workbench.js` via `htmx:beforeSwap`/`htmx:afterSwap`.
+    5. **History snapshots vs. refetch & SVG lifecycle:** HTMX's default `sessionStorage` DOM-snapshot history cache can desync client bindings unless disabled (`historyCacheSize: 0` to always refetch from localhost), and `workbench.js` still needs explicit teardown/rebind hooks (`htmx:beforeCleanupElement`, `htmx.onLoad`, plus hooks to preserve pan/zoom viewBox across build updates).
+  - *Scale trade-off (Milestone 1 vs. Milestones 2–4):*
+    - For Milestone 1's single `/bike` endpoint, vanilla `fetch` + `AbortController` + `DOMParser` swap + focus restore + `popstate` is roughly ~100–140 lines of self-contained JS — smaller and more transparent than configuring HTMX around the edge cases above.
+    - HTMX's leverage grows only if Milestones 2–4 (fit search, chart reconstruction, multi-frame chooser) introduce many distinct partial-fragment endpoints, streaming/polling search status, or out-of-band multi-region updates where custom fetch/swap wiring becomes repetitive.
+  - *Gemini's tentative recommendation (for discussion):* Stay with small vanilla JS (`fetch` + `AbortController` + `<main>` swap) for Milestone 1, and revisit vendored HTMX at Milestone 2 or 4 if multi-panel server-driven UI complexity actually materializes. Keeping templates HTMX-free now leaves adding vendored HTMX later easy and low-regret.
+- **Other open implementation choices to settle alongside transport:**
+  1. *Auto-update trigger policy:* Should numeric controls auto-fetch on `change` (blur / Enter / spinner), debounced `input`, or should only the fork `<select>` auto-fetch while numeric edits wait for Enter / "Update Build" (avoiding mid-edit `400` interruptions)?
+  2. *Swap granularity:* Whole-`<main>` atomic swap + focus restoration vs. targeted diagram/trace swap + form-field patching/OOB vs. DOM morphing.
+  3. *`400 Bad Request` diagram behavior:* Keep hiding the stale diagram on validation errors (`HasBuild: false`) vs. showing the previous diagram dimmed behind `#form-error`.
+  4. *Trace-step selection continuity:* Keep the selected step ID active across valid build updates when that step still exists in the new trace, or clear selection on every build update.
+- **Scope:** Documentation only; no code changes and no `DESIGN.md` updates until Matt weighs in.
+
+---
+
+## Discussion — Review of Slice 4 HTMX evaluation — ChatGPT recording (2026-11-19)
+
+- **Recommendation:** Agree with keeping vanilla JavaScript for the proposed fetched-update step. The strongest reason is the current scope: `/bike` has one form, preset links, and one coherent server-rendered result, so one narrowly scoped update controller is reasonable. Trace inspection and future pan/zoom still need their own state and cleanup/initialization lifecycle with either approach. HTMX remains a credible alternative; the preceding Gemini discussion overstates some arguments against it.
+- **Corrections to the preceding evaluation (checked against official HTMX documentation):**
+  1. **Focus preservation is built in:** HTMX preserves focus across requests for inputs with stable IDs, which the existing controls already have. Morphing, fragmented responses, or a custom focus hook are not inherently required for that behavior. See [focus documentation](https://htmx.org/attributes/hx-swap/#focus-scroll).
+  2. **History snapshots use `localStorage`, not `sessionStorage`:** Disabling the cache is a reasonable simplification, not a prerequisite for correct bindings. Cached restoration needs an appropriate initialization lifecycle, just as fetched replacement does. See [history documentation](https://htmx.org/docs/#history).
+  3. **Cancellation and `400` swaps are supported configuration:** Shared request cancellation is precisely what `hx-sync` provides, and response handling explicitly supports selecting which statuses swap. These are ordinary integration choices rather than serious incompatibilities with the Go handlers. See [request synchronization](https://htmx.org/attributes/hx-sync/) and [response handling](https://htmx.org/docs/#configuring-response-handling).
+- **Custom navigation cost:** Treat the proposed 100–140 lines as an unverified estimate, not evidence that vanilla JavaScript is necessarily simpler. Correct behavior includes preventing stale responses from applying, preserving focus without stealing it after the user moves elsewhere, handling Back/Forward during requests, and keeping URLs consistent with validation errors. Avoiding ownership of this plumbing is part of HTMX's value.
+- **Implementation boundary and revisit trigger:** Prefer one `/bike` fetch-and-swap controller with explicit inspector cleanup and initialization; avoid growing a general navigation framework. Reconsider HTMX when actual implementation duplicates request, swap, and history behavior across independent regions or screens, rather than merely upon reaching a particular milestone.
+- **Status and scope:** Matt requested that this feedback be recorded and committed. This records ChatGPT's recommendation, not approval of the candidate implementation or resolution of its open interaction policies. Documentation only; no application or `DESIGN.md` changes.
