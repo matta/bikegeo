@@ -4,122 +4,54 @@ This repository is a zero-dependency **Go** command-line application (`bikegeo`)
 
 ## Commit Messages
 
-Conventional Commits are banned in this repository. Write concise, plain-language commit subjects that describe the change (for example, `Fix fork sag validation`). Do not use type prefixes such as `feat:`, `fix:`, `docs:`, `chore:`, or `refactor:`, including scoped or breaking-change variants such as `fix(web):` or `feat!:`.
+Write plain-language subjects (for example `Fix fork sag validation`). Conventional Commits prefixes (`feat:`, `fix(web):`, `chore!:`, ...) are banned.
 
-## Reboot Tree Scope (`cmd/bikegeo-reboot`, `internal/reboot/...`)
+## Verification
 
-A clean-slate reboot is being built beside the existing application. Its design and plan live in [docs/reboot/](docs/reboot/README.md): [DESIGN.md](docs/reboot/DESIGN.md) (confirmed decisions) and [IMPLEMENTATION.md](docs/reboot/IMPLEMENTATION.md) (package layout, import boundary, slices). For code under `cmd/bikegeo-reboot` and `internal/reboot/...`, those documents take precedence over the **Architectural Guidelines** and **Adding or Modifying Bike Frame Datasets** sections below wherever they differ. In particular:
+- After **every** code change: `go vet ./... && go test ./...`
+- Before committing or finishing: `make pre-commit`. It runs `fix` (`go fix`, `go fmt`) and then `check` (vet, `boundary`, `exhaustive`, both `deadcode` runs, Go tests, and `make test-js`). If `go fix` changes anything, re-run until it's clean.
+- Markdown-only changes don't need `make pre-commit`.
 
-- The reboot workbench uses Go-rendered HTML/SVG plus a small dependency-free vanilla JavaScript layer (no framework, `package.json`, npm packages, or build step); JS controller regression tests run in Node's built-in `node:test` runner via `make test-js` using the major version pinned in `.node-version`. The "strictly Web 1.0, no JavaScript" rule applies only to the existing `internal/web`.
-- Reboot angles use the reboot-owned `pose.Deg`, not `model.Deg`. Reboot code never imports `bikegeo/internal/model` or any other legacy package, except in files named `*_parity_test.go`; legacy packages never import reboot packages (enforced by `make boundary`).
-- **Geometry & trigonometry live in `internal/reboot/pose`:** Non-test Go code under `internal/reboot/...` (outside `pose`) must delegate to semantic abstractions in `internal/reboot/pose` for all trigonometry, radian conversions, and geometric math; `pose` itself must keep raw trig and radian conversions package-private. Plain numeric/validation checks (such as `Abs`, `IsNaN`, `IsInf`) and independent `math` usage in `*_test.go` are fine; violations should be caught in code review.
-- The Milestone 1 Otso Fenrir Stainless fixture lives in the reboot tree (`internal/reboot/web/fixture.go`), not in `internal/frames`, and is not registered in `frames.AllFrames()`. Chart immutability still applies: published chart values are never nudged.
-- **Reboot terminology (`chassis` is banned):** Use **Frame** (`FrameSetup`) for the bare frame, **Frameset** (`FramesetPlacement`, `PlaceFrameset`) for the leveled frame + fork + lower headset cup + wheel-ground contacts, and **Bike** (`BikePlacement`, `PlaceBike`, `/bike`) for the complete assembly including cockpits. Do not use the term `chassis` anywhere in `cmd/bikegeo-reboot`, `internal/reboot/...`, `docs/reboot/DESIGN.md`, or `docs/reboot/IMPLEMENTATION.md` (enforced on reboot code, templates, and tests by `make boundary`; legacy packages and historical `docs/reboot/DIALOGUE.md` remain unchanged).
+## Reboot Tree (`cmd/bikegeo-reboot`, `internal/reboot/...`)
 
-Everything else here still applies to the reboot: the verification loop, `make pre-commit`, zero runtime dependencies, `exhaustive`, `deadcode`, and the output formatting rules. Do not change the existing application while doing reboot work unless asked.
+A clean-slate reboot is being built beside the existing app; see [docs/reboot/DESIGN.md](docs/reboot/DESIGN.md). For reboot code, that file overrides **Architecture** and **Frame Datasets** below wherever they differ. Don't change the existing app during reboot work unless asked.
+
+- **Web:** Go-rendered HTML/SVG plus a small dependency-free vanilla JS layer: no framework, `package.json`, npm, or build step. JS tests run on Node's built-in `node:test` (`make test-js`, major version in `.node-version`). The "no JavaScript" rule applies only to `internal/web`.
+- **Isolation (`make boundary`):** reboot code never imports legacy `bikegeo/...` packages, except in files named `*_parity_test.go` under `internal/reboot/...`. Legacy code never imports reboot packages. Angles use `pose.Deg`, not `model.Deg`.
+- **Trig lives in `internal/reboot/pose`:** outside `pose`, non-test reboot code uses `pose`'s semantic operations for all trig, radian conversion, and geometric math. Inside `pose`, raw trig stays unexported. `Abs`, `IsNaN`, `IsInf`, and independent `math` in tests are fine. Enforced by code review.
+- **Fixture:** the Otso Fenrir Stainless fixture is in `internal/reboot/web/fixture.go`, not `internal/frames`. Chart immutability still applies.
+- **Terminology:** **Frame** (`FrameSetup`) is the bare frame. **Frameset** (`FramesetPlacement`, `PlaceFrameset`) is the leveled frame + fork + lower cup + wheel contacts. **Bike** (`BikePlacement`, `PlaceBike`, `/bike`) is the full assembly. `chassis` is banned in reboot code and docs (`make boundary`).
 
 ## Rider Fit Provenance
 
 Before analyzing Matt's personal bike fit, read [docs/RIDER_FIT.md](docs/RIDER_FIT.md). It records his confirmed saddle and seatpost, riding observations, and the idmatch transfer from his bike with an **unsagged Redshift post** to the test jig using the **same physical saddle**. Treat these owner-confirmed facts as established; do not ask him to repeat them. Keep reported measurements, model-derived sit-bone coordinates, and untested fit preferences distinct.
 
-## Fast Feedback Command Loop
+## Architecture
 
-After **every** code modification, always execute the following command to verify type safety and test suite pass rate:
+- **Zero runtime dependencies:** the binary uses only the standard library. `goquery` is allowed only in `_test.go` files. `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo` must list only `bikegeo/...`. `exhaustive` and `deadcode` are `go.mod` tool dependencies and are never linked into the binary.
+- **`exhaustive`:** every `switch` on an enum-like type names every constant, even when it has a `default`.
+- **`deadcode`:** delete unreachable functions or move test-only helpers into `*_test.go`. Don't keep unused exports "for later".
+- **Data is Go structs:** frames (`internal/frames`), fork/stem catalogs (`internal/catalog`), ideal profiles (`internal/ideal/loader.go`), and the default baseline (`compare.DefaultComparisonState()`). There are no data or persistence files.
+- **Interfaces** (see [docs/WEB.md](docs/WEB.md)): the web is for people and the CLI is for agents. A capability gets a surface only for a real audience; if both need it, share a builder that returns a `report.Document`. Builders set cell zones explicitly; never infer them from strings. The CLI prints Markdown only (no `--format`). `internal/web` and `internal/cli` never import each other. The web is strictly Web 1.0: `GET` forms, the URL query as the only state, no JavaScript, no cookies, and controls filled from the parsed query.
+- **Scores are a points-lost ledger:** `Total = 100 − Σ points lost`. Each band is free inside its ideal range and linear outside it (`Cost` per unit, or `LimitPoints` at the hardware limit). There are no weights, floors, curves, clamping, rounding, or stepped bonuses, and totals may go below 0. The stock build is the cheapest on those bands (`canonicalizer.ApplyIdealCockpitTargets`). Express preferences as priced bands, never as tie-break rules. The cockpit target is explicit on `ideal.Profile`. `saddle_hb` and `saddle_hb_drop` are display-only.
+- **Comparison columns** are `FrameID + Size + Fork (travel mm or "rigid") + Sag %`. `bikegeo compare` with no arguments uses the default baseline; `+spec` and `-spec`/`-col_num` edit it. `internal/canonicalizer` enforces each frame's `CadFork`/`Forks` limits.
+- **Angles are `model.Deg`; lengths are `float64`.** Trig goes through `Deg.Angle()` and `model.DegOf`, never a hand-written `math.Pi / 180`.
+- `bikegeo fit` may list tied candidates in a different order between runs. That's a known, pre-existing behavior.
 
-```bash
-go vet ./... && go test ./...
-```
+## Frame Datasets (`internal/frames/*.go`)
 
-## Final Verification & Pre-Commit Cleanup
+Follow the [ingest-frame](.agents/skills/ingest-frame/SKILL.md) skill. The non-negotiables:
 
-Formatting and modernization are not part of the fast feedback loop, but are required before committing or completing a task. Run the codified pre-commit target, which executes `go fix ./...`, `go fmt ./...`, `go vet ./...`, `make boundary`, `go tool exhaustive ./...`, `go tool deadcode ./...`, `go tool deadcode -test ./...`, `go test -v ./...`, and `make test-js`:
+- Published chart numbers are ground truth: **never nudge them**, and omit an unpublished `Wheelbase` rather than deriving it.
+- `GeoSlopMm` is a last resort, never a cover for modeling errors. It must be necessary and must state a `Reason` (`TestDeclaredAllowancesAreNecessary`).
+- Use `bikegeo fit` (and `--try`) for CAD back-solving, not ad-hoc scripts.
+- Register new frames in `internal/frames/frames.go`. `TestAllFrameData` covers them, so no per-frame tests are needed.
 
-```bash
-make pre-commit
-```
+## Testing
 
-- `go fix` rewrites code to current language and library idioms (for example `new(expr)` for pointer literals, `strings.FieldsSeq`, `maps.Copy`). `make fix` (and `make pre-commit`) runs it with the Go version pinned in `go.mod`; if `go fix` makes changes, re-run `make pre-commit` until it reports no further changes.
-- Review its diff before committing. Its rewrites must be semantically neutral: if a change touches `internal/frames/*.go`, confirm only idioms changed and no published geometry value did (see the chart-immutability rule below). Commit `go fix` output separately from feature work so it stays reviewable.
-- If a rewrite produces an awkward result (such as an aliased import like `maps0` caused by a shadowing variable), fix the cause (rename the variable) rather than keeping the workaround.
+- CLI tests assert on cell values (`runCLIRows`), not on padding.
+- Web tests are browserless: `httptest` (set `req.Host = "127.0.0.1:8080"`) → `web.New().ServeHTTP` → `goquery` selectors. No Playwright or Selenium.
 
-## Architectural Guidelines
+## Output Formatting
 
-- **Zero Runtime Dependencies & Pure-Go Data**:
-  - The shipped binary uses only the Go standard library (`flag`, `encoding/csv`, `net/http`, `html/template`, `embed`) with custom Unicode box-drawing, Markdown, and CSV table formatting in `internal/cli/render.go`.
-  - The single exception is `github.com/PuerkitoBio/goquery`, allowed **only** in `_test.go` files for DOM assertions. Never import it (or any third-party package) from non-test code; verify with `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo`, which must list only `bikegeo/...`.
-  - `github.com/nishanths/exhaustive` is a `tool` dependency in `go.mod`, used only by `make check` (`go tool exhaustive ./...`). It is never linked into the binary. A `switch` on an enum-like type (`model.HeadsetCupType`, `model.PublishMode`, `ideal.ZoneType`, ...) must name every constant even when it has a `default`; when adding a constant, add its case everywhere the linter reports.
-  - `golang.org/x/tools/cmd/deadcode` is a `tool` dependency in `go.mod` too, used only by `make check` (running both `go tool deadcode ./...` and `go tool deadcode -test ./...`). Plain `deadcode` ensures test-only helpers stay in `*_test.go` files and never ship in the binary; `deadcode -test` ensures test helpers themselves do not rot. Delete unreachable functions, or move test-only helpers into `*_test.go`; do not keep unused exports "for later".
-  - All bike frames (`internal/frames/*.go`), fork and stem catalogs (`internal/catalog/catalog.go`), ideal fit profiles (`internal/ideal/loader.go`), and the default comparison baseline (`compare.DefaultComparisonState()` in `internal/compare/specs.go`, also reachable as `compare.DefaultComparisonState()`) are compiled directly as Go structs. There are no JSON data files or runtime persistence files.
-- **Each Interface Lives Where It Is Used** (see [docs/WEB.md](docs/WEB.md)):
-  - The web (`bikegeo serve`) is for people; the CLI is for agents and scripts. A capability gets a surface only for a real audience, never by default.
-
-    | Capability | CLI (agents) | Web (people) |
-    | --- | --- | --- |
-    | `compare`, `validate`, `list` | yes | yes (`/`, `/validate`, `/frames`) |
-    | `fit` | yes | no |
-    | `/bike` workbench (one setup's scene, cheapest stock build, nudges, computation ledger) | no | yes |
-    | saddles, saddle-swap, handlebars | no | yes |
-    | ideal profile, cost per band, stock stem catalogs | no | yes (`/help`) |
-
-  - Presentation lives in a **builder** that returns a `report.Document`: `compare.BuildDocument`, `validator.BuildValidationDocument`, `compare.BuildFrameListDocument`, `fit.BuildSweepDocument` / `fit.BuildAnalysisDocument`, and the web-only builders in `internal/web` (`docb`). `internal/report` holds the presentation-neutral `Document` (ordered `Sections` of tables and text), `Table` and `Cell` (cells carry `Zone` and `MetricID`). Builders set zones explicitly; never infer them from strings.
-  - The CLI (`internal/cli`) parses flags, calls a builder and prints Markdown (`App.printDocument`). There is no `--format`: Markdown is the only output. `compare` keeps a many-bike comparison as one wide table (`DocOptions.Flat`) so programs can parse it.
-  - The web (`internal/web`) turns the URL query into a builder call and renders HTML. `internal/web` and `internal/cli` never import each other; `cmd/bikegeo/main.go` injects `web.RunServe` into `cli.Run` to dispatch `bikegeo serve`.
-  - Do not add a CLI subcommand for a human-browsing feature, or a web page for an agent-only tool. If both audiences need it, share a builder.
-  - The web is strictly Web 1.0: `GET` forms, URL query as the only state, full-page responses, no JavaScript, no cookies. Controls must be populated from the parsed query.
-  - `bikegeo fit` can list tied candidate solutions in a varying order between runs; that is pre-existing.
-- **Scores Are a Points-Lost Ledger**:
-  - `Total = 100 − Σ points lost` (`scoring.ScoreRow`). Each scored band is free inside its ideal range and linear outside it: `ideal.AttributeSpec.Cost` points of total per unit, or for hardware bands (rail, stem length, stem angle, spacers) `LimitPoints` reached at the setup's hardware limit. There are no weights, weighted averages, floors or curve tails, and totals may go below 0. Adding or removing a band never rescales the others.
-  - Never clamp, round, or add stepped (count-based or fixed) bonuses and penalties to points lost in scoring code. A new band states its free range and its cost per unit.
-  - Each setup's stock build is the cheapest on those same bands (`canonicalizer.ApplyIdealCockpitTargets`): first the saddle rail position, then every stem length × angle × spacer stack relative to that BRP. Never add separate tie-break or preference rules to selection; price the preference as a band instead.
-  - The cockpit target is explicit on `ideal.Profile` (`CockpitTargetDistMm`, `CockpitTargetRiseMm`, defined for the reference saddle; `Profile.CockpitTarget` carries it to other saddles through the sit bones). `saddle_hb` and `saddle_hb_drop` are display-only and carry no ranges. Do not reintroduce score curves, floors, acceptable ranges or range-based selectors.
-- **Per-Column Comparison Model (`ComparisonSetup`)**:
-  - Every comparison column specifies `FrameID + Size + Fork (travel in mm or "rigid") + Sag %`.
-  - Allows comparing the same frame across multiple sag points or fork capacities alongside different frames.
-- **Frame-Level Fork Constraints**:
-  - Frames define `CadFork` and `Forks` (supported fork refs with `ID`, `A2cMm`, `RakeMm`, `SagPct`) in `internal/frames/*.go`.
-  - `internal/canonicalizer` strictly enforces these constraints, rejecting unsupported travel sizes, rigid forks on suspension-only frames, or non-zero sag on rigid forks.
-- **Default Comparison Baseline**:
-  - Running `bikegeo compare` with no arguments evaluates `compare.DefaultComparisonState()`. Incremental `+spec` and `-spec` / `-col_num` flags add or remove columns against that baseline in memory.
-- **Angles Are `model.Deg`, Lengths Stay `float64`**:
-  - Angles in degrees are `model.Deg`; trigonometry goes through `Deg.Angle()` (`geom2d.Angle`) and results come back with `model.DegOf`, never a hand-written `math.Pi / 180`. Lengths stay `float64`.
-
-## Adding or Modifying Bike Frame Datasets
-
-When adding or editing frame files in `internal/frames/*.go`:
-1. **Strict Ground Truth & Chart Immutability**:
-   - Published manufacturer geometry numbers (Stack, Reach, HTA, Wheelbase when published, etc.) are sacred ground truth. **NEVER modify or nudge published chart numbers** to absorb rounding residuals or force validation to pass, and **omit `Wheelbase` rather than deriving it** when a manufacturer does not publish it.
-   - Size geometry overrides are strictly forbidden unless resolving a proven, catastrophic manufacturer typo (>5mm or digit transposition) documented in `Notes`.
-2. **Headset Standard & Cup Stack Verification**:
-   - Verify the frame material and headset specification before finishing ingestion.
-   - Carbon frames and frames with integrated headset bearings use `IS42`/`IS52` (0.0mm lower cup stack).
-   - Steel/aluminum frames with external cups (`EC34`/`EC44`) physically add 10–14mm stack below the headtube; `GeoHeadsetSpacerMm` explicitly sets the CAD spacer (typically 10–12mm if drawn with cups, or 0.0mm if drawn to the bare headtube).
-3. **`GeoSlopMm` is an Absolute Last Resort**:
-   - `GeoSlopMm` must **never** be used to mask modeling errors (such as using the bike's sold rigid fork rather than the suspension fork the CAD chart was drawn around, ignoring CAD sag, or assuming the wrong headset standard).
-   - Validation needs no slop for ordinary rounding. Each closure check (Stack ↔ fork A2C, Front Center, Wheelbase) propagates the rounding half-width of every published input through its equation (`geometry.A2cBudget`, `FrontCenterBudget`, `WheelbaseBudget`) and fails only when the residual exceeds that worst case. Frames may declare `ChartPrecision` explicitly (for example on single-size charts or trailing-zero angles such as `70.0°`); any undeclared field falls back to inference per chart column (a head-angle column of `68, 68.5, 69` is on a half-degree grid, `±0.25°`). A pass that holds only because the head angle is assumed rounded is reported as an `*_needs_angle_rounding` notice.
-   - `GeoSlopMm` is an allowance **added** to the rounding budget, for chart error that rounding cannot explain. It must be needed (some size fails without it) and no larger than `bikegeo fit`'s "Allowance needed beyond rounding" rounded up to 0.5mm; `TestDeclaredAllowancesAreNecessary` enforces both.
-   - If a custom `GeoSlopMm` override is genuinely necessary, it requires an explicit `Reason` field on `model.GeoSlopMm` documenting the manufacturer discrepancy.
-4. **Use `bikegeo fit` as Primary Tool & Automated Solver**:
-   - Run `bikegeo fit <frame>` to diagnose geometry. If validation fails or any size needs more than rounding of the published lengths to pass, `bikegeo fit` automatically runs the physical solver exploring candidate fork travels, standard sag points (0%, 20%, 25%, 30%), static A2C values, rakes (including 44, 51, and 55mm), and headset spacers, presenting the solved Go struct fields.
-   - Use `bikegeo fit <frame> --try ...` to sweep candidate parameters manually when exploring non-standard options.
-   - Ad-hoc scripts are acceptable for source data wrangling (unit conversions, table parsing) or investigating unmodeled frame quirks, but routine CAD back-solving belongs in `fit`.
-   - See the workspace skill [ingest-frame](file:///.agents/skills/ingest-frame/SKILL.md) for the complete 5-step recipe.
-5. **Register New Frames in `internal/frames/frames.go`**:
-   - Create `internal/frames/<frame-id>.go` and add the frame to the `allFrames` slice in `internal/frames/frames.go`.
-6. **Automated Test Coverage**:
-   - `internal/validator/validator_test.go` (`TestAllFrameData`) automatically validates all frames in `frames.AllFrames()`, verifies every size materializes and passes validation, and verifies supported fork capabilities.
-   - You do **not** need to add boilerplate per-frame unit tests or update test counts when adding frames.
-
-## Testing Strategy & Conventions
-
-- **Unit & Integration Tests**:
-  - Domain math, validation, canonicalization, ideal profiles, scoring, fit solver, and CLI subcommands (`compare`, `validate`, `list`, `fit`) are tested in `internal/*/*_test.go`. CLI tests assert on cell values (`runCLIRows` flattens Markdown tables), not on padding.
-  - HTTP handlers and templates are tested browserlessly in `internal/web/web_test.go`: `httptest.NewRequest` (set `req.Host = "127.0.0.1:8080"`) → `web.New().ServeHTTP` → `goquery` selectors such as `tr[data-frame-id="..."] td[data-metric="..."]`. No Playwright, Selenium, or other browser automation.
-- **Commands**:
-  - `make check` — formats, vets, checks import/terminology boundaries, runs `exhaustive`, runs `deadcode`, and runs both Go and JS (`make test-js`) test suites.
-  - `make pre-commit` — required pre-commit workflow (`fix` + `check`).
-
-## Output Formatting & Markdown Guidelines
-
-- **No LaTeX / MathJax**: The Antigravity IDE chat UI does not render LaTeX or MathJax math syntax (e.g., `$...$`, `$$...$$`, `\text{...}`). Never emit raw LaTeX math markup.
-- **Plain Text / Standard Markdown**: Format mathematical relationships, formulas, and dimensions using plain text or inline code blocks (e.g., `472 mm (Fork A2C) + 10 mm (CAD Spacer) = 482 mm (Structural A2C)` or `Stack = BB_Drop - Rake * cos(HTA) + (A2C + Spacer + HTL) * sin(HTA)`).
-- **Unicode Symbols**: Use standard Unicode characters for mathematical symbols and units (e.g., `±1.0 mm`, `70.0°`).
+No LaTeX or MathJax; the chat UI doesn't render it. Write formulas in plain text or inline code, with Unicode symbols (`±1.0 mm`, `70.0°`).

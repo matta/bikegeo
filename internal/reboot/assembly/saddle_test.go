@@ -204,7 +204,7 @@ func TestOtsoFenrirRearCockpitAndTraceEquivalence(t *testing.T) {
 	}
 	saddleSetup := sqlab610DefaultSaddle()
 
-	// Verify the IMPLEMENTATION.md §2 invariant on the 75.25° STA reference attitude:
+	// Check the fixture's reference saddle height at the 75.25° STA attitude:
 	// 490.0 mm seat tube + 263.5 mm extension = 753.5 mm along seat axis, and |BRP - BB| ≈ 746.0 mm.
 	refSeatAxis := pose.NewPose(pose.Point{}, 180.0-frame.SeatTubeAngleDeg, nil)
 	refSeatTubeTop := refSeatAxis.Advance("seat tube length", frame.SeatTubeLengthMm)
