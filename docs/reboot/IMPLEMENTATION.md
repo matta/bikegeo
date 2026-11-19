@@ -65,8 +65,8 @@ Use these exact sourced dimensions for Milestone 1 (`internal/reboot/web/fixture
 - **Published Frame Chart (Otso Fenrir Stainless, 2024, Size `L`, rear Tuning Chip in `450 mm` CS / `72 mm` BB drop position):**
   - `ReachMm: 428.0`, `StackMm: 642.0`, `HtaDeg: 68.25°`, `StaDeg: 75.25°`, `HtlMm: 140.0`, `BbDropMm: 72.0`, `ChainstayMm: 450.0`, `WheelbaseMm: 1158.0`, `SeatTubeLengthMm: 490.0` (Sizes `XS`, `S`, `M`, `L`, `XL` from the published Otso chart may all be included in the fixture struct, with `L` as default).
   - **Wheel Radius:** `29" × 2.4"` baseline (`WheelRadiusMm: 372.0`).
-- **CAD Chart Reference (`FrameChart.CadFork` + `FrameChart.CadLowerCup`):**
-  - Fixed CAD geometry (`ForkGeometry{A2cMm: 495.0, RakeMm: 54.0}`, `CadLowerCup: {Standard: LowerCupBareHeadTube, StackMm: 0.0}`): non-physical bare-headtube chart reference around `495 mm` / `54 mm` without an EC44 lower cup (selected as `fork=cad` in the workbench for chart inspection).
+- **CAD Baseline Fork (`FrameChart.CadFork` + `FrameChart.CadLowerCup`):**
+  - Fixed CAD geometry (`ForkGeometry{A2cMm: 495.0, RakeMm: 54.0}`, `CadLowerCup: {Standard: LowerCupBareHeadTube, StackMm: 0.0}`): non-physical bare-headtube chart reference around `495 mm` / `54 mm` without an EC44 lower cup (selected as `fork=cad` in the workbench, labelled "CAD Baseline Fork" everywhere). Under `fork=cad` the workbench locks A2C, cup, and sag to these chart values: it renders them `readonly` and ignores submitted overrides (see DESIGN.md **Workbench CAD Baseline Fork**).
 - **Selectable Installed Forks & Physical Lower Headset Cup:**
   - Each installable fork pairing declares its `DefaultLowerCup: {Standard: LowerCupEC44, StackMm: 12.0}` (`EC44` external lower cup; editable for positive stacks in the workbench, and switched automatically whenever the selected fork changes lower-cup standard).
   - Selectable forks (`DefaultLowerCup: EC44 12.0 mm`):
