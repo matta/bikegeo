@@ -2425,8 +2425,8 @@ func TestBikeWorkbenchWithoutBrpTargetHasNoFitting(t *testing.T) {
 		if v, _ := doc.Find("#" + id).Attr("value"); v != "" {
 			t.Errorf("#%s value = %q, want blank", id, v)
 		}
-		if p, _ := doc.Find("#" + id).Attr("placeholder"); p == "" {
-			t.Errorf("#%s has no placeholder", id)
+		if _, ok := doc.Find("#" + id).Attr("placeholder"); ok {
+			t.Errorf("#%s has a placeholder; the example belongs in the note", id)
 		}
 	}
 }
@@ -2481,21 +2481,50 @@ func TestBikeWorkbenchApplyFittingReachesReachableTarget(t *testing.T) {
 	}
 }
 
-func TestBikeWorkbenchBrpTargetNeedsBothCoordinates(t *testing.T) {
-	doc := loadBikeDocStatus(t, "/bike?brp_x=-219", http.StatusBadRequest)
-	if v, _ := doc.Find("#ctrl-brp-y").Attr("aria-invalid"); v != "true" {
-		t.Errorf("ctrl-brp-y aria-invalid = %q, want true", v)
+// A half-entered target is not an error: it is quietly not applied and the
+// typed value stays in its box.
+func TestBikeWorkbenchHalfEnteredTargetIsQuietlyIgnored(t *testing.T) {
+	for _, c := range []struct{ path, id, want string }{
+		{"/bike?brp_y=710", "ctrl-brp-y", "710"},
+		{"/bike?brp_x=-219", "ctrl-brp-x", "-219"},
+		{"/bike?grip_y=726", "ctrl-grip-y", "726"},
+		{"/bike?grip_x=481", "ctrl-grip-x", "481"},
+	} {
+		doc := loadBikeDoc(t, c.path)
+		if n := doc.Find("[data-fitting]").Length(); n != 0 {
+			t.Errorf("%s: fitting shown for a half target", c.path)
+		}
+		if v, _ := doc.Find("#" + c.id).Attr("value"); v != c.want {
+			t.Errorf("%s: #%s value = %q, want %q", c.path, c.id, v, c.want)
+		}
+		if n := doc.Find("[aria-invalid]").Length(); n != 0 {
+			t.Errorf("%s: %d invalid controls, want 0", c.path, n)
+		}
 	}
-	if v, _ := doc.Find("#ctrl-brp-x").Attr("value"); v != "-219" {
-		t.Errorf("ctrl-brp-x echo = %q, want -219", v)
+	// A complete grip pair still fits while a half BRP pair is ignored and kept.
+	doc := loadBikeDoc(t, "/bike?brp_y=710&grip_x=481&grip_y=726")
+	if doc.Find(`[data-metric="fit-cockpit-outcome"]`).Length() != 1 || doc.Find(`[data-metric="fit-saddle-outcome"]`).Length() != 0 {
+		t.Error("want only the cockpit block")
 	}
-	doc = loadBikeDocStatus(t, "/bike?brp_y=713.1", http.StatusBadRequest)
-	if v, _ := doc.Find("#ctrl-brp-x").Attr("aria-invalid"); v != "true" {
-		t.Errorf("ctrl-brp-x aria-invalid = %q, want true", v)
+	if v, _ := doc.Find("#ctrl-brp-y").Attr("value"); v != "710" {
+		t.Errorf("half BRP echo = %q, want 710", v)
 	}
-	doc = loadBikeDocStatus(t, "/bike?brp_x=NaN&brp_y=1", http.StatusBadRequest)
+}
+
+func TestBikeWorkbenchNonFiniteTargetStillErrors(t *testing.T) {
+	doc := loadBikeDocStatus(t, "/bike?brp_x=NaN&brp_y=1", http.StatusBadRequest)
 	if v, _ := doc.Find("#ctrl-brp-x").Attr("aria-invalid"); v != "true" {
 		t.Errorf("non-finite ctrl-brp-x aria-invalid = %q, want true", v)
+	}
+}
+
+func TestBikeWorkbenchTargetExampleIsInNote(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike")
+	notes := doc.Find(".fit-note").Text()
+	for _, want := range []string{"-219.0, 713.1", "481.0, 726.0"} {
+		if !strings.Contains(notes, want) {
+			t.Errorf("notes %q missing example %q", notes, want)
+		}
 	}
 }
 
@@ -2572,8 +2601,8 @@ func TestBikeWorkbenchWithoutGripTargetHasNoCockpitFitting(t *testing.T) {
 		if v, _ := doc.Find("#" + id).Attr("value"); v != "" {
 			t.Errorf("#%s value = %q, want blank", id, v)
 		}
-		if p, _ := doc.Find("#" + id).Attr("placeholder"); p == "" {
-			t.Errorf("#%s has no placeholder", id)
+		if _, ok := doc.Find("#" + id).Attr("placeholder"); ok {
+			t.Errorf("#%s has a placeholder; the example belongs in the note", id)
 		}
 	}
 }
@@ -2638,19 +2667,6 @@ func TestBikeWorkbenchBothFitTargets(t *testing.T) {
 	for _, k := range []string{"brp_x", "brp_y", "grip_x", "grip_y"} {
 		if !q.Has(k) {
 			t.Errorf("apply link lost %s: %v", k, q)
-		}
-	}
-}
-
-func TestBikeWorkbenchGripTargetNeedsBothCoordinates(t *testing.T) {
-	for path, field := range map[string]string{
-		"/bike?grip_x=481":          "ctrl-grip-y",
-		"/bike?grip_y=726":          "ctrl-grip-x",
-		"/bike?grip_x=NaN&grip_y=1": "ctrl-grip-x",
-	} {
-		doc := loadBikeDocStatus(t, path, http.StatusBadRequest)
-		if v, _ := doc.Find("#" + field).Attr("aria-invalid"); v != "true" {
-			t.Errorf("%s: #%s aria-invalid = %q, want true", path, field, v)
 		}
 	}
 }

@@ -848,6 +848,13 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		view.withFitTargets(fix, bike.Setup, resolved.State)
 		view.Fitting = buildFittingView(resolved.State, bike, fitting)
 	}
+	// A half-entered target is not applied, but the box keeps what was typed.
+	if !resolved.State.Targets.HasBrp {
+		view.Form.BrpX, view.Form.BrpY = resolved.Form.BrpX, resolved.Form.BrpY
+	}
+	if !resolved.State.Targets.HasGrip {
+		view.Form.GripX, view.Form.GripY = resolved.Form.GripX, resolved.Form.GripY
+	}
 	renderBikeTemplate(w, http.StatusOK, view)
 }
 
@@ -1002,17 +1009,13 @@ func (p *bikeQueryParser) optionalFloat(key, label string, echo *string) (v floa
 }
 
 // optionalPoint parses an optional X/Y pair. Both blank → (zero, false).
-// Exactly one blank → input error on the blank key ("<label> needs both X and Y").
+// Exactly one filled → also (zero, false): the target is not complete yet, so
+// it is quietly not applied. The raw echoes keep what was typed.
 func (p *bikeQueryParser) optionalPoint(xKey, yKey, label string, echoX, echoY *string) (pose.Point, bool) {
 	x, hasX := p.optionalFloat(xKey, label+" X", echoX)
 	y, hasY := p.optionalFloat(yKey, label+" Y", echoY)
-	switch {
-	case hasX && hasY:
+	if hasX && hasY {
 		return pose.Point{X: x, Y: y}, true
-	case hasX && *echoY == "":
-		p.fail(yKey, fmt.Errorf("%s needs both X and Y", label))
-	case hasY && *echoX == "":
-		p.fail(xKey, fmt.Errorf("%s needs both X and Y", label))
 	}
 	return pose.Point{}, false
 }
