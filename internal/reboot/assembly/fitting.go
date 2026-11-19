@@ -97,22 +97,30 @@ func ApplyFitting(setup BikeSetup, target SaddleFitTarget, trace *pose.Trace) (F
 	return fit, nil
 }
 
+// fitBoundTolMm is how far outside a hardware bound an unconstrained fitting
+// value may land from round-off and still count as reached.
+const fitBoundTolMm = 1e-9
+
 // fitBox solves delta ≈ de·dir(seat) + dr·dir(rail) with de in [0, extRange]
 // (extRange may be +Inf) and dr in [−railLimit, railLimit]. When the
 // unconstrained solution is outside the box, the box minimum lies on an edge;
 // the four edges are evaluated in a fixed order and the closest wins, with
 // ties keeping the earlier edge. limited lists the extension then rail offset
 // when the chosen value sits on a bound; it is nil when delta is reachable.
+// An unconstrained solution within fitBoundTolMm of a bound counts as
+// reachable and is snapped onto the bound, so round-off in the decomposition
+// cannot turn an exactly reachable target into a limited one.
 func fitBox(delta pose.Point, seat, rail pose.Deg, extRange, railLimit float64) (de, dr float64, limited []InputField, err error) {
 	de, dr, ok := pose.DecomposeAlong(delta, seat, rail)
 	if !ok {
 		return 0, 0, nil, fmt.Errorf("saddle rail pitch is parallel to the seat axis; cannot fit the saddle")
 	}
-	if de >= 0 && de <= extRange && dr >= -railLimit && dr <= railLimit {
-		return de, dr, nil, nil
+	clamp := func(v, lo, hi float64) float64 { return math.Min(math.Max(v, lo), hi) }
+	if de >= -fitBoundTolMm && de <= extRange+fitBoundTolMm &&
+		dr >= -railLimit-fitBoundTolMm && dr <= railLimit+fitBoundTolMm {
+		return clamp(de, 0, extRange), clamp(dr, -railLimit, railLimit), nil, nil
 	}
 
-	clamp := func(v, lo, hi float64) float64 { return math.Min(math.Max(v, lo), hi) }
 	miss := func(e, r float64) float64 {
 		return delta.Sub(pose.Along(seat, e)).Sub(pose.Along(rail, r)).Norm()
 	}

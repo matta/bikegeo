@@ -79,6 +79,26 @@ func TestApplyFittingRoundTripReached(t *testing.T) {
 	}
 }
 
+// A target placed by a build whose settings sit exactly on hardware bounds is
+// reachable: round-off in the decomposition must not report it as limited.
+func TestApplyFittingReachesTargetsOnBounds(t *testing.T) {
+	for _, c := range []struct{ ext, rail float64 }{
+		{300, 15}, {110, 15}, {300, -15}, {110, -15}, {300, 0}, {110, 0}, {200, 15}, {200, -15},
+	} {
+		known := fenrirFittingSetup()
+		known.Seatpost.ExtensionMm = c.ext
+		known.Saddle.RailOffsetMm = c.rail
+		fit := mustFit(t, fenrirFittingSetup(), brpOf(t, known))
+		ext, rail := fittedValues(fit)
+		if fit.Outcome != assembly.FitReached || fit.LimitedBy != nil {
+			t.Errorf("ext %v rail %v: Outcome = %v, LimitedBy = %v, want reached", c.ext, c.rail, fit.Outcome, fit.LimitedBy)
+		}
+		assertNear(t, "extension", ext, c.ext, 1e-9)
+		assertNear(t, "rail offset", rail, c.rail, 1e-9)
+		assertNear(t, "miss", fit.BrpMissMm(), 0, 1e-9)
+	}
+}
+
 func TestApplyFittingFitReportBRPLimitedByRailOffset(t *testing.T) {
 	fit := mustFit(t, fenrirFittingSetup(), fitReportBRP)
 	ext, rail := fittedValues(fit)
