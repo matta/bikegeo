@@ -16,6 +16,7 @@ import (
 //   - LengthMm: stem extension from steerer axis to bar-clamp center.
 //   - AngleDeg: stem angle counter-clockwise from perpendicular to the steerer axis.
 type StemSetup struct {
+	// TODO: Move UpperCoverMm to FrameSetup alongside LowerCupMm.
 	UpperCoverMm  float64
 	SpacersMm     float64
 	ClampHeightMm float64

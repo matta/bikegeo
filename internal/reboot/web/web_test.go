@@ -58,11 +58,13 @@ func TestStemWorkbenchRendersSVGAndMatchingTrace(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing default fork option %q", fix.DefaultForkID)
 	}
-	forkSetup, err := defaultFork.Spec.Setup(defaultFork.DefaultSagPct, fix.DefaultLowerCupMm)
-	if err != nil {
-		t.Fatalf("defaultFork.Spec.Setup: %v", err)
+	frame := fix.Chart.Frame
+	frame.LowerCupMm = fix.DefaultLowerCupMm
+	forkSetup := assembly.ForkSetup{
+		Spec:   defaultFork.Spec,
+		SagPct: defaultFork.DefaultSagPct,
 	}
-	frameset, err := assembly.PlaceFrameset(fix.Chart.Frame, forkSetup, fix.Wheels, nil)
+	frameset, err := assembly.PlaceFrameset(frame, forkSetup, fix.Wheels, nil)
 	if err != nil {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
@@ -210,12 +212,14 @@ func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing fox34_120 fixture option")
 	}
-	forkSetup, err := fox34.Spec.Setup(20.0, 12.0)
-	if err != nil {
-		t.Fatalf("fox34 setup: %v", err)
+	frame := fix.Chart.Frame
+	frame.LowerCupMm = 12.0
+	forkSetup := assembly.ForkSetup{
+		Spec:   fox34.Spec,
+		SagPct: 20.0,
 	}
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:     fix.Chart.Frame,
+		Frame:     frame,
 		Fork:      forkSetup,
 		Wheels:    fix.Wheels,
 		Seatpost:  fix.DefaultSeatpost,
@@ -452,11 +456,13 @@ func TestBikeWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing sid_100 fixture option")
 	}
+	frame := fix.Chart.Frame
+	frame.LowerCupMm = 10.0
 	spec := sid.Spec
 	spec.StaticA2cMm = 515.0
-	forkSetup, err := spec.Setup(20.0, 10.0)
-	if err != nil {
-		t.Fatalf("spec.Setup: %v", err)
+	forkSetup := assembly.ForkSetup{
+		Spec:   spec,
+		SagPct: 20.0,
 	}
 	stemSetup := fix.DefaultStem
 	stemSetup.SpacersMm = 35.0
@@ -472,7 +478,7 @@ func TestBikeWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
 	saddleSetup.RailPitchDeg = -2.0
 
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:     fix.Chart.Frame,
+		Frame:     frame,
 		Fork:      forkSetup,
 		Wheels:    fix.Wheels,
 		Seatpost:  postSetup,
@@ -488,7 +494,7 @@ func TestBikeWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
 		key  string
 		want string
 	}{
-		{"effective-a2c", fmt.Sprintf("%.1f mm", forkSetup.A2cMm)},
+		{"effective-a2c", fmt.Sprintf("%.1f mm", forkSetup.EffectiveA2cMm())},
 		{"frame-pitch", fmt.Sprintf("%+.2f°", bike.Frameset.PitchDeg())},
 		{"seat-axis-post-top", fmt.Sprintf("%.1f mm", bike.SeatAxisToPostTopMm())},
 		{"brp-height", fmt.Sprintf("%.1f mm", bike.SaddleHeightMm())},
@@ -660,7 +666,16 @@ func TestBikeWorkbenchAcceptsSeatpostExtensionLimits(t *testing.T) {
 
 func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	fix := otsoFenrirFixture()
-	forkSetup := assembly.ForkSetup{A2cMm: 506.0, RakeMm: 44.0, LowerCupMm: 12.0}
+	frame := fix.Chart.Frame
+	frame.LowerCupMm = 12.0
+	forkSetup := assembly.ForkSetup{
+		Spec: assembly.ForkSpec{
+			StaticA2cMm: 530.0,
+			TravelMm:    120.0,
+			RakeMm:      44.0,
+		},
+		SagPct: 20.0,
+	}
 	customWheels := assembly.WheelSetup{RadiusMm: 340.0}
 	customSeatpost := assembly.SeatpostSetup{ExtensionMm: 240.0, PostSetbackMm: 15.0, ClampLengthMm: 30.0}
 	customSaddle := fix.DefaultSaddle
@@ -675,7 +690,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 
 	tr := pose.NewTrace()
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:     fix.Chart.Frame,
+		Frame:     frame,
 		Fork:      forkSetup,
 		Wheels:    customWheels,
 		Seatpost:  customSeatpost,
@@ -702,11 +717,11 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	if gotSpan := view.GroundY1 - view.RearAxleSVG.Y; math.Abs(gotSpan-customWheels.RadiusMm) > 1e-9 {
 		t.Errorf("ground-to-axle span = %.6f, want %.6f", gotSpan, customWheels.RadiusMm)
 	}
-	if view.LowerCupMm != forkSetup.LowerCupMm {
-		t.Errorf("view.LowerCupMm = %.1f, want %.1f", view.LowerCupMm, forkSetup.LowerCupMm)
+	if view.LowerCupMm != frame.LowerCupMm {
+		t.Errorf("view.LowerCupMm = %.1f, want %.1f", view.LowerCupMm, frame.LowerCupMm)
 	}
-	if view.EffectiveA2cMm != forkSetup.A2cMm {
-		t.Errorf("view.EffectiveA2cMm = %.1f, want %.1f", view.EffectiveA2cMm, forkSetup.A2cMm)
+	if view.EffectiveA2cMm != forkSetup.EffectiveA2cMm() {
+		t.Errorf("view.EffectiveA2cMm = %.1f, want %.1f", view.EffectiveA2cMm, forkSetup.EffectiveA2cMm())
 	}
 	wantForm := bikeFormValues{
 		Fork:        "fox34_120",
@@ -738,7 +753,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	wantCadState := workbenchState{
 		ForkID:        fix.CadForkID,
 		ForkA2cMm:     fix.Chart.CadFork.A2cMm,
-		LowerCupMm:    fix.Chart.CadFork.LowerCupMm,
+		LowerCupMm:    fix.Chart.Frame.LowerCupMm,
 		SagPct:        0.0,
 		SpacersMm:     15.0,
 		StemLengthMm:  70.0,

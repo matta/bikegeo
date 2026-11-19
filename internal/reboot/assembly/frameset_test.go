@@ -1,6 +1,7 @@
 package assembly_test
 
 import (
+	"errors"
 	"math"
 	"testing"
 
@@ -28,14 +29,13 @@ func fenrirWheels() assembly.WheelSetup {
 func TestPlaceFramesetCADBaselineForkAndInvariants(t *testing.T) {
 	frame := fenrirSizeLFrame()
 	wheels := fenrirWheels()
-	cadSpec := assembly.ForkSpec{
-		StaticA2cMm: 495.0,
-		TravelMm:    0.0,
-		RakeMm:      54.0,
-	}
-	cadFork, err := cadSpec.Setup(0.0, 0.0)
-	if err != nil {
-		t.Fatalf("cadSpec.Setup: %v", err)
+	cadFork := assembly.ForkSetup{
+		Spec: assembly.ForkSpec{
+			StaticA2cMm: 495.0,
+			TravelMm:    0.0,
+			RakeMm:      54.0,
+		},
+		SagPct: 0.0,
 	}
 
 	tr := pose.NewTrace()
@@ -72,9 +72,9 @@ func TestPlaceFramesetCADBaselineForkAndInvariants(t *testing.T) {
 	// Rigid physical lengths are preserved under leveling.
 	assertNear(t, "chainstay", placed.BB.DistanceTo(placed.RearAxle), frame.ChainstayMm, 1e-9)
 	assertNear(t, "head tube length", placed.HeadTubeTop.DistanceTo(placed.HeadTubeBottom), frame.HeadTubeLengthMm, 1e-9)
-	assertNear(t, "lower cup", placed.HeadTubeBottom.DistanceTo(placed.LowerCupBottom), cadFork.LowerCupMm, 1e-9)
-	assertNear(t, "fork A2C", placed.LowerCupBottom.DistanceTo(placed.ForkSteererBase), cadFork.A2cMm, 1e-9)
-	assertNear(t, "fork rake", placed.ForkSteererBase.DistanceTo(placed.FrontAxle), cadFork.RakeMm, 1e-9)
+	assertNear(t, "lower cup", placed.HeadTubeBottom.DistanceTo(placed.LowerCupBottom), frame.LowerCupMm, 1e-9)
+	assertNear(t, "fork A2C", placed.LowerCupBottom.DistanceTo(placed.ForkSteererBase), cadFork.EffectiveA2cMm(), 1e-9)
+	assertNear(t, "fork rake", placed.ForkSteererBase.DistanceTo(placed.FrontAxle), cadFork.Spec.RakeMm, 1e-9)
 	assertNear(t, "seat tube length", placed.BB.DistanceTo(placed.SeatTubeTop), frame.SeatTubeLengthMm, 1e-9)
 
 	// SeatAxis is anchored at BB, points up the leveled seat tube axis, and parents SeatTubeTop.
@@ -107,6 +107,7 @@ func TestPlaceFramesetCADBaselineForkAndInvariants(t *testing.T) {
 
 func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 	frame := fenrirSizeLFrame()
+	frame.LowerCupMm = 12.0
 	wheels := fenrirWheels()
 
 	// Installed 12 mm EC44 lower cup + 120 mm Fox 34 at 20% sag (resolved A2C = 506 mm).
@@ -117,11 +118,8 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 		TravelMm:    120.0,
 		RakeMm:      44.0,
 	}
-	fork20, err := fox34Spec.Setup(20.0, 12.0)
-	if err != nil {
-		t.Fatalf("fox34Spec.Setup(20, 12): %v", err)
-	}
-	assertNear(t, "resolved A2C at 20% sag", fork20.A2cMm, 506.0, 1e-9)
+	fork20 := assembly.ForkSetup{Spec: fox34Spec, SagPct: 20.0}
+	assertNear(t, "resolved A2C at 20% sag", fork20.EffectiveA2cMm(), 506.0, 1e-9)
 
 	placed, err := assembly.PlaceFrameset(frame, fork20, wheels, nil)
 	if err != nil {
@@ -141,11 +139,8 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 	assertNear(t, "lower cup", placed.HeadTubeBottom.DistanceTo(placed.LowerCupBottom), 12.0, 1e-9)
 
 	// Increasing sag shortens resolved A2C, reduces frame pitch, and lowers BB above ground.
-	fork30, err := fox34Spec.Setup(30.0, 12.0)
-	if err != nil {
-		t.Fatalf("fox34Spec.Setup(30, 12): %v", err)
-	}
-	assertNear(t, "resolved A2C at 30% sag", fork30.A2cMm, 494.0, 1e-9)
+	fork30 := assembly.ForkSetup{Spec: fox34Spec, SagPct: 30.0}
+	assertNear(t, "resolved A2C at 30% sag", fork30.EffectiveA2cMm(), 494.0, 1e-9)
 	placedMoreSag, err := assembly.PlaceFrameset(frame, fork30, wheels, nil)
 	if err != nil {
 		t.Fatalf("PlaceFrameset 30%% sag: %v", err)
@@ -163,17 +158,15 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 
 func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 	frame := fenrirSizeLFrame()
-	fork := assembly.ForkSetup{A2cMm: 495, RakeMm: 54}
+	fork := assembly.ForkSetup{
+		Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54},
+	}
 	wheels := fenrirWheels()
 
 	badFrame := frame
 	badFrame.ChainstayMm = 70 // <= BbDropMm (72)
 	if _, err := assembly.PlaceFrameset(badFrame, fork, wheels, nil); err == nil {
 		t.Fatal("expected error when chainstay <= BB drop")
-	}
-
-	if _, err := assembly.PlaceFrameset(frame, assembly.ForkSetup{A2cMm: 0, RakeMm: 54}, wheels, nil); err == nil {
-		t.Fatal("expected error when ForkSetup.A2cMm <= 0")
 	}
 
 	for _, badWheels := range []assembly.WheelSetup{
@@ -186,24 +179,36 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 		}
 	}
 
-	specCases := []struct {
+	inputCases := []struct {
 		name       string
-		spec       assembly.ForkSpec
-		sagPct     float64
 		lowerCupMm float64
+		fork       assembly.ForkSetup
+		wantField  assembly.InputField
 	}{
-		{"zero static A2C", assembly.ForkSpec{StaticA2cMm: 0, RakeMm: 54}, 0, 0},
-		{"negative travel", assembly.ForkSpec{StaticA2cMm: 506, TravelMm: -10, RakeMm: 44}, 0, 0},
-		{"negative sag", assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44}, -5, 0},
-		{"sag over 100%", assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44}, 105, 0},
-		{"non-zero sag on rigid fork", assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54}, 20, 0},
-		{"non-positive effective A2C", assembly.ForkSpec{StaticA2cMm: 80, TravelMm: 100, RakeMm: 44}, 90, 0},
-		{"negative lower cup", assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54}, 0, -1},
+		{"zero static A2C", 0, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 0, RakeMm: 54}}, assembly.InputForkA2c},
+		{"negative travel", 0, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: -10, RakeMm: 44}}, ""},
+		{"NaN rake", 0, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, RakeMm: math.NaN()}}, ""},
+		{"negative sag", 0, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44}, SagPct: -5}, assembly.InputForkSag},
+		{"sag over 100%", 0, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44}, SagPct: 105}, assembly.InputForkSag},
+		{"non-zero sag on rigid fork", 0, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54}, SagPct: 20}, assembly.InputForkSag},
+		{"non-positive effective A2C", 0, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 80, TravelMm: 100, RakeMm: 44}, SagPct: 90}, assembly.InputForkA2c},
+		{"negative lower cup", -1, fork, assembly.InputLowerCup},
 	}
-	for _, tc := range specCases {
+	for _, tc := range inputCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := tc.spec.Setup(tc.sagPct, tc.lowerCupMm); err == nil {
+			f := frame
+			f.LowerCupMm = tc.lowerCupMm
+			_, err := assembly.PlaceFrameset(f, tc.fork, wheels, nil)
+			if err == nil {
 				t.Fatalf("expected error for %s", tc.name)
+			}
+			var inputErr *assembly.InputError
+			if tc.wantField != "" {
+				if !errors.As(err, &inputErr) || inputErr.Field != tc.wantField {
+					t.Fatalf("error = %v, want InputError with field %q", err, tc.wantField)
+				}
+			} else if errors.As(err, &inputErr) {
+				t.Fatalf("unexpected InputError tag %q on %v", inputErr.Field, err)
 			}
 		})
 	}
@@ -214,10 +219,9 @@ func TestPlaceCadBaselineFork(t *testing.T) {
 	wheels := fenrirWheels()
 	chart := assembly.FrameChart{
 		Frame: frame,
-		CadFork: assembly.ForkSetup{
-			A2cMm:      495.0,
-			RakeMm:     54.0,
-			LowerCupMm: 0.0,
+		CadFork: assembly.ForkGeometry{
+			A2cMm:  495.0,
+			RakeMm: 54.0,
 		},
 		PublishedWheelbaseMm: 1158.0,
 	}
@@ -233,7 +237,10 @@ func TestPlaceCadBaselineFork(t *testing.T) {
 		t.Fatalf("WheelbaseDiffMm = %.4f mm, want within 1.5 mm rounding", baselineFork.Residuals.WheelbaseDiffMm)
 	}
 
-	placed, err := assembly.PlaceFrameset(chart.Frame, chart.CadFork, wheels, nil)
+	cadForkSetup := assembly.ForkSetup{
+		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0},
+	}
+	placed, err := assembly.PlaceFrameset(chart.Frame, cadForkSetup, wheels, nil)
 	if err != nil {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
@@ -241,11 +248,13 @@ func TestPlaceCadBaselineFork(t *testing.T) {
 	assertNear(t, "baseline fork wheelbase == PlaceFrameset", baselineFork.Placement.WheelbaseMm(), placed.WheelbaseMm(), 1e-12)
 	assertNear(t, "baseline fork FrontTireContact.Y", baselineFork.Placement.FrontTireContact.Origin().Y, placed.FrontTireContact.Origin().Y, 1e-12)
 
-	installedFork, err := (assembly.ForkSpec{StaticA2cMm: 530.0, TravelMm: 120.0, RakeMm: 44.0}).Setup(20.0, 12.0)
-	if err != nil {
-		t.Fatalf("installedFork Setup: %v", err)
+	installedFrame := chart.Frame
+	installedFrame.LowerCupMm = 12.0
+	installedFork := assembly.ForkSetup{
+		Spec:   assembly.ForkSpec{StaticA2cMm: 530.0, TravelMm: 120.0, RakeMm: 44.0},
+		SagPct: 20.0,
 	}
-	installed, err := assembly.PlaceFrameset(chart.Frame, installedFork, wheels, nil)
+	installed, err := assembly.PlaceFrameset(installedFrame, installedFork, wheels, nil)
 	if err != nil {
 		t.Fatalf("PlaceFrameset installed: %v", err)
 	}
@@ -263,5 +272,20 @@ func TestPlaceCadBaselineFork(t *testing.T) {
 	badChart.PublishedWheelbaseMm = math.NaN()
 	if _, err := assembly.PlaceCadBaselineFork(badChart, wheels); err == nil {
 		t.Fatal("expected error for NaN published wheelbase")
+	}
+	badChart = chart
+	badChart.CadFork.A2cMm = 0
+	if _, err := assembly.PlaceCadBaselineFork(badChart, wheels); err == nil {
+		t.Fatal("expected error for non-positive CadFork.A2cMm")
+	}
+	badChart = chart
+	badChart.CadFork.RakeMm = math.NaN()
+	if _, err := assembly.PlaceCadBaselineFork(badChart, wheels); err == nil {
+		t.Fatal("expected error for NaN CadFork.RakeMm")
+	}
+	badChart = chart
+	badChart.Frame.LowerCupMm = -1
+	if _, err := assembly.PlaceCadBaselineFork(badChart, wheels); err == nil {
+		t.Fatal("expected error for negative Frame.LowerCupMm")
 	}
 }

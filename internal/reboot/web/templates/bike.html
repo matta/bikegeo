@@ -311,7 +311,7 @@
     <div class="control-actions">
       <button type="submit">Update Build</button>
       <a href="/bike" data-preset="defaults">Reset Defaults</a>
-      <a href="{{.CadBaselineForkURL}}" data-preset="cad-baseline-fork">CAD Baseline Fork ({{printf "%.0f" .CadFork.LowerCupMm}} mm cup)</a>
+      <a href="{{.CadBaselineForkURL}}" data-preset="cad-baseline-fork">CAD Baseline Fork ({{printf "%.0f" .CadLowerCupMm}} mm cup)</a>
     </div>
   </form>
 
@@ -333,7 +333,7 @@
         <span>Lateral grip (±Z): <strong class="mono" data-metric="hand-lateral">{{printf "%.1f mm" .HandLateralMm}}</strong></span>
       </div>
       <div class="summary" style="font-size: 0.82rem;">
-        <span>CAD Baseline Fork ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm / {{printf "%.0f" .CadFork.LowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .CadHtaDeg}} HTA, {{printf "%.1f mm" .CadWheelbaseMm}} WB</strong> (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>)</span>
+        <span>CAD Baseline Fork ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm / {{printf "%.0f" .CadLowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .CadHtaDeg}} HTA, {{printf "%.1f mm" .CadWheelbaseMm}} WB</strong> (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>)</span>
         <span>ΔPitch vs CAD: <strong class="mono" data-metric="delta-pitch">{{printf "%+.2f°" .DeltaPitchDeg}}</strong></span>
         <span>0° Closure Residuals: <strong class="mono" data-metric="residual-axle-y">{{printf "%+.2f mm" .ResidualAxleYMm}}</strong> axle Y, <strong class="mono" data-metric="residual-wheelbase">{{printf "%+.2f mm" .ResidualWheelbaseMm}}</strong> WB</span>
       </div>

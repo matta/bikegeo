@@ -8,24 +8,18 @@ import (
 )
 
 // FrameSetup specifies the frame dimensions in its unpitched reference attitude
-// (where reference Reach is horizontal and reference Stack is vertical).
+// (where reference Reach is horizontal and reference Stack is vertical), along
+// with the installed lower headset cup stack (LowerCupMm).
 type FrameSetup struct {
 	ReachMm          float64
 	StackMm          float64
 	HeadTubeAngleDeg pose.Deg
 	HeadTubeLengthMm float64
+	LowerCupMm       float64
 	SeatTubeAngleDeg pose.Deg
 	SeatTubeLengthMm float64
 	BbDropMm         float64
 	ChainstayMm      float64
-}
-
-// ForkSetup holds the resolved physical dimensions (effective axle-to-crown,
-// rake, and lower headset cup stack) that PlaceFrameset draws.
-type ForkSetup struct {
-	A2cMm      float64
-	RakeMm     float64
-	LowerCupMm float64
 }
 
 // ForkSpec describes a catalog fork before installation and sag.
@@ -35,30 +29,56 @@ type ForkSpec struct {
 	RakeMm      float64
 }
 
-// Setup resolves the fork specification at sagPct with lowerCupMm into a
-// ForkSetup ready for PlaceFrameset.
-func (s ForkSpec) Setup(sagPct, lowerCupMm float64) (ForkSetup, error) {
-	if !isFinite(s.StaticA2cMm) || s.StaticA2cMm <= 0 {
-		return ForkSetup{}, invalidInput(InputForkA2c, "fork static A2C must be finite and positive, got %v mm", s.StaticA2cMm)
+// ForkGeometry holds the resolved fixed fork dimensions (effective axle-to-crown
+// and rake) used by the frameset Pose recipe and FrameChart.CadFork.
+type ForkGeometry struct {
+	A2cMm  float64
+	RakeMm float64
+}
+
+// ForkSetup holds the physical installation inputs for a fork (its catalog
+// ForkSpec and installed SagPct) that PlaceFrameset resolves and validates.
+type ForkSetup struct {
+	Spec   ForkSpec
+	SagPct float64
+}
+
+// EffectiveA2cMm returns the fork's effective (sagged) axle-to-crown length.
+func (f ForkSetup) EffectiveA2cMm() float64 {
+	return f.Spec.StaticA2cMm - f.Spec.TravelMm*(f.SagPct/100.0)
+}
+
+// Geometry resolves the fork setup's effective A2C and rake into ForkGeometry.
+func (f ForkSetup) Geometry() ForkGeometry {
+	return ForkGeometry{
+		A2cMm:  f.EffectiveA2cMm(),
+		RakeMm: f.Spec.RakeMm,
 	}
-	if !isFinite(s.TravelMm) || s.TravelMm < 0 {
-		return ForkSetup{}, fmt.Errorf("fork travel must be finite and non-negative, got %v mm", s.TravelMm)
+}
+
+// Validate checks that the fork specification, sag percentage, and resulting
+// effective A2C are valid physical inputs.
+func (f ForkSetup) Validate() error {
+	if !isFinite(f.Spec.StaticA2cMm) || f.Spec.StaticA2cMm <= 0 {
+		return invalidInput(InputForkA2c, "fork static A2C must be finite and positive, got %v mm", f.Spec.StaticA2cMm)
 	}
-	if !isFinite(sagPct) || sagPct < 0 || sagPct > 100 {
-		return ForkSetup{}, invalidInput(InputForkSag, "fork sag must be in [0%%, 100%%], got %v%%", sagPct)
+	if !isFinite(f.Spec.TravelMm) || f.Spec.TravelMm < 0 {
+		return fmt.Errorf("fork travel must be finite and non-negative, got %v mm", f.Spec.TravelMm)
 	}
-	if s.TravelMm == 0 && sagPct != 0 {
-		return ForkSetup{}, invalidInput(InputForkSag, "rigid fork (0 mm travel) cannot have non-zero sag, got %v%%", sagPct)
+	if !isFinite(f.SagPct) || f.SagPct < 0 || f.SagPct > 100 {
+		return invalidInput(InputForkSag, "fork sag must be in [0%%, 100%%], got %v%%", f.SagPct)
 	}
-	setup := ForkSetup{
-		A2cMm:      s.StaticA2cMm - s.TravelMm*(sagPct/100.0),
-		RakeMm:     s.RakeMm,
-		LowerCupMm: lowerCupMm,
+	if f.Spec.TravelMm == 0 && f.SagPct != 0 {
+		return invalidInput(InputForkSag, "rigid fork (0 mm travel) cannot have non-zero sag, got %v%%", f.SagPct)
 	}
-	if err := validateForkSetup(setup); err != nil {
-		return ForkSetup{}, err
+	eff := f.EffectiveA2cMm()
+	if !isFinite(eff) || eff <= 0 {
+		return invalidInput(InputForkA2c, "fork effective A2C must be finite and positive, got %v mm", eff)
 	}
-	return setup, nil
+	if !isFinite(f.Spec.RakeMm) {
+		return fmt.Errorf("fork rake must be finite, got %v mm", f.Spec.RakeMm)
+	}
+	return nil
 }
 
 // WheelSetup specifies the wheel radius used to locate tire-ground contact
@@ -125,11 +145,12 @@ func (f FramesetPlacement) LeveledBbDropMm() float64 {
 	return f.BB.VerticalOffsetTo(f.RearAxle)
 }
 
-// FrameChart groups a frame's unpitched reference dimensions with its CAD
-// baseline fork and published wheelbase.
+// FrameChart groups a frame's unpitched reference dimensions (with Frame.LowerCupMm
+// holding the CAD lower headset cup stack), its fixed CAD baseline fork geometry,
+// and its published wheelbase.
 type FrameChart struct {
 	Frame                FrameSetup
-	CadFork              ForkSetup
+	CadFork              ForkGeometry
 	PublishedWheelbaseMm float64
 }
 
@@ -156,7 +177,16 @@ func (b ChartBaseline) DeltaPitchDeg(installed FramesetPlacement) pose.Deg {
 // the raw chart-closure residuals and the leveling pitch, then builds the
 // leveled CAD baseline fork frameset.
 func PlaceCadBaselineFork(chart FrameChart, wheels WheelSetup) (ChartBaseline, error) {
-	if err := validateFramesetInputs(chart.Frame, chart.CadFork, wheels); err != nil {
+	if err := validateFrameGeometry(chart.Frame); err != nil {
+		return ChartBaseline{}, err
+	}
+	if err := validateForkGeometry(chart.CadFork); err != nil {
+		return ChartBaseline{}, err
+	}
+	if err := validateLowerCup(chart.Frame.LowerCupMm); err != nil {
+		return ChartBaseline{}, err
+	}
+	if err := validateWheels(wheels); err != nil {
 		return ChartBaseline{}, err
 	}
 	if !isFinite(chart.PublishedWheelbaseMm) || chart.PublishedWheelbaseMm <= 0 {
@@ -185,16 +215,17 @@ func PlaceFrameset(frame FrameSetup, fork ForkSetup, wheels WheelSetup, trace *p
 		return FramesetPlacement{}, err
 	}
 
-	_, pitchDeg := measureUnpitchedFrameset(frame, fork)
-	return placeLeveledFrameset(frame, fork, wheels, pitchDeg, trace), nil
+	geom := fork.Geometry()
+	_, pitchDeg := measureUnpitchedFrameset(frame, geom)
+	return placeLeveledFrameset(frame, geom, wheels, pitchDeg, trace), nil
 }
 
-func measureUnpitchedFrameset(frame FrameSetup, fork ForkSetup) (FramesetPlacement, pose.Deg) {
+func measureUnpitchedFrameset(frame FrameSetup, fork ForkGeometry) (FramesetPlacement, pose.Deg) {
 	unpitched := placeFramesetAtPitch(pose.NewPose(pose.Point{}, 0, nil), frame, fork)
 	return unpitched, -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)
 }
 
-func placeLeveledFrameset(frame FrameSetup, fork ForkSetup, wheels WheelSetup, pitchDeg pose.Deg, trace *pose.Trace) FramesetPlacement {
+func placeLeveledFrameset(frame FrameSetup, fork ForkGeometry, wheels WheelSetup, pitchDeg pose.Deg, trace *pose.Trace) FramesetPlacement {
 	frameRoot := pose.NewPose(pose.Point{}, 0, trace).Turn("frame pitch to level axles", pitchDeg)
 	leveled := placeFramesetAtPitch(frameRoot, frame, fork)
 	leveled.RearTireContact = leveled.RearAxle.Face("down to ground", -90.0).Advance("rear wheel radius", wheels.RadiusMm)
@@ -202,7 +233,7 @@ func placeLeveledFrameset(frame FrameSetup, fork ForkSetup, wheels WheelSetup, p
 	return leveled
 }
 
-func placeFramesetAtPitch(frameRoot pose.Pose, frame FrameSetup, fork ForkSetup) FramesetPlacement {
+func placeFramesetAtPitch(frameRoot pose.Pose, frame FrameSetup, fork ForkGeometry) FramesetPlacement {
 	rearX := -pose.RightTriangleLeg(frame.ChainstayMm, frame.BbDropMm)
 	rearAxle := frameRoot.Translate("rear axle", rearX, frame.BbDropMm)
 
@@ -210,7 +241,7 @@ func placeFramesetAtPitch(frameRoot pose.Pose, frame FrameSetup, fork ForkSetup)
 		Turn("steerer axis (180° - HTA)", 180.0-frame.HeadTubeAngleDeg)
 	steererDown := headTubeTop.Turn("down steerer", 180.0)
 	headTubeBottom := steererDown.Advance("head tube length", frame.HeadTubeLengthMm)
-	lowerCupBottom := headTubeBottom.Advance("lower headset cup", fork.LowerCupMm)
+	lowerCupBottom := headTubeBottom.Advance("lower headset cup", frame.LowerCupMm)
 	forkSteererBase := lowerCupBottom.Advance("fork A2C", fork.A2cMm)
 	frontAxle := forkSteererBase.Turn("fork rake direction", 90.0).Advance("fork rake", fork.RakeMm)
 
@@ -230,20 +261,31 @@ func placeFramesetAtPitch(frameRoot pose.Pose, frame FrameSetup, fork ForkSetup)
 	}
 }
 
-func validateForkSetup(fork ForkSetup) error {
+func validateForkGeometry(fork ForkGeometry) error {
 	if !isFinite(fork.A2cMm) || fork.A2cMm <= 0 {
 		return invalidInput(InputForkA2c, "fork A2C must be finite and positive, got %v mm", fork.A2cMm)
 	}
 	if !isFinite(fork.RakeMm) {
 		return fmt.Errorf("fork rake must be finite, got %v mm", fork.RakeMm)
 	}
-	if !isFinite(fork.LowerCupMm) || fork.LowerCupMm < 0 {
-		return invalidInput(InputLowerCup, "lower headset cup must be finite and non-negative, got %v mm", fork.LowerCupMm)
+	return nil
+}
+
+func validateLowerCup(lowerCupMm float64) error {
+	if !isFinite(lowerCupMm) || lowerCupMm < 0 {
+		return invalidInput(InputLowerCup, "lower headset cup must be finite and non-negative, got %v mm", lowerCupMm)
 	}
 	return nil
 }
 
-func validateFramesetInputs(frame FrameSetup, fork ForkSetup, wheels WheelSetup) error {
+func validateWheels(wheels WheelSetup) error {
+	if !isFinite(wheels.RadiusMm) || wheels.RadiusMm <= 0 {
+		return fmt.Errorf("wheel radius must be finite and positive, got %v mm", wheels.RadiusMm)
+	}
+	return nil
+}
+
+func validateFrameGeometry(frame FrameSetup) error {
 	if !isFinite(frame.ReachMm) || frame.ReachMm <= 0 {
 		return fmt.Errorf("reach must be finite and positive, got %v mm", frame.ReachMm)
 	}
@@ -265,11 +307,21 @@ func validateFramesetInputs(frame FrameSetup, fork ForkSetup, wheels WheelSetup)
 	if !isFinite(frame.SeatTubeLengthMm) || frame.SeatTubeLengthMm <= 0 {
 		return fmt.Errorf("seat tube length must be finite and positive, got %v mm", frame.SeatTubeLengthMm)
 	}
-	if err := validateForkSetup(fork); err != nil {
+	return nil
+}
+
+func validateFramesetInputs(frame FrameSetup, fork ForkSetup, wheels WheelSetup) error {
+	if err := validateFrameGeometry(frame); err != nil {
 		return err
 	}
-	if !isFinite(wheels.RadiusMm) || wheels.RadiusMm <= 0 {
-		return fmt.Errorf("wheel radius must be finite and positive, got %v mm", wheels.RadiusMm)
+	if err := fork.Validate(); err != nil {
+		return err
+	}
+	if err := validateLowerCup(frame.LowerCupMm); err != nil {
+		return err
+	}
+	if err := validateWheels(wheels); err != nil {
+		return err
 	}
 	return nil
 }

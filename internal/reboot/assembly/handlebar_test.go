@@ -190,17 +190,19 @@ func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 func TestOtsoFenrirFullBikeFrontCockpitAndTraceEquivalence(t *testing.T) {
 	// Fox 34 120 mm at 20% sag (A2C = 506 mm, rake = 44 mm, 12 mm EC44 lower cup)
 	// with full rear + front cockpits on Otso Fenrir L.
-	forkSetup, err := (assembly.ForkSpec{
-		StaticA2cMm: 530.0,
-		TravelMm:    120.0,
-		RakeMm:      44.0,
-	}).Setup(20.0, 12.0)
-	if err != nil {
-		t.Fatalf("ForkSpec.Setup: %v", err)
+	frame := fenrirSizeLFrame()
+	frame.LowerCupMm = 12.0
+	forkSetup := assembly.ForkSetup{
+		Spec: assembly.ForkSpec{
+			StaticA2cMm: 530.0,
+			TravelMm:    120.0,
+			RakeMm:      44.0,
+		},
+		SagPct: 20.0,
 	}
 
 	bikeSetup := assembly.BikeSetup{
-		Frame:  fenrirSizeLFrame(),
+		Frame:  frame,
 		Fork:   forkSetup,
 		Wheels: fenrirWheels(),
 		Seatpost: assembly.SeatpostSetup{

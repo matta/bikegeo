@@ -194,7 +194,9 @@ func TestPlaceSaddleWorldRelativePitch(t *testing.T) {
 func TestOtsoFenrirRearCockpitAndTraceEquivalence(t *testing.T) {
 	frame := fenrirSizeLFrame()
 	wheels := fenrirWheels()
-	cadFork := assembly.ForkSetup{A2cMm: 495.0, RakeMm: 54.0, LowerCupMm: 0.0}
+	cadFork := assembly.ForkSetup{
+		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0},
+	}
 	postSetup := assembly.SeatpostSetup{
 		ExtensionMm:   263.5,
 		PostSetbackMm: 0.0,

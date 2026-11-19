@@ -120,12 +120,13 @@ func handleStemWorkbench(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing default fork option", http.StatusInternalServerError)
 		return
 	}
-	forkSetup, err := defaultFork.Spec.Setup(defaultFork.DefaultSagPct, fix.DefaultLowerCupMm)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	frame := fix.Chart.Frame
+	frame.LowerCupMm = fix.DefaultLowerCupMm
+	forkSetup := assembly.ForkSetup{
+		Spec:   defaultFork.Spec,
+		SagPct: defaultFork.DefaultSagPct,
 	}
-	frameset, err := assembly.PlaceFrameset(fix.Chart.Frame, forkSetup, fix.Wheels, nil)
+	frameset, err := assembly.PlaceFrameset(frame, forkSetup, fix.Wheels, nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -337,7 +338,7 @@ func workbenchStateFromSetup(forkID string, staticA2cMm, sagPct float64, setup a
 	return workbenchState{
 		ForkID:        forkID,
 		ForkA2cMm:     staticA2cMm,
-		LowerCupMm:    setup.Fork.LowerCupMm,
+		LowerCupMm:    setup.Frame.LowerCupMm,
 		SagPct:        sagPct,
 		SpacersMm:     setup.Stem.SpacersMm,
 		StemLengthMm:  setup.Stem.LengthMm,
@@ -353,7 +354,7 @@ func workbenchStateFromSetup(forkID string, staticA2cMm, sagPct float64, setup a
 func (s workbenchState) withCadBaselineFork(fix bikeFixture) workbenchState {
 	s.ForkID = fix.CadForkID
 	s.ForkA2cMm = fix.Chart.CadFork.A2cMm
-	s.LowerCupMm = fix.Chart.CadFork.LowerCupMm
+	s.LowerCupMm = fix.Chart.Frame.LowerCupMm
 	s.SagPct = 0.0
 	return s
 }
@@ -437,7 +438,8 @@ type bikeView struct {
 	HandlebarName        string
 	Forks                []forkOption
 	SelectedForkID       string
-	CadFork              assembly.ForkSetup
+	CadFork              assembly.ForkGeometry
+	CadLowerCupMm        float64
 	LowerCupMm           float64
 	SagPct               float64
 	EffectiveA2cMm       float64
@@ -526,6 +528,7 @@ func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolv
 		Forks:              fix.Forks,
 		SelectedForkID:     resolved.State.ForkID,
 		CadFork:            fix.Chart.CadFork,
+		CadLowerCupMm:      fix.Chart.Frame.LowerCupMm,
 	}
 	renderBikeTemplate(w, http.StatusBadRequest, view)
 }
@@ -613,15 +616,13 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bi
 		state.SagPct = p.float("sag", state.SagPct, "fork sag", &form.Sag)
 	}
 
-	var forkSetup assembly.ForkSetup
-	if p.err == nil {
-		spec := selectedFork.Spec
-		spec.StaticA2cMm = state.ForkA2cMm
-		var err error
-		forkSetup, err = spec.Setup(state.SagPct, state.LowerCupMm)
-		if err != nil {
-			p.fail(bikeInputField(err), err)
-		}
+	frame := fix.Chart.Frame
+	frame.LowerCupMm = state.LowerCupMm
+	forkSpec := selectedFork.Spec
+	forkSpec.StaticA2cMm = state.ForkA2cMm
+	forkSetup := assembly.ForkSetup{
+		Spec:   forkSpec,
+		SagPct: state.SagPct,
 	}
 
 	state.SpacersMm = p.float("spacers", defaults.SpacersMm, "spacers", &form.Spacers)
@@ -653,7 +654,7 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bi
 		State: state,
 		Form:  form,
 		Setup: assembly.BikeSetup{
-			Frame:     fix.Chart.Frame,
+			Frame:     frame,
 			Fork:      forkSetup,
 			Wheels:    fix.Wheels,
 			Seatpost:  post,
@@ -828,9 +829,10 @@ func buildBikeView(
 		Forks:                fix.Forks,
 		SelectedForkID:       forkID,
 		CadFork:              fix.Chart.CadFork,
-		LowerCupMm:           bike.Setup.Fork.LowerCupMm,
+		CadLowerCupMm:        fix.Chart.Frame.LowerCupMm,
+		LowerCupMm:           bike.Setup.Frame.LowerCupMm,
 		SagPct:               sagPct,
-		EffectiveA2cMm:       bike.Setup.Fork.A2cMm,
+		EffectiveA2cMm:       bike.Setup.Fork.EffectiveA2cMm(),
 		PitchDeg:             placed.PitchDeg(),
 		LeveledHtaDeg:        placed.LeveledHeadTubeAngleDeg(),
 		LeveledStaDeg:        placed.LeveledSeatTubeAngleDeg(),
