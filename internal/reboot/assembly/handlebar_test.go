@@ -232,7 +232,7 @@ func TestOtsoFenrirFullBikeFrontCockpitAndTraceEquivalence(t *testing.T) {
 		name string
 		a, b pose.Pose
 	}{
-		{"HeadTubeTop", traced.Chassis.HeadTubeTop, untraced.Chassis.HeadTubeTop},
+		{"HeadTubeTop", traced.Frameset.HeadTubeTop, untraced.Frameset.HeadTubeTop},
 		{"CoverTop", traced.Stem.CoverTop, untraced.Stem.CoverTop},
 		{"SpacerTop", traced.Stem.SpacerTop, untraced.Stem.SpacerTop},
 		{"SteererClamp", traced.Stem.SteererClamp, untraced.Stem.SteererClamp},
@@ -245,10 +245,10 @@ func TestOtsoFenrirFullBikeFrontCockpitAndTraceEquivalence(t *testing.T) {
 		assertNear(t, pair.name+".Heading eq", float64(pair.a.HeadingDeg()), float64(pair.b.HeadingDeg()), 1e-12)
 	}
 
-	// Verify Stem and Handlebar trace parentage chains cleanly from Chassis.HeadTubeTop.
+	// Verify Stem and Handlebar trace parentage chains cleanly from Frameset.HeadTubeTop.
 	steps := tr.Steps()
-	if coverStep := steps[traced.Stem.CoverTop.StepID()-1]; coverStep.ParentID != traced.Chassis.HeadTubeTop.StepID() {
-		t.Fatalf("CoverTop ParentID = %d, want HeadTubeTop.StepID %d", coverStep.ParentID, traced.Chassis.HeadTubeTop.StepID())
+	if coverStep := steps[traced.Stem.CoverTop.StepID()-1]; coverStep.ParentID != traced.Frameset.HeadTubeTop.StepID() {
+		t.Fatalf("CoverTop ParentID = %d, want HeadTubeTop.StepID %d", coverStep.ParentID, traced.Frameset.HeadTubeTop.StepID())
 	}
 	if rollStep := steps[traced.Handlebar.BarRollFrame.StepID()-1]; rollStep.ParentID != traced.Stem.BarClamp.StepID() {
 		t.Fatalf("BarRollFrame ParentID = %d, want BarClamp.StepID %d", rollStep.ParentID, traced.Stem.BarClamp.StepID())

@@ -25,7 +25,7 @@ func fenrirWheels() assembly.WheelSetup {
 	return assembly.WheelSetup{RadiusMm: 372.0}
 }
 
-func TestPlaceChassisCADBaselineForkAndInvariants(t *testing.T) {
+func TestPlaceFramesetCADBaselineForkAndInvariants(t *testing.T) {
 	frame := fenrirSizeLFrame()
 	wheels := fenrirWheels()
 	cadSpec := assembly.ForkSpec{
@@ -39,9 +39,9 @@ func TestPlaceChassisCADBaselineForkAndInvariants(t *testing.T) {
 	}
 
 	tr := pose.NewTrace()
-	placed, err := assembly.PlaceChassis(frame, cadFork, wheels, tr)
+	placed, err := assembly.PlaceFrameset(frame, cadFork, wheels, tr)
 	if err != nil {
-		t.Fatalf("PlaceChassis: %v", err)
+		t.Fatalf("PlaceFrameset: %v", err)
 	}
 	tr.Freeze()
 
@@ -91,9 +91,9 @@ func TestPlaceChassisCADBaselineForkAndInvariants(t *testing.T) {
 	}
 
 	// Trace-on/off equivalence.
-	untraced, err := assembly.PlaceChassis(frame, cadFork, wheels, nil)
+	untraced, err := assembly.PlaceFrameset(frame, cadFork, wheels, nil)
 	if err != nil {
-		t.Fatalf("PlaceChassis untraced: %v", err)
+		t.Fatalf("PlaceFrameset untraced: %v", err)
 	}
 	assertNear(t, "untraced FrontAxle.X", untraced.FrontAxle.Origin().X, placed.FrontAxle.Origin().X, 1e-12)
 	assertNear(t, "untraced FrontAxle.Y", untraced.FrontAxle.Origin().Y, placed.FrontAxle.Origin().Y, 1e-12)
@@ -105,7 +105,7 @@ func TestPlaceChassisCADBaselineForkAndInvariants(t *testing.T) {
 	assertNear(t, "untraced HeadTubeTop.Heading", float64(untraced.HeadTubeTop.HeadingDeg()), float64(placed.HeadTubeTop.HeadingDeg()), 1e-12)
 }
 
-func TestPlaceChassisInstalledForkPitchAndLeveling(t *testing.T) {
+func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 	frame := fenrirSizeLFrame()
 	wheels := fenrirWheels()
 
@@ -123,9 +123,9 @@ func TestPlaceChassisInstalledForkPitchAndLeveling(t *testing.T) {
 	}
 	assertNear(t, "resolved A2C at 20% sag", fork20.A2cMm, 506.0, 1e-9)
 
-	placed, err := assembly.PlaceChassis(frame, fork20, wheels, nil)
+	placed, err := assembly.PlaceFrameset(frame, fork20, wheels, nil)
 	if err != nil {
-		t.Fatalf("PlaceChassis: %v", err)
+		t.Fatalf("PlaceFrameset: %v", err)
 	}
 
 	assertNear(t, "axle Y delta", placed.FrontAxle.Origin().Y-placed.RearAxle.Origin().Y, 0, 1e-9)
@@ -146,9 +146,9 @@ func TestPlaceChassisInstalledForkPitchAndLeveling(t *testing.T) {
 		t.Fatalf("fox34Spec.Setup(30, 12): %v", err)
 	}
 	assertNear(t, "resolved A2C at 30% sag", fork30.A2cMm, 494.0, 1e-9)
-	placedMoreSag, err := assembly.PlaceChassis(frame, fork30, wheels, nil)
+	placedMoreSag, err := assembly.PlaceFrameset(frame, fork30, wheels, nil)
 	if err != nil {
-		t.Fatalf("PlaceChassis 30%% sag: %v", err)
+		t.Fatalf("PlaceFrameset 30%% sag: %v", err)
 	}
 	assertNear(t, "fork A2C at 30% sag", placedMoreSag.LowerCupBottom.DistanceTo(placedMoreSag.ForkSteererBase), 494.0, 1e-9)
 	if placedMoreSag.PitchDeg() >= placed.PitchDeg() {
@@ -161,18 +161,18 @@ func TestPlaceChassisInstalledForkPitchAndLeveling(t *testing.T) {
 	}
 }
 
-func TestPlaceChassisAndForkSpecRejectInvalidInputs(t *testing.T) {
+func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 	frame := fenrirSizeLFrame()
 	fork := assembly.ForkSetup{A2cMm: 495, RakeMm: 54}
 	wheels := fenrirWheels()
 
 	badFrame := frame
 	badFrame.ChainstayMm = 70 // <= BbDropMm (72)
-	if _, err := assembly.PlaceChassis(badFrame, fork, wheels, nil); err == nil {
+	if _, err := assembly.PlaceFrameset(badFrame, fork, wheels, nil); err == nil {
 		t.Fatal("expected error when chainstay <= BB drop")
 	}
 
-	if _, err := assembly.PlaceChassis(frame, assembly.ForkSetup{A2cMm: 0, RakeMm: 54}, wheels, nil); err == nil {
+	if _, err := assembly.PlaceFrameset(frame, assembly.ForkSetup{A2cMm: 0, RakeMm: 54}, wheels, nil); err == nil {
 		t.Fatal("expected error when ForkSetup.A2cMm <= 0")
 	}
 
@@ -181,7 +181,7 @@ func TestPlaceChassisAndForkSpecRejectInvalidInputs(t *testing.T) {
 		{RadiusMm: -10},
 		{RadiusMm: math.NaN()},
 	} {
-		if _, err := assembly.PlaceChassis(frame, fork, badWheels, nil); err == nil {
+		if _, err := assembly.PlaceFrameset(frame, fork, badWheels, nil); err == nil {
 			t.Fatalf("expected error for WheelSetup %+v", badWheels)
 		}
 	}
@@ -233,21 +233,21 @@ func TestPlaceCadBaselineFork(t *testing.T) {
 		t.Fatalf("WheelbaseDiffMm = %.4f mm, want within 1.5 mm rounding", baselineFork.Residuals.WheelbaseDiffMm)
 	}
 
-	placed, err := assembly.PlaceChassis(chart.Frame, chart.CadFork, wheels, nil)
+	placed, err := assembly.PlaceFrameset(chart.Frame, chart.CadFork, wheels, nil)
 	if err != nil {
-		t.Fatalf("PlaceChassis: %v", err)
+		t.Fatalf("PlaceFrameset: %v", err)
 	}
-	assertNear(t, "baseline fork pitch == PlaceChassis", float64(baselineFork.Placement.PitchDeg()), float64(placed.PitchDeg()), 1e-12)
-	assertNear(t, "baseline fork wheelbase == PlaceChassis", baselineFork.Placement.WheelbaseMm(), placed.WheelbaseMm(), 1e-12)
+	assertNear(t, "baseline fork pitch == PlaceFrameset", float64(baselineFork.Placement.PitchDeg()), float64(placed.PitchDeg()), 1e-12)
+	assertNear(t, "baseline fork wheelbase == PlaceFrameset", baselineFork.Placement.WheelbaseMm(), placed.WheelbaseMm(), 1e-12)
 	assertNear(t, "baseline fork FrontTireContact.Y", baselineFork.Placement.FrontTireContact.Origin().Y, placed.FrontTireContact.Origin().Y, 1e-12)
 
 	installedFork, err := (assembly.ForkSpec{StaticA2cMm: 530.0, TravelMm: 120.0, RakeMm: 44.0}).Setup(20.0, 12.0)
 	if err != nil {
 		t.Fatalf("installedFork Setup: %v", err)
 	}
-	installed, err := assembly.PlaceChassis(chart.Frame, installedFork, wheels, nil)
+	installed, err := assembly.PlaceFrameset(chart.Frame, installedFork, wheels, nil)
 	if err != nil {
-		t.Fatalf("PlaceChassis installed: %v", err)
+		t.Fatalf("PlaceFrameset installed: %v", err)
 	}
 	wantDelta := installed.PitchDeg() - baselineFork.Placement.PitchDeg()
 	assertNear(t, "DeltaPitchDeg", float64(baselineFork.DeltaPitchDeg(installed)), float64(wantDelta), 1e-12)

@@ -46,6 +46,15 @@ boundary:
 	  echo "boundary: cmd/bikegeo must not depend on reboot packages"; \
 	  exit 1; \
 	fi
+	@bad="$$({ \
+	  find cmd/bikegeo-reboot internal/reboot -iname '*chassis*'; \
+	  find cmd/bikegeo-reboot internal/reboot -type f -exec grep -Hin 'chassis' {} +; \
+	} || true)"; \
+	if [ -n "$$bad" ]; then \
+	  echo "$$bad"; \
+	  echo "boundary: reboot files must not use the banned term 'chassis' (use frame, frameset, or bike)"; \
+	  exit 1; \
+	fi
 
 # Every switch on an enum-like type must list all of its constants, even when it
 # has a default case. The linter is a `tool` dependency in go.mod, so it is

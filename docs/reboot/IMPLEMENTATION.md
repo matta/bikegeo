@@ -33,9 +33,10 @@ The initial dependency direction is `cmd/bikegeo-reboot → reboot/web → reboo
 
 **`assembly` builds and measures; `web` only renders.** Test: if fit search (Milestone 2) would need the code without HTTP, it belongs in `assembly`.
 
-- **Composition:** Chaining components (chassis → seatpost → saddle, stem → handlebar) and ending the trace happen in one `assembly` entry point, not in handlers or tests.
+- **Composition:** Chaining components (frameset → seatpost → saddle, stem → handlebar) and ending the trace happen in one `assembly` entry point, not in handlers or tests.
 - **Measurements:** Any scalar derived from placed poses (distances, angles, saddle height) is a method on a placement type. Callers, including tests, call it rather than restating the expression.
 - **Rendering:** Outlines and readouts take their dimensions from the placement and setup actually placed, never from fixture defaults or a second computation.
+- **Terminology:** Use **Frame** (bare frame), **Frameset** (leveled frame + fork + lower headset cup + wheel-ground contacts), and **Bike** (full assembly including cockpits). The term `chassis` is banned in reboot code, templates, tests, and living reboot docs (enforced on `cmd/bikegeo-reboot` and `internal/reboot` by `make boundary`; legacy packages and historical `DIALOGUE.md` remain unchanged).
 
 ### Why isolate the new code rather than move the old code?
 
@@ -128,6 +129,8 @@ Add `make build-reboot` and `make serve-reboot` without changing existing `build
      ```
   3. **Transitive production dependency check (`go list -deps`):**
      Verify that `./cmd/bikegeo-reboot` transitively depends only on the Go standard library and `bikegeo/{cmd/bikegeo-reboot,internal/reboot/...}`, and `./cmd/bikegeo` depends on zero `bikegeo/internal/reboot/...` packages.
+  4. **Banned terminology check:**
+     Reject any filename or case-insensitive content match for `chassis` under `cmd/bikegeo-reboot` and `internal/reboot` (code, templates, and tests). Use `frame`, `frameset`, or `bike` instead.
 - **Dead-code analysis (`make deadcode`):**
   Run `go tool deadcode ./...` and `go tool deadcode -test ./...` across both application entrypoints. Build vertical slices so every new non-test function in `internal/reboot/...` is reachable from `cmd/bikegeo-reboot/main.go` on every commit.
 - Adapt independent component examples, check dimensions and leveling invariants, and verify identical placements with tracing on/off. A comparison with old output in `*_parity_test.go` must explain differences rather than automatically declaring the old result correct.
@@ -137,12 +140,12 @@ The reboot retains the existing zero-runtime-dependency rule. Existing test/tool
 
 ## 5. Milestone 1 in reviewable implementation slices
 
-Each slice produces a runnable visual result plus the tests needed for its behavior. These are proposed work units, not promises of exact line counts or immutable commit sizes. The sequence expands to the full chassis and cockpit scope already approved in Turn 5.
+Each slice produces a runnable visual result plus the tests needed for its behavior. These are proposed work units, not promises of exact line counts or immutable commit sizes. The sequence expands to the full frameset and cockpit scope already approved in Turn 5.
 
 | Slice | Work | Visible result and acceptance evidence |
 | --- | --- | --- |
 | 1. Separate runnable workbench | Add the new entrypoint, build targets, and `make boundary` pre-commit checks. Implement only the pose/trace operations needed for one stem recipe, Go-rendered SVG, and a simple construction table. | `bikegeo-reboot serve` shows a stem with its construction; old `bikegeo` still runs independently. Independent stem dimensions, trace-on/off equivalence, and `make pre-commit` (including `boundary` and `deadcode`) pass. |
-| 2. Frame, fork, and leveling (**Otso Fenrir**) | Add the sourced **Otso Fenrir Stainless** fixture (`fixture.go`); construct the chassis from published chart dimensions and its declared CAD rigid fork baseline (`495 mm` / `54 mm` / `0 mm` lower cup), install the selected fork/cup (e.g., `12 mm` EC44 lower cup and rigid or `100 mm`/`120 mm` suspension fork with sag), and trace the attitude change and BB recentering. | A whole chassis drawing responds to fork/cup/sag/rake changes. Wheel/ground relationships, rigid dimensions, baseline-fork-versus-installed setup, and coordinate conventions are checked. No hardcoded pre-leveled endpoints. |
+| 2. Frame, fork, and leveling (**Otso Fenrir**) | Add the sourced **Otso Fenrir Stainless** fixture (`fixture.go`); construct the frameset from published chart dimensions and its declared CAD rigid fork baseline (`495 mm` / `54 mm` / `0 mm` lower cup), install the selected fork/cup (e.g., `12 mm` EC44 lower cup and rigid or `100 mm`/`120 mm` suspension fork with sag), and trace the attitude change and BB recentering. | A whole frameset drawing responds to fork/cup/sag/rake changes. Wheel/ground relationships, rigid dimensions, baseline-fork-versus-installed setup, and coordinate conventions are checked. No hardcoded pre-leveled endpoints. |
 | 3. Complete component assembly | Add separate seatpost (`PlaceSeatpost` on `SeatTubeTop`) and saddle (`PlaceSaddle`, SQlab 610) plus handlebar (`PlaceHandlebar`, Tumbleweed Persuader) construction on the Otso Fenrir, using the agreed pose landmarks and explicit orientation meanings. Preserve the lateral handlebar computation behind the side projection. | The one-bike drawing includes both cockpits and contact landmarks; independent rear/front examples and full-build tracing equivalence pass. |
 | 4. Controls and inspection | Complete input controls and Go validation; add fetched updates, linked trace/diagram selection, keyboard access, URL/history handling, and pan/zoom with dependency-free JavaScript. | Matt can change the approved settings, inspect the responsible steps, and navigate without stale responses or mismatched trace/diagram state. Handler tests and browser checks cover the flow. |
 | 5. Milestone acceptance | Review the full Otso Fenrir fixture and construction with Matt, address issues, and document how to run and inspect it. Recheck both applications and their import boundaries. | Matt can read the recipes, predict changes, and verify them in the diagram and trace. All Turn 5 Milestone 1 criteria are satisfied. The new workbench still has the temporary binary name. |

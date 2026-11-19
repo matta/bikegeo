@@ -47,18 +47,18 @@ Go generates the HTML and SVG from placement geometry and frozen construction tr
 **Milestone 1 Scope (One-Bike Visual Workbench) & Acceptance Criteria:**
 1. **Full single-bike traceable assembly (100% solver-free, no hardcoded pre-leveled frame endpoints):**
    - Assemble one known bike fixture (**Otso Fenrir Stainless**) starting from published chart dimensions (`Stack`, `Reach`, `HTA`, `STA`, `HTL`, `BB Drop`, `Chainstay`) and a declared fork (`StaticA2C`, `Travel`, `SagPct`, `Rake`, `LowerCup`) using traceable `Pose` steps:
-     1. Build the chassis and fork at `0°` pitch using the single forward `Pose` recipe (`placeChassisAtPitch`), measure the rear-to-front-axle angle (`PitchDeg = -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)`), and rebuild the leveled chassis with the exact same `Pose` recipe rooted at `bb.Turn("frame pitch to level axles", PitchDeg)` (see **Frame Pitch & Leveling as a Rooted `Pose` Tree** below).
+     1. Build the frameset (frame, fork, and lower headset cup) at `0°` pitch using the single forward `Pose` recipe (`placeFramesetAtPitch`), measure the rear-to-front-axle angle (`PitchDeg = -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)`), and rebuild the leveled frameset with the exact same `Pose` recipe rooted at `bb.Turn("frame pitch to level axles", PitchDeg)` (see **Frame Pitch & Leveling as a Rooted `Pose` Tree** below).
      2. Mount the rear cockpit (`PlaceSeatpost`: `ExtensionMm` above `SeatTubeTop`, `PostSetbackMm` → `SeatpostClamp`; `PlaceSaddle`: `RailOffsetMm`, `RailPitchDeg` → `RailCenter`, `BRP`, `SitBones`) and front cockpit (`PlaceStem` + `PlaceHandlebar`: upper cover, spacers, stem length/angle, bar sweep/rise/roll → `CoverTop`, `SpacerTop`, `SteererClamp`, `BarClamp`, `HandGrip`).
    - Milestone 1 is **strictly solver-free**: the seatpost control edits the forward physical input `ExtensionMm` (exposed seatpost extension from `SeatTubeTop` along the seat tube axis, subject to seatpost/frame extension and insertion limits) directly, while total axial distance from `BB` (`SeatTubeLengthMm + ExtensionMm`) and radial saddle height (`|BRP - BB|`) are displayed as measured dimension readouts.
 2. **Side-view visual inspector:**
    - Render physical outlines in local `Pose` frames, named landmarks, local coordinate axes (`+X`, `+Y`), key dimensions, declared wheel sizes/orientations, editable component controls (fork choice/length/sag, lower cup, spacers, stem length/angle, handlebar roll, seatpost extension/setback, saddle rail offset/pitch), and a selectable construction trace table where clicking/hovering/focusing a step highlights its movement vector and frame on the SVG.
    - Multi-bike ghost overlays, fit solvers, chart-hypothesis solvers, and catalog file persistence are explicitly outside Milestone 1.
 3. **Verification:**
-   - Matt can read each component/chassis recipe, predict the effect of a setting change, and inspect the result visually and in the trace.
+   - Matt can read each component and frameset recipe, predict the effect of a setting change, and inspect the result visually and in the trace.
    - Automated Go tests verify identical placements with tracing on/off, independent geometric fixtures (lengths, angles, leveling invariants, contact positions), and HTML/SVG step-ID correspondence, paired with a browser interaction check for control updates, highlighting, history, and pan/zoom.
 
 **Confirmed 4-Milestone Sequence:**
-1. **Milestone 1 — One-bike visual workbench `(a, b)`:** Single-bike traceable assembly (chassis/fork leveling + rear/front cockpits, solver-free) and interactive Go-rendered HTML/SVG workbench.
+1. **Milestone 1 — One-bike visual workbench `(a, b)`:** Single-bike traceable assembly (frameset leveling + rear/front cockpits, solver-free) and interactive Go-rendered HTML/SVG workbench.
 2. **Milestone 2 — One-bike fit search `(d)`:** Add explicit rider fit targets, hardware limits, and preference costs; search component permutations, verify returned builds through forward assembly, and open candidate builds directly in the workbench. Verify against a small exhaustive fixture and measure representative search responsiveness.
 3. **Milestone 3 — Chart reconstruction, catalog persistence & agent access `(c)`:** Preserve original chart observations and rounding budgets; evaluate candidate fork/sag/cup hypotheses, show residuals and ambiguous explanations, select structured catalog file persistence (`Q4`), and expose structured solver operations (MCP/CLI) for AI agents.
 4. **Milestone 4 — Frame comparison / chooser `(e)`:** Reuse fit search across a catalog of frames and sizes, return best builds and their explanations, support visual comparison in the workbench, and report search coverage and sensitivity to assumptions.
@@ -80,8 +80,8 @@ Go generates the HTML and SVG from placement geometry and frozen construction tr
 In 2D rigid-body geometry, pitching a rigid frame around `RearAxle` by `PitchDeg` and translating it so `BB` returns to `(0, 0)` is algebraically identical to rotating the frame around `BB (0, 0)` by `PitchDeg`:
 `P_leveled = (RA + Rotate(PitchDeg, P - RA)) - (RA - Rotate(PitchDeg, RA)) = Rotate(PitchDeg, P)`
 
-Rather than computing `PitchDeg` with separate closed-form trigonometry (`L_chart`, `ΔL`, `ΔRake`) outside the `Pose` recipe, both the pitch measurement and the leveled frame construction use **one single `placeChassisAtPitch(frameRoot Pose, chart FrameChart, fork ForkBuild)` recipe**:
-1. **The Single Chassis & Fork `Pose` Recipe (`placeChassisAtPitch`):**
+Rather than computing `PitchDeg` with separate closed-form trigonometry (`L_chart`, `ΔL`, `ΔRake`) outside the `Pose` recipe, both the pitch measurement and the leveled frameset construction use **one single `placeFramesetAtPitch(frameRoot Pose, chart FrameChart, fork ForkBuild)` recipe**:
+1. **The Single Frameset `Pose` Recipe (`placeFramesetAtPitch`):**
    Given a `frameRoot` pose at `BB (0, 0)` (at heading `0°` when unpitched, or heading `PitchDeg` when leveled):
    - `rearAxle := frameRoot.Translate("chart rear axle", -pose.RightTriangleLeg(chart.ChainstayMm, chart.BbDropMm), chart.BbDropMm)`
    - `headTubeTop := frameRoot.Translate("chart head tube top (reach, stack)", chart.ReachMm, chart.StackMm)`
@@ -94,8 +94,8 @@ Rather than computing `PitchDeg` with separate closed-form trigonometry (`L_char
    - `seatAxis := frameRoot.Turn("seat tube axis (180° - STA)", 180 - chart.StaDeg)` (points up the seat axis, exposed at `BB` for full-axis reference and BB-to-clamp measurements).
    - `seatTubeTop := seatAxis.Advance("seat tube length", chart.SeatTubeLengthMm)` (points up the seat tube axis for `PlaceSeatpost`).
 2. **Two-Pass Leveling Using That Same Recipe:**
-   - **Pass 1 (Measure `PitchDeg` at `0°` pitch):** Evaluate `unpitched := placeChassisAtPitch(OriginPose(nil), chart, installedFork)` at `0°` pitch and measure the rear-to-front-axle angle (`PitchDeg = -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)`). *(Running this same recipe at `0°` pitch with the chart's `cadFork` also exposes the raw unpitched chart-closure residuals `FrontAxle.Y - RearAxle.Y` and `FrontAxle.X - RearAxle.X - Wheelbase` without separate trig formulas.)*
-   - **Pass 2 (Build the Leveled Chassis at `PitchDeg`):** Evaluate `leveled := placeChassisAtPitch(OriginPose(&trace).Turn("frame pitch to level axles", PitchDeg), chart, installedFork)`. Because Pass 2 rotates `frameRoot` by `PitchDeg = -axleAngle`, `leveled.FrontAxle` and `leveled.RearAxle` automatically sit at equal height (`FrontAxle.Y == RearAxle.Y`), and every step in the trace uses the actual physical dimensions (`HTL`, `LowerCup`, `EffectiveA2C`, `Rake`) in the exact leveled coordinates rendered on the SVG.
+   - **Pass 1 (Measure `PitchDeg` at `0°` pitch):** Evaluate `unpitched := placeFramesetAtPitch(OriginPose(nil), chart, installedFork)` at `0°` pitch and measure the rear-to-front-axle angle (`PitchDeg = -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)`). *(Running this same recipe at `0°` pitch with the chart's `cadFork` also exposes the raw unpitched chart-closure residuals `FrontAxle.Y - RearAxle.Y` and `FrontAxle.X - RearAxle.X - Wheelbase` without separate trig formulas.)*
+   - **Pass 2 (Build the Leveled Frameset at `PitchDeg`):** Evaluate `leveled := placeFramesetAtPitch(OriginPose(&trace).Turn("frame pitch to level axles", PitchDeg), chart, installedFork)`. Because Pass 2 rotates `frameRoot` by `PitchDeg = -axleAngle`, `leveled.FrontAxle` and `leveled.RearAxle` automatically sit at equal height (`FrontAxle.Y == RearAxle.Y`), and every step in the trace uses the actual physical dimensions (`HTL`, `LowerCup`, `EffectiveA2C`, `Rake`) in the exact leveled coordinates rendered on the SVG.
 
 **2. Self-Contained Coordinate & Sign Conventions:**
 
@@ -110,6 +110,7 @@ Rather than computing `PitchDeg` with separate closed-form trigonometry (`L_char
 | **Saddle (`PlaceSaddle`)** | Starting at `SeatpostClamp`, set the world-relative rail orientation via `seatpostClamp.Face("saddle rail pitch vs. world horizontal", RailPitchDeg)` (positive raises the saddle nose CCW from world horizontal), advance by `-RailOffsetMm` (so **positive `RailOffsetMm` moves the saddle body rearward** relative to the clamp) to `RailCenter`, then locate `BRP` at `(+RailCenterToBrpMm, 0)` and `SitBones` at `(RailCenterToSitBonesMm, +SitBonesElevationMm)` in the rail frame. |
 | **Cockpit readouts** | `BrpToGripDistMm` measures `|HandGrip - BRP|`, whereas `SitBonesToGripRiseMm` measures `HandGrip.Y - SitBones.Y` (from `SitBones` rather than `BRP`) so rider-fit cockpit elevation carries consistently across saddles through the sit-bone contact point. |
 | **Chart immutability** | Published manufacturer chart values are sacred ground truth and are never nudged to hide closure residuals. |
+| **Terminology (banned term: `chassis`)** | Use **Frame** for bare frame geometry (`FrameSetup`), **Frameset** for leveled frame + fork + lower headset cup + wheel-ground contacts (`FramesetPlacement`, `PlaceFrameset`), and **Bike** for the complete assembly including cockpits (`BikePlacement`, `PlaceBike`, `/bike`). The term `chassis` is banned in reboot code, templates, tests, and living reboot docs (enforced in code by `make boundary`; legacy packages and historical `DIALOGUE.md` remain unchanged). |
 
 ---
 

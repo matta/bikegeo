@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>bikegeo-reboot — Chassis Workbench</title>
+  <title>bikegeo-reboot — Bike Workbench</title>
   <style>
     :root {
       color-scheme: light;
@@ -229,7 +229,7 @@
     <nav><a href="/">Stem Preview</a></nav>
   </header>
 
-  <form class="controls" method="get" action="/chassis" aria-label="Bike build controls">
+  <form class="controls" method="get" action="/bike" aria-label="Bike build controls">
     {{if .ErrorMessage}}
     <div id="form-error" class="form-error" role="alert">
       <strong>Error:</strong> {{.ErrorMessage}}
@@ -310,14 +310,14 @@
 
     <div class="control-actions">
       <button type="submit">Update Build</button>
-      <a href="/chassis" data-preset="defaults">Reset Defaults</a>
+      <a href="/bike" data-preset="defaults">Reset Defaults</a>
       <a href="{{.CadBaselineForkURL}}" data-preset="cad-baseline-fork">CAD Baseline Fork ({{printf "%.0f" .CadFork.LowerCupMm}} mm cup)</a>
     </div>
   </form>
 
   {{if .HasBuild}}
   <div class="layout">
-    <section class="card" aria-label="Chassis diagram">
+    <section class="card" aria-label="Bike diagram">
       <h2>Leveled Bike Assembly</h2>
       <div class="summary">
         <span>Pitch: <strong class="mono" data-metric="frame-pitch">{{printf "%+.2f°" .PitchDeg}}</strong></span>
@@ -347,7 +347,7 @@
           <circle cx="{{printf "%.2f" .FrontAxleSVG.X}}" cy="{{printf "%.2f" .FrontAxleSVG.Y}}" r="{{printf "%.2f" .WheelRadiusMm}}" data-wheel="front" />
         </g>
 
-        <g class="chassis-segments" stroke-linecap="round">
+        <g class="bike-segments" stroke-linecap="round">
           {{range .Segments}}
           <line data-segment="{{.Name}}"{{if .Illustrative}} data-illustrative="true" stroke-dasharray="12 6" opacity="0.8"{{end}}
                 x1="{{printf "%.2f" .X1}}" y1="{{printf "%.2f" .Y1}}"

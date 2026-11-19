@@ -21,7 +21,7 @@ type FrameSetup struct {
 }
 
 // ForkSetup holds the resolved physical dimensions (effective axle-to-crown,
-// rake, and lower headset cup stack) that PlaceChassis draws.
+// rake, and lower headset cup stack) that PlaceFrameset draws.
 type ForkSetup struct {
 	A2cMm      float64
 	RakeMm     float64
@@ -36,7 +36,7 @@ type ForkSpec struct {
 }
 
 // Setup resolves the fork specification at sagPct with lowerCupMm into a
-// ForkSetup ready for PlaceChassis.
+// ForkSetup ready for PlaceFrameset.
 func (s ForkSpec) Setup(sagPct, lowerCupMm float64) (ForkSetup, error) {
 	if !isFinite(s.StaticA2cMm) || s.StaticA2cMm <= 0 {
 		return ForkSetup{}, invalidInput(InputForkA2c, "fork static A2C must be finite and positive, got %v mm", s.StaticA2cMm)
@@ -67,14 +67,15 @@ type WheelSetup struct {
 	RadiusMm float64
 }
 
-// ChassisPlacement holds the leveled Pose-valued landmarks for a frame, fork,
-// and wheels, anchored with BB at (0, 0) (+X forward, +Y up) and a horizontal
-// axle line (RearAxle.Origin().Y == FrontAxle.Origin().Y). RearTireContact and
+// FramesetPlacement holds the leveled Pose-valued landmarks for a grounded
+// frameset (frame, fork, lower headset cup, and wheel-ground contacts), anchored
+// with BB at (0, 0) (+X forward, +Y up) and a horizontal axle line
+// (RearAxle.Origin().Y == FrontAxle.Origin().Y). RearTireContact and
 // FrontTireContact sit vertically below the leveled axles on the horizontal ground
 // plane (RearTireContact.Origin().Y == FrontTireContact.Origin().Y).
 //
 // Each landmark is the Pose produced at that point as the turtle constructs
-// ("draws") the chassis from BB, so its local +X heading is a direct
+// ("draws") the frameset from BB, so its local +X heading is a direct
 // consequence of the construction path:
 //   - BB and RearAxle carry the leveled frame reference axis (world PitchDeg).
 //   - SeatAxis (at BB) and SeatTubeTop point up and rearward along the leveled
@@ -85,7 +86,7 @@ type WheelSetup struct {
 //   - FrontAxle points forward and up along the fork rake direction (90° -
 //     HeadTubeAngleDeg, perpendicular to the steerer).
 //   - RearTireContact and FrontTireContact point straight down (-90°) to the ground.
-type ChassisPlacement struct {
+type FramesetPlacement struct {
 	BB               pose.Pose
 	RearAxle         pose.Pose
 	RearTireContact  pose.Pose
@@ -100,28 +101,28 @@ type ChassisPlacement struct {
 }
 
 // PitchDeg returns the counter-clockwise frame leveling pitch applied at BB.
-func (c ChassisPlacement) PitchDeg() pose.Deg {
-	return c.BB.HeadingDeg()
+func (f FramesetPlacement) PitchDeg() pose.Deg {
+	return f.BB.HeadingDeg()
 }
 
 // LeveledHeadTubeAngleDeg returns the leveled head tube angle in degrees.
-func (c ChassisPlacement) LeveledHeadTubeAngleDeg() pose.Deg {
-	return 180.0 - c.HeadTubeTop.HeadingDeg()
+func (f FramesetPlacement) LeveledHeadTubeAngleDeg() pose.Deg {
+	return 180.0 - f.HeadTubeTop.HeadingDeg()
 }
 
 // LeveledSeatTubeAngleDeg returns the leveled seat tube angle in degrees.
-func (c ChassisPlacement) LeveledSeatTubeAngleDeg() pose.Deg {
-	return 180.0 - c.SeatAxis.HeadingDeg()
+func (f FramesetPlacement) LeveledSeatTubeAngleDeg() pose.Deg {
+	return 180.0 - f.SeatAxis.HeadingDeg()
 }
 
 // WheelbaseMm returns the horizontal distance between the leveled rear and front axles.
-func (c ChassisPlacement) WheelbaseMm() float64 {
-	return c.RearAxle.DistanceTo(c.FrontAxle)
+func (f FramesetPlacement) WheelbaseMm() float64 {
+	return f.RearAxle.DistanceTo(f.FrontAxle)
 }
 
 // LeveledBbDropMm returns the vertical drop from the leveled axle line to BB.
-func (c ChassisPlacement) LeveledBbDropMm() float64 {
-	return c.BB.VerticalOffsetTo(c.RearAxle)
+func (f FramesetPlacement) LeveledBbDropMm() float64 {
+	return f.BB.VerticalOffsetTo(f.RearAxle)
 }
 
 // FrameChart groups a frame's unpitched reference dimensions with its CAD
@@ -139,68 +140,69 @@ type ChartResiduals struct {
 	WheelbaseDiffMm  float64 // (FrontAxle.X - RearAxle.X) - publishedWheelbaseMm at 0° pitch
 }
 
-// ChartBaseline holds the leveled CAD baseline fork chassis placement and the raw
+// ChartBaseline holds the leveled CAD baseline fork frameset placement and the raw
 // 0°-pitch chart-closure residuals computed from a single unpitched pass.
 type ChartBaseline struct {
-	Placement ChassisPlacement
+	Placement FramesetPlacement
 	Residuals ChartResiduals
 }
 
 // DeltaPitchDeg returns the pitch change of installed relative to the CAD baseline fork.
-func (b ChartBaseline) DeltaPitchDeg(installed ChassisPlacement) pose.Deg {
+func (b ChartBaseline) DeltaPitchDeg(installed FramesetPlacement) pose.Deg {
 	return installed.PitchDeg() - b.Placement.PitchDeg()
 }
 
-// PlaceCadBaselineFork runs the unpitched (0°) chassis recipe once to measure both
+// PlaceCadBaselineFork runs the unpitched (0°) frameset recipe once to measure both
 // the raw chart-closure residuals and the leveling pitch, then builds the
-// leveled CAD baseline fork chassis.
+// leveled CAD baseline fork frameset.
 func PlaceCadBaselineFork(chart FrameChart, wheels WheelSetup) (ChartBaseline, error) {
-	if err := validateChassisInputs(chart.Frame, chart.CadFork, wheels); err != nil {
+	if err := validateFramesetInputs(chart.Frame, chart.CadFork, wheels); err != nil {
 		return ChartBaseline{}, err
 	}
 	if !isFinite(chart.PublishedWheelbaseMm) || chart.PublishedWheelbaseMm <= 0 {
 		return ChartBaseline{}, fmt.Errorf("published wheelbase must be finite and positive, got %v mm", chart.PublishedWheelbaseMm)
 	}
 
-	unpitched, pitchDeg := measureUnpitchedChassis(chart.Frame, chart.CadFork)
+	unpitched, pitchDeg := measureUnpitchedFrameset(chart.Frame, chart.CadFork)
 	residuals := ChartResiduals{
 		AxleHeightDiffMm: unpitched.RearAxle.VerticalOffsetTo(unpitched.FrontAxle),
 		WheelbaseDiffMm:  (unpitched.FrontAxle.Origin().X - unpitched.RearAxle.Origin().X) - chart.PublishedWheelbaseMm,
 	}
 
 	return ChartBaseline{
-		Placement: placeLeveledChassis(chart.Frame, chart.CadFork, wheels, pitchDeg, nil),
+		Placement: placeLeveledFrameset(chart.Frame, chart.CadFork, wheels, pitchDeg, nil),
 		Residuals: residuals,
 	}, nil
 }
 
-// PlaceChassis constructs a leveled frame-and-fork chassis using a two-pass
-// Pose recipe: Pass 1 measures the axle-leveling pitch at 0° frame pitch, and
-// Pass 2 builds the leveled chassis rooted at BB rotated by that pitch and
-// locates the wheel-ground contact landmarks directly below each axle.
-func PlaceChassis(frame FrameSetup, fork ForkSetup, wheels WheelSetup, trace *pose.Trace) (ChassisPlacement, error) {
-	if err := validateChassisInputs(frame, fork, wheels); err != nil {
-		return ChassisPlacement{}, err
+// PlaceFrameset constructs a leveled frameset (frame, fork, lower headset cup,
+// and wheel-ground contacts) using a two-pass Pose recipe: Pass 1 measures the
+// axle-leveling pitch at 0° frame pitch, and Pass 2 builds the leveled frameset
+// rooted at BB rotated by that pitch and locates the wheel-ground contact
+// landmarks directly below each axle.
+func PlaceFrameset(frame FrameSetup, fork ForkSetup, wheels WheelSetup, trace *pose.Trace) (FramesetPlacement, error) {
+	if err := validateFramesetInputs(frame, fork, wheels); err != nil {
+		return FramesetPlacement{}, err
 	}
 
-	_, pitchDeg := measureUnpitchedChassis(frame, fork)
-	return placeLeveledChassis(frame, fork, wheels, pitchDeg, trace), nil
+	_, pitchDeg := measureUnpitchedFrameset(frame, fork)
+	return placeLeveledFrameset(frame, fork, wheels, pitchDeg, trace), nil
 }
 
-func measureUnpitchedChassis(frame FrameSetup, fork ForkSetup) (ChassisPlacement, pose.Deg) {
-	unpitched := placeChassisAtPitch(pose.NewPose(pose.Point{}, 0, nil), frame, fork)
+func measureUnpitchedFrameset(frame FrameSetup, fork ForkSetup) (FramesetPlacement, pose.Deg) {
+	unpitched := placeFramesetAtPitch(pose.NewPose(pose.Point{}, 0, nil), frame, fork)
 	return unpitched, -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)
 }
 
-func placeLeveledChassis(frame FrameSetup, fork ForkSetup, wheels WheelSetup, pitchDeg pose.Deg, trace *pose.Trace) ChassisPlacement {
+func placeLeveledFrameset(frame FrameSetup, fork ForkSetup, wheels WheelSetup, pitchDeg pose.Deg, trace *pose.Trace) FramesetPlacement {
 	frameRoot := pose.NewPose(pose.Point{}, 0, trace).Turn("frame pitch to level axles", pitchDeg)
-	leveled := placeChassisAtPitch(frameRoot, frame, fork)
+	leveled := placeFramesetAtPitch(frameRoot, frame, fork)
 	leveled.RearTireContact = leveled.RearAxle.Face("down to ground", -90.0).Advance("rear wheel radius", wheels.RadiusMm)
 	leveled.FrontTireContact = leveled.FrontAxle.Face("down to ground", -90.0).Advance("front wheel radius", wheels.RadiusMm)
 	return leveled
 }
 
-func placeChassisAtPitch(frameRoot pose.Pose, frame FrameSetup, fork ForkSetup) ChassisPlacement {
+func placeFramesetAtPitch(frameRoot pose.Pose, frame FrameSetup, fork ForkSetup) FramesetPlacement {
 	rearX := -pose.RightTriangleLeg(frame.ChainstayMm, frame.BbDropMm)
 	rearAxle := frameRoot.Translate("rear axle", rearX, frame.BbDropMm)
 
@@ -215,7 +217,7 @@ func placeChassisAtPitch(frameRoot pose.Pose, frame FrameSetup, fork ForkSetup) 
 	seatAxis := frameRoot.Turn("seat tube axis (180° - STA)", 180.0-frame.SeatTubeAngleDeg)
 	seatTubeTop := seatAxis.Advance("seat tube length", frame.SeatTubeLengthMm)
 
-	return ChassisPlacement{
+	return FramesetPlacement{
 		BB:              frameRoot,
 		RearAxle:        rearAxle,
 		SeatAxis:        seatAxis,
@@ -241,7 +243,7 @@ func validateForkSetup(fork ForkSetup) error {
 	return nil
 }
 
-func validateChassisInputs(frame FrameSetup, fork ForkSetup, wheels WheelSetup) error {
+func validateFramesetInputs(frame FrameSetup, fork ForkSetup, wheels WheelSetup) error {
 	if !isFinite(frame.ReachMm) || frame.ReachMm <= 0 {
 		return fmt.Errorf("reach must be finite and positive, got %v mm", frame.ReachMm)
 	}

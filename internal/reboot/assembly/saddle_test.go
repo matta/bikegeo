@@ -217,7 +217,7 @@ func TestOtsoFenrirRearCockpitAndTraceEquivalence(t *testing.T) {
 	assertNear(t, "BB to clamp along seat axis", refSeatAxis.DistanceTo(refPost.ShaftTop), 753.5, 1e-9)
 	assertNear(t, "reference |BRP - BB|", refSeatAxis.DistanceTo(refSaddle.BRP), 746.0, 0.01)
 
-	// Full leveled chassis + cockpits via PlaceBike, with trace-on/off equivalence.
+	// Full leveled frameset + cockpits via PlaceBike, with trace-on/off equivalence.
 	bikeSetup := assembly.BikeSetup{
 		Frame:     frame,
 		Fork:      cadFork,
@@ -246,7 +246,7 @@ func TestOtsoFenrirRearCockpitAndTraceEquivalence(t *testing.T) {
 		name string
 		a, b pose.Pose
 	}{
-		{"SeatTubeTop", traced.Chassis.SeatTubeTop, untraced.Chassis.SeatTubeTop},
+		{"SeatTubeTop", traced.Frameset.SeatTubeTop, untraced.Frameset.SeatTubeTop},
 		{"ShaftTop", traced.Seatpost.ShaftTop, untraced.Seatpost.ShaftTop},
 		{"SeatpostClamp", traced.Seatpost.SeatpostClamp, untraced.Seatpost.SeatpostClamp},
 		{"RailFrame", traced.Saddle.RailFrame, untraced.Saddle.RailFrame},

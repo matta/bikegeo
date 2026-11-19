@@ -18,7 +18,7 @@ type BikeSetup struct {
 // physical dimensions from one consistent build.
 type BikePlacement struct {
 	Setup     BikeSetup
-	Chassis   ChassisPlacement
+	Frameset  FramesetPlacement
 	Seatpost  SeatpostPlacement
 	Saddle    SaddlePlacement
 	Stem      StemPlacement
@@ -28,12 +28,12 @@ type BikePlacement struct {
 // SeatAxisToPostTopMm returns the axial distance from BB along the seat tube
 // axis to the top of the exposed seatpost shaft (ShaftTop).
 func (b BikePlacement) SeatAxisToPostTopMm() float64 {
-	return b.Chassis.SeatAxis.DistanceTo(b.Seatpost.ShaftTop)
+	return b.Frameset.SeatAxis.DistanceTo(b.Seatpost.ShaftTop)
 }
 
 // SaddleHeightMm returns the radial distance from BB to the saddle BRP (|BRP - BB|).
 func (b BikePlacement) SaddleHeightMm() float64 {
-	return b.Chassis.BB.DistanceTo(b.Saddle.BRP)
+	return b.Frameset.BB.DistanceTo(b.Saddle.BRP)
 }
 
 // BrpToGripDistMm returns the sagittal Euclidean distance from saddle BRP to HandGrip
@@ -49,18 +49,18 @@ func (b BikePlacement) SitBonesToGripRiseMm() float64 {
 	return b.Saddle.SitBones.VerticalOffsetTo(b.Handlebar.HandGrip)
 }
 
-// PlaceBike constructs the leveled chassis, mounts the rear cockpit
+// PlaceBike constructs the leveled frameset, mounts the rear cockpit
 // (Seatpost -> Saddle) on SeatTubeTop, and mounts the front cockpit
 // (Stem -> Handlebar) on HeadTubeTop in a single traced (or untraced) Pose
 // tree rooted at BB. It freezes trace (when non-nil) before returning so
 // downstream callers and renderers cannot append steps to construction history.
 func PlaceBike(setup BikeSetup, trace *pose.Trace) (BikePlacement, error) {
 	defer trace.Freeze()
-	chassis, err := PlaceChassis(setup.Frame, setup.Fork, setup.Wheels, trace)
+	frameset, err := PlaceFrameset(setup.Frame, setup.Fork, setup.Wheels, trace)
 	if err != nil {
 		return BikePlacement{}, err
 	}
-	seatpost, err := PlaceSeatpost(chassis.SeatTubeTop, setup.Seatpost)
+	seatpost, err := PlaceSeatpost(frameset.SeatTubeTop, setup.Seatpost)
 	if err != nil {
 		return BikePlacement{}, err
 	}
@@ -68,7 +68,7 @@ func PlaceBike(setup BikeSetup, trace *pose.Trace) (BikePlacement, error) {
 	if err != nil {
 		return BikePlacement{}, err
 	}
-	stem, err := PlaceStem(chassis.HeadTubeTop, setup.Stem)
+	stem, err := PlaceStem(frameset.HeadTubeTop, setup.Stem)
 	if err != nil {
 		return BikePlacement{}, err
 	}
@@ -78,7 +78,7 @@ func PlaceBike(setup BikeSetup, trace *pose.Trace) (BikePlacement, error) {
 	}
 	return BikePlacement{
 		Setup:     setup,
-		Chassis:   chassis,
+		Frameset:  frameset,
 		Seatpost:  seatpost,
 		Saddle:    saddle,
 		Stem:      stem,

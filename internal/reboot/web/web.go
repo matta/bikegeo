@@ -21,8 +21,8 @@ import (
 var templateFS embed.FS
 
 var (
-	stemTemplate    = template.Must(template.ParseFS(templateFS, "templates/stem.html", "templates/trace_steps.html"))
-	chassisTemplate = template.Must(template.ParseFS(templateFS, "templates/chassis.html", "templates/trace_steps.html"))
+	stemTemplate = template.Must(template.ParseFS(templateFS, "templates/stem.html", "templates/trace_steps.html"))
+	bikeTemplate = template.Must(template.ParseFS(templateFS, "templates/bike.html", "templates/trace_steps.html"))
 )
 
 func toSVG(p pose.Point) svgPoint {
@@ -104,7 +104,7 @@ type stemView struct {
 func NewHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleStemWorkbench)
-	mux.HandleFunc("/chassis", handleChassisWorkbench)
+	mux.HandleFunc("/bike", handleBikeWorkbench)
 	return mux
 }
 
@@ -125,16 +125,16 @@ func handleStemWorkbench(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	chassis, err := assembly.PlaceChassis(fix.Chart.Frame, forkSetup, fix.Wheels, nil)
+	frameset, err := assembly.PlaceFrameset(fix.Chart.Frame, forkSetup, fix.Wheels, nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Slice 1 stem-only preview roots a fresh trace at the leveled HeadTubeTop;
-	// Slice 3 will trace one unified tree from BB across chassis and cockpits.
+	// Slice 3 will trace one unified tree from BB across frameset and cockpits.
 	tr := pose.NewTrace()
-	steererUp := pose.NewPose(chassis.HeadTubeTop.Origin(), chassis.HeadTubeTop.HeadingDeg(), tr)
+	steererUp := pose.NewPose(frameset.HeadTubeTop.Origin(), frameset.HeadTubeTop.HeadingDeg(), tr)
 	placed, err := assembly.PlaceStem(steererUp, fix.DefaultStem)
 	tr.Freeze()
 	if err != nil {
@@ -142,7 +142,7 @@ func handleStemWorkbench(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := buildStemView(chassis.LeveledHeadTubeAngleDeg(), fix.DefaultStem, placed, tr.Steps())
+	view := buildStemView(frameset.LeveledHeadTubeAngleDeg(), fix.DefaultStem, placed, tr.Steps())
 
 	var buf bytes.Buffer
 	if err := stemTemplate.Execute(&buf, view); err != nil {
@@ -372,11 +372,11 @@ func (s workbenchState) URL() string {
 	q.Set("post_setback", formatFormFloat(s.PostSetbackMm))
 	q.Set("rail_offset", formatFormFloat(s.RailOffsetMm))
 	q.Set("rail_pitch", formatFormFloat(float64(s.RailPitchDeg)))
-	return "/chassis?" + q.Encode()
+	return "/bike?" + q.Encode()
 }
 
-func (s workbenchState) formValues() chassisFormValues {
-	return chassisFormValues{
+func (s workbenchState) formValues() bikeFormValues {
+	return bikeFormValues{
 		Fork:        s.ForkID,
 		PrevFork:    s.ForkID,
 		ForkA2c:     formatFormFloat(s.ForkA2cMm),
@@ -393,7 +393,7 @@ func (s workbenchState) formValues() chassisFormValues {
 	}
 }
 
-type chassisFormValues struct {
+type bikeFormValues struct {
 	Fork        string
 	PrevFork    string
 	ForkA2c     string
@@ -409,26 +409,26 @@ type chassisFormValues struct {
 	RailPitch   string
 }
 
-type chassisInputError struct {
+type bikeInputError struct {
 	Field string
 	Err   error
 }
 
-func (e *chassisInputError) Error() string {
+func (e *bikeInputError) Error() string {
 	return e.Err.Error()
 }
 
-type chassisResolvedInput struct {
+type bikeResolvedInput struct {
 	State workbenchState
-	Form  chassisFormValues // submitted values, echoed on error pages
+	Form  bikeFormValues // submitted values, echoed on error pages
 	Setup assembly.BikeSetup
 }
 
-type chassisView struct {
+type bikeView struct {
 	HasBuild             bool
 	ErrorMessage         string
 	InvalidField         string
-	Form                 chassisFormValues
+	Form                 bikeFormValues
 	CadBaselineForkURL   string
 	MinPostExtensionMm   float64
 	MaxPostExtensionMm   float64
@@ -473,8 +473,8 @@ type chassisView struct {
 	Steps                []pose.Step
 }
 
-func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/chassis" {
+func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/bike" {
 		http.NotFound(w, r)
 		return
 	}
@@ -484,14 +484,14 @@ func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
 
 	resolved, inputErr := decodeWorkbenchState(fix, q)
 	if inputErr != nil {
-		renderChassisError(w, fix, resolved, inputErr.Field, inputErr.Error())
+		renderBikeError(w, fix, resolved, inputErr.Field, inputErr.Error())
 		return
 	}
 
 	tr := pose.NewTrace()
 	bike, err := assembly.PlaceBike(resolved.Setup, tr)
 	if err != nil {
-		renderChassisError(w, fix, resolved, chassisInputField(err), err.Error())
+		renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
 		return
 	}
 
@@ -501,7 +501,7 @@ func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := buildChassisView(
+	view := buildBikeView(
 		fix,
 		resolved.State.ForkID,
 		resolved.State.ForkA2cMm,
@@ -510,11 +510,11 @@ func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
 		cadBaselineFork,
 		tr.Steps(),
 	)
-	renderChassisTemplate(w, http.StatusOK, view)
+	renderBikeTemplate(w, http.StatusOK, view)
 }
 
-func renderChassisError(w http.ResponseWriter, fix bikeFixture, resolved chassisResolvedInput, invalidField, msg string) {
-	view := chassisView{
+func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolvedInput, invalidField, msg string) {
+	view := bikeView{
 		HasBuild:           false,
 		ErrorMessage:       msg,
 		InvalidField:       invalidField,
@@ -527,12 +527,12 @@ func renderChassisError(w http.ResponseWriter, fix bikeFixture, resolved chassis
 		SelectedForkID:     resolved.State.ForkID,
 		CadFork:            fix.Chart.CadFork,
 	}
-	renderChassisTemplate(w, http.StatusBadRequest, view)
+	renderBikeTemplate(w, http.StatusBadRequest, view)
 }
 
-func renderChassisTemplate(w http.ResponseWriter, status int, view chassisView) {
+func renderBikeTemplate(w http.ResponseWriter, status int, view bikeView) {
 	var buf bytes.Buffer
-	if err := chassisTemplate.Execute(&buf, view); err != nil {
+	if err := bikeTemplate.Execute(&buf, view); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -546,15 +546,15 @@ func isFiniteFloat(v float64) bool {
 	return !math.IsNaN(v) && !math.IsInf(v, 0)
 }
 
-// chassisQueryParser parses query floats while echoing each submitted (or
+// bikeQueryParser parses query floats while echoing each submitted (or
 // default) value into the form, so an error page shows exactly what was sent.
 // It records the first parse error and keeps going so every field is echoed.
-type chassisQueryParser struct {
+type bikeQueryParser struct {
 	q   url.Values
-	err *chassisInputError
+	err *bikeInputError
 }
 
-func (p *chassisQueryParser) float(key string, fallback float64, label string, echo *string) float64 {
+func (p *bikeQueryParser) float(key string, fallback float64, label string, echo *string) float64 {
 	raw := strings.TrimSpace(p.q.Get(key))
 	if raw == "" {
 		*echo = formatFormFloat(fallback)
@@ -569,20 +569,20 @@ func (p *chassisQueryParser) float(key string, fallback float64, label string, e
 	return v
 }
 
-func (p *chassisQueryParser) fail(field string, err error) {
+func (p *bikeQueryParser) fail(field string, err error) {
 	if p.err == nil {
-		p.err = &chassisInputError{Field: field, Err: err}
+		p.err = &bikeInputError{Field: field, Err: err}
 	}
 }
 
 // decodeWorkbenchState resolves the URL query into a BikeSetup. The returned
-// chassisResolvedInput always carries Form and State.ForkID even when parsing
+// bikeResolvedInput always carries Form and State.ForkID even when parsing
 // fails, so the error page can echo the submitted controls.
-func decodeWorkbenchState(fix bikeFixture, q url.Values) (chassisResolvedInput, *chassisInputError) {
-	p := chassisQueryParser{q: q}
+func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bikeInputError) {
+	p := bikeQueryParser{q: q}
 	defaults := defaultWorkbenchState(fix)
 	state := defaults
-	var form chassisFormValues
+	var form bikeFormValues
 
 	selectedFork, ok := findForkOption(fix.Forks, q.Get("fork"), fix.DefaultForkID)
 	prevFork := q.Get("prev_fork")
@@ -620,7 +620,7 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (chassisResolvedInput, 
 		var err error
 		forkSetup, err = spec.Setup(state.SagPct, state.LowerCupMm)
 		if err != nil {
-			p.fail(chassisInputField(err), err)
+			p.fail(bikeInputField(err), err)
 		}
 	}
 
@@ -649,7 +649,7 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (chassisResolvedInput, 
 	saddle.RailOffsetMm = state.RailOffsetMm
 	saddle.RailPitchDeg = state.RailPitchDeg
 
-	return chassisResolvedInput{
+	return bikeResolvedInput{
 		State: state,
 		Form:  form,
 		Setup: assembly.BikeSetup{
@@ -664,7 +664,7 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (chassisResolvedInput, 
 	}, p.err
 }
 
-func chassisInputField(err error) string {
+func bikeInputField(err error) string {
 	var inputErr *assembly.InputError
 	if !errors.As(err, &inputErr) {
 		return ""
@@ -735,7 +735,7 @@ func makeSegment(name string, from, to pose.Pose, color string, width float64, i
 	}
 }
 
-func buildChassisView(
+func buildBikeView(
 	fix bikeFixture,
 	forkID string,
 	staticA2cMm float64,
@@ -743,8 +743,8 @@ func buildChassisView(
 	bike assembly.BikePlacement,
 	cadBaselineFork assembly.ChartBaseline,
 	steps []pose.Step,
-) chassisView {
-	placed := bike.Chassis
+) bikeView {
+	placed := bike.Frameset
 	seatpost := bike.Seatpost
 	saddle := bike.Saddle
 	stem := bike.Stem
@@ -816,7 +816,7 @@ func buildChassisView(
 
 	state := workbenchStateFromSetup(forkID, staticA2cMm, sagPct, bike.Setup)
 
-	return chassisView{
+	return bikeView{
 		HasBuild:             true,
 		Form:                 state.formValues(),
 		CadBaselineForkURL:   state.withCadBaselineFork(fix).URL(),
