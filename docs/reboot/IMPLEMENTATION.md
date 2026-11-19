@@ -65,10 +65,10 @@ Use these exact sourced dimensions for Milestone 1 (`internal/reboot/web/fixture
 - **Published Frame Chart (Otso Fenrir Stainless, 2024, Size `L`, rear Tuning Chip in `450 mm` CS / `72 mm` BB drop position):**
   - `ReachMm: 428.0`, `StackMm: 642.0`, `HtaDeg: 68.25°`, `StaDeg: 75.25°`, `HtlMm: 140.0`, `BbDropMm: 72.0`, `ChainstayMm: 450.0`, `WheelbaseMm: 1158.0`, `SeatTubeLengthMm: 490.0` (Sizes `XS`, `S`, `M`, `L`, `XL` from the published Otso chart may all be included in the fixture struct, with `L` as default).
   - **Wheel Radius:** `29" × 2.4"` baseline (`WheelRadiusMm: 372.0`).
-- **CAD Fork & Headset Baseline:**
-  - Lithic Carbon Mountain rigid fork: `StaticA2cMm: 495.0`, `TravelMm: 0.0`, `RakeMm: 54.0`, `CadSagPct: 0.0`, `CadLowerCupMm: 0.0` (chart closes to the bare head tube around the 495 mm fork).
+- **CAD Chart Reference (`FrameChart.CadFork` + `FrameChart.Frame.LowerCupMm`):**
+  - Fixed CAD geometry (`ForkGeometry{A2cMm: 495.0, RakeMm: 54.0}`, `Frame.LowerCupMm: 0.0`): non-physical bare-headtube chart reference around `495 mm` / `54 mm` without an EC44 lower cup (selected as `fork=cad` in the workbench for chart inspection).
 - **Selectable Installed Forks & Physical Lower Headset Cup:**
-  - Default `PhysicalLowerCupMm: 12.0` (`EC44` external lower cup; editable to `0.0` to inspect the unpitched CAD chart baseline).
+  - Default `DefaultLowerCupMm: 12.0` (`EC44` external lower cup; editable in the workbench, and restored automatically when switching from `fork=cad` to a real fork).
   - Selectable forks:
     1. `lithic_carbon_mountain` (default): `StaticA2cMm: 495.0`, `TravelMm: 0.0`, `RakeMm: 54.0`, `SagPct: 0.0`
     2. `sid_100` (RockShox SID 100 mm): `StaticA2cMm: 506.0`, `TravelMm: 100.0`, `RakeMm: 44.0`, default `SagPct: 20.0`
@@ -77,7 +77,7 @@ Use these exact sourced dimensions for Milestone 1 (`internal/reboot/web/fixture
   - `UpperCoverMm: 11.0`, `SpacersMm: 20.0`, `StemLengthMm: 60.0`, `StemAngleDeg: -6.0°`, `StemClampHeightMm: 40.0`.
   - Handlebar (**Tumbleweed Persuader** `800 mm` / `20°`): `WidthMm: 800.0`, `BacksweepDeg: 20.0°`, `UpsweepDeg: 4.0°`, `StatedRiseMm: 50.0` (bar-end center rise mode), `BendStartMm: 135.0`, `GripInsetMm: 70.0`, `BarRollDeg: 0.0°`.
 - **Default Rear Cockpit (`PlaceSeatpost` + `PlaceSaddle`, solver-free forward inputs):**
-  - Seatpost (`PlaceSeatpost`, mounted on `SeatTubeTop`): `ExtensionMm: 263.5` (on the `490.0 mm` size `L` seat tube, giving `753.5 mm` from `BB` along the seat axis and `|BRP - BB| ≈ 746.0 mm` at `75.25°` STA with `0 mm` setback and `0 mm` rail offset), `PostSetbackMm: 0.0`, `ClampLengthMm: 30.0`.
+  - Seatpost (`PlaceSeatpost`, mounted on `SeatTubeTop`): `ExtensionMm: 263.5` (on the `490.0 mm` size `L` seat tube, giving `753.5 mm` from `BB` along the seat axis and `|BRP - BB| ≈ 746.0 mm` at `75.25°` STA with `0 mm` setback and `0 mm` rail offset), `MinExtensionMm: 110.0`, `MaxExtensionMm: 300.0` (from a `400.0 mm` Ritchey Comp Trail Zero seatpost with `100.0 mm` minimum insertion and Otso's `290.0 mm` Size `L` frame insertion depth), `PostSetbackMm: 0.0`, `ClampLengthMm: 30.0`.
   - Saddle (**SQlab 610 Ergolux Active 2.1**, `PlaceSaddle` mounted on `SeatpostClamp`): `RailCenterToBrpMm: +32.0`, `RailCenterToSitBonesMm: -48.0`, `SitBonesElevationMm: +10.0`, `RailLengthMm: 60.0`, `RailPitchDeg: 0.0°`, `RailOffsetMm: 0.0`.
 
 Deliberate duplication of a small audited primitive or fixture is acceptable during this transition. A shared runtime utility package extracted merely to avoid that duplication would weaken the boundary. Cross-implementation comparisons belong only in `*_parity_test.go` files (or a deliberately scoped migration tool), never in production files or standard `*_test.go` files.
