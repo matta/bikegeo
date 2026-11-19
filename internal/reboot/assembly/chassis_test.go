@@ -25,7 +25,7 @@ func fenrirWheels() assembly.WheelSetup {
 	return assembly.WheelSetup{RadiusMm: 372.0}
 }
 
-func TestPlaceChassisCADBaselineAndInvariants(t *testing.T) {
+func TestPlaceChassisCADBaselineForkAndInvariants(t *testing.T) {
 	frame := fenrirSizeLFrame()
 	wheels := fenrirWheels()
 	cadSpec := assembly.ForkSpec{
@@ -59,9 +59,9 @@ func TestPlaceChassisCADBaselineAndInvariants(t *testing.T) {
 	assertNear(t, "contact span equals axle wheelbase", placed.RearTireContact.DistanceTo(placed.FrontTireContact), placed.RearAxle.DistanceTo(placed.FrontAxle), 1e-9)
 	assertNear(t, "BB height above ground", placed.BB.Origin().Y-placed.RearTireContact.Origin().Y, wheels.RadiusMm-placed.RearAxle.Origin().Y, 1e-9)
 
-	// CAD baseline on Otso Fenrir L closes within chart rounding (~0° pitch, ~1158 mm wheelbase).
+	// CAD baseline fork on Otso Fenrir L closes within chart rounding (~0° pitch, ~1158 mm wheelbase).
 	if math.Abs(float64(placed.PitchDeg())) > 0.2 {
-		t.Fatalf("CAD baseline pitch = %.4f°, want near 0°", placed.PitchDeg())
+		t.Fatalf("CAD baseline fork pitch = %.4f°, want near 0°", placed.PitchDeg())
 	}
 	assertNear(t, "leveled HTA", float64(placed.LeveledHeadTubeAngleDeg()), float64(frame.HeadTubeAngleDeg-placed.PitchDeg()), 1e-12)
 	assertNear(t, "leveled STA", float64(placed.LeveledSeatTubeAngleDeg()), float64(frame.SeatTubeAngleDeg-placed.PitchDeg()), 1e-12)
@@ -209,7 +209,7 @@ func TestPlaceChassisAndForkSpecRejectInvalidInputs(t *testing.T) {
 	}
 }
 
-func TestPlaceCadBaseline(t *testing.T) {
+func TestPlaceCadBaselineFork(t *testing.T) {
 	frame := fenrirSizeLFrame()
 	wheels := fenrirWheels()
 	chart := assembly.FrameChart{
@@ -222,24 +222,24 @@ func TestPlaceCadBaseline(t *testing.T) {
 		PublishedWheelbaseMm: 1158.0,
 	}
 
-	baseline, err := assembly.PlaceCadBaseline(chart, wheels)
+	baselineFork, err := assembly.PlaceCadBaselineFork(chart, wheels)
 	if err != nil {
-		t.Fatalf("PlaceCadBaseline: %v", err)
+		t.Fatalf("PlaceCadBaselineFork: %v", err)
 	}
-	if math.Abs(baseline.Residuals.AxleHeightDiffMm) >= 1.5 {
-		t.Fatalf("AxleHeightDiffMm = %.4f mm, want within 1.5 mm rounding", baseline.Residuals.AxleHeightDiffMm)
+	if math.Abs(baselineFork.Residuals.AxleHeightDiffMm) >= 1.5 {
+		t.Fatalf("AxleHeightDiffMm = %.4f mm, want within 1.5 mm rounding", baselineFork.Residuals.AxleHeightDiffMm)
 	}
-	if math.Abs(baseline.Residuals.WheelbaseDiffMm) >= 1.5 {
-		t.Fatalf("WheelbaseDiffMm = %.4f mm, want within 1.5 mm rounding", baseline.Residuals.WheelbaseDiffMm)
+	if math.Abs(baselineFork.Residuals.WheelbaseDiffMm) >= 1.5 {
+		t.Fatalf("WheelbaseDiffMm = %.4f mm, want within 1.5 mm rounding", baselineFork.Residuals.WheelbaseDiffMm)
 	}
 
 	placed, err := assembly.PlaceChassis(chart.Frame, chart.CadFork, wheels, nil)
 	if err != nil {
 		t.Fatalf("PlaceChassis: %v", err)
 	}
-	assertNear(t, "baseline pitch == PlaceChassis", float64(baseline.Placement.PitchDeg()), float64(placed.PitchDeg()), 1e-12)
-	assertNear(t, "baseline wheelbase == PlaceChassis", baseline.Placement.WheelbaseMm(), placed.WheelbaseMm(), 1e-12)
-	assertNear(t, "baseline FrontTireContact.Y", baseline.Placement.FrontTireContact.Origin().Y, placed.FrontTireContact.Origin().Y, 1e-12)
+	assertNear(t, "baseline fork pitch == PlaceChassis", float64(baselineFork.Placement.PitchDeg()), float64(placed.PitchDeg()), 1e-12)
+	assertNear(t, "baseline fork wheelbase == PlaceChassis", baselineFork.Placement.WheelbaseMm(), placed.WheelbaseMm(), 1e-12)
+	assertNear(t, "baseline fork FrontTireContact.Y", baselineFork.Placement.FrontTireContact.Origin().Y, placed.FrontTireContact.Origin().Y, 1e-12)
 
 	installedFork, err := (assembly.ForkSpec{StaticA2cMm: 530.0, TravelMm: 120.0, RakeMm: 44.0}).Setup(20.0, 12.0)
 	if err != nil {
@@ -249,19 +249,19 @@ func TestPlaceCadBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceChassis installed: %v", err)
 	}
-	wantDelta := installed.PitchDeg() - baseline.Placement.PitchDeg()
-	assertNear(t, "DeltaPitchDeg", float64(baseline.DeltaPitchDeg(installed)), float64(wantDelta), 1e-12)
-	if baseline.DeltaPitchDeg(installed) <= 0 {
-		t.Fatalf("DeltaPitchDeg = %.4f°, want > 0° for taller installed front end", baseline.DeltaPitchDeg(installed))
+	wantDelta := installed.PitchDeg() - baselineFork.Placement.PitchDeg()
+	assertNear(t, "DeltaPitchDeg", float64(baselineFork.DeltaPitchDeg(installed)), float64(wantDelta), 1e-12)
+	if baselineFork.DeltaPitchDeg(installed) <= 0 {
+		t.Fatalf("DeltaPitchDeg = %.4f°, want > 0° for taller installed front end", baselineFork.DeltaPitchDeg(installed))
 	}
 
 	badChart := chart
 	badChart.PublishedWheelbaseMm = 0
-	if _, err := assembly.PlaceCadBaseline(badChart, wheels); err == nil {
+	if _, err := assembly.PlaceCadBaselineFork(badChart, wheels); err == nil {
 		t.Fatal("expected error for zero published wheelbase")
 	}
 	badChart.PublishedWheelbaseMm = math.NaN()
-	if _, err := assembly.PlaceCadBaseline(badChart, wheels); err == nil {
+	if _, err := assembly.PlaceCadBaselineFork(badChart, wheels); err == nil {
 		t.Fatal("expected error for NaN published wheelbase")
 	}
 }

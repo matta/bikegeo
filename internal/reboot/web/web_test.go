@@ -268,18 +268,18 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		t.Errorf("hand-lateral = %q, want %s", got, wantHandLateral)
 	}
 
-	cadBaseline, err := assembly.PlaceCadBaseline(fix.Chart, fix.Wheels)
+	cadBaselineFork, err := assembly.PlaceCadBaselineFork(fix.Chart, fix.Wheels)
 	if err != nil {
-		t.Fatalf("PlaceCadBaseline: %v", err)
+		t.Fatalf("PlaceCadBaselineFork: %v", err)
 	}
-	if got := strings.TrimSpace(doc.Find(`[data-metric="delta-pitch"]`).Text()); got != fmt.Sprintf("%+.2f°", cadBaseline.DeltaPitchDeg(placed)) {
-		t.Errorf("delta-pitch = %q, want %+.2f°", got, cadBaseline.DeltaPitchDeg(placed))
+	if got := strings.TrimSpace(doc.Find(`[data-metric="delta-pitch"]`).Text()); got != fmt.Sprintf("%+.2f°", cadBaselineFork.DeltaPitchDeg(placed)) {
+		t.Errorf("delta-pitch = %q, want %+.2f°", got, cadBaselineFork.DeltaPitchDeg(placed))
 	}
-	if got := strings.TrimSpace(doc.Find(`[data-metric="residual-axle-y"]`).Text()); got != fmt.Sprintf("%+.2f mm", cadBaseline.Residuals.AxleHeightDiffMm) {
-		t.Errorf("residual-axle-y = %q, want %+.2f mm", got, cadBaseline.Residuals.AxleHeightDiffMm)
+	if got := strings.TrimSpace(doc.Find(`[data-metric="residual-axle-y"]`).Text()); got != fmt.Sprintf("%+.2f mm", cadBaselineFork.Residuals.AxleHeightDiffMm) {
+		t.Errorf("residual-axle-y = %q, want %+.2f mm", got, cadBaselineFork.Residuals.AxleHeightDiffMm)
 	}
-	if got := strings.TrimSpace(doc.Find(`[data-metric="residual-wheelbase"]`).Text()); got != fmt.Sprintf("%+.2f mm", cadBaseline.Residuals.WheelbaseDiffMm) {
-		t.Errorf("residual-wheelbase = %q, want %+.2f mm", got, cadBaseline.Residuals.WheelbaseDiffMm)
+	if got := strings.TrimSpace(doc.Find(`[data-metric="residual-wheelbase"]`).Text()); got != fmt.Sprintf("%+.2f mm", cadBaselineFork.Residuals.WheelbaseDiffMm) {
+		t.Errorf("residual-wheelbase = %q, want %+.2f mm", got, cadBaselineFork.Residuals.WheelbaseDiffMm)
 	}
 	if prevFork, _ := doc.Find(`input[name="prev_fork"]`).Attr("value"); prevFork != "fox34_120" {
 		t.Errorf("prev_fork hidden input = %q, want fox34_120", prevFork)
@@ -317,7 +317,7 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 	})
 }
 
-func TestChassisWorkbenchForkSwitchAndCadBaseline(t *testing.T) {
+func TestChassisWorkbenchForkSwitchAndCadBaselineFork(t *testing.T) {
 	cases := []struct {
 		name        string
 		query       string
@@ -370,8 +370,8 @@ func TestChassisWorkbenchForkSwitchAndCadBaseline(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
-			name:        "CAD baseline preset uses fixture CadFork and 0 cup",
-			query:       defaultWorkbenchState(otsoFenrirFixture()).withCadBaseline(otsoFenrirFixture()).URL(),
+			name:        "CAD baseline fork preset uses fixture CadFork and 0 cup",
+			query:       defaultWorkbenchState(otsoFenrirFixture()).withCadBaselineFork(otsoFenrirFixture()).URL(),
 			wantCode:    http.StatusOK,
 			wantA2C:     "495.0 mm",
 			wantForkA2C: "495.0",
@@ -414,10 +414,10 @@ func TestChassisWorkbenchForkSwitchAndCadBaseline(t *testing.T) {
 				}
 				selectedOpt := doc.Find(`select[name="fork"] option[selected]`)
 				if val, _ := selectedOpt.Attr("value"); val != "lithic_carbon_mountain" {
-					t.Errorf("CAD baseline selected fork option = %q, want lithic_carbon_mountain", val)
+					t.Errorf("CAD baseline fork selected fork option = %q, want lithic_carbon_mountain", val)
 				}
 				if _, disabled := selectedOpt.Attr("disabled"); disabled {
-					t.Errorf("CAD baseline selected fork option should not be disabled")
+					t.Errorf("CAD baseline fork selected fork option should not be disabled")
 				}
 			}
 		})
@@ -686,12 +686,12 @@ func TestBuildChassisViewUsesPlacedDimensions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
-	cadBaseline, err := assembly.PlaceCadBaseline(fix.Chart, customWheels)
+	cadBaselineFork, err := assembly.PlaceCadBaselineFork(fix.Chart, customWheels)
 	if err != nil {
-		t.Fatalf("PlaceCadBaseline: %v", err)
+		t.Fatalf("PlaceCadBaselineFork: %v", err)
 	}
 
-	view := buildChassisView(fix, "fox34_120", 530.0, 20.0, bike, cadBaseline, tr.Steps())
+	view := buildChassisView(fix, "fox34_120", 530.0, 20.0, bike, cadBaselineFork, tr.Steps())
 
 	if view.WheelRadiusMm != customWheels.RadiusMm {
 		t.Errorf("view.WheelRadiusMm = %.1f, want placed radius %.1f (not fixture %.1f)", view.WheelRadiusMm, customWheels.RadiusMm, fix.Wheels.RadiusMm)
@@ -727,13 +727,13 @@ func TestBuildChassisViewUsesPlacedDimensions(t *testing.T) {
 		t.Errorf("view.Form = %+v, want %+v", view.Form, wantForm)
 	}
 
-	cadURL, err := url.Parse(view.CadBaselineURL)
+	cadURL, err := url.Parse(view.CadBaselineForkURL)
 	if err != nil {
-		t.Fatalf("parse CadBaselineURL %q: %v", view.CadBaselineURL, err)
+		t.Fatalf("parse CadBaselineForkURL %q: %v", view.CadBaselineForkURL, err)
 	}
 	cadDecoded, inputErr := decodeWorkbenchState(fix, cadURL.Query())
 	if inputErr != nil {
-		t.Fatalf("decodeWorkbenchState(CadBaselineURL): %v", inputErr)
+		t.Fatalf("decodeWorkbenchState(CadBaselineForkURL): %v", inputErr)
 	}
 	wantCadState := workbenchState{
 		ForkID:        fix.CadForkID,
@@ -750,7 +750,7 @@ func TestBuildChassisViewUsesPlacedDimensions(t *testing.T) {
 		RailPitchDeg:  -1.5,
 	}
 	if cadDecoded.State != wantCadState {
-		t.Errorf("decoded CadBaselineURL state = %+v, want %+v", cadDecoded.State, wantCadState)
+		t.Errorf("decoded CadBaselineForkURL state = %+v, want %+v", cadDecoded.State, wantCadState)
 	}
 }
 
@@ -918,10 +918,10 @@ func TestChassisWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
 	defaultDoc := loadChassisDoc(t, "/chassis")
 	assertUnchangedSubmitIdempotent(t, "default build", defaultDoc)
 
-	// 2. Follow CAD Baseline preset from default build.
-	cadHref, ok := defaultDoc.Find(`a[data-preset="cad-baseline"]`).Attr("href")
+	// 2. Follow CAD Baseline Fork preset from default build.
+	cadHref, ok := defaultDoc.Find(`a[data-preset="cad-baseline-fork"]`).Attr("href")
 	if !ok || cadHref == "" {
-		t.Fatalf("missing a[data-preset=cad-baseline] href")
+		t.Fatalf("missing a[data-preset=cad-baseline-fork] href")
 	}
 	cadDoc := loadChassisDoc(t, cadHref)
 	if got, _ := cadDoc.Find(`input[name="cup"]`).Attr("value"); got != "0.0" {
@@ -939,11 +939,11 @@ func TestChassisWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
 	customDoc := loadChassisDoc(t, customURL)
 	assertUnchangedSubmitIdempotent(t, "custom build", customDoc)
 
-	// 4. Follow CAD Baseline from customized build: preserves cockpit, sets cup=0,
-	//    round-trips unchanged, and keeps CAD baseline when spacers are later edited.
-	customCadHref, ok := customDoc.Find(`a[data-preset="cad-baseline"]`).Attr("href")
+	// 4. Follow CAD Baseline Fork from customized build: preserves cockpit, sets cup=0,
+	//    round-trips unchanged, and keeps CAD baseline fork when spacers are later edited.
+	customCadHref, ok := customDoc.Find(`a[data-preset="cad-baseline-fork"]`).Attr("href")
 	if !ok || customCadHref == "" {
-		t.Fatalf("missing a[data-preset=cad-baseline] href on custom build")
+		t.Fatalf("missing a[data-preset=cad-baseline-fork] href on custom build")
 	}
 	customCadDoc := loadChassisDoc(t, customCadHref)
 	if got, _ := customCadDoc.Find(`input[name="spacers"]`).Attr("value"); got != "35.0" {
@@ -991,20 +991,20 @@ func TestChassisWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
 
 func TestChassisWorkbenchEveryEnabledControlIsLive(t *testing.T) {
 	defaultDoc := loadChassisDoc(t, "/chassis")
-	cadHref, _ := defaultDoc.Find(`a[data-preset="cad-baseline"]`).Attr("href")
+	cadHref, _ := defaultDoc.Find(`a[data-preset="cad-baseline-fork"]`).Attr("href")
 	cadDoc := loadChassisDoc(t, cadHref)
 	cadMetrics := collectMetrics(cadDoc)
 
 	// On the rigid CAD baseline fork, changing sag to 10 must return 400 (not silently revert).
 	rec, errDoc := submitForm(t, cadDoc, map[string]string{"sag": "10"})
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("mutating sag on rigid CAD baseline status = %d, want 400", rec.Code)
+		t.Fatalf("mutating sag on rigid CAD baseline fork status = %d, want 400", rec.Code)
 	}
 	if inv, _ := errDoc.Find(`[name="sag"]`).Attr("aria-invalid"); inv != "true" {
 		t.Errorf("sag aria-invalid = %q, want true", inv)
 	}
 
-	// Every other enabled control on the CAD baseline page must take effect and change the build.
+	// Every other enabled control on the CAD baseline fork page must take effect and change the build.
 	mutations := []struct {
 		field    string
 		val      string

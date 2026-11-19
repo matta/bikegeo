@@ -139,22 +139,22 @@ type ChartResiduals struct {
 	WheelbaseDiffMm  float64 // (FrontAxle.X - RearAxle.X) - publishedWheelbaseMm at 0° pitch
 }
 
-// ChartBaseline holds the leveled CAD-baseline chassis placement and the raw
+// ChartBaseline holds the leveled CAD baseline fork chassis placement and the raw
 // 0°-pitch chart-closure residuals computed from a single unpitched pass.
 type ChartBaseline struct {
 	Placement ChassisPlacement
 	Residuals ChartResiduals
 }
 
-// DeltaPitchDeg returns the pitch change of installed relative to the CAD baseline.
+// DeltaPitchDeg returns the pitch change of installed relative to the CAD baseline fork.
 func (b ChartBaseline) DeltaPitchDeg(installed ChassisPlacement) pose.Deg {
 	return installed.PitchDeg() - b.Placement.PitchDeg()
 }
 
-// PlaceCadBaseline runs the unpitched (0°) chassis recipe once to measure both
+// PlaceCadBaselineFork runs the unpitched (0°) chassis recipe once to measure both
 // the raw chart-closure residuals and the leveling pitch, then builds the
-// leveled CAD-baseline chassis.
-func PlaceCadBaseline(chart FrameChart, wheels WheelSetup) (ChartBaseline, error) {
+// leveled CAD baseline fork chassis.
+func PlaceCadBaselineFork(chart FrameChart, wheels WheelSetup) (ChartBaseline, error) {
 	if err := validateChassisInputs(chart.Frame, chart.CadFork, wheels); err != nil {
 		return ChartBaseline{}, err
 	}

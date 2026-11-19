@@ -350,7 +350,7 @@ func workbenchStateFromSetup(forkID string, staticA2cMm, sagPct float64, setup a
 	}
 }
 
-func (s workbenchState) withCadBaseline(fix bikeFixture) workbenchState {
+func (s workbenchState) withCadBaselineFork(fix bikeFixture) workbenchState {
 	s.ForkID = fix.CadForkID
 	s.ForkA2cMm = fix.Chart.CadFork.A2cMm
 	s.LowerCupMm = fix.Chart.CadFork.LowerCupMm
@@ -429,7 +429,7 @@ type chassisView struct {
 	ErrorMessage         string
 	InvalidField         string
 	Form                 chassisFormValues
-	CadBaselineURL       string
+	CadBaselineForkURL   string
 	MinPostExtensionMm   float64
 	MaxPostExtensionMm   float64
 	BikeName             string
@@ -495,7 +495,7 @@ func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cadBaseline, err := assembly.PlaceCadBaseline(fix.Chart, fix.Wheels)
+	cadBaselineFork, err := assembly.PlaceCadBaselineFork(fix.Chart, fix.Wheels)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -507,7 +507,7 @@ func handleChassisWorkbench(w http.ResponseWriter, r *http.Request) {
 		resolved.State.ForkA2cMm,
 		resolved.State.SagPct,
 		bike,
-		cadBaseline,
+		cadBaselineFork,
 		tr.Steps(),
 	)
 	renderChassisTemplate(w, http.StatusOK, view)
@@ -519,7 +519,7 @@ func renderChassisError(w http.ResponseWriter, fix bikeFixture, resolved chassis
 		ErrorMessage:       msg,
 		InvalidField:       invalidField,
 		Form:               resolved.Form,
-		CadBaselineURL:     defaultWorkbenchState(fix).withCadBaseline(fix).URL(),
+		CadBaselineForkURL: defaultWorkbenchState(fix).withCadBaselineFork(fix).URL(),
 		MinPostExtensionMm: fix.DefaultSeatpost.MinExtensionMm,
 		MaxPostExtensionMm: fix.DefaultSeatpost.MaxExtensionMm,
 		BikeName:           fix.Name,
@@ -741,7 +741,7 @@ func buildChassisView(
 	staticA2cMm float64,
 	sagPct float64,
 	bike assembly.BikePlacement,
-	cadBaseline assembly.ChartBaseline,
+	cadBaselineFork assembly.ChartBaseline,
 	steps []pose.Step,
 ) chassisView {
 	placed := bike.Chassis
@@ -819,7 +819,7 @@ func buildChassisView(
 	return chassisView{
 		HasBuild:             true,
 		Form:                 state.formValues(),
-		CadBaselineURL:       state.withCadBaseline(fix).URL(),
+		CadBaselineForkURL:   state.withCadBaselineFork(fix).URL(),
 		MinPostExtensionMm:   bike.Setup.Seatpost.MinExtensionMm,
 		MaxPostExtensionMm:   bike.Setup.Seatpost.MaxExtensionMm,
 		BikeName:             fix.Name,
@@ -842,11 +842,11 @@ func buildChassisView(
 		SitBonesToGripRiseMm: bike.SitBonesToGripRiseMm(),
 		HandLateralMm:        handlebar.HandLateralMm,
 		PublishedWheelbaseMm: fix.Chart.PublishedWheelbaseMm,
-		CadHtaDeg:            cadBaseline.Placement.LeveledHeadTubeAngleDeg(),
-		CadWheelbaseMm:       cadBaseline.Placement.WheelbaseMm(),
-		DeltaPitchDeg:        cadBaseline.DeltaPitchDeg(placed),
-		ResidualAxleYMm:      cadBaseline.Residuals.AxleHeightDiffMm,
-		ResidualWheelbaseMm:  cadBaseline.Residuals.WheelbaseDiffMm,
+		CadHtaDeg:            cadBaselineFork.Placement.LeveledHeadTubeAngleDeg(),
+		CadWheelbaseMm:       cadBaselineFork.Placement.WheelbaseMm(),
+		DeltaPitchDeg:        cadBaselineFork.DeltaPitchDeg(placed),
+		ResidualAxleYMm:      cadBaselineFork.Residuals.AxleHeightDiffMm,
+		ResidualWheelbaseMm:  cadBaselineFork.Residuals.WheelbaseDiffMm,
 		WheelRadiusMm:        r,
 		WheelLabel:           fix.WheelLabel,
 		RearAxleSVG:          rearSVG,
