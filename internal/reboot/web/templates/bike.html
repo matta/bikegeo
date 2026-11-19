@@ -121,6 +121,15 @@
       background: #fff;
       color: var(--text);
     }
+    .controls input[readonly] {
+      background: #f0efe9;
+      color: var(--muted);
+    }
+    .field-note {
+      margin: 0.6rem 0 0 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
     :is(.controls input, .controls select):user-invalid,
     :is(.controls input, .controls select)[aria-invalid="true"] {
       border-color: var(--error);
@@ -248,24 +257,27 @@
                 <option value="{{.ID}}"{{if eq .ID $.SelectedForkID}} selected{{end}}>{{.Label}}</option>
                 {{end}}
               </optgroup>
-              <optgroup label="Chart Inspection">
+              <optgroup label="CAD Baseline Fork">
                 <option value="{{.CadForkOption.ID}}"{{if eq .CadForkOption.ID $.SelectedForkID}} selected{{end}}>{{.CadForkOption.Label}}</option>
               </optgroup>
             </select>
           </div>
           <div class="field">
             <label for="ctrl-fork-a2c">Fork Static A2C (mm)</label>
-            <input id="ctrl-fork-a2c" type="number" name="fork_a2c" step="0.5" min="1" value="{{.Form.ForkA2c}}"{{if and $.ErrorMessage (eq $.InvalidField "fork_a2c")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+            <input id="ctrl-fork-a2c" type="number" name="fork_a2c" step="0.5" min="1" value="{{.Form.ForkA2c}}"{{if .ForkA2cReadOnly}} readonly{{end}}{{if and $.ErrorMessage (eq $.InvalidField "fork_a2c")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
           </div>
           <div class="field">
-            <label for="ctrl-cup">Lower Cup (mm)</label>
-            <input id="ctrl-cup" type="number" name="cup" step="0.5" min="0" value="{{.Form.Cup}}"{{if and $.ErrorMessage (eq $.InvalidField "cup")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+            <label for="ctrl-cup">{{.CupLabel}}</label>
+            <input id="ctrl-cup" type="number" name="cup" step="0.5" min="0" value="{{.Form.Cup}}"{{if .CupReadOnly}} readonly{{end}}{{if and $.ErrorMessage (eq $.InvalidField "cup")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
           </div>
           <div class="field">
             <label for="ctrl-sag">Fork Sag (%)</label>
-            <input id="ctrl-sag" type="number" name="sag" step="1" min="0" max="100" value="{{.Form.Sag}}"{{if and $.ErrorMessage (eq $.InvalidField "sag")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+            <input id="ctrl-sag" type="number" name="sag" step="1" min="0" max="100" value="{{.Form.Sag}}"{{if .SagReadOnly}} readonly{{end}}{{if and $.ErrorMessage (eq $.InvalidField "sag")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
           </div>
         </div>
+        {{if .CadBaselineNote}}
+        <p class="field-note" data-note="cad-baseline-fork">{{.CadBaselineNote}}</p>
+        {{end}}
       </fieldset>
 
       <fieldset class="control-group">

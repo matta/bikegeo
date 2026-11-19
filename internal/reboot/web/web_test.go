@@ -620,7 +620,6 @@ func TestBikeWorkbenchRejectsInvalidQuery(t *testing.T) {
 		{"/bike?fork=lithic_carbon_mountain&fork_a2c=495.0&cup=0.0&sag=0.0&spacers=-1", "cup", "0.0"},
 		{"/bike?fork=cad&fork_a2c=495.0&cup=0.0&sag=0.0&spacers=-1", "spacers", "-1"},
 		{"/bike?fork=lithic_carbon_mountain&cup=0", "cup", "0"},
-		{"/bike?fork=cad&cup=12", "cup", "12"},
 	}
 
 	for _, tc := range cases {
@@ -658,6 +657,9 @@ func TestBikeWorkbenchRejectsInvalidQuery(t *testing.T) {
 			}
 			if desc, _ := target.Attr("aria-describedby"); desc != "form-error" {
 				t.Errorf("[name=%q] aria-describedby = %q, want form-error", tc.invalidField, desc)
+			}
+			if _, ro := target.Attr("readonly"); ro {
+				t.Errorf("invalid field [name=%q] must not be readonly", tc.invalidField)
 			}
 			if tc.wantVal != "" {
 				if val, _ := target.Attr("value"); val != tc.wantVal {
@@ -928,11 +930,16 @@ func collectMetrics(doc *goquery.Document) map[string]string {
 
 func loadBikeDoc(t *testing.T, path string) *goquery.Document {
 	t.Helper()
+	return loadBikeDocStatus(t, path, http.StatusOK)
+}
+
+func loadBikeDocStatus(t *testing.T, path string, wantStatus int) *goquery.Document {
+	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+path, nil)
 	rec := httptest.NewRecorder()
 	NewHandler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET %s status = %d, want 200 (body: %s)", path, rec.Code, rec.Body.String())
+	if rec.Code != wantStatus {
+		t.Fatalf("GET %s status = %d, want %d (body: %s)", path, rec.Code, wantStatus, rec.Body.String())
 	}
 	doc, err := goquery.NewDocumentFromReader(rec.Body)
 	if err != nil {
@@ -1047,30 +1054,13 @@ func TestBikeWorkbenchEveryEnabledControlIsLive(t *testing.T) {
 	cadDoc := loadBikeDoc(t, cadHref)
 	cadMetrics := collectMetrics(cadDoc)
 
-	// On the rigid CAD chart reference, changing sag to 10 or cup to 12 must return 400.
-	rec, errDoc := submitForm(t, cadDoc, map[string]string{"sag": "10"})
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("mutating sag on rigid CAD chart reference status = %d, want 400", rec.Code)
-	}
-	if inv, _ := errDoc.Find(`[name="sag"]`).Attr("aria-invalid"); inv != "true" {
-		t.Errorf("sag aria-invalid = %q, want true", inv)
-	}
-	rec, errDoc = submitForm(t, cadDoc, map[string]string{"cup": "12.0"})
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("mutating cup on BareHeadTube CAD chart reference status = %d, want 400", rec.Code)
-	}
-	if inv, _ := errDoc.Find(`[name="cup"]`).Attr("aria-invalid"); inv != "true" {
-		t.Errorf("cup aria-invalid = %q, want true", inv)
-	}
-
-	// Every other enabled control on the CAD baseline fork page must take effect and change the build.
+	// Every editable control on the CAD baseline fork page must take effect and change the build.
 	mutations := []struct {
 		field    string
 		val      string
 		isSelect bool
 	}{
 		{field: "fork", val: "sid_100", isSelect: true},
-		{field: "fork_a2c", val: "510.0"},
 		{field: "spacers", val: "30.0"},
 		{field: "stem_length", val: "80.0"},
 		{field: "stem_angle", val: "-12.0"},
@@ -1303,5 +1293,208 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 				t.Fatalf("expected validate() error for %s", tc.name)
 			}
 		})
+	}
+}
+
+func TestBikeWorkbenchCadBaselineForkLockAndLabels(t *testing.T) {
+	hasReadOnly := func(doc *goquery.Document, name string) bool {
+		_, exists := doc.Find(fmt.Sprintf(`input[name=%q]`, name)).Attr("readonly")
+		return exists
+	}
+
+	// 1. Overrides on fork=cad are ignored (200, no error, chart values locked & readonly).
+	for _, query := range []string{
+		"/bike?fork=cad&cup=12",
+		"/bike?fork=cad&fork_a2c=530",
+		"/bike?fork=cad&sag=10",
+		"/bike?fork=cad&fork_a2c=530&cup=12&sag=20&spacers=35",
+	} {
+		t.Run("locked/"+query, func(t *testing.T) {
+			doc := loadBikeDoc(t, query)
+			if doc.Find(`#form-error`).Length() != 0 {
+				t.Fatalf("unexpected #form-error: %s", doc.Find(`#form-error`).Text())
+			}
+			for field, want := range map[string]string{
+				"fork_a2c": "495.0",
+				"cup":      "0.0",
+				"sag":      "0.0",
+			} {
+				if got, _ := doc.Find(fmt.Sprintf(`input[name=%q]`, field)).Attr("value"); got != want {
+					t.Errorf("%s value = %q, want %q", field, got, want)
+				}
+				if !hasReadOnly(doc, field) {
+					t.Errorf("expected %s to be readonly under fork=cad", field)
+				}
+			}
+			if got := strings.TrimSpace(doc.Find(`[data-metric="delta-pitch"]`).Text()); got != "+0.00°" {
+				t.Errorf("delta-pitch = %q, want +0.00°", got)
+			}
+			if hasReadOnly(doc, "spacers") {
+				t.Errorf("cockpit field spacers should remain editable under fork=cad")
+			}
+		})
+	}
+
+	// 2. Rigid physical fork has readonly sag only; suspension fork has all three editable.
+	rigidDoc := loadBikeDoc(t, "/bike")
+	if hasReadOnly(rigidDoc, "fork_a2c") || hasReadOnly(rigidDoc, "cup") {
+		t.Errorf("rigid physical fork should keep fork_a2c and cup editable")
+	}
+	if !hasReadOnly(rigidDoc, "sag") {
+		t.Errorf("rigid physical fork should mark sag readonly")
+	}
+	suspDoc := loadBikeDoc(t, "/bike?fork=fox34_120")
+	if hasReadOnly(suspDoc, "fork_a2c") || hasReadOnly(suspDoc, "cup") || hasReadOnly(suspDoc, "sag") {
+		t.Errorf("suspension fork should keep fork_a2c, cup, and sag editable")
+	}
+
+	// 3. Single "CAD Baseline Fork" naming, cup standard label, and data-driven note.
+	cadDoc := loadBikeDoc(t, "/bike?fork=cad")
+	cadHTML, err := cadDoc.Html()
+	if err != nil {
+		t.Fatalf("render HTML: %v", err)
+	}
+	for _, banned := range []string{"Chart Inspection", "CAD Chart Reference", "chart only"} {
+		if strings.Contains(cadHTML, banned) {
+			t.Errorf("HTML unexpectedly contains legacy label %q", banned)
+		}
+	}
+	if got, _ := cadDoc.Find(`select[name="fork"] optgroup`).Last().Attr("label"); got != "CAD Baseline Fork" {
+		t.Errorf("last optgroup label = %q, want %q", got, "CAD Baseline Fork")
+	}
+	if got := strings.TrimSpace(cadDoc.Find(`label[for="ctrl-cup"]`).Text()); got != "No lower cup (bare head tube)" {
+		t.Errorf("cad cup label = %q, want %q", got, "No lower cup (bare head tube)")
+	}
+	if got := strings.TrimSpace(rigidDoc.Find(`label[for="ctrl-cup"]`).Text()); got != "EC44 lower cup (mm, > 0)" {
+		t.Errorf("physical cup label = %q, want %q", got, "EC44 lower cup (mm, > 0)")
+	}
+	note := strings.TrimSpace(cadDoc.Find(`[data-note="cad-baseline-fork"]`).Text())
+	if !strings.Contains(note, "CAD Baseline Fork") || !strings.Contains(note, "bare head tube") || !strings.Contains(note, "EC44 (12 mm)") {
+		t.Errorf("unexpected cad-baseline-fork note: %q", note)
+	}
+	if rigidDoc.Find(`[data-note="cad-baseline-fork"]`).Length() != 0 {
+		t.Errorf("cad-baseline-fork note should not render for physical forks")
+	}
+
+	// 4. Switching both ways between fork=cad and physical forks updates cup, A2C, and sag.
+	rec, fromCad := submitForm(t, cadDoc, map[string]string{"fork": "fox34_120"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("switch cad -> fox34_120 status = %d, want 200", rec.Code)
+	}
+	if got, _ := fromCad.Find(`input[name="cup"]`).Attr("value"); got != "12.0" {
+		t.Errorf("switch cad -> fox34_120 cup = %q, want 12.0", got)
+	}
+	if got, _ := fromCad.Find(`input[name="sag"]`).Attr("value"); got != "20.0" {
+		t.Errorf("switch cad -> fox34_120 sag = %q, want 20.0", got)
+	}
+	rec, backToCad := submitForm(t, fromCad, map[string]string{"fork": "cad"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("switch fox34_120 -> cad status = %d, want 200", rec.Code)
+	}
+	if got, _ := backToCad.Find(`input[name="cup"]`).Attr("value"); got != "0.0" {
+		t.Errorf("switch fox34_120 -> cad cup = %q, want 0.0", got)
+	}
+	if got, _ := backToCad.Find(`input[name="fork_a2c"]`).Attr("value"); got != "495.0" {
+		t.Errorf("switch fox34_120 -> cad fork_a2c = %q, want 495.0", got)
+	}
+}
+
+func TestBikeWorkbenchRecoversFromInvalidRigidForkSag(t *testing.T) {
+	hasReadOnly := func(doc *goquery.Document, name string) bool {
+		_, exists := doc.Find(fmt.Sprintf(`input[name=%q]`, name)).Attr("readonly")
+		return exists
+	}
+
+	// Single-error recovery: invalid/non-zero sag on rigid fork stays editable so
+	// the user can reset it to 0 without losing other settings, while unchanged
+	// resubmission continues to fail physical-fork validation.
+	for _, sagVal := range []string{"150", "10", "Inf"} {
+		t.Run("single/"+sagVal, func(t *testing.T) {
+			errDoc := loadBikeDocStatus(t, fmt.Sprintf("/bike?sag=%s&spacers=35&stem_length=80", sagVal), http.StatusBadRequest)
+			if errDoc.Find(`#form-error[role="alert"]`).Length() != 1 {
+				t.Fatalf("expected #form-error[role=alert]")
+			}
+			sagInput := errDoc.Find(`input[name="sag"]`)
+			if got, _ := sagInput.Attr("value"); got != sagVal {
+				t.Errorf("sag value = %q, want %q", got, sagVal)
+			}
+			if inv, _ := sagInput.Attr("aria-invalid"); inv != "true" {
+				t.Errorf("sag aria-invalid = %q, want true", inv)
+			}
+			if hasReadOnly(errDoc, "sag") {
+				t.Errorf("invalid sag on rigid fork must not be readonly")
+			}
+			if got, _ := errDoc.Find(`input[name="spacers"]`).Attr("value"); got != "35" {
+				t.Errorf("spacers value = %q, want 35", got)
+			}
+			if got, _ := errDoc.Find(`input[name="stem_length"]`).Attr("value"); got != "80" {
+				t.Errorf("stem_length value = %q, want 80", got)
+			}
+
+			// Resubmitting unchanged preserves physical-fork validation failure.
+			rec, stillErr := submitForm(t, errDoc, nil)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("unchanged resubmit status = %d, want 400", rec.Code)
+			}
+			if hasReadOnly(stillErr, "sag") {
+				t.Errorf("sag after unchanged resubmit must remain editable")
+			}
+
+			// Resetting sag to 0 recovers the build, restores readonly, and keeps other settings.
+			rec, okDoc := submitForm(t, errDoc, map[string]string{"sag": "0"})
+			if rec.Code != http.StatusOK {
+				t.Fatalf("recovery submit status = %d, want 200", rec.Code)
+			}
+			if okDoc.Find(`#form-error`).Length() != 0 {
+				t.Errorf("unexpected #form-error after recovery: %s", okDoc.Find(`#form-error`).Text())
+			}
+			if got, _ := okDoc.Find(`input[name="sag"]`).Attr("value"); got != "0.0" {
+				t.Errorf("recovered sag value = %q, want 0.0", got)
+			}
+			if !hasReadOnly(okDoc, "sag") {
+				t.Errorf("recovered rigid fork sag should be readonly again")
+			}
+			if got, _ := okDoc.Find(`input[name="spacers"]`).Attr("value"); got != "35.0" {
+				t.Errorf("recovered spacers = %q, want 35.0", got)
+			}
+			if got, _ := okDoc.Find(`input[name="stem_length"]`).Attr("value"); got != "80.0" {
+				t.Errorf("recovered stem_length = %q, want 80.0", got)
+			}
+		})
+	}
+
+	// Multi-error recovery: cup fails first so invalidField is "cup", yet invalid
+	// sag on the rigid fork still stays editable so both can be fixed together.
+	multiErr := loadBikeDocStatus(t, "/bike?cup=abc&sag=150&spacers=35", http.StatusBadRequest)
+	if inv, _ := multiErr.Find(`input[name="cup"]`).Attr("aria-invalid"); inv != "true" {
+		t.Errorf("cup aria-invalid = %q, want true", inv)
+	}
+	if got, _ := multiErr.Find(`input[name="sag"]`).Attr("value"); got != "150" {
+		t.Errorf("multi-error sag value = %q, want 150", got)
+	}
+	if hasReadOnly(multiErr, "sag") {
+		t.Errorf("multi-error invalid sag on rigid fork must not be readonly")
+	}
+	rec, multiOK := submitForm(t, multiErr, map[string]string{"cup": "12", "sag": "0"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("multi-error recovery status = %d, want 200", rec.Code)
+	}
+	if !hasReadOnly(multiOK, "sag") {
+		t.Errorf("recovered multi-error rigid fork sag should be readonly")
+	}
+	if got, _ := multiOK.Find(`input[name="spacers"]`).Attr("value"); got != "35.0" {
+		t.Errorf("multi-error recovered spacers = %q, want 35.0", got)
+	}
+
+	// Control cases: valid 0 sag stays readonly on error pages when another field fails.
+	otherErr := loadBikeDocStatus(t, "/bike?spacers=-1", http.StatusBadRequest)
+	if !hasReadOnly(otherErr, "sag") {
+		t.Errorf("valid zero sag on rigid fork error page should stay readonly")
+	}
+	cadErr := loadBikeDocStatus(t, "/bike?fork=cad&spacers=-1", http.StatusBadRequest)
+	for _, field := range []string{"fork_a2c", "cup", "sag"} {
+		if !hasReadOnly(cadErr, field) {
+			t.Errorf("cad baseline field %q on error page should stay readonly", field)
+		}
 	}
 }

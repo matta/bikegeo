@@ -51,7 +51,7 @@ func (f bikeFixture) cadForkOption() forkOption {
 	return forkOption{
 		ID: cadForkOptionID,
 		Label: fmt.Sprintf(
-			"CAD Chart Reference (%.0f mm A2C / %.0f mm rake, %.0f mm cup — chart only)",
+			"CAD Baseline Fork (%.0f mm A2C / %.0f mm rake, %.0f mm cup)",
 			f.Chart.CadFork.A2cMm, f.Chart.CadFork.RakeMm, f.Chart.CadLowerCup.StackMm,
 		),
 		Spec: assembly.ForkSpec{

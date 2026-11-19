@@ -441,6 +441,11 @@ type bikeView struct {
 	Forks                []forkOption
 	CadForkOption        forkOption
 	SelectedForkID       string
+	CupLabel             string
+	ForkA2cReadOnly      bool
+	CupReadOnly          bool
+	SagReadOnly          bool
+	CadBaselineNote      string
 	CadFork              assembly.ForkGeometry
 	CadLowerCupMm        float64
 	LowerCupMm           float64
@@ -521,6 +526,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 }
 
 func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolvedInput, invalidField, msg string) {
+	forkA2cRO, cupRO, sagRO, cupLabel, cadNote := forkFieldViewState(fix, resolved.State.ForkID, resolved.Form.Sag)
 	view := bikeView{
 		HasBuild:           false,
 		ErrorMessage:       msg,
@@ -533,6 +539,11 @@ func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolv
 		Forks:              fix.Forks,
 		CadForkOption:      fix.cadForkOption(),
 		SelectedForkID:     resolved.State.ForkID,
+		CupLabel:           cupLabel,
+		ForkA2cReadOnly:    forkA2cRO,
+		CupReadOnly:        cupRO,
+		SagReadOnly:        sagRO,
+		CadBaselineNote:    cadNote,
 		CadFork:            fix.Chart.CadFork,
 		CadLowerCupMm:      fix.Chart.CadLowerCup.StackMm,
 	}
@@ -607,37 +618,52 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bi
 		selectedFork, _ = fix.resolveForkOption("")
 	}
 
-	// When the user switches forks via the form, adopt the newly selected fork's
-	// default static A2C and sag instead of carrying over the previous fork's values.
-	// When switching between forks with different lower-cup standards (such as the
-	// chart-only CAD reference vs. an EC44 fork), also adopt the new pairing's cup.
-	forkSwitched := ok && prevFork != "" && prevFork != selectedFork.ID
-	defaultCup := selectedFork.DefaultLowerCup.StackMm
-	prevOpt, prevOK := fix.resolveForkOption(prevFork)
-	cupSwitched := forkSwitched && (!prevOK || prevOpt.DefaultLowerCup.Standard != selectedFork.DefaultLowerCup.Standard)
-	if cupSwitched {
-		state.LowerCupMm = defaultCup
+	var lowerCup assembly.LowerCupSetup
+	var forkSpec assembly.ForkSpec
+	if ok && selectedFork.ID == cadForkOptionID {
+		// CAD Baseline Fork locks A2C, lower cup, and sag to FrameChart values
+		// in one place, ignoring any submitted overrides.
+		lowerCup = fix.Chart.CadLowerCup
+		forkSpec = selectedFork.Spec
+		state.LowerCupMm = lowerCup.StackMm
+		state.ForkA2cMm = forkSpec.StaticA2cMm
+		state.SagPct = 0.0
 		form.Cup = formatFormFloat(state.LowerCupMm)
-	} else {
-		state.LowerCupMm = p.float("cup", defaultCup, "lower cup", &form.Cup)
-	}
-
-	state.ForkA2cMm = selectedFork.Spec.StaticA2cMm
-	state.SagPct = selectedFork.DefaultSagPct
-	if forkSwitched {
 		form.ForkA2c = formatFormFloat(state.ForkA2cMm)
 		form.Sag = formatFormFloat(state.SagPct)
 	} else {
-		state.ForkA2cMm = p.float("fork_a2c", state.ForkA2cMm, "fork static A2C", &form.ForkA2c)
-		state.SagPct = p.float("sag", state.SagPct, "fork sag", &form.Sag)
-	}
+		// When the user switches forks via the form, adopt the newly selected fork's
+		// default static A2C and sag instead of carrying over the previous fork's values.
+		// When switching between forks with different lower-cup standards (such as the
+		// CAD Baseline Fork vs. an EC44 fork), also adopt the new pairing's cup.
+		forkSwitched := ok && prevFork != "" && prevFork != selectedFork.ID
+		defaultCup := selectedFork.DefaultLowerCup.StackMm
+		prevOpt, prevOK := fix.resolveForkOption(prevFork)
+		cupSwitched := forkSwitched && (!prevOK || prevOpt.DefaultLowerCup.Standard != selectedFork.DefaultLowerCup.Standard)
+		if cupSwitched {
+			state.LowerCupMm = defaultCup
+			form.Cup = formatFormFloat(state.LowerCupMm)
+		} else {
+			state.LowerCupMm = p.float("cup", defaultCup, "lower cup", &form.Cup)
+		}
 
-	lowerCup := assembly.LowerCupSetup{
-		Standard: selectedFork.DefaultLowerCup.Standard,
-		StackMm:  state.LowerCupMm,
+		state.ForkA2cMm = selectedFork.Spec.StaticA2cMm
+		state.SagPct = selectedFork.DefaultSagPct
+		if forkSwitched {
+			form.ForkA2c = formatFormFloat(state.ForkA2cMm)
+			form.Sag = formatFormFloat(state.SagPct)
+		} else {
+			state.ForkA2cMm = p.float("fork_a2c", state.ForkA2cMm, "fork static A2C", &form.ForkA2c)
+			state.SagPct = p.float("sag", state.SagPct, "fork sag", &form.Sag)
+		}
+
+		lowerCup = assembly.LowerCupSetup{
+			Standard: selectedFork.DefaultLowerCup.Standard,
+			StackMm:  state.LowerCupMm,
+		}
+		forkSpec = selectedFork.Spec
+		forkSpec.StaticA2cMm = state.ForkA2cMm
 	}
-	forkSpec := selectedFork.Spec
-	forkSpec.StaticA2cMm = state.ForkA2cMm
 	forkSetup := assembly.ForkSetup{
 		Spec:   forkSpec,
 		SagPct: state.SagPct,
@@ -715,6 +741,69 @@ func bikeInputField(err error) string {
 	default:
 		return ""
 	}
+}
+
+func isZeroFormFloat(raw string) bool {
+	v, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	return err == nil && isFiniteFloat(v) && v == 0
+}
+
+func forkFieldViewState(fix bikeFixture, selectedForkID, sagValue string) (forkA2cRO, cupRO, sagRO bool, cupLabel, cadNote string) {
+	isCad := selectedForkID == cadForkOptionID
+	opt, ok := fix.resolveForkOption(selectedForkID)
+	if !ok {
+		opt, _ = fix.resolveForkOption("")
+	}
+	forkA2cRO = isCad
+	cupRO = isCad
+	// On a known rigid fork, keep sag read-only only when the displayed value is
+	// already valid zero; if an invalid or non-zero sag was submitted, leave the
+	// input editable so the user can reset it to 0 without losing other settings.
+	sagRO = isCad || (selectedForkID != "" && opt.Spec.TravelMm == 0 && isZeroFormFloat(sagValue))
+	cupLabel = lowerCupLabel(opt.DefaultLowerCup.Standard)
+	cadNote = cadBaselineForkNote(fix, selectedForkID)
+	return forkA2cRO, cupRO, sagRO, cupLabel, cadNote
+}
+
+func lowerCupLabel(std assembly.LowerCupStandard) string {
+	switch std {
+	case assembly.LowerCupEC34, assembly.LowerCupEC44:
+		return fmt.Sprintf("%s lower cup (mm, > 0)", std)
+	case assembly.LowerCupZS44, assembly.LowerCupZS56, assembly.LowerCupIS42, assembly.LowerCupIS52:
+		return fmt.Sprintf("%s lower cup (mm, ≥ 0)", std)
+	case assembly.LowerCupBareHeadTube:
+		return "No lower cup (bare head tube)"
+	default:
+		return "Lower Cup (mm)"
+	}
+}
+
+func lowerCupStandardName(std assembly.LowerCupStandard) string {
+	switch std {
+	case assembly.LowerCupEC34, assembly.LowerCupEC44, assembly.LowerCupZS44, assembly.LowerCupZS56, assembly.LowerCupIS42, assembly.LowerCupIS52:
+		return string(std)
+	case assembly.LowerCupBareHeadTube:
+		return "bare head tube"
+	default:
+		return string(std)
+	}
+}
+
+func cadBaselineForkNote(fix bikeFixture, selectedForkID string) string {
+	if selectedForkID != cadForkOptionID || fix.Chart.CadLowerCup.Standard != assembly.LowerCupBareHeadTube {
+		return ""
+	}
+	defaultOpt, ok := fix.resolveForkOption("")
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf(
+		"CAD Baseline Fork: the published frame chart omits the lower headset cup (%s, %s mm), and these chart fields are locked. Physical fork pairings default to %s (%s mm) — switch to an installed fork to explore cup or sag changes.",
+		lowerCupStandardName(fix.Chart.CadLowerCup.Standard),
+		strconv.FormatFloat(fix.Chart.CadLowerCup.StackMm, 'f', -1, 64),
+		lowerCupStandardName(defaultOpt.DefaultLowerCup.Standard),
+		strconv.FormatFloat(defaultOpt.DefaultLowerCup.StackMm, 'f', -1, 64),
+	)
 }
 
 func formatFormFloat(v float64) string {
@@ -821,10 +910,12 @@ func buildBikeView(
 	}
 
 	state := workbenchStateFromSetup(forkID, bike.Setup)
+	form := state.formValues()
+	forkA2cRO, cupRO, sagRO, cupLabel, cadNote := forkFieldViewState(fix, forkID, form.Sag)
 
 	return bikeView{
 		HasBuild:             true,
-		Form:                 state.formValues(),
+		Form:                 form,
 		CadBaselineForkURL:   state.withCadBaselineFork(fix).URL(),
 		MinPostExtensionMm:   bike.Setup.Seatpost.MinExtensionMm,
 		MaxPostExtensionMm:   bike.Setup.Seatpost.MaxExtensionMm,
@@ -834,6 +925,11 @@ func buildBikeView(
 		Forks:                fix.Forks,
 		CadForkOption:        fix.cadForkOption(),
 		SelectedForkID:       forkID,
+		CupLabel:             cupLabel,
+		ForkA2cReadOnly:      forkA2cRO,
+		CupReadOnly:          cupRO,
+		SagReadOnly:          sagRO,
+		CadBaselineNote:      cadNote,
 		CadFork:              fix.Chart.CadFork,
 		CadLowerCupMm:        fix.Chart.CadLowerCup.StackMm,
 		LowerCupMm:           bike.Setup.LowerCup.StackMm,
