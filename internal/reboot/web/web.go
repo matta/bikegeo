@@ -739,7 +739,7 @@ type bikeView struct {
 	TraceSteps           svgTraceSteps
 	Landmarks            []svgLandmark
 	Steps                []pose.Step
-	Fitting              *bikeFittingView // nil unless a BRP fit target is set
+	Fitting              *bikeFittingView // nil unless a fit target is set
 	MinRailOffsetMm      float64
 	MaxRailOffsetMm      float64
 	ExampleBrpX          string
@@ -753,7 +753,24 @@ type bikeView struct {
 type bikeFittingView struct {
 	Saddle   *saddleFittingView  // nil unless a BRP target is set
 	Cockpit  *cockpitFittingView // nil unless a HandGrip target is set
+	Stock    *stockFittingView   // nil unless a HandGrip target is set
 	ApplyURL string              // the fitted build, with the submitted targets kept
+}
+
+type stockFittingView struct {
+	Evaluated      int
+	PreferenceNote string
+	Rows           []stockCandidateView
+}
+
+type stockCandidateView struct {
+	Rank                    int
+	StemLengthMm, SpacersMm float64
+	StemAngleDeg            pose.Deg
+	GripMissMm, GripR       float64
+	Lines                   []assembly.LedgerLine
+	PointsLost, Total       float64
+	ApplyURL                string
 }
 
 type saddleFittingView struct {
@@ -799,6 +816,8 @@ func (v bikeView) Px(size float64) string {
 	return formatSVGSize(size * v.DrawScale)
 }
 
+const stockCandidateLimit = 5 // Q18
+
 func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/bike" {
 		http.NotFound(w, r)
@@ -840,13 +859,22 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		tr.Steps(),
 	)
 	if resolved.State.Targets.any() {
-		fitting, err := assembly.ApplyFitting(resolved.Setup, resolved.State.Targets.fitTarget(), nil)
+		target := resolved.State.Targets.fitTarget()
+		fitting, err := assembly.ApplyFitting(resolved.Setup, target, nil)
 		if err != nil {
 			renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
 			return
 		}
 		view.withFitTargets(fix, bike.Setup, resolved.State)
 		view.Fitting = buildFittingView(resolved.State, bike, fitting)
+		if resolved.State.Targets.HasGrip {
+			stock, err := assembly.ApplyStockFitting(resolved.Setup, target, fix.CockpitStock, fix.CockpitPreferences, stockCandidateLimit)
+			if err != nil {
+				renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
+				return
+			}
+			view.Fitting.Stock = buildStockFittingView(resolved.State, fix.CockpitPreferences, stock)
+		}
 	}
 	// A half-entered target is not applied, but the box keeps what was typed.
 	if !resolved.State.Targets.HasBrp {
@@ -906,6 +934,41 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 	applied.Targets = state.Targets
 	fv.ApplyURL = applied.URL()
 	return fv
+}
+
+func buildStockFittingView(state workbenchState, prefs assembly.CockpitPreferences, stock assembly.StockFitting) *stockFittingView {
+	o := prefs.GripOval
+	view := &stockFittingView{
+		Evaluated: stock.Evaluated,
+		PreferenceNote: fmt.Sprintf("Free: HandGrip inside the ±%.0f × ±%.0f mm oval, stem length %s, stem angle %s, spacers %s. Prices are illustrative.",
+			o.SemiMinorMm, o.SemiMajorMm, freeRangeText(prefs.StemLength, " mm"), freeRangeText(prefs.StemAngle, "°"), freeRangeText(prefs.Spacers, " mm")),
+		Rows: make([]stockCandidateView, 0, len(stock.Candidates)),
+	}
+	for i, c := range stock.Candidates {
+		stem := c.Placement.Setup.Stem
+		applied := workbenchStateFromSetup(state.View, state.ForkID, c.Placement.Setup)
+		applied.Targets = state.Targets
+		view.Rows = append(view.Rows, stockCandidateView{
+			Rank:         i + 1,
+			StemLengthMm: stem.LengthMm,
+			SpacersMm:    stem.SpacersMm,
+			StemAngleDeg: stem.AngleDeg,
+			GripMissMm:   c.GripMiss().Norm(),
+			GripR:        c.GripR,
+			Lines:        c.Ledger,
+			PointsLost:   c.PointsLost(),
+			Total:        c.Total(),
+			ApplyURL:     applied.URL(),
+		})
+	}
+	return view
+}
+
+func freeRangeText(b assembly.PricedBand, unit string) string {
+	if b.FreeMin == b.FreeMax {
+		return fmt.Sprintf("%.0f%s", b.FreeMin, unit)
+	}
+	return fmt.Sprintf("%.0f–%.0f%s", b.FreeMin, b.FreeMax, unit)
 }
 
 // railOffsetRange returns the saddle rail offset input bounds ∓L for the

@@ -64,6 +64,10 @@
       border-radius: 8px;
     }
     .fit-note { margin: 0 0 0.4rem; font-size: 0.8rem; color: #59636e; }
+    .stock-fitting { margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--muted); }
+    .stock-fitting > strong { color: var(--text); }
+    .stock-scroll { overflow-x: auto; }
+    table.stock-table td { white-space: nowrap; }
 
     .form-error {
       margin-bottom: 0.85rem;
@@ -589,6 +593,34 @@
         <div class="summary">
           <a id="apply-fitting" href="{{.ApplyURL}}" data-preset="apply-fitting">Apply fitted build</a>
         </div>
+        {{with .Stock}}
+        <div class="stock-fitting" data-stock-fitting>
+          <strong>Stock cockpit builds</strong>
+          <p class="fit-note"><span data-stock-evaluated>{{.Evaluated}}</span> stock stem and spacer combinations placed; the cheapest {{len .Rows}} on the points-lost ledger (total = 100 − points lost). The saddle fit is kept.</p>
+          <p class="fit-note" data-stock-preferences>{{.PreferenceNote}}</p>
+          <div class="stock-scroll">
+            <table class="stock-table">
+              <thead>
+                <tr><th>#</th><th>Stem</th><th>Spacers</th><th>HandGrip miss</th><th>Oval R</th><th>Oval pts</th><th>Length pts</th><th>Angle pts</th><th>Spacer pts</th><th>Total</th><th></th></tr>
+              </thead>
+              <tbody>
+                {{range .Rows}}
+                <tr data-stock-rank="{{.Rank}}">
+                  <td>{{.Rank}}</td>
+                  <td class="mono" data-stock-cell="stem">{{printf "%.0f mm, %+.0f°" .StemLengthMm .StemAngleDeg}}</td>
+                  <td class="mono" data-stock-cell="spacers">{{printf "%.0f mm" .SpacersMm}}</td>
+                  <td class="mono" data-stock-cell="grip-miss">{{printf "%.1f mm" .GripMissMm}}</td>
+                  <td class="mono" data-stock-cell="oval-r">{{printf "%.2f" .GripR}}</td>
+                  {{range .Lines}}<td class="mono" data-stock-points="{{.Band}}">{{printf "%.1f" .PointsLost}}</td>{{end}}
+                  <td class="mono" data-stock-cell="total"><strong>{{printf "%.1f" .Total}}</strong></td>
+                  <td><a href="{{.ApplyURL}}" data-preset="apply-stock" data-stock-apply>Apply</a></td>
+                </tr>
+                {{end}}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {{end}}
       </div>
       {{end}}
       <div class="summary" style="font-size: 0.82rem;">

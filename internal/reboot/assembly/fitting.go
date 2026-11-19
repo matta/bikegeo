@@ -77,12 +77,11 @@ func ApplyFitting(setup BikeSetup, target FitTarget, trace *pose.Trace) (Fitting
 		probeSetup.Saddle.RailOffsetMm = 0
 	}
 	if target.HandGrip != nil {
-		minLen, maxLen := setup.Stem.MinLengthMm, setup.Stem.MaxLengthMm
-		if !isFinite(minLen) || !isFinite(maxLen) || minLen <= 0 || minLen > maxLen {
-			return Fitting{}, fmt.Errorf("stem length range must be finite with 0 < min <= max, got [%v, %v] mm", minLen, maxLen)
+		if err := validateStemLengthRange(setup.Stem); err != nil {
+			return Fitting{}, err
 		}
 		probeSetup.Stem.SpacersMm = 0
-		probeSetup.Stem.LengthMm = minLen
+		probeSetup.Stem.LengthMm = setup.Stem.MinLengthMm
 	}
 	probe, err := PlaceBike(probeSetup, nil)
 	if err != nil {
@@ -136,6 +135,15 @@ func ApplyFitting(setup BikeSetup, target FitTarget, trace *pose.Trace) (Fitting
 		return Fitting{}, fmt.Errorf("cockpit fitting forward check missed target by %v mm", miss.Norm())
 	}
 	return fit, nil
+}
+
+// validateStemLengthRange checks the stem length range fitting may choose.
+func validateStemLengthRange(stem StemSetup) error {
+	minLen, maxLen := stem.MinLengthMm, stem.MaxLengthMm
+	if !isFinite(minLen) || !isFinite(maxLen) || minLen <= 0 || minLen > maxLen {
+		return fmt.Errorf("stem length range must be finite with 0 < min <= max, got [%v, %v] mm", minLen, maxLen)
+	}
+	return nil
 }
 
 // fitCockpit fits stem spacers and stem length to a HandGrip target, using

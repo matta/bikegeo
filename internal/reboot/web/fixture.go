@@ -35,18 +35,20 @@ func makeForkOption(id, name string, spec assembly.ForkSpec, defaultSagPct float
 }
 
 type bikeFixture struct {
-	Name             string
-	Chart            assembly.FrameChart
-	Wheels           assembly.WheelSetup
-	WheelLabel       string
-	DefaultForkID    string
-	Forks            []forkOption
-	DefaultStem      assembly.StemSetup
-	HandlebarName    string
-	DefaultHandlebar assembly.HandlebarSetup
-	DefaultSeatpost  assembly.SeatpostSetup
-	SaddleName       string
-	DefaultSaddle    assembly.SaddleSetup
+	Name               string
+	Chart              assembly.FrameChart
+	Wheels             assembly.WheelSetup
+	WheelLabel         string
+	DefaultForkID      string
+	Forks              []forkOption
+	DefaultStem        assembly.StemSetup
+	CockpitStock       assembly.CockpitStock
+	CockpitPreferences assembly.CockpitPreferences
+	HandlebarName      string
+	DefaultHandlebar   assembly.HandlebarSetup
+	DefaultSeatpost    assembly.SeatpostSetup
+	SaddleName         string
+	DefaultSaddle      assembly.SaddleSetup
 	// ExampleBrpTarget is a placeholder for the BRP fit target inputs, never a default.
 	ExampleBrpTarget pose.Point
 	// ExampleGripTarget is a placeholder for the HandGrip fit target inputs, never a default.
@@ -90,6 +92,12 @@ func (f bikeFixture) validate() error {
 		!math.IsNaN(st.MaxLengthMm) && !math.IsInf(st.MaxLengthMm, 0) &&
 		st.MinLengthMm > 0 && st.MinLengthMm <= st.MaxLengthMm) {
 		return fmt.Errorf("fixture %q default stem length range must be finite with 0 < min <= max, got [%v, %v]", f.Name, st.MinLengthMm, st.MaxLengthMm)
+	}
+	if err := f.CockpitStock.Validate(); err != nil {
+		return fmt.Errorf("fixture %q cockpit stock invalid: %w", f.Name, err)
+	}
+	if err := f.CockpitPreferences.Validate(); err != nil {
+		return fmt.Errorf("fixture %q cockpit preferences invalid: %w", f.Name, err)
 	}
 	if f.DefaultForkID == "" {
 		return fmt.Errorf("fixture %q missing DefaultForkID", f.Name)
@@ -199,6 +207,17 @@ func otsoFenrirFixture() bikeFixture {
 			MaxSpacersMm:  40.0, // illustrative: steerer length not measured
 			MinLengthMm:   40.0, // illustrative stem length range
 			MaxLengthMm:   130.0,
+		},
+		CockpitStock: assembly.CockpitStock{ // illustrative stock stems and spacers
+			StemLengthStepMm: 10,
+			StemAnglesDeg:    []pose.Deg{-17, -6, 0, 6, 17},
+			SpacerStepMm:     5,
+		},
+		CockpitPreferences: assembly.CockpitPreferences{
+			GripOval:   assembly.FitOval{SemiMinorMm: 10, SemiMajorMm: 20, MajorAxisHeadingDeg: 60, CostPerR: 22}, // legacy idmatch oval (Q17)
+			StemLength: assembly.PricedBand{FreeMin: 70, FreeMax: 80, CostBelow: 0.2, CostAbove: 0.2},             // illustrative
+			StemAngle:  assembly.PricedBand{CostBelow: 0.2, CostAbove: 0.2},                                       // illustrative
+			Spacers:    assembly.PricedBand{FreeMax: 20, CostAbove: 0.4},                                          // illustrative
 		},
 		HandlebarName: "Tumbleweed Persuader 20° (800 mm)",
 		DefaultHandlebar: assembly.HandlebarSetup{

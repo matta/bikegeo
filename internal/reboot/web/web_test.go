@@ -2689,3 +2689,140 @@ func TestBikeWorkbenchFitTargetsPresetLinks(t *testing.T) {
 		t.Errorf("canonical URL = %q, want it to keep the grip target", v)
 	}
 }
+
+func stockCell(row *goquery.Selection, name string) string {
+	return strings.TrimSpace(row.Find(`[data-stock-cell="` + name + `"]`).Text())
+}
+
+func TestBikeWorkbenchStockFittingRequiresGrip(t *testing.T) {
+	for _, path := range []string{"/bike", "/bike?brp_x=-219&brp_y=713.1"} {
+		if n := loadBikeDoc(t, path).Find("[data-stock-fitting]").Length(); n != 0 {
+			t.Errorf("%s: got %d stock fitting blocks, want none", path, n)
+		}
+	}
+}
+
+func TestBikeWorkbenchRanksStockFitting(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?grip_x=481&grip_y=726&view=stem")
+	rows := doc.Find("tr[data-stock-rank]")
+	if rows.Length() != 5 {
+		t.Fatalf("stock rows = %d, want 5", rows.Length())
+	}
+	if got := doc.Find("[data-stock-evaluated]").Text(); got != "450" {
+		t.Errorf("evaluated = %q, want 450", got)
+	}
+	const preferences = "Free: HandGrip inside the ±10 × ±20 mm oval, stem length 70–80 mm, stem angle 0°, spacers 0–20 mm. Prices are illustrative."
+	if got := doc.Find("[data-stock-preferences]").Text(); got != preferences {
+		t.Errorf("preference note = %q, want %q", got, preferences)
+	}
+	for name, want := range map[string]string{"stem": "130 mm, -17°", "spacers": "0 mm", "grip-miss": "13.6 mm", "oval-r": "1.36"} {
+		if got := stockCell(rows.First(), name); got != want {
+			t.Errorf("row 1 %s = %q, want %q", name, got, want)
+		}
+	}
+	for i, want := range []string{"78.7", "70.0", "62.2"} {
+		if got := stockCell(rows.Eq(i), "total"); got != want {
+			t.Errorf("row %d total = %q, want %q", i+1, got, want)
+		}
+	}
+	points := rows.First().Find("[data-stock-points]")
+	headers := doc.Find("table.stock-table thead th")
+	if points.Length() != 4 || headers.Length() != 11 {
+		t.Fatalf("stock points cells = %d, headers = %d; want 4 and 11", points.Length(), headers.Length())
+	}
+	for i, want := range []struct{ band, points, header string }{
+		{"HandGrip oval", "7.9", "Oval pts"},
+		{"stem length", "10.0", "Length pts"},
+		{"stem angle", "3.4", "Angle pts"},
+		{"spacers", "0.0", "Spacer pts"},
+	} {
+		cell := points.Eq(i)
+		if band, _ := cell.Attr("data-stock-points"); band != want.band || cell.Text() != want.points {
+			t.Errorf("ledger cell %d = %q %q, want %q %q", i, band, cell.Text(), want.band, want.points)
+		}
+		if got := headers.Eq(5 + i).Text(); got != want.header {
+			t.Errorf("ledger header %d = %q, want %q", i, got, want.header)
+		}
+	}
+	links := doc.Find("a[data-stock-apply]")
+	if links.Length() != 5 {
+		t.Fatalf("stock apply links = %d, want 5", links.Length())
+	}
+	links.Each(func(i int, link *goquery.Selection) {
+		if got, _ := link.Attr("data-preset"); got != "apply-stock" {
+			t.Errorf("link %d data-preset = %q, want apply-stock", i+1, got)
+		}
+	})
+	q := hrefQuery(t, doc, `tr[data-stock-rank="1"] a[data-stock-apply]`)
+	for k, want := range map[string]string{
+		"stem_angle": "-17.0", "stem_length": "130.0", "spacers": "0.0", "grip_x": "481.0", "grip_y": "726.0", "view": "stem",
+	} {
+		if got := q.Get(k); got != want {
+			t.Errorf("stock apply %s = %q, want %q", k, got, want)
+		}
+	}
+	if q.Has("brp_x") || q.Has("brp_y") {
+		t.Errorf("stock apply link contains a BRP target: %v", q)
+	}
+	if got := metricText(doc, "fit-cockpit-outcome"); got != "limited by stem spacers, stem length" {
+		t.Errorf("continuous outcome = %q, want limited by stem spacers, stem length", got)
+	}
+}
+
+func TestBikeWorkbenchAppliesFreeStockBuild(t *testing.T) {
+	x, y := gripTestTarget(t, url.Values{"stem_angle": {"0"}, "stem_length": {"70"}, "spacers": {"10"}})
+	doc := loadBikeDoc(t, "/bike?grip_x="+formatFormFloat(x)+"&grip_y="+formatFormFloat(y))
+	const rankOne = `tr[data-stock-rank="1"]`
+	row := doc.Find(rankOne)
+	for name, want := range map[string]string{"stem": "70 mm, +0°", "spacers": "10 mm", "oval-r": "0.00", "total": "100.0"} {
+		if got := stockCell(row, name); got != want {
+			t.Errorf("row 1 %s = %q, want %q", name, got, want)
+		}
+	}
+	applied, ok := row.Find("a[data-stock-apply]").Attr("href")
+	if !ok {
+		t.Fatal("missing rank 1 apply link")
+	}
+	doc = loadBikeDoc(t, applied)
+	if got := metricText(doc, "fit-cockpit-outcome"); got != "reached" {
+		t.Errorf("continuous outcome after applying = %q, want reached", got)
+	}
+	if got := metricText(doc, "fit-grip-miss"); got != "0.0 mm" {
+		t.Errorf("HandGrip miss after applying = %q, want 0.0 mm", got)
+	}
+	if got := stockCell(doc.Find(rankOne), "stem"); got != "70 mm, +0°" {
+		t.Errorf("row 1 stem after applying = %q, want 70 mm, +0°", got)
+	}
+}
+
+func TestBikeWorkbenchStockFitKeepsSaddleFitAndTargets(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726")
+	q := hrefQuery(t, doc, `tr[data-stock-rank="1"] a[data-stock-apply]`)
+	for k, want := range map[string]string{
+		"rail_offset": "15.0", "stem_angle": "-17.0", "stem_length": "130.0", "spacers": "0.0",
+		"brp_x": "-219.0", "brp_y": "713.1", "grip_x": "481.0", "grip_y": "726.0",
+	} {
+		if got := q.Get(k); got != want {
+			t.Errorf("stock apply %s = %q, want %q", k, got, want)
+		}
+	}
+	if ext, err := strconv.ParseFloat(q.Get("post_ext"), 64); err != nil || math.Abs(ext-260.092) > 0.01 {
+		t.Errorf("stock apply post_ext = %q, want ≈260.092", q.Get("post_ext"))
+	}
+	if n := doc.Find("#apply-fitting").Length(); n != 1 {
+		t.Errorf("continuous apply links = %d, want 1", n)
+	}
+}
+
+func TestBikeFixtureValidatesStockAndPreferences(t *testing.T) {
+	fix := otsoFenrirFixture()
+	fix.CockpitStock.SpacerStepMm = 0
+	if err := fix.validate(); err == nil || !strings.Contains(err.Error(), "cockpit stock invalid") {
+		t.Errorf("invalid stock: got %v, want cockpit stock error", err)
+	}
+	fix = otsoFenrirFixture()
+	fix.CockpitPreferences.GripOval.SemiMinorMm = 0
+	if err := fix.validate(); err == nil || !strings.Contains(err.Error(), "cockpit preferences invalid") {
+		t.Errorf("invalid preferences: got %v, want cockpit preferences error", err)
+	}
+}
