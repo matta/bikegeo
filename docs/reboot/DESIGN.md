@@ -71,13 +71,17 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 - This is a workbench rule only. `assembly` still accepts any explicit cup and fork.
 - Every visible label says "CAD Baseline Fork". The explanatory note is built from fixture data.
 
-### Fitting (Q6–Q10, ruled 2026-11-19)
+### Fitting (Q6–Q14, ruled 2026-11-19)
 
 - **Q8, terminology:** the operation of finding a build's settings for a fit target is **Fitting** (noun and result type), **fit** (verb), and **`ApplyFitting`** (entry point). Don't call it "search" in code or docs.
 - **Q7, saddle target:** the saddle fit target is **BRP**, the landmark the fit report measured. SitBones stays a model-derived readout.
 - **Q6, solver policy for saddle fitting:** a direct solve is acceptable as long as forward assembly (PlaceBike) remains the final check of every fitted build.
 - **Q9, rail range:** `PlaceSaddle` rejects rail offsets outside `±(RailLengthMm − ClampLengthMm)/2`, the same range fitting respects. This lands as its own commit after saddle fitting.
 - **Q10, fixture rail and clamp lengths:** the Fenrir fixture's 60 mm rail length and 30 mm clamp length are measured and authoritative. A fitting that is limited by the ±15 mm rail range is a real finding, not a fixture artifact.
+- **Q11, cockpit target:** the front-cockpit fit target is a **HandGrip** point in world X/Y (BB origin), like the BRP target. With the frameset fixed, the saddle and cockpit fits are independent.
+- **Q12, solver policy for front-cockpit fitting:** M2 Slice 2 fits `SpacersMm` and stem `LengthMm` as continuous values with a direct 2×2 solve at the submitted stem angle and bar roll, reusing Slice 1's box logic. Discrete stock parts and preference costs are M2 Slice 3. **Forward pose-based assembly stays the source of truth for geometry:** a direct solve reads each fitted input's direction from the probe placement's poses and never restates the assembly formulas, and PlaceBike checks every fitted build.
+- **Q13, cockpit limits:** `StemSetup` carries `MaxSpacersMm` (the steerer allowance; `PlaceStem` rejects more, like Q9) and `MinLengthMm`/`MaxLengthMm` (the stem range fitting may choose; `PlaceStem` ignores it).
+- **Q14, one entry point:** `ApplyFitting` takes one `FitTarget` with optional BRP and HandGrip landmarks and returns one fitted build, so the workbench has one apply link.
 
 ## Run and inspect
 
@@ -106,13 +110,14 @@ internal/reboot/web/      handlers, HTML/SVG, embedded CSS/JS, Otso Fenrir fixtu
 1. **One-bike visual workbench (a, b): done.** Accepted by Matt; tests cover trace on/off equivalence, independent geometric fixtures, and HTML/SVG step-ID correspondence in every view. Solver-free: the seatpost control edits `ExtensionMm` directly.
 2. **One-bike fitting (d):** explicit fit targets, hardware limits, and preference costs. Produce candidate builds, check each with forward assembly, and open them in the workbench.
    - **Slice 1, saddle fitting (done 2026-11-19; plan in [SLICE.md](SLICE.md)):** fit `SeatpostSetup.ExtensionMm` and `SaddleSetup.RailOffsetMm` to a BRP target with a direct 2×2 solve (Q6). Rail pitch and post setback stay fixed inputs. Limits are the post's min/max extension and the rail clamp range from `RailLengthMm`. The result reports the fitted setups, the BRP actually reached, the miss in mm, and any limit hit, and keeps *reached*, *clamped at a limit*, and *invalid input* distinct. PlaceBike on the fitted setup must land BRP on the target (to 1e-9 mm when no limit binds). `pose` gains one operation that decomposes a vector along two headings. `/bike` gets a BRP target field and a plain-`GET` link to the fitted build. Tests: fit → place round trip, out-of-range target clamps to the right limit, trace on/off equivalence, the fit report's BRP (−219, 713.1). Out of scope: post setback choice, the front cockpit, preference costs, other frames.
-   - **Slice 2 (later):** front-cockpit fitting (spacers, stem length/angle, handlebar) by enumerating discrete parts with priced preferences.
+   - **Slice 2, front-cockpit fitting (planned; plan in [SLICE.md](SLICE.md)):** fit `StemSetup.SpacersMm` and `LengthMm` to a HandGrip target with a continuous direct 2×2 solve (Q11–Q14). Stem angle and handlebar stay fixed inputs. Limits are `MaxSpacersMm` and the stem length range on `StemSetup`. The same `ApplyFitting` fits the saddle, the cockpit, or both, and `/bike` gets a HandGrip target and one apply link.
+   - **Slice 3 (later):** choose discrete stock parts (stem lengths and angles, spacer steps, handlebars) ranked by priced preferences on the points-lost ledger, each checked with forward assembly.
 3. **Chart reconstruction, catalog persistence, agent access (c):** keep the original observations and rounding budgets, evaluate fork/sag/cup hypotheses, show residuals and ambiguous explanations, and expose operations over MCP or the CLI.
 4. **Frame chooser (e):** run fitting across a catalog and report the best builds, coverage, and sensitivity.
 
 ## Open questions
 
-- **Solver policy (M2 saddle decided in Q6; decide the front cockpit in M2 Slice 2 and charts at the start of M3):** forward assembly is the evaluator and final check in every case. Options: generic bisection or grid sweeps, or a per-problem choice of bounded search, enumeration, or a small direct solve. Keep observations separate from inferred models, allow multiple chart explanations, and distinguish infeasible hardware from an imperfect fit.
+- **Solver policy (M2 saddle decided in Q6 and continuous front cockpit in Q12; decide discrete part choice in M2 Slice 3 and charts at the start of M3):** forward assembly is the evaluator and final check in every case. Options: generic bisection or grid sweeps, or a per-problem choice of bounded search, enumeration, or a small direct solve. Keep observations separate from inferred models, allow multiple chart explanations, and distinguish infeasible hardware from an imperfect fit.
 - **Q4, catalog storage (decide at M3's first import/save):** versioned structured data files (TOML/YAML/JSON) with sources and assumptions, loadable without recompiling.
 
 ## Cutover (a separate decision, later)
