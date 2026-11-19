@@ -42,7 +42,7 @@
 ### Go-rendered HTML/SVG workbench & 4-Milestone Sequence (Turn 5, resolves Q3)
 
 **Frontend & Browser Boundary Decision:**
-Go generates the HTML and SVG from placement geometry and frozen construction traces. Use a small, dependency-free vanilla JavaScript layer for control-driven updates, trace selection/highlighting, and diagram navigation (pan/zoom). Embed the web assets with Go; no frontend framework, npm dependencies, or frontend build step is required.
+Go generates the HTML and SVG from placement geometry and frozen construction traces. Use a small, dependency-free vanilla JavaScript layer for control-driven updates, trace selection/highlighting, and diagram navigation. For Milestone 1, diagram navigation is three fixed server-rendered views (whole bike, seat, stem) rather than free pan/zoom (Discussion, 2026-11-19). Embed the web assets with Go; no frontend framework, npm dependencies, or frontend build step is required.
 
 **Milestone 1 Scope (One-Bike Visual Workbench) & Acceptance Criteria:**
 1. **Full single-bike traceable assembly (100% solver-free, no hardcoded pre-leveled frame endpoints):**
@@ -55,7 +55,7 @@ Go generates the HTML and SVG from placement geometry and frozen construction tr
    - Multi-bike ghost overlays, fit solvers, chart-hypothesis solvers, and catalog file persistence are explicitly outside Milestone 1.
 3. **Verification:**
    - Matt can read each component and frameset recipe, predict the effect of a setting change, and inspect the result visually and in the trace.
-   - Automated Go tests verify identical placements with tracing on/off, independent geometric fixtures (lengths, angles, leveling invariants, contact positions), and HTML/SVG step-ID correspondence, paired with a browser interaction check for control updates, highlighting, history, and pan/zoom.
+   - Automated Go tests verify identical placements with tracing on/off, independent geometric fixtures (lengths, angles, leveling invariants, contact positions), and HTML/SVG step-ID correspondence, paired with a browser interaction check for control updates, highlighting, history, and fixed diagram views.
 
 **Confirmed 4-Milestone Sequence:**
 1. **Milestone 1 — One-bike visual workbench `(a, b)`:** Single-bike traceable assembly (frameset leveling + rear/front cockpits, solver-free) and interactive Go-rendered HTML/SVG workbench.
