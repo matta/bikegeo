@@ -709,7 +709,8 @@ type bikeView struct {
 	Landmarks            []svgLandmark
 	Steps                []pose.Step
 	Fitting              *bikeFittingView // nil unless a BRP fit target is set
-	RailOffsetLimitMm    float64
+	MinRailOffsetMm      float64
+	MaxRailOffsetMm      float64
 	ExampleBrpX          string
 	ExampleBrpY          string
 }
@@ -839,10 +840,23 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 	return fv
 }
 
+// railOffsetRange returns the saddle rail offset input bounds ∓L for the
+// fixture's saddle and seatpost.
+func (f bikeFixture) railOffsetRange() (minMm, maxMm float64) {
+	limit, err := assembly.BikeSetup{Saddle: f.DefaultSaddle, Seatpost: f.DefaultSeatpost}.RailOffsetLimitMm()
+	if err != nil {
+		return 0, 0 // validate() rejects such a fixture before any page renders
+	}
+	return -limit, limit
+}
+
 func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolvedInput, invalidField, msg string) {
 	forkA2cRO, cupRO, sagRO, cupLabel, cadNote := forkFieldViewState(fix, resolved.State.ForkID, resolved.Form.Sag)
 	defaultsURL, cadURL := presetURLs(fix, defaultWorkbenchState(fix), resolved.State.View)
+	minRail, maxRail := fix.railOffsetRange()
 	view := bikeView{
+		MinRailOffsetMm:    minRail,
+		MaxRailOffsetMm:    maxRail,
 		ExampleBrpX:        formatFormFloat(fix.ExampleBrpTarget.X),
 		ExampleBrpY:        formatFormFloat(fix.ExampleBrpTarget.Y),
 		HasBuild:           false,
@@ -1378,7 +1392,10 @@ func buildBikeView(
 	forkA2cRO, cupRO, sagRO, cupLabel, cadNote := forkFieldViewState(fix, forkID, form.Sag)
 	defaultsURL, cadURL, viewLinks := workbenchLinks(fix, state)
 
+	minRail, maxRail := fix.railOffsetRange()
 	return bikeView{
+		MinRailOffsetMm:      minRail,
+		MaxRailOffsetMm:      maxRail,
 		ExampleBrpX:          formatFormFloat(fix.ExampleBrpTarget.X),
 		ExampleBrpY:          formatFormFloat(fix.ExampleBrpTarget.Y),
 		HasBuild:             true,

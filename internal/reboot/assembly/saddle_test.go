@@ -1,6 +1,7 @@
 package assembly_test
 
 import (
+	"errors"
 	"math"
 	"testing"
 
@@ -44,7 +45,7 @@ func TestPlaceSeatpostAndSaddleWorkedExample60DegSTA(t *testing.T) {
 
 	saddleSetup := sqlab610DefaultSaddle()
 	saddleSetup.RailOffsetMm = 12.0
-	saddle, err := assembly.PlaceSaddle(post.SeatpostClamp, saddleSetup)
+	saddle, err := assembly.PlaceSaddle(post.SeatpostClamp, 30.0, saddleSetup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle: %v", err)
 	}
@@ -108,12 +109,12 @@ func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 	}
 
 	saddleSetup := sqlab610DefaultSaddle()
-	saddleSetup.RailOffsetMm = 12.0
-	baseSaddle, err := assembly.PlaceSaddle(basePost.SeatpostClamp, saddleSetup)
+	saddleSetup.RailOffsetMm = 5.0
+	baseSaddle, err := assembly.PlaceSaddle(basePost.SeatpostClamp, 30.0, saddleSetup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle base: %v", err)
 	}
-	setbackSaddle, err := assembly.PlaceSaddle(setbackPost.SeatpostClamp, saddleSetup)
+	setbackSaddle, err := assembly.PlaceSaddle(setbackPost.SeatpostClamp, 30.0, saddleSetup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle setback: %v", err)
 	}
@@ -138,22 +139,22 @@ func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 
 	// Increasing RailOffsetMm by +10 mm moves saddle landmarks rearward (-10 mm X) while leaving clamp fixed.
 	moreOffsetSetup := saddleSetup
-	moreOffsetSetup.RailOffsetMm = 22.0
-	moreOffsetSaddle, err := assembly.PlaceSaddle(basePost.SeatpostClamp, moreOffsetSetup)
+	moreOffsetSetup.RailOffsetMm = 15.0
+	moreOffsetSaddle, err := assembly.PlaceSaddle(basePost.SeatpostClamp, 30.0, moreOffsetSetup)
 	if err != nil {
-		t.Fatalf("PlaceSaddle +22 offset: %v", err)
+		t.Fatalf("PlaceSaddle +15 offset: %v", err)
 	}
 	assertNear(t, "SeatpostClamp fixed X", moreOffsetSaddle.SeatpostClamp.Origin().X, baseSaddle.SeatpostClamp.Origin().X, 1e-12)
 	assertNear(t, "RailCenter shifted -10", moreOffsetSaddle.RailCenter.Origin().X-baseSaddle.RailCenter.Origin().X, -10.0, 1e-12)
 	assertNear(t, "BRP shifted -10", moreOffsetSaddle.BRP.Origin().X-baseSaddle.BRP.Origin().X, -10.0, 1e-12)
 	assertNear(t, "SitBones shifted -10", moreOffsetSaddle.SitBones.Origin().X-baseSaddle.SitBones.Origin().X, -10.0, 1e-12)
 
-	// Negative RailOffsetMm (-8 mm, delta -20 mm from +12 mm) moves saddle landmarks forward (+20 mm X).
+	// Negative RailOffsetMm (-15 mm, delta -20 mm from +5 mm) moves saddle landmarks forward (+20 mm X).
 	negOffsetSetup := saddleSetup
-	negOffsetSetup.RailOffsetMm = -8.0
-	negOffsetSaddle, err := assembly.PlaceSaddle(basePost.SeatpostClamp, negOffsetSetup)
+	negOffsetSetup.RailOffsetMm = -15.0
+	negOffsetSaddle, err := assembly.PlaceSaddle(basePost.SeatpostClamp, 30.0, negOffsetSetup)
 	if err != nil {
-		t.Fatalf("PlaceSaddle -8 offset: %v", err)
+		t.Fatalf("PlaceSaddle -15 offset: %v", err)
 	}
 	assertNear(t, "RailCenter shifted +20", negOffsetSaddle.RailCenter.Origin().X-baseSaddle.RailCenter.Origin().X, 20.0, 1e-12)
 	assertNear(t, "BRP shifted +20", negOffsetSaddle.BRP.Origin().X-baseSaddle.BRP.Origin().X, 20.0, 1e-12)
@@ -167,11 +168,11 @@ func TestPlaceSaddleWorldRelativePitch(t *testing.T) {
 	clamp60 := pose.NewPose(pose.Point{X: -180, Y: 720}, 180.0-60.0, nil)
 	clamp75 := pose.NewPose(pose.Point{X: -180, Y: 720}, 180.0-75.25, nil)
 
-	s60, err := assembly.PlaceSaddle(clamp60, setup)
+	s60, err := assembly.PlaceSaddle(clamp60, 30.0, setup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle 60°: %v", err)
 	}
-	s75, err := assembly.PlaceSaddle(clamp75, setup)
+	s75, err := assembly.PlaceSaddle(clamp75, 30.0, setup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle 75.25°: %v", err)
 	}
@@ -212,7 +213,7 @@ func TestOtsoFenrirRearCockpitAndTraceEquivalence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceSeatpost ref: %v", err)
 	}
-	refSaddle, err := assembly.PlaceSaddle(refPost.SeatpostClamp, saddleSetup)
+	refSaddle, err := assembly.PlaceSaddle(refPost.SeatpostClamp, 30.0, saddleSetup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle ref: %v", err)
 	}
@@ -325,9 +326,33 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 	}
 	for _, tc := range saddleCases {
 		t.Run("saddle/"+tc.name, func(t *testing.T) {
-			if _, err := assembly.PlaceSaddle(tc.pose, tc.setup); err == nil {
+			if _, err := assembly.PlaceSaddle(tc.pose, 30.0, tc.setup); err == nil {
 				t.Fatalf("expected error for %s, got nil", tc.name)
 			}
 		})
+	}
+}
+
+func TestPlaceSaddleRailOffsetRange(t *testing.T) {
+	clamp := pose.NewPose(pose.Point{X: -100, Y: 700}, 105.0, nil)
+	// 60 mm rails with a 30 mm clamp head allow ±15 mm.
+	for _, offset := range []float64{0, 14.999, 15, -15} {
+		setup := sqlab610DefaultSaddle()
+		setup.RailOffsetMm = offset
+		if _, err := assembly.PlaceSaddle(clamp, 30.0, setup); err != nil {
+			t.Errorf("offset %v: %v", offset, err)
+		}
+	}
+	for _, offset := range []float64{15.001, -15.001, 20} {
+		setup := sqlab610DefaultSaddle()
+		setup.RailOffsetMm = offset
+		_, err := assembly.PlaceSaddle(clamp, 30.0, setup)
+		var inputErr *assembly.InputError
+		if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSaddleRailOffset {
+			t.Errorf("offset %v: err = %v, want InputSaddleRailOffset", offset, err)
+		}
+	}
+	if _, err := assembly.PlaceSaddle(clamp, 70.0, sqlab610DefaultSaddle()); err == nil {
+		t.Error("clamp longer than the rails: want error")
 	}
 }

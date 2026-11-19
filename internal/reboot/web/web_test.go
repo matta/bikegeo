@@ -2512,3 +2512,19 @@ func TestBikeWorkbenchBrpTargetPresetLinks(t *testing.T) {
 		t.Errorf("canonical URL = %q, want it to keep the target", v)
 	}
 }
+
+func TestBikeWorkbenchRailOffsetRange(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike")
+	rail := doc.Find("#ctrl-rail-offset")
+	if min, _ := rail.Attr("min"); min != "-15" {
+		t.Errorf("rail offset min = %q, want -15", min)
+	}
+	if max, _ := rail.Attr("max"); max != "15" {
+		t.Errorf("rail offset max = %q, want 15", max)
+	}
+	loadBikeDoc(t, "/bike?rail_offset=15")
+	doc = loadBikeDocStatus(t, "/bike?rail_offset=20", http.StatusBadRequest)
+	if v, _ := doc.Find("#ctrl-rail-offset").Attr("aria-invalid"); v != "true" {
+		t.Errorf("ctrl-rail-offset aria-invalid = %q, want true", v)
+	}
+}

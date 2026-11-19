@@ -72,7 +72,7 @@ func PlaceBike(setup BikeSetup, trace *pose.Trace) (BikePlacement, error) {
 	if err != nil {
 		return BikePlacement{}, err
 	}
-	saddle, err := PlaceSaddle(seatpost.SeatpostClamp, setup.Saddle)
+	saddle, err := PlaceSaddle(seatpost.SeatpostClamp, setup.Seatpost.ClampLengthMm, setup.Saddle)
 	if err != nil {
 		return BikePlacement{}, err
 	}

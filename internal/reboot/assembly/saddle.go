@@ -2,6 +2,7 @@ package assembly
 
 import (
 	"fmt"
+	"math"
 
 	"bikegeo/internal/reboot/pose"
 )
@@ -15,6 +16,7 @@ import (
 //   - RailPitchDeg: saddle rail pitch relative to world horizontal (0° level; positive raises nose CCW).
 //   - RailOffsetMm: clamp position along the rails; positive moves the saddle
 //     body rearward relative to SeatpostClamp (advancing RailCenter by -RailOffsetMm).
+//     It must stay within ±(RailLengthMm − clamp length)/2 so the clamp stays on the rails.
 type SaddleSetup struct {
 	RailCenterToBrpMm      float64
 	RailCenterToSitBonesMm float64
@@ -45,7 +47,9 @@ type SaddlePlacement struct {
 // PlaceSaddle mounts a saddle at seatpostClamp, orients the rails to the
 // world-relative RailPitchDeg via Pose.Face, slides the saddle body along the
 // rails by -RailOffsetMm to RailCenter, and branches to BRP and SitBones.
-func PlaceSaddle(seatpostClamp pose.Pose, setup SaddleSetup) (SaddlePlacement, error) {
+// clampLengthMm is the seatpost clamp head's fore-aft footprint; it bounds the
+// rail offset.
+func PlaceSaddle(seatpostClamp pose.Pose, clampLengthMm float64, setup SaddleSetup) (SaddlePlacement, error) {
 	if err := validatePose("seatpostClamp", seatpostClamp); err != nil {
 		return SaddlePlacement{}, err
 	}
@@ -66,6 +70,14 @@ func PlaceSaddle(seatpostClamp pose.Pose, setup SaddleSetup) (SaddlePlacement, e
 	}
 	if !isFinite(setup.RailOffsetMm) {
 		return SaddlePlacement{}, invalidInput(InputSaddleRailOffset, "saddle rail offset must be finite, got %v mm", setup.RailOffsetMm)
+	}
+
+	railLimit, err := railOffsetLimitMm(setup.RailLengthMm, clampLengthMm)
+	if err != nil {
+		return SaddlePlacement{}, err
+	}
+	if math.Abs(setup.RailOffsetMm) > railLimit {
+		return SaddlePlacement{}, invalidInput(InputSaddleRailOffset, "saddle rail offset must be within ±%v mm, got %v mm", railLimit, setup.RailOffsetMm)
 	}
 
 	railFrame := seatpostClamp.Face("saddle rail pitch vs. world horizontal", setup.RailPitchDeg)

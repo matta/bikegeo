@@ -490,7 +490,7 @@
           </div>
           <div class="field">
             <label for="ctrl-rail-offset">Saddle Rail Offset (mm)</label>
-            <input id="ctrl-rail-offset" type="number" name="rail_offset" step="0.5" value="{{.Form.RailOffset}}"{{if and $.ErrorMessage (eq $.InvalidField "rail_offset")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+            <input id="ctrl-rail-offset" type="number" name="rail_offset" step="0.5" min="{{.MinRailOffsetMm}}" max="{{.MaxRailOffsetMm}}" value="{{.Form.RailOffset}}"{{if and $.ErrorMessage (eq $.InvalidField "rail_offset")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
           </div>
           <div class="field">
             <label for="ctrl-rail-pitch">Saddle Rail Pitch (°)</label>
