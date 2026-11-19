@@ -1,6 +1,6 @@
 # Next slice: M2 Slice 1, saddle fitting
 
-**Status: Planned 2026-11-19 from Matt's rulings Q6–Q8 ([DESIGN.md](DESIGN.md), "Fitting"). Not implemented.** This file is the execution plan for one agent (Sonnet is fine). Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first; they override anything here that disagrees. If a step here conflicts with the code you find, stop and ask Matt rather than improvising.
+**Status: Done 2026-11-19 (Matt accepted). Implemented from Matt's rulings Q6–Q9 ([DESIGN.md](DESIGN.md), "Fitting"). Commits 1–3 landed as one commit because `deadcode` rejects them separately; Commit 4 landed on its own.** This file is the execution plan for one agent (Sonnet is fine). Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first; they override anything here that disagrees. If a step here conflicts with the code you find, stop and ask Matt rather than improvising.
 
 ## 1. Goal
 
