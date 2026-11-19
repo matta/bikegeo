@@ -129,7 +129,7 @@ func PlaceHandlebar(barClamp pose.Pose, setup HandlebarSetup) (HandlebarPlacemen
 		return HandlebarPlacement{}, fmt.Errorf("handlebar grip inset %v mm must be in (0, %.1f)", setup.GripInsetMm, width/2.0)
 	}
 	if !isFinite(float64(setup.BarRollDeg)) {
-		return HandlebarPlacement{}, fmt.Errorf("handlebar roll must be finite, got %v°", setup.BarRollDeg)
+		return HandlebarPlacement{}, invalidInput(InputHandlebarRoll, "handlebar roll must be finite, got %v°", setup.BarRollDeg)
 	}
 
 	baseRise, err := setup.baseRiseAtBendMm()

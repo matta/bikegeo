@@ -62,10 +62,10 @@ func PlaceSaddle(seatpostClamp pose.Pose, setup SaddleSetup) (SaddlePlacement, e
 		return SaddlePlacement{}, fmt.Errorf("saddle rail length must be finite and positive, got %v mm", setup.RailLengthMm)
 	}
 	if !isFinite(float64(setup.RailPitchDeg)) {
-		return SaddlePlacement{}, fmt.Errorf("saddle rail pitch must be finite, got %v°", setup.RailPitchDeg)
+		return SaddlePlacement{}, invalidInput(InputSaddleRailPitch, "saddle rail pitch must be finite, got %v°", setup.RailPitchDeg)
 	}
 	if !isFinite(setup.RailOffsetMm) {
-		return SaddlePlacement{}, fmt.Errorf("saddle rail offset must be finite, got %v mm", setup.RailOffsetMm)
+		return SaddlePlacement{}, invalidInput(InputSaddleRailOffset, "saddle rail offset must be finite, got %v mm", setup.RailOffsetMm)
 	}
 
 	railFrame := seatpostClamp.Face("saddle rail pitch vs. world horizontal", setup.RailPitchDeg)

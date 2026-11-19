@@ -13,6 +13,8 @@
       --text: #1f2328;
       --muted: #59636e;
       --accent: #0969da;
+      --error: #cf222e;
+      --error-bg: #ffebe9;
       --step-advance: #b35900;
       --step-turn: #6f42c1;
       --step-face: #0550ae;
@@ -54,42 +56,107 @@
     }
     nav a:hover { text-decoration: underline; }
     .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem 1rem;
-      align-items: end;
       margin-bottom: 1rem;
-      padding: 0.75rem 1rem;
+      padding: 0.85rem 1rem;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
     }
-    .controls label {
+    .form-error {
+      margin-bottom: 0.85rem;
+      padding: 0.6rem 0.85rem;
+      border: 1px solid var(--error);
+      border-radius: 6px;
+      background: var(--error-bg);
+      color: #82071e;
+      font-size: 0.88rem;
+    }
+    .control-groups {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 0.9rem;
+    }
+    .control-group {
+      margin: 0;
+      padding: 0.65rem 0.8rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      min-width: 0;
+    }
+    .control-group legend {
+      padding: 0 0.35rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .group-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+      gap: 0.65rem 0.75rem;
+    }
+    .field {
       display: flex;
       flex-direction: column;
-      gap: 0.25rem;
+      gap: 0.2rem;
+      min-width: 0;
+    }
+    .field-full {
+      grid-column: 1 / -1;
+    }
+    .field label {
       font-size: 0.82rem;
       color: var(--muted);
       font-weight: 600;
     }
     .controls select, .controls input {
-      padding: 0.35rem 0.5rem;
-      border: 1px solid var(--border);
+      width: 100%;
+      font: inherit;
+      font-size: max(1rem, 0.88em);
+      padding: 0.38rem 0.5rem;
+      min-height: 2.25rem;
+      border: 1px solid #767676;
       border-radius: 5px;
-      font-size: 0.88rem;
       background: #fff;
       color: var(--text);
     }
+    :is(.controls input, .controls select):user-invalid,
+    :is(.controls input, .controls select)[aria-invalid="true"] {
+      border-color: var(--error);
+      background: var(--error-bg);
+    }
+    .controls input:focus-visible,
+    .controls select:focus-visible,
+    .controls button:focus-visible,
+    a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .control-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem 1rem;
+      margin-top: 0.85rem;
+    }
     .controls button {
-      padding: 0.42rem 0.9rem;
+      padding: 0.45rem 0.95rem;
       border: 1px solid var(--accent);
       border-radius: 5px;
       background: var(--accent);
       color: #fff;
+      font: inherit;
       font-size: 0.88rem;
       font-weight: 600;
       cursor: pointer;
     }
+    .control-actions a {
+      font-size: 0.85rem;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .control-actions a:hover { text-decoration: underline; }
     .layout {
       display: grid;
       grid-template-columns: minmax(360px, 1.3fr) minmax(320px, 1fr);
@@ -158,38 +225,103 @@
 <body>
   <header>
     <h1>bikegeo-reboot</h1>
-    <span class="badge">Milestone 1 Slice 3 · {{.BikeName}}</span>
+    <span class="badge">Milestone 1 Slice 4 (controls) · {{.BikeName}}</span>
     <nav><a href="/">Stem Preview</a></nav>
   </header>
 
-  <form class="controls" method="get" action="/chassis">
-    <input type="hidden" name="prev_fork" value="{{.PrevFork}}">
-    <label>
-      Fork
-      <select name="fork">
-        {{if .IsCadBaseline}}
-        <option value="" selected disabled>CAD Baseline ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm rake)</option>
-        {{end}}
-        {{range .Forks}}
-        <option value="{{.ID}}"{{if eq .ID $.SelectedForkID}} selected{{end}}>{{.Label}}</option>
-        {{end}}
-      </select>
-    </label>
-    <label>
-      Lower Cup (mm)
-      <input type="number" name="cup" step="0.5" min="0" value="{{printf "%.1f" .LowerCupMm}}">
-    </label>
-    <label>
-      Fork Sag (%)
-      <input type="number" name="sag" step="1" min="0" max="100" value="{{printf "%.1f" .SagPct}}">
-    </label>
-    <button type="submit">Update Chassis</button>
-    <a href="/chassis?baseline=cad" style="font-size: 0.85rem; color: var(--accent); align-self: center;">CAD Baseline ({{printf "%.0f" .CadFork.LowerCupMm}} mm cup)</a>
+  <form class="controls" method="get" action="/chassis" aria-label="Bike build controls">
+    {{if .ErrorMessage}}
+    <div id="form-error" class="form-error" role="alert">
+      <strong>Error:</strong> {{.ErrorMessage}}
+    </div>
+    {{end}}
+    <input type="hidden" name="prev_fork" value="{{.Form.PrevFork}}">
+    <div class="control-groups">
+      <fieldset class="control-group">
+        <legend>Fork &amp; Headset</legend>
+        <div class="group-fields">
+          <div class="field field-full">
+            <label for="ctrl-fork">Fork</label>
+            <select id="ctrl-fork" name="fork"{{if and $.ErrorMessage (eq $.InvalidField "fork")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+              {{if .IsCadBaseline}}
+              <option value="" selected disabled>CAD Baseline ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm rake)</option>
+              {{end}}
+              {{range .Forks}}
+              <option value="{{.ID}}"{{if eq .ID $.SelectedForkID}} selected{{end}}>{{.Label}}</option>
+              {{end}}
+            </select>
+          </div>
+          <div class="field">
+            <label for="ctrl-fork-a2c">Fork Static A2C (mm)</label>
+            <input id="ctrl-fork-a2c" type="number" name="fork_a2c" step="0.5" min="1" value="{{.Form.ForkA2c}}"{{if and $.ErrorMessage (eq $.InvalidField "fork_a2c")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+          <div class="field">
+            <label for="ctrl-cup">Lower Cup (mm)</label>
+            <input id="ctrl-cup" type="number" name="cup" step="0.5" min="0" value="{{.Form.Cup}}"{{if and $.ErrorMessage (eq $.InvalidField "cup")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+          <div class="field">
+            <label for="ctrl-sag">Fork Sag (%)</label>
+            <input id="ctrl-sag" type="number" name="sag" step="1" min="0" max="100" value="{{.Form.Sag}}"{{if and $.ErrorMessage (eq $.InvalidField "sag")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="control-group">
+        <legend>Front Cockpit</legend>
+        <div class="group-fields">
+          <div class="field">
+            <label for="ctrl-spacers">Spacers (mm)</label>
+            <input id="ctrl-spacers" type="number" name="spacers" step="0.5" min="0" value="{{.Form.Spacers}}"{{if and $.ErrorMessage (eq $.InvalidField "spacers")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+          <div class="field">
+            <label for="ctrl-stem-length">Stem Length (mm)</label>
+            <input id="ctrl-stem-length" type="number" name="stem_length" step="1" min="1" value="{{.Form.StemLength}}"{{if and $.ErrorMessage (eq $.InvalidField "stem_length")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+          <div class="field">
+            <label for="ctrl-stem-angle">Stem Angle (°)</label>
+            <input id="ctrl-stem-angle" type="number" name="stem_angle" step="0.5" value="{{.Form.StemAngle}}"{{if and $.ErrorMessage (eq $.InvalidField "stem_angle")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+          <div class="field">
+            <label for="ctrl-bar-roll">Handlebar Roll (°)</label>
+            <input id="ctrl-bar-roll" type="number" name="bar_roll" step="0.5" value="{{.Form.BarRoll}}"{{if and $.ErrorMessage (eq $.InvalidField "bar_roll")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="control-group">
+        <legend>Rear Cockpit</legend>
+        <div class="group-fields">
+          <div class="field">
+            <label for="ctrl-post-ext">Seatpost Extension (mm)</label>
+            <input id="ctrl-post-ext" type="number" name="post_ext" step="any" min="{{.MinPostExtensionMm}}"{{if .MaxPostExtensionMm}} max="{{.MaxPostExtensionMm}}"{{end}} value="{{.Form.PostExt}}"{{if and $.ErrorMessage (eq $.InvalidField "post_ext")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+          <div class="field">
+            <label for="ctrl-post-setback">Seatpost Setback (mm)</label>
+            <input id="ctrl-post-setback" type="number" name="post_setback" step="0.5" min="0" value="{{.Form.PostSetback}}"{{if and $.ErrorMessage (eq $.InvalidField "post_setback")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+          <div class="field">
+            <label for="ctrl-rail-offset">Saddle Rail Offset (mm)</label>
+            <input id="ctrl-rail-offset" type="number" name="rail_offset" step="0.5" value="{{.Form.RailOffset}}"{{if and $.ErrorMessage (eq $.InvalidField "rail_offset")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+          <div class="field">
+            <label for="ctrl-rail-pitch">Saddle Rail Pitch (°)</label>
+            <input id="ctrl-rail-pitch" type="number" name="rail_pitch" step="0.5" value="{{.Form.RailPitch}}"{{if and $.ErrorMessage (eq $.InvalidField "rail_pitch")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+        </div>
+      </fieldset>
+    </div>
+
+    <div class="control-actions">
+      <button type="submit">Update Build</button>
+      <a href="/chassis">Reset Defaults</a>
+      <a href="/chassis?baseline=cad">CAD Baseline ({{printf "%.0f" .CadFork.LowerCupMm}} mm cup)</a>
+    </div>
   </form>
 
+  {{if .HasBuild}}
   <div class="layout">
     <section class="card" aria-label="Chassis diagram">
-      <h2>Leveled Chassis &amp; Fork</h2>
+      <h2>Leveled Bike Assembly</h2>
       <div class="summary">
         <span>Pitch: <strong class="mono" data-metric="frame-pitch">{{printf "%+.2f°" .PitchDeg}}</strong></span>
         <span>Leveled HTA: <strong class="mono" data-metric="leveled-hta">{{printf "%.2f°" .LeveledHtaDeg}}</strong></span>
@@ -209,7 +341,7 @@
         <span>0° Closure Residuals: <strong class="mono" data-metric="residual-axle-y">{{printf "%+.2f mm" .ResidualAxleYMm}}</strong> axle Y, <strong class="mono" data-metric="residual-wheelbase">{{printf "%+.2f mm" .ResidualWheelbaseMm}}</strong> WB</span>
       </div>
 
-      <svg class="diagram" viewBox="{{.ViewBox}}" role="img" aria-label="Leveled chassis and fork geometry">
+      <svg class="diagram" viewBox="{{.ViewBox}}" role="img" aria-label="Leveled bike geometry">
         <line x1="{{printf "%.2f" .GroundX1}}" y1="{{printf "%.2f" .GroundY1}}" x2="{{printf "%.2f" .GroundX2}}" y2="{{printf "%.2f" .GroundY2}}"
               stroke="#8c959f" stroke-width="2" stroke-dasharray="10 6" data-element="ground-line" />
 
@@ -281,5 +413,6 @@
       </table>
     </section>
   </div>
+  {{end}}
 </body>
 </html>

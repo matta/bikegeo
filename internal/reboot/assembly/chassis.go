@@ -39,16 +39,16 @@ type ForkSpec struct {
 // ForkSetup ready for PlaceChassis.
 func (s ForkSpec) Setup(sagPct, lowerCupMm float64) (ForkSetup, error) {
 	if !isFinite(s.StaticA2cMm) || s.StaticA2cMm <= 0 {
-		return ForkSetup{}, fmt.Errorf("fork static A2C must be finite and positive, got %v mm", s.StaticA2cMm)
+		return ForkSetup{}, invalidInput(InputForkA2c, "fork static A2C must be finite and positive, got %v mm", s.StaticA2cMm)
 	}
 	if !isFinite(s.TravelMm) || s.TravelMm < 0 {
 		return ForkSetup{}, fmt.Errorf("fork travel must be finite and non-negative, got %v mm", s.TravelMm)
 	}
 	if !isFinite(sagPct) || sagPct < 0 || sagPct > 100 {
-		return ForkSetup{}, fmt.Errorf("fork sag must be in [0%%, 100%%], got %v%%", sagPct)
+		return ForkSetup{}, invalidInput(InputForkSag, "fork sag must be in [0%%, 100%%], got %v%%", sagPct)
 	}
 	if s.TravelMm == 0 && sagPct != 0 {
-		return ForkSetup{}, fmt.Errorf("rigid fork (0 mm travel) cannot have non-zero sag, got %v%%", sagPct)
+		return ForkSetup{}, invalidInput(InputForkSag, "rigid fork (0 mm travel) cannot have non-zero sag, got %v%%", sagPct)
 	}
 	setup := ForkSetup{
 		A2cMm:      s.StaticA2cMm - s.TravelMm*(sagPct/100.0),
@@ -230,13 +230,13 @@ func placeChassisAtPitch(frameRoot pose.Pose, frame FrameSetup, fork ForkSetup) 
 
 func validateForkSetup(fork ForkSetup) error {
 	if !isFinite(fork.A2cMm) || fork.A2cMm <= 0 {
-		return fmt.Errorf("fork A2C must be finite and positive, got %v mm", fork.A2cMm)
+		return invalidInput(InputForkA2c, "fork A2C must be finite and positive, got %v mm", fork.A2cMm)
 	}
 	if !isFinite(fork.RakeMm) {
 		return fmt.Errorf("fork rake must be finite, got %v mm", fork.RakeMm)
 	}
 	if !isFinite(fork.LowerCupMm) || fork.LowerCupMm < 0 {
-		return fmt.Errorf("lower headset cup must be finite and non-negative, got %v mm", fork.LowerCupMm)
+		return invalidInput(InputLowerCup, "lower headset cup must be finite and non-negative, got %v mm", fork.LowerCupMm)
 	}
 	return nil
 }

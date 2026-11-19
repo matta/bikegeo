@@ -8,13 +8,19 @@ import (
 
 // SeatpostSetup specifies the exposed seatpost dimensions mounted at SeatTubeTop:
 //   - ExtensionMm: exposed seatpost length above SeatTubeTop along the seat tube axis.
+//   - MinExtensionMm, MaxExtensionMm: installed limits from the post and frame.
+//     A zero MaxExtensionMm leaves the upper bound unspecified.
+//     TODO: replace the zero-means-unbounded sentinel with an explicit
+//     "has max" flag or pointer when Milestone 2 hardware limits arrive.
 //   - PostSetbackMm: perpendicular rearward/downward offset from the seat tube
 //     axis (+Y in the seat-axis frame, 90° counter-clockwise from heading) to SeatpostClamp.
 //   - ClampLengthMm: fore-aft footprint of the seatpost's rail clamp head.
 type SeatpostSetup struct {
-	ExtensionMm   float64
-	PostSetbackMm float64
-	ClampLengthMm float64
+	ExtensionMm    float64
+	MinExtensionMm float64
+	MaxExtensionMm float64
+	PostSetbackMm  float64
+	ClampLengthMm  float64
 }
 
 // SeatpostPlacement holds the Pose-valued landmarks produced by PlaceSeatpost.
@@ -34,10 +40,20 @@ func PlaceSeatpost(seatTubeTop pose.Pose, setup SeatpostSetup) (SeatpostPlacemen
 		return SeatpostPlacement{}, err
 	}
 	if !isFinite(setup.ExtensionMm) || setup.ExtensionMm < 0 {
-		return SeatpostPlacement{}, fmt.Errorf("seatpost extension must be finite and non-negative, got %v mm", setup.ExtensionMm)
+		return SeatpostPlacement{}, invalidInput(InputSeatpostExtension, "seatpost extension must be finite and non-negative, got %v mm", setup.ExtensionMm)
+	}
+	if !isFinite(setup.MinExtensionMm) || !isFinite(setup.MaxExtensionMm) || setup.MinExtensionMm < 0 ||
+		(setup.MaxExtensionMm != 0 && setup.MaxExtensionMm < setup.MinExtensionMm) {
+		return SeatpostPlacement{}, fmt.Errorf("invalid seatpost extension limits: %v to %v mm", setup.MinExtensionMm, setup.MaxExtensionMm)
+	}
+	if setup.ExtensionMm < setup.MinExtensionMm {
+		return SeatpostPlacement{}, invalidInput(InputSeatpostExtension, "seatpost extension must be at least %v mm, got %v mm", setup.MinExtensionMm, setup.ExtensionMm)
+	}
+	if setup.MaxExtensionMm != 0 && setup.ExtensionMm > setup.MaxExtensionMm {
+		return SeatpostPlacement{}, invalidInput(InputSeatpostExtension, "seatpost extension must be at most %v mm, got %v mm", setup.MaxExtensionMm, setup.ExtensionMm)
 	}
 	if !isFinite(setup.PostSetbackMm) || setup.PostSetbackMm < 0 {
-		return SeatpostPlacement{}, fmt.Errorf("seatpost setback must be finite and non-negative, got %v mm", setup.PostSetbackMm)
+		return SeatpostPlacement{}, invalidInput(InputSeatpostSetback, "seatpost setback must be finite and non-negative, got %v mm", setup.PostSetbackMm)
 	}
 	if !isFinite(setup.ClampLengthMm) || setup.ClampLengthMm <= 0 {
 		return SeatpostPlacement{}, fmt.Errorf("seatpost clamp length must be finite and positive, got %v mm", setup.ClampLengthMm)

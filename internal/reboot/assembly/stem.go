@@ -43,16 +43,16 @@ func PlaceStem(steererUp pose.Pose, setup StemSetup) (StemPlacement, error) {
 		return StemPlacement{}, fmt.Errorf("upper cover must be finite and non-negative, got %v mm", setup.UpperCoverMm)
 	}
 	if !isFinite(setup.SpacersMm) || setup.SpacersMm < 0 {
-		return StemPlacement{}, fmt.Errorf("spacers must be finite and non-negative, got %v mm", setup.SpacersMm)
+		return StemPlacement{}, invalidInput(InputStemSpacers, "spacers must be finite and non-negative, got %v mm", setup.SpacersMm)
 	}
 	if !isFinite(setup.ClampHeightMm) || setup.ClampHeightMm <= 0 {
 		return StemPlacement{}, fmt.Errorf("clamp height must be finite and positive, got %v mm", setup.ClampHeightMm)
 	}
 	if !isFinite(setup.LengthMm) || setup.LengthMm <= 0 {
-		return StemPlacement{}, fmt.Errorf("stem length must be finite and positive, got %v mm", setup.LengthMm)
+		return StemPlacement{}, invalidInput(InputStemLength, "stem length must be finite and positive, got %v mm", setup.LengthMm)
 	}
 	if !isFinite(float64(setup.AngleDeg)) {
-		return StemPlacement{}, fmt.Errorf("stem angle must be finite, got %v°", setup.AngleDeg)
+		return StemPlacement{}, invalidInput(InputStemAngle, "stem angle must be finite, got %v°", setup.AngleDeg)
 	}
 
 	coverTop := steererUp.Advance("upper headset cover", setup.UpperCoverMm)

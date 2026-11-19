@@ -317,37 +317,50 @@ func TestChassisWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 
 func TestChassisWorkbenchForkSwitchAndCadBaseline(t *testing.T) {
 	cases := []struct {
-		name      string
-		query     string
-		wantCode  int
-		wantA2C   string
-		wantSag   string
-		wantCup   string
-		wantDelta string
+		name        string
+		query       string
+		wantCode    int
+		wantA2C     string
+		wantForkA2C string
+		wantSag     string
+		wantCup     string
+		wantDelta   string
 	}{
 		{
-			name:     "switch suspension to rigid resets sag to 0",
-			query:    "/chassis?prev_fork=fox34_120&fork=lithic_carbon_mountain&cup=12&sag=20",
-			wantCode: http.StatusOK,
-			wantA2C:  "495.0 mm",
-			wantSag:  "0.0",
-			wantCup:  "12.0",
+			name:        "switch suspension to rigid resets fork_a2c and sag",
+			query:       "/chassis?prev_fork=fox34_120&fork=lithic_carbon_mountain&fork_a2c=530&cup=12&sag=20",
+			wantCode:    http.StatusOK,
+			wantA2C:     "495.0 mm",
+			wantForkA2C: "495.0",
+			wantSag:     "0.0",
+			wantCup:     "12.0",
 		},
 		{
-			name:     "switch rigid to SID applies SID default 20% sag",
-			query:    "/chassis?prev_fork=lithic_carbon_mountain&fork=sid_100&cup=12&sag=0",
-			wantCode: http.StatusOK,
-			wantA2C:  "486.0 mm",
-			wantSag:  "20.0",
-			wantCup:  "12.0",
+			name:        "switch rigid to SID applies SID default A2C and 20% sag",
+			query:       "/chassis?prev_fork=lithic_carbon_mountain&fork=sid_100&fork_a2c=495&cup=12&sag=0",
+			wantCode:    http.StatusOK,
+			wantA2C:     "486.0 mm",
+			wantForkA2C: "506.0",
+			wantSag:     "20.0",
+			wantCup:     "12.0",
 		},
 		{
-			name:     "staying on SID honors explicit sag=0",
-			query:    "/chassis?prev_fork=sid_100&fork=sid_100&cup=12&sag=0",
-			wantCode: http.StatusOK,
-			wantA2C:  "506.0 mm",
-			wantSag:  "0.0",
-			wantCup:  "12.0",
+			name:        "staying on SID honors explicit sag=0",
+			query:       "/chassis?prev_fork=sid_100&fork=sid_100&cup=12&sag=0",
+			wantCode:    http.StatusOK,
+			wantA2C:     "506.0 mm",
+			wantForkA2C: "506.0",
+			wantSag:     "0.0",
+			wantCup:     "12.0",
+		},
+		{
+			name:        "staying on SID honors explicit fork_a2c=520 and sag=25",
+			query:       "/chassis?prev_fork=sid_100&fork=sid_100&fork_a2c=520&cup=12&sag=25",
+			wantCode:    http.StatusOK,
+			wantA2C:     "495.0 mm",
+			wantForkA2C: "520.0",
+			wantSag:     "25.0",
+			wantCup:     "12.0",
 		},
 		{
 			name:     "direct rigid fork with non-zero sag returns 400",
@@ -355,13 +368,14 @@ func TestChassisWorkbenchForkSwitchAndCadBaseline(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
-			name:      "CAD baseline route uses fixture CadFork and 0 cup",
-			query:     "/chassis?baseline=cad",
-			wantCode:  http.StatusOK,
-			wantA2C:   "495.0 mm",
-			wantSag:   "0.0",
-			wantCup:   "0.0",
-			wantDelta: "+0.00°",
+			name:        "CAD baseline route uses fixture CadFork and 0 cup",
+			query:       "/chassis?baseline=cad",
+			wantCode:    http.StatusOK,
+			wantA2C:     "495.0 mm",
+			wantForkA2C: "495.0",
+			wantSag:     "0.0",
+			wantCup:     "0.0",
+			wantDelta:   "+0.00°",
 		},
 	}
 
@@ -383,6 +397,9 @@ func TestChassisWorkbenchForkSwitchAndCadBaseline(t *testing.T) {
 			if got := strings.TrimSpace(doc.Find(`[data-metric="effective-a2c"]`).Text()); got != tc.wantA2C {
 				t.Errorf("effective-a2c = %q, want %q", got, tc.wantA2C)
 			}
+			if got, _ := doc.Find(`input[name="fork_a2c"]`).Attr("value"); got != tc.wantForkA2C {
+				t.Errorf("fork_a2c input value = %q, want %q", got, tc.wantForkA2C)
+			}
 			if got, _ := doc.Find(`input[name="sag"]`).Attr("value"); got != tc.wantSag {
 				t.Errorf("sag input value = %q, want %q", got, tc.wantSag)
 			}
@@ -398,20 +415,237 @@ func TestChassisWorkbenchForkSwitchAndCadBaseline(t *testing.T) {
 	}
 }
 
-func TestChassisWorkbenchRejectsInvalidQuery(t *testing.T) {
-	for _, target := range []string{
-		"http://127.0.0.1:8081/chassis?fork=unknown",
-		"http://127.0.0.1:8081/chassis?cup=-1",
-		"http://127.0.0.1:8081/chassis?cup=NaN",
-		"http://127.0.0.1:8081/chassis?sag=150",
-		"http://127.0.0.1:8081/chassis?sag=Inf",
+func TestChassisWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
+	query := "/chassis?fork=sid_100&prev_fork=sid_100&fork_a2c=515&cup=10&sag=20" +
+		"&spacers=35&stem_length=80&stem_angle=7&bar_roll=5" +
+		"&post_ext=250&post_setback=20&rail_offset=-10&rail_pitch=-2"
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+query, nil)
+	rec := httptest.NewRecorder()
+	NewHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET %s status = %d, want 200 (body: %s)", query, rec.Code, rec.Body.String())
+	}
+	doc, err := goquery.NewDocumentFromReader(rec.Body)
+	if err != nil {
+		t.Fatalf("parse HTML: %v", err)
+	}
+
+	if errs := doc.Find("#form-error").Length(); errs != 0 {
+		t.Errorf("expected no #form-error on valid build, got %d", errs)
+	}
+	if invalid := doc.Find("[aria-invalid]").Length(); invalid != 0 {
+		t.Errorf("expected no [aria-invalid] on valid build, got %d", invalid)
+	}
+
+	fix := otsoFenrirFixture()
+	sid, ok := findForkOption(fix.Forks, "sid_100", fix.DefaultForkID)
+	if !ok {
+		t.Fatalf("missing sid_100 fixture option")
+	}
+	spec := sid.Spec
+	spec.StaticA2cMm = 515.0
+	forkSetup, err := spec.Setup(20.0, 10.0)
+	if err != nil {
+		t.Fatalf("spec.Setup: %v", err)
+	}
+	stemSetup := fix.DefaultStem
+	stemSetup.SpacersMm = 35.0
+	stemSetup.LengthMm = 80.0
+	stemSetup.AngleDeg = 7.0
+	barSetup := fix.DefaultHandlebar
+	barSetup.BarRollDeg = 5.0
+	postSetup := fix.DefaultSeatpost
+	postSetup.ExtensionMm = 250.0
+	postSetup.PostSetbackMm = 20.0
+	saddleSetup := fix.DefaultSaddle
+	saddleSetup.RailOffsetMm = -10.0
+	saddleSetup.RailPitchDeg = -2.0
+
+	bike, err := assembly.PlaceBike(assembly.BikeSetup{
+		Frame:     fix.Chart.Frame,
+		Fork:      forkSetup,
+		Wheels:    fix.Wheels,
+		Seatpost:  postSetup,
+		Saddle:    saddleSetup,
+		Stem:      stemSetup,
+		Handlebar: barSetup,
+	}, nil)
+	if err != nil {
+		t.Fatalf("PlaceBike: %v", err)
+	}
+
+	for _, metric := range []struct {
+		key  string
+		want string
+	}{
+		{"effective-a2c", fmt.Sprintf("%.1f mm", forkSetup.A2cMm)},
+		{"frame-pitch", fmt.Sprintf("%+.2f°", bike.Chassis.PitchDeg())},
+		{"seat-axis-post-top", fmt.Sprintf("%.1f mm", bike.SeatAxisToPostTopMm())},
+		{"brp-height", fmt.Sprintf("%.1f mm", bike.SaddleHeightMm())},
+		{"brp-grip-dist", fmt.Sprintf("%.1f mm", bike.BrpToGripDistMm())},
+		{"sitbones-grip-rise", fmt.Sprintf("%+.1f mm", bike.SitBonesToGripRiseMm())},
 	} {
-		req := httptest.NewRequest(http.MethodGet, target, nil)
-		rec := httptest.NewRecorder()
-		NewHandler().ServeHTTP(rec, req)
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("GET %s status = %d, want 400", target, rec.Code)
+		got := strings.TrimSpace(doc.Find(fmt.Sprintf(`[data-metric="%s"]`, metric.key)).Text())
+		if got != metric.want {
+			t.Errorf("metric %s = %q, want %q", metric.key, got, metric.want)
 		}
+	}
+
+	if w, _ := doc.Find(`svg.diagram rect[data-component="stem-body"]`).Attr("width"); w != "80.00" {
+		t.Errorf("stem-body width = %q, want 80.00", w)
+	}
+	if w, _ := doc.Find(`svg.diagram rect[data-component="spacers"]`).Attr("width"); w != "35.00" {
+		t.Errorf("spacers width = %q, want 35.00", w)
+	}
+
+	for name, want := range map[string]string{
+		"prev_fork":    "sid_100",
+		"fork_a2c":     "515.0",
+		"cup":          "10.0",
+		"sag":          "20.0",
+		"spacers":      "35.0",
+		"stem_length":  "80.0",
+		"stem_angle":   "7.0",
+		"bar_roll":     "5.0",
+		"post_ext":     "250.0",
+		"post_setback": "20.0",
+		"rail_offset":  "-10.0",
+		"rail_pitch":   "-2.0",
+	} {
+		got, _ := doc.Find(fmt.Sprintf(`input[name="%s"]`, name)).Attr("value")
+		if got != want {
+			t.Errorf("input[name=%q] value = %q, want %q", name, got, want)
+		}
+	}
+
+	labels := doc.Find("form.controls label")
+	if labels.Length() != 12 {
+		t.Errorf("form label count = %d, want 12", labels.Length())
+	}
+	labels.Each(func(_ int, lbl *goquery.Selection) {
+		forID, ok := lbl.Attr("for")
+		if !ok || forID == "" {
+			t.Errorf("label %q missing for attribute", strings.TrimSpace(lbl.Text()))
+			return
+		}
+		if doc.Find("#"+forID).Length() != 1 {
+			t.Errorf("label for=%q does not match exactly 1 control", forID)
+		}
+	})
+
+	rows := doc.Find("table tbody tr[data-step-id]")
+	if rows.Length() == 0 {
+		t.Fatalf("expected non-empty trace table")
+	}
+	rows.Each(func(_ int, row *goquery.Selection) {
+		id, _ := row.Attr("data-step-id")
+		if doc.Find(fmt.Sprintf(`svg.diagram .trace-steps [data-step-id="%s"]`, id)).Length() != 1 {
+			t.Errorf("step %s: expected 1 SVG trace element", id)
+		}
+	})
+	doc.Find("svg.diagram [data-step-id]").Each(func(_ int, el *goquery.Selection) {
+		id, _ := el.Attr("data-step-id")
+		if doc.Find(fmt.Sprintf(`table tbody tr[data-step-id="%s"]`, id)).Length() != 1 {
+			t.Errorf("SVG element with data-step-id=%q has no matching trace table row", id)
+		}
+	})
+}
+
+func TestChassisWorkbenchRejectsInvalidQuery(t *testing.T) {
+	cases := []struct {
+		query        string
+		invalidField string
+		wantVal      string
+	}{
+		{"/chassis?fork=unknown", "fork", ""},
+		{"/chassis?cup=-1", "cup", "-1"},
+		{"/chassis?cup=NaN", "cup", "NaN"},
+		{"/chassis?sag=150", "sag", "150"},
+		{"/chassis?sag=Inf", "sag", "Inf"},
+		{"/chassis?fork_a2c=0", "fork_a2c", "0"},
+		{"/chassis?fork_a2c=abc", "fork_a2c", "abc"},
+		{"/chassis?fork=fox34_120&fork_a2c=50&sag=50", "fork_a2c", "50"},
+		{"/chassis?fork=fox34_120&fork_a2c=50&sag=50&cup=-1", "fork_a2c", "50"},
+		{"/chassis?spacers=-1", "spacers", "-1"},
+		{"/chassis?stem_length=0", "stem_length", "0"},
+		{"/chassis?stem_angle=NaN", "stem_angle", "NaN"},
+		{"/chassis?bar_roll=Inf", "bar_roll", "Inf"},
+		{"/chassis?post_ext=-1", "post_ext", "-1"},
+		{"/chassis?post_ext=-1&spacers=-1", "post_ext", "-1"},
+		{"/chassis?post_ext=109.5", "post_ext", "109.5"},
+		{"/chassis?post_ext=300.5", "post_ext", "300.5"},
+		{"/chassis?post_setback=-2", "post_setback", "-2"},
+		{"/chassis?rail_offset=NaN", "rail_offset", "NaN"},
+		{"/chassis?rail_pitch=Inf", "rail_pitch", "Inf"},
+		{"/chassis?baseline=cad&spacers=-1", "spacers", "-1"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.query, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+tc.query, nil)
+			rec := httptest.NewRecorder()
+			NewHandler().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("GET %s status = %d, want 400", tc.query, rec.Code)
+			}
+			if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
+				t.Fatalf("Content-Type = %q, want text/html", ct)
+			}
+
+			doc, err := goquery.NewDocumentFromReader(rec.Body)
+			if err != nil {
+				t.Fatalf("parse HTML: %v", err)
+			}
+			banner := doc.Find(`#form-error[role="alert"]`)
+			if banner.Length() != 1 || strings.TrimSpace(banner.Text()) == "" {
+				t.Fatalf("expected non-empty #form-error[role=alert], got %d", banner.Length())
+			}
+			if doc.Find("svg.diagram").Length() != 0 {
+				t.Errorf("expected no svg.diagram on HTTP 400 response")
+			}
+
+			invalidEls := doc.Find(`[aria-invalid="true"]`)
+			if invalidEls.Length() != 1 {
+				t.Fatalf("expected 1 [aria-invalid=true] element, got %d", invalidEls.Length())
+			}
+			target := doc.Find(fmt.Sprintf(`[name="%s"]`, tc.invalidField))
+			if inv, _ := target.Attr("aria-invalid"); inv != "true" {
+				t.Errorf("[name=%q] aria-invalid = %q, want true", tc.invalidField, inv)
+			}
+			if desc, _ := target.Attr("aria-describedby"); desc != "form-error" {
+				t.Errorf("[name=%q] aria-describedby = %q, want form-error", tc.invalidField, desc)
+			}
+			if tc.wantVal != "" {
+				if val, _ := target.Attr("value"); val != tc.wantVal {
+					t.Errorf("input[name=%q] value = %q, want %q", tc.invalidField, val, tc.wantVal)
+				}
+			}
+		})
+	}
+}
+
+func TestChassisWorkbenchAcceptsSeatpostExtensionLimits(t *testing.T) {
+	for _, extension := range []string{"110", "300"} {
+		t.Run(extension, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/chassis?post_ext="+extension, nil)
+			rec := httptest.NewRecorder()
+			NewHandler().ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("extension %s returned %d, want 200", extension, rec.Code)
+			}
+			doc, err := goquery.NewDocumentFromReader(rec.Body)
+			if err != nil {
+				t.Fatalf("parse HTML: %v", err)
+			}
+			input := doc.Find(`input[name="post_ext"]`)
+			for attr, want := range map[string]string{"min": "110", "max": "300", "value": extension + ".0"} {
+				if got, _ := input.Attr(attr); got != want {
+					t.Errorf("seatpost extension %s = %q, want %q", attr, got, want)
+				}
+			}
+		})
 	}
 }
 
@@ -419,16 +653,26 @@ func TestBuildChassisViewUsesPlacedDimensions(t *testing.T) {
 	fix := otsoFenrirFixture()
 	forkSetup := assembly.ForkSetup{A2cMm: 506.0, RakeMm: 44.0, LowerCupMm: 12.0}
 	customWheels := assembly.WheelSetup{RadiusMm: 340.0}
+	customSeatpost := assembly.SeatpostSetup{ExtensionMm: 240.0, PostSetbackMm: 15.0, ClampLengthMm: 30.0}
+	customSaddle := fix.DefaultSaddle
+	customSaddle.RailOffsetMm = 12.0
+	customSaddle.RailPitchDeg = -1.5
+	customStem := fix.DefaultStem
+	customStem.SpacersMm = 15.0
+	customStem.LengthMm = 70.0
+	customStem.AngleDeg = 6.0
+	customBar := fix.DefaultHandlebar
+	customBar.BarRollDeg = -4.0
 
 	tr := pose.NewTrace()
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
 		Frame:     fix.Chart.Frame,
 		Fork:      forkSetup,
 		Wheels:    customWheels,
-		Seatpost:  fix.DefaultSeatpost,
-		Saddle:    fix.DefaultSaddle,
-		Stem:      fix.DefaultStem,
-		Handlebar: fix.DefaultHandlebar,
+		Seatpost:  customSeatpost,
+		Saddle:    customSaddle,
+		Stem:      customStem,
+		Handlebar: customBar,
 	}, tr)
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
@@ -438,7 +682,7 @@ func TestBuildChassisViewUsesPlacedDimensions(t *testing.T) {
 		t.Fatalf("PlaceCadBaseline: %v", err)
 	}
 
-	view := buildChassisView(fix, "fox34_120", "fox34_120", false, 20.0, bike, cadBaseline, tr.Steps())
+	view := buildChassisView(fix, "fox34_120", "fox34_120", false, 530.0, 20.0, bike, cadBaseline, tr.Steps())
 
 	if view.WheelRadiusMm != customWheels.RadiusMm {
 		t.Errorf("view.WheelRadiusMm = %.1f, want placed radius %.1f (not fixture %.1f)", view.WheelRadiusMm, customWheels.RadiusMm, fix.Wheels.RadiusMm)
@@ -454,5 +698,23 @@ func TestBuildChassisViewUsesPlacedDimensions(t *testing.T) {
 	}
 	if view.EffectiveA2cMm != forkSetup.A2cMm {
 		t.Errorf("view.EffectiveA2cMm = %.1f, want %.1f", view.EffectiveA2cMm, forkSetup.A2cMm)
+	}
+	wantForm := chassisFormValues{
+		Fork:        "fox34_120",
+		PrevFork:    "fox34_120",
+		ForkA2c:     "530.0",
+		Cup:         "12.0",
+		Sag:         "20.0",
+		Spacers:     "15.0",
+		StemLength:  "70.0",
+		StemAngle:   "6.0",
+		BarRoll:     "-4.0",
+		PostExt:     "240.0",
+		PostSetback: "15.0",
+		RailOffset:  "12.0",
+		RailPitch:   "-1.5",
+	}
+	if view.Form != wantForm {
+		t.Errorf("view.Form = %+v, want %+v", view.Form, wantForm)
 	}
 }

@@ -47,6 +47,16 @@ type bikeFixture struct {
 // otsoFenrirFixture returns the Milestone 1 Otso Fenrir Stainless (2024, Size L)
 // fixture with its sourced published chart dimensions and selectable forks.
 func otsoFenrirFixture() bikeFixture {
+	const (
+		// Model the generic zero-offset post with the Ritchey Comp Trail Zero's
+		// nominal length and minimum insertion. The workbench uses a simplified clamp.
+		// https://ritcheylogic.com/bike/seatposts/comp-trail-zero-seatpost
+		postLengthMm       = 400.0
+		postMinInsertionMm = 100.0
+		// Otso lists 290 mm of insertion depth for the Large Fenrir Stainless.
+		// https://otsocycles.com/pages/bike-specs-tables
+		frameInsertionDepthMm = 290.0
+	)
 	return bikeFixture{
 		Name: "Otso Fenrir Stainless (2024, Size L)",
 		Chart: assembly.FrameChart{
@@ -108,9 +118,11 @@ func otsoFenrirFixture() bikeFixture {
 			BarRollDeg:     0.0,
 		},
 		DefaultSeatpost: assembly.SeatpostSetup{
-			ExtensionMm:   263.5,
-			PostSetbackMm: 0.0,
-			ClampLengthMm: 30.0,
+			ExtensionMm:    263.5,
+			MinExtensionMm: postLengthMm - frameInsertionDepthMm,
+			MaxExtensionMm: postLengthMm - postMinInsertionMm,
+			PostSetbackMm:  0.0,
+			ClampLengthMm:  30.0,
 		},
 		SaddleName: "SQlab 610 Ergolux Active 2.1",
 		DefaultSaddle: assembly.SaddleSetup{
