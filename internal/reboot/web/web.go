@@ -501,10 +501,29 @@ type workbenchState struct {
 	PostSetbackMm float64
 	RailOffsetMm  float64
 	RailPitchDeg  pose.Deg
-	// BrpTarget is the optional saddle fitting target (query keys brp_x, brp_y).
-	HasBrpTarget bool
-	BrpTargetX   float64
-	BrpTargetY   float64
+	Targets       fitTargetState
+}
+
+// fitTargetState is the optional fitting targets in the URL query
+// (brp_x/brp_y and grip_x/grip_y). Both blank in a pair means no target.
+type fitTargetState struct {
+	HasBrp       bool
+	BrpX, BrpY   float64
+	HasGrip      bool
+	GripX, GripY float64
+}
+
+func (t fitTargetState) any() bool { return t.HasBrp || t.HasGrip }
+
+func (t fitTargetState) fitTarget() assembly.FitTarget {
+	var target assembly.FitTarget
+	if t.HasBrp {
+		target.BRP = &pose.Point{X: t.BrpX, Y: t.BrpY}
+	}
+	if t.HasGrip {
+		target.HandGrip = &pose.Point{X: t.GripX, Y: t.GripY}
+	}
+	return target
 }
 
 func defaultWorkbenchState(fix bikeFixture) workbenchState {
@@ -581,22 +600,32 @@ func (s workbenchState) URL() string {
 	q.Set("post_setback", formatFormFloat(s.PostSetbackMm))
 	q.Set("rail_offset", formatFormFloat(s.RailOffsetMm))
 	q.Set("rail_pitch", formatFormFloat(float64(s.RailPitchDeg)))
-	if s.HasBrpTarget {
-		q.Set("brp_x", formatFormFloat(s.BrpTargetX))
-		q.Set("brp_y", formatFormFloat(s.BrpTargetY))
+	if s.Targets.HasBrp {
+		q.Set("brp_x", formatFormFloat(s.Targets.BrpX))
+		q.Set("brp_y", formatFormFloat(s.Targets.BrpY))
+	}
+	if s.Targets.HasGrip {
+		q.Set("grip_x", formatFormFloat(s.Targets.GripX))
+		q.Set("grip_y", formatFormFloat(s.Targets.GripY))
 	}
 	return "/bike?" + q.Encode()
 }
 
 func (s workbenchState) formValues() bikeFormValues {
-	var brpX, brpY string
-	if s.HasBrpTarget {
-		brpX = formatFormFloat(s.BrpTargetX)
-		brpY = formatFormFloat(s.BrpTargetY)
+	var brpX, brpY, gripX, gripY string
+	if s.Targets.HasBrp {
+		brpX = formatFormFloat(s.Targets.BrpX)
+		brpY = formatFormFloat(s.Targets.BrpY)
+	}
+	if s.Targets.HasGrip {
+		gripX = formatFormFloat(s.Targets.GripX)
+		gripY = formatFormFloat(s.Targets.GripY)
 	}
 	return bikeFormValues{
 		BrpX:        brpX,
 		BrpY:        brpY,
+		GripX:       gripX,
+		GripY:       gripY,
 		View:        string(s.View),
 		Fork:        s.ForkID,
 		PrevFork:    s.ForkID,
@@ -631,6 +660,8 @@ type bikeFormValues struct {
 	RailPitch   string
 	BrpX        string
 	BrpY        string
+	GripX       string
+	GripY       string
 }
 
 type bikeInputError struct {
@@ -713,35 +744,47 @@ type bikeView struct {
 	MaxRailOffsetMm      float64
 	ExampleBrpX          string
 	ExampleBrpY          string
+	ExampleGripX         string
+	ExampleGripY         string
 	MaxSpacersMm         float64
 }
 
-// bikeFittingView is the saddle fitting summary for a submitted build and BRP target.
+// bikeFittingView is the fitting summary for a submitted build and its targets.
 type bikeFittingView struct {
-	TargetX, TargetY   float64
-	MissX, MissY       float64 // target − the submitted build's BRP
-	MissMm             float64
-	ExtensionMm        float64 // fitted
-	RailOffsetMm       float64 // fitted
-	RailLimitMm        float64
-	Reached            bool
-	LimitedByExtension bool
-	LimitedByRailOff   bool
-	ApplyURL           string
+	Saddle   *saddleFittingView  // nil unless a BRP target is set
+	Cockpit  *cockpitFittingView // nil unless a HandGrip target is set
+	ApplyURL string              // the fitted build, with the submitted targets kept
 }
 
-// OutcomeText describes the fitting outcome as a fact about this build.
-func (f bikeFittingView) OutcomeText() string {
-	switch {
-	case f.Reached:
+type saddleFittingView struct {
+	TargetX, TargetY, MissX, MissY, MissMm float64 // miss: target − the submitted build's BRP
+	ExtensionMm, RailOffsetMm, RailLimitMm float64 // fitted values; ±RailLimitMm range
+	LimitedBy                              []assembly.InputField
+}
+
+type cockpitFittingView struct {
+	TargetX, TargetY, MissX, MissY, MissMm         float64 // miss: target − the submitted build's HandGrip
+	SpacersMm, MaxSpacersMm                        float64 // fitted; range 0..MaxSpacersMm
+	StemLengthMm, MinStemLengthMm, MaxStemLengthMm float64
+	StemAngleDeg, BarRollDeg                       pose.Deg // fixed inputs the fit used
+	LimitedBy                                      []assembly.InputField
+}
+
+// OutcomeText describes the saddle fitting outcome as a fact about this build.
+func (f saddleFittingView) OutcomeText() string { return fitOutcomeText(f.LimitedBy) }
+
+// OutcomeText describes the cockpit fitting outcome as a fact about this build.
+func (f cockpitFittingView) OutcomeText() string { return fitOutcomeText(f.LimitedBy) }
+
+func fitOutcomeText(limits []assembly.InputField) string {
+	if len(limits) == 0 {
 		return "reached"
-	case f.LimitedByExtension && f.LimitedByRailOff:
-		return "limited by seatpost extension, saddle rail offset"
-	case f.LimitedByExtension:
-		return "limited by seatpost extension"
-	default:
-		return "limited by saddle rail offset"
 	}
+	names := make([]string, len(limits))
+	for i, f := range limits {
+		names[i] = string(f)
+	}
+	return "limited by " + strings.Join(names, ", ")
 }
 
 type diagramViewLink struct {
@@ -796,48 +839,64 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		cadBaselineFork,
 		tr.Steps(),
 	)
-	if resolved.State.HasBrpTarget {
-		brp := pose.Point{X: resolved.State.BrpTargetX, Y: resolved.State.BrpTargetY}
-		target := assembly.FitTarget{BRP: &brp}
-		fitting, err := assembly.ApplyFitting(resolved.Setup, target, nil)
+	if resolved.State.Targets.any() {
+		fitting, err := assembly.ApplyFitting(resolved.Setup, resolved.State.Targets.fitTarget(), nil)
 		if err != nil {
 			renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
 			return
 		}
-		view.withBrpTarget(fix, bike.Setup, resolved.State)
+		view.withFitTargets(fix, bike.Setup, resolved.State)
 		view.Fitting = buildFittingView(resolved.State, bike, fitting)
 	}
 	renderBikeTemplate(w, http.StatusOK, view)
 }
 
 func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting assembly.Fitting) *bikeFittingView {
-	railLimit, _ := bike.Setup.RailOffsetLimitMm() // PlaceBike and ApplyFitting already accepted this setup
-	miss := bike.Saddle.BRP.OffsetTo(pose.NewPose(*fitting.Target.BRP, 0, nil))
-	fv := &bikeFittingView{
-		TargetX:      fitting.Target.BRP.X,
-		TargetY:      fitting.Target.BRP.Y,
-		MissX:        miss.X,
-		MissY:        miss.Y,
-		MissMm:       miss.Norm(),
-		ExtensionMm:  fitting.Placement.Setup.Seatpost.ExtensionMm,
-		RailOffsetMm: fitting.Placement.Setup.Saddle.RailOffsetMm,
-		RailLimitMm:  railLimit,
-		Reached:      fitting.Outcome == assembly.FitReached,
-	}
+	fv := &bikeFittingView{}
+	var saddleLimits, cockpitLimits []assembly.InputField
 	for _, f := range fitting.LimitedBy {
 		switch f {
-		case assembly.InputSeatpostExtension:
-			fv.LimitedByExtension = true
-		case assembly.InputSaddleRailOffset:
-			fv.LimitedByRailOff = true
-		case assembly.InputForkA2c, assembly.InputForkSag, assembly.InputLowerCup, assembly.InputStemSpacers,
-			assembly.InputStemLength, assembly.InputStemAngle, assembly.InputHandlebarRoll,
-			assembly.InputSeatpostSetback, assembly.InputSaddleRailPitch, assembly.InputFitTargetBRP, assembly.InputFitTargetGrip:
+		case assembly.InputSeatpostExtension, assembly.InputSaddleRailOffset:
+			saddleLimits = append(saddleLimits, f)
+		case assembly.InputStemSpacers, assembly.InputStemLength:
+			cockpitLimits = append(cockpitLimits, f)
+		case assembly.InputForkA2c, assembly.InputForkSag, assembly.InputLowerCup, assembly.InputStemAngle,
+			assembly.InputHandlebarRoll, assembly.InputSeatpostSetback, assembly.InputSaddleRailPitch,
+			assembly.InputFitTargetBRP, assembly.InputFitTargetGrip:
 			// Fitting never limits on these inputs.
 		}
 	}
-	applied := workbenchStateFromSetup(state.View, state.ForkID, fitting.Placement.Setup)
-	applied.HasBrpTarget, applied.BrpTargetX, applied.BrpTargetY = true, state.BrpTargetX, state.BrpTargetY
+	fitted := fitting.Placement.Setup
+	if brp := fitting.Target.BRP; brp != nil {
+		railLimit, _ := bike.Setup.RailOffsetLimitMm() // PlaceBike and ApplyFitting already accepted this setup
+		miss := bike.Saddle.BRP.OffsetTo(pose.NewPose(*brp, 0, nil))
+		fv.Saddle = &saddleFittingView{
+			TargetX: brp.X, TargetY: brp.Y,
+			MissX: miss.X, MissY: miss.Y, MissMm: miss.Norm(),
+			ExtensionMm:  fitted.Seatpost.ExtensionMm,
+			RailOffsetMm: fitted.Saddle.RailOffsetMm,
+			RailLimitMm:  railLimit,
+			LimitedBy:    saddleLimits,
+		}
+	}
+	if grip := fitting.Target.HandGrip; grip != nil {
+		miss := bike.Handlebar.HandGrip.OffsetTo(pose.NewPose(*grip, 0, nil))
+		stem := bike.Setup.Stem
+		fv.Cockpit = &cockpitFittingView{
+			TargetX: grip.X, TargetY: grip.Y,
+			MissX: miss.X, MissY: miss.Y, MissMm: miss.Norm(),
+			SpacersMm:       fitted.Stem.SpacersMm,
+			MaxSpacersMm:    stem.MaxSpacersMm,
+			StemLengthMm:    fitted.Stem.LengthMm,
+			MinStemLengthMm: stem.MinLengthMm,
+			MaxStemLengthMm: stem.MaxLengthMm,
+			StemAngleDeg:    stem.AngleDeg,
+			BarRollDeg:      bike.Setup.Handlebar.BarRollDeg,
+			LimitedBy:       cockpitLimits,
+		}
+	}
+	applied := workbenchStateFromSetup(state.View, state.ForkID, fitted)
+	applied.Targets = state.Targets
 	fv.ApplyURL = applied.URL()
 	return fv
 }
@@ -861,6 +920,8 @@ func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolv
 		MaxRailOffsetMm:    maxRail,
 		ExampleBrpX:        formatFormFloat(fix.ExampleBrpTarget.X),
 		ExampleBrpY:        formatFormFloat(fix.ExampleBrpTarget.Y),
+		ExampleGripX:       formatFormFloat(fix.ExampleGripTarget.X),
+		ExampleGripY:       formatFormFloat(fix.ExampleGripTarget.Y),
 		MaxSpacersMm:       fix.DefaultStem.MaxSpacersMm,
 		HasBuild:           false,
 		ErrorMessage:       msg,
@@ -938,6 +999,22 @@ func (p *bikeQueryParser) optionalFloat(key, label string, echo *string) (v floa
 		return 0, false
 	}
 	return v, true
+}
+
+// optionalPoint parses an optional X/Y pair. Both blank → (zero, false).
+// Exactly one blank → input error on the blank key ("<label> needs both X and Y").
+func (p *bikeQueryParser) optionalPoint(xKey, yKey, label string, echoX, echoY *string) (pose.Point, bool) {
+	x, hasX := p.optionalFloat(xKey, label+" X", echoX)
+	y, hasY := p.optionalFloat(yKey, label+" Y", echoY)
+	switch {
+	case hasX && hasY:
+		return pose.Point{X: x, Y: y}, true
+	case hasX && *echoY == "":
+		p.fail(yKey, fmt.Errorf("%s needs both X and Y", label))
+	case hasY && *echoX == "":
+		p.fail(xKey, fmt.Errorf("%s needs both X and Y", label))
+	}
+	return pose.Point{}, false
 }
 
 func (p *bikeQueryParser) fail(field string, err error) {
@@ -1029,15 +1106,11 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bi
 	state.RailOffsetMm = p.float("rail_offset", defaults.RailOffsetMm, "saddle rail offset", &form.RailOffset)
 	state.RailPitchDeg = pose.Deg(p.float("rail_pitch", float64(defaults.RailPitchDeg), "saddle rail pitch", &form.RailPitch))
 
-	brpX, hasX := p.optionalFloat("brp_x", "BRP target X", &form.BrpX)
-	brpY, hasY := p.optionalFloat("brp_y", "BRP target Y", &form.BrpY)
-	switch {
-	case hasX && hasY:
-		state.HasBrpTarget, state.BrpTargetX, state.BrpTargetY = true, brpX, brpY
-	case hasX && form.BrpY == "":
-		p.fail("brp_y", fmt.Errorf("BRP target needs both X and Y"))
-	case hasY && form.BrpX == "":
-		p.fail("brp_x", fmt.Errorf("BRP target needs both X and Y"))
+	if brp, ok := p.optionalPoint("brp_x", "brp_y", "BRP target", &form.BrpX, &form.BrpY); ok {
+		state.Targets.HasBrp, state.Targets.BrpX, state.Targets.BrpY = true, brp.X, brp.Y
+	}
+	if grip, ok := p.optionalPoint("grip_x", "grip_y", "HandGrip target", &form.GripX, &form.GripY); ok {
+		state.Targets.HasGrip, state.Targets.GripX, state.Targets.GripY = true, grip.X, grip.Y
 	}
 
 	// An unknown view keeps its raw value in the form echo, but the state (and
@@ -1253,11 +1326,11 @@ func workbenchLinks(fix bikeFixture, state workbenchState) (defaultsURL, cadURL 
 	return defaultsURL, cadURL, viewLinks
 }
 
-// withBrpTarget carries the submitted BRP fit target into the view's form echo,
+// withFitTargets carries the submitted fit targets into the view's form echo,
 // canonical URL, and links. The diagram itself still shows the submitted build.
-func (v *bikeView) withBrpTarget(fix bikeFixture, setup assembly.BikeSetup, submitted workbenchState) {
+func (v *bikeView) withFitTargets(fix bikeFixture, setup assembly.BikeSetup, submitted workbenchState) {
 	state := workbenchStateFromSetup(submitted.View, submitted.ForkID, setup)
-	state.HasBrpTarget, state.BrpTargetX, state.BrpTargetY = true, submitted.BrpTargetX, submitted.BrpTargetY
+	state.Targets = submitted.Targets
 	v.Form = state.formValues()
 	v.CanonicalURL = state.URL()
 	v.DefaultsURL, v.CadBaselineForkURL, v.ViewLinks = workbenchLinks(fix, state)
@@ -1403,6 +1476,8 @@ func buildBikeView(
 		MaxRailOffsetMm:      maxRail,
 		ExampleBrpX:          formatFormFloat(fix.ExampleBrpTarget.X),
 		ExampleBrpY:          formatFormFloat(fix.ExampleBrpTarget.Y),
+		ExampleGripX:         formatFormFloat(fix.ExampleGripTarget.X),
+		ExampleGripY:         formatFormFloat(fix.ExampleGripTarget.Y),
 		MaxSpacersMm:         fix.DefaultStem.MaxSpacersMm,
 		HasBuild:             true,
 		Form:                 form,

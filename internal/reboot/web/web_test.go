@@ -560,8 +560,8 @@ func TestBikeWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
 	}
 
 	labels := doc.Find("form.controls label")
-	if labels.Length() != 14 {
-		t.Errorf("form label count = %d, want 14", labels.Length())
+	if labels.Length() != 16 {
+		t.Errorf("form label count = %d, want 16", labels.Length())
 	}
 	labels.Each(func(_ int, lbl *goquery.Selection) {
 		forID, ok := lbl.Attr("for")
@@ -2436,8 +2436,8 @@ func TestBikeWorkbenchFitsFitReportBrpAtRailLimit(t *testing.T) {
 	metric := func(name string) string {
 		return strings.TrimSpace(doc.Find(`[data-metric="` + name + `"]`).Text())
 	}
-	if got := metric("fit-outcome"); got != "limited by saddle rail offset" {
-		t.Errorf("fit-outcome = %q", got)
+	if got := metric("fit-saddle-outcome"); got != "limited by saddle rail offset" {
+		t.Errorf("fit-saddle-outcome = %q", got)
 	}
 	if got := metric("fit-rail-offset"); got != "15.0 mm" {
 		t.Errorf("fit-rail-offset = %q, want 15.0 mm", got)
@@ -2468,16 +2468,16 @@ func TestBikeWorkbenchApplyFittingReachesReachableTarget(t *testing.T) {
 	x, y := fittingTestTarget(t, url.Values{"post_ext": {"200"}, "rail_offset": {"5"}})
 	path := "/bike?brp_x=" + formatFormFloat(x) + "&brp_y=" + formatFormFloat(y)
 	doc := loadBikeDoc(t, path)
-	if got := strings.TrimSpace(doc.Find(`[data-metric="fit-outcome"]`).Text()); got != "reached" {
-		t.Fatalf("fit-outcome = %q, want reached", got)
+	if got := strings.TrimSpace(doc.Find(`[data-metric="fit-saddle-outcome"]`).Text()); got != "reached" {
+		t.Fatalf("fit-saddle-outcome = %q, want reached", got)
 	}
 	applied, _ := doc.Find("a#apply-fitting").Attr("href")
 	doc = loadBikeDoc(t, applied)
 	if got := strings.TrimSpace(doc.Find(`[data-metric="fit-brp-miss"]`).Text()); got != "0.0 mm" {
 		t.Errorf("fit-brp-miss after applying = %q, want 0.0 mm", got)
 	}
-	if got := strings.TrimSpace(doc.Find(`[data-metric="fit-outcome"]`).Text()); got != "reached" {
-		t.Errorf("fit-outcome after applying = %q, want reached", got)
+	if got := strings.TrimSpace(doc.Find(`[data-metric="fit-saddle-outcome"]`).Text()); got != "reached" {
+		t.Errorf("fit-saddle-outcome after applying = %q, want reached", got)
 	}
 }
 
@@ -2541,5 +2541,135 @@ func TestBikeWorkbenchSpacersMax(t *testing.T) {
 	}
 	if v, _ := doc.Find("#ctrl-spacers").Attr("max"); v != "40" {
 		t.Errorf("error page ctrl-spacers max = %q, want 40", v)
+	}
+}
+
+func gripTestTarget(t *testing.T, query url.Values) (x, y float64) {
+	t.Helper()
+	fix := otsoFenrirFixture()
+	resolved, inputErr := decodeWorkbenchState(fix, query)
+	if inputErr != nil {
+		t.Fatalf("decode %v: %v", query, inputErr)
+	}
+	bike, err := assembly.PlaceBike(resolved.Setup, nil)
+	if err != nil {
+		t.Fatalf("PlaceBike: %v", err)
+	}
+	grip := bike.Handlebar.HandGrip.Origin()
+	return grip.X, grip.Y
+}
+
+func metricText(doc *goquery.Document, name string) string {
+	return strings.TrimSpace(doc.Find(`[data-metric="` + name + `"]`).Text())
+}
+
+func TestBikeWorkbenchWithoutGripTargetHasNoCockpitFitting(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike")
+	if n := doc.Find("[data-fitting]").Length() + doc.Find("#apply-fitting").Length(); n != 0 {
+		t.Errorf("fitting elements = %d, want 0", n)
+	}
+	for _, id := range []string{"ctrl-grip-x", "ctrl-grip-y"} {
+		if v, _ := doc.Find("#" + id).Attr("value"); v != "" {
+			t.Errorf("#%s value = %q, want blank", id, v)
+		}
+		if p, _ := doc.Find("#" + id).Attr("placeholder"); p == "" {
+			t.Errorf("#%s has no placeholder", id)
+		}
+	}
+}
+
+func TestBikeWorkbenchFitsFitReportGripAtLimits(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?grip_x=481&grip_y=726&view=stem")
+	for name, want := range map[string]string{
+		"fit-cockpit-outcome": "limited by stem spacers, stem length",
+		"fit-spacers":         "0.0 mm",
+		"fit-stem-length":     "130.0 mm",
+		"fit-grip-miss":       "96.3 mm",
+	} {
+		if got := metricText(doc, name); got != want {
+			t.Errorf("%s = %q, want %q", name, got, want)
+		}
+	}
+	if n := doc.Find(`[data-metric="fit-saddle-outcome"]`).Length(); n != 0 {
+		t.Errorf("saddle block present without a BRP target")
+	}
+	q := hrefQuery(t, doc, "a#apply-fitting")
+	for k, want := range map[string]string{"spacers": "0.0", "stem_length": "130.0", "grip_x": "481.0", "grip_y": "726.0"} {
+		if q.Get(k) != want {
+			t.Errorf("apply %s = %q, want %q", k, q.Get(k), want)
+		}
+	}
+	if q.Has("brp_x") {
+		t.Errorf("apply link has brp_x: %v", q)
+	}
+}
+
+func TestBikeWorkbenchApplyFittingReachesReachableGrip(t *testing.T) {
+	x, y := gripTestTarget(t, url.Values{"spacers": {"10"}, "stem_length": {"90"}})
+	doc := loadBikeDoc(t, "/bike?grip_x="+formatFormFloat(x)+"&grip_y="+formatFormFloat(y))
+	if got := metricText(doc, "fit-cockpit-outcome"); got != "reached" {
+		t.Fatalf("fit-cockpit-outcome = %q, want reached", got)
+	}
+	applied, _ := doc.Find("a#apply-fitting").Attr("href")
+	doc = loadBikeDoc(t, applied)
+	if got := metricText(doc, "fit-grip-miss"); got != "0.0 mm" {
+		t.Errorf("fit-grip-miss after applying = %q, want 0.0 mm", got)
+	}
+	if got := metricText(doc, "fit-cockpit-outcome"); got != "reached" {
+		t.Errorf("fit-cockpit-outcome after applying = %q, want reached", got)
+	}
+}
+
+func TestBikeWorkbenchBothFitTargets(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726")
+	if doc.Find(`[data-metric="fit-saddle-outcome"]`).Length() != 1 || doc.Find(`[data-metric="fit-cockpit-outcome"]`).Length() != 1 {
+		t.Fatal("want both fitting blocks")
+	}
+	if n := doc.Find("a#apply-fitting").Length(); n != 1 {
+		t.Fatalf("apply links = %d, want 1", n)
+	}
+	q := hrefQuery(t, doc, "a#apply-fitting")
+	if q.Get("rail_offset") != "15.0" || q.Get("spacers") != "0.0" || q.Get("stem_length") != "130.0" {
+		t.Errorf("apply link values: %v", q)
+	}
+	if ext, err := strconv.ParseFloat(q.Get("post_ext"), 64); err != nil || math.Abs(ext-260.092) > 0.01 {
+		t.Errorf("apply post_ext = %q, want ≈260.092", q.Get("post_ext"))
+	}
+	for _, k := range []string{"brp_x", "brp_y", "grip_x", "grip_y"} {
+		if !q.Has(k) {
+			t.Errorf("apply link lost %s: %v", k, q)
+		}
+	}
+}
+
+func TestBikeWorkbenchGripTargetNeedsBothCoordinates(t *testing.T) {
+	for path, field := range map[string]string{
+		"/bike?grip_x=481":          "ctrl-grip-y",
+		"/bike?grip_y=726":          "ctrl-grip-x",
+		"/bike?grip_x=NaN&grip_y=1": "ctrl-grip-x",
+	} {
+		doc := loadBikeDocStatus(t, path, http.StatusBadRequest)
+		if v, _ := doc.Find("#" + field).Attr("aria-invalid"); v != "true" {
+			t.Errorf("%s: #%s aria-invalid = %q, want true", path, field, v)
+		}
+	}
+}
+
+func TestBikeWorkbenchFitTargetsPresetLinks(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726")
+	q := hrefQuery(t, doc, "a#preset-defaults")
+	for _, k := range []string{"brp_x", "brp_y", "grip_x", "grip_y"} {
+		if q.Has(k) {
+			t.Errorf("Reset Defaults keeps %s", k)
+		}
+	}
+	for _, sel := range []string{"a#preset-cad-baseline-fork", "a#view-seat"} {
+		q = hrefQuery(t, doc, sel)
+		if q.Get("grip_x") != "481.0" || q.Get("grip_y") != "726.0" || q.Get("brp_x") != "-219.0" {
+			t.Errorf("%s lost a target: %v", sel, q)
+		}
+	}
+	if v, _ := doc.Find("main").Attr("data-canonical-url"); !strings.Contains(v, "grip_x=481.0") {
+		t.Errorf("canonical URL = %q, want it to keep the grip target", v)
 	}
 }

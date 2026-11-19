@@ -512,6 +512,20 @@
           </div>
         </div>
       </fieldset>
+
+      <fieldset class="control-group">
+        <legend>HandGrip fit target</legend>
+        <div class="group-fields">
+          <div class="field">
+            <label for="ctrl-grip-x">HandGrip X (mm)</label>
+            <input id="ctrl-grip-x" type="number" name="grip_x" step="any" placeholder="{{.ExampleGripX}}" value="{{.Form.GripX}}"{{if and $.ErrorMessage (eq $.InvalidField "grip_x")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+          <div class="field">
+            <label for="ctrl-grip-y">HandGrip Y (mm)</label>
+            <input id="ctrl-grip-y" type="number" name="grip_y" step="any" placeholder="{{.ExampleGripY}}" value="{{.Form.GripY}}"{{if and $.ErrorMessage (eq $.InvalidField "grip_y")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+        </div>
+      </fieldset>
     </div>
 
     <div class="control-actions">
@@ -546,14 +560,31 @@
         <span>Lateral grip (±Z): <strong class="mono" data-metric="hand-lateral">{{printf "%.1f mm" .HandLateralMm}}</strong></span>
       </div>
       {{with .Fitting}}
-      <div class="summary" data-fitting>
-        <strong>Saddle fitting</strong>
-        <span>Target BRP: <strong class="mono">({{printf "%.1f" .TargetX}}, {{printf "%.1f" .TargetY}}) mm</strong></span>
-        <span>Current BRP miss: <strong class="mono">({{printf "%+.1f" .MissX}}, {{printf "%+.1f" .MissY}}) mm, <span data-metric="fit-brp-miss">{{printf "%.1f mm" .MissMm}}</span></strong></span>
-        <span>Fitted extension: <strong class="mono" data-metric="fit-extension">{{printf "%.1f mm" .ExtensionMm}}</strong></span>
-        <span>Fitted rail offset (±{{printf "%.1f" .RailLimitMm}} mm on this saddle): <strong class="mono" data-metric="fit-rail-offset">{{printf "%.1f mm" .RailOffsetMm}}</strong></span>
-        <span>Outcome: <strong data-metric="fit-outcome">{{.OutcomeText}}</strong></span>
-        <a id="apply-fitting" href="{{.ApplyURL}}" data-preset="apply-fitting">Apply fitted saddle</a>
+      <div data-fitting>
+        {{with .Saddle}}
+        <div class="summary">
+          <strong>Saddle fitting</strong>
+          <span>Target BRP: <strong class="mono">({{printf "%.1f" .TargetX}}, {{printf "%.1f" .TargetY}}) mm</strong></span>
+          <span>Current BRP miss: <strong class="mono">({{printf "%+.1f" .MissX}}, {{printf "%+.1f" .MissY}}) mm, <span data-metric="fit-brp-miss">{{printf "%.1f mm" .MissMm}}</span></strong></span>
+          <span>Fitted extension: <strong class="mono" data-metric="fit-extension">{{printf "%.1f mm" .ExtensionMm}}</strong></span>
+          <span>Fitted rail offset (±{{printf "%.1f" .RailLimitMm}} mm on this saddle): <strong class="mono" data-metric="fit-rail-offset">{{printf "%.1f mm" .RailOffsetMm}}</strong></span>
+          <span>Outcome: <strong data-metric="fit-saddle-outcome">{{.OutcomeText}}</strong></span>
+        </div>
+        {{end}}
+        {{with .Cockpit}}
+        <div class="summary">
+          <strong>Cockpit fitting</strong>
+          <span>Target HandGrip: <strong class="mono">({{printf "%.1f" .TargetX}}, {{printf "%.1f" .TargetY}}) mm</strong></span>
+          <span>Current HandGrip miss: <strong class="mono">({{printf "%+.1f" .MissX}}, {{printf "%+.1f" .MissY}}) mm, <span data-metric="fit-grip-miss">{{printf "%.1f mm" .MissMm}}</span></strong></span>
+          <span>Fitted spacers (0–{{printf "%.0f" .MaxSpacersMm}} mm on this steerer): <strong class="mono" data-metric="fit-spacers">{{printf "%.1f mm" .SpacersMm}}</strong></span>
+          <span>Fitted stem length ({{printf "%.0f" .MinStemLengthMm}}–{{printf "%.0f" .MaxStemLengthMm}} mm available): <strong class="mono" data-metric="fit-stem-length">{{printf "%.1f mm" .StemLengthMm}}</strong></span>
+          <span>Outcome: <strong data-metric="fit-cockpit-outcome">{{.OutcomeText}}</strong></span>
+          <span>Fitted at stem angle {{printf "%.1f" .StemAngleDeg}}°, bar roll {{printf "%.1f" .BarRollDeg}}°; spacers and stem length are continuous values.</span>
+        </div>
+        {{end}}
+        <div class="summary">
+          <a id="apply-fitting" href="{{.ApplyURL}}" data-preset="apply-fitting">Apply fitted build</a>
+        </div>
       </div>
       {{end}}
       <div class="summary" style="font-size: 0.82rem;">

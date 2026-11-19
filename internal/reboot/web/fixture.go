@@ -49,6 +49,8 @@ type bikeFixture struct {
 	DefaultSaddle    assembly.SaddleSetup
 	// ExampleBrpTarget is a placeholder for the BRP fit target inputs, never a default.
 	ExampleBrpTarget pose.Point
+	// ExampleGripTarget is a placeholder for the HandGrip fit target inputs, never a default.
+	ExampleGripTarget pose.Point
 }
 
 func (f bikeFixture) cadForkOption() forkOption {
@@ -228,5 +230,7 @@ func otsoFenrirFixture() bikeFixture {
 		},
 		// measured: Matt's idmatch fit report, docs/RIDER_FIT.md
 		ExampleBrpTarget: pose.Point{X: -219.0, Y: 713.1},
+		// measured: idmatch fit report handlebar coordinates (docs/RIDER_FIT.md); whether the report point is HandGrip or the stem clamp is unresolved
+		ExampleGripTarget: pose.Point{X: 481.0, Y: 726.0},
 	}
 }
