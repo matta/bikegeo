@@ -796,7 +796,8 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		tr.Steps(),
 	)
 	if resolved.State.HasBrpTarget {
-		target := assembly.SaddleFitTarget{BRP: pose.Point{X: resolved.State.BrpTargetX, Y: resolved.State.BrpTargetY}}
+		brp := pose.Point{X: resolved.State.BrpTargetX, Y: resolved.State.BrpTargetY}
+		target := assembly.FitTarget{BRP: &brp}
 		fitting, err := assembly.ApplyFitting(resolved.Setup, target, nil)
 		if err != nil {
 			renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
@@ -810,7 +811,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 
 func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting assembly.Fitting) *bikeFittingView {
 	railLimit, _ := bike.Setup.RailOffsetLimitMm() // PlaceBike and ApplyFitting already accepted this setup
-	miss := bike.Saddle.BRP.OffsetTo(pose.NewPose(fitting.Target.BRP, 0, nil))
+	miss := bike.Saddle.BRP.OffsetTo(pose.NewPose(*fitting.Target.BRP, 0, nil))
 	fv := &bikeFittingView{
 		TargetX:      fitting.Target.BRP.X,
 		TargetY:      fitting.Target.BRP.Y,

@@ -49,11 +49,21 @@ func brpOf(t *testing.T, setup assembly.BikeSetup) pose.Point {
 
 func mustFit(t *testing.T, setup assembly.BikeSetup, target pose.Point) assembly.Fitting {
 	t.Helper()
-	fit, err := assembly.ApplyFitting(setup, assembly.SaddleFitTarget{BRP: target}, nil)
+	fit, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &target}, nil)
 	if err != nil {
 		t.Fatalf("ApplyFitting: %v", err)
 	}
 	return fit
+}
+
+// brpMissMm returns |BrpMiss()| and fails when the fitting has no BRP target.
+func brpMissMm(t *testing.T, f assembly.Fitting) float64 {
+	t.Helper()
+	miss, ok := f.BrpMiss()
+	if !ok {
+		t.Fatal("fitting has no BRP target")
+	}
+	return miss.Norm()
 }
 
 func fittedValues(f assembly.Fitting) (ext, rail float64) {
@@ -73,7 +83,7 @@ func TestApplyFittingRoundTripReached(t *testing.T) {
 	}
 	assertNear(t, "extension", ext, 200, 1e-9)
 	assertNear(t, "rail offset", rail, 5, 1e-9)
-	assertNear(t, "miss", fit.BrpMissMm(), 0, 1e-9)
+	assertNear(t, "miss", brpMissMm(t, fit), 0, 1e-9)
 	if fit.LimitedBy != nil {
 		t.Fatalf("LimitedBy = %v, want nil", fit.LimitedBy)
 	}
@@ -95,7 +105,7 @@ func TestApplyFittingReachesTargetsOnBounds(t *testing.T) {
 		}
 		assertNear(t, "extension", ext, c.ext, 1e-9)
 		assertNear(t, "rail offset", rail, c.rail, 1e-9)
-		assertNear(t, "miss", fit.BrpMissMm(), 0, 1e-9)
+		assertNear(t, "miss", brpMissMm(t, fit), 0, 1e-9)
 	}
 }
 
@@ -110,10 +120,10 @@ func TestApplyFittingFitReportBRPLimitedByRailOffset(t *testing.T) {
 	}
 	assertNear(t, "rail offset", rail, 15, 0)
 	assertNear(t, "extension", ext, 260.092, 0.01)
-	miss := fit.BrpMiss()
+	miss, _ := fit.BrpMiss()
 	assertNear(t, "miss.X", miss.X, -38.212, 0.01)
 	assertNear(t, "miss.Y", miss.Y, -10.446, 0.01)
-	assertNear(t, "|miss|", fit.BrpMissMm(), 39.614, 0.01)
+	assertNear(t, "|miss|", brpMissMm(t, fit), 39.614, 0.01)
 
 	// Setback is perpendicular to the seat axis: same extension, smaller miss.
 	setback := fenrirFittingSetup()
@@ -125,7 +135,7 @@ func TestApplyFittingFitReportBRPLimitedByRailOffset(t *testing.T) {
 	}
 	assertNear(t, "setback rail offset", rail27, 15, 0)
 	assertNear(t, "setback extension", ext27, ext, 1e-9)
-	assertNear(t, "setback |miss|", fit27.BrpMissMm(), 12.614, 0.01)
+	assertNear(t, "setback |miss|", brpMissMm(t, fit27), 12.614, 0.01)
 }
 
 func TestApplyFittingExtensionLimits(t *testing.T) {
@@ -180,7 +190,8 @@ func TestApplyFittingUnboundedMaxExtension(t *testing.T) {
 
 func TestApplyFittingTraceEquivalence(t *testing.T) {
 	tr := pose.NewTrace()
-	target := assembly.SaddleFitTarget{BRP: fitReportBRP}
+	brp := fitReportBRP
+	target := assembly.FitTarget{BRP: &brp}
 	traced, err := assembly.ApplyFitting(fenrirFittingSetup(), target, tr)
 	if err != nil {
 		t.Fatalf("traced: %v", err)
@@ -212,8 +223,11 @@ func TestApplyFittingTraceEquivalence(t *testing.T) {
 
 func TestApplyFittingErrors(t *testing.T) {
 	var inputErr *assembly.InputError
+	if _, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{}, nil); err == nil {
+		t.Fatal("empty FitTarget: want error")
+	}
 	for _, bad := range []pose.Point{{X: math.NaN(), Y: 700}, {X: -200, Y: math.Inf(1)}} {
-		_, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.SaddleFitTarget{BRP: bad}, nil)
+		_, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{BRP: &bad}, nil)
 		if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputFitTargetBRP {
 			t.Fatalf("target %v: err = %v, want InputFitTargetBRP", bad, err)
 		}
@@ -221,13 +235,13 @@ func TestApplyFittingErrors(t *testing.T) {
 
 	longClamp := fenrirFittingSetup()
 	longClamp.Seatpost.ClampLengthMm = 70
-	if _, err := assembly.ApplyFitting(longClamp, assembly.SaddleFitTarget{BRP: fitReportBRP}, nil); err == nil {
+	if _, err := assembly.ApplyFitting(longClamp, assembly.FitTarget{BRP: &fitReportBRP}, nil); err == nil {
 		t.Fatal("clamp longer than rails: want error")
 	}
 
 	badFrame := fenrirFittingSetup()
 	badFrame.Frame.ReachMm = math.NaN()
-	_, fitErr := assembly.ApplyFitting(badFrame, assembly.SaddleFitTarget{BRP: fitReportBRP}, nil)
+	_, fitErr := assembly.ApplyFitting(badFrame, assembly.FitTarget{BRP: &fitReportBRP}, nil)
 	_, placeErr := assembly.PlaceBike(badFrame, nil)
 	if fitErr == nil || placeErr == nil || fitErr.Error() != placeErr.Error() {
 		t.Fatalf("fit error %v, want PlaceBike error %v", fitErr, placeErr)
@@ -240,7 +254,7 @@ func TestApplyFittingIsMinimalOverGrid(t *testing.T) {
 	if fit.Outcome != assembly.FitLimited {
 		t.Fatalf("Outcome = %v, want limited", fit.Outcome)
 	}
-	best := fit.BrpMissMm()
+	best := brpMissMm(t, fit)
 	for ext := 110.0; ext <= 300; ext++ {
 		for rail := -15.0; rail <= 15; rail++ {
 			s := setup
@@ -252,5 +266,17 @@ func TestApplyFittingIsMinimalOverGrid(t *testing.T) {
 				t.Fatalf("grid point ext %v rail %v misses by %v, beating the fitting's %v", ext, rail, miss, best)
 			}
 		}
+	}
+}
+
+func TestApplyFittingCopiesTarget(t *testing.T) {
+	target := fitReportBRP
+	fit := mustFit(t, fenrirFittingSetup(), target)
+	if fit.Target.BRP == &target {
+		t.Fatal("Fitting.Target.BRP aliases the caller's point")
+	}
+	target.X = 1000
+	if *fit.Target.BRP != fitReportBRP {
+		t.Fatalf("Target.BRP = %v after caller mutation, want %v", *fit.Target.BRP, fitReportBRP)
 	}
 }
