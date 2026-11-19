@@ -71,6 +71,14 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 - This is a workbench rule only. `assembly` still accepts any explicit cup and fork.
 - Every visible label says "CAD Baseline Fork". The explanatory note is built from fixture data.
 
+## Run and inspect
+
+- `make serve-reboot` serves on :8081. `/` is the stem preview and `/bike` is the full bike. State lives in the URL query.
+- Each landmark and trace row shares a step ID. Hover, focus or click a row to highlight its vector and local +X/+Y axes.
+- Read a recipe top-down: each row is one `advance`, `turn`, `face` or `translate` from its parent step.
+- `view=bike|seat|stem` picks the diagram framing. `fork=cad` is the locked CAD Baseline Fork.
+- Fixture data is in `internal/reboot/web/fixture.go`; its values are labelled measured, catalog or illustrative.
+
 ## Layout and boundaries
 
 ```text
@@ -87,7 +95,7 @@ internal/reboot/web/      handlers, HTML/SVG, embedded CSS/JS, Otso Fenrir fixtu
 
 ## Milestones
 
-1. **One-bike visual workbench (a, b):** Slices 1–4 are done. **Next: Slice 5**, an acceptance review with Matt plus run/inspect docs. Acceptance means Matt can read the recipes, predict the effect of a setting change, and confirm it in the diagram and trace. Tests cover trace on/off equivalence, independent geometric fixtures, and HTML/SVG step-ID correspondence, along with browser checks. Solver-free: the seatpost control edits `ExtensionMm` directly.
+1. **One-bike visual workbench (a, b): done.** Accepted by Matt; tests cover trace on/off equivalence, independent geometric fixtures, and HTML/SVG step-ID correspondence in every view. Solver-free: the seatpost control edits `ExtensionMm` directly.
 2. **One-bike fit search (d):** explicit fit targets, hardware limits, and preference costs. Search permutations, check the results with forward assembly, and open candidates in the workbench.
 3. **Chart reconstruction, catalog persistence, agent access (c):** keep the original observations and rounding budgets, evaluate fork/sag/cup hypotheses, show residuals and ambiguous explanations, and expose operations over MCP or the CLI.
 4. **Frame chooser (e):** run fit search across a catalog and report the best builds, coverage, and sensitivity.
