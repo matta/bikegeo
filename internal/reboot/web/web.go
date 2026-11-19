@@ -816,7 +816,8 @@ func (v bikeView) Px(size float64) string {
 	return formatSVGSize(size * v.DrawScale)
 }
 
-const stockCandidateLimit = 5 // Q18
+// stockCandidateLimit is the number of ranked builds shown in the workbench.
+const stockCandidateLimit = 5
 
 func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/bike" {

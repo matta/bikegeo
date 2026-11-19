@@ -1,6 +1,6 @@
-# Next slice: M2 Slice 3, stock cockpit fitting
+# M2 Slice 3, stock cockpit fitting
 
-**Status: Planned 2026-11-19 from Matt's rulings Q15–Q18 ([DESIGN.md](DESIGN.md), "Fitting"). Not started.** This file is the execution plan for one agent (Sonnet is fine). Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first; they override anything here that disagrees. If a step here conflicts with the code you find, stop and ask Matt rather than improvising. Slices 1 and 2 (continuous saddle and cockpit fitting) are done. This slice adds new code beside them in `internal/reboot/assembly` and the `/bike` workbench. It does not change how `ApplyFitting` behaves.
+**Status: Implemented in `8e4bf0f` and accepted by Matt on 2026-11-19.** This plan records the implementation of rulings Q15–Q18 from the [reboot design](DESIGN.md).
 
 ## 1. Goal
 
