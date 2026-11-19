@@ -498,6 +498,20 @@
           </div>
         </div>
       </fieldset>
+
+      <fieldset class="control-group">
+        <legend>BRP fit target</legend>
+        <div class="group-fields">
+          <div class="field">
+            <label for="ctrl-brp-x">BRP X (mm)</label>
+            <input id="ctrl-brp-x" type="number" name="brp_x" step="any" placeholder="{{.ExampleBrpX}}" value="{{.Form.BrpX}}"{{if and $.ErrorMessage (eq $.InvalidField "brp_x")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+          <div class="field">
+            <label for="ctrl-brp-y">BRP Y (mm)</label>
+            <input id="ctrl-brp-y" type="number" name="brp_y" step="any" placeholder="{{.ExampleBrpY}}" value="{{.Form.BrpY}}"{{if and $.ErrorMessage (eq $.InvalidField "brp_y")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+          </div>
+        </div>
+      </fieldset>
     </div>
 
     <div class="control-actions">
@@ -531,6 +545,17 @@
         <span>Grip rise vs SitBones: <strong class="mono" data-metric="sitbones-grip-rise">{{printf "%+.1f mm" .SitBonesToGripRiseMm}}</strong></span>
         <span>Lateral grip (±Z): <strong class="mono" data-metric="hand-lateral">{{printf "%.1f mm" .HandLateralMm}}</strong></span>
       </div>
+      {{with .Fitting}}
+      <div class="summary" data-fitting>
+        <strong>Saddle fitting</strong>
+        <span>Target BRP: <strong class="mono">({{printf "%.1f" .TargetX}}, {{printf "%.1f" .TargetY}}) mm</strong></span>
+        <span>Current BRP miss: <strong class="mono">({{printf "%+.1f" .MissX}}, {{printf "%+.1f" .MissY}}) mm, <span data-metric="fit-brp-miss">{{printf "%.1f mm" .MissMm}}</span></strong></span>
+        <span>Fitted extension: <strong class="mono" data-metric="fit-extension">{{printf "%.1f mm" .ExtensionMm}}</strong></span>
+        <span>Fitted rail offset (±{{printf "%.1f" .RailLimitMm}} mm on this saddle): <strong class="mono" data-metric="fit-rail-offset">{{printf "%.1f mm" .RailOffsetMm}}</strong></span>
+        <span>Outcome: <strong data-metric="fit-outcome">{{.OutcomeText}}</strong></span>
+        <a id="apply-fitting" href="{{.ApplyURL}}" data-preset="apply-fitting">Apply fitted saddle</a>
+      </div>
+      {{end}}
       <div class="summary" style="font-size: 0.82rem;">
         <span>CAD Baseline Fork ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm / {{printf "%.0f" .CadLowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .CadHtaDeg}} HTA, {{printf "%.1f mm" .CadWheelbaseMm}} WB</strong> (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>)</span>
         <span>ΔPitch vs CAD: <strong class="mono" data-metric="delta-pitch">{{printf "%+.2f°" .DeltaPitchDeg}}</strong></span>

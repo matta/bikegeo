@@ -22,6 +22,7 @@ const (
 	InputSeatpostSetback   InputField = "seatpost setback"
 	InputSaddleRailOffset  InputField = "saddle rail offset"
 	InputSaddleRailPitch   InputField = "saddle rail pitch"
+	InputFitTargetBRP      InputField = "BRP fit target"
 )
 
 // InputError carries a field identity independently of its human-readable message.

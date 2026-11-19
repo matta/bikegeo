@@ -14,6 +14,13 @@ type BikeSetup struct {
 	Handlebar HandlebarSetup
 }
 
+// RailOffsetLimitMm returns the symmetric saddle rail offset bound
+// L = (RailLengthMm − ClampLengthMm)/2. It errors when the clamp is longer
+// than the rails or the dimensions are not finite.
+func (s BikeSetup) RailOffsetLimitMm() (float64, error) {
+	return railOffsetLimitMm(s.Saddle.RailLengthMm, s.Seatpost.ClampLengthMm)
+}
+
 // BikePlacement holds the leveled whole-bike assembly alongside the BikeSetup
 // that produced it, so callers and renderers always read both landmarks and
 // physical dimensions from one consistent build.

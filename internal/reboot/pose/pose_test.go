@@ -168,3 +168,36 @@ func TestPrimitivesDeflectionAndRightTriangleLeg(t *testing.T) {
 	assertNear(t, "RightTriangleLeg(3-4-5)", pose.RightTriangleLeg(5, 3), 4, 1e-12)
 	assertNear(t, "RightTriangleLeg(chainstay, bbDrop)", pose.RightTriangleLeg(450, 72), math.Sqrt(450*450-72*72), 1e-12)
 }
+
+func TestDecomposeAlong(t *testing.T) {
+	a, b, ok := pose.DecomposeAlong(pose.Point{X: 3, Y: 4}, 0, 90)
+	if !ok {
+		t.Fatal("axis-aligned decomposition reported not ok")
+	}
+	assertNear(t, "a", a, 3, 1e-12)
+	assertNear(t, "b", b, 4, 1e-12)
+
+	v := pose.Point{X: -37.5, Y: 81.25}
+	a, b, ok = pose.DecomposeAlong(v, 105.29, 180)
+	if !ok {
+		t.Fatal("oblique decomposition reported not ok")
+	}
+	rad := func(d float64) float64 { return d * math.Pi / 180 }
+	gotX := a*math.Cos(rad(105.29)) + b*math.Cos(rad(180))
+	gotY := a*math.Sin(rad(105.29)) + b*math.Sin(rad(180))
+	assertNear(t, "round trip X", gotX, v.X, 1e-9)
+	assertNear(t, "round trip Y", gotY, v.Y, 1e-9)
+
+	for _, h := range [][2]pose.Deg{{30, 30}, {30, 210}} {
+		if _, _, ok := pose.DecomposeAlong(v, h[0], h[1]); ok {
+			t.Fatalf("headings %v and %v should be reported as parallel", h[0], h[1])
+		}
+	}
+}
+
+func TestAlongAndProjectOnto(t *testing.T) {
+	p := pose.Along(90, 2)
+	assertNear(t, "Along.X", p.X, 0, 1e-12)
+	assertNear(t, "Along.Y", p.Y, 2, 1e-12)
+	assertNear(t, "ProjectOnto", pose.ProjectOnto(pose.Point{X: 1, Y: 1}, 45), math.Sqrt2, 1e-12)
+}

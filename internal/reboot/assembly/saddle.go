@@ -85,3 +85,13 @@ func PlaceSaddle(seatpostClamp pose.Pose, setup SaddleSetup) (SaddlePlacement, e
 		SitBones:      sitBones,
 	}, nil
 }
+
+// railOffsetLimitMm returns the symmetric rail offset bound
+// (railLengthMm − clampLengthMm)/2: the clamp head must stay on the rails.
+func railOffsetLimitMm(railLengthMm, clampLengthMm float64) (float64, error) {
+	limit := (railLengthMm - clampLengthMm) / 2
+	if !isFinite(limit) || limit < 0 {
+		return 0, fmt.Errorf("seatpost clamp length %v mm exceeds saddle rail length %v mm", clampLengthMm, railLengthMm)
+	}
+	return limit, nil
+}

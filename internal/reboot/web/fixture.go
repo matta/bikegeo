@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"bikegeo/internal/reboot/assembly"
+	"bikegeo/internal/reboot/pose"
 )
 
 const cadForkOptionID = "cad"
@@ -45,6 +46,8 @@ type bikeFixture struct {
 	DefaultSeatpost  assembly.SeatpostSetup
 	SaddleName       string
 	DefaultSaddle    assembly.SaddleSetup
+	// ExampleBrpTarget is a placeholder for the BRP fit target inputs, never a default.
+	ExampleBrpTarget pose.Point
 }
 
 func (f bikeFixture) cadForkOption() forkOption {
@@ -203,16 +206,18 @@ func otsoFenrirFixture() bikeFixture {
 			MinExtensionMm: postLengthMm - frameInsertionDepthMm,
 			MaxExtensionMm: postLengthMm - postMinInsertionMm,
 			PostSetbackMm:  0.0,
-			ClampLengthMm:  30.0,
+			ClampLengthMm:  30.0, // measured
 		},
 		SaddleName: "SQlab 610 Ergolux Active 2.1",
 		DefaultSaddle: assembly.SaddleSetup{
 			RailCenterToBrpMm:      32.0,
 			RailCenterToSitBonesMm: -48.0,
 			SitBonesElevationMm:    10.0,
-			RailLengthMm:           60.0,
+			RailLengthMm:           60.0, // measured
 			RailPitchDeg:           0.0,
 			RailOffsetMm:           0.0,
 		},
+		// measured: Matt's idmatch fit report, docs/RIDER_FIT.md
+		ExampleBrpTarget: pose.Point{X: -219.0, Y: 713.1},
 	}
 }

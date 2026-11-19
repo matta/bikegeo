@@ -50,6 +50,16 @@ type Point struct {
 	Y float64
 }
 
+// Sub returns p − q.
+func (p Point) Sub(q Point) Point {
+	return Point{X: p.X - q.X, Y: p.Y - q.Y}
+}
+
+// Norm returns the Euclidean length of p as a vector.
+func (p Point) Norm() float64 {
+	return math.Hypot(p.X, p.Y)
+}
+
 // PoseSnapshot is a trace-free value snapshot of a Pose's position and heading.
 type PoseSnapshot struct {
 	Origin     Point
@@ -258,4 +268,9 @@ func (p Pose) DistanceTo(other Pose) float64 {
 // (positive when other is above p along world +Y).
 func (p Pose) VerticalOffsetTo(other Pose) float64 {
 	return other.origin.Y - p.origin.Y
+}
+
+// OffsetTo returns other.Origin() − p.Origin() as a world-frame vector.
+func (p Pose) OffsetTo(other Pose) Point {
+	return other.origin.Sub(p.origin)
 }

@@ -501,6 +501,10 @@ type workbenchState struct {
 	PostSetbackMm float64
 	RailOffsetMm  float64
 	RailPitchDeg  pose.Deg
+	// BrpTarget is the optional saddle fitting target (query keys brp_x, brp_y).
+	HasBrpTarget bool
+	BrpTargetX   float64
+	BrpTargetY   float64
 }
 
 func defaultWorkbenchState(fix bikeFixture) workbenchState {
@@ -577,11 +581,22 @@ func (s workbenchState) URL() string {
 	q.Set("post_setback", formatFormFloat(s.PostSetbackMm))
 	q.Set("rail_offset", formatFormFloat(s.RailOffsetMm))
 	q.Set("rail_pitch", formatFormFloat(float64(s.RailPitchDeg)))
+	if s.HasBrpTarget {
+		q.Set("brp_x", formatFormFloat(s.BrpTargetX))
+		q.Set("brp_y", formatFormFloat(s.BrpTargetY))
+	}
 	return "/bike?" + q.Encode()
 }
 
 func (s workbenchState) formValues() bikeFormValues {
+	var brpX, brpY string
+	if s.HasBrpTarget {
+		brpX = formatFormFloat(s.BrpTargetX)
+		brpY = formatFormFloat(s.BrpTargetY)
+	}
 	return bikeFormValues{
+		BrpX:        brpX,
+		BrpY:        brpY,
 		View:        string(s.View),
 		Fork:        s.ForkID,
 		PrevFork:    s.ForkID,
@@ -614,6 +629,8 @@ type bikeFormValues struct {
 	PostSetback string
 	RailOffset  string
 	RailPitch   string
+	BrpX        string
+	BrpY        string
 }
 
 type bikeInputError struct {
@@ -691,6 +708,38 @@ type bikeView struct {
 	TraceSteps           svgTraceSteps
 	Landmarks            []svgLandmark
 	Steps                []pose.Step
+	Fitting              *bikeFittingView // nil unless a BRP fit target is set
+	RailOffsetLimitMm    float64
+	ExampleBrpX          string
+	ExampleBrpY          string
+}
+
+// bikeFittingView is the saddle fitting summary for a submitted build and BRP target.
+type bikeFittingView struct {
+	TargetX, TargetY   float64
+	MissX, MissY       float64 // target − the submitted build's BRP
+	MissMm             float64
+	ExtensionMm        float64 // fitted
+	RailOffsetMm       float64 // fitted
+	RailLimitMm        float64
+	Reached            bool
+	LimitedByExtension bool
+	LimitedByRailOff   bool
+	ApplyURL           string
+}
+
+// OutcomeText describes the fitting outcome as a fact about this build.
+func (f bikeFittingView) OutcomeText() string {
+	switch {
+	case f.Reached:
+		return "reached"
+	case f.LimitedByExtension && f.LimitedByRailOff:
+		return "limited by seatpost extension, saddle rail offset"
+	case f.LimitedByExtension:
+		return "limited by seatpost extension"
+	default:
+		return "limited by saddle rail offset"
+	}
 }
 
 type diagramViewLink struct {
@@ -745,13 +794,57 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		cadBaselineFork,
 		tr.Steps(),
 	)
+	if resolved.State.HasBrpTarget {
+		target := assembly.SaddleFitTarget{BRP: pose.Point{X: resolved.State.BrpTargetX, Y: resolved.State.BrpTargetY}}
+		fitting, err := assembly.ApplyFitting(resolved.Setup, target, nil)
+		if err != nil {
+			renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
+			return
+		}
+		view.withBrpTarget(fix, bike.Setup, resolved.State)
+		view.Fitting = buildFittingView(resolved.State, bike, fitting)
+	}
 	renderBikeTemplate(w, http.StatusOK, view)
+}
+
+func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting assembly.Fitting) *bikeFittingView {
+	railLimit, _ := bike.Setup.RailOffsetLimitMm() // PlaceBike and ApplyFitting already accepted this setup
+	miss := bike.Saddle.BRP.OffsetTo(pose.NewPose(fitting.Target.BRP, 0, nil))
+	fv := &bikeFittingView{
+		TargetX:      fitting.Target.BRP.X,
+		TargetY:      fitting.Target.BRP.Y,
+		MissX:        miss.X,
+		MissY:        miss.Y,
+		MissMm:       miss.Norm(),
+		ExtensionMm:  fitting.Placement.Setup.Seatpost.ExtensionMm,
+		RailOffsetMm: fitting.Placement.Setup.Saddle.RailOffsetMm,
+		RailLimitMm:  railLimit,
+		Reached:      fitting.Outcome == assembly.FitReached,
+	}
+	for _, f := range fitting.LimitedBy {
+		switch f {
+		case assembly.InputSeatpostExtension:
+			fv.LimitedByExtension = true
+		case assembly.InputSaddleRailOffset:
+			fv.LimitedByRailOff = true
+		case assembly.InputForkA2c, assembly.InputForkSag, assembly.InputLowerCup, assembly.InputStemSpacers,
+			assembly.InputStemLength, assembly.InputStemAngle, assembly.InputHandlebarRoll,
+			assembly.InputSeatpostSetback, assembly.InputSaddleRailPitch, assembly.InputFitTargetBRP:
+			// Fitting never limits on these inputs.
+		}
+	}
+	applied := workbenchStateFromSetup(state.View, state.ForkID, fitting.Placement.Setup)
+	applied.HasBrpTarget, applied.BrpTargetX, applied.BrpTargetY = true, state.BrpTargetX, state.BrpTargetY
+	fv.ApplyURL = applied.URL()
+	return fv
 }
 
 func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolvedInput, invalidField, msg string) {
 	forkA2cRO, cupRO, sagRO, cupLabel, cadNote := forkFieldViewState(fix, resolved.State.ForkID, resolved.Form.Sag)
 	defaultsURL, cadURL := presetURLs(fix, defaultWorkbenchState(fix), resolved.State.View)
 	view := bikeView{
+		ExampleBrpX:        formatFormFloat(fix.ExampleBrpTarget.X),
+		ExampleBrpY:        formatFormFloat(fix.ExampleBrpTarget.Y),
 		HasBuild:           false,
 		ErrorMessage:       msg,
 		InvalidField:       invalidField,
@@ -812,6 +905,22 @@ func (p *bikeQueryParser) float(key string, fallback float64, label string, echo
 		return fallback
 	}
 	return v
+}
+
+// optionalFloat parses a query float that may be absent. It echoes the raw
+// submitted text; present is false when the value is blank or invalid.
+func (p *bikeQueryParser) optionalFloat(key, label string, echo *string) (v float64, present bool) {
+	raw := strings.TrimSpace(p.q.Get(key))
+	*echo = raw
+	if raw == "" {
+		return 0, false
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil || !isFiniteFloat(v) {
+		p.fail(key, fmt.Errorf("%s must be a finite number, got %q", label, raw))
+		return 0, false
+	}
+	return v, true
 }
 
 func (p *bikeQueryParser) fail(field string, err error) {
@@ -903,6 +1012,17 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bi
 	state.RailOffsetMm = p.float("rail_offset", defaults.RailOffsetMm, "saddle rail offset", &form.RailOffset)
 	state.RailPitchDeg = pose.Deg(p.float("rail_pitch", float64(defaults.RailPitchDeg), "saddle rail pitch", &form.RailPitch))
 
+	brpX, hasX := p.optionalFloat("brp_x", "BRP target X", &form.BrpX)
+	brpY, hasY := p.optionalFloat("brp_y", "BRP target Y", &form.BrpY)
+	switch {
+	case hasX && hasY:
+		state.HasBrpTarget, state.BrpTargetX, state.BrpTargetY = true, brpX, brpY
+	case hasX && form.BrpY == "":
+		p.fail("brp_y", fmt.Errorf("BRP target needs both X and Y"))
+	case hasY && form.BrpX == "":
+		p.fail("brp_x", fmt.Errorf("BRP target needs both X and Y"))
+	}
+
 	// An unknown view keeps its raw value in the form echo, but the state (and
 	// so both preset links) falls back to the whole bike.
 	form.View = string(defaults.View)
@@ -975,6 +1095,8 @@ func bikeInputField(err error) string {
 		return "rail_offset"
 	case assembly.InputSaddleRailPitch:
 		return "rail_pitch"
+	case assembly.InputFitTargetBRP:
+		return "brp_x"
 	default:
 		return ""
 	}
@@ -1101,6 +1223,26 @@ const (
 	labelPriorityFit   = 2
 	labelPriorityOther = 3
 )
+
+// workbenchLinks returns the Reset Defaults and CAD Baseline Fork links and
+// the diagram view links for state; the latter two keep its BRP fit target.
+func workbenchLinks(fix bikeFixture, state workbenchState) (defaultsURL, cadURL string, viewLinks []diagramViewLink) {
+	defaultsURL, cadURL = presetURLs(fix, state, state.View)
+	for _, v := range diagramViews {
+		viewLinks = append(viewLinks, diagramViewLink{View: v, URL: state.withView(v).URL(), Current: v == state.View})
+	}
+	return defaultsURL, cadURL, viewLinks
+}
+
+// withBrpTarget carries the submitted BRP fit target into the view's form echo,
+// canonical URL, and links. The diagram itself still shows the submitted build.
+func (v *bikeView) withBrpTarget(fix bikeFixture, setup assembly.BikeSetup, submitted workbenchState) {
+	state := workbenchStateFromSetup(submitted.View, submitted.ForkID, setup)
+	state.HasBrpTarget, state.BrpTargetX, state.BrpTargetY = true, submitted.BrpTargetX, submitted.BrpTargetY
+	v.Form = state.formValues()
+	v.CanonicalURL = state.URL()
+	v.DefaultsURL, v.CadBaselineForkURL, v.ViewLinks = workbenchLinks(fix, state)
+}
 
 func buildBikeView(
 	fix bikeFixture,
@@ -1234,13 +1376,11 @@ func buildBikeView(
 	state := workbenchStateFromSetup(view, forkID, bike.Setup)
 	form := state.formValues()
 	forkA2cRO, cupRO, sagRO, cupLabel, cadNote := forkFieldViewState(fix, forkID, form.Sag)
-	defaultsURL, cadURL := presetURLs(fix, state, view)
-	viewLinks := make([]diagramViewLink, 0, len(diagramViews))
-	for _, v := range diagramViews {
-		viewLinks = append(viewLinks, diagramViewLink{View: v, URL: state.withView(v).URL(), Current: v == view})
-	}
+	defaultsURL, cadURL, viewLinks := workbenchLinks(fix, state)
 
 	return bikeView{
+		ExampleBrpX:          formatFormFloat(fix.ExampleBrpTarget.X),
+		ExampleBrpY:          formatFormFloat(fix.ExampleBrpTarget.Y),
 		HasBuild:             true,
 		Form:                 form,
 		CanonicalURL:         state.URL(),
