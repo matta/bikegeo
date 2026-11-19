@@ -14,7 +14,7 @@ A clean-slate reboot built beside the existing application under `cmd/bikegeo-re
 - **(a) Readable physical code:** build structures from directional pose steps and component builders (seatpost, saddle, fork, spacers, stem, handlebar), not scattered trig.
 - **(b) Visualization from day one.**
 - **(c) Chart solvers + agent primitives:** deduce geometry from incomplete or rounded charts; expose solver operations to AI agents (MCP or structured API).
-- **(d) Fit solver:** search seatpost, saddle fore/aft, fork A2C/sag, spacers, stem, and handlebar choices for a fit target.
+- **(d) Fitting:** choose seatpost, saddle fore/aft, fork A2C/sag, spacers, stem, and handlebar settings that meet a fit target.
 - **(e) Frame chooser:** rank many frames by best achievable fit.
 
 ## Confirmed decisions
@@ -29,13 +29,13 @@ A clean-slate reboot built beside the existing application under `cmd/bikegeo-re
 
 - `Pose` is an immutable value. `Advance`, `Translate`, `Turn`, and `Face` return new poses, so branching from a shared attachment is safe. `Face(label, worldHeadingDeg)` sets an absolute world heading. It is used for parts leveled against the world, not against their mounting tube (saddle `RailPitchDeg`, handlebar `BarRollDeg`).
 - Component functions (`PlaceStem`, `PlaceSeatpost`, `PlaceSaddle`, `PlaceHandlebar`, ...) return placements whose landmarks are `Pose`s. Each landmark's local axes have a documented physical meaning. For example, `BRP` and `SitBones` carry the rail frame, not a saddle-surface normal.
-- A pose can carry an optional `*Trace`. When it is nil (solver search), no records are made. When set, each move records `From`/`To`, label, inputs, and `ParentID → ID`. Each evaluation gets its own trace, frozen before rendering. **Placements must be identical with tracing on or off.**
+- A pose can carry an optional `*Trace`. When it is nil (fitting and other solver loops), no records are made. When set, each move records `From`/`To`, label, inputs, and `ParentID → ID`. Each evaluation gets its own trace, frozen before rendering. **Placements must be identical with tracing on or off.**
 - Placement (moving along a construction path) is separate from outline projection. The renderer draws outlines in landmark frames without recomputing angles.
 - Trig lives in `pose` (rule in AGENTS.md).
 
 ### `assembly` builds and measures; `web` only renders
 
-Test: if fit search would need the code without HTTP, it belongs in `assembly`.
+Test: if fitting would need the code without HTTP, it belongs in `assembly`.
 
 - Composition (frameset → seatpost → saddle, stem → handlebar) and ending the trace happen in one `assembly` entry point.
 - Any scalar derived from placed poses is a method on a placement type. Callers, including tests, call it rather than restating the expression.
@@ -71,6 +71,14 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 - This is a workbench rule only. `assembly` still accepts any explicit cup and fork.
 - Every visible label says "CAD Baseline Fork". The explanatory note is built from fixture data.
 
+### Fitting (Q6–Q10, ruled 2026-11-19)
+
+- **Q8, terminology:** the operation of finding a build's settings for a fit target is **Fitting** (noun and result type), **fit** (verb), and **`ApplyFitting`** (entry point). Don't call it "search" in code or docs.
+- **Q7, saddle target:** the saddle fit target is **BRP**, the landmark the fit report measured. SitBones stays a model-derived readout.
+- **Q6, solver policy for saddle fitting:** a direct solve is acceptable as long as forward assembly (PlaceBike) remains the final check of every fitted build.
+- **Q9, rail range:** `PlaceSaddle` rejects rail offsets outside `±(RailLengthMm − ClampLengthMm)/2`, the same range fitting respects. This lands as its own commit after saddle fitting.
+- **Q10, fixture rail and clamp lengths:** the Fenrir fixture's 60 mm rail length and 30 mm clamp length are measured and authoritative. A fitting that is limited by the ±15 mm rail range is a real finding, not a fixture artifact.
+
 ## Run and inspect
 
 - `make serve-reboot` serves on :8081. `/` is the stem preview and `/bike` is the full bike. State lives in the URL query.
@@ -96,13 +104,15 @@ internal/reboot/web/      handlers, HTML/SVG, embedded CSS/JS, Otso Fenrir fixtu
 ## Milestones
 
 1. **One-bike visual workbench (a, b): done.** Accepted by Matt; tests cover trace on/off equivalence, independent geometric fixtures, and HTML/SVG step-ID correspondence in every view. Solver-free: the seatpost control edits `ExtensionMm` directly.
-2. **One-bike fit search (d):** explicit fit targets, hardware limits, and preference costs. Search permutations, check the results with forward assembly, and open candidates in the workbench.
+2. **One-bike fitting (d):** explicit fit targets, hardware limits, and preference costs. Produce candidate builds, check each with forward assembly, and open them in the workbench.
+   - **Slice 1, saddle fitting (next; execution plan in [SLICE.md](SLICE.md)):** fit `SeatpostSetup.ExtensionMm` and `SaddleSetup.RailOffsetMm` to a BRP target with a direct 2×2 solve (Q6). Rail pitch and post setback stay fixed inputs. Limits are the post's min/max extension and the rail clamp range from `RailLengthMm`. The result reports the fitted setups, the BRP actually reached, the miss in mm, and any limit hit, and keeps *reached*, *clamped at a limit*, and *invalid input* distinct. PlaceBike on the fitted setup must land BRP on the target (to 1e-9 mm when no limit binds). `pose` gains one operation that decomposes a vector along two headings. `/bike` gets a BRP target field and a plain-`GET` link to the fitted build. Tests: fit → place round trip, out-of-range target clamps to the right limit, trace on/off equivalence, the fit report's BRP (−219, 713.1). Out of scope: post setback choice, the front cockpit, preference costs, other frames.
+   - **Slice 2 (later):** front-cockpit fitting (spacers, stem length/angle, handlebar) by enumerating discrete parts with priced preferences.
 3. **Chart reconstruction, catalog persistence, agent access (c):** keep the original observations and rounding budgets, evaluate fork/sag/cup hypotheses, show residuals and ambiguous explanations, and expose operations over MCP or the CLI.
-4. **Frame chooser (e):** run fit search across a catalog and report the best builds, coverage, and sensitivity.
+4. **Frame chooser (e):** run fitting across a catalog and report the best builds, coverage, and sensitivity.
 
 ## Open questions
 
-- **Solver policy (decide at the start of M2 and M3):** forward assembly is the evaluator and final check in every case. Options: generic bisection or grid sweeps, or a per-problem choice of bounded search, enumeration, or a small direct solve. Keep observations separate from inferred models, allow multiple chart explanations, and distinguish infeasible hardware from an imperfect fit.
+- **Solver policy (M2 saddle decided in Q6; decide the front cockpit in M2 Slice 2 and charts at the start of M3):** forward assembly is the evaluator and final check in every case. Options: generic bisection or grid sweeps, or a per-problem choice of bounded search, enumeration, or a small direct solve. Keep observations separate from inferred models, allow multiple chart explanations, and distinguish infeasible hardware from an imperfect fit.
 - **Q4, catalog storage (decide at M3's first import/save):** versioned structured data files (TOML/YAML/JSON) with sources and assumptions, loadable without recompiling.
 
 ## Cutover (a separate decision, later)
