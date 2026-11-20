@@ -93,7 +93,9 @@ test-js:
 	  echo "test-js: node not found (install Node matching .node-version)" >&2; exit 1; \
 	fi
 
-check: vet boundary exhaustive deadcode test test-js
+# Temporarily omit `deadcode` during the reboot so slices can land foundational
+# functions before every caller exists; re-enable in `check` at cutover.
+check: vet boundary exhaustive test test-js
 
 # Required pre-commit workflow: modernize with go fix, then run full check.
 pre-commit: fix check

@@ -13,7 +13,7 @@ Write plain-language subjects (for example `Fix fork sag validation`). Conventio
 ## Verification
 
 - After **every** code change: `go vet ./... && go test ./...`
-- Before committing or finishing: `make pre-commit`. It runs `fix` (`go fix`, `go fmt`) and then `check` (vet, `boundary`, `exhaustive`, both `deadcode` runs, Go tests, and `make test-js`). If `go fix` changes anything, re-run until it's clean.
+- Before committing or finishing: `make pre-commit`. It runs `fix` (`go fix`, `go fmt`) and then `check` (vet, `boundary`, `exhaustive`, Go tests, and `make test-js`; `deadcode` is temporarily disabled during the reboot and will be re-enabled at cutover). If `go fix` changes anything, re-run until it's clean.
 - Markdown-only changes don't need `make pre-commit`.
 
 ## Reboot Tree (`cmd/bikegeo-reboot`, `internal/reboot/...`)
@@ -34,7 +34,7 @@ Before analyzing Matt's personal bike fit, read [docs/RIDER_FIT.md](docs/RIDER_F
 
 - **Zero runtime dependencies:** the binary uses only the standard library. `goquery` is allowed only in `_test.go` files. `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo` must list only `bikegeo/...`. `exhaustive` and `deadcode` are `go.mod` tool dependencies and are never linked into the binary.
 - **`exhaustive`:** every `switch` on an enum-like type names every constant, even when it has a `default`.
-- **`deadcode`:** delete unreachable functions or move test-only helpers into `*_test.go`. Don't keep unused exports "for later".
+- **`deadcode`:** temporarily disabled in `make check` during the reboot (re-enabled at cutover; still runnable manually via `make deadcode`). When active, delete unreachable functions or move test-only helpers into `*_test.go`.
 - **Data is Go structs:** frames (`internal/frames`), fork/stem catalogs (`internal/catalog`), ideal profiles (`internal/ideal/loader.go`), and the default baseline (`compare.DefaultComparisonState()`). There are no data or persistence files.
 - **Interfaces** (see [docs/WEB.md](docs/WEB.md)): the web is for people and the CLI is for agents. A capability gets a surface only for a real audience; if both need it, share a builder that returns a `report.Document`. Builders set cell zones explicitly; never infer them from strings. The CLI prints Markdown only (no `--format`). `internal/web` and `internal/cli` never import each other. The web is strictly Web 1.0: `GET` forms, the URL query as the only state, no JavaScript, no cookies, and controls filled from the parsed query.
 - **Scores are a points-lost ledger:** `Total = 100 − Σ points lost`. Each band is free inside its ideal range and linear outside it (`Cost` per unit, or `LimitPoints` at the hardware limit). There are no weights, floors, curves, clamping, rounding, or stepped bonuses, and totals may go below 0. The stock build is the cheapest on those bands (`canonicalizer.ApplyIdealCockpitTargets`). Express preferences as priced bands, never as tie-break rules. The cockpit target is explicit on `ideal.Profile`. `saddle_hb` and `saddle_hb_drop` are display-only.
