@@ -1,6 +1,6 @@
 # Next slice: M2 Slice 5, handlebars in stock fitting
 
-**Status: Planned 2026-11-19 from Matt's rulings Q22–Q25 ([DESIGN.md](DESIGN.md), "Handlebars in stock fitting"). Not started.** Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. Slices 1–4 are implemented; Slice 4 (handlebar choice in the workbench) is awaiting Matt's acceptance.
+**Status: Planned 2026-11-19 from Matt's rulings Q22–Q25 ([DESIGN.md](DESIGN.md), "Handlebars in stock fitting"). Implemented 2026-11-19; awaiting Matt's acceptance.** After review, `StockCandidate` gained a `StockHandlebar` flag in place of the `HandlebarIndex == -1` sentinel (A2), and the workbench checks each candidate's bar index against the bar list it offered. Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. Slices 1–4 are implemented; Slice 4 (handlebar choice in the workbench) is awaiting Matt's acceptance.
 
 This slice has two commits and touches 6 code and test files, so per DESIGN.md "Slice planning" it is written so a less capable model (for example Sonnet) can implement it without making design choices. **Delegate it.** If something here seems wrong or missing, stop and ask Matt rather than choosing.
 
