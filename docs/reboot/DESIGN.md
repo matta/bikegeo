@@ -8,7 +8,7 @@ A clean-slate reboot built beside the existing application under `cmd/bikegeo-re
 - When a choice is open, sketch the options briefly and recommend one. Don't write a deep spec that assumes an answer. Number open questions `Q#` and never reuse a number.
 - Prefer fewer types and clearer physical steps over heavier machinery. Show how a real bike assembly step reads in code.
 - Back technical claims with arithmetic, existing behavior, or a measurement. Two agents agreeing does not prove an unmeasured claim.
-- **Scoring words:** a build's **score** is 100 − points lost. A band is free inside its range and **penalizes** values outside it; the points it takes off are its **penalty**. Don't describe scoring as pricing or cost in prose. Code still says `PricedBand` and `CostBelow`/`CostAbove` until the planned rename (Milestone 2, **Later**). Name those identifiers as they are until then.
+- **Scoring words:** a build's **score** is 100 − points lost. A band is free inside its range and **penalizes** values outside it; the points it takes off are its **penalty**. Don't describe scoring as pricing or cost in prose. Code still says `PricedBand` and `CostBelow`/`CostAbove` until Slice 9 renames them (Q35–Q40). Name those identifiers as they are until then.
 
 ### Slice planning
 
@@ -150,6 +150,15 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 - **Q33, fork control:** `stock_forks=selected|all`, mirroring Q22. `selected` (the default) keeps the submitted fork. With `all`, each row names its fork and sag, and its Apply link sets them.
 - **Q34, BRP miss always counts:** the BRP miss line scores the saddle fit itself, not the fork choice. It penalizes any failure to reach the BRP target, whatever the cause (frame, seatpost setback, fork, saddle). So it appears on every stock fitting ledger that has a BRP target, including `stock_forks=selected`. There, every row has the same miss: with the 0 mm post and the fit report BRP, every total drops by 77.2 points (78.7 → 1.5) and the ranking doesn't change.
 
+### Scoring words in code (Q35–Q40, ruled 2026-11-19)
+
+- **Q35, band type:** the band type is `PenaltyBand{FreeMin, FreeMax, PointsPerUnitBelow, PointsPerUnitAbove}`, and the HandGrip oval's rate is `FitOval.PointsPerR`. The fields are rates (points per unit), so **penalty** keeps meaning an amount of points.
+- **Q36, penalty lines:** each scored line of a stock build is a `Penalty{Band, PointsLost}`, held in `StockCandidate.Penalties`. The band-name type is `BandName`; its constants keep their `Band…` names and string values. Prose says "penalty lines".
+- **Q37, score:** a build's 100 − points lost is its **score**: `StockCandidate.Score()`, a **Score** column in the stock table, `data-stock-cell="score"`, and the note says "score = 100 − points lost". The best builds are "best-scoring".
+- **Q38, free stays:** `FreeMin`/`FreeMax`, the "Free: …" preference note, and "free inside its range" keep the word *free*, meaning no penalty.
+- **Q39, scope:** reboot code, tests, templates, and all of this file. Rulings are reworded without changing their substance. AGENTS.md's legacy Architecture bullet on scores stays as it is, because it documents legacy code that still uses those words.
+- **Q40, enforcement:** `make boundary` bans `pric`, `cost`, `cheap`, and `ledger`, case-insensitively, in the file names and contents of `cmd/bikegeo-reboot` and `internal/reboot`, like `chassis`.
+
 ## Run and inspect
 
 - `make serve-reboot` serves on :8081. `/` is the stem preview and `/bike` is the full bike. State lives in the URL query.
@@ -184,7 +193,7 @@ internal/reboot/web/      handlers, HTML/SVG, embedded CSS/JS, Otso Fenrir fixtu
    - **Slice 6, seatpost choice and setback notes (done and accepted 2026-11-19; commits `9ae0e97`, `89f6a7d`):** a `post` select of fixture seatposts replaces the free `post_setback` field (Q27, Q28). `assembly.FitPostSetback` explains the post setback a BRP target needs: with the rails centered, always, and with the rails held at the saddle fitting's offset when that fitting stops at a limit (Q29). Fitting never chooses the post.
    - **Slice 7, bar sweep band (done and accepted 2026-11-19; commit `6ea0295`):** stock fitting penalizes every bar's backsweep outside 16°–20° by 2 points per degree, as a fifth ledger line in both `stock_bars` modes (Q30).
    - **Slice 8, fork choice in stock fitting (done and accepted 2026-11-19; commits `e29da70`, `6ea4d65`):** a `stock_forks=selected|all` control. `all` enumerates the fixture forks, with suspension forks at 15, 20, and 25% sag, and refits the saddle for each fork. The ledger gains a fork sag line and a BRP miss line, and the BRP miss line counts in both modes (Q31–Q34).
-   - **Later, scoring-word rename (TODO, not scheduled):** replace pricing words in code and older docs with score/penalty words. Candidates: `PricedBand` → `PenaltyBand` (including `TestPricedBand`), `CostBelow`/`CostAbove` → `PenaltyBelow`/`PenaltyAbove`, the workbench's "the cheapest … on the points-lost ledger" text, comments that say price or cheapest, and AGENTS.md's "priced bands". Do it as its own small slice after Slice 8 so it also covers the bands Slices 7 and 8 add.
+   - **Slice 9, score-centered scoring words (planned 2026-11-19; plan in [SLICE9.md](SLICE9.md)):** rename the stock fitting identifiers to `PenaltyBand`, `PointsPerUnitBelow`/`PointsPerUnitAbove`, `PointsPerR`, `Penalty`, `Penalties`, `BandName`, and `Score()`; the stock table says Score and "best-scoring"; `make boundary` bans the old words in reboot files (Q35–Q40). No scoring values change.
    - **Later:** roll enumeration is not planned (Q24).
 3. **Chart reconstruction, catalog persistence, agent access (c):** keep the original observations and rounding budgets, evaluate fork/sag/cup hypotheses, show residuals and ambiguous explanations, and expose operations over MCP or the CLI.
 4. **Frame chooser (e):** run fitting across a catalog and report the best builds, coverage, and sensitivity.
