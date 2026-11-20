@@ -102,6 +102,7 @@ type CockpitPreferences struct {
 	StemLength PricedBand // mm
 	StemAngle  PricedBand // degrees
 	Spacers    PricedBand // mm
+	BarSweep   PricedBand // degrees of backsweep (Q30)
 }
 
 // Validate checks the oval and each priced band.
@@ -123,6 +124,7 @@ func (p CockpitPreferences) Validate() error {
 		{string(BandStemLength), p.StemLength},
 		{string(BandStemAngle), p.StemAngle},
 		{string(BandSpacers), p.Spacers},
+		{string(BandBarSweep), p.BarSweep},
 	} {
 		if err := entry.band.validate(entry.name); err != nil {
 			return err
@@ -139,10 +141,11 @@ const (
 	BandStemLength LedgerBand = "stem length"
 	BandStemAngle  LedgerBand = "stem angle"
 	BandSpacers    LedgerBand = "spacers"
+	BandBarSweep   LedgerBand = "bar sweep"
 )
 
 // LedgerLine is the points one band loses. The priced values themselves are
-// the candidate's GripR and its placed stem setup.
+// the candidate's GripR and its placed stem and handlebar setups.
 type LedgerLine struct {
 	Band       LedgerBand
 	PointsLost float64
@@ -155,7 +158,7 @@ type StockCandidate struct {
 	StockHandlebar bool         // the bar came from CockpitStock.Handlebars; false when the submitted bar was kept
 	HandlebarIndex int          // index into CockpitStock.Handlebars of the installed bar; meaningful only when StockHandlebar
 	GripR          float64      // normalized radius of the placed HandGrip
-	Ledger         []LedgerLine // oval, stem length, stem angle, spacers
+	Ledger         []LedgerLine // oval, stem length, stem angle, spacers, bar sweep
 }
 
 // PointsLost returns the sum of the ledger's points lost, in ledger order.
@@ -186,9 +189,9 @@ type StockFitting struct {
 // ApplyStockFitting places every stock combination of handlebar, stem angle,
 // stem length, and spacer stack with PlaceBike and returns the cheapest limit
 // candidates. When stock.Handlebars is empty, the submitted bar is the only
-// one. Every bar is installed at setup.Handlebar.BarRollDeg (Q24) and costs
-// nothing (Q23). Ties favor smaller oval R, then enumeration order (bars in
-// list order, then angles, lengths, and spacers). When target.BRP is set,
+// one. Every bar is installed at setup.Handlebar.BarRollDeg (Q24) and is
+// scored by its backsweep (Q30). Ties favor smaller oval R, then enumeration
+// order (bars in list order, then angles, lengths, and spacers). When target.BRP is set,
 // ApplyFitting fits the saddle first and every candidate carries those saddle
 // inputs (Q15).
 func ApplyStockFitting(setup BikeSetup, target FitTarget, stock CockpitStock, prefs CockpitPreferences, limit int) (StockFitting, error) {
@@ -265,6 +268,7 @@ func ApplyStockFitting(setup BikeSetup, target FitTarget, stock CockpitStock, pr
 							{Band: BandStemLength, PointsLost: prefs.StemLength.PointsLost(length)},
 							{Band: BandStemAngle, PointsLost: prefs.StemAngle.PointsLost(float64(angle))},
 							{Band: BandSpacers, PointsLost: prefs.Spacers.PointsLost(spacers)},
+							{Band: BandBarSweep, PointsLost: prefs.BarSweep.PointsLost(float64(bar.setup.BacksweepDeg))},
 						},
 					})
 				}

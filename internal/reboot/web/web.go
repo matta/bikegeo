@@ -1036,8 +1036,8 @@ func buildStockFittingView(state workbenchState, fix bikeFixture, offered []hand
 	view := &stockFittingView{
 		AllBars:   state.AllStockBars,
 		Evaluated: stock.Evaluated,
-		PreferenceNote: fmt.Sprintf("Free: HandGrip inside the ±%.0f × ±%.0f mm oval, stem length %s, stem angle %s, spacers %s. Prices are illustrative.",
-			o.SemiMinorMm, o.SemiMajorMm, freeRangeText(prefs.StemLength, " mm"), freeRangeText(prefs.StemAngle, "°"), freeRangeText(prefs.Spacers, " mm")),
+		PreferenceNote: fmt.Sprintf("Free: HandGrip inside the ±%.0f × ±%.0f mm oval, stem length %s, stem angle %s, spacers %s, bar sweep %s. Penalties are illustrative except bar sweep (Q30).",
+			o.SemiMinorMm, o.SemiMajorMm, freeRangeText(prefs.StemLength, " mm"), freeRangeText(prefs.StemAngle, "°"), freeRangeText(prefs.Spacers, " mm"), freeRangeText(prefs.BarSweep, "°")),
 		Rows: make([]stockCandidateView, 0, len(stock.Candidates)),
 	}
 	submittedBar, _ := fix.resolveHandlebar(state.BarID)

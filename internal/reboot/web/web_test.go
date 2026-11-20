@@ -2763,7 +2763,7 @@ func TestBikeWorkbenchRanksStockFitting(t *testing.T) {
 	if got := doc.Find("[data-stock-evaluated]").Text(); got != "450" {
 		t.Errorf("evaluated = %q, want 450", got)
 	}
-	const preferences = "Free: HandGrip inside the ±10 × ±20 mm oval, stem length 70–80 mm, stem angle 0°, spacers 0–20 mm. Prices are illustrative."
+	const preferences = "Free: HandGrip inside the ±10 × ±20 mm oval, stem length 70–80 mm, stem angle 0°, spacers 0–20 mm, bar sweep 16–20°. Penalties are illustrative except bar sweep (Q30)."
 	if got := doc.Find("[data-stock-preferences]").Text(); got != preferences {
 		t.Errorf("preference note = %q, want %q", got, preferences)
 	}
@@ -2779,8 +2779,8 @@ func TestBikeWorkbenchRanksStockFitting(t *testing.T) {
 	}
 	points := rows.First().Find("[data-stock-points]")
 	headers := doc.Find("table.stock-table thead th")
-	if points.Length() != 4 || headers.Length() != 12 {
-		t.Fatalf("stock points cells = %d, headers = %d; want 4 and 12", points.Length(), headers.Length())
+	if points.Length() != 5 || headers.Length() != 13 {
+		t.Fatalf("stock points cells = %d, headers = %d; want 5 and 13", points.Length(), headers.Length())
 	}
 	if got := headers.Last().Text(); got != "Handlebar" {
 		t.Errorf("last stock header = %q, want Handlebar", got)
@@ -2790,6 +2790,7 @@ func TestBikeWorkbenchRanksStockFitting(t *testing.T) {
 		{"stem length", "10.0", "Length pts"},
 		{"stem angle", "3.4", "Angle pts"},
 		{"spacers", "0.0", "Spacer pts"},
+		{"bar sweep", "0.0", "Sweep pts"},
 	} {
 		cell := points.Eq(i)
 		if band, _ := cell.Attr("data-stock-points"); band != want.band || cell.Text() != want.points {
@@ -2884,8 +2885,10 @@ func stockBarsCanonicalQuery(t *testing.T, doc *goquery.Document) url.Values {
 }
 
 const (
-	stockBarFLX15 = "SQlab 311 FL-X Carbon 12°, 15 mm rise (740 mm)"
-	stockBarFLX30 = "SQlab 311 FL-X Carbon 12°, 30 mm rise (740 mm)"
+	stockBarAlloy15 = "SQlab 311 2.0 Alloy 16°, 15 mm rise (740 mm)"
+	stockBarAlloy25 = "SQlab 311 2.0 Alloy 16°, 25 mm rise (740 mm)"
+	stockBarFLX15   = "SQlab 311 FL-X Carbon 16°, 15 mm rise (740 mm)"
+	stockBarFLX30   = "SQlab 311 FL-X Carbon 16°, 30 mm rise (740 mm)"
 )
 
 type stockBarRow struct {
@@ -2918,18 +2921,18 @@ func TestBikeWorkbenchStockFittingAcrossAllBars(t *testing.T) {
 		t.Errorf("stock count note = %q", got)
 	}
 	want := []stockBarRow{
-		{stockBarFLX15, "110 mm, -17°", "0 mm", "0.81", "90.6"},
-		{stockBarFLX30, "110 mm, -17°", "0 mm", "0.86", "90.6"},
-		{stockBarFLX15, "110 mm, -17°", "5 mm", "0.97", "90.6"},
-		{stockBarFLX15, "130 mm, -6°", "0 mm", "0.92", "88.8"},
-		{stockBarFLX15, "120 mm, -17°", "5 mm", "0.25", "88.6"},
+		{stockBarAlloy15, "130 mm, -17°", "0 mm", "0.60", "86.6"},
+		{stockBarFLX15, "130 mm, -17°", "0 mm", "0.61", "86.6"},
+		{stockBarFLX30, "130 mm, -17°", "0 mm", "0.65", "86.6"},
+		{stockBarAlloy25, "130 mm, -17°", "0 mm", "0.71", "86.6"},
+		{stockBarFLX15, "130 mm, -17°", "5 mm", "0.77", "86.6"},
 	}
 	assertStockBarRows(t, doc, want)
 
 	const rowTwoApply = `tr[data-stock-rank="2"] a[data-stock-apply]`
 	q := hrefQuery(t, doc, rowTwoApply)
 	for name, value := range map[string]string{
-		"bar": "sqlab311_flx_12_30", "stock_bars": "all", "stem_length": "110.0", "stem_angle": "-17.0",
+		"bar": "sqlab311_flx_16_15", "stock_bars": "all", "stem_length": "130.0", "stem_angle": "-17.0",
 		"spacers": "0.0", "bar_roll": "0.0", "rail_offset": "15.0", "brp_x": "-219.0", "grip_x": "481.0",
 	} {
 		if got := q.Get(name); got != value {
@@ -2949,7 +2952,7 @@ func TestBikeWorkbenchStockFittingAcrossAllBars(t *testing.T) {
 	t.Run("apply row two", func(t *testing.T) {
 		href, _ := doc.Find(rowTwoApply).Attr("href")
 		applied := loadBikeDoc(t, href)
-		assertSelectedHandlebar(t, applied, "sqlab311_flx_12_30")
+		assertSelectedHandlebar(t, applied, "sqlab311_flx_16_15")
 		assertSelectedStockBars(t, applied, "all")
 		assertStockBarRows(t, applied, want)
 	})
@@ -2962,17 +2965,40 @@ func TestBikeWorkbenchStockFittingAcrossAllBars(t *testing.T) {
 func TestBikeWorkbenchStockFittingKeepsSubmittedBarRoll(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?stock_bars=all&bar_roll=5&grip_x=481&grip_y=726")
 	assertStockBarRows(t, doc, []stockBarRow{
-		{stockBarFLX15, "110 mm, -17°", "0 mm", "0.57", "90.6"},
-		{stockBarFLX30, "110 mm, -17°", "0 mm", "0.74", "90.6"},
-		{stockBarFLX15, "110 mm, -17°", "5 mm", "0.81", "90.6"},
-		{"SQlab 3OX 12°, 15 mm rise (780 mm)", "110 mm, -17°", "0 mm", "0.94", "90.6"},
-		{stockBarFLX15, "120 mm, -17°", "5 mm", "0.06", "88.6"},
+		{stockBarFLX15, "130 mm, -17°", "0 mm", "0.37", "86.6"},
+		{stockBarAlloy15, "130 mm, -17°", "0 mm", "0.46", "86.6"},
+		{stockBarFLX15, "130 mm, -17°", "5 mm", "0.69", "86.6"},
+		{stockBarFLX30, "130 mm, -17°", "0 mm", "0.73", "86.6"},
+		{stockBarAlloy25, "130 mm, -17°", "0 mm", "0.75", "86.6"},
 	})
 	for i := range 5 {
 		q := hrefQuery(t, doc, fmt.Sprintf(`tr[data-stock-rank="%d"] a[data-stock-apply]`, i+1))
 		if got := q.Get("bar_roll"); got != "5.0" {
 			t.Errorf("row %d apply bar_roll = %q, want 5.0", i+1, got)
 		}
+	}
+}
+
+func TestBikeWorkbenchStockSweepColumn(t *testing.T) {
+	for _, tc := range []struct {
+		name, query, points string
+	}{
+		{"all bars", "stock_bars=all", "0.0"},
+		{"selected bar", "bar=sqlab311_flx_12_15", "8.0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := loadBikeDoc(t, "/bike?"+tc.query+"&grip_x=481&grip_y=726")
+			rows := doc.Find("tr[data-stock-rank]")
+			if rows.Length() != 5 {
+				t.Fatalf("stock rows = %d, want 5", rows.Length())
+			}
+			rows.Each(func(i int, row *goquery.Selection) {
+				cells := row.Find(`[data-stock-points="bar sweep"]`)
+				if cells.Length() != 1 || cells.Text() != tc.points {
+					t.Errorf("row %d sweep points = %q (%d cells), want %s in one cell", i+1, cells.Text(), cells.Length(), tc.points)
+				}
+			})
+		})
 	}
 }
 
@@ -3004,8 +3030,8 @@ func TestBikeWorkbenchSubmitsStockBarsSelect(t *testing.T) {
 	if got := next.Find("[data-stock-evaluated]").Text(); got != "6750" {
 		t.Errorf("evaluated = %q, want 6750", got)
 	}
-	if got := stockCell(next.Find(`tr[data-stock-rank="1"]`), "bar"); got != stockBarFLX15 {
-		t.Errorf("row 1 bar = %q, want %q", got, stockBarFLX15)
+	if got := stockCell(next.Find(`tr[data-stock-rank="1"]`), "bar"); got != stockBarAlloy15 {
+		t.Errorf("row 1 bar = %q, want %q", got, stockBarAlloy15)
 	}
 }
 
@@ -3231,7 +3257,7 @@ func TestBikeWorkbenchFitsAroundChosenHandlebar(t *testing.T) {
 	}
 	const firstRow = `tr[data-stock-rank="1"]`
 	for cell, want := range map[string]string{
-		"stem": "120 mm, -17°", "spacers": "0 mm", "oval-r": "0.45", "total": "88.6",
+		"stem": "120 mm, -17°", "spacers": "0 mm", "oval-r": "0.45", "total": "80.6",
 	} {
 		if got := stockCell(doc.Find(firstRow), cell); got != want {
 			t.Errorf("row 1 %s = %q, want %q", cell, got, want)

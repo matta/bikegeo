@@ -360,6 +360,7 @@ func otsoFenrirFixture() bikeFixture {
 			StemLength: assembly.PricedBand{FreeMin: 70, FreeMax: 80, CostBelow: 0.2, CostAbove: 0.2},             // illustrative
 			StemAngle:  assembly.PricedBand{CostBelow: 0.2, CostAbove: 0.2},                                       // illustrative
 			Spacers:    assembly.PricedBand{FreeMax: 20, CostAbove: 0.4},                                          // illustrative
+			BarSweep:   assembly.PricedBand{FreeMin: 16, FreeMax: 20, CostBelow: 2, CostAbove: 2},                 // Matt's preference (Q30)
 		},
 		DefaultHandlebarID: "persuader20_800",
 		// catalog: ported from legacy internal/catalog/handlebars.go; sources not recorded (Q20)

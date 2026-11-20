@@ -41,6 +41,7 @@ func illustrativeCockpitPreferences() assembly.CockpitPreferences {
 		StemLength: assembly.PricedBand{FreeMin: 70, FreeMax: 80, CostBelow: 0.2, CostAbove: 0.2},
 		StemAngle:  assembly.PricedBand{CostBelow: 0.2, CostAbove: 0.2},
 		Spacers:    assembly.PricedBand{FreeMax: 20, CostAbove: 0.4},
+		BarSweep:   assembly.PricedBand{FreeMin: 16, FreeMax: 20, CostBelow: 2, CostAbove: 2},
 	}
 }
 
@@ -59,6 +60,15 @@ func TestPricedBand(t *testing.T) {
 		assertNear(t, "length points", prefs.StemLength.PointsLost(tc.value), tc.points, 1e-12)
 	}
 	assertNear(t, "spacer points", prefs.Spacers.PointsLost(40), 8, 1e-12)
+}
+
+func TestBarSweepBand(t *testing.T) {
+	band := illustrativeCockpitPreferences().BarSweep
+	for _, tc := range []struct{ sweep, points float64 }{{12, 8}, {16, 0}, {18, 0}, {20, 0}, {22, 4}} {
+		if got := band.PointsLost(tc.sweep); got != tc.points {
+			t.Errorf("bar sweep %v° loses %v points, want %v", tc.sweep, got, tc.points)
+		}
+	}
 }
 
 func legacyGripRadius(dx, dy float64) float64 {
@@ -149,7 +159,7 @@ func TestStockFittingReferenceBuilds(t *testing.T) {
 	best := fit.Candidates[0]
 	assertNear(t, "fit report radius", best.GripR, 1.358546, 1e-5)
 	assertNear(t, "fit report miss", best.GripMiss().Norm(), 13.624, 1e-3)
-	for i, points := range []float64{7.888017, 10, 3.4, 0} {
+	for i, points := range []float64{7.888017, 10, 3.4, 0, 0} {
 		assertNear(t, "fit report ledger", best.Ledger[i].PointsLost, points, 1e-5)
 	}
 }
@@ -160,7 +170,7 @@ func TestStockFittingForwardAndRankOrder(t *testing.T) {
 	if fit.Evaluated != 450 || len(fit.Candidates) != 450 {
 		t.Fatalf("evaluated %d, returned %d; want 450 each", fit.Evaluated, len(fit.Candidates))
 	}
-	wantBands := []assembly.LedgerBand{assembly.BandGripOval, assembly.BandStemLength, assembly.BandStemAngle, assembly.BandSpacers}
+	wantBands := []assembly.LedgerBand{assembly.BandGripOval, assembly.BandStemLength, assembly.BandStemAngle, assembly.BandSpacers, assembly.BandBarSweep}
 	for i, c := range fit.Candidates {
 		p, err := assembly.PlaceBike(c.Placement.Setup, nil)
 		if err != nil || !reflect.DeepEqual(c.Placement, p) {
@@ -285,11 +295,11 @@ func TestStockFittingChoosesAmongHandlebars(t *testing.T) {
 		stem          stockStem
 		radius, total float64
 	}{
-		{stockStem{-17, 110, 0}, 0.806233, 90.6},
-		{stockStem{-17, 110, 5}, 0.969920, 90.6},
-		{stockStem{-6, 130, 0}, 0.919776, 88.8},
-		{stockStem{-17, 120, 5}, 0.253407, 88.6},
-		{stockStem{-17, 120, 10}, 0.396539, 88.6},
+		{stockStem{-17, 110, 0}, 0.806233, 82.6},
+		{stockStem{-17, 110, 5}, 0.969920, 82.6},
+		{stockStem{-6, 130, 0}, 0.919776, 80.8},
+		{stockStem{-17, 120, 5}, 0.253407, 80.6},
+		{stockStem{-17, 120, 10}, 0.396539, 80.6},
 	} {
 		c := fit.Candidates[i]
 		if !c.StockHandlebar || c.HandlebarIndex != 1 {
@@ -308,6 +318,31 @@ func TestStockFittingChoosesAmongHandlebars(t *testing.T) {
 	best := fit.Candidates[0]
 	requireStockStem(t, best, stockStemOf(single.Candidates[0].Placement.Setup.Stem))
 	assertNear(t, "single-bar total", best.Total(), single.Candidates[0].Total(), 1e-12)
+}
+
+func TestStockFittingPenalizesSweep(t *testing.T) {
+	setup := fenrirFittingSetup()
+	target := assembly.FitTarget{HandGrip: &fitReportGrip}
+	fit, err := assembly.ApplyStockFitting(setup, target, twoBarStock(), illustrativeCockpitPreferences(), 900)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fit.Candidates) != 900 {
+		t.Fatalf("returned %d candidates, want 900", len(fit.Candidates))
+	}
+	pointsByBar := [...]float64{0, 8}
+	for i, c := range fit.Candidates {
+		if c.HandlebarIndex < 0 || c.HandlebarIndex >= len(pointsByBar) {
+			t.Fatalf("rank %d handlebar index = %d, want 0 or 1", i+1, c.HandlebarIndex)
+		}
+		if len(c.Ledger) != 5 {
+			t.Fatalf("rank %d has %d ledger lines, want 5", i+1, len(c.Ledger))
+		}
+		want := assembly.LedgerLine{Band: assembly.BandBarSweep, PointsLost: pointsByBar[c.HandlebarIndex]}
+		if got := c.Ledger[4]; got != want {
+			t.Errorf("rank %d sweep line = %+v, want %+v", i+1, got, want)
+		}
+	}
 }
 
 func TestStockFittingInstallsEveryBarAtSubmittedRoll(t *testing.T) {
@@ -334,8 +369,8 @@ func TestStockFittingInstallsEveryBarAtSubmittedRoll(t *testing.T) {
 		stem          stockStem
 		radius, total float64
 	}{
-		{0, stockStem{-17, 110, 0}, 0.573433, 90.6},
-		{2, stockStem{-17, 120, 5}, 0.055006, 88.6},
+		{0, stockStem{-17, 110, 0}, 0.573433, 82.6},
+		{2, stockStem{-17, 120, 5}, 0.055006, 80.6},
 	} {
 		c := fit.Candidates[want.index]
 		if !c.StockHandlebar || c.HandlebarIndex != 1 {
@@ -494,5 +529,10 @@ func TestCockpitPreferencesValidation(t *testing.T) {
 		if prefs.Validate() == nil {
 			t.Errorf("accepted preferences %+v", prefs)
 		}
+	}
+	prefs := illustrativeCockpitPreferences()
+	prefs.BarSweep.FreeMin = 21
+	if err := prefs.Validate(); err == nil || !strings.Contains(err.Error(), "bar sweep") {
+		t.Errorf("expected bar sweep error, got %v", err)
 	}
 }
