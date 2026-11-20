@@ -201,18 +201,9 @@ type FrameChart struct {
 	Precision            ChartPrecision // rounding half-widths of the published columns (Q43)
 }
 
-// ChartResiduals holds the raw 0°-pitch chart-closure residuals when a
-// FrameChart is evaluated with its CAD baseline fork before leveling.
-type ChartResiduals struct {
-	AxleHeightDiffMm float64 // FrontAxle.Y - RearAxle.Y at 0° pitch
-	WheelbaseDiffMm  float64 // (FrontAxle.X - RearAxle.X) - publishedWheelbaseMm at 0° pitch
-}
-
-// ChartBaseline holds the leveled CAD baseline fork frameset placement and the raw
-// 0°-pitch chart-closure residuals computed from a single unpitched pass.
+// ChartBaseline holds the leveled CAD baseline fork frameset placement.
 type ChartBaseline struct {
 	Placement FramesetPlacement
-	Residuals ChartResiduals
 }
 
 // DeltaPitchDeg returns the pitch change of installed relative to the CAD baseline fork.
@@ -220,9 +211,8 @@ func (b ChartBaseline) DeltaPitchDeg(installed FramesetPlacement) pose.Deg {
 	return installed.PitchDeg() - b.Placement.PitchDeg()
 }
 
-// PlaceCadBaselineFork runs the unpitched (0°) frameset recipe once to measure both
-// the raw chart-closure residuals and the leveling pitch, then builds the
-// leveled CAD baseline fork frameset.
+// PlaceCadBaselineFork runs the unpitched (0°) frameset recipe once to measure
+// the leveling pitch, then builds the leveled CAD baseline fork frameset.
 func PlaceCadBaselineFork(chart FrameChart, wheels WheelSetup) (ChartBaseline, error) {
 	if err := validateFrameGeometry(chart.Frame); err != nil {
 		return ChartBaseline{}, err
@@ -236,17 +226,11 @@ func PlaceCadBaselineFork(chart FrameChart, wheels WheelSetup) (ChartBaseline, e
 	if err := validateWheels(wheels); err != nil {
 		return ChartBaseline{}, err
 	}
-	if !isFinite(chart.PublishedWheelbaseMm) || chart.PublishedWheelbaseMm <= 0 {
-		return ChartBaseline{}, fmt.Errorf("published wheelbase must be finite and positive, got %v mm", chart.PublishedWheelbaseMm)
-	}
 
 	_, pitchDeg := measureUnpitchedFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork)
-	r := chartResiduals(chart)
-	residuals := ChartResiduals{AxleHeightDiffMm: r[0], WheelbaseDiffMm: r[1]}
 
 	return ChartBaseline{
 		Placement: placeLeveledFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork, wheels, pitchDeg, nil),
-		Residuals: residuals,
 	}, nil
 }
 

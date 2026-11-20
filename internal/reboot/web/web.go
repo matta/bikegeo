@@ -778,8 +778,6 @@ type bikeView struct {
 	CadHtaDeg            pose.Deg
 	CadWheelbaseMm       float64
 	DeltaPitchDeg        pose.Deg
-	ResidualAxleYMm      float64
-	ResidualWheelbaseMm  float64
 	WheelRadiusMm        float64
 	WheelLabel           string
 	RearAxleSVG          svgPoint
@@ -1814,8 +1812,6 @@ func buildBikeView(
 		CadHtaDeg:            cadBaselineFork.Placement.LeveledHeadTubeAngleDeg(),
 		CadWheelbaseMm:       cadBaselineFork.Placement.WheelbaseMm(),
 		DeltaPitchDeg:        cadBaselineFork.DeltaPitchDeg(placed),
-		ResidualAxleYMm:      cadBaselineFork.Residuals.AxleHeightDiffMm,
-		ResidualWheelbaseMm:  cadBaselineFork.Residuals.WheelbaseDiffMm,
 		WheelRadiusMm:        r,
 		WheelLabel:           fix.WheelLabel,
 		RearAxleSVG:          rearSVG,

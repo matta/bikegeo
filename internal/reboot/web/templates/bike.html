@@ -661,7 +661,6 @@
       <div class="summary" style="font-size: 0.82rem;">
         <span>CAD Baseline Fork ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm / {{printf "%.0f" .CadLowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .CadHtaDeg}} HTA, {{printf "%.1f mm" .CadWheelbaseMm}} WB</strong> (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>)</span>
         <span>ΔPitch vs CAD: <strong class="mono" data-metric="delta-pitch">{{printf "%+.2f°" .DeltaPitchDeg}}</strong></span>
-        <span>0° Closure Residuals: <strong class="mono" data-metric="residual-axle-y">{{printf "%+.2f mm" .ResidualAxleYMm}}</strong> axle Y, <strong class="mono" data-metric="residual-wheelbase">{{printf "%+.2f mm" .ResidualWheelbaseMm}}</strong> WB</span>
       </div>
 
       <div class="step-inspector" data-step-inspector hidden>
