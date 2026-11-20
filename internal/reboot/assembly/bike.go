@@ -63,11 +63,7 @@ func PlaceBike(setup BikeSetup) (BikePlacement, error) {
 	if err != nil {
 		return BikePlacement{}, err
 	}
-	bounds, err := SeatpostInsertionBounds(setup.Frame, setup.Seatpost.Spec)
-	if err != nil {
-		return BikePlacement{}, err
-	}
-	seatpost, err := PlaceSeatpost(frameset.SeatTubeTop, setup.Seatpost, bounds)
+	seatpost, err := PlaceSeatpost(frameset.SeatTubeTop, setup.Frame, setup.Seatpost)
 	if err != nil {
 		return BikePlacement{}, err
 	}

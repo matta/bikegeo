@@ -91,10 +91,6 @@ func TestPlaceSeatpostInsertionEndpoints(t *testing.T) {
 	top := pose.NewPose(pose.Point{}, 105)
 	frame := fenrirSizeLFrame()
 	post := assembly.SeatpostSetup{Spec: genericPostSpec(0)}
-	bounds, err := assembly.SeatpostInsertionBounds(frame, post.Spec)
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, tc := range []struct {
 		insertion, exposed float64
 		ok                 bool
@@ -107,7 +103,7 @@ func TestPlaceSeatpostInsertionEndpoints(t *testing.T) {
 		{math.Inf(1), 0, false},
 	} {
 		post.InsertionMm = tc.insertion
-		placed, err := assembly.PlaceSeatpost(top, post, bounds)
+		placed, err := assembly.PlaceSeatpost(top, frame, post)
 		if tc.ok {
 			if err != nil {
 				t.Errorf("insertion %v: %v", tc.insertion, err)
@@ -123,22 +119,46 @@ func TestPlaceSeatpostInsertionEndpoints(t *testing.T) {
 	}
 }
 
-func TestPlaceSeatpostRejectsBoundsExceedingPostLimits(t *testing.T) {
+// PlaceSeatpost derives its insertion limits from the frame, so the same
+// post and insertion can fit one frame and not another.
+func TestPlaceSeatpostUsesFrameInsertionLimits(t *testing.T) {
 	top := pose.NewPose(pose.Point{}, 105)
-	spec := genericPostSpec(0) // 400 mm total, [100, 365] mm post limits
+	uncapped := fenrirSizeLFrame()
+	uncapped.MaxPostInsertionMm = 0 // 490 − 20 = 470 mm cap, so the post's 365 mm binds
+	withMinimum := fenrirSizeLFrame()
+	withMinimum.MinFrameInsertionMm = 125
+	noSeatTube := fenrirSizeLFrame()
+	noSeatTube.SeatTubeLengthMm = 0
 	for _, tc := range []struct {
 		name      string
-		bounds    assembly.InsertionBounds
+		frame     assembly.FrameSetup
 		insertion float64
+		ok        bool
+		field     assembly.InputField
 	}{
-		{"min below post limit", assembly.InsertionBounds{EffectiveMinInsertionMm: 50, MaxAllowedInsertionMm: 290}, 80},
-		{"max above post limit", assembly.InsertionBounds{EffectiveMinInsertionMm: 100, MaxAllowedInsertionMm: 500}, 450},
-		{"valid insertion with oversized bounds", assembly.InsertionBounds{EffectiveMinInsertionMm: 100, MaxAllowedInsertionMm: 400}, 200},
+		{"300 mm within the post's 365 mm on an uncapped frame", uncapped, 300, true, ""},
+		{"365 mm at the post maximum on an uncapped frame", uncapped, 365, true, ""},
+		{"365.001 mm past the post maximum", uncapped, 365.001, false, assembly.InputSeatpostInsertion},
+		{"300 mm past the Fenrir's 290 mm cap", fenrirSizeLFrame(), 300, false, assembly.InputSeatpostInsertion},
+		{"110 mm below a 125 mm frame minimum", withMinimum, 110, false, assembly.InputSeatpostInsertion},
+		{"125 mm at the frame minimum", withMinimum, 125, true, ""},
+		{"invalid frame seat tube", noSeatTube, 200, false, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			post := assembly.SeatpostSetup{Spec: spec, InsertionMm: tc.insertion}
-			if _, err := assembly.PlaceSeatpost(top, post, tc.bounds); err == nil {
-				t.Fatalf("expected error for %s", tc.name)
+			post := assembly.SeatpostSetup{Spec: genericPostSpec(0), InsertionMm: tc.insertion}
+			_, err := assembly.PlaceSeatpost(top, tc.frame, post)
+			if tc.ok {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("want error")
+			}
+			var inputErr *assembly.InputError
+			if tc.field != "" && (!errors.As(err, &inputErr) || inputErr.Field != tc.field) {
+				t.Errorf("error = %v, want %s", err, tc.field)
 			}
 		})
 	}

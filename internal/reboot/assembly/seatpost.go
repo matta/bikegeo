@@ -97,22 +97,17 @@ type SeatpostPlacement struct {
 	RailCradle  pose.Pose
 }
 
-// PlaceSeatpost mounts a seatpost starting at seatTubeTop (positioned at the
-// top of the frame's seat tube and oriented up the seat tube axis). The
+// PlaceSeatpost mounts a seatpost in frame starting at seatTubeTop (positioned
+// at the top of the frame's seat tube and oriented up the seat tube axis). The
 // exposed length above the seat tube is the post's total length less its
-// insertion, which must lie within bounds.
-func PlaceSeatpost(seatTubeTop pose.Pose, setup SeatpostSetup, bounds InsertionBounds) (SeatpostPlacement, error) {
+// insertion, which must lie within SeatpostInsertionBounds(frame, setup.Spec).
+func PlaceSeatpost(seatTubeTop pose.Pose, frame FrameSetup, setup SeatpostSetup) (SeatpostPlacement, error) {
 	if err := validatePose("seatTubeTop", seatTubeTop); err != nil {
 		return SeatpostPlacement{}, err
 	}
-	if err := setup.Spec.Validate(); err != nil {
+	bounds, err := SeatpostInsertionBounds(frame, setup.Spec)
+	if err != nil {
 		return SeatpostPlacement{}, err
-	}
-	if !isFinite(bounds.EffectiveMinInsertionMm) || !isFinite(bounds.MaxAllowedInsertionMm) || bounds.EffectiveMinInsertionMm > bounds.MaxAllowedInsertionMm {
-		return SeatpostPlacement{}, fmt.Errorf("invalid seatpost insertion bounds: %v to %v mm", bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm)
-	}
-	if bounds.EffectiveMinInsertionMm < setup.Spec.MinInsertionMm || bounds.MaxAllowedInsertionMm > setup.Spec.MaxInsertionMm {
-		return SeatpostPlacement{}, fmt.Errorf("seatpost insertion bounds %v–%v mm exceed post limits %v–%v mm", bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm, setup.Spec.MinInsertionMm, setup.Spec.MaxInsertionMm)
 	}
 	if !isFinite(setup.InsertionMm) {
 		return SeatpostPlacement{}, invalidInput(InputSeatpostInsertion, "seatpost insertion must be finite, got %v mm", setup.InsertionMm)

@@ -34,7 +34,7 @@ func TestPlaceSeatpostAndSaddleWorkedExample60DegSTA(t *testing.T) {
 	seatAxis := pose.NewPose(pose.Point{}, 120.0)
 	seatTubeTop := seatAxis.Advance(60.0)
 
-	post, err := assembly.PlaceSeatpost(seatTubeTop, workedPost(0.0), workedBounds)
+	post, err := assembly.PlaceSeatpost(seatTubeTop, workedFrame, workedPost(0.0))
 	if err != nil {
 		t.Fatalf("PlaceSeatpost: %v", err)
 	}
@@ -77,11 +77,11 @@ func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 	// Adding +20 mm PostSetbackMm shifts RailCradle and all saddle landmarks by (-10*sqrt(3), -10) mm
 	// while leaving ShaftTop unchanged.
 	seatTubeTop := pose.NewPose(pose.Point{X: -30, Y: 30 * math.Sqrt(3)}, 120.0)
-	basePost, err := assembly.PlaceSeatpost(seatTubeTop, workedPost(0.0), workedBounds)
+	basePost, err := assembly.PlaceSeatpost(seatTubeTop, workedFrame, workedPost(0.0))
 	if err != nil {
 		t.Fatalf("PlaceSeatpost base: %v", err)
 	}
-	setbackPost, err := assembly.PlaceSeatpost(seatTubeTop, workedPost(20.0), workedBounds)
+	setbackPost, err := assembly.PlaceSeatpost(seatTubeTop, workedFrame, workedPost(20.0))
 	if err != nil {
 		t.Fatalf("PlaceSeatpost setback: %v", err)
 	}
@@ -183,11 +183,7 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 	// 490.0 mm seat tube + 219.424 mm exposed = 709.424 mm along seat axis, and the raised BRP is |BRP - BB| = 746.000 mm (Q92) in the unpitched reference attitude.
 	refSeatAxis := pose.NewPose(pose.Point{}, 180.0-frame.SeatTubeAngleDeg)
 	refSeatTubeTop := refSeatAxis.Advance(frame.SeatTubeLengthMm)
-	refBounds, err := assembly.SeatpostInsertionBounds(frame, postSetup.Spec)
-	if err != nil {
-		t.Fatalf("SeatpostInsertionBounds: %v", err)
-	}
-	refPost, err := assembly.PlaceSeatpost(refSeatTubeTop, postSetup, refBounds)
+	refPost, err := assembly.PlaceSeatpost(refSeatTubeTop, frame, postSetup)
 	if err != nil {
 		t.Fatalf("PlaceSeatpost ref: %v", err)
 	}
@@ -239,7 +235,7 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 	validPose := pose.NewPose(pose.Point{X: -120, Y: 470}, 104.75)
 	validPost := assembly.SeatpostSetup{Spec: genericPostSpec(0), InsertionMm: 136.5}
-	validBounds := assembly.InsertionBounds{EffectiveMinInsertionMm: 100, MaxAllowedInsertionMm: 290}
+	validFrame := fenrirSizeLFrame() // [100, 290] mm with the generic post
 	with := func(f func(*assembly.SeatpostSetup)) assembly.SeatpostSetup {
 		s := validPost
 		f(&s)
@@ -265,7 +261,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 	}
 	for _, tc := range postCases {
 		t.Run("seatpost/"+tc.name, func(t *testing.T) {
-			if _, err := assembly.PlaceSeatpost(tc.pose, tc.setup, validBounds); err == nil {
+			if _, err := assembly.PlaceSeatpost(tc.pose, validFrame, tc.setup); err == nil {
 				t.Fatalf("expected error for %s, got nil", tc.name)
 			}
 		})
@@ -321,7 +317,9 @@ func TestPlaceSaddleRailOffsetRange(t *testing.T) {
 	}
 }
 
-var workedBounds = assembly.InsertionBounds{EffectiveMinInsertionMm: 20, MaxAllowedInsertionMm: 110}
+// workedFrame declares a 110 mm insertion cap so the synthetic worked post
+// below allows [20, 110] mm; PlaceSeatpost reads only the frame's insertion limits.
+var workedFrame = assembly.FrameSetup{SeatTubeLengthMm: 60, MaxPostInsertionMm: 110}
 
 // workedPost is a synthetic 150 mm post inserted 110 mm, so it exposes 40 mm.
 func workedPost(setbackMm float64) assembly.SeatpostSetup {
@@ -338,7 +336,7 @@ func workedPost(setbackMm float64) assembly.SeatpostSetup {
 // height alone shifts BRP and SitBones by 45 mm turned 10° from vertical.
 func TestPlaceSaddleRailToBrpHeightRotatesWithRailPitch(t *testing.T) {
 	seatTubeTop := pose.NewPose(pose.Point{}, 120).Advance(60)
-	post, err := assembly.PlaceSeatpost(seatTubeTop, workedPost(0), workedBounds)
+	post, err := assembly.PlaceSeatpost(seatTubeTop, workedFrame, workedPost(0))
 	if err != nil {
 		t.Fatal(err)
 	}

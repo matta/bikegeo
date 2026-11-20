@@ -317,11 +317,7 @@ func (f bikeFixture) validate() error {
 			return fmt.Errorf("fixture %q seatpost %q invalid: %w", f.Name, opt.ID, err)
 		}
 	}
-	defaultBounds, err := assembly.SeatpostInsertionBounds(f.Chart.Frame, defaultPost.Spec)
-	if err != nil {
-		return fmt.Errorf("fixture %q default seatpost %q invalid: %w", f.Name, f.DefaultSeatpostID, err)
-	}
-	if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0), assembly.SeatpostSetup{Spec: defaultPost.Spec, InsertionMm: f.DefaultPostInsertionMm}, defaultBounds); err != nil {
+	if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0), f.Chart.Frame, assembly.SeatpostSetup{Spec: defaultPost.Spec, InsertionMm: f.DefaultPostInsertionMm}); err != nil {
 		return fmt.Errorf("fixture %q default seatpost %q at DefaultPostInsertionMm invalid: %w", f.Name, f.DefaultSeatpostID, err)
 	}
 	return nil
