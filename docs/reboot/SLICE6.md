@@ -1,8 +1,23 @@
 # M2 Slice 6, seatpost choice and setback notes
 
-**Status: Planned 2026-11-19 from Matt's rulings Q26–Q29 ([DESIGN.md](DESIGN.md), "Seatposts, bar sweep, and fork choice"). Not started.** Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. This plan builds on Slice 5 as committed ([SLICE5.md](SLICE5.md)). Slices 4 and 5 are awaiting Matt's acceptance.
+**Status: Planned 2026-11-19 from Matt's rulings Q26–Q29 ([DESIGN.md](DESIGN.md), "Seatposts, bar sweep, and fork choice"). Implemented 2026-11-19; awaiting Matt's acceptance.** Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. This plan builds on Slice 5 as committed ([SLICE5.md](SLICE5.md)). Slices 4 and 5 are awaiting Matt's acceptance.
 
 This slice has three commits and touches 6 code, test, and template files, so per DESIGN.md "Slice planning" it is written so a less capable model (for example Sonnet) can implement it without making design choices. **Delegate it.** If something here seems wrong or missing, stop and ask Matt rather than choosing.
+
+## Implementation handoff
+
+The implementing agent left no record. A reviewer reconstructed this section from the working tree on 2026-11-19.
+
+- **Who and when:** 2026-11-19. The implementing model wasn't recorded.
+- **Commits:** the implementer left the work uncommitted. The reviewer committed it in two commits, not the planned three: `9ae0e97` "Choose the seatpost from a fixture list in the reboot workbench" (W1–W6) and `89f6a7d` "Show the post setback a reboot BRP target needs" (A1–A2 and N1–N4).
+- **Done and not done:** A1–A2, W1–W6, and N1–N4 are done. N4 test 6 ("notes are never applied") is folded into `TestBikeWorkbenchSetbackNotesFitReport`.
+- **Deviations:** the code has none. It follows the plan's signatures, URL keys, template, and reference values. The commit split differs: the plan's Commit 1 can't pass on its own, because `make deadcode` reports `FitPostSetback` as unreachable from `main` until the notes call it in Commit 3. So the seatpost select went first, and the assembly change went in with its only caller. Future plans shouldn't add an exported `assembly` function in a commit before the commit that first calls it.
+
+### Review (2026-11-19)
+
+- **Verification:** `make pre-commit` passes at each of the two commits. Live check (§9): the select lists the four posts with "Generic 0 mm setback post" selected and a 0.0 mm setback note. The notes read 54.1 mm (centered) and 39.6 mm (rails at +15.0 mm). Switching to the 25 mm post keeps both notes and changes the current miss from 54.1 to 29.1 mm. "Apply fitted build" keeps `post=setback_25` and shows a 14.6 mm miss.
+- **Findings:** no correctness defects. Minor: the new seatpost checks in `bikeFixture.validate()` (empty, duplicate, or unknown ID, nonzero `ExtensionMm`, and unplaceable post) have no test. Handlebars have `TestBikeFixtureValidatesHandlebars`. The plan didn't ask for one.
+- **Process gaps:** the implementer didn't commit and recorded no status. That's why DESIGN.md's "Slice planning" now requires an implementation handoff.
 
 ## 1. Goal
 

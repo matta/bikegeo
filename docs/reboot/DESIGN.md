@@ -19,6 +19,22 @@ Size the plan by the work. Count the code, test, template, and asset files the s
 - **Small: one commit and no more than 3 files.** Keep the plan sparse: the goal, the rulings it rests on, the files and the change in each, the tests and their expected values, and the verification steps. The planning agent offers to implement it itself.
 - **Anything larger.** Write the plan in enough detail that a less capable model (for example Sonnet) can implement it reliably without making design choices. It gives exact type, field, and function signatures; every caller to update; URL and form keys; the commit split with subjects; each test with its inputs, its expected values (measured by an independent probe), and their tolerances; the rules that bite; the verification steps; and an out-of-scope list. The planning agent suggests delegating the implementation to that model.
 
+Each planned commit must pass `make pre-commit` on its own. In particular, don't add a function in a commit before the one that first calls it from `main`: `make deadcode` rejects it. Every plan's "Rules that bite" section ends by requiring the implementation handoff below.
+
+#### Implementation handoff
+
+The implementing agent's last step is to record what it did and the state it left. It does this whether it finished, stopped early, or got blocked. The record goes in the same change as the work, or stays uncommitted alongside the work if the work isn't committed. A reviewer adds its findings under the same section and doesn't rewrite the implementer's record.
+
+1. **The slice plan's Status line** says one of: `Implemented <date>; awaiting Matt's acceptance`, `Partly implemented <date>; stopped after <plan step>`, or `Blocked <date> on <question>`.
+2. **An `## Implementation handoff` section** sits right after the Status paragraph in the slice plan. It contains:
+   - **Who and when:** the date and the model that did the work.
+   - **Commits:** each planned commit's subject with its hash, or "not committed". For uncommitted work, list the files that hold it and which planned commit each change belongs to.
+   - **Done and not done:** by the plan's step IDs (for example A1, W3, N4).
+   - **Deviations:** every place where the code or tests differ from the plan, and why. Write "None" if there are none. A deviation needs a reason. "Seemed cleaner" isn't one; stop and ask instead (see the plan's header).
+   - **Verification:** the result of `make pre-commit` on the final state, and the plan's live check: what you confirmed, with numbers, and where the screenshot is. If you skipped it, say so and why.
+   - **Open issues:** findings, questions for Matt, and anything you noticed but left alone.
+3. **DESIGN.md's Milestones line** for the slice uses the same status words as the Status line. Don't touch any other part of DESIGN.md. Only Matt's acceptance makes a slice "done".
+
 ## Requirements
 
 - **(a) Readable physical code:** build structures from directional pose steps and component builders (seatpost, saddle, fork, spacers, stem, handlebar), not scattered trig.
@@ -153,7 +169,7 @@ internal/reboot/web/      handlers, HTML/SVG, embedded CSS/JS, Otso Fenrir fixtu
    - **Slice 3, stock cockpit fitting (done and accepted 2026-11-19):** choose stock stem lengths, stem angles, and spacer steps for a HandGrip target by enumerating every combination with PlaceBike, scoring each on the points-lost ledger (Q17 oval plus stem length, stem angle, and spacer bands), and listing the 5 best-scoring with apply links (Q15–Q18). The saddle fit is unchanged and carried into every build. The handlebar stays fixed.
    - **Slice 4, handlebar choice in the workbench (implemented 2026-11-19; awaiting Matt's acceptance):** the fixture carries the 15 legacy catalog bars, and `/bike` gets a `bar` select that every link keeps (Q19–Q21). Fitting and stock fitting fit around the submitted bar. Web and fixture only; no assembly change.
    - **Slice 5, handlebars in stock fitting (implemented 2026-11-19; awaiting Matt's acceptance; plan in [SLICE5.md](SLICE5.md)):** `CockpitStock` gains an optional bar list, and stock fitting enumerates it at the submitted roll with no bar penalty. `/bike` gets a `stock_bars=selected|all` control, and each stock row names its bar and its apply link sets `bar` (Q22–Q25).
-   - **Slice 6, seatpost choice and setback notes (planned 2026-11-19; plan in [SLICE6.md](SLICE6.md)):** a `post` select of fixture seatposts replaces the free `post_setback` field (Q27, Q28). `assembly.FitPostSetback` explains the post setback a BRP target needs: with the rails centered, always, and with the rails held at the saddle fitting's offset when that fitting stops at a limit (Q29). Fitting never chooses the post.
+   - **Slice 6, seatpost choice and setback notes (implemented 2026-11-19; awaiting Matt's acceptance; plan in [SLICE6.md](SLICE6.md)):** a `post` select of fixture seatposts replaces the free `post_setback` field (Q27, Q28). `assembly.FitPostSetback` explains the post setback a BRP target needs: with the rails centered, always, and with the rails held at the saddle fitting's offset when that fitting stops at a limit (Q29). Fitting never chooses the post.
    - **Slice 7, bar sweep band (planned 2026-11-19; plan in [SLICE7.md](SLICE7.md)):** stock fitting penalizes every bar's backsweep outside 16°–20° by 2 points per degree, as a fifth ledger line in both `stock_bars` modes (Q30).
    - **Slice 8, fork choice in stock fitting (planned 2026-11-19; plan in [SLICE8.md](SLICE8.md); builds on Slices 6 and 7):** a `stock_forks=selected|all` control. `all` enumerates the fixture forks, with suspension forks at 15, 20, and 25% sag, and refits the saddle for each fork. The ledger gains a fork sag line and a BRP miss line, and the BRP miss line counts in both modes (Q31–Q34).
    - **Later, scoring-word rename (TODO, not scheduled):** replace pricing words in code and older docs with score/penalty words. Candidates: `PricedBand` → `PenaltyBand` (including `TestPricedBand`), `CostBelow`/`CostAbove` → `PenaltyBelow`/`PenaltyAbove`, the workbench's "Prices are illustrative" and "the cheapest … on the points-lost ledger" text, comments that say price or cheapest, AGENTS.md's "priced bands", and [SLICE5.md](SLICE5.md). Do it as its own small slice after Slice 8 so it also covers the bands Slices 7 and 8 add.

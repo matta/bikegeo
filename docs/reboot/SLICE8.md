@@ -405,7 +405,7 @@ The CAD Baseline Fork in stock fitting (Q31); sag steps other than 15/20/25 (Q31
 - `deadcode`: `stockForks`, `stockForkSetups`, `forkCellName`, `stockPartsText`, `forkSagPoints`, `brpMissPoints`, and `StockCandidate.BrpMiss` must be reached from production code. `exhaustive`: no new enum switch (`stock_forks` switches on a plain string). `boundary`: no legacy imports.
 - Placements must be identical with tracing on or off. Stock fitting passes a nil trace.
 - Commit messages: plain subject, no Conventional Commits prefix; end with the attribution line from the session reminder.
-- Don't edit DESIGN.md beyond marking Slice 8 done at the end, and only after Matt accepts it.
+- Finish with the implementation handoff (DESIGN.md, "Slice planning"): the Status line, an `## Implementation handoff` section in this file, and the Slice 8 Milestones line. Don't touch any other part of DESIGN.md. Only Matt's acceptance marks the slice done.
 
 ## 8. Verification
 

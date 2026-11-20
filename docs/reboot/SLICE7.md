@@ -143,7 +143,7 @@ Other bar preferences (rise, width, upsweep); roll enumeration (Q24); fork choic
 - **The web never recomputes penalties.** The sweep cell is the candidate's ledger line.
 - `exhaustive`: no new switch. `deadcode`: no new helpers outside tests.
 - Commit messages: plain subject, no Conventional Commits prefix; end with the attribution line from the session reminder.
-- Don't edit DESIGN.md beyond marking Slice 7 done at the end, and only after Matt accepts it.
+- Finish with the implementation handoff (DESIGN.md, "Slice planning"): the Status line, an `## Implementation handoff` section in this file, and the Slice 7 Milestones line. Don't touch any other part of DESIGN.md. Only Matt's acceptance marks the slice done.
 
 ## 8. Verification
 
