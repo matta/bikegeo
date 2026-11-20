@@ -18,7 +18,9 @@ Write plain-language subjects (for example `Fix fork sag validation`). Conventio
 
 ## Reboot Tree (`cmd/bikegeo-reboot`, `internal/reboot/...`)
 
-A clean-slate reboot is being built beside the existing app; see [docs/reboot/DESIGN.md](docs/reboot/DESIGN.md). For reboot code, that file overrides **Architecture** and **Frame Datasets** below wherever they differ. Don't change the existing app during reboot work unless asked.
+A clean-slate reboot is being built beside the existing app; see [docs/reboot/DESIGN.md](docs/reboot/DESIGN.md) and the Rolling-Wave workflow/prompt playbook in [docs/reboot/WORKFLOW.md](docs/reboot/WORKFLOW.md). For reboot code, `DESIGN.md` overrides **Architecture** and **Frame Datasets** below wherever they differ. Don't change the existing app during reboot work unless asked.
+
+- **Workflow (`docs/reboot/WORKFLOW.md`):** reboot work uses a Rolling-Wave workflow (`DESIGN.md` = direction & invariants; `SLICE<n>.md` = just-in-time plan for the next slice only). When asked what's next, check `git status`, `docs/reboot/SLICE*.md`, and `DESIGN.md` Milestones per `WORKFLOW.md`, state the current phase, and recommend the model tier (Frontier for direction, slice planning, and review; lower-tier for planned slice implementation).
 
 - **Web:** Go-rendered HTML/SVG plus a small dependency-free vanilla JS layer: no framework, `package.json`, npm, or build step. JS tests run on Node's built-in `node:test` (`make test-js`, major version in `.node-version`). The "no JavaScript" rule applies only to `internal/web`.
 - **Isolation (`make boundary`):** reboot code never imports legacy `bikegeo/...` packages, except in files named `*_parity_test.go` under `internal/reboot/...`. Legacy code never imports reboot packages. Angles use `pose.Deg`, not `model.Deg`.
