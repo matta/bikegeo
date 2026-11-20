@@ -1,0 +1,112 @@
+package catalog
+
+import "bikegeo/internal/reboot/assembly"
+
+// otsoFenrirStainless returns the Otso Fenrir Stainless.
+//
+// The frame is a stainless bikepacking frame designed around the 495 mm Lithic
+// carbon rigid fork (54 mm offset). The chart closes to the bare head tube;
+// physical forks install in the 12 mm EC44 cup, pending Otso's confirmation of
+// whether the CAD chart omitted it. Tuning Chip dropouts run 430–450 mm; the
+// chart is drawn at 450 mm.
+func otsoFenrirStainless() Frame {
+	family := frameFamily{
+		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		LowerBore:       assembly.Bore44Pressed,
+		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
+		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
+		CadLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
+		// hypothesis (Q44, Q81): legacy lithic_carbon_mountain (rigid) → 495 mm effective
+		CadFork: assembly.ForkGeometry{A2cMm: 495, RakeMm: 54},
+		// inferred from published digits (legacy), Q80
+		Precision: assembly.ChartPrecision{
+			ReachMm:          0.5,
+			StackMm:          0.5,
+			HeadTubeAngleDeg: 0.125,
+			HeadTubeLengthMm: 0.5,
+			BbDropMm:         0.5,
+			ChainstayMm:      0.5,
+			WheelbaseMm:      0.5,
+		},
+	}
+	return Frame{
+		ID:             "otso-fenrir-stainless",
+		Manufacturer:   "Otso",
+		Model:          "Fenrir Stainless",
+		Year:           2024,
+		DefaultSize:    "L",
+		MaxChainstayMm: 450, // published: sliding dropouts 430–450 mm (Q67)
+		// catalog: legacy Forks, each at this frame's A2C and rake
+		Forks: []FrameFork{
+			{Fork: lithicCarbonMountain, StaticA2cMm: 495, RakeMm: 54},
+			{Fork: sid100, StaticA2cMm: 506, RakeMm: 44},
+			{Fork: fox34_120, StaticA2cMm: 530, RakeMm: 44},
+		},
+		// published
+		Sizes: family.sizes(
+			publishedSize{
+				Name:             "XS",
+				ReachMm:          387,
+				StackMm:          595,
+				HeadTubeAngleDeg: 68.25,
+				SeatTubeAngleDeg: 75.25,
+				HeadTubeLengthMm: 90,
+				BbDropMm:         72,
+				ChainstayMm:      450,
+				SeatTubeLengthMm: 360,
+				WheelbaseMm:      1098,
+			},
+			publishedSize{
+				Name:             "S",
+				ReachMm:          403,
+				StackMm:          605,
+				HeadTubeAngleDeg: 68.25,
+				SeatTubeAngleDeg: 75.25,
+				HeadTubeLengthMm: 100,
+				BbDropMm:         72,
+				ChainstayMm:      450,
+				SeatTubeLengthMm: 400,
+				WheelbaseMm:      1118,
+			},
+			publishedSize{
+				Name:             "M",
+				ReachMm:          416,
+				StackMm:          623,
+				HeadTubeAngleDeg: 68.25,
+				SeatTubeAngleDeg: 75.25,
+				HeadTubeLengthMm: 120,
+				BbDropMm:         72,
+				ChainstayMm:      450,
+				SeatTubeLengthMm: 450,
+				WheelbaseMm:      1138,
+			},
+			publishedSize{
+				Name:             "L",
+				ReachMm:          428,
+				StackMm:          642,
+				HeadTubeAngleDeg: 68.25,
+				SeatTubeAngleDeg: 75.25,
+				HeadTubeLengthMm: 140,
+				BbDropMm:         72,
+				ChainstayMm:      450,
+				SeatTubeLengthMm: 490,
+				WheelbaseMm:      1158,
+				// published: Otso lists 290 mm of insertion depth for the Large Fenrir Stainless (Q95).
+				// https://otsocycles.com/pages/bike-specs-tables
+				MaxPostInsertionMm: 290,
+			},
+			publishedSize{
+				Name:             "XL",
+				ReachMm:          441,
+				StackMm:          660,
+				HeadTubeAngleDeg: 68.25,
+				SeatTubeAngleDeg: 75.25,
+				HeadTubeLengthMm: 160,
+				BbDropMm:         72,
+				ChainstayMm:      450,
+				SeatTubeLengthMm: 530,
+				WheelbaseMm:      1178,
+			},
+		),
+	}
+}

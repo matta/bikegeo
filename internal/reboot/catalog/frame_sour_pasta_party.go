@@ -1,0 +1,94 @@
+package catalog
+
+import "bikegeo/internal/reboot/assembly"
+
+// sourPastaParty returns the Sour Pasta Party.
+//
+// The frame is a CrMo steel trail hardtail. Its chart is drawn with a 120 mm
+// fork at 15% sag (512 mm effective) and a 12 mm EC44 cup. Wheelbases are for a
+// 44 mm offset fork.
+func sourPastaParty() Frame {
+	family := frameFamily{
+		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		LowerBore:       assembly.Bore44Pressed,
+		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
+		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
+		CadLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
+		// hypothesis (Q44, Q81): legacy fox34_120 @ 15% sag → 512 mm effective
+		CadFork: assembly.ForkGeometry{A2cMm: 512, RakeMm: 44},
+		// inferred from published digits (legacy), Q80
+		Precision: assembly.ChartPrecision{
+			ReachMm:          0.5,
+			StackMm:          0.5,
+			HeadTubeAngleDeg: 0.05,
+			HeadTubeLengthMm: 0.5,
+			BbDropMm:         0.5,
+			ChainstayMm:      0.5,
+			WheelbaseMm:      0.5,
+		},
+	}
+	return Frame{
+		ID:           "sour-pasta-party",
+		Manufacturer: "Sour",
+		Model:        "Pasta Party",
+		Year:         2024,
+		DefaultSize:  "L",
+		// catalog: legacy Forks, each at this frame's A2C and rake
+		Forks: []FrameFork{
+			{Fork: fox34_120, StaticA2cMm: 530, RakeMm: 44},
+			{Fork: sid100, StaticA2cMm: 506, RakeMm: 44},
+			{Fork: rigid490, StaticA2cMm: 490, RakeMm: 44},
+		},
+		// published
+		Sizes: family.sizes(
+			publishedSize{
+				Name:             "S",
+				ReachMm:          415,
+				StackMm:          607,
+				HeadTubeAngleDeg: 66.6,
+				SeatTubeAngleDeg: 74,
+				HeadTubeLengthMm: 85,
+				BbDropMm:         65,
+				ChainstayMm:      435,
+				SeatTubeLengthMm: 395,
+				WheelbaseMm:      1128,
+			},
+			publishedSize{
+				Name:             "M",
+				ReachMm:          437,
+				StackMm:          615,
+				HeadTubeAngleDeg: 66.6,
+				SeatTubeAngleDeg: 74,
+				HeadTubeLengthMm: 95,
+				BbDropMm:         65,
+				ChainstayMm:      435,
+				SeatTubeLengthMm: 435,
+				WheelbaseMm:      1153,
+			},
+			publishedSize{
+				Name:             "L",
+				ReachMm:          467,
+				StackMm:          619,
+				HeadTubeAngleDeg: 66.6,
+				SeatTubeAngleDeg: 74,
+				HeadTubeLengthMm: 100,
+				BbDropMm:         65,
+				ChainstayMm:      435,
+				SeatTubeLengthMm: 485,
+				WheelbaseMm:      1185,
+			},
+			publishedSize{
+				Name:             "XL",
+				ReachMm:          491,
+				StackMm:          630,
+				HeadTubeAngleDeg: 66.6,
+				SeatTubeAngleDeg: 74,
+				HeadTubeLengthMm: 110,
+				BbDropMm:         65,
+				ChainstayMm:      435,
+				SeatTubeLengthMm: 535,
+				WheelbaseMm:      1214,
+			},
+		),
+	}
+}
