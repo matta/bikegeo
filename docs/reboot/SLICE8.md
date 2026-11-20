@@ -1,6 +1,17 @@
 # M2 Slice 8, fork choice in stock fitting
 
-**Status: Planned 2026-11-19 from Matt's rulings Q31–Q34 ([DESIGN.md](DESIGN.md), "Seatposts, bar sweep, and fork choice"). Not started.** Q34 (ruled 2026-11-19): the BRP miss line always counts. Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. This plan **builds on Slices 6 and 7**: Slice 6 is accepted (commits `9ae0e97`, `89f6a7d`), and Slice 7 is accepted (commit `6ea0295`). Don't start it until both are committed: it extends Slice 7's 5-line ledger and keeps Slice 6's `post` on every link.
+**Status: Implemented 2026-11-19; awaiting Matt's acceptance.**
+
+## Implementation handoff
+
+- **Who and when.** OpenAI Codex and delegated Codex agents on 2026-11-19.
+- **Commits.** `e29da70` Let reboot stock fitting choose the fork and sag. `6ea4d65` Offer every fixture fork and sag to stock fitting in the reboot workbench.
+- **Done.** A1–A3 added fork configurations, per-fork saddle fitting, both penalties, and assembly tests. W1–W5 added the fixture setups, workbench controls and URL state, stock row rendering and Apply links, and the browserless workbench tests. All plan steps are implemented.
+- **Deviations.** With Matt's approval, commit 1 includes the two workbench penalty headers and their assertions so the table and its tests agree with the seven-line ledger at that commit. Assembly scoring calls `StockCandidate.BrpMiss()` through `brpMissPoints` to share the geometry calculation and pass `deadcode` before the workbench uses it. The stem and spacer steps are computed once after the first base placement validates the spacer limit. A regression test covers an infinite spacer limit. The existing sweep test now expects seven ledger lines. The workbench replaces `AllBars` with `PartsText` and resolves the submitted fork once for all rows. It also verifies the selected-fork score explicitly.
+- **Verification.** `go vet ./... && go test ./...` and `make pre-commit` passed for both implementation commits with a writable temporary Go cache. `go fix` and `go fmt` left the changes unchanged. Port 8081 was occupied, so the live check used the rebuilt executable on a temporary loopback port. The all-forks page evaluated 3,150 combinations and ranked the SID at 20% sag first with a 130 mm, −17° stem, 42.6 mm BRP miss, and 3.0 total. Apply selected that fork and sag and kept All 7 fork setups. Enabling all handlebars evaluated 47,250 combinations and ranked the Fox 34 at 20% sag with the SQlab 311 FL-X Carbon 12°, 15 mm rise bar first at 21.5. [Workbench screenshot](/Users/matt/.codex/visualizations/2026/11/20/01a1f786-1669-7d82-bd82-84c0999ddd7a/slice8-stock-fitting.jpg)
+- **Open issues.** Section 5's per-fork table shows the Fox 34 at 15% sag has the smallest BRP miss (27.0 mm). The Fox 34 at 20% has the highest overall score with all handlebars.
+
+Matt ruled Q31–Q34 in [DESIGN.md](DESIGN.md) under "Seatposts, bar sweep, and fork choice". Q34, ruled on 2026-11-19, makes the BRP miss line count whenever there is a BRP target. [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) take precedence over this plan. Slice 8 builds on accepted Slice 6 (`9ae0e97`, `89f6a7d`) and Slice 7 (`6ea0295`). It extends Slice 7's five-line ledger and keeps Slice 6's `post` on every link.
 
 This slice has two commits and touches 6 code, test, and template files, so per DESIGN.md "Slice planning" it is written so a less capable model (for example Sonnet) can implement it without making design choices. **Delegate it.** If something here seems wrong or missing, stop and ask Matt rather than choosing.
 
