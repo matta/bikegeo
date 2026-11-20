@@ -601,19 +601,19 @@
           <div class="stock-scroll">
             <table class="stock-table">
               <thead>
-                <tr><th>#</th><th>Stem</th><th>Spacers</th><th>HandGrip miss</th><th>Oval R</th><th>Oval pts</th><th>Length pts</th><th>Angle pts</th><th>Spacer pts</th><th>Total</th><th></th></tr>
+                <tr><th>#</th><th></th><th>Total</th><th>Stem</th><th>Spacers</th><th>HandGrip miss</th><th>Oval R</th><th>Oval pts</th><th>Length pts</th><th>Angle pts</th><th>Spacer pts</th></tr>
               </thead>
               <tbody>
                 {{range .Rows}}
                 <tr data-stock-rank="{{.Rank}}">
                   <td>{{.Rank}}</td>
+                  <td><a href="{{.ApplyURL}}" data-preset="apply-stock" data-stock-apply>Apply</a></td>
+                  <td class="mono" data-stock-cell="total"><strong>{{printf "%.1f" .Total}}</strong></td>
                   <td class="mono" data-stock-cell="stem">{{printf "%.0f mm, %+.0f°" .StemLengthMm .StemAngleDeg}}</td>
                   <td class="mono" data-stock-cell="spacers">{{printf "%.0f mm" .SpacersMm}}</td>
                   <td class="mono" data-stock-cell="grip-miss">{{printf "%.1f mm" .GripMissMm}}</td>
                   <td class="mono" data-stock-cell="oval-r">{{printf "%.2f" .GripR}}</td>
                   {{range .Lines}}<td class="mono" data-stock-points="{{.Band}}">{{printf "%.1f" .PointsLost}}</td>{{end}}
-                  <td class="mono" data-stock-cell="total"><strong>{{printf "%.1f" .Total}}</strong></td>
-                  <td><a href="{{.ApplyURL}}" data-preset="apply-stock" data-stock-apply>Apply</a></td>
                 </tr>
                 {{end}}
               </tbody>

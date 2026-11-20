@@ -130,10 +130,10 @@ const (
 	BandSpacers    LedgerBand = "spacers"
 )
 
-// LedgerLine is one priced value: R for the oval, mm or degrees otherwise.
+// LedgerLine is the points one band loses. The priced values themselves are
+// the candidate's GripR and its placed stem setup.
 type LedgerLine struct {
 	Band       LedgerBand
-	Value      float64
 	PointsLost float64
 }
 
@@ -227,10 +227,10 @@ func ApplyStockFitting(setup BikeSetup, target FitTarget, stock CockpitStock, pr
 					Target:    grip,
 					GripR:     r,
 					Ledger: []LedgerLine{
-						{BandGripOval, r, prefs.GripOval.PointsLost(r)},
-						{BandStemLength, length, prefs.StemLength.PointsLost(length)},
-						{BandStemAngle, float64(angle), prefs.StemAngle.PointsLost(float64(angle))},
-						{BandSpacers, spacers, prefs.Spacers.PointsLost(spacers)},
+						{Band: BandGripOval, PointsLost: prefs.GripOval.PointsLost(r)},
+						{Band: BandStemLength, PointsLost: prefs.StemLength.PointsLost(length)},
+						{Band: BandStemAngle, PointsLost: prefs.StemAngle.PointsLost(float64(angle))},
+						{Band: BandSpacers, PointsLost: prefs.Spacers.PointsLost(spacers)},
 					},
 				})
 			}

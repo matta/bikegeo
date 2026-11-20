@@ -1,6 +1,6 @@
 # M2 Slice 3, stock cockpit fitting
 
-**Status: Implemented in `8e4bf0f` and accepted by Matt on 2026-11-19.** This plan records the implementation of rulings Q15–Q18 from the [reboot design](DESIGN.md).
+**Status: Implemented in `8e4bf0f` and accepted by Matt on 2026-11-19.** This plan records the implementation of rulings Q15–Q18 from the [reboot design](DESIGN.md). A later cleanup dropped the unused `LedgerLine.Value` and `stockCandidateView.PointsLost` fields and moved the Apply and Total columns next to the rank, so the snippets below differ from the code there.
 
 ## 1. Goal
 

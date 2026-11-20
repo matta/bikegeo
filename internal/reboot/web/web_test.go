@@ -2740,9 +2740,20 @@ func TestBikeWorkbenchRanksStockFitting(t *testing.T) {
 		if band, _ := cell.Attr("data-stock-points"); band != want.band || cell.Text() != want.points {
 			t.Errorf("ledger cell %d = %q %q, want %q %q", i, band, cell.Text(), want.band, want.points)
 		}
-		if got := headers.Eq(5 + i).Text(); got != want.header {
+		if got := headers.Eq(7 + i).Text(); got != want.header {
 			t.Errorf("ledger header %d = %q, want %q", i, got, want.header)
 		}
+	}
+	// Apply and Total sit next to the rank so they stay visible when the table scrolls.
+	if got := headers.Eq(2).Text(); got != "Total" {
+		t.Errorf("header 3 = %q, want Total", got)
+	}
+	firstCells := rows.First().Children()
+	if firstCells.Eq(1).Find("a[data-stock-apply]").Length() != 1 {
+		t.Error("row 1 cell 2 has no apply link")
+	}
+	if got, _ := firstCells.Eq(2).Attr("data-stock-cell"); got != "total" {
+		t.Errorf("row 1 cell 3 = %q, want total", got)
 	}
 	links := doc.Find("a[data-stock-apply]")
 	if links.Length() != 5 {

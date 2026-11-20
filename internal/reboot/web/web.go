@@ -768,9 +768,9 @@ type stockCandidateView struct {
 	StemLengthMm, SpacersMm float64
 	StemAngleDeg            pose.Deg
 	GripMissMm, GripR       float64
-	Lines                   []assembly.LedgerLine
-	PointsLost, Total       float64
-	ApplyURL                string
+	Lines                   []assembly.LedgerLine // assembly's ledger order
+	Total                   float64
+	ApplyURL                string // the candidate build, with the submitted targets kept
 }
 
 type saddleFittingView struct {
@@ -816,7 +816,7 @@ func (v bikeView) Px(size float64) string {
 	return formatSVGSize(size * v.DrawScale)
 }
 
-// stockCandidateLimit is the number of ranked builds shown in the workbench.
+// stockCandidateLimit is the number of ranked builds shown in the workbench (Q18).
 const stockCandidateLimit = 5
 
 func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
@@ -957,7 +957,6 @@ func buildStockFittingView(state workbenchState, prefs assembly.CockpitPreferenc
 			GripMissMm:   c.GripMiss().Norm(),
 			GripR:        c.GripR,
 			Lines:        c.Ledger,
-			PointsLost:   c.PointsLost(),
 			Total:        c.Total(),
 			ApplyURL:     applied.URL(),
 		})
