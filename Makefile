@@ -56,12 +56,12 @@ boundary:
 	  exit 1; \
 	fi
 	@bad="$$({ \
-	  find cmd/bikegeo-reboot internal/reboot \( -iname '*pric*' -o -iname '*cost*' -o -iname '*cheap*' -o -iname '*ledger*' \) -print; \
-	  find cmd/bikegeo-reboot internal/reboot -type f -exec grep -HinIE 'pric|cost|cheap|ledger' {} +; \
+	  find cmd/bikegeo-reboot internal/reboot \( -iname '*price*' -o -iname '*pricing*' -o -iname '*cost*' -o -iname '*cheap*' -o -iname '*ledger*' \) -print; \
+	  find cmd/bikegeo-reboot internal/reboot -type f -exec grep -HinIE 'price|pricing|cost|cheap|ledger' {} +; \
 	} || true)"; \
 	if [ -n "$$bad" ]; then \
 	  echo "$$bad"; \
-	  echo "boundary: reboot files must not use pricing words (pric, cost, cheap, ledger); say score, penalty, points per unit, or best-scoring"; \
+	  echo "boundary: reboot files must not contain the words price, pricing, cost, cheap, or ledger, in any case or inside a longer word (PricedBand, CostPerR, cheapest); say score, penalty, points per unit, or best-scoring"; \
 	  exit 1; \
 	fi
 

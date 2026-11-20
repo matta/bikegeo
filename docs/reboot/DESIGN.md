@@ -8,7 +8,7 @@ A clean-slate reboot built beside the existing application under `cmd/bikegeo-re
 - When a choice is open, sketch the options briefly and recommend one. Don't write a deep spec that assumes an answer. Number open questions `Q#` and never reuse a number.
 - Prefer fewer types and clearer physical steps over heavier machinery. Show how a real bike assembly step reads in code.
 - Back technical claims with arithmetic, existing behavior, or a measurement. Two agents agreeing does not prove an unmeasured claim.
-- **Scoring words:** a build's **score** is 100 − points lost. A band is free inside its range and **penalizes** values outside it; the points it takes off are its **penalty**. Don't describe scoring as pricing or cost in prose. Call a band's rate its points per unit, the list of a build's penalties its penalty lines, and the best builds best-scoring. `make boundary` bans `pric`, `cost`, `cheap`, and `ledger` in reboot files (Q40).
+- **Scoring words:** a build's **score** is 100 − points lost. A band is free inside its range and **penalizes** values outside it; the points it takes off are its **penalty**. Don't describe scoring as pricing or cost in prose. Call a band's rate its points per unit, the list of a build's penalties its penalty lines, and the best builds best-scoring. `make boundary` bans the words `price`, `pricing`, `cost`, `cheap`, and `ledger` in reboot files (Q40).
 
 ### Slice planning
 
@@ -157,7 +157,7 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 - **Q37, score:** a build's 100 − points lost is its **score**: `StockCandidate.Score()`, a **Score** column in the stock table, `data-stock-cell="score"`, and the note says "score = 100 − points lost". The best builds are "best-scoring".
 - **Q38, free stays:** `FreeMin`/`FreeMax`, the "Free: …" preference note, and "free inside its range" keep the word *free*, meaning no penalty.
 - **Q39, scope:** reboot code, tests, templates, and all of this file. Rulings are reworded without changing their substance. AGENTS.md's legacy Architecture bullet on scores stays as it is, because it documents legacy code that still uses those words.
-- **Q40, enforcement:** `make boundary` bans `pric`, `cost`, `cheap`, and `ledger`, case-insensitively, in the file names and contents of `cmd/bikegeo-reboot` and `internal/reboot`, like `chassis`.
+- **Q40, enforcement:** `make boundary` bans the words `price`, `pricing`, `cost`, `cheap`, and `ledger` in the file names and contents of `cmd/bikegeo-reboot` and `internal/reboot`, like `chassis`. It matches in any case and inside longer words, so `prices`, `priced`, `PricedBand`, `CostPerR`, and `cheapest` are caught too. The list names whole words, not stems, so it reads plainly (revised 2026-11-19).
 
 ## Run and inspect
 
