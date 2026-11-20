@@ -286,7 +286,7 @@ func (f bikeFixture) validate() error {
 		if opt.Setup.BarRollDeg != 0 {
 			return fmt.Errorf("fixture %q handlebar %q must not set BarRollDeg", f.Name, opt.ID)
 		}
-		if _, err := assembly.PlaceHandlebar(pose.NewPose(pose.Point{}, 0, nil), opt.Setup); err != nil {
+		if _, err := assembly.PlaceHandlebar(pose.NewPose(pose.Point{}, 0), opt.Setup); err != nil {
 			return fmt.Errorf("fixture %q handlebar %q invalid: %w", f.Name, opt.ID, err)
 		}
 	}
@@ -311,13 +311,13 @@ func (f bikeFixture) validate() error {
 		}
 		setup := opt.Setup
 		setup.ExtensionMm = setup.MinExtensionMm
-		if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0, nil), setup); err != nil {
+		if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0), setup); err != nil {
 			return fmt.Errorf("fixture %q seatpost %q invalid: %w", f.Name, opt.ID, err)
 		}
 	}
 	defaultPostSetup := defaultPost.Setup
 	defaultPostSetup.ExtensionMm = f.DefaultPostExtMm
-	if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0, nil), defaultPostSetup); err != nil {
+	if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0), defaultPostSetup); err != nil {
 		return fmt.Errorf("fixture %q default seatpost %q at DefaultPostExtMm invalid: %w", f.Name, f.DefaultSeatpostID, err)
 	}
 	return nil

@@ -53,8 +53,7 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 		BarRollDeg:   10.0,
 	}
 
-	tr := pose.NewTrace()
-	steererUp := pose.NewPose(pose.Point{X: 400, Y: 600}, 180.0-70.0, tr)
+	steererUp := pose.NewPose(pose.Point{X: 400, Y: 600}, 180.0-70.0)
 	stem, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
 		UpperCoverMm:  10,
 		SpacersMm:     15,
@@ -70,7 +69,6 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceHandlebar knuckle(+10°): %v", err)
 	}
-	tr.Freeze()
 
 	dx0 := -250.0 * math.Tan(16.0*math.Pi/180.0)
 	dy0 := 30.0 + 250.0*math.Tan(4.0*math.Pi/180.0)
@@ -83,20 +81,6 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	assertNear(t, "HandGrip.Y", bar.HandGrip.Origin().Y, stem.BarClamp.Origin().Y+wantDY, 1e-9)
 	assertNear(t, "BarRollFrame.HeadingDeg", float64(bar.BarRollFrame.HeadingDeg()), -10.0, 1e-12)
 	assertNear(t, "HandGrip.HeadingDeg", float64(bar.HandGrip.HeadingDeg()), -10.0, 1e-12)
-
-	// Trace parent linkage: BarClamp -> BarRollFrame -> rise at bend -> HandGrip.
-	steps := tr.Steps()
-	if rollStep := steps[bar.BarRollFrame.StepID()-1]; rollStep.ParentID != stem.BarClamp.StepID() || rollStep.Op != "face" {
-		t.Fatalf("BarRollFrame step = %+v, want face with ParentID=%d", rollStep, stem.BarClamp.StepID())
-	}
-	gripStep := steps[bar.HandGrip.StepID()-1]
-	if gripStep.Op != "translate" || gripStep.Label != "outboard sweep projection" || gripStep.ParentID <= 0 {
-		t.Fatalf("HandGrip step = %+v, want translate 'outboard sweep projection' with positive ParentID", gripStep)
-	}
-	riseStep := steps[gripStep.ParentID-1]
-	if riseStep.ParentID != bar.BarRollFrame.StepID() || riseStep.Op != "translate" || riseStep.Label != "rise at bend" {
-		t.Fatalf("rise step = %+v, want translate 'rise at bend' with ParentID=%d", riseStep, bar.BarRollFrame.StepID())
-	}
 
 	// Reversing roll sign (-10°) negates the roll contribution.
 	negRoll := knuckle
@@ -154,7 +138,7 @@ func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 	barSetup.BarRollDeg = -7.5
 
 	placeFor := func(hta, stemAngle pose.Deg) (assembly.StemPlacement, assembly.HandlebarPlacement) {
-		steererUp := pose.NewPose(pose.Point{X: 430, Y: 625}, 180.0-hta, nil)
+		steererUp := pose.NewPose(pose.Point{X: 430, Y: 625}, 180.0-hta)
 		stem, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
 			UpperCoverMm:  11,
 			SpacersMm:     15,
@@ -192,7 +176,7 @@ func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 	}
 }
 
-func TestOtsoFenrirFullBikeFrontCockpitAndTraceEquivalence(t *testing.T) {
+func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 	// Fox 34 120 mm at 20% sag (A2C = 506 mm, rake = 44 mm, 12 mm EC44 lower cup)
 	// with full rear + front cockpits on Otso Fenrir L.
 	frame := fenrirSizeLFrame()
@@ -220,70 +204,40 @@ func TestOtsoFenrirFullBikeFrontCockpitAndTraceEquivalence(t *testing.T) {
 		Handlebar: persuader800DefaultHandlebar(),
 	}
 
-	tr := pose.NewTrace()
-	traced, err := assembly.PlaceBike(bikeSetup, tr)
+	bike, err := assembly.PlaceBike(bikeSetup)
 	if err != nil {
-		t.Fatalf("PlaceBike traced: %v", err)
-	}
-	untraced, err := assembly.PlaceBike(bikeSetup, nil)
-	if err != nil {
-		t.Fatalf("PlaceBike untraced: %v", err)
+		t.Fatalf("PlaceBike: %v", err)
 	}
 
 	// Persuader 800 mm, 70 mm inset => HandLateralMm = 330 mm.
-	assertNear(t, "HandLateralMm", traced.Handlebar.HandLateralMm, 330.0, 1e-12)
-	assertNear(t, "BrpToGripDistMm", traced.BrpToGripDistMm(), untraced.BrpToGripDistMm(), 1e-12)
-	assertNear(t, "SitBonesToGripRiseMm", traced.SitBonesToGripRiseMm(), untraced.SitBonesToGripRiseMm(), 1e-12)
+	assertNear(t, "HandLateralMm", bike.Handlebar.HandLateralMm, 330.0, 1e-12)
 
-	for _, pair := range []struct {
-		name string
-		a, b pose.Pose
-	}{
-		{"HeadTubeTop", traced.Frameset.HeadTubeTop, untraced.Frameset.HeadTubeTop},
-		{"CoverTop", traced.Stem.CoverTop, untraced.Stem.CoverTop},
-		{"SpacerTop", traced.Stem.SpacerTop, untraced.Stem.SpacerTop},
-		{"SteererClamp", traced.Stem.SteererClamp, untraced.Stem.SteererClamp},
-		{"BarClamp", traced.Stem.BarClamp, untraced.Stem.BarClamp},
-		{"BarRollFrame", traced.Handlebar.BarRollFrame, untraced.Handlebar.BarRollFrame},
-		{"HandGrip", traced.Handlebar.HandGrip, untraced.Handlebar.HandGrip},
-	} {
-		assertNear(t, pair.name+".X eq", pair.a.Origin().X, pair.b.Origin().X, 1e-12)
-		assertNear(t, pair.name+".Y eq", pair.a.Origin().Y, pair.b.Origin().Y, 1e-12)
-		assertNear(t, pair.name+".Heading eq", float64(pair.a.HeadingDeg()), float64(pair.b.HeadingDeg()), 1e-12)
-	}
+	// The stem stack and body keep their physical lengths from HeadTubeTop.
+	st := bikeSetup.Stem
+	assertNear(t, "stack distance", bike.Frameset.HeadTubeTop.DistanceTo(bike.Stem.SteererClamp), st.UpperCoverMm+st.SpacersMm+st.ClampHeightMm/2.0, 1e-9)
+	assertNear(t, "stem length", bike.Stem.SteererClamp.DistanceTo(bike.Stem.BarClamp), st.LengthMm, 1e-9)
 
-	// Verify Stem and Handlebar trace parentage chains cleanly from Frameset.HeadTubeTop.
-	steps := tr.Steps()
-	if coverStep := steps[traced.Stem.CoverTop.StepID()-1]; coverStep.ParentID != traced.Frameset.HeadTubeTop.StepID() {
-		t.Fatalf("CoverTop ParentID = %d, want HeadTubeTop.StepID %d", coverStep.ParentID, traced.Frameset.HeadTubeTop.StepID())
-	}
-	if rollStep := steps[traced.Handlebar.BarRollFrame.StepID()-1]; rollStep.ParentID != traced.Stem.BarClamp.StepID() {
-		t.Fatalf("BarRollFrame ParentID = %d, want BarClamp.StepID %d", rollStep.ParentID, traced.Stem.BarClamp.StepID())
-	}
-
-	// PlaceBike must freeze the trace on return so downstream rendering moves cannot extend history.
-	stepCount := len(steps)
-	_ = traced.Handlebar.HandGrip.Advance("render callout", 15.0)
-	if got := len(tr.Steps()); got != stepCount {
-		t.Fatalf("trace steps after post-PlaceBike Advance = %d, want %d (frozen)", got, stepCount)
-	}
+	// The bar roll frame sits at BarClamp, rolled against world horizontal.
+	assertNear(t, "BarRollFrame.X", bike.Handlebar.BarRollFrame.Origin().X, bike.Stem.BarClamp.Origin().X, 1e-12)
+	assertNear(t, "BarRollFrame.Y", bike.Handlebar.BarRollFrame.Origin().Y, bike.Stem.BarClamp.Origin().Y, 1e-12)
+	assertNear(t, "BarRollFrame.Heading", float64(bike.Handlebar.BarRollFrame.HeadingDeg()), -float64(bikeSetup.Handlebar.BarRollDeg), 1e-12)
 
 	// Error propagation from PlaceStem and PlaceHandlebar in PlaceBike.
 	badStem := bikeSetup
 	badStem.Stem.LengthMm = 0
-	if _, err := assembly.PlaceBike(badStem, nil); err == nil {
+	if _, err := assembly.PlaceBike(badStem); err == nil {
 		t.Fatal("PlaceBike expected error for zero stem length")
 	}
 
 	badBar := bikeSetup
 	badBar.Handlebar.GripInsetMm = 0
-	if _, err := assembly.PlaceBike(badBar, nil); err == nil {
+	if _, err := assembly.PlaceBike(badBar); err == nil {
 		t.Fatal("PlaceBike expected error for zero grip inset")
 	}
 }
 
 func TestPlaceHandlebarValidation(t *testing.T) {
-	validPose := pose.NewPose(pose.Point{X: 460, Y: 700}, -15, nil)
+	validPose := pose.NewPose(pose.Point{X: 460, Y: 700}, -15)
 	valid := persuader800DefaultHandlebar()
 
 	badWidth := valid
@@ -340,8 +294,8 @@ func TestPlaceHandlebarValidation(t *testing.T) {
 		pose  pose.Pose
 		setup assembly.HandlebarSetup
 	}{
-		{"NaN origin X", pose.NewPose(pose.Point{X: math.NaN(), Y: 700}, 0, nil), valid},
-		{"Inf heading", pose.NewPose(pose.Point{X: 460, Y: 700}, pose.Deg(math.Inf(1)), nil), valid},
+		{"NaN origin X", pose.NewPose(pose.Point{X: math.NaN(), Y: 700}, 0), valid},
+		{"Inf heading", pose.NewPose(pose.Point{X: 460, Y: 700}, pose.Deg(math.Inf(1))), valid},
 		{"zero effective width", validPose, badWidth},
 		{"negative current width", validPose, badCurrent},
 		{"current width exceeds stock", validPose, badCutWider},
@@ -357,7 +311,7 @@ func TestPlaceHandlebarValidation(t *testing.T) {
 		{"zero grip inset", validPose, badInsetZero},
 		{"grip inset >= half width", validPose, badInsetWide},
 		{"Inf bar roll", validPose, badRoll},
-		{"translate overflow", pose.NewPose(pose.Point{X: 0, Y: math.MaxFloat64}, 0, nil), assembly.HandlebarSetup{
+		{"translate overflow", pose.NewPose(pose.Point{X: 0, Y: math.MaxFloat64}, 0), assembly.HandlebarSetup{
 			StockWidthMm: 800,
 			StatedRiseMm: math.MaxFloat64,
 			RiseMode:     assembly.RiseModeStandardKnuckle,

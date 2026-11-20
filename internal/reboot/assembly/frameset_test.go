@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"bikegeo/internal/reboot/assembly"
-	"bikegeo/internal/reboot/pose"
 )
 
 func fenrirSizeLFrame() assembly.FrameSetup {
@@ -47,12 +46,10 @@ func TestPlaceFramesetCADBaselineForkAndInvariants(t *testing.T) {
 		SagPct: 0.0,
 	}
 
-	tr := pose.NewTrace()
-	placed, err := assembly.PlaceFrameset(frame, cadCup, cadFork, wheels, tr)
+	placed, err := assembly.PlaceFrameset(frame, cadCup, cadFork, wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
-	tr.Freeze()
 
 	// BB is fixed at (0, 0); axles are leveled to equal Y.
 	assertNear(t, "BB.X", placed.BB.Origin().X, 0, 1e-12)
@@ -92,26 +89,6 @@ func TestPlaceFramesetCADBaselineForkAndInvariants(t *testing.T) {
 	assertNear(t, "SeatAxis.Heading == SeatTubeTop.Heading", float64(placed.SeatAxis.HeadingDeg()), float64(placed.SeatTubeTop.HeadingDeg()), 1e-12)
 	assertNear(t, "SeatAxis to SeatTubeTop", placed.SeatAxis.DistanceTo(placed.SeatTubeTop), frame.SeatTubeLengthMm, 1e-9)
 	assertNear(t, "SeatAxis.Heading == BB.Heading + 180 - STA", float64(placed.SeatAxis.HeadingDeg()), float64(placed.BB.HeadingDeg()+(180.0-frame.SeatTubeAngleDeg)), 1e-12)
-
-	steps := tr.Steps()
-	seatTopStep := steps[placed.SeatTubeTop.StepID()-1]
-	if seatTopStep.ParentID != placed.SeatAxis.StepID() {
-		t.Fatalf("SeatTubeTop ParentID = %d, want SeatAxis.StepID %d", seatTopStep.ParentID, placed.SeatAxis.StepID())
-	}
-
-	// Trace-on/off equivalence.
-	untraced, err := assembly.PlaceFrameset(frame, cadCup, cadFork, wheels, nil)
-	if err != nil {
-		t.Fatalf("PlaceFrameset untraced: %v", err)
-	}
-	assertNear(t, "untraced FrontAxle.X", untraced.FrontAxle.Origin().X, placed.FrontAxle.Origin().X, 1e-12)
-	assertNear(t, "untraced FrontAxle.Y", untraced.FrontAxle.Origin().Y, placed.FrontAxle.Origin().Y, 1e-12)
-	assertNear(t, "untraced RearContact.X", untraced.RearTireContact.Origin().X, placed.RearTireContact.Origin().X, 1e-12)
-	assertNear(t, "untraced RearContact.Y", untraced.RearTireContact.Origin().Y, placed.RearTireContact.Origin().Y, 1e-12)
-	assertNear(t, "untraced FrontContact.X", untraced.FrontTireContact.Origin().X, placed.FrontTireContact.Origin().X, 1e-12)
-	assertNear(t, "untraced FrontContact.Y", untraced.FrontTireContact.Origin().Y, placed.FrontTireContact.Origin().Y, 1e-12)
-	assertNear(t, "untraced SeatAxis.Heading", float64(untraced.SeatAxis.HeadingDeg()), float64(placed.SeatAxis.HeadingDeg()), 1e-12)
-	assertNear(t, "untraced HeadTubeTop.Heading", float64(untraced.HeadTubeTop.HeadingDeg()), float64(placed.HeadTubeTop.HeadingDeg()), 1e-12)
 }
 
 func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
@@ -130,7 +107,7 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 	fork20 := assembly.ForkSetup{Spec: fox34Spec, SagPct: 20.0}
 	assertNear(t, "resolved A2C at 20% sag", fork20.EffectiveA2cMm(), 506.0, 1e-9)
 
-	placed, err := assembly.PlaceFrameset(frame, ec44Cup, fork20, wheels, nil)
+	placed, err := assembly.PlaceFrameset(frame, ec44Cup, fork20, wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
@@ -150,7 +127,7 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 	// Increasing sag shortens resolved A2C, reduces frame pitch, and lowers BB above ground.
 	fork30 := assembly.ForkSetup{Spec: fox34Spec, SagPct: 30.0}
 	assertNear(t, "resolved A2C at 30% sag", fork30.EffectiveA2cMm(), 494.0, 1e-9)
-	placedMoreSag, err := assembly.PlaceFrameset(frame, ec44Cup, fork30, wheels, nil)
+	placedMoreSag, err := assembly.PlaceFrameset(frame, ec44Cup, fork30, wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset 30%% sag: %v", err)
 	}
@@ -175,7 +152,7 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 
 	badFrame := frame
 	badFrame.ChainstayMm = 70 // <= BbDropMm (72)
-	if _, err := assembly.PlaceFrameset(badFrame, ec44Cup, fork, wheels, nil); err == nil {
+	if _, err := assembly.PlaceFrameset(badFrame, ec44Cup, fork, wheels); err == nil {
 		t.Fatal("expected error when chainstay <= BB drop")
 	}
 
@@ -184,7 +161,7 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 		{RadiusMm: -10},
 		{RadiusMm: math.NaN()},
 	} {
-		if _, err := assembly.PlaceFrameset(frame, ec44Cup, fork, badWheels, nil); err == nil {
+		if _, err := assembly.PlaceFrameset(frame, ec44Cup, fork, badWheels); err == nil {
 			t.Fatalf("expected error for WheelSetup %+v", badWheels)
 		}
 	}
@@ -197,7 +174,7 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 		{Standard: assembly.LowerCupZS56, StackMm: 2},
 		{Standard: assembly.LowerCupIS42, StackMm: 0},
 	} {
-		if _, err := assembly.PlaceFrameset(frame, validCup, fork, wheels, nil); err != nil {
+		if _, err := assembly.PlaceFrameset(frame, validCup, fork, wheels); err != nil {
 			t.Fatalf("expected valid LowerCupSetup %+v to pass, got %v", validCup, err)
 		}
 	}
@@ -227,7 +204,7 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 	}
 	for _, tc := range inputCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := assembly.PlaceFrameset(frame, tc.lowerCup, tc.fork, wheels, nil)
+			_, err := assembly.PlaceFrameset(frame, tc.lowerCup, tc.fork, wheels)
 			if err == nil {
 				t.Fatalf("expected error for %s", tc.name)
 			}
@@ -264,7 +241,7 @@ func TestPlaceCadBaselineFork(t *testing.T) {
 	cadForkSetup := assembly.ForkSetup{
 		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0},
 	}
-	placed, err := assembly.PlaceFrameset(chart.Frame, chart.CadLowerCup, cadForkSetup, wheels, nil)
+	placed, err := assembly.PlaceFrameset(chart.Frame, chart.CadLowerCup, cadForkSetup, wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
@@ -276,7 +253,7 @@ func TestPlaceCadBaselineFork(t *testing.T) {
 		Spec:   assembly.ForkSpec{StaticA2cMm: 530.0, TravelMm: 120.0, RakeMm: 44.0},
 		SagPct: 20.0,
 	}
-	installed, err := assembly.PlaceFrameset(chart.Frame, fenrirEc44Cup(), installedFork, wheels, nil)
+	installed, err := assembly.PlaceFrameset(chart.Frame, fenrirEc44Cup(), installedFork, wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset installed: %v", err)
 	}

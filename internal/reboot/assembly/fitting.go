@@ -55,10 +55,7 @@ func (f Fitting) GripMiss() (pose.Point, bool) {
 // lands on a BRP target, and Stem.SpacersMm and Stem.LengthMm so the HandGrip
 // lands on a HandGrip target, each within hardware limits. All other setup
 // fields are kept. LimitedBy lists limited inputs saddle first, then cockpit.
-// trace, if non-nil, records only the final PlaceBike of the fitted setup and is
-// frozen on return.
-func ApplyFitting(setup BikeSetup, target FitTarget, trace *pose.Trace) (Fitting, error) {
-	defer trace.Freeze()
+func ApplyFitting(setup BikeSetup, target FitTarget) (Fitting, error) {
 	if target.BRP == nil && target.HandGrip == nil {
 		return Fitting{}, fmt.Errorf("fit target has no landmarks")
 	}
@@ -83,7 +80,7 @@ func ApplyFitting(setup BikeSetup, target FitTarget, trace *pose.Trace) (Fitting
 		probeSetup.Stem.SpacersMm = 0
 		probeSetup.Stem.LengthMm = setup.Stem.MinLengthMm
 	}
-	probe, err := PlaceBike(probeSetup, nil)
+	probe, err := PlaceBike(probeSetup)
 	if err != nil {
 		return Fitting{}, err
 	}
@@ -110,7 +107,7 @@ func ApplyFitting(setup BikeSetup, target FitTarget, trace *pose.Trace) (Fitting
 		limitedBy = append(limitedBy, limited...)
 	}
 
-	placement, err := PlaceBike(fitted, trace)
+	placement, err := PlaceBike(fitted)
 	if err != nil {
 		return Fitting{}, err
 	}
@@ -152,7 +149,7 @@ func FitPostSetback(setup BikeSetup, brp pose.Point, railOffsetMm float64) (Fitt
 	probeSetup.Seatpost.ExtensionMm = setup.Seatpost.MinExtensionMm
 	probeSetup.Seatpost.PostSetbackMm = 0
 	probeSetup.Saddle.RailOffsetMm = railOffsetMm
-	probe, err := PlaceBike(probeSetup, nil)
+	probe, err := PlaceBike(probeSetup)
 	if err != nil {
 		return Fitting{}, err
 	}
@@ -175,7 +172,7 @@ func FitPostSetback(setup BikeSetup, brp pose.Point, railOffsetMm float64) (Fitt
 	fitted := probeSetup
 	fitted.Seatpost.ExtensionMm = clampFit(eMin+de, eMin, eMax)
 	fitted.Seatpost.PostSetbackMm = clampFit(ds, 0, math.Inf(1))
-	placement, err := PlaceBike(fitted, nil)
+	placement, err := PlaceBike(fitted)
 	if err != nil {
 		return Fitting{}, err
 	}

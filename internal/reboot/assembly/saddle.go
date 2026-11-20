@@ -80,10 +80,12 @@ func PlaceSaddle(seatpostClamp pose.Pose, clampLengthMm float64, setup SaddleSet
 		return SaddlePlacement{}, invalidInput(InputSaddleRailOffset, "saddle rail offset must be within ±%v mm, got %v mm", railLimit, setup.RailOffsetMm)
 	}
 
-	railFrame := seatpostClamp.Face("saddle rail pitch vs. world horizontal", setup.RailPitchDeg)
-	railCenter := railFrame.Advance("saddle rail offset", -setup.RailOffsetMm)
-	brp := railCenter.Advance("rail center to BRP", setup.RailCenterToBrpMm)
-	sitBones := railCenter.Translate("rail center to sit bones", setup.RailCenterToSitBonesMm, setup.SitBonesElevationMm)
+	// Rail pitch is measured against world horizontal, so face it rather than turn.
+	railFrame := seatpostClamp.Face(setup.RailPitchDeg)
+	// A positive rail offset slides the saddle rearward, against the rail heading.
+	railCenter := railFrame.Advance(-setup.RailOffsetMm)
+	brp := railCenter.Advance(setup.RailCenterToBrpMm)
+	sitBones := railCenter.Translate(setup.RailCenterToSitBonesMm, setup.SitBonesElevationMm)
 
 	if err := validatePlacementPoses("saddle", seatpostClamp, railCenter, brp, sitBones); err != nil {
 		return SaddlePlacement{}, err

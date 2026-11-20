@@ -62,7 +62,7 @@ func TestStemCloseUpDrawsStemBodyFromBarClamp(t *testing.T) {
 	if inputErr != nil {
 		t.Fatalf("decode default state: %v", inputErr)
 	}
-	bike, err := assembly.PlaceBike(resolved.Setup, nil)
+	bike, err := assembly.PlaceBike(resolved.Setup)
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		Saddle:    fix.DefaultSaddle,
 		Stem:      fix.DefaultStem,
 		Handlebar: defaultHandlebarSetup(t, fix),
-	}, nil)
+	})
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -422,7 +422,7 @@ func TestBikeWorkbenchCockpitControlsUpdateBuild(t *testing.T) {
 		Saddle:    saddleSetup,
 		Stem:      stemSetup,
 		Handlebar: barSetup,
-	}, nil)
+	})
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -629,7 +629,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 		Saddle:    customSaddle,
 		Stem:      customStem,
 		Handlebar: customBar,
-	}, nil)
+	})
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -1168,7 +1168,7 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceCadBaselineFork(customFix): %v", err)
 	}
-	placedCustom, err := assembly.PlaceFrameset(customDecoded.Setup.Frame, customDecoded.Setup.LowerCup, customDecoded.Setup.Fork, customDecoded.Setup.Wheels, nil)
+	placedCustom, err := assembly.PlaceFrameset(customDecoded.Setup.Frame, customDecoded.Setup.LowerCup, customDecoded.Setup.Fork, customDecoded.Setup.Wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset(customDecoded): %v", err)
 	}
@@ -1674,7 +1674,7 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 	if inputErr != nil {
 		t.Fatalf("decode defaults: %v", inputErr)
 	}
-	bike, err := assembly.PlaceBike(resolved.Setup, nil)
+	bike, err := assembly.PlaceBike(resolved.Setup)
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -2023,7 +2023,7 @@ func fittingTestTarget(t *testing.T, query url.Values) (x, y float64) {
 	if inputErr != nil {
 		t.Fatalf("decode %v: %v", query, inputErr)
 	}
-	bike, err := assembly.PlaceBike(resolved.Setup, nil)
+	bike, err := assembly.PlaceBike(resolved.Setup)
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -2211,7 +2211,7 @@ func gripTestTarget(t *testing.T, query url.Values) (x, y float64) {
 	if inputErr != nil {
 		t.Fatalf("decode %v: %v", query, inputErr)
 	}
-	bike, err := assembly.PlaceBike(resolved.Setup, nil)
+	bike, err := assembly.PlaceBike(resolved.Setup)
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -2741,7 +2741,7 @@ func TestFixtureHandlebarReferenceHandGrips(t *testing.T) {
 			if inputErr != nil {
 				t.Fatalf("decodeWorkbenchState: %v", inputErr)
 			}
-			placed, err := assembly.PlaceBike(resolved.Setup, nil)
+			placed, err := assembly.PlaceBike(resolved.Setup)
 			if err != nil {
 				t.Fatalf("PlaceBike: %v", err)
 			}
@@ -2949,7 +2949,7 @@ func TestBikeWorkbenchSeatpostSelect(t *testing.T) {
 		Saddle:    fix.DefaultSaddle,
 		Stem:      fix.DefaultStem,
 		Handlebar: defaultHandlebarSetup(t, fix),
-	}, nil)
+	})
 	if err != nil {
 		t.Fatalf("PlaceBike redshift: %v", err)
 	}

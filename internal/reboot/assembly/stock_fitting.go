@@ -50,7 +50,7 @@ func (s CockpitStock) Validate() error {
 		if bar.BarRollDeg != 0 {
 			return fmt.Errorf("stock handlebar %d must not set BarRollDeg; stock fitting installs every bar at the submitted roll (Q24)", i)
 		}
-		if _, err := PlaceHandlebar(pose.NewPose(pose.Point{}, 0, nil), bar); err != nil {
+		if _, err := PlaceHandlebar(pose.NewPose(pose.Point{}, 0), bar); err != nil {
 			return fmt.Errorf("stock handlebar %d: %w", i, err)
 		}
 	}
@@ -288,13 +288,13 @@ func ApplyStockFitting(setup BikeSetup, target FitTarget, stock CockpitStock, pr
 		base := setup
 		base.Fork, base.LowerCup = fork.fork, fork.lowerCup
 		if brp != nil {
-			saddle, err := ApplyFitting(base, FitTarget{BRP: brp}, nil)
+			saddle, err := ApplyFitting(base, FitTarget{BRP: brp})
 			if err != nil {
 				return StockFitting{}, err
 			}
 			base = saddle.Placement.Setup
 		}
-		if _, err := PlaceBike(base, nil); err != nil {
+		if _, err := PlaceBike(base); err != nil {
 			return StockFitting{}, err
 		}
 		// Wait until PlaceBike has validated the stem's spacer allowance.
@@ -311,7 +311,7 @@ func ApplyStockFitting(setup BikeSetup, target FitTarget, stock CockpitStock, pr
 						candidate.Stem.LengthMm = length
 						candidate.Stem.SpacersMm = spacers
 						candidate.Handlebar = bar.setup
-						placement, err := PlaceBike(candidate, nil)
+						placement, err := PlaceBike(candidate)
 						if err != nil {
 							return StockFitting{}, err
 						}

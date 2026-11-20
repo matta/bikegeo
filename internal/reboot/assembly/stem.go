@@ -68,11 +68,12 @@ func PlaceStem(steererUp pose.Pose, setup StemSetup) (StemPlacement, error) {
 		return StemPlacement{}, invalidInput(InputStemAngle, "stem angle must be finite, got %v°", setup.AngleDeg)
 	}
 
-	coverTop := steererUp.Advance("upper headset cover", setup.UpperCoverMm)
-	spacerTop := coverTop.Advance("spacers", setup.SpacersMm)
-	steererClamp := spacerTop.Advance("half stem clamp height", setup.ClampHeightMm/2.0)
-	stemAxis := steererClamp.Turn("perpendicular", -90.0).Turn("stem axis", setup.AngleDeg)
-	barClamp := stemAxis.Advance("stem length", setup.LengthMm)
+	coverTop := steererUp.Advance(setup.UpperCoverMm)
+	spacerTop := coverTop.Advance(setup.SpacersMm)
+	steererClamp := spacerTop.Advance(setup.ClampHeightMm / 2.0)
+	// Turn -90° to the stem axis perpendicular to the steerer, then rotate by the stem angle.
+	stemAxis := steererClamp.Turn(-90.0).Turn(setup.AngleDeg)
+	barClamp := stemAxis.Advance(setup.LengthMm)
 
 	if err := validatePlacementPoses("stem", steererUp, steererClamp, barClamp); err != nil {
 		return StemPlacement{}, err

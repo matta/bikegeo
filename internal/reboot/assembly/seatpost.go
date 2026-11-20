@@ -59,8 +59,9 @@ func PlaceSeatpost(seatTubeTop pose.Pose, setup SeatpostSetup) (SeatpostPlacemen
 		return SeatpostPlacement{}, fmt.Errorf("seatpost clamp length must be finite and positive, got %v mm", setup.ClampLengthMm)
 	}
 
-	shaftTop := seatTubeTop.Advance("seatpost extension", setup.ExtensionMm)
-	seatpostClamp := shaftTop.Translate("seatpost setback", 0, setup.PostSetbackMm)
+	shaftTop := seatTubeTop.Advance(setup.ExtensionMm)
+	// Setback is along local +Y from the shaft top, which points rearward.
+	seatpostClamp := shaftTop.Translate(0, setup.PostSetbackMm)
 
 	if err := validatePlacementPoses("seatpost", seatTubeTop, shaftTop, seatpostClamp); err != nil {
 		return SeatpostPlacement{}, err

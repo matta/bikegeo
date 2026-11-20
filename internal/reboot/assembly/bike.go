@@ -1,7 +1,5 @@
 package assembly
 
-import "bikegeo/internal/reboot/pose"
-
 // BikeSetup specifies the complete single-bike physical build inputs for PlaceBike.
 type BikeSetup struct {
 	Frame     FrameSetup
@@ -59,12 +57,9 @@ func (b BikePlacement) SitBonesToGripRiseMm() float64 {
 
 // PlaceBike constructs the leveled frameset, mounts the rear cockpit
 // (Seatpost -> Saddle) on SeatTubeTop, and mounts the front cockpit
-// (Stem -> Handlebar) on HeadTubeTop in a single traced (or untraced) Pose
-// tree rooted at BB. It freezes trace (when non-nil) before returning so
-// downstream callers and renderers cannot append steps to construction history.
-func PlaceBike(setup BikeSetup, trace *pose.Trace) (BikePlacement, error) {
-	defer trace.Freeze()
-	frameset, err := PlaceFrameset(setup.Frame, setup.LowerCup, setup.Fork, setup.Wheels, trace)
+// (Stem -> Handlebar) on HeadTubeTop in a single Pose tree rooted at BB.
+func PlaceBike(setup BikeSetup) (BikePlacement, error) {
+	frameset, err := PlaceFrameset(setup.Frame, setup.LowerCup, setup.Fork, setup.Wheels)
 	if err != nil {
 		return BikePlacement{}, err
 	}

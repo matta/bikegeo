@@ -28,8 +28,7 @@ func TestPlaceStemWorkedExample60DegHTA(t *testing.T) {
 	// Stem angle = 0° => turn -90° to 30°; advance 100 mm.
 	// At 30°: cos(30°) = sqrt(3)/2, sin(30°) = 0.5.
 	// BarClamp = (-25 + 50*sqrt(3), 25*sqrt(3) + 50).
-	tr := pose.NewTrace()
-	steererUp := pose.NewPose(pose.Point{X: 0, Y: 0}, 120, tr)
+	steererUp := pose.NewPose(pose.Point{X: 0, Y: 0}, 120)
 	got, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
 		UpperCoverMm:  10,
 		SpacersMm:     20,
@@ -41,7 +40,6 @@ func TestPlaceStemWorkedExample60DegHTA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceStem() error = %v", err)
 	}
-	tr.Freeze()
 
 	sqrt3 := math.Sqrt(3)
 	assertNear(t, "SteererClamp.X", got.SteererClamp.Origin().X, -25.0, 1e-9)
@@ -49,17 +47,13 @@ func TestPlaceStemWorkedExample60DegHTA(t *testing.T) {
 	assertNear(t, "BarClamp.X", got.BarClamp.Origin().X, -25.0+50.0*sqrt3, 1e-9)
 	assertNear(t, "BarClamp.Y", got.BarClamp.Origin().Y, 25.0*sqrt3+50.0, 1e-9)
 	assertNear(t, "BarClamp.HeadingDeg", float64(got.BarClamp.HeadingDeg()), 30.0, 1e-9)
-
-	if steps := tr.Steps(); len(steps) != 6 {
-		t.Fatalf("len(trace.Steps()) = %d, want 6", len(steps))
-	}
 }
 
 func TestPlaceStemWorkedExampleNonzeroAngle(t *testing.T) {
 	// 60° HTA => steererUp heading is 120°; SteererClamp at (-25, 25*sqrt(3)).
 	// Perpendicular (-90°) gives 30°, then +30° stem angle gives 60°.
 	// BarClamp = SteererClamp + 100*(cos 60°, sin 60°) = (25, 75*sqrt(3)).
-	steererUp := pose.NewPose(pose.Point{X: 0, Y: 0}, 120, nil)
+	steererUp := pose.NewPose(pose.Point{X: 0, Y: 0}, 120)
 	got, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
 		UpperCoverMm:  10,
 		SpacersMm:     20,
@@ -78,7 +72,7 @@ func TestPlaceStemWorkedExampleNonzeroAngle(t *testing.T) {
 	assertNear(t, "BarClamp.HeadingDeg", float64(got.BarClamp.HeadingDeg()), 60.0, 1e-9)
 }
 
-func TestPlaceStemDimensionsAndTraceEquivalence(t *testing.T) {
+func TestPlaceStemDimensions(t *testing.T) {
 	// Default Milestone 1 front cockpit dimensions at HTA = 68.25°.
 	setup := assembly.StemSetup{
 		UpperCoverMm:  11.0,
@@ -91,34 +85,19 @@ func TestPlaceStemDimensionsAndTraceEquivalence(t *testing.T) {
 	heading := pose.Deg(180.0 - 68.25)
 	origin := pose.Point{X: 428.0, Y: 642.0}
 
-	tr := pose.NewTrace()
-	traced, err := assembly.PlaceStem(pose.NewPose(origin, heading, tr), setup)
+	got, err := assembly.PlaceStem(pose.NewPose(origin, heading), setup)
 	if err != nil {
-		t.Fatalf("traced PlaceStem() error = %v", err)
-	}
-	tr.Freeze()
-
-	untraced, err := assembly.PlaceStem(pose.NewPose(origin, heading, nil), setup)
-	if err != nil {
-		t.Fatalf("untraced PlaceStem() error = %v", err)
+		t.Fatalf("PlaceStem() error = %v", err)
 	}
 
-	assertNear(t, "stack distance", dist(origin, traced.SteererClamp.Origin()), 11.0+20.0+20.0, 1e-9)
-	assertNear(t, "stem length", dist(traced.SteererClamp.Origin(), traced.BarClamp.Origin()), 60.0, 1e-9)
-
-	assertNear(t, "CoverTop.X eq", traced.CoverTop.Origin().X, untraced.CoverTop.Origin().X, 1e-12)
-	assertNear(t, "CoverTop.Y eq", traced.CoverTop.Origin().Y, untraced.CoverTop.Origin().Y, 1e-12)
-	assertNear(t, "SpacerTop.X eq", traced.SpacerTop.Origin().X, untraced.SpacerTop.Origin().X, 1e-12)
-	assertNear(t, "SpacerTop.Y eq", traced.SpacerTop.Origin().Y, untraced.SpacerTop.Origin().Y, 1e-12)
-	assertNear(t, "SteererClamp.X eq", traced.SteererClamp.Origin().X, untraced.SteererClamp.Origin().X, 1e-12)
-	assertNear(t, "SteererClamp.Y eq", traced.SteererClamp.Origin().Y, untraced.SteererClamp.Origin().Y, 1e-12)
-	assertNear(t, "BarClamp.X eq", traced.BarClamp.Origin().X, untraced.BarClamp.Origin().X, 1e-12)
-	assertNear(t, "BarClamp.Y eq", traced.BarClamp.Origin().Y, untraced.BarClamp.Origin().Y, 1e-12)
-	assertNear(t, "BarClamp.Heading eq", float64(traced.BarClamp.HeadingDeg()), float64(untraced.BarClamp.HeadingDeg()), 1e-12)
+	assertNear(t, "stack distance", dist(origin, got.SteererClamp.Origin()), 11.0+20.0+20.0, 1e-9)
+	assertNear(t, "stem length", dist(got.SteererClamp.Origin(), got.BarClamp.Origin()), 60.0, 1e-9)
+	// Perpendicular to the steerer (heading - 90°), then the stem angle.
+	assertNear(t, "BarClamp.Heading", float64(got.BarClamp.HeadingDeg()), float64(heading)-90.0+float64(setup.AngleDeg), 1e-12)
 }
 
 func TestPlaceStemValidation(t *testing.T) {
-	validPose := pose.NewPose(pose.Point{X: 0, Y: 0}, 111.75, nil)
+	validPose := pose.NewPose(pose.Point{X: 0, Y: 0}, 111.75)
 	validSetup := assembly.StemSetup{
 		UpperCoverMm:  11,
 		SpacersMm:     20,
@@ -133,8 +112,8 @@ func TestPlaceStemValidation(t *testing.T) {
 		pose  pose.Pose
 		setup assembly.StemSetup
 	}{
-		{"NaN origin X", pose.NewPose(pose.Point{X: math.NaN(), Y: 0}, 111.75, nil), validSetup},
-		{"Inf heading", pose.NewPose(pose.Point{X: 0, Y: 0}, pose.Deg(math.Inf(1)), nil), validSetup},
+		{"NaN origin X", pose.NewPose(pose.Point{X: math.NaN(), Y: 0}, 111.75), validSetup},
+		{"Inf heading", pose.NewPose(pose.Point{X: 0, Y: 0}, pose.Deg(math.Inf(1))), validSetup},
 		{"negative cover", validPose, assembly.StemSetup{UpperCoverMm: -1, SpacersMm: 20, MaxSpacersMm: 40, ClampHeightMm: 40, LengthMm: 60, AngleDeg: -6}},
 		{"negative spacers", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: -1, MaxSpacersMm: 40, ClampHeightMm: 40, LengthMm: 60, AngleDeg: -6}},
 		{"zero clamp height", validPose, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 20, MaxSpacersMm: 40, ClampHeightMm: 0, LengthMm: 60, AngleDeg: -6}},
@@ -155,7 +134,7 @@ func TestPlaceStemValidation(t *testing.T) {
 }
 
 func TestPlaceStemSpacersOverMaxIsInputError(t *testing.T) {
-	steererUp := pose.NewPose(pose.Point{}, 111.75, nil)
+	steererUp := pose.NewPose(pose.Point{}, 111.75)
 	_, err := assembly.PlaceStem(steererUp, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 41, MaxSpacersMm: 40, ClampHeightMm: 40, LengthMm: 60})
 	var inputErr *assembly.InputError
 	if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputStemSpacers {
@@ -164,7 +143,7 @@ func TestPlaceStemSpacersOverMaxIsInputError(t *testing.T) {
 }
 
 func TestPlaceStemSpacersExactlyAtMaxPlaces(t *testing.T) {
-	steererUp := pose.NewPose(pose.Point{}, 111.75, nil)
+	steererUp := pose.NewPose(pose.Point{}, 111.75)
 	if _, err := assembly.PlaceStem(steererUp, assembly.StemSetup{UpperCoverMm: 11, SpacersMm: 40, MaxSpacersMm: 40, ClampHeightMm: 40, LengthMm: 60}); err != nil {
 		t.Fatalf("PlaceStem at max spacers: %v", err)
 	}

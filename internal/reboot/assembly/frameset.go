@@ -230,7 +230,7 @@ func PlaceCadBaselineFork(chart FrameChart, wheels WheelSetup) (ChartBaseline, e
 	_, pitchDeg := measureUnpitchedFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork)
 
 	return ChartBaseline{
-		Placement: placeLeveledFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork, wheels, pitchDeg, nil),
+		Placement: placeLeveledFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork, wheels, pitchDeg),
 	}, nil
 }
 
@@ -239,43 +239,46 @@ func PlaceCadBaselineFork(chart FrameChart, wheels WheelSetup) (ChartBaseline, e
 // axle-leveling pitch at 0° frame pitch, and Pass 2 builds the leveled frameset
 // rooted at BB rotated by that pitch and locates the wheel-ground contact
 // landmarks directly below each axle.
-func PlaceFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, wheels WheelSetup, trace *pose.Trace) (FramesetPlacement, error) {
+func PlaceFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, wheels WheelSetup) (FramesetPlacement, error) {
 	if err := validateFramesetInputs(frame, lowerCup, fork, wheels); err != nil {
 		return FramesetPlacement{}, err
 	}
 
 	geom := fork.Geometry()
 	_, pitchDeg := measureUnpitchedFrameset(frame, lowerCup.StackMm, geom)
-	return placeLeveledFrameset(frame, lowerCup.StackMm, geom, wheels, pitchDeg, trace), nil
+	return placeLeveledFrameset(frame, lowerCup.StackMm, geom, wheels, pitchDeg), nil
 }
 
 func measureUnpitchedFrameset(frame FrameSetup, lowerCupMm float64, fork ForkGeometry) (FramesetPlacement, pose.Deg) {
-	unpitched := placeFramesetAtPitch(pose.NewPose(pose.Point{}, 0, nil), frame, lowerCupMm, fork)
+	unpitched := placeFramesetAtPitch(pose.NewPose(pose.Point{}, 0), frame, lowerCupMm, fork)
 	return unpitched, -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)
 }
 
-func placeLeveledFrameset(frame FrameSetup, lowerCupMm float64, fork ForkGeometry, wheels WheelSetup, pitchDeg pose.Deg, trace *pose.Trace) FramesetPlacement {
-	frameRoot := pose.NewPose(pose.Point{}, 0, trace).Turn("frame pitch to level axles", pitchDeg)
+func placeLeveledFrameset(frame FrameSetup, lowerCupMm float64, fork ForkGeometry, wheels WheelSetup, pitchDeg pose.Deg) FramesetPlacement {
+	frameRoot := pose.NewPose(pose.Point{}, 0).Turn(pitchDeg)
 	leveled := placeFramesetAtPitch(frameRoot, frame, lowerCupMm, fork)
-	leveled.RearTireContact = leveled.RearAxle.Face("down to ground", -90.0).Advance("rear wheel radius", wheels.RadiusMm)
-	leveled.FrontTireContact = leveled.FrontAxle.Face("down to ground", -90.0).Advance("front wheel radius", wheels.RadiusMm)
+	// Face straight down (-90°), then advance one wheel radius to the ground.
+	leveled.RearTireContact = leveled.RearAxle.Face(-90.0).Advance(wheels.RadiusMm)
+	leveled.FrontTireContact = leveled.FrontAxle.Face(-90.0).Advance(wheels.RadiusMm)
 	return leveled
 }
 
 func placeFramesetAtPitch(frameRoot pose.Pose, frame FrameSetup, lowerCupMm float64, fork ForkGeometry) FramesetPlacement {
 	rearX := -pose.RightTriangleLeg(frame.ChainstayMm, frame.BbDropMm)
-	rearAxle := frameRoot.Translate("rear axle", rearX, frame.BbDropMm)
+	rearAxle := frameRoot.Translate(rearX, frame.BbDropMm)
 
-	headTubeTop := frameRoot.Translate("head tube top (reach, stack)", frame.ReachMm, frame.StackMm).
-		Turn("steerer axis (180° - HTA)", 180.0-frame.HeadTubeAngleDeg)
-	steererDown := headTubeTop.Turn("down steerer", 180.0)
-	headTubeBottom := steererDown.Advance("head tube length", frame.HeadTubeLengthMm)
-	lowerCupBottom := headTubeBottom.Advance("lower headset cup", lowerCupMm)
-	forkSteererBase := lowerCupBottom.Advance("fork A2C", fork.A2cMm)
-	frontAxle := forkSteererBase.Turn("fork rake direction", 90.0).Advance("fork rake", fork.RakeMm)
+	headTubeTop := frameRoot.Translate(frame.ReachMm, frame.StackMm).
+		Turn(180.0 - frame.HeadTubeAngleDeg) // heading along the steerer axis, pointing up
+	steererDown := headTubeTop.Turn(180.0)
+	headTubeBottom := steererDown.Advance(frame.HeadTubeLengthMm)
+	lowerCupBottom := headTubeBottom.Advance(lowerCupMm)
+	forkSteererBase := lowerCupBottom.Advance(fork.A2cMm)
+	// Turning 90° from steerer-down points forward: the fork rake direction.
+	frontAxle := forkSteererBase.Turn(90.0).Advance(fork.RakeMm)
 
-	seatAxis := frameRoot.Turn("seat tube axis (180° - STA)", 180.0-frame.SeatTubeAngleDeg)
-	seatTubeTop := seatAxis.Advance("seat tube length", frame.SeatTubeLengthMm)
+	// The seat tube axis points up and back: 180° minus the seat tube angle.
+	seatAxis := frameRoot.Turn(180.0 - frame.SeatTubeAngleDeg)
+	seatTubeTop := seatAxis.Advance(frame.SeatTubeLengthMm)
 
 	return FramesetPlacement{
 		BB:              frameRoot,

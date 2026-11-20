@@ -30,9 +30,8 @@ func TestPlaceSeatpostAndSaddleWorkedExample60DegSTA(t *testing.T) {
 	//   BRP        = (-30, 50*sqrt(3)) @ 0°
 	//   SitBones   = (-110, 50*sqrt(3) + 10) @ 0°
 	sqrt3 := math.Sqrt(3)
-	tr := pose.NewTrace()
-	seatAxis := pose.NewPose(pose.Point{}, 120.0, tr)
-	seatTubeTop := seatAxis.Advance("seat tube length", 60.0)
+	seatAxis := pose.NewPose(pose.Point{}, 120.0)
+	seatTubeTop := seatAxis.Advance(60.0)
 
 	post, err := assembly.PlaceSeatpost(seatTubeTop, assembly.SeatpostSetup{
 		ExtensionMm:   40.0,
@@ -49,7 +48,6 @@ func TestPlaceSeatpostAndSaddleWorkedExample60DegSTA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceSaddle: %v", err)
 	}
-	tr.Freeze()
 
 	assertNear(t, "ShaftTop.X", post.ShaftTop.Origin().X, -50.0, 1e-9)
 	assertNear(t, "ShaftTop.Y", post.ShaftTop.Origin().Y, 50.0*sqrt3, 1e-9)
@@ -75,22 +73,13 @@ func TestPlaceSeatpostAndSaddleWorkedExample60DegSTA(t *testing.T) {
 	} {
 		assertNear(t, lm.name+".Heading", float64(lm.p.HeadingDeg()), 0.0, 1e-12)
 	}
-
-	// Verify BRP and SitBones both branch directly from RailCenter in the trace.
-	steps := tr.Steps()
-	if brpStep := steps[saddle.BRP.StepID()-1]; brpStep.ParentID != saddle.RailCenter.StepID() {
-		t.Fatalf("BRP ParentID = %d, want RailCenter.StepID %d", brpStep.ParentID, saddle.RailCenter.StepID())
-	}
-	if sitStep := steps[saddle.SitBones.StepID()-1]; sitStep.ParentID != saddle.RailCenter.StepID() {
-		t.Fatalf("SitBones ParentID = %d, want RailCenter.StepID %d", sitStep.ParentID, saddle.RailCenter.StepID())
-	}
 }
 
 func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 	// At 60° STA (heading 120°), local +Y is 120° + 90° = 210° (cos = -sqrt(3)/2, sin = -0.5).
 	// Adding +20 mm PostSetbackMm shifts SeatpostClamp and all saddle landmarks by (-10*sqrt(3), -10) mm
 	// while leaving ShaftTop unchanged.
-	seatTubeTop := pose.NewPose(pose.Point{X: -30, Y: 30 * math.Sqrt(3)}, 120.0, nil)
+	seatTubeTop := pose.NewPose(pose.Point{X: -30, Y: 30 * math.Sqrt(3)}, 120.0)
 	basePost, err := assembly.PlaceSeatpost(seatTubeTop, assembly.SeatpostSetup{
 		ExtensionMm:   40.0,
 		PostSetbackMm: 0.0,
@@ -165,8 +154,8 @@ func TestPlaceSaddleWorldRelativePitch(t *testing.T) {
 	setup.RailPitchDeg = 10.0 // Positive pitch raises the nose CCW from world horizontal.
 	setup.RailOffsetMm = 5.0
 
-	clamp60 := pose.NewPose(pose.Point{X: -180, Y: 720}, 180.0-60.0, nil)
-	clamp75 := pose.NewPose(pose.Point{X: -180, Y: 720}, 180.0-75.25, nil)
+	clamp60 := pose.NewPose(pose.Point{X: -180, Y: 720}, 180.0-60.0)
+	clamp75 := pose.NewPose(pose.Point{X: -180, Y: 720}, 180.0-75.25)
 
 	s60, err := assembly.PlaceSaddle(clamp60, 30.0, setup)
 	if err != nil {
@@ -192,7 +181,7 @@ func TestPlaceSaddleWorldRelativePitch(t *testing.T) {
 	assertNear(t, "SitBones.Heading", float64(s60.SitBones.HeadingDeg()), 10.0, 1e-12)
 }
 
-func TestOtsoFenrirRearCockpitAndTraceEquivalence(t *testing.T) {
+func TestOtsoFenrirRearCockpit(t *testing.T) {
 	frame := fenrirSizeLFrame()
 	wheels := fenrirWheels()
 	cadFork := assembly.ForkSetup{
@@ -207,8 +196,8 @@ func TestOtsoFenrirRearCockpitAndTraceEquivalence(t *testing.T) {
 
 	// Check the fixture's reference saddle height at the 75.25° STA attitude:
 	// 490.0 mm seat tube + 263.5 mm extension = 753.5 mm along seat axis, and |BRP - BB| ≈ 746.0 mm.
-	refSeatAxis := pose.NewPose(pose.Point{}, 180.0-frame.SeatTubeAngleDeg, nil)
-	refSeatTubeTop := refSeatAxis.Advance("seat tube length", frame.SeatTubeLengthMm)
+	refSeatAxis := pose.NewPose(pose.Point{}, 180.0-frame.SeatTubeAngleDeg)
+	refSeatTubeTop := refSeatAxis.Advance(frame.SeatTubeLengthMm)
 	refPost, err := assembly.PlaceSeatpost(refSeatTubeTop, postSetup)
 	if err != nil {
 		t.Fatalf("PlaceSeatpost ref: %v", err)
@@ -220,7 +209,7 @@ func TestOtsoFenrirRearCockpitAndTraceEquivalence(t *testing.T) {
 	assertNear(t, "BB to clamp along seat axis", refSeatAxis.DistanceTo(refPost.ShaftTop), 753.5, 1e-9)
 	assertNear(t, "reference |BRP - BB|", refSeatAxis.DistanceTo(refSaddle.BRP), 746.0, 0.01)
 
-	// Full leveled frameset + cockpits via PlaceBike, with trace-on/off equivalence.
+	// Full leveled frameset + cockpits via PlaceBike.
 	bikeSetup := assembly.BikeSetup{
 		Frame:     frame,
 		LowerCup:  assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0.0},
@@ -231,53 +220,33 @@ func TestOtsoFenrirRearCockpitAndTraceEquivalence(t *testing.T) {
 		Stem:      fenrirDefaultStem(),
 		Handlebar: persuader800DefaultHandlebar(),
 	}
-	tr := pose.NewTrace()
-	traced, err := assembly.PlaceBike(bikeSetup, tr)
+	bike, err := assembly.PlaceBike(bikeSetup)
 	if err != nil {
-		t.Fatalf("PlaceBike traced: %v", err)
+		t.Fatalf("PlaceBike: %v", err)
 	}
 
-	untraced, err := assembly.PlaceBike(bikeSetup, nil)
-	if err != nil {
-		t.Fatalf("PlaceBike untraced: %v", err)
-	}
-
-	assertNear(t, "leveled BB to post top along seat axis", traced.SeatAxisToPostTopMm(), 753.5, 1e-9)
-	assertNear(t, "CAD leveled |BRP - BB|", traced.SaddleHeightMm(), 746.0, 0.1)
-	assertNear(t, "Setup preserved on BikePlacement", traced.Setup.Seatpost.ClampLengthMm, 30.0, 1e-12)
-
-	for _, pair := range []struct {
-		name string
-		a, b pose.Pose
-	}{
-		{"SeatTubeTop", traced.Frameset.SeatTubeTop, untraced.Frameset.SeatTubeTop},
-		{"ShaftTop", traced.Seatpost.ShaftTop, untraced.Seatpost.ShaftTop},
-		{"SeatpostClamp", traced.Seatpost.SeatpostClamp, untraced.Seatpost.SeatpostClamp},
-		{"RailFrame", traced.Saddle.RailFrame, untraced.Saddle.RailFrame},
-		{"RailCenter", traced.Saddle.RailCenter, untraced.Saddle.RailCenter},
-		{"BRP", traced.Saddle.BRP, untraced.Saddle.BRP},
-		{"SitBones", traced.Saddle.SitBones, untraced.Saddle.SitBones},
-	} {
-		assertNear(t, pair.name+".X eq", pair.a.Origin().X, pair.b.Origin().X, 1e-12)
-		assertNear(t, pair.name+".Y eq", pair.a.Origin().Y, pair.b.Origin().Y, 1e-12)
-		assertNear(t, pair.name+".Heading eq", float64(pair.a.HeadingDeg()), float64(pair.b.HeadingDeg()), 1e-12)
-	}
+	assertNear(t, "leveled BB to post top along seat axis", bike.SeatAxisToPostTopMm(), 753.5, 1e-9)
+	assertNear(t, "CAD leveled |BRP - BB|", bike.SaddleHeightMm(), 746.0, 0.1)
+	assertNear(t, "Setup preserved on BikePlacement", bike.Setup.Seatpost.ClampLengthMm, 30.0, 1e-12)
+	// The post shaft continues the seat axis from SeatTubeTop; the saddle shares the leveled-rail heading.
+	assertNear(t, "seat tube top to shaft top", bike.Frameset.SeatTubeTop.DistanceTo(bike.Seatpost.ShaftTop), postSetup.ExtensionMm, 1e-9)
+	assertNear(t, "RailFrame.Heading", float64(bike.Saddle.RailFrame.HeadingDeg()), float64(saddleSetup.RailPitchDeg), 1e-12)
 
 	badSeatpost := bikeSetup
 	badSeatpost.Seatpost.ExtensionMm = -1
-	if _, err := assembly.PlaceBike(badSeatpost, nil); err == nil {
+	if _, err := assembly.PlaceBike(badSeatpost); err == nil {
 		t.Fatal("PlaceBike expected error for negative seatpost extension")
 	}
 
 	badSaddle := bikeSetup
 	badSaddle.Saddle.RailLengthMm = 0
-	if _, err := assembly.PlaceBike(badSaddle, nil); err == nil {
+	if _, err := assembly.PlaceBike(badSaddle); err == nil {
 		t.Fatal("PlaceBike expected error for zero saddle rail length")
 	}
 }
 
 func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
-	validPose := pose.NewPose(pose.Point{X: -120, Y: 470}, 104.75, nil)
+	validPose := pose.NewPose(pose.Point{X: -120, Y: 470}, 104.75)
 	validPost := assembly.SeatpostSetup{
 		ExtensionMm:   263.5,
 		PostSetbackMm: 0.0,
@@ -289,15 +258,15 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		pose  pose.Pose
 		setup assembly.SeatpostSetup
 	}{
-		{"NaN origin X", pose.NewPose(pose.Point{X: math.NaN(), Y: 0}, 104.75, nil), validPost},
-		{"Inf heading", pose.NewPose(pose.Point{}, pose.Deg(math.Inf(1)), nil), validPost},
+		{"NaN origin X", pose.NewPose(pose.Point{X: math.NaN(), Y: 0}, 104.75), validPost},
+		{"Inf heading", pose.NewPose(pose.Point{}, pose.Deg(math.Inf(1))), validPost},
 		{"negative extension", validPose, assembly.SeatpostSetup{ExtensionMm: -1, PostSetbackMm: 0, ClampLengthMm: 30}},
 		{"NaN extension", validPose, assembly.SeatpostSetup{ExtensionMm: math.NaN(), PostSetbackMm: 0, ClampLengthMm: 30}},
 		{"negative setback", validPose, assembly.SeatpostSetup{ExtensionMm: 100, PostSetbackMm: -1, ClampLengthMm: 30}},
 		{"NaN setback", validPose, assembly.SeatpostSetup{ExtensionMm: 100, PostSetbackMm: math.NaN(), ClampLengthMm: 30}},
 		{"zero clamp length", validPose, assembly.SeatpostSetup{ExtensionMm: 100, PostSetbackMm: 0, ClampLengthMm: 0}},
 		{"negative clamp length", validPose, assembly.SeatpostSetup{ExtensionMm: 100, PostSetbackMm: 0, ClampLengthMm: -10}},
-		{"extension overflow", pose.NewPose(pose.Point{X: -math.MaxFloat64, Y: 0}, 120, nil), assembly.SeatpostSetup{ExtensionMm: math.MaxFloat64, ClampLengthMm: 30}},
+		{"extension overflow", pose.NewPose(pose.Point{X: -math.MaxFloat64, Y: 0}, 120), assembly.SeatpostSetup{ExtensionMm: math.MaxFloat64, ClampLengthMm: 30}},
 	}
 	for _, tc := range postCases {
 		t.Run("seatpost/"+tc.name, func(t *testing.T) {
@@ -313,8 +282,8 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		pose  pose.Pose
 		setup assembly.SaddleSetup
 	}{
-		{"NaN origin Y", pose.NewPose(pose.Point{X: 0, Y: math.NaN()}, 104.75, nil), validSaddle},
-		{"Inf heading", pose.NewPose(pose.Point{}, pose.Deg(math.Inf(-1)), nil), validSaddle},
+		{"NaN origin Y", pose.NewPose(pose.Point{X: 0, Y: math.NaN()}, 104.75), validSaddle},
+		{"Inf heading", pose.NewPose(pose.Point{}, pose.Deg(math.Inf(-1))), validSaddle},
 		{"NaN RailCenterToBrpMm", validPose, assembly.SaddleSetup{RailCenterToBrpMm: math.NaN(), RailLengthMm: 60}},
 		{"Inf RailCenterToSitBonesMm", validPose, assembly.SaddleSetup{RailCenterToSitBonesMm: math.Inf(1), RailLengthMm: 60}},
 		{"NaN SitBonesElevationMm", validPose, assembly.SaddleSetup{SitBonesElevationMm: math.NaN(), RailLengthMm: 60}},
@@ -322,7 +291,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		{"negative RailLengthMm", validPose, assembly.SaddleSetup{RailCenterToBrpMm: 32, RailLengthMm: -60}},
 		{"NaN RailPitchDeg", validPose, assembly.SaddleSetup{RailLengthMm: 60, RailPitchDeg: pose.Deg(math.NaN())}},
 		{"Inf RailOffsetMm", validPose, assembly.SaddleSetup{RailLengthMm: 60, RailOffsetMm: math.Inf(1)}},
-		{"rail offset overflow", pose.NewPose(pose.Point{X: math.MaxFloat64, Y: 0}, 104.75, nil), assembly.SaddleSetup{RailLengthMm: 60, RailOffsetMm: -math.MaxFloat64}},
+		{"rail offset overflow", pose.NewPose(pose.Point{X: math.MaxFloat64, Y: 0}, 104.75), assembly.SaddleSetup{RailLengthMm: 60, RailOffsetMm: -math.MaxFloat64}},
 	}
 	for _, tc := range saddleCases {
 		t.Run("saddle/"+tc.name, func(t *testing.T) {
@@ -334,7 +303,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 }
 
 func TestPlaceSaddleRailOffsetRange(t *testing.T) {
-	clamp := pose.NewPose(pose.Point{X: -100, Y: 700}, 105.0, nil)
+	clamp := pose.NewPose(pose.Point{X: -100, Y: 700}, 105.0)
 	// 60 mm rails with a 30 mm clamp head allow ±15 mm.
 	for _, offset := range []float64{0, 14.999, 15, -15} {
 		setup := sqlab610DefaultSaddle()

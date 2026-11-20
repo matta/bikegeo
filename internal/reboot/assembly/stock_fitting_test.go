@@ -201,7 +201,7 @@ func TestStockFittingForwardAndRankOrder(t *testing.T) {
 		assembly.BandSpacers, assembly.BandBarSweep, assembly.BandForkSag, assembly.BandBrpMiss,
 	}
 	for i, c := range fit.Candidates {
-		p, err := assembly.PlaceBike(c.Placement.Setup, nil)
+		p, err := assembly.PlaceBike(c.Placement.Setup)
 		if err != nil || !reflect.DeepEqual(c.Placement, p) {
 			t.Fatalf("rank %d placement differs from PlaceBike: %v", i+1, err)
 		}
@@ -418,7 +418,7 @@ func TestStockFittingCarriesSaddleAcrossBars(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	saddle, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &fitReportBRP}, nil)
+	saddle, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &fitReportBRP})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -648,7 +648,7 @@ func TestStockFittingErrors(t *testing.T) {
 	for _, maxSpacers := range []float64{-1, math.Inf(1)} {
 		base = fenrirFittingSetup()
 		base.Stem.MaxSpacersMm = maxSpacers
-		_, want := assembly.PlaceBike(base, nil)
+		_, want := assembly.PlaceBike(base)
 		if _, err := assembly.ApplyStockFitting(base, target, stock, prefs, 5); err == nil || want == nil || err.Error() != want.Error() {
 			t.Errorf("invalid base error = %v, want %v", err, want)
 		}
@@ -685,7 +685,7 @@ func TestCockpitStockValidation(t *testing.T) {
 	}
 	stock = twoBarStock()
 	stock.Handlebars[0].GripInsetMm = 0
-	_, want := assembly.PlaceHandlebar(pose.NewPose(pose.Point{}, 0, nil), stock.Handlebars[0])
+	_, want := assembly.PlaceHandlebar(pose.NewPose(pose.Point{}, 0), stock.Handlebars[0])
 	if err := stock.Validate(); want == nil || err == nil || !strings.Contains(err.Error(), want.Error()) {
 		t.Errorf("stock grip inset error = %v, want %v", err, want)
 	}

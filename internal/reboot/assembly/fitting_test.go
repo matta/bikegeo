@@ -40,7 +40,7 @@ var fitReportBRP = pose.Point{X: -219, Y: 713.1}
 
 func brpOf(t *testing.T, setup assembly.BikeSetup) pose.Point {
 	t.Helper()
-	p, err := assembly.PlaceBike(setup, nil)
+	p, err := assembly.PlaceBike(setup)
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -49,7 +49,7 @@ func brpOf(t *testing.T, setup assembly.BikeSetup) pose.Point {
 
 func mustFit(t *testing.T, setup assembly.BikeSetup, target pose.Point) assembly.Fitting {
 	t.Helper()
-	fit, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &target}, nil)
+	fit, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &target})
 	if err != nil {
 		t.Fatalf("ApplyFitting: %v", err)
 	}
@@ -188,46 +188,13 @@ func TestApplyFittingUnboundedMaxExtension(t *testing.T) {
 	assertNear(t, "extension", ext, 463.5, 0.01)
 }
 
-func TestApplyFittingTraceEquivalence(t *testing.T) {
-	tr := pose.NewTrace()
-	brp := fitReportBRP
-	target := assembly.FitTarget{BRP: &brp}
-	traced, err := assembly.ApplyFitting(fenrirFittingSetup(), target, tr)
-	if err != nil {
-		t.Fatalf("traced: %v", err)
-	}
-	untraced, err := assembly.ApplyFitting(fenrirFittingSetup(), target, nil)
-	if err != nil {
-		t.Fatalf("untraced: %v", err)
-	}
-	if traced.Outcome != untraced.Outcome || !reflect.DeepEqual(traced.LimitedBy, untraced.LimitedBy) {
-		t.Fatalf("outcome differs: %v %v vs %v %v", traced.Outcome, traced.LimitedBy, untraced.Outcome, untraced.LimitedBy)
-	}
-	tp, up := traced.Placement, untraced.Placement
-	if tp.Setup != up.Setup ||
-		tp.Saddle.BRP.Origin() != up.Saddle.BRP.Origin() ||
-		tp.Saddle.SitBones.Origin() != up.Saddle.SitBones.Origin() ||
-		tp.Handlebar.HandGrip.Origin() != up.Handlebar.HandGrip.Origin() {
-		t.Fatalf("placements differ with tracing on vs off")
-	}
-	n := len(tr.Steps())
-	if n == 0 {
-		t.Fatal("trace is empty")
-	}
-	tr.Freeze()
-	pose.NewPose(pose.Point{}, 0, tr).Advance("after freeze", 1)
-	if len(tr.Steps()) != n {
-		t.Fatal("trace was not frozen by ApplyFitting")
-	}
-}
-
 func TestApplyFittingErrors(t *testing.T) {
 	var inputErr *assembly.InputError
-	if _, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{}, nil); err == nil {
+	if _, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{}); err == nil {
 		t.Fatal("empty FitTarget: want error")
 	}
 	for _, bad := range []pose.Point{{X: math.NaN(), Y: 700}, {X: -200, Y: math.Inf(1)}} {
-		_, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{BRP: &bad}, nil)
+		_, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{BRP: &bad})
 		if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputFitTargetBRP {
 			t.Fatalf("target %v: err = %v, want InputFitTargetBRP", bad, err)
 		}
@@ -235,14 +202,14 @@ func TestApplyFittingErrors(t *testing.T) {
 
 	longClamp := fenrirFittingSetup()
 	longClamp.Seatpost.ClampLengthMm = 70
-	if _, err := assembly.ApplyFitting(longClamp, assembly.FitTarget{BRP: &fitReportBRP}, nil); err == nil {
+	if _, err := assembly.ApplyFitting(longClamp, assembly.FitTarget{BRP: &fitReportBRP}); err == nil {
 		t.Fatal("clamp longer than rails: want error")
 	}
 
 	badFrame := fenrirFittingSetup()
 	badFrame.Frame.ReachMm = math.NaN()
-	_, fitErr := assembly.ApplyFitting(badFrame, assembly.FitTarget{BRP: &fitReportBRP}, nil)
-	_, placeErr := assembly.PlaceBike(badFrame, nil)
+	_, fitErr := assembly.ApplyFitting(badFrame, assembly.FitTarget{BRP: &fitReportBRP})
+	_, placeErr := assembly.PlaceBike(badFrame)
 	if fitErr == nil || placeErr == nil || fitErr.Error() != placeErr.Error() {
 		t.Fatalf("fit error %v, want PlaceBike error %v", fitErr, placeErr)
 	}
@@ -287,7 +254,7 @@ var fitReportGrip = pose.Point{X: 481, Y: 726}
 
 func gripPlacement(t *testing.T, setup assembly.BikeSetup) assembly.BikePlacement {
 	t.Helper()
-	p, err := assembly.PlaceBike(setup, nil)
+	p, err := assembly.PlaceBike(setup)
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -307,7 +274,7 @@ func withStem(setup assembly.BikeSetup, spacers, length float64) assembly.BikeSe
 
 func mustFitGrip(t *testing.T, setup assembly.BikeSetup, grip pose.Point) assembly.Fitting {
 	t.Helper()
-	fit, err := assembly.ApplyFitting(setup, assembly.FitTarget{HandGrip: &grip}, nil)
+	fit, err := assembly.ApplyFitting(setup, assembly.FitTarget{HandGrip: &grip})
 	if err != nil {
 		t.Fatalf("ApplyFitting: %v", err)
 	}
@@ -441,7 +408,7 @@ func TestApplyFittingGripKeepsFixedInputs(t *testing.T) {
 func TestApplyFittingBothLandmarksMatchSingleFits(t *testing.T) {
 	setup := fenrirFittingSetup()
 	brp, grip := fitReportBRP, fitReportGrip
-	both, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &brp, HandGrip: &grip}, nil)
+	both, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &brp, HandGrip: &grip})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -460,33 +427,10 @@ func TestApplyFittingBothLandmarksMatchSingleFits(t *testing.T) {
 	}
 }
 
-func TestApplyFittingBothLandmarksTraceEquivalence(t *testing.T) {
-	brp, grip := fitReportBRP, fitReportGrip
-	target := assembly.FitTarget{BRP: &brp, HandGrip: &grip}
-	tr := pose.NewTrace()
-	traced, err := assembly.ApplyFitting(fenrirFittingSetup(), target, tr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	untraced, err := assembly.ApplyFitting(fenrirFittingSetup(), target, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if traced.Placement.Setup != untraced.Placement.Setup ||
-		traced.Placement.Saddle.BRP.Origin() != untraced.Placement.Saddle.BRP.Origin() ||
-		traced.Placement.Handlebar.HandGrip.Origin() != untraced.Placement.Handlebar.HandGrip.Origin() ||
-		!reflect.DeepEqual(traced.LimitedBy, untraced.LimitedBy) {
-		t.Fatal("placements differ with tracing on vs off")
-	}
-	if len(tr.Steps()) == 0 {
-		t.Fatal("trace is empty")
-	}
-}
-
 func TestApplyFittingGripErrors(t *testing.T) {
 	var inputErr *assembly.InputError
 	for _, bad := range []pose.Point{{X: math.NaN(), Y: 700}, {X: 400, Y: math.Inf(-1)}} {
-		_, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{HandGrip: &bad}, nil)
+		_, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{HandGrip: &bad})
 		if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputFitTargetGrip {
 			t.Fatalf("target %v: err = %v, want InputFitTargetGrip", bad, err)
 		}
@@ -500,18 +444,18 @@ func TestApplyFittingGripErrors(t *testing.T) {
 	} {
 		setup := fenrirFittingSetup()
 		mutate(&setup.Stem)
-		if _, err := assembly.ApplyFitting(setup, assembly.FitTarget{HandGrip: &grip}, nil); err == nil {
+		if _, err := assembly.ApplyFitting(setup, assembly.FitTarget{HandGrip: &grip}); err == nil {
 			t.Errorf("%s with grip target: want error", name)
 		}
-		if _, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &brp}, nil); err != nil {
+		if _, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &brp}); err != nil {
 			t.Errorf("%s with only BRP target: %v", name, err)
 		}
 	}
 
 	bad := fenrirFittingSetup()
 	bad.Stem.MaxSpacersMm = -1
-	_, fitErr := assembly.ApplyFitting(bad, assembly.FitTarget{HandGrip: &grip}, nil)
-	_, placeErr := assembly.PlaceBike(bad, nil)
+	_, fitErr := assembly.ApplyFitting(bad, assembly.FitTarget{HandGrip: &grip})
+	_, placeErr := assembly.PlaceBike(bad)
 	if fitErr == nil || placeErr == nil || fitErr.Error() != placeErr.Error() {
 		t.Fatalf("fit error %v, want PlaceBike error %v", fitErr, placeErr)
 	}

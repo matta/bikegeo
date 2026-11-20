@@ -139,9 +139,10 @@ func PlaceHandlebar(barClamp pose.Pose, setup HandlebarSetup) (HandlebarPlacemen
 	zHand := setup.handLateralMm()
 	dx, upsweepDy := setup.outboardSweepOffsetMm(zHand)
 
-	barRollFrame := barClamp.Face("bar roll vs. world horizontal", -setup.BarRollDeg)
-	bendRise := barRollFrame.Translate("rise at bend", 0, baseRise)
-	handGrip := bendRise.Translate("outboard sweep projection", dx, upsweepDy)
+	// Bar roll is clockwise and measured against world horizontal, so face -roll rather than turn.
+	barRollFrame := barClamp.Face(-setup.BarRollDeg)
+	bendRise := barRollFrame.Translate(0, baseRise)
+	handGrip := bendRise.Translate(dx, upsweepDy)
 
 	if err := validatePlacementPoses("handlebar", barClamp, barRollFrame, bendRise, handGrip); err != nil {
 		return HandlebarPlacement{}, err

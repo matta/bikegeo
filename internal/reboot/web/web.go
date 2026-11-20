@@ -103,13 +103,11 @@ func (o poseOutline) rect() svgRect {
 
 // corners returns the outline's four corners in SVG coordinates.
 func (o poseOutline) corners() []svgPoint {
-	// Detach from the trace so measuring the outline records no steps.
-	p := pose.NewPose(o.pose.Origin(), o.pose.HeadingDeg(), nil)
 	half := o.thicknessMm / 2.0
 	pts := make([]svgPoint, 0, 4)
 	for _, along := range []float64{o.startMm, o.startMm + o.lengthMm} {
 		for _, across := range []float64{-half, half} {
-			pts = append(pts, toSVG(p.Translate("", along, across).Origin()))
+			pts = append(pts, toSVG(o.pose.Translate(along, across).Origin()))
 		}
 	}
 	return pts
@@ -714,7 +712,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bike, err := assembly.PlaceBike(resolved.Setup, nil)
+	bike, err := assembly.PlaceBike(resolved.Setup)
 	if err != nil {
 		renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
 		return
@@ -729,7 +727,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 	view := buildBikeView(fix, resolved.State, bike, cadBaselineFork)
 	if resolved.State.Targets.any() {
 		target := resolved.State.Targets.fitTarget()
-		fitting, err := assembly.ApplyFitting(resolved.Setup, target, nil)
+		fitting, err := assembly.ApplyFitting(resolved.Setup, target)
 		if err != nil {
 			renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
 			return
@@ -808,7 +806,7 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 	fitted := fitting.Placement.Setup
 	if brp := fitting.Target.BRP; brp != nil {
 		railLimit, _ := bike.Setup.RailOffsetLimitMm() // PlaceBike and ApplyFitting already accepted this setup
-		miss := bike.Saddle.BRP.OffsetTo(pose.NewPose(*brp, 0, nil))
+		miss := bike.Saddle.BRP.OffsetTo(pose.NewPose(*brp, 0))
 		fv.Saddle = &saddleFittingView{
 			TargetX: brp.X, TargetY: brp.Y,
 			MissX: miss.X, MissY: miss.Y, MissMm: miss.Norm(),
@@ -824,7 +822,7 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 		}
 	}
 	if grip := fitting.Target.HandGrip; grip != nil {
-		miss := bike.Handlebar.HandGrip.OffsetTo(pose.NewPose(*grip, 0, nil))
+		miss := bike.Handlebar.HandGrip.OffsetTo(pose.NewPose(*grip, 0))
 		stem := bike.Setup.Stem
 		fv.Cockpit = &cockpitFittingView{
 			TargetX: grip.X, TargetY: grip.Y,
