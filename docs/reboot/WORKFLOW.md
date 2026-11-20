@@ -34,6 +34,13 @@ During Horizon 2 planning, split a planned slice (`12` → `12a`, `12b`, `12c`) 
 
 Don't pre-split future slices aggressively in `DESIGN.md`; split just-in-time when the slice reaches planning and real code makes the boundary clear.
 
+### Writing Actionable Slice Blueprints
+
+When writing a `SLICE<n>.md` plan for a lower-tier implementer:
+
+- **Attach every validation rule to its function and a negative test case:** never leave an invariant as a stray prose sentence inside an unrelated bullet; name the exact validator that enforces it and the test input that must fail.
+- **Probe every readout that changes:** when a geometry or scoring change shifts test assertions, include independent probe values for all affected readouts (including web readouts and notes), not just core solver tables, so the implementer never has to bootstrap expected values from its own code.
+
 ---
 
 ## 2. "What's Next?" State Router & Model-Tier Guide
