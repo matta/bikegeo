@@ -206,7 +206,7 @@ internal/reboot/web/      handlers, HTML/SVG, embedded CSS/JS, Otso Fenrir fixtu
    - **Slice 9, score-centered scoring words (done and accepted 2026-11-19; commits `bb704db`, `35b818d`, `b830a51`, `7b41ac4`):** rename the stock fitting identifiers to `PenaltyBand`, `PointsPerUnitBelow`/`PointsPerUnitAbove`, `PointsPerR`, `Penalty`, `Penalties`, `BandName`, and `Score()`; the stock table says Score and "best-scoring"; `make boundary` bans the old words in reboot files (Q35–Q40). No scoring values change.
    - **Later:** roll enumeration is not planned (Q24).
 3. **Chart reconstruction, catalog persistence, agent access (c):** keep the original observations and rounding budgets, evaluate fork/sag/cup hypotheses, show residuals and ambiguous explanations, and expose operations over MCP or the CLI.
-   - **Slice 10, chart closure check (implemented 2026-11-19; awaiting Matt's acceptance; [SLICE10.md](SLICE10.md)):** `FrameChart` declares a `ChartPrecision`, and `assembly.CheckChartClosure` holds the axle height and wheelbase residuals to their rounding budgets (Q43–Q45). `web.NewHandler` runs it once and panics on failure, and the `/bike` residual readout goes away (Q47).
+   - **Slice 10, chart closure check (done and accepted 2026-11-19; commits `8b91fb1`, `2626d1f`):** `FrameChart` declares a `ChartPrecision`, and `assembly.CheckChartClosure` holds the axle height and wheelbase residuals to their rounding budgets (Q43–Q45). `web.NewHandler` runs it once and panics on failure, and the `/bike` residual readout goes away (Q47).
 4. **Frame chooser (e):** run fitting across a catalog and report the best builds, coverage, and sensitivity.
 
 ## Open questions
