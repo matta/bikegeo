@@ -87,6 +87,12 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 - **Q17, HandGrip miss price:** port the legacy oval ("Area of Reasonable Fit"): semi-axes 10 mm and 20 mm, major axis tilted 30° clockwise from vertical (world heading 60°), centered on the HandGrip target, free inside, 22 points per unit of normalized radius R beyond R = 1.
 - **Q18, stock fitting result:** a ranked list of the 5 cheapest stock cockpit builds, each with its ledger lines and its own apply link. Slice 2's continuous fitting stays as the explanation (for example, "needs a 134 mm stem").
 
+### Handlebar choice (Q19–Q21, ruled 2026-11-19)
+
+- **Q19, workbench first:** M2 Slice 4 adds a handlebar list to the fixture and a `bar` select to `/bike`. Fitting and stock fitting use the submitted bar unchanged. Bars join stock fitting in a later slice.
+- **Q20, bar list:** port all 15 bars of the legacy catalog (`internal/catalog/handlebars.go`) exactly, labelled as legacy catalog values with sources not recorded. SQlab bend starts are illustrative (legacy formula 55 + 0.9·rise).
+- **Q21, roll:** `BarRollDeg` stays a submitted fixed input. Changing the bar keeps the submitted roll.
+
 ## Run and inspect
 
 - `make serve-reboot` serves on :8081. `/` is the stem preview and `/bike` is the full bike. State lives in the URL query.
@@ -115,8 +121,9 @@ internal/reboot/web/      handlers, HTML/SVG, embedded CSS/JS, Otso Fenrir fixtu
 2. **One-bike fitting (d):** explicit fit targets, hardware limits, and preference costs. Produce candidate builds, check each with forward assembly, and open them in the workbench.
    - **Slice 1, saddle fitting (done 2026-11-19):** fit `SeatpostSetup.ExtensionMm` and `SaddleSetup.RailOffsetMm` to a BRP target with a direct 2×2 solve (Q6). Rail pitch and post setback stay fixed inputs. Limits are the post's min/max extension and the rail clamp range from `RailLengthMm`. The result reports the fitted setups, the BRP actually reached, the miss in mm, and any limit hit, and keeps *reached*, *clamped at a limit*, and *invalid input* distinct. PlaceBike on the fitted setup must land BRP on the target (to 1e-9 mm when no limit binds). `pose` gains one operation that decomposes a vector along two headings. `/bike` gets a BRP target field and a plain-`GET` link to the fitted build. Tests: fit → place round trip, out-of-range target clamps to the right limit, trace on/off equivalence, the fit report's BRP (−219, 713.1). Out of scope: post setback choice, the front cockpit, preference costs, other frames.
    - **Slice 2, front-cockpit fitting (done 2026-11-19):** fit `StemSetup.SpacersMm` and `LengthMm` to a HandGrip target with a continuous direct 2×2 solve (Q11–Q14). Stem angle and handlebar stay fixed inputs. Limits are `MaxSpacersMm` and the stem length range on `StemSetup`. The same `ApplyFitting` fits the saddle, the cockpit, or both, and `/bike` gets a HandGrip target and one apply link.
-   - **Slice 3, stock cockpit fitting (done and accepted 2026-11-19, plan in [SLICE.md](SLICE.md)):** choose stock stem lengths, stem angles, and spacer steps for a HandGrip target by enumerating every combination with PlaceBike, pricing each on the points-lost ledger (Q17 oval plus stem length, stem angle, and spacer bands), and listing the 5 cheapest with apply links (Q15–Q18). The saddle fit is unchanged and carried into every build. The handlebar stays fixed.
-   - **Later:** handlebar choice.
+   - **Slice 3, stock cockpit fitting (done and accepted 2026-11-19):** choose stock stem lengths, stem angles, and spacer steps for a HandGrip target by enumerating every combination with PlaceBike, pricing each on the points-lost ledger (Q17 oval plus stem length, stem angle, and spacer bands), and listing the 5 cheapest with apply links (Q15–Q18). The saddle fit is unchanged and carried into every build. The handlebar stays fixed.
+   - **Slice 4, handlebar choice in the workbench (planned; plan in [SLICE.md](SLICE.md)):** the fixture carries the 15 legacy catalog bars, and `/bike` gets a `bar` select that every link keeps (Q19–Q21). Fitting and stock fitting fit around the submitted bar. Web and fixture only; no assembly change.
+   - **Later:** bars and roll in stock fitting.
 3. **Chart reconstruction, catalog persistence, agent access (c):** keep the original observations and rounding budgets, evaluate fork/sag/cup hypotheses, show residuals and ambiguous explanations, and expose operations over MCP or the CLI.
 4. **Frame chooser (e):** run fitting across a catalog and report the best builds, coverage, and sensitivity.
 
