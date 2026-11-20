@@ -997,7 +997,6 @@ func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolv
 	if resolved.State.BarID != "" {
 		cadBase.BarID = resolved.State.BarID
 	}
-	cadBase.BarRollDeg = resolved.State.BarRollDeg
 	defaultsURL, cadURL := presetURLs(fix, cadBase, resolved.State.View)
 	minRail, maxRail := fix.railOffsetRange()
 	view := bikeView{

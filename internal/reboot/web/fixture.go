@@ -179,7 +179,10 @@ func (f bikeFixture) validate() error {
 	if err := f.Chart.CadLowerCup.Validate(); err != nil {
 		return fmt.Errorf("fixture %q Chart.CadLowerCup invalid: %w", f.Name, err)
 	}
-	if _, ok := f.resolveHandlebar(""); !ok || f.DefaultHandlebarID == "" {
+	if f.DefaultHandlebarID == "" {
+		return fmt.Errorf("fixture %q missing DefaultHandlebarID", f.Name)
+	}
+	if _, ok := f.resolveHandlebar(f.DefaultHandlebarID); !ok {
 		return fmt.Errorf("fixture %q DefaultHandlebarID %q not found in Handlebars", f.Name, f.DefaultHandlebarID)
 	}
 	seenBars := make(map[string]bool, len(f.Handlebars))

@@ -2973,14 +2973,11 @@ func TestBikeWorkbenchPresetAndViewLinksKeepHandlebar(t *testing.T) {
 		t.Errorf("Reset Defaults bar = %q, want persuader20_800", got)
 	}
 
-	errorDoc := loadBikeDocStatus(t, "/bike?bar="+bar+"&bar_roll=5&stem_length=0", http.StatusBadRequest)
+	errorDoc := loadBikeDocStatus(t, "/bike?bar="+bar+"&stem_length=0", http.StatusBadRequest)
 	assertSelectedHandlebar(t, errorDoc, bar)
 	cadQuery := hrefQuery(t, errorDoc, `a[data-preset="cad-baseline-fork"]`)
 	if got := cadQuery.Get("bar"); got != bar {
 		t.Errorf("CAD Baseline Fork bar on error page = %q, want %q", got, bar)
-	}
-	if got := cadQuery.Get("bar_roll"); got != "5.0" {
-		t.Errorf("CAD Baseline Fork bar roll on error page = %q, want 5.0", got)
 	}
 	badBarDoc := loadBikeDocStatus(t, "/bike?bar=unknown", http.StatusBadRequest)
 	if got := badBarDoc.Find(`select[name="bar"] option[selected]`).Length(); got != 0 {
@@ -3038,7 +3035,7 @@ func TestBikeFixtureValidatesHandlebars(t *testing.T) {
 		change func(*bikeFixture)
 		want   string
 	}{
-		{"empty default", func(f *bikeFixture) { f.DefaultHandlebarID = "" }, `DefaultHandlebarID "" not found`},
+		{"empty default", func(f *bikeFixture) { f.DefaultHandlebarID = "" }, "missing DefaultHandlebarID"},
 		{"unknown default", func(f *bikeFixture) { f.DefaultHandlebarID = "missing" }, `DefaultHandlebarID "missing" not found`},
 		{"empty ID", func(f *bikeFixture) { f.Handlebars[1].ID = "" }, "handlebar option with empty ID"},
 		{"duplicate ID", func(f *bikeFixture) { f.Handlebars[1].ID = f.Handlebars[0].ID }, `duplicate handlebar ID "persuader20_800"`},
