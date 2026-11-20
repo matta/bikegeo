@@ -42,6 +42,14 @@ type handlebarOption struct {
 	Setup assembly.HandlebarSetup
 }
 
+// seatpostOption is one seatpost the workbench can install. Setup.ExtensionMm
+// is always 0: the extension comes from the workbench state (Q27).
+type seatpostOption struct {
+	ID    string
+	Name  string
+	Setup assembly.SeatpostSetup
+}
+
 // illustrative: the rider's grips (legacy WingGripInsetMm), the same on every bar
 const gripInsetMm = 70.0
 
@@ -76,7 +84,9 @@ type bikeFixture struct {
 	CockpitPreferences assembly.CockpitPreferences
 	DefaultHandlebarID string
 	Handlebars         []handlebarOption
-	DefaultSeatpost    assembly.SeatpostSetup
+	DefaultSeatpostID  string
+	DefaultPostExtMm   float64
+	Seatposts          []seatpostOption
 	SaddleName         string
 	DefaultSaddle      assembly.SaddleSetup
 	// ExampleBrpTarget is a placeholder for the BRP fit target inputs, never a default.
@@ -138,6 +148,20 @@ func (f bikeFixture) resolveHandlebar(requestedID string) (handlebarOption, bool
 		}
 	}
 	return handlebarOption{}, false
+}
+
+// resolveSeatpost returns the seatpost with requestedID, or the default
+// seatpost when requestedID is empty.
+func (f bikeFixture) resolveSeatpost(requestedID string) (seatpostOption, bool) {
+	if requestedID == "" {
+		requestedID = f.DefaultSeatpostID
+	}
+	for _, opt := range f.Seatposts {
+		if opt.ID == requestedID {
+			return opt, true
+		}
+	}
+	return seatpostOption{}, false
 }
 
 func (f bikeFixture) validate() error {
@@ -210,6 +234,36 @@ func (f bikeFixture) validate() error {
 			return fmt.Errorf("fixture %q handlebar %q invalid: %w", f.Name, opt.ID, err)
 		}
 	}
+	if f.DefaultSeatpostID == "" {
+		return fmt.Errorf("fixture %q missing DefaultSeatpostID", f.Name)
+	}
+	defaultPost, ok := f.resolveSeatpost(f.DefaultSeatpostID)
+	if !ok {
+		return fmt.Errorf("fixture %q DefaultSeatpostID %q not found in Seatposts", f.Name, f.DefaultSeatpostID)
+	}
+	seenPosts := make(map[string]bool, len(f.Seatposts))
+	for _, opt := range f.Seatposts {
+		if opt.ID == "" {
+			return fmt.Errorf("fixture %q has seatpost option with empty ID", f.Name)
+		}
+		if seenPosts[opt.ID] {
+			return fmt.Errorf("fixture %q has duplicate seatpost ID %q", f.Name, opt.ID)
+		}
+		seenPosts[opt.ID] = true
+		if opt.Setup.ExtensionMm != 0 {
+			return fmt.Errorf("fixture %q seatpost %q must not set ExtensionMm", f.Name, opt.ID)
+		}
+		setup := opt.Setup
+		setup.ExtensionMm = setup.MinExtensionMm
+		if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0, nil), setup); err != nil {
+			return fmt.Errorf("fixture %q seatpost %q invalid: %w", f.Name, opt.ID, err)
+		}
+	}
+	defaultPostSetup := defaultPost.Setup
+	defaultPostSetup.ExtensionMm = f.DefaultPostExtMm
+	if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0, nil), defaultPostSetup); err != nil {
+		return fmt.Errorf("fixture %q default seatpost %q at DefaultPostExtMm invalid: %w", f.Name, f.DefaultSeatpostID, err)
+	}
 	return nil
 }
 
@@ -226,6 +280,19 @@ func otsoFenrirFixture() bikeFixture {
 		// https://otsocycles.com/pages/bike-specs-tables
 		frameInsertionDepthMm = 290.0
 	)
+	// illustrative: generic posts with the Ritchey-based extension limits above
+	genericSeatpost := func(id string, setbackMm float64) seatpostOption {
+		return seatpostOption{
+			ID:   id,
+			Name: fmt.Sprintf("Generic %.0f mm setback post", setbackMm),
+			Setup: assembly.SeatpostSetup{
+				MinExtensionMm: postLengthMm - frameInsertionDepthMm,
+				MaxExtensionMm: postLengthMm - postMinInsertionMm,
+				PostSetbackMm:  setbackMm,
+				ClampLengthMm:  30.0, // measured
+			},
+		}
+	}
 	ec44Cup := assembly.LowerCupSetup{
 		Standard: assembly.LowerCupEC44,
 		StackMm:  12.0,
@@ -314,12 +381,21 @@ func otsoFenrirFixture() bikeFixture {
 			legacyHandlebar("sqlab311_flx_12_15", "SQlab 311 FL-X Carbon 12°, 15 mm rise (740 mm)", 740, 15, assembly.RiseModeStandardKnuckle, 12, 4, 68.5),
 			legacyHandlebar("sqlab311_flx_12_30", "SQlab 311 FL-X Carbon 12°, 30 mm rise (740 mm)", 740, 30, assembly.RiseModeStandardKnuckle, 12, 4, 82.0),
 		},
-		DefaultSeatpost: assembly.SeatpostSetup{
-			ExtensionMm:    263.5,
-			MinExtensionMm: postLengthMm - frameInsertionDepthMm,
-			MaxExtensionMm: postLengthMm - postMinInsertionMm,
-			PostSetbackMm:  0.0,
-			ClampLengthMm:  30.0, // measured
+		DefaultSeatpostID: "setback_0",
+		DefaultPostExtMm:  263.5,
+		Seatposts: []seatpostOption{
+			genericSeatpost("setback_0", 0),
+			genericSeatpost("setback_15", 15),
+			genericSeatpost("setback_25", 25),
+			// owner-reported 2026-11-19: 12 mm setback when sagged (Q28). The fit
+			// report was transferred with this post unsagged (docs/RIDER_FIT.md).
+			// illustrative: extension limits and clamp length not yet measured; generic values.
+			{ID: "redshift_shockstop_pro", Name: "Redshift ShockStop PRO (12 mm setback, sagged)", Setup: assembly.SeatpostSetup{
+				MinExtensionMm: postLengthMm - frameInsertionDepthMm,
+				MaxExtensionMm: postLengthMm - postMinInsertionMm,
+				PostSetbackMm:  12.0,
+				ClampLengthMm:  30.0,
+			}},
 		},
 		SaddleName: "SQlab 610 Ergolux Active 2.1",
 		DefaultSaddle: assembly.SaddleSetup{

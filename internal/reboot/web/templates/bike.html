@@ -494,13 +494,18 @@
       <fieldset class="control-group">
         <legend>Rear Cockpit</legend>
         <div class="group-fields">
+          <div class="field field-full">
+            <label for="ctrl-post">Seatpost</label>
+            <select id="ctrl-post" name="post"{{if and $.ErrorMessage (eq $.InvalidField "post")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+              {{range .Seatposts}}
+              <option value="{{.ID}}"{{if eq .ID $.SelectedPostID}} selected{{end}}>{{.Name}}</option>
+              {{end}}
+            </select>
+            <p class="field-note" data-note="post-setback">Setback <span class="mono" data-metric="post-setback">{{printf "%.1f mm" .PostSetbackMm}}</span> · extension {{printf "%.0f" .MinPostExtensionMm}}–{{printf "%.0f" .MaxPostExtensionMm}} mm · clamp {{printf "%.0f" .PostClampLengthMm}} mm. The post sets its setback.</p>
+          </div>
           <div class="field">
             <label for="ctrl-post-ext">Seatpost Extension (mm)</label>
             <input id="ctrl-post-ext" type="number" name="post_ext" step="any" min="{{.MinPostExtensionMm}}"{{if .MaxPostExtensionMm}} max="{{.MaxPostExtensionMm}}"{{end}} value="{{.Form.PostExt}}"{{if and $.ErrorMessage (eq $.InvalidField "post_ext")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
-          </div>
-          <div class="field">
-            <label for="ctrl-post-setback">Seatpost Setback (mm)</label>
-            <input id="ctrl-post-setback" type="number" name="post_setback" step="0.5" min="0" value="{{.Form.PostSetback}}"{{if and $.ErrorMessage (eq $.InvalidField "post_setback")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
           </div>
           <div class="field">
             <label for="ctrl-rail-offset">Saddle Rail Offset (mm)</label>

@@ -26,6 +26,18 @@ func defaultHandlebarSetup(t *testing.T, fix bikeFixture) assembly.HandlebarSetu
 	return opt.Setup
 }
 
+// fixtureSeatpost returns the fixture post with id, at extension extMm.
+func fixtureSeatpost(t *testing.T, fix bikeFixture, id string, extMm float64) assembly.SeatpostSetup {
+	t.Helper()
+	opt, ok := fix.resolveSeatpost(id)
+	if !ok {
+		t.Fatalf("missing seatpost %q", id)
+	}
+	setup := opt.Setup
+	setup.ExtensionMm = extMm
+	return setup
+}
+
 func TestStemWorkbenchRendersSVGAndMatchingTrace(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/", nil)
 	rec := httptest.NewRecorder()
@@ -229,7 +241,7 @@ func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		LowerCup:  fox34.DefaultLowerCup,
 		Fork:      forkSetup,
 		Wheels:    fix.Wheels,
-		Seatpost:  fix.DefaultSeatpost,
+		Seatpost:  fixtureSeatpost(t, fix, fix.DefaultSeatpostID, fix.DefaultPostExtMm),
 		Saddle:    fix.DefaultSaddle,
 		Stem:      fix.DefaultStem,
 		Handlebar: defaultHandlebarSetup(t, fix),
@@ -466,7 +478,7 @@ func TestBikeWorkbenchForkSwitchAndCadBaselineFork(t *testing.T) {
 func TestBikeWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
 	query := "/bike?fork=sid_100&prev_fork=sid_100&fork_a2c=515&cup=10&sag=20" +
 		"&spacers=35&stem_length=80&stem_angle=7&bar_roll=5" +
-		"&post_ext=250&post_setback=20&rail_offset=-10&rail_pitch=-2"
+		"&post=setback_25&post_ext=250&rail_offset=-10&rail_pitch=-2"
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+query, nil)
 	rec := httptest.NewRecorder()
 	NewHandler().ServeHTTP(rec, req)
@@ -503,9 +515,7 @@ func TestBikeWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
 	stemSetup.AngleDeg = 7.0
 	barSetup := defaultHandlebarSetup(t, fix)
 	barSetup.BarRollDeg = 5.0
-	postSetup := fix.DefaultSeatpost
-	postSetup.ExtensionMm = 250.0
-	postSetup.PostSetbackMm = 20.0
+	postSetup := fixtureSeatpost(t, fix, "setback_25", 250.0)
 	saddleSetup := fix.DefaultSaddle
 	saddleSetup.RailOffsetMm = -10.0
 	saddleSetup.RailPitchDeg = -2.0
@@ -549,23 +559,28 @@ func TestBikeWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
 	}
 
 	for name, want := range map[string]string{
-		"prev_fork":    "sid_100",
-		"fork_a2c":     "515.0",
-		"cup":          "10.0",
-		"sag":          "20.0",
-		"spacers":      "35.0",
-		"stem_length":  "80.0",
-		"stem_angle":   "7.0",
-		"bar_roll":     "5.0",
-		"post_ext":     "250.0",
-		"post_setback": "20.0",
-		"rail_offset":  "-10.0",
-		"rail_pitch":   "-2.0",
+		"prev_fork":   "sid_100",
+		"fork_a2c":    "515.0",
+		"cup":         "10.0",
+		"sag":         "20.0",
+		"spacers":     "35.0",
+		"stem_length": "80.0",
+		"stem_angle":  "7.0",
+		"bar_roll":    "5.0",
+		"post_ext":    "250.0",
+		"rail_offset": "-10.0",
+		"rail_pitch":  "-2.0",
 	} {
 		got, _ := doc.Find(fmt.Sprintf(`input[name="%s"]`, name)).Attr("value")
 		if got != want {
 			t.Errorf("input[name=%q] value = %q, want %q", name, got, want)
 		}
+	}
+	if got, _ := doc.Find(`select[name="post"] option[selected]`).Attr("value"); got != "setback_25" {
+		t.Errorf("select[name=post] selected = %q, want setback_25", got)
+	}
+	if got := strings.TrimSpace(doc.Find(`[data-metric="post-setback"]`).Text()); got != "25.0 mm" {
+		t.Errorf("metric post-setback = %q, want 25.0 mm", got)
 	}
 
 	labels := doc.Find("form.controls label")
@@ -626,7 +641,7 @@ func TestBikeWorkbenchRejectsInvalidQuery(t *testing.T) {
 		{"/bike?post_ext=-1&spacers=-1", "post_ext", "-1"},
 		{"/bike?post_ext=109.5", "post_ext", "109.5"},
 		{"/bike?post_ext=300.5", "post_ext", "300.5"},
-		{"/bike?post_setback=-2", "post_setback", "-2"},
+		{"/bike?post=unknown", "post", ""},
 		{"/bike?rail_offset=NaN", "rail_offset", "NaN"},
 		{"/bike?rail_pitch=Inf", "rail_pitch", "Inf"},
 		{"/bike?fork=lithic_carbon_mountain&fork_a2c=495.0&cup=0.0&sag=0.0&spacers=-1", "cup", "0.0"},
@@ -717,7 +732,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	}
 	lowerCup := assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0}
 	customWheels := assembly.WheelSetup{RadiusMm: 340.0}
-	customSeatpost := assembly.SeatpostSetup{ExtensionMm: 240.0, PostSetbackMm: 15.0, ClampLengthMm: 30.0}
+	customSeatpost := fixtureSeatpost(t, fix, "setback_15", 240.0)
 	customSaddle := fix.DefaultSaddle
 	customSaddle.RailOffsetMm = 12.0
 	customSaddle.RailPitchDeg = -1.5
@@ -747,7 +762,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 		t.Fatalf("PlaceCadBaselineFork: %v", err)
 	}
 
-	view := buildBikeView(fix, workbenchState{View: diagramViewBike, ForkID: "fox34_120", BarID: "persuader20_800"}, bike, cadBaselineFork, tr.Steps())
+	view := buildBikeView(fix, workbenchState{View: diagramViewBike, ForkID: "fox34_120", BarID: "persuader20_800", PostID: "setback_15"}, bike, cadBaselineFork, tr.Steps())
 
 	if view.WheelRadiusMm != customWheels.RadiusMm {
 		t.Errorf("view.WheelRadiusMm = %.1f, want placed radius %.1f (not fixture %.1f)", view.WheelRadiusMm, customWheels.RadiusMm, fix.Wheels.RadiusMm)
@@ -768,22 +783,22 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 		t.Errorf("view.EffectiveA2cMm = %.1f, want %.1f", view.EffectiveA2cMm, forkSetup.EffectiveA2cMm())
 	}
 	wantForm := bikeFormValues{
-		View:        "bike",
-		Fork:        "fox34_120",
-		Bar:         "persuader20_800",
-		PrevFork:    "fox34_120",
-		ForkA2c:     "530.0",
-		Cup:         "12.0",
-		Sag:         "20.0",
-		Spacers:     "15.0",
-		StemLength:  "70.0",
-		StemAngle:   "6.0",
-		BarRoll:     "-4.0",
-		PostExt:     "240.0",
-		PostSetback: "15.0",
-		RailOffset:  "12.0",
-		RailPitch:   "-1.5",
-		StockBars:   stockBarsSelected,
+		View:       "bike",
+		Fork:       "fox34_120",
+		Bar:        "persuader20_800",
+		Post:       "setback_15",
+		PrevFork:   "fox34_120",
+		ForkA2c:    "530.0",
+		Cup:        "12.0",
+		Sag:        "20.0",
+		Spacers:    "15.0",
+		StemLength: "70.0",
+		StemAngle:  "6.0",
+		BarRoll:    "-4.0",
+		PostExt:    "240.0",
+		RailOffset: "12.0",
+		RailPitch:  "-1.5",
+		StockBars:  stockBarsSelected,
 	}
 	if view.Form != wantForm {
 		t.Errorf("view.Form = %+v, want %+v", view.Form, wantForm)
@@ -798,20 +813,20 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 		t.Fatalf("decodeWorkbenchState(CadBaselineForkURL): %v", inputErr)
 	}
 	wantCadState := workbenchState{
-		View:          diagramViewBike,
-		ForkID:        cadForkOptionID,
-		BarID:         "persuader20_800",
-		ForkA2cMm:     fix.Chart.CadFork.A2cMm,
-		LowerCupMm:    fix.Chart.CadLowerCup.StackMm,
-		SagPct:        0.0,
-		SpacersMm:     15.0,
-		StemLengthMm:  70.0,
-		StemAngleDeg:  6.0,
-		BarRollDeg:    -4.0,
-		PostExtMm:     240.0,
-		PostSetbackMm: 15.0,
-		RailOffsetMm:  12.0,
-		RailPitchDeg:  -1.5,
+		View:         diagramViewBike,
+		ForkID:       cadForkOptionID,
+		BarID:        "persuader20_800",
+		PostID:       "setback_15",
+		ForkA2cMm:    fix.Chart.CadFork.A2cMm,
+		LowerCupMm:   fix.Chart.CadLowerCup.StackMm,
+		SagPct:       0.0,
+		SpacersMm:    15.0,
+		StemLengthMm: 70.0,
+		StemAngleDeg: 6.0,
+		BarRollDeg:   -4.0,
+		PostExtMm:    240.0,
+		RailOffsetMm: 12.0,
+		RailPitchDeg: -1.5,
 	}
 	if cadDecoded.State != wantCadState {
 		t.Errorf("decoded CadBaselineForkURL state = %+v, want %+v", cadDecoded.State, wantCadState)
@@ -821,20 +836,20 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 func TestWorkbenchStateCodecRoundTrip(t *testing.T) {
 	fix := otsoFenrirFixture()
 	want := workbenchState{
-		View:          diagramViewStem,
-		ForkID:        "fox34_120",
-		BarID:         "sqlab3ox_16_30",
-		ForkA2cMm:     535.0,
-		LowerCupMm:    12.5000000001,
-		SagPct:        22.0,
-		SpacersMm:     35.0,
-		StemLengthMm:  80.0,
-		StemAngleDeg:  7.0,
-		BarRollDeg:    -5.0,
-		PostExtMm:     250.0,
-		PostSetbackMm: 20.0,
-		RailOffsetMm:  10.0,
-		RailPitchDeg:  -2.0,
+		View:         diagramViewStem,
+		ForkID:       "fox34_120",
+		BarID:        "sqlab3ox_16_30",
+		PostID:       "setback_25",
+		ForkA2cMm:    535.0,
+		LowerCupMm:   12.5000000001,
+		SagPct:       22.0,
+		SpacersMm:    35.0,
+		StemLengthMm: 80.0,
+		StemAngleDeg: 7.0,
+		BarRollDeg:   -5.0,
+		PostExtMm:    250.0,
+		RailOffsetMm: 10.0,
+		RailPitchDeg: -2.0,
 	}
 
 	u, err := url.Parse(want.URL())
@@ -1034,7 +1049,7 @@ func TestBikeWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
 	// 3. Fully customized build.
 	customURL := "/bike?fork=fox34_120&fork_a2c=530&cup=12&sag=20&bar=sqlab3ox_16_45" +
 		"&spacers=35&stem_length=80&stem_angle=7&bar_roll=-5" +
-		"&post_ext=250&post_setback=20&rail_offset=10&rail_pitch=-2&stock_bars=all"
+		"&post=setback_25&post_ext=250&rail_offset=10&rail_pitch=-2&stock_bars=all"
 	customDoc := loadBikeDoc(t, customURL)
 	assertUnchangedSubmitIdempotent(t, "custom build", customDoc)
 
@@ -1107,7 +1122,7 @@ func TestBikeWorkbenchEveryEnabledControlIsLive(t *testing.T) {
 		{field: "stem_angle", val: "-12.0"},
 		{field: "bar_roll", val: "8.0"},
 		{field: "post_ext", val: "250.0"},
-		{field: "post_setback", val: "20.0"},
+		{field: "post", val: "setback_25", isSelect: true},
 		{field: "rail_offset", val: "15.0"},
 		{field: "rail_pitch", val: "-4.0"},
 	}
@@ -1640,7 +1655,7 @@ func TestTraceInspectionMarkupAndLocalPoseFrames(t *testing.T) {
 		LowerCup:  defaultFork.DefaultLowerCup,
 		Fork:      assembly.ForkSetup{Spec: defaultFork.Spec, SagPct: defaultFork.DefaultSagPct},
 		Wheels:    fix.Wheels,
-		Seatpost:  fix.DefaultSeatpost,
+		Seatpost:  fixtureSeatpost(t, fix, fix.DefaultSeatpostID, fix.DefaultPostExtMm),
 		Saddle:    fix.DefaultSaddle,
 		Stem:      fix.DefaultStem,
 		Handlebar: defaultHandlebarSetup(t, fix),
@@ -1662,7 +1677,7 @@ func TestTraceInspectionMarkupAndLocalPoseFrames(t *testing.T) {
 		LowerCup:  assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0},
 		Fork:      assembly.ForkSetup{Spec: fox34.Spec, SagPct: 20.0},
 		Wheels:    fix.Wheels,
-		Seatpost:  fix.DefaultSeatpost,
+		Seatpost:  fixtureSeatpost(t, fix, fix.DefaultSeatpostID, fix.DefaultPostExtMm),
 		Saddle:    customSaddle,
 		Stem:      fix.DefaultStem,
 		Handlebar: customBar,
@@ -3266,5 +3281,117 @@ func TestBikeFixtureValidatesHandlebars(t *testing.T) {
 				t.Errorf("validate() = %v, want an error containing %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestBikeWorkbenchSeatpostSelect(t *testing.T) {
+	fix := otsoFenrirFixture()
+	doc := loadBikeDoc(t, "/bike")
+
+	options := doc.Find(`select[name="post"] option`)
+	if options.Length() != len(fix.Seatposts) {
+		t.Fatalf("seatpost option count = %d, want %d", options.Length(), len(fix.Seatposts))
+	}
+	for i, want := range fix.Seatposts {
+		opt := options.Eq(i)
+		if got, _ := opt.Attr("value"); got != want.ID {
+			t.Errorf("option %d value = %q, want %q", i, got, want.ID)
+		}
+	}
+	if got, _ := doc.Find(`select[name="post"] option[selected]`).Attr("value"); got != "setback_0" {
+		t.Errorf("selected seatpost = %q, want setback_0", got)
+	}
+	if got := strings.TrimSpace(doc.Find(`[data-metric="post-setback"]`).Text()); got != "0.0 mm" {
+		t.Errorf("post-setback = %q, want 0.0 mm", got)
+	}
+	if note := doc.Find(`[data-note="post-setback"]`).Text(); !strings.Contains(note, "extension 110–300 mm · clamp 30 mm") {
+		t.Errorf("post-setback note = %q, want extension 110–300 mm · clamp 30 mm", note)
+	}
+	canonHref, _ := doc.Find("main").Attr("data-canonical-url")
+	if canonURL, err := url.Parse(canonHref); err != nil || canonURL.Query().Get("post") != "setback_0" || canonURL.Query().Has("post_setback") {
+		t.Errorf("canonical URL = %q, want post=setback_0 and no post_setback", canonHref)
+	}
+
+	redshiftDoc := loadBikeDoc(t, "/bike?post=redshift_shockstop_pro")
+	if got := strings.TrimSpace(redshiftDoc.Find(`[data-metric="post-setback"]`).Text()); got != "12.0 mm" {
+		t.Errorf("redshift post-setback = %q, want 12.0 mm", got)
+	}
+	defaultFork, _ := fix.resolveForkOption("")
+	bike, err := assembly.PlaceBike(assembly.BikeSetup{
+		Frame:     fix.Chart.Frame,
+		LowerCup:  defaultFork.DefaultLowerCup,
+		Fork:      assembly.ForkSetup{Spec: defaultFork.Spec, SagPct: defaultFork.DefaultSagPct},
+		Wheels:    fix.Wheels,
+		Seatpost:  fixtureSeatpost(t, fix, "redshift_shockstop_pro", 263.5),
+		Saddle:    fix.DefaultSaddle,
+		Stem:      fix.DefaultStem,
+		Handlebar: defaultHandlebarSetup(t, fix),
+	}, nil)
+	if err != nil {
+		t.Fatalf("PlaceBike redshift: %v", err)
+	}
+	wantHeight := fmt.Sprintf("%.1f mm", bike.SaddleHeightMm())
+	if got := strings.TrimSpace(redshiftDoc.Find(`[data-metric="brp-height"]`).Text()); got != wantHeight {
+		t.Errorf("redshift brp-height = %q, want %q", got, wantHeight)
+	}
+}
+
+func TestBikeWorkbenchSeatpostSurvivesLinks(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?post=setback_15&brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726&view=seat")
+	assertHasPost := func(label, href string) {
+		t.Helper()
+		u, err := url.Parse(href)
+		if err != nil {
+			t.Fatalf("%s invalid URL %q: %v", label, href, err)
+		}
+		if got := u.Query().Get("post"); got != "setback_15" {
+			t.Errorf("%s post = %q, want setback_15 (%s)", label, got, href)
+		}
+	}
+	canon, _ := doc.Find("main").Attr("data-canonical-url")
+	assertHasPost("canonical", canon)
+	doc.Find(`a[data-diagram-view]`).Each(func(i int, s *goquery.Selection) {
+		href, _ := s.Attr("href")
+		assertHasPost(fmt.Sprintf("diagram-view %d", i), href)
+	})
+	cadHref, _ := doc.Find(`a[data-preset="cad-baseline-fork"]`).Attr("href")
+	assertHasPost("cad-baseline-fork", cadHref)
+	applyHref, _ := doc.Find(`#apply-fitting`).Attr("href")
+	assertHasPost("apply-fitting", applyHref)
+	stockLinks := doc.Find(`[data-stock-apply]`)
+	if stockLinks.Length() == 0 {
+		t.Fatal("expected [data-stock-apply] links")
+	}
+	stockLinks.Each(func(i int, s *goquery.Selection) {
+		href, _ := s.Attr("href")
+		assertHasPost(fmt.Sprintf("stock-apply %d", i), href)
+	})
+	defaultsHref, _ := doc.Find(`a[data-preset="defaults"]`).Attr("href")
+	if u, err := url.Parse(defaultsHref); err != nil || u.Query().Get("post") != "setback_0" {
+		t.Errorf("defaults href = %q, want post=setback_0", defaultsHref)
+	}
+}
+
+func TestBikeWorkbenchIgnoresRetiredSetbackKey(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?post_setback=20")
+	if doc.Find("#form-error").Length() != 0 {
+		t.Errorf("expected no #form-error, got %d", doc.Find("#form-error").Length())
+	}
+	if got := strings.TrimSpace(doc.Find(`[data-metric="post-setback"]`).Text()); got != "0.0 mm" {
+		t.Errorf("post-setback = %q, want 0.0 mm", got)
+	}
+	canon, _ := doc.Find("main").Attr("data-canonical-url")
+	if u, err := url.Parse(canon); err != nil || u.Query().Has("post_setback") {
+		t.Errorf("canonical URL = %q, want no post_setback", canon)
+	}
+}
+
+func TestBikeWorkbenchUnknownSeatpost(t *testing.T) {
+	doc := loadBikeDocStatus(t, "/bike?post=unknown", http.StatusBadRequest)
+	if inv, _ := doc.Find(`select[name="post"]`).Attr("aria-invalid"); inv != "true" {
+		t.Errorf("select[name=post] aria-invalid = %q, want true", inv)
+	}
+	if msg := doc.Find("#form-error").Text(); !strings.Contains(msg, `unknown seatpost "unknown"`) {
+		t.Errorf("#form-error = %q, want unknown seatpost %q", msg, "unknown")
 	}
 }
