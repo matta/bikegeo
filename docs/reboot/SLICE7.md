@@ -1,6 +1,6 @@
 # M2 Slice 7, bar sweep band
 
-**Status: Planned 2026-11-19 from Matt's ruling Q30 ([DESIGN.md](DESIGN.md), "Seatposts, bar sweep, and fork choice"). Not started.** Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. This plan builds on Slice 5 ([SLICE5.md](SLICE5.md)). It doesn't depend on Slice 6 and touches none of Slice 6's code, so it may land before or after it. Slice 8 builds on this slice.
+**Status: Planned 2026-11-19 from Matt's ruling Q30 ([DESIGN.md](DESIGN.md), "Seatposts, bar sweep, and fork choice"). Not started.** Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. This plan builds on Slice 5, which is accepted (commits `599fcf4`, `bf3b2a4`, `fe0a707`). It doesn't depend on Slice 6 and touches none of Slice 6's code, so it may land before or after it. Slice 8 builds on this slice.
 
 This slice has two commits and touches 6 code, test, and template files, so per DESIGN.md "Slice planning" it is written so a less capable model (for example Sonnet) can implement it without making design choices. **Delegate it.** If something here seems wrong or missing, stop and ask Matt rather than choosing.
 
