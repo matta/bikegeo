@@ -12,7 +12,7 @@ A clean-slate reboot built beside the existing application under `cmd/bikegeo-re
 
 ### Slice planning
 
-Each slice plan is its own file, `SLICE<n>.md` beside this one (for example [SLICE6.md](SLICE6.md)). Several slices may be planned ahead; each plan names the slices it builds on. Before writing a plan, get Matt's rulings on the slice's open choices (numbered `Q#`) and record them under **Confirmed decisions** here. The plan cites them and doesn't decide them.
+Each slice plan is its own file, `SLICE<n>.md` beside this one (for example [SLICE7.md](SLICE7.md)), and it lives only until Matt accepts the slice. Several slices may be planned ahead; each plan names the slices it builds on. Before writing a plan, get Matt's rulings on the slice's open choices (numbered `Q#`) and record them under **Confirmed decisions** here. The plan cites them and doesn't decide them.
 
 Size the plan by the work. Count the code, test, template, and asset files the slice touches. The status edits to the slice plan and DESIGN.md don't count.
 
@@ -33,7 +33,15 @@ The implementing agent's last step is to record what it did and the state it lef
    - **Deviations:** every place where the code or tests differ from the plan, and why. Write "None" if there are none. A deviation needs a reason. "Seemed cleaner" isn't one; stop and ask instead (see the plan's header).
    - **Verification:** the result of `make pre-commit` on the final state, and the plan's live check: what you confirmed, with numbers, and where the screenshot is. If you skipped it, say so and why.
    - **Open issues:** findings, questions for Matt, and anything you noticed but left alone.
-3. **DESIGN.md's Milestones line** for the slice uses the same status words as the Status line. Don't touch any other part of DESIGN.md. Only Matt's acceptance makes a slice "done".
+3. **DESIGN.md's Milestones line** for the slice uses the same status words as the Status line. Don't touch any other part of DESIGN.md. Only Matt's acceptance makes a slice "done" (see "After acceptance").
+
+#### After acceptance
+
+When Matt accepts a slice, delete its plan file in the same commit that marks the slice accepted. After that, the code, the tests, and git history are the record. That commit also does three things:
+
+1. **The Milestones line** says `done and accepted <date>` and lists the slice's commit hashes in place of the plan link.
+2. **Links to the plan:** remove or rewrite every link to the deleted file, in DESIGN.md and in other slice plans. A plan that builds on the slice names it by number and lists its commits.
+3. **Anything that must outlive the plan** moves into DESIGN.md first. That means a ruling not yet under **Confirmed decisions**, or an open issue Matt wants kept. Acceptance closes the handoff's other open issues, and the rest of the plan is dropped.
 
 ## Requirements
 
@@ -169,7 +177,7 @@ internal/reboot/web/      handlers, HTML/SVG, embedded CSS/JS, Otso Fenrir fixtu
    - **Slice 3, stock cockpit fitting (done and accepted 2026-11-19):** choose stock stem lengths, stem angles, and spacer steps for a HandGrip target by enumerating every combination with PlaceBike, scoring each on the points-lost ledger (Q17 oval plus stem length, stem angle, and spacer bands), and listing the 5 best-scoring with apply links (Q15–Q18). The saddle fit is unchanged and carried into every build. The handlebar stays fixed.
    - **Slice 4, handlebar choice in the workbench (implemented 2026-11-19; awaiting Matt's acceptance):** the fixture carries the 15 legacy catalog bars, and `/bike` gets a `bar` select that every link keeps (Q19–Q21). Fitting and stock fitting fit around the submitted bar. Web and fixture only; no assembly change.
    - **Slice 5, handlebars in stock fitting (implemented 2026-11-19; awaiting Matt's acceptance; plan in [SLICE5.md](SLICE5.md)):** `CockpitStock` gains an optional bar list, and stock fitting enumerates it at the submitted roll with no bar penalty. `/bike` gets a `stock_bars=selected|all` control, and each stock row names its bar and its apply link sets `bar` (Q22–Q25).
-   - **Slice 6, seatpost choice and setback notes (implemented 2026-11-19; awaiting Matt's acceptance; plan in [SLICE6.md](SLICE6.md)):** a `post` select of fixture seatposts replaces the free `post_setback` field (Q27, Q28). `assembly.FitPostSetback` explains the post setback a BRP target needs: with the rails centered, always, and with the rails held at the saddle fitting's offset when that fitting stops at a limit (Q29). Fitting never chooses the post.
+   - **Slice 6, seatpost choice and setback notes (done and accepted 2026-11-19; commits `9ae0e97`, `89f6a7d`):** a `post` select of fixture seatposts replaces the free `post_setback` field (Q27, Q28). `assembly.FitPostSetback` explains the post setback a BRP target needs: with the rails centered, always, and with the rails held at the saddle fitting's offset when that fitting stops at a limit (Q29). Fitting never chooses the post.
    - **Slice 7, bar sweep band (planned 2026-11-19; plan in [SLICE7.md](SLICE7.md)):** stock fitting penalizes every bar's backsweep outside 16°–20° by 2 points per degree, as a fifth ledger line in both `stock_bars` modes (Q30).
    - **Slice 8, fork choice in stock fitting (planned 2026-11-19; plan in [SLICE8.md](SLICE8.md); builds on Slices 6 and 7):** a `stock_forks=selected|all` control. `all` enumerates the fixture forks, with suspension forks at 15, 20, and 25% sag, and refits the saddle for each fork. The ledger gains a fork sag line and a BRP miss line, and the BRP miss line counts in both modes (Q31–Q34).
    - **Later, scoring-word rename (TODO, not scheduled):** replace pricing words in code and older docs with score/penalty words. Candidates: `PricedBand` → `PenaltyBand` (including `TestPricedBand`), `CostBelow`/`CostAbove` → `PenaltyBelow`/`PenaltyAbove`, the workbench's "Prices are illustrative" and "the cheapest … on the points-lost ledger" text, comments that say price or cheapest, AGENTS.md's "priced bands", and [SLICE5.md](SLICE5.md). Do it as its own small slice after Slice 8 so it also covers the bands Slices 7 and 8 add.
