@@ -12,7 +12,11 @@ A clean-slate reboot built beside the existing application under `cmd/bikegeo-re
 
 ### Slice planning
 
-Each slice plan is its own file, `SLICE<n>.md` beside this one (for example [SLICE7.md](SLICE7.md)), and it lives only until Matt accepts the slice. Several slices may be planned ahead; each plan names the slices it builds on. Before writing a plan, get Matt's rulings on the slice's open choices (numbered `Q#`) and record them under **Confirmed decisions** here. The plan cites them and doesn't decide them.
+Each slice plan is its own file, `SLICE<n>.md` beside this one (for example [SLICE7.md](SLICE7.md)), and it lives only until Matt accepts the slice. Several slices may be planned ahead together, as one batch in one planning session; each plan names the slices it builds on.
+
+**Planning gate:** don't start a new batch while any `SLICE*.md` file remains beside this one, whatever its status (planned, partly implemented, blocked, or awaiting acceptance). Every slice in the current batch must be implemented and accepted first. Instead of planning, list each remaining plan with its Status line and ask Matt to review and accept it (see "After acceptance"). Hold to this even when Matt asks for a new plan. Planning resumes only when no `SLICE*.md` file remains.
+
+Before writing a plan, get Matt's rulings on the slice's open choices (numbered `Q#`) and record them under **Confirmed decisions** here. The plan cites them and doesn't decide them.
 
 Size the plan by the work. Count the code, test, template, and asset files the slice touches. The status edits to the slice plan and DESIGN.md don't count.
 
