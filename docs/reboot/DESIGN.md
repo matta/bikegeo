@@ -9,6 +9,15 @@ A clean-slate reboot built beside the existing application under `cmd/bikegeo-re
 - Prefer fewer types and clearer physical steps over heavier machinery. Show how a real bike assembly step reads in code.
 - Back technical claims with arithmetic, existing behavior, or a measurement. Two agents agreeing does not prove an unmeasured claim.
 
+### Slice planning
+
+Each slice plan replaces the whole of [SLICE.md](SLICE.md). Before writing it, get Matt's rulings on the slice's open choices (numbered `Q#`) and record them under **Confirmed decisions** here. SLICE.md cites them and doesn't decide them.
+
+Size the plan by the work. Count the code, test, template, and asset files the slice touches. The status edits to SLICE.md and DESIGN.md don't count.
+
+- **Small: one commit and no more than 3 files.** Keep the plan sparse: the goal, the rulings it rests on, the files and the change in each, the tests and their expected values, and the verification steps. The planning agent offers to implement it itself.
+- **Anything larger.** Write the plan in enough detail that a less capable model (for example Sonnet) can implement it reliably without making design choices. It gives exact type, field, and function signatures; every caller to update; URL and form keys; the commit split with subjects; each test with its inputs, its expected values (measured by an independent probe), and their tolerances; the rules that bite; the verification steps; and an out-of-scope list. The planning agent suggests delegating the implementation to that model.
+
 ## Requirements
 
 - **(a) Readable physical code:** build structures from directional pose steps and component builders (seatpost, saddle, fork, spacers, stem, handlebar), not scattered trig.
@@ -93,6 +102,13 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 - **Q20, bar list:** port all 15 bars of the legacy catalog (`internal/catalog/handlebars.go`) exactly, labelled as legacy catalog values with sources not recorded. SQlab bend starts are illustrative (legacy formula 55 + 0.9·rise).
 - **Q21, roll:** `BarRollDeg` stays a submitted fixed input. Changing the bar keeps the submitted roll.
 
+### Handlebars in stock fitting (Q22–Q25, ruled 2026-11-19)
+
+- **Q22, opt-in:** a `stock_bars=selected|all` workbench control. `selected` (the default) keeps today's behavior: stock fitting uses the submitted bar. `all` makes stock fitting enumerate every fixture bar.
+- **Q23, bar price:** bars are free. There is no bar band; bars compete only through the HandGrip oval and the stem and spacer bands. Bar preferences may become priced bands later.
+- **Q24, roll locked:** every bar stock fitting installs gets the submitted `bar_roll`. Roll enumeration is not planned.
+- **Q25, result:** Q18 is unchanged: the 5 cheapest builds across all bars, each row naming its bar. Several rows may share one bar.
+
 ## Run and inspect
 
 - `make serve-reboot` serves on :8081. `/` is the stem preview and `/bike` is the full bike. State lives in the URL query.
@@ -122,8 +138,9 @@ internal/reboot/web/      handlers, HTML/SVG, embedded CSS/JS, Otso Fenrir fixtu
    - **Slice 1, saddle fitting (done 2026-11-19):** fit `SeatpostSetup.ExtensionMm` and `SaddleSetup.RailOffsetMm` to a BRP target with a direct 2×2 solve (Q6). Rail pitch and post setback stay fixed inputs. Limits are the post's min/max extension and the rail clamp range from `RailLengthMm`. The result reports the fitted setups, the BRP actually reached, the miss in mm, and any limit hit, and keeps *reached*, *clamped at a limit*, and *invalid input* distinct. PlaceBike on the fitted setup must land BRP on the target (to 1e-9 mm when no limit binds). `pose` gains one operation that decomposes a vector along two headings. `/bike` gets a BRP target field and a plain-`GET` link to the fitted build. Tests: fit → place round trip, out-of-range target clamps to the right limit, trace on/off equivalence, the fit report's BRP (−219, 713.1). Out of scope: post setback choice, the front cockpit, preference costs, other frames.
    - **Slice 2, front-cockpit fitting (done 2026-11-19):** fit `StemSetup.SpacersMm` and `LengthMm` to a HandGrip target with a continuous direct 2×2 solve (Q11–Q14). Stem angle and handlebar stay fixed inputs. Limits are `MaxSpacersMm` and the stem length range on `StemSetup`. The same `ApplyFitting` fits the saddle, the cockpit, or both, and `/bike` gets a HandGrip target and one apply link.
    - **Slice 3, stock cockpit fitting (done and accepted 2026-11-19):** choose stock stem lengths, stem angles, and spacer steps for a HandGrip target by enumerating every combination with PlaceBike, pricing each on the points-lost ledger (Q17 oval plus stem length, stem angle, and spacer bands), and listing the 5 cheapest with apply links (Q15–Q18). The saddle fit is unchanged and carried into every build. The handlebar stays fixed.
-   - **Slice 4, handlebar choice in the workbench (planned; plan in [SLICE.md](SLICE.md)):** the fixture carries the 15 legacy catalog bars, and `/bike` gets a `bar` select that every link keeps (Q19–Q21). Fitting and stock fitting fit around the submitted bar. Web and fixture only; no assembly change.
-   - **Later:** bars and roll in stock fitting.
+   - **Slice 4, handlebar choice in the workbench (implemented 2026-11-19; awaiting Matt's acceptance):** the fixture carries the 15 legacy catalog bars, and `/bike` gets a `bar` select that every link keeps (Q19–Q21). Fitting and stock fitting fit around the submitted bar. Web and fixture only; no assembly change.
+   - **Slice 5, handlebars in stock fitting (planned; plan in [SLICE.md](SLICE.md)):** `CockpitStock` gains an optional bar list, and stock fitting enumerates it at the submitted roll with no bar price. `/bike` gets a `stock_bars=selected|all` control, and each stock row names its bar and its apply link sets `bar` (Q22–Q25).
+   - **Later:** priced bar preferences (Q23). Roll enumeration is not planned (Q24).
 3. **Chart reconstruction, catalog persistence, agent access (c):** keep the original observations and rounding budgets, evaluate fork/sag/cup hypotheses, show residuals and ambiguous explanations, and expose operations over MCP or the CLI.
 4. **Frame chooser (e):** run fitting across a catalog and report the best builds, coverage, and sensitivity.
 
