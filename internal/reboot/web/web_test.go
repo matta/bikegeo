@@ -3159,7 +3159,7 @@ func assertSelectedStockForks(t *testing.T, doc *goquery.Document, want string) 
 func TestBikeWorkbenchStockForksDefaultKeepsSubmittedFork(t *testing.T) {
 	for _, tc := range []struct{ name, query, fork, sagPoints string }{
 		{"rigid", "", "Lithic Carbon Mountain", "0.0"},
-		{"suspension", "&fork=sid_100&sag=25", "RockShox SID, 25% sag", "10.0"},
+		{"suspension", "&fork=sid_100&sag=25", "RockShox SID 100mm, 25% sag", "10.0"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			doc := loadBikeDoc(t, "/bike?grip_x=481&grip_y=726"+tc.query)
@@ -3193,9 +3193,9 @@ func TestBikeWorkbenchStockForksDefaultKeepsSubmittedFork(t *testing.T) {
 
 const (
 	stockForkLithic = "Lithic Carbon Mountain"
-	stockForkSID20  = "RockShox SID, 20% sag"
-	stockForkSID25  = "RockShox SID, 25% sag"
-	stockForkFox20  = "Fox 34, 20% sag"
+	stockForkSID20  = "RockShox SID 100mm, 20% sag"
+	stockForkSID25  = "RockShox SID 100mm, 25% sag"
+	stockForkFox20  = "Fox Float 34 120mm, 20% sag"
 	firstStockApply = `tr[data-stock-rank="1"] a[data-stock-apply]`
 )
 
@@ -3330,28 +3330,6 @@ func TestBikeWorkbenchStockForksErrorPage(t *testing.T) {
 	assertSelectedStockForks(t, doc, "all")
 	if got := hrefQuery(t, doc, "#preset-cad-baseline-fork").Get("stock_forks"); got != "all" {
 		t.Errorf("error-page CAD preset stock_forks = %q, want all", got)
-	}
-}
-
-func TestCheckFixtureChart(t *testing.T) {
-	checkFixtureChart(otsoFenrirFixture())
-
-	fix := otsoFenrirFixture()
-	fix.Chart.Precision = assembly.ChartPrecision{}
-	var recovered any
-	func() {
-		defer func() {
-			recovered = recover()
-		}()
-		checkFixtureChart(fix)
-	}()
-	msg, ok := recovered.(string)
-	if !ok {
-		t.Fatalf("recovered = %T (%v), want string panic", recovered, recovered)
-	}
-	const wantSub = `fixture "Otso Fenrir Stainless (2024, Size L)" chart: chart closure: axle height residual +0.22 mm exceeds its ±0.00 mm rounding budget (no rounded columns)`
-	if !strings.Contains(msg, wantSub) {
-		t.Errorf("panic = %q, want substring %q", msg, wantSub)
 	}
 }
 

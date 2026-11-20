@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"bikegeo/internal/reboot/assembly"
+	"bikegeo/internal/reboot/catalog"
 	"bikegeo/internal/reboot/pose"
 )
 
@@ -36,44 +37,6 @@ func makeForkOption(id, name string, spec assembly.ForkSpec, defaultSagPct float
 	}
 }
 
-// handlebarOption is one handlebar the workbench can install. Setup.BarRollDeg
-// is always 0: the roll comes from the workbench state (Q21).
-type handlebarOption struct {
-	ID    string
-	Name  string
-	Setup assembly.HandlebarSetup
-}
-
-// seatpostOption is one seatpost the workbench can install. Its insertion
-// comes from the workbench state (Q27).
-type seatpostOption struct {
-	ID   string
-	Name string
-	Spec assembly.SeatpostSpec
-}
-
-// illustrative: the rider's grips (legacy WingGripInsetMm), the same on every bar
-const gripInsetMm = 70.0
-
-// legacyHandlebar builds an uncut handlebar with the rider's grips and no roll.
-func legacyHandlebar(id, name string, widthMm, riseMm float64, mode assembly.RiseMeasurementMode, backsweep, upsweep pose.Deg, bendStartMm float64) handlebarOption {
-	return handlebarOption{
-		ID:   id,
-		Name: name,
-		Setup: assembly.HandlebarSetup{
-			StockWidthMm:   widthMm,
-			CurrentWidthMm: widthMm,
-			StatedRiseMm:   riseMm,
-			RiseMode:       mode,
-			BacksweepDeg:   backsweep,
-			UpsweepDeg:     upsweep,
-			BendStartMm:    bendStartMm,
-			GripInsetMm:    gripInsetMm,
-			BarRollDeg:     0,
-		},
-	}
-}
-
 type bikeFixture struct {
 	Name                   string
 	Chart                  assembly.FrameChart
@@ -86,10 +49,10 @@ type bikeFixture struct {
 	CockpitPreferences     assembly.CockpitPreferences
 	StockSagPcts           []float64
 	DefaultHandlebarID     string
-	Handlebars             []handlebarOption
+	Handlebars             []catalog.Handlebar
 	DefaultSeatpostID      string
 	DefaultPostInsertionMm float64
-	Seatposts              []seatpostOption
+	Seatposts              []catalog.Seatpost
 	SaddleName             string
 	DefaultSaddle          assembly.SaddleSetup
 	// ExampleBrpTarget is a placeholder for the BRP fit target inputs, never a default.
@@ -177,7 +140,7 @@ func forkCellName(opt forkOption, sagPct float64) string {
 }
 
 // handlebarSetups returns each handlebar option's setup, in list order.
-func handlebarSetups(bars []handlebarOption) []assembly.HandlebarSetup {
+func handlebarSetups(bars []catalog.Handlebar) []assembly.HandlebarSetup {
 	setups := make([]assembly.HandlebarSetup, len(bars))
 	for i, bar := range bars {
 		setups[i] = bar.Setup
@@ -187,7 +150,7 @@ func handlebarSetups(bars []handlebarOption) []assembly.HandlebarSetup {
 
 // resolveHandlebar returns the handlebar with requestedID, or the default
 // handlebar when requestedID is empty.
-func (f bikeFixture) resolveHandlebar(requestedID string) (handlebarOption, bool) {
+func (f bikeFixture) resolveHandlebar(requestedID string) (catalog.Handlebar, bool) {
 	if requestedID == "" {
 		requestedID = f.DefaultHandlebarID
 	}
@@ -196,12 +159,12 @@ func (f bikeFixture) resolveHandlebar(requestedID string) (handlebarOption, bool
 			return opt, true
 		}
 	}
-	return handlebarOption{}, false
+	return catalog.Handlebar{}, false
 }
 
 // resolveSeatpost returns the seatpost with requestedID, or the default
 // seatpost when requestedID is empty.
-func (f bikeFixture) resolveSeatpost(requestedID string) (seatpostOption, bool) {
+func (f bikeFixture) resolveSeatpost(requestedID string) (catalog.Seatpost, bool) {
 	if requestedID == "" {
 		requestedID = f.DefaultSeatpostID
 	}
@@ -210,7 +173,7 @@ func (f bikeFixture) resolveSeatpost(requestedID string) (seatpostOption, bool) 
 			return opt, true
 		}
 	}
-	return seatpostOption{}, false
+	return catalog.Seatpost{}, false
 }
 
 func (f bikeFixture) validate() error {
@@ -323,103 +286,41 @@ func (f bikeFixture) validate() error {
 	return nil
 }
 
-// otsoFenrirFixture returns the Milestone 1 Otso Fenrir Stainless (2024, Size L)
-// fixture with its sourced published chart dimensions and selectable forks and handlebars.
+// defaultSuspensionSagPct is the sag a suspension fork option starts at.
+const defaultSuspensionSagPct = 20.0 // Q32 ideal sag
+
+// otsoFenrirFixture returns the Otso Fenrir Stainless (2024, Size L) workbench,
+// built from the catalog's frame, forks, parts, and fit targets plus the
+// Fenrir-L workbench defaults below.
 func otsoFenrirFixture() bikeFixture {
-	const (
-		// Model the generic zero-offset post with the Ritchey Comp Trail Zero's
-		// nominal length and minimum insertion. The workbench uses a simplified clamp.
-		// https://ritcheylogic.com/bike/seatposts/comp-trail-zero-seatpost
-		// illustrative: the 365 mm maximum insertion (35 mm head stack height)
-		genericPostLengthMm       = 400.0
-		genericPostMaxInsertionMm = 365.0
-		genericPostMinInsertionMm = 100.0
-		// Otso lists 290 mm of insertion depth for the Large Fenrir Stainless.
-		// https://otsocycles.com/pages/bike-specs-tables
-		frameInsertionDepthMm = 290.0
-	)
-	// illustrative: generic posts with the Ritchey-based length and insertion limits above
-	genericSeatpost := func(id string, setbackMm float64) seatpostOption {
-		return seatpostOption{
-			ID:   id,
-			Name: fmt.Sprintf("Generic %.0f mm setback post", setbackMm),
-			Spec: assembly.SeatpostSpec{
-				TotalLengthMm:     genericPostLengthMm,
-				MaxInsertionMm:    genericPostMaxInsertionMm,
-				MinInsertionMm:    genericPostMinInsertionMm,
-				SetbackMm:         setbackMm,
-				RailClampLengthMm: 30.0, // measured
-			},
+	const frameID, sizeName = "otso-fenrir-stainless", "L"
+	frame, ok := catalog.FrameByID(frameID)
+	if !ok {
+		panic(fmt.Sprintf("catalog has no frame %q", frameID))
+	}
+	size, ok := frame.Size(sizeName)
+	if !ok {
+		panic(fmt.Sprintf("catalog frame %q has no size %q", frameID, sizeName))
+	}
+	chart := size.Chart
+	// Q67: sliding dropouts at max chainstay (450 mm, the L's published value)
+	chart.Frame = frame.InstalledFrame(size)
+	forks := make([]forkOption, 0, len(frame.Forks))
+	for _, ff := range frame.Forks {
+		sag := 0.0
+		if ff.Fork.TravelMm != 0 {
+			sag = defaultSuspensionSagPct
 		}
+		forks = append(forks, makeForkOption(ff.Fork.ID, ff.Fork.Name, ff.Spec(), sag, chart.Frame.DefaultLowerCup))
 	}
-	// The frame's stock lower cup is the source of every physical fork option's cup.
-	// Its 44 mm pressed bore is inferred from EC44 (illustrative; Otso does not publish it).
-	frameCup := assembly.LowerCupSetup{
-		Standard: assembly.LowerCupEC44,
-		StackMm:  12.0,
-	}
+	saddle := catalog.DefaultSaddle()
 	return bikeFixture{
-		Name: "Otso Fenrir Stainless (2024, Size L)",
-		Chart: assembly.FrameChart{
-			Frame: assembly.FrameSetup{
-				ReachMm:          428.0,
-				StackMm:          642.0,
-				HeadTubeAngleDeg: 68.25,
-				SeatTubeAngleDeg: 75.25,
-				HeadTubeLengthMm: 140.0,
-				BbDropMm:         72.0,
-				ChainstayMm:      450.0,
-				SeatTubeLengthMm: 490.0,
-				// published: Otso lists 290 mm of insertion depth for the Large Fenrir
-				MaxPostInsertionMm:  frameInsertionDepthMm,
-				MinFrameInsertionMm: 0,
-				LowerBore:           assembly.Bore44Pressed,
-				DefaultLowerCup:     frameCup,
-			},
-			// hypotheses, not rounded chart numbers: CadLowerCup and CadFork get no rounding terms (Q44)
-			CadLowerCup: assembly.LowerCupSetup{
-				Standard: assembly.LowerCupBareHeadTube,
-				StackMm:  0.0,
-			},
-			PublishedWheelbaseMm: 1158.0,
-			// illustrative: inferred from the published grid (whole mm; HTA in quarter degrees), Q43
-			Precision: assembly.ChartPrecision{
-				ReachMm:          0.5,
-				StackMm:          0.5,
-				HeadTubeAngleDeg: 0.125,
-				HeadTubeLengthMm: 0.5,
-				BbDropMm:         0.5,
-				ChainstayMm:      0.5,
-				WheelbaseMm:      0.5,
-			},
-			CadFork: assembly.ForkGeometry{
-				A2cMm:  495.0,
-				RakeMm: 54.0,
-			},
-		},
-		Wheels:        assembly.WheelSetup{RadiusMm: 372.0},
-		WheelLabel:    `29" × 2.4"`,
+		Name:          fmt.Sprintf("%s %s (%d, Size %s)", frame.Manufacturer, frame.Model, frame.Year, size.Name),
+		Chart:         chart,
+		Wheels:        assembly.WheelSetup{RadiusMm: catalog.WheelRadiusMm},
+		WheelLabel:    catalog.WheelLabel,
 		DefaultForkID: "lithic_carbon_mountain",
-		Forks: []forkOption{
-			makeForkOption("lithic_carbon_mountain", "Lithic Carbon Mountain", assembly.ForkSpec{
-				StaticA2cMm: 495.0,
-				TravelMm:    0.0,
-				RakeMm:      54.0,
-				Steerer:     assembly.SteererTapered, // catalog
-			}, 0.0, frameCup),
-			makeForkOption("sid_100", "RockShox SID", assembly.ForkSpec{
-				StaticA2cMm: 506.0,
-				TravelMm:    100.0,
-				RakeMm:      44.0,
-				Steerer:     assembly.SteererTapered, // catalog
-			}, 20.0, frameCup),
-			makeForkOption("fox34_120", "Fox 34", assembly.ForkSpec{
-				StaticA2cMm: 530.0,
-				TravelMm:    120.0,
-				RakeMm:      44.0,
-				Steerer:     assembly.SteererTapered, // catalog
-			}, 20.0, frameCup),
-		},
+		Forks:         forks,
 		DefaultStem: assembly.StemSetup{
 			UpperStackMm:  assembly.DefaultUpperStackMm,
 			SpacersMm:     20.0,
@@ -444,59 +345,17 @@ func otsoFenrirFixture() bikeFixture {
 			ForkSag:    assembly.PenaltyBand{FreeMin: 20, FreeMax: 20, PointsPerUnitBelow: 2, PointsPerUnitAbove: 2},     // Matt's preference (Q32)
 			BrpMiss:    assembly.PenaltyBand{FreeMax: 1, PointsPerUnitAbove: 2},                                          // illustrative (Q32)
 		},
-		StockSagPcts:       []float64{15, 20, 25}, // Q31
+		StockSagPcts:       catalog.SuspensionSagPcts(),
 		DefaultHandlebarID: "persuader20_800",
-		// catalog: ported from legacy internal/catalog/handlebars.go; sources not recorded (Q20)
-		Handlebars: []handlebarOption{
-			legacyHandlebar("persuader20_800", "Tumbleweed Persuader 20° (800 mm)", 800, 50, assembly.RiseModeBarEndCenter, 20, 4, 135),
-			legacyHandlebar("persuader20_840", "Tumbleweed Persuader 20° (840 mm)", 840, 50, assembly.RiseModeBarEndCenter, 20, 4, 135),
-			// illustrative: legacy SQlabEffectiveBendStartMm = 55 + 0.9·rise
-			legacyHandlebar("sqlab3ox_16_15", "SQlab 3OX 16°, 15 mm rise (780 mm)", 780, 15, assembly.RiseModeStandardKnuckle, 16, 4, 68.5),
-			legacyHandlebar("sqlab3ox_16_30", "SQlab 3OX 16°, 30 mm rise (780 mm)", 780, 30, assembly.RiseModeStandardKnuckle, 16, 4, 82.0),
-			legacyHandlebar("sqlab3ox_16_45", "SQlab 3OX 16°, 45 mm rise (780 mm)", 780, 45, assembly.RiseModeStandardKnuckle, 16, 4, 95.5),
-			legacyHandlebar("sqlab3ox_12_15", "SQlab 3OX 12°, 15 mm rise (780 mm)", 780, 15, assembly.RiseModeStandardKnuckle, 12, 4, 68.5),
-			legacyHandlebar("sqlab3ox_12_30", "SQlab 3OX 12°, 30 mm rise (780 mm)", 780, 30, assembly.RiseModeStandardKnuckle, 12, 4, 82.0),
-			legacyHandlebar("sqlab3ox_12_45", "SQlab 3OX 12°, 45 mm rise (780 mm)", 780, 45, assembly.RiseModeStandardKnuckle, 12, 4, 95.5),
-			legacyHandlebar("sqlab311_20_16_15", "SQlab 311 2.0 Alloy 16°, 15 mm rise (740 mm)", 740, 15, assembly.RiseModeStandardKnuckle, 16, 5, 68.5),
-			legacyHandlebar("sqlab311_20_16_25", "SQlab 311 2.0 Alloy 16°, 25 mm rise (740 mm)", 740, 25, assembly.RiseModeStandardKnuckle, 16, 5, 77.5),
-			legacyHandlebar("sqlab311_20_16_50", "SQlab 311 2.0 Alloy 16°, 50 mm rise (740 mm)", 740, 50, assembly.RiseModeStandardKnuckle, 16, 5, 100.0),
-			legacyHandlebar("sqlab311_flx_16_15", "SQlab 311 FL-X Carbon 16°, 15 mm rise (740 mm)", 740, 15, assembly.RiseModeStandardKnuckle, 16, 4, 68.5),
-			legacyHandlebar("sqlab311_flx_16_30", "SQlab 311 FL-X Carbon 16°, 30 mm rise (740 mm)", 740, 30, assembly.RiseModeStandardKnuckle, 16, 4, 82.0),
-			legacyHandlebar("sqlab311_flx_12_15", "SQlab 311 FL-X Carbon 12°, 15 mm rise (740 mm)", 740, 15, assembly.RiseModeStandardKnuckle, 12, 4, 68.5),
-			legacyHandlebar("sqlab311_flx_12_30", "SQlab 311 FL-X Carbon 12°, 30 mm rise (740 mm)", 740, 30, assembly.RiseModeStandardKnuckle, 12, 4, 82.0),
-		},
-		DefaultSeatpostID: "setback_0",
+		Handlebars:         catalog.Handlebars(),
+		DefaultSeatpostID:  "setback_0",
 		// Q92: 180.576 mm of insertion exposes 219.424 mm of the generic post and puts the
 		// BRP 746.000 mm radially from BB in the unpitched attitude.
 		DefaultPostInsertionMm: 180.576,
-		Seatposts: []seatpostOption{
-			genericSeatpost("setback_0", 0),
-			genericSeatpost("setback_15", 15),
-			genericSeatpost("setback_25", 25),
-			// owner-reported 2026-11-19: 12 mm setback when sagged (Q28). The fit
-			// report was transferred with this post unsagged (docs/RIDER_FIT.md).
-			{ID: "redshift_shockstop_pro", Name: "Redshift ShockStop PRO (12 mm setback, sagged)", Spec: assembly.SeatpostSpec{
-				TotalLengthMm:     350.0, // catalog
-				MaxInsertionMm:    250.0, // illustrative: 100 mm linkage stack height (Q75c)
-				MinInsertionMm:    100.0, // catalog: matches 100 mm Cane Creek ST27316 shim (Q75c)
-				SetbackMm:         12.0,  // owner-reported (sagged, Q28)
-				RailClampLengthMm: 30.0,  // illustrative (Q75c)
-			}},
-		},
-		SaddleName: "SQlab 610 Ergolux Active 2.1",
-		DefaultSaddle: assembly.SaddleSetup{
-			RailCenterToBrpMm:      32.0,
-			RailCenterToSitBonesMm: -48.0,
-			// illustrative: 55 mm effective saddle height less the 10 mm measured SIT elevation
-			RailToBrpHeightMm:   45.0,
-			SitBonesElevationMm: 10.0,
-			RailLengthMm:        60.0, // measured
-			RailPitchDeg:        0.0,
-			RailOffsetMm:        0.0,
-		},
-		// measured: Matt's idmatch fit report, docs/RIDER_FIT.md
-		ExampleBrpTarget: pose.Point{X: -219.0, Y: 713.1},
-		// measured: idmatch fit report handlebar coordinates (docs/RIDER_FIT.md); whether the report point is HandGrip or the stem clamp is unresolved
-		ExampleGripTarget: pose.Point{X: 481.0, Y: 726.0},
+		Seatposts:              catalog.Seatposts(),
+		SaddleName:             saddle.Name,
+		DefaultSaddle:          saddle.Setup,
+		ExampleBrpTarget:       catalog.DefaultBrpTarget(),
+		ExampleGripTarget:      catalog.DefaultGripTarget(),
 	}
 }

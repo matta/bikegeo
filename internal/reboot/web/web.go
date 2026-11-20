@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"bikegeo/internal/reboot/assembly"
+	"bikegeo/internal/reboot/catalog"
 	"bikegeo/internal/reboot/pose"
 )
 
@@ -66,10 +67,9 @@ const (
 	saddleRailOutlineHeight    = 5.0  // illustrative saddle rail thickness
 )
 
-// NewHandler returns the HTTP handler for the reboot workbench. It panics if
-// the fixture chart fails its closure check (Q47).
+// NewHandler returns the HTTP handler for the reboot workbench. Chart closure
+// runs in the catalog's go test, not at startup (Q91).
 func NewHandler() http.Handler {
-	checkFixtureChart(otsoFenrirFixture())
 	mux := http.NewServeMux()
 	// The root redirects to the inspector until the comparison page lands.
 	mux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
@@ -77,13 +77,6 @@ func NewHandler() http.Handler {
 	})
 	mux.HandleFunc("/bike", handleBikeWorkbench)
 	return mux
-}
-
-// checkFixtureChart panics unless the fixture chart closes within its rounding budget.
-func checkFixtureChart(fix bikeFixture) {
-	if err := assembly.CheckChartClosure(fix.Chart); err != nil {
-		panic(fmt.Sprintf("fixture %q chart: %v", fix.Name, err))
-	}
 }
 
 // poseOutline is a component silhouette drawn as a rectangle in a pose's
@@ -532,9 +525,9 @@ type bikeView struct {
 	StockForkCount       int
 	CadForkOption        forkOption
 	SelectedForkID       string
-	Handlebars           []handlebarOption
+	Handlebars           []catalog.Handlebar
 	SelectedBarID        string
-	Seatposts            []seatpostOption
+	Seatposts            []catalog.Seatpost
 	SelectedPostID       string
 	PostSetbackMm        float64
 	PostClampLengthMm    float64
@@ -757,7 +750,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		if resolved.State.Targets.HasGrip {
 			// offered is the bar list stock fitting enumerates; its indices
 			// name each candidate's bar.
-			var offered []handlebarOption
+			var offered []catalog.Handlebar
 			if resolved.State.AllStockBars {
 				offered = fix.Handlebars
 			}
@@ -845,7 +838,7 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 
 // buildStockFittingView renders stock fitting results. The offered bars and
 // forks are in the same order as CockpitStock.Handlebars and CockpitStock.Forks.
-func buildStockFittingView(state workbenchState, fix bikeFixture, offered []handlebarOption, offeredForks []stockForkOption, stock assembly.StockFitting) (*stockFittingView, error) {
+func buildStockFittingView(state workbenchState, fix bikeFixture, offered []catalog.Handlebar, offeredForks []stockForkOption, stock assembly.StockFitting) (*stockFittingView, error) {
 	prefs := fix.CockpitPreferences
 	o := prefs.GripOval
 	view := &stockFittingView{
