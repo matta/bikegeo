@@ -281,23 +281,23 @@ func (v diagramView) Description() string {
 }
 
 type workbenchState struct {
-	View          diagramView
-	ForkID        string
-	BarID         string
-	PostID        string
-	ForkA2cMm     float64
-	LowerCupMm    float64
-	SagPct        float64
-	SpacersMm     float64
-	StemLengthMm  float64
-	StemAngleDeg  pose.Deg
-	BarRollDeg    pose.Deg
-	PostExtMm     float64
-	RailOffsetMm  float64
-	RailPitchDeg  pose.Deg
-	Targets       fitTargetState
-	AllStockBars  bool // stock fitting offers every fixture handlebar (Q22)
-	AllStockForks bool // stock fitting offers every fixture fork configuration (Q33)
+	View            diagramView
+	ForkID          string
+	BarID           string
+	PostID          string
+	ForkA2cMm       float64
+	LowerCupMm      float64
+	SagPct          float64
+	SpacersMm       float64
+	StemLengthMm    float64
+	StemAngleDeg    pose.Deg
+	BarRollDeg      pose.Deg
+	PostInsertionMm float64
+	RailOffsetMm    float64
+	RailPitchDeg    pose.Deg
+	Targets         fitTargetState
+	AllStockBars    bool // stock fitting offers every fixture handlebar (Q22)
+	AllStockForks   bool // stock fitting offers every fixture fork configuration (Q33)
 }
 
 // fitTargetState is the optional fitting targets in the URL query
@@ -327,39 +327,39 @@ func defaultWorkbenchState(fix bikeFixture) workbenchState {
 	defaultBar, _ := fix.resolveHandlebar("")
 	defaultPost, _ := fix.resolveSeatpost("")
 	return workbenchState{
-		View:         diagramViewBike,
-		ForkID:       defaultFork.ID,
-		BarID:        defaultBar.ID,
-		PostID:       defaultPost.ID,
-		ForkA2cMm:    defaultFork.Spec.StaticA2cMm,
-		LowerCupMm:   defaultFork.DefaultLowerCup.StackMm,
-		SagPct:       defaultFork.DefaultSagPct,
-		SpacersMm:    fix.DefaultStem.SpacersMm,
-		StemLengthMm: fix.DefaultStem.LengthMm,
-		StemAngleDeg: fix.DefaultStem.AngleDeg,
-		BarRollDeg:   defaultBar.Setup.BarRollDeg,
-		PostExtMm:    fix.DefaultPostExtMm,
-		RailOffsetMm: fix.DefaultSaddle.RailOffsetMm,
-		RailPitchDeg: fix.DefaultSaddle.RailPitchDeg,
+		View:            diagramViewBike,
+		ForkID:          defaultFork.ID,
+		BarID:           defaultBar.ID,
+		PostID:          defaultPost.ID,
+		ForkA2cMm:       defaultFork.Spec.StaticA2cMm,
+		LowerCupMm:      defaultFork.DefaultLowerCup.StackMm,
+		SagPct:          defaultFork.DefaultSagPct,
+		SpacersMm:       fix.DefaultStem.SpacersMm,
+		StemLengthMm:    fix.DefaultStem.LengthMm,
+		StemAngleDeg:    fix.DefaultStem.AngleDeg,
+		BarRollDeg:      defaultBar.Setup.BarRollDeg,
+		PostInsertionMm: fix.DefaultPostInsertionMm,
+		RailOffsetMm:    fix.DefaultSaddle.RailOffsetMm,
+		RailPitchDeg:    fix.DefaultSaddle.RailPitchDeg,
 	}
 }
 
 func workbenchStateFromSetup(view diagramView, forkID, barID, postID string, setup assembly.BikeSetup) workbenchState {
 	return workbenchState{
-		View:         view,
-		ForkID:       forkID,
-		BarID:        barID,
-		PostID:       postID,
-		ForkA2cMm:    setup.Fork.Spec.StaticA2cMm,
-		LowerCupMm:   setup.LowerCup.StackMm,
-		SagPct:       setup.Fork.SagPct,
-		SpacersMm:    setup.Stem.SpacersMm,
-		StemLengthMm: setup.Stem.LengthMm,
-		StemAngleDeg: setup.Stem.AngleDeg,
-		BarRollDeg:   setup.Handlebar.BarRollDeg,
-		PostExtMm:    setup.Seatpost.ExtensionMm,
-		RailOffsetMm: setup.Saddle.RailOffsetMm,
-		RailPitchDeg: setup.Saddle.RailPitchDeg,
+		View:            view,
+		ForkID:          forkID,
+		BarID:           barID,
+		PostID:          postID,
+		ForkA2cMm:       setup.Fork.Spec.StaticA2cMm,
+		LowerCupMm:      setup.LowerCup.StackMm,
+		SagPct:          setup.Fork.SagPct,
+		SpacersMm:       setup.Stem.SpacersMm,
+		StemLengthMm:    setup.Stem.LengthMm,
+		StemAngleDeg:    setup.Stem.AngleDeg,
+		BarRollDeg:      setup.Handlebar.BarRollDeg,
+		PostInsertionMm: setup.Seatpost.InsertionMm,
+		RailOffsetMm:    setup.Saddle.RailOffsetMm,
+		RailPitchDeg:    setup.Saddle.RailPitchDeg,
 	}
 }
 
@@ -408,7 +408,7 @@ func (s workbenchState) URL() string {
 	q.Set("stem_length", formatFormFloat(s.StemLengthMm))
 	q.Set("stem_angle", formatFormFloat(float64(s.StemAngleDeg)))
 	q.Set("bar_roll", formatFormFloat(float64(s.BarRollDeg)))
-	q.Set("post_ext", formatFormFloat(s.PostExtMm))
+	q.Set("post_insert", formatFormFloat(s.PostInsertionMm))
 	q.Set("rail_offset", formatFormFloat(s.RailOffsetMm))
 	q.Set("rail_pitch", formatFormFloat(float64(s.RailPitchDeg)))
 	if s.Targets.HasBrp {
@@ -465,7 +465,7 @@ func (s workbenchState) formValues() bikeFormValues {
 		StemLength: formatFormFloat(s.StemLengthMm),
 		StemAngle:  formatFormFloat(float64(s.StemAngleDeg)),
 		BarRoll:    formatFormFloat(float64(s.BarRollDeg)),
-		PostExt:    formatFormFloat(s.PostExtMm),
+		PostInsert: formatFormFloat(s.PostInsertionMm),
 		RailOffset: formatFormFloat(s.RailOffsetMm),
 		RailPitch:  formatFormFloat(float64(s.RailPitchDeg)),
 	}
@@ -484,7 +484,7 @@ type bikeFormValues struct {
 	StemLength string
 	StemAngle  string
 	BarRoll    string
-	PostExt    string
+	PostInsert string
 	RailOffset string
 	RailPitch  string
 	BrpX       string
@@ -521,8 +521,10 @@ type bikeView struct {
 	ViewLinks            []diagramViewLink
 	DrawScale            float64 // view width / whole-bike width; 1 for the whole bike
 	UnitsPerPx           float64 // SVG units per on-screen px at the nominal width
-	MinPostExtensionMm   float64
-	MaxPostExtensionMm   float64
+	MinPostInsertionMm   float64
+	MaxPostInsertionMm   float64
+	PostTotalLengthMm    float64
+	PostExposedMm        float64
 	BikeName             string
 	SaddleName           string
 	HandlebarName        string
@@ -615,7 +617,7 @@ type stockCandidateView struct {
 // postSetbackView is one setback note (Q29): the setback and extension
 // FitPostSetback found with the rails held at RailOffsetMm. It is never applied.
 type postSetbackView struct {
-	RailOffsetMm, SetbackMm, ExtensionMm, MissMm float64
+	RailOffsetMm, SetbackMm, InsertionMm, MissMm float64
 	LimitedBy                                    []assembly.InputField
 }
 
@@ -626,8 +628,8 @@ func makePostSetbackView(f assembly.Fitting) postSetbackView {
 	miss, _ := f.BrpMiss()
 	return postSetbackView{
 		RailOffsetMm: f.Placement.Setup.Saddle.RailOffsetMm,
-		SetbackMm:    f.Placement.Setup.Seatpost.PostSetbackMm,
-		ExtensionMm:  f.Placement.Setup.Seatpost.ExtensionMm,
+		SetbackMm:    f.Placement.Setup.Seatpost.Spec.SetbackMm,
+		InsertionMm:  f.Placement.Setup.Seatpost.InsertionMm,
 		MissMm:       miss.Norm(),
 		LimitedBy:    f.LimitedBy,
 	}
@@ -635,7 +637,7 @@ func makePostSetbackView(f assembly.Fitting) postSetbackView {
 
 type saddleFittingView struct {
 	TargetX, TargetY, MissX, MissY, MissMm float64 // miss: target − the submitted build's BRP
-	ExtensionMm, RailOffsetMm, RailLimitMm float64 // fitted values; ±RailLimitMm range
+	InsertionMm, RailOffsetMm, RailLimitMm float64 // fitted values; ±RailLimitMm range
 	LimitedBy                              []assembly.InputField
 	Centered                               postSetbackView  // rails centered (Q29)
 	Reach                                  *postSetbackView // rails held at the fitted offset; nil unless saddle fitting is limited
@@ -740,7 +742,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			centered = &c
-			saddleLimited := slices.Contains(fitting.LimitedBy, assembly.InputSeatpostExtension) ||
+			saddleLimited := slices.Contains(fitting.LimitedBy, assembly.InputSeatpostInsertion) ||
 				slices.Contains(fitting.LimitedBy, assembly.InputSaddleRailOffset)
 			if saddleLimited {
 				r, err := assembly.FitPostSetback(resolved.Setup, *brp, fitting.Placement.Setup.Saddle.RailOffsetMm)
@@ -793,7 +795,7 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 	var saddleLimits, cockpitLimits []assembly.InputField
 	for _, f := range fitting.LimitedBy {
 		switch f {
-		case assembly.InputSeatpostExtension, assembly.InputSaddleRailOffset:
+		case assembly.InputSeatpostInsertion, assembly.InputSaddleRailOffset:
 			saddleLimits = append(saddleLimits, f)
 		case assembly.InputStemSpacers, assembly.InputStemLength:
 			cockpitLimits = append(cockpitLimits, f)
@@ -810,7 +812,7 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 		fv.Saddle = &saddleFittingView{
 			TargetX: brp.X, TargetY: brp.Y,
 			MissX: miss.X, MissY: miss.Y, MissMm: miss.Norm(),
-			ExtensionMm:  fitted.Seatpost.ExtensionMm,
+			InsertionMm:  fitted.Seatpost.InsertionMm,
 			RailOffsetMm: fitted.Saddle.RailOffsetMm,
 			RailLimitMm:  railLimit,
 			LimitedBy:    saddleLimits,
@@ -928,6 +930,17 @@ func railOffsetRange(saddle assembly.SaddleSetup, post assembly.SeatpostSetup) (
 	return -limit, limit
 }
 
+// postInsertionBounds returns the insertion interval the frame and post allow,
+// the one calculation behind placement, fitting, and the form bounds. It is
+// zero when the pair allows no insertion; placement then reports the error.
+func postInsertionBounds(frame assembly.FrameSetup, spec assembly.SeatpostSpec) assembly.InsertionBounds {
+	bounds, err := assembly.SeatpostInsertionBounds(frame, spec)
+	if err != nil {
+		return assembly.InsertionBounds{}
+	}
+	return bounds
+}
+
 func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolvedInput, invalidField, msg string) {
 	forkA2cRO, cupRO, sagRO, cupLabel, cadNote := forkFieldViewState(fix, resolved.State.ForkID, resolved.Form.Sag)
 	cadBase := defaultWorkbenchState(fix)
@@ -941,6 +954,7 @@ func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolv
 	cadBase.AllStockForks = resolved.State.AllStockForks
 	defaultsURL, cadURL := presetURLs(fix, cadBase, resolved.State.View)
 	minRail, maxRail := railOffsetRange(resolved.Setup.Saddle, resolved.Setup.Seatpost)
+	postBounds := postInsertionBounds(resolved.Setup.Frame, resolved.Setup.Seatpost.Spec)
 	view := bikeView{
 		MinRailOffsetMm:    minRail,
 		MaxRailOffsetMm:    maxRail,
@@ -955,10 +969,11 @@ func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolv
 		Form:               resolved.Form,
 		DefaultsURL:        defaultsURL,
 		CadBaselineForkURL: cadURL,
-		MinPostExtensionMm: resolved.Setup.Seatpost.MinExtensionMm,
-		MaxPostExtensionMm: resolved.Setup.Seatpost.MaxExtensionMm,
-		PostSetbackMm:      resolved.Setup.Seatpost.PostSetbackMm,
-		PostClampLengthMm:  resolved.Setup.Seatpost.ClampLengthMm,
+		MinPostInsertionMm: postBounds.EffectiveMinInsertionMm,
+		MaxPostInsertionMm: postBounds.MaxAllowedInsertionMm,
+		PostTotalLengthMm:  resolved.Setup.Seatpost.Spec.TotalLengthMm,
+		PostSetbackMm:      resolved.Setup.Seatpost.Spec.SetbackMm,
+		PostClampLengthMm:  resolved.Setup.Seatpost.Spec.RailClampLengthMm,
 		BikeName:           fix.Name,
 		Forks:              fix.Forks,
 		StockForkCount:     len(fix.stockForks()),
@@ -1152,7 +1167,7 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bi
 	state.StemLengthMm = p.float("stem_length", defaults.StemLengthMm, "stem length", &form.StemLength)
 	state.StemAngleDeg = pose.Deg(p.float("stem_angle", float64(defaults.StemAngleDeg), "stem angle", &form.StemAngle))
 	state.BarRollDeg = pose.Deg(p.float("bar_roll", float64(defaults.BarRollDeg), "handlebar roll", &form.BarRoll))
-	state.PostExtMm = p.float("post_ext", defaults.PostExtMm, "seatpost extension", &form.PostExt)
+	state.PostInsertionMm = p.float("post_insert", defaults.PostInsertionMm, "seatpost insertion", &form.PostInsert)
 	state.RailOffsetMm = p.float("rail_offset", defaults.RailOffsetMm, "saddle rail offset", &form.RailOffset)
 	state.RailPitchDeg = pose.Deg(p.float("rail_pitch", float64(defaults.RailPitchDeg), "saddle rail pitch", &form.RailPitch))
 
@@ -1204,8 +1219,7 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bi
 	bar := selectedBar.Setup
 	bar.BarRollDeg = state.BarRollDeg
 
-	post := selectedPost.Setup
-	post.ExtensionMm = state.PostExtMm
+	post := assembly.SeatpostSetup{Spec: selectedPost.Spec, InsertionMm: state.PostInsertionMm}
 
 	saddle := fix.DefaultSaddle
 	saddle.RailOffsetMm = state.RailOffsetMm
@@ -1249,8 +1263,8 @@ func bikeInputField(err error) string {
 		return "stem_angle"
 	case assembly.InputHandlebarRoll:
 		return "bar_roll"
-	case assembly.InputSeatpostExtension:
-		return "post_ext"
+	case assembly.InputSeatpostInsertion:
+		return "post_insert"
 	case assembly.InputSeatpostSetback:
 		return "post"
 	case assembly.InputSaddleRailOffset:
@@ -1359,7 +1373,7 @@ const (
 	nominalDiagramWidthPx = 720.0
 	// Margins around the landmarks a close-up view frames, in on-screen px at
 	// the nominal width. The side margin fits the longest 1rem label
-	// ("SeatpostClamp") beside a point on the edge of the framing.
+	// ("RailCradle") beside a point on the edge of the framing.
 	closeUpPadXPx = 150.0
 	closeUpPadYPx = 40.0
 	// bikeLabelEmUnits converts the label offsets below, written in SVG units
@@ -1412,7 +1426,7 @@ func buildBikeView(
 		rearContactSVG,
 		toSVG(placed.HeadTubeTop.Origin()),
 		toSVG(placed.SeatTubeTop.Origin()),
-		toSVG(seatpost.SeatpostClamp.Origin()),
+		toSVG(seatpost.RailCradle.Origin()),
 		toSVG(saddle.RailCenter.Origin()),
 		toSVG(saddle.BRP.Origin()),
 		toSVG(saddle.SitBones.Origin()),
@@ -1424,7 +1438,7 @@ func buildBikeView(
 
 	stemParts := stemOutlines(stem, bike.Setup.Stem)
 	seatParts := []poseOutline{
-		{"seatpost-clamp", saddle.RailFrame, -bike.Setup.Seatpost.ClampLengthMm / 2.0, bike.Setup.Seatpost.ClampLengthMm, seatpostClampOutlineHeight},
+		{"seatpost-clamp", saddle.RailFrame, -bike.Setup.Seatpost.Spec.RailClampLengthMm / 2.0, bike.Setup.Seatpost.Spec.RailClampLengthMm, seatpostClampOutlineHeight},
 		{"saddle-rail", saddle.RailCenter, -bike.Setup.Saddle.RailLengthMm / 2.0, bike.Setup.Saddle.RailLengthMm, saddleRailOutlineHeight},
 	}
 
@@ -1437,7 +1451,7 @@ func buildBikeView(
 	case diagramViewSeat:
 		// Every seatpost and saddle pose above SeatTubeTop, not the seat tube.
 		framingPoses = []pose.Pose{
-			seatpost.ShaftTop, seatpost.SeatpostClamp, saddle.RailFrame,
+			seatpost.ShaftTop, seatpost.RailCradle, saddle.RailFrame,
 			saddle.RailCenter, saddle.BRP, saddle.SitBones,
 		}
 		framingOutlines = seatParts
@@ -1480,7 +1494,7 @@ func buildBikeView(
 		makeSegment("fork-a2c", placed.LowerCupBottom, placed.ForkSteererBase, "#59636e", 7*scale, false),
 		makeSegment("fork-rake", placed.ForkSteererBase, placed.FrontAxle, "#59636e", 5*scale, false),
 		makeSegment("seatpost", placed.SeatTubeTop, seatpost.ShaftTop, "#59636e", 5*scale, false),
-		makeSegment("seatpost-setback", seatpost.ShaftTop, seatpost.SeatpostClamp, "#59636e", 5*scale, false),
+		makeSegment("seatpost-setback", seatpost.ShaftTop, seatpost.RailCradle, "#59636e", 5*scale, false),
 		makeSegment("saddle-profile", saddle.SitBones, saddle.BRP, "#2f363d", 4*scale, true),
 		makeSegment("handlebar-rise-sweep", handlebar.BarClamp, handlebar.HandGrip, "#2f363d", 5*scale, true),
 	}
@@ -1492,7 +1506,7 @@ func buildBikeView(
 		{"RearContact", placed.RearTireContact, 0, 24, "middle"},
 		{"BB", placed.BB, 0, 26, "middle"},
 		{"SeatTubeTop", placed.SeatTubeTop, -14, -10, "end"},
-		{"SeatpostClamp", seatpost.SeatpostClamp, 16, 6, "start"},
+		{"RailCradle", seatpost.RailCradle, 16, 6, "start"},
 		{"RailCenter", saddle.RailCenter, 16, 24, "start"},
 		{"BRP", saddle.BRP, 14, -10, "start"},
 		{"SitBones", saddle.SitBones, -14, -10, "end"},
@@ -1522,6 +1536,7 @@ func buildBikeView(
 
 	selectedBar, _ := fix.resolveHandlebar(barID)
 	minRail, maxRail := railOffsetRange(bike.Setup.Saddle, bike.Setup.Seatpost)
+	postBounds := postInsertionBounds(bike.Setup.Frame, bike.Setup.Seatpost.Spec)
 	return bikeView{
 		MinRailOffsetMm:      minRail,
 		MaxRailOffsetMm:      maxRail,
@@ -1538,10 +1553,12 @@ func buildBikeView(
 		ViewLinks:            viewLinks,
 		DrawScale:            scale,
 		UnitsPerPx:           viewBox.W / nominalDiagramWidthPx,
-		MinPostExtensionMm:   bike.Setup.Seatpost.MinExtensionMm,
-		MaxPostExtensionMm:   bike.Setup.Seatpost.MaxExtensionMm,
-		PostSetbackMm:        bike.Setup.Seatpost.PostSetbackMm,
-		PostClampLengthMm:    bike.Setup.Seatpost.ClampLengthMm,
+		MinPostInsertionMm:   postBounds.EffectiveMinInsertionMm,
+		MaxPostInsertionMm:   postBounds.MaxAllowedInsertionMm,
+		PostTotalLengthMm:    bike.Setup.Seatpost.Spec.TotalLengthMm,
+		PostExposedMm:        bike.Setup.Seatpost.ExposedMm(),
+		PostSetbackMm:        bike.Setup.Seatpost.Spec.SetbackMm,
+		PostClampLengthMm:    bike.Setup.Seatpost.Spec.RailClampLengthMm,
 		BikeName:             fix.Name,
 		SaddleName:           fix.SaddleName,
 		HandlebarName:        selectedBar.Name,

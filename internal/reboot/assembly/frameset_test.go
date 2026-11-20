@@ -10,16 +10,17 @@ import (
 
 func fenrirSizeLFrame() assembly.FrameSetup {
 	return assembly.FrameSetup{
-		ReachMm:          428.0,
-		StackMm:          642.0,
-		HeadTubeAngleDeg: 68.25,
-		SeatTubeAngleDeg: 75.25,
-		HeadTubeLengthMm: 140.0,
-		BbDropMm:         72.0,
-		ChainstayMm:      450.0,
-		SeatTubeLengthMm: 490.0,
-		LowerBore:        assembly.Bore44Pressed,
-		DefaultLowerCup:  assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0},
+		ReachMm:            428.0,
+		StackMm:            642.0,
+		HeadTubeAngleDeg:   68.25,
+		SeatTubeAngleDeg:   75.25,
+		HeadTubeLengthMm:   140.0,
+		BbDropMm:           72.0,
+		ChainstayMm:        450.0,
+		SeatTubeLengthMm:   490.0,
+		MaxPostInsertionMm: 290.0,
+		LowerBore:          assembly.Bore44Pressed,
+		DefaultLowerCup:    assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0},
 	}
 }
 
@@ -425,5 +426,15 @@ func TestMismatchedPhysicalCupFailsBothChartEntryPoints(t *testing.T) {
 	chart.CadLowerCup = fenrirEc44Cup()
 	if err := assembly.CheckChartClosure(chart); err != nil && errors.As(err, &inputErr) && inputErr.Field == assembly.InputLowerCup {
 		t.Errorf("matching cup rejected as a headset error: %v", err)
+	}
+}
+
+// fenrirPostTotalMm is the generic post's total length (Q75c: 400/365/100 mm, illustrative).
+const fenrirPostTotalMm = 400.0
+
+func genericPostSpec(setbackMm float64) assembly.SeatpostSpec {
+	return assembly.SeatpostSpec{
+		TotalLengthMm: fenrirPostTotalMm, MaxInsertionMm: 365, MinInsertionMm: 100,
+		SetbackMm: setbackMm, RailClampLengthMm: 30,
 	}
 }

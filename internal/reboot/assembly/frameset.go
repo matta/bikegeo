@@ -23,6 +23,12 @@ type FrameSetup struct {
 	// stock physical lower cup, which must fit LowerBore.
 	LowerBore       LowerBore
 	DefaultLowerCup LowerCupSetup
+
+	// MaxPostInsertionMm is the frame's published seatpost insertion cap; zero
+	// means undeclared, which caps insertion at the seat tube's C-T length less
+	// 20 mm. MinFrameInsertionMm is the frame's minimum insertion; zero means none.
+	MaxPostInsertionMm  float64
+	MinFrameInsertionMm float64
 }
 
 // LowerBore identifies the head tube's lower bore, which sets the lower

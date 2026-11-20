@@ -348,11 +348,12 @@
               <option value="{{.ID}}"{{if eq .ID $.SelectedPostID}} selected{{end}}>{{.Name}}</option>
               {{end}}
             </select>
-            <p class="field-note" data-note="post-setback">Setback <span class="mono" data-metric="post-setback">{{printf "%.1f mm" .PostSetbackMm}}</span> · extension {{printf "%.0f" .MinPostExtensionMm}}–{{printf "%.0f" .MaxPostExtensionMm}} mm · clamp {{printf "%.0f" .PostClampLengthMm}} mm. The post sets its setback.</p>
+            <p class="field-note" data-note="post-setback">Setback <span class="mono" data-metric="post-setback">{{printf "%.1f mm" .PostSetbackMm}}</span> · insertion {{printf "%.0f" .MinPostInsertionMm}}–{{printf "%.0f" .MaxPostInsertionMm}} mm (frame and post) · length {{printf "%.0f" .PostTotalLengthMm}} mm · clamp {{printf "%.0f" .PostClampLengthMm}} mm. The post sets its setback.</p>
           </div>
           <div class="field">
-            <label for="ctrl-post-ext">Seatpost Extension (mm)</label>
-            <input id="ctrl-post-ext" type="number" name="post_ext" step="any" min="{{.MinPostExtensionMm}}"{{if .MaxPostExtensionMm}} max="{{.MaxPostExtensionMm}}"{{end}} value="{{.Form.PostExt}}"{{if and $.ErrorMessage (eq $.InvalidField "post_ext")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+            <label for="ctrl-post-insert">Seatpost Insertion (mm)</label>
+            <input id="ctrl-post-insert" type="number" name="post_insert" step="any" min="{{.MinPostInsertionMm}}" max="{{.MaxPostInsertionMm}}" value="{{.Form.PostInsert}}"{{if and $.ErrorMessage (eq $.InvalidField "post_insert")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+            {{if .HasBuild}}<p class="field-note" data-note="post-exposed">Exposed length <span class="mono" data-metric="post-exposed">{{printf "%.1f mm" .PostExposedMm}}</span> above the seat tube.</p>{{end}}
           </div>
           <div class="field">
             <label for="ctrl-rail-offset">Saddle Rail Offset (mm)</label>
@@ -448,14 +449,14 @@
           <strong>Saddle fitting</strong>
           <span>Target BRP: <strong class="mono">({{printf "%.1f" .TargetX}}, {{printf "%.1f" .TargetY}}) mm</strong></span>
           <span>Current BRP miss: <strong class="mono">({{printf "%+.1f" .MissX}}, {{printf "%+.1f" .MissY}}) mm, <span data-metric="fit-brp-miss">{{printf "%.1f mm" .MissMm}}</span></strong></span>
-          <span>Fitted extension: <strong class="mono" data-metric="fit-extension">{{printf "%.1f mm" .ExtensionMm}}</strong></span>
+          <span>Fitted insertion: <strong class="mono" data-metric="fit-insertion">{{printf "%.1f mm" .InsertionMm}}</strong></span>
           <span>Fitted rail offset (±{{printf "%.1f" .RailLimitMm}} mm on this saddle): <strong class="mono" data-metric="fit-rail-offset">{{printf "%.1f mm" .RailOffsetMm}}</strong></span>
           <span>Outcome: <strong data-metric="fit-saddle-outcome">{{.OutcomeText}}</strong></span>
-          <span>Setback for centered rails: <strong class="mono" data-metric="fit-setback-centered">{{printf "%.1f mm" .Centered.SetbackMm}}</strong> at extension <span class="mono" data-metric="fit-setback-centered-ext">{{printf "%.1f mm" .Centered.ExtensionMm}}</span>; <span data-metric="fit-setback-centered-outcome">{{.Centered.OutcomeText}}</span>{{if .Centered.LimitedBy}}, {{printf "%.1f" .Centered.MissMm}} mm short{{end}}</span>
+          <span>Setback for centered rails: <strong class="mono" data-metric="fit-setback-centered">{{printf "%.1f mm" .Centered.SetbackMm}}</strong> at insertion <span class="mono" data-metric="fit-setback-centered-insertion">{{printf "%.1f mm" .Centered.InsertionMm}}</span>; <span data-metric="fit-setback-centered-outcome">{{.Centered.OutcomeText}}</span>{{if .Centered.LimitedBy}}, {{printf "%.1f" .Centered.MissMm}} mm short{{end}}</span>
           {{with .Reach}}
-          <span>Setback to reach the target with rails at <span class="mono" data-metric="fit-setback-reach-rail">{{printf "%+.1f mm" .RailOffsetMm}}</span>: <strong class="mono" data-metric="fit-setback-reach">{{printf "%.1f mm" .SetbackMm}}</strong> at extension <span class="mono" data-metric="fit-setback-reach-ext">{{printf "%.1f mm" .ExtensionMm}}</span>; <span data-metric="fit-setback-reach-outcome">{{.OutcomeText}}</span>{{if .LimitedBy}}, {{printf "%.1f" .MissMm}} mm short{{end}}</span>
+          <span>Setback to reach the target with rails at <span class="mono" data-metric="fit-setback-reach-rail">{{printf "%+.1f mm" .RailOffsetMm}}</span>: <strong class="mono" data-metric="fit-setback-reach">{{printf "%.1f mm" .SetbackMm}}</strong> at insertion <span class="mono" data-metric="fit-setback-reach-insertion">{{printf "%.1f mm" .InsertionMm}}</span>; <span data-metric="fit-setback-reach-outcome">{{.OutcomeText}}</span>{{if .LimitedBy}}, {{printf "%.1f" .MissMm}} mm short{{end}}</span>
           {{end}}
-          <span class="fit-note">Setback notes keep this post's extension limits and are not applied.</span>
+          <span class="fit-note">Setback notes keep the frame and post insertion limits and are not applied.</span>
         </div>
         {{end}}
         {{with .Cockpit}}

@@ -15,7 +15,7 @@ import (
 //   - RailLengthMm: straight clamping span of the saddle rails.
 //   - RailPitchDeg: saddle rail pitch relative to world horizontal (0° level; positive raises nose CCW).
 //   - RailOffsetMm: clamp position along the rails; positive moves the saddle
-//     body rearward relative to SeatpostClamp (advancing RailCenter by -RailOffsetMm).
+//     body rearward relative to RailCradle (advancing RailCenter by -RailOffsetMm).
 //     It must stay within ±(RailLengthMm − clamp length)/2 so the clamp stays on the rails.
 type SaddleSetup struct {
 	RailCenterToBrpMm      float64
@@ -27,8 +27,8 @@ type SaddleSetup struct {
 }
 
 // SaddlePlacement holds the Pose-valued landmarks produced by PlaceSaddle:
-//   - SeatpostClamp: incoming clamp attachment pose (in the seatpost frame).
-//   - RailFrame: pose at SeatpostClamp re-oriented to world-relative RailPitchDeg.
+//   - RailCradle: incoming clamp attachment pose (in the seatpost frame).
+//   - RailFrame: pose at RailCradle re-oriented to world-relative RailPitchDeg.
 //   - RailCenter: midpoint of the straight rail clamping section (in the rail frame).
 //   - BRP: Biomechanical Reference Point (+RailCenterToBrpMm, 0) in the rail frame.
 //   - SitBones: modeled sit-bone support landmark (RailCenterToSitBonesMm, +SitBonesElevationMm) in the rail frame.
@@ -37,11 +37,11 @@ type SaddleSetup struct {
 // construction frame (local +X forward along the rail toward the nose at
 // world heading RailPitchDeg; local +Y 90° CCW, perpendicular to the rail).
 type SaddlePlacement struct {
-	SeatpostClamp pose.Pose
-	RailFrame     pose.Pose
-	RailCenter    pose.Pose
-	BRP           pose.Pose
-	SitBones      pose.Pose
+	RailCradle pose.Pose
+	RailFrame  pose.Pose
+	RailCenter pose.Pose
+	BRP        pose.Pose
+	SitBones   pose.Pose
 }
 
 // PlaceSaddle mounts a saddle at seatpostClamp, orients the rails to the
@@ -92,11 +92,11 @@ func PlaceSaddle(seatpostClamp pose.Pose, clampLengthMm float64, setup SaddleSet
 	}
 
 	return SaddlePlacement{
-		SeatpostClamp: seatpostClamp,
-		RailFrame:     railFrame,
-		RailCenter:    railCenter,
-		BRP:           brp,
-		SitBones:      sitBones,
+		RailCradle: seatpostClamp,
+		RailFrame:  railFrame,
+		RailCenter: railCenter,
+		BRP:        brp,
+		SitBones:   sitBones,
 	}, nil
 }
 

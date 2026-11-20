@@ -30,7 +30,7 @@ type Fitting struct {
 	Placement BikePlacement // PlaceBike(fitted setup); Placement.Setup is the fitted setup
 	Outcome   FitOutcome
 	// LimitedBy lists the fitted inputs that sit on a hardware bound, in the
-	// order InputSeatpostExtension, InputSaddleRailOffset, InputStemSpacers,
+	// order InputSeatpostInsertion, InputSaddleRailOffset, InputStemSpacers,
 	// InputStemLength; nil when every target was reached.
 	LimitedBy []InputField
 }
@@ -51,7 +51,7 @@ func (f Fitting) GripMiss() (pose.Point, bool) {
 	return f.Target.HandGrip.Sub(f.Placement.Handlebar.HandGrip.Origin()), true
 }
 
-// ApplyFitting fits Seatpost.ExtensionMm and Saddle.RailOffsetMm so the saddle BRP
+// ApplyFitting fits Seatpost.InsertionMm and Saddle.RailOffsetMm so the saddle BRP
 // lands on a BRP target, and Stem.SpacersMm and Stem.LengthMm so the HandGrip
 // lands on a HandGrip target, each within hardware limits. All other setup
 // fields are kept. LimitedBy lists limited inputs saddle first, then cockpit.
@@ -69,8 +69,16 @@ func ApplyFitting(setup BikeSetup, target FitTarget) (Fitting, error) {
 	// Each landmark is linear in its two fitted inputs: place once at a probe
 	// and decompose the remaining offset along the two fixed directions.
 	probeSetup := setup
+	var bounds InsertionBounds
 	if target.BRP != nil {
-		probeSetup.Seatpost.ExtensionMm = setup.Seatpost.MinExtensionMm
+		var err error
+		bounds, err = SeatpostInsertionBounds(setup.Frame, setup.Seatpost.Spec)
+		if err != nil {
+			return Fitting{}, err
+		}
+		// Probe at maximum insertion (shortest exposure): the fit then raises the
+		// saddle by pulling the post out.
+		probeSetup.Seatpost.InsertionMm = bounds.MaxAllowedInsertionMm
 		probeSetup.Saddle.RailOffsetMm = 0
 	}
 	if target.HandGrip != nil {
@@ -89,11 +97,11 @@ func ApplyFitting(setup BikeSetup, target FitTarget) (Fitting, error) {
 	var limitedBy []InputField
 	var saddleLimited, cockpitLimited bool
 	if target.BRP != nil {
-		ext, rail, limited, err := fitSaddle(setup, probe, *target.BRP)
+		insertion, rail, limited, err := fitSaddle(setup, bounds, probe, *target.BRP)
 		if err != nil {
 			return Fitting{}, err
 		}
-		fitted.Seatpost.ExtensionMm, fitted.Saddle.RailOffsetMm = ext, rail
+		fitted.Seatpost.InsertionMm, fitted.Saddle.RailOffsetMm = insertion, rail
 		saddleLimited = len(limited) > 0
 		limitedBy = append(limitedBy, limited...)
 	}
@@ -134,35 +142,34 @@ func ApplyFitting(setup BikeSetup, target FitTarget) (Fitting, error) {
 	return fit, nil
 }
 
-// FitPostSetback fits Seatpost.PostSetbackMm and Seatpost.ExtensionMm so the
+// FitPostSetback fits Seatpost.Spec.SetbackMm and Seatpost.InsertionMm so the
 // saddle BRP lands on brp, with Saddle.RailOffsetMm held at railOffsetMm. It
 // explains the post setback a BRP target needs (Q29), and callers never
-// install its build. Extension keeps the setup's limits. Setback is at least 0
-// and has no upper bound. LimitedBy lists InputSeatpostExtension, then
+// install its build. Insertion keeps the frame and post limits. Setback is at least 0
+// and has no upper bound. LimitedBy lists InputSeatpostInsertion, then
 // InputSeatpostSetback, for the inputs that sit on a bound. The submitted
-// extension, setback, and rail offset are ignored; every other setup field is kept.
+// insertion, setback, and rail offset are ignored; every other setup field is kept.
 func FitPostSetback(setup BikeSetup, brp pose.Point, railOffsetMm float64) (Fitting, error) {
 	if !isFinitePoint(brp) {
 		return Fitting{}, invalidInput(InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", brp.X, brp.Y)
 	}
+	bounds, err := SeatpostInsertionBounds(setup.Frame, setup.Seatpost.Spec)
+	if err != nil {
+		return Fitting{}, err
+	}
+	// Probe a copy of the post at maximum insertion with no setback.
 	probeSetup := setup
-	probeSetup.Seatpost.ExtensionMm = setup.Seatpost.MinExtensionMm
-	probeSetup.Seatpost.PostSetbackMm = 0
+	probeSetup.Seatpost.InsertionMm = bounds.MaxAllowedInsertionMm
+	probeSetup.Seatpost.Spec.SetbackMm = 0
 	probeSetup.Saddle.RailOffsetMm = railOffsetMm
 	probe, err := PlaceBike(probeSetup)
 	if err != nil {
 		return Fitting{}, err
 	}
 
-	eMin := setup.Seatpost.MinExtensionMm
-	eMax := math.Inf(1)
-	if setup.Seatpost.MaxExtensionMm != 0 {
-		eMax = setup.Seatpost.MaxExtensionMm
-	}
-
 	delta := brp.Sub(probe.Saddle.BRP.Origin())
 	shaft := probe.Seatpost.ShaftTop.HeadingDeg()
-	a := fitAxis{shaft, 0, eMax - eMin, InputSeatpostExtension}
+	a := fitAxis{shaft, 0, bounds.MaxAllowedInsertionMm - bounds.EffectiveMinInsertionMm, InputSeatpostInsertion}
 	b := fitAxis{shaft + 90, 0, math.Inf(1), InputSeatpostSetback} // PlaceSeatpost translates setback along local +Y
 	de, ds, limited, ok := fitBox(delta, a, b)
 	if !ok {
@@ -170,8 +177,8 @@ func FitPostSetback(setup BikeSetup, brp pose.Point, railOffsetMm float64) (Fitt
 	}
 
 	fitted := probeSetup
-	fitted.Seatpost.ExtensionMm = clampFit(eMin+de, eMin, eMax)
-	fitted.Seatpost.PostSetbackMm = clampFit(ds, 0, math.Inf(1))
+	fitted.Seatpost.InsertionMm = clampFit(bounds.MaxAllowedInsertionMm-de, bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm)
+	fitted.Seatpost.Spec.SetbackMm = clampFit(ds, 0, math.Inf(1))
 	placement, err := PlaceBike(fitted)
 	if err != nil {
 		return Fitting{}, err
@@ -215,26 +222,22 @@ func fitCockpit(setup BikeSetup, probe BikePlacement, grip pose.Point) (spacers,
 	return clampFit(ds, 0, setup.Stem.MaxSpacersMm), clampFit(minLen+dl, minLen, maxLen), limited, nil
 }
 
-// fitSaddle fits seatpost extension and saddle rail offset to a BRP target,
-// using directions read from the probe placement.
-func fitSaddle(setup BikeSetup, probe BikePlacement, brp pose.Point) (ext, rail float64, limited []InputField, err error) {
+// fitSaddle fits seatpost insertion and saddle rail offset to a BRP target,
+// using directions read from the probe placement, which sits at maximum
+// insertion. Pulling the post out by the solved travel lowers the insertion.
+func fitSaddle(setup BikeSetup, bounds InsertionBounds, probe BikePlacement, brp pose.Point) (insertion, rail float64, limited []InputField, err error) {
 	railLimit, err := setup.RailOffsetLimitMm()
 	if err != nil {
 		return 0, 0, nil, err
 	}
-	eMin := setup.Seatpost.MinExtensionMm
-	eMax := math.Inf(1)
-	if setup.Seatpost.MaxExtensionMm != 0 {
-		eMax = setup.Seatpost.MaxExtensionMm
-	}
 	delta := brp.Sub(probe.Saddle.BRP.Origin())
-	a := fitAxis{probe.Seatpost.ShaftTop.HeadingDeg(), 0, eMax - eMin, InputSeatpostExtension}
+	a := fitAxis{probe.Seatpost.ShaftTop.HeadingDeg(), 0, bounds.MaxAllowedInsertionMm - bounds.EffectiveMinInsertionMm, InputSeatpostInsertion}
 	b := fitAxis{probe.Saddle.RailCenter.HeadingDeg() + 180, -railLimit, railLimit, InputSaddleRailOffset}
 	de, dr, limited, ok := fitBox(delta, a, b)
 	if !ok {
 		return 0, 0, nil, fmt.Errorf("saddle rail pitch is parallel to the seat axis; cannot fit the saddle")
 	}
-	return clampFit(eMin+de, eMin, eMax), clampFit(dr, -railLimit, railLimit), limited, nil
+	return clampFit(bounds.MaxAllowedInsertionMm-de, bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm), clampFit(dr, -railLimit, railLimit), limited, nil
 }
 
 func clampFit(v, lo, hi float64) float64 { return math.Min(math.Max(v, lo), hi) }

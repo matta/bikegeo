@@ -191,15 +191,11 @@ func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 	}
 
 	bikeSetup := assembly.BikeSetup{
-		Frame:    frame,
-		LowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0},
-		Fork:     forkSetup,
-		Wheels:   fenrirWheels(),
-		Seatpost: assembly.SeatpostSetup{
-			ExtensionMm:   263.5,
-			PostSetbackMm: 0.0,
-			ClampLengthMm: 30.0,
-		},
+		Frame:     frame,
+		LowerCup:  assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0},
+		Fork:      forkSetup,
+		Wheels:    fenrirWheels(),
+		Seatpost:  assembly.SeatpostSetup{Spec: genericPostSpec(0), InsertionMm: 136.5},
 		Saddle:    sqlab610DefaultSaddle(),
 		Stem:      fenrirDefaultStem(),
 		Handlebar: persuader800DefaultHandlebar(),

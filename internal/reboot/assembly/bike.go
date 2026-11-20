@@ -16,7 +16,7 @@ type BikeSetup struct {
 // L = (RailLengthMm − ClampLengthMm)/2. It errors when the clamp is longer
 // than the rails or the dimensions are not finite.
 func (s BikeSetup) RailOffsetLimitMm() (float64, error) {
-	return railOffsetLimitMm(s.Saddle.RailLengthMm, s.Seatpost.ClampLengthMm)
+	return railOffsetLimitMm(s.Saddle.RailLengthMm, s.Seatpost.Spec.RailClampLengthMm)
 }
 
 // BikePlacement holds the leveled whole-bike assembly alongside the BikeSetup
@@ -63,11 +63,15 @@ func PlaceBike(setup BikeSetup) (BikePlacement, error) {
 	if err != nil {
 		return BikePlacement{}, err
 	}
-	seatpost, err := PlaceSeatpost(frameset.SeatTubeTop, setup.Seatpost)
+	bounds, err := SeatpostInsertionBounds(setup.Frame, setup.Seatpost.Spec)
 	if err != nil {
 		return BikePlacement{}, err
 	}
-	saddle, err := PlaceSaddle(seatpost.SeatpostClamp, setup.Seatpost.ClampLengthMm, setup.Saddle)
+	seatpost, err := PlaceSeatpost(frameset.SeatTubeTop, setup.Seatpost, bounds)
+	if err != nil {
+		return BikePlacement{}, err
+	}
+	saddle, err := PlaceSaddle(seatpost.RailCradle, setup.Seatpost.Spec.RailClampLengthMm, setup.Saddle)
 	if err != nil {
 		return BikePlacement{}, err
 	}

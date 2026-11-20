@@ -18,7 +18,7 @@ const (
 	InputStemLength        InputField = "stem length"
 	InputStemAngle         InputField = "stem angle"
 	InputHandlebarRoll     InputField = "handlebar roll"
-	InputSeatpostExtension InputField = "seatpost extension"
+	InputSeatpostInsertion InputField = "seatpost insertion"
 	InputSeatpostSetback   InputField = "seatpost setback"
 	InputSaddleRailOffset  InputField = "saddle rail offset"
 	InputSaddleRailPitch   InputField = "saddle rail pitch"

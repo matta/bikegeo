@@ -6,21 +6,85 @@ import (
 	"bikegeo/internal/reboot/pose"
 )
 
-// SeatpostSetup specifies the exposed seatpost dimensions mounted at SeatTubeTop:
-//   - ExtensionMm: exposed seatpost length above SeatTubeTop along the seat tube axis.
-//   - MinExtensionMm, MaxExtensionMm: installed limits from the post and frame.
-//     A zero MaxExtensionMm leaves the upper bound unspecified.
-//     TODO: replace the zero-means-unbounded sentinel with an explicit
-//     "has max" flag or pointer when Milestone 2 hardware limits arrive.
-//   - PostSetbackMm: perpendicular rearward/downward offset from the seat tube
-//     axis (+Y in the seat-axis frame, 90° counter-clockwise from heading) to SeatpostClamp.
-//   - ClampLengthMm: fore-aft footprint of the seatpost's rail clamp head.
+// frameInsertionFallbackMm is how far below the seat tube's C-T length the post
+// may reach when the frame declares no maximum insertion.
+const frameInsertionFallbackMm = 20.0
+
+// SeatpostSpec describes a catalog seatpost:
+//   - TotalLengthMm: overall post length.
+//   - MaxInsertionMm, MinInsertionMm: the post's own insertion limits (its
+//     max-insertion and minimum-insertion marks).
+//   - SetbackMm: perpendicular rearward offset from the shaft axis to the rail cradle.
+//   - RailClampLengthMm: fore-aft footprint of the post's rail clamp head.
+type SeatpostSpec struct {
+	TotalLengthMm, MaxInsertionMm, MinInsertionMm float64
+	SetbackMm, RailClampLengthMm                  float64
+}
+
+// SeatpostSetup is an installed seatpost: its spec and how far the shaft
+// reaches into the seat tube.
 type SeatpostSetup struct {
-	ExtensionMm    float64
-	MinExtensionMm float64
-	MaxExtensionMm float64
-	PostSetbackMm  float64
-	ClampLengthMm  float64
+	Spec        SeatpostSpec
+	InsertionMm float64
+}
+
+// ExposedMm returns the post length above the seat tube top.
+func (s SeatpostSetup) ExposedMm() float64 {
+	return s.Spec.TotalLengthMm - s.InsertionMm
+}
+
+// InsertionBounds is the insertion interval a frame and post allow together.
+type InsertionBounds struct {
+	EffectiveMinInsertionMm, MaxAllowedInsertionMm float64
+}
+
+// Validate checks the post's own dimensions.
+func (p SeatpostSpec) Validate() error {
+	for _, v := range []float64{p.TotalLengthMm, p.MaxInsertionMm, p.MinInsertionMm} {
+		if !isFinite(v) {
+			return fmt.Errorf("seatpost length and insertion limits must be finite, got %v, %v, %v mm", p.TotalLengthMm, p.MaxInsertionMm, p.MinInsertionMm)
+		}
+	}
+	if !(0 < p.MinInsertionMm && p.MinInsertionMm <= p.MaxInsertionMm && p.MaxInsertionMm < p.TotalLengthMm) {
+		return fmt.Errorf("seatpost needs 0 < min insertion <= max insertion < total length, got min %v, max %v, total %v mm", p.MinInsertionMm, p.MaxInsertionMm, p.TotalLengthMm)
+	}
+	if !isFinite(p.SetbackMm) || p.SetbackMm < 0 {
+		return invalidInput(InputSeatpostSetback, "seatpost setback must be finite and non-negative, got %v mm", p.SetbackMm)
+	}
+	if !isFinite(p.RailClampLengthMm) || p.RailClampLengthMm <= 0 {
+		return fmt.Errorf("seatpost clamp length must be finite and positive, got %v mm", p.RailClampLengthMm)
+	}
+	return nil
+}
+
+// SeatpostInsertionBounds returns the insertion interval the frame and post
+// allow together. The lower bound is the greater of the two minimums. The upper
+// bound is the smaller of the post's maximum and the frame's cap: its declared
+// MaxPostInsertionMm, or the seat tube's C-T length minus 20 mm when that is
+// zero. An empty interval is an error; equal endpoints permit one installation.
+func SeatpostInsertionBounds(frame FrameSetup, post SeatpostSpec) (InsertionBounds, error) {
+	if !isFinite(frame.SeatTubeLengthMm) || frame.SeatTubeLengthMm <= 0 {
+		return InsertionBounds{}, fmt.Errorf("seat tube length must be finite and positive, got %v mm", frame.SeatTubeLengthMm)
+	}
+	if !isFinite(frame.MaxPostInsertionMm) || frame.MaxPostInsertionMm < 0 ||
+		!isFinite(frame.MinFrameInsertionMm) || frame.MinFrameInsertionMm < 0 {
+		return InsertionBounds{}, fmt.Errorf("frame insertion limits must be finite and non-negative, got max %v, min %v mm", frame.MaxPostInsertionMm, frame.MinFrameInsertionMm)
+	}
+	if err := post.Validate(); err != nil {
+		return InsertionBounds{}, err
+	}
+	frameCap := frame.MaxPostInsertionMm
+	if frameCap == 0 {
+		frameCap = frame.SeatTubeLengthMm - frameInsertionFallbackMm
+	}
+	bounds := InsertionBounds{
+		EffectiveMinInsertionMm: max(post.MinInsertionMm, frame.MinFrameInsertionMm),
+		MaxAllowedInsertionMm:   min(post.MaxInsertionMm, frameCap),
+	}
+	if bounds.EffectiveMinInsertionMm > bounds.MaxAllowedInsertionMm {
+		return InsertionBounds{}, fmt.Errorf("frame and seatpost allow no insertion: minimum %v mm exceeds maximum %v mm", bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm)
+	}
+	return bounds, nil
 }
 
 // SeatpostPlacement holds the Pose-valued landmarks produced by PlaceSeatpost.
@@ -28,48 +92,43 @@ type SeatpostSetup struct {
 // pointing up and rearward along the seat tube axis; local +Y pointing 90°
 // counter-clockwise, perpendicular rearward/downward).
 type SeatpostPlacement struct {
-	SeatTubeTop   pose.Pose
-	ShaftTop      pose.Pose
-	SeatpostClamp pose.Pose
+	SeatTubeTop pose.Pose
+	ShaftTop    pose.Pose
+	RailCradle  pose.Pose
 }
 
 // PlaceSeatpost mounts a seatpost starting at seatTubeTop (positioned at the
-// top of the frame's seat tube and oriented up the seat tube axis).
-func PlaceSeatpost(seatTubeTop pose.Pose, setup SeatpostSetup) (SeatpostPlacement, error) {
+// top of the frame's seat tube and oriented up the seat tube axis). The
+// exposed length above the seat tube is the post's total length less its
+// insertion, which must lie within bounds.
+func PlaceSeatpost(seatTubeTop pose.Pose, setup SeatpostSetup, bounds InsertionBounds) (SeatpostPlacement, error) {
 	if err := validatePose("seatTubeTop", seatTubeTop); err != nil {
 		return SeatpostPlacement{}, err
 	}
-	if !isFinite(setup.ExtensionMm) || setup.ExtensionMm < 0 {
-		return SeatpostPlacement{}, invalidInput(InputSeatpostExtension, "seatpost extension must be finite and non-negative, got %v mm", setup.ExtensionMm)
+	if err := setup.Spec.Validate(); err != nil {
+		return SeatpostPlacement{}, err
 	}
-	if !isFinite(setup.MinExtensionMm) || !isFinite(setup.MaxExtensionMm) || setup.MinExtensionMm < 0 ||
-		(setup.MaxExtensionMm != 0 && setup.MaxExtensionMm < setup.MinExtensionMm) {
-		return SeatpostPlacement{}, fmt.Errorf("invalid seatpost extension limits: %v to %v mm", setup.MinExtensionMm, setup.MaxExtensionMm)
+	if !isFinite(bounds.EffectiveMinInsertionMm) || !isFinite(bounds.MaxAllowedInsertionMm) || bounds.EffectiveMinInsertionMm > bounds.MaxAllowedInsertionMm {
+		return SeatpostPlacement{}, fmt.Errorf("invalid seatpost insertion bounds: %v to %v mm", bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm)
 	}
-	if setup.ExtensionMm < setup.MinExtensionMm {
-		return SeatpostPlacement{}, invalidInput(InputSeatpostExtension, "seatpost extension must be at least %v mm, got %v mm", setup.MinExtensionMm, setup.ExtensionMm)
+	if !isFinite(setup.InsertionMm) {
+		return SeatpostPlacement{}, invalidInput(InputSeatpostInsertion, "seatpost insertion must be finite, got %v mm", setup.InsertionMm)
 	}
-	if setup.MaxExtensionMm != 0 && setup.ExtensionMm > setup.MaxExtensionMm {
-		return SeatpostPlacement{}, invalidInput(InputSeatpostExtension, "seatpost extension must be at most %v mm, got %v mm", setup.MaxExtensionMm, setup.ExtensionMm)
-	}
-	if !isFinite(setup.PostSetbackMm) || setup.PostSetbackMm < 0 {
-		return SeatpostPlacement{}, invalidInput(InputSeatpostSetback, "seatpost setback must be finite and non-negative, got %v mm", setup.PostSetbackMm)
-	}
-	if !isFinite(setup.ClampLengthMm) || setup.ClampLengthMm <= 0 {
-		return SeatpostPlacement{}, fmt.Errorf("seatpost clamp length must be finite and positive, got %v mm", setup.ClampLengthMm)
+	if setup.InsertionMm < bounds.EffectiveMinInsertionMm || setup.InsertionMm > bounds.MaxAllowedInsertionMm {
+		return SeatpostPlacement{}, invalidInput(InputSeatpostInsertion, "seatpost insertion must be within %v–%v mm, got %v mm", bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm, setup.InsertionMm)
 	}
 
-	shaftTop := seatTubeTop.Advance(setup.ExtensionMm)
+	shaftTop := seatTubeTop.Advance(setup.ExposedMm())
 	// Setback is along local +Y from the shaft top, which points rearward.
-	seatpostClamp := shaftTop.Translate(0, setup.PostSetbackMm)
+	railCradle := shaftTop.Translate(0, setup.Spec.SetbackMm)
 
-	if err := validatePlacementPoses("seatpost", seatTubeTop, shaftTop, seatpostClamp); err != nil {
+	if err := validatePlacementPoses("seatpost", seatTubeTop, shaftTop, railCradle); err != nil {
 		return SeatpostPlacement{}, err
 	}
 
 	return SeatpostPlacement{
-		SeatTubeTop:   seatTubeTop,
-		ShaftTop:      shaftTop,
-		SeatpostClamp: seatpostClamp,
+		SeatTubeTop: seatTubeTop,
+		ShaftTop:    shaftTop,
+		RailCradle:  railCradle,
 	}, nil
 }

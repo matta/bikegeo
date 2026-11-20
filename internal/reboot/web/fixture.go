@@ -44,12 +44,12 @@ type handlebarOption struct {
 	Setup assembly.HandlebarSetup
 }
 
-// seatpostOption is one seatpost the workbench can install. Setup.ExtensionMm
-// is always 0: the extension comes from the workbench state (Q27).
+// seatpostOption is one seatpost the workbench can install. Its insertion
+// comes from the workbench state (Q27).
 type seatpostOption struct {
-	ID    string
-	Name  string
-	Setup assembly.SeatpostSetup
+	ID   string
+	Name string
+	Spec assembly.SeatpostSpec
 }
 
 // illustrative: the rider's grips (legacy WingGripInsetMm), the same on every bar
@@ -75,23 +75,23 @@ func legacyHandlebar(id, name string, widthMm, riseMm float64, mode assembly.Ris
 }
 
 type bikeFixture struct {
-	Name               string
-	Chart              assembly.FrameChart
-	Wheels             assembly.WheelSetup
-	WheelLabel         string
-	DefaultForkID      string
-	Forks              []forkOption
-	DefaultStem        assembly.StemSetup
-	CockpitStock       assembly.CockpitStock
-	CockpitPreferences assembly.CockpitPreferences
-	StockSagPcts       []float64
-	DefaultHandlebarID string
-	Handlebars         []handlebarOption
-	DefaultSeatpostID  string
-	DefaultPostExtMm   float64
-	Seatposts          []seatpostOption
-	SaddleName         string
-	DefaultSaddle      assembly.SaddleSetup
+	Name                   string
+	Chart                  assembly.FrameChart
+	Wheels                 assembly.WheelSetup
+	WheelLabel             string
+	DefaultForkID          string
+	Forks                  []forkOption
+	DefaultStem            assembly.StemSetup
+	CockpitStock           assembly.CockpitStock
+	CockpitPreferences     assembly.CockpitPreferences
+	StockSagPcts           []float64
+	DefaultHandlebarID     string
+	Handlebars             []handlebarOption
+	DefaultSeatpostID      string
+	DefaultPostInsertionMm float64
+	Seatposts              []seatpostOption
+	SaddleName             string
+	DefaultSaddle          assembly.SaddleSetup
 	// ExampleBrpTarget is a placeholder for the BRP fit target inputs, never a default.
 	ExampleBrpTarget pose.Point
 	// ExampleGripTarget is a placeholder for the HandGrip fit target inputs, never a default.
@@ -313,19 +313,16 @@ func (f bikeFixture) validate() error {
 			return fmt.Errorf("fixture %q has duplicate seatpost ID %q", f.Name, opt.ID)
 		}
 		seenPosts[opt.ID] = true
-		if opt.Setup.ExtensionMm != 0 {
-			return fmt.Errorf("fixture %q seatpost %q must not set ExtensionMm", f.Name, opt.ID)
-		}
-		setup := opt.Setup
-		setup.ExtensionMm = setup.MinExtensionMm
-		if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0), setup); err != nil {
+		if _, err := assembly.SeatpostInsertionBounds(f.Chart.Frame, opt.Spec); err != nil {
 			return fmt.Errorf("fixture %q seatpost %q invalid: %w", f.Name, opt.ID, err)
 		}
 	}
-	defaultPostSetup := defaultPost.Setup
-	defaultPostSetup.ExtensionMm = f.DefaultPostExtMm
-	if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0), defaultPostSetup); err != nil {
-		return fmt.Errorf("fixture %q default seatpost %q at DefaultPostExtMm invalid: %w", f.Name, f.DefaultSeatpostID, err)
+	defaultBounds, err := assembly.SeatpostInsertionBounds(f.Chart.Frame, defaultPost.Spec)
+	if err != nil {
+		return fmt.Errorf("fixture %q default seatpost %q invalid: %w", f.Name, f.DefaultSeatpostID, err)
+	}
+	if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0), assembly.SeatpostSetup{Spec: defaultPost.Spec, InsertionMm: f.DefaultPostInsertionMm}, defaultBounds); err != nil {
+		return fmt.Errorf("fixture %q default seatpost %q at DefaultPostInsertionMm invalid: %w", f.Name, f.DefaultSeatpostID, err)
 	}
 	return nil
 }
@@ -337,22 +334,25 @@ func otsoFenrirFixture() bikeFixture {
 		// Model the generic zero-offset post with the Ritchey Comp Trail Zero's
 		// nominal length and minimum insertion. The workbench uses a simplified clamp.
 		// https://ritcheylogic.com/bike/seatposts/comp-trail-zero-seatpost
-		postLengthMm       = 400.0
-		postMinInsertionMm = 100.0
+		// illustrative: the 365 mm maximum insertion (linkage stack of 35 mm)
+		genericPostLengthMm       = 400.0
+		genericPostMaxInsertionMm = 365.0
+		genericPostMinInsertionMm = 100.0
 		// Otso lists 290 mm of insertion depth for the Large Fenrir Stainless.
 		// https://otsocycles.com/pages/bike-specs-tables
 		frameInsertionDepthMm = 290.0
 	)
-	// illustrative: generic posts with the Ritchey-based extension limits above
+	// illustrative: generic posts with the Ritchey-based length and insertion limits above
 	genericSeatpost := func(id string, setbackMm float64) seatpostOption {
 		return seatpostOption{
 			ID:   id,
 			Name: fmt.Sprintf("Generic %.0f mm setback post", setbackMm),
-			Setup: assembly.SeatpostSetup{
-				MinExtensionMm: postLengthMm - frameInsertionDepthMm,
-				MaxExtensionMm: postLengthMm - postMinInsertionMm,
-				PostSetbackMm:  setbackMm,
-				ClampLengthMm:  30.0, // measured
+			Spec: assembly.SeatpostSpec{
+				TotalLengthMm:     genericPostLengthMm,
+				MaxInsertionMm:    genericPostMaxInsertionMm,
+				MinInsertionMm:    genericPostMinInsertionMm,
+				SetbackMm:         setbackMm,
+				RailClampLengthMm: 30.0, // measured
 			},
 		}
 	}
@@ -374,8 +374,11 @@ func otsoFenrirFixture() bikeFixture {
 				BbDropMm:         72.0,
 				ChainstayMm:      450.0,
 				SeatTubeLengthMm: 490.0,
-				LowerBore:        assembly.Bore44Pressed,
-				DefaultLowerCup:  frameCup,
+				// published: Otso lists 290 mm of insertion depth for the Large Fenrir
+				MaxPostInsertionMm:  frameInsertionDepthMm,
+				MinFrameInsertionMm: 0,
+				LowerBore:           assembly.Bore44Pressed,
+				DefaultLowerCup:     frameCup,
 			},
 			// hypotheses, not rounded chart numbers: CadLowerCup and CadFork get no rounding terms (Q44)
 			CadLowerCup: assembly.LowerCupSetup{
@@ -467,19 +470,22 @@ func otsoFenrirFixture() bikeFixture {
 			legacyHandlebar("sqlab311_flx_12_30", "SQlab 311 FL-X Carbon 12°, 30 mm rise (740 mm)", 740, 30, assembly.RiseModeStandardKnuckle, 12, 4, 82.0),
 		},
 		DefaultSeatpostID: "setback_0",
-		DefaultPostExtMm:  263.5,
+		// 136.5 mm of insertion exposes 263.5 mm of the generic post, the original default.
+		DefaultPostInsertionMm: 136.5,
 		Seatposts: []seatpostOption{
 			genericSeatpost("setback_0", 0),
 			genericSeatpost("setback_15", 15),
 			genericSeatpost("setback_25", 25),
 			// owner-reported 2026-11-19: 12 mm setback when sagged (Q28). The fit
 			// report was transferred with this post unsagged (docs/RIDER_FIT.md).
-			// illustrative: extension limits and clamp length not yet measured; generic values.
-			{ID: "redshift_shockstop_pro", Name: "Redshift ShockStop PRO (12 mm setback, sagged)", Setup: assembly.SeatpostSetup{
-				MinExtensionMm: postLengthMm - frameInsertionDepthMm,
-				MaxExtensionMm: postLengthMm - postMinInsertionMm,
-				PostSetbackMm:  12.0,
-				ClampLengthMm:  30.0,
+			// illustrative: 350/250/100 mm total/max/min insertion (250 mm max insertion is the
+			// linkage stack) and the clamp length are not measured (Q75c).
+			{ID: "redshift_shockstop_pro", Name: "Redshift ShockStop PRO (12 mm setback, sagged)", Spec: assembly.SeatpostSpec{
+				TotalLengthMm:     350.0,
+				MaxInsertionMm:    250.0,
+				MinInsertionMm:    100.0,
+				SetbackMm:         12.0,
+				RailClampLengthMm: 30.0,
 			}},
 		},
 		SaddleName: "SQlab 610 Ergolux Active 2.1",

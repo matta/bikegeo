@@ -270,7 +270,7 @@ func TestStockFittingFitsSaddleFirst(t *testing.T) {
 	gripOnly := mustStockFit(t, base, assembly.FitTarget{HandGrip: &fitReportGrip}, 350)
 	for i, c := range both.Candidates {
 		got := c.Placement.Setup
-		if got.Seatpost.ExtensionMm != saddle.Seatpost.ExtensionMm || got.Saddle.RailOffsetMm != saddle.Saddle.RailOffsetMm {
+		if got.Seatpost.InsertionMm != saddle.Seatpost.InsertionMm || got.Saddle.RailOffsetMm != saddle.Saddle.RailOffsetMm {
 			t.Errorf("rank %d doesn't carry the saddle fitting", i+1)
 		}
 		requireStockStem(t, c, stockStemOf(gripOnly.Candidates[i].Placement.Setup.Stem))
@@ -425,7 +425,7 @@ func TestStockFittingCarriesSaddleAcrossBars(t *testing.T) {
 	want := saddle.Placement.Setup
 	for i, c := range fit.Candidates {
 		got := c.Placement.Setup
-		if got.Seatpost.ExtensionMm != want.Seatpost.ExtensionMm || got.Saddle.RailOffsetMm != want.Saddle.RailOffsetMm {
+		if got.Seatpost.InsertionMm != want.Seatpost.InsertionMm || got.Saddle.RailOffsetMm != want.Saddle.RailOffsetMm {
 			t.Errorf("rank %d did not carry the saddle fitting", i+1)
 		}
 	}
@@ -540,7 +540,7 @@ func TestStockFittingRefitsSaddlePerFork(t *testing.T) {
 			t.Fatalf("rank %d has invalid stock fork index %d", i+1, index)
 		}
 		got, want := c.Placement.Setup, saddles[index]
-		if got.Seatpost.ExtensionMm != want.Seatpost.ExtensionMm || got.Saddle.RailOffsetMm != want.Saddle.RailOffsetMm {
+		if got.Seatpost.InsertionMm != want.Seatpost.InsertionMm || got.Saddle.RailOffsetMm != want.Saddle.RailOffsetMm {
 			t.Errorf("rank %d did not carry the saddle fitting for fork %d", i+1, index)
 		}
 		miss, ok := c.BrpMiss()

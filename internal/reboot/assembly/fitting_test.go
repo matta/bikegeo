@@ -21,14 +21,8 @@ func fenrirFittingSetup() assembly.BikeSetup {
 			Spec:   assembly.ForkSpec{StaticA2cMm: 495.0, TravelMm: 0.0, RakeMm: 54.0, Steerer: assembly.SteererTapered},
 			SagPct: 0.0,
 		},
-		Wheels: fenrirWheels(),
-		Seatpost: assembly.SeatpostSetup{
-			ExtensionMm:    263.5,
-			MinExtensionMm: 110.0,
-			MaxExtensionMm: 300.0,
-			PostSetbackMm:  0.0,
-			ClampLengthMm:  30.0,
-		},
+		Wheels:    fenrirWheels(),
+		Seatpost:  assembly.SeatpostSetup{Spec: genericPostSpec(0), InsertionMm: 136.5},
 		Saddle:    sqlab610DefaultSaddle(),
 		Stem:      fenrirDefaultStem(),
 		Handlebar: persuader800DefaultHandlebar(),
@@ -67,12 +61,12 @@ func brpMissMm(t *testing.T, f assembly.Fitting) float64 {
 }
 
 func fittedValues(f assembly.Fitting) (ext, rail float64) {
-	return f.Placement.Setup.Seatpost.ExtensionMm, f.Placement.Setup.Saddle.RailOffsetMm
+	return f.Placement.Setup.Seatpost.ExposedMm(), f.Placement.Setup.Saddle.RailOffsetMm
 }
 
 func TestApplyFittingRoundTripReached(t *testing.T) {
 	known := fenrirFittingSetup()
-	known.Seatpost.ExtensionMm = 200
+	known.Seatpost.InsertionMm = fenrirPostTotalMm - (200)
 	known.Saddle.RailOffsetMm = 5
 	target := brpOf(t, known)
 
@@ -96,7 +90,7 @@ func TestApplyFittingReachesTargetsOnBounds(t *testing.T) {
 		{300, 15}, {110, 15}, {300, -15}, {110, -15}, {300, 0}, {110, 0}, {200, 15}, {200, -15},
 	} {
 		known := fenrirFittingSetup()
-		known.Seatpost.ExtensionMm = c.ext
+		known.Seatpost.InsertionMm = fenrirPostTotalMm - (c.ext)
 		known.Saddle.RailOffsetMm = c.rail
 		fit := mustFit(t, fenrirFittingSetup(), brpOf(t, known))
 		ext, rail := fittedValues(fit)
@@ -127,7 +121,7 @@ func TestApplyFittingFitReportBRPLimitedByRailOffset(t *testing.T) {
 
 	// Setback is perpendicular to the seat axis: same extension, smaller miss.
 	setback := fenrirFittingSetup()
-	setback.Seatpost.PostSetbackMm = 27
+	setback.Seatpost.Spec.SetbackMm = 27
 	fit27 := mustFit(t, setback, fitReportBRP)
 	ext27, rail27 := fittedValues(fit27)
 	if want := []assembly.InputField{assembly.InputSaddleRailOffset}; !reflect.DeepEqual(fit27.LimitedBy, want) {
@@ -146,14 +140,14 @@ func TestApplyFittingExtensionLimits(t *testing.T) {
 
 	above := mustFit(t, base, pose.Point{X: baseBRP.X + 200*math.Cos(seat), Y: baseBRP.Y + 200*math.Sin(seat)})
 	ext, _ := fittedValues(above)
-	if len(above.LimitedBy) == 0 || above.LimitedBy[0] != assembly.InputSeatpostExtension {
+	if len(above.LimitedBy) == 0 || above.LimitedBy[0] != assembly.InputSeatpostInsertion {
 		t.Fatalf("above LimitedBy = %v, want it to start with the seatpost extension", above.LimitedBy)
 	}
 	assertNear(t, "above extension", ext, 300, 0)
 
 	below := mustFit(t, base, pose.Point{X: baseBRP.X - 200*math.Cos(seat), Y: baseBRP.Y - 200*math.Sin(seat)})
 	ext, _ = fittedValues(below)
-	if len(below.LimitedBy) == 0 || below.LimitedBy[0] != assembly.InputSeatpostExtension {
+	if len(below.LimitedBy) == 0 || below.LimitedBy[0] != assembly.InputSeatpostInsertion {
 		t.Fatalf("below LimitedBy = %v, want it to start with the seatpost extension", below.LimitedBy)
 	}
 	assertNear(t, "below extension", ext, 110, 0)
@@ -166,26 +160,13 @@ func TestApplyFittingBothLimitsInOrder(t *testing.T) {
 	// 200 mm up the seat axis plus 50 mm of rail offset (level rails: BRP moves -X).
 	target := pose.Point{X: baseBRP.X + 200*math.Cos(seat) - 50, Y: baseBRP.Y + 200*math.Sin(seat)}
 	fit := mustFit(t, base, target)
-	want := []assembly.InputField{assembly.InputSeatpostExtension, assembly.InputSaddleRailOffset}
+	want := []assembly.InputField{assembly.InputSeatpostInsertion, assembly.InputSaddleRailOffset}
 	if !reflect.DeepEqual(fit.LimitedBy, want) {
 		t.Fatalf("LimitedBy = %v, want %v", fit.LimitedBy, want)
 	}
 	ext, rail := fittedValues(fit)
 	assertNear(t, "extension", ext, 300, 0)
 	assertNear(t, "rail offset", rail, 15, 0)
-}
-
-func TestApplyFittingUnboundedMaxExtension(t *testing.T) {
-	setup := fenrirFittingSetup()
-	setup.Seatpost.MaxExtensionMm = 0
-	baseBRP := brpOf(t, setup)
-	seat := 105.289 * math.Pi / 180
-	fit := mustFit(t, setup, pose.Point{X: baseBRP.X + 200*math.Cos(seat), Y: baseBRP.Y + 200*math.Sin(seat)})
-	if fit.Outcome != assembly.FitReached {
-		t.Fatalf("Outcome = %v, want reached", fit.Outcome)
-	}
-	ext, _ := fittedValues(fit)
-	assertNear(t, "extension", ext, 463.5, 0.01)
 }
 
 func TestApplyFittingErrors(t *testing.T) {
@@ -201,7 +182,7 @@ func TestApplyFittingErrors(t *testing.T) {
 	}
 
 	longClamp := fenrirFittingSetup()
-	longClamp.Seatpost.ClampLengthMm = 70
+	longClamp.Seatpost.Spec.RailClampLengthMm = 70
 	if _, err := assembly.ApplyFitting(longClamp, assembly.FitTarget{BRP: &fitReportBRP}); err == nil {
 		t.Fatal("clamp longer than rails: want error")
 	}
@@ -225,7 +206,7 @@ func TestApplyFittingIsMinimalOverGrid(t *testing.T) {
 	for ext := 110.0; ext <= 300; ext++ {
 		for rail := -15.0; rail <= 15; rail++ {
 			s := setup
-			s.Seatpost.ExtensionMm = ext
+			s.Seatpost.InsertionMm = fenrirPostTotalMm - (ext)
 			s.Saddle.RailOffsetMm = rail
 			brp := brpOf(t, s)
 			miss := math.Hypot(fitReportBRP.X-brp.X, fitReportBRP.Y-brp.Y)
@@ -469,8 +450,8 @@ func TestFitPostSetbackCentersRails(t *testing.T) {
 	if fit.Outcome != assembly.FitReached || fit.LimitedBy != nil {
 		t.Fatalf("Outcome = %v, LimitedBy = %v, want reached", fit.Outcome, fit.LimitedBy)
 	}
-	assertNear(t, "setback", fit.Placement.Setup.Seatpost.PostSetbackMm, 54.082742, 1e-6)
-	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExtensionMm, 264.047523, 1e-6)
+	assertNear(t, "setback", fit.Placement.Setup.Seatpost.Spec.SetbackMm, 54.082742, 1e-6)
+	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExposedMm(), 264.047523, 1e-6)
 	assertNear(t, "miss", brpMissMm(t, fit), 0, 1e-9)
 	if fit.Placement.Setup.Saddle.RailOffsetMm != 0 {
 		t.Fatalf("RailOffsetMm = %v, want 0", fit.Placement.Setup.Saddle.RailOffsetMm)
@@ -485,19 +466,19 @@ func TestFitPostSetbackAtRailLimit(t *testing.T) {
 	if fit.Outcome != assembly.FitReached || fit.LimitedBy != nil {
 		t.Fatalf("Outcome = %v, LimitedBy = %v, want reached", fit.Outcome, fit.LimitedBy)
 	}
-	assertNear(t, "setback", fit.Placement.Setup.Seatpost.PostSetbackMm, 39.613611, 1e-6)
-	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExtensionMm, 260.092242, 1e-6)
+	assertNear(t, "setback", fit.Placement.Setup.Seatpost.Spec.SetbackMm, 39.613611, 1e-6)
+	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExposedMm(), 260.092242, 1e-6)
 	assertNear(t, "miss", brpMissMm(t, fit), 0, 1e-9)
 
 	saddleFit := mustFit(t, fenrirFittingSetup(), fitReportBRP)
-	assertNear(t, "cross-check setback vs miss", fit.Placement.Setup.Seatpost.PostSetbackMm, brpMissMm(t, saddleFit), 1e-9)
-	assertNear(t, "cross-check extension", fit.Placement.Setup.Seatpost.ExtensionMm, saddleFit.Placement.Setup.Seatpost.ExtensionMm, 1e-9)
+	assertNear(t, "cross-check setback vs miss", fit.Placement.Setup.Seatpost.Spec.SetbackMm, brpMissMm(t, saddleFit), 1e-9)
+	assertNear(t, "cross-check extension", fit.Placement.Setup.Seatpost.ExposedMm(), saddleFit.Placement.Setup.Seatpost.ExposedMm(), 1e-9)
 }
 
 func TestFitPostSetbackIgnoresSubmittedSeatInputs(t *testing.T) {
 	setup := fenrirFittingSetup()
-	setup.Seatpost.PostSetbackMm = 25
-	setup.Seatpost.ExtensionMm = 200
+	setup.Seatpost.Spec.SetbackMm = 25
+	setup.Seatpost.InsertionMm = fenrirPostTotalMm - (200)
 	setup.Saddle.RailOffsetMm = -10
 
 	got, err := assembly.FitPostSetback(setup, fitReportBRP, 0)
@@ -508,8 +489,8 @@ func TestFitPostSetbackIgnoresSubmittedSeatInputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FitPostSetback default: %v", err)
 	}
-	assertNear(t, "setback", got.Placement.Setup.Seatpost.PostSetbackMm, want.Placement.Setup.Seatpost.PostSetbackMm, 1e-9)
-	assertNear(t, "extension", got.Placement.Setup.Seatpost.ExtensionMm, want.Placement.Setup.Seatpost.ExtensionMm, 1e-9)
+	assertNear(t, "setback", got.Placement.Setup.Seatpost.Spec.SetbackMm, want.Placement.Setup.Seatpost.Spec.SetbackMm, 1e-9)
+	assertNear(t, "extension", got.Placement.Setup.Seatpost.ExposedMm(), want.Placement.Setup.Seatpost.ExposedMm(), 1e-9)
 }
 
 func TestFitPostSetbackStopsAtZeroSetback(t *testing.T) {
@@ -524,10 +505,10 @@ func TestFitPostSetbackStopsAtZeroSetback(t *testing.T) {
 	if want := []assembly.InputField{assembly.InputSeatpostSetback}; !reflect.DeepEqual(fit.LimitedBy, want) {
 		t.Fatalf("LimitedBy = %v, want %v", fit.LimitedBy, want)
 	}
-	if fit.Placement.Setup.Seatpost.PostSetbackMm != 0 {
-		t.Fatalf("PostSetbackMm = %v, want 0", fit.Placement.Setup.Seatpost.PostSetbackMm)
+	if fit.Placement.Setup.Seatpost.Spec.SetbackMm != 0 {
+		t.Fatalf("PostSetbackMm = %v, want 0", fit.Placement.Setup.Seatpost.Spec.SetbackMm)
 	}
-	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExtensionMm, 245.853232, 1e-5)
+	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExposedMm(), 245.853232, 1e-5)
 	assertNear(t, "miss", brpMissMm(t, fit), 12.475261, 1e-5)
 }
 
@@ -540,14 +521,14 @@ func TestFitPostSetbackForwardTarget(t *testing.T) {
 	if fit.Outcome != assembly.FitReached || fit.LimitedBy != nil {
 		t.Fatalf("Outcome = %v, LimitedBy = %v, want reached", fit.Outcome, fit.LimitedBy)
 	}
-	assertNear(t, "setback", fit.Placement.Setup.Seatpost.PostSetbackMm, 1.993870, 1e-6)
-	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExtensionMm, 249.808512, 1e-6)
+	assertNear(t, "setback", fit.Placement.Setup.Seatpost.Spec.SetbackMm, 1.993870, 1e-6)
+	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExposedMm(), 249.808512, 1e-6)
 	assertNear(t, "miss", brpMissMm(t, fit), 0, 1e-9)
 
 	setup12 := fenrirFittingSetup()
-	setup12.Seatpost.PostSetbackMm = 12
+	setup12.Seatpost.Spec.SetbackMm = 12
 	saddleFit := mustFit(t, setup12, target)
-	assertNear(t, "cross-check 12 - miss", 12-brpMissMm(t, saddleFit), fit.Placement.Setup.Seatpost.PostSetbackMm, 1e-9)
+	assertNear(t, "cross-check 12 - miss", 12-brpMissMm(t, saddleFit), fit.Placement.Setup.Seatpost.Spec.SetbackMm, 1e-9)
 }
 
 func TestFitPostSetbackStopsAtExtension(t *testing.T) {
@@ -560,13 +541,13 @@ func TestFitPostSetbackStopsAtExtension(t *testing.T) {
 	if fit0.Outcome != assembly.FitLimited {
 		t.Fatalf("rail 0 Outcome = %v, want limited", fit0.Outcome)
 	}
-	if want := []assembly.InputField{assembly.InputSeatpostExtension}; !reflect.DeepEqual(fit0.LimitedBy, want) {
+	if want := []assembly.InputField{assembly.InputSeatpostInsertion}; !reflect.DeepEqual(fit0.LimitedBy, want) {
 		t.Fatalf("rail 0 LimitedBy = %v, want %v", fit0.LimitedBy, want)
 	}
-	if fit0.Placement.Setup.Seatpost.ExtensionMm != 300 {
-		t.Fatalf("rail 0 ExtensionMm = %v, want 300", fit0.Placement.Setup.Seatpost.ExtensionMm)
+	if fit0.Placement.Setup.Seatpost.ExposedMm() != 300 {
+		t.Fatalf("rail 0 ExtensionMm = %v, want 300", fit0.Placement.Setup.Seatpost.ExposedMm())
 	}
-	assertNear(t, "rail 0 setback", fit0.Placement.Setup.Seatpost.PostSetbackMm, 4.799945, 1e-5)
+	assertNear(t, "rail 0 setback", fit0.Placement.Setup.Seatpost.Spec.SetbackMm, 4.799945, 1e-5)
 	assertNear(t, "rail 0 miss", brpMissMm(t, fit0), 144.332896, 1e-5)
 
 	fit15, err := assembly.FitPostSetback(fenrirFittingSetup(), target, 15)
@@ -576,11 +557,11 @@ func TestFitPostSetbackStopsAtExtension(t *testing.T) {
 	if fit15.Outcome != assembly.FitLimited {
 		t.Fatalf("rail 15 Outcome = %v, want limited", fit15.Outcome)
 	}
-	if want := []assembly.InputField{assembly.InputSeatpostExtension, assembly.InputSeatpostSetback}; !reflect.DeepEqual(fit15.LimitedBy, want) {
+	if want := []assembly.InputField{assembly.InputSeatpostInsertion, assembly.InputSeatpostSetback}; !reflect.DeepEqual(fit15.LimitedBy, want) {
 		t.Fatalf("rail 15 LimitedBy = %v, want %v", fit15.LimitedBy, want)
 	}
-	if fit15.Placement.Setup.Seatpost.ExtensionMm != 300 || fit15.Placement.Setup.Seatpost.PostSetbackMm != 0 {
-		t.Fatalf("rail 15 got ext=%v setback=%v, want 300, 0", fit15.Placement.Setup.Seatpost.ExtensionMm, fit15.Placement.Setup.Seatpost.PostSetbackMm)
+	if fit15.Placement.Setup.Seatpost.ExposedMm() != 300 || fit15.Placement.Setup.Seatpost.Spec.SetbackMm != 0 {
+		t.Fatalf("rail 15 got ext=%v setback=%v, want 300, 0", fit15.Placement.Setup.Seatpost.ExposedMm(), fit15.Placement.Setup.Seatpost.Spec.SetbackMm)
 	}
 	assertNear(t, "rail 15 miss", brpMissMm(t, fit15), 140.710227, 1e-6)
 	saddleFit := mustFit(t, fenrirFittingSetup(), target)
