@@ -4,7 +4,7 @@ This repository is a zero-dependency **Go** command-line application (`bikegeo`)
 
 ## Python
 
-Use `uv` to execute python, if available.
+**Never run bare `python` or `python3`.** Run all Python through `uv`, including one-off scripts, inline heredocs, and file-editing helpers: `uv run python script.py` or `uv run python - <<'EOF' ... EOF`. Only if `command -v uv` finds nothing may you fall back to `python3`, and say so.
 
 ## Commit Messages
 
