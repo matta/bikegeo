@@ -2,6 +2,10 @@
 
 This repository is a zero-dependency **Go** command-line application (`bikegeo`).
 
+## Python
+
+Use `uv` to execute python, if available.
+
 ## Commit Messages
 
 Write plain-language subjects (for example `Fix fork sag validation`). Conventional Commits prefixes (`feat:`, `fix(web):`, `chore!:`, ...) are banned.
