@@ -117,6 +117,15 @@ func (f bikeFixture) resolveForkOption(requestedID string) (forkOption, bool) {
 	return forkOption{}, false
 }
 
+// handlebarSetups returns every fixture handlebar's setup, in list order.
+func (f bikeFixture) handlebarSetups() []assembly.HandlebarSetup {
+	setups := make([]assembly.HandlebarSetup, len(f.Handlebars))
+	for i, bar := range f.Handlebars {
+		setups[i] = bar.Setup
+	}
+	return setups
+}
+
 // resolveHandlebar returns the handlebar with requestedID, or the default
 // handlebar when requestedID is empty.
 func (f bikeFixture) resolveHandlebar(requestedID string) (handlebarOption, bool) {

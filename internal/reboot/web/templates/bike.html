@@ -540,6 +540,13 @@
             <label for="ctrl-grip-y">HandGrip Y (mm)</label>
             <input id="ctrl-grip-y" type="number" name="grip_y" step="any" value="{{.Form.GripY}}"{{if and $.ErrorMessage (eq $.InvalidField "grip_y")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
           </div>
+          <div class="field field-full">
+            <label for="ctrl-stock-bars">Stock fitting handlebars</label>
+            <select id="ctrl-stock-bars" name="stock_bars"{{if and $.ErrorMessage (eq $.InvalidField "stock_bars")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+              <option value="selected"{{if ne .Form.StockBars "all"}} selected{{end}}>Selected handlebar only</option>
+              <option value="all"{{if eq .Form.StockBars "all"}} selected{{end}}>All {{len .Handlebars}} handlebars</option>
+            </select>
+          </div>
         </div>
       </fieldset>
     </div>
@@ -604,12 +611,12 @@
         {{with .Stock}}
         <div class="stock-fitting" data-stock-fitting>
           <strong>Stock cockpit builds</strong>
-          <p class="fit-note"><span data-stock-evaluated>{{.Evaluated}}</span> stock stem and spacer combinations placed; the cheapest {{len .Rows}} on the points-lost ledger (total = 100 − points lost). The saddle fit is kept.</p>
+          <p class="fit-note"><span data-stock-evaluated>{{.Evaluated}}</span> {{if .AllBars}}stock handlebar, stem, and spacer combinations{{else}}stock stem and spacer combinations{{end}} placed; the cheapest {{len .Rows}} on the points-lost ledger (total = 100 − points lost). The saddle fit is kept.</p>
           <p class="fit-note" data-stock-preferences>{{.PreferenceNote}}</p>
           <div class="stock-scroll">
             <table class="stock-table">
               <thead>
-                <tr><th>#</th><th></th><th>Total</th><th>Stem</th><th>Spacers</th><th>HandGrip miss</th><th>Oval R</th><th>Oval pts</th><th>Length pts</th><th>Angle pts</th><th>Spacer pts</th></tr>
+                <tr><th>#</th><th></th><th>Total</th><th>Stem</th><th>Spacers</th><th>HandGrip miss</th><th>Oval R</th><th>Oval pts</th><th>Length pts</th><th>Angle pts</th><th>Spacer pts</th><th>Handlebar</th></tr>
               </thead>
               <tbody>
                 {{range .Rows}}
@@ -622,6 +629,7 @@
                   <td class="mono" data-stock-cell="grip-miss">{{printf "%.1f mm" .GripMissMm}}</td>
                   <td class="mono" data-stock-cell="oval-r">{{printf "%.2f" .GripR}}</td>
                   {{range .Lines}}<td class="mono" data-stock-points="{{.Band}}">{{printf "%.1f" .PointsLost}}</td>{{end}}
+                  <td data-stock-cell="bar">{{.BarName}}</td>
                 </tr>
                 {{end}}
               </tbody>
