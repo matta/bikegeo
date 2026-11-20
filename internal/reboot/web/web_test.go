@@ -16,19 +16,19 @@ import (
 	"bikegeo/internal/reboot/assembly"
 )
 
-func defaultHandlebarSetup(t *testing.T, fix bikeFixture) assembly.HandlebarSetup {
+func defaultHandlebarSetup(t *testing.T, wb bikeWorkbench) assembly.HandlebarSetup {
 	t.Helper()
-	opt, ok := fix.resolveHandlebar("")
+	opt, ok := wb.resolveHandlebar("")
 	if !ok {
-		t.Fatalf("missing default handlebar %q", fix.DefaultHandlebarID)
+		t.Fatalf("missing default handlebar %q", wb.DefaultHandlebarID)
 	}
 	return opt.Setup
 }
 
-// fixtureSeatpost returns the fixture post with id, inserted insertionMm.
-func fixtureSeatpost(t *testing.T, fix bikeFixture, id string, insertionMm float64) assembly.SeatpostSetup {
+// workbenchSeatpost returns the workbench post with id, inserted insertionMm.
+func workbenchSeatpost(t *testing.T, wb bikeWorkbench, id string, insertionMm float64) assembly.SeatpostSetup {
 	t.Helper()
-	opt, ok := fix.resolveSeatpost(id)
+	opt, ok := wb.resolveSeatpost(id)
 	if !ok {
 		t.Fatalf("missing seatpost %q", id)
 	}
@@ -55,8 +55,8 @@ func TestRootRedirectsToBikeInspector(t *testing.T) {
 
 func TestStemCloseUpDrawsStemBodyFromBarClamp(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?view=stem")
-	fix := otsoFenrirFixture()
-	resolved, inputErr := decodeWorkbenchState(fix, url.Values{})
+	wb := fenrirWorkbench()
+	resolved, inputErr := decodeWorkbenchState(wb, url.Values{})
 	if inputErr != nil {
 		t.Fatalf("decode default state: %v", inputErr)
 	}
@@ -127,24 +127,24 @@ func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 	}
 
 	// Verify the ground line matches the placed RearContact/FrontContact landmarks from assembly.
-	fix := otsoFenrirFixture()
-	fox34, ok := fix.resolveForkOption("fox34_120")
+	wb := fenrirWorkbench()
+	fox34, ok := wb.resolveForkOption("fox34_120")
 	if !ok {
-		t.Fatalf("missing fox34_120 fixture option")
+		t.Fatalf("missing fox34_120 workbench option")
 	}
 	forkSetup := assembly.ForkSetup{
 		Spec:   fox34.Spec,
 		SagPct: 20.0,
 	}
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:     fix.Chart.Frame,
+		Frame:     wb.Chart.Frame,
 		LowerCup:  fox34.DefaultLowerCup,
 		Fork:      forkSetup,
-		Wheels:    fix.Wheels,
-		Seatpost:  fixtureSeatpost(t, fix, fix.DefaultSeatpostID, fix.DefaultPostInsertionMm),
-		Saddle:    fix.DefaultSaddle,
-		Stem:      fix.DefaultStem,
-		Handlebar: defaultHandlebarSetup(t, fix),
+		Wheels:    wb.Wheels,
+		Seatpost:  workbenchSeatpost(t, wb, wb.DefaultSeatpostID, wb.DefaultPostInsertionMm),
+		Saddle:    wb.DefaultSaddle,
+		Stem:      wb.DefaultStem,
+		Handlebar: defaultHandlebarSetup(t, wb),
 	})
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
@@ -191,7 +191,7 @@ func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		t.Errorf("hand-lateral = %q, want %s", got, wantHandLateral)
 	}
 
-	cadBaselineFork, err := assembly.PlaceCadBaselineFork(fix.Chart, fix.Wheels)
+	cadBaselineFork, err := assembly.PlaceCadBaselineFork(wb.Chart, wb.Wheels)
 	if err != nil {
 		t.Fatalf("PlaceCadBaselineFork: %v", err)
 	}
@@ -284,8 +284,8 @@ func TestBikeWorkbenchForkSwitchAndCadBaselineFork(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
-			name:        "CAD baseline fork preset uses fixture CadFork and 0 cup",
-			query:       defaultWorkbenchState(otsoFenrirFixture()).withCadBaselineFork(otsoFenrirFixture()).URL(),
+			name:        "CAD baseline fork preset uses workbench CadFork and 0 cup",
+			query:       defaultWorkbenchState(fenrirWorkbench()).withCadBaselineFork(fenrirWorkbench()).URL(),
 			wantCode:    http.StatusOK,
 			wantA2C:     "495.0 mm",
 			wantForkA2C: "495.0",
@@ -389,10 +389,10 @@ func TestBikeWorkbenchCockpitControlsUpdateBuild(t *testing.T) {
 		t.Errorf("expected no [aria-invalid] on valid build, got %d", invalid)
 	}
 
-	fix := otsoFenrirFixture()
-	sid, ok := fix.resolveForkOption("sid_100")
+	wb := fenrirWorkbench()
+	sid, ok := wb.resolveForkOption("sid_100")
 	if !ok {
-		t.Fatalf("missing sid_100 fixture option")
+		t.Fatalf("missing sid_100 workbench option")
 	}
 	spec := sid.Spec
 	spec.StaticA2cMm = 515.0
@@ -400,22 +400,22 @@ func TestBikeWorkbenchCockpitControlsUpdateBuild(t *testing.T) {
 		Spec:   spec,
 		SagPct: 20.0,
 	}
-	stemSetup := fix.DefaultStem
+	stemSetup := wb.DefaultStem
 	stemSetup.SpacersMm = 25.0
 	stemSetup.LengthMm = 80.0
 	stemSetup.AngleDeg = 7.0
-	barSetup := defaultHandlebarSetup(t, fix)
+	barSetup := defaultHandlebarSetup(t, wb)
 	barSetup.BarRollDeg = 5.0
-	postSetup := fixtureSeatpost(t, fix, "setback_25", 150.0)
-	saddleSetup := fix.DefaultSaddle
+	postSetup := workbenchSeatpost(t, wb, "setback_25", 150.0)
+	saddleSetup := wb.DefaultSaddle
 	saddleSetup.RailOffsetMm = -10.0
 	saddleSetup.RailPitchDeg = -2.0
 
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:     fix.Chart.Frame,
+		Frame:     wb.Chart.Frame,
 		LowerCup:  assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 10.0},
 		Fork:      forkSetup,
-		Wheels:    fix.Wheels,
+		Wheels:    wb.Wheels,
 		Seatpost:  postSetup,
 		Saddle:    saddleSetup,
 		Stem:      stemSetup,
@@ -596,7 +596,7 @@ func TestBikeWorkbenchAcceptsSeatpostInsertionLimits(t *testing.T) {
 }
 
 func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
-	fix := otsoFenrirFixture()
+	wb := fenrirWorkbench()
 	forkSetup := assembly.ForkSetup{
 		Spec: assembly.ForkSpec{
 			StaticA2cMm: 530.0,
@@ -608,19 +608,19 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	}
 	lowerCup := assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0}
 	customWheels := assembly.WheelSetup{RadiusMm: 340.0}
-	customSeatpost := fixtureSeatpost(t, fix, "setback_15", 160.0)
-	customSaddle := fix.DefaultSaddle
+	customSeatpost := workbenchSeatpost(t, wb, "setback_15", 160.0)
+	customSaddle := wb.DefaultSaddle
 	customSaddle.RailOffsetMm = 12.0
 	customSaddle.RailPitchDeg = -1.5
-	customStem := fix.DefaultStem
+	customStem := wb.DefaultStem
 	customStem.SpacersMm = 15.0
 	customStem.LengthMm = 70.0
 	customStem.AngleDeg = 6.0
-	customBar := defaultHandlebarSetup(t, fix)
+	customBar := defaultHandlebarSetup(t, wb)
 	customBar.BarRollDeg = -4.0
 
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:     fix.Chart.Frame,
+		Frame:     wb.Chart.Frame,
 		LowerCup:  lowerCup,
 		Fork:      forkSetup,
 		Wheels:    customWheels,
@@ -632,15 +632,15 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
-	cadBaselineFork, err := assembly.PlaceCadBaselineFork(fix.Chart, customWheels)
+	cadBaselineFork, err := assembly.PlaceCadBaselineFork(wb.Chart, customWheels)
 	if err != nil {
 		t.Fatalf("PlaceCadBaselineFork: %v", err)
 	}
 
-	view := buildBikeView(fix, workbenchState{View: diagramViewBike, ForkID: "fox34_120", BarID: "persuader20_800", PostID: "setback_15"}, bike, cadBaselineFork)
+	view := buildBikeView(wb, workbenchState{View: diagramViewBike, ForkID: "fox34_120", BarID: "persuader20_800", PostID: "setback_15"}, bike, cadBaselineFork)
 
 	if view.WheelRadiusMm != customWheels.RadiusMm {
-		t.Errorf("view.WheelRadiusMm = %.1f, want placed radius %.1f (not fixture %.1f)", view.WheelRadiusMm, customWheels.RadiusMm, fix.Wheels.RadiusMm)
+		t.Errorf("view.WheelRadiusMm = %.1f, want placed radius %.1f (not workbench %.1f)", view.WheelRadiusMm, customWheels.RadiusMm, wb.Wheels.RadiusMm)
 	}
 	if wantGroundY := -bike.Frameset.RearTireContact.Origin().Y; math.Abs(view.GroundY1-wantGroundY) > 1e-12 {
 		t.Errorf("view.GroundY1 = %.6f, want %.6f", view.GroundY1, wantGroundY)
@@ -684,7 +684,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse CadBaselineForkURL %q: %v", view.CadBaselineForkURL, err)
 	}
-	cadDecoded, inputErr := decodeWorkbenchState(fix, cadURL.Query())
+	cadDecoded, inputErr := decodeWorkbenchState(wb, cadURL.Query())
 	if inputErr != nil {
 		t.Fatalf("decodeWorkbenchState(CadBaselineForkURL): %v", inputErr)
 	}
@@ -693,8 +693,8 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 		ForkID:          cadForkOptionID,
 		BarID:           "persuader20_800",
 		PostID:          "setback_15",
-		ForkA2cMm:       fix.Chart.CadFork.A2cMm,
-		LowerCupMm:      fix.Chart.CadLowerCup.StackMm,
+		ForkA2cMm:       wb.Chart.CadFork.A2cMm,
+		LowerCupMm:      wb.Chart.CadLowerCup.StackMm,
 		SagPct:          0.0,
 		SpacersMm:       15.0,
 		StemLengthMm:    70.0,
@@ -710,7 +710,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 }
 
 func TestWorkbenchStateCodecRoundTrip(t *testing.T) {
-	fix := otsoFenrirFixture()
+	wb := fenrirWorkbench()
 	want := workbenchState{
 		View:            diagramViewStem,
 		ForkID:          "fox34_120",
@@ -736,7 +736,7 @@ func TestWorkbenchStateCodecRoundTrip(t *testing.T) {
 		t.Errorf("encoded URL %q should not include prev_fork or baseline", want.URL())
 	}
 
-	decoded, inputErr := decodeWorkbenchState(fix, u.Query())
+	decoded, inputErr := decodeWorkbenchState(wb, u.Query())
 	if inputErr != nil {
 		t.Fatalf("decodeWorkbenchState error: %v", inputErr)
 	}
@@ -752,10 +752,10 @@ func TestWorkbenchStateCodecRoundTrip(t *testing.T) {
 	}
 
 	t.Run("all-stock-bars", func(t *testing.T) {
-		want := defaultWorkbenchState(fix)
+		want := defaultWorkbenchState(wb)
 		want.AllStockBars = true
 		q := url.Values{"stock_bars": {"all"}}
-		decoded, inputErr := decodeWorkbenchState(fix, q)
+		decoded, inputErr := decodeWorkbenchState(wb, q)
 		if inputErr != nil || decoded.State != want {
 			t.Fatalf("decoded State = %+v, error = %v, want %+v", decoded.State, inputErr, want)
 		}
@@ -766,15 +766,15 @@ func TestWorkbenchStateCodecRoundTrip(t *testing.T) {
 		if got := encoded.Query().Get("stock_bars"); got != "all" {
 			t.Errorf("encoded stock_bars = %q, want all", got)
 		}
-		roundTrip, inputErr := decodeWorkbenchState(fix, encoded.Query())
+		roundTrip, inputErr := decodeWorkbenchState(wb, encoded.Query())
 		if inputErr != nil || roundTrip.State != want {
 			t.Errorf("round-tripped State = %+v, error = %v, want %+v", roundTrip.State, inputErr, want)
 		}
 	})
 	t.Run("all-stock-forks", func(t *testing.T) {
-		want := defaultWorkbenchState(fix)
+		want := defaultWorkbenchState(wb)
 		want.AllStockForks = true
-		decoded, inputErr := decodeWorkbenchState(fix, url.Values{"stock_forks": {"all"}})
+		decoded, inputErr := decodeWorkbenchState(wb, url.Values{"stock_forks": {"all"}})
 		if inputErr != nil || decoded.State != want {
 			t.Fatalf("decoded State = %+v, error = %v, want %+v", decoded.State, inputErr, want)
 		}
@@ -785,7 +785,7 @@ func TestWorkbenchStateCodecRoundTrip(t *testing.T) {
 		if got := encoded.Query().Get("stock_forks"); got != "all" {
 			t.Errorf("encoded stock_forks = %q, want all", got)
 		}
-		roundTrip, inputErr := decodeWorkbenchState(fix, encoded.Query())
+		roundTrip, inputErr := decodeWorkbenchState(wb, encoded.Query())
 		if inputErr != nil || roundTrip.State != want {
 			t.Errorf("round-tripped State = %+v, error = %v, want %+v", roundTrip.State, inputErr, want)
 		}
@@ -1082,45 +1082,45 @@ func TestBikeWorkbenchEveryEnabledControlIsLive(t *testing.T) {
 	}
 }
 
-func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
-	fix := otsoFenrirFixture()
-	if err := fix.validate(); err != nil {
-		t.Fatalf("otsoFenrirFixture().validate(): %v", err)
+func TestWorkbenchValidationAndCadBaselineForkInvariant(t *testing.T) {
+	wb := fenrirWorkbench()
+	if err := wb.validate(); err != nil {
+		t.Fatalf("fenrirWorkbench().validate(): %v", err)
 	}
 
 	// Decoding the CAD baseline fork preset link yields fork=cad, exact bare frame, CadLowerCup, and CAD fork geometry.
-	cadURL, err := url.Parse(defaultWorkbenchState(fix).withCadBaselineFork(fix).URL())
+	cadURL, err := url.Parse(defaultWorkbenchState(wb).withCadBaselineFork(wb).URL())
 	if err != nil {
 		t.Fatalf("parse CAD URL: %v", err)
 	}
-	decoded, inputErr := decodeWorkbenchState(fix, cadURL.Query())
+	decoded, inputErr := decodeWorkbenchState(wb, cadURL.Query())
 	if inputErr != nil {
 		t.Fatalf("decodeWorkbenchState: %v", inputErr)
 	}
 	if decoded.State.ForkID != cadForkOptionID {
 		t.Errorf("decoded ForkID = %q, want %q", decoded.State.ForkID, cadForkOptionID)
 	}
-	if decoded.Setup.Frame != fix.Chart.Frame {
-		t.Errorf("decoded Frame = %+v, want %+v", decoded.Setup.Frame, fix.Chart.Frame)
+	if decoded.Setup.Frame != wb.Chart.Frame {
+		t.Errorf("decoded Frame = %+v, want %+v", decoded.Setup.Frame, wb.Chart.Frame)
 	}
-	if decoded.Setup.LowerCup != fix.Chart.CadLowerCup {
-		t.Errorf("decoded LowerCup = %+v, want %+v", decoded.Setup.LowerCup, fix.Chart.CadLowerCup)
+	if decoded.Setup.LowerCup != wb.Chart.CadLowerCup {
+		t.Errorf("decoded LowerCup = %+v, want %+v", decoded.Setup.LowerCup, wb.Chart.CadLowerCup)
 	}
 	if err := decoded.Setup.Fork.Validate(); err != nil {
 		t.Fatalf("decoded Fork.Validate: %v", err)
 	}
-	if decoded.Setup.Fork.Geometry() != fix.Chart.CadFork {
-		t.Errorf("decoded Fork.Geometry() = %+v, want %+v", decoded.Setup.Fork.Geometry(), fix.Chart.CadFork)
+	if decoded.Setup.Fork.Geometry() != wb.Chart.CadFork {
+		t.Errorf("decoded Fork.Geometry() = %+v, want %+v", decoded.Setup.Fork.Geometry(), wb.Chart.CadFork)
 	}
 
-	// Fixture whose Chart.CadFork (481 mm / 51 mm) does not match any installable retail fork in Forks,
+	// Workbench whose Chart.CadFork (481 mm / 51 mm) does not match any installable retail fork in Forks,
 	// and whose installable forks pair with two different lower-cup standards (ZS44 0 mm vs EC44 12 mm):
 	// fork=cad still reproduces Chart.CadFork with 0° delta pitch, and switching standards updates cup automatically.
 	ec44Cup := assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0}
 	zs44Cup := assembly.LowerCupSetup{Standard: assembly.LowerCupZS44, StackMm: 0.0}
-	customFix := otsoFenrirFixture()
-	customFix.Chart.CadFork = assembly.ForkGeometry{A2cMm: 481.0, RakeMm: 51.0}
-	customFix.Forks = []forkOption{
+	customWb := fenrirWorkbench()
+	customWb.Chart.CadFork = assembly.ForkGeometry{A2cMm: 481.0, RakeMm: 51.0}
+	customWb.Forks = []forkOption{
 		makeForkOption("rigid_straight_483", "Straight Steerer Rigid", assembly.ForkSpec{
 			StaticA2cMm: 483.0,
 			TravelMm:    0.0,
@@ -1134,50 +1134,50 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 			Steerer:     assembly.SteererTapered,
 		}, 20.0, ec44Cup),
 	}
-	customFix.DefaultForkID = "rigid_straight_483"
-	if err := customFix.validate(); err != nil {
-		t.Fatalf("customFix.validate(): %v", err)
+	customWb.DefaultForkID = "rigid_straight_483"
+	if err := customWb.validate(); err != nil {
+		t.Fatalf("customWb.validate(): %v", err)
 	}
 
-	customCadURL, err := url.Parse(defaultWorkbenchState(customFix).withCadBaselineFork(customFix).URL())
+	customCadURL, err := url.Parse(defaultWorkbenchState(customWb).withCadBaselineFork(customWb).URL())
 	if err != nil {
-		t.Fatalf("parse customFix CAD URL: %v", err)
+		t.Fatalf("parse customWb CAD URL: %v", err)
 	}
 	if got := customCadURL.Query().Get("fork"); got != cadForkOptionID {
-		t.Errorf("customFix CAD URL fork = %q, want %q", got, cadForkOptionID)
+		t.Errorf("customWb CAD URL fork = %q, want %q", got, cadForkOptionID)
 	}
 	if got := customCadURL.Query().Get("fork_a2c"); got != "481.0" {
-		t.Errorf("customFix CAD URL fork_a2c = %q, want 481.0", got)
+		t.Errorf("customWb CAD URL fork_a2c = %q, want 481.0", got)
 	}
 	if got := customCadURL.Query().Get("sag"); got != "0.0" {
-		t.Errorf("customFix CAD URL sag = %q, want 0.0", got)
+		t.Errorf("customWb CAD URL sag = %q, want 0.0", got)
 	}
-	customDecoded, inputErr := decodeWorkbenchState(customFix, customCadURL.Query())
+	customDecoded, inputErr := decodeWorkbenchState(customWb, customCadURL.Query())
 	if inputErr != nil {
-		t.Fatalf("decode customFix CAD URL: %v", inputErr)
+		t.Fatalf("decode customWb CAD URL: %v", inputErr)
 	}
-	if customDecoded.Setup.Frame != customFix.Chart.Frame {
-		t.Errorf("customFix decoded Frame = %+v, want %+v", customDecoded.Setup.Frame, customFix.Chart.Frame)
+	if customDecoded.Setup.Frame != customWb.Chart.Frame {
+		t.Errorf("customWb decoded Frame = %+v, want %+v", customDecoded.Setup.Frame, customWb.Chart.Frame)
 	}
-	if customDecoded.Setup.LowerCup != customFix.Chart.CadLowerCup {
-		t.Errorf("customFix decoded LowerCup = %+v, want %+v", customDecoded.Setup.LowerCup, customFix.Chart.CadLowerCup)
+	if customDecoded.Setup.LowerCup != customWb.Chart.CadLowerCup {
+		t.Errorf("customWb decoded LowerCup = %+v, want %+v", customDecoded.Setup.LowerCup, customWb.Chart.CadLowerCup)
 	}
-	if customDecoded.Setup.Fork.Geometry() != customFix.Chart.CadFork {
-		t.Errorf("customFix decoded Fork.Geometry() = %+v, want %+v", customDecoded.Setup.Fork.Geometry(), customFix.Chart.CadFork)
+	if customDecoded.Setup.Fork.Geometry() != customWb.Chart.CadFork {
+		t.Errorf("customWb decoded Fork.Geometry() = %+v, want %+v", customDecoded.Setup.Fork.Geometry(), customWb.Chart.CadFork)
 	}
-	cadBaseline, err := assembly.PlaceCadBaselineFork(customFix.Chart, customFix.Wheels)
+	cadBaseline, err := assembly.PlaceCadBaselineFork(customWb.Chart, customWb.Wheels)
 	if err != nil {
-		t.Fatalf("PlaceCadBaselineFork(customFix): %v", err)
+		t.Fatalf("PlaceCadBaselineFork(customWb): %v", err)
 	}
 	placedCustom, err := assembly.PlaceFrameset(customDecoded.Setup.Frame, customDecoded.Setup.LowerCup, customDecoded.Setup.Fork, customDecoded.Setup.Wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset(customDecoded): %v", err)
 	}
 	if gotDelta := cadBaseline.DeltaPitchDeg(placedCustom); math.Abs(float64(gotDelta)) > 1e-12 {
-		t.Errorf("customFix CAD DeltaPitchDeg = %.6f°, want 0°", gotDelta)
+		t.Errorf("customWb CAD DeltaPitchDeg = %.6f°, want 0°", gotDelta)
 	}
 
-	switchToEC44, inputErr := decodeWorkbenchState(customFix, url.Values{
+	switchToEC44, inputErr := decodeWorkbenchState(customWb, url.Values{
 		"prev_fork": {"rigid_straight_483"},
 		"fork":      {"sid_100"},
 		"fork_a2c":  {"483.0"},
@@ -1191,7 +1191,7 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 		t.Errorf("ZS44 -> EC44 state = %+v (cup %+v), want EC44 12.0 mm / 506.0 mm / 20.0%%", switchToEC44.State, switchToEC44.Setup.LowerCup)
 	}
 
-	switchToZS44, inputErr := decodeWorkbenchState(customFix, url.Values{
+	switchToZS44, inputErr := decodeWorkbenchState(customWb, url.Values{
 		"prev_fork": {"sid_100"},
 		"fork":      {"rigid_straight_483"},
 		"fork_a2c":  {"506.0"},
@@ -1205,38 +1205,38 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 		t.Errorf("EC44 -> ZS44 state = %+v (cup %+v), want ZS44 0.0 mm / 483.0 mm / 0.0%%", switchToZS44.State, switchToZS44.Setup.LowerCup)
 	}
 
-	// Invalid fixture configuration checks.
+	// Invalid workbench configuration checks.
 	invalidCases := []struct {
 		name   string
-		mutate func(*bikeFixture)
+		mutate func(*bikeWorkbench)
 	}{
-		{"empty DefaultForkID", func(f *bikeFixture) { f.DefaultForkID = "" }},
-		{"unknown DefaultForkID", func(f *bikeFixture) { f.DefaultForkID = "missing" }},
-		{"DefaultForkID uses reserved cad ID", func(f *bikeFixture) { f.DefaultForkID = cadForkOptionID }},
-		{"fork option uses reserved cad ID", func(f *bikeFixture) { f.Forks[0].ID = cadForkOptionID }},
-		{"fork option with empty ID", func(f *bikeFixture) { f.Forks[0].ID = "" }},
-		{"non-positive Chart.CadFork.A2cMm", func(f *bikeFixture) { f.Chart.CadFork.A2cMm = 0 }},
-		{"NaN Chart.CadFork.RakeMm", func(f *bikeFixture) { f.Chart.CadFork.RakeMm = math.NaN() }},
-		{"rigid fork option with non-zero DefaultSagPct", func(f *bikeFixture) { f.Forks[0].DefaultSagPct = 10.0 }},
-		{"installable fork option uses bare_head_tube cup", func(f *bikeFixture) {
-			f.Forks[0].DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0.0}
+		{"empty DefaultForkID", func(w *bikeWorkbench) { w.DefaultForkID = "" }},
+		{"unknown DefaultForkID", func(w *bikeWorkbench) { w.DefaultForkID = "missing" }},
+		{"DefaultForkID uses reserved cad ID", func(w *bikeWorkbench) { w.DefaultForkID = cadForkOptionID }},
+		{"fork option uses reserved cad ID", func(w *bikeWorkbench) { w.Forks[0].ID = cadForkOptionID }},
+		{"fork option with empty ID", func(w *bikeWorkbench) { w.Forks[0].ID = "" }},
+		{"non-positive Chart.CadFork.A2cMm", func(w *bikeWorkbench) { w.Chart.CadFork.A2cMm = 0 }},
+		{"NaN Chart.CadFork.RakeMm", func(w *bikeWorkbench) { w.Chart.CadFork.RakeMm = math.NaN() }},
+		{"rigid fork option with non-zero DefaultSagPct", func(w *bikeWorkbench) { w.Forks[0].DefaultSagPct = 10.0 }},
+		{"installable fork option uses bare_head_tube cup", func(w *bikeWorkbench) {
+			w.Forks[0].DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0.0}
 		}},
-		{"installable fork option missing lower cup standard", func(f *bikeFixture) {
-			f.Forks[0].DefaultLowerCup = assembly.LowerCupSetup{}
+		{"installable fork option missing lower cup standard", func(w *bikeWorkbench) {
+			w.Forks[0].DefaultLowerCup = assembly.LowerCupSetup{}
 		}},
-		{"installable fork option EC44 zero stack", func(f *bikeFixture) {
-			f.Forks[0].DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 0.0}
+		{"installable fork option EC44 zero stack", func(w *bikeWorkbench) {
+			w.Forks[0].DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 0.0}
 		}},
-		{"Chart.CadLowerCup missing standard", func(f *bikeFixture) {
-			f.Chart.CadLowerCup = assembly.LowerCupSetup{}
+		{"Chart.CadLowerCup missing standard", func(w *bikeWorkbench) {
+			w.Chart.CadLowerCup = assembly.LowerCupSetup{}
 		}},
-		{"Chart.CadLowerCup bare_head_tube non-zero stack", func(f *bikeFixture) {
-			f.Chart.CadLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 12.0}
+		{"Chart.CadLowerCup bare_head_tube non-zero stack", func(w *bikeWorkbench) {
+			w.Chart.CadLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 12.0}
 		}},
 	}
 	for _, tc := range invalidCases {
 		t.Run(tc.name, func(t *testing.T) {
-			bad := otsoFenrirFixture()
+			bad := fenrirWorkbench()
 			tc.mutate(&bad)
 			if err := bad.validate(); err == nil {
 				t.Fatalf("expected validate() error for %s", tc.name)
@@ -1503,7 +1503,7 @@ func TestBikePagesHaveNoScriptOrConstructionTrace(t *testing.T) {
 }
 
 func TestBikeWorkbenchActiveViewLinkCarriesResolvedBuild(t *testing.T) {
-	fix := otsoFenrirFixture()
+	wb := fenrirWorkbench()
 	okCases := []struct {
 		name string
 		path string
@@ -1512,14 +1512,14 @@ func TestBikeWorkbenchActiveViewLinkCarriesResolvedBuild(t *testing.T) {
 		{
 			name: "default",
 			path: "/bike",
-			want: defaultWorkbenchState(fix),
+			want: defaultWorkbenchState(wb),
 		},
 		{
 			name: "fork-switch-omits-prev-fork",
 			path: "/bike?prev_fork=lithic_carbon_mountain&fork=fox34_120&fork_a2c=495&sag=0",
 			want: func() workbenchState {
-				s := defaultWorkbenchState(fix)
-				fox, _ := fix.resolveForkOption("fox34_120")
+				s := defaultWorkbenchState(wb)
+				fox, _ := wb.resolveForkOption("fox34_120")
 				s.ForkID = fox.ID
 				s.ForkA2cMm = fox.Spec.StaticA2cMm
 				s.LowerCupMm = fox.DefaultLowerCup.StackMm
@@ -1530,7 +1530,7 @@ func TestBikeWorkbenchActiveViewLinkCarriesResolvedBuild(t *testing.T) {
 		{
 			name: "cad-baseline-fork-overrides-locked",
 			path: "/bike?fork=cad&cup=12&fork_a2c=530&sag=20",
-			want: defaultWorkbenchState(fix).withCadBaselineFork(fix),
+			want: defaultWorkbenchState(wb).withCadBaselineFork(wb),
 		},
 	}
 
@@ -1548,7 +1548,7 @@ func TestBikeWorkbenchActiveViewLinkCarriesResolvedBuild(t *testing.T) {
 			if u.Query().Has("prev_fork") {
 				t.Errorf("active view href %q must omit transient prev_fork", href)
 			}
-			decoded, inputErr := decodeWorkbenchState(fix, u.Query())
+			decoded, inputErr := decodeWorkbenchState(wb, u.Query())
 			if inputErr != nil {
 				t.Fatalf("decode active view href %q: %v", href, inputErr)
 			}
@@ -1560,8 +1560,8 @@ func TestBikeWorkbenchActiveViewLinkCarriesResolvedBuild(t *testing.T) {
 			if form.Find(`button#ctrl-submit[type="submit"]`).Length() != 1 {
 				t.Errorf("expected 1 button#ctrl-submit[type=submit] inside form.controls")
 			}
-			if href, ok := form.Find(`a#preset-defaults[data-preset="defaults"]`).Attr("href"); !ok || href != defaultWorkbenchState(fix).URL() {
-				t.Errorf("a#preset-defaults href = %q (ok=%v), want %q", href, ok, defaultWorkbenchState(fix).URL())
+			if href, ok := form.Find(`a#preset-defaults[data-preset="defaults"]`).Attr("href"); !ok || href != defaultWorkbenchState(wb).URL() {
+				t.Errorf("a#preset-defaults href = %q (ok=%v), want %q", href, ok, defaultWorkbenchState(wb).URL())
 			}
 			if href, ok := form.Find(`a#preset-cad-baseline-fork[data-preset="cad-baseline-fork"]`).Attr("href"); !ok || !strings.HasPrefix(href, "/bike?") {
 				t.Errorf("a#preset-cad-baseline-fork href = %q (ok=%v), want /bike?...", href, ok)
@@ -1648,7 +1648,7 @@ func decodeHref(t *testing.T, href string) workbenchState {
 	if err != nil {
 		t.Fatalf("parse %q: %v", href, err)
 	}
-	decoded, inputErr := decodeWorkbenchState(otsoFenrirFixture(), u.Query())
+	decoded, inputErr := decodeWorkbenchState(fenrirWorkbench(), u.Query())
 	if inputErr != nil {
 		t.Fatalf("decode %q: %v", href, inputErr)
 	}
@@ -1656,7 +1656,7 @@ func decodeHref(t *testing.T, href string) workbenchState {
 }
 
 func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
-	fix := otsoFenrirFixture()
+	wb := fenrirWorkbench()
 	doc := loadBikeDoc(t, "/bike")
 
 	canonical := activeViewHref(t, doc)
@@ -1671,7 +1671,7 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 	}
 
 	// The whole-bike frame and drawing sizes are unchanged by the view work.
-	resolved, inputErr := decodeWorkbenchState(fix, url.Values{})
+	resolved, inputErr := decodeWorkbenchState(wb, url.Values{})
 	if inputErr != nil {
 		t.Fatalf("decode defaults: %v", inputErr)
 	}
@@ -1679,11 +1679,11 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
-	cad, err := assembly.PlaceCadBaselineFork(fix.Chart, fix.Wheels)
+	cad, err := assembly.PlaceCadBaselineFork(wb.Chart, wb.Wheels)
 	if err != nil {
 		t.Fatalf("PlaceCadBaselineFork: %v", err)
 	}
-	view := buildBikeView(fix, resolved.State, bike, cad)
+	view := buildBikeView(wb, resolved.State, bike, cad)
 	if view.DrawScale != 1 {
 		t.Errorf("whole-bike DrawScale = %v, want exactly 1", view.DrawScale)
 	}
@@ -1817,7 +1817,7 @@ func TestBikeWorkbenchViewLinks(t *testing.T) {
 }
 
 func TestBikeWorkbenchControlChangesAndPresetsKeepView(t *testing.T) {
-	fix := otsoFenrirFixture()
+	wb := fenrirWorkbench()
 	doc := loadBikeDoc(t, "/bike?view=stem&spacers=30")
 	canonical := activeViewHref(t, doc)
 	state := decodeHref(t, canonical)
@@ -1838,11 +1838,11 @@ func TestBikeWorkbenchControlChangesAndPresetsKeepView(t *testing.T) {
 	}
 
 	defaultsHref, _ := doc.Find("a#preset-defaults").Attr("href")
-	if got, want := decodeHref(t, defaultsHref), defaultWorkbenchState(fix).withView(diagramViewStem); got != want {
+	if got, want := decodeHref(t, defaultsHref), defaultWorkbenchState(wb).withView(diagramViewStem); got != want {
 		t.Errorf("Reset Defaults state = %+v, want %+v", got, want)
 	}
 	cadHref, _ := doc.Find("a#preset-cad-baseline-fork").Attr("href")
-	if got, want := decodeHref(t, cadHref), state.withCadBaselineFork(fix); got != want {
+	if got, want := decodeHref(t, cadHref), state.withCadBaselineFork(wb); got != want {
 		t.Errorf("CAD Baseline Fork state = %+v, want %+v", got, want)
 	}
 	for _, href := range []string{defaultsHref, cadHref} {
@@ -2019,8 +2019,8 @@ func TestBikeWorkbenchViewsShareReadoutsAndDifferInFraming(t *testing.T) {
 
 func fittingTestTarget(t *testing.T, query url.Values) (x, y float64) {
 	t.Helper()
-	fix := otsoFenrirFixture()
-	resolved, inputErr := decodeWorkbenchState(fix, query)
+	wb := fenrirWorkbench()
+	resolved, inputErr := decodeWorkbenchState(wb, query)
 	if inputErr != nil {
 		t.Fatalf("decode %v: %v", query, inputErr)
 	}
@@ -2207,8 +2207,8 @@ func TestBikeWorkbenchSpacersMax(t *testing.T) {
 
 func gripTestTarget(t *testing.T, query url.Values) (x, y float64) {
 	t.Helper()
-	fix := otsoFenrirFixture()
-	resolved, inputErr := decodeWorkbenchState(fix, query)
+	wb := fenrirWorkbench()
+	resolved, inputErr := decodeWorkbenchState(wb, query)
 	if inputErr != nil {
 		t.Fatalf("decode %v: %v", query, inputErr)
 	}
@@ -2694,21 +2694,21 @@ func TestBikeWorkbenchStockFitKeepsSaddleFitAndTargets(t *testing.T) {
 	}
 }
 
-func TestBikeFixtureValidatesStockAndPreferences(t *testing.T) {
-	fix := otsoFenrirFixture()
-	fix.CockpitStock.SpacerStepMm = 0
-	if err := fix.validate(); err == nil || !strings.Contains(err.Error(), "cockpit stock invalid") {
+func TestBikeWorkbenchValidatesStockAndPreferences(t *testing.T) {
+	wb := fenrirWorkbench()
+	wb.CockpitStock.SpacerStepMm = 0
+	if err := wb.validate(); err == nil || !strings.Contains(err.Error(), "cockpit stock invalid") {
 		t.Errorf("invalid stock: got %v, want cockpit stock error", err)
 	}
-	fix = otsoFenrirFixture()
-	fix.CockpitPreferences.GripOval.SemiMinorMm = 0
-	if err := fix.validate(); err == nil || !strings.Contains(err.Error(), "cockpit preferences invalid") {
+	wb = fenrirWorkbench()
+	wb.CockpitPreferences.GripOval.SemiMinorMm = 0
+	if err := wb.validate(); err == nil || !strings.Contains(err.Error(), "cockpit preferences invalid") {
 		t.Errorf("invalid preferences: got %v, want cockpit preferences error", err)
 	}
 }
 
-func TestFixtureHandlebarReferenceHandGrips(t *testing.T) {
-	fix := otsoFenrirFixture()
+func TestWorkbenchHandlebarReferenceHandGrips(t *testing.T) {
+	wb := fenrirWorkbench()
 	want := []struct {
 		id            string
 		x, y, lateral float64
@@ -2729,16 +2729,16 @@ func TestFixtureHandlebarReferenceHandGrips(t *testing.T) {
 		{"sqlab311_flx_12_15", 410.985, 741.203, 300},
 		{"sqlab311_flx_12_30", 413.854, 755.259, 300},
 	}
-	if len(fix.Handlebars) != len(want) {
-		t.Fatalf("fixture has %d handlebars, want %d", len(fix.Handlebars), len(want))
+	if len(wb.Handlebars) != len(want) {
+		t.Fatalf("workbench has %d handlebars, want %d", len(wb.Handlebars), len(want))
 	}
 	for i, ref := range want {
 		t.Run(ref.id, func(t *testing.T) {
-			opt := fix.Handlebars[i]
+			opt := wb.Handlebars[i]
 			if opt.ID != ref.id {
 				t.Fatalf("bar %d = %q, want %q", i, opt.ID, ref.id)
 			}
-			resolved, inputErr := decodeWorkbenchState(fix, url.Values{"bar": {opt.ID}})
+			resolved, inputErr := decodeWorkbenchState(wb, url.Values{"bar": {opt.ID}})
 			if inputErr != nil {
 				t.Fatalf("decodeWorkbenchState: %v", inputErr)
 			}
@@ -2884,24 +2884,24 @@ func TestBikeWorkbenchFitsAroundChosenHandlebar(t *testing.T) {
 	}
 }
 
-func TestBikeFixtureValidatesHandlebars(t *testing.T) {
+func TestBikeWorkbenchValidatesHandlebars(t *testing.T) {
 	cases := []struct {
 		name   string
-		change func(*bikeFixture)
+		change func(*bikeWorkbench)
 		want   string
 	}{
-		{"empty default", func(f *bikeFixture) { f.DefaultHandlebarID = "" }, "missing DefaultHandlebarID"},
-		{"unknown default", func(f *bikeFixture) { f.DefaultHandlebarID = "missing" }, `DefaultHandlebarID "missing" not found`},
-		{"empty ID", func(f *bikeFixture) { f.Handlebars[1].ID = "" }, "handlebar option with empty ID"},
-		{"duplicate ID", func(f *bikeFixture) { f.Handlebars[1].ID = f.Handlebars[0].ID }, `duplicate handlebar ID "persuader20_800"`},
-		{"fixed roll", func(f *bikeFixture) { f.Handlebars[1].Setup.BarRollDeg = 5 }, `handlebar "persuader20_840" must not set BarRollDeg`},
-		{"invalid placement", func(f *bikeFixture) { f.Handlebars[1].Setup.GripInsetMm = 0 }, `handlebar "persuader20_840" invalid: handlebar grip inset`},
+		{"empty default", func(w *bikeWorkbench) { w.DefaultHandlebarID = "" }, "missing DefaultHandlebarID"},
+		{"unknown default", func(w *bikeWorkbench) { w.DefaultHandlebarID = "missing" }, `DefaultHandlebarID "missing" not found`},
+		{"empty ID", func(w *bikeWorkbench) { w.Handlebars[1].ID = "" }, "handlebar option with empty ID"},
+		{"duplicate ID", func(w *bikeWorkbench) { w.Handlebars[1].ID = w.Handlebars[0].ID }, `duplicate handlebar ID "persuader20_800"`},
+		{"fixed roll", func(w *bikeWorkbench) { w.Handlebars[1].Setup.BarRollDeg = 5 }, `handlebar "persuader20_840" must not set BarRollDeg`},
+		{"invalid placement", func(w *bikeWorkbench) { w.Handlebars[1].Setup.GripInsetMm = 0 }, `handlebar "persuader20_840" invalid: handlebar grip inset`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			fix := otsoFenrirFixture()
-			tc.change(&fix)
-			if err := fix.validate(); err == nil || !strings.Contains(err.Error(), tc.want) {
+			wb := fenrirWorkbench()
+			tc.change(&wb)
+			if err := wb.validate(); err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Errorf("validate() = %v, want an error containing %q", err, tc.want)
 			}
 		})
@@ -2909,14 +2909,14 @@ func TestBikeFixtureValidatesHandlebars(t *testing.T) {
 }
 
 func TestBikeWorkbenchSeatpostSelect(t *testing.T) {
-	fix := otsoFenrirFixture()
+	wb := fenrirWorkbench()
 	doc := loadBikeDoc(t, "/bike")
 
 	options := doc.Find(`select[name="post"] option`)
-	if options.Length() != len(fix.Seatposts) {
-		t.Fatalf("seatpost option count = %d, want %d", options.Length(), len(fix.Seatposts))
+	if options.Length() != len(wb.Seatposts) {
+		t.Fatalf("seatpost option count = %d, want %d", options.Length(), len(wb.Seatposts))
 	}
-	for i, want := range fix.Seatposts {
+	for i, want := range wb.Seatposts {
 		opt := options.Eq(i)
 		if got, _ := opt.Attr("value"); got != want.ID {
 			t.Errorf("option %d value = %q, want %q", i, got, want.ID)
@@ -2940,16 +2940,16 @@ func TestBikeWorkbenchSeatpostSelect(t *testing.T) {
 	if got := strings.TrimSpace(redshiftDoc.Find(`[data-metric="post-setback"]`).Text()); got != "12.0 mm" {
 		t.Errorf("redshift post-setback = %q, want 12.0 mm", got)
 	}
-	defaultFork, _ := fix.resolveForkOption("")
+	defaultFork, _ := wb.resolveForkOption("")
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:     fix.Chart.Frame,
+		Frame:     wb.Chart.Frame,
 		LowerCup:  defaultFork.DefaultLowerCup,
 		Fork:      assembly.ForkSetup{Spec: defaultFork.Spec, SagPct: defaultFork.DefaultSagPct},
-		Wheels:    fix.Wheels,
-		Seatpost:  fixtureSeatpost(t, fix, "redshift_shockstop_pro", fix.DefaultPostInsertionMm),
-		Saddle:    fix.DefaultSaddle,
-		Stem:      fix.DefaultStem,
-		Handlebar: defaultHandlebarSetup(t, fix),
+		Wheels:    wb.Wheels,
+		Seatpost:  workbenchSeatpost(t, wb, "redshift_shockstop_pro", wb.DefaultPostInsertionMm),
+		Saddle:    wb.DefaultSaddle,
+		Stem:      wb.DefaultStem,
+		Handlebar: defaultHandlebarSetup(t, wb),
 	})
 	if err != nil {
 		t.Fatalf("PlaceBike redshift: %v", err)
@@ -3333,16 +3333,16 @@ func TestBikeWorkbenchStockForksErrorPage(t *testing.T) {
 	}
 }
 
-func TestFixtureHeadsetPairings(t *testing.T) {
-	fix := otsoFenrirFixture()
-	frame := fix.Chart.Frame
+func TestWorkbenchHeadsetPairings(t *testing.T) {
+	wb := fenrirWorkbench()
+	frame := wb.Chart.Frame
 	if frame.LowerBore != assembly.Bore44Pressed {
 		t.Errorf("frame bore = %q, want %q", frame.LowerBore, assembly.Bore44Pressed)
 	}
 	if want := (assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12}); frame.DefaultLowerCup != want {
 		t.Errorf("frame default cup = %+v, want %+v", frame.DefaultLowerCup, want)
 	}
-	for _, opt := range fix.Forks {
+	for _, opt := range wb.Forks {
 		if opt.Spec.Steerer != assembly.SteererTapered {
 			t.Errorf("fork %s steerer = %q, want tapered", opt.ID, opt.Spec.Steerer)
 		}
@@ -3350,17 +3350,17 @@ func TestFixtureHeadsetPairings(t *testing.T) {
 			t.Errorf("fork %s cup = %+v, want the frame default %+v", opt.ID, opt.DefaultLowerCup, frame.DefaultLowerCup)
 		}
 	}
-	if got := fix.cadForkOption().Spec.Steerer; got != assembly.SteererCAD {
+	if got := wb.cadForkOption().Spec.Steerer; got != assembly.SteererCAD {
 		t.Errorf("CAD fork steerer = %q, want the CAD sentinel", got)
 	}
-	if err := fix.validate(); err != nil {
+	if err := wb.validate(); err != nil {
 		t.Errorf("validate: %v", err)
 	}
-	// A fork whose steerer the frame's cup rejects fails fixture validation.
-	bad := otsoFenrirFixture()
+	// A fork whose steerer the frame's cup rejects fails workbench validation.
+	bad := fenrirWorkbench()
 	bad.Forks[0].Spec.Steerer = ""
 	if err := bad.validate(); err == nil {
-		t.Error("fixture with an unknown steerer validated")
+		t.Error("workbench with an unknown steerer validated")
 	}
 }
 
@@ -3551,8 +3551,8 @@ func TestBikeWorkbenchDefaultSaddleHeightQ92(t *testing.T) {
 	if got := metricText(cad, "brp-height"); got != "746.0 mm" {
 		t.Errorf("CAD radial BRP height = %q, want 746.0 mm", got)
 	}
-	fix := otsoFenrirFixture()
-	resolved, inputErr := decodeWorkbenchState(fix, url.Values{})
+	wb := fenrirWorkbench()
+	resolved, inputErr := decodeWorkbenchState(wb, url.Values{})
 	if inputErr != nil {
 		t.Fatal(inputErr)
 	}

@@ -37,7 +37,7 @@ func makeForkOption(id, name string, spec assembly.ForkSpec, defaultSagPct float
 	}
 }
 
-type bikeFixture struct {
+type bikeWorkbench struct {
 	Name                   string
 	Chart                  assembly.FrameChart
 	Wheels                 assembly.WheelSetup
@@ -61,33 +61,33 @@ type bikeFixture struct {
 	ExampleGripTarget pose.Point
 }
 
-func (f bikeFixture) cadForkOption() forkOption {
+func (w bikeWorkbench) cadForkOption() forkOption {
 	return forkOption{
 		ID:   cadForkOptionID,
 		Name: "CAD Baseline Fork",
 		Label: fmt.Sprintf(
 			"CAD Baseline Fork (%.0f mm A2C / %.0f mm rake, %.0f mm cup)",
-			f.Chart.CadFork.A2cMm, f.Chart.CadFork.RakeMm, f.Chart.CadLowerCup.StackMm,
+			w.Chart.CadFork.A2cMm, w.Chart.CadFork.RakeMm, w.Chart.CadLowerCup.StackMm,
 		),
 		Spec: assembly.ForkSpec{
-			StaticA2cMm: f.Chart.CadFork.A2cMm,
+			StaticA2cMm: w.Chart.CadFork.A2cMm,
 			TravelMm:    0.0,
-			RakeMm:      f.Chart.CadFork.RakeMm,
+			RakeMm:      w.Chart.CadFork.RakeMm,
 			Steerer:     assembly.SteererCAD, // sentinel: the CAD fork has no physical steerer
 		},
 		DefaultSagPct:   0.0,
-		DefaultLowerCup: f.Chart.CadLowerCup,
+		DefaultLowerCup: w.Chart.CadLowerCup,
 	}
 }
 
-func (f bikeFixture) resolveForkOption(requestedID string) (forkOption, bool) {
+func (w bikeWorkbench) resolveForkOption(requestedID string) (forkOption, bool) {
 	if requestedID == "" {
-		requestedID = f.DefaultForkID
+		requestedID = w.DefaultForkID
 	}
 	if requestedID == cadForkOptionID {
-		return f.cadForkOption(), true
+		return w.cadForkOption(), true
 	}
-	for _, opt := range f.Forks {
+	for _, opt := range w.Forks {
 		if opt.ID == requestedID {
 			return opt, true
 		}
@@ -101,16 +101,16 @@ type stockForkOption struct {
 	SagPct float64
 }
 
-// stockForks returns the fork configurations stock fitting offers, in fixture
+// stockForks returns the fork configurations stock fitting offers, in workbench
 // order: a rigid fork once at 0% sag, a suspension fork at each StockSagPcts.
-func (f bikeFixture) stockForks() []stockForkOption {
+func (w bikeWorkbench) stockForks() []stockForkOption {
 	var offered []stockForkOption
-	for _, opt := range f.Forks {
+	for _, opt := range w.Forks {
 		if opt.Spec.TravelMm == 0 {
 			offered = append(offered, stockForkOption{Option: opt})
 			continue
 		}
-		for _, sag := range f.StockSagPcts {
+		for _, sag := range w.StockSagPcts {
 			offered = append(offered, stockForkOption{Option: opt, SagPct: sag})
 		}
 	}
@@ -150,11 +150,11 @@ func handlebarSetups(bars []catalog.Handlebar) []assembly.HandlebarSetup {
 
 // resolveHandlebar returns the handlebar with requestedID, or the default
 // handlebar when requestedID is empty.
-func (f bikeFixture) resolveHandlebar(requestedID string) (catalog.Handlebar, bool) {
+func (w bikeWorkbench) resolveHandlebar(requestedID string) (catalog.Handlebar, bool) {
 	if requestedID == "" {
-		requestedID = f.DefaultHandlebarID
+		requestedID = w.DefaultHandlebarID
 	}
-	for _, opt := range f.Handlebars {
+	for _, opt := range w.Handlebars {
 		if opt.ID == requestedID {
 			return opt, true
 		}
@@ -164,11 +164,11 @@ func (f bikeFixture) resolveHandlebar(requestedID string) (catalog.Handlebar, bo
 
 // resolveSeatpost returns the seatpost with requestedID, or the default
 // seatpost when requestedID is empty.
-func (f bikeFixture) resolveSeatpost(requestedID string) (catalog.Seatpost, bool) {
+func (w bikeWorkbench) resolveSeatpost(requestedID string) (catalog.Seatpost, bool) {
 	if requestedID == "" {
-		requestedID = f.DefaultSeatpostID
+		requestedID = w.DefaultSeatpostID
 	}
-	for _, opt := range f.Seatposts {
+	for _, opt := range w.Seatposts {
 		if opt.ID == requestedID {
 			return opt, true
 		}
@@ -176,112 +176,112 @@ func (f bikeFixture) resolveSeatpost(requestedID string) (catalog.Seatpost, bool
 	return catalog.Seatpost{}, false
 }
 
-func (f bikeFixture) validate() error {
-	if st := f.DefaultStem; !(!math.IsNaN(st.MinLengthMm) && !math.IsInf(st.MinLengthMm, 0) &&
+func (w bikeWorkbench) validate() error {
+	if st := w.DefaultStem; !(!math.IsNaN(st.MinLengthMm) && !math.IsInf(st.MinLengthMm, 0) &&
 		!math.IsNaN(st.MaxLengthMm) && !math.IsInf(st.MaxLengthMm, 0) &&
 		st.MinLengthMm > 0 && st.MinLengthMm <= st.MaxLengthMm) {
-		return fmt.Errorf("fixture %q default stem length range must be finite with 0 < min <= max, got [%v, %v]", f.Name, st.MinLengthMm, st.MaxLengthMm)
+		return fmt.Errorf("workbench %q default stem length range must be finite with 0 < min <= max, got [%v, %v]", w.Name, st.MinLengthMm, st.MaxLengthMm)
 	}
-	if err := f.CockpitStock.Validate(); err != nil {
-		return fmt.Errorf("fixture %q cockpit stock invalid: %w", f.Name, err)
+	if err := w.CockpitStock.Validate(); err != nil {
+		return fmt.Errorf("workbench %q cockpit stock invalid: %w", w.Name, err)
 	}
-	if err := f.CockpitPreferences.Validate(); err != nil {
-		return fmt.Errorf("fixture %q cockpit preferences invalid: %w", f.Name, err)
+	if err := w.CockpitPreferences.Validate(); err != nil {
+		return fmt.Errorf("workbench %q cockpit preferences invalid: %w", w.Name, err)
 	}
-	if f.DefaultForkID == "" {
-		return fmt.Errorf("fixture %q missing DefaultForkID", f.Name)
+	if w.DefaultForkID == "" {
+		return fmt.Errorf("workbench %q missing DefaultForkID", w.Name)
 	}
-	if f.DefaultForkID == cadForkOptionID {
-		return fmt.Errorf("fixture %q DefaultForkID cannot be reserved ID %q", f.Name, cadForkOptionID)
+	if w.DefaultForkID == cadForkOptionID {
+		return fmt.Errorf("workbench %q DefaultForkID cannot be reserved ID %q", w.Name, cadForkOptionID)
 	}
 	defaultFound := false
-	for _, opt := range f.Forks {
+	for _, opt := range w.Forks {
 		if opt.ID == "" {
-			return fmt.Errorf("fixture %q has fork option with empty ID", f.Name)
+			return fmt.Errorf("workbench %q has fork option with empty ID", w.Name)
 		}
 		if opt.ID == cadForkOptionID {
-			return fmt.Errorf("fixture %q has fork option using reserved ID %q", f.Name, cadForkOptionID)
+			return fmt.Errorf("workbench %q has fork option using reserved ID %q", w.Name, cadForkOptionID)
 		}
 		if err := (assembly.ForkSetup{Spec: opt.Spec, SagPct: opt.DefaultSagPct}).Validate(); err != nil {
-			return fmt.Errorf("fixture %q fork option %q invalid: %w", f.Name, opt.ID, err)
+			return fmt.Errorf("workbench %q fork option %q invalid: %w", w.Name, opt.ID, err)
 		}
 		if err := opt.DefaultLowerCup.Validate(); err != nil {
-			return fmt.Errorf("fixture %q fork option %q lower cup invalid: %w", f.Name, opt.ID, err)
+			return fmt.Errorf("workbench %q fork option %q lower cup invalid: %w", w.Name, opt.ID, err)
 		}
 		if opt.DefaultLowerCup.Standard == assembly.LowerCupBareHeadTube {
-			return fmt.Errorf("fixture %q installable fork option %q cannot use %q lower cup", f.Name, opt.ID, assembly.LowerCupBareHeadTube)
+			return fmt.Errorf("workbench %q installable fork option %q cannot use %q lower cup", w.Name, opt.ID, assembly.LowerCupBareHeadTube)
 		}
-		if _, err := assembly.PlaceFrameset(f.Chart.Frame, opt.DefaultLowerCup, assembly.ForkSetup{Spec: opt.Spec, SagPct: opt.DefaultSagPct}, f.Wheels); err != nil {
-			return fmt.Errorf("fixture %q fork option %q does not fit the frame: %w", f.Name, opt.ID, err)
+		if _, err := assembly.PlaceFrameset(w.Chart.Frame, opt.DefaultLowerCup, assembly.ForkSetup{Spec: opt.Spec, SagPct: opt.DefaultSagPct}, w.Wheels); err != nil {
+			return fmt.Errorf("workbench %q fork option %q does not fit the frame: %w", w.Name, opt.ID, err)
 		}
-		if opt.ID == f.DefaultForkID {
+		if opt.ID == w.DefaultForkID {
 			defaultFound = true
 		}
 	}
 	if !defaultFound {
-		return fmt.Errorf("fixture %q DefaultForkID %q not found in Forks", f.Name, f.DefaultForkID)
+		return fmt.Errorf("workbench %q DefaultForkID %q not found in Forks", w.Name, w.DefaultForkID)
 	}
-	if len(f.StockSagPcts) == 0 {
-		return fmt.Errorf("fixture %q missing StockSagPcts", f.Name)
+	if len(w.StockSagPcts) == 0 {
+		return fmt.Errorf("workbench %q missing StockSagPcts", w.Name)
 	}
-	for _, opt := range f.stockForks() {
+	for _, opt := range w.stockForks() {
 		if err := (assembly.ForkSetup{Spec: opt.Option.Spec, SagPct: opt.SagPct}).Validate(); err != nil {
-			return fmt.Errorf("fixture %q stock fork %q at %v%% sag invalid: %w", f.Name, opt.Option.ID, opt.SagPct, err)
+			return fmt.Errorf("workbench %q stock fork %q at %v%% sag invalid: %w", w.Name, opt.Option.ID, opt.SagPct, err)
 		}
 	}
-	if err := (assembly.ForkSetup{Spec: f.cadForkOption().Spec, SagPct: 0.0}).Validate(); err != nil {
-		return fmt.Errorf("fixture %q Chart.CadFork invalid: %w", f.Name, err)
+	if err := (assembly.ForkSetup{Spec: w.cadForkOption().Spec, SagPct: 0.0}).Validate(); err != nil {
+		return fmt.Errorf("workbench %q Chart.CadFork invalid: %w", w.Name, err)
 	}
-	if err := f.Chart.CadLowerCup.Validate(); err != nil {
-		return fmt.Errorf("fixture %q Chart.CadLowerCup invalid: %w", f.Name, err)
+	if err := w.Chart.CadLowerCup.Validate(); err != nil {
+		return fmt.Errorf("workbench %q Chart.CadLowerCup invalid: %w", w.Name, err)
 	}
-	if _, err := assembly.PlaceCadBaselineFork(f.Chart, f.Wheels); err != nil {
-		return fmt.Errorf("fixture %q CAD baseline fork does not fit the frame: %w", f.Name, err)
+	if _, err := assembly.PlaceCadBaselineFork(w.Chart, w.Wheels); err != nil {
+		return fmt.Errorf("workbench %q CAD baseline fork does not fit the frame: %w", w.Name, err)
 	}
-	if f.DefaultHandlebarID == "" {
-		return fmt.Errorf("fixture %q missing DefaultHandlebarID", f.Name)
+	if w.DefaultHandlebarID == "" {
+		return fmt.Errorf("workbench %q missing DefaultHandlebarID", w.Name)
 	}
-	if _, ok := f.resolveHandlebar(f.DefaultHandlebarID); !ok {
-		return fmt.Errorf("fixture %q DefaultHandlebarID %q not found in Handlebars", f.Name, f.DefaultHandlebarID)
+	if _, ok := w.resolveHandlebar(w.DefaultHandlebarID); !ok {
+		return fmt.Errorf("workbench %q DefaultHandlebarID %q not found in Handlebars", w.Name, w.DefaultHandlebarID)
 	}
-	seenBars := make(map[string]bool, len(f.Handlebars))
-	for _, opt := range f.Handlebars {
+	seenBars := make(map[string]bool, len(w.Handlebars))
+	for _, opt := range w.Handlebars {
 		if opt.ID == "" {
-			return fmt.Errorf("fixture %q has handlebar option with empty ID", f.Name)
+			return fmt.Errorf("workbench %q has handlebar option with empty ID", w.Name)
 		}
 		if seenBars[opt.ID] {
-			return fmt.Errorf("fixture %q has duplicate handlebar ID %q", f.Name, opt.ID)
+			return fmt.Errorf("workbench %q has duplicate handlebar ID %q", w.Name, opt.ID)
 		}
 		seenBars[opt.ID] = true
 		if opt.Setup.BarRollDeg != 0 {
-			return fmt.Errorf("fixture %q handlebar %q must not set BarRollDeg", f.Name, opt.ID)
+			return fmt.Errorf("workbench %q handlebar %q must not set BarRollDeg", w.Name, opt.ID)
 		}
 		if _, err := assembly.PlaceHandlebar(pose.NewPose(pose.Point{}, 0), opt.Setup); err != nil {
-			return fmt.Errorf("fixture %q handlebar %q invalid: %w", f.Name, opt.ID, err)
+			return fmt.Errorf("workbench %q handlebar %q invalid: %w", w.Name, opt.ID, err)
 		}
 	}
-	if f.DefaultSeatpostID == "" {
-		return fmt.Errorf("fixture %q missing DefaultSeatpostID", f.Name)
+	if w.DefaultSeatpostID == "" {
+		return fmt.Errorf("workbench %q missing DefaultSeatpostID", w.Name)
 	}
-	defaultPost, ok := f.resolveSeatpost(f.DefaultSeatpostID)
+	defaultPost, ok := w.resolveSeatpost(w.DefaultSeatpostID)
 	if !ok {
-		return fmt.Errorf("fixture %q DefaultSeatpostID %q not found in Seatposts", f.Name, f.DefaultSeatpostID)
+		return fmt.Errorf("workbench %q DefaultSeatpostID %q not found in Seatposts", w.Name, w.DefaultSeatpostID)
 	}
-	seenPosts := make(map[string]bool, len(f.Seatposts))
-	for _, opt := range f.Seatposts {
+	seenPosts := make(map[string]bool, len(w.Seatposts))
+	for _, opt := range w.Seatposts {
 		if opt.ID == "" {
-			return fmt.Errorf("fixture %q has seatpost option with empty ID", f.Name)
+			return fmt.Errorf("workbench %q has seatpost option with empty ID", w.Name)
 		}
 		if seenPosts[opt.ID] {
-			return fmt.Errorf("fixture %q has duplicate seatpost ID %q", f.Name, opt.ID)
+			return fmt.Errorf("workbench %q has duplicate seatpost ID %q", w.Name, opt.ID)
 		}
 		seenPosts[opt.ID] = true
-		if _, err := assembly.SeatpostInsertionBounds(f.Chart.Frame, opt.Spec); err != nil {
-			return fmt.Errorf("fixture %q seatpost %q invalid: %w", f.Name, opt.ID, err)
+		if _, err := assembly.SeatpostInsertionBounds(w.Chart.Frame, opt.Spec); err != nil {
+			return fmt.Errorf("workbench %q seatpost %q invalid: %w", w.Name, opt.ID, err)
 		}
 	}
-	if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0), f.Chart.Frame, assembly.SeatpostSetup{Spec: defaultPost.Spec, InsertionMm: f.DefaultPostInsertionMm}); err != nil {
-		return fmt.Errorf("fixture %q default seatpost %q at DefaultPostInsertionMm invalid: %w", f.Name, f.DefaultSeatpostID, err)
+	if _, err := assembly.PlaceSeatpost(pose.NewPose(pose.Point{}, 0), w.Chart.Frame, assembly.SeatpostSetup{Spec: defaultPost.Spec, InsertionMm: w.DefaultPostInsertionMm}); err != nil {
+		return fmt.Errorf("workbench %q default seatpost %q at DefaultPostInsertionMm invalid: %w", w.Name, w.DefaultSeatpostID, err)
 	}
 	return nil
 }
@@ -289,10 +289,10 @@ func (f bikeFixture) validate() error {
 // defaultSuspensionSagPct is the sag a suspension fork option starts at.
 const defaultSuspensionSagPct = 20.0 // Q32 ideal sag
 
-// otsoFenrirFixture returns the Otso Fenrir Stainless (2024, Size L) workbench,
+// fenrirWorkbench returns the Otso Fenrir Stainless (2024, Size L) workbench,
 // built from the catalog's frame, forks, parts, and fit targets plus the
 // Fenrir-L workbench defaults below.
-func otsoFenrirFixture() bikeFixture {
+func fenrirWorkbench() bikeWorkbench {
 	const frameID, sizeName = "otso-fenrir-stainless", "L"
 	frame, ok := catalog.FrameByID(frameID)
 	if !ok {
@@ -314,7 +314,7 @@ func otsoFenrirFixture() bikeFixture {
 		forks = append(forks, makeForkOption(ff.Fork.ID, ff.Fork.Name, ff.Spec(), sag, chart.Frame.DefaultLowerCup))
 	}
 	saddle := catalog.DefaultSaddle()
-	return bikeFixture{
+	return bikeWorkbench{
 		Name:          fmt.Sprintf("%s %s (%d, Size %s)", frame.Manufacturer, frame.Model, frame.Year, size.Name),
 		Chart:         chart,
 		Wheels:        assembly.WheelSetup{RadiusMm: catalog.WheelRadiusMm},
