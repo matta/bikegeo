@@ -887,16 +887,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := buildBikeView(
-		fix,
-		resolved.State.View,
-		resolved.State.ForkID,
-		resolved.State.BarID,
-		bike,
-		cadBaselineFork,
-		tr.Steps(),
-	)
-	view.withSubmittedState(fix, bike.Setup, resolved.State)
+	view := buildBikeView(fix, resolved.State, bike, cadBaselineFork, tr.Steps())
 	if resolved.State.Targets.any() {
 		target := resolved.State.Targets.fitTarget()
 		fitting, err := assembly.ApplyFitting(resolved.Setup, target, nil)
@@ -906,16 +897,24 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		}
 		view.Fitting = buildFittingView(resolved.State, bike, fitting)
 		if resolved.State.Targets.HasGrip {
-			stock := fix.CockpitStock
+			// offered is the bar list stock fitting enumerates; its indices
+			// name each candidate's bar.
+			var offered []handlebarOption
 			if resolved.State.AllStockBars {
-				stock.Handlebars = fix.handlebarSetups()
+				offered = fix.Handlebars
 			}
+			stock := fix.CockpitStock
+			stock.Handlebars = handlebarSetups(offered)
 			result, err := assembly.ApplyStockFitting(resolved.Setup, target, stock, fix.CockpitPreferences, stockCandidateLimit)
 			if err != nil {
 				renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
 				return
 			}
-			view.Fitting.Stock = buildStockFittingView(resolved.State, fix, result)
+			view.Fitting.Stock, err = buildStockFittingView(resolved.State, fix, offered, result)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 	// A half-entered target is not applied, but the box keeps what was typed.
@@ -976,7 +975,9 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 	return fv
 }
 
-func buildStockFittingView(state workbenchState, fix bikeFixture, stock assembly.StockFitting) *stockFittingView {
+// buildStockFittingView renders stock fitting results. offered is the bar
+// list handed to stock fitting as CockpitStock.Handlebars, in the same order.
+func buildStockFittingView(state workbenchState, fix bikeFixture, offered []handlebarOption, stock assembly.StockFitting) (*stockFittingView, error) {
 	prefs := fix.CockpitPreferences
 	o := prefs.GripOval
 	view := &stockFittingView{
@@ -986,12 +987,16 @@ func buildStockFittingView(state workbenchState, fix bikeFixture, stock assembly
 			o.SemiMinorMm, o.SemiMajorMm, freeRangeText(prefs.StemLength, " mm"), freeRangeText(prefs.StemAngle, "°"), freeRangeText(prefs.Spacers, " mm")),
 		Rows: make([]stockCandidateView, 0, len(stock.Candidates)),
 	}
+	submittedBar, _ := fix.resolveHandlebar(state.BarID)
 	for i, c := range stock.Candidates {
 		stem := c.Placement.Setup.Stem
 		applied := state.withSetup(c.Placement.Setup)
-		bar, _ := fix.resolveHandlebar(state.BarID)
-		if c.HandlebarIndex >= 0 {
-			bar = fix.Handlebars[c.HandlebarIndex]
+		bar := submittedBar
+		if c.StockHandlebar {
+			if c.HandlebarIndex < 0 || c.HandlebarIndex >= len(offered) {
+				return nil, fmt.Errorf("stock candidate %d names handlebar %d of %d offered", i+1, c.HandlebarIndex, len(offered))
+			}
+			bar = offered[c.HandlebarIndex]
 			applied.BarID = bar.ID
 		}
 		view.Rows = append(view.Rows, stockCandidateView{
@@ -1007,7 +1012,7 @@ func buildStockFittingView(state workbenchState, fix bikeFixture, stock assembly
 			ApplyURL:     applied.URL(),
 		})
 	}
-	return view
+	return view, nil
 }
 
 func freeRangeText(b assembly.PricedBand, unit string) string {
@@ -1467,24 +1472,17 @@ func workbenchLinks(fix bikeFixture, state workbenchState) (defaultsURL, cadURL 
 	return defaultsURL, cadURL, viewLinks
 }
 
-// withSubmittedState carries the submitted options that are not part of the
-// placed setup (fit targets, stock bar option) into the view's form echo,
-// canonical URL, and links. The diagram itself still shows the submitted build.
-func (v *bikeView) withSubmittedState(fix bikeFixture, setup assembly.BikeSetup, submitted workbenchState) {
-	state := submitted.withSetup(setup)
-	v.Form = state.formValues()
-	v.CanonicalURL = state.URL()
-	v.DefaultsURL, v.CadBaselineForkURL, v.ViewLinks = workbenchLinks(fix, state)
-}
-
+// buildBikeView renders the placed bike. The form echo, canonical URL, and
+// links carry submitted's options that are not part of the placed setup (fit
+// targets, stock bar option).
 func buildBikeView(
 	fix bikeFixture,
-	view diagramView,
-	forkID, barID string,
+	submitted workbenchState,
 	bike assembly.BikePlacement,
 	cadBaselineFork assembly.ChartBaseline,
 	steps []pose.Step,
 ) bikeView {
+	view, forkID, barID := submitted.View, submitted.ForkID, submitted.BarID
 	placed := bike.Frameset
 	seatpost := bike.Seatpost
 	saddle := bike.Saddle
@@ -1606,7 +1604,7 @@ func buildBikeView(
 		landmarks = append(landmarks, lm)
 	}
 
-	state := workbenchStateFromSetup(view, forkID, barID, bike.Setup)
+	state := submitted.withSetup(bike.Setup)
 	form := state.formValues()
 	forkA2cRO, cupRO, sagRO, cupLabel, cadNote := forkFieldViewState(fix, forkID, form.Sag)
 	defaultsURL, cadURL, viewLinks := workbenchLinks(fix, state)

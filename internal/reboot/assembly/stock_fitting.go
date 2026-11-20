@@ -152,7 +152,8 @@ type LedgerLine struct {
 type StockCandidate struct {
 	Placement      BikePlacement
 	Target         pose.Point   // HandGrip target
-	HandlebarIndex int          // index into CockpitStock.Handlebars of the installed bar, or -1 when the submitted bar was kept
+	StockHandlebar bool         // the bar came from CockpitStock.Handlebars; false when the submitted bar was kept
+	HandlebarIndex int          // index into CockpitStock.Handlebars of the installed bar; meaningful only when StockHandlebar
 	GripR          float64      // normalized radius of the placed HandGrip
 	Ledger         []LedgerLine // oval, stem length, stem angle, spacers
 }
@@ -226,15 +227,16 @@ func ApplyStockFitting(setup BikeSetup, target FitTarget, stock CockpitStock, pr
 	lengths := stockSteps(base.Stem.MinLengthMm, base.Stem.MaxLengthMm, stock.StemLengthStepMm)
 	stacks := stockSteps(0, base.Stem.MaxSpacersMm, stock.SpacerStepMm)
 	type stockBar struct {
+		stock bool
 		index int
 		setup HandlebarSetup
 	}
-	bars := []stockBar{{index: -1, setup: base.Handlebar}}
+	bars := []stockBar{{setup: base.Handlebar}}
 	if len(stock.Handlebars) > 0 {
 		bars = make([]stockBar, len(stock.Handlebars))
 		for i, bar := range stock.Handlebars {
 			bar.BarRollDeg = base.Handlebar.BarRollDeg // Q24
-			bars[i] = stockBar{index: i, setup: bar}
+			bars[i] = stockBar{stock: true, index: i, setup: bar}
 		}
 	}
 	var candidates []StockCandidate
@@ -255,6 +257,7 @@ func ApplyStockFitting(setup BikeSetup, target FitTarget, stock CockpitStock, pr
 					candidates = append(candidates, StockCandidate{
 						Placement:      placement,
 						Target:         grip,
+						StockHandlebar: bar.stock,
 						HandlebarIndex: bar.index,
 						GripR:          r,
 						Ledger: []LedgerLine{

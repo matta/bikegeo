@@ -242,7 +242,7 @@ func TestStockFittingKeepsSubmittedBarByDefault(t *testing.T) {
 	setup := fenrirFittingSetup()
 	fit := mustStockFit(t, setup, assembly.FitTarget{HandGrip: &fitReportGrip}, 450)
 	for i, c := range fit.Candidates {
-		if c.HandlebarIndex != -1 || c.Placement.Setup.Handlebar != setup.Handlebar {
+		if c.StockHandlebar || c.Placement.Setup.Handlebar != setup.Handlebar {
 			t.Errorf("rank %d did not keep the submitted handlebar", i+1)
 		}
 	}
@@ -263,7 +263,7 @@ func TestStockFittingChoosesAmongHandlebars(t *testing.T) {
 	var counts [2]int
 	for i, c := range full.Candidates {
 		index := c.HandlebarIndex
-		if index < 0 || index >= len(stock.Handlebars) {
+		if !c.StockHandlebar || index < 0 || index >= len(stock.Handlebars) {
 			t.Fatalf("rank %d handlebar index = %d, want 0 or 1", i+1, index)
 		}
 		counts[index]++
@@ -292,7 +292,7 @@ func TestStockFittingChoosesAmongHandlebars(t *testing.T) {
 		{stockStem{-17, 120, 10}, 0.396539, 88.6},
 	} {
 		c := fit.Candidates[i]
-		if c.HandlebarIndex != 1 {
+		if !c.StockHandlebar || c.HandlebarIndex != 1 {
 			t.Errorf("rank %d handlebar index = %d, want 1", i+1, c.HandlebarIndex)
 		}
 		requireStockStem(t, c, want.stem)
@@ -338,7 +338,7 @@ func TestStockFittingInstallsEveryBarAtSubmittedRoll(t *testing.T) {
 		{2, stockStem{-17, 120, 5}, 0.055006, 88.6},
 	} {
 		c := fit.Candidates[want.index]
-		if c.HandlebarIndex != 1 {
+		if !c.StockHandlebar || c.HandlebarIndex != 1 {
 			t.Errorf("rank %d handlebar index = %d, want 1", want.index+1, c.HandlebarIndex)
 		}
 		requireStockStem(t, c, want.stem)

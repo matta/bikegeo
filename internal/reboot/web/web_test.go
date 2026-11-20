@@ -747,7 +747,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 		t.Fatalf("PlaceCadBaselineFork: %v", err)
 	}
 
-	view := buildBikeView(fix, diagramViewBike, "fox34_120", "persuader20_800", bike, cadBaselineFork, tr.Steps())
+	view := buildBikeView(fix, workbenchState{View: diagramViewBike, ForkID: "fox34_120", BarID: "persuader20_800"}, bike, cadBaselineFork, tr.Steps())
 
 	if view.WheelRadiusMm != customWheels.RadiusMm {
 		t.Errorf("view.WheelRadiusMm = %.1f, want placed radius %.1f (not fixture %.1f)", view.WheelRadiusMm, customWheels.RadiusMm, fix.Wheels.RadiusMm)
@@ -2062,7 +2062,7 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceCadBaselineFork: %v", err)
 	}
-	view := buildBikeView(fix, diagramViewBike, resolved.State.ForkID, resolved.State.BarID, bike, cad, tr.Steps())
+	view := buildBikeView(fix, resolved.State, bike, cad, tr.Steps())
 	if view.DrawScale != 1 {
 		t.Errorf("whole-bike DrawScale = %v, want exactly 1", view.DrawScale)
 	}
