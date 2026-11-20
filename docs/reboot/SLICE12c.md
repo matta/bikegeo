@@ -1,6 +1,35 @@
 # Slice 12c: Go catalog port and 19-frame closure
 
-Status: Planned 2026-11-20
+Status: Implemented 2026-11-20; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-20, Claude Opus 5.5 (`claude-opus-5-5`) in Claude Code.
+- **Commits:**
+  1. `9942803` Add the reboot parts catalog
+  2. `41f6123` Port the 19 legacy frames into the reboot catalog
+  3. `425bdb8` Build the bike workbench from the reboot catalog
+  4. `0933899` Rename the web fixture to the bike workbench
+
+  This handoff and the DESIGN.md Milestones line are a separate docs-only commit.
+- **Done:** A1–A7, F1–F9 (with F2n and F5n), W1–W4, and commit 4's rename. All 19 frame files came from a throwaway generator that read legacy `internal/frames` and `geometry.InferChartPrecision` and wrote the Go literals and labels. The generator was deleted and never committed, and the F8/F9 parity tests pin its output. Changing one published value (Fenrir XS Reach 387 → 388) failed F8 as expected, and the change was reverted. **Not done:** nothing.
+- **Deviations:**
+  - **F5 count.** The plan's 701 counts only the fork-list placements. The CAD baseline adds one placement per size (119), so the total is 820. I recounted from the legacy fork lists with an independent `awk` pass over `internal/frames/*.go`. It also gives 820 = 701 + 119. `TestForkListsPlace` asserts 701 fork-list placements and 119 CAD baseline placements separately, so the plan's number holds without being changed.
+  - **F5n** is its own test, `TestForkListsPlaceChecksSteerers` (the plan doesn't name it). It uses 20% sag.
+  - **F2 max chainstay** reports one problem per frame, comparing against the longest published chainstay. This makes F2n's "exactly one problem" hold for the five-size Fenrir.
+- **Verification:**
+  - `make pre-commit` exits 0 on each of the four commits and on the final state.
+  - `go test ./internal/reboot/catalog/ -run 'TestEverySizeCloses|TestForkListsPlace' -v` shows 119 passing closure subtests and logs `701 fork-list placements, 119 CAD baseline placements`.
+  - Precision literals match the plan's P column exactly.
+  - Web tests pass with only the fork-name strings changed. Every numeric expectation is byte for byte.
+  - **Live check:** port 8081 was taken, so the server ran from `.claude/launch.json` (`go run ./cmd/bikegeo-reboot serve`) on port 8082, not through `make serve-reboot`. On `/bike`, the heading reads `Otso Fenrir Stainless (2024, Size L)`. The fork select lists `Lithic Carbon Mountain (Rigid, 495 mm A2C / 54 mm rake)`, `RockShox SID 100mm (100 mm travel, 506 mm A2C / 44 mm rake)`, `Fox Float 34 120mm (120 mm travel, 530 mm A2C / 44 mm rake)`, and `CAD Baseline Fork (495 mm A2C / 54 mm rake, 0 mm cup)`. `|BRP - BB| (SQlab 610 Ergolux Active 2.1)` reads `745.6 mm`. `/bike?fork=cad` and `/bike?fork=sid_100&sag=25` return HTTP 200.
+  - **Screenshot:** `/Users/matt/.claude/projects/-Users-matt-src-bikegeo/3f6f0175-f47a-475a-b37e-fa56c2798604/tool-results/mcp-Claude_Browser-blob-1795217955154-4m2yjq.jpg` (outside the repo).
+- **Open issues:**
+  - `grep -rni fixture internal/reboot/web` finds nothing after commit 4.
+  - DESIGN.md still mentions `internal/reboot/web/fixture.go`: the Catalog bullet (around line 95), the "Catalog data lives in" bullet (around line 317), and the Q47 text. These are left for acceptance, as the plan says.
+  - No frame lists three of the 22 fork models: `sid_110`, `fox36_150`, and `rigid_483`. They are ported as catalog models only.
+  - The test-local custom `sid_100` fork in `web_test.go` keeps its old `"RockShox SID"` name, as W3 says.
+  - The `turner-venn-ti` XL stack (670 mm), which legacy notes is probably a transcription error for 690 mm, is kept as published, and it closes. Legacy's own corrections (`sklar-pbj` M wheelbase 1156 mm, `seven-expedition-926f` Endurance chainstay 463 mm) are ported as legacy has them and noted in each frame's doc comment.
 
 **Size: Larger** (4 commits, ~30 files, most of them frame data). Builds on Slice 12a (commits `e5b3af5`, `083e0a3`, `4360b44`, `741670c`, `a88060c`) and Slice 12b (commit `3b00a64`). Delegate the implementation to a lower-tier model (for example Sonnet). If you hit a design choice this plan doesn't cover, stop, set `Status: Blocked <date> on <question>`, and write the handoff. Don't guess.
 
