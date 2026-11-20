@@ -65,40 +65,41 @@ func (s CockpitStock) Validate() error {
 	return nil
 }
 
-// PricedBand is free inside [FreeMin, FreeMax] and charges linearly outside it.
-type PricedBand struct {
-	FreeMin, FreeMax     float64
-	CostBelow, CostAbove float64
+// PenaltyBand is free inside [FreeMin, FreeMax] and penalizes linearly outside it:
+// PointsPerUnitBelow points per unit below FreeMin, PointsPerUnitAbove per unit above FreeMax.
+type PenaltyBand struct {
+	FreeMin, FreeMax                       float64
+	PointsPerUnitBelow, PointsPerUnitAbove float64
 }
 
-// PointsLost returns the price of v under the band.
-func (b PricedBand) PointsLost(v float64) float64 {
+// PointsLost returns the penalty of v under the band.
+func (b PenaltyBand) PointsLost(v float64) float64 {
 	if v < b.FreeMin {
-		return b.CostBelow * (b.FreeMin - v)
+		return b.PointsPerUnitBelow * (b.FreeMin - v)
 	}
 	if v > b.FreeMax {
-		return b.CostAbove * (v - b.FreeMax)
+		return b.PointsPerUnitAbove * (v - b.FreeMax)
 	}
 	return 0
 }
 
-func (b PricedBand) validate(name string) error {
+func (b PenaltyBand) validate(name string) error {
 	if !isFinite(b.FreeMin) || !isFinite(b.FreeMax) || b.FreeMin > b.FreeMax {
 		return fmt.Errorf("%s band: free range must be finite with min <= max, got [%v, %v]", name, b.FreeMin, b.FreeMax)
 	}
-	if !isFinite(b.CostBelow) || !isFinite(b.CostAbove) || b.CostBelow < 0 || b.CostAbove < 0 {
-		return fmt.Errorf("%s band: costs must be finite and non-negative, got %v below and %v above", name, b.CostBelow, b.CostAbove)
+	if !isFinite(b.PointsPerUnitBelow) || !isFinite(b.PointsPerUnitAbove) || b.PointsPerUnitBelow < 0 || b.PointsPerUnitAbove < 0 {
+		return fmt.Errorf("%s band: points per unit must be finite and non-negative, got %v below and %v above", name, b.PointsPerUnitBelow, b.PointsPerUnitAbove)
 	}
 	return nil
 }
 
 // FitOval is the legacy Area of Reasonable Fit around a HandGrip target (Q17).
 // Its major axis follows MajorAxisHeadingDeg in world coordinates. It is free
-// inside (R ≤ 1) and charges CostPerR per unit of R beyond the edge.
+// inside (R ≤ 1) and penalizes PointsPerR points per unit of R beyond the edge.
 type FitOval struct {
 	SemiMinorMm, SemiMajorMm float64
 	MajorAxisHeadingDeg      pose.Deg
-	CostPerR                 float64
+	PointsPerR               float64
 }
 
 // NormalizedRadius returns R for p around center (R = 1 on the oval's edge).
@@ -109,23 +110,23 @@ func (o FitOval) NormalizedRadius(center, p pose.Point) float64 {
 	return pose.Point{X: minor, Y: major}.Norm()
 }
 
-// PointsLost returns CostPerR · max(0, r − 1).
+// PointsLost returns PointsPerR · max(0, r − 1).
 func (o FitOval) PointsLost(r float64) float64 {
-	return o.CostPerR * max(0, r-1)
+	return o.PointsPerR * max(0, r-1)
 }
 
-// CockpitPreferences prices a stock cockpit build on the points-lost ledger.
+// CockpitPreferences holds the bands that score a stock cockpit build (score = 100 − points lost).
 type CockpitPreferences struct {
 	GripOval   FitOval
-	StemLength PricedBand // mm
-	StemAngle  PricedBand // degrees
-	Spacers    PricedBand // mm
-	BarSweep   PricedBand // degrees of backsweep (Q30)
-	ForkSag    PricedBand // percent sag; penalizes suspension forks only (Q32)
-	BrpMiss    PricedBand // mm of remaining saddle BRP miss, for any cause; counts whenever there is a BRP target (Q32, Q34)
+	StemLength PenaltyBand // mm
+	StemAngle  PenaltyBand // degrees
+	Spacers    PenaltyBand // mm
+	BarSweep   PenaltyBand // degrees of backsweep (Q30)
+	ForkSag    PenaltyBand // percent sag; penalizes suspension forks only (Q32)
+	BrpMiss    PenaltyBand // mm of remaining saddle BRP miss, for any cause; counts whenever there is a BRP target (Q32, Q34)
 }
 
-// Validate checks the oval and each priced band.
+// Validate checks the oval and each penalty band.
 func (p CockpitPreferences) Validate() error {
 	o := p.GripOval
 	if !isFinite(o.SemiMinorMm) || !isFinite(o.SemiMajorMm) || o.SemiMinorMm <= 0 || o.SemiMajorMm <= 0 {
@@ -134,12 +135,12 @@ func (p CockpitPreferences) Validate() error {
 	if !isFinite(float64(o.MajorAxisHeadingDeg)) {
 		return fmt.Errorf("HandGrip oval: major axis heading must be finite, got %v°", o.MajorAxisHeadingDeg)
 	}
-	if !isFinite(o.CostPerR) || o.CostPerR < 0 {
-		return fmt.Errorf("HandGrip oval: cost must be finite and non-negative, got %v", o.CostPerR)
+	if !isFinite(o.PointsPerR) || o.PointsPerR < 0 {
+		return fmt.Errorf("HandGrip oval: points per R must be finite and non-negative, got %v", o.PointsPerR)
 	}
 	for _, entry := range []struct {
 		name string
-		band PricedBand
+		band PenaltyBand
 	}{
 		{string(BandStemLength), p.StemLength},
 		{string(BandStemAngle), p.StemAngle},
@@ -155,49 +156,49 @@ func (p CockpitPreferences) Validate() error {
 	return nil
 }
 
-// LedgerBand names one priced line of a stock cockpit ledger.
-type LedgerBand string
+// BandName names one penalty line of a stock cockpit build.
+type BandName string
 
 const (
-	BandGripOval   LedgerBand = "HandGrip oval"
-	BandStemLength LedgerBand = "stem length"
-	BandStemAngle  LedgerBand = "stem angle"
-	BandSpacers    LedgerBand = "spacers"
-	BandBarSweep   LedgerBand = "bar sweep"
-	BandForkSag    LedgerBand = "fork sag"
-	BandBrpMiss    LedgerBand = "BRP miss"
+	BandGripOval   BandName = "HandGrip oval"
+	BandStemLength BandName = "stem length"
+	BandStemAngle  BandName = "stem angle"
+	BandSpacers    BandName = "spacers"
+	BandBarSweep   BandName = "bar sweep"
+	BandForkSag    BandName = "fork sag"
+	BandBrpMiss    BandName = "BRP miss"
 )
 
-// LedgerLine is the points one band loses.
-type LedgerLine struct {
-	Band       LedgerBand
+// Penalty is the points one band takes off a build's score.
+type Penalty struct {
+	Band       BandName
 	PointsLost float64
 }
 
-// StockCandidate is one stock cockpit build, placed forward and priced.
+// StockCandidate is one stock cockpit build, placed forward and scored.
 type StockCandidate struct {
 	Placement      BikePlacement
-	Target         pose.Point   // HandGrip target
-	StockHandlebar bool         // the bar came from CockpitStock.Handlebars; false when the submitted bar was kept
-	HandlebarIndex int          // index into CockpitStock.Handlebars of the installed bar; meaningful only when StockHandlebar
-	StockFork      bool         // the fork came from CockpitStock.Forks; false when the submitted fork was kept
-	ForkIndex      int          // index into CockpitStock.Forks; meaningful only when StockFork
-	BrpTarget      *pose.Point  // saddle BRP target; nil without one
-	GripR          float64      // normalized radius of the placed HandGrip
-	Ledger         []LedgerLine // oval, stem length, stem angle, spacers, bar sweep, fork sag, BRP miss
+	Target         pose.Point  // HandGrip target
+	StockHandlebar bool        // the bar came from CockpitStock.Handlebars; false when the submitted bar was kept
+	HandlebarIndex int         // index into CockpitStock.Handlebars of the installed bar; meaningful only when StockHandlebar
+	StockFork      bool        // the fork came from CockpitStock.Forks; false when the submitted fork was kept
+	ForkIndex      int         // index into CockpitStock.Forks; meaningful only when StockFork
+	BrpTarget      *pose.Point // saddle BRP target; nil without one
+	GripR          float64     // normalized radius of the placed HandGrip
+	Penalties      []Penalty   // oval, stem length, stem angle, spacers, bar sweep, fork sag, BRP miss
 }
 
-// PointsLost returns the sum of the ledger's points lost, in ledger order.
+// PointsLost returns the sum of the penalties' points lost, in penalty order.
 func (c StockCandidate) PointsLost() float64 {
-	var total float64
-	for _, line := range c.Ledger {
-		total += line.PointsLost
+	var lost float64
+	for _, p := range c.Penalties {
+		lost += p.PointsLost
 	}
-	return total
+	return lost
 }
 
-// Total returns 100 − PointsLost().
-func (c StockCandidate) Total() float64 {
+// Score returns 100 − PointsLost().
+func (c StockCandidate) Score() float64 {
 	return 100 - c.PointsLost()
 }
 
@@ -216,8 +217,8 @@ func (c StockCandidate) BrpMiss() (pose.Point, bool) {
 
 // StockFitting is the result of ApplyStockFitting.
 type StockFitting struct {
-	Candidates []StockCandidate // cheapest first; at most the requested limit
-	Evaluated  int              // stock combinations placed and priced
+	Candidates []StockCandidate // best-scoring first; at most the requested limit
+	Evaluated  int              // stock combinations placed and scored
 }
 
 // ApplyStockFitting places every stock combination of fork configuration,
@@ -325,7 +326,7 @@ func ApplyStockFitting(setup BikeSetup, target FitTarget, stock CockpitStock, pr
 							BrpTarget:      brp,
 							GripR:          r,
 						}
-						result.Ledger = []LedgerLine{
+						result.Penalties = []Penalty{
 							{Band: BandGripOval, PointsLost: prefs.GripOval.PointsLost(r)},
 							{Band: BandStemLength, PointsLost: prefs.StemLength.PointsLost(length)},
 							{Band: BandStemAngle, PointsLost: prefs.StemAngle.PointsLost(float64(angle))},
@@ -353,7 +354,7 @@ func ApplyStockFitting(setup BikeSetup, target FitTarget, stock CockpitStock, pr
 }
 
 // forkSagPoints penalizes suspension sag. A rigid fork has no sag penalty (Q32).
-func forkSagPoints(band PricedBand, fork ForkSetup) float64 {
+func forkSagPoints(band PenaltyBand, fork ForkSetup) float64 {
 	if fork.Spec.TravelMm == 0 {
 		return 0
 	}
@@ -361,7 +362,7 @@ func forkSagPoints(band PricedBand, fork ForkSetup) float64 {
 }
 
 // brpMissPoints penalizes the remaining saddle BRP miss when there is a target (Q32, Q34).
-func brpMissPoints(band PricedBand, candidate StockCandidate) float64 {
+func brpMissPoints(band PenaltyBand, candidate StockCandidate) float64 {
 	miss, ok := candidate.BrpMiss()
 	if !ok {
 		return 0

@@ -412,13 +412,13 @@ func otsoFenrirFixture() bikeFixture {
 			SpacerStepMm:     5,
 		},
 		CockpitPreferences: assembly.CockpitPreferences{
-			GripOval:   assembly.FitOval{SemiMinorMm: 10, SemiMajorMm: 20, MajorAxisHeadingDeg: 60, CostPerR: 22}, // legacy idmatch oval (Q17)
-			StemLength: assembly.PricedBand{FreeMin: 70, FreeMax: 80, CostBelow: 0.2, CostAbove: 0.2},             // illustrative
-			StemAngle:  assembly.PricedBand{CostBelow: 0.2, CostAbove: 0.2},                                       // illustrative
-			Spacers:    assembly.PricedBand{FreeMax: 20, CostAbove: 0.4},                                          // illustrative
-			BarSweep:   assembly.PricedBand{FreeMin: 16, FreeMax: 20, CostBelow: 2, CostAbove: 2},                 // Matt's preference (Q30)
-			ForkSag:    assembly.PricedBand{FreeMin: 20, FreeMax: 20, CostBelow: 2, CostAbove: 2},                 // Matt's preference (Q32)
-			BrpMiss:    assembly.PricedBand{FreeMax: 1, CostAbove: 2},                                             // illustrative (Q32)
+			GripOval:   assembly.FitOval{SemiMinorMm: 10, SemiMajorMm: 20, MajorAxisHeadingDeg: 60, PointsPerR: 22},      // legacy idmatch oval (Q17)
+			StemLength: assembly.PenaltyBand{FreeMin: 70, FreeMax: 80, PointsPerUnitBelow: 0.2, PointsPerUnitAbove: 0.2}, // illustrative
+			StemAngle:  assembly.PenaltyBand{PointsPerUnitBelow: 0.2, PointsPerUnitAbove: 0.2},                           // illustrative
+			Spacers:    assembly.PenaltyBand{FreeMax: 20, PointsPerUnitAbove: 0.4},                                       // illustrative
+			BarSweep:   assembly.PenaltyBand{FreeMin: 16, FreeMax: 20, PointsPerUnitBelow: 2, PointsPerUnitAbove: 2},     // Matt's preference (Q30)
+			ForkSag:    assembly.PenaltyBand{FreeMin: 20, FreeMax: 20, PointsPerUnitBelow: 2, PointsPerUnitAbove: 2},     // Matt's preference (Q32)
+			BrpMiss:    assembly.PenaltyBand{FreeMax: 1, PointsPerUnitAbove: 2},                                          // illustrative (Q32)
 		},
 		StockSagPcts:       []float64{15, 20, 25}, // Q31
 		DefaultHandlebarID: "persuader20_800",

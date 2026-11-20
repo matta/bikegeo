@@ -820,7 +820,7 @@ type stockCandidateView struct {
 	StemLengthMm, SpacersMm float64
 	StemAngleDeg            pose.Deg
 	GripMissMm, GripR       float64
-	Lines                   []assembly.LedgerLine // assembly's ledger order
+	Lines                   []assembly.Penalty // assembly's penalty order
 	Total                   float64
 	ApplyURL                string // the candidate build, with the submitted targets kept
 }
@@ -1098,8 +1098,8 @@ func buildStockFittingView(state workbenchState, fix bikeFixture, offered []hand
 			StemAngleDeg: stem.AngleDeg,
 			GripMissMm:   c.GripMiss().Norm(),
 			GripR:        c.GripR,
-			Lines:        c.Ledger,
-			Total:        c.Total(),
+			Lines:        c.Penalties,
+			Total:        c.Score(),
 			ApplyURL:     applied.URL(),
 		}
 		if miss, ok := c.BrpMiss(); ok {
@@ -1125,7 +1125,7 @@ func stockPartsText(allForks, allBars bool) string {
 	}
 }
 
-func freeRangeText(b assembly.PricedBand, unit string) string {
+func freeRangeText(b assembly.PenaltyBand, unit string) string {
 	if b.FreeMin == b.FreeMax {
 		return fmt.Sprintf("%.0f%s", b.FreeMin, unit)
 	}

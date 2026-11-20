@@ -61,13 +61,13 @@ func fenrirForkStock() assembly.CockpitStock {
 
 func illustrativeCockpitPreferences() assembly.CockpitPreferences {
 	return assembly.CockpitPreferences{
-		GripOval:   assembly.FitOval{SemiMinorMm: 10, SemiMajorMm: 20, MajorAxisHeadingDeg: 60, CostPerR: 22},
-		StemLength: assembly.PricedBand{FreeMin: 70, FreeMax: 80, CostBelow: 0.2, CostAbove: 0.2},
-		StemAngle:  assembly.PricedBand{CostBelow: 0.2, CostAbove: 0.2},
-		Spacers:    assembly.PricedBand{FreeMax: 20, CostAbove: 0.4},
-		BarSweep:   assembly.PricedBand{FreeMin: 16, FreeMax: 20, CostBelow: 2, CostAbove: 2},
-		ForkSag:    assembly.PricedBand{FreeMin: 20, FreeMax: 20, CostBelow: 2, CostAbove: 2},
-		BrpMiss:    assembly.PricedBand{FreeMax: 1, CostAbove: 2},
+		GripOval:   assembly.FitOval{SemiMinorMm: 10, SemiMajorMm: 20, MajorAxisHeadingDeg: 60, PointsPerR: 22},
+		StemLength: assembly.PenaltyBand{FreeMin: 70, FreeMax: 80, PointsPerUnitBelow: 0.2, PointsPerUnitAbove: 0.2},
+		StemAngle:  assembly.PenaltyBand{PointsPerUnitBelow: 0.2, PointsPerUnitAbove: 0.2},
+		Spacers:    assembly.PenaltyBand{FreeMax: 20, PointsPerUnitAbove: 0.4},
+		BarSweep:   assembly.PenaltyBand{FreeMin: 16, FreeMax: 20, PointsPerUnitBelow: 2, PointsPerUnitAbove: 2},
+		ForkSag:    assembly.PenaltyBand{FreeMin: 20, FreeMax: 20, PointsPerUnitBelow: 2, PointsPerUnitAbove: 2},
+		BrpMiss:    assembly.PenaltyBand{FreeMax: 1, PointsPerUnitAbove: 2},
 	}
 }
 
@@ -80,7 +80,7 @@ func mustStockFit(t *testing.T, setup assembly.BikeSetup, target assembly.FitTar
 	return result
 }
 
-func TestPricedBand(t *testing.T) {
+func TestPenaltyBand(t *testing.T) {
 	prefs := illustrativeCockpitPreferences()
 	for _, tc := range []struct{ value, points float64 }{{60, 2}, {70, 0}, {75, 0}, {80, 0}, {130, 10}} {
 		assertNear(t, "length points", prefs.StemLength.PointsLost(tc.value), tc.points, 1e-12)
@@ -145,8 +145,8 @@ func TestStockFittingFreeBuild(t *testing.T) {
 	}
 	best := fit.Candidates[0]
 	requireStockStem(t, best, stockStem{0, 70, 10})
-	if best.GripR >= 1e-9 || best.PointsLost() != 0 || best.Total() != 100 {
-		t.Errorf("best build has R %v, points lost %v, total %v", best.GripR, best.PointsLost(), best.Total())
+	if best.GripR >= 1e-9 || best.PointsLost() != 0 || best.Score() != 100 {
+		t.Errorf("best build has R %v, points lost %v, score %v", best.GripR, best.PointsLost(), best.Score())
 	}
 }
 
@@ -172,7 +172,7 @@ func TestStockFittingReferenceBuilds(t *testing.T) {
 	fit = mustStockFit(t, base, assembly.FitTarget{HandGrip: &fitReportGrip}, 5)
 	for i, want := range []struct {
 		stem  stockStem
-		total float64
+		score float64
 	}{
 		{stockStem{-17, 130, 0}, 78.711983},
 		{stockStem{-17, 130, 5}, 69.982194},
@@ -180,13 +180,13 @@ func TestStockFittingReferenceBuilds(t *testing.T) {
 	} {
 		c := fit.Candidates[i]
 		requireStockStem(t, c, want.stem)
-		assertNear(t, "fit report total", c.Total(), want.total, 1e-5)
+		assertNear(t, "fit report score", c.Score(), want.score, 1e-5)
 	}
 	best := fit.Candidates[0]
 	assertNear(t, "fit report radius", best.GripR, 1.358546, 1e-5)
 	assertNear(t, "fit report miss", best.GripMiss().Norm(), 13.624, 1e-3)
 	for i, points := range []float64{7.888017, 10, 3.4, 0, 0, 0, 0} {
-		assertNear(t, "fit report ledger", best.Ledger[i].PointsLost, points, 1e-5)
+		assertNear(t, "fit report penalties", best.Penalties[i].PointsLost, points, 1e-5)
 	}
 }
 
@@ -196,7 +196,7 @@ func TestStockFittingForwardAndRankOrder(t *testing.T) {
 	if fit.Evaluated != 450 || len(fit.Candidates) != 450 {
 		t.Fatalf("evaluated %d, returned %d; want 450 each", fit.Evaluated, len(fit.Candidates))
 	}
-	wantBands := []assembly.LedgerBand{
+	wantBands := []assembly.BandName{
 		assembly.BandGripOval, assembly.BandStemLength, assembly.BandStemAngle,
 		assembly.BandSpacers, assembly.BandBarSweep, assembly.BandForkSag, assembly.BandBrpMiss,
 	}
@@ -210,8 +210,8 @@ func TestStockFittingForwardAndRankOrder(t *testing.T) {
 		if !reflect.DeepEqual(setup, base) {
 			t.Errorf("rank %d changed fixed inputs", i+1)
 		}
-		var bands []assembly.LedgerBand
-		for _, line := range c.Ledger {
+		var bands []assembly.BandName
+		for _, line := range c.Penalties {
 			bands = append(bands, line.Band)
 		}
 		if !slices.Equal(bands, wantBands) {
@@ -224,19 +224,19 @@ func TestStockFittingForwardAndRankOrder(t *testing.T) {
 			}
 		}
 	}
-	if total := fit.Candidates[449].Total(); total >= 0 {
-		t.Errorf("last total = %v, want a negative total", total)
+	if score := fit.Candidates[449].Score(); score >= 0 {
+		t.Errorf("last score = %v, want a negative score", score)
 	}
 }
 
-func TestStockFittingIndependentLedger(t *testing.T) {
+func TestStockFittingIndependentPenalties(t *testing.T) {
 	base := fenrirFittingSetup()
 	for _, grip := range []pose.Point{fitReportGrip, gripOf(t, base)} {
-		type pricedStem struct {
+		type scoredStem struct {
 			stem      stockStem
 			points, r float64
 		}
-		var oracle []pricedStem
+		var oracle []scoredStem
 		for _, angle := range []pose.Deg{-17, -6, 0, 6, 17} {
 			for length := 40.0; length <= 130; length += 10 {
 				for spacers := 0.0; spacers <= 40; spacers += 5 {
@@ -245,11 +245,11 @@ func TestStockFittingIndependentLedger(t *testing.T) {
 					p := gripOf(t, setup)
 					r := legacyGripRadius(p.X-grip.X, p.Y-grip.Y)
 					points := 22*max(0, r-1) + 0.2*max(0, 70-length, length-80) + 0.2*math.Abs(float64(angle)) + 0.4*max(0, spacers-20)
-					oracle = append(oracle, pricedStem{stockStem{angle, length, spacers}, points, r})
+					oracle = append(oracle, scoredStem{stockStem{angle, length, spacers}, points, r})
 				}
 			}
 		}
-		slices.SortStableFunc(oracle, func(a, b pricedStem) int {
+		slices.SortStableFunc(oracle, func(a, b scoredStem) int {
 			if order := cmp.Compare(a.points, b.points); order != 0 {
 				return order
 			}
@@ -322,7 +322,7 @@ func TestStockFittingChoosesAmongHandlebars(t *testing.T) {
 	}
 	for i, want := range []struct {
 		stem          stockStem
-		radius, total float64
+		radius, score float64
 	}{
 		{stockStem{-17, 110, 0}, 0.806233, 82.6},
 		{stockStem{-17, 110, 5}, 0.969920, 82.6},
@@ -336,7 +336,7 @@ func TestStockFittingChoosesAmongHandlebars(t *testing.T) {
 		}
 		requireStockStem(t, c, want.stem)
 		assertNear(t, "grip radius", c.GripR, want.radius, 1e-5)
-		assertNear(t, "total", c.Total(), want.total, 1e-9)
+		assertNear(t, "score", c.Score(), want.score, 1e-9)
 	}
 
 	setup.Handlebar = sqlab311Flx12x15Handlebar()
@@ -346,7 +346,7 @@ func TestStockFittingChoosesAmongHandlebars(t *testing.T) {
 	}
 	best := fit.Candidates[0]
 	requireStockStem(t, best, stockStemOf(single.Candidates[0].Placement.Setup.Stem))
-	assertNear(t, "single-bar total", best.Total(), single.Candidates[0].Total(), 1e-12)
+	assertNear(t, "single-bar score", best.Score(), single.Candidates[0].Score(), 1e-12)
 }
 
 func TestStockFittingPenalizesSweep(t *testing.T) {
@@ -364,11 +364,11 @@ func TestStockFittingPenalizesSweep(t *testing.T) {
 		if c.HandlebarIndex < 0 || c.HandlebarIndex >= len(pointsByBar) {
 			t.Fatalf("rank %d handlebar index = %d, want 0 or 1", i+1, c.HandlebarIndex)
 		}
-		if len(c.Ledger) != 7 {
-			t.Fatalf("rank %d has %d ledger lines, want 7", i+1, len(c.Ledger))
+		if len(c.Penalties) != 7 {
+			t.Fatalf("rank %d has %d penalty lines, want 7", i+1, len(c.Penalties))
 		}
-		want := assembly.LedgerLine{Band: assembly.BandBarSweep, PointsLost: pointsByBar[c.HandlebarIndex]}
-		if got := c.Ledger[4]; got != want {
+		want := assembly.Penalty{Band: assembly.BandBarSweep, PointsLost: pointsByBar[c.HandlebarIndex]}
+		if got := c.Penalties[4]; got != want {
 			t.Errorf("rank %d sweep line = %+v, want %+v", i+1, got, want)
 		}
 	}
@@ -396,7 +396,7 @@ func TestStockFittingInstallsEveryBarAtSubmittedRoll(t *testing.T) {
 	for _, want := range []struct {
 		index         int
 		stem          stockStem
-		radius, total float64
+		radius, score float64
 	}{
 		{0, stockStem{-17, 110, 0}, 0.573433, 82.6},
 		{2, stockStem{-17, 120, 5}, 0.055006, 80.6},
@@ -407,7 +407,7 @@ func TestStockFittingInstallsEveryBarAtSubmittedRoll(t *testing.T) {
 		}
 		requireStockStem(t, c, want.stem)
 		assertNear(t, "grip radius at submitted roll", c.GripR, want.radius, 1e-5)
-		assertNear(t, "total at submitted roll", c.Total(), want.total, 1e-9)
+		assertNear(t, "score at submitted roll", c.Score(), want.score, 1e-9)
 	}
 }
 
@@ -441,9 +441,9 @@ func TestStockFittingKeepsSubmittedForkByDefault(t *testing.T) {
 		if _, ok := c.BrpMiss(); ok {
 			t.Errorf("rank %d reported a BRP miss without a target", i+1)
 		}
-		if c.Ledger[5] != (assembly.LedgerLine{Band: assembly.BandForkSag}) ||
-			c.Ledger[6] != (assembly.LedgerLine{Band: assembly.BandBrpMiss}) {
-			t.Errorf("rank %d fork sag and BRP miss lines = %v, want zero points", i+1, c.Ledger[5:])
+		if c.Penalties[5] != (assembly.Penalty{Band: assembly.BandForkSag}) ||
+			c.Penalties[6] != (assembly.Penalty{Band: assembly.BandBrpMiss}) {
+			t.Errorf("rank %d fork sag and BRP miss penalties = %v, want zero points", i+1, c.Penalties[5:])
 		}
 	}
 }
@@ -451,7 +451,7 @@ func TestStockFittingKeepsSubmittedForkByDefault(t *testing.T) {
 type stockForkRank struct {
 	index         int
 	stem          stockStem
-	radius, total float64
+	radius, score float64
 }
 
 func requireStockForkRanks(t *testing.T, fit assembly.StockFitting, want []stockForkRank) {
@@ -466,7 +466,7 @@ func requireStockForkRanks(t *testing.T, fit assembly.StockFitting, want []stock
 		}
 		requireStockStem(t, c, rank.stem)
 		assertNear(t, "grip radius", c.GripR, rank.radius, 1e-5)
-		assertNear(t, "total", c.Total(), rank.total, 1e-6)
+		assertNear(t, "score", c.Score(), rank.score, 1e-6)
 	}
 }
 
@@ -493,8 +493,8 @@ func TestStockFittingChoosesAmongForks(t *testing.T) {
 		if c.Placement.Setup.Fork != stock.Forks[index].Fork || c.Placement.Setup.LowerCup != stock.Forks[index].LowerCup {
 			t.Errorf("rank %d did not install fork configuration %d", i+1, index)
 		}
-		want := assembly.LedgerLine{Band: assembly.BandForkSag, PointsLost: sagPoints[index]}
-		if got := c.Ledger[5]; got != want {
+		want := assembly.Penalty{Band: assembly.BandForkSag, PointsLost: sagPoints[index]}
+		if got := c.Penalties[5]; got != want {
 			t.Errorf("rank %d fork sag line = %+v, want %+v", i+1, got, want)
 		}
 	}
@@ -548,7 +548,7 @@ func TestStockFittingRefitsSaddlePerFork(t *testing.T) {
 			t.Fatalf("rank %d has no BRP miss for its target", i+1)
 		}
 		assertNear(t, "BRP miss", miss.Norm(), wantMiss[index], 1e-6)
-		assertNear(t, "BRP miss points", c.Ledger[6].PointsLost, 2*(miss.Norm()-1), 1e-9)
+		assertNear(t, "BRP miss points", c.Penalties[6].PointsLost, 2*(miss.Norm()-1), 1e-9)
 	}
 
 	fit, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 5)
@@ -568,11 +568,11 @@ func TestStockFittingPenalizesBrpMissForSubmittedFork(t *testing.T) {
 	target := assembly.FitTarget{BRP: &fitReportBRP, HandGrip: &fitReportGrip}
 	fit := mustStockFit(t, fenrirFittingSetup(), target, 5)
 	for _, c := range fit.Candidates {
-		assertNear(t, "BRP miss points", c.Ledger[6].PointsLost, 77.227222, 1e-6)
+		assertNear(t, "BRP miss points", c.Penalties[6].PointsLost, 77.227222, 1e-6)
 	}
 	best := fit.Candidates[0]
 	requireStockStem(t, best, stockStem{-17, 130, 0})
-	assertNear(t, "total", best.Total(), 1.484762, 1e-6)
+	assertNear(t, "score", best.Score(), 1.484762, 1e-6)
 }
 
 func TestStockFittingZeroSpacers(t *testing.T) {
@@ -707,8 +707,8 @@ func TestCockpitStockValidation(t *testing.T) {
 func TestCockpitPreferencesValidation(t *testing.T) {
 	for _, edit := range []func(*assembly.CockpitPreferences){
 		func(p *assembly.CockpitPreferences) { p.GripOval.SemiMinorMm = 0 },
-		func(p *assembly.CockpitPreferences) { p.GripOval.CostPerR = -1 },
-		func(p *assembly.CockpitPreferences) { p.StemLength.CostBelow = -1 },
+		func(p *assembly.CockpitPreferences) { p.GripOval.PointsPerR = -1 },
+		func(p *assembly.CockpitPreferences) { p.StemLength.PointsPerUnitBelow = -1 },
 		func(p *assembly.CockpitPreferences) { p.StemAngle.FreeMin = 1 },
 		func(p *assembly.CockpitPreferences) { p.Spacers.FreeMax = math.NaN() },
 	} {
@@ -727,5 +727,15 @@ func TestCockpitPreferencesValidation(t *testing.T) {
 	prefs.ForkSag.FreeMin = 21
 	if err := prefs.Validate(); err == nil || !strings.Contains(err.Error(), "fork sag") {
 		t.Errorf("expected fork sag error, got %v", err)
+	}
+	prefs = illustrativeCockpitPreferences()
+	prefs.StemLength.PointsPerUnitBelow = -1
+	if err := prefs.Validate(); err == nil || !strings.Contains(err.Error(), "stem length band: points per unit must be finite and non-negative") {
+		t.Errorf("expected stem length rate error, got %v", err)
+	}
+	prefs = illustrativeCockpitPreferences()
+	prefs.GripOval.PointsPerR = -1
+	if err := prefs.Validate(); err == nil || !strings.Contains(err.Error(), "HandGrip oval: points per R must be finite and non-negative") {
+		t.Errorf("expected oval rate error, got %v", err)
 	}
 }
