@@ -14,7 +14,6 @@ import (
 	"github.com/PuerkitoBio/goquery"
 
 	"bikegeo/internal/reboot/assembly"
-	"bikegeo/internal/reboot/pose"
 )
 
 func defaultHandlebarSetup(t *testing.T, fix bikeFixture) assembly.HandlebarSetup {
@@ -38,79 +37,35 @@ func fixtureSeatpost(t *testing.T, fix bikeFixture, id string, extMm float64) as
 	return setup
 }
 
-func TestStemWorkbenchRendersSVGAndMatchingTrace(t *testing.T) {
+func TestRootRedirectsToBikeInspector(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/", nil)
 	rec := httptest.NewRecorder()
 	NewHandler().ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", rec.Code)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("GET / status = %d, want 302", rec.Code)
 	}
-	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
-		t.Fatalf("Content-Type = %q, want text/html", ct)
-	}
-
-	doc, err := goquery.NewDocumentFromReader(rec.Body)
-	if err != nil {
-		t.Fatalf("parse HTML: %v", err)
+	if loc := rec.Header().Get("Location"); loc != "/bike" {
+		t.Fatalf("GET / Location = %q, want /bike", loc)
 	}
 
+	doc := loadBikeDoc(t, "/bike")
 	if title := doc.Find("h1").Text(); !strings.Contains(title, "bikegeo-reboot") {
 		t.Errorf("heading = %q, want bikegeo-reboot branding", title)
 	}
+}
 
-	svg := doc.Find("svg.diagram")
-	if svg.Length() != 1 {
-		t.Fatalf("expected 1 svg.diagram, got %d", svg.Length())
-	}
-	if vb, ok := svg.Attr("viewBox"); !ok || strings.TrimSpace(vb) == "" {
-		t.Errorf("svg.diagram missing viewBox attribute")
-	}
-
-	for _, name := range []string{"HeadTubeTop", "CoverTop", "SpacerTop", "SteererClamp", "BarClamp"} {
-		sel := fmt.Sprintf(`svg.diagram [data-landmark="%s"]`, name)
-		if doc.Find(sel).Length() != 1 {
-			t.Errorf("expected 1 element matching %s, got %d", sel, doc.Find(sel).Length())
-		}
-	}
-
-	// Verify BarClamp, leveled HTA, and traced steps match fixture frameset.HeadTubeTop + PlaceStem output.
+func TestStemCloseUpDrawsStemBodyFromBarClamp(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?view=stem")
 	fix := otsoFenrirFixture()
-	defaultFork, ok := fix.resolveForkOption("")
-	if !ok {
-		t.Fatalf("missing default fork option %q", fix.DefaultForkID)
+	resolved, inputErr := decodeWorkbenchState(fix, url.Values{})
+	if inputErr != nil {
+		t.Fatalf("decode default state: %v", inputErr)
 	}
-	forkSetup := assembly.ForkSetup{
-		Spec:   defaultFork.Spec,
-		SagPct: defaultFork.DefaultSagPct,
-	}
-	frameset, err := assembly.PlaceFrameset(fix.Chart.Frame, defaultFork.DefaultLowerCup, forkSetup, fix.Wheels, nil)
+	bike, err := assembly.PlaceBike(resolved.Setup, nil)
 	if err != nil {
-		t.Fatalf("PlaceFrameset: %v", err)
+		t.Fatalf("PlaceBike: %v", err)
 	}
-	tr := pose.NewTrace()
-	steererUp := pose.NewPose(frameset.HeadTubeTop.Origin(), frameset.HeadTubeTop.HeadingDeg(), tr)
-	placed, err := assembly.PlaceStem(steererUp, fix.DefaultStem)
-	tr.Freeze()
-	if err != nil {
-		t.Fatalf("PlaceStem: %v", err)
-	}
-
-	wantHTA := fmt.Sprintf("%.2f°", frameset.LeveledHeadTubeAngleDeg())
-	gotHTA := strings.TrimSpace(doc.Find(`[data-metric="hta"]`).Text())
-	if gotHTA != wantHTA {
-		t.Errorf("hta metric = %q, want %q", gotHTA, wantHTA)
-	}
-	if gotHTA == "68.25°" {
-		t.Errorf("hta metric = %q, expected leveled HTA rather than unpitched 68.25°", gotHTA)
-	}
-
-	wantBarClamp := fmt.Sprintf("(%.2f, %.2f) mm @ %.2f°",
-		placed.BarClamp.Origin().X, placed.BarClamp.Origin().Y, placed.BarClamp.HeadingDeg())
-	if got := strings.TrimSpace(doc.Find(`[data-metric="bar-clamp"]`).Text()); got != wantBarClamp {
-		t.Errorf("bar-clamp metric = %q, want %q", got, wantBarClamp)
-	}
-
 	stemBody := doc.Find(`svg.diagram rect[data-component="stem-body"]`)
 	if stemBody.Length() != 1 {
 		t.Fatalf("expected 1 stem-body rect, got %d", stemBody.Length())
@@ -118,64 +73,11 @@ func TestStemWorkbenchRendersSVGAndMatchingTrace(t *testing.T) {
 	if x, _ := stemBody.Attr("x"); x != "-60.00" {
 		t.Errorf("stem-body x = %q, want -60.00", x)
 	}
+	clamp := bike.Stem.BarClamp
 	wantTransform := fmt.Sprintf("translate(%.2f %.2f) rotate(%.2f)",
-		placed.BarClamp.Origin().X, -placed.BarClamp.Origin().Y, -float64(placed.BarClamp.HeadingDeg()))
+		clamp.Origin().X, -clamp.Origin().Y, -float64(clamp.HeadingDeg()))
 	if tf, _ := stemBody.Attr("transform"); tf != wantTransform {
 		t.Errorf("stem-body transform = %q, want %q", tf, wantTransform)
-	}
-
-	// Verify every trace table row matches expected steps and has a matching SVG step element.
-	wantSteps := tr.Steps()
-	rows := doc.Find("table tbody tr[data-step-id]")
-	if rows.Length() != len(wantSteps) {
-		t.Fatalf("trace table rows = %d, want %d", rows.Length(), len(wantSteps))
-	}
-	rows.Each(func(i int, row *goquery.Selection) {
-		id, ok := row.Attr("data-step-id")
-		if !ok || id == "" {
-			t.Errorf("table row missing data-step-id")
-			return
-		}
-		svgMatch := doc.Find(fmt.Sprintf(`svg.diagram .trace-steps [data-step-id="%s"]`, id))
-		if svgMatch.Length() != 1 {
-			t.Errorf("step %s: expected 1 SVG trace element, got %d", id, svgMatch.Length())
-		}
-		cells := row.Find("td")
-		wantParent := "root"
-		if wantSteps[i].ParentID != 0 {
-			wantParent = fmt.Sprintf("#%d", wantSteps[i].ParentID)
-		}
-		if gotParent := strings.TrimSpace(cells.Eq(1).Text()); gotParent != wantParent {
-			t.Errorf("step %s parent cell = %q, want %q", id, gotParent, wantParent)
-		}
-		wantTo := fmt.Sprintf("(%.2f, %.2f) @ %.2f°",
-			wantSteps[i].To.Origin.X, wantSteps[i].To.Origin.Y, wantSteps[i].To.HeadingDeg)
-		if gotTo := strings.TrimSpace(cells.Eq(6).Text()); gotTo != wantTo {
-			t.Errorf("step %s To cell = %q, want %q", id, gotTo, wantTo)
-		}
-	})
-
-	// Verify every SVG [data-step-id] (steps and landmarks) corresponds to a table row.
-	doc.Find("svg.diagram [data-step-id]").Each(func(_ int, el *goquery.Selection) {
-		id, _ := el.Attr("data-step-id")
-		if doc.Find(fmt.Sprintf(`table tbody tr[data-step-id="%s"]`, id)).Length() != 1 {
-			t.Errorf("SVG element with data-step-id=%q has no matching trace table row", id)
-		}
-	})
-	if _, hasID := doc.Find(`svg.diagram [data-landmark="HeadTubeTop"]`).Attr("data-step-id"); hasID {
-		t.Errorf("root landmark HeadTubeTop should not have data-step-id")
-	}
-
-	// Turn steps (#4 and #5) must render as distinct directed arcs, not identical circles.
-	turn4 := doc.Find(`svg.diagram .trace-steps path[data-step-id="4"]`)
-	turn5 := doc.Find(`svg.diagram .trace-steps path[data-step-id="5"]`)
-	if turn4.Length() != 1 || turn5.Length() != 1 {
-		t.Fatalf("expected 1 <path> each for turn steps 4 and 5, got %d and %d", turn4.Length(), turn5.Length())
-	}
-	d4, _ := turn4.Attr("d")
-	d5, _ := turn5.Attr("d")
-	if d4 == "" || d5 == "" || d4 == d5 {
-		t.Errorf("turn step paths must be non-empty and distinct: step 4=%q, step 5=%q", d4, d5)
 	}
 }
 
@@ -318,26 +220,17 @@ func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		t.Errorf("head-tube should not be marked data-illustrative")
 	}
 
-	if facePaths := doc.Find(`svg.diagram .trace-steps path[data-op="face"]`).Length(); facePaths != 4 {
-		t.Errorf("expected 4 face step paths in trace-steps, got %d", facePaths)
+	if n := doc.Find(`script, table.trace-table, [data-step-inspector], [data-step-id], .trace-steps, .step-frames`).Length(); n != 0 {
+		t.Errorf("found %d construction-trace or script elements, want none", n)
 	}
-
-	rows := doc.Find("table tbody tr[data-step-id]")
-	if rows.Length() == 0 {
-		t.Fatalf("expected non-empty trace table on /bike")
+	for _, sel := range []string{`g[data-element="world-axes"]`, `g.component-outlines`, `form.controls[method="get"] button[type="submit"]`} {
+		if doc.Find(sel).Length() != 1 {
+			t.Errorf("expected 1 element matching %s, got %d", sel, doc.Find(sel).Length())
+		}
 	}
-	rows.Each(func(_ int, row *goquery.Selection) {
-		id, _ := row.Attr("data-step-id")
-		if doc.Find(fmt.Sprintf(`svg.diagram .trace-steps [data-step-id="%s"]`, id)).Length() != 1 {
-			t.Errorf("step %s: expected 1 SVG trace element", id)
-		}
-	})
-	doc.Find("svg.diagram [data-step-id]").Each(func(_ int, el *goquery.Selection) {
-		id, _ := el.Attr("data-step-id")
-		if doc.Find(fmt.Sprintf(`table tbody tr[data-step-id="%s"]`, id)).Length() != 1 {
-			t.Errorf("SVG element with data-step-id=%q has no matching trace table row", id)
-		}
-	})
+	if doc.Find("svg.diagram").Length() != 1 {
+		t.Errorf("expected 1 svg.diagram, got %d", doc.Find("svg.diagram").Length())
+	}
 }
 
 func TestBikeWorkbenchForkSwitchAndCadBaselineFork(t *testing.T) {
@@ -475,7 +368,7 @@ func TestBikeWorkbenchForkSwitchAndCadBaselineFork(t *testing.T) {
 	}
 }
 
-func TestBikeWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
+func TestBikeWorkbenchCockpitControlsUpdateBuild(t *testing.T) {
 	query := "/bike?fork=sid_100&prev_fork=sid_100&fork_a2c=515&cup=10&sag=20" +
 		"&spacers=35&stem_length=80&stem_angle=7&bar_roll=5" +
 		"&post=setback_25&post_ext=250&rail_offset=-10&rail_pitch=-2"
@@ -595,23 +488,6 @@ func TestBikeWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
 		}
 		if doc.Find("#"+forID).Length() != 1 {
 			t.Errorf("label for=%q does not match exactly 1 control", forID)
-		}
-	})
-
-	rows := doc.Find("table tbody tr[data-step-id]")
-	if rows.Length() == 0 {
-		t.Fatalf("expected non-empty trace table")
-	}
-	rows.Each(func(_ int, row *goquery.Selection) {
-		id, _ := row.Attr("data-step-id")
-		if doc.Find(fmt.Sprintf(`svg.diagram .trace-steps [data-step-id="%s"]`, id)).Length() != 1 {
-			t.Errorf("step %s: expected 1 SVG trace element", id)
-		}
-	})
-	doc.Find("svg.diagram [data-step-id]").Each(func(_ int, el *goquery.Selection) {
-		id, _ := el.Attr("data-step-id")
-		if doc.Find(fmt.Sprintf(`table tbody tr[data-step-id="%s"]`, id)).Length() != 1 {
-			t.Errorf("SVG element with data-step-id=%q has no matching trace table row", id)
 		}
 	})
 }
@@ -744,7 +620,6 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	customBar := defaultHandlebarSetup(t, fix)
 	customBar.BarRollDeg = -4.0
 
-	tr := pose.NewTrace()
 	bike, err := assembly.PlaceBike(assembly.BikeSetup{
 		Frame:     fix.Chart.Frame,
 		LowerCup:  lowerCup,
@@ -754,7 +629,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 		Saddle:    customSaddle,
 		Stem:      customStem,
 		Handlebar: customBar,
-	}, tr)
+	}, nil)
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -763,7 +638,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 		t.Fatalf("PlaceCadBaselineFork: %v", err)
 	}
 
-	view := buildBikeView(fix, workbenchState{View: diagramViewBike, ForkID: "fox34_120", BarID: "persuader20_800", PostID: "setback_15"}, bike, cadBaselineFork, tr.Steps())
+	view := buildBikeView(fix, workbenchState{View: diagramViewBike, ForkID: "fox34_120", BarID: "persuader20_800", PostID: "setback_15"}, bike, cadBaselineFork)
 
 	if view.WheelRadiusMm != customWheels.RadiusMm {
 		t.Errorf("view.WheelRadiusMm = %.1f, want placed radius %.1f (not fixture %.1f)", view.WheelRadiusMm, customWheels.RadiusMm, fix.Wheels.RadiusMm)
@@ -1028,7 +903,6 @@ func assertUnchangedSubmitIdempotent(t *testing.T, label string, doc *goquery.Do
 	t.Helper()
 	wantMetrics := collectMetrics(doc)
 	wantForm := serializeForm(t, doc.Find("form.controls"))
-	wantSteps := doc.Find("table tbody tr[data-step-id]").Length()
 
 	rec, nextDoc := submitForm(t, doc, nil)
 	if rec.Code != http.StatusOK {
@@ -1041,9 +915,6 @@ func assertUnchangedSubmitIdempotent(t *testing.T, label string, doc *goquery.Do
 	gotForm := serializeForm(t, nextDoc.Find("form.controls"))
 	if gotForm.Encode() != wantForm.Encode() {
 		t.Errorf("%s unchanged submit changed form values:\n got: %s\nwant: %s", label, gotForm.Encode(), wantForm.Encode())
-	}
-	if gotSteps := nextDoc.Find("table tbody tr[data-step-id]").Length(); gotSteps != wantSteps {
-		t.Errorf("%s unchanged submit trace rows = %d, want %d", label, gotSteps, wantSteps)
 	}
 	return nextDoc
 }
@@ -1576,334 +1447,62 @@ func TestBikeWorkbenchRecoversFromInvalidRigidForkSag(t *testing.T) {
 	}
 }
 
-func TestWorkbenchStaticAssetServed(t *testing.T) {
-	if len(workbenchJS) == 0 {
-		t.Fatalf("embedded workbenchJS must not be empty")
+// activeViewHref is the resolved build URL carried by the current diagram
+// view link on a successful page.
+func activeViewHref(t *testing.T, doc *goquery.Document) string {
+	t.Helper()
+	links := doc.Find("nav.diagram-views a[aria-current]")
+	if links.Length() != 1 {
+		t.Fatalf("expected 1 nav.diagram-views a[aria-current], got %d", links.Length())
 	}
+	href, ok := links.Attr("href")
+	if !ok || href == "" {
+		t.Fatalf("active diagram view link has no href")
+	}
+	return href
+}
 
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/static/workbench.js", nil)
-	rec := httptest.NewRecorder()
-	NewHandler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /static/workbench.js status = %d, want 200", rec.Code)
+func TestRemovedRoutesReturnNotFound(t *testing.T) {
+	for _, path := range []string{"/static/workbench.js", "/static/workbench_test.js", "/static/missing.js", "/nope"} {
+		req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+path, nil)
+		rec := httptest.NewRecorder()
+		NewHandler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("GET %s status = %d, want 404", path, rec.Code)
+		}
 	}
-	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "text/javascript") {
-		t.Errorf("GET Content-Type = %q, want text/javascript", ct)
-	}
-	if nosniff := rec.Header().Get("X-Content-Type-Options"); nosniff != "nosniff" {
-		t.Errorf("GET X-Content-Type-Options = %q, want nosniff", nosniff)
-	}
-	if rec.Body.String() != string(workbenchJS) {
-		t.Errorf("GET /static/workbench.js body did not match embedded asset")
-	}
+}
 
-	headReq := httptest.NewRequest(http.MethodHead, "http://127.0.0.1:8081/static/workbench.js", nil)
-	headRec := httptest.NewRecorder()
-	NewHandler().ServeHTTP(headRec, headReq)
-	if headRec.Code != http.StatusOK {
-		t.Fatalf("HEAD /static/workbench.js status = %d, want 200", headRec.Code)
-	}
-	if ct := headRec.Header().Get("Content-Type"); !strings.Contains(ct, "text/javascript") {
-		t.Errorf("HEAD Content-Type = %q, want text/javascript", ct)
-	}
-	if headRec.Body.Len() != 0 {
-		t.Errorf("HEAD /static/workbench.js body length = %d, want 0", headRec.Body.Len())
-	}
-
-	postReq := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8081/static/workbench.js", nil)
-	postRec := httptest.NewRecorder()
-	NewHandler().ServeHTTP(postRec, postReq)
-	if postRec.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("POST /static/workbench.js status = %d, want 405", postRec.Code)
-	}
-	if allow := postRec.Header().Get("Allow"); allow != "GET, HEAD" {
-		t.Errorf("POST Allow = %q, want %q", allow, "GET, HEAD")
-	}
-
-	missingReq := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/static/missing.js", nil)
-	missingRec := httptest.NewRecorder()
-	NewHandler().ServeHTTP(missingRec, missingReq)
-	if missingRec.Code != http.StatusNotFound {
-		t.Fatalf("GET /static/missing.js status = %d, want 404", missingRec.Code)
-	}
-
-	testAssetReq := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/static/workbench_test.js", nil)
-	testAssetRec := httptest.NewRecorder()
-	NewHandler().ServeHTTP(testAssetRec, testAssetReq)
-	if testAssetRec.Code != http.StatusNotFound {
-		t.Fatalf("GET /static/workbench_test.js status = %d, want 404", testAssetRec.Code)
-	}
-
-	for _, path := range []string{"/", "/bike"} {
+func TestBikePagesHaveNoScriptOrConstructionTrace(t *testing.T) {
+	const removed = `script, table.trace-table, [data-step-inspector], [data-step-id], .trace-steps, .step-frames`
+	for _, path := range []string{"/bike", "/bike?view=seat", "/bike?view=stem", "/bike?brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726"} {
 		doc := loadBikeDoc(t, path)
-		script := doc.Find(`script[src="/static/workbench.js"]`)
-		if script.Length() != 1 {
-			t.Errorf("%s: expected 1 script[src=/static/workbench.js], got %d", path, script.Length())
-			continue
+		if n := doc.Find(removed).Length(); n != 0 {
+			t.Errorf("%s: found %d script or construction-trace elements, want none", path, n)
 		}
-		if _, hasDefer := script.Attr("defer"); !hasDefer {
-			t.Errorf("%s: workbench.js script should have defer attribute", path)
+		if n := doc.Find("svg.diagram").Length(); n != 1 {
+			t.Errorf("%s: %d schematics, want 1", path, n)
+		}
+		if n := doc.Find(`form.controls[method="get"][action="/bike"] button[type="submit"]`).Length(); n != 1 {
+			t.Errorf("%s: %d GET form submit buttons, want 1", path, n)
+		}
+		if n := doc.Find(`g[data-element="world-axes"]`).Length(); n != 1 {
+			t.Errorf("%s: %d world-axes groups, want 1", path, n)
+		}
+		if n := doc.Find(`g.component-outlines rect`).Length(); n == 0 {
+			t.Errorf("%s: no component outlines", path)
+		}
+	}
+	for _, path := range []string{"/bike?cup=0", "/bike?spacers=-1"} {
+		doc := loadBikeDocStatus(t, path, http.StatusBadRequest)
+		if n := doc.Find(removed).Length(); n != 0 {
+			t.Errorf("%s: 400 page has %d script or trace elements, want none", path, n)
 		}
 	}
 }
 
-func TestTraceInspectionMarkupAndLocalPoseFrames(t *testing.T) {
+func TestBikeWorkbenchActiveViewLinkCarriesResolvedBuild(t *testing.T) {
 	fix := otsoFenrirFixture()
-
-	defaultFork, ok := fix.resolveForkOption("")
-	if !ok {
-		t.Fatalf("missing default fork option")
-	}
-	stemFrameset, err := assembly.PlaceFrameset(
-		fix.Chart.Frame,
-		defaultFork.DefaultLowerCup,
-		assembly.ForkSetup{Spec: defaultFork.Spec, SagPct: defaultFork.DefaultSagPct},
-		fix.Wheels,
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("PlaceFrameset: %v", err)
-	}
-	stemTrace := pose.NewTrace()
-	if _, err := assembly.PlaceStem(pose.NewPose(stemFrameset.HeadTubeTop.Origin(), stemFrameset.HeadTubeTop.HeadingDeg(), stemTrace), fix.DefaultStem); err != nil {
-		t.Fatalf("PlaceStem: %v", err)
-	}
-	stemTrace.Freeze()
-
-	defaultBikeTrace := pose.NewTrace()
-	if _, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:     fix.Chart.Frame,
-		LowerCup:  defaultFork.DefaultLowerCup,
-		Fork:      assembly.ForkSetup{Spec: defaultFork.Spec, SagPct: defaultFork.DefaultSagPct},
-		Wheels:    fix.Wheels,
-		Seatpost:  fixtureSeatpost(t, fix, fix.DefaultSeatpostID, fix.DefaultPostExtMm),
-		Saddle:    fix.DefaultSaddle,
-		Stem:      fix.DefaultStem,
-		Handlebar: defaultHandlebarSetup(t, fix),
-	}, defaultBikeTrace); err != nil {
-		t.Fatalf("PlaceBike default: %v", err)
-	}
-
-	fox34, ok := fix.resolveForkOption("fox34_120")
-	if !ok {
-		t.Fatalf("missing fox34_120 option")
-	}
-	customBar := defaultHandlebarSetup(t, fix)
-	customBar.BarRollDeg = 5.0
-	customSaddle := fix.DefaultSaddle
-	customSaddle.RailPitchDeg = -2.0
-	customBikeTrace := pose.NewTrace()
-	if _, err := assembly.PlaceBike(assembly.BikeSetup{
-		Frame:     fix.Chart.Frame,
-		LowerCup:  assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0},
-		Fork:      assembly.ForkSetup{Spec: fox34.Spec, SagPct: 20.0},
-		Wheels:    fix.Wheels,
-		Seatpost:  fixtureSeatpost(t, fix, fix.DefaultSeatpostID, fix.DefaultPostExtMm),
-		Saddle:    customSaddle,
-		Stem:      fix.DefaultStem,
-		Handlebar: customBar,
-	}, customBikeTrace); err != nil {
-		t.Fatalf("PlaceBike custom: %v", err)
-	}
-
-	parseFloatAttr := func(t *testing.T, sel *goquery.Selection, attr string) float64 {
-		t.Helper()
-		raw, ok := sel.Attr(attr)
-		if !ok {
-			t.Fatalf("missing attribute %q", attr)
-		}
-		v, err := strconv.ParseFloat(raw, 64)
-		if err != nil {
-			t.Fatalf("parse attribute %s=%q: %v", attr, raw, err)
-		}
-		return v
-	}
-
-	cases := []struct {
-		name           string
-		path           string
-		steps          []pose.Step
-		axisLenMm      float64
-		expectWorldAxe bool
-	}{
-		{
-			name:           "stem",
-			path:           "/",
-			steps:          stemTrace.Steps(),
-			axisLenMm:      stemAxisLengthMm,
-			expectWorldAxe: false,
-		},
-		{
-			name:           "bike-default",
-			path:           "/bike",
-			steps:          defaultBikeTrace.Steps(),
-			axisLenMm:      bikeAxisLengthMm,
-			expectWorldAxe: true,
-		},
-		{
-			name:           "bike-pitched-custom",
-			path:           "/bike?fork=fox34_120&cup=12&sag=20&bar_roll=5&rail_pitch=-2",
-			steps:          customBikeTrace.Steps(),
-			axisLenMm:      bikeAxisLengthMm,
-			expectWorldAxe: true,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			doc := loadBikeDoc(t, tc.path)
-			if doc.Find("main").Length() != 1 {
-				t.Errorf("expected 1 <main> landmark, got %d", doc.Find("main").Length())
-			}
-			if doc.Find("[data-trace-workbench]").Length() != 1 {
-				t.Errorf("expected 1 [data-trace-workbench], got %d", doc.Find("[data-trace-workbench]").Length())
-			}
-			if doc.Find("[data-step-inspector]").Length() != 1 {
-				t.Errorf("expected 1 [data-step-inspector], got %d", doc.Find("[data-step-inspector]").Length())
-			}
-			if doc.Find("[data-step-clear]").Length() != 1 {
-				t.Errorf("expected 1 [data-step-clear], got %d", doc.Find("[data-step-clear]").Length())
-			}
-			if tc.expectWorldAxe && doc.Find(`svg.diagram [data-element="world-axes"]`).Length() != 1 {
-				t.Errorf("expected 1 svg.diagram [data-element=world-axes]")
-			}
-			if doc.Find("svg.diagram .step-frames [data-step-id]").Length() != 0 {
-				t.Errorf("step-frames must not carry data-step-id")
-			}
-
-			ths := doc.Find("table.trace-table thead th")
-			if ths.Length() == 0 {
-				t.Fatalf("expected trace table header cells")
-			}
-			ths.Each(func(i int, th *goquery.Selection) {
-				if scope, _ := th.Attr("scope"); scope != "col" {
-					t.Errorf("thead th[%d] scope = %q, want col", i, scope)
-				}
-			})
-
-			rows := doc.Find("table.trace-table tbody tr[data-step-id]")
-			frames := doc.Find("svg.diagram .step-frames g[data-step-frame]")
-			if rows.Length() != len(tc.steps) {
-				t.Fatalf("trace rows = %d, want %d", rows.Length(), len(tc.steps))
-			}
-			if frames.Length() != len(tc.steps) {
-				t.Fatalf("step-frames = %d, want %d", frames.Length(), len(tc.steps))
-			}
-
-			for i, step := range tc.steps {
-				row := rows.Eq(i)
-				idStr := strconv.Itoa(step.ID)
-				if gotID, _ := row.Attr("data-step-id"); gotID != idStr {
-					t.Errorf("row %d data-step-id = %q, want %q", i, gotID, idStr)
-				}
-				if gotParent, _ := row.Attr("data-parent-id"); gotParent != strconv.Itoa(step.ParentID) {
-					t.Errorf("step %d data-parent-id = %q, want %d", step.ID, gotParent, step.ParentID)
-				}
-				if gotOp, _ := row.Attr("data-step-op"); gotOp != step.Op {
-					t.Errorf("step %d data-step-op = %q, want %q", step.ID, gotOp, step.Op)
-				}
-				if gotLabel, _ := row.Attr("data-step-label"); gotLabel != step.Label {
-					t.Errorf("step %d data-step-label = %q, want %q", step.ID, gotLabel, step.Label)
-				}
-				if summary, ok := row.Attr("data-step-summary"); !ok || strings.TrimSpace(summary) == "" {
-					t.Errorf("step %d missing non-empty data-step-summary", step.ID)
-				}
-
-				btn := row.Find(fmt.Sprintf(`button[type="button"][data-step-select="%s"]`, idStr))
-				if btn.Length() != 1 {
-					t.Errorf("step %d: expected 1 step-select button, got %d", step.ID, btn.Length())
-				} else {
-					if pressed, _ := btn.Attr("aria-pressed"); pressed != "false" {
-						t.Errorf("step %d button aria-pressed = %q, want false", step.ID, pressed)
-					}
-					ariaLabel, _ := btn.Attr("aria-label")
-					visText := strings.TrimSpace(btn.Text())
-					if visText == "" || !strings.Contains(ariaLabel, visText) {
-						t.Errorf("step %d button aria-label %q must contain visible text %q", step.ID, ariaLabel, visText)
-					}
-				}
-
-				frame := doc.Find(fmt.Sprintf(`svg.diagram .step-frames g[data-step-frame="%s"]`, idStr))
-				if frame.Length() != 1 {
-					t.Errorf("step %d: expected 1 step-frame group, got %d", step.ID, frame.Length())
-					continue
-				}
-				lineX := frame.Find(`line[data-axis="x"]`)
-				lineY := frame.Find(`line[data-axis="y"]`)
-				if lineX.Length() != 1 || lineY.Length() != 1 {
-					t.Errorf("step %d: expected 1 x and 1 y axis line, got %d and %d", step.ID, lineX.Length(), lineY.Length())
-					continue
-				}
-
-				x1x := parseFloatAttr(t, lineX, "x1")
-				y1x := parseFloatAttr(t, lineX, "y1")
-				x2x := parseFloatAttr(t, lineX, "x2")
-				y2x := parseFloatAttr(t, lineX, "y2")
-
-				x1y := parseFloatAttr(t, lineY, "x1")
-				y1y := parseFloatAttr(t, lineY, "y1")
-				x2y := parseFloatAttr(t, lineY, "x2")
-				y2y := parseFloatAttr(t, lineY, "y2")
-
-				wantOX, wantOY := step.To.Origin.X, -step.To.Origin.Y
-				if math.Abs(x1x-wantOX) > 0.02 || math.Abs(y1x-wantOY) > 0.02 {
-					t.Errorf("step %d +X origin = (%.2f, %.2f), want (%.2f, %.2f)", step.ID, x1x, y1x, wantOX, wantOY)
-				}
-				if math.Abs(x1y-wantOX) > 0.02 || math.Abs(y1y-wantOY) > 0.02 {
-					t.Errorf("step %d +Y origin = (%.2f, %.2f), want (%.2f, %.2f)", step.ID, x1y, y1y, wantOX, wantOY)
-				}
-
-				dxX, dyX := x2x-x1x, y2x-y1x
-				dxY, dyY := x2y-x1y, y2y-y1y
-				lenX := math.Hypot(dxX, dyX)
-				lenY := math.Hypot(dxY, dyY)
-				if math.Abs(lenX-tc.axisLenMm) > 0.02 {
-					t.Errorf("step %d +X axis length = %.4f, want %.1f", step.ID, lenX, tc.axisLenMm)
-				}
-				if math.Abs(lenY-tc.axisLenMm) > 0.02 {
-					t.Errorf("step %d +Y axis length = %.4f, want %.1f", step.ID, lenY, tc.axisLenMm)
-				}
-
-				rad := float64(step.To.HeadingDeg) * math.Pi / 180.0
-				uxSVG, uySVG := dxX/lenX, dyX/lenX
-				if math.Abs(uxSVG-math.Cos(rad)) > 0.01 || math.Abs(uySVG-(-math.Sin(rad))) > 0.01 {
-					t.Errorf("step %d +X unit SVG dir = (%.4f, %.4f), want (%.4f, %.4f)",
-						step.ID, uxSVG, uySVG, math.Cos(rad), -math.Sin(rad))
-				}
-
-				// Convert SVG deltas back to world (+X right, +Y up) to verify +Y is 90° CCW from +X.
-				uxW, uyW := uxSVG, -uySVG
-				vxW, vyW := dxY/lenY, -dyY/lenY
-				dot := uxW*vxW + uyW*vyW
-				cross := uxW*vyW - uyW*vxW
-				if math.Abs(dot) > 0.01 || math.Abs(cross-1.0) > 0.01 {
-					t.Errorf("step %d world axes (+X,+Y) dot=%.4f cross=%.4f, want dot=0 cross=1", step.ID, dot, cross)
-				}
-			}
-		})
-	}
-
-	errDoc := loadBikeDocStatus(t, "/bike?spacers=-1", http.StatusBadRequest)
-	if errDoc.Find("[data-trace-workbench]").Length() != 0 {
-		t.Errorf("HTTP 400 error page should not render [data-trace-workbench]")
-	}
-}
-
-func TestBikeWorkbenchFetchedUpdateHooks(t *testing.T) {
-	fix := otsoFenrirFixture()
-
-	stemDoc := loadBikeDoc(t, "/")
-	stemMain := stemDoc.Find("main")
-	if stemMain.Length() != 1 {
-		t.Fatalf("/ expected 1 <main>, got %d", stemMain.Length())
-	}
-	if _, hasBike := stemMain.Attr("data-bike-workbench"); hasBike {
-		t.Errorf("/ <main> must not carry data-bike-workbench")
-	}
-	if _, hasCanonical := stemMain.Attr("data-canonical-url"); hasCanonical {
-		t.Errorf("/ <main> must not carry data-canonical-url")
-	}
-
 	okCases := []struct {
 		name string
 		path string
@@ -1937,33 +1536,26 @@ func TestBikeWorkbenchFetchedUpdateHooks(t *testing.T) {
 	for _, tc := range okCases {
 		t.Run("ok/"+tc.name, func(t *testing.T) {
 			doc := loadBikeDoc(t, tc.path)
-			mainEl := doc.Find("main[data-bike-workbench]")
-			if mainEl.Length() != 1 {
-				t.Fatalf("expected 1 main[data-bike-workbench], got %d", mainEl.Length())
-			}
-			canonicalRaw, hasCanonical := mainEl.Attr("data-canonical-url")
-			if !hasCanonical || canonicalRaw == "" {
-				t.Fatalf("expected non-empty data-canonical-url attribute")
-			}
-			u, err := url.Parse(canonicalRaw)
+			href := activeViewHref(t, doc)
+			u, err := url.Parse(href)
 			if err != nil {
-				t.Fatalf("parse data-canonical-url %q: %v", canonicalRaw, err)
+				t.Fatalf("parse active view href %q: %v", href, err)
 			}
 			if u.Path != "/bike" {
-				t.Errorf("canonical URL path = %q, want /bike", u.Path)
+				t.Errorf("active view href path = %q, want /bike", u.Path)
 			}
 			if u.Query().Has("prev_fork") {
-				t.Errorf("canonical URL %q must omit transient prev_fork", canonicalRaw)
+				t.Errorf("active view href %q must omit transient prev_fork", href)
 			}
 			decoded, inputErr := decodeWorkbenchState(fix, u.Query())
 			if inputErr != nil {
-				t.Fatalf("decode canonical URL %q: %v", canonicalRaw, inputErr)
+				t.Fatalf("decode active view href %q: %v", href, inputErr)
 			}
 			if decoded.State != tc.want {
-				t.Errorf("decoded canonical URL state = %+v, want %+v", decoded.State, tc.want)
+				t.Errorf("decoded active view state = %+v, want %+v", decoded.State, tc.want)
 			}
 
-			form := mainEl.Find("form.controls")
+			form := doc.Find("form.controls")
 			if form.Find(`button#ctrl-submit[type="submit"]`).Length() != 1 {
 				t.Errorf("expected 1 button#ctrl-submit[type=submit] inside form.controls")
 			}
@@ -1979,15 +1571,8 @@ func TestBikeWorkbenchFetchedUpdateHooks(t *testing.T) {
 	for _, errPath := range []string{"/bike?cup=0", "/bike?spacers=-1"} {
 		t.Run("err/"+errPath, func(t *testing.T) {
 			doc := loadBikeDocStatus(t, errPath, http.StatusBadRequest)
-			mainEl := doc.Find("main[data-bike-workbench]")
-			if mainEl.Length() != 1 {
-				t.Fatalf("expected 1 main[data-bike-workbench] on 400 page, got %d", mainEl.Length())
-			}
-			if _, hasCanonical := mainEl.Attr("data-canonical-url"); hasCanonical {
-				t.Errorf("HTTP 400 page must not expose data-canonical-url")
-			}
-			if mainEl.Find("[data-trace-workbench]").Length() != 0 {
-				t.Errorf("HTTP 400 page must not render [data-trace-workbench]")
+			if n := doc.Find("nav.diagram-views").Length(); n != 0 {
+				t.Errorf("HTTP 400 page renders %d diagram view navs, want none", n)
 			}
 		})
 	}
@@ -2073,7 +1658,7 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 	fix := otsoFenrirFixture()
 	doc := loadBikeDoc(t, "/bike")
 
-	canonical, _ := doc.Find("main[data-bike-workbench]").Attr("data-canonical-url")
+	canonical := activeViewHref(t, doc)
 	if got := decodeHref(t, canonical).View; got != diagramViewBike {
 		t.Errorf("canonical URL %q view = %q, want bike", canonical, got)
 	}
@@ -2085,12 +1670,11 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 	}
 
 	// The whole-bike frame and drawing sizes are unchanged by the view work.
-	tr := pose.NewTrace()
 	resolved, inputErr := decodeWorkbenchState(fix, url.Values{})
 	if inputErr != nil {
 		t.Fatalf("decode defaults: %v", inputErr)
 	}
-	bike, err := assembly.PlaceBike(resolved.Setup, tr)
+	bike, err := assembly.PlaceBike(resolved.Setup, nil)
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -2098,7 +1682,7 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceCadBaselineFork: %v", err)
 	}
-	view := buildBikeView(fix, resolved.State, bike, cad, tr.Steps())
+	view := buildBikeView(fix, resolved.State, bike, cad)
 	if view.DrawScale != 1 {
 		t.Errorf("whole-bike DrawScale = %v, want exactly 1", view.DrawScale)
 	}
@@ -2118,18 +1702,12 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 		{`[data-segment="seat-tube"]`, "stroke-dasharray", "12 6"},
 		{`.component-outlines`, "stroke-width", "1.5"},
 		{`.component-outlines rect`, "rx", "2"},
-		{`.trace-steps line`, "stroke-width", "2.0"},
-		{`.trace-steps line`, "stroke-dasharray", "6 4"},
-		{`.step-frames text.axis-label`, "font-size", "18.0"},
-		{`.step-frames [data-axis="origin"]`, "r", "8.0"},
-		{`svg.diagram`, "style", fmt.Sprintf("--active-step-width: 6; --ancestor-step-width: 3.5; --active-landmark-stroke-width: 2.5; --units-per-px: %.4f;", 2096.16/nominalDiagramWidthPx)},
+		{`svg.diagram`, "style", fmt.Sprintf("--units-per-px: %.4f;", 2096.16/nominalDiagramWidthPx)},
 		// Labels sit on their point and are offset in ems, so the offset
 		// follows the on-screen (rem) label size set by CSS.
 		{`.landmarks [data-landmark="BB"] text`, "dx", "0em"},
 		{`.landmarks [data-landmark="BB"] text`, "dy", "1.44em"},
 		{`.landmarks [data-landmark="SitBones"] text`, "dx", "-0.78em"},
-		{`.landmarks [data-landmark="BB"]`, "data-label-priority", "1"},
-		{`.landmarks [data-landmark="SpacerTop"]`, "data-label-priority", "3"},
 	}
 	for _, c := range checks {
 		if got, _ := doc.Find(c.sel).First().Attr(c.attr); got != c.want {
@@ -2143,9 +1721,6 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 	}
 	// Label font sizes come from CSS in rem, not from SVG attributes, so they
 	// do not shrink with the diagram.
-	if _, ok := doc.Find("svg.diagram[data-label-layout]").Attr("data-label-layout"); !ok {
-		t.Errorf("svg.diagram must opt into label layout")
-	}
 	doc.Find(".landmarks text, [data-element=\"world-axes\"] text").Each(func(_ int, el *goquery.Selection) {
 		if fs, ok := el.Attr("font-size"); ok {
 			t.Errorf("label %q has font-size attribute %q; size labels with CSS rem", el.Text(), fs)
@@ -2243,7 +1818,7 @@ func TestBikeWorkbenchViewLinks(t *testing.T) {
 func TestBikeWorkbenchControlChangesAndPresetsKeepView(t *testing.T) {
 	fix := otsoFenrirFixture()
 	doc := loadBikeDoc(t, "/bike?view=stem&spacers=30")
-	canonical, _ := doc.Find("main[data-bike-workbench]").Attr("data-canonical-url")
+	canonical := activeViewHref(t, doc)
 	state := decodeHref(t, canonical)
 	if state.View != diagramViewStem || state.SpacersMm != 30 {
 		t.Errorf("canonical %q: view=%q spacers=%v, want stem and 30", canonical, state.View, state.SpacersMm)
@@ -2414,46 +1989,29 @@ func TestBikeWorkbenchCloseUpsContainTheirOutlines(t *testing.T) {
 	}
 }
 
-// Every view draws the same build, so the trace rows, per-step SVG elements,
-// step frames and landmark step IDs must stay in one-to-one correspondence
-// whichever view is selected, and must not differ between views.
-func TestBikeWorkbenchStepIDsMatchInEveryView(t *testing.T) {
-	stepIDs := func(doc *goquery.Document, sel string) []string {
-		var ids []string
-		doc.Find(sel).Each(func(_ int, s *goquery.Selection) {
-			id, _ := s.Attr("data-step-id")
-			ids = append(ids, id)
-		})
-		return ids
+// Every view draws the same build: the readouts match across views, and only
+// the framing changes.
+func TestBikeWorkbenchViewsShareReadoutsAndDifferInFraming(t *testing.T) {
+	cases := []struct{ view, viewBox string }{
+		{"bike", "-911.86 -850.12 2096.16 1254.30"},
+		{"seat", "-275.26 -770.36 137.14 82.06"},
+		{"stem", "299.99 -768.56 241.85 144.72"},
 	}
-	var wantRows []string
-	for _, view := range []string{"bike", "seat", "stem"} {
-		t.Run(view, func(t *testing.T) {
-			doc := loadBikeDoc(t, "/bike?view="+view)
-			rows := stepIDs(doc, "table.trace-table tbody tr[data-step-id]")
-			if len(rows) == 0 {
-				t.Fatalf("no trace rows")
+	for _, tc := range cases {
+		t.Run(tc.view, func(t *testing.T) {
+			doc := loadBikeDoc(t, "/bike?view="+tc.view)
+			if got := metricText(doc, "wheelbase"); got != "1162.2 mm" {
+				t.Errorf("wheelbase = %q, want 1162.2 mm", got)
 			}
-			if wantRows == nil {
-				wantRows = rows
-			} else if strings.Join(rows, ",") != strings.Join(wantRows, ",") {
-				t.Errorf("trace row IDs differ from whole-bike view: %v vs %v", rows, wantRows)
+			if got := metricText(doc, "brp-grip-dist"); got != "556.6 mm" {
+				t.Errorf("brp-grip-dist = %q, want 556.6 mm", got)
 			}
-			for _, id := range rows {
-				if n := doc.Find(fmt.Sprintf(`svg.diagram .trace-steps [data-step-id=%q]`, id)).Length(); n != 1 {
-					t.Errorf("step %s: %d SVG trace elements, want 1", id, n)
-				}
-				if n := doc.Find(fmt.Sprintf(`svg.diagram .step-frames g[data-step-frame=%q]`, id)).Length(); n != 1 {
-					t.Errorf("step %s: %d step frames, want 1", id, n)
-				}
+			if got, _ := doc.Find("svg.diagram").Attr("viewBox"); got != tc.viewBox {
+				t.Errorf("viewBox = %q, want %q", got, tc.viewBox)
 			}
-			doc.Find("svg.diagram .landmarks [data-step-id]").Each(func(_ int, s *goquery.Selection) {
-				id, _ := s.Attr("data-step-id")
-				if doc.Find(fmt.Sprintf(`table.trace-table tbody tr[data-step-id=%q]`, id)).Length() != 1 {
-					name, _ := s.Attr("data-landmark")
-					t.Errorf("landmark %s step %q has no trace row", name, id)
-				}
-			})
+			if got := hiddenViewValue(doc); got != tc.view {
+				t.Errorf("hidden view input = %q, want %q", got, tc.view)
+			}
 		})
 	}
 }
@@ -2610,7 +2168,7 @@ func TestBikeWorkbenchBrpTargetPresetLinks(t *testing.T) {
 	if q.Get("brp_x") != "-219.0" || q.Get("brp_y") != "713.1" {
 		t.Errorf("CAD Baseline Fork lost the target: %v", q)
 	}
-	if v, _ := doc.Find("main").Attr("data-canonical-url"); !strings.Contains(v, "brp_x=-219.0") {
+	if v := activeViewHref(t, doc); !strings.Contains(v, "brp_x=-219.0") {
 		t.Errorf("canonical URL = %q, want it to keep the target", v)
 	}
 }
@@ -2758,7 +2316,7 @@ func TestBikeWorkbenchFitTargetsPresetLinks(t *testing.T) {
 			t.Errorf("%s lost a target: %v", sel, q)
 		}
 	}
-	if v, _ := doc.Find("main").Attr("data-canonical-url"); !strings.Contains(v, "grip_x=481.0") {
+	if v := activeViewHref(t, doc); !strings.Contains(v, "grip_x=481.0") {
 		t.Errorf("canonical URL = %q, want it to keep the grip target", v)
 	}
 }
@@ -2907,11 +2465,7 @@ func TestBikeWorkbenchStockBarsDefaultKeepsSubmittedBar(t *testing.T) {
 
 func workbenchCanonicalQuery(t *testing.T, doc *goquery.Document) url.Values {
 	t.Helper()
-	raw, ok := doc.Find("main").Attr("data-canonical-url")
-	if !ok || raw == "" {
-		t.Fatal("missing canonical URL")
-	}
-	u, err := url.Parse(raw)
+	u, err := url.Parse(activeViewHref(t, doc))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3216,7 +2770,7 @@ func TestBikeWorkbenchDefaultHandlebar(t *testing.T) {
 		t.Errorf("handlebar options = %d, want 15", got)
 	}
 	assertSelectedHandlebar(t, doc, "persuader20_800")
-	canonical, _ := doc.Find("main").Attr("data-canonical-url")
+	canonical := activeViewHref(t, doc)
 	u, err := url.Parse(canonical)
 	if err != nil {
 		t.Fatalf("parse canonical URL: %v", err)
@@ -3376,7 +2930,7 @@ func TestBikeWorkbenchSeatpostSelect(t *testing.T) {
 	if note := doc.Find(`[data-note="post-setback"]`).Text(); !strings.Contains(note, "extension 110–300 mm · clamp 30 mm") {
 		t.Errorf("post-setback note = %q, want extension 110–300 mm · clamp 30 mm", note)
 	}
-	canonHref, _ := doc.Find("main").Attr("data-canonical-url")
+	canonHref := activeViewHref(t, doc)
 	if canonURL, err := url.Parse(canonHref); err != nil || canonURL.Query().Get("post") != "setback_0" || canonURL.Query().Has("post_setback") {
 		t.Errorf("canonical URL = %q, want post=setback_0 and no post_setback", canonHref)
 	}
@@ -3417,7 +2971,7 @@ func TestBikeWorkbenchSeatpostSurvivesLinks(t *testing.T) {
 			t.Errorf("%s post = %q, want setback_15 (%s)", label, got, href)
 		}
 	}
-	canon, _ := doc.Find("main").Attr("data-canonical-url")
+	canon := activeViewHref(t, doc)
 	assertHasPost("canonical", canon)
 	doc.Find(`a[data-diagram-view]`).Each(func(i int, s *goquery.Selection) {
 		href, _ := s.Attr("href")
@@ -3449,7 +3003,7 @@ func TestBikeWorkbenchIgnoresRetiredSetbackKey(t *testing.T) {
 	if got := strings.TrimSpace(doc.Find(`[data-metric="post-setback"]`).Text()); got != "0.0 mm" {
 		t.Errorf("post-setback = %q, want 0.0 mm", got)
 	}
-	canon, _ := doc.Find("main").Attr("data-canonical-url")
+	canon := activeViewHref(t, doc)
 	if u, err := url.Parse(canon); err != nil || u.Query().Has("post_setback") {
 		t.Errorf("canonical URL = %q, want no post_setback", canon)
 	}

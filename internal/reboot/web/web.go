@@ -18,32 +18,13 @@ import (
 	"bikegeo/internal/reboot/pose"
 )
 
-//go:embed templates/*.html
+//go:embed templates/bike.html
 var templateFS embed.FS
 
-//go:embed static/workbench.js
-var workbenchJS []byte
-
-var (
-	stemTemplate = template.Must(template.ParseFS(templateFS, "templates/stem.html", "templates/trace_steps.html"))
-	bikeTemplate = template.Must(template.ParseFS(templateFS, "templates/bike.html", "templates/trace_steps.html"))
-)
+var bikeTemplate = template.Must(template.ParseFS(templateFS, "templates/bike.html"))
 
 func toSVG(p pose.Point) svgPoint {
 	return svgPoint{X: p.X, Y: -p.Y}
-}
-
-type svgTraceSteps struct {
-	Steps         []svgStep
-	LineWidth     float64
-	ArcWidth      float64
-	DashArray     string
-	Opacity       float64
-	UseMarkers    bool
-	ZeroArcRadius float64
-	AxisWidth     float64
-	AxisFontSize  float64
-	OriginRadius  float64
 }
 
 type svgRect struct {
@@ -60,23 +41,8 @@ type svgPoint struct {
 	Y float64
 }
 
-type svgStep struct {
-	ID         int
-	Op         string
-	X1         float64
-	Y1         float64
-	X2         float64
-	Y2         float64
-	Path       string
-	AxisXEnd   svgPoint
-	AxisYEnd   svgPoint
-	AxisXLabel svgPoint
-	AxisYLabel svgPoint
-}
-
 type svgLandmark struct {
 	Name   string
-	StepID int
 	X      float64
 	Y      float64
 	LabelX float64
@@ -86,9 +52,6 @@ type svgLandmark struct {
 	// label's on-screen font size (used on /bike).
 	LabelDx string
 	LabelDy string
-	// LabelPriority orders labels when overlapping ones are hidden; lower
-	// numbers win.
-	LabelPriority int
 }
 
 // Illustrative outline dimensions (not measured hardware geometry) used only
@@ -101,36 +64,18 @@ const (
 	barClampRingRadiusMm       = 15.9 // nominal 31.8 mm clamp diameter; illustrative, not measured
 	seatpostClampOutlineHeight = 10.0 // illustrative rail-clamp head thickness
 	saddleRailOutlineHeight    = 5.0  // illustrative saddle rail thickness
-	turnArcRadiusMm            = 12.0 // illustrative radius for turn-step SVG arcs
-	stemAxisLengthMm           = 20.0 // illustrative local +X/+Y frame arrow length on /
-	stemAxisLabelOffsetMm      = 6.0  // illustrative label offset past local axis tip on /
-	bikeTurnArcRadiusMm        = 40.0 // illustrative radius for turn-step SVG arcs on /bike
-	bikeAxisLengthMm           = 60.0 // illustrative local +X/+Y frame arrow length on /bike
-	bikeAxisLabelOffsetMm      = 18.0 // illustrative label offset past local axis tip on /bike
 )
-
-type stemView struct {
-	HtaDeg           pose.Deg
-	Setup            assembly.StemSetup
-	HeadTubeTopSVG   svgPoint
-	BarClamp         pose.PoseSnapshot
-	BarClampSVG      svgPoint
-	BarClampRadiusMm float64
-	ViewBox          string
-	Rects            []svgRect
-	TraceSteps       svgTraceSteps
-	Landmarks        []svgLandmark
-	Steps            []pose.Step
-}
 
 // NewHandler returns the HTTP handler for the reboot workbench. It panics if
 // the fixture chart fails its closure check (Q47).
 func NewHandler() http.Handler {
 	checkFixtureChart(otsoFenrirFixture())
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", handleStemWorkbench)
+	// The root redirects to the inspector until the comparison page lands.
+	mux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/bike", http.StatusFound)
+	})
 	mux.HandleFunc("/bike", handleBikeWorkbench)
-	mux.HandleFunc("/static/workbench.js", handleWorkbenchJS)
 	return mux
 }
 
@@ -139,69 +84,6 @@ func checkFixtureChart(fix bikeFixture) {
 	if err := assembly.CheckChartClosure(fix.Chart); err != nil {
 		panic(fmt.Sprintf("fixture %q chart: %v", fix.Name, err))
 	}
-}
-
-func handleWorkbenchJS(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		w.Header().Set("Allow", "GET, HEAD")
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if r.Method == http.MethodHead {
-		return
-	}
-	_, _ = w.Write(workbenchJS)
-}
-
-func handleStemWorkbench(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-
-	fix := otsoFenrirFixture()
-	if err := fix.validate(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defaultFork, ok := fix.resolveForkOption("")
-	if !ok {
-		http.Error(w, "missing default fork option", http.StatusInternalServerError)
-		return
-	}
-	forkSetup := assembly.ForkSetup{
-		Spec:   defaultFork.Spec,
-		SagPct: defaultFork.DefaultSagPct,
-	}
-	frameset, err := assembly.PlaceFrameset(fix.Chart.Frame, defaultFork.DefaultLowerCup, forkSetup, fix.Wheels, nil)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Slice 1 stem-only preview roots a fresh trace at the leveled HeadTubeTop;
-	// Slice 3 will trace one unified tree from BB across frameset and cockpits.
-	tr := pose.NewTrace()
-	steererUp := pose.NewPose(frameset.HeadTubeTop.Origin(), frameset.HeadTubeTop.HeadingDeg(), tr)
-	placed, err := assembly.PlaceStem(steererUp, fix.DefaultStem)
-	tr.Freeze()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	view := buildStemView(frameset.LeveledHeadTubeAngleDeg(), fix.DefaultStem, placed, tr.Steps())
-
-	var buf bytes.Buffer
-	if err := stemTemplate.Execute(&buf, view); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = buf.WriteTo(w)
 }
 
 // poseOutline is a component silhouette drawn as a rectangle in a pose's
@@ -250,102 +132,6 @@ func stemOutlines(placed assembly.StemPlacement, setup assembly.StemSetup) []pos
 	}
 }
 
-func stemOutlineRects(placed assembly.StemPlacement, setup assembly.StemSetup) []svgRect {
-	return outlineRects(stemOutlines(placed, setup))
-}
-
-func buildStemView(htaDeg pose.Deg, setup assembly.StemSetup, placed assembly.StemPlacement, steps []pose.Step) stemView {
-	rects := stemOutlineRects(placed, setup)
-
-	svgSteps := buildSVGSteps(steps, turnArcRadiusMm, stemAxisLengthMm, stemAxisLabelOffsetMm)
-
-	landmarks := []svgLandmark{
-		makeLandmark("HeadTubeTop", placed.HeadTubeTop, -8, 10, "end"),
-		makeLandmark("CoverTop", placed.CoverTop, -8, 2, "end"),
-		makeLandmark("SpacerTop", placed.SpacerTop, -8, 2, "end"),
-		makeLandmark("SteererClamp", placed.SteererClamp, -8, -4, "end"),
-		makeLandmark("BarClamp", placed.BarClamp, 8, -18, "start"),
-	}
-
-	pts := make([]svgPoint, 0, len(landmarks))
-	for _, lm := range landmarks {
-		pts = append(pts, svgPoint{X: lm.X, Y: lm.Y})
-	}
-
-	return stemView{
-		HtaDeg:         htaDeg,
-		Setup:          setup,
-		HeadTubeTopSVG: toSVG(placed.HeadTubeTop.Origin()),
-		BarClamp: pose.PoseSnapshot{
-			Origin:     placed.BarClamp.Origin(),
-			HeadingDeg: placed.BarClamp.HeadingDeg(),
-		},
-		BarClampSVG:      toSVG(placed.BarClamp.Origin()),
-		BarClampRadiusMm: barClampRingRadiusMm,
-		ViewBox:          computeViewBoxFromPoints(pts, 85.0, 85.0, 45.0, 40.0).String(),
-		Rects:            rects,
-		TraceSteps: svgTraceSteps{
-			Steps:         svgSteps,
-			LineWidth:     1.8,
-			ArcWidth:      1.5,
-			UseMarkers:    true,
-			ZeroArcRadius: 4.5,
-			AxisWidth:     1.5,
-			AxisFontSize:  6.5,
-			OriginRadius:  3.5,
-		},
-		Landmarks: landmarks,
-		Steps:     steps,
-	}
-}
-
-func buildSVGSteps(steps []pose.Step, turnRadiusMm, axisLengthMm, axisLabelOffsetMm float64) []svgStep {
-	svgSteps := make([]svgStep, 0, len(steps))
-	for _, s := range steps {
-		from := toSVG(s.From.Origin)
-		to := toSVG(s.To.Origin)
-		toPose := s.To.Pose()
-		step := svgStep{
-			ID:         s.ID,
-			Op:         s.Op,
-			X1:         from.X,
-			Y1:         from.Y,
-			X2:         to.X,
-			Y2:         to.Y,
-			AxisXEnd:   toSVG(toPose.Advance("", axisLengthMm).Origin()),
-			AxisYEnd:   toSVG(toPose.Translate("", 0, axisLengthMm).Origin()),
-			AxisXLabel: toSVG(toPose.Advance("", axisLengthMm+axisLabelOffsetMm).Origin()),
-			AxisYLabel: toSVG(toPose.Translate("", 0, axisLengthMm+axisLabelOffsetMm).Origin()),
-		}
-		if s.Op == "turn" || s.Op == "face" {
-			step.Path = turnArcPath(s, turnRadiusMm)
-		}
-		svgSteps = append(svgSteps, step)
-	}
-	return svgSteps
-}
-
-func turnArcPath(s pose.Step, radiusMm float64) string {
-	delta := float64(s.TurnDeg())
-	if math.Abs(delta) < 1e-6 {
-		return ""
-	}
-	p1 := toSVG(s.From.Pose().Advance("", radiusMm).Origin())
-	p2 := toSVG(s.To.Pose().Advance("", radiusMm).Origin())
-
-	largeArc := 0
-	if math.Abs(delta) > 180.0 {
-		largeArc = 1
-	}
-	// Bike +angles rotate CCW; in SVG (Y-down), CCW is sweep-flag=0 and CW is sweep-flag=1.
-	sweep := 0
-	if delta < 0 {
-		sweep = 1
-	}
-	return fmt.Sprintf("M %.2f %.2f A %.2f %.2f 0 %d %d %.2f %.2f",
-		p1.X, p1.Y, radiusMm, radiusMm, largeArc, sweep, p2.X, p2.Y)
-}
-
 func poseRect(name string, p pose.Pose, startMm, lengthMm, thicknessMm float64) svgRect {
 	o := toSVG(p.Origin())
 	return svgRect{
@@ -362,7 +148,6 @@ func makeLandmark(name string, p pose.Pose, dx, dy float64, anchor string) svgLa
 	o := toSVG(p.Origin())
 	return svgLandmark{
 		Name:   name,
-		StepID: p.StepID(),
 		X:      o.X,
 		Y:      o.Y,
 		LabelX: o.X + dx,
@@ -732,13 +517,12 @@ type bikeView struct {
 	ErrorMessage         string
 	InvalidField         string
 	Form                 bikeFormValues
-	CanonicalURL         string
 	DefaultsURL          string
 	CadBaselineForkURL   string
 	View                 diagramView
 	ViewLinks            []diagramViewLink
 	DrawScale            float64 // view width / whole-bike width; 1 for the whole bike
-	UnitsPerPx           float64 // SVG units per on-screen px at the nominal width; JavaScript measures the real value
+	UnitsPerPx           float64 // SVG units per on-screen px at the nominal width
 	MinPostExtensionMm   float64
 	MaxPostExtensionMm   float64
 	BikeName             string
@@ -789,9 +573,7 @@ type bikeView struct {
 	ViewBox              string
 	Rects                []svgRect
 	Segments             []svgSegment
-	TraceSteps           svgTraceSteps
 	Landmarks            []svgLandmark
-	Steps                []pose.Step
 	Fitting              *bikeFittingView // nil unless a fit target is set
 	MinRailOffsetMm      float64
 	MaxRailOffsetMm      float64
@@ -932,8 +714,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tr := pose.NewTrace()
-	bike, err := assembly.PlaceBike(resolved.Setup, tr)
+	bike, err := assembly.PlaceBike(resolved.Setup, nil)
 	if err != nil {
 		renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
 		return
@@ -945,7 +726,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := buildBikeView(fix, resolved.State, bike, cadBaselineFork, tr.Steps())
+	view := buildBikeView(fix, resolved.State, bike, cadBaselineFork)
 	if resolved.State.Targets.any() {
 		target := resolved.State.Targets.fitTarget()
 		fitting, err := assembly.ApplyFitting(resolved.Setup, target, nil)
@@ -1576,8 +1357,7 @@ func makeSegment(name string, from, to pose.Pose, color string, width float64, i
 
 const (
 	// nominalDiagramWidthPx is the diagram's typical on-screen width. It
-	// converts screen sizes to SVG units before JavaScript measures the real
-	// width, and when JavaScript is off.
+	// converts screen sizes to SVG units for labels and close-up margins.
 	nominalDiagramWidthPx = 720.0
 	// Margins around the landmarks a close-up view frames, in on-screen px at
 	// the nominal width. The side margin fits the longest 1rem label
@@ -1590,22 +1370,13 @@ const (
 )
 
 // bikeLandmarkSpec places a landmark label at an offset from its point
-// (written in units of an 18-unit font, rendered in ems). Labels with a lower
-// priority number win when overlapping labels are hidden.
+// (written in units of an 18-unit font, rendered in ems).
 type bikeLandmarkSpec struct {
-	name     string
-	pose     pose.Pose
-	dx, dy   float64
-	anchor   string
-	priority int
+	name   string
+	pose   pose.Pose
+	dx, dy float64
+	anchor string
 }
-
-// Label priorities: frame reference points, then fit points, then the rest.
-const (
-	labelPriorityFrame = 1
-	labelPriorityFit   = 2
-	labelPriorityOther = 3
-)
 
 // workbenchLinks returns the Reset Defaults and CAD Baseline Fork links and
 // the diagram view links for state; the latter two keep its BRP fit target.
@@ -1617,15 +1388,13 @@ func workbenchLinks(fix bikeFixture, state workbenchState) (defaultsURL, cadURL 
 	return defaultsURL, cadURL, viewLinks
 }
 
-// buildBikeView renders the placed bike. The form echo, canonical URL, and
-// links carry submitted's options that are not part of the placed setup (fit
+// buildBikeView renders the placed bike. The form echo and links carry submitted's options that are not part of the placed setup (fit
 // targets, stock bar and fork options).
 func buildBikeView(
 	fix bikeFixture,
 	submitted workbenchState,
 	bike assembly.BikePlacement,
 	cadBaselineFork assembly.ChartBaseline,
-	steps []pose.Step,
 ) bikeView {
 	view, forkID, barID := submitted.View, submitted.ForkID, submitted.BarID
 	placed := bike.Frameset
@@ -1696,7 +1465,7 @@ func buildBikeView(
 		unitsPerNominalPx := wholeBox.W / nominalDiagramWidthPx
 		viewBox = closeUpViewBox(framingPts, wholeBox, closeUpPadXPx*unitsPerNominalPx, closeUpPadYPx*unitsPerNominalPx)
 	}
-	// Drawing-only sizes (labels, dots, strokes, trace arrows) scale with the
+	// Drawing-only sizes (labels, dots, strokes) scale with the
 	// view so they keep their on-screen size; physical outlines do not.
 	scale := viewBox.W / wholeBox.W
 
@@ -1721,31 +1490,30 @@ func buildBikeView(
 	rects := append(outlineRects(stemParts), outlineRects(seatParts)...)
 
 	landmarkSpecs := []bikeLandmarkSpec{
-		{"RearAxle", placed.RearAxle, 0, -14, "middle", labelPriorityFrame},
-		{"RearContact", placed.RearTireContact, 0, 24, "middle", labelPriorityOther},
-		{"BB", placed.BB, 0, 26, "middle", labelPriorityFrame},
-		{"SeatTubeTop", placed.SeatTubeTop, -14, -10, "end", labelPriorityFrame},
-		{"SeatpostClamp", seatpost.SeatpostClamp, 16, 6, "start", labelPriorityOther},
-		{"RailCenter", saddle.RailCenter, 16, 24, "start", labelPriorityOther},
-		{"BRP", saddle.BRP, 14, -10, "start", labelPriorityFit},
-		{"SitBones", saddle.SitBones, -14, -10, "end", labelPriorityFit},
-		{"HeadTubeTop", placed.HeadTubeTop, 14, 6, "start", labelPriorityFrame},
-		{"CoverTop", stem.CoverTop, -14, 8, "end", labelPriorityOther},
-		{"SpacerTop", stem.SpacerTop, -14, -2, "end", labelPriorityOther},
-		{"SteererClamp", stem.SteererClamp, -14, -14, "end", labelPriorityOther},
-		{"BarClamp", stem.BarClamp, 14, 4, "start", labelPriorityFit},
-		{"HandGrip", handlebar.HandGrip, -14, -12, "end", labelPriorityFit},
-		{"HeadTubeBottom", placed.HeadTubeBottom, 16, 4, "start", labelPriorityOther},
-		{"LowerCupBottom", placed.LowerCupBottom, 16, 18, "start", labelPriorityOther},
-		{"FrontAxle", placed.FrontAxle, 0, -14, "middle", labelPriorityFrame},
-		{"FrontContact", placed.FrontTireContact, 0, 24, "middle", labelPriorityOther},
+		{"RearAxle", placed.RearAxle, 0, -14, "middle"},
+		{"RearContact", placed.RearTireContact, 0, 24, "middle"},
+		{"BB", placed.BB, 0, 26, "middle"},
+		{"SeatTubeTop", placed.SeatTubeTop, -14, -10, "end"},
+		{"SeatpostClamp", seatpost.SeatpostClamp, 16, 6, "start"},
+		{"RailCenter", saddle.RailCenter, 16, 24, "start"},
+		{"BRP", saddle.BRP, 14, -10, "start"},
+		{"SitBones", saddle.SitBones, -14, -10, "end"},
+		{"HeadTubeTop", placed.HeadTubeTop, 14, 6, "start"},
+		{"CoverTop", stem.CoverTop, -14, 8, "end"},
+		{"SpacerTop", stem.SpacerTop, -14, -2, "end"},
+		{"SteererClamp", stem.SteererClamp, -14, -14, "end"},
+		{"BarClamp", stem.BarClamp, 14, 4, "start"},
+		{"HandGrip", handlebar.HandGrip, -14, -12, "end"},
+		{"HeadTubeBottom", placed.HeadTubeBottom, 16, 4, "start"},
+		{"LowerCupBottom", placed.LowerCupBottom, 16, 18, "start"},
+		{"FrontAxle", placed.FrontAxle, 0, -14, "middle"},
+		{"FrontContact", placed.FrontTireContact, 0, 24, "middle"},
 	}
 	landmarks := make([]svgLandmark, 0, len(landmarkSpecs))
 	for _, spec := range landmarkSpecs {
 		lm := makeLandmark(spec.name, spec.pose, 0, 0, spec.anchor)
 		lm.LabelDx = formatSVGSize(spec.dx/bikeLabelEmUnits) + "em"
 		lm.LabelDy = formatSVGSize(spec.dy/bikeLabelEmUnits) + "em"
-		lm.LabelPriority = spec.priority
 		landmarks = append(landmarks, lm)
 	}
 
@@ -1766,7 +1534,6 @@ func buildBikeView(
 		MaxSpacersMm:         fix.DefaultStem.MaxSpacersMm,
 		HasBuild:             true,
 		Form:                 form,
-		CanonicalURL:         state.URL(),
 		DefaultsURL:          defaultsURL,
 		CadBaselineForkURL:   cadURL,
 		View:                 view,
@@ -1823,18 +1590,6 @@ func buildBikeView(
 		ViewBox:              viewBox.String(),
 		Rects:                rects,
 		Segments:             segments,
-		TraceSteps: svgTraceSteps{
-			Steps:         buildSVGSteps(steps, bikeTurnArcRadiusMm*scale, bikeAxisLengthMm*scale, bikeAxisLabelOffsetMm*scale),
-			LineWidth:     2.0 * scale,
-			ArcWidth:      2.5 * scale,
-			DashArray:     formatSVGSize(6*scale) + " " + formatSVGSize(4*scale),
-			Opacity:       0.7,
-			ZeroArcRadius: 12.0 * scale,
-			AxisWidth:     3.5 * scale,
-			AxisFontSize:  18.0 * scale,
-			OriginRadius:  8.0 * scale,
-		},
-		Landmarks: landmarks,
-		Steps:     steps,
+		Landmarks:            landmarks,
 	}
 }

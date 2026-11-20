@@ -13,7 +13,7 @@ Write plain-language subjects (for example `Fix fork sag validation`). Conventio
 ## Verification
 
 - After **every** code change: `go vet ./... && go test ./...`
-- Before committing or finishing: `make pre-commit`. It runs `fix` (`go fix`, `go fmt`) and then `check` (vet, `boundary`, `exhaustive`, Go tests, and `make test-js`; `deadcode` is temporarily disabled during the reboot and will be re-enabled at cutover). If `go fix` changes anything, re-run until it's clean.
+- Before committing or finishing: `make pre-commit`. It runs `fix` (`go fix`, `go fmt`) and then `check` (vet, `boundary`, `exhaustive`, and Go tests; `deadcode` is temporarily disabled during the reboot and will be re-enabled at cutover). If `go fix` changes anything, re-run until it's clean.
 - Markdown-only changes don't need `make pre-commit`.
 
 ## Reboot Tree (`cmd/bikegeo-reboot`, `internal/reboot/...`)
@@ -22,7 +22,7 @@ A clean-slate reboot is being built beside the existing app; see [docs/reboot/DE
 
 - **Workflow (`docs/reboot/WORKFLOW.md`):** reboot work uses a Rolling-Wave workflow (`DESIGN.md` = direction & invariants; `SLICE<n>.md` = just-in-time plan for the next slice only). When asked what's next, check `git status`, `docs/reboot/SLICE*.md`, and `DESIGN.md` Milestones per `WORKFLOW.md`, state the current phase, and recommend the model tier (Frontier for direction, slice planning, and review; lower-tier for planned slice implementation).
 
-- **Web:** Go-rendered HTML/SVG plus a small dependency-free vanilla JS layer: no framework, `package.json`, npm, or build step. JS tests run on Node's built-in `node:test` (`make test-js`, major version in `.node-version`). The "no JavaScript" rule applies only to `internal/web`.
+- **Web:** server-rendered HTML/SVG driven by plain `GET` forms and the URL query, with no JavaScript, framework, `package.json`, npm, or build step. `/` redirects to `/bike` until the comparison page lands. Web tests are browserless Go (`httptest` + `goquery`).
 - **Isolation (`make boundary`):** reboot code never imports legacy `bikegeo/...` packages, except in files named `*_parity_test.go` under `internal/reboot/...`. Legacy code never imports reboot packages. Angles use `pose.Deg`, not `model.Deg`.
 - **Trig lives in `internal/reboot/pose`:** outside `pose`, non-test reboot code uses `pose`'s semantic operations for all trig, radian conversion, and geometric math. Inside `pose`, raw trig stays unexported. `Abs`, `IsNaN`, `IsInf`, and independent `math` in tests are fine. Enforced by code review.
 - **Fixture:** the Otso Fenrir Stainless fixture is in `internal/reboot/web/fixture.go`, not `internal/frames`. Chart immutability still applies.

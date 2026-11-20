@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>bikegeo-reboot — Bike Workbench</title>
-  <script src="/static/workbench.js" defer></script>
   <style>
     :root {
       color-scheme: light;
@@ -16,10 +15,6 @@
       --accent: #0969da;
       --error: #cf222e;
       --error-bg: #ffebe9;
-      --step-advance: #b35900;
-      --step-turn: #6f42c1;
-      --step-face: #0550ae;
-      --step-translate: #1a7f37;
     }
     * { box-sizing: border-box; }
     body {
@@ -173,15 +168,6 @@
       text-decoration: none;
     }
     .control-actions a:hover { text-decoration: underline; }
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(360px, 1.3fr) minmax(320px, 1fr);
-      gap: 1.25rem;
-      align-items: start;
-    }
-    @media (max-width: 1020px) {
-      .layout { grid-template-columns: 1fr; }
-    }
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -237,8 +223,7 @@
     }
     .diagram-views a[aria-current]:hover { text-decoration: none; }
     /* Labels are sized in screen units: --units-per-px converts CSS px to SVG
-       units (the server sends a nominal value; JavaScript measures the real
-       one), so 1rem follows the page font, browser font settings, and zoom. */
+       units at the nominal diagram width, so 1rem follows the page font. */
     svg.diagram .landmarks text {
       font-size: calc(1rem * var(--units-per-px, 1));
       paint-order: stroke;
@@ -248,130 +233,6 @@
     }
     svg.diagram .axis-label {
       font-size: calc(0.875rem * var(--units-per-px, 1));
-    }
-    /* Labels that would overlap a higher-priority label stay hidden until
-       their landmark is hovered, focused, or selected. */
-    svg.diagram .landmarks [data-label-hidden] text {
-      display: none;
-    }
-    svg.diagram .landmarks [data-label-hidden].is-active text {
-      display: inline;
-    }
-    /* A revealed label overlaps a neighbour by definition; fade the others. */
-    svg.diagram .landmarks:has([data-label-hidden].is-active) [data-landmark]:not(.is-active) text {
-      opacity: 0.2;
-    }
-    .step-frames {
-      pointer-events: none;
-    }
-    .step-frames .step-frame {
-      display: none;
-    }
-    .step-frames .step-frame.is-active {
-      display: inline;
-    }
-    .step-frame .axis-label {
-      paint-order: stroke;
-      stroke: #fcfcfa;
-      stroke-width: 0.25em;
-      stroke-linejoin: round;
-    }
-    .landmarks [data-step-id],
-    .trace-steps [data-step-id] {
-      cursor: pointer;
-    }
-    svg.diagram.has-active-step .trace-steps > * {
-      opacity: 0.2;
-    }
-    svg.diagram.has-active-step .trace-steps > .is-ancestor {
-      opacity: 0.75;
-      stroke-dasharray: none;
-      stroke-width: var(--ancestor-step-width);
-    }
-    svg.diagram.has-active-step .trace-steps > .is-active {
-      opacity: 1;
-      stroke-dasharray: none;
-      stroke-width: var(--active-step-width);
-    }
-    svg.diagram .landmarks [data-landmark].is-active circle {
-      fill: #cf222e;
-      stroke: #ffffff;
-      stroke-width: var(--active-landmark-stroke-width);
-    }
-    svg.diagram .landmarks [data-landmark].is-active text {
-      fill: #cf222e;
-      font-weight: 700;
-    }
-    table.trace-table tbody tr {
-      cursor: pointer;
-    }
-    table.trace-table tbody tr:hover {
-      background: #f3f7fc;
-    }
-    table.trace-table tbody tr.is-ancestor {
-      background: #f3f7fc;
-    }
-    table.trace-table tbody tr.is-active {
-      background: #ddf4ff;
-    }
-    table.trace-table tbody tr.is-selected {
-      box-shadow: inset 4px 0 0 var(--accent);
-    }
-    table.trace-table tbody tr.is-selected.is-active {
-      background: #cfe8ff;
-    }
-    .step-select {
-      min-block-size: 24px;
-      min-inline-size: 28px;
-      padding: 0.15rem 0.35rem;
-      font: inherit;
-      color: inherit;
-      background: transparent;
-      border: 1px solid transparent;
-      border-radius: 4px;
-      cursor: pointer;
-      text-align: left;
-    }
-    .step-select[aria-pressed="true"] {
-      font-weight: 700;
-      border-color: var(--accent);
-      background: #ffffff;
-    }
-    .step-select:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
-    }
-    .step-inspector {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.5rem;
-      margin-bottom: 0.65rem;
-      padding: 0.45rem 0.65rem;
-      background: #f3f7fc;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-size: 0.82rem;
-      color: var(--text);
-    }
-    .step-inspector[hidden] {
-      display: none;
-    }
-    .step-clear {
-      min-block-size: 24px;
-      padding: 0.2rem 0.55rem;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      background: #ffffff;
-      color: var(--text);
-      font: inherit;
-      font-size: 0.78rem;
-      cursor: pointer;
-    }
-    .step-clear:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
     }
     table {
       width: 100%;
@@ -395,29 +256,15 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 0.82rem;
     }
-    .op-advance { color: var(--step-advance); font-weight: 600; }
-    .op-turn { color: var(--step-turn); font-weight: 600; }
-    .op-face { color: var(--step-face); font-weight: 600; }
-    .op-translate { color: var(--step-translate); font-weight: 600; }
-    main[data-bike-workbench][aria-busy="true"] .layout {
-      opacity: 0.65;
-      transition: opacity 120ms ease;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      main[data-bike-workbench][aria-busy="true"] .layout {
-        transition: none;
-      }
-    }
   </style>
 </head>
 <body>
   <header>
     <h1>bikegeo-reboot</h1>
     <span class="badge">Milestone 1 Slice 4 (controls &amp; inspection) · {{.BikeName}}</span>
-    <nav><a href="/">Stem Preview</a></nav>
   </header>
 
-  <main data-bike-workbench{{if .CanonicalURL}} data-canonical-url="{{.CanonicalURL}}"{{end}}>
+  <main>
   <form class="controls" method="get" action="/bike" aria-label="Bike build controls">
     {{if .ErrorMessage}}
     <div id="form-error" class="form-error" role="alert">
@@ -571,7 +418,7 @@
   </form>
 
   {{if .HasBuild}}
-  <div class="layout" data-trace-workbench>
+  <div class="layout">
     <section class="card" aria-label="Bike diagram">
       <div class="card-heading">
         <h2>Leveled Bike Assembly</h2>
@@ -663,17 +510,8 @@
         <span>ΔPitch vs CAD: <strong class="mono" data-metric="delta-pitch">{{printf "%+.2f°" .DeltaPitchDeg}}</strong></span>
       </div>
 
-      <div class="step-inspector" data-step-inspector hidden>
-        <span class="mono" data-step-inspector-text>Hover, focus, or select a trace step to highlight its movement vector and local +X/+Y frame.</span>
-        <button type="button" class="step-clear" data-step-clear hidden>Clear</button>
-      </div>
-
       <svg class="diagram" viewBox="{{.ViewBox}}" role="img" aria-label="Leveled bike geometry, {{.View.Description}}" data-diagram-view="{{.View}}"
-           data-label-layout
-           style="--active-step-width: {{.Px 6}}; --ancestor-step-width: {{.Px 3.5}}; --active-landmark-stroke-width: {{.Px 2.5}}; --units-per-px: {{printf "%.4f" .UnitsPerPx}};">
-        <defs>
-{{template "step-frame-defs"}}
-        </defs>
+           style="--units-per-px: {{printf "%.4f" .UnitsPerPx}};">
 
         <g data-element="world-axes" stroke="#9aa4b2" stroke-width="{{.Px 1.8}}" stroke-dasharray="{{.Px 6}} {{.Px 4}}">
           <line x1="0" y1="0" x2="{{.Px 110}}" y2="0" />
@@ -708,11 +546,9 @@
           {{end}}
         </g>
 
-{{template "trace-steps" .TraceSteps}}
-
         <g class="landmarks">
           {{range .Landmarks}}
-          <g data-landmark="{{.Name}}" data-step-id="{{.StepID}}" data-label-priority="{{.LabelPriority}}">
+          <g data-landmark="{{.Name}}">
             <circle cx="{{printf "%.2f" .X}}" cy="{{printf "%.2f" .Y}}" r="{{$.Px 5}}" fill="#0969da" stroke="#ffffff" stroke-width="{{$.Px 1.5}}" />
             <text x="{{printf "%.2f" .LabelX}}" y="{{printf "%.2f" .LabelY}}" dx="{{.LabelDx}}" dy="{{.LabelDy}}"
                   text-anchor="{{.Anchor}}" fill="#1f2328" font-family="ui-monospace, monospace">{{.Name}}</text>
@@ -720,39 +556,10 @@
           {{end}}
         </g>
 
-{{template "step-frames" .TraceSteps}}
       </svg>
       <p style="margin: 0.6rem 0 0 0; font-size: 0.8rem; color: var(--muted);">
         Note: Dashed <code>seat-tube</code> (straight along effective STA), <code>seatstay</code> (to <code>SeatTubeTop</code>), <code>saddle-profile</code> (<code>SitBones</code> to <code>BRP</code>), and <code>handlebar-rise-sweep</code> (2D side projection from <code>BarClamp</code> to <code>HandGrip</code>) lines are illustrative schematic shapes, not measured frame tubes. Wheel circles use the declared {{.WheelLabel}} ({{printf "%.1f" .WheelRadiusMm}} mm) baseline radius.
       </p>
-    </section>
-
-    <section class="card" aria-label="Construction trace">
-      <h2>Construction Trace ({{len .Steps}} steps)</h2>
-      <table class="trace-table">
-        <thead>
-          <tr>
-            <th scope="col">#</th>
-            <th scope="col">Parent</th>
-            <th scope="col">Op</th>
-            <th scope="col">Label</th>
-            <th scope="col">Param</th>
-            <th scope="col">To (mm, °)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{range .Steps}}
-          <tr data-step-id="{{.ID}}" data-parent-id="{{.ParentID}}" data-step-op="{{.Op}}" data-step-label="{{.Label}}" data-step-summary="#{{.ID}} ({{if .ParentID}}parent #{{.ParentID}}{{else}}root{{end}}) {{.Op}} {{.Label}} ({{.Param}}) → ({{printf "%.1f" .To.Origin.X}}, {{printf "%.1f" .To.Origin.Y}}) @ {{printf "%.2f" .To.HeadingDeg}}°">
-            <td class="mono"><button type="button" class="step-select" data-step-select="{{.ID}}" aria-pressed="false" aria-label="Inspect step {{.ID}}: {{.Op}} {{.Label}}">{{.ID}}</button></td>
-            <td class="mono">{{.ParentID}}</td>
-            <td class="mono op-{{.Op}}">{{.Op}}</td>
-            <td>{{.Label}}</td>
-            <td class="mono">{{.Param}}</td>
-            <td class="mono">({{printf "%.1f" .To.Origin.X}}, {{printf "%.1f" .To.Origin.Y}}) @ {{printf "%.2f" .To.HeadingDeg}}°</td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
     </section>
   </div>
   {{end}}
