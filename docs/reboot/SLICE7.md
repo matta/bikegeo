@@ -1,6 +1,17 @@
 # M2 Slice 7, bar sweep band
 
-**Status: Planned 2026-11-19 from Matt's ruling Q30 ([DESIGN.md](DESIGN.md), "Seatposts, bar sweep, and fork choice"). Not started.** Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. This plan builds on Slice 5, which is accepted (commits `599fcf4`, `bf3b2a4`, `fe0a707`). It doesn't depend on Slice 6 and touches none of Slice 6's code, so it may land before or after it. Slice 8 builds on this slice.
+**Status: Implemented 2026-11-19; awaiting Matt's acceptance.**
+
+## Implementation handoff
+
+- **Who and when** — OpenAI Codex (GPT-6) and a Codex subagent, 2026-11-19.
+- **Commits** — Both planned implementation commits are in `6ea0295`, `Penalize and show handlebar sweep in reboot stock fitting`, with Matt's approval.
+- **Steps** — A1, A2, and W1–W4 are complete.
+- **Deviations** — The assembly change caused the web template to render a fifth ledger cell before the header and test expectations were updated. Matt approved one implementation commit so the suite passes at the commit boundary. The adjacent `LedgerLine` comment also names the installed handlebar as a source of band inputs. The session supplied no attribution trailer, so the commit uses `Assisted-by: OpenAI Codex`.
+- **Verification** — `go vet ./... && go test ./...` and `make pre-commit` passed for the combined change. Ran `make serve-reboot`, which built the binary. Port 8081 was occupied, so the live Chrome checks used the updated build on port 8082. In all-bars mode, 6,750 combinations produced five displayed 16° bars with 0.0 sweep points each. The SQlab 311 2.0 Alloy 16° with 15 mm rise led at 86.6 with a 130 mm, −17° stem and 0 mm spacers. Switching to Selected handlebar only and the SQlab 311 FL-X Carbon 12° with 15 mm rise showed 8.0 sweep points on all five rows. [All-bars screenshot](/Users/matt/.codex/visualizations/2026/11/20/01a1f77b-c784-7203-871b-51dd80acaa67/slice7-all-bars.png) · [Selected-bar screenshot](/Users/matt/.codex/visualizations/2026/11/20/01a1f77b-c784-7203-871b-51dd80acaa67/slice7-selected-bar.png)
+- **Open issues** — None.
+
+The plan follows Matt's ruling Q30 ([DESIGN.md](DESIGN.md), "Seatposts, bar sweep, and fork choice"). Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. This plan builds on Slice 5, which is accepted (commits `599fcf4`, `bf3b2a4`, `fe0a707`). It doesn't depend on Slice 6 and touches none of Slice 6's code, so it may land before or after it. Slice 8 builds on this slice.
 
 This slice has two commits and touches 6 code, test, and template files, so per DESIGN.md "Slice planning" it is written so a less capable model (for example Sonnet) can implement it without making design choices. **Delegate it.** If something here seems wrong or missing, stop and ask Matt rather than choosing.
 
