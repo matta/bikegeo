@@ -185,7 +185,7 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 	frame := fenrirSizeLFrame()
 	wheels := fenrirWheels()
 	cadFork := assembly.ForkSetup{
-		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0},
+		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0, Steerer: assembly.SteererCAD},
 	}
 	postSetup := assembly.SeatpostSetup{
 		ExtensionMm:   263.5,

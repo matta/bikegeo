@@ -60,7 +60,7 @@ func CheckChartClosure(chart FrameChart) error {
 	if err := validateForkGeometry(chart.CadFork); err != nil {
 		return err
 	}
-	if err := chart.CadLowerCup.Validate(); err != nil {
+	if err := validateHeadset(chart.Frame.LowerBore, chart.CadLowerCup, SteererCAD); err != nil {
 		return err
 	}
 	if !isFinite(chart.PublishedWheelbaseMm) || chart.PublishedWheelbaseMm <= 0 {

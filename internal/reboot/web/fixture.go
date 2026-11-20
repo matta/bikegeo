@@ -110,6 +110,7 @@ func (f bikeFixture) cadForkOption() forkOption {
 			StaticA2cMm: f.Chart.CadFork.A2cMm,
 			TravelMm:    0.0,
 			RakeMm:      f.Chart.CadFork.RakeMm,
+			Steerer:     assembly.SteererCAD, // sentinel: the CAD fork has no physical steerer
 		},
 		DefaultSagPct:   0.0,
 		DefaultLowerCup: f.Chart.CadLowerCup,
@@ -247,6 +248,9 @@ func (f bikeFixture) validate() error {
 		if opt.DefaultLowerCup.Standard == assembly.LowerCupBareHeadTube {
 			return fmt.Errorf("fixture %q installable fork option %q cannot use %q lower cup", f.Name, opt.ID, assembly.LowerCupBareHeadTube)
 		}
+		if _, err := assembly.PlaceFrameset(f.Chart.Frame, opt.DefaultLowerCup, assembly.ForkSetup{Spec: opt.Spec, SagPct: opt.DefaultSagPct}, f.Wheels); err != nil {
+			return fmt.Errorf("fixture %q fork option %q does not fit the frame: %w", f.Name, opt.ID, err)
+		}
 		if opt.ID == f.DefaultForkID {
 			defaultFound = true
 		}
@@ -267,6 +271,9 @@ func (f bikeFixture) validate() error {
 	}
 	if err := f.Chart.CadLowerCup.Validate(); err != nil {
 		return fmt.Errorf("fixture %q Chart.CadLowerCup invalid: %w", f.Name, err)
+	}
+	if _, err := assembly.PlaceCadBaselineFork(f.Chart, f.Wheels); err != nil {
+		return fmt.Errorf("fixture %q CAD baseline fork does not fit the frame: %w", f.Name, err)
 	}
 	if f.DefaultHandlebarID == "" {
 		return fmt.Errorf("fixture %q missing DefaultHandlebarID", f.Name)
@@ -349,7 +356,9 @@ func otsoFenrirFixture() bikeFixture {
 			},
 		}
 	}
-	ec44Cup := assembly.LowerCupSetup{
+	// The frame's stock lower cup is the source of every physical fork option's cup.
+	// Its 44 mm pressed bore is inferred from EC44 (illustrative; Otso does not publish it).
+	frameCup := assembly.LowerCupSetup{
 		Standard: assembly.LowerCupEC44,
 		StackMm:  12.0,
 	}
@@ -365,6 +374,8 @@ func otsoFenrirFixture() bikeFixture {
 				BbDropMm:         72.0,
 				ChainstayMm:      450.0,
 				SeatTubeLengthMm: 490.0,
+				LowerBore:        assembly.Bore44Pressed,
+				DefaultLowerCup:  frameCup,
 			},
 			// hypotheses, not rounded chart numbers: CadLowerCup and CadFork get no rounding terms (Q44)
 			CadLowerCup: assembly.LowerCupSetup{
@@ -395,25 +406,28 @@ func otsoFenrirFixture() bikeFixture {
 				StaticA2cMm: 495.0,
 				TravelMm:    0.0,
 				RakeMm:      54.0,
-			}, 0.0, ec44Cup),
+				Steerer:     assembly.SteererTapered, // catalog
+			}, 0.0, frameCup),
 			makeForkOption("sid_100", "RockShox SID", assembly.ForkSpec{
 				StaticA2cMm: 506.0,
 				TravelMm:    100.0,
 				RakeMm:      44.0,
-			}, 20.0, ec44Cup),
+				Steerer:     assembly.SteererTapered, // catalog
+			}, 20.0, frameCup),
 			makeForkOption("fox34_120", "Fox 34", assembly.ForkSpec{
 				StaticA2cMm: 530.0,
 				TravelMm:    120.0,
 				RakeMm:      44.0,
-			}, 20.0, ec44Cup),
+				Steerer:     assembly.SteererTapered, // catalog
+			}, 20.0, frameCup),
 		},
 		DefaultStem: assembly.StemSetup{
-			UpperCoverMm:  11.0,
+			UpperStackMm:  assembly.DefaultUpperStackMm,
 			SpacersMm:     20.0,
 			ClampHeightMm: 40.0,
 			LengthMm:      60.0,
 			AngleDeg:      -6.0,
-			MaxSpacersMm:  40.0, // illustrative: steerer length not measured
+			MaxSpacersMm:  assembly.DefaultMaxSpacersMm,
 			MinLengthMm:   40.0, // illustrative stem length range
 			MaxLengthMm:   130.0,
 		},

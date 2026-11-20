@@ -38,9 +38,9 @@ func twoBarStock() assembly.CockpitStock {
 // fenrirStockForks returns the Q31 configurations in fixture order: Lithic
 // rigid; SID at 15, 20, 25% sag; Fox 34 at 15, 20, 25% sag; all on the EC44 12 mm cup.
 func fenrirStockForks() []assembly.StockFork {
-	lithic := assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54}
-	sid := assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44}
-	fox34 := assembly.ForkSpec{StaticA2cMm: 530, TravelMm: 120, RakeMm: 44}
+	lithic := assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54, Steerer: assembly.SteererTapered}
+	sid := assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44, Steerer: assembly.SteererTapered}
+	fox34 := assembly.ForkSpec{StaticA2cMm: 530, TravelMm: 120, RakeMm: 44, Steerer: assembly.SteererTapered}
 	cup := fenrirEc44Cup()
 	return []assembly.StockFork{
 		{Fork: assembly.ForkSetup{Spec: lithic}, LowerCup: cup},
@@ -140,8 +140,8 @@ func TestStockFittingFreeBuild(t *testing.T) {
 	known.Stem.AngleDeg, known.Stem.LengthMm, known.Stem.SpacersMm = 0, 70, 10
 	grip := gripOf(t, known)
 	fit := mustStockFit(t, base, assembly.FitTarget{HandGrip: &grip}, 5)
-	if fit.Evaluated != 450 || len(fit.Candidates) != 5 {
-		t.Fatalf("evaluated %d, returned %d; want 450 and 5", fit.Evaluated, len(fit.Candidates))
+	if fit.Evaluated != 350 || len(fit.Candidates) != 5 {
+		t.Fatalf("evaluated %d, returned %d; want 350 and 5", fit.Evaluated, len(fit.Candidates))
 	}
 	best := fit.Candidates[0]
 	requireStockStem(t, best, stockStem{0, 70, 10})
@@ -192,9 +192,9 @@ func TestStockFittingReferenceBuilds(t *testing.T) {
 
 func TestStockFittingForwardAndRankOrder(t *testing.T) {
 	base := fenrirFittingSetup()
-	fit := mustStockFit(t, base, assembly.FitTarget{HandGrip: &fitReportGrip}, 450)
-	if fit.Evaluated != 450 || len(fit.Candidates) != 450 {
-		t.Fatalf("evaluated %d, returned %d; want 450 each", fit.Evaluated, len(fit.Candidates))
+	fit := mustStockFit(t, base, assembly.FitTarget{HandGrip: &fitReportGrip}, 350)
+	if fit.Evaluated != 350 || len(fit.Candidates) != 350 {
+		t.Fatalf("evaluated %d, returned %d; want 350 each", fit.Evaluated, len(fit.Candidates))
 	}
 	wantBands := []assembly.BandName{
 		assembly.BandGripOval, assembly.BandStemLength, assembly.BandStemAngle,
@@ -224,7 +224,7 @@ func TestStockFittingForwardAndRankOrder(t *testing.T) {
 			}
 		}
 	}
-	if score := fit.Candidates[449].Score(); score >= 0 {
+	if score := fit.Candidates[349].Score(); score >= 0 {
 		t.Errorf("last score = %v, want a negative score", score)
 	}
 }
@@ -239,7 +239,7 @@ func TestStockFittingIndependentPenalties(t *testing.T) {
 		var oracle []scoredStem
 		for _, angle := range []pose.Deg{-17, -6, 0, 6, 17} {
 			for length := 40.0; length <= 130; length += 10 {
-				for spacers := 0.0; spacers <= 40; spacers += 5 {
+				for spacers := 0.0; spacers <= 30; spacers += 5 {
 					setup := base
 					setup.Stem.AngleDeg, setup.Stem.LengthMm, setup.Stem.SpacersMm = angle, length, spacers
 					p := gripOf(t, setup)
@@ -266,8 +266,8 @@ func TestStockFittingIndependentPenalties(t *testing.T) {
 func TestStockFittingFitsSaddleFirst(t *testing.T) {
 	base := fenrirFittingSetup()
 	saddle := mustFit(t, base, fitReportBRP).Placement.Setup
-	both := mustStockFit(t, base, assembly.FitTarget{BRP: &fitReportBRP, HandGrip: &fitReportGrip}, 450)
-	gripOnly := mustStockFit(t, base, assembly.FitTarget{HandGrip: &fitReportGrip}, 450)
+	both := mustStockFit(t, base, assembly.FitTarget{BRP: &fitReportBRP, HandGrip: &fitReportGrip}, 350)
+	gripOnly := mustStockFit(t, base, assembly.FitTarget{HandGrip: &fitReportGrip}, 350)
 	for i, c := range both.Candidates {
 		got := c.Placement.Setup
 		if got.Seatpost.ExtensionMm != saddle.Seatpost.ExtensionMm || got.Saddle.RailOffsetMm != saddle.Saddle.RailOffsetMm {
@@ -279,7 +279,7 @@ func TestStockFittingFitsSaddleFirst(t *testing.T) {
 
 func TestStockFittingKeepsSubmittedBarByDefault(t *testing.T) {
 	setup := fenrirFittingSetup()
-	fit := mustStockFit(t, setup, assembly.FitTarget{HandGrip: &fitReportGrip}, 450)
+	fit := mustStockFit(t, setup, assembly.FitTarget{HandGrip: &fitReportGrip}, 350)
 	for i, c := range fit.Candidates {
 		if c.StockHandlebar || c.Placement.Setup.Handlebar != setup.Handlebar {
 			t.Errorf("rank %d did not keep the submitted handlebar", i+1)
@@ -292,12 +292,12 @@ func TestStockFittingChoosesAmongHandlebars(t *testing.T) {
 	target := assembly.FitTarget{HandGrip: &fitReportGrip}
 	stock := twoBarStock()
 	prefs := illustrativeCockpitPreferences()
-	full, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 900)
+	full, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 700)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if full.Evaluated != 900 || len(full.Candidates) != 900 {
-		t.Fatalf("evaluated %d, returned %d, want 900 each", full.Evaluated, len(full.Candidates))
+	if full.Evaluated != 700 || len(full.Candidates) != 700 {
+		t.Fatalf("evaluated %d, returned %d, want 700 each", full.Evaluated, len(full.Candidates))
 	}
 	var counts [2]int
 	for i, c := range full.Candidates {
@@ -310,8 +310,8 @@ func TestStockFittingChoosesAmongHandlebars(t *testing.T) {
 			t.Errorf("rank %d did not install stock handlebar %d", i+1, index)
 		}
 	}
-	if counts != [2]int{450, 450} {
-		t.Errorf("candidate count by handlebar = %v, want [450 450]", counts)
+	if counts != [2]int{350, 350} {
+		t.Errorf("candidate count by handlebar = %v, want [350 350]", counts)
 	}
 	fit, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 5)
 	if err != nil {
@@ -352,12 +352,12 @@ func TestStockFittingChoosesAmongHandlebars(t *testing.T) {
 func TestStockFittingPenalizesSweep(t *testing.T) {
 	setup := fenrirFittingSetup()
 	target := assembly.FitTarget{HandGrip: &fitReportGrip}
-	fit, err := assembly.ApplyStockFitting(setup, target, twoBarStock(), illustrativeCockpitPreferences(), 900)
+	fit, err := assembly.ApplyStockFitting(setup, target, twoBarStock(), illustrativeCockpitPreferences(), 700)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fit.Candidates) != 900 {
-		t.Fatalf("returned %d candidates, want 900", len(fit.Candidates))
+	if len(fit.Candidates) != 700 {
+		t.Fatalf("returned %d candidates, want 700", len(fit.Candidates))
 	}
 	pointsByBar := [...]float64{0, 8}
 	for i, c := range fit.Candidates {
@@ -380,7 +380,7 @@ func TestStockFittingInstallsEveryBarAtSubmittedRoll(t *testing.T) {
 	target := assembly.FitTarget{HandGrip: &fitReportGrip}
 	stock := twoBarStock()
 	prefs := illustrativeCockpitPreferences()
-	full, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 900)
+	full, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 700)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +414,7 @@ func TestStockFittingInstallsEveryBarAtSubmittedRoll(t *testing.T) {
 func TestStockFittingCarriesSaddleAcrossBars(t *testing.T) {
 	setup := fenrirFittingSetup()
 	target := assembly.FitTarget{BRP: &fitReportBRP, HandGrip: &fitReportGrip}
-	fit, err := assembly.ApplyStockFitting(setup, target, twoBarStock(), illustrativeCockpitPreferences(), 900)
+	fit, err := assembly.ApplyStockFitting(setup, target, twoBarStock(), illustrativeCockpitPreferences(), 700)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,7 +433,7 @@ func TestStockFittingCarriesSaddleAcrossBars(t *testing.T) {
 
 func TestStockFittingKeepsSubmittedForkByDefault(t *testing.T) {
 	setup := fenrirFittingSetup()
-	fit := mustStockFit(t, setup, assembly.FitTarget{HandGrip: &fitReportGrip}, 450)
+	fit := mustStockFit(t, setup, assembly.FitTarget{HandGrip: &fitReportGrip}, 350)
 	for i, c := range fit.Candidates {
 		if c.StockFork || c.Placement.Setup.Fork != setup.Fork || c.Placement.Setup.LowerCup != setup.LowerCup {
 			t.Errorf("rank %d did not keep the submitted fork and lower cup", i+1)
@@ -475,12 +475,12 @@ func TestStockFittingChoosesAmongForks(t *testing.T) {
 	target := assembly.FitTarget{HandGrip: &fitReportGrip}
 	stock := fenrirForkStock()
 	prefs := illustrativeCockpitPreferences()
-	full, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 3150)
+	full, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 2450)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if full.Evaluated != 3150 || len(full.Candidates) != 3150 {
-		t.Fatalf("evaluated %d, returned %d, want 3150 each", full.Evaluated, len(full.Candidates))
+	if full.Evaluated != 2450 || len(full.Candidates) != 2450 {
+		t.Fatalf("evaluated %d, returned %d, want 2450 each", full.Evaluated, len(full.Candidates))
 	}
 	var counts [7]int
 	sagPoints := [...]float64{0, 10, 0, 10, 10, 0, 10}
@@ -498,8 +498,8 @@ func TestStockFittingChoosesAmongForks(t *testing.T) {
 			t.Errorf("rank %d fork sag line = %+v, want %+v", i+1, got, want)
 		}
 	}
-	if counts != [7]int{450, 450, 450, 450, 450, 450, 450} {
-		t.Errorf("candidate count by fork = %v, want 450 each", counts)
+	if counts != [7]int{350, 350, 350, 350, 350, 350, 350} {
+		t.Errorf("candidate count by fork = %v, want 350 each", counts)
 	}
 
 	fit, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 5)
@@ -520,12 +520,12 @@ func TestStockFittingRefitsSaddlePerFork(t *testing.T) {
 	target := assembly.FitTarget{BRP: &fitReportBRP, HandGrip: &fitReportGrip}
 	stock := fenrirForkStock()
 	prefs := illustrativeCockpitPreferences()
-	full, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 3150)
+	full, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 2450)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if full.Evaluated != 3150 || len(full.Candidates) != 3150 {
-		t.Fatalf("evaluated %d, returned %d, want 3150 each", full.Evaluated, len(full.Candidates))
+	if full.Evaluated != 2450 || len(full.Candidates) != 2450 {
+		t.Fatalf("evaluated %d, returned %d, want 2450 each", full.Evaluated, len(full.Candidates))
 	}
 	var saddles [7]assembly.BikeSetup
 	for i, fork := range stock.Forks {
@@ -578,7 +578,7 @@ func TestStockFittingPenalizesBrpMissForSubmittedFork(t *testing.T) {
 func TestStockFittingZeroSpacers(t *testing.T) {
 	base := fenrirFittingSetup()
 	base.Stem.SpacersMm, base.Stem.MaxSpacersMm = 0, 0
-	fit := mustStockFit(t, base, assembly.FitTarget{HandGrip: &fitReportGrip}, 450)
+	fit := mustStockFit(t, base, assembly.FitTarget{HandGrip: &fitReportGrip}, 350)
 	if fit.Evaluated != 50 || len(fit.Candidates) != 50 {
 		t.Fatalf("evaluated %d, returned %d; want 50 each", fit.Evaluated, len(fit.Candidates))
 	}
@@ -592,10 +592,10 @@ func TestStockFittingZeroSpacers(t *testing.T) {
 func TestStockFittingStepsAtHardwareLimits(t *testing.T) {
 	setup := fenrirFittingSetup()
 	setup.Stem.MaxLengthMm = 130 - 5e-10
-	setup.Stem.MaxSpacersMm = 40 - 5e-10
-	fit := mustStockFit(t, setup, assembly.FitTarget{HandGrip: &fitReportGrip}, 451)
-	if fit.Evaluated != 450 || len(fit.Candidates) != 450 {
-		t.Fatalf("evaluated %d, returned %d; want 450 each", fit.Evaluated, len(fit.Candidates))
+	setup.Stem.MaxSpacersMm = 30 - 5e-10
+	fit := mustStockFit(t, setup, assembly.FitTarget{HandGrip: &fitReportGrip}, 351)
+	if fit.Evaluated != 350 || len(fit.Candidates) != 350 {
+		t.Fatalf("evaluated %d, returned %d; want 350 each", fit.Evaluated, len(fit.Candidates))
 	}
 	for _, c := range fit.Candidates {
 		stem := c.Placement.Setup.Stem

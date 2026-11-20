@@ -18,7 +18,7 @@ func fenrirFittingSetup() assembly.BikeSetup {
 		Frame:    fenrirSizeLFrame(),
 		LowerCup: fenrirEc44Cup(),
 		Fork: assembly.ForkSetup{
-			Spec:   assembly.ForkSpec{StaticA2cMm: 495.0, TravelMm: 0.0, RakeMm: 54.0},
+			Spec:   assembly.ForkSpec{StaticA2cMm: 495.0, TravelMm: 0.0, RakeMm: 54.0, Steerer: assembly.SteererTapered},
 			SagPct: 0.0,
 		},
 		Wheels: fenrirWheels(),
@@ -311,7 +311,7 @@ func TestApplyFittingGripRoundTripReached(t *testing.T) {
 }
 
 func TestApplyFittingGripReachesTargetsOnBounds(t *testing.T) {
-	for _, c := range []struct{ spacers, length float64 }{{0, 40}, {40, 130}, {0, 130}} {
+	for _, c := range []struct{ spacers, length float64 }{{0, 40}, {30, 130}, {0, 130}} {
 		fit := mustFitGrip(t, fenrirFittingSetup(), gripOf(t, withStem(fenrirFittingSetup(), c.spacers, c.length)))
 		spacers, length := stemValues(fit)
 		if fit.Outcome != assembly.FitReached || fit.LimitedBy != nil {
@@ -370,7 +370,7 @@ func TestApplyFittingGripSpacersLimitOnly(t *testing.T) {
 	// Minimality over a 1 mm forward-placement grid.
 	best := gripMissMm(t, fit)
 	setup := fenrirFittingSetup()
-	for sp := 0.0; sp <= 40; sp++ {
+	for sp := 0.0; sp <= 30; sp++ {
 		for ln := 40.0; ln <= 130; ln++ {
 			g := gripOf(t, withStem(setup, sp, ln))
 			if miss := math.Hypot(target.X-g.X, target.Y-g.Y); miss < best-1e-6 {
@@ -399,7 +399,7 @@ func TestApplyFittingGripKeepsFixedInputs(t *testing.T) {
 	in := fenrirFittingSetup()
 	fit := mustFitGrip(t, in, fitReportGrip)
 	got := fit.Placement.Setup
-	if got.Stem.AngleDeg != in.Stem.AngleDeg || got.Stem.UpperCoverMm != in.Stem.UpperCoverMm ||
+	if got.Stem.AngleDeg != in.Stem.AngleDeg || got.Stem.UpperStackMm != in.Stem.UpperStackMm ||
 		got.Stem.ClampHeightMm != in.Stem.ClampHeightMm || got.Handlebar != in.Handlebar {
 		t.Fatalf("fixed cockpit inputs changed: %+v", got.Stem)
 	}

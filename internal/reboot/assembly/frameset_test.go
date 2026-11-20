@@ -18,6 +18,8 @@ func fenrirSizeLFrame() assembly.FrameSetup {
 		BbDropMm:         72.0,
 		ChainstayMm:      450.0,
 		SeatTubeLengthMm: 490.0,
+		LowerBore:        assembly.Bore44Pressed,
+		DefaultLowerCup:  assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0},
 	}
 }
 
@@ -42,6 +44,7 @@ func TestPlaceFramesetCADBaselineForkAndInvariants(t *testing.T) {
 			StaticA2cMm: 495.0,
 			TravelMm:    0.0,
 			RakeMm:      54.0,
+			Steerer:     assembly.SteererCAD,
 		},
 		SagPct: 0.0,
 	}
@@ -103,6 +106,7 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 		StaticA2cMm: 530.0,
 		TravelMm:    120.0,
 		RakeMm:      44.0,
+		Steerer:     assembly.SteererTapered,
 	}
 	fork20 := assembly.ForkSetup{Spec: fox34Spec, SagPct: 20.0}
 	assertNear(t, "resolved A2C at 20% sag", fork20.EffectiveA2cMm(), 506.0, 1e-9)
@@ -146,7 +150,7 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 	frame := fenrirSizeLFrame()
 	ec44Cup := fenrirEc44Cup()
 	fork := assembly.ForkSetup{
-		Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54},
+		Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: assembly.SteererTapered},
 	}
 	wheels := fenrirWheels()
 
@@ -166,15 +170,14 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 		}
 	}
 
-	// Valid non-EC44 standards (0 mm ZS44/IS52 and positive ZS44) succeed.
+	// Valid non-EC44 standards on the 44 mm bore (0 mm and positive ZS44) succeed.
+	straightFork := fork
+	straightFork.Spec.Steerer = assembly.SteererStraight118
 	for _, validCup := range []assembly.LowerCupSetup{
-		{Standard: assembly.LowerCupIS52, StackMm: 0},
 		{Standard: assembly.LowerCupZS44, StackMm: 0},
 		{Standard: assembly.LowerCupZS44, StackMm: 2},
-		{Standard: assembly.LowerCupZS56, StackMm: 2},
-		{Standard: assembly.LowerCupIS42, StackMm: 0},
 	} {
-		if _, err := assembly.PlaceFrameset(frame, validCup, fork, wheels); err != nil {
+		if _, err := assembly.PlaceFrameset(frame, validCup, straightFork, wheels); err != nil {
 			t.Fatalf("expected valid LowerCupSetup %+v to pass, got %v", validCup, err)
 		}
 	}
@@ -185,13 +188,13 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 		fork      assembly.ForkSetup
 		wantField assembly.InputField
 	}{
-		{"zero static A2C", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 0, RakeMm: 54}}, assembly.InputForkA2c},
-		{"negative travel", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: -10, RakeMm: 44}}, ""},
-		{"NaN rake", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, RakeMm: math.NaN()}}, ""},
-		{"negative sag", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44}, SagPct: -5}, assembly.InputForkSag},
-		{"sag over 100%", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44}, SagPct: 105}, assembly.InputForkSag},
-		{"non-zero sag on rigid fork", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54}, SagPct: 20}, assembly.InputForkSag},
-		{"non-positive effective A2C", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 80, TravelMm: 100, RakeMm: 44}, SagPct: 90}, assembly.InputForkA2c},
+		{"zero static A2C", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 0, RakeMm: 54, Steerer: assembly.SteererTapered}}, assembly.InputForkA2c},
+		{"negative travel", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: -10, RakeMm: 44, Steerer: assembly.SteererTapered}}, ""},
+		{"NaN rake", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, RakeMm: math.NaN(), Steerer: assembly.SteererTapered}}, ""},
+		{"negative sag", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: -5}, assembly.InputForkSag},
+		{"sag over 100%", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 105}, assembly.InputForkSag},
+		{"non-zero sag on rigid fork", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54, Steerer: assembly.SteererTapered}, SagPct: 20}, assembly.InputForkSag},
+		{"non-positive effective A2C", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 80, TravelMm: 100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 90}, assembly.InputForkA2c},
 		{"missing lower cup standard", assembly.LowerCupSetup{}, fork, assembly.InputLowerCup},
 		{"unknown lower cup standard", assembly.LowerCupSetup{Standard: "EC99", StackMm: 12}, fork, assembly.InputLowerCup},
 		{"EC44 zero stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 0}, fork, assembly.InputLowerCup},
@@ -239,7 +242,7 @@ func TestPlaceCadBaselineFork(t *testing.T) {
 	}
 
 	cadForkSetup := assembly.ForkSetup{
-		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0},
+		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0, Steerer: assembly.SteererCAD},
 	}
 	placed, err := assembly.PlaceFrameset(chart.Frame, chart.CadLowerCup, cadForkSetup, wheels)
 	if err != nil {
@@ -250,7 +253,7 @@ func TestPlaceCadBaselineFork(t *testing.T) {
 	assertNear(t, "baseline fork FrontTireContact.Y", baselineFork.Placement.FrontTireContact.Origin().Y, placed.FrontTireContact.Origin().Y, 1e-12)
 
 	installedFork := assembly.ForkSetup{
-		Spec:   assembly.ForkSpec{StaticA2cMm: 530.0, TravelMm: 120.0, RakeMm: 44.0},
+		Spec:   assembly.ForkSpec{StaticA2cMm: 530.0, TravelMm: 120.0, RakeMm: 44.0, Steerer: assembly.SteererTapered},
 		SagPct: 20.0,
 	}
 	installed, err := assembly.PlaceFrameset(chart.Frame, fenrirEc44Cup(), installedFork, wheels)
@@ -287,5 +290,140 @@ func TestPlaceCadBaselineFork(t *testing.T) {
 	badChart.CadLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 0}
 	if _, err := assembly.PlaceCadBaselineFork(badChart, wheels); err == nil {
 		t.Fatal("expected error for zero EC44 CadLowerCup")
+	}
+}
+
+func TestHeadsetPairingMatrix(t *testing.T) {
+	type pairing struct {
+		std      assembly.LowerCupStandard
+		bore     assembly.LowerBore
+		straight bool
+		tapered  bool
+	}
+	matrix := []pairing{
+		{assembly.LowerCupEC34, assembly.Bore34Pressed, true, false},
+		{assembly.LowerCupEC44, assembly.Bore44Pressed, true, true},
+		{assembly.LowerCupZS44, assembly.Bore44Pressed, true, false},
+		{assembly.LowerCupZS56, assembly.Bore56Pressed, true, true},
+		{assembly.LowerCupIS42, assembly.Bore42Integrated, true, false},
+		{assembly.LowerCupIS52, assembly.Bore52Integrated, true, true},
+	}
+	bores := []assembly.LowerBore{
+		assembly.Bore34Pressed, assembly.Bore44Pressed, assembly.Bore56Pressed,
+		assembly.Bore42Integrated, assembly.Bore52Integrated,
+	}
+	wheels := fenrirWheels()
+	place := func(bore assembly.LowerBore, cup assembly.LowerCupSetup, steerer assembly.Steerer) error {
+		frame := fenrirSizeLFrame()
+		frame.LowerBore = bore
+		// The frame's own default is always a valid cup for its bore.
+		for _, p := range matrix {
+			if p.bore == bore {
+				frame.DefaultLowerCup = assembly.LowerCupSetup{Standard: p.std, StackMm: 12}
+				break
+			}
+		}
+		fork := assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: steerer}}
+		_, err := assembly.PlaceFrameset(frame, cup, fork, wheels)
+		return err
+	}
+	for _, p := range matrix {
+		cup := assembly.LowerCupSetup{Standard: p.std, StackMm: 12}
+		for _, bore := range bores {
+			for _, steerer := range []assembly.Steerer{assembly.SteererStraight118, assembly.SteererTapered, assembly.SteererCAD} {
+				want := bore == p.bore
+				switch steerer {
+				case assembly.SteererStraight118:
+					want = want && p.straight
+				case assembly.SteererTapered:
+					want = want && p.tapered
+				case assembly.SteererCAD:
+				}
+				err := place(bore, cup, steerer)
+				if want && err != nil {
+					t.Errorf("%s on %s with %s steerer: %v", p.std, bore, steerer, err)
+				}
+				if !want {
+					var inputErr *assembly.InputError
+					if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+						t.Errorf("%s on %s with %s steerer: error = %v, want InputLowerCup", p.std, bore, steerer, err)
+					}
+				}
+			}
+		}
+	}
+
+	bare := fenrirCadCup()
+	for _, bore := range bores {
+		if err := place(bore, bare, assembly.SteererCAD); err != nil {
+			t.Errorf("bare head tube on %s with CAD steerer: %v", bore, err)
+		}
+		for _, steerer := range []assembly.Steerer{assembly.SteererStraight118, assembly.SteererTapered} {
+			if err := place(bore, bare, steerer); err == nil {
+				t.Errorf("bare head tube on %s with physical %s steerer: want error", bore, steerer)
+			}
+		}
+	}
+
+	for _, tc := range []struct {
+		name    string
+		bore    assembly.LowerBore
+		steerer assembly.Steerer
+		cup     assembly.LowerCupSetup
+	}{
+		{"unknown bore", "40_pressed", assembly.SteererTapered, fenrirEc44Cup()},
+		{"missing bore", "", assembly.SteererTapered, fenrirEc44Cup()},
+		{"unknown bore with bare head tube", "40_pressed", assembly.SteererCAD, bare},
+		{"unknown steerer", assembly.Bore44Pressed, "threaded", fenrirEc44Cup()},
+		{"missing steerer", assembly.Bore44Pressed, "", fenrirEc44Cup()},
+		{"unknown steerer with bare head tube", assembly.Bore44Pressed, "threaded", bare},
+	} {
+		var inputErr *assembly.InputError
+		frame := fenrirSizeLFrame()
+		frame.LowerBore = assembly.Bore44Pressed
+		fork := assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: tc.steerer}}
+		if tc.bore != assembly.Bore44Pressed {
+			// An unknown frame bore also invalidates the frame's own default.
+			frame.LowerBore = tc.bore
+		}
+		if _, err := assembly.PlaceFrameset(frame, tc.cup, fork, wheels); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+			t.Errorf("%s: error = %v, want InputLowerCup", tc.name, err)
+		}
+	}
+}
+
+func TestFrameDefaultLowerCupMustBePhysicalAndFitBore(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cup  assembly.LowerCupSetup
+	}{
+		{"bare head tube", fenrirCadCup()},
+		{"wrong bore", assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0}},
+		{"invalid stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 0}},
+	} {
+		frame := fenrirSizeLFrame()
+		frame.DefaultLowerCup = tc.cup
+		fork := assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: assembly.SteererTapered}}
+		var inputErr *assembly.InputError
+		if _, err := assembly.PlaceFrameset(frame, fenrirEc44Cup(), fork, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+			t.Errorf("%s: PlaceFrameset error = %v, want InputLowerCup", tc.name, err)
+		}
+	}
+}
+
+func TestMismatchedPhysicalCupFailsBothChartEntryPoints(t *testing.T) {
+	chart := fenrirChart()
+	chart.CadLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0}
+	var inputErr *assembly.InputError
+	if err := assembly.CheckChartClosure(chart); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+		t.Errorf("CheckChartClosure error = %v, want InputLowerCup", err)
+	}
+	if _, err := assembly.PlaceCadBaselineFork(chart, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+		t.Errorf("PlaceCadBaselineFork error = %v, want InputLowerCup", err)
+	}
+	// A matching physical cup on the CAD fork is accepted, as is a bare head tube on another bore.
+	chart.CadLowerCup = fenrirEc44Cup()
+	if err := assembly.CheckChartClosure(chart); err != nil && errors.As(err, &inputErr) && inputErr.Field == assembly.InputLowerCup {
+		t.Errorf("matching cup rejected as a headset error: %v", err)
 	}
 }

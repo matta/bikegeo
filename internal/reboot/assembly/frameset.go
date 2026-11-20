@@ -18,7 +18,34 @@ type FrameSetup struct {
 	SeatTubeLengthMm float64
 	BbDropMm         float64
 	ChainstayMm      float64
+
+	// LowerBore is the head tube's lower bore. DefaultLowerCup is the frame's
+	// stock physical lower cup, which must fit LowerBore.
+	LowerBore       LowerBore
+	DefaultLowerCup LowerCupSetup
 }
+
+// LowerBore identifies the head tube's lower bore, which sets the lower
+// headset cup standards the frame accepts.
+type LowerBore string
+
+const (
+	Bore34Pressed    LowerBore = "34_pressed"
+	Bore44Pressed    LowerBore = "44_pressed"
+	Bore56Pressed    LowerBore = "56_pressed"
+	Bore42Integrated LowerBore = "42_integrated"
+	Bore52Integrated LowerBore = "52_integrated"
+)
+
+// Steerer identifies a fork's steerer tube type. SteererCAD is the sentinel for
+// the CAD baseline fork, which has no physical steerer.
+type Steerer string
+
+const (
+	SteererStraight118 Steerer = "straight_118"
+	SteererTapered     Steerer = "tapered"
+	SteererCAD         Steerer = "cad"
+)
 
 // LowerCupStandard identifies the SHIS lower headset cup interface marrying a
 // frame's head tube to a fork steerer (or BareHeadTube for an uncupped CAD chart).
@@ -68,11 +95,97 @@ func (c LowerCupSetup) Validate() error {
 	}
 }
 
+// cupBore returns the head tube bore a physical lower cup standard fits, and
+// false for the bare head tube (which fits any bore).
+func cupBore(std LowerCupStandard) (LowerBore, bool) {
+	switch std {
+	case LowerCupEC34:
+		return Bore34Pressed, true
+	case LowerCupEC44, LowerCupZS44:
+		return Bore44Pressed, true
+	case LowerCupZS56:
+		return Bore56Pressed, true
+	case LowerCupIS42:
+		return Bore42Integrated, true
+	case LowerCupIS52:
+		return Bore52Integrated, true
+	case LowerCupBareHeadTube:
+		return "", false
+	default:
+		return "", false
+	}
+}
+
+// cupTakesTaperedSteerer reports whether a physical cup standard accepts a
+// tapered steerer (every standard accepts a straight one).
+func cupTakesTaperedSteerer(std LowerCupStandard) bool {
+	switch std {
+	case LowerCupEC44, LowerCupZS56, LowerCupIS52:
+		return true
+	case LowerCupEC34, LowerCupZS44, LowerCupIS42, LowerCupBareHeadTube:
+		return false
+	default:
+		return false
+	}
+}
+
+// validateHeadset checks that the lower cup is valid, fits the head tube's
+// lower bore, and accepts the fork's steerer. A bare head tube is a CAD
+// hypothesis: it fits any recognized bore but only the CAD steerer, and a
+// physical fork always requires a physical cup. SteererCAD fits any valid cup
+// on its matching bore.
+func validateHeadset(bore LowerBore, cup LowerCupSetup, steerer Steerer) error {
+	switch bore {
+	case Bore34Pressed, Bore44Pressed, Bore56Pressed, Bore42Integrated, Bore52Integrated:
+	default:
+		return invalidInput(InputLowerCup, "unknown or missing head tube lower bore %q", bore)
+	}
+	switch steerer {
+	case SteererStraight118, SteererTapered, SteererCAD:
+	default:
+		return invalidInput(InputLowerCup, "unknown or missing fork steerer %q", steerer)
+	}
+	if err := cup.Validate(); err != nil {
+		return err
+	}
+	cupFits, physical := cupBore(cup.Standard)
+	if !physical {
+		if steerer != SteererCAD {
+			return invalidInput(InputLowerCup, "a %s steerer fork needs a physical lower cup, not %s", steerer, cup.Standard)
+		}
+		return nil
+	}
+	if cupFits != bore {
+		return invalidInput(InputLowerCup, "%s lower cup needs a %s head tube bore, but the frame has %s", cup.Standard, cupFits, bore)
+	}
+	switch steerer {
+	case SteererStraight118, SteererCAD:
+		return nil
+	case SteererTapered:
+		if !cupTakesTaperedSteerer(cup.Standard) {
+			return invalidInput(InputLowerCup, "%s lower cup does not fit a tapered steerer", cup.Standard)
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+// validateDefaultLowerCup checks the frame's declared default as a physical
+// cup of the frame's bore.
+func validateDefaultLowerCup(frame FrameSetup) error {
+	if frame.DefaultLowerCup.Standard == LowerCupBareHeadTube {
+		return invalidInput(InputLowerCup, "frame default lower cup must be a physical cup, not %s", frame.DefaultLowerCup.Standard)
+	}
+	return validateHeadset(frame.LowerBore, frame.DefaultLowerCup, SteererCAD)
+}
+
 // ForkSpec describes a catalog fork before installation and sag.
 type ForkSpec struct {
 	StaticA2cMm float64
 	TravelMm    float64 // 0 for rigid forks
 	RakeMm      float64
+	Steerer     Steerer
 }
 
 // ForkGeometry holds the resolved fixed fork dimensions (effective axle-to-crown
@@ -220,7 +333,7 @@ func PlaceCadBaselineFork(chart FrameChart, wheels WheelSetup) (ChartBaseline, e
 	if err := validateForkGeometry(chart.CadFork); err != nil {
 		return ChartBaseline{}, err
 	}
-	if err := chart.CadLowerCup.Validate(); err != nil {
+	if err := validateHeadset(chart.Frame.LowerBore, chart.CadLowerCup, SteererCAD); err != nil {
 		return ChartBaseline{}, err
 	}
 	if err := validateWheels(wheels); err != nil {
@@ -332,7 +445,7 @@ func validateFrameGeometry(frame FrameSetup) error {
 	if !isFinite(frame.SeatTubeLengthMm) || frame.SeatTubeLengthMm <= 0 {
 		return fmt.Errorf("seat tube length must be finite and positive, got %v mm", frame.SeatTubeLengthMm)
 	}
-	return nil
+	return validateDefaultLowerCup(frame)
 }
 
 func validateFramesetInputs(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, wheels WheelSetup) error {
@@ -342,7 +455,7 @@ func validateFramesetInputs(frame FrameSetup, lowerCup LowerCupSetup, fork ForkS
 	if err := fork.Validate(); err != nil {
 		return err
 	}
-	if err := lowerCup.Validate(); err != nil {
+	if err := validateHeadset(frame.LowerBore, lowerCup, fork.Spec.Steerer); err != nil {
 		return err
 	}
 	if err := validateWheels(wheels); err != nil {

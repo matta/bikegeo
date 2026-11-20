@@ -12,9 +12,9 @@ func fenrirDefaultStem() assembly.StemSetup {
 	return assembly.StemSetup{
 		MinLengthMm:   40,
 		MaxLengthMm:   130,
-		UpperCoverMm:  11.0,
+		UpperStackMm:  11.0,
 		SpacersMm:     20.0,
-		MaxSpacersMm:  40,
+		MaxSpacersMm:  30,
 		ClampHeightMm: 40.0,
 		LengthMm:      60.0,
 		AngleDeg:      -6.0,
@@ -55,9 +55,9 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 
 	steererUp := pose.NewPose(pose.Point{X: 400, Y: 600}, 180.0-70.0)
 	stem, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
-		UpperCoverMm:  10,
+		UpperStackMm:  10,
 		SpacersMm:     15,
-		MaxSpacersMm:  40,
+		MaxSpacersMm:  30,
 		ClampHeightMm: 40,
 		LengthMm:      80,
 		AngleDeg:      -6,
@@ -140,9 +140,9 @@ func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 	placeFor := func(hta, stemAngle pose.Deg) (assembly.StemPlacement, assembly.HandlebarPlacement) {
 		steererUp := pose.NewPose(pose.Point{X: 430, Y: 625}, 180.0-hta)
 		stem, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
-			UpperCoverMm:  11,
+			UpperStackMm:  11,
 			SpacersMm:     15,
-			MaxSpacersMm:  40,
+			MaxSpacersMm:  30,
 			ClampHeightMm: 40,
 			LengthMm:      80,
 			AngleDeg:      stemAngle,
@@ -185,6 +185,7 @@ func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 			StaticA2cMm: 530.0,
 			TravelMm:    120.0,
 			RakeMm:      44.0,
+			Steerer:     assembly.SteererTapered,
 		},
 		SagPct: 20.0,
 	}
@@ -214,7 +215,7 @@ func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 
 	// The stem stack and body keep their physical lengths from HeadTubeTop.
 	st := bikeSetup.Stem
-	assertNear(t, "stack distance", bike.Frameset.HeadTubeTop.DistanceTo(bike.Stem.SteererClamp), st.UpperCoverMm+st.SpacersMm+st.ClampHeightMm/2.0, 1e-9)
+	assertNear(t, "stack distance", bike.Frameset.HeadTubeTop.DistanceTo(bike.Stem.SteererClamp), st.UpperStackMm+st.SpacersMm+st.ClampHeightMm/2.0, 1e-9)
 	assertNear(t, "stem length", bike.Stem.SteererClamp.DistanceTo(bike.Stem.BarClamp), st.LengthMm, 1e-9)
 
 	// The bar roll frame sits at BarClamp, rolled against world horizontal.

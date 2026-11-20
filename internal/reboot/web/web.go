@@ -123,7 +123,7 @@ func outlineRects(outlines []poseOutline) []svgRect {
 
 func stemOutlines(placed assembly.StemPlacement, setup assembly.StemSetup) []poseOutline {
 	return []poseOutline{
-		{"upper-cover", placed.HeadTubeTop, 0, setup.UpperCoverMm, upperCoverOutlineWidthMm},
+		{"upper-cover", placed.HeadTubeTop, 0, setup.UpperStackMm, upperCoverOutlineWidthMm},
 		{"spacers", placed.CoverTop, 0, setup.SpacersMm, spacerOutlineWidthMm},
 		{"steerer-clamp", placed.SteererClamp, -setup.ClampHeightMm / 2.0, setup.ClampHeightMm, steererClampOutlineWidthMm},
 		{"stem-body", placed.BarClamp, -setup.LengthMm, setup.LengthMm, stemBodyOutlineWidthMm},

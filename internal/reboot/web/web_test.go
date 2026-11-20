@@ -370,7 +370,7 @@ func TestBikeWorkbenchForkSwitchAndCadBaselineFork(t *testing.T) {
 
 func TestBikeWorkbenchCockpitControlsUpdateBuild(t *testing.T) {
 	query := "/bike?fork=sid_100&prev_fork=sid_100&fork_a2c=515&cup=10&sag=20" +
-		"&spacers=35&stem_length=80&stem_angle=7&bar_roll=5" +
+		"&spacers=25&stem_length=80&stem_angle=7&bar_roll=5" +
 		"&post=setback_25&post_ext=250&rail_offset=-10&rail_pitch=-2"
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+query, nil)
 	rec := httptest.NewRecorder()
@@ -403,7 +403,7 @@ func TestBikeWorkbenchCockpitControlsUpdateBuild(t *testing.T) {
 		SagPct: 20.0,
 	}
 	stemSetup := fix.DefaultStem
-	stemSetup.SpacersMm = 35.0
+	stemSetup.SpacersMm = 25.0
 	stemSetup.LengthMm = 80.0
 	stemSetup.AngleDeg = 7.0
 	barSetup := defaultHandlebarSetup(t, fix)
@@ -447,8 +447,8 @@ func TestBikeWorkbenchCockpitControlsUpdateBuild(t *testing.T) {
 	if w, _ := doc.Find(`svg.diagram rect[data-component="stem-body"]`).Attr("width"); w != "80.00" {
 		t.Errorf("stem-body width = %q, want 80.00", w)
 	}
-	if w, _ := doc.Find(`svg.diagram rect[data-component="spacers"]`).Attr("width"); w != "35.00" {
-		t.Errorf("spacers width = %q, want 35.00", w)
+	if w, _ := doc.Find(`svg.diagram rect[data-component="spacers"]`).Attr("width"); w != "25.00" {
+		t.Errorf("spacers width = %q, want 25.00", w)
 	}
 
 	for name, want := range map[string]string{
@@ -456,7 +456,7 @@ func TestBikeWorkbenchCockpitControlsUpdateBuild(t *testing.T) {
 		"fork_a2c":    "515.0",
 		"cup":         "10.0",
 		"sag":         "20.0",
-		"spacers":     "35.0",
+		"spacers":     "25.0",
 		"stem_length": "80.0",
 		"stem_angle":  "7.0",
 		"bar_roll":    "5.0",
@@ -604,6 +604,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 			StaticA2cMm: 530.0,
 			TravelMm:    120.0,
 			RakeMm:      44.0,
+			Steerer:     assembly.SteererTapered,
 		},
 		SagPct: 20.0,
 	}
@@ -720,7 +721,7 @@ func TestWorkbenchStateCodecRoundTrip(t *testing.T) {
 		ForkA2cMm:    535.0,
 		LowerCupMm:   12.5000000001,
 		SagPct:       22.0,
-		SpacersMm:    35.0,
+		SpacersMm:    25.0,
 		StemLengthMm: 80.0,
 		StemAngleDeg: 7.0,
 		BarRollDeg:   -5.0,
@@ -940,7 +941,7 @@ func TestBikeWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
 
 	// 3. Fully customized build.
 	customURL := "/bike?fork=fox34_120&fork_a2c=530&cup=12&sag=20&bar=sqlab3ox_16_45" +
-		"&spacers=35&stem_length=80&stem_angle=7&bar_roll=-5" +
+		"&spacers=25&stem_length=80&stem_angle=7&bar_roll=-5" +
 		"&post=setback_25&post_ext=250&rail_offset=10&rail_pitch=-2&stock_bars=all&stock_forks=all"
 	customDoc := loadBikeDoc(t, customURL)
 	assertUnchangedSubmitIdempotent(t, "custom build", customDoc)
@@ -952,8 +953,8 @@ func TestBikeWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
 		t.Fatalf("missing a[data-preset=cad-baseline-fork] href on custom build")
 	}
 	customCadDoc := loadBikeDoc(t, customCadHref)
-	if got, _ := customCadDoc.Find(`input[name="spacers"]`).Attr("value"); got != "35.0" {
-		t.Errorf("cad preset spacers = %q, want 35.0", got)
+	if got, _ := customCadDoc.Find(`input[name="spacers"]`).Attr("value"); got != "25.0" {
+		t.Errorf("cad preset spacers = %q, want 25.0", got)
 	}
 	if got, _ := customCadDoc.Find(`input[name="stem_length"]`).Attr("value"); got != "80.0" {
 		t.Errorf("cad preset stem_length = %q, want 80.0", got)
@@ -1126,11 +1127,13 @@ func TestFixtureValidationAndCadBaselineForkInvariant(t *testing.T) {
 			StaticA2cMm: 483.0,
 			TravelMm:    0.0,
 			RakeMm:      51.0,
+			Steerer:     assembly.SteererStraight118,
 		}, 0.0, zs44Cup),
 		makeForkOption("sid_100", "RockShox SID", assembly.ForkSpec{
 			StaticA2cMm: 506.0,
 			TravelMm:    100.0,
 			RakeMm:      51.0,
+			Steerer:     assembly.SteererTapered,
 		}, 20.0, ec44Cup),
 	}
 	customFix.DefaultForkID = "rigid_straight_483"
@@ -1255,7 +1258,7 @@ func TestBikeWorkbenchCadBaselineForkLockAndLabels(t *testing.T) {
 		"/bike?fork=cad&cup=12",
 		"/bike?fork=cad&fork_a2c=530",
 		"/bike?fork=cad&sag=10",
-		"/bike?fork=cad&fork_a2c=530&cup=12&sag=20&spacers=35",
+		"/bike?fork=cad&fork_a2c=530&cup=12&sag=20&spacers=25",
 	} {
 		t.Run("locked/"+query, func(t *testing.T) {
 			doc := loadBikeDoc(t, query)
@@ -1358,7 +1361,7 @@ func TestBikeWorkbenchRecoversFromInvalidRigidForkSag(t *testing.T) {
 	// resubmission continues to fail physical-fork validation.
 	for _, sagVal := range []string{"150", "10", "Inf"} {
 		t.Run("single/"+sagVal, func(t *testing.T) {
-			errDoc := loadBikeDocStatus(t, fmt.Sprintf("/bike?sag=%s&spacers=35&stem_length=80", sagVal), http.StatusBadRequest)
+			errDoc := loadBikeDocStatus(t, fmt.Sprintf("/bike?sag=%s&spacers=25&stem_length=80", sagVal), http.StatusBadRequest)
 			if errDoc.Find(`#form-error[role="alert"]`).Length() != 1 {
 				t.Fatalf("expected #form-error[role=alert]")
 			}
@@ -1372,8 +1375,8 @@ func TestBikeWorkbenchRecoversFromInvalidRigidForkSag(t *testing.T) {
 			if hasReadOnly(errDoc, "sag") {
 				t.Errorf("invalid sag on rigid fork must not be readonly")
 			}
-			if got, _ := errDoc.Find(`input[name="spacers"]`).Attr("value"); got != "35" {
-				t.Errorf("spacers value = %q, want 35", got)
+			if got, _ := errDoc.Find(`input[name="spacers"]`).Attr("value"); got != "25" {
+				t.Errorf("spacers value = %q, want 25", got)
 			}
 			if got, _ := errDoc.Find(`input[name="stem_length"]`).Attr("value"); got != "80" {
 				t.Errorf("stem_length value = %q, want 80", got)
@@ -1402,8 +1405,8 @@ func TestBikeWorkbenchRecoversFromInvalidRigidForkSag(t *testing.T) {
 			if !hasReadOnly(okDoc, "sag") {
 				t.Errorf("recovered rigid fork sag should be readonly again")
 			}
-			if got, _ := okDoc.Find(`input[name="spacers"]`).Attr("value"); got != "35.0" {
-				t.Errorf("recovered spacers = %q, want 35.0", got)
+			if got, _ := okDoc.Find(`input[name="spacers"]`).Attr("value"); got != "25.0" {
+				t.Errorf("recovered spacers = %q, want 25.0", got)
 			}
 			if got, _ := okDoc.Find(`input[name="stem_length"]`).Attr("value"); got != "80.0" {
 				t.Errorf("recovered stem_length = %q, want 80.0", got)
@@ -1413,7 +1416,7 @@ func TestBikeWorkbenchRecoversFromInvalidRigidForkSag(t *testing.T) {
 
 	// Multi-error recovery: cup fails first so invalidField is "cup", yet invalid
 	// sag on the rigid fork still stays editable so both can be fixed together.
-	multiErr := loadBikeDocStatus(t, "/bike?cup=abc&sag=150&spacers=35", http.StatusBadRequest)
+	multiErr := loadBikeDocStatus(t, "/bike?cup=abc&sag=150&spacers=25", http.StatusBadRequest)
 	if inv, _ := multiErr.Find(`input[name="cup"]`).Attr("aria-invalid"); inv != "true" {
 		t.Errorf("cup aria-invalid = %q, want true", inv)
 	}
@@ -1430,8 +1433,8 @@ func TestBikeWorkbenchRecoversFromInvalidRigidForkSag(t *testing.T) {
 	if !hasReadOnly(multiOK, "sag") {
 		t.Errorf("recovered multi-error rigid fork sag should be readonly")
 	}
-	if got, _ := multiOK.Find(`input[name="spacers"]`).Attr("value"); got != "35.0" {
-		t.Errorf("multi-error recovered spacers = %q, want 35.0", got)
+	if got, _ := multiOK.Find(`input[name="spacers"]`).Attr("value"); got != "25.0" {
+		t.Errorf("multi-error recovered spacers = %q, want 25.0", got)
 	}
 
 	// Control cases: valid 0 sag stays readonly on error pages when another field fails.
@@ -1964,7 +1967,7 @@ func TestBikeWorkbenchCloseUpsContainTheirOutlines(t *testing.T) {
 		{"stem", []string{"upper-cover", "spacers", "steerer-clamp", "stem-body"}, []string{"HeadTubeTop"}},
 	}
 	for _, tc := range cases {
-		for _, query := range []string{"", "&spacers=0", "&spacers=40&stem_length=90&stem_angle=10"} {
+		for _, query := range []string{"", "&spacers=0", "&spacers=30&stem_length=90&stem_angle=10"} {
 			t.Run(tc.view+query, func(t *testing.T) {
 				doc := loadBikeDoc(t, "/bike?view="+tc.view+query)
 				box := parseViewBoxAttr(t, doc)
@@ -2191,16 +2194,16 @@ func TestBikeWorkbenchRailOffsetRange(t *testing.T) {
 
 func TestBikeWorkbenchSpacersMax(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike")
-	if v, _ := doc.Find("#ctrl-spacers").Attr("max"); v != "40" {
-		t.Errorf("ctrl-spacers max = %q, want 40", v)
+	if v, _ := doc.Find("#ctrl-spacers").Attr("max"); v != "30" {
+		t.Errorf("ctrl-spacers max = %q, want 30", v)
 	}
-	loadBikeDocStatus(t, "/bike?spacers=40", http.StatusOK)
-	doc = loadBikeDocStatus(t, "/bike?spacers=45", http.StatusBadRequest)
+	loadBikeDocStatus(t, "/bike?spacers=30", http.StatusOK)
+	doc = loadBikeDocStatus(t, "/bike?spacers=31", http.StatusBadRequest)
 	if v, _ := doc.Find("#ctrl-spacers").Attr("aria-invalid"); v != "true" {
 		t.Errorf("ctrl-spacers aria-invalid = %q, want true", v)
 	}
-	if v, _ := doc.Find("#ctrl-spacers").Attr("max"); v != "40" {
-		t.Errorf("error page ctrl-spacers max = %q, want 40", v)
+	if v, _ := doc.Find("#ctrl-spacers").Attr("max"); v != "30" {
+		t.Errorf("error page ctrl-spacers max = %q, want 30", v)
 	}
 }
 
@@ -2339,10 +2342,10 @@ func TestBikeWorkbenchRanksStockFitting(t *testing.T) {
 	if rows.Length() != 5 {
 		t.Fatalf("stock rows = %d, want 5", rows.Length())
 	}
-	if got := doc.Find("[data-stock-evaluated]").Text(); got != "450" {
-		t.Errorf("evaluated = %q, want 450", got)
+	if got := doc.Find("[data-stock-evaluated]").Text(); got != "350" {
+		t.Errorf("evaluated = %q, want 350", got)
 	}
-	const summary = "450 stock stem and spacer combinations placed; the 5 best-scoring (score = 100 − points lost). The saddle fit is kept."
+	const summary = "350 stock stem and spacer combinations placed; the 5 best-scoring (score = 100 − points lost). The saddle fit is kept."
 	if got := doc.Find("[data-stock-summary]").Text(); got != summary {
 		t.Errorf("stock summary = %q, want %q", got, summary)
 	}
@@ -2438,10 +2441,10 @@ func TestBikeWorkbenchStockBarsDefaultKeepsSubmittedBar(t *testing.T) {
 		t.Errorf("stock_bars options = %d, want 2", n)
 	}
 	assertSelectedStockBars(t, doc, "selected")
-	if got := doc.Find("[data-stock-evaluated]").Text(); got != "450" {
-		t.Errorf("evaluated = %q, want 450", got)
+	if got := doc.Find("[data-stock-evaluated]").Text(); got != "350" {
+		t.Errorf("evaluated = %q, want 350", got)
 	}
-	const summary = "450 stock stem and spacer combinations placed; the 5 best-scoring (score = 100 − points lost). The saddle fit is kept."
+	const summary = "350 stock stem and spacer combinations placed; the 5 best-scoring (score = 100 − points lost). The saddle fit is kept."
 	if got := doc.Find("[data-stock-summary]").Text(); got != summary {
 		t.Errorf("stock summary = %q, want %q", got, summary)
 	}
@@ -2502,8 +2505,8 @@ func assertStockBarRows(t *testing.T, doc *goquery.Document, want []stockBarRow)
 
 func TestBikeWorkbenchStockFittingAcrossAllBars(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?stock_bars=all&brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726&view=stem")
-	if got := doc.Find("[data-stock-evaluated]").Text(); got != "6750" {
-		t.Errorf("evaluated = %q, want 6750", got)
+	if got := doc.Find("[data-stock-evaluated]").Text(); got != "5250" {
+		t.Errorf("evaluated = %q, want 5250", got)
 	}
 	if got := doc.Find("[data-stock-evaluated]").Parent().Text(); !strings.Contains(got, "stock handlebar, stem, and spacer combinations") {
 		t.Errorf("stock count note = %q", got)
@@ -2621,8 +2624,8 @@ func TestBikeWorkbenchSubmitsStockBarsSelect(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("stock_bars submission status = %d, want 200", rec.Code)
 	}
-	if got := next.Find("[data-stock-evaluated]").Text(); got != "6750" {
-		t.Errorf("evaluated = %q, want 6750", got)
+	if got := next.Find("[data-stock-evaluated]").Text(); got != "5250" {
+		t.Errorf("evaluated = %q, want 5250", got)
 	}
 	if got := stockCell(next.Find(`tr[data-stock-rank="1"]`), "bar"); got != stockBarAlloy15 {
 		t.Errorf("row 1 bar = %q, want %q", got, stockBarAlloy15)
@@ -3167,8 +3170,8 @@ func TestBikeWorkbenchStockForksDefaultKeepsSubmittedFork(t *testing.T) {
 				t.Errorf("stock_forks options = %v, want Selected fork only and All 7 fork setups", options.Map(func(_ int, option *goquery.Selection) string { return option.Text() }))
 			}
 			assertSelectedStockForks(t, doc, "selected")
-			if got := doc.Find("[data-stock-evaluated]").Text(); got != "450" {
-				t.Errorf("evaluated = %q, want 450", got)
+			if got := doc.Find("[data-stock-evaluated]").Text(); got != "350" {
+				t.Errorf("evaluated = %q, want 350", got)
 			}
 			rows := doc.Find("tr[data-stock-rank]")
 			if rows.Length() != 5 {
@@ -3222,8 +3225,8 @@ func assertStockForkRows(t *testing.T, doc *goquery.Document, cells []string, po
 func TestBikeWorkbenchStockFittingAcrossAllForks(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?stock_forks=all&grip_x=481&grip_y=726&view=stem")
 	evaluated := doc.Find("[data-stock-evaluated]")
-	if got := evaluated.Text(); got != "3150" {
-		t.Errorf("evaluated = %q, want 3150", got)
+	if got := evaluated.Text(); got != "2450" {
+		t.Errorf("evaluated = %q, want 2450", got)
 	}
 	if got := evaluated.Parent().Text(); !strings.Contains(got, "stock fork, stem, and spacer combinations") || !strings.Contains(got, "The saddle is refitted for each fork.") {
 		t.Errorf("stock count note = %q", got)
@@ -3275,13 +3278,13 @@ func TestBikeWorkbenchStockForksWithSaddle(t *testing.T) {
 func TestBikeWorkbenchStockForksAndBars(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?stock_forks=all&stock_bars=all&brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726")
 	evaluated := doc.Find("[data-stock-evaluated]")
-	if got := evaluated.Text(); got != "47250" {
-		t.Errorf("evaluated = %q, want 47250", got)
+	if got := evaluated.Text(); got != "36750" {
+		t.Errorf("evaluated = %q, want 36750", got)
 	}
 	if got := evaluated.Parent().Text(); !strings.Contains(got, "stock fork, handlebar, stem, and spacer combinations") {
 		t.Errorf("stock count note = %q", got)
 	}
-	const summary = "47250 stock fork, handlebar, stem, and spacer combinations placed; the 5 best-scoring (score = 100 − points lost). The saddle is refitted for each fork."
+	const summary = "36750 stock fork, handlebar, stem, and spacer combinations placed; the 5 best-scoring (score = 100 − points lost). The saddle is refitted for each fork."
 	if got := doc.Find("[data-stock-summary]").Text(); got != summary {
 		t.Errorf("stock summary = %q, want %q", got, summary)
 	}
@@ -3348,5 +3351,36 @@ func TestCheckFixtureChart(t *testing.T) {
 	const wantSub = `fixture "Otso Fenrir Stainless (2024, Size L)" chart: chart closure: axle height residual +0.22 mm exceeds its ±0.00 mm rounding budget (no rounded columns)`
 	if !strings.Contains(msg, wantSub) {
 		t.Errorf("panic = %q, want substring %q", msg, wantSub)
+	}
+}
+
+func TestFixtureHeadsetPairings(t *testing.T) {
+	fix := otsoFenrirFixture()
+	frame := fix.Chart.Frame
+	if frame.LowerBore != assembly.Bore44Pressed {
+		t.Errorf("frame bore = %q, want %q", frame.LowerBore, assembly.Bore44Pressed)
+	}
+	if want := (assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12}); frame.DefaultLowerCup != want {
+		t.Errorf("frame default cup = %+v, want %+v", frame.DefaultLowerCup, want)
+	}
+	for _, opt := range fix.Forks {
+		if opt.Spec.Steerer != assembly.SteererTapered {
+			t.Errorf("fork %s steerer = %q, want tapered", opt.ID, opt.Spec.Steerer)
+		}
+		if opt.DefaultLowerCup != frame.DefaultLowerCup {
+			t.Errorf("fork %s cup = %+v, want the frame default %+v", opt.ID, opt.DefaultLowerCup, frame.DefaultLowerCup)
+		}
+	}
+	if got := fix.cadForkOption().Spec.Steerer; got != assembly.SteererCAD {
+		t.Errorf("CAD fork steerer = %q, want the CAD sentinel", got)
+	}
+	if err := fix.validate(); err != nil {
+		t.Errorf("validate: %v", err)
+	}
+	// A fork whose steerer the frame's cup rejects fails fixture validation.
+	bad := otsoFenrirFixture()
+	bad.Forks[0].Spec.Steerer = ""
+	if err := bad.validate(); err == nil {
+		t.Error("fixture with an unknown steerer validated")
 	}
 }
