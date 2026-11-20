@@ -1,6 +1,19 @@
 # Slice 11 — Remove construction tracing and serve the bike inspector with plain GET
 
-Status: Planned 2026-11-20
+Status: Implemented 2026-11-20; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-20, Claude Sonnet 5.5 (`claude-sonnet-5-5`).
+- **Commits:** W `1193cc4` Serve the bike inspector without JavaScript or construction overlays. G `c619c78` Remove trace recording from pose and assembly.
+- **Done:** W1–W6 and G1–G4, all of them.
+- **Deviations:**
+  - W6/G4: the trace-on/off equivalence tests (`TestApplyFittingTraceEquivalence`, `TestApplyFittingBothLandmarksTraceEquivalence`, and the traced-vs-untraced halves of the stem, saddle, handlebar and frameset tests) were deleted or reduced. With one code path they compared a value to itself. The independently calculated expectations stay, plus new direct checks for stem heading, bar roll frame and post extension.
+  - W6: new tests `TestRootRedirectsToBikeInspector`, `TestRemovedRoutesReturnNotFound`, `TestBikePagesHaveNoScriptOrConstructionTrace`, `TestBikeWorkbenchActiveViewLinkCarriesResolvedBuild`, `TestStemCloseUpDrawsStemBodyFromBarClamp`, and `TestBikeWorkbenchViewsShareReadoutsAndDifferInFraming` replace the retired preview, static asset, fetch-hook and step-ID tests.
+  - Shared helper `activeViewHref` replaces reads of `data-canonical-url` in many existing tests.
+  - W1: `handleBikeWorkbench` still checks `r.URL.Path != "/bike"`. This is harmless but redundant now that the mux pattern is exact.
+- **Verification:** `make pre-commit` exits 0 on both commits. Live check on `make build-reboot` binary at `:8081`: `GET /` 302 → `/bike`; `/static/workbench.js` and `/nope` 404; `/bike`, `?view=seat`, `?view=stem` give wheelbase 1162.2 mm, BRP to HandGrip 556.6 mm and viewBoxes `-911.86 -850.12 2096.16 1254.30`, `-275.26 -770.36 137.14 82.06`, `299.99 -768.56 241.85 144.72`; two-target URL gives extension 260.1, rail offset 15.0, spacers 0.0, 450 combinations, scores 1.5, -7.2, -15.1, -16.2, -23.3; `?spacers=-1` 400 with zero scripts. The stock rank 2 Apply link opened spacers 5.0, stem 130 mm at -17°. In the browser the diagram card spans the full width (976 of 1024 px) with no empty column, no scripts, and a changed build (spacers 30) survived submit, reload and view-link navigation. Screenshots: `/Users/matt/.claude/projects/-Users-matt-src-bikegeo/4fbdd29e-6673-4cb3-946e-3715555088ba/tool-results/mcp-Claude_Browser-blob-1795210331856-cso781.jpg` (default form) and `.../mcp-Claude_Browser-blob-1795210366734-mxjw8l.jpg` (stem close-up, spacers 30).
+- **Open issues:** none. Noticed but left alone: DESIGN.md prose still says trace removal happens "in Slice 11", which is now true; Matt may reword on acceptance.
 
 Q48 and Q54 settle the scope. Starting at `e7ff487`, retire the standalone stem preview, construction trace, and client script. The complete bike inspector includes its stem close-up. Its physical results, controls, fitting results, and three diagram views are the acceptance baseline.
 
