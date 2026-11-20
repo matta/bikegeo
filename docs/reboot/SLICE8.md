@@ -1,6 +1,6 @@
 # M2 Slice 8, fork choice in stock fitting
 
-**Status: Planned 2026-11-19 from Matt's rulings Q31–Q34 ([DESIGN.md](DESIGN.md), "Seatposts, bar sweep, and fork choice"). Not started.** Q34 (ruled 2026-11-19): the BRP miss line always counts. Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. This plan **builds on Slices 6 and 7**: Slice 6 is accepted (commits `9ae0e97`, `89f6a7d`), and Slice 7 is planned in [SLICE7.md](SLICE7.md). Don't start it until both are committed: it extends Slice 7's 5-line ledger and keeps Slice 6's `post` on every link.
+**Status: Planned 2026-11-19 from Matt's rulings Q31–Q34 ([DESIGN.md](DESIGN.md), "Seatposts, bar sweep, and fork choice"). Not started.** Q34 (ruled 2026-11-19): the BRP miss line always counts. Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. This plan **builds on Slices 6 and 7**: Slice 6 is accepted (commits `9ae0e97`, `89f6a7d`), and Slice 7 is accepted (commit `6ea0295`). Don't start it until both are committed: it extends Slice 7's 5-line ledger and keeps Slice 6's `post` on every link.
 
 This slice has two commits and touches 6 code, test, and template files, so per DESIGN.md "Slice planning" it is written so a less capable model (for example Sonnet) can implement it without making design choices. **Delegate it.** If something here seems wrong or missing, stop and ask Matt rather than choosing.
 
