@@ -464,6 +464,14 @@
       <fieldset class="control-group">
         <legend>Front Cockpit</legend>
         <div class="group-fields">
+          <div class="field field-full">
+            <label for="ctrl-bar">Handlebar</label>
+            <select id="ctrl-bar" name="bar"{{if and $.ErrorMessage (eq $.InvalidField "bar")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+              {{range .Handlebars}}
+              <option value="{{.ID}}"{{if eq .ID $.SelectedBarID}} selected{{end}}>{{.Name}}</option>
+              {{end}}
+            </select>
+          </div>
           <div class="field">
             <label for="ctrl-spacers">Spacers (mm)</label>
             <input id="ctrl-spacers" type="number" name="spacers" step="0.5" min="0" max="{{.MaxSpacersMm}}" value="{{.Form.Spacers}}"{{if and $.ErrorMessage (eq $.InvalidField "spacers")}} aria-invalid="true" aria-describedby="form-error"{{end}}>

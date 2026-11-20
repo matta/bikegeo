@@ -490,6 +490,7 @@ func (v diagramView) Description() string {
 type workbenchState struct {
 	View          diagramView
 	ForkID        string
+	BarID         string
 	ForkA2cMm     float64
 	LowerCupMm    float64
 	SagPct        float64
@@ -528,16 +529,18 @@ func (t fitTargetState) fitTarget() assembly.FitTarget {
 
 func defaultWorkbenchState(fix bikeFixture) workbenchState {
 	defaultFork, _ := fix.resolveForkOption("")
+	defaultBar, _ := fix.resolveHandlebar("")
 	return workbenchState{
 		View:          diagramViewBike,
 		ForkID:        defaultFork.ID,
+		BarID:         defaultBar.ID,
 		ForkA2cMm:     defaultFork.Spec.StaticA2cMm,
 		LowerCupMm:    defaultFork.DefaultLowerCup.StackMm,
 		SagPct:        defaultFork.DefaultSagPct,
 		SpacersMm:     fix.DefaultStem.SpacersMm,
 		StemLengthMm:  fix.DefaultStem.LengthMm,
 		StemAngleDeg:  fix.DefaultStem.AngleDeg,
-		BarRollDeg:    fix.DefaultHandlebar.BarRollDeg,
+		BarRollDeg:    defaultBar.Setup.BarRollDeg,
 		PostExtMm:     fix.DefaultSeatpost.ExtensionMm,
 		PostSetbackMm: fix.DefaultSeatpost.PostSetbackMm,
 		RailOffsetMm:  fix.DefaultSaddle.RailOffsetMm,
@@ -545,10 +548,11 @@ func defaultWorkbenchState(fix bikeFixture) workbenchState {
 	}
 }
 
-func workbenchStateFromSetup(view diagramView, forkID string, setup assembly.BikeSetup) workbenchState {
+func workbenchStateFromSetup(view diagramView, forkID, barID string, setup assembly.BikeSetup) workbenchState {
 	return workbenchState{
 		View:          view,
 		ForkID:        forkID,
+		BarID:         barID,
 		ForkA2cMm:     setup.Fork.Spec.StaticA2cMm,
 		LowerCupMm:    setup.LowerCup.StackMm,
 		SagPct:        setup.Fork.SagPct,
@@ -589,6 +593,7 @@ func (s workbenchState) URL() string {
 	q := url.Values{}
 	q.Set("view", string(s.View))
 	q.Set("fork", s.ForkID)
+	q.Set("bar", s.BarID)
 	q.Set("fork_a2c", formatFormFloat(s.ForkA2cMm))
 	q.Set("cup", formatFormFloat(s.LowerCupMm))
 	q.Set("sag", formatFormFloat(s.SagPct))
@@ -628,6 +633,7 @@ func (s workbenchState) formValues() bikeFormValues {
 		GripY:       gripY,
 		View:        string(s.View),
 		Fork:        s.ForkID,
+		Bar:         s.BarID,
 		PrevFork:    s.ForkID,
 		ForkA2c:     formatFormFloat(s.ForkA2cMm),
 		Cup:         formatFormFloat(s.LowerCupMm),
@@ -646,6 +652,7 @@ func (s workbenchState) formValues() bikeFormValues {
 type bikeFormValues struct {
 	View        string
 	Fork        string
+	Bar         string
 	PrevFork    string
 	ForkA2c     string
 	Cup         string
@@ -699,6 +706,8 @@ type bikeView struct {
 	Forks                []forkOption
 	CadForkOption        forkOption
 	SelectedForkID       string
+	Handlebars           []handlebarOption
+	SelectedBarID        string
 	CupLabel             string
 	ForkA2cReadOnly      bool
 	CupReadOnly          bool
@@ -855,6 +864,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		fix,
 		resolved.State.View,
 		resolved.State.ForkID,
+		resolved.State.BarID,
 		bike,
 		cadBaselineFork,
 		tr.Steps(),
@@ -931,7 +941,7 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 			LimitedBy:       cockpitLimits,
 		}
 	}
-	applied := workbenchStateFromSetup(state.View, state.ForkID, fitted)
+	applied := workbenchStateFromSetup(state.View, state.ForkID, state.BarID, fitted)
 	applied.Targets = state.Targets
 	fv.ApplyURL = applied.URL()
 	return fv
@@ -947,7 +957,7 @@ func buildStockFittingView(state workbenchState, prefs assembly.CockpitPreferenc
 	}
 	for i, c := range stock.Candidates {
 		stem := c.Placement.Setup.Stem
-		applied := workbenchStateFromSetup(state.View, state.ForkID, c.Placement.Setup)
+		applied := workbenchStateFromSetup(state.View, state.ForkID, state.BarID, c.Placement.Setup)
 		applied.Targets = state.Targets
 		view.Rows = append(view.Rows, stockCandidateView{
 			Rank:         i + 1,
@@ -983,7 +993,12 @@ func (f bikeFixture) railOffsetRange() (minMm, maxMm float64) {
 
 func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolvedInput, invalidField, msg string) {
 	forkA2cRO, cupRO, sagRO, cupLabel, cadNote := forkFieldViewState(fix, resolved.State.ForkID, resolved.Form.Sag)
-	defaultsURL, cadURL := presetURLs(fix, defaultWorkbenchState(fix), resolved.State.View)
+	cadBase := defaultWorkbenchState(fix)
+	if resolved.State.BarID != "" {
+		cadBase.BarID = resolved.State.BarID
+	}
+	cadBase.BarRollDeg = resolved.State.BarRollDeg
+	defaultsURL, cadURL := presetURLs(fix, cadBase, resolved.State.View)
 	minRail, maxRail := fix.railOffsetRange()
 	view := bikeView{
 		MinRailOffsetMm:    minRail,
@@ -1005,6 +1020,8 @@ func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolv
 		Forks:              fix.Forks,
 		CadForkOption:      fix.cadForkOption(),
 		SelectedForkID:     resolved.State.ForkID,
+		Handlebars:         fix.Handlebars,
+		SelectedBarID:      resolved.State.BarID,
 		CupLabel:           cupLabel,
 		ForkA2cReadOnly:    forkA2cRO,
 		CupReadOnly:        cupRO,
@@ -1090,8 +1107,8 @@ func (p *bikeQueryParser) fail(field string, err error) {
 }
 
 // decodeWorkbenchState resolves the URL query into a BikeSetup. The returned
-// bikeResolvedInput always carries Form and State.ForkID even when parsing
-// fails, so the error page can echo the submitted controls.
+// bikeResolvedInput carries the form values and resolved selections even when
+// parsing fails, so the error page can echo the submitted controls.
 func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bikeInputError) {
 	p := bikeQueryParser{q: q}
 	defaults := defaultWorkbenchState(fix)
@@ -1163,6 +1180,17 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bi
 		SagPct: state.SagPct,
 	}
 
+	selectedBar, barOK := fix.resolveHandlebar(q.Get("bar"))
+	if barOK {
+		state.BarID = selectedBar.ID
+		form.Bar = selectedBar.ID
+	} else {
+		state.BarID = ""
+		p.fail("bar", fmt.Errorf("unknown handlebar %q", q.Get("bar")))
+		// Build with the default bar so the error page can echo the other controls.
+		selectedBar, _ = fix.resolveHandlebar("")
+	}
+
 	state.SpacersMm = p.float("spacers", defaults.SpacersMm, "spacers", &form.Spacers)
 	state.StemLengthMm = p.float("stem_length", defaults.StemLengthMm, "stem length", &form.StemLength)
 	state.StemAngleDeg = pose.Deg(p.float("stem_angle", float64(defaults.StemAngleDeg), "stem angle", &form.StemAngle))
@@ -1196,7 +1224,7 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bi
 	stem.LengthMm = state.StemLengthMm
 	stem.AngleDeg = state.StemAngleDeg
 
-	bar := fix.DefaultHandlebar
+	bar := selectedBar.Setup
 	bar.BarRollDeg = state.BarRollDeg
 
 	post := fix.DefaultSeatpost
@@ -1395,7 +1423,7 @@ func workbenchLinks(fix bikeFixture, state workbenchState) (defaultsURL, cadURL 
 // withFitTargets carries the submitted fit targets into the view's form echo,
 // canonical URL, and links. The diagram itself still shows the submitted build.
 func (v *bikeView) withFitTargets(fix bikeFixture, setup assembly.BikeSetup, submitted workbenchState) {
-	state := workbenchStateFromSetup(submitted.View, submitted.ForkID, setup)
+	state := workbenchStateFromSetup(submitted.View, submitted.ForkID, submitted.BarID, setup)
 	state.Targets = submitted.Targets
 	v.Form = state.formValues()
 	v.CanonicalURL = state.URL()
@@ -1405,7 +1433,7 @@ func (v *bikeView) withFitTargets(fix bikeFixture, setup assembly.BikeSetup, sub
 func buildBikeView(
 	fix bikeFixture,
 	view diagramView,
-	forkID string,
+	forkID, barID string,
 	bike assembly.BikePlacement,
 	cadBaselineFork assembly.ChartBaseline,
 	steps []pose.Step,
@@ -1531,11 +1559,12 @@ func buildBikeView(
 		landmarks = append(landmarks, lm)
 	}
 
-	state := workbenchStateFromSetup(view, forkID, bike.Setup)
+	state := workbenchStateFromSetup(view, forkID, barID, bike.Setup)
 	form := state.formValues()
 	forkA2cRO, cupRO, sagRO, cupLabel, cadNote := forkFieldViewState(fix, forkID, form.Sag)
 	defaultsURL, cadURL, viewLinks := workbenchLinks(fix, state)
 
+	selectedBar, _ := fix.resolveHandlebar(barID)
 	minRail, maxRail := fix.railOffsetRange()
 	return bikeView{
 		MinRailOffsetMm:      minRail,
@@ -1558,10 +1587,12 @@ func buildBikeView(
 		MaxPostExtensionMm:   bike.Setup.Seatpost.MaxExtensionMm,
 		BikeName:             fix.Name,
 		SaddleName:           fix.SaddleName,
-		HandlebarName:        fix.HandlebarName,
+		HandlebarName:        selectedBar.Name,
 		Forks:                fix.Forks,
 		CadForkOption:        fix.cadForkOption(),
 		SelectedForkID:       forkID,
+		Handlebars:           fix.Handlebars,
+		SelectedBarID:        barID,
 		CupLabel:             cupLabel,
 		ForkA2cReadOnly:      forkA2cRO,
 		CupReadOnly:          cupRO,

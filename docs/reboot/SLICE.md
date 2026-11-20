@@ -1,6 +1,6 @@
 # Next slice: M2 Slice 4, handlebar choice in the workbench
 
-**Status: Planned 2026-11-19 from Matt's rulings Q19–Q21 ([DESIGN.md](DESIGN.md), "Handlebar choice"). Not started.** This file is the execution plan for one agent (Sonnet is fine). Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first; they override anything here that disagrees. If a step here conflicts with the code you find, stop and ask Matt rather than improvising. Slices 1–3 (saddle fitting, front-cockpit fitting, stock cockpit fitting) are done. This slice changes only `internal/reboot/web`. It does not change `assembly`, `pose`, or how any fitting behaves.
+**Status: Implemented and verified 2026-11-19 from Matt's rulings Q19–Q21 ([DESIGN.md](DESIGN.md), "Handlebar choice"). Awaiting Matt's acceptance.** Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. Slices 1–3 (saddle fitting, front-cockpit fitting, stock cockpit fitting) are done. The implementation is in `internal/reboot/web`.
 
 ## 1. Goal
 

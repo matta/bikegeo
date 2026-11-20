@@ -34,6 +34,36 @@ func makeForkOption(id, name string, spec assembly.ForkSpec, defaultSagPct float
 	}
 }
 
+// handlebarOption is one handlebar the workbench can install. Setup.BarRollDeg
+// is always 0: the roll comes from the workbench state (Q21).
+type handlebarOption struct {
+	ID    string
+	Name  string
+	Setup assembly.HandlebarSetup
+}
+
+// illustrative: the rider's grips (legacy WingGripInsetMm), the same on every bar
+const gripInsetMm = 70.0
+
+// legacyHandlebar builds an uncut handlebar with the rider's grips and no roll.
+func legacyHandlebar(id, name string, widthMm, riseMm float64, mode assembly.RiseMeasurementMode, backsweep, upsweep pose.Deg, bendStartMm float64) handlebarOption {
+	return handlebarOption{
+		ID:   id,
+		Name: name,
+		Setup: assembly.HandlebarSetup{
+			StockWidthMm:   widthMm,
+			CurrentWidthMm: widthMm,
+			StatedRiseMm:   riseMm,
+			RiseMode:       mode,
+			BacksweepDeg:   backsweep,
+			UpsweepDeg:     upsweep,
+			BendStartMm:    bendStartMm,
+			GripInsetMm:    gripInsetMm,
+			BarRollDeg:     0,
+		},
+	}
+}
+
 type bikeFixture struct {
 	Name               string
 	Chart              assembly.FrameChart
@@ -44,8 +74,8 @@ type bikeFixture struct {
 	DefaultStem        assembly.StemSetup
 	CockpitStock       assembly.CockpitStock
 	CockpitPreferences assembly.CockpitPreferences
-	HandlebarName      string
-	DefaultHandlebar   assembly.HandlebarSetup
+	DefaultHandlebarID string
+	Handlebars         []handlebarOption
 	DefaultSeatpost    assembly.SeatpostSetup
 	SaddleName         string
 	DefaultSaddle      assembly.SaddleSetup
@@ -85,6 +115,20 @@ func (f bikeFixture) resolveForkOption(requestedID string) (forkOption, bool) {
 		}
 	}
 	return forkOption{}, false
+}
+
+// resolveHandlebar returns the handlebar with requestedID, or the default
+// handlebar when requestedID is empty.
+func (f bikeFixture) resolveHandlebar(requestedID string) (handlebarOption, bool) {
+	if requestedID == "" {
+		requestedID = f.DefaultHandlebarID
+	}
+	for _, opt := range f.Handlebars {
+		if opt.ID == requestedID {
+			return opt, true
+		}
+	}
+	return handlebarOption{}, false
 }
 
 func (f bikeFixture) validate() error {
@@ -135,11 +179,30 @@ func (f bikeFixture) validate() error {
 	if err := f.Chart.CadLowerCup.Validate(); err != nil {
 		return fmt.Errorf("fixture %q Chart.CadLowerCup invalid: %w", f.Name, err)
 	}
+	if _, ok := f.resolveHandlebar(""); !ok || f.DefaultHandlebarID == "" {
+		return fmt.Errorf("fixture %q DefaultHandlebarID %q not found in Handlebars", f.Name, f.DefaultHandlebarID)
+	}
+	seenBars := make(map[string]bool, len(f.Handlebars))
+	for _, opt := range f.Handlebars {
+		if opt.ID == "" {
+			return fmt.Errorf("fixture %q has handlebar option with empty ID", f.Name)
+		}
+		if seenBars[opt.ID] {
+			return fmt.Errorf("fixture %q has duplicate handlebar ID %q", f.Name, opt.ID)
+		}
+		seenBars[opt.ID] = true
+		if opt.Setup.BarRollDeg != 0 {
+			return fmt.Errorf("fixture %q handlebar %q must not set BarRollDeg", f.Name, opt.ID)
+		}
+		if _, err := assembly.PlaceHandlebar(pose.NewPose(pose.Point{}, 0, nil), opt.Setup); err != nil {
+			return fmt.Errorf("fixture %q handlebar %q invalid: %w", f.Name, opt.ID, err)
+		}
+	}
 	return nil
 }
 
 // otsoFenrirFixture returns the Milestone 1 Otso Fenrir Stainless (2024, Size L)
-// fixture with its sourced published chart dimensions and selectable forks.
+// fixture with its sourced published chart dimensions and selectable forks and handlebars.
 func otsoFenrirFixture() bikeFixture {
 	const (
 		// Model the generic zero-offset post with the Ritchey Comp Trail Zero's
@@ -219,17 +282,25 @@ func otsoFenrirFixture() bikeFixture {
 			StemAngle:  assembly.PricedBand{CostBelow: 0.2, CostAbove: 0.2},                                       // illustrative
 			Spacers:    assembly.PricedBand{FreeMax: 20, CostAbove: 0.4},                                          // illustrative
 		},
-		HandlebarName: "Tumbleweed Persuader 20° (800 mm)",
-		DefaultHandlebar: assembly.HandlebarSetup{
-			StockWidthMm:   800.0,
-			CurrentWidthMm: 800.0,
-			BacksweepDeg:   20.0,
-			UpsweepDeg:     4.0,
-			StatedRiseMm:   50.0,
-			RiseMode:       assembly.RiseModeBarEndCenter,
-			BendStartMm:    135.0,
-			GripInsetMm:    70.0,
-			BarRollDeg:     0.0,
+		DefaultHandlebarID: "persuader20_800",
+		// catalog: ported from legacy internal/catalog/handlebars.go; sources not recorded (Q20)
+		Handlebars: []handlebarOption{
+			legacyHandlebar("persuader20_800", "Tumbleweed Persuader 20° (800 mm)", 800, 50, assembly.RiseModeBarEndCenter, 20, 4, 135),
+			legacyHandlebar("persuader20_840", "Tumbleweed Persuader 20° (840 mm)", 840, 50, assembly.RiseModeBarEndCenter, 20, 4, 135),
+			// illustrative: legacy SQlabEffectiveBendStartMm = 55 + 0.9·rise
+			legacyHandlebar("sqlab3ox_16_15", "SQlab 3OX 16°, 15 mm rise (780 mm)", 780, 15, assembly.RiseModeStandardKnuckle, 16, 4, 68.5),
+			legacyHandlebar("sqlab3ox_16_30", "SQlab 3OX 16°, 30 mm rise (780 mm)", 780, 30, assembly.RiseModeStandardKnuckle, 16, 4, 82.0),
+			legacyHandlebar("sqlab3ox_16_45", "SQlab 3OX 16°, 45 mm rise (780 mm)", 780, 45, assembly.RiseModeStandardKnuckle, 16, 4, 95.5),
+			legacyHandlebar("sqlab3ox_12_15", "SQlab 3OX 12°, 15 mm rise (780 mm)", 780, 15, assembly.RiseModeStandardKnuckle, 12, 4, 68.5),
+			legacyHandlebar("sqlab3ox_12_30", "SQlab 3OX 12°, 30 mm rise (780 mm)", 780, 30, assembly.RiseModeStandardKnuckle, 12, 4, 82.0),
+			legacyHandlebar("sqlab3ox_12_45", "SQlab 3OX 12°, 45 mm rise (780 mm)", 780, 45, assembly.RiseModeStandardKnuckle, 12, 4, 95.5),
+			legacyHandlebar("sqlab311_20_16_15", "SQlab 311 2.0 Alloy 16°, 15 mm rise (740 mm)", 740, 15, assembly.RiseModeStandardKnuckle, 16, 5, 68.5),
+			legacyHandlebar("sqlab311_20_16_25", "SQlab 311 2.0 Alloy 16°, 25 mm rise (740 mm)", 740, 25, assembly.RiseModeStandardKnuckle, 16, 5, 77.5),
+			legacyHandlebar("sqlab311_20_16_50", "SQlab 311 2.0 Alloy 16°, 50 mm rise (740 mm)", 740, 50, assembly.RiseModeStandardKnuckle, 16, 5, 100.0),
+			legacyHandlebar("sqlab311_flx_16_15", "SQlab 311 FL-X Carbon 16°, 15 mm rise (740 mm)", 740, 15, assembly.RiseModeStandardKnuckle, 16, 4, 68.5),
+			legacyHandlebar("sqlab311_flx_16_30", "SQlab 311 FL-X Carbon 16°, 30 mm rise (740 mm)", 740, 30, assembly.RiseModeStandardKnuckle, 16, 4, 82.0),
+			legacyHandlebar("sqlab311_flx_12_15", "SQlab 311 FL-X Carbon 12°, 15 mm rise (740 mm)", 740, 15, assembly.RiseModeStandardKnuckle, 12, 4, 68.5),
+			legacyHandlebar("sqlab311_flx_12_30", "SQlab 311 FL-X Carbon 12°, 30 mm rise (740 mm)", 740, 30, assembly.RiseModeStandardKnuckle, 12, 4, 82.0),
 		},
 		DefaultSeatpost: assembly.SeatpostSetup{
 			ExtensionMm:    263.5,
