@@ -3774,3 +3774,25 @@ func TestBikeWorkbenchStockForksErrorPage(t *testing.T) {
 		t.Errorf("error-page CAD preset stock_forks = %q, want all", got)
 	}
 }
+
+func TestCheckFixtureChart(t *testing.T) {
+	checkFixtureChart(otsoFenrirFixture())
+
+	fix := otsoFenrirFixture()
+	fix.Chart.Precision = assembly.ChartPrecision{}
+	var recovered any
+	func() {
+		defer func() {
+			recovered = recover()
+		}()
+		checkFixtureChart(fix)
+	}()
+	msg, ok := recovered.(string)
+	if !ok {
+		t.Fatalf("recovered = %T (%v), want string panic", recovered, recovered)
+	}
+	const wantSub = `fixture "Otso Fenrir Stainless (2024, Size L)" chart: chart closure: axle height residual +0.22 mm exceeds its ±0.00 mm rounding budget (no rounded columns)`
+	if !strings.Contains(msg, wantSub) {
+		t.Errorf("panic = %q, want substring %q", msg, wantSub)
+	}
+}

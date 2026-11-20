@@ -366,11 +366,22 @@ func otsoFenrirFixture() bikeFixture {
 				ChainstayMm:      450.0,
 				SeatTubeLengthMm: 490.0,
 			},
+			// hypotheses, not rounded chart numbers: CadLowerCup and CadFork get no rounding terms (Q44)
 			CadLowerCup: assembly.LowerCupSetup{
 				Standard: assembly.LowerCupBareHeadTube,
 				StackMm:  0.0,
 			},
 			PublishedWheelbaseMm: 1158.0,
+			// illustrative: inferred from the published grid (whole mm; HTA in quarter degrees), Q43
+			Precision: assembly.ChartPrecision{
+				ReachMm:          0.5,
+				StackMm:          0.5,
+				HeadTubeAngleDeg: 0.125,
+				HeadTubeLengthMm: 0.5,
+				BbDropMm:         0.5,
+				ChainstayMm:      0.5,
+				WheelbaseMm:      0.5,
+			},
 			CadFork: assembly.ForkGeometry{
 				A2cMm:  495.0,
 				RakeMm: 54.0,

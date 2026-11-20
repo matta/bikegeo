@@ -123,13 +123,22 @@ type stemView struct {
 	Steps            []pose.Step
 }
 
-// NewHandler returns the HTTP handler for the reboot workbench.
+// NewHandler returns the HTTP handler for the reboot workbench. It panics if
+// the fixture chart fails its closure check (Q47).
 func NewHandler() http.Handler {
+	checkFixtureChart(otsoFenrirFixture())
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleStemWorkbench)
 	mux.HandleFunc("/bike", handleBikeWorkbench)
 	mux.HandleFunc("/static/workbench.js", handleWorkbenchJS)
 	return mux
+}
+
+// checkFixtureChart panics unless the fixture chart closes within its rounding budget.
+func checkFixtureChart(fix bikeFixture) {
+	if err := assembly.CheckChartClosure(fix.Chart); err != nil {
+		panic(fmt.Sprintf("fixture %q chart: %v", fix.Name, err))
+	}
 }
 
 func handleWorkbenchJS(w http.ResponseWriter, r *http.Request) {

@@ -198,6 +198,7 @@ type FrameChart struct {
 	CadLowerCup          LowerCupSetup
 	CadFork              ForkGeometry
 	PublishedWheelbaseMm float64
+	Precision            ChartPrecision // rounding half-widths of the published columns (Q43)
 }
 
 // ChartResiduals holds the raw 0°-pitch chart-closure residuals when a
@@ -239,11 +240,9 @@ func PlaceCadBaselineFork(chart FrameChart, wheels WheelSetup) (ChartBaseline, e
 		return ChartBaseline{}, fmt.Errorf("published wheelbase must be finite and positive, got %v mm", chart.PublishedWheelbaseMm)
 	}
 
-	unpitched, pitchDeg := measureUnpitchedFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork)
-	residuals := ChartResiduals{
-		AxleHeightDiffMm: unpitched.RearAxle.VerticalOffsetTo(unpitched.FrontAxle),
-		WheelbaseDiffMm:  (unpitched.FrontAxle.Origin().X - unpitched.RearAxle.Origin().X) - chart.PublishedWheelbaseMm,
-	}
+	_, pitchDeg := measureUnpitchedFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork)
+	r := chartResiduals(chart)
+	residuals := ChartResiduals{AxleHeightDiffMm: r[0], WheelbaseDiffMm: r[1]}
 
 	return ChartBaseline{
 		Placement: placeLeveledFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork, wheels, pitchDeg, nil),
