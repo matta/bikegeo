@@ -1,0 +1,278 @@
+metadata:
+  scope: "Threadless 1-1/8 in steerer bicycle stems rated for XC / trail use (ISO 4210-MTB / ASTM Category 3, non-gravity)"
+  bar_clamp_standards_covered_mm: [31.8, 35.0]
+  length_range_mm:
+    min: 40
+    max: 120
+    step: 10
+  angle_notation:
+    reversible: "'+/-X' indicates flip-flop mounting for +X deg rise or -X deg drop"
+    fixed_negative: "'-X' indicates dedicated negative-rise (drop) XC race stem"
+    zero: "0 indicates neutral 0 deg angle (perpendicular to steerer tube)"
+  availability_scale:
+    - abundant: "Wide selection across dedicated trail and XC product lines"
+    - common: "Broadly stocked across XC and dual-purpose road/MTB lines"
+    - limited: "Most modern trail/enduro lines stop at 60-90 mm; primarily legacy XC and dual-rated alloy lines"
+    - sparse: "Small subset of dedicated MTB/XC models plus dual-rated road/XC alloy stems"
+  notes:
+    - "Dedicated trail/all-mountain lines (e.g., Race Face Turbine R, Salsa Guide Trail, PRO Koryak, Industry Nine A318) typically terminate at 50-70 mm."
+    - "Dedicated XC/trail models extending to 110-120 mm (e.g., Thomson Elite X4, Race Face Ride XC, FSA Afterburner, FSA NS Drop) are supplemented by dual-rated road/XC alloy stems (e.g., Easton EA90 SL, Easton EA50, Ritchey WCS C220, Ritchey Comp 4-Axis, Mt Zoom Ultralight)."
+    - "Adjustable-angle stems (e.g., Ritchey 4-Axis Adjustable, +/-55 deg) exist in 90-120 mm but are excluded from fixed-angle lists below."
+
+stems_by_length:
+  - length_mm: 40
+    trail_xc_rated_available: true
+    market_availability: abundant
+    represented_angles_deg:
+      dominant: [0]
+      common: ["+/-6"]
+      niche: []
+    verified_examples:
+      - model: "Thomson Elite X4"
+        angles_deg: [0]
+      - model: "Race Face Turbine R 35"
+        angles_deg: [0]
+      - model: "Salsa Guide Trail"
+        angles_deg: [0]
+      - model: "PRO Koryak"
+        angles_deg: [0]
+      - model: "TruVativ Atmos 7K"
+        angles_deg: ["+/-6"]
+      - model: "Specialized Trail"
+        angles_deg: ["+/-6"]
+      - model: "Industry Nine A318"
+        angles_deg: ["+/-6"]
+
+  - length_mm: 50
+    trail_xc_rated_available: true
+    market_availability: abundant
+    represented_angles_deg:
+      dominant: [0]
+      common: ["+/-6"]
+      niche: ["+/-5", -17, -20]
+    verified_examples:
+      - model: "Thomson Elite X4"
+        angles_deg: [0]
+      - model: "Race Face Turbine R 35"
+        angles_deg: [0]
+      - model: "Paul Component Boxcar"
+        angles_deg: [0]
+      - model: "TruVativ Atmos 7K"
+        angles_deg: ["+/-6"]
+      - model: "Newmen Evolution SL 318.2"
+        angles_deg: ["+/-6", -17]
+      - model: "Industry Nine A318"
+        angles_deg: ["+/-5"]
+      - model: "FSA NS Drop"
+        angles_deg: [-20]
+
+  - length_mm: 60
+    trail_xc_rated_available: true
+    market_availability: abundant
+    represented_angles_deg:
+      dominant: [0, "+/-6"]
+      common: ["+/-7"]
+      niche: ["+/-12", -12, "+/-17", -17, -20, "+/-30"]
+    verified_examples:
+      - model: "Thomson Elite X4"
+        angles_deg: [0]
+      - model: "Ritchey WCS Trail"
+        angles_deg: [0]
+      - model: "Race Face Turbine R 35"
+        angles_deg: [0]
+      - model: "Cane Creek GXC"
+        angles_deg: ["+/-6"]
+      - model: "Race Face Ride XC"
+        angles_deg: ["+/-6"]
+      - model: "TruVativ Atmos 7K"
+        angles_deg: ["+/-6"]
+      - model: "FSA SL-K"
+        angles_deg: ["+/-12"]
+      - model: "FSA Afterburner MTB"
+        angles_deg: [-12]
+      - model: "Newmen Evolution SL 318.2"
+        angles_deg: ["+/-6", -17]
+      - model: "Mt Zoom Ultralight"
+        angles_deg: ["+/-6", "+/-17"]
+      - model: "FSA NS Drop"
+        angles_deg: [-20]
+      - model: "Ritchey Comp 4-Axis 30D"
+        angles_deg: ["+/-30"]
+
+  - length_mm: 70
+    trail_xc_rated_available: true
+    market_availability: abundant
+    represented_angles_deg:
+      dominant: ["+/-6", "+/-7", 0]
+      common: ["+/-10", "+/-17"]
+      niche: ["+/-12", -12, "+/-15", -17, -20, "+/-30"]
+    verified_examples:
+      - model: "Thomson Elite X4"
+        angles_deg: [0, "+/-10"]
+      - model: "Ritchey WCS Trail"
+        angles_deg: [0]
+      - model: "Race Face Turbine R 35"
+        angles_deg: [0]
+      - model: "Cane Creek GXC"
+        angles_deg: ["+/-6"]
+      - model: "TruVativ Atmos 7K"
+        angles_deg: ["+/-6"]
+      - model: "Easton EA90 SL"
+        angles_deg: [0, "+/-7"]
+      - model: "Easton EA50"
+        angles_deg: ["+/-7", "+/-17"]
+      - model: "Paul Component Boxcar"
+        angles_deg: [0, "+/-15"]
+      - model: "FSA Afterburner MTB"
+        angles_deg: [-12]
+      - model: "FSA SL-K"
+        angles_deg: ["+/-12", -20]
+      - model: "Ritchey WCS C220"
+        angles_deg: ["+/-17"]
+      - model: "Ritchey Comp 4-Axis 30D"
+        angles_deg: ["+/-30"]
+
+  - length_mm: 80
+    trail_xc_rated_available: true
+    market_availability: abundant
+    represented_angles_deg:
+      dominant: ["+/-6", "+/-7"]
+      common: [0, "+/-10", "+/-17"]
+      niche: ["+/-12", -12, -17, -20, "+/-30"]
+    verified_examples:
+      - model: "Cane Creek GXC"
+        angles_deg: ["+/-6"]
+      - model: "TruVativ Atmos 7K"
+        angles_deg: ["+/-6"]
+      - model: "Race Face Ride XC"
+        angles_deg: ["+/-6"]
+      - model: "Easton EA90 SL"
+        angles_deg: [0, "+/-7"]
+      - model: "Easton EA50"
+        angles_deg: ["+/-7", "+/-17"]
+      - model: "Thomson Elite X4"
+        angles_deg: [0, "+/-10"]
+      - model: "Ritchey WCS Trail"
+        angles_deg: [0]
+      - model: "FSA Afterburner MTB"
+        angles_deg: [-12]
+      - model: "FSA SL-K"
+        angles_deg: ["+/-12", -20]
+      - model: "Newmen Evolution SL 318.2"
+        angles_deg: ["+/-6", -17]
+      - model: "Ritchey Comp 4-Axis 30D"
+        angles_deg: ["+/-30"]
+
+  - length_mm: 90
+    trail_xc_rated_available: true
+    market_availability: common
+    represented_angles_deg:
+      dominant: ["+/-6", "+/-7"]
+      common: [0, "+/-10", "+/-17"]
+      niche: [-12, "+/-15", -17, -20, "+/-30"]
+    verified_examples:
+      - model: "Race Face Ride XC"
+        angles_deg: ["+/-6"]
+      - model: "TruVativ Atmos 7K"
+        angles_deg: ["+/-6"]
+      - model: "Cane Creek GXC"
+        angles_deg: ["+/-6"]
+      - model: "Easton EA90 SL"
+        angles_deg: [0, "+/-7"]
+      - model: "Easton EA50"
+        angles_deg: ["+/-7", "+/-17"]
+      - model: "Thomson Elite X4"
+        angles_deg: [0, "+/-10"]
+      - model: "Ritchey WCS Trail"
+        angles_deg: [0]
+      - model: "Paul Component Boxcar"
+        angles_deg: [0, "+/-15"]
+      - model: "FSA Afterburner MTB"
+        angles_deg: [-12]
+      - model: "FSA NS Drop"
+        angles_deg: [-20]
+      - model: "Ritchey Comp 4-Axis 30D"
+        angles_deg: ["+/-30"]
+
+  - length_mm: 100
+    trail_xc_rated_available: true
+    market_availability: common
+    represented_angles_deg:
+      dominant: ["+/-6", "+/-7"]
+      common: [0, "+/-10", "+/-17"]
+      niche: [-12, -17, -20, "+/-30"]
+    verified_examples:
+      - model: "Race Face Ride XC"
+        angles_deg: ["+/-6"]
+      - model: "Cane Creek GXC"
+        angles_deg: ["+/-6"]
+      - model: "Newmen Evolution SL 318.2"
+        angles_deg: ["+/-6", -17]
+      - model: "Easton EA90 SL"
+        angles_deg: [0, "+/-7"]
+      - model: "Easton EA50"
+        angles_deg: ["+/-7", "+/-17"]
+      - model: "Thomson Elite X4"
+        angles_deg: [0, "+/-10"]
+      - model: "Ritchey WCS Trail"
+        angles_deg: [0]
+      - model: "FSA Afterburner MTB"
+        angles_deg: [-12]
+      - model: "FSA SL-K"
+        angles_deg: [-20]
+      - model: "Ritchey Comp 4-Axis 30D"
+        angles_deg: ["+/-30"]
+
+  - length_mm: 110
+    trail_xc_rated_available: true
+    market_availability: limited
+    represented_angles_deg:
+      dominant: ["+/-6", "+/-7"]
+      common: [0, "+/-10", "+/-17"]
+      niche: [-12, -20, "+/-30"]
+    verified_examples:
+      - model: "Race Face Ride XC"
+        angles_deg: ["+/-6"]
+      - model: "Mt Zoom Ultralight"
+        angles_deg: ["+/-6", "+/-17"]
+      - model: "Easton EA90 SL"
+        angles_deg: [0, "+/-7"]
+      - model: "Easton EA50"
+        angles_deg: ["+/-7", "+/-17"]
+      - model: "Thomson Elite X4"
+        angles_deg: [0, "+/-10"]
+      - model: "Ritchey WCS Trail"
+        angles_deg: [0]
+      - model: "FSA Afterburner MTB"
+        angles_deg: [-12]
+      - model: "FSA NS Drop"
+        angles_deg: [-20]
+      - model: "Ritchey Comp 4-Axis 30D"
+        angles_deg: ["+/-30"]
+
+  - length_mm: 120
+    trail_xc_rated_available: true
+    market_availability: sparse
+    represented_angles_deg:
+      dominant: ["+/-6", "+/-7"]
+      common: ["+/-10", "+/-17"]
+      niche: [0, "+/-12", -12, -20, "+/-30"]
+    verified_examples:
+      - model: "Race Face Ride XC"
+        angles_deg: ["+/-6"]
+      - model: "Easton EA90 SL"
+        angles_deg: [0, "+/-7"]
+      - model: "Easton EA50"
+        angles_deg: ["+/-7", "+/-17"]
+      - model: "Thomson Elite X4"
+        angles_deg: [0, "+/-10"]
+      - model: "Specialized Comp Multi"
+        angles_deg: ["+/-12"]
+      - model: "FSA Afterburner MTB"
+        angles_deg: [-12]
+      - model: "FSA SL-K"
+        angles_deg: [-20]
+      - model: "Ritchey WCS C220"
+        angles_deg: ["+/-17"]
+      - model: "Ritchey Comp 4-Axis 30D"
+        angles_deg: ["+/-30"]
