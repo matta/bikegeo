@@ -533,7 +533,8 @@ func TestStockFittingRefitsSaddlePerFork(t *testing.T) {
 		base.Fork, base.LowerCup = fork.Fork, fork.LowerCup
 		saddles[i] = mustFit(t, base, fitReportBRP).Placement.Setup
 	}
-	wantMiss := [...]float64{39.613611, 39.553918, 42.572417, 45.600102, 26.978855, 30.554575, 34.144103}
+	wantMiss := [...]float64{51.479453, 51.423215, 54.266925, 57.119058, 39.573856, 42.943626, 46.326087}
+	wantInsertion := [...]float64{183.315151, 183.311056, 183.523736, 183.748612, 182.548574, 182.745127, 182.958627}
 	for i, c := range full.Candidates {
 		index := c.ForkIndex
 		if !c.StockFork || index < 0 || index >= len(stock.Forks) {
@@ -548,6 +549,8 @@ func TestStockFittingRefitsSaddlePerFork(t *testing.T) {
 			t.Fatalf("rank %d has no BRP miss for its target", i+1)
 		}
 		assertNear(t, "BRP miss", miss.Norm(), wantMiss[index], 1e-6)
+		assertNear(t, "fitted insertion", got.Seatpost.InsertionMm, wantInsertion[index], 1e-6)
+		assertNear(t, "fitted rail offset", got.Saddle.RailOffsetMm, 15, 1e-9)
 		assertNear(t, "BRP miss points", c.Penalties[6].PointsLost, 2*(miss.Norm()-1), 1e-9)
 	}
 
@@ -556,11 +559,11 @@ func TestStockFittingRefitsSaddlePerFork(t *testing.T) {
 		t.Fatal(err)
 	}
 	requireStockForkRanks(t, fit, []stockForkRank{
-		{2, stockStem{-17, 130, 0}, 1.019761, 3.020423},
-		{0, stockStem{-17, 130, 0}, 1.358546, 1.484762},
-		{5, stockStem{-17, 130, 0}, 2.401938, -3.351795},
-		{2, stockStem{-17, 130, 5}, 1.412418, -5.618032},
-		{0, stockStem{-17, 130, 5}, 1.755355, -7.245027},
+		{2, stockStem{-17, 130, 0}, 1.019761, -20.368593},
+		{0, stockStem{-17, 130, 0}, 1.358546, -22.246923},
+		{5, stockStem{-17, 130, 0}, 2.401938, -28.129898},
+		{2, stockStem{-17, 130, 5}, 1.412418, -29.007048},
+		{0, stockStem{-17, 130, 5}, 1.755355, -30.976712},
 	})
 }
 
@@ -568,11 +571,11 @@ func TestStockFittingPenalizesBrpMissForSubmittedFork(t *testing.T) {
 	target := assembly.FitTarget{BRP: &fitReportBRP, HandGrip: &fitReportGrip}
 	fit := mustStockFit(t, fenrirFittingSetup(), target, 5)
 	for _, c := range fit.Candidates {
-		assertNear(t, "BRP miss points", c.Penalties[6].PointsLost, 77.227222, 1e-6)
+		assertNear(t, "BRP miss points", c.Penalties[6].PointsLost, 100.958906, 1e-6)
 	}
 	best := fit.Candidates[0]
 	requireStockStem(t, best, stockStem{-17, 130, 0})
-	assertNear(t, "score", best.Score(), 1.484762, 1e-6)
+	assertNear(t, "score", best.Score(), -22.246923, 1e-6)
 }
 
 func TestStockFittingZeroSpacers(t *testing.T) {

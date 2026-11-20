@@ -13,6 +13,7 @@ func sqlab610DefaultSaddle() assembly.SaddleSetup {
 	return assembly.SaddleSetup{
 		RailCenterToBrpMm:      32.0,
 		RailCenterToSitBonesMm: -48.0,
+		RailToBrpHeightMm:      45.0,
 		SitBonesElevationMm:    10.0,
 		RailLengthMm:           60.0,
 		RailPitchDeg:           0.0,
@@ -27,8 +28,8 @@ func TestPlaceSeatpostAndSaddleWorkedExample60DegSTA(t *testing.T) {
 	// Zero post setback => RailCradle = (-50, 50*sqrt(3)) @ 120°.
 	// Level rails (0°), rail offset +12 mm (advances -12 mm along rails):
 	//   RailCenter = (-62, 50*sqrt(3)) @ 0°
-	//   BRP        = (-30, 50*sqrt(3)) @ 0°
-	//   SitBones   = (-110, 50*sqrt(3) + 10) @ 0°
+	//   BRP        = (-30, 50*sqrt(3) + 45) @ 0°  (45 mm RailToBrpHeightMm above the rails)
+	//   SitBones   = (-110, 50*sqrt(3) + 55) @ 0°  (10 mm above BRP)
 	sqrt3 := math.Sqrt(3)
 	seatAxis := pose.NewPose(pose.Point{}, 120.0)
 	seatTubeTop := seatAxis.Advance(60.0)
@@ -54,9 +55,9 @@ func TestPlaceSeatpostAndSaddleWorkedExample60DegSTA(t *testing.T) {
 	assertNear(t, "RailCenter.X", saddle.RailCenter.Origin().X, -62.0, 1e-9)
 	assertNear(t, "RailCenter.Y", saddle.RailCenter.Origin().Y, 50.0*sqrt3, 1e-9)
 	assertNear(t, "BRP.X", saddle.BRP.Origin().X, -30.0, 1e-9)
-	assertNear(t, "BRP.Y", saddle.BRP.Origin().Y, 50.0*sqrt3, 1e-9)
+	assertNear(t, "BRP.Y", saddle.BRP.Origin().Y, 50.0*sqrt3+45.0, 1e-9)
 	assertNear(t, "SitBones.X", saddle.SitBones.Origin().X, -110.0, 1e-9)
-	assertNear(t, "SitBones.Y", saddle.SitBones.Origin().Y, 50.0*sqrt3+10.0, 1e-9)
+	assertNear(t, "SitBones.Y", saddle.SitBones.Origin().Y, 50.0*sqrt3+55.0, 1e-9)
 
 	for _, lm := range []struct {
 		name string
@@ -175,11 +176,11 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 	cadFork := assembly.ForkSetup{
 		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0, Steerer: assembly.SteererCAD},
 	}
-	postSetup := assembly.SeatpostSetup{Spec: genericPostSpec(0), InsertionMm: 136.5}
+	postSetup := assembly.SeatpostSetup{Spec: genericPostSpec(0), InsertionMm: 180.576}
 	saddleSetup := sqlab610DefaultSaddle()
 
 	// Check the fixture's reference saddle height at the 75.25° STA attitude:
-	// 490.0 mm seat tube + 263.5 mm extension = 753.5 mm along seat axis, and |BRP - BB| ≈ 746.0 mm.
+	// 490.0 mm seat tube + 219.424 mm exposed = 709.424 mm along seat axis, and the raised BRP is |BRP - BB| = 746.000 mm (Q92) in the unpitched reference attitude.
 	refSeatAxis := pose.NewPose(pose.Point{}, 180.0-frame.SeatTubeAngleDeg)
 	refSeatTubeTop := refSeatAxis.Advance(frame.SeatTubeLengthMm)
 	refBounds, err := assembly.SeatpostInsertionBounds(frame, postSetup.Spec)
@@ -194,8 +195,8 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceSaddle ref: %v", err)
 	}
-	assertNear(t, "BB to clamp along seat axis", refSeatAxis.DistanceTo(refPost.ShaftTop), 753.5, 1e-9)
-	assertNear(t, "reference |BRP - BB|", refSeatAxis.DistanceTo(refSaddle.BRP), 746.0, 0.01)
+	assertNear(t, "BB to shaft top along seat axis", refSeatAxis.DistanceTo(refPost.ShaftTop), 709.424, 1e-9)
+	assertNear(t, "reference (unpitched attitude) |BRP - BB|", refSeatAxis.DistanceTo(refSaddle.BRP), 746.000, 0.001)
 
 	// Full leveled frameset + cockpits via PlaceBike.
 	bikeSetup := assembly.BikeSetup{
@@ -213,8 +214,10 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 		t.Fatalf("PlaceBike: %v", err)
 	}
 
-	assertNear(t, "leveled BB to post top along seat axis", bike.SeatAxisToPostTopMm(), 753.5, 1e-9)
-	assertNear(t, "CAD leveled |BRP - BB|", bike.SaddleHeightMm(), 746.0, 0.1)
+	assertNear(t, "leveled BB to post top along seat axis", bike.SeatAxisToPostTopMm(), 709.424, 1e-9)
+	// The CAD fork levels the frame at a slightly different pitch than the unpitched
+	// reference attitude, so its radial BRP height differs from 746.000 mm.
+	assertNear(t, "CAD leveled |BRP - BB|", bike.SaddleHeightMm(), 746.008, 0.001)
 	assertNear(t, "Setup preserved on BikePlacement", bike.Setup.Seatpost.Spec.RailClampLengthMm, 30.0, 1e-12)
 	// The post shaft continues the seat axis from SeatTubeTop; the saddle shares the leveled-rail heading.
 	assertNear(t, "seat tube top to shaft top", bike.Frameset.SeatTubeTop.DistanceTo(bike.Seatpost.ShaftTop), postSetup.ExposedMm(), 1e-9)
@@ -329,4 +332,61 @@ func workedPost(setbackMm float64) assembly.SeatpostSetup {
 		},
 		InsertionMm: 110,
 	}
+}
+
+// The raised landmarks rotate with the rails: at +10° pitch the 45 mm BRP
+// height alone shifts BRP and SitBones by 45 mm turned 10° from vertical.
+func TestPlaceSaddleRailToBrpHeightRotatesWithRailPitch(t *testing.T) {
+	seatTubeTop := pose.NewPose(pose.Point{}, 120).Advance(60)
+	post, err := assembly.PlaceSeatpost(seatTubeTop, workedPost(0), workedBounds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	place := func(heightMm float64, pitch pose.Deg) assembly.SaddlePlacement {
+		setup := sqlab610DefaultSaddle()
+		setup.RailOffsetMm = 12
+		setup.RailToBrpHeightMm = heightMm
+		setup.RailPitchDeg = pitch
+		saddle, err := assembly.PlaceSaddle(post.RailCradle, 30, setup)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return saddle
+	}
+	raised, flat := place(45, 10), place(0, 10)
+	wantShift := pose.Point{X: -7.814168, Y: 44.316349}
+	for _, lm := range []struct {
+		name         string
+		raised, flat pose.Pose
+	}{{"BRP", raised.BRP, flat.BRP}, {"SitBones", raised.SitBones, flat.SitBones}} {
+		shift := lm.raised.Origin().Sub(lm.flat.Origin())
+		assertNear(t, lm.name+" shift X", shift.X, wantShift.X, 1e-6)
+		assertNear(t, lm.name+" shift Y", shift.Y, wantShift.Y, 1e-6)
+	}
+	// The rails themselves do not move with the height.
+	assertNear(t, "RailCenter X", raised.RailCenter.Origin().X, flat.RailCenter.Origin().X, 1e-12)
+	assertNear(t, "RailCenter Y", raised.RailCenter.Origin().Y, flat.RailCenter.Origin().Y, 1e-12)
+
+	for _, bad := range []float64{-1, math.NaN(), math.Inf(1)} {
+		setup := sqlab610DefaultSaddle()
+		setup.RailToBrpHeightMm = bad
+		if _, err := assembly.PlaceSaddle(post.RailCradle, 30, setup); err == nil {
+			t.Errorf("RailToBrpHeightMm %v: want error", bad)
+		}
+	}
+}
+
+// Q92: the fixture's 180.576 mm default insertion puts the raised BRP 746.000 mm
+// from BB in the unpitched reference attitude. Installed forks level the frame
+// differently, so the leveled radial height differs from the reference.
+func TestQ92DefaultInsertionOnInstalledFork(t *testing.T) {
+	bike, err := assembly.PlaceBike(fenrirFittingSetup())
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertNear(t, "shaft top distance from BB", bike.SeatAxisToPostTopMm(), 709.424, 1e-9)
+	assertNear(t, "exposed length", bike.Setup.Seatpost.ExposedMm(), 219.424, 1e-9)
+	assertNear(t, "installed Lithic |BRP - BB|", bike.SaddleHeightMm(), 745.619, 0.001)
+	assertNear(t, "installed Lithic BRP.X", bike.Saddle.BRP.Origin().X, -155.065, 0.001)
+	assertNear(t, "installed Lithic BRP.Y", bike.Saddle.BRP.Origin().Y, 729.317, 0.001)
 }

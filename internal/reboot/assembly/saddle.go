@@ -11,7 +11,9 @@ import (
 // pitch, and fore-aft clamp offset along the rails:
 //   - RailCenterToBrpMm: axial distance along the rails (+X toward nose) from RailCenter to BRP.
 //   - RailCenterToSitBonesMm: axial offset along the rails from RailCenter to SitBones.
-//   - SitBonesElevationMm: perpendicular offset (+Y in the rail frame, 90° CCW) from the rail axis to SitBones.
+//   - RailToBrpHeightMm: perpendicular offset (+Y in the rail frame, 90° CCW) from the rail axis up to BRP.
+//   - SitBonesElevationMm: perpendicular offset (+Y in the rail frame) of SitBones above BRP, so
+//     SitBones sits RailToBrpHeightMm + SitBonesElevationMm above the rail axis.
 //   - RailLengthMm: straight clamping span of the saddle rails.
 //   - RailPitchDeg: saddle rail pitch relative to world horizontal (0° level; positive raises nose CCW).
 //   - RailOffsetMm: clamp position along the rails; positive moves the saddle
@@ -20,6 +22,7 @@ import (
 type SaddleSetup struct {
 	RailCenterToBrpMm      float64
 	RailCenterToSitBonesMm float64
+	RailToBrpHeightMm      float64
 	SitBonesElevationMm    float64
 	RailLengthMm           float64
 	RailPitchDeg           pose.Deg
@@ -30,8 +33,9 @@ type SaddleSetup struct {
 //   - RailCradle: incoming clamp attachment pose (in the seatpost frame).
 //   - RailFrame: pose at RailCradle re-oriented to world-relative RailPitchDeg.
 //   - RailCenter: midpoint of the straight rail clamping section (in the rail frame).
-//   - BRP: Biomechanical Reference Point (+RailCenterToBrpMm, 0) in the rail frame.
-//   - SitBones: modeled sit-bone support landmark (RailCenterToSitBonesMm, +SitBonesElevationMm) in the rail frame.
+//   - BRP: Biomechanical Reference Point (+RailCenterToBrpMm, +RailToBrpHeightMm) in the rail frame.
+//   - SitBones: modeled sit-bone support landmark (RailCenterToSitBonesMm,
+//     RailToBrpHeightMm + SitBonesElevationMm) in the rail frame.
 //
 // RailFrame, RailCenter, BRP, and SitBones all carry the saddle-rail
 // construction frame (local +X forward along the rail toward the nose at
@@ -44,13 +48,13 @@ type SaddlePlacement struct {
 	SitBones   pose.Pose
 }
 
-// PlaceSaddle mounts a saddle at seatpostClamp, orients the rails to the
+// PlaceSaddle mounts a saddle at railCradle, orients the rails to the
 // world-relative RailPitchDeg via Pose.Face, slides the saddle body along the
 // rails by -RailOffsetMm to RailCenter, and branches to BRP and SitBones.
 // clampLengthMm is the seatpost clamp head's fore-aft footprint; it bounds the
 // rail offset.
-func PlaceSaddle(seatpostClamp pose.Pose, clampLengthMm float64, setup SaddleSetup) (SaddlePlacement, error) {
-	if err := validatePose("seatpostClamp", seatpostClamp); err != nil {
+func PlaceSaddle(railCradle pose.Pose, clampLengthMm float64, setup SaddleSetup) (SaddlePlacement, error) {
+	if err := validatePose("railCradle", railCradle); err != nil {
 		return SaddlePlacement{}, err
 	}
 	if !isFinite(setup.RailCenterToBrpMm) {
@@ -58,6 +62,9 @@ func PlaceSaddle(seatpostClamp pose.Pose, clampLengthMm float64, setup SaddleSet
 	}
 	if !isFinite(setup.RailCenterToSitBonesMm) {
 		return SaddlePlacement{}, fmt.Errorf("saddle rail-center-to-sit-bones offset must be finite, got %v mm", setup.RailCenterToSitBonesMm)
+	}
+	if !isFinite(setup.RailToBrpHeightMm) || setup.RailToBrpHeightMm < 0 {
+		return SaddlePlacement{}, fmt.Errorf("saddle rail-to-BRP height must be finite and non-negative, got %v mm", setup.RailToBrpHeightMm)
 	}
 	if !isFinite(setup.SitBonesElevationMm) {
 		return SaddlePlacement{}, fmt.Errorf("saddle sit-bones elevation must be finite, got %v mm", setup.SitBonesElevationMm)
@@ -81,18 +88,19 @@ func PlaceSaddle(seatpostClamp pose.Pose, clampLengthMm float64, setup SaddleSet
 	}
 
 	// Rail pitch is measured against world horizontal, so face it rather than turn.
-	railFrame := seatpostClamp.Face(setup.RailPitchDeg)
+	railFrame := railCradle.Face(setup.RailPitchDeg)
 	// A positive rail offset slides the saddle rearward, against the rail heading.
 	railCenter := railFrame.Advance(-setup.RailOffsetMm)
-	brp := railCenter.Advance(setup.RailCenterToBrpMm)
-	sitBones := railCenter.Translate(setup.RailCenterToSitBonesMm, setup.SitBonesElevationMm)
+	// Both landmarks are raised in the rail frame, so the height rotates with the rails.
+	brp := railCenter.Translate(setup.RailCenterToBrpMm, setup.RailToBrpHeightMm)
+	sitBones := railCenter.Translate(setup.RailCenterToSitBonesMm, setup.RailToBrpHeightMm+setup.SitBonesElevationMm)
 
-	if err := validatePlacementPoses("saddle", seatpostClamp, railCenter, brp, sitBones); err != nil {
+	if err := validatePlacementPoses("saddle", railCradle, railCenter, brp, sitBones); err != nil {
 		return SaddlePlacement{}, err
 	}
 
 	return SaddlePlacement{
-		RailCradle: seatpostClamp,
+		RailCradle: railCradle,
 		RailFrame:  railFrame,
 		RailCenter: railCenter,
 		BRP:        brp,

@@ -470,8 +470,9 @@ func otsoFenrirFixture() bikeFixture {
 			legacyHandlebar("sqlab311_flx_12_30", "SQlab 311 FL-X Carbon 12°, 30 mm rise (740 mm)", 740, 30, assembly.RiseModeStandardKnuckle, 12, 4, 82.0),
 		},
 		DefaultSeatpostID: "setback_0",
-		// 136.5 mm of insertion exposes 263.5 mm of the generic post, the original default.
-		DefaultPostInsertionMm: 136.5,
+		// Q92: 180.576 mm of insertion exposes 219.424 mm of the generic post and puts the
+		// BRP 746.000 mm radially from BB in the unpitched attitude.
+		DefaultPostInsertionMm: 180.576,
 		Seatposts: []seatpostOption{
 			genericSeatpost("setback_0", 0),
 			genericSeatpost("setback_15", 15),
@@ -492,10 +493,12 @@ func otsoFenrirFixture() bikeFixture {
 		DefaultSaddle: assembly.SaddleSetup{
 			RailCenterToBrpMm:      32.0,
 			RailCenterToSitBonesMm: -48.0,
-			SitBonesElevationMm:    10.0,
-			RailLengthMm:           60.0, // measured
-			RailPitchDeg:           0.0,
-			RailOffsetMm:           0.0,
+			// illustrative: 55 mm effective saddle height less the 10 mm measured SIT elevation
+			RailToBrpHeightMm:   45.0,
+			SitBonesElevationMm: 10.0,
+			RailLengthMm:        60.0, // measured
+			RailPitchDeg:        0.0,
+			RailOffsetMm:        0.0,
 		},
 		// measured: Matt's idmatch fit report, docs/RIDER_FIT.md
 		ExampleBrpTarget: pose.Point{X: -219.0, Y: 713.1},
