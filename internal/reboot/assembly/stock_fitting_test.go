@@ -35,6 +35,30 @@ func twoBarStock() assembly.CockpitStock {
 	return stock
 }
 
+// fenrirStockForks returns the Q31 configurations in fixture order: Lithic
+// rigid; SID at 15, 20, 25% sag; Fox 34 at 15, 20, 25% sag; all on the EC44 12 mm cup.
+func fenrirStockForks() []assembly.StockFork {
+	lithic := assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54}
+	sid := assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44}
+	fox34 := assembly.ForkSpec{StaticA2cMm: 530, TravelMm: 120, RakeMm: 44}
+	cup := fenrirEc44Cup()
+	return []assembly.StockFork{
+		{Fork: assembly.ForkSetup{Spec: lithic}, LowerCup: cup},
+		{Fork: assembly.ForkSetup{Spec: sid, SagPct: 15}, LowerCup: cup},
+		{Fork: assembly.ForkSetup{Spec: sid, SagPct: 20}, LowerCup: cup},
+		{Fork: assembly.ForkSetup{Spec: sid, SagPct: 25}, LowerCup: cup},
+		{Fork: assembly.ForkSetup{Spec: fox34, SagPct: 15}, LowerCup: cup},
+		{Fork: assembly.ForkSetup{Spec: fox34, SagPct: 20}, LowerCup: cup},
+		{Fork: assembly.ForkSetup{Spec: fox34, SagPct: 25}, LowerCup: cup},
+	}
+}
+
+func fenrirForkStock() assembly.CockpitStock {
+	stock := fenrirCockpitStock()
+	stock.Forks = fenrirStockForks()
+	return stock
+}
+
 func illustrativeCockpitPreferences() assembly.CockpitPreferences {
 	return assembly.CockpitPreferences{
 		GripOval:   assembly.FitOval{SemiMinorMm: 10, SemiMajorMm: 20, MajorAxisHeadingDeg: 60, CostPerR: 22},
@@ -42,6 +66,8 @@ func illustrativeCockpitPreferences() assembly.CockpitPreferences {
 		StemAngle:  assembly.PricedBand{CostBelow: 0.2, CostAbove: 0.2},
 		Spacers:    assembly.PricedBand{FreeMax: 20, CostAbove: 0.4},
 		BarSweep:   assembly.PricedBand{FreeMin: 16, FreeMax: 20, CostBelow: 2, CostAbove: 2},
+		ForkSag:    assembly.PricedBand{FreeMin: 20, FreeMax: 20, CostBelow: 2, CostAbove: 2},
+		BrpMiss:    assembly.PricedBand{FreeMax: 1, CostAbove: 2},
 	}
 }
 
@@ -159,7 +185,7 @@ func TestStockFittingReferenceBuilds(t *testing.T) {
 	best := fit.Candidates[0]
 	assertNear(t, "fit report radius", best.GripR, 1.358546, 1e-5)
 	assertNear(t, "fit report miss", best.GripMiss().Norm(), 13.624, 1e-3)
-	for i, points := range []float64{7.888017, 10, 3.4, 0, 0} {
+	for i, points := range []float64{7.888017, 10, 3.4, 0, 0, 0, 0} {
 		assertNear(t, "fit report ledger", best.Ledger[i].PointsLost, points, 1e-5)
 	}
 }
@@ -170,7 +196,10 @@ func TestStockFittingForwardAndRankOrder(t *testing.T) {
 	if fit.Evaluated != 450 || len(fit.Candidates) != 450 {
 		t.Fatalf("evaluated %d, returned %d; want 450 each", fit.Evaluated, len(fit.Candidates))
 	}
-	wantBands := []assembly.LedgerBand{assembly.BandGripOval, assembly.BandStemLength, assembly.BandStemAngle, assembly.BandSpacers, assembly.BandBarSweep}
+	wantBands := []assembly.LedgerBand{
+		assembly.BandGripOval, assembly.BandStemLength, assembly.BandStemAngle,
+		assembly.BandSpacers, assembly.BandBarSweep, assembly.BandForkSag, assembly.BandBrpMiss,
+	}
 	for i, c := range fit.Candidates {
 		p, err := assembly.PlaceBike(c.Placement.Setup, nil)
 		if err != nil || !reflect.DeepEqual(c.Placement, p) {
@@ -335,8 +364,8 @@ func TestStockFittingPenalizesSweep(t *testing.T) {
 		if c.HandlebarIndex < 0 || c.HandlebarIndex >= len(pointsByBar) {
 			t.Fatalf("rank %d handlebar index = %d, want 0 or 1", i+1, c.HandlebarIndex)
 		}
-		if len(c.Ledger) != 5 {
-			t.Fatalf("rank %d has %d ledger lines, want 5", i+1, len(c.Ledger))
+		if len(c.Ledger) != 7 {
+			t.Fatalf("rank %d has %d ledger lines, want 7", i+1, len(c.Ledger))
 		}
 		want := assembly.LedgerLine{Band: assembly.BandBarSweep, PointsLost: pointsByBar[c.HandlebarIndex]}
 		if got := c.Ledger[4]; got != want {
@@ -400,6 +429,150 @@ func TestStockFittingCarriesSaddleAcrossBars(t *testing.T) {
 			t.Errorf("rank %d did not carry the saddle fitting", i+1)
 		}
 	}
+}
+
+func TestStockFittingKeepsSubmittedForkByDefault(t *testing.T) {
+	setup := fenrirFittingSetup()
+	fit := mustStockFit(t, setup, assembly.FitTarget{HandGrip: &fitReportGrip}, 450)
+	for i, c := range fit.Candidates {
+		if c.StockFork || c.Placement.Setup.Fork != setup.Fork || c.Placement.Setup.LowerCup != setup.LowerCup {
+			t.Errorf("rank %d did not keep the submitted fork and lower cup", i+1)
+		}
+		if _, ok := c.BrpMiss(); ok {
+			t.Errorf("rank %d reported a BRP miss without a target", i+1)
+		}
+		if c.Ledger[5] != (assembly.LedgerLine{Band: assembly.BandForkSag}) ||
+			c.Ledger[6] != (assembly.LedgerLine{Band: assembly.BandBrpMiss}) {
+			t.Errorf("rank %d fork sag and BRP miss lines = %v, want zero points", i+1, c.Ledger[5:])
+		}
+	}
+}
+
+type stockForkRank struct {
+	index         int
+	stem          stockStem
+	radius, total float64
+}
+
+func requireStockForkRanks(t *testing.T, fit assembly.StockFitting, want []stockForkRank) {
+	t.Helper()
+	if len(fit.Candidates) != len(want) {
+		t.Fatalf("returned %d candidates, want %d", len(fit.Candidates), len(want))
+	}
+	for i, rank := range want {
+		c := fit.Candidates[i]
+		if !c.StockFork || c.ForkIndex != rank.index {
+			t.Errorf("rank %d fork index = %d, want %d", i+1, c.ForkIndex, rank.index)
+		}
+		requireStockStem(t, c, rank.stem)
+		assertNear(t, "grip radius", c.GripR, rank.radius, 1e-5)
+		assertNear(t, "total", c.Total(), rank.total, 1e-6)
+	}
+}
+
+func TestStockFittingChoosesAmongForks(t *testing.T) {
+	setup := fenrirFittingSetup()
+	target := assembly.FitTarget{HandGrip: &fitReportGrip}
+	stock := fenrirForkStock()
+	prefs := illustrativeCockpitPreferences()
+	full, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 3150)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if full.Evaluated != 3150 || len(full.Candidates) != 3150 {
+		t.Fatalf("evaluated %d, returned %d, want 3150 each", full.Evaluated, len(full.Candidates))
+	}
+	var counts [7]int
+	sagPoints := [...]float64{0, 10, 0, 10, 10, 0, 10}
+	for i, c := range full.Candidates {
+		index := c.ForkIndex
+		if !c.StockFork || index < 0 || index >= len(stock.Forks) {
+			t.Fatalf("rank %d has invalid stock fork index %d", i+1, index)
+		}
+		counts[index]++
+		if c.Placement.Setup.Fork != stock.Forks[index].Fork || c.Placement.Setup.LowerCup != stock.Forks[index].LowerCup {
+			t.Errorf("rank %d did not install fork configuration %d", i+1, index)
+		}
+		want := assembly.LedgerLine{Band: assembly.BandForkSag, PointsLost: sagPoints[index]}
+		if got := c.Ledger[5]; got != want {
+			t.Errorf("rank %d fork sag line = %+v, want %+v", i+1, got, want)
+		}
+	}
+	if counts != [7]int{450, 450, 450, 450, 450, 450, 450} {
+		t.Errorf("candidate count by fork = %v, want 450 each", counts)
+	}
+
+	fit, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireStockForkRanks(t, fit, []stockForkRank{
+		{2, stockStem{-17, 130, 0}, 1.019761, 86.165257},
+		{0, stockStem{-17, 130, 0}, 1.358546, 78.711983},
+		{2, stockStem{-17, 130, 5}, 1.412418, 77.526802},
+		{3, stockStem{-17, 130, 0}, 0.676521, 76.600000},
+		{3, stockStem{-17, 130, 5}, 1.061626, 75.244228},
+	})
+}
+
+func TestStockFittingRefitsSaddlePerFork(t *testing.T) {
+	setup := fenrirFittingSetup()
+	target := assembly.FitTarget{BRP: &fitReportBRP, HandGrip: &fitReportGrip}
+	stock := fenrirForkStock()
+	prefs := illustrativeCockpitPreferences()
+	full, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 3150)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if full.Evaluated != 3150 || len(full.Candidates) != 3150 {
+		t.Fatalf("evaluated %d, returned %d, want 3150 each", full.Evaluated, len(full.Candidates))
+	}
+	var saddles [7]assembly.BikeSetup
+	for i, fork := range stock.Forks {
+		base := setup
+		base.Fork, base.LowerCup = fork.Fork, fork.LowerCup
+		saddles[i] = mustFit(t, base, fitReportBRP).Placement.Setup
+	}
+	wantMiss := [...]float64{39.613611, 39.553918, 42.572417, 45.600102, 26.978855, 30.554575, 34.144103}
+	for i, c := range full.Candidates {
+		index := c.ForkIndex
+		if !c.StockFork || index < 0 || index >= len(stock.Forks) {
+			t.Fatalf("rank %d has invalid stock fork index %d", i+1, index)
+		}
+		got, want := c.Placement.Setup, saddles[index]
+		if got.Seatpost.ExtensionMm != want.Seatpost.ExtensionMm || got.Saddle.RailOffsetMm != want.Saddle.RailOffsetMm {
+			t.Errorf("rank %d did not carry the saddle fitting for fork %d", i+1, index)
+		}
+		miss, ok := c.BrpMiss()
+		if !ok {
+			t.Fatalf("rank %d has no BRP miss for its target", i+1)
+		}
+		assertNear(t, "BRP miss", miss.Norm(), wantMiss[index], 1e-6)
+		assertNear(t, "BRP miss points", c.Ledger[6].PointsLost, 2*(miss.Norm()-1), 1e-9)
+	}
+
+	fit, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireStockForkRanks(t, fit, []stockForkRank{
+		{2, stockStem{-17, 130, 0}, 1.019761, 3.020423},
+		{0, stockStem{-17, 130, 0}, 1.358546, 1.484762},
+		{5, stockStem{-17, 130, 0}, 2.401938, -3.351795},
+		{2, stockStem{-17, 130, 5}, 1.412418, -5.618032},
+		{0, stockStem{-17, 130, 5}, 1.755355, -7.245027},
+	})
+}
+
+func TestStockFittingPenalizesBrpMissForSubmittedFork(t *testing.T) {
+	target := assembly.FitTarget{BRP: &fitReportBRP, HandGrip: &fitReportGrip}
+	fit := mustStockFit(t, fenrirFittingSetup(), target, 5)
+	for _, c := range fit.Candidates {
+		assertNear(t, "BRP miss points", c.Ledger[6].PointsLost, 77.227222, 1e-6)
+	}
+	best := fit.Candidates[0]
+	requireStockStem(t, best, stockStem{-17, 130, 0})
+	assertNear(t, "total", best.Total(), 1.484762, 1e-6)
 }
 
 func TestStockFittingZeroSpacers(t *testing.T) {
@@ -472,11 +645,13 @@ func TestStockFittingErrors(t *testing.T) {
 	if _, err := assembly.ApplyStockFitting(base, target, stock, prefs, 5); err == nil {
 		t.Error("accepted invalid stem length range")
 	}
-	base = fenrirFittingSetup()
-	base.Stem.MaxSpacersMm = -1
-	_, want := assembly.PlaceBike(base, nil)
-	if _, err := assembly.ApplyStockFitting(base, target, stock, prefs, 5); err == nil || want == nil || err.Error() != want.Error() {
-		t.Errorf("invalid base error = %v, want %v", err, want)
+	for _, maxSpacers := range []float64{-1, math.Inf(1)} {
+		base = fenrirFittingSetup()
+		base.Stem.MaxSpacersMm = maxSpacers
+		_, want := assembly.PlaceBike(base, nil)
+		if _, err := assembly.ApplyStockFitting(base, target, stock, prefs, 5); err == nil || want == nil || err.Error() != want.Error() {
+			t.Errorf("invalid base error = %v, want %v", err, want)
+		}
 	}
 }
 
@@ -514,6 +689,19 @@ func TestCockpitStockValidation(t *testing.T) {
 	if err := stock.Validate(); want == nil || err == nil || !strings.Contains(err.Error(), want.Error()) {
 		t.Errorf("stock grip inset error = %v, want %v", err, want)
 	}
+	stock = fenrirForkStock()
+	if err := stock.Validate(); err != nil {
+		t.Errorf("valid fork configurations: %v", err)
+	}
+	stock.Forks[1].Fork.SagPct = 150
+	if err := stock.Validate(); err == nil || !strings.Contains(err.Error(), "stock fork 1: fork sag") {
+		t.Errorf("expected stock fork sag error, got %v", err)
+	}
+	stock = fenrirForkStock()
+	stock.Forks[0].LowerCup.StackMm = 0
+	if err := stock.Validate(); err == nil || !strings.Contains(err.Error(), "stock fork 0 lower cup") {
+		t.Errorf("expected stock lower cup error, got %v", err)
+	}
 }
 
 func TestCockpitPreferencesValidation(t *testing.T) {
@@ -534,5 +722,10 @@ func TestCockpitPreferencesValidation(t *testing.T) {
 	prefs.BarSweep.FreeMin = 21
 	if err := prefs.Validate(); err == nil || !strings.Contains(err.Error(), "bar sweep") {
 		t.Errorf("expected bar sweep error, got %v", err)
+	}
+	prefs = illustrativeCockpitPreferences()
+	prefs.ForkSag.FreeMin = 21
+	if err := prefs.Validate(); err == nil || !strings.Contains(err.Error(), "fork sag") {
+		t.Errorf("expected fork sag error, got %v", err)
 	}
 }

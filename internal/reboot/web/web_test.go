@@ -2779,8 +2779,8 @@ func TestBikeWorkbenchRanksStockFitting(t *testing.T) {
 	}
 	points := rows.First().Find("[data-stock-points]")
 	headers := doc.Find("table.stock-table thead th")
-	if points.Length() != 5 || headers.Length() != 13 {
-		t.Fatalf("stock points cells = %d, headers = %d; want 5 and 13", points.Length(), headers.Length())
+	if points.Length() != 7 || headers.Length() != 15 {
+		t.Fatalf("stock points cells = %d, headers = %d; want 7 and 15", points.Length(), headers.Length())
 	}
 	if got := headers.Last().Text(); got != "Handlebar" {
 		t.Errorf("last stock header = %q, want Handlebar", got)
@@ -2791,6 +2791,8 @@ func TestBikeWorkbenchRanksStockFitting(t *testing.T) {
 		{"stem angle", "3.4", "Angle pts"},
 		{"spacers", "0.0", "Spacer pts"},
 		{"bar sweep", "0.0", "Sweep pts"},
+		{"fork sag", "0.0", "Sag pts"},
+		{"BRP miss", "0.0", "BRP pts"},
 	} {
 		cell := points.Eq(i)
 		if band, _ := cell.Attr("data-stock-points"); band != want.band || cell.Text() != want.points {
