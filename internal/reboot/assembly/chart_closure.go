@@ -24,6 +24,21 @@ type ChartPrecision struct {
 	WheelbaseMm      float64
 }
 
+// ClosureAllowance widens one size's closure checks beyond what rounding of
+// its published columns explains (Q65, Q71). CheckChartClosure rejects an
+// allowance on a check that passes on rounding alone, or one more than
+// closureAllowanceSlackMm beyond that check's excess (Q93). Reason documents
+// why the chart fails to close and is required whenever a field is non-zero.
+type ClosureAllowance struct {
+	AxleHeightMm float64
+	WheelbaseMm  float64
+	Reason       string
+}
+
+// closureAllowanceSlackMm is how far an allowance may exceed the excess it
+// covers (legacy's tolerance), so allowances can be round numbers.
+const closureAllowanceSlackMm = 0.5
+
 // closureEpsilonMm absorbs floating-point noise: a term no larger than this is
 // dropped, and a residual may exceed its budget by this much and still pass.
 const closureEpsilonMm = 1e-9
@@ -51,8 +66,10 @@ var chartColumns = []struct {
 // baseline fork are no larger than rounding of the published columns can
 // explain (Q45). Each column's term is the larger change in a residual when the
 // column moves by ± its half-width and the unpitched frameset recipe is rerun;
-// a check's rounding budget is the sum of its terms. It returns one error per
-// failing check, joined, axle height first.
+// a check's rounding budget is the sum of its terms. A documented allowance can
+// widen a check if it is necessary and close to the measured excess (Q93).
+// A published wheelbase of zero skips the wheelbase check and its column's
+// budget contribution (Q57). Errors from failing checks are joined, axle height first.
 func CheckChartClosure(chart FrameChart) error {
 	if err := validateFrameGeometry(chart.Frame); err != nil {
 		return err
@@ -63,8 +80,31 @@ func CheckChartClosure(chart FrameChart) error {
 	if err := validateHeadset(chart.Frame.LowerBore, chart.CadLowerCup, SteererCAD); err != nil {
 		return err
 	}
-	if !isFinite(chart.PublishedWheelbaseMm) || chart.PublishedWheelbaseMm <= 0 {
-		return fmt.Errorf("published wheelbase must be finite and positive, got %v mm", chart.PublishedWheelbaseMm)
+	if !isFinite(chart.PublishedWheelbaseMm) || chart.PublishedWheelbaseMm < 0 {
+		return fmt.Errorf("published wheelbase must be finite and non-negative (0 = unpublished), got %v mm", chart.PublishedWheelbaseMm)
+	}
+	allowances := [2]float64{chart.Allowance.AxleHeightMm, chart.Allowance.WheelbaseMm}
+	for i, name := range closureCheckNames {
+		if allowance := allowances[i]; !isFinite(allowance) || allowance < 0 {
+			return fmt.Errorf("closure allowance: %s must be finite and non-negative, got %v mm", name, allowance)
+		}
+	}
+	hasAllowance := chart.Allowance.AxleHeightMm > 0 || chart.Allowance.WheelbaseMm > 0
+	hasReason := strings.TrimSpace(chart.Allowance.Reason) != ""
+	if hasAllowance && !hasReason {
+		return errors.New("closure allowance: a non-zero allowance needs a reason")
+	}
+	if !hasAllowance && hasReason {
+		return errors.New("closure allowance: a reason without an allowance")
+	}
+	checkNames, budgetColumns := closureCheckNames[:], chartColumns
+	if chart.PublishedWheelbaseMm == 0 {
+		if chart.Allowance.WheelbaseMm > 0 {
+			return errors.New("closure allowance: wheelbase allowance on a chart with no published wheelbase")
+		}
+		// Wheelbase is the final check and chart column.
+		checkNames = checkNames[:1]
+		budgetColumns = budgetColumns[:len(budgetColumns)-1]
 	}
 	for _, col := range chartColumns {
 		if hw := col.halfWidth(chart.Precision); !isFinite(hw) || hw < 0 {
@@ -75,7 +115,7 @@ func CheckChartClosure(chart FrameChart) error {
 	residuals := chartResiduals(chart)
 	var budgets [2]float64
 	var terms [2][]string
-	for _, col := range chartColumns {
+	for _, col := range budgetColumns {
 		hw := col.halfWidth(chart.Precision)
 		if hw == 0 {
 			continue
@@ -89,7 +129,7 @@ func CheckChartClosure(chart FrameChart) error {
 			}
 		}
 		ru, rd := chartResiduals(up), chartResiduals(down)
-		for i := range residuals {
+		for i := range checkNames {
 			term := math.Max(math.Abs(ru[i]-residuals[i]), math.Abs(rd[i]-residuals[i]))
 			if term <= closureEpsilonMm {
 				continue
@@ -100,15 +140,30 @@ func CheckChartClosure(chart FrameChart) error {
 	}
 
 	var errs []error
-	for i, name := range closureCheckNames {
-		if math.Abs(residuals[i]) <= budgets[i]+closureEpsilonMm {
+	for i, name := range checkNames {
+		residual, budget, allowance := residuals[i], budgets[i], allowances[i]
+		magnitude := math.Abs(residual)
+		excess := magnitude - budget
+		if allowance > 0 && magnitude <= budget+closureEpsilonMm {
+			errs = append(errs, fmt.Errorf("closure allowance: %s allowance %.2f mm is unnecessary: residual %+.2f mm is within its ±%.2f mm rounding budget", name, allowance, residual, budget))
+			continue
+		}
+		if allowance > 0 && allowance > excess+closureAllowanceSlackMm+closureEpsilonMm {
+			errs = append(errs, fmt.Errorf("closure allowance: %s allowance %.2f mm exceeds the %.2f mm needed beyond rounding by more than %.2f mm", name, allowance, excess, closureAllowanceSlackMm))
+			continue
+		}
+		if magnitude <= budget+allowance+closureEpsilonMm {
 			continue
 		}
 		listed := "no rounded columns"
 		if len(terms[i]) > 0 {
 			listed = strings.Join(terms[i], ", ")
 		}
-		errs = append(errs, fmt.Errorf("chart closure: %s residual %+.2f mm exceeds its ±%.2f mm rounding budget (%s)", name, residuals[i], budgets[i], listed))
+		budgetLabel := "rounding budget"
+		if allowance > 0 {
+			budgetLabel += fmt.Sprintf(" plus its %.2f mm allowance", allowance)
+		}
+		errs = append(errs, fmt.Errorf("chart closure: %s residual %+.2f mm exceeds its ±%.2f mm %s (%s)", name, residual, budget, budgetLabel, listed))
 	}
 	return errors.Join(errs...)
 }

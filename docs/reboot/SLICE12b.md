@@ -1,6 +1,15 @@
 # Slice 12b: closure allowances and unpublished wheelbases
 
-Status: Planned 2026-11-20
+Status: Implemented 2026-11-20; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when** — Codex (GPT-6), 2026-11-20.
+- **Commit** — `Accept documented closure allowances and unpublished wheelbases` is the commit containing this handoff.
+- **Done** — Added the per-size allowance and unpublished-wheelbase handling, including validation of allowance necessity and size. Tests T1–T6 pass, along with the existing Fenrir tests.
+- **Deviations** — The live check ran the rebuilt binary on a temporary loopback port because port 8081 was already in use. The HTTP response was checked directly.
+- **Verification** — `go vet ./... && go test ./...` and `make pre-commit` passed. The live `GET /bike` returned HTTP 200 with the Otso Fenrir Stainless, its 1158.0 mm published wheelbase, and the bike SVG. No screenshot was taken.
+- **Open issues** — None.
 
 **Size: Small** (one commit, 3 files). Builds on Slice 12a (commits `e5b3af5`, `083e0a3`, `4360b44`, `741670c`, `a88060c`). The planning agent offers to implement it directly.
 
