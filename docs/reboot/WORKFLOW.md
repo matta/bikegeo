@@ -47,9 +47,9 @@ Then match the first applicable row below, state the **current phase**, recommen
 
 | Observed Repo State | Current Phase | Recommended Model Tier | Next Action |
 | --- | --- | --- | --- |
+| `SLICE<n>.md` exists with `Status: Blocked` *(checked first, even if code is uncommitted)* | **Blocked on Design / Decision** | **Frontier** (e.g. Opus / Gemini Pro) | Resolve the blocking question with Matt, record ruling if lasting, update `SLICE<n>.md` |
 | Uncommitted code/test changes in working tree | **In-progress work / awaiting review or commit** | Match the active `SLICE<n>.md` tier (or **Frontier** for review) | Review diff, verify `make pre-commit`, commit or revise before starting anything new |
 | `SLICE<n>.md` exists with `Status: Planned` (or no `Status:` line yet, or `Partly implemented`) | **Slice Execution** | **Lower-tier** (e.g. Sonnet / Flash) for Larger slices; **Frontier** if Small (≤3 files, 1 commit) or if the plan explicitly requires Frontier | Implement `SLICE<n>.md` strictly per plan; stop and escalate to Frontier if an unspec'd design fork appears |
-| `SLICE<n>.md` exists with `Status: Blocked` | **Blocked on Design / Decision** | **Frontier** (e.g. Opus / Gemini Pro) | Resolve the blocking question with Matt, record ruling if lasting, update `SLICE<n>.md` |
 | `SLICE<n>.md` exists with `Status: Implemented …; awaiting Matt's acceptance` | **Review & Acceptance** | **Frontier** (for independent code review) or Matt directly | Review against `SLICE<n>.md` and invariants; once Matt accepts, delete `SLICE<n>.md` and update `DESIGN.md` Milestones |
 | No `SLICE*.md` exists; next slice's direction in `DESIGN.md` has unresolved cross-slice ambiguity | **Horizon 1 — Direction Alignment** | **Frontier** | Resolve only the cross-slice fork(s) with Matt and update `DESIGN.md` |
 | No `SLICE*.md` exists; next slice's intent in `DESIGN.md` is clear | **Horizon 2 — Plan Next Slice** | **Frontier** | Inspect committed code, surface only the 2–5 slice-local choices (if any), decide whether to sub-slice, and write `SLICE<n>.md` |
