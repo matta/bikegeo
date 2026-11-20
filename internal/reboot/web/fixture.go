@@ -334,7 +334,7 @@ func otsoFenrirFixture() bikeFixture {
 		// Model the generic zero-offset post with the Ritchey Comp Trail Zero's
 		// nominal length and minimum insertion. The workbench uses a simplified clamp.
 		// https://ritcheylogic.com/bike/seatposts/comp-trail-zero-seatpost
-		// illustrative: the 365 mm maximum insertion (linkage stack of 35 mm)
+		// illustrative: the 365 mm maximum insertion (35 mm head stack height)
 		genericPostLengthMm       = 400.0
 		genericPostMaxInsertionMm = 365.0
 		genericPostMinInsertionMm = 100.0
@@ -479,14 +479,12 @@ func otsoFenrirFixture() bikeFixture {
 			genericSeatpost("setback_25", 25),
 			// owner-reported 2026-11-19: 12 mm setback when sagged (Q28). The fit
 			// report was transferred with this post unsagged (docs/RIDER_FIT.md).
-			// illustrative: 350/250/100 mm total/max/min insertion (250 mm max insertion is the
-			// linkage stack) and the clamp length are not measured (Q75c).
 			{ID: "redshift_shockstop_pro", Name: "Redshift ShockStop PRO (12 mm setback, sagged)", Spec: assembly.SeatpostSpec{
-				TotalLengthMm:     350.0,
-				MaxInsertionMm:    250.0,
-				MinInsertionMm:    100.0,
-				SetbackMm:         12.0,
-				RailClampLengthMm: 30.0,
+				TotalLengthMm:     350.0, // catalog
+				MaxInsertionMm:    250.0, // illustrative: 100 mm linkage stack height (Q75c)
+				MinInsertionMm:    100.0, // catalog: matches 100 mm Cane Creek ST27316 shim (Q75c)
+				SetbackMm:         12.0,  // owner-reported (sagged, Q28)
+				RailClampLengthMm: 30.0,  // illustrative (Q75c)
 			}},
 		},
 		SaddleName: "SQlab 610 Ergolux Active 2.1",

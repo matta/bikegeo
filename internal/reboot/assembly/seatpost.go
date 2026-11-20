@@ -111,6 +111,9 @@ func PlaceSeatpost(seatTubeTop pose.Pose, setup SeatpostSetup, bounds InsertionB
 	if !isFinite(bounds.EffectiveMinInsertionMm) || !isFinite(bounds.MaxAllowedInsertionMm) || bounds.EffectiveMinInsertionMm > bounds.MaxAllowedInsertionMm {
 		return SeatpostPlacement{}, fmt.Errorf("invalid seatpost insertion bounds: %v to %v mm", bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm)
 	}
+	if bounds.EffectiveMinInsertionMm < setup.Spec.MinInsertionMm || bounds.MaxAllowedInsertionMm > setup.Spec.MaxInsertionMm {
+		return SeatpostPlacement{}, fmt.Errorf("seatpost insertion bounds %v–%v mm exceed post limits %v–%v mm", bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm, setup.Spec.MinInsertionMm, setup.Spec.MaxInsertionMm)
+	}
 	if !isFinite(setup.InsertionMm) {
 		return SeatpostPlacement{}, invalidInput(InputSeatpostInsertion, "seatpost insertion must be finite, got %v mm", setup.InsertionMm)
 	}

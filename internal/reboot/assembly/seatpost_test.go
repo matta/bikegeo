@@ -123,6 +123,27 @@ func TestPlaceSeatpostInsertionEndpoints(t *testing.T) {
 	}
 }
 
+func TestPlaceSeatpostRejectsBoundsExceedingPostLimits(t *testing.T) {
+	top := pose.NewPose(pose.Point{}, 105)
+	spec := genericPostSpec(0) // 400 mm total, [100, 365] mm post limits
+	for _, tc := range []struct {
+		name      string
+		bounds    assembly.InsertionBounds
+		insertion float64
+	}{
+		{"min below post limit", assembly.InsertionBounds{EffectiveMinInsertionMm: 50, MaxAllowedInsertionMm: 290}, 80},
+		{"max above post limit", assembly.InsertionBounds{EffectiveMinInsertionMm: 100, MaxAllowedInsertionMm: 500}, 450},
+		{"valid insertion with oversized bounds", assembly.InsertionBounds{EffectiveMinInsertionMm: 100, MaxAllowedInsertionMm: 400}, 200},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			post := assembly.SeatpostSetup{Spec: spec, InsertionMm: tc.insertion}
+			if _, err := assembly.PlaceSeatpost(top, post, tc.bounds); err == nil {
+				t.Fatalf("expected error for %s", tc.name)
+			}
+		})
+	}
+}
+
 func TestRailOffsetLimitUsesPostClampLength(t *testing.T) {
 	setup := fenrirFittingSetup() // 60 mm rails, 30 mm clamp, level
 	limit, err := setup.RailOffsetLimitMm()

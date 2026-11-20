@@ -230,6 +230,9 @@ func (f ForkSetup) Validate() error {
 	if !isFinite(f.Spec.TravelMm) || f.Spec.TravelMm < 0 {
 		return fmt.Errorf("fork travel must be finite and non-negative, got %v mm", f.Spec.TravelMm)
 	}
+	if f.Spec.Steerer == SteererCAD && f.Spec.TravelMm != 0 {
+		return fmt.Errorf("CAD baseline fork cannot have travel, got %v mm", f.Spec.TravelMm)
+	}
 	if !isFinite(f.SagPct) || f.SagPct < 0 || f.SagPct > 100 {
 		return invalidInput(InputForkSag, "fork sag must be in [0%%, 100%%], got %v%%", f.SagPct)
 	}
