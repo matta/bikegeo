@@ -12,6 +12,7 @@ const cadForkOptionID = "cad"
 
 type forkOption struct {
 	ID              string
+	Name            string
 	Label           string
 	Spec            assembly.ForkSpec
 	DefaultSagPct   float64
@@ -27,6 +28,7 @@ func makeForkOption(id, name string, spec assembly.ForkSpec, defaultSagPct float
 	}
 	return forkOption{
 		ID:              id,
+		Name:            name,
 		Label:           fmt.Sprintf("%s (%s, %.0f mm A2C / %.0f mm rake)", name, kind, spec.StaticA2cMm, spec.RakeMm),
 		Spec:            spec,
 		DefaultSagPct:   defaultSagPct,
@@ -82,6 +84,7 @@ type bikeFixture struct {
 	DefaultStem        assembly.StemSetup
 	CockpitStock       assembly.CockpitStock
 	CockpitPreferences assembly.CockpitPreferences
+	StockSagPcts       []float64
 	DefaultHandlebarID string
 	Handlebars         []handlebarOption
 	DefaultSeatpostID  string
@@ -97,7 +100,8 @@ type bikeFixture struct {
 
 func (f bikeFixture) cadForkOption() forkOption {
 	return forkOption{
-		ID: cadForkOptionID,
+		ID:   cadForkOptionID,
+		Name: "CAD Baseline Fork",
 		Label: fmt.Sprintf(
 			"CAD Baseline Fork (%.0f mm A2C / %.0f mm rake, %.0f mm cup)",
 			f.Chart.CadFork.A2cMm, f.Chart.CadFork.RakeMm, f.Chart.CadLowerCup.StackMm,
@@ -125,6 +129,50 @@ func (f bikeFixture) resolveForkOption(requestedID string) (forkOption, bool) {
 		}
 	}
 	return forkOption{}, false
+}
+
+// stockForkOption is one fork configuration offered to stock fitting (Q31).
+type stockForkOption struct {
+	Option forkOption
+	SagPct float64
+}
+
+// stockForks returns the fork configurations stock fitting offers, in fixture
+// order: a rigid fork once at 0% sag, a suspension fork at each StockSagPcts.
+func (f bikeFixture) stockForks() []stockForkOption {
+	var offered []stockForkOption
+	for _, opt := range f.Forks {
+		if opt.Spec.TravelMm == 0 {
+			offered = append(offered, stockForkOption{Option: opt})
+			continue
+		}
+		for _, sag := range f.StockSagPcts {
+			offered = append(offered, stockForkOption{Option: opt, SagPct: sag})
+		}
+	}
+	return offered
+}
+
+// stockForkSetups returns each offered configuration as an assembly.StockFork,
+// in the same order: the option's catalog Spec, the sag, and its DefaultLowerCup.
+func stockForkSetups(offered []stockForkOption) []assembly.StockFork {
+	setups := make([]assembly.StockFork, len(offered))
+	for i, opt := range offered {
+		setups[i] = assembly.StockFork{
+			Fork:     assembly.ForkSetup{Spec: opt.Option.Spec, SagPct: opt.SagPct},
+			LowerCup: opt.Option.DefaultLowerCup,
+		}
+	}
+	return setups
+}
+
+// forkCellName names a fork configuration in a stock row: the fork name, plus
+// ", N% sag" for a suspension fork.
+func forkCellName(opt forkOption, sagPct float64) string {
+	if opt.Spec.TravelMm == 0 {
+		return opt.Name
+	}
+	return fmt.Sprintf("%s, %.0f%% sag", opt.Name, sagPct)
 }
 
 // handlebarSetups returns each handlebar option's setup, in list order.
@@ -205,6 +253,14 @@ func (f bikeFixture) validate() error {
 	}
 	if !defaultFound {
 		return fmt.Errorf("fixture %q DefaultForkID %q not found in Forks", f.Name, f.DefaultForkID)
+	}
+	if len(f.StockSagPcts) == 0 {
+		return fmt.Errorf("fixture %q missing StockSagPcts", f.Name)
+	}
+	for _, opt := range f.stockForks() {
+		if err := (assembly.ForkSetup{Spec: opt.Option.Spec, SagPct: opt.SagPct}).Validate(); err != nil {
+			return fmt.Errorf("fixture %q stock fork %q at %v%% sag invalid: %w", f.Name, opt.Option.ID, opt.SagPct, err)
+		}
 	}
 	if err := (assembly.ForkSetup{Spec: f.cadForkOption().Spec, SagPct: 0.0}).Validate(); err != nil {
 		return fmt.Errorf("fixture %q Chart.CadFork invalid: %w", f.Name, err)
@@ -361,7 +417,10 @@ func otsoFenrirFixture() bikeFixture {
 			StemAngle:  assembly.PricedBand{CostBelow: 0.2, CostAbove: 0.2},                                       // illustrative
 			Spacers:    assembly.PricedBand{FreeMax: 20, CostAbove: 0.4},                                          // illustrative
 			BarSweep:   assembly.PricedBand{FreeMin: 16, FreeMax: 20, CostBelow: 2, CostAbove: 2},                 // Matt's preference (Q30)
+			ForkSag:    assembly.PricedBand{FreeMin: 20, FreeMax: 20, CostBelow: 2, CostAbove: 2},                 // Matt's preference (Q32)
+			BrpMiss:    assembly.PricedBand{FreeMax: 1, CostAbove: 2},                                             // illustrative (Q32)
 		},
+		StockSagPcts:       []float64{15, 20, 25}, // Q31
 		DefaultHandlebarID: "persuader20_800",
 		// catalog: ported from legacy internal/catalog/handlebars.go; sources not recorded (Q20)
 		Handlebars: []handlebarOption{

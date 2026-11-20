@@ -489,22 +489,23 @@ func (v diagramView) Description() string {
 }
 
 type workbenchState struct {
-	View         diagramView
-	ForkID       string
-	BarID        string
-	PostID       string
-	ForkA2cMm    float64
-	LowerCupMm   float64
-	SagPct       float64
-	SpacersMm    float64
-	StemLengthMm float64
-	StemAngleDeg pose.Deg
-	BarRollDeg   pose.Deg
-	PostExtMm    float64
-	RailOffsetMm float64
-	RailPitchDeg pose.Deg
-	Targets      fitTargetState
-	AllStockBars bool // stock fitting offers every fixture handlebar (Q22)
+	View          diagramView
+	ForkID        string
+	BarID         string
+	PostID        string
+	ForkA2cMm     float64
+	LowerCupMm    float64
+	SagPct        float64
+	SpacersMm     float64
+	StemLengthMm  float64
+	StemAngleDeg  pose.Deg
+	BarRollDeg    pose.Deg
+	PostExtMm     float64
+	RailOffsetMm  float64
+	RailPitchDeg  pose.Deg
+	Targets       fitTargetState
+	AllStockBars  bool // stock fitting offers every fixture handlebar (Q22)
+	AllStockForks bool // stock fitting offers every fixture fork configuration (Q33)
 }
 
 // fitTargetState is the optional fitting targets in the URL query
@@ -571,11 +572,12 @@ func workbenchStateFromSetup(view diagramView, forkID, barID, postID string, set
 }
 
 // withSetup returns s with every setup-derived field replaced by setup's,
-// keeping the submitted view, fork, bar, post, fit targets, and stock bar option.
+// keeping the submitted view, fork, bar, post, fit targets, and stock bar and fork options.
 func (s workbenchState) withSetup(setup assembly.BikeSetup) workbenchState {
 	next := workbenchStateFromSetup(s.View, s.ForkID, s.BarID, s.PostID, setup)
 	next.Targets = s.Targets
 	next.AllStockBars = s.AllStockBars
+	next.AllStockForks = s.AllStockForks
 	return next
 }
 
@@ -628,6 +630,9 @@ func (s workbenchState) URL() string {
 	if s.AllStockBars {
 		q.Set("stock_bars", stockBarsAll)
 	}
+	if s.AllStockForks {
+		q.Set("stock_forks", stockForksAll)
+	}
 	return "/bike?" + q.Encode()
 }
 
@@ -645,12 +650,17 @@ func (s workbenchState) formValues() bikeFormValues {
 	if s.AllStockBars {
 		stockBars = stockBarsAll
 	}
+	stockForks := stockForksSelected
+	if s.AllStockForks {
+		stockForks = stockForksAll
+	}
 	return bikeFormValues{
 		BrpX:       brpX,
 		BrpY:       brpY,
 		GripX:      gripX,
 		GripY:      gripY,
 		StockBars:  stockBars,
+		StockForks: stockForks,
 		View:       string(s.View),
 		Fork:       s.ForkID,
 		Bar:        s.BarID,
@@ -690,6 +700,7 @@ type bikeFormValues struct {
 	GripX      string
 	GripY      string
 	StockBars  string
+	StockForks string
 }
 
 type bikeInputError struct {
@@ -725,6 +736,7 @@ type bikeView struct {
 	SaddleName           string
 	HandlebarName        string
 	Forks                []forkOption
+	StockForkCount       int
 	CadForkOption        forkOption
 	SelectedForkID       string
 	Handlebars           []handlebarOption
@@ -792,7 +804,8 @@ type bikeFittingView struct {
 }
 
 type stockFittingView struct {
-	AllBars        bool
+	AllForks       bool
+	PartsText      string
 	Evaluated      int
 	PreferenceNote string
 	Rows           []stockCandidateView
@@ -800,6 +813,9 @@ type stockFittingView struct {
 
 type stockCandidateView struct {
 	BarName                 string
+	ForkName                string
+	HasBrp                  bool
+	BrpMissMm               float64
 	Rank                    int
 	StemLengthMm, SpacersMm float64
 	StemAngleDeg            pose.Deg
@@ -884,6 +900,12 @@ const (
 	stockBarsAll      = "all"
 )
 
+// stock_forks values (Q33).
+const (
+	stockForksSelected = "selected"
+	stockForksAll      = "all"
+)
+
 func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/bike" {
 		http.NotFound(w, r)
@@ -951,14 +973,19 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 			if resolved.State.AllStockBars {
 				offered = fix.Handlebars
 			}
+			var offeredForks []stockForkOption
+			if resolved.State.AllStockForks {
+				offeredForks = fix.stockForks()
+			}
 			stock := fix.CockpitStock
 			stock.Handlebars = handlebarSetups(offered)
+			stock.Forks = stockForkSetups(offeredForks)
 			result, err := assembly.ApplyStockFitting(resolved.Setup, target, stock, fix.CockpitPreferences, stockCandidateLimit)
 			if err != nil {
 				renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
 				return
 			}
-			view.Fitting.Stock, err = buildStockFittingView(resolved.State, fix, offered, result)
+			view.Fitting.Stock, err = buildStockFittingView(resolved.State, fix, offered, offeredForks, result)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -1028,19 +1055,21 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 	return fv
 }
 
-// buildStockFittingView renders stock fitting results. offered is the bar
-// list handed to stock fitting as CockpitStock.Handlebars, in the same order.
-func buildStockFittingView(state workbenchState, fix bikeFixture, offered []handlebarOption, stock assembly.StockFitting) (*stockFittingView, error) {
+// buildStockFittingView renders stock fitting results. The offered bars and
+// forks are in the same order as CockpitStock.Handlebars and CockpitStock.Forks.
+func buildStockFittingView(state workbenchState, fix bikeFixture, offered []handlebarOption, offeredForks []stockForkOption, stock assembly.StockFitting) (*stockFittingView, error) {
 	prefs := fix.CockpitPreferences
 	o := prefs.GripOval
 	view := &stockFittingView{
-		AllBars:   state.AllStockBars,
+		AllForks:  state.AllStockForks,
+		PartsText: stockPartsText(state.AllStockForks, state.AllStockBars),
 		Evaluated: stock.Evaluated,
-		PreferenceNote: fmt.Sprintf("Free: HandGrip inside the ±%.0f × ±%.0f mm oval, stem length %s, stem angle %s, spacers %s, bar sweep %s. Penalties are illustrative except bar sweep (Q30).",
-			o.SemiMinorMm, o.SemiMajorMm, freeRangeText(prefs.StemLength, " mm"), freeRangeText(prefs.StemAngle, "°"), freeRangeText(prefs.Spacers, " mm"), freeRangeText(prefs.BarSweep, "°")),
+		PreferenceNote: fmt.Sprintf("Free: HandGrip inside the ±%.0f × ±%.0f mm oval, stem length %s, stem angle %s, spacers %s, bar sweep %s, fork sag %s (suspension forks), BRP miss %s. Penalties are illustrative except bar sweep and fork sag (Q30, Q32).",
+			o.SemiMinorMm, o.SemiMajorMm, freeRangeText(prefs.StemLength, " mm"), freeRangeText(prefs.StemAngle, "°"), freeRangeText(prefs.Spacers, " mm"), freeRangeText(prefs.BarSweep, "°"), freeRangeText(prefs.ForkSag, "%"), freeRangeText(prefs.BrpMiss, " mm")),
 		Rows: make([]stockCandidateView, 0, len(stock.Candidates)),
 	}
 	submittedBar, _ := fix.resolveHandlebar(state.BarID)
+	submittedFork, _ := fix.resolveForkOption(state.ForkID)
 	for i, c := range stock.Candidates {
 		stem := c.Placement.Setup.Stem
 		applied := state.withSetup(c.Placement.Setup)
@@ -1052,9 +1081,18 @@ func buildStockFittingView(state workbenchState, fix bikeFixture, offered []hand
 			bar = offered[c.HandlebarIndex]
 			applied.BarID = bar.ID
 		}
-		view.Rows = append(view.Rows, stockCandidateView{
+		fork := submittedFork
+		if c.StockFork {
+			if c.ForkIndex < 0 || c.ForkIndex >= len(offeredForks) {
+				return nil, fmt.Errorf("stock candidate %d names fork %d of %d offered", i+1, c.ForkIndex, len(offeredForks))
+			}
+			fork = offeredForks[c.ForkIndex].Option
+			applied.ForkID = fork.ID
+		}
+		row := stockCandidateView{
 			Rank:         i + 1,
 			BarName:      bar.Name,
+			ForkName:     forkCellName(fork, c.Placement.Setup.Fork.SagPct),
 			StemLengthMm: stem.LengthMm,
 			SpacersMm:    stem.SpacersMm,
 			StemAngleDeg: stem.AngleDeg,
@@ -1063,9 +1101,28 @@ func buildStockFittingView(state workbenchState, fix bikeFixture, offered []hand
 			Lines:        c.Ledger,
 			Total:        c.Total(),
 			ApplyURL:     applied.URL(),
-		})
+		}
+		if miss, ok := c.BrpMiss(); ok {
+			row.HasBrp = true
+			row.BrpMissMm = miss.Norm()
+		}
+		view.Rows = append(view.Rows, row)
 	}
 	return view, nil
+}
+
+// stockPartsText names the parts enumerated by stock fitting.
+func stockPartsText(allForks, allBars bool) string {
+	switch {
+	case allForks && allBars:
+		return "fork, handlebar, stem, and spacer"
+	case allForks:
+		return "fork, stem, and spacer"
+	case allBars:
+		return "handlebar, stem, and spacer"
+	default:
+		return "stem and spacer"
+	}
 }
 
 func freeRangeText(b assembly.PricedBand, unit string) string {
@@ -1095,6 +1152,7 @@ func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolv
 		cadBase.PostID = resolved.State.PostID
 	}
 	cadBase.AllStockBars = resolved.State.AllStockBars
+	cadBase.AllStockForks = resolved.State.AllStockForks
 	defaultsURL, cadURL := presetURLs(fix, cadBase, resolved.State.View)
 	minRail, maxRail := railOffsetRange(resolved.Setup.Saddle, resolved.Setup.Seatpost)
 	view := bikeView{
@@ -1117,6 +1175,7 @@ func renderBikeError(w http.ResponseWriter, fix bikeFixture, resolved bikeResolv
 		PostClampLengthMm:  resolved.Setup.Seatpost.ClampLengthMm,
 		BikeName:           fix.Name,
 		Forks:              fix.Forks,
+		StockForkCount:     len(fix.stockForks()),
 		CadForkOption:      fix.cadForkOption(),
 		SelectedForkID:     resolved.State.ForkID,
 		Handlebars:         fix.Handlebars,
@@ -1327,6 +1386,16 @@ func decodeWorkbenchState(fix bikeFixture, q url.Values) (bikeResolvedInput, *bi
 	default:
 		form.StockBars = raw
 		p.fail("stock_bars", fmt.Errorf("unknown stock fitting handlebar option %q", raw))
+	}
+	form.StockForks = stockForksSelected
+	switch raw := strings.TrimSpace(q.Get("stock_forks")); raw {
+	case "", stockForksSelected:
+	case stockForksAll:
+		state.AllStockForks = true
+		form.StockForks = stockForksAll
+	default:
+		form.StockForks = raw
+		p.fail("stock_forks", fmt.Errorf("unknown stock fitting fork option %q", raw))
 	}
 
 	// An unknown view keeps its raw value in the form echo, but the state (and
@@ -1543,7 +1612,7 @@ func workbenchLinks(fix bikeFixture, state workbenchState) (defaultsURL, cadURL 
 
 // buildBikeView renders the placed bike. The form echo, canonical URL, and
 // links carry submitted's options that are not part of the placed setup (fit
-// targets, stock bar option).
+// targets, stock bar and fork options).
 func buildBikeView(
 	fix bikeFixture,
 	submitted workbenchState,
@@ -1705,6 +1774,7 @@ func buildBikeView(
 		SaddleName:           fix.SaddleName,
 		HandlebarName:        selectedBar.Name,
 		Forks:                fix.Forks,
+		StockForkCount:       len(fix.stockForks()),
 		CadForkOption:        fix.cadForkOption(),
 		SelectedForkID:       forkID,
 		Handlebars:           fix.Handlebars,

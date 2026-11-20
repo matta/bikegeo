@@ -584,8 +584,8 @@ func TestBikeWorkbenchCockpitControlsUpdateBuildAndTrace(t *testing.T) {
 	}
 
 	labels := doc.Find("form.controls label")
-	if labels.Length() != 18 {
-		t.Errorf("form label count = %d, want 18", labels.Length())
+	if labels.Length() != 19 {
+		t.Errorf("form label count = %d, want 19", labels.Length())
 	}
 	labels.Each(func(_ int, lbl *goquery.Selection) {
 		forID, ok := lbl.Attr("for")
@@ -625,6 +625,7 @@ func TestBikeWorkbenchRejectsInvalidQuery(t *testing.T) {
 		{"/bike?fork=unknown", "fork", ""},
 		{"/bike?bar=unknown", "bar", ""},
 		{"/bike?stock_bars=some", "stock_bars", ""},
+		{"/bike?stock_forks=some", "stock_forks", ""},
 		{"/bike?cup=-1", "cup", "-1"},
 		{"/bike?cup=NaN", "cup", "NaN"},
 		{"/bike?sag=150", "sag", "150"},
@@ -799,6 +800,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 		RailOffset: "12.0",
 		RailPitch:  "-1.5",
 		StockBars:  stockBarsSelected,
+		StockForks: stockForksSelected,
 	}
 	if view.Form != wantForm {
 		t.Errorf("view.Form = %+v, want %+v", view.Form, wantForm)
@@ -889,6 +891,25 @@ func TestWorkbenchStateCodecRoundTrip(t *testing.T) {
 		}
 		if got := encoded.Query().Get("stock_bars"); got != "all" {
 			t.Errorf("encoded stock_bars = %q, want all", got)
+		}
+		roundTrip, inputErr := decodeWorkbenchState(fix, encoded.Query())
+		if inputErr != nil || roundTrip.State != want {
+			t.Errorf("round-tripped State = %+v, error = %v, want %+v", roundTrip.State, inputErr, want)
+		}
+	})
+	t.Run("all-stock-forks", func(t *testing.T) {
+		want := defaultWorkbenchState(fix)
+		want.AllStockForks = true
+		decoded, inputErr := decodeWorkbenchState(fix, url.Values{"stock_forks": {"all"}})
+		if inputErr != nil || decoded.State != want {
+			t.Fatalf("decoded State = %+v, error = %v, want %+v", decoded.State, inputErr, want)
+		}
+		encoded, err := url.Parse(decoded.State.URL())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := encoded.Query().Get("stock_forks"); got != "all" {
+			t.Errorf("encoded stock_forks = %q, want all", got)
 		}
 		roundTrip, inputErr := decodeWorkbenchState(fix, encoded.Query())
 		if inputErr != nil || roundTrip.State != want {
@@ -1049,7 +1070,7 @@ func TestBikeWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
 	// 3. Fully customized build.
 	customURL := "/bike?fork=fox34_120&fork_a2c=530&cup=12&sag=20&bar=sqlab3ox_16_45" +
 		"&spacers=35&stem_length=80&stem_angle=7&bar_roll=-5" +
-		"&post=setback_25&post_ext=250&rail_offset=10&rail_pitch=-2&stock_bars=all"
+		"&post=setback_25&post_ext=250&rail_offset=10&rail_pitch=-2&stock_bars=all&stock_forks=all"
 	customDoc := loadBikeDoc(t, customURL)
 	assertUnchangedSubmitIdempotent(t, "custom build", customDoc)
 
@@ -2763,11 +2784,14 @@ func TestBikeWorkbenchRanksStockFitting(t *testing.T) {
 	if got := doc.Find("[data-stock-evaluated]").Text(); got != "450" {
 		t.Errorf("evaluated = %q, want 450", got)
 	}
-	const preferences = "Free: HandGrip inside the ±10 × ±20 mm oval, stem length 70–80 mm, stem angle 0°, spacers 0–20 mm, bar sweep 16–20°. Penalties are illustrative except bar sweep (Q30)."
+	const preferences = "Free: HandGrip inside the ±10 × ±20 mm oval, stem length 70–80 mm, stem angle 0°, spacers 0–20 mm, bar sweep 16–20°, fork sag 20% (suspension forks), BRP miss 0–1 mm. Penalties are illustrative except bar sweep and fork sag (Q30, Q32)."
 	if got := doc.Find("[data-stock-preferences]").Text(); got != preferences {
 		t.Errorf("preference note = %q, want %q", got, preferences)
 	}
-	for name, want := range map[string]string{"stem": "130 mm, -17°", "spacers": "0 mm", "grip-miss": "13.6 mm", "oval-r": "1.36"} {
+	for name, want := range map[string]string{
+		"stem": "130 mm, -17°", "spacers": "0 mm", "grip-miss": "13.6 mm", "oval-r": "1.36",
+		"fork": "Lithic Carbon Mountain", "brp-miss": "—",
+	} {
 		if got := stockCell(rows.First(), name); got != want {
 			t.Errorf("row 1 %s = %q, want %q", name, got, want)
 		}
@@ -2779,11 +2803,11 @@ func TestBikeWorkbenchRanksStockFitting(t *testing.T) {
 	}
 	points := rows.First().Find("[data-stock-points]")
 	headers := doc.Find("table.stock-table thead th")
-	if points.Length() != 7 || headers.Length() != 15 {
-		t.Fatalf("stock points cells = %d, headers = %d; want 7 and 15", points.Length(), headers.Length())
+	if points.Length() != 7 || headers.Length() != 17 {
+		t.Fatalf("stock points cells = %d, headers = %d; want 7 and 17", points.Length(), headers.Length())
 	}
-	if got := headers.Last().Text(); got != "Handlebar" {
-		t.Errorf("last stock header = %q, want Handlebar", got)
+	if got := headers.Last().Text(); got != "BRP miss" {
+		t.Errorf("last stock header = %q, want BRP miss", got)
 	}
 	for i, want := range []struct{ band, points, header string }{
 		{"HandGrip oval", "7.9", "Oval pts"},
@@ -2868,12 +2892,12 @@ func TestBikeWorkbenchStockBarsDefaultKeepsSubmittedBar(t *testing.T) {
 			t.Errorf("row %d apply query = %v, want submitted bar and omitted stock_bars", i+1, q)
 		}
 	})
-	if q := stockBarsCanonicalQuery(t, doc); q.Has("stock_bars") {
+	if q := workbenchCanonicalQuery(t, doc); q.Has("stock_bars") {
 		t.Errorf("canonical query contains stock_bars: %v", q)
 	}
 }
 
-func stockBarsCanonicalQuery(t *testing.T, doc *goquery.Document) url.Values {
+func workbenchCanonicalQuery(t *testing.T, doc *goquery.Document) url.Values {
 	t.Helper()
 	raw, ok := doc.Find("main").Attr("data-canonical-url")
 	if !ok || raw == "" {
@@ -2923,11 +2947,11 @@ func TestBikeWorkbenchStockFittingAcrossAllBars(t *testing.T) {
 		t.Errorf("stock count note = %q", got)
 	}
 	want := []stockBarRow{
-		{stockBarAlloy15, "130 mm, -17°", "0 mm", "0.60", "86.6"},
-		{stockBarFLX15, "130 mm, -17°", "0 mm", "0.61", "86.6"},
-		{stockBarFLX30, "130 mm, -17°", "0 mm", "0.65", "86.6"},
-		{stockBarAlloy25, "130 mm, -17°", "0 mm", "0.71", "86.6"},
-		{stockBarFLX15, "130 mm, -17°", "5 mm", "0.77", "86.6"},
+		{stockBarAlloy15, "130 mm, -17°", "0 mm", "0.60", "9.4"},
+		{stockBarFLX15, "130 mm, -17°", "0 mm", "0.61", "9.4"},
+		{stockBarFLX30, "130 mm, -17°", "0 mm", "0.65", "9.4"},
+		{stockBarAlloy25, "130 mm, -17°", "0 mm", "0.71", "9.4"},
+		{stockBarFLX15, "130 mm, -17°", "5 mm", "0.77", "9.4"},
 	}
 	assertStockBarRows(t, doc, want)
 
@@ -2960,7 +2984,13 @@ func TestBikeWorkbenchStockFittingAcrossAllBars(t *testing.T) {
 	})
 	t.Run("different submitted bar", func(t *testing.T) {
 		other := loadBikeDoc(t, "/bike?stock_bars=all&bar=sqlab3ox_12_15&grip_x=481&grip_y=726")
-		assertStockBarRows(t, other, want)
+		assertStockBarRows(t, other, []stockBarRow{
+			{stockBarAlloy15, "130 mm, -17°", "0 mm", "0.60", "86.6"},
+			{stockBarFLX15, "130 mm, -17°", "0 mm", "0.61", "86.6"},
+			{stockBarFLX30, "130 mm, -17°", "0 mm", "0.65", "86.6"},
+			{stockBarAlloy25, "130 mm, -17°", "0 mm", "0.71", "86.6"},
+			{stockBarFLX15, "130 mm, -17°", "5 mm", "0.77", "86.6"},
+		})
 	})
 }
 
@@ -3010,7 +3040,7 @@ func TestBikeWorkbenchKeepsStockBarsWithoutTarget(t *testing.T) {
 		t.Errorf("stock fitting blocks = %d, want none", n)
 	}
 	assertSelectedStockBars(t, doc, "all")
-	if got := stockBarsCanonicalQuery(t, doc).Get("stock_bars"); got != "all" {
+	if got := workbenchCanonicalQuery(t, doc).Get("stock_bars"); got != "all" {
 		t.Errorf("canonical stock_bars = %q, want all", got)
 	}
 	for _, sel := range []string{"#view-bike", "#view-seat", "#view-stem", "#preset-cad-baseline-fork"} {
@@ -3081,6 +3111,9 @@ func TestBikeWorkbenchAppliesFreeStockBuild(t *testing.T) {
 
 func TestBikeWorkbenchStockFitKeepsSaddleFitAndTargets(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726")
+	if got := stockCell(doc.Find(`tr[data-stock-rank="1"]`), "total"); got != "1.5" {
+		t.Errorf("row 1 total = %q, want 1.5", got)
+	}
 	q := hrefQuery(t, doc, `tr[data-stock-rank="1"] a[data-stock-apply]`)
 	for k, want := range map[string]string{
 		"rail_offset": "15.0", "stem_angle": "-17.0", "stem_length": "130.0", "spacers": "0.0",
@@ -3549,5 +3582,183 @@ func TestBikeWorkbenchSetbackNotesAbsentWithoutBrpTarget(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?grip_x=481&grip_y=726")
 	if n := doc.Find(`[data-metric^="fit-setback"]`).Length(); n != 0 {
 		t.Errorf("expected no [data-metric^=fit-setback] without BRP target, got %d", n)
+	}
+}
+
+func assertSelectedStockForks(t *testing.T, doc *goquery.Document, want string) {
+	t.Helper()
+	selected := doc.Find(`select[name="stock_forks"] option[selected]`)
+	if got, _ := selected.Attr("value"); got != want || selected.Length() != 1 {
+		t.Errorf("selected stock_forks = %q (%d selected options), want %q", got, selected.Length(), want)
+	}
+}
+
+func TestBikeWorkbenchStockForksDefaultKeepsSubmittedFork(t *testing.T) {
+	for _, tc := range []struct{ name, query, fork, sagPoints string }{
+		{"rigid", "", "Lithic Carbon Mountain", "0.0"},
+		{"suspension", "&fork=sid_100&sag=25", "RockShox SID, 25% sag", "10.0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := loadBikeDoc(t, "/bike?grip_x=481&grip_y=726"+tc.query)
+			options := doc.Find(`select[name="stock_forks"] option`)
+			if options.Length() != 2 || options.Eq(1).Text() != "All 7 fork setups" {
+				t.Errorf("stock_forks options = %v, want Selected fork only and All 7 fork setups", options.Map(func(_ int, option *goquery.Selection) string { return option.Text() }))
+			}
+			assertSelectedStockForks(t, doc, "selected")
+			if got := doc.Find("[data-stock-evaluated]").Text(); got != "450" {
+				t.Errorf("evaluated = %q, want 450", got)
+			}
+			rows := doc.Find("tr[data-stock-rank]")
+			if rows.Length() != 5 {
+				t.Fatalf("stock rows = %d, want 5", rows.Length())
+			}
+			rows.Each(func(i int, row *goquery.Selection) {
+				if got := stockCell(row, "fork"); got != tc.fork {
+					t.Errorf("row %d fork = %q, want %q", i+1, got, tc.fork)
+				}
+				if got := row.Find(`[data-stock-points="fork sag"]`).Text(); got != tc.sagPoints {
+					t.Errorf("row %d sag points = %q, want %q", i+1, got, tc.sagPoints)
+				}
+				q := hrefQuery(t, doc, fmt.Sprintf(`tr[data-stock-rank="%d"] a[data-stock-apply]`, i+1))
+				if q.Has("stock_forks") {
+					t.Errorf("row %d Apply includes stock_forks: %v", i+1, q)
+				}
+			})
+		})
+	}
+}
+
+const (
+	stockForkLithic = "Lithic Carbon Mountain"
+	stockForkSID20  = "RockShox SID, 20% sag"
+	stockForkSID25  = "RockShox SID, 25% sag"
+	stockForkFox20  = "Fox 34, 20% sag"
+	firstStockApply = `tr[data-stock-rank="1"] a[data-stock-apply]`
+)
+
+func assertStockForkRows(t *testing.T, doc *goquery.Document, cells []string, pointsBand string, want [][]string) {
+	t.Helper()
+	rows := doc.Find("tr[data-stock-rank]")
+	if rows.Length() != len(want) {
+		t.Fatalf("stock rows = %d, want %d", rows.Length(), len(want))
+	}
+	for i, values := range want {
+		row := rows.Eq(i)
+		for j, cell := range cells {
+			if got := stockCell(row, cell); got != values[j] {
+				t.Errorf("row %d %s = %q, want %q", i+1, cell, got, values[j])
+			}
+		}
+		if pointsBand != "" {
+			if got := row.Find(`[data-stock-points="` + pointsBand + `"]`).Text(); got != values[len(cells)] {
+				t.Errorf("row %d %s points = %q, want %q", i+1, pointsBand, got, values[len(cells)])
+			}
+		}
+	}
+}
+
+func TestBikeWorkbenchStockFittingAcrossAllForks(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?stock_forks=all&grip_x=481&grip_y=726&view=stem")
+	evaluated := doc.Find("[data-stock-evaluated]")
+	if got := evaluated.Text(); got != "3150" {
+		t.Errorf("evaluated = %q, want 3150", got)
+	}
+	if got := evaluated.Parent().Text(); !strings.Contains(got, "stock fork, stem, and spacer combinations") || !strings.Contains(got, "The saddle is refitted for each fork.") {
+		t.Errorf("stock count note = %q", got)
+	}
+	assertStockForkRows(t, doc, []string{"fork", "stem", "spacers", "oval-r", "total"}, "fork sag", [][]string{
+		{stockForkSID20, "130 mm, -17°", "0 mm", "1.02", "86.2", "0.0"},
+		{stockForkLithic, "130 mm, -17°", "0 mm", "1.36", "78.7", "0.0"},
+		{stockForkSID20, "130 mm, -17°", "5 mm", "1.41", "77.5", "0.0"},
+		{stockForkSID25, "130 mm, -17°", "0 mm", "0.68", "76.6", "10.0"},
+		{stockForkSID25, "130 mm, -17°", "5 mm", "1.06", "75.2", "10.0"},
+	})
+	q := hrefQuery(t, doc, firstStockApply)
+	for key, want := range map[string]string{
+		"fork": "sid_100", "fork_a2c": "506.0", "sag": "20.0", "cup": "12.0", "stem_length": "130.0",
+		"stem_angle": "-17.0", "spacers": "0.0", "stock_forks": "all", "post": "setback_0",
+	} {
+		if got := q.Get(key); got != want {
+			t.Errorf("row 1 Apply %s = %q, want %q", key, got, want)
+		}
+	}
+}
+
+func TestBikeWorkbenchStockForksWithSaddle(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?stock_forks=all&brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726")
+	cells := []string{"fork", "stem", "spacers", "total", "brp-miss"}
+	want := [][]string{
+		{stockForkSID20, "130 mm, -17°", "0 mm", "3.0", "42.6 mm", "83.1"},
+		{stockForkLithic, "130 mm, -17°", "0 mm", "1.5", "39.6 mm", "77.2"},
+		{stockForkFox20, "130 mm, -17°", "0 mm", "-3.4", "30.6 mm", "59.1"},
+		{stockForkSID20, "130 mm, -17°", "5 mm", "-5.6", "42.6 mm", "83.1"},
+		{stockForkLithic, "130 mm, -17°", "5 mm", "-7.2", "39.6 mm", "77.2"},
+	}
+	assertStockForkRows(t, doc, cells, "BRP miss", want)
+	q := hrefQuery(t, doc, firstStockApply)
+	for key, value := range map[string]string{"fork": "sid_100", "sag": "20.0", "rail_offset": "15.0"} {
+		if got := q.Get(key); got != value {
+			t.Errorf("row 1 Apply %s = %q, want %q", key, got, value)
+		}
+	}
+	href, _ := doc.Find(firstStockApply).Attr("href")
+	applied := loadBikeDoc(t, href)
+	if got, _ := applied.Find(`select[name="fork"] option[selected]`).Attr("value"); got != "sid_100" {
+		t.Errorf("applied fork = %q, want sid_100", got)
+	}
+	assertSelectedStockForks(t, applied, "all")
+	assertStockForkRows(t, applied, cells, "BRP miss", want)
+}
+
+func TestBikeWorkbenchStockForksAndBars(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?stock_forks=all&stock_bars=all&brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726")
+	evaluated := doc.Find("[data-stock-evaluated]")
+	if got := evaluated.Text(); got != "47250" {
+		t.Errorf("evaluated = %q, want 47250", got)
+	}
+	if got := evaluated.Parent().Text(); !strings.Contains(got, "stock fork, handlebar, stem, and spacer combinations") {
+		t.Errorf("stock count note = %q", got)
+	}
+	const flx12 = "SQlab 311 FL-X Carbon 12°, 15 mm rise (740 mm)"
+	assertStockForkRows(t, doc, []string{"bar", "fork", "stem", "spacers", "total"}, "", [][]string{
+		{flx12, stockForkFox20, "120 mm, -17°", "0 mm", "21.5"},
+		{flx12, stockForkFox20, "120 mm, -17°", "5 mm", "20.5"},
+		{flx12, stockForkFox20, "130 mm, -17°", "0 mm", "19.5"},
+		{flx12, stockForkFox20, "130 mm, -17°", "5 mm", "19.5"},
+		{"SQlab 3OX 12°, 15 mm rise (780 mm)", stockForkFox20, "130 mm, -17°", "0 mm", "19.5"},
+	})
+}
+
+func TestBikeWorkbenchKeepsStockForksWithoutTarget(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?stock_forks=all&view=seat")
+	if n := doc.Find("[data-stock-fitting]").Length(); n != 0 {
+		t.Errorf("stock fitting blocks = %d, want none", n)
+	}
+	assertSelectedStockForks(t, doc, "all")
+	if got := workbenchCanonicalQuery(t, doc).Get("stock_forks"); got != "all" {
+		t.Errorf("canonical stock_forks = %q, want all", got)
+	}
+	for _, sel := range []string{"#view-bike", "#view-seat", "#view-stem", "#preset-cad-baseline-fork"} {
+		if got := hrefQuery(t, doc, sel).Get("stock_forks"); got != "all" {
+			t.Errorf("%s stock_forks = %q, want all", sel, got)
+		}
+	}
+	if q := hrefQuery(t, doc, "#preset-defaults"); q.Has("stock_forks") {
+		t.Errorf("Reset Defaults query contains stock_forks: %v", q)
+	}
+}
+
+func TestBikeWorkbenchStockForksErrorPage(t *testing.T) {
+	doc := loadBikeDocStatus(t, "/bike?stock_forks=some", http.StatusBadRequest)
+	if got, _ := doc.Find(`select[name="stock_forks"]`).Attr("aria-invalid"); got != "true" {
+		t.Errorf("stock_forks aria-invalid = %q, want true", got)
+	}
+	if got := strings.TrimSpace(doc.Find("#form-error").Text()); !strings.Contains(got, `unknown stock fitting fork option "some"`) {
+		t.Errorf("stock_forks error message = %q", got)
+	}
+	doc = loadBikeDocStatus(t, "/bike?stock_forks=all&spacers=-1", http.StatusBadRequest)
+	assertSelectedStockForks(t, doc, "all")
+	if got := hrefQuery(t, doc, "#preset-cad-baseline-fork").Get("stock_forks"); got != "all" {
+		t.Errorf("error-page CAD preset stock_forks = %q, want all", got)
 	}
 }
