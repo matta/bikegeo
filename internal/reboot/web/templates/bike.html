@@ -628,24 +628,24 @@
         {{with .Stock}}
         <div class="stock-fitting" data-stock-fitting>
           <strong>Stock cockpit builds</strong>
-          <p class="fit-note"><span data-stock-evaluated>{{.Evaluated}}</span> stock {{.PartsText}} combinations placed; the cheapest {{len .Rows}} on the points-lost ledger (total = 100 − points lost). {{if .AllForks}}The saddle is refitted for each fork.{{else}}The saddle fit is kept.{{end}}</p>
+          <p class="fit-note" data-stock-summary><span data-stock-evaluated>{{.Evaluated}}</span> stock {{.PartsText}} combinations placed; the {{len .Rows}} best-scoring (score = 100 − points lost). {{if .AllForks}}The saddle is refitted for each fork.{{else}}The saddle fit is kept.{{end}}</p>
           <p class="fit-note" data-stock-preferences>{{.PreferenceNote}}</p>
           <div class="stock-scroll">
             <table class="stock-table">
               <thead>
-                <tr><th>#</th><th></th><th>Total</th><th>Stem</th><th>Spacers</th><th>HandGrip miss</th><th>Oval R</th><th>Oval pts</th><th>Length pts</th><th>Angle pts</th><th>Spacer pts</th><th>Sweep pts</th><th>Sag pts</th><th>BRP pts</th><th>Handlebar</th><th>Fork</th><th>BRP miss</th></tr>
+                <tr><th>#</th><th></th><th>Score</th><th>Stem</th><th>Spacers</th><th>HandGrip miss</th><th>Oval R</th><th>Oval pts</th><th>Length pts</th><th>Angle pts</th><th>Spacer pts</th><th>Sweep pts</th><th>Sag pts</th><th>BRP pts</th><th>Handlebar</th><th>Fork</th><th>BRP miss</th></tr>
               </thead>
               <tbody>
                 {{range .Rows}}
                 <tr data-stock-rank="{{.Rank}}">
                   <td>{{.Rank}}</td>
                   <td><a href="{{.ApplyURL}}" data-preset="apply-stock" data-stock-apply>Apply</a></td>
-                  <td class="mono" data-stock-cell="total"><strong>{{printf "%.1f" .Total}}</strong></td>
+                  <td class="mono" data-stock-cell="score"><strong>{{printf "%.1f" .Score}}</strong></td>
                   <td class="mono" data-stock-cell="stem">{{printf "%.0f mm, %+.0f°" .StemLengthMm .StemAngleDeg}}</td>
                   <td class="mono" data-stock-cell="spacers">{{printf "%.0f mm" .SpacersMm}}</td>
                   <td class="mono" data-stock-cell="grip-miss">{{printf "%.1f mm" .GripMissMm}}</td>
                   <td class="mono" data-stock-cell="oval-r">{{printf "%.2f" .GripR}}</td>
-                  {{range .Lines}}<td class="mono" data-stock-points="{{.Band}}">{{printf "%.1f" .PointsLost}}</td>{{end}}
+                  {{range .Penalties}}<td class="mono" data-stock-points="{{.Band}}">{{printf "%.1f" .PointsLost}}</td>{{end}}
                   <td data-stock-cell="bar">{{.BarName}}</td>
                   <td data-stock-cell="fork">{{.ForkName}}</td>
                   <td class="mono" data-stock-cell="brp-miss">{{if .HasBrp}}{{printf "%.1f mm" .BrpMissMm}}{{else}}—{{end}}</td>

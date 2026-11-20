@@ -820,8 +820,8 @@ type stockCandidateView struct {
 	StemLengthMm, SpacersMm float64
 	StemAngleDeg            pose.Deg
 	GripMissMm, GripR       float64
-	Lines                   []assembly.Penalty // assembly's penalty order
-	Total                   float64
+	Penalties               []assembly.Penalty // assembly's penalty order
+	Score                   float64
 	ApplyURL                string // the candidate build, with the submitted targets kept
 }
 
@@ -1098,8 +1098,8 @@ func buildStockFittingView(state workbenchState, fix bikeFixture, offered []hand
 			StemAngleDeg: stem.AngleDeg,
 			GripMissMm:   c.GripMiss().Norm(),
 			GripR:        c.GripR,
-			Lines:        c.Penalties,
-			Total:        c.Score(),
+			Penalties:    c.Penalties,
+			Score:        c.Score(),
 			ApplyURL:     applied.URL(),
 		}
 		if miss, ok := c.BrpMiss(); ok {
