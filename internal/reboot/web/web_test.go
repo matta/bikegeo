@@ -3395,3 +3395,131 @@ func TestBikeWorkbenchUnknownSeatpost(t *testing.T) {
 		t.Errorf("#form-error = %q, want unknown seatpost %q", msg, "unknown")
 	}
 }
+
+func TestBikeWorkbenchSetbackNotesFitReport(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?brp_x=-219&brp_y=713.1")
+	if got := metricText(doc, "fit-saddle-outcome"); got != "limited by saddle rail offset" {
+		t.Errorf("fit-saddle-outcome = %q, want limited by saddle rail offset", got)
+	}
+	for k, want := range map[string]string{
+		"fit-setback-centered":         "54.1 mm",
+		"fit-setback-centered-ext":     "264.0 mm",
+		"fit-setback-centered-outcome": "reached",
+		"fit-setback-reach-rail":       "+15.0 mm",
+		"fit-setback-reach":            "39.6 mm",
+		"fit-setback-reach-ext":        "260.1 mm",
+		"fit-setback-reach-outcome":    "reached",
+	} {
+		if got := metricText(doc, k); got != want {
+			t.Errorf("%s = %q, want %q", k, got, want)
+		}
+	}
+
+	// Notes are never applied: #apply-fitting keeps post=setback_0.
+	applyHref, _ := doc.Find(`#apply-fitting`).Attr("href")
+	if u, err := url.Parse(applyHref); err != nil || u.Query().Get("post") != "setback_0" {
+		t.Errorf("#apply-fitting href = %q, want post=setback_0", applyHref)
+	}
+	applied := loadBikeDoc(t, applyHref)
+	if got := metricText(applied, "post-setback"); got != "0.0 mm" {
+		t.Errorf("applied post-setback = %q, want 0.0 mm", got)
+	}
+
+	// Changing the post to setback_25 keeps the same note values while fit-brp-miss changes.
+	doc25 := loadBikeDoc(t, "/bike?post=setback_25&brp_x=-219&brp_y=713.1")
+	for _, k := range []string{
+		"fit-setback-centered", "fit-setback-centered-ext", "fit-setback-centered-outcome",
+		"fit-setback-reach-rail", "fit-setback-reach", "fit-setback-reach-ext", "fit-setback-reach-outcome",
+	} {
+		if got, want := metricText(doc25, k), metricText(doc, k); got != want {
+			t.Errorf("post=setback_25 %s = %q, want %q", k, got, want)
+		}
+	}
+	if metricText(doc25, "fit-brp-miss") == metricText(doc, "fit-brp-miss") {
+		t.Errorf("fit-brp-miss did not change between 0 mm and 25 mm posts (%q)", metricText(doc25, "fit-brp-miss"))
+	}
+}
+
+func TestBikeWorkbenchSetbackNotesReachedFit(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?post=setback_25&brp_x=-189&brp_y=713.1")
+	if got := metricText(doc, "fit-saddle-outcome"); got != "reached" {
+		t.Errorf("fit-saddle-outcome = %q, want reached", got)
+	}
+	if got := metricText(doc, "fit-rail-offset"); got != "0.1 mm" {
+		t.Errorf("fit-rail-offset = %q, want 0.1 mm", got)
+	}
+	if doc.Find(`[data-metric="fit-setback-reach"]`).Length() != 0 {
+		t.Errorf("expected no fit-setback-reach when saddle fit is reached")
+	}
+	for k, want := range map[string]string{
+		"fit-setback-centered":         "25.1 mm",
+		"fit-setback-centered-ext":     "256.1 mm",
+		"fit-setback-centered-outcome": "reached",
+	} {
+		if got := metricText(doc, k); got != want {
+			t.Errorf("%s = %q, want %q", k, got, want)
+		}
+	}
+}
+
+func TestBikeWorkbenchSetbackNotesForwardTarget(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?post=redshift_shockstop_pro&brp_x=-150&brp_y=713.1")
+	if got := metricText(doc, "fit-saddle-outcome"); got != "limited by saddle rail offset" {
+		t.Errorf("fit-saddle-outcome = %q, want limited by saddle rail offset", got)
+	}
+	if got := metricText(doc, "fit-rail-offset"); got != "-15.0 mm" {
+		t.Errorf("fit-rail-offset = %q, want -15.0 mm", got)
+	}
+	for k, want := range map[string]string{
+		"fit-setback-reach-rail":       "-15.0 mm",
+		"fit-setback-reach":            "2.0 mm",
+		"fit-setback-reach-ext":        "249.8 mm",
+		"fit-setback-reach-outcome":    "reached",
+		"fit-setback-centered":         "0.0 mm",
+		"fit-setback-centered-ext":     "245.9 mm",
+		"fit-setback-centered-outcome": "limited by seatpost setback",
+	} {
+		if got := metricText(doc, k); got != want {
+			t.Errorf("%s = %q, want %q", k, got, want)
+		}
+	}
+	centeredSpan := doc.Find(`[data-metric="fit-setback-centered"]`).Parent().Text()
+	if !strings.Contains(centeredSpan, "12.5 mm short") {
+		t.Errorf("centered span = %q, want 12.5 mm short", centeredSpan)
+	}
+}
+
+func TestBikeWorkbenchSetbackNotesExtensionLimit(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?brp_x=-219&brp_y=900")
+	if got := metricText(doc, "fit-saddle-outcome"); got != "limited by seatpost extension, saddle rail offset" {
+		t.Errorf("fit-saddle-outcome = %q, want limited by seatpost extension, saddle rail offset", got)
+	}
+	for k, want := range map[string]string{
+		"fit-setback-centered":         "4.8 mm",
+		"fit-setback-centered-ext":     "300.0 mm",
+		"fit-setback-centered-outcome": "limited by seatpost extension",
+		"fit-setback-reach-rail":       "+15.0 mm",
+		"fit-setback-reach":            "0.0 mm",
+		"fit-setback-reach-ext":        "300.0 mm",
+		"fit-setback-reach-outcome":    "limited by seatpost extension, seatpost setback",
+	} {
+		if got := metricText(doc, k); got != want {
+			t.Errorf("%s = %q, want %q", k, got, want)
+		}
+	}
+	centeredSpan := doc.Find(`[data-metric="fit-setback-centered"]`).Parent().Text()
+	if !strings.Contains(centeredSpan, "144.3 mm short") {
+		t.Errorf("centered span = %q, want 144.3 mm short", centeredSpan)
+	}
+	reachSpan := doc.Find(`[data-metric="fit-setback-reach"]`).Parent().Text()
+	if !strings.Contains(reachSpan, "140.7 mm short") {
+		t.Errorf("reach span = %q, want 140.7 mm short", reachSpan)
+	}
+}
+
+func TestBikeWorkbenchSetbackNotesAbsentWithoutBrpTarget(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike?grip_x=481&grip_y=726")
+	if n := doc.Find(`[data-metric^="fit-setback"]`).Length(); n != 0 {
+		t.Errorf("expected no [data-metric^=fit-setback] without BRP target, got %d", n)
+	}
+}

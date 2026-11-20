@@ -516,3 +516,142 @@ func TestApplyFittingGripErrors(t *testing.T) {
 		t.Fatalf("fit error %v, want PlaceBike error %v", fitErr, placeErr)
 	}
 }
+
+func TestFitPostSetbackCentersRails(t *testing.T) {
+	fit, err := assembly.FitPostSetback(fenrirFittingSetup(), fitReportBRP, 0)
+	if err != nil {
+		t.Fatalf("FitPostSetback: %v", err)
+	}
+	if fit.Outcome != assembly.FitReached || fit.LimitedBy != nil {
+		t.Fatalf("Outcome = %v, LimitedBy = %v, want reached", fit.Outcome, fit.LimitedBy)
+	}
+	assertNear(t, "setback", fit.Placement.Setup.Seatpost.PostSetbackMm, 54.082742, 1e-6)
+	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExtensionMm, 264.047523, 1e-6)
+	assertNear(t, "miss", brpMissMm(t, fit), 0, 1e-9)
+	if fit.Placement.Setup.Saddle.RailOffsetMm != 0 {
+		t.Fatalf("RailOffsetMm = %v, want 0", fit.Placement.Setup.Saddle.RailOffsetMm)
+	}
+}
+
+func TestFitPostSetbackAtRailLimit(t *testing.T) {
+	fit, err := assembly.FitPostSetback(fenrirFittingSetup(), fitReportBRP, 15)
+	if err != nil {
+		t.Fatalf("FitPostSetback: %v", err)
+	}
+	if fit.Outcome != assembly.FitReached || fit.LimitedBy != nil {
+		t.Fatalf("Outcome = %v, LimitedBy = %v, want reached", fit.Outcome, fit.LimitedBy)
+	}
+	assertNear(t, "setback", fit.Placement.Setup.Seatpost.PostSetbackMm, 39.613611, 1e-6)
+	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExtensionMm, 260.092242, 1e-6)
+	assertNear(t, "miss", brpMissMm(t, fit), 0, 1e-9)
+
+	saddleFit := mustFit(t, fenrirFittingSetup(), fitReportBRP)
+	assertNear(t, "cross-check setback vs miss", fit.Placement.Setup.Seatpost.PostSetbackMm, brpMissMm(t, saddleFit), 1e-9)
+	assertNear(t, "cross-check extension", fit.Placement.Setup.Seatpost.ExtensionMm, saddleFit.Placement.Setup.Seatpost.ExtensionMm, 1e-9)
+}
+
+func TestFitPostSetbackIgnoresSubmittedSeatInputs(t *testing.T) {
+	setup := fenrirFittingSetup()
+	setup.Seatpost.PostSetbackMm = 25
+	setup.Seatpost.ExtensionMm = 200
+	setup.Saddle.RailOffsetMm = -10
+
+	got, err := assembly.FitPostSetback(setup, fitReportBRP, 0)
+	if err != nil {
+		t.Fatalf("FitPostSetback: %v", err)
+	}
+	want, err := assembly.FitPostSetback(fenrirFittingSetup(), fitReportBRP, 0)
+	if err != nil {
+		t.Fatalf("FitPostSetback default: %v", err)
+	}
+	assertNear(t, "setback", got.Placement.Setup.Seatpost.PostSetbackMm, want.Placement.Setup.Seatpost.PostSetbackMm, 1e-9)
+	assertNear(t, "extension", got.Placement.Setup.Seatpost.ExtensionMm, want.Placement.Setup.Seatpost.ExtensionMm, 1e-9)
+}
+
+func TestFitPostSetbackStopsAtZeroSetback(t *testing.T) {
+	target := pose.Point{X: -150, Y: 713.1}
+	fit, err := assembly.FitPostSetback(fenrirFittingSetup(), target, 0)
+	if err != nil {
+		t.Fatalf("FitPostSetback: %v", err)
+	}
+	if fit.Outcome != assembly.FitLimited {
+		t.Fatalf("Outcome = %v, want limited", fit.Outcome)
+	}
+	if want := []assembly.InputField{assembly.InputSeatpostSetback}; !reflect.DeepEqual(fit.LimitedBy, want) {
+		t.Fatalf("LimitedBy = %v, want %v", fit.LimitedBy, want)
+	}
+	if fit.Placement.Setup.Seatpost.PostSetbackMm != 0 {
+		t.Fatalf("PostSetbackMm = %v, want 0", fit.Placement.Setup.Seatpost.PostSetbackMm)
+	}
+	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExtensionMm, 245.853232, 1e-5)
+	assertNear(t, "miss", brpMissMm(t, fit), 12.475261, 1e-5)
+}
+
+func TestFitPostSetbackForwardTarget(t *testing.T) {
+	target := pose.Point{X: -150, Y: 713.1}
+	fit, err := assembly.FitPostSetback(fenrirFittingSetup(), target, -15)
+	if err != nil {
+		t.Fatalf("FitPostSetback: %v", err)
+	}
+	if fit.Outcome != assembly.FitReached || fit.LimitedBy != nil {
+		t.Fatalf("Outcome = %v, LimitedBy = %v, want reached", fit.Outcome, fit.LimitedBy)
+	}
+	assertNear(t, "setback", fit.Placement.Setup.Seatpost.PostSetbackMm, 1.993870, 1e-6)
+	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExtensionMm, 249.808512, 1e-6)
+	assertNear(t, "miss", brpMissMm(t, fit), 0, 1e-9)
+
+	setup12 := fenrirFittingSetup()
+	setup12.Seatpost.PostSetbackMm = 12
+	saddleFit := mustFit(t, setup12, target)
+	assertNear(t, "cross-check 12 - miss", 12-brpMissMm(t, saddleFit), fit.Placement.Setup.Seatpost.PostSetbackMm, 1e-9)
+}
+
+func TestFitPostSetbackStopsAtExtension(t *testing.T) {
+	target := pose.Point{X: -219, Y: 900}
+
+	fit0, err := assembly.FitPostSetback(fenrirFittingSetup(), target, 0)
+	if err != nil {
+		t.Fatalf("FitPostSetback rail 0: %v", err)
+	}
+	if fit0.Outcome != assembly.FitLimited {
+		t.Fatalf("rail 0 Outcome = %v, want limited", fit0.Outcome)
+	}
+	if want := []assembly.InputField{assembly.InputSeatpostExtension}; !reflect.DeepEqual(fit0.LimitedBy, want) {
+		t.Fatalf("rail 0 LimitedBy = %v, want %v", fit0.LimitedBy, want)
+	}
+	if fit0.Placement.Setup.Seatpost.ExtensionMm != 300 {
+		t.Fatalf("rail 0 ExtensionMm = %v, want 300", fit0.Placement.Setup.Seatpost.ExtensionMm)
+	}
+	assertNear(t, "rail 0 setback", fit0.Placement.Setup.Seatpost.PostSetbackMm, 4.799945, 1e-5)
+	assertNear(t, "rail 0 miss", brpMissMm(t, fit0), 144.332896, 1e-5)
+
+	fit15, err := assembly.FitPostSetback(fenrirFittingSetup(), target, 15)
+	if err != nil {
+		t.Fatalf("FitPostSetback rail 15: %v", err)
+	}
+	if fit15.Outcome != assembly.FitLimited {
+		t.Fatalf("rail 15 Outcome = %v, want limited", fit15.Outcome)
+	}
+	if want := []assembly.InputField{assembly.InputSeatpostExtension, assembly.InputSeatpostSetback}; !reflect.DeepEqual(fit15.LimitedBy, want) {
+		t.Fatalf("rail 15 LimitedBy = %v, want %v", fit15.LimitedBy, want)
+	}
+	if fit15.Placement.Setup.Seatpost.ExtensionMm != 300 || fit15.Placement.Setup.Seatpost.PostSetbackMm != 0 {
+		t.Fatalf("rail 15 got ext=%v setback=%v, want 300, 0", fit15.Placement.Setup.Seatpost.ExtensionMm, fit15.Placement.Setup.Seatpost.PostSetbackMm)
+	}
+	assertNear(t, "rail 15 miss", brpMissMm(t, fit15), 140.710227, 1e-6)
+	saddleFit := mustFit(t, fenrirFittingSetup(), target)
+	assertNear(t, "rail 15 cross-check miss", brpMissMm(t, fit15), brpMissMm(t, saddleFit), 1e-9)
+}
+
+func TestFitPostSetbackRejectsRailBeyondClamp(t *testing.T) {
+	var inputErr *assembly.InputError
+	_, err := assembly.FitPostSetback(fenrirFittingSetup(), fitReportBRP, 15.5)
+	if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSaddleRailOffset {
+		t.Fatalf("rail 15.5: err = %v, want InputSaddleRailOffset", err)
+	}
+
+	_, err = assembly.FitPostSetback(fenrirFittingSetup(), pose.Point{X: math.NaN(), Y: 713.1}, 0)
+	if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputFitTargetBRP {
+		t.Fatalf("NaN BRP: err = %v, want InputFitTargetBRP", err)
+	}
+}

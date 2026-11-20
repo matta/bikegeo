@@ -597,6 +597,11 @@
           <span>Fitted extension: <strong class="mono" data-metric="fit-extension">{{printf "%.1f mm" .ExtensionMm}}</strong></span>
           <span>Fitted rail offset (±{{printf "%.1f" .RailLimitMm}} mm on this saddle): <strong class="mono" data-metric="fit-rail-offset">{{printf "%.1f mm" .RailOffsetMm}}</strong></span>
           <span>Outcome: <strong data-metric="fit-saddle-outcome">{{.OutcomeText}}</strong></span>
+          <span>Setback for centered rails: <strong class="mono" data-metric="fit-setback-centered">{{printf "%.1f mm" .Centered.SetbackMm}}</strong> at extension <span class="mono" data-metric="fit-setback-centered-ext">{{printf "%.1f mm" .Centered.ExtensionMm}}</span>; <span data-metric="fit-setback-centered-outcome">{{.Centered.OutcomeText}}</span>{{if .Centered.LimitedBy}}, {{printf "%.1f" .Centered.MissMm}} mm short{{end}}</span>
+          {{with .Reach}}
+          <span>Setback to reach the target with rails at <span class="mono" data-metric="fit-setback-reach-rail">{{printf "%+.1f mm" .RailOffsetMm}}</span>: <strong class="mono" data-metric="fit-setback-reach">{{printf "%.1f mm" .SetbackMm}}</strong> at extension <span class="mono" data-metric="fit-setback-reach-ext">{{printf "%.1f mm" .ExtensionMm}}</span>; <span data-metric="fit-setback-reach-outcome">{{.OutcomeText}}</span>{{if .LimitedBy}}, {{printf "%.1f" .MissMm}} mm short{{end}}</span>
+          {{end}}
+          <span class="fit-note">Setback notes keep this post's extension limits and are not applied.</span>
         </div>
         {{end}}
         {{with .Cockpit}}

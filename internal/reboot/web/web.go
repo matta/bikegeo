@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -808,10 +809,33 @@ type stockCandidateView struct {
 	ApplyURL                string // the candidate build, with the submitted targets kept
 }
 
+// postSetbackView is one setback note (Q29): the setback and extension
+// FitPostSetback found with the rails held at RailOffsetMm. It is never applied.
+type postSetbackView struct {
+	RailOffsetMm, SetbackMm, ExtensionMm, MissMm float64
+	LimitedBy                                    []assembly.InputField
+}
+
+// OutcomeText describes the setback fitting outcome.
+func (v postSetbackView) OutcomeText() string { return fitOutcomeText(v.LimitedBy) }
+
+func makePostSetbackView(f assembly.Fitting) postSetbackView {
+	miss, _ := f.BrpMiss()
+	return postSetbackView{
+		RailOffsetMm: f.Placement.Setup.Saddle.RailOffsetMm,
+		SetbackMm:    f.Placement.Setup.Seatpost.PostSetbackMm,
+		ExtensionMm:  f.Placement.Setup.Seatpost.ExtensionMm,
+		MissMm:       miss.Norm(),
+		LimitedBy:    f.LimitedBy,
+	}
+}
+
 type saddleFittingView struct {
 	TargetX, TargetY, MissX, MissY, MissMm float64 // miss: target − the submitted build's BRP
 	ExtensionMm, RailOffsetMm, RailLimitMm float64 // fitted values; ±RailLimitMm range
 	LimitedBy                              []assembly.InputField
+	Centered                               postSetbackView  // rails centered (Q29)
+	Reach                                  *postSetbackView // rails held at the fitted offset; nil unless saddle fitting is limited
 }
 
 type cockpitFittingView struct {
@@ -900,7 +924,26 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 			renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
 			return
 		}
-		view.Fitting = buildFittingView(resolved.State, bike, fitting)
+		var centered, reach *assembly.Fitting
+		if brp := target.BRP; brp != nil {
+			c, err := assembly.FitPostSetback(resolved.Setup, *brp, 0)
+			if err != nil {
+				renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
+				return
+			}
+			centered = &c
+			saddleLimited := slices.Contains(fitting.LimitedBy, assembly.InputSeatpostExtension) ||
+				slices.Contains(fitting.LimitedBy, assembly.InputSaddleRailOffset)
+			if saddleLimited {
+				r, err := assembly.FitPostSetback(resolved.Setup, *brp, fitting.Placement.Setup.Saddle.RailOffsetMm)
+				if err != nil {
+					renderBikeError(w, fix, resolved, bikeInputField(err), err.Error())
+					return
+				}
+				reach = &r
+			}
+		}
+		view.Fitting = buildFittingView(resolved.State, bike, fitting, centered, reach)
 		if resolved.State.Targets.HasGrip {
 			// offered is the bar list stock fitting enumerates; its indices
 			// name each candidate's bar.
@@ -932,7 +975,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 	renderBikeTemplate(w, http.StatusOK, view)
 }
 
-func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting assembly.Fitting) *bikeFittingView {
+func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting assembly.Fitting, centered, reach *assembly.Fitting) *bikeFittingView {
 	fv := &bikeFittingView{}
 	var saddleLimits, cockpitLimits []assembly.InputField
 	for _, f := range fitting.LimitedBy {
@@ -958,6 +1001,11 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 			RailOffsetMm: fitted.Saddle.RailOffsetMm,
 			RailLimitMm:  railLimit,
 			LimitedBy:    saddleLimits,
+			Centered:     makePostSetbackView(*centered),
+		}
+		if reach != nil {
+			r := makePostSetbackView(*reach)
+			fv.Saddle.Reach = &r
 		}
 	}
 	if grip := fitting.Target.HandGrip; grip != nil {

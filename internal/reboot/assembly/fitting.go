@@ -137,6 +137,64 @@ func ApplyFitting(setup BikeSetup, target FitTarget, trace *pose.Trace) (Fitting
 	return fit, nil
 }
 
+// FitPostSetback fits Seatpost.PostSetbackMm and Seatpost.ExtensionMm so the
+// saddle BRP lands on brp, with Saddle.RailOffsetMm held at railOffsetMm. It
+// explains the post setback a BRP target needs (Q29), and callers never
+// install its build. Extension keeps the setup's limits. Setback is at least 0
+// and has no upper bound. LimitedBy lists InputSeatpostExtension, then
+// InputSeatpostSetback, for the inputs that sit on a bound. The submitted
+// extension, setback, and rail offset are ignored; every other setup field is kept.
+func FitPostSetback(setup BikeSetup, brp pose.Point, railOffsetMm float64) (Fitting, error) {
+	if !isFinitePoint(brp) {
+		return Fitting{}, invalidInput(InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", brp.X, brp.Y)
+	}
+	probeSetup := setup
+	probeSetup.Seatpost.ExtensionMm = setup.Seatpost.MinExtensionMm
+	probeSetup.Seatpost.PostSetbackMm = 0
+	probeSetup.Saddle.RailOffsetMm = railOffsetMm
+	probe, err := PlaceBike(probeSetup, nil)
+	if err != nil {
+		return Fitting{}, err
+	}
+
+	eMin := setup.Seatpost.MinExtensionMm
+	eMax := math.Inf(1)
+	if setup.Seatpost.MaxExtensionMm != 0 {
+		eMax = setup.Seatpost.MaxExtensionMm
+	}
+
+	delta := brp.Sub(probe.Saddle.BRP.Origin())
+	shaft := probe.Seatpost.ShaftTop.HeadingDeg()
+	a := fitAxis{shaft, 0, eMax - eMin, InputSeatpostExtension}
+	b := fitAxis{shaft + 90, 0, math.Inf(1), InputSeatpostSetback} // PlaceSeatpost translates setback along local +Y
+	de, ds, limited, ok := fitBox(delta, a, b)
+	if !ok {
+		return Fitting{}, fmt.Errorf("seatpost setback is parallel to the seat axis; cannot fit the setback")
+	}
+
+	fitted := probeSetup
+	fitted.Seatpost.ExtensionMm = clampFit(eMin+de, eMin, eMax)
+	fitted.Seatpost.PostSetbackMm = clampFit(ds, 0, math.Inf(1))
+	placement, err := PlaceBike(fitted, nil)
+	if err != nil {
+		return Fitting{}, err
+	}
+
+	p := brp
+	fit := Fitting{
+		Target:    FitTarget{BRP: &p},
+		Placement: placement,
+		Outcome:   FitReached,
+	}
+	if len(limited) > 0 {
+		fit.Outcome = FitLimited
+		fit.LimitedBy = limited
+	} else if miss, ok := fit.BrpMiss(); ok && miss.Norm() > 1e-6 {
+		return Fitting{}, fmt.Errorf("post setback fitting forward check missed target by %v mm", miss.Norm())
+	}
+	return fit, nil
+}
+
 // validateStemLengthRange checks the stem length range fitting may choose.
 func validateStemLengthRange(stem StemSetup) error {
 	minLen, maxLen := stem.MinLengthMm, stem.MaxLengthMm
