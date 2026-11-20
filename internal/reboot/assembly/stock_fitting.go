@@ -10,14 +10,17 @@ import (
 
 // CockpitStock lists the stock cockpit parts stock fitting may choose from.
 // Stem lengths start at Stem.MinLengthMm, and spacer stacks start at zero.
-// Both advance in fixed steps up to their hardware limits.
+// Both advance in fixed steps up to their hardware limits. Handlebars, when
+// non-empty, lists the bars stock fitting may install. Each is installed at
+// the submitted setup's BarRollDeg (Q24). Empty keeps the submitted bar (Q22).
 type CockpitStock struct {
 	StemLengthStepMm float64
 	StemAnglesDeg    []pose.Deg
 	SpacerStepMm     float64
+	Handlebars       []HandlebarSetup
 }
 
-// Validate checks that steps are positive and finite and the angle list is usable.
+// Validate checks the stock steps, stem angles, and handlebars.
 func (s CockpitStock) Validate() error {
 	if !isFinite(s.StemLengthStepMm) || s.StemLengthStepMm <= 0 {
 		return fmt.Errorf("stock stem length step must be positive and finite, got %v mm", s.StemLengthStepMm)
@@ -31,6 +34,14 @@ func (s CockpitStock) Validate() error {
 	for _, angle := range s.StemAnglesDeg {
 		if !isFinite(float64(angle)) {
 			return fmt.Errorf("stock stem angle must be finite, got %v°", angle)
+		}
+	}
+	for i, bar := range s.Handlebars {
+		if bar.BarRollDeg != 0 {
+			return fmt.Errorf("stock handlebar %d must not set BarRollDeg; stock fitting installs every bar at the submitted roll (Q24)", i)
+		}
+		if _, err := PlaceHandlebar(pose.NewPose(pose.Point{}, 0, nil), bar); err != nil {
+			return fmt.Errorf("stock handlebar %d: %w", i, err)
 		}
 	}
 	return nil
@@ -139,10 +150,11 @@ type LedgerLine struct {
 
 // StockCandidate is one stock cockpit build, placed forward and priced.
 type StockCandidate struct {
-	Placement BikePlacement
-	Target    pose.Point   // HandGrip target
-	GripR     float64      // normalized radius of the placed HandGrip
-	Ledger    []LedgerLine // oval, stem length, stem angle, spacers
+	Placement      BikePlacement
+	Target         pose.Point   // HandGrip target
+	HandlebarIndex int          // index into CockpitStock.Handlebars of the installed bar, or -1 when the submitted bar was kept
+	GripR          float64      // normalized radius of the placed HandGrip
+	Ledger         []LedgerLine // oval, stem length, stem angle, spacers
 }
 
 // PointsLost returns the sum of the ledger's points lost, in ledger order.
@@ -170,10 +182,14 @@ type StockFitting struct {
 	Evaluated  int              // stock combinations placed and priced
 }
 
-// ApplyStockFitting places every stock stem and spacer combination with
-// PlaceBike and returns the cheapest limit candidates. Ties favor smaller
-// oval R, then enumeration order. When target.BRP is set, ApplyFitting fits
-// the saddle first and every candidate carries those saddle inputs (Q15).
+// ApplyStockFitting places every stock combination of handlebar, stem angle,
+// stem length, and spacer stack with PlaceBike and returns the cheapest limit
+// candidates. When stock.Handlebars is empty, the submitted bar is the only
+// one. Every bar is installed at setup.Handlebar.BarRollDeg (Q24) and costs
+// nothing (Q23). Ties favor smaller oval R, then enumeration order (bars in
+// list order, then angles, lengths, and spacers). When target.BRP is set,
+// ApplyFitting fits the saddle first and every candidate carries those saddle
+// inputs (Q15).
 func ApplyStockFitting(setup BikeSetup, target FitTarget, stock CockpitStock, prefs CockpitPreferences, limit int) (StockFitting, error) {
 	if target.HandGrip == nil {
 		return StockFitting{}, fmt.Errorf("stock fitting needs a HandGrip target")
@@ -209,30 +225,46 @@ func ApplyStockFitting(setup BikeSetup, target FitTarget, stock CockpitStock, pr
 	grip := *target.HandGrip
 	lengths := stockSteps(base.Stem.MinLengthMm, base.Stem.MaxLengthMm, stock.StemLengthStepMm)
 	stacks := stockSteps(0, base.Stem.MaxSpacersMm, stock.SpacerStepMm)
+	type stockBar struct {
+		index int
+		setup HandlebarSetup
+	}
+	bars := []stockBar{{index: -1, setup: base.Handlebar}}
+	if len(stock.Handlebars) > 0 {
+		bars = make([]stockBar, len(stock.Handlebars))
+		for i, bar := range stock.Handlebars {
+			bar.BarRollDeg = base.Handlebar.BarRollDeg // Q24
+			bars[i] = stockBar{index: i, setup: bar}
+		}
+	}
 	var candidates []StockCandidate
-	for _, angle := range stock.StemAnglesDeg {
-		for _, length := range lengths {
-			for _, spacers := range stacks {
-				candidate := base
-				candidate.Stem.AngleDeg = angle
-				candidate.Stem.LengthMm = length
-				candidate.Stem.SpacersMm = spacers
-				placement, err := PlaceBike(candidate, nil)
-				if err != nil {
-					return StockFitting{}, err
+	for _, bar := range bars {
+		for _, angle := range stock.StemAnglesDeg {
+			for _, length := range lengths {
+				for _, spacers := range stacks {
+					candidate := base
+					candidate.Stem.AngleDeg = angle
+					candidate.Stem.LengthMm = length
+					candidate.Stem.SpacersMm = spacers
+					candidate.Handlebar = bar.setup
+					placement, err := PlaceBike(candidate, nil)
+					if err != nil {
+						return StockFitting{}, err
+					}
+					r := prefs.GripOval.NormalizedRadius(grip, placement.Handlebar.HandGrip.Origin())
+					candidates = append(candidates, StockCandidate{
+						Placement:      placement,
+						Target:         grip,
+						HandlebarIndex: bar.index,
+						GripR:          r,
+						Ledger: []LedgerLine{
+							{Band: BandGripOval, PointsLost: prefs.GripOval.PointsLost(r)},
+							{Band: BandStemLength, PointsLost: prefs.StemLength.PointsLost(length)},
+							{Band: BandStemAngle, PointsLost: prefs.StemAngle.PointsLost(float64(angle))},
+							{Band: BandSpacers, PointsLost: prefs.Spacers.PointsLost(spacers)},
+						},
+					})
 				}
-				r := prefs.GripOval.NormalizedRadius(grip, placement.Handlebar.HandGrip.Origin())
-				candidates = append(candidates, StockCandidate{
-					Placement: placement,
-					Target:    grip,
-					GripR:     r,
-					Ledger: []LedgerLine{
-						{Band: BandGripOval, PointsLost: prefs.GripOval.PointsLost(r)},
-						{Band: BandStemLength, PointsLost: prefs.StemLength.PointsLost(length)},
-						{Band: BandStemAngle, PointsLost: prefs.StemAngle.PointsLost(float64(angle))},
-						{Band: BandSpacers, PointsLost: prefs.Spacers.PointsLost(spacers)},
-					},
-				})
 			}
 		}
 	}

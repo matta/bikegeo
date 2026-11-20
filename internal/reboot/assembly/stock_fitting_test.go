@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"bikegeo/internal/reboot/assembly"
@@ -18,6 +19,20 @@ func fenrirCockpitStock() assembly.CockpitStock {
 		StemAnglesDeg:    []pose.Deg{-17, -6, 0, 6, 17},
 		SpacerStepMm:     5,
 	}
+}
+
+func sqlab311Flx12x15Handlebar() assembly.HandlebarSetup {
+	return assembly.HandlebarSetup{
+		StockWidthMm: 740, CurrentWidthMm: 740, BacksweepDeg: 12, UpsweepDeg: 4,
+		StatedRiseMm: 15, RiseMode: assembly.RiseModeStandardKnuckle, BendStartMm: 68.5,
+		GripInsetMm: 70, BarRollDeg: 0,
+	}
+}
+
+func twoBarStock() assembly.CockpitStock {
+	stock := fenrirCockpitStock()
+	stock.Handlebars = []assembly.HandlebarSetup{persuader800DefaultHandlebar(), sqlab311Flx12x15Handlebar()}
+	return stock
 }
 
 func illustrativeCockpitPreferences() assembly.CockpitPreferences {
@@ -223,6 +238,135 @@ func TestStockFittingFitsSaddleFirst(t *testing.T) {
 	}
 }
 
+func TestStockFittingKeepsSubmittedBarByDefault(t *testing.T) {
+	setup := fenrirFittingSetup()
+	fit := mustStockFit(t, setup, assembly.FitTarget{HandGrip: &fitReportGrip}, 450)
+	for i, c := range fit.Candidates {
+		if c.HandlebarIndex != -1 || c.Placement.Setup.Handlebar != setup.Handlebar {
+			t.Errorf("rank %d did not keep the submitted handlebar", i+1)
+		}
+	}
+}
+
+func TestStockFittingChoosesAmongHandlebars(t *testing.T) {
+	setup := fenrirFittingSetup()
+	target := assembly.FitTarget{HandGrip: &fitReportGrip}
+	stock := twoBarStock()
+	prefs := illustrativeCockpitPreferences()
+	full, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 900)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if full.Evaluated != 900 || len(full.Candidates) != 900 {
+		t.Fatalf("evaluated %d, returned %d, want 900 each", full.Evaluated, len(full.Candidates))
+	}
+	var counts [2]int
+	for i, c := range full.Candidates {
+		index := c.HandlebarIndex
+		if index < 0 || index >= len(stock.Handlebars) {
+			t.Fatalf("rank %d handlebar index = %d, want 0 or 1", i+1, index)
+		}
+		counts[index]++
+		if c.Placement.Setup.Handlebar != stock.Handlebars[index] {
+			t.Errorf("rank %d did not install stock handlebar %d", i+1, index)
+		}
+	}
+	if counts != [2]int{450, 450} {
+		t.Errorf("candidate count by handlebar = %v, want [450 450]", counts)
+	}
+	fit, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fit.Candidates) != 5 {
+		t.Fatalf("returned %d candidates, want 5", len(fit.Candidates))
+	}
+	for i, want := range []struct {
+		stem          stockStem
+		radius, total float64
+	}{
+		{stockStem{-17, 110, 0}, 0.806233, 90.6},
+		{stockStem{-17, 110, 5}, 0.969920, 90.6},
+		{stockStem{-6, 130, 0}, 0.919776, 88.8},
+		{stockStem{-17, 120, 5}, 0.253407, 88.6},
+		{stockStem{-17, 120, 10}, 0.396539, 88.6},
+	} {
+		c := fit.Candidates[i]
+		if c.HandlebarIndex != 1 {
+			t.Errorf("rank %d handlebar index = %d, want 1", i+1, c.HandlebarIndex)
+		}
+		requireStockStem(t, c, want.stem)
+		assertNear(t, "grip radius", c.GripR, want.radius, 1e-5)
+		assertNear(t, "total", c.Total(), want.total, 1e-9)
+	}
+
+	setup.Handlebar = sqlab311Flx12x15Handlebar()
+	single, err := assembly.ApplyStockFitting(setup, target, fenrirCockpitStock(), prefs, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	best := fit.Candidates[0]
+	requireStockStem(t, best, stockStemOf(single.Candidates[0].Placement.Setup.Stem))
+	assertNear(t, "single-bar total", best.Total(), single.Candidates[0].Total(), 1e-12)
+}
+
+func TestStockFittingInstallsEveryBarAtSubmittedRoll(t *testing.T) {
+	setup := fenrirFittingSetup()
+	setup.Handlebar.BarRollDeg = 5
+	target := assembly.FitTarget{HandGrip: &fitReportGrip}
+	stock := twoBarStock()
+	prefs := illustrativeCockpitPreferences()
+	full, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 900)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, c := range full.Candidates {
+		if roll := c.Placement.Setup.Handlebar.BarRollDeg; roll != 5 {
+			t.Errorf("rank %d bar roll = %v, want 5", i+1, roll)
+		}
+	}
+	fit, err := assembly.ApplyStockFitting(setup, target, stock, prefs, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []struct {
+		index         int
+		stem          stockStem
+		radius, total float64
+	}{
+		{0, stockStem{-17, 110, 0}, 0.573433, 90.6},
+		{2, stockStem{-17, 120, 5}, 0.055006, 88.6},
+	} {
+		c := fit.Candidates[want.index]
+		if c.HandlebarIndex != 1 {
+			t.Errorf("rank %d handlebar index = %d, want 1", want.index+1, c.HandlebarIndex)
+		}
+		requireStockStem(t, c, want.stem)
+		assertNear(t, "grip radius at submitted roll", c.GripR, want.radius, 1e-5)
+		assertNear(t, "total at submitted roll", c.Total(), want.total, 1e-9)
+	}
+}
+
+func TestStockFittingCarriesSaddleAcrossBars(t *testing.T) {
+	setup := fenrirFittingSetup()
+	target := assembly.FitTarget{BRP: &fitReportBRP, HandGrip: &fitReportGrip}
+	fit, err := assembly.ApplyStockFitting(setup, target, twoBarStock(), illustrativeCockpitPreferences(), 900)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saddle, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &fitReportBRP}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := saddle.Placement.Setup
+	for i, c := range fit.Candidates {
+		got := c.Placement.Setup
+		if got.Seatpost.ExtensionMm != want.Seatpost.ExtensionMm || got.Saddle.RailOffsetMm != want.Saddle.RailOffsetMm {
+			t.Errorf("rank %d did not carry the saddle fitting", i+1)
+		}
+	}
+}
+
 func TestStockFittingZeroSpacers(t *testing.T) {
 	base := fenrirFittingSetup()
 	base.Stem.SpacersMm, base.Stem.MaxSpacersMm = 0, 0
@@ -320,6 +464,20 @@ func TestCockpitStockValidation(t *testing.T) {
 		if stock.Validate() == nil {
 			t.Errorf("accepted angles %v", angles)
 		}
+	}
+	if err := twoBarStock().Validate(); err != nil {
+		t.Errorf("valid handlebars: %v", err)
+	}
+	stock := twoBarStock()
+	stock.Handlebars[0].BarRollDeg = 5
+	if err := stock.Validate(); err == nil || !strings.Contains(err.Error(), "BarRollDeg") {
+		t.Errorf("expected BarRollDeg error, got %v", err)
+	}
+	stock = twoBarStock()
+	stock.Handlebars[0].GripInsetMm = 0
+	_, want := assembly.PlaceHandlebar(pose.NewPose(pose.Point{}, 0, nil), stock.Handlebars[0])
+	if err := stock.Validate(); want == nil || err == nil || !strings.Contains(err.Error(), want.Error()) {
+		t.Errorf("stock grip inset error = %v, want %v", err, want)
 	}
 }
 
