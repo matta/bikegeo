@@ -34,9 +34,9 @@ Matt confirmed that the fit report's BRP and handlebar X/Y coordinates match the
 | BRP setback behind BB | 219 mm |
 | BB-to-BRP radial saddle height | 746 mm |
 | BRP coordinates, X forward / Y upward | Approximately (−219, 713.1) mm |
-| Report handlebar coordinates | Approximately (481, 726) mm |
+| Report handlebar coordinates (HandGrip) | Approximately (481, 726) mm |
 
-See [the ideal-profile documentation](../internal/ideal/readme.md) for the report's coordinate definitions and the existing distinction between stem-clamp and hand-grip references. The procedure above establishes the saddle measurement state; it does not resolve that separate handlebar-reference question.
+Confirmed by Matt on 2026-11-20: `(481, 726) mm` represents the physical hand grip (`HandGrip`) location rather than the stem clamp. See [the ideal-profile documentation](../internal/ideal/readme.md) for the coordinate definitions and how `HandGrip` translates to `StemClamp`; the transfer procedure above separately establishes the unsagged saddle measurement state.
 
 The report values document the tested setup; they do not establish that 219 mm is uniquely optimal or that nearby saddle positions were compared.
 

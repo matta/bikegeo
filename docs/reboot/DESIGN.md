@@ -57,6 +57,16 @@ When Matt accepts a slice, delete its plan file in the same commit that marks th
 
 ## Confirmed decisions
 
+### Precedence over legacy specs
+
+For reboot code (`cmd/bikegeo-reboot` and `internal/reboot/...`), this document takes precedence over conflicting legacy specifications in `AGENTS.md` (Architecture and Frame Datasets), `docs/WEB.md`, and `internal/ideal/readme.md`:
+
+- `0–100` weighted attribute scoring (`Q59`, `Q59a`) supersedes legacy's unweighted `100 − Σ points lost` model.
+- `docs/reboot/stems.yaml` (107 stems and composite `0–100` stem score, `Q58`) supersedes legacy's `mtb`/`gravel` stem catalogs.
+- The 3-criterion fit gate (`R ≤ 1.0`, `|ΔY| ≤ 2.0 mm`, `|ΔX| ≤ 10.0 mm`), unified 3-tier ranking (`Q61`), and height-first rail clamping (`Q60`) supersede legacy's 2-criterion gate and Euclidean/rail-scan solvers.
+- Direct `encoding/json` CLI output (`Q49a`) replaces legacy's shared `report.Document` Markdown CLI layer.
+- Single-row `/` web compare without `+spec`/`-spec` query grammar or legacy secondary routes (`Q52`), defaulting to `redshift_shockstop_pro` (`Q62`) instead of legacy's hardcoded `0 mm` dropper.
+
 ### Go core, pure Web 1.0 server-rendered workbench
 
 - Go owns the physical model, assembly, catalogs, comparison, and HTML/SVG rendering. Browser and CLI surfaces call it directly rather than duplicating geometry or scoring.
@@ -155,7 +165,7 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 - **Q35, band type:** the band type is `PenaltyBand{FreeMin, FreeMax, PointsPerUnitBelow, PointsPerUnitAbove}`, and the HandGrip oval's rate is `FitOval.PointsPerR`. The fields are rates (points per unit), so **penalty** keeps meaning an amount of points. (Superseded by Q59 0–100 weighted attribute scores.)
 - **Q36, penalty lines:** each scored line of a stock build is a `Penalty{Band, PointsLost}`, held in `StockCandidate.Penalties`. The band-name type is `BandName`; its constants keep their `Band…` names and string values. Prose says "penalty lines". (Superseded by Q59 0–100 weighted attribute scores.)
 - **Q37, score:** a build's 100 − points lost is its **score**: `StockCandidate.Score()`, a **Score** column in the stock table, `data-stock-cell="score"`, and the note says "score = 100 − points lost". The best builds are "best-scoring". (Superseded by Q59 0–100 weighted attribute scores.)
-- **Q38, free stays:** `FreeMin`/`FreeMax`, the "Free: …" preference note, and "free inside its range" keep the word *free*, meaning no penalty.
+- **Q38, free stays:** `FreeMin`/`FreeMax`, the "Free: …" preference note, and "free inside its range" keep the word *free*, meaning no penalty. (Superseded by Q59 0–100 weighted attribute scores.)
 - **Q39, scope:** reboot code, tests, templates, and all of this file. Rulings are reworded without changing their substance. AGENTS.md's legacy Architecture bullet on scores stays as it is, because it documents legacy code that still uses those words.
 - **Q40, enforcement:** `make boundary` bans the words `price`, `pricing`, `cost`, `cheap`, and `ledger` in the file names and contents of `cmd/bikegeo-reboot` and `internal/reboot`, like `chassis`. It matches in any case and inside longer words, so `prices`, `priced`, `PricedBand`, `CostPerR`, and `cheapest` are caught too. The list names whole words, not stems, so it reads plainly (revised 2026-11-19).
 
@@ -169,9 +179,9 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 - **Q46:** superseded by Q47 (it put a budget table on `/bike`).
 - **Q47, a data check, not a readout:** the closure budget validates fixture data and is not shown to users. `web.NewHandler` runs `assembly.CheckChartClosure` on the fixture chart once and panics if a check fails. The `/bike` "0° Closure Residuals" readout and `ChartBaseline.Residuals` are removed.
 
-### Focus redirect: web compare parity, Go catalogs, and 0–100 weighted scoring (Q48–Q60, ruled 2026-11-20)
+### Focus redirect: web compare parity, Go catalogs, and 0–100 weighted scoring (Q48–Q64, ruled 2026-11-20)
 
-- **Q48, drop trace introspection, stem preview, and JS:** remove `pose.Trace`, `pose.Step`, `PoseSnapshot`, and unused `label` parameters from `pose` and `assembly`. Delete the `/` stem preview (`stem.html`), `trace_steps.html`, the Construction Trace table, step inspector, SVG trace/local-axis overlays, `workbench.js`, `workbench_test.js`, and `make test-js`. Keep `/bike` as a pure Web 1.0 page with form controls, numerical readouts, fitting/stock-fitting tables, and a clean schematic SVG (`view=bike|seat|stem`).
+- **Q48, drop trace introspection, stem preview, and JS:** remove `pose.Trace`, `pose.Step`, `PoseSnapshot`, and unused `label` parameters from `pose` and `assembly`. Short inline comments must replace dropped `Pose` `label` strings wherever a turn or advance is not self-evident, preserving Requirement (a) code readability. Delete the `/` stem preview (`stem.html`), `trace_steps.html`, the Construction Trace table, step inspector, SVG trace/local-axis overlays, `workbench.js`, `workbench_test.js`, and `make test-js`. Keep `/bike` as a pure Web 1.0 page with form controls, numerical readouts, fitting/stock-fitting tables, and a clean schematic SVG (`view=bike|seat|stem`).
 - **Q49, drop MCP:** remove MCP server work permanently from the reboot scope.
 - **Q49a, agent/debug CLI via JSON:** do not build a duplicated Markdown CLI table renderer, `report.Document` abstraction, or `+spec`/`-spec` CLI grammar. Expose thin CLI JSON output (`encoding/json` directly over internal Go result structs) as an agent-friendly and debug surface, not a versioned external schema with bespoke JSON adapters.
 - **Q50, Go-struct catalogs, cut persistence and chart-solver UI:** cut file-based catalog persistence (old Q4) and the chart-reconstruction solver UI. Port the 19 legacy frames (119 sizes), 22 forks, 15 handlebars, 4 seatposts, and SQlab 610 saddle as Go structs in `internal/reboot/catalog/`, validated by `assembly.CheckChartClosure` in `go test`. Keep the legacy `bikegeo fit` CLI for occasional new-frame ingestion until cutover.
@@ -184,9 +194,9 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
   - Use web form controls only (drop CLI `+spec`/`-spec` query grammar from the web URL surface).
   - Cut legacy secondary web pages (`/frames`, `/saddles`, `/saddle-swap`, `/handlebars`, `/validate`, `/help`) and the 5-stage arithmetic breakdown.
   - Each row links to `/bike?...` so visual comparison uses separate browser tabs rather than side-by-side or overlayed SVG views.
-- **Q53, default fit targets:** default `/` and `/bike` to Matt's idmatch targets (`BRP (-219, 713.1)`, `HandGrip (481, 726)`), editable in the form and URL (with a clear-targets option on `/bike` for manual mode), and carried in every compare row's `/bike` link.
+- **Q53, default fit targets:** Matt confirmed (2026-11-20; see `docs/RIDER_FIT.md` and Q64) that the idmatch report's `(481, 726)` handlebar coordinate represents the physical **HandGrip** position. Default `/` and `/bike` to `BRP (-219, 713.1)` and `HandGrip (481, 726)`, editable in the form and URL (with a clear-targets option on `/bike` for manual mode), and carried in every compare row's `/bike` link.
 - **Q54, pure Web 1.0 (no HTMX now):** zero JavaScript and no vendored HTMX for now. Revisit vendoring single-file HTMX only if full-page `GET` forms feel clunky in daily use; the full-page `GET` route structure leaves that option open without architectural churn.
-- **Q55, multi-frame attribute set and ideal ranges:** established the multi-frame attributes and ideal ranges (rate details superseded by Q59/Q59a's `0–100` weighted scoring; the attribute set and ideal ranges carry forward into Q59a).
+- **Q55:** superseded by Q59 and Q59a (the multi-frame attribute set and ideal ranges moved into Q59a's 0–100 weighted table).
 - **Q56, handlebar and fork search on `/`:** default `/` to the selected handlebar (`persuader20_800`) with a `Selected handlebar only` / `All 15 handlebars` toggle. Each frame expands its declared sizes × supported forks (rigid at `0%` sag; suspension at `15`, `20`, and `25%` sag).
 - **Q57, 19-frame chart closure:** skip the wheelbase check in `assembly.CheckChartClosure` when `PublishedWheelbaseMm == 0` (3 legacy frames omit wheelbase), and allow an optional documented A2C closure allowance with a mandatory `Reason` (verified strictly necessary by test) for `sklar-pbj` and `ritchey-ultra` (`0.5 mm` each), never nudging published chart values (extends Q45).
 - **Q58, stem catalog and composite `0–100` stem score:** populate candidate stems from `docs/reboot/stems.yaml` converted to Go structs in `internal/reboot/catalog/stems.go` (107 concrete `(length_mm, angle_deg)` stems across `40–120 mm`; `"+/-X"` expands to `−X°` and `+X°`, deduplicating overlapping signed angles at the same length by keeping the higher-availability tier). Each stem receives a single composite `0–100` weighted score from 4 sub-attributes (weights summing to `100`):
@@ -194,16 +204,20 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
   - **Angle availability (weight 30):** `dominant = 100`, `common = 80`, `niche = 0`.
   - **Length breathing room (weight 20):** `100 × clamp(min(L − 40, 100 − L) / 20, 0, 1)` against mainstream lengths `40–100 mm` (`60–80 mm = 100`, `50/90 = 50`, `40/100+ = 0`).
   - **Angle breathing room (weight 15):** `100 × clamp(min(α − minMs(L), maxMs(L) − α) / 10, 0, 1)` against the mainstream (`dominant`/`common`) angle span `[minMs(L), maxMs(L)]` at length `L`.
-- **Q59, `0–100` weighted attribute scoring (supersedes Q35–Q37, Q55 rates):** every attribute scores `0–100` on its own natural scale (linear ramp between its `100` zone and `0` anchor, clamped to `[0, 100]`), and a build's overall score (`0–100`) is `Σ(weight × score) / Σ(weight)`. Rigid forks score `100` on `Fork sag` so `Σ weight` stays constant across builds and a rigid fork equals `20%` sag.
-- **Q59a, fit gate and 12 scoring attributes (total weight 36):**
-  - **Fit gate (3 active-target criteria):** `HandGrip R ≤ 1.0`, `|ΔY_BRP| ≤ 2.0 mm`, and `|ΔX_BRP| ≤ 10.0 mm`. Both `compare` and `ApplyStockFitting` rank `Fits = true` strictly above `Fits = false`, then sort by descending `Score` (tie-breaking smaller `GripR`, then smaller BRP miss). Inside `ApplyStockFitting`, if no candidate passes BRP (for example Fenrir with a `0 mm` seatpost), builds passing `R ≤ 1.0` still rank ahead of `R > 1.0`; if none reach `R ≤ 1.0`, smallest `GripR` ranks first so clamping never sacrifices fit for a nicer stem.
+  - Confirmed intentional (2026-11-20) that at `40–50 mm` the mainstream angle span is `±6°`, so `±6°` stems score `0` on the 15%-weighted angle-room sub-score (`40 mm ±6° = 59.0`, `50 mm ±6° = 69.0`) and `0°` scores `60` (`40 mm 0° = 74.0`, `50 mm 0° = 84.0`).
+- **Q59, `0–100` weighted attribute scoring (supersedes Q35–Q38, Q55):** every attribute scores `0–100` on its own natural scale, and a build's overall score (`0–100`) is `Σ(weight × score) / Σ(weight)`:
+  - The **3 fit-gate attributes** (`HandGrip`, `Saddle BRP Y`, `Saddle BRP X`) use **two-segment piecewise linear curves** (`100` ideal zone → gate-edge score at the fit gate → `0` worst anchor, clamped to `[0, 100]`).
+  - The **8 non-fit range attributes** use a **single linear ramp** (`100` inside the ideal range → `0` at the worst anchor, clamped to `[0, 100]`).
+  - **Stem** uses the Q58 composite `0–100` score.
+  - Rigid forks score `100` on `Fork sag` so `Σ weight` stays constant across builds and a rigid fork matches `20%` sag.
+- **Q59a, 12 scoring attributes and fit-gate thresholds (total weight 36):** both `compare` and `ApplyStockFitting` rank candidates using Q61's unified 3-tier order (`FitsAll` → `FitsGrip` → `R > 1.0`).
 
 | Attribute | Fit Gate | Weight | `100` (Ideal) | Gate-edge score | `0` (Worst anchor) |
 | --- | --- | ---: | --- | --- | --- |
 | HandGrip (`R`) | `R ≤ 1.0` | 6 | `R = 0` | `90` at `R = 1.0` *(light inside-oval slope)* | `0` at `R ≥ 2.0` *(steep outside slope)* |
 | Saddle BRP Y (height) | `|ΔY| ≤ 2.0 mm` | 6 | `|ΔY| ≤ 0.5 mm` | `50` at `|ΔY| = 2.0 mm` | `0` at `|ΔY| ≥ 4.0 mm` |
 | Saddle BRP X (setback) | `|ΔX| ≤ 10.0 mm` | 4 | `|ΔX| ≤ 1.0 mm` | `50` at `|ΔX| = 10.0 mm` | `0` at `|ΔX| ≥ 20.0 mm` |
-| Stem (Q58 composite) | No | 5 | `70–80 mm, 0°/±6°/±7°` (`100`) | — | `120 mm +30°` (`0`) |
+| Stem (Q58 composite) | No | 5 | `70 mm 0°/±6°/±7°, 80 mm ±6°/±7°` (`100`) | — | `120 mm −20° / ±30°` (`0`) |
 | Handlebar sweep | No | 3 | `16°–20°` | — | `≤ 10°` or `≥ 26°` |
 | Fork sag | No | 3 | `20%` (or rigid = `100`) | — | `≤ 10%` or `≥ 30%` |
 | Spacers | No | 2 | `0–20 mm` | — | `≥ 40 mm` |
@@ -214,6 +228,17 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 | Trail | No | 1 | `98–106 mm` | — | `≤ 78 mm` or `≥ 126 mm` |
 
 - **Q60, height-first rail clamping (and deferred radial-height follow-up):** when BRP is reachable, `fitSaddle` hits exact `(X, Y)`. When rails hit `±railLimit`, `fitSaddle` solves `Seatpost.ExtensionMm` to preserve exact `target.Y` (clamped to `[MinExtensionMm, MaxExtensionMm]`) so rail-limit shortfall lands purely on `ΔX`, and `|ΔY| > 0` occurs only when extension limits bind. **Recorded follow-up (deferred):** preserving `target.Y` approximates the true biomechanical invariant — matching radial BB-to-saddle distance (`|BRP − BB|`) within ~`1 mm` while allowing a small `X` setback range. Revisit after `compare` parity if radial-distance-constrained saddle fitting is needed.
+- **Q61, unified 3-tier ranking comparator and page tier legend:** both `ApplyStockFitting` and `compare` use one shared 3-tier total order so a frame's champion selection and cross-frame ranking never disagree:
+  1. **Tier 1 (`FitsAll`):** passes all active fit gates (`R ≤ 1.0`, `|ΔY| ≤ 2.0 mm`, `|ΔX| ≤ 10.0 mm`) → sort by descending `Score` (tie-break smaller `GripR`, smaller `|ΔY|`, smaller `|ΔX|`).
+  2. **Tier 2 (`FitsGrip`):** passes `R ≤ 1.0` but misses BRP → sort by descending `Score` (tie-break smaller `|ΔY|`, smaller `|ΔX|`, smaller `GripR`).
+  3. **Tier 3 (`R > 1.0`):** full sort by ascending `GripR` (closest to the oval), tie-break descending `Score`, smaller `|ΔY|`, smaller `|ΔX|`.
+  Both `/` compare and `/bike`'s stock table must clearly indicate each row's fit tier in the table and include a readable definition of all three tiers on the page.
+- **Q62, default seatpost:** `/` compare and `/bike` default to `redshift_shockstop_pro` (`12 mm` setback when sagged; see Q28 and `docs/RIDER_FIT.md`, noting extension limits and clamp length remain illustrative until measured). Users can switch to `setback_0`, `setback_15`, or `setback_25` via the form and URL.
+- **Q63, cleared or partial fit targets on `/bike`:**
+  - Both targets cleared: manual inspection only (no fitting, no score table).
+  - HandGrip only (no BRP target): omit `Saddle BRP Y` (weight `6`) and `Saddle BRP X` (weight `4`) from both the fit gate and the weighted average (denominator becomes `26` over the remaining 10 attributes).
+  - BRP only (no HandGrip target): continuous saddle fitting runs; stock cockpit fitting and scoring do not run.
+- **Q64, confirmed HandGrip reference and Q58 40–50 mm behavior:** Matt confirmed (2026-11-20) that the idmatch report's `(481, 726)` handlebar coordinate represents the physical **HandGrip** location (recorded in `Q53` and `docs/RIDER_FIT.md`), and confirmed `Q58`'s `40–50 mm` mainstream `±6°` angle-room scoring behavior.
 
 ## Run and inspect
 
@@ -226,12 +251,13 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 cmd/bikegeo-reboot/       entrypoint; `serve` on port 8081 (and JSON CLI in Slice 15)
 internal/reboot/pose/     poses, units, primitives
 internal/reboot/assembly/ component setups, placements, fitting, scoring, chart closure
-internal/reboot/catalog/  (Slice 12) 19 frames, 22 forks, 107 stems, 15 bars, 4 seatposts, SQlab 610, defaults
-internal/reboot/compare/  (Slice 13) multi-frame expansion, fitting, ranking, pruning
+internal/reboot/catalog/  (Slice 12; stems.go in Slice 13b) 19 frames, 22 forks, 107 stems, 15 bars, 4 seatposts, SQlab 610, default targets/weights
+internal/reboot/compare/  (Slice 13c) multi-frame expansion, fitting, ranking, pruning
 internal/reboot/web/      pure Web 1.0 handlers, HTML/SVG views, embedded templates (no JS)
 ```
 
-- Dependencies flow `cmd → web → compare → catalog → assembly → pose` (with `web` also calling `catalog`, `assembly`, and `pose`; `assembly` never imports `catalog`).
+- Dependencies flow `cmd → {web, compare, catalog}`, `web → {compare, catalog, assembly, pose}`, `compare → {assembly, pose}`, `catalog → {assembly, pose}`, `assembly → pose`. Neither `assembly` nor `compare` imports `catalog`; callers pass catalog slices as explicit arguments so both packages stay unit-testable with small fixtures.
+- Add packages only when a slice needs them. Keep each component's setup and placement types with its assembly code; don't rebuild a catch-all `model` package.
 - `make boundary` enforces the import isolation and the banned-term rule described in AGENTS.md.
 - To reuse legacy code, read, audit, and port only what's needed. Never wrap an old implementation under a new name. Small duplicated primitives are acceptable; a shared package created just to avoid duplication is not. A parity test must explain differences, not assume the old result is right.
 - Label catalog and fixture values as measured, catalog, or illustrative. Never present an invented outline as manufacturer truth.
@@ -252,10 +278,12 @@ internal/reboot/web/      pure Web 1.0 handlers, HTML/SVG views, embedded templa
    - **Later:** roll enumeration is not planned (Q24).
 3. **Web `compare` parity and `0–100` weighted scoring (b, c, d, e):**
    - **Slice 10, chart closure check (done and accepted 2026-11-19; commits `8b91fb1`, `2626d1f`):** `FrameChart` declares a `ChartPrecision`, and `assembly.CheckChartClosure` holds the axle height and wheelbase residuals to their rounding budgets (Q43–Q45). `web.NewHandler` runs it once and panics on failure, and the `/bike` residual readout goes away (Q47).
-   - **Slice 11, strip trace introspection, stem preview, and JS (planned next; Q48, Q54):** remove `pose.Trace`/`Step`/`PoseSnapshot` and unused `label` args; delete `stem.html`, `trace_steps.html`, Construction Trace table, step inspector, SVG trace/local-axis overlays, `workbench.js`, `workbench_test.js`, and `make test-js`; redirect `/` to `/bike` until Slice 14; update `AGENTS.md`'s reboot web bullet.
-   - **Slice 12, Go catalogs and 19-frame chart closure (Q50, Q57, Q58):** extend `assembly.CheckChartClosure` for unpublished wheelbases (`0`) and documented A2C allowances (`Reason` required, verified necessary by test); add `internal/reboot/catalog/` porting all 19 legacy frames (119 sizes, sliding-dropout ranges, precisions), 22 forks, 107 stems from `docs/reboot/stems.yaml`, 15 handlebars, 4 seatposts, SQlab 610 saddle, and default idmatch targets/weights; validate every frame size in `go test`; wire `/bike` to `catalog` and delete `web/fixture.go`.
-   - **Slice 13, comparison metrics, `0–100` weighted scoring, height-first saddle clamp, and `compare` engine (Q51, Q52, Q55–Q60):** add leveled Reach, Stack, Trail, Rear Center, RC/WB %, and ETT methods on placements; update `fitSaddle` to height-first rail clamping (Q60); replace `PenaltyBand` with the `0–100` weighted 12-attribute scoring model, composite stem score (Q58), and 3-criterion fit gate (Q59, Q59a) in `assembly`, hoisting frameset + saddle placement outside the inner cockpit loop; add `internal/reboot/compare/` for all-frames and custom frame/size/fork/sag comparison (max chainstay on sliding dropouts, selected or all 15 handlebars, fit-gate-first ranking, `top-per-frame` / `top` pruning).
-   - **Slice 14, web `/` compare page and multi-frame `/bike` (Q52, Q53, Q54):** make `/bike` accept `frame` and `size` from `catalog` and default to Matt's idmatch targets (with a clear-targets option); make `/` the pure Web 1.0 comparison page (default "All 19 frames, best config each", custom frame/size/fork/sag form controls, seatpost/handlebar/target controls, one-row-per-bike ranked table + attribute score breakdown, every row linking to `/bike?...`).
+   - **Slice 11, strip trace introspection, stem preview, and JS (planned next; Q48, Q54):** remove `pose.Trace`/`Step`/`PoseSnapshot` and unused `label` args (adding short inline comments where a turn or advance isn't self-evident); delete `stem.html`, `trace_steps.html`, Construction Trace table, step inspector, SVG trace/local-axis overlays, `workbench.js`, `workbench_test.js`, `.node-version`, `test-js` from `Makefile` (including removing `test-js` from `check:`), and the `Set up Node` / `Test JS` steps from `.github/workflows/test.yml`; redirect `/` to `/bike` until Slice 14; update `AGENTS.md`'s **Verification** and **Reboot Tree → Web** bullets.
+   - **Slice 12, Go catalogs and 19-frame chart closure (Q50, Q57):** extend `assembly.CheckChartClosure` for unpublished wheelbases (`0`) and documented A2C allowances (`Reason` required, verified necessary by test); add `internal/reboot/catalog/` porting all 19 legacy frames (119 sizes, sliding-dropout ranges, precisions), 22 forks, 15 handlebars, 4 seatposts, SQlab 610 saddle, and default idmatch targets (only adding catalog functions called from `main`, with `web.NewHandler` running `assembly.CheckChartClosure` across `catalog.Frames()` at startup so every commit passes `make deadcode`); wire `/bike` to `catalog`, delete `internal/reboot/web/fixture.go`, and update `AGENTS.md`'s **Fixture** bullet.
+   - **Slice 13a, height-first saddle clamping and placement comparison metrics (Q60):** update `fitSaddle` to preserve `target.Y` when rails clamp (updating clamped-limit tests), and add derived placement methods (`LeveledReachMm`, `LeveledStackMm`, `TrailMm`, `RearCenterMm`, `RcWbRatioPct`, `EttMm`).
+   - **Slice 13b, `stems.yaml` catalog, `0–100` weighted scoring, and 3-tier fit gate (Q58, Q59, Q59a, Q61, Q63):** add `internal/reboot/catalog/stems.go` (107 stems from `docs/reboot/stems.yaml` + composite `0–100` stem score) and default attribute weights; replace `PenaltyBand` with the 12-attribute `0–100` weighted scoring model (two-segment piecewise curves on the 3 fit attributes, single linear ramps on the 8 range attributes) and shared 3-tier comparator in `assembly`; hoist frameset + saddle placement outside the inner cockpit loop; support cleared/partial targets (Q63); update `/bike`'s stock table to display `0–100` scores, clear tier badges/column, and a readable on-page definition of the three tiers.
+   - **Slice 13c, multi-frame `compare` engine (Q51, Q52, Q56, Q61):** add `internal/reboot/compare/` accepting catalog slices as arguments (never importing `catalog`); expand all-frames or custom `(frame, size, fork, sag)` selections using max chainstay on sliding dropouts, fit with selected bar or all 15 bars, rank with the shared 3-tier comparator, and prune (`top-per-frame`, `top`).
+   - **Slice 14, web `/` compare page and multi-frame `/bike` (Q52, Q53, Q54, Q61, Q62, Q63):** make `/bike` accept `frame` and `size` from `catalog`, default both `/` and `/bike` to Matt's idmatch targets (Q53) and `redshift_shockstop_pro` (Q62), and add a clear-targets option on `/bike` (Q63); make `/` the pure Web 1.0 comparison page (default "All 19 frames, best config each", custom frame/size/fork/sag form controls, seatpost/handlebar/target controls, one-row-per-bike ranked table with clear 3-tier badges and on-page tier legend per Q61, plus attribute score breakdown, every row linking to `/bike?...`).
    - **Slice 15, agent/debug JSON CLI output (Q49a):** add thin CLI subcommands (`bikegeo-reboot compare --json`, `bikegeo-reboot bike --json`, or similar) serializing the internal Go result structs directly via `encoding/json`, with `MarshalJSON` on `pose.Pose` if needed.
 
 ## Deferred follow-ups
