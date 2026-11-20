@@ -1,6 +1,27 @@
 # Slice 12a — Physical headset, seatpost and saddle on the Fenrir
 
-Status: Planned 2026-11-20
+Status: Implemented 2026-11-20; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-20, Claude Sonnet 5.5.
+- **Commits:** all three planned commits are made on `reboot`, each passing `make pre-commit` on its own.
+  - H, `Validate fork and headset pairings on the Fenrir` — `e5b3af5`.
+  - P, `Fit and display seatpost insertion within frame and post limits` — `083e0a3`.
+  - S, `Place the SQlab saddle landmarks above the rail cradle` — `4360b44`.
+- **Done and not done:** H1–H5, P1–P5 and S1–S4 are done. The live check is done except for one item listed under Open issues.
+- **Deviations:**
+  - The frame's default cup is checked in `validateFrameGeometry` (through `validateDefaultLowerCup`), so every path that validates a frame also checks it. The plan named only the headset pairing check.
+  - `forkOption.DefaultLowerCup` stays as a resolved field. The Fenrir options fill it from `Chart.Frame.DefaultLowerCup`, and the synthetic ZS44/EC44 test still supplies per-pair cups through `makeForkOption`. The plan said the frame default is the source, and it is, but the field was not removed.
+  - The seat outline component keeps its `data-component="seatpost-clamp"` name. Only the landmark, struct field and diagram label were renamed to `RailCradle`.
+  - Most reference-value assertions that predate P still read exposed length (`Seatpost.ExposedMm()`), because the old numbers were exposures and still hold. New assertions use insertion directly.
+  - Added small public helpers the plan did not name: `SeatpostSpec.Validate`, `SeatpostSetup.ExposedMm`, `postInsertionBounds` in the web package (zero on error), and the `post-exposed` readout.
+  - The `PlaceStem` rejection of `MaxSpacersMm > 30` is an untyped error, like the other configuration errors there.
+- **Verification:** `make pre-commit` exits 0 on the final state. Every independent reference value in the plan reproduced without adjustment: the fitting table, the 25 mm post, the Redshift forward-limit and generic upper-limit regressions, the stock fork table, all stock scores (−20.4, −22.2, −28.1 and the −14.4 and −3.3 families), and the Q92 heights (746.000 unpitched, 746.008 CAD, 745.619 Lithic, BRP (−155.065, 729.317)). Live check with `make serve-reboot`: the default page shows 745.6 mm and the CAD preset 746.0 mm radial BRP height. Redshift with `post_insert=275` returns 400 and `post_insert=250` returns 200. The first stock Apply link is SID 20%, `post_insert=183.5237`, `rail_offset=15.0`, score −20.4. The seat view at `rail_pitch=10` shows the rail clearly below the profile and no clipped labels. The screenshot is at `/Users/matt/.claude/projects/-Users-matt-src-bikegeo/cb3a04f6-449b-47a8-b73f-f6367b0e2c13/tool-results/mcp-Claude_Browser-blob-1795212131961-3083jc.jpg` (not in the repo).
+- **Open issues:**
+  - The plan gives no independent values for the readouts that changed with the raised BRP: `brp-grip-dist` (544.9 mm default, 562.0 mm with the 3OX 12°/15 bar), `sitbones-grip-rise` (+3.3 mm on that bar), the 25 mm-post setback notes at (−189, 713.1) (rail +12.5, centered setback 37.0 mm at 187.3 mm insertion), the Redshift centered insertion (104.1 mm), and the seat-view `viewBox`. Those test values were taken from the app after the BRP landmark itself was confirmed against Q92. Matt may want an independent probe for them.
+  - With centered rails, `RailCradle` and `RailCenter` sit at the same point, so their labels overlap in the seat view. This predates the slice.
+  - The seat-view screenshot lives in the session's tool-results directory, not the repo. Matt can regenerate it with `make serve-reboot` and `/bike?view=seat&rail_pitch=10`.
 
 A **Bike** is the full assembly in a particular configuration. `BikeSetup` specifies the components and their settings. `PlaceBike` returns a `BikePlacement` only when the components can be installed together. The lower headset cup must fit the frame’s head-tube bore and the installed fork’s steerer. Seatpost insertion must fall within the limits of both the frame and the post. The stem may have up to 30 mm of spacers between the upper headset cover and the stem clamp (Q82). Stock fitting tries 0 through 30 mm in 5 mm steps.
 
