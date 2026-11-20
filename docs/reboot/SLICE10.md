@@ -1,6 +1,21 @@
 # M3 Slice 10, chart closure check
 
-**Status: Planned 2026-11-19 from Matt's rulings Q41–Q47 ([DESIGN.md](DESIGN.md), "Chart closure check"). Not started.** Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. Slice numbers keep counting across milestones, so this is the first M3 slice. It builds on Slice 1's frameset recipe (`PlaceCadBaselineFork`) and on nothing from Slices 2–9.
+**Status: Implemented 2026-11-19; awaiting Matt's acceptance.** Read [AGENTS.md](../../AGENTS.md) and [DESIGN.md](DESIGN.md) first. They override anything here that disagrees. Slice numbers keep counting across milestones, so this is the first M3 slice. It builds on Slice 1's frameset recipe (`PlaceCadBaselineFork`) and on nothing from Slices 2–9.
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-19, Gemini 4 Hydrogen (Medium).
+- **Commits:**
+  - `8b91fb1` — `Check the reboot fixture chart closure against its rounding budget at startup`
+  - `2626d1f` — `Drop the reboot closure residual readout`
+- **Done and not done:** Done: A1–A6, R1–R5, startup probe, live check, and handoff. Not done: none.
+- **Deviations:** None.
+- **Verification:**
+  - `go vet ./... && go test ./...` and `make pre-commit` passed cleanly after both commits (all Go tests and 21/21 JS tests passed; `go fix` made no changes).
+  - `grep -rn "Residuals\|ResidualAxle\|ResidualWheelbase\|Closure Residuals" internal/reboot` returned only `chart_closure.go` (`residuals`) and the negative assertion in `web_test.go`.
+  - Startup probe (`StackMm = 644.0`) panicked as expected: `panic: fixture "Otso Fenrir Stainless (2024, Size L)" chart: chart closure: axle height residual +2.22 mm exceeds its ±2.09 mm rounding budget (Stack 0.50 mm, HTA 0.62 mm, HTL 0.46 mm, BB drop 0.50 mm)`. Reverted and confirmed `git diff internal/reboot/web/fixture.go` is empty.
+  - Live check (`make serve-reboot`, `http://127.0.0.1:8081/bike`): confirmed `CAD Baseline Fork (495 mm / 54 mm / 0 mm cup): 68.26° HTA, 1157.7 mm WB (Published 1158.0 mm)` and `ΔPitch vs CAD: +0.55°`, and confirmed no `"0° Closure Residuals"` text appears on the page. Screenshot saved at `/Users/matt/.gemini/antigravity/brain/4e14beb9-16ab-4f95-ad70-6c0d5f45ff22/scratch/slice10_summary.png`.
+- **Open issues:** None.
 
 This slice has two commits and touches 8 code, test, and template files, so per DESIGN.md "Slice planning" it is written so a less capable model (for example Sonnet) can implement it without making design choices. **Delegate it.** If something here seems wrong or missing, stop and ask Matt rather than choosing.
 
