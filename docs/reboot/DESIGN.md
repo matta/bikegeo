@@ -84,7 +84,7 @@ Test: if fitting would need the code without HTTP, it belongs in `assembly`.
 
 `placeFramesetAtPitch(frameRoot, frame, lowerCupMm, fork)` walks from `BB`: rear axle, then head tube top (reach, stack), then down the steerer by HTL, lower cup, and fork A2C, then rake at `+90°` to the front axle; separately, up the seat axis to `SeatTubeTop`.
 
-1. Run it at 0° and measure `PitchDeg = -RearAxle.AngleTo(FrontAxle)`. The same run on `FrameChart` values exposes the raw chart-closure residuals.
+1. Run it at 0° and measure `PitchDeg = -RearAxle.AngleTo(FrontAxle)`. The same run on `FrameChart` values gives the raw chart-closure residuals, which the startup closure check holds to the chart's rounding budget (Q47).
 2. Run it again rooted at `bb.Turn("frame pitch to level axles", PitchDeg)`. The axles come out level and every traced step uses real dimensions.
 
 Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so no closed-form pitch trig is needed.
@@ -159,6 +159,16 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 - **Q39, scope:** reboot code, tests, templates, and all of this file. Rulings are reworded without changing their substance. AGENTS.md's legacy Architecture bullet on scores stays as it is, because it documents legacy code that still uses those words.
 - **Q40, enforcement:** `make boundary` bans the words `price`, `pricing`, `cost`, `cheap`, and `ledger` in the file names and contents of `cmd/bikegeo-reboot` and `internal/reboot`, like `chassis`. It matches in any case and inside longer words, so `prices`, `priced`, `PricedBand`, `CostPerR`, and `cheapest` are caught too. The list names whole words, not stems, so it reads plainly (revised 2026-11-19).
 
+### Chart closure check (Q41–Q47, ruled 2026-11-19)
+
+- **Q41, next slice:** M3 starts with a chart closure check for the Fenrir fixture chart (Slice 10).
+- **Q42, M2 closed:** Milestone 2 is done and accepted. Roll enumeration stays not planned (Q24).
+- **Q43, declared precision:** each `FrameChart` declares the rounding half-width of every published column the closure checks read, as a `ChartPrecision`, labelled in the fixture like other values. There is no inference code. The Fenrir uses ±0.5 mm for lengths and ±0.125° for HTA (a quarter-degree grid), marked illustrative.
+- **Q44, fork and cup are hypotheses:** the CAD fork's A2C and rake and the CAD lower cup get no rounding terms. Only frame chart columns do: reach, stack, HTA, HTL, BB drop, chainstay, and wheelbase.
+- **Q45, method:** port the legacy budget. Move each column by ± its half-width, rerun the unpitched frameset recipe forward (no closure equations restated), and take the larger change in the residual as that column's term. A check's rounding budget is the sum of its terms, and it passes when |residual| ≤ budget. There are no allowances or tiers.
+- **Q46:** superseded by Q47 (it put a budget table on `/bike`).
+- **Q47, a data check, not a readout:** the closure budget validates fixture data and is not shown to users. `web.NewHandler` runs `assembly.CheckChartClosure` on the fixture chart once and panics if a check fails. The `/bike` "0° Closure Residuals" readout and `ChartBaseline.Residuals` are removed.
+
 ## Run and inspect
 
 - `make serve-reboot` serves on :8081. `/` is the stem preview and `/bike` is the full bike. State lives in the URL query.
@@ -184,7 +194,7 @@ internal/reboot/web/      handlers, HTML/SVG, embedded CSS/JS, Otso Fenrir fixtu
 ## Milestones
 
 1. **One-bike visual workbench (a, b): done.** Accepted by Matt; tests cover trace on/off equivalence, independent geometric fixtures, and HTML/SVG step-ID correspondence in every view. Solver-free: the seatpost control edits `ExtensionMm` directly.
-2. **One-bike fitting (d):** explicit fit targets, hardware limits, and preference penalties. Produce candidate builds, check each with forward assembly, and open them in the workbench.
+2. **One-bike fitting (d): done and accepted 2026-11-19 (Q42).** Explicit fit targets, hardware limits, and preference penalties. Produce candidate builds, check each with forward assembly, and open them in the workbench.
    - **Slice 1, saddle fitting (done 2026-11-19):** fit `SeatpostSetup.ExtensionMm` and `SaddleSetup.RailOffsetMm` to a BRP target with a direct 2×2 solve (Q6). Rail pitch and post setback stay fixed inputs. Limits are the post's min/max extension and the rail clamp range from `RailLengthMm`. The result reports the fitted setups, the BRP actually reached, the miss in mm, and any limit hit, and keeps *reached*, *clamped at a limit*, and *invalid input* distinct. PlaceBike on the fitted setup must land BRP on the target (to 1e-9 mm when no limit binds). `pose` gains one operation that decomposes a vector along two headings. `/bike` gets a BRP target field and a plain-`GET` link to the fitted build. Tests: fit → place round trip, out-of-range target clamps to the right limit, trace on/off equivalence, the fit report's BRP (−219, 713.1). Out of scope: post setback choice, the front cockpit, preference penalties, other frames.
    - **Slice 2, front-cockpit fitting (done 2026-11-19):** fit `StemSetup.SpacersMm` and `LengthMm` to a HandGrip target with a continuous direct 2×2 solve (Q11–Q14). Stem angle and handlebar stay fixed inputs. Limits are `MaxSpacersMm` and the stem length range on `StemSetup`. The same `ApplyFitting` fits the saddle, the cockpit, or both, and `/bike` gets a HandGrip target and one apply link.
    - **Slice 3, stock cockpit fitting (done and accepted 2026-11-19):** choose stock stem lengths, stem angles, and spacer steps for a HandGrip target by enumerating every combination with PlaceBike, scoring each as 100 − points lost (Q17 oval plus stem length, stem angle, and spacer bands), and listing the 5 best-scoring with apply links (Q15–Q18). The saddle fit is unchanged and carried into every build. The handlebar stays fixed.
@@ -196,6 +206,7 @@ internal/reboot/web/      handlers, HTML/SVG, embedded CSS/JS, Otso Fenrir fixtu
    - **Slice 9, score-centered scoring words (done and accepted 2026-11-19; commits `bb704db`, `35b818d`, `b830a51`, `7b41ac4`):** rename the stock fitting identifiers to `PenaltyBand`, `PointsPerUnitBelow`/`PointsPerUnitAbove`, `PointsPerR`, `Penalty`, `Penalties`, `BandName`, and `Score()`; the stock table says Score and "best-scoring"; `make boundary` bans the old words in reboot files (Q35–Q40). No scoring values change.
    - **Later:** roll enumeration is not planned (Q24).
 3. **Chart reconstruction, catalog persistence, agent access (c):** keep the original observations and rounding budgets, evaluate fork/sag/cup hypotheses, show residuals and ambiguous explanations, and expose operations over MCP or the CLI.
+   - **Slice 10, chart closure check (planned 2026-11-19; [SLICE10.md](SLICE10.md)):** `FrameChart` declares a `ChartPrecision`, and `assembly.CheckChartClosure` holds the axle height and wheelbase residuals to their rounding budgets (Q43–Q45). `web.NewHandler` runs it once and panics on failure, and the `/bike` residual readout goes away (Q47).
 4. **Frame chooser (e):** run fitting across a catalog and report the best builds, coverage, and sensitivity.
 
 ## Open questions
