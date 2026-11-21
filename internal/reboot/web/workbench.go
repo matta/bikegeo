@@ -45,9 +45,9 @@ type bikeWorkbench struct {
 	DefaultForkID          string
 	Forks                  []forkOption
 	DefaultStem            assembly.StemSetup
-	CockpitStock           assembly.CockpitStock
+	PartOptions            assembly.PartOptions
 	ScoreWeights           assembly.ScoreWeights
-	StockSagPcts           []float64
+	SuspensionSagPcts      []float64
 	DefaultHandlebarID     string
 	Handlebars             []catalog.Handlebar
 	DefaultSeatpostID      string
@@ -95,34 +95,34 @@ func (w bikeWorkbench) resolveForkOption(requestedID string) (forkOption, bool) 
 	return forkOption{}, false
 }
 
-// stockForkOption is one fork configuration offered to stock fitting (Q31).
-type stockForkOption struct {
+// forkSagOption is one fork configuration offered to build fitting (Q31).
+type forkSagOption struct {
 	Option forkOption
 	SagPct float64
 }
 
-// stockForks returns the fork configurations stock fitting offers, in workbench
-// order: a rigid fork once at 0% sag, a suspension fork at each StockSagPcts.
-func (w bikeWorkbench) stockForks() []stockForkOption {
-	var offered []stockForkOption
+// forkOptions returns the fork configurations build fitting offers, in workbench
+// order: a rigid fork once at 0% sag, a suspension fork at each SuspensionSagPcts.
+func (w bikeWorkbench) forkOptions() []forkSagOption {
+	var offered []forkSagOption
 	for _, opt := range w.Forks {
 		if opt.Spec.TravelMm == 0 {
-			offered = append(offered, stockForkOption{Option: opt})
+			offered = append(offered, forkSagOption{Option: opt})
 			continue
 		}
-		for _, sag := range w.StockSagPcts {
-			offered = append(offered, stockForkOption{Option: opt, SagPct: sag})
+		for _, sag := range w.SuspensionSagPcts {
+			offered = append(offered, forkSagOption{Option: opt, SagPct: sag})
 		}
 	}
 	return offered
 }
 
-// stockForkSetups returns each offered configuration as an assembly.StockFork,
+// forkOptionSetups returns each offered configuration as an assembly.ForkOption,
 // in the same order: the option's catalog Spec, the sag, and its DefaultLowerCup.
-func stockForkSetups(offered []stockForkOption) []assembly.StockFork {
-	setups := make([]assembly.StockFork, len(offered))
+func forkOptionSetups(offered []forkSagOption) []assembly.ForkOption {
+	setups := make([]assembly.ForkOption, len(offered))
 	for i, opt := range offered {
-		setups[i] = assembly.StockFork{
+		setups[i] = assembly.ForkOption{
 			Fork:     assembly.ForkSetup{Spec: opt.Option.Spec, SagPct: opt.SagPct},
 			LowerCup: opt.Option.DefaultLowerCup,
 		}
@@ -182,8 +182,8 @@ func (w bikeWorkbench) validate() error {
 		st.MinLengthMm > 0 && st.MinLengthMm <= st.MaxLengthMm) {
 		return fmt.Errorf("workbench %q default stem length range must be finite with 0 < min <= max, got [%v, %v]", w.Name, st.MinLengthMm, st.MaxLengthMm)
 	}
-	if err := w.CockpitStock.Validate(); err != nil {
-		return fmt.Errorf("workbench %q cockpit stock invalid: %w", w.Name, err)
+	if err := w.PartOptions.Validate(); err != nil {
+		return fmt.Errorf("workbench %q part options invalid: %w", w.Name, err)
 	}
 	if err := w.ScoreWeights.Validate(); err != nil {
 		return fmt.Errorf("workbench %q score weights invalid: %w", w.Name, err)
@@ -224,12 +224,12 @@ func (w bikeWorkbench) validate() error {
 	if !defaultFound {
 		return fmt.Errorf("workbench %q DefaultForkID %q not found in Forks", w.Name, w.DefaultForkID)
 	}
-	if len(w.StockSagPcts) == 0 {
-		return fmt.Errorf("workbench %q missing StockSagPcts", w.Name)
+	if len(w.SuspensionSagPcts) == 0 {
+		return fmt.Errorf("workbench %q missing SuspensionSagPcts", w.Name)
 	}
-	for _, opt := range w.stockForks() {
+	for _, opt := range w.forkOptions() {
 		if err := (assembly.ForkSetup{Spec: opt.Option.Spec, SagPct: opt.SagPct}).Validate(); err != nil {
-			return fmt.Errorf("workbench %q stock fork %q at %v%% sag invalid: %w", w.Name, opt.Option.ID, opt.SagPct, err)
+			return fmt.Errorf("workbench %q fork option %q at %v%% sag invalid: %w", w.Name, opt.Option.ID, opt.SagPct, err)
 		}
 	}
 	if err := (assembly.ForkSetup{Spec: w.cadForkOption().Spec, SagPct: 0.0}).Validate(); err != nil {
@@ -334,12 +334,12 @@ func fenrirWorkbench() bikeWorkbench {
 			MinLengthMm:   40.0, // illustrative stem length range
 			MaxLengthMm:   130.0,
 		},
-		CockpitStock: assembly.CockpitStock{
-			Stems:        catalog.StockStems(),
+		PartOptions: assembly.PartOptions{
+			Stems:        catalog.StemOptions(),
 			SpacerStepMm: 5,
 		},
 		ScoreWeights:       catalog.DefaultScoreWeights(),
-		StockSagPcts:       catalog.SuspensionSagPcts(),
+		SuspensionSagPcts:  catalog.SuspensionSagPcts(),
 		DefaultHandlebarID: "persuader20_800",
 		Handlebars:         catalog.Handlebars(),
 		DefaultSeatpostID:  "setback_0",

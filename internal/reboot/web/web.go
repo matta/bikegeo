@@ -776,14 +776,14 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 			if resolved.State.AllStockBars {
 				offered = wb.Handlebars
 			}
-			var offeredForks []stockForkOption
+			var offeredForks []forkSagOption
 			if resolved.State.AllStockForks {
-				offeredForks = wb.stockForks()
+				offeredForks = wb.forkOptions()
 			}
-			stock := wb.CockpitStock
-			stock.Handlebars = handlebarSetups(offered)
-			stock.Forks = stockForkSetups(offeredForks)
-			result, err := assembly.ApplyStockFitting(resolved.Setup, target, stock, wb.ScoreWeights, stockCandidateLimit)
+			parts := wb.PartOptions
+			parts.Handlebars = handlebarSetups(offered)
+			parts.Forks = forkOptionSetups(offeredForks)
+			result, err := assembly.FitBuilds(resolved.Setup, target, parts, wb.ScoreWeights, stockCandidateLimit)
 			if err != nil {
 				renderBikeError(w, wb, resolved, bikeInputField(err), err.Error())
 				return
@@ -858,26 +858,26 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 	return fv
 }
 
-// buildStockFittingView renders stock fitting results. The offered bars and
-// forks are in the same order as CockpitStock.Handlebars and CockpitStock.Forks.
-func buildStockFittingView(state workbenchState, wb bikeWorkbench, offered []catalog.Handlebar, offeredForks []stockForkOption, stock assembly.StockFitting) (*stockFittingView, error) {
+// buildStockFittingView renders ranked builds. The offered bars and
+// forks are in the same order as PartOptions.Handlebars and PartOptions.Forks.
+func buildStockFittingView(state workbenchState, wb bikeWorkbench, offered []catalog.Handlebar, offeredForks []forkSagOption, ranking assembly.BuildRanking) (*stockFittingView, error) {
 	view := &stockFittingView{
 		AllForks:         state.AllStockForks,
 		HasBrp:           state.Targets.HasBrp,
 		ActiveWeight:     wb.ScoreWeights.ActiveTotal(state.Targets.HasBrp),
 		PartsText:        stockPartsText(state.AllStockForks, state.AllStockBars),
-		Evaluated:        stock.Evaluated,
+		Evaluated:        ranking.Evaluated,
 		AttributeHeaders: stockAttributeHeaders(wb.ScoreWeights),
 		TierLegend:       fitTierLegend(),
-		Rows:             make([]stockCandidateView, 0, len(stock.Candidates)),
+		Rows:             make([]stockCandidateView, 0, len(ranking.Builds)),
 	}
 	submittedBar, _ := wb.resolveHandlebar(state.BarID)
 	submittedFork, _ := wb.resolveForkOption(state.ForkID)
-	for i, c := range stock.Candidates {
+	for i, c := range ranking.Builds {
 		stem := c.Placement.Setup.Stem
 		applied := state.withSetup(c.Placement.Setup)
 		bar := submittedBar
-		if c.StockHandlebar {
+		if c.HasHandlebarOption {
 			if c.HandlebarIndex < 0 || c.HandlebarIndex >= len(offered) {
 				return nil, fmt.Errorf("stock candidate %d names handlebar %d of %d offered", i+1, c.HandlebarIndex, len(offered))
 			}
@@ -885,7 +885,7 @@ func buildStockFittingView(state workbenchState, wb bikeWorkbench, offered []cat
 			applied.BarID = bar.ID
 		}
 		fork := submittedFork
-		if c.StockFork {
+		if c.HasForkOption {
 			if c.ForkIndex < 0 || c.ForkIndex >= len(offeredForks) {
 				return nil, fmt.Errorf("stock candidate %d names fork %d of %d offered", i+1, c.ForkIndex, len(offeredForks))
 			}
@@ -1043,7 +1043,7 @@ func renderBikeError(w http.ResponseWriter, wb bikeWorkbench, resolved bikeResol
 		PostClampLengthMm:  resolved.Setup.Seatpost.Spec.RailClampLengthMm,
 		BikeName:           wb.Name,
 		Forks:              wb.Forks,
-		StockForkCount:     len(wb.stockForks()),
+		StockForkCount:     len(wb.forkOptions()),
 		CadForkOption:      wb.cadForkOption(),
 		SelectedForkID:     resolved.State.ForkID,
 		Handlebars:         wb.Handlebars,
@@ -1630,7 +1630,7 @@ func buildBikeView(
 		SaddleName:           wb.SaddleName,
 		HandlebarName:        selectedBar.Name,
 		Forks:                wb.Forks,
-		StockForkCount:       len(wb.stockForks()),
+		StockForkCount:       len(wb.forkOptions()),
 		CadForkOption:        wb.cadForkOption(),
 		SelectedForkID:       forkID,
 		Handlebars:           wb.Handlebars,

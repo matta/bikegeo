@@ -96,14 +96,14 @@ func TestScoreWeightsValidation(t *testing.T) {
 	}
 }
 
-func TestStockStemValidation(t *testing.T) {
-	for _, s := range []assembly.StockStem{{LengthMm: 70, AngleDeg: 0, Score: 100}, {LengthMm: 120, AngleDeg: -30, Score: 0}} {
+func TestStemOptionValidation(t *testing.T) {
+	for _, s := range []assembly.StemOption{{LengthMm: 70, AngleDeg: 0, Score: 100}, {LengthMm: 120, AngleDeg: -30, Score: 0}} {
 		if err := s.Validate(); err != nil {
 			t.Errorf("%+v: %v", s, err)
 		}
 	}
 	nan, inf := math.NaN(), math.Inf(1)
-	for _, s := range []assembly.StockStem{
+	for _, s := range []assembly.StemOption{
 		{LengthMm: 0, Score: 50}, {LengthMm: -10, Score: 50}, {LengthMm: nan, Score: 50}, {LengthMm: inf, Score: 50},
 		{LengthMm: 70, AngleDeg: pose.Deg(nan), Score: 50}, {LengthMm: 70, AngleDeg: pose.Deg(math.Inf(-1)), Score: 50},
 		{LengthMm: 70, Score: -0.1}, {LengthMm: 70, Score: 100.1}, {LengthMm: 70, Score: nan}, {LengthMm: 70, Score: inf},

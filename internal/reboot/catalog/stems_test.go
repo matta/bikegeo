@@ -245,18 +245,18 @@ func TestStemsDedupKeepsHigherTier(t *testing.T) {
 	}
 }
 
-func TestStockStems(t *testing.T) {
+func TestStemOptions(t *testing.T) {
 	stems := catalog.Stems()
-	stock := catalog.StockStems()
-	if len(stock) != 107 || len(stock) != len(stems) {
-		t.Fatalf("StockStems = %d, Stems = %d, want 107", len(stock), len(stems))
+	options := catalog.StemOptions()
+	if len(options) != 107 || len(options) != len(stems) {
+		t.Fatalf("StemOptions = %d, Stems = %d, want 107", len(options), len(stems))
 	}
-	for i, s := range stock {
+	for i, s := range options {
 		if s.LengthMm != stems[i].LengthMm || s.AngleDeg != stems[i].AngleDeg || s.Score != stems[i].Score {
-			t.Errorf("stock stem %d = %+v, want %+v", i, s, stems[i])
+			t.Errorf("stem option %d = %+v, want %+v", i, s, stems[i])
 		}
 		if err := s.Validate(); err != nil {
-			t.Errorf("stock stem %d: %v", i, err)
+			t.Errorf("stem option %d: %v", i, err)
 		}
 	}
 }

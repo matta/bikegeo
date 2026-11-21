@@ -77,8 +77,8 @@ type ScoreWeights struct {
 	Trail             float64
 }
 
-// StockStem is one discrete stock stem (length, angle, and 0–100 composite score, Q58, Q97).
-type StockStem struct {
+// StemOption is one discrete stem option (length, angle, and 0–100 composite score, Q58, Q97, Q100).
+type StemOption struct {
 	LengthMm float64
 	AngleDeg pose.Deg
 	Score    float64
@@ -128,15 +128,15 @@ func DefaultGripOval() FitOval {
 }
 
 // Validate checks the stem's length, angle, and score.
-func (s StockStem) Validate() error {
+func (s StemOption) Validate() error {
 	if !isFinite(s.LengthMm) || s.LengthMm <= 0 {
-		return fmt.Errorf("stock stem length must be positive and finite, got %v mm", s.LengthMm)
+		return fmt.Errorf("stem option length must be positive and finite, got %v mm", s.LengthMm)
 	}
 	if !isFinite(float64(s.AngleDeg)) {
-		return fmt.Errorf("stock stem angle must be finite, got %v°", s.AngleDeg)
+		return fmt.Errorf("stem option angle must be finite, got %v°", s.AngleDeg)
 	}
 	if !isFinite(s.Score) || s.Score < 0 || s.Score > 100 {
-		return fmt.Errorf("stock stem score must be within 0–100, got %v", s.Score)
+		return fmt.Errorf("stem option score must be within 0–100, got %v", s.Score)
 	}
 	return nil
 }

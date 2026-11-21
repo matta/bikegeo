@@ -241,13 +241,13 @@ func clamp01(x float64) float64 {
 	return x
 }
 
-// StockStems returns the 107 catalog stems in assembly.StockStem form for
-// stock cockpit fitting (Q97).
-func StockStems() []assembly.StockStem {
+// StemOptions returns the 107 catalog stems in assembly.StemOption form for
+// build fitting (Q97, Q100).
+func StemOptions() []assembly.StemOption {
 	stems := Stems()
-	out := make([]assembly.StockStem, len(stems))
+	out := make([]assembly.StemOption, len(stems))
 	for i, s := range stems {
-		out[i] = assembly.StockStem{
+		out[i] = assembly.StemOption{
 			LengthMm: s.LengthMm,
 			AngleDeg: s.AngleDeg,
 			Score:    s.Score,

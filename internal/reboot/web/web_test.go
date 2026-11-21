@@ -2706,16 +2706,16 @@ func TestBikeWorkbenchStockFitKeepsSaddleFitAndTargets(t *testing.T) {
 	}
 }
 
-func TestBikeWorkbenchValidatesStockAndPreferences(t *testing.T) {
+func TestBikeWorkbenchValidatesPartOptionsAndWeights(t *testing.T) {
 	wb := fenrirWorkbench()
-	wb.CockpitStock.SpacerStepMm = 0
-	if err := wb.validate(); err == nil || !strings.Contains(err.Error(), "cockpit stock invalid") {
-		t.Errorf("invalid stock: got %v, want cockpit stock error", err)
+	wb.PartOptions.SpacerStepMm = 0
+	if err := wb.validate(); err == nil || !strings.Contains(err.Error(), "part options invalid") {
+		t.Errorf("invalid part options: got %v, want part options error", err)
 	}
 	wb = fenrirWorkbench()
-	wb.CockpitStock.Stems = nil
-	if err := wb.validate(); err == nil || !strings.Contains(err.Error(), "cockpit stock invalid") {
-		t.Errorf("empty stems: got %v, want cockpit stock error", err)
+	wb.PartOptions.Stems = nil
+	if err := wb.validate(); err == nil || !strings.Contains(err.Error(), "part options invalid") {
+		t.Errorf("empty stems: got %v, want part options error", err)
 	}
 	wb = fenrirWorkbench()
 	wb.ScoreWeights.HandGrip = -1
