@@ -444,6 +444,11 @@ func genericPostSpec(setbackMm float64) assembly.SeatpostSpec {
 
 func TestFramesetHandlingReadouts(t *testing.T) {
 	// Independent closed-form probe: trail = (R*cos(HTA_lev) - rake) / sin(HTA_lev) with R = 372.
+	// Reach, stack, and ETT values come from an independent Python probe that rebuilds the
+	// frameset from the chart (head tube down by HTL + cup + effective A2C, rake at 90°,
+	// rear axle at (-sqrt(CS^2 - drop^2), drop), pitch = -atan2(front - rear)), rotates
+	// (Reach, Stack) by the pitch, and takes ETT = x - y*cot(180° - STA + pitch). That probe
+	// and the Go readouts agree to 1e-9 mm.
 	frame := fenrirSizeLFrame()
 	wheels := fenrirWheels()
 
@@ -455,6 +460,9 @@ func TestFramesetHandlingReadouts(t *testing.T) {
 		wantRC    float64
 		wantRatio float64
 		wantWB    float64
+		wantReach float64
+		wantStack float64
+		wantEtt   float64
 	}{
 		{
 			name:      "Lithic (rigid)",
@@ -464,6 +472,9 @@ func TestFramesetHandlingReadouts(t *testing.T) {
 			wantRC:    444.860145,
 			wantRatio: 38.278721,
 			wantWB:    1162.160430,
+			wantReach: 421.943304877,
+			wantStack: 645.996785959,
+			wantEtt:   598.532949715,
 		},
 		{
 			name:      "Fox 34 at 20%",
@@ -473,6 +484,9 @@ func TestFramesetHandlingReadouts(t *testing.T) {
 			wantRC:    445.646528,
 			wantRatio: 38.511960,
 			wantWB:    1157.163974,
+			wantReach: 414.113186529,
+			wantStack: 651.043983723,
+			wantEtt:   600.558793289,
 		},
 		{
 			name:      "CAD baseline",
@@ -482,6 +496,9 @@ func TestFramesetHandlingReadouts(t *testing.T) {
 			wantRC:    444.189213,
 			wantRatio: 38.369496,
 			wantWB:    1157.662365,
+			wantReach: 428.119798484,
+			wantStack: 641.920118197,
+			wantEtt:   596.995173525,
 		},
 	}
 
@@ -497,6 +514,11 @@ func TestFramesetHandlingReadouts(t *testing.T) {
 			assertNear(t, "WheelbaseMm", placed.WheelbaseMm(), tc.wantWB, 1e-5)
 			assertNear(t, "RcWbRatioPct identity", placed.RcWbRatioPct(), 100.0*placed.RearCenterMm()/placed.WheelbaseMm(), 1e-12)
 			assertNear(t, "RearCenterMm == -RearAxle.X", placed.RearCenterMm(), -placed.RearAxle.Origin().X, 1e-12)
+			assertNear(t, "LeveledReachMm", placed.LeveledReachMm(), tc.wantReach, 1e-6)
+			assertNear(t, "LeveledStackMm", placed.LeveledStackMm(), tc.wantStack, 1e-6)
+			assertNear(t, "EttMm", placed.EttMm(), tc.wantEtt, 1e-6)
+			assertNear(t, "LeveledReachMm == HeadTubeTop.X", placed.LeveledReachMm(), placed.HeadTubeTop.Origin().X, 1e-12)
+			assertNear(t, "LeveledStackMm == HeadTubeTop.Y", placed.LeveledStackMm(), placed.HeadTubeTop.Origin().Y, 1e-12)
 		})
 	}
 }

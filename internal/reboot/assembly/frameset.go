@@ -340,6 +340,31 @@ func (f FramesetPlacement) RcWbRatioPct() float64 {
 	return 100.0 * f.RearCenterMm() / f.WheelbaseMm()
 }
 
+// LeveledReachMm returns the horizontal distance from BB to HeadTubeTop on the
+// leveled bike. It differs from the chart's reach by the leveling pitch (Q105).
+func (f FramesetPlacement) LeveledReachMm() float64 {
+	return f.BB.OffsetTo(f.HeadTubeTop).X
+}
+
+// LeveledStackMm returns the vertical distance from BB to HeadTubeTop on the
+// leveled bike (Q105).
+func (f FramesetPlacement) LeveledStackMm() float64 {
+	return f.BB.VerticalOffsetTo(f.HeadTubeTop)
+}
+
+// EttMm returns the effective top tube: the horizontal distance, at
+// HeadTubeTop's height, from the leveled seat axis through BB to HeadTubeTop
+// (legacy BikeScene.EttMm, Q105).
+func (f FramesetPlacement) EttMm() float64 {
+	// Split BB → HeadTubeTop into a run up the seat axis and a horizontal
+	// remainder; the remainder is the ETT.
+	_, ett, ok := pose.DecomposeAlong(f.SeatAxis.OffsetTo(f.HeadTubeTop), f.SeatAxis.HeadingDeg(), 0)
+	if !ok {
+		return math.NaN() // a horizontal seat axis never reaches HeadTubeTop's height
+	}
+	return ett
+}
+
 // FrameChart groups a bare frame's unpitched reference dimensions, its CAD
 // lower headset cup, its fixed CAD baseline fork geometry, and its published wheelbase.
 type FrameChart struct {
