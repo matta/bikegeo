@@ -1,6 +1,30 @@
 # Slice 13f: Shared compare query package and `compare` JSON CLI
 
-Status: Planned 2026-11-21
+Status: Implemented 2026-11-21; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-21, Claude Opus 5.5 (`claude-opus-5-5`).
+- **Commits:**
+  1. `Add JSON serialization for pose.Pose` — `c30af3b`
+  2. `Add compare query parsing and catalog adapter` — `cae0a01`
+  3. `Add bikegeo-reboot compare JSON CLI subcommand` — `801781b`
+- **Done and not done:** P1, P2, C1–C4, Q1, Q2, M1, M2 all done. Nothing left undone.
+- **Deviations:**
+  - Q2 test 4 (`parseSelections`): the plan's case `frame=surly-krampus&fork=sid_100` expects a `fork` error, but the committed catalog lists `sid_100` on the Surly Krampus (`frame_surly_krampus.go:38`, from `41f6123`), so the query parses. I replaced it with `frame=surly-krampus&fork=fox36_150`, a catalog fork the Krampus doesn't carry, and left a comment explaining why. It still covers the "has no fork" path, which `fork=cad` also covers. This is test data only, with no design change. Veto it if you'd rather the plan hold here as `Blocked`.
+  - `go fix` (run by `make pre-commit`) rewrote the `parseSelections` loop from `for i := 0; i < len(framesVals); i++` to `for i := range framesVals`. The behavior is the same.
+- **Unspecified details I filled in (veto on review):** the plan doesn't give messages for a non-finite coordinate in `parseTarget`. I used `"<label> <key> must be a finite number, got %q"` with `Field` set to that key. Posture-angle parsing lives in a small `parseAngle(q, key, label)` helper. `WinningHandlebar`'s out-of-range error names the row's frame, size, index, and the offered-bar count. The `compare --help` text lists the 17 keys grouped by role, with two examples.
+- **Verification:**
+  - `make pre-commit` passed before each of the 3 commits and on the final state.
+  - `go list -deps ./internal/reboot/query | grep -E '(^net/http$|^html/template$|reboot/web)'` prints nothing.
+  - `go test ./internal/reboot/pose ./internal/reboot/catalog ./internal/reboot/query ./cmd/bikegeo-reboot -count=1 -v` passes. Every numeric expectation in Q2 tests 5 and 7 and in M2 matched the committed code at `1e-6` with no changes.
+  - Live CLI check (`make build-reboot`, then `./bin/bikegeo-reboot compare …`):
+    - `'frame=surly-krampus&size=XL&fork=fox34_120&sag=20'`: exit 0 in 0.01 s. `PostID` `redshift_shockstop_pro`, `HandlebarID` `persuader20_800`, `Total` 84.57501140545521, `RowCount` 1, `Evaluated` 749. Poses serialize with values: `Saddle.BRP` = `{"Origin":{"X":-214.880,"Y":713.1},"HeadingDeg":0}` and `Frameset.HeadTubeTop` = `{"Origin":{"X":457.241,"Y":630.454},"HeadingDeg":112.168}`.
+    - `…&bar_options=all`: exit 0 in 0.05 s. `HandlebarID` `sqlab311_flx_16_30`, `Total` 86.65013534504142, `Evaluated` 11235.
+    - No query (all 19 frames): exit 0 in 1.80 s real. `RowCount` 701, `Evaluated` 525049, 19 rows, row 1 = `surly-krampus XL fox34_120 20%`.
+    - `'bar_option=all'`: exit 2, stderr `Error: unknown query parameter "bar_option"`.
+  - No screenshot, because no web page changed.
+- **Open issues:** none beyond the test-case deviation above.
 
 **Rulings:** Q24, Q49a, Q52, Q53, Q56, Q62, Q67, Q69, Q70, Q76, Q82, Q86, Q87, Q88, Q101, Q103, Q104, Q106, Q107; `AGENTS.md` rules.
 
