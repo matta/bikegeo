@@ -182,7 +182,7 @@ func TestStems(t *testing.T) {
 				t.Fatalf("stems not strictly sorted at %d: %+v then %+v", i, prev, s)
 			}
 		}
-		if s.Score < 0 || s.Score > 100 {
+		if !(s.Score >= 0 && s.Score <= 100) {
 			t.Errorf("stem (%v mm, %v°) score = %v, want in [0, 100]", s.LengthMm, s.AngleDeg, s.Score)
 		}
 		sum += s.Score
