@@ -1,6 +1,15 @@
 # Slice 13c: 0–100 weighted scoring and 4-tier fit gate
 
-Status: Planned 2026-11-21
+Status: Implemented 2026-11-21; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-21, Claude Sonnet 5.5.
+- **Commits:** `Add 0-100 weighted scoring and 4-tier fit ranking` (`bf99568`); `Add default scoring weights and stock stems to catalog` (`d203497`); `Switch stock fitting and /bike stock table to 0-100 scoring` (`796c306`).
+- **Done and not done:** A1, A2, C1, C2, C3, S1, S2, W1, W2, W3, W4 all done. Nothing left undone.
+- **Deviations:** None in behavior. Every probed expected value in the plan (attribute curves, reference builds, stock fitting ranks, web table rows) matched on the first run within tolerance. Small test-structure choices: `scoring_test.go` and `stock_fitting_test.go` share one `testDefaultScoreWeights()` instead of defining a second `defaultScoreWeights()`; `FitOval` moved into `scoring.go` as the plan says; `TestBikeWorkbenchStockSweepColumn` checks only row 1 for `stock_bars=all` because later rows may install other bars.
+- **Verification:** `make pre-commit` passed on each of the three commits and on the final state. Live check on `make serve-reboot`'s server (port 8081): `/bike?grip_x=481&grip_y=726` showed 749 combinations, total weight 23, 4-tier legend, row 1 `Fits neither` `56.9` `120 mm, -30°` `0 mm`, and `—` in the 4 saddle attribute cells; `/bike?post=setback_25&brp_x=-189&brp_y=713.1&grip_x=481&grip_y=726&stock_bars=all` showed 11235 combinations, weight 36, row 1 `Fits all` `80.0` `120 mm, -30°` `0 mm` `SQlab 311 2.0 Alloy 16°, 50 mm rise (740 mm)` with all 12 attribute cells populated and 23 headers. I did not re-open bare `/bike` live; `TestBikeWorkbenchStockTiersAndLegend` asserts it shows no stock table, legend, or score readout. Screenshot was viewed in the in-app browser only; no file was saved.
+- **Open issues:** None.
 
 **Rulings:** Q16, Q17, Q40 (`make boundary` scoring words), Q58, Q59, Q59a, Q61, Q63, Q69, Q75e, Q76, Q82, Q84, Q86, Q89, Q90, Q96, Q97, Q98, Q99; AGENTS.md trig and `exhaustive` rules.
 
