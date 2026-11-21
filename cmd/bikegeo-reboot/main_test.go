@@ -201,3 +201,149 @@ func TestRunCompareErrors(t *testing.T) {
 		t.Errorf("failing stdout: exit %d, stderr %q; want 1, containing \"encode JSON\"", code, errOut.String())
 	}
 }
+
+// jsonBike mirrors the query.BikeResult fields the bike tests check.
+type jsonBike struct {
+	FrameID        string
+	Size           string
+	ForkID         string
+	BarID          string
+	PostID         string
+	AllBarOptions  bool
+	AllForkOptions bool
+	Placement      struct {
+		Setup struct {
+			Seatpost struct {
+				InsertionMm float64
+			}
+		}
+		Frameset struct {
+			HeadTubeTop jsonPose
+		}
+		Saddle struct {
+			BRP jsonPose
+		}
+	}
+	Score *struct {
+		Tier  string
+		Total float64
+	}
+	Fitting *json.RawMessage
+	Builds  *struct {
+		Evaluated int
+		Builds    []struct {
+			HandlebarID string
+			ForkID      string
+			Score       struct {
+				Tier  string
+				Total float64
+			}
+		}
+	}
+}
+
+func decodeBike(t *testing.T, stdout string) jsonBike {
+	t.Helper()
+	var r jsonBike
+	if err := json.Unmarshal([]byte(stdout), &r); err != nil {
+		t.Fatalf("decode JSON: %v\n%s", err, stdout)
+	}
+	return r
+}
+
+func TestRunBikeDefaultAndWinningBuildJSON(t *testing.T) {
+	code, stdout, stderr := runCLI("bike")
+	if code != 0 || stderr != "" {
+		t.Fatalf("bike: exit %d, stderr %q; want 0, empty", code, stderr)
+	}
+	r := decodeBike(t, stdout)
+	if r.FrameID != "otso-fenrir-stainless" || r.Size != "L" || r.ForkID != "lithic_carbon_mountain" ||
+		r.PostID != "redshift_shockstop_pro" || r.BarID != "persuader20_800" {
+		t.Errorf("IDs = %s %s %s %s %s", r.FrameID, r.Size, r.ForkID, r.PostID, r.BarID)
+	}
+	if r.Placement.Setup.Seatpost.InsertionMm != 175 {
+		t.Errorf("InsertionMm = %v, want 175", r.Placement.Setup.Seatpost.InsertionMm)
+	}
+	if r.Score == nil || r.Score.Tier != "fits_neither" {
+		t.Fatalf("Score = %+v, want fits_neither", r.Score)
+	}
+	assertNear(t, "Total", r.Score.Total, 53.142123, 1e-5)
+	if r.Builds == nil || r.Builds.Evaluated != 749 || len(r.Builds.Builds) != 5 {
+		t.Fatalf("Builds = %+v, want 749 evaluated, 5 builds", r.Builds)
+	}
+	if r.Placement.Frameset.HeadTubeTop.Origin == (pose.Point{}) || r.Placement.Saddle.BRP.Origin == (pose.Point{}) {
+		t.Errorf("HeadTubeTop %+v / BRP %+v must be non-zero", r.Placement.Frameset.HeadTubeTop, r.Placement.Saddle.BRP)
+	}
+
+	const winning = "frame=surly-krampus&size=XL&fork=fox34_120&sag=20&post=redshift_shockstop_pro&post_insert=163.90608956654532&rail_offset=15&rail_pitch=0&bar=persuader20_800&bar_roll=0&stem_length=100&stem_angle=-10&spacers=0"
+	code, stdout, stderr = runCLI("bike", "?"+winning)
+	if code != 0 || stderr != "" {
+		t.Fatalf("winning: exit %d, stderr %q; want 0, empty", code, stderr)
+	}
+	r = decodeBike(t, stdout)
+	if r.Score == nil || r.Score.Tier != "fits_all" || r.Builds == nil || len(r.Builds.Builds) == 0 {
+		t.Fatalf("winning = %+v", r)
+	}
+	assertNear(t, "winning Total", r.Score.Total, 84.575011405, 1e-6)
+	assertNear(t, "winning top build Total", r.Builds.Builds[0].Score.Total, 84.575011405, 1e-6)
+	code2, stdout2, stderr2 := runCLI("bike", winning)
+	if code2 != 0 || stderr2 != "" || stdout2 != stdout {
+		t.Errorf("without ?: exit %d, stderr %q, identical stdout %v; want 0, empty, true", code2, stderr2, stdout2 == stdout)
+	}
+
+	code, stdout, stderr = runCLI("bike", "brp=off&grip=off")
+	if code != 0 || stderr != "" {
+		t.Fatalf("targets off: exit %d, stderr %q", code, stderr)
+	}
+	r = decodeBike(t, stdout)
+	if r.Score != nil || r.Fitting != nil || r.Builds != nil {
+		t.Errorf("targets off: Score %v, Fitting %v, Builds %v; want all nil", r.Score, r.Fitting, r.Builds)
+	}
+
+	code, stdout, stderr = runCLI("bike", "stem_length=65&stem_angle=-6")
+	if code != 0 || stderr != "" {
+		t.Fatalf("off-catalog stem: exit %d, stderr %q", code, stderr)
+	}
+	r = decodeBike(t, stdout)
+	if r.Score != nil || r.Builds == nil {
+		t.Errorf("off-catalog stem: Score %v, Builds %v; want nil, non-nil", r.Score, r.Builds)
+	}
+}
+
+func TestRunBikeHelpAndErrors(t *testing.T) {
+	code, stdout, stderr := runCLI("--help")
+	if code != 0 || stderr != "" || !strings.Contains(stdout, "serve") || !strings.Contains(stdout, "compare") || !strings.Contains(stdout, "bike") {
+		t.Errorf("--help: exit %d, stderr %q, usage %q", code, stderr, stdout)
+	}
+	code, stdout, stderr = runCLI("bike", "--help")
+	if code != 0 || stderr != "" || !strings.Contains(stdout, "bikegeo-reboot bike [query]") {
+		t.Errorf("bike --help: exit %d, stderr %q, usage %q", code, stderr, stdout)
+	}
+
+	cases := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{"too many args", []string{"bike", "a=1", "b=2"}, "Usage: bikegeo-reboot bike [query]"},
+		{"bad URL escape", []string{"bike", "frame=%zz"}, "invalid query"},
+		{"semicolon query", []string{"bike", "frame=surly-krampus;size=XL"}, "invalid query"},
+		{"unknown query key", []string{"bike", "fram=surly-krampus"}, "unknown query parameter"},
+		{"retired key", []string{"bike", "post_ext=200"}, "unknown query parameter"},
+		{"unknown frame", []string{"bike", "frame=nope"}, "unknown frame"},
+		{"out-of-bounds insertion", []string{"bike", "post=redshift_shockstop_pro&post_insert=275"}, "insertion"},
+		{"half target", []string{"bike", "brp_x=-219"}, "requires both"},
+	}
+	for _, tc := range cases {
+		code, stdout, stderr := runCLI(tc.args...)
+		if code != 2 || stdout != "" || !strings.Contains(stderr, tc.wantErr) {
+			t.Errorf("%s: exit %d, stdout %q, stderr %q; want 2, empty, containing %q", tc.name, code, stdout, stderr, tc.wantErr)
+		}
+	}
+
+	var errOut bytes.Buffer
+	code = run([]string{"bike"}, failingWriter{}, &errOut)
+	if code != 1 || !strings.Contains(errOut.String(), "encode JSON") {
+		t.Errorf("failing stdout: exit %d, stderr %q; want 1, containing \"encode JSON\"", code, errOut.String())
+	}
+}
