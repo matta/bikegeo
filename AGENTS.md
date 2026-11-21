@@ -10,6 +10,14 @@ This repository is a zero-dependency **Go** command-line application (`bikegeo`)
 
 Write plain-language subjects (for example `Fix fork sag validation`). Conventional Commits prefixes (`feat:`, `fix(web):`, `chore!:`, ...) are banned.
 
+## Naming
+
+- **Define semantics first:** before proposing names for a non-obvious concept, state in plain English what it is and does, and discuss conversationally before locking rulings.
+- **Use real English and domain meanings:** never repurpose an existing word with a non-standard meaning (for example, calling discrete part options "stock" in cycling).
+- **Don't force one prefix across every layer:** name each role for what it represents, and omit adjectives when plain prose is already clear.
+- **Avoid vague or architecture-leaking names:** confine generic terms (`Catalog`, `Candidate`) to their natural roles and don't bake incidental implementation choices into names.
+- **Match part of speech to role:** functions are accurate verbs; URL query keys, state keys, and data fields are nouns (never verb+noun commands like `try_bars`).
+
 ## Verification
 
 - After **every** code change: `go vet ./... && go test ./...`
