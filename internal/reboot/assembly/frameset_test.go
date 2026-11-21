@@ -441,3 +441,62 @@ func genericPostSpec(setbackMm float64) assembly.SeatpostSpec {
 		SetbackMm: setbackMm, RailClampLengthMm: 30,
 	}
 }
+
+func TestFramesetHandlingReadouts(t *testing.T) {
+	// Independent closed-form probe: trail = (R*cos(HTA_lev) - rake) / sin(HTA_lev) with R = 372.
+	frame := fenrirSizeLFrame()
+	wheels := fenrirWheels()
+
+	cases := []struct {
+		name      string
+		cup       assembly.LowerCupSetup
+		fork      assembly.ForkSetup
+		wantTrail float64
+		wantRC    float64
+		wantRatio float64
+		wantWB    float64
+	}{
+		{
+			name:      "Lithic (rigid)",
+			cup:       fenrirEc44Cup(),
+			fork:      assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: assembly.SteererTapered}, SagPct: 0},
+			wantTrail: 94.123289,
+			wantRC:    444.860145,
+			wantRatio: 38.278721,
+			wantWB:    1162.160430,
+		},
+		{
+			name:      "Fox 34 at 20%",
+			cup:       fenrirEc44Cup(),
+			fork:      assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 530, TravelMm: 120, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 20},
+			wantTrail: 109.963183,
+			wantRC:    445.646528,
+			wantRatio: 38.511960,
+			wantWB:    1157.163974,
+		},
+		{
+			name:      "CAD baseline",
+			cup:       fenrirCadCup(),
+			fork:      assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: assembly.SteererCAD}, SagPct: 0},
+			wantTrail: 90.197878,
+			wantRC:    444.189213,
+			wantRatio: 38.369496,
+			wantWB:    1157.662365,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			placed, err := assembly.PlaceFrameset(frame, tc.cup, tc.fork, wheels)
+			if err != nil {
+				t.Fatalf("PlaceFrameset: %v", err)
+			}
+			assertNear(t, "TrailMm", placed.TrailMm(), tc.wantTrail, 1e-5)
+			assertNear(t, "RearCenterMm", placed.RearCenterMm(), tc.wantRC, 1e-5)
+			assertNear(t, "RcWbRatioPct", placed.RcWbRatioPct(), tc.wantRatio, 1e-5)
+			assertNear(t, "WheelbaseMm", placed.WheelbaseMm(), tc.wantWB, 1e-5)
+			assertNear(t, "RcWbRatioPct identity", placed.RcWbRatioPct(), 100.0*placed.RearCenterMm()/placed.WheelbaseMm(), 1e-12)
+			assertNear(t, "RearCenterMm == -RearAxle.X", placed.RearCenterMm(), -placed.RearAxle.Origin().X, 1e-12)
+		})
+	}
+}

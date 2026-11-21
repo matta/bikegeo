@@ -313,6 +313,33 @@ func (f FramesetPlacement) LeveledBbDropMm() float64 {
 	return f.BB.VerticalOffsetTo(f.RearAxle)
 }
 
+// TrailMm returns the ground trail: the horizontal distance on the ground from
+// the front tire contact back to where the leveled steering axis meets the
+// ground. Positive when the contact sits behind that point.
+func (f FramesetPlacement) TrailMm() float64 {
+	// Split HeadTubeTop → FrontTireContact into a run down the steering axis
+	// and a horizontal remainder. The steering axis meets the ground (the
+	// contact's height) at HeadTubeTop plus the run, so the remainder runs
+	// from that point to the contact, and trail is its negation.
+	steererDown := f.HeadTubeTop.HeadingDeg() + 180.0
+	_, ahead, ok := pose.DecomposeAlong(f.HeadTubeTop.OffsetTo(f.FrontTireContact), steererDown, 0)
+	if !ok {
+		return math.NaN() // a horizontal steering axis never meets the ground
+	}
+	return -ahead
+}
+
+// RearCenterMm returns the horizontal distance from the rear axle to BB on the
+// leveled bike (the RC in RC / WB).
+func (f FramesetPlacement) RearCenterMm() float64 {
+	return f.RearAxle.OffsetTo(f.BB).X
+}
+
+// RcWbRatioPct returns RearCenterMm as a percentage of WheelbaseMm.
+func (f FramesetPlacement) RcWbRatioPct() float64 {
+	return 100.0 * f.RearCenterMm() / f.WheelbaseMm()
+}
+
 // FrameChart groups a bare frame's unpitched reference dimensions, its CAD
 // lower headset cup, its fixed CAD baseline fork geometry, and its published wheelbase.
 type FrameChart struct {

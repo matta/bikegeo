@@ -3564,3 +3564,50 @@ func TestBikeWorkbenchDefaultSaddleHeightQ92(t *testing.T) {
 	assertWebNear(t, "BRP.X", brp.X, -155.065, 0.001)
 	assertWebNear(t, "BRP.Y", brp.Y, 729.317, 0.001)
 }
+
+func TestBikeWorkbenchFrameHandlingReadouts(t *testing.T) {
+	cases := []struct {
+		name      string
+		path      string
+		wantTrail string
+		wantRC    string
+		wantRatio string
+	}{
+		{
+			name:      "default Lithic",
+			path:      "/bike",
+			wantTrail: "94.1 mm",
+			wantRC:    "444.9 mm",
+			wantRatio: "38.3%",
+		},
+		{
+			name:      "Fox 34 at 20%",
+			path:      "/bike?fork=fox34_120&sag=20",
+			wantTrail: "110.0 mm",
+			wantRC:    "445.6 mm",
+			wantRatio: "38.5%",
+		},
+		{
+			name:      "CAD baseline",
+			path:      "/bike?fork=cad",
+			wantTrail: "90.2 mm",
+			wantRC:    "444.2 mm",
+			wantRatio: "38.4%",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := loadBikeDoc(t, tc.path)
+			if got := metricText(doc, "trail"); got != tc.wantTrail {
+				t.Errorf("trail = %q, want %q", got, tc.wantTrail)
+			}
+			if got := metricText(doc, "rear-center"); got != tc.wantRC {
+				t.Errorf("rear-center = %q, want %q", got, tc.wantRC)
+			}
+			if got := metricText(doc, "rc-wb"); got != tc.wantRatio {
+				t.Errorf("rc-wb = %q, want %q", got, tc.wantRatio)
+			}
+		})
+	}
+}

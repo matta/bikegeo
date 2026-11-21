@@ -546,6 +546,9 @@ type bikeView struct {
 	LeveledStaDeg        pose.Deg
 	WheelbaseMm          float64
 	BbDropLeveledMm      float64
+	TrailMm              float64
+	RearCenterMm         float64
+	RcWbRatioPct         float64
 	SeatAxisToPostTopMm  float64
 	SaddleHeightMm       float64
 	BrpToGripDistMm      float64
@@ -1578,6 +1581,9 @@ func buildBikeView(
 		LeveledStaDeg:        placed.LeveledSeatTubeAngleDeg(),
 		WheelbaseMm:          placed.WheelbaseMm(),
 		BbDropLeveledMm:      placed.LeveledBbDropMm(),
+		TrailMm:              placed.TrailMm(),
+		RearCenterMm:         placed.RearCenterMm(),
+		RcWbRatioPct:         placed.RcWbRatioPct(),
 		SeatAxisToPostTopMm:  bike.SeatAxisToPostTopMm(),
 		SaddleHeightMm:       bike.SaddleHeightMm(),
 		BrpToGripDistMm:      bike.BrpToGripDistMm(),
