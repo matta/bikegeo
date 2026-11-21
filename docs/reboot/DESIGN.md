@@ -409,6 +409,14 @@ internal/reboot/web/      pure Web 1.0 handlers, HTML/SVG views, embedded templa
 - **HTMX (Q54):** revisit vendoring single-file HTMX only if full-page `GET` forms feel clunky in daily use.
 - **Physical upper headset (Q82):** declare each frame's upper headset type with separate heights above the head tube (places the stem) and above the upper bearing (counts toward the steerer limit), plus fork-specific steerer limits (for example steel steerers), only if the conservative constant wrongly rejects a real build.
 - **Published seatpost insertion depths (Q95):** ingest manufacturers' published insertion depths (for example Otso's other Fenrir sizes) via the ingest-frame workflow; until then only the Fenrir L declares one.
+- **`/bike` UX overhaul (post-reboot work item, requested 2026-11-21 after Slice 14a):** `/bike` is overwhelming and confusing, and needs a major UX redesign once the reboot's functionality is done. This is a direction-level list of the problems to solve, not a design. Rulings and a plan come when it is scheduled.
+  - **Controls form:** the form at the top is disjointed and doesn't match how a bike fitter or assembler thinks about building a bike. Rework how the inputs are grouped and ordered.
+  - **State transitions:** it isn't clear what the options do. In particular, what "Ranked builds" is, and what each "Apply" link will change.
+  - **Diagram:** landmark labels on the SVG collide. The target BRP and HandGrip aren't drawn, so the fit error can't be seen visually.
+  - **Miss readouts:** "HandGrip miss" shows a distance with no direction; make it intuitive. The BRP miss shows a direction, but its frame of reference is unstated (the code computes target − placed, but the page never says so). State it or make it self-evident.
+  - **Ranked builds table:** too many columns, some with unclear meaning, with no logical grouping.
+  - **Readouts:** the "Leveled Bike Assembly" summary is a wall of text. The saddle fitting and cockpit fitting blocks show good information in unclear ways.
+  - **Constraints stay:** server-rendered Web 1.0 with `GET` forms, no JavaScript (Q48, Q54), unless Q54's HTMX revisit says otherwise.
 - **Additional saddles (Q52):** SQlab 610 only for now; port Berthoud Aspin Open and Selle Italia SLR Boost with sit-bone translation only if needed later.
 
 ## Cutover (a separate decision, later)
