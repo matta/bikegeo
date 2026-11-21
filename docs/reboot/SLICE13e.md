@@ -1,6 +1,17 @@
 # Slice 13e: Leveled frame readouts and multi-frame compare engine
 
-Status: Planned 2026-11-21
+Status: Implemented 2026-11-21; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-21, Gemini 4 Hydrogen (Medium)
+- **Commits:**
+  - `Add leveled reach, stack, and ETT frameset readouts` (`f156358`)
+  - `Add multi-frame compare engine` (`068a628`)
+- **Done and not done:** A1, A2, C1, C2, C3 all done.
+- **Deviations:** None.
+- **Verification:** `make pre-commit` passed cleanly on both commits. `go list -deps ./internal/reboot/compare | grep -E 'reboot/(catalog|query|web)'` produced no matches. `go test ./internal/reboot/compare/ -count=1 -v` passed in `0.333s`. No live check: this slice changes no page, URL, or CLI output.
+- **Open issues:** None.
 
 **Rulings:** Q16, Q51, Q56, Q61, Q66, Q67, Q69, Q76, Q83, Q86, Q87, Q89, Q90, Q103, Q104, Q105; `AGENTS.md` rules.
 
