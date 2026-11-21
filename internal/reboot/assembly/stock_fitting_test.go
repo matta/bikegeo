@@ -533,8 +533,8 @@ func TestStockFittingRefitsSaddlePerFork(t *testing.T) {
 		base.Fork, base.LowerCup = fork.Fork, fork.LowerCup
 		saddles[i] = mustFit(t, base, fitReportBRP).Placement.Setup
 	}
-	wantMiss := [...]float64{51.479453, 51.423215, 54.266925, 57.119058, 39.573856, 42.943626, 46.326087}
-	wantInsertion := [...]float64{183.315151, 183.311056, 183.523736, 183.748612, 182.548574, 182.745127, 182.958627}
+	wantMiss := [...]float64{53.368222, 53.311080, 56.197798, 59.087687, 41.221376, 44.669901, 48.122963}
+	wantInsertion := [...]float64{197.387571, 197.372502, 198.128305, 198.873690, 194.085981, 195.043299, 195.986030}
 	for i, c := range full.Candidates {
 		index := c.ForkIndex
 		if !c.StockFork || index < 0 || index >= len(stock.Forks) {
@@ -559,11 +559,11 @@ func TestStockFittingRefitsSaddlePerFork(t *testing.T) {
 		t.Fatal(err)
 	}
 	requireStockForkRanks(t, fit, []stockForkRank{
-		{2, stockStem{-17, 130, 0}, 1.019761, -20.368593},
-		{0, stockStem{-17, 130, 0}, 1.358546, -22.246923},
-		{5, stockStem{-17, 130, 0}, 2.401938, -28.129898},
-		{2, stockStem{-17, 130, 5}, 1.412418, -29.007048},
-		{0, stockStem{-17, 130, 5}, 1.755355, -30.976712},
+		{2, stockStem{-17, 130, 0}, 1.019761, -24.230340},
+		{0, stockStem{-17, 130, 0}, 1.358546, -26.024461},
+		{5, stockStem{-17, 130, 0}, 2.401938, -31.582448},
+		{2, stockStem{-17, 130, 5}, 1.412418, -32.868795},
+		{0, stockStem{-17, 130, 5}, 1.755355, -34.754250},
 	})
 }
 
@@ -571,11 +571,11 @@ func TestStockFittingPenalizesBrpMissForSubmittedFork(t *testing.T) {
 	target := assembly.FitTarget{BRP: &fitReportBRP, HandGrip: &fitReportGrip}
 	fit := mustStockFit(t, fenrirFittingSetup(), target, 5)
 	for _, c := range fit.Candidates {
-		assertNear(t, "BRP miss points", c.Penalties[6].PointsLost, 100.958906, 1e-6)
+		assertNear(t, "BRP miss points", c.Penalties[6].PointsLost, 104.736444, 1e-6)
 	}
 	best := fit.Candidates[0]
 	requireStockStem(t, best, stockStem{-17, 130, 0})
-	assertNear(t, "score", best.Score(), -22.246923, 1e-6)
+	assertNear(t, "score", best.Score(), -26.024461, 1e-6)
 }
 
 func TestStockFittingZeroSpacers(t *testing.T) {

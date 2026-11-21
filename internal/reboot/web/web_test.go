@@ -2074,15 +2074,15 @@ func TestBikeWorkbenchFitsFitReportBrpAtRailLimit(t *testing.T) {
 	if got := metric("fit-rail-offset"); got != "15.0 mm" {
 		t.Errorf("fit-rail-offset = %q, want 15.0 mm", got)
 	}
-	if got := metric("fit-insertion"); got != "183.3 mm" {
-		t.Errorf("fit-insertion = %q, want 183.3 mm", got)
+	if got := metric("fit-insertion"); got != "197.4 mm" {
+		t.Errorf("fit-insertion = %q, want 197.4 mm", got)
 	}
 	q := hrefQuery(t, doc, "a#apply-fitting")
 	if got := q.Get("rail_offset"); got != "15.0" {
 		t.Errorf("apply rail_offset = %q, want 15.0", got)
 	}
-	if ext, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ext-183.315151) > 1e-6 {
-		t.Errorf("apply post_insert = %q (%v), want ≈183.315151", q.Get("post_insert"), err)
+	if ext, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ext-197.387571) > 1e-6 {
+		t.Errorf("apply post_insert = %q (%v), want ≈197.387571", q.Get("post_insert"), err)
 	}
 	if q.Get("brp_x") != "-219.0" || q.Get("brp_y") != "713.1" {
 		t.Errorf("apply link lost the target: %v", q)
@@ -2293,8 +2293,8 @@ func TestBikeWorkbenchBothFitTargets(t *testing.T) {
 	if q.Get("rail_offset") != "15.0" || q.Get("spacers") != "0.0" || q.Get("stem_length") != "130.0" {
 		t.Errorf("apply link values: %v", q)
 	}
-	if ext, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ext-183.315151) > 1e-6 {
-		t.Errorf("apply post_insert = %q, want ≈183.315151", q.Get("post_insert"))
+	if ext, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ext-197.387571) > 1e-6 {
+		t.Errorf("apply post_insert = %q, want ≈197.387571", q.Get("post_insert"))
 	}
 	for _, k := range []string{"brp_x", "brp_y", "grip_x", "grip_y"} {
 		if !q.Has(k) {
@@ -2510,11 +2510,11 @@ func TestBikeWorkbenchStockFittingAcrossAllBars(t *testing.T) {
 		t.Errorf("stock count note = %q", got)
 	}
 	want := []stockBarRow{
-		{stockBarAlloy15, "130 mm, -17°", "0 mm", "0.60", "-14.4"},
-		{stockBarFLX15, "130 mm, -17°", "0 mm", "0.61", "-14.4"},
-		{stockBarFLX30, "130 mm, -17°", "0 mm", "0.65", "-14.4"},
-		{stockBarAlloy25, "130 mm, -17°", "0 mm", "0.71", "-14.4"},
-		{stockBarFLX15, "130 mm, -17°", "5 mm", "0.77", "-14.4"},
+		{stockBarAlloy15, "130 mm, -17°", "0 mm", "0.60", "-18.1"},
+		{stockBarFLX15, "130 mm, -17°", "0 mm", "0.61", "-18.1"},
+		{stockBarFLX30, "130 mm, -17°", "0 mm", "0.65", "-18.1"},
+		{stockBarAlloy25, "130 mm, -17°", "0 mm", "0.71", "-18.1"},
+		{stockBarFLX15, "130 mm, -17°", "5 mm", "0.77", "-18.1"},
 	}
 	assertStockBarRows(t, doc, want)
 
@@ -2674,8 +2674,8 @@ func TestBikeWorkbenchAppliesFreeStockBuild(t *testing.T) {
 
 func TestBikeWorkbenchStockFitKeepsSaddleFitAndTargets(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726")
-	if got := stockCell(doc.Find(`tr[data-stock-rank="1"]`), "score"); got != "-22.2" {
-		t.Errorf("row 1 score = %q, want -22.2", got)
+	if got := stockCell(doc.Find(`tr[data-stock-rank="1"]`), "score"); got != "-26.0" {
+		t.Errorf("row 1 score = %q, want -26.0", got)
 	}
 	q := hrefQuery(t, doc, `tr[data-stock-rank="1"] a[data-stock-apply]`)
 	for k, want := range map[string]string{
@@ -2686,8 +2686,8 @@ func TestBikeWorkbenchStockFitKeepsSaddleFitAndTargets(t *testing.T) {
 			t.Errorf("stock apply %s = %q, want %q", k, got, want)
 		}
 	}
-	if ext, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ext-183.315151) > 1e-6 {
-		t.Errorf("stock apply post_insert = %q, want ≈183.315151", q.Get("post_insert"))
+	if ext, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ext-197.387571) > 1e-6 {
+		t.Errorf("stock apply post_insert = %q, want ≈197.387571", q.Get("post_insert"))
 	}
 	if n := doc.Find("#apply-fitting").Length(); n != 1 {
 		t.Errorf("continuous apply links = %d, want 1", n)
@@ -3088,8 +3088,8 @@ func TestBikeWorkbenchSetbackNotesReachedFit(t *testing.T) {
 
 func TestBikeWorkbenchSetbackNotesForwardTarget(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?post=redshift_shockstop_pro&brp_x=-150&brp_y=758.1")
-	if got := metricText(doc, "fit-saddle-outcome"); got != "limited by saddle rail offset" {
-		t.Errorf("fit-saddle-outcome = %q, want limited by saddle rail offset", got)
+	if got := metricText(doc, "fit-saddle-outcome"); got != "limited by seatpost insertion, saddle rail offset" {
+		t.Errorf("fit-saddle-outcome = %q, want limited by seatpost insertion, saddle rail offset", got)
 	}
 	if got := metricText(doc, "fit-rail-offset"); got != "-15.0 mm" {
 		t.Errorf("fit-rail-offset = %q, want -15.0 mm", got)
@@ -3251,11 +3251,11 @@ func TestBikeWorkbenchStockForksWithSaddle(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?stock_forks=all&brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726")
 	cells := []string{"fork", "stem", "spacers", "score", "brp-miss"}
 	want := [][]string{
-		{stockForkSID20, "130 mm, -17°", "0 mm", "-20.4", "54.3 mm", "106.5"},
-		{stockForkLithic, "130 mm, -17°", "0 mm", "-22.2", "51.5 mm", "101.0"},
-		{stockForkFox20, "130 mm, -17°", "0 mm", "-28.1", "42.9 mm", "83.9"},
-		{stockForkSID20, "130 mm, -17°", "5 mm", "-29.0", "54.3 mm", "106.5"},
-		{stockForkLithic, "130 mm, -17°", "5 mm", "-31.0", "51.5 mm", "101.0"},
+		{stockForkSID20, "130 mm, -17°", "0 mm", "-24.2", "56.2 mm", "110.4"},
+		{stockForkLithic, "130 mm, -17°", "0 mm", "-26.0", "53.4 mm", "104.7"},
+		{stockForkFox20, "130 mm, -17°", "0 mm", "-31.6", "44.7 mm", "87.3"},
+		{stockForkSID20, "130 mm, -17°", "5 mm", "-32.9", "56.2 mm", "110.4"},
+		{stockForkLithic, "130 mm, -17°", "5 mm", "-34.8", "53.4 mm", "104.7"},
 	}
 	assertStockForkRows(t, doc, cells, "BRP miss", want)
 	q := hrefQuery(t, doc, firstStockApply)
@@ -3264,8 +3264,8 @@ func TestBikeWorkbenchStockForksWithSaddle(t *testing.T) {
 			t.Errorf("row 1 Apply %s = %q, want %q", key, got, value)
 		}
 	}
-	if ins, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ins-183.523736) > 1e-6 {
-		t.Errorf("row 1 Apply post_insert = %q, want 183.523736", q.Get("post_insert"))
+	if ins, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ins-198.128305) > 1e-6 {
+		t.Errorf("row 1 Apply post_insert = %q, want 198.128305", q.Get("post_insert"))
 	}
 	href, _ := doc.Find(firstStockApply).Attr("href")
 	applied := loadBikeDoc(t, href)
@@ -3291,11 +3291,11 @@ func TestBikeWorkbenchStockForksAndBars(t *testing.T) {
 	}
 	const flx12 = "SQlab 311 FL-X Carbon 12°, 15 mm rise (740 mm)"
 	assertStockForkRows(t, doc, []string{"bar", "fork", "stem", "spacers", "score"}, "", [][]string{
-		{flx12, stockForkFox20, "120 mm, -17°", "0 mm", "-3.3"},
-		{flx12, stockForkFox20, "120 mm, -17°", "5 mm", "-4.3"},
-		{flx12, stockForkFox20, "130 mm, -17°", "0 mm", "-5.3"},
-		{flx12, stockForkFox20, "130 mm, -17°", "5 mm", "-5.3"},
-		{"SQlab 3OX 12°, 15 mm rise (780 mm)", stockForkFox20, "130 mm, -17°", "0 mm", "-5.3"},
+		{flx12, stockForkFox20, "120 mm, -17°", "0 mm", "-6.7"},
+		{flx12, stockForkFox20, "120 mm, -17°", "5 mm", "-7.8"},
+		{flx12, stockForkFox20, "130 mm, -17°", "0 mm", "-8.7"},
+		{flx12, stockForkFox20, "130 mm, -17°", "5 mm", "-8.7"},
+		{"SQlab 3OX 12°, 15 mm rise (780 mm)", stockForkFox20, "130 mm, -17°", "0 mm", "-8.7"},
 	})
 }
 

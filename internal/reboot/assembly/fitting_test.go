@@ -113,24 +113,27 @@ func TestApplyFittingFitReportBRPLimitedByRailOffset(t *testing.T) {
 		t.Fatalf("LimitedBy = %v, want %v", fit.LimitedBy, want)
 	}
 	assertNear(t, "rail offset", rail, 15, 0)
-	assertNear(t, "insertion", fit.Placement.Setup.Seatpost.InsertionMm, 183.315151, 1e-6)
-	assertNear(t, "extension", ext, fenrirPostTotalMm-183.315151, 1e-6)
+	assertNear(t, "insertion", fit.Placement.Setup.Seatpost.InsertionMm, 197.387571, 1e-6)
+	assertNear(t, "extension", ext, fenrirPostTotalMm-197.387571, 1e-6)
 	miss, _ := fit.BrpMiss()
-	assertNear(t, "miss.X", miss.X, -49.657530, 1e-6)
-	assertNear(t, "miss.Y", miss.Y, -13.574380, 1e-6)
-	assertNear(t, "|miss|", brpMissMm(t, fit), 51.479453, 1e-6)
+	assertNear(t, "miss.X", miss.X, -53.368222, 1e-6)
+	assertNear(t, "miss.Y", miss.Y, 0, 1e-9)
+	assertNear(t, "|miss|", brpMissMm(t, fit), 53.368222, 1e-6)
 
-	// Setback is perpendicular to the seat axis: same extension, smaller miss.
+	// Setback moves the cradle along local +Y (195.29°), lowering it.
+	// Preserving BRP height pulls the post out to 190.006853 mm insertion.
 	setback := fenrirFittingSetup()
 	setback.Seatpost.Spec.SetbackMm = 27
 	fit27 := mustFit(t, setback, fitReportBRP)
-	ext27, rail27 := fittedValues(fit27)
+	_, rail27 := fittedValues(fit27)
 	if want := []assembly.InputField{assembly.InputSaddleRailOffset}; !reflect.DeepEqual(fit27.LimitedBy, want) {
 		t.Fatalf("setback LimitedBy = %v, want %v", fit27.LimitedBy, want)
 	}
 	assertNear(t, "setback rail offset", rail27, 15, 0)
-	assertNear(t, "setback extension", ext27, ext, 1e-9)
-	assertNear(t, "setback |miss|", brpMissMm(t, fit27), 24.479453, 1e-6)
+	assertNear(t, "setback insertion", fit27.Placement.Setup.Seatpost.InsertionMm, 190.006853, 1e-6)
+	miss27, _ := fit27.BrpMiss()
+	assertNear(t, "setback miss.Y", miss27.Y, 0, 1e-9)
+	assertNear(t, "setback |miss|", brpMissMm(t, fit27), 25.377598, 1e-6)
 }
 
 func TestApplyFittingExtensionLimits(t *testing.T) {
@@ -197,25 +200,137 @@ func TestApplyFittingErrors(t *testing.T) {
 	}
 }
 
+var (
+	gateTradeOffBRP     = pose.Point{X: -175.242919, Y: 710.580028}
+	pitchedInsertionBRP = pose.Point{X: -180.355237, Y: 819.658647}
+)
+
 func TestApplyFittingIsMinimalOverGrid(t *testing.T) {
-	setup := fenrirFittingSetup()
-	fit := mustFit(t, setup, fitReportBRP)
-	if fit.Outcome != assembly.FitLimited {
-		t.Fatalf("Outcome = %v, want limited", fit.Outcome)
+	const tol = 1e-6
+	inGate := func(miss pose.Point) bool {
+		return math.Abs(miss.Y) <= assembly.FitGateBrpYMm+1e-9 && math.Abs(miss.X) <= assembly.FitGateBrpXMm+1e-9
 	}
-	best := brpMissMm(t, fit)
-	for ext := 110.0; ext <= 300; ext++ {
-		for rail := -15.0; rail <= 15; rail++ {
-			s := setup
-			s.Seatpost.InsertionMm = fenrirPostTotalMm - (ext)
-			s.Saddle.RailOffsetMm = rail
-			brp := brpOf(t, s)
-			miss := math.Hypot(fitReportBRP.X-brp.X, fitReportBRP.Y-brp.Y)
-			if miss < best-1e-6 {
-				t.Fatalf("grid point ext %v rail %v misses by %v, beating the fitting's %v", ext, rail, miss, best)
+	for _, tc := range []struct {
+		name   string
+		target pose.Point
+		pitch  pose.Deg
+	}{
+		{"fit report outside gate", fitReportBRP, 0},
+		{"gate trade-off", gateTradeOffBRP, 0},
+		{"pitched rails at insertion bound", pitchedInsertionBRP, 5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setup := fenrirFittingSetup()
+			setup.Saddle.RailPitchDeg = tc.pitch
+			fit := mustFit(t, setup, tc.target)
+			if fit.Outcome != assembly.FitLimited {
+				t.Fatalf("Outcome = %v, want limited", fit.Outcome)
 			}
-		}
+			best, _ := fit.BrpMiss()
+			bestInGate := inGate(best)
+			for ext := 110.0; ext <= 300; ext++ {
+				for rail := -15.0; rail <= 15; rail++ {
+					setup.Seatpost.InsertionMm = fenrirPostTotalMm - ext
+					setup.Saddle.RailOffsetMm = rail
+					miss := tc.target.Sub(brpOf(t, setup))
+					dy := math.Abs(miss.Y) - math.Abs(best.Y)
+					dx := math.Abs(miss.X) - math.Abs(best.X)
+					gridInGate := inGate(miss)
+					if (gridInGate && !bestInGate) || (gridInGate == bestInGate && (dy < -tol || (math.Abs(dy) <= tol && dx < -tol))) {
+						t.Fatalf("grid point ext %v rail %v misses by %v, beating the fitting's %v", ext, rail, miss, best)
+					}
+				}
+			}
+		})
 	}
+}
+
+func TestApplyFittingGateAwareTradeOff(t *testing.T) {
+	// At 200 mm insertion and +15 mm rail offset, BRP is (-164.942919, 710.580028).
+	// A target 10.3 mm behind that point permits a small height trade-off.
+	// At 10.6 mm behind, entering the gate would require over 2 mm of height miss.
+	for _, tc := range []struct {
+		name      string
+		target    pose.Point
+		insertion float64
+		missX     float64
+		missY     float64
+		inGate    bool
+	}{
+		{"gate passing", gateTradeOffBRP, 198.862281, -10, -1.097454, true},
+		{"outside gate", pose.Point{X: -175.542919, Y: 710.580028}, 200, -10.6, 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fit := mustFit(t, fenrirFittingSetup(), tc.target)
+			want := []assembly.InputField{assembly.InputSaddleRailOffset}
+			if fit.Outcome != assembly.FitLimited || !reflect.DeepEqual(fit.LimitedBy, want) {
+				t.Fatalf("Outcome = %v, LimitedBy = %v, want limited by %v", fit.Outcome, fit.LimitedBy, want)
+			}
+			assertNear(t, "insertion", fit.Placement.Setup.Seatpost.InsertionMm, tc.insertion, 1e-5)
+			assertNear(t, "rail offset", fit.Placement.Setup.Saddle.RailOffsetMm, 15, 0)
+			miss, _ := fit.BrpMiss()
+			if tc.inGate {
+				assertNear(t, "miss.X", miss.X, tc.missX, 1e-6)
+				assertNear(t, "miss.Y", miss.Y, tc.missY, 1e-5)
+				if math.Abs(miss.Y) > assembly.FitGateBrpYMm || math.Abs(miss.X) > assembly.FitGateBrpXMm+1e-9 {
+					t.Errorf("miss %v fails the BRP gate", miss)
+				}
+			} else {
+				assertNear(t, "miss.X", miss.X, tc.missX, 1e-5)
+				assertNear(t, "miss.Y", miss.Y, tc.missY, 1e-9)
+			}
+		})
+	}
+}
+
+func TestApplyFittingPitchedRailsInsertionBound(t *testing.T) {
+	setup := fenrirFittingSetup()
+	setup.Saddle.RailPitchDeg = 5
+	// At minimum insertion, moving the pitched rails forward raises the BRP
+	// toward the target while increasing the horizontal miss.
+	fit := mustFit(t, setup, pitchedInsertionBRP)
+	want := []assembly.InputField{assembly.InputSeatpostInsertion, assembly.InputSaddleRailOffset}
+	if fit.Outcome != assembly.FitLimited || !reflect.DeepEqual(fit.LimitedBy, want) {
+		t.Fatalf("Outcome = %v, LimitedBy = %v, want limited by %v", fit.Outcome, fit.LimitedBy, want)
+	}
+	assertNear(t, "insertion", fit.Placement.Setup.Seatpost.InsertionMm, 100, 0)
+	assertNear(t, "rail offset", fit.Placement.Setup.Saddle.RailOffsetMm, -15, 0)
+	miss, _ := fit.BrpMiss()
+	assertNear(t, "miss.X", miss.X, -14.942920, 1e-5)
+	assertNear(t, "miss.Y", miss.Y, 8.692664, 1e-5)
+}
+
+func TestApplyFittingDegenerateBox(t *testing.T) {
+	setup := fenrirFittingSetup()
+	setup.Frame.MaxPostInsertionMm = 100
+	setup.Seatpost.InsertionMm = 100
+	setup.Saddle.RailLengthMm = 30
+	setup.Seatpost.Spec.RailClampLengthMm = 30
+	brp := brpOf(t, setup)
+
+	fit := mustFit(t, setup, pose.Point{X: brp.X - 20, Y: brp.Y + 5})
+	want := []assembly.InputField{assembly.InputSeatpostInsertion, assembly.InputSaddleRailOffset}
+	if fit.Outcome != assembly.FitLimited || !reflect.DeepEqual(fit.LimitedBy, want) {
+		t.Fatalf("Outcome = %v, LimitedBy = %v, want limited by %v", fit.Outcome, fit.LimitedBy, want)
+	}
+	assertNear(t, "insertion", fit.Placement.Setup.Seatpost.InsertionMm, 100, 0)
+	assertNear(t, "rail offset", fit.Placement.Setup.Saddle.RailOffsetMm, 0, 0)
+	miss := brpMissMm(t, fit)
+	if math.IsNaN(miss) || math.IsInf(miss, 0) {
+		t.Fatalf("miss = %v, want finite", miss)
+	}
+
+	fit = mustFit(t, setup, brp)
+	if fit.Outcome != assembly.FitReached || fit.LimitedBy != nil {
+		t.Fatalf("Outcome = %v, LimitedBy = %v, want reached", fit.Outcome, fit.LimitedBy)
+	}
+	assertNear(t, "reachable miss", brpMissMm(t, fit), 0, 1e-9)
+}
+
+func TestFitGateConstants(t *testing.T) {
+	assertNear(t, "HandGrip R", assembly.FitGateGripR, 1, 0)
+	assertNear(t, "BRP Y", assembly.FitGateBrpYMm, 2, 0)
+	assertNear(t, "BRP X", assembly.FitGateBrpXMm, 10, 0)
 }
 
 func TestApplyFittingCopiesTarget(t *testing.T) {
@@ -470,10 +585,6 @@ func TestFitPostSetbackAtRailLimit(t *testing.T) {
 	assertNear(t, "setback", fit.Placement.Setup.Seatpost.Spec.SetbackMm, 51.479453, 1e-6)
 	assertNear(t, "insertion", fit.Placement.Setup.Seatpost.InsertionMm, 183.315151, 1e-6)
 	assertNear(t, "miss", brpMissMm(t, fit), 0, 1e-9)
-
-	saddleFit := mustFit(t, fenrirFittingSetup(), fitReportBRP)
-	assertNear(t, "cross-check setback vs miss", fit.Placement.Setup.Seatpost.Spec.SetbackMm, brpMissMm(t, saddleFit), 1e-9)
-	assertNear(t, "cross-check extension", fit.Placement.Setup.Seatpost.ExposedMm(), saddleFit.Placement.Setup.Seatpost.ExposedMm(), 1e-9)
 }
 
 func TestFitPostSetbackIgnoresSubmittedSeatInputs(t *testing.T) {
@@ -525,11 +636,6 @@ func TestFitPostSetbackForwardTarget(t *testing.T) {
 	assertNear(t, "setback", fit.Placement.Setup.Seatpost.Spec.SetbackMm, 1.993870, 1e-6)
 	assertNear(t, "extension", fit.Placement.Setup.Seatpost.ExposedMm(), 249.808512, 1e-6)
 	assertNear(t, "miss", brpMissMm(t, fit), 0, 1e-9)
-
-	setup12 := fenrirFittingSetup()
-	setup12.Seatpost.Spec.SetbackMm = 12
-	saddleFit := mustFit(t, setup12, target)
-	assertNear(t, "cross-check 12 - miss", 12-brpMissMm(t, saddleFit), fit.Placement.Setup.Seatpost.Spec.SetbackMm, 1e-9)
 }
 
 func TestFitPostSetbackStopsAtExtension(t *testing.T) {
@@ -590,9 +696,9 @@ func TestApplyFittingReferencePosts(t *testing.T) {
 		spec                     assembly.SeatpostSpec
 		insertion, setback, miss float64
 	}{
-		{"generic 0 mm", genericPostSpec(0), 183.315151, 0, 51.479453},
-		{"generic with synthetic 27 mm setback", genericPostSpec(27), 183.315151, 27, 24.479453},
-		{"Redshift", redshiftPostSpec(), 133.315151, 12, 39.479453},
+		{"generic 0 mm", genericPostSpec(0), 197.387571, 0, 53.368222},
+		{"generic with synthetic 27 mm setback", genericPostSpec(27), 190.006853, 27, 25.377598},
+		{"Redshift", redshiftPostSpec(), 144.107252, 12, 40.927945},
 	} {
 		setup := fenrirFittingSetup()
 		setup.Seatpost = assembly.SeatpostSetup{Spec: tc.spec, InsertionMm: 150}
@@ -602,6 +708,8 @@ func TestApplyFittingReferencePosts(t *testing.T) {
 		assertNear(t, tc.name+" rail offset", got.Saddle.RailOffsetMm, 15, 1e-9)
 		assertNear(t, tc.name+" setback", got.Seatpost.Spec.SetbackMm, tc.setback, 1e-9)
 		assertNear(t, tc.name+" miss", brpMissMm(t, fit), tc.miss, 1e-6)
+		miss, _ := fit.BrpMiss()
+		assertNear(t, tc.name+" miss.Y", miss.Y, 0, 1e-9)
 	}
 }
 
@@ -622,6 +730,14 @@ func TestFitPostSetbackRedshiftForwardLimit(t *testing.T) {
 	target := pose.Point{X: -150, Y: 758.1}
 	fit := mustFit(t, setup, target)
 	assertNear(t, "rail offset", fit.Placement.Setup.Saddle.RailOffsetMm, -15, 1e-9)
+	assertNear(t, "insertion", fit.Placement.Setup.Seatpost.InsertionMm, 100, 1e-9)
+	want := []assembly.InputField{assembly.InputSeatpostInsertion, assembly.InputSaddleRailOffset}
+	if !reflect.DeepEqual(fit.LimitedBy, want) {
+		t.Fatalf("LimitedBy = %v, want %v", fit.LimitedBy, want)
+	}
+	miss, _ := fit.BrpMiss()
+	assertNear(t, "miss.X", miss.X, 9.702493, 1e-6)
+	assertNear(t, "miss.Y", miss.Y, 2.453759, 1e-6)
 
 	centered, err := assembly.FitPostSetback(setup, target, 0)
 	if err != nil {
