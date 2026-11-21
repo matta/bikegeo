@@ -1,6 +1,17 @@
 # Slice 13b: Stem catalog and frame-handling readouts
 
-Status: Planned 2026-11-20
+Status: Implemented 2026-11-20; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-20, Gemini 4 Hydrogen (Medium)
+- **Commits:**
+  - `11ecb6d` `Add trail and rear-center frameset readouts`
+  - `eebbb1e` `Port the stem catalog with composite stem scores`
+- **Done and not done:** A1, A2, W1, W2, W3, C1, C2 all done.
+- **Deviations:** None.
+- **Verification:** `make pre-commit` passed on both commits (`go test -v ./internal/reboot/catalog/...` and `make boundary` also verified). Live check via `make serve-reboot` on `http://127.0.0.1:8081/bike`: default Lithic showed `Trail: 94.1 mm`, `Rear Center: 444.9 mm`, `RC / WB: 38.3%`; switching fork to Fox Float 34 120mm at 20% sag showed `Trail: 110.0 mm`, `Rear Center: 445.6 mm`, `RC / WB: 38.5%`. Screenshot: `/Users/matt/.gemini/antigravity/brain/22137c5a-8bfe-4f08-b250-7f2791d5b0cd/.system_generated/steps/20/media_0.png`.
+- **Open issues:** None.
 
 **Rulings:** Q58, Q64 (stem catalog and composite score), Q96 (split: 13b is data and readouts only; scoring is 13c), Q72 (physical modeling in scope), AGENTS.md trig rule. Q97–Q99 apply to 13c, not here.
 
