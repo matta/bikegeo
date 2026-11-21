@@ -244,3 +244,19 @@ func TestStemsDedupKeepsHigherTier(t *testing.T) {
 		t.Errorf("120 mm 0° = %+v (ok=%v), want AngleNiche", s, ok)
 	}
 }
+
+func TestStockStems(t *testing.T) {
+	stems := catalog.Stems()
+	stock := catalog.StockStems()
+	if len(stock) != 107 || len(stock) != len(stems) {
+		t.Fatalf("StockStems = %d, Stems = %d, want 107", len(stock), len(stems))
+	}
+	for i, s := range stock {
+		if s.LengthMm != stems[i].LengthMm || s.AngleDeg != stems[i].AngleDeg || s.Score != stems[i].Score {
+			t.Errorf("stock stem %d = %+v, want %+v", i, s, stems[i])
+		}
+		if err := s.Validate(); err != nil {
+			t.Errorf("stock stem %d: %v", i, err)
+		}
+	}
+}

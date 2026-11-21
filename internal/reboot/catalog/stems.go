@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"bikegeo/internal/reboot/assembly"
 	"bikegeo/internal/reboot/pose"
 )
 
@@ -238,4 +239,19 @@ func clamp01(x float64) float64 {
 		return 1
 	}
 	return x
+}
+
+// StockStems returns the 107 catalog stems in assembly.StockStem form for
+// stock cockpit fitting (Q97).
+func StockStems() []assembly.StockStem {
+	stems := Stems()
+	out := make([]assembly.StockStem, len(stems))
+	for i, s := range stems {
+		out[i] = assembly.StockStem{
+			LengthMm: s.LengthMm,
+			AngleDeg: s.AngleDeg,
+			Score:    s.Score,
+		}
+	}
+	return out
 }
