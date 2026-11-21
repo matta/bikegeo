@@ -1,6 +1,15 @@
 # Slice 13a: Gate-Aware Height-First Lexicographic Saddle Clamping
 
-Status: Planned 2026-11-20
+Status: Implemented 2026-11-20; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** Codex (GPT-6), 2026-11-20.
+- **Commit:** `256790c` Use gate-aware height-first saddle clamping. This handoff and the milestone status are recorded in a separate documentation commit.
+- **Done:** Sections 1–4. The saddle fit checks for an exact solution first, then prefers a gate-passing point and minimizes vertical miss before horizontal miss. Added the three gate constants and the planned assembly and web coverage. All implementation steps are complete.
+- **Deviations:** Updated the five scores in `TestBikeWorkbenchStockFittingAcrossAllBars` from `-14.4` to `-18.1` because that case also includes the BRP penalty. Corrected two stock score references to `-26.024461` and `-34.754250`, and the submitted-fork BRP penalty to `104.736444`, keeping the planned `1e-6` tolerance.
+- **Verification:** `go vet ./...`, `go test ./...`, and `make pre-commit` passed. The pre-commit run left the diff unchanged. The browserless web tests checked the fitted values, Apply links, and stock rows. The plan skips the live browser check because the slice changes no HTML, SVG, or templates.
+- **Open issue (Q85):** A catalog probe using the default Redshift post, SQlab 610, and idmatch BRP found that 27 of 119 sizes pass on at least one supported fork and sag, or 110 of 701 configurations. Zero of 119 pass on their CAD baseline fork. A height-first-only probe on the same inputs found 26 passing sizes and 98 passing supported configurations, with zero passing CAD baselines. Reconcile Q85's expected empty BRP tiers with the supported fork and sag search on `/` before relying on it for comparison acceptance.
 
 This slice implements **Slice 13a** from [DESIGN.md](DESIGN.md): adding the BRP and HandGrip fit-gate threshold constants in `internal/reboot/assembly` and replacing Euclidean box clamping in `fitSaddle` with gate-aware, height-first lexicographic clamping over the bounded `[EffectiveMinInsertion, MaxAllowedInsertion] × [−railLimit, +railLimit]` box.
 
