@@ -69,7 +69,7 @@
     .tier-fits-neither { background: #ffebe9; color: #82071e; }
     .tier-legend { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.65rem; margin: 0 0 0.55rem; font-size: 0.8rem; color: var(--muted); }
     .tier-legend dt, .tier-legend dd { margin: 0; }
-    table.build-table td { white-space: nowrap; }
+    table.build-table td, table.submitted-table td { white-space: nowrap; }
 
     .form-error {
       margin-bottom: 0.85rem;
@@ -268,7 +268,7 @@
 <body>
   <header>
     <h1>bikegeo-reboot</h1>
-    <span class="badge">Milestone 1 Slice 4 (controls &amp; inspection) · {{.BikeName}}</span>
+    <span class="badge">{{.BikeName}}</span>
   </header>
 
   <main>
@@ -278,12 +278,31 @@
       <strong>Error:</strong> {{.ErrorMessage}}
     </div>
     {{end}}
+    <input type="hidden" name="prev_frame" value="{{.Form.PrevFrame}}">
+    <input type="hidden" name="prev_size" value="{{.Form.PrevSize}}">
     <input type="hidden" name="prev_fork" value="{{.Form.PrevFork}}">
+    <input type="hidden" name="prev_post" value="{{.Form.PrevPost}}">
     <input type="hidden" name="view" value="{{.Form.View}}">
     <div class="control-groups">
       <fieldset class="control-group">
-        <legend>Fork &amp; Headset</legend>
+        <legend>Frame, Fork &amp; Headset</legend>
         <div class="group-fields">
+          <div class="field field-full">
+            <label for="ctrl-frame">Frame</label>
+            <select id="ctrl-frame" name="frame"{{if and $.ErrorMessage (eq $.InvalidField "frame")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+              {{range .Frames}}
+              <option value="{{.ID}}"{{if eq .ID $.SelectedFrameID}} selected{{end}}>{{.Label}}</option>
+              {{end}}
+            </select>
+          </div>
+          <div class="field">
+            <label for="ctrl-size">Size</label>
+            <select id="ctrl-size" name="size"{{if and $.ErrorMessage (eq $.InvalidField "size")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+              {{range .Sizes}}
+              <option value="{{.}}"{{if eq . $.SelectedSize}} selected{{end}}>{{.}}</option>
+              {{end}}
+            </select>
+          </div>
           <div class="field field-full">
             <label for="ctrl-fork">Fork</label>
             <select id="ctrl-fork" name="fork"{{if and $.ErrorMessage (eq $.InvalidField "fork")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
@@ -313,6 +332,7 @@
         {{if .CadBaselineNote}}
         <p class="field-note" data-note="cad-baseline-fork">{{.CadBaselineNote}}</p>
         {{end}}
+        {{if .SlidingDropoutsNote}}<p class="field-note" data-note="sliding-dropouts">{{.SlidingDropoutsNote}}</p>{{end}}
       </fieldset>
 
       <fieldset class="control-group">
@@ -347,6 +367,7 @@
 
       <fieldset class="control-group">
         <legend>Rear Cockpit</legend>
+        {{if .RedshiftMixedStateNote}}<p class="field-note" data-note="redshift-mixed-state">{{.RedshiftMixedStateNote}}</p>{{end}}
         <div class="group-fields">
           <div class="field field-full">
             <label for="ctrl-post">Seatpost</label>
@@ -375,7 +396,7 @@
 
       <fieldset class="control-group">
         <legend>BRP fit target</legend>
-        <p class="fit-note">Enter both X and Y (mm, world coordinates, BB at origin). Example: {{.ExampleBrpX}}, {{.ExampleBrpY}}.</p>
+        <p class="fit-note">Enter both X and Y (mm, world coordinates, BB at origin). Default: {{.ExampleBrpX}}, {{.ExampleBrpY}}. Clear both boxes to disable.</p>
         <div class="group-fields">
           <div class="field">
             <label for="ctrl-brp-x">BRP X (mm)</label>
@@ -390,7 +411,7 @@
 
       <fieldset class="control-group">
         <legend>HandGrip fit target</legend>
-        <p class="fit-note">Enter both X and Y (mm, world coordinates, BB at origin). Example: {{.ExampleGripX}}, {{.ExampleGripY}}.</p>
+        <p class="fit-note">Enter both X and Y (mm, world coordinates, BB at origin). Default: {{.ExampleGripX}}, {{.ExampleGripY}}. Clear both boxes to disable.</p>
         <div class="group-fields">
           <div class="field">
             <label for="ctrl-grip-x">HandGrip X (mm)</label>
@@ -421,6 +442,7 @@
     <div class="control-actions">
       <button id="ctrl-submit" type="submit">Update Build</button>
       <a id="preset-defaults" href="{{.DefaultsURL}}" data-preset="defaults">Reset Defaults</a>
+      {{if .ClearTargetsURL}}<a id="preset-clear-targets" href="{{.ClearTargetsURL}}" data-preset="clear-targets">Clear Targets</a>{{end}}
       <a id="preset-cad-baseline-fork" href="{{.CadBaselineForkURL}}" data-preset="cad-baseline-fork">CAD Baseline Fork ({{printf "%.0f" .CadLowerCupMm}} mm cup)</a>
     </div>
   </form>
@@ -440,6 +462,9 @@
         <span>Pitch: <strong class="mono" data-metric="frame-pitch">{{printf "%+.2f°" .PitchDeg}}</strong></span>
         <span>Leveled HTA: <strong class="mono" data-metric="leveled-hta">{{printf "%.2f°" .LeveledHtaDeg}}</strong></span>
         <span>Leveled STA: <strong class="mono" data-metric="leveled-sta">{{printf "%.2f°" .LeveledStaDeg}}</strong></span>
+        <span>Leveled Reach: <strong class="mono" data-metric="leveled-reach">{{printf "%.1f mm" .LeveledReachMm}}</strong></span>
+        <span>Leveled Stack: <strong class="mono" data-metric="leveled-stack">{{printf "%.1f mm" .LeveledStackMm}}</strong></span>
+        <span>ETT: <strong class="mono" data-metric="ett">{{printf "%.1f mm" .EttMm}}</strong></span>
         <span>Effective A2C: <strong class="mono" data-metric="effective-a2c">{{printf "%.1f mm" .EffectiveA2cMm}}</strong></span>
         <span>Wheelbase: <strong class="mono" data-metric="wheelbase">{{printf "%.1f mm" .WheelbaseMm}}</strong></span>
         <span>Leveled BB Drop: <strong class="mono" data-metric="bb-drop">{{printf "%.1f mm" .BbDropLeveledMm}}</strong></span>
@@ -454,6 +479,26 @@
       </div>
       {{with .Fitting}}
       <div data-fitting>
+        {{with .SubmittedScore}}
+        <div class="build-ranking" data-submitted-score>
+          <strong>Submitted build score</strong>
+          {{if .Scored}}
+          <p class="fit-note"><span class="tier-badge tier-{{.TierClass}}" data-submitted-tier="{{.Tier}}">{{.TierLabel}}</span> score <strong class="mono" data-metric="submitted-score">{{printf "%.1f" .Score}}</strong> (0–100, total weight {{printf "%.0f" .ActiveWeight}}{{if not .HasBrp}}; 4 saddle attributes omitted without BRP target{{end}}) · Oval R <span class="mono" data-metric="submitted-oval-r">{{printf "%.2f" .GripR}}</span> · BRP miss <span class="mono" data-metric="submitted-brp-miss">{{if .HasBrp}}{{printf "(%+.1f, %+.1f) mm" .BrpMissXMm .BrpMissYMm}}{{else}}—{{end}}</span></p>
+          <div class="build-scroll">
+            <table class="submitted-table">
+              <thead>
+                <tr>{{range .AttributeHeaders}}<th>{{.Label}}</th>{{end}}</tr>
+              </thead>
+              <tbody>
+                <tr>{{range .Attributes}}<td class="mono" data-submitted-attr="{{.Attribute}}">{{if .Active}}{{printf "%.1f" .Score}}{{else}}—{{end}}</td>{{end}}</tr>
+              </tbody>
+            </table>
+          </div>
+          {{else}}
+          <p class="fit-note" data-note="off-catalog-stem">{{.OffCatalogNote}}</p>
+          {{end}}
+        </div>
+        {{end}}
         {{with .Saddle}}
         <div class="summary">
           <strong>Saddle fitting</strong>
@@ -518,7 +563,7 @@
       </div>
       {{end}}
       <div class="summary" style="font-size: 0.82rem;">
-        <span>CAD Baseline Fork ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm / {{printf "%.0f" .CadLowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .CadHtaDeg}} HTA, {{printf "%.1f mm" .CadWheelbaseMm}} WB</strong> (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>)</span>
+        <span>CAD Baseline Fork ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm / {{printf "%.0f" .CadLowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .CadHtaDeg}} HTA, {{printf "%.1f mm" .CadWheelbaseMm}} WB</strong> {{if gt .PublishedWheelbaseMm 0.0}} (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>){{end}}</span>
         <span>ΔPitch vs CAD: <strong class="mono" data-metric="delta-pitch">{{printf "%+.2f°" .DeltaPitchDeg}}</strong></span>
       </div>
 
