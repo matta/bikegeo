@@ -359,7 +359,9 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 		} else if _, known := findFrameFork(frame, prevFork); known {
 			prevCupStd = frameSetup.DefaultLowerCup.Standard
 		}
-		if prevCupStd != frameSetup.DefaultLowerCup.Standard {
+		// The CAD baseline's cup stack is locked to the chart, so leaving it always
+		// restores the physical default, even when both share a standard.
+		if prevFork == CadForkID || prevCupStd != frameSetup.DefaultLowerCup.Standard {
 			cupMm = defaultCup
 		} else if cupMm, err = parseFloatOrDefault(q, "cup", defaultCup, "lower cup"); err != nil {
 			return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{}, err

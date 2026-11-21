@@ -142,6 +142,12 @@ func TestParseBikeSwitchesQ109(t *testing.T) {
 	if b.Setup.Fork.Spec.StaticA2cMm != 530 || cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Fork.SagPct != 20 {
 		t.Errorf("cad->fox = a2c %v cup %s sag %v", b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct)
 	}
+	// Leaving the CAD baseline restores the physical cup even when the cup
+	// standard is shared (binary-havok: CAD EC44 10 mm, physical EC44 12 mm).
+	b = mustParseBike(t, "frame=binary-havok&size=L&prev_fork=cad&fork=rigid_485&fork_a2c=485&cup=10&sag=0")
+	if cupString(b.Setup.LowerCup) != "EC44 12" {
+		t.Errorf("cad->physical cup = %s, want EC44 12", cupString(b.Setup.LowerCup))
+	}
 	b = mustParseBike(t, "prev_fork=lithic_carbon_mountain&fork=fox34_120&fork_a2c=495&cup=14&sag=0")
 	if b.Setup.Fork.Spec.StaticA2cMm != 530 || cupString(b.Setup.LowerCup) != "EC44 14" || b.Setup.Fork.SagPct != 20 {
 		t.Errorf("fork switch = a2c %v cup %s sag %v", b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct)
@@ -261,7 +267,9 @@ func TestBikeEvaluate(t *testing.T) {
 	if r.SetbackCentered == nil || r.SetbackReach == nil {
 		t.Fatal("setback fittings nil")
 	}
-	near(t, "centered setback", r.SetbackCentered.Placement.Setup.Seatpost.InsertionMm, 129.359870, 1e-5)
+	near(t, "centered setback", r.SetbackCentered.Placement.Setup.Seatpost.Spec.SetbackMm, 65.948584, 1e-5)
+	near(t, "centered insertion", r.SetbackCentered.Placement.Setup.Seatpost.InsertionMm, 129.359870, 1e-5)
+	near(t, "reach setback", r.SetbackReach.Placement.Setup.Seatpost.Spec.SetbackMm, 51.479453, 1e-5)
 	near(t, "reach insertion", r.SetbackReach.Placement.Setup.Seatpost.InsertionMm, 133.315151, 1e-5)
 	if r.Builds == nil || r.Builds.Evaluated != 749 || len(r.Builds.Builds) != 5 {
 		t.Fatalf("builds = %+v", r.Builds)

@@ -3677,3 +3677,20 @@ func TestBikeDurableClearedTargetsQ70(t *testing.T) {
 		}
 	})
 }
+
+// A rejected frame, size, or fork renders the default's dependent options, so
+// choosing another frame afterwards must recover instead of failing again.
+func TestBikeWorkbenchRecoversFromRejectedSelects(t *testing.T) {
+	for _, path := range []string{"/bike?frame=nope", "/bike?fork=nope", "/bike?size=XXL"} {
+		t.Run(path, func(t *testing.T) {
+			errDoc := loadBikeDocStatus(t, path, http.StatusBadRequest)
+			rec, next := submitForm(t, errDoc, map[string]string{"frame": "esker-hayduke"})
+			if rec.Code != http.StatusOK {
+				t.Fatalf("switch to esker-hayduke status = %d, want 200", rec.Code)
+			}
+			if got := selectedValue(next, "size"); got != "S3" {
+				t.Errorf("selected size = %q, want S3", got)
+			}
+		})
+	}
+}

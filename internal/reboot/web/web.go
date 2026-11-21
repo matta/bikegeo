@@ -235,15 +235,6 @@ const (
 
 var diagramViews = []diagramView{diagramViewBike, diagramViewSeat, diagramViewStem}
 
-func parseDiagramView(raw string) (diagramView, bool) {
-	for _, v := range diagramViews {
-		if raw == string(v) {
-			return v, true
-		}
-	}
-	return diagramViewBike, false
-}
-
 // LinkText is the view's link text in the diagram card.
 func (v diagramView) LinkText() string {
 	switch v {

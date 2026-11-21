@@ -367,7 +367,6 @@
 
       <fieldset class="control-group">
         <legend>Rear Cockpit</legend>
-        {{if .RedshiftMixedStateNote}}<p class="field-note" data-note="redshift-mixed-state">{{.RedshiftMixedStateNote}}</p>{{end}}
         <div class="group-fields">
           <div class="field field-full">
             <label for="ctrl-post">Seatpost</label>
@@ -392,6 +391,7 @@
             <input id="ctrl-rail-pitch" type="number" name="rail_pitch" step="0.5" value="{{.Form.RailPitch}}"{{if and $.ErrorMessage (eq $.InvalidField "rail_pitch")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
           </div>
         </div>
+        {{if .RedshiftMixedStateNote}}<p class="field-note" data-note="redshift-mixed-state">{{.RedshiftMixedStateNote}}</p>{{end}}
       </fieldset>
 
       <fieldset class="control-group">
