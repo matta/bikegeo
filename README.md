@@ -37,13 +37,13 @@ All bike frame definitions ([`internal/frames/`](internal/frames)), fork and ste
    - Frames are evaluated against parameterized sweet-spot ranges defined in [`internal/ideal/loader.go`](internal/ideal/loader.go) (`idmatch` biomechanical fit profile).
    - Scores are a points-lost ledger: `Total = 100 − Σ points lost`. Each scored band is free inside its ideal range (e.g. BRP Setback 219mm, inside the fit oval, BB Drop 65–75mm, Trail 98–106mm) and loses a stated number of points of total per unit outside it, linearly and with no floor, so totals can go below 0.
      - Scored cells show `✓` when the band is free and `✗ N pts` with the points it costs otherwise (e.g. `204 ✗ 18 pts`). There is no acceptable range and no `~`.
-   - A setup *fits* when some stock build puts the hands inside the oval and the BRP lands within 10 mm of 219 mm. Every fitting setup ranks above every non-fitting one; points order each group. Tables are sorted that way (with original `[#]` identifiers preserved).
+   - A setup *fits* when some build puts the hands inside the oval and the BRP lands within 10 mm of 219 mm. Every fitting setup ranks above every non-fitting one; points order each group. Tables are sorted that way (with original `[#]` identifiers preserved).
    - `compare all` keeps each frame's best setup over size, fork and sag; the frame's CAD fork is always one of the candidates, even at a sag outside 20/25/30%.
    - Generates plain-English footer explanations (`Biggest Losses vs. Ideal` and `Head-to-Head Deciding Factors`).
    - Disable scoring with `--no-score`, or inspect points lost per band with `--score-detail`.
 
 6. **Catalogs and Analysis in the Web UI**:
-   - The `/bike` workbench, saddles, saddle swap and handlebars are browsed and tuned in the web app only; the ideal profile, band costs and stock stem catalogs are on its `/help` page (see [docs/WEB.md](docs/WEB.md)).
+   - The `/bike` workbench, saddles, saddle swap and handlebars are browsed and tuned in the web app only; the ideal profile, band costs and stem catalogs are on its `/help` page (see [docs/WEB.md](docs/WEB.md)).
 
 7. **Agent-Friendly CLI Output**:
    - Every command prints Markdown (no `--format` flag). `compare` keeps a many-bike comparison as one wide table.
