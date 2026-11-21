@@ -2,7 +2,10 @@
 // component assembly.
 package pose
 
-import "math"
+import (
+	"encoding/json"
+	"math"
+)
 
 const radPerDeg = math.Pi / 180.0
 
@@ -69,6 +72,18 @@ func (p Pose) Origin() Point {
 // 90° along +Y, positive counter-clockwise).
 func (p Pose) HeadingDeg() Deg {
 	return p.headingDeg
+}
+
+// MarshalJSON serializes a Pose's unexported Origin and HeadingDeg for
+// encoding/json CLI output (Q49a, Q88).
+func (p Pose) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Origin     Point
+		HeadingDeg Deg
+	}{
+		Origin:     p.origin,
+		HeadingDeg: p.headingDeg,
+	})
 }
 
 // Advance returns a new Pose moved distMm along the current heading.

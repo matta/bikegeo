@@ -1,6 +1,7 @@
 package pose_test
 
 import (
+	"encoding/json"
 	"math"
 	"testing"
 
@@ -115,4 +116,38 @@ func TestAlongAndProjectOnto(t *testing.T) {
 	assertNear(t, "Along.X", p.X, 0, 1e-12)
 	assertNear(t, "Along.Y", p.Y, 2, 1e-12)
 	assertNear(t, "ProjectOnto", pose.ProjectOnto(pose.Point{X: 1, Y: 1}, 45), math.Sqrt2, 1e-12)
+}
+
+func TestPoseMarshalJSON(t *testing.T) {
+	cases := []struct {
+		name string
+		p    pose.Pose
+		want string
+	}{
+		{"placed", pose.NewPose(pose.Point{X: -219, Y: 713.1}, 104.75), `{"Origin":{"X":-219,"Y":713.1},"HeadingDeg":104.75}`},
+		{"zero", pose.Pose{}, `{"Origin":{"X":0,"Y":0},"HeadingDeg":0}`},
+	}
+	for _, tc := range cases {
+		got, err := json.Marshal(tc.p)
+		if err != nil {
+			t.Fatalf("%s: json.Marshal: %v", tc.name, err)
+		}
+		if string(got) != tc.want {
+			t.Errorf("%s: got %s, want %s", tc.name, got, tc.want)
+		}
+	}
+
+	nonFinite := []struct {
+		name string
+		p    pose.Pose
+	}{
+		{"NaN X", pose.NewPose(pose.Point{X: math.NaN(), Y: 0}, 0)},
+		{"Inf Y", pose.NewPose(pose.Point{X: 0, Y: math.Inf(1)}, 0)},
+		{"NaN heading", pose.NewPose(pose.Point{}, pose.Deg(math.NaN()))},
+	}
+	for _, tc := range nonFinite {
+		if _, err := json.Marshal(tc.p); err == nil {
+			t.Errorf("%s: json.Marshal succeeded, want an error", tc.name)
+		}
+	}
 }
