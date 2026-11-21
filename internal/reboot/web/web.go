@@ -289,8 +289,8 @@ type workbenchState struct {
 	RailOffsetMm    float64
 	RailPitchDeg    pose.Deg
 	Targets         fitTargetState
-	AllStockBars    bool // stock fitting offers every workbench handlebar (Q22)
-	AllStockForks   bool // stock fitting offers every workbench fork configuration (Q33)
+	AllBarOptions   bool // build fitting offers every workbench handlebar (Q22)
+	AllForkOptions  bool // build fitting offers every workbench fork configuration (Q33)
 }
 
 // fitTargetState is the optional fitting targets in the URL query
@@ -357,12 +357,12 @@ func workbenchStateFromSetup(view diagramView, forkID, barID, postID string, set
 }
 
 // withSetup returns s with every setup-derived field replaced by setup's,
-// keeping the submitted view, fork, bar, post, fit targets, and stock bar and fork options.
+// keeping the submitted view, fork, bar, post, fit targets, and bar and fork options.
 func (s workbenchState) withSetup(setup assembly.BikeSetup) workbenchState {
 	next := workbenchStateFromSetup(s.View, s.ForkID, s.BarID, s.PostID, setup)
 	next.Targets = s.Targets
-	next.AllStockBars = s.AllStockBars
-	next.AllStockForks = s.AllStockForks
+	next.AllBarOptions = s.AllBarOptions
+	next.AllForkOptions = s.AllForkOptions
 	return next
 }
 
@@ -412,11 +412,11 @@ func (s workbenchState) URL() string {
 		q.Set("grip_x", formatFormFloat(s.Targets.GripX))
 		q.Set("grip_y", formatFormFloat(s.Targets.GripY))
 	}
-	if s.AllStockBars {
-		q.Set("stock_bars", stockBarsAll)
+	if s.AllBarOptions {
+		q.Set("bar_options", barOptionsAll)
 	}
-	if s.AllStockForks {
-		q.Set("stock_forks", stockForksAll)
+	if s.AllForkOptions {
+		q.Set("fork_options", forkOptionsAll)
 	}
 	return "/bike?" + q.Encode()
 }
@@ -431,61 +431,61 @@ func (s workbenchState) formValues() bikeFormValues {
 		gripX = formatFormFloat(s.Targets.GripX)
 		gripY = formatFormFloat(s.Targets.GripY)
 	}
-	stockBars := stockBarsSelected
-	if s.AllStockBars {
-		stockBars = stockBarsAll
+	barOptions := barOptionsSelected
+	if s.AllBarOptions {
+		barOptions = barOptionsAll
 	}
-	stockForks := stockForksSelected
-	if s.AllStockForks {
-		stockForks = stockForksAll
+	forkOptions := forkOptionsSelected
+	if s.AllForkOptions {
+		forkOptions = forkOptionsAll
 	}
 	return bikeFormValues{
-		BrpX:       brpX,
-		BrpY:       brpY,
-		GripX:      gripX,
-		GripY:      gripY,
-		StockBars:  stockBars,
-		StockForks: stockForks,
-		View:       string(s.View),
-		Fork:       s.ForkID,
-		Bar:        s.BarID,
-		Post:       s.PostID,
-		PrevFork:   s.ForkID,
-		ForkA2c:    formatFormFloat(s.ForkA2cMm),
-		Cup:        formatFormFloat(s.LowerCupMm),
-		Sag:        formatFormFloat(s.SagPct),
-		Spacers:    formatFormFloat(s.SpacersMm),
-		StemLength: formatFormFloat(s.StemLengthMm),
-		StemAngle:  formatFormFloat(float64(s.StemAngleDeg)),
-		BarRoll:    formatFormFloat(float64(s.BarRollDeg)),
-		PostInsert: formatFormFloat(s.PostInsertionMm),
-		RailOffset: formatFormFloat(s.RailOffsetMm),
-		RailPitch:  formatFormFloat(float64(s.RailPitchDeg)),
+		BrpX:        brpX,
+		BrpY:        brpY,
+		GripX:       gripX,
+		GripY:       gripY,
+		BarOptions:  barOptions,
+		ForkOptions: forkOptions,
+		View:        string(s.View),
+		Fork:        s.ForkID,
+		Bar:         s.BarID,
+		Post:        s.PostID,
+		PrevFork:    s.ForkID,
+		ForkA2c:     formatFormFloat(s.ForkA2cMm),
+		Cup:         formatFormFloat(s.LowerCupMm),
+		Sag:         formatFormFloat(s.SagPct),
+		Spacers:     formatFormFloat(s.SpacersMm),
+		StemLength:  formatFormFloat(s.StemLengthMm),
+		StemAngle:   formatFormFloat(float64(s.StemAngleDeg)),
+		BarRoll:     formatFormFloat(float64(s.BarRollDeg)),
+		PostInsert:  formatFormFloat(s.PostInsertionMm),
+		RailOffset:  formatFormFloat(s.RailOffsetMm),
+		RailPitch:   formatFormFloat(float64(s.RailPitchDeg)),
 	}
 }
 
 type bikeFormValues struct {
-	View       string
-	Fork       string
-	Bar        string
-	Post       string
-	PrevFork   string
-	ForkA2c    string
-	Cup        string
-	Sag        string
-	Spacers    string
-	StemLength string
-	StemAngle  string
-	BarRoll    string
-	PostInsert string
-	RailOffset string
-	RailPitch  string
-	BrpX       string
-	BrpY       string
-	GripX      string
-	GripY      string
-	StockBars  string
-	StockForks string
+	View        string
+	Fork        string
+	Bar         string
+	Post        string
+	PrevFork    string
+	ForkA2c     string
+	Cup         string
+	Sag         string
+	Spacers     string
+	StemLength  string
+	StemAngle   string
+	BarRoll     string
+	PostInsert  string
+	RailOffset  string
+	RailPitch   string
+	BrpX        string
+	BrpY        string
+	GripX       string
+	GripY       string
+	BarOptions  string
+	ForkOptions string
 }
 
 type bikeInputError struct {
@@ -522,7 +522,7 @@ type bikeView struct {
 	SaddleName           string
 	HandlebarName        string
 	Forks                []forkOption
-	StockForkCount       int
+	ForkOptionCount      int
 	CadForkOption        forkOption
 	SelectedForkID       string
 	Handlebars           []catalog.Handlebar
@@ -584,11 +584,11 @@ type bikeView struct {
 type bikeFittingView struct {
 	Saddle   *saddleFittingView  // nil unless a BRP target is set
 	Cockpit  *cockpitFittingView // nil unless a HandGrip target is set
-	Stock    *stockFittingView   // nil unless a HandGrip target is set
+	Builds   *buildRankingView   // nil unless a HandGrip target is set
 	ApplyURL string              // the fitted build, with the submitted targets kept
 }
 
-type stockAttributeHeader struct {
+type buildAttributeHeader struct {
 	Attribute assembly.AttributeName
 	Label     string
 }
@@ -600,18 +600,18 @@ type fitTierLegendItem struct {
 	Definition string
 }
 
-type stockFittingView struct {
+type buildRankingView struct {
 	AllForks         bool
 	HasBrp           bool
 	ActiveWeight     float64
 	PartsText        string
 	Evaluated        int
-	AttributeHeaders []stockAttributeHeader
+	AttributeHeaders []buildAttributeHeader
 	TierLegend       []fitTierLegendItem
-	Rows             []stockCandidateView
+	Rows             []scoredBuildView
 }
 
-type stockCandidateView struct {
+type scoredBuildView struct {
 	Rank                    int
 	Tier                    assembly.FitTier
 	TierClass               string
@@ -695,19 +695,19 @@ func (v bikeView) Px(size float64) string {
 	return formatSVGSize(size * v.DrawScale)
 }
 
-// stockCandidateLimit is the number of ranked builds shown in the workbench (Q18).
-const stockCandidateLimit = 5
+// rankedBuildLimit is the number of ranked builds shown in the workbench (Q18).
+const rankedBuildLimit = 5
 
-// stock_bars values (Q22).
+// bar_options values (Q22).
 const (
-	stockBarsSelected = "selected"
-	stockBarsAll      = "all"
+	barOptionsSelected = "selected"
+	barOptionsAll      = "all"
 )
 
-// stock_forks values (Q33).
+// fork_options values (Q33).
 const (
-	stockForksSelected = "selected"
-	stockForksAll      = "all"
+	forkOptionsSelected = "selected"
+	forkOptionsAll      = "all"
 )
 
 func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
@@ -770,25 +770,25 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		}
 		view.Fitting = buildFittingView(resolved.State, bike, fitting, centered, reach)
 		if resolved.State.Targets.HasGrip {
-			// offered is the bar list stock fitting enumerates; its indices
-			// name each candidate's bar.
+			// offered is the bar list build fitting enumerates; its indices
+			// name each build's bar.
 			var offered []catalog.Handlebar
-			if resolved.State.AllStockBars {
+			if resolved.State.AllBarOptions {
 				offered = wb.Handlebars
 			}
 			var offeredForks []forkSagOption
-			if resolved.State.AllStockForks {
+			if resolved.State.AllForkOptions {
 				offeredForks = wb.forkOptions()
 			}
 			parts := wb.PartOptions
 			parts.Handlebars = handlebarSetups(offered)
 			parts.Forks = forkOptionSetups(offeredForks)
-			result, err := assembly.FitBuilds(resolved.Setup, target, parts, wb.ScoreWeights, stockCandidateLimit)
+			result, err := assembly.FitBuilds(resolved.Setup, target, parts, wb.ScoreWeights, rankedBuildLimit)
 			if err != nil {
 				renderBikeError(w, wb, resolved, bikeInputField(err), err.Error())
 				return
 			}
-			view.Fitting.Stock, err = buildStockFittingView(resolved.State, wb, offered, offeredForks, result)
+			view.Fitting.Builds, err = makeBuildRankingView(resolved.State, wb, offered, offeredForks, result)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -858,18 +858,18 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 	return fv
 }
 
-// buildStockFittingView renders ranked builds. The offered bars and
+// makeBuildRankingView renders ranked builds. The offered bars and
 // forks are in the same order as PartOptions.Handlebars and PartOptions.Forks.
-func buildStockFittingView(state workbenchState, wb bikeWorkbench, offered []catalog.Handlebar, offeredForks []forkSagOption, ranking assembly.BuildRanking) (*stockFittingView, error) {
-	view := &stockFittingView{
-		AllForks:         state.AllStockForks,
+func makeBuildRankingView(state workbenchState, wb bikeWorkbench, offered []catalog.Handlebar, offeredForks []forkSagOption, ranking assembly.BuildRanking) (*buildRankingView, error) {
+	view := &buildRankingView{
+		AllForks:         state.AllForkOptions,
 		HasBrp:           state.Targets.HasBrp,
 		ActiveWeight:     wb.ScoreWeights.ActiveTotal(state.Targets.HasBrp),
-		PartsText:        stockPartsText(state.AllStockForks, state.AllStockBars),
+		PartsText:        buildPartsText(state.AllForkOptions, state.AllBarOptions),
 		Evaluated:        ranking.Evaluated,
-		AttributeHeaders: stockAttributeHeaders(wb.ScoreWeights),
+		AttributeHeaders: buildAttributeHeaders(wb.ScoreWeights),
 		TierLegend:       fitTierLegend(),
-		Rows:             make([]stockCandidateView, 0, len(ranking.Builds)),
+		Rows:             make([]scoredBuildView, 0, len(ranking.Builds)),
 	}
 	submittedBar, _ := wb.resolveHandlebar(state.BarID)
 	submittedFork, _ := wb.resolveForkOption(state.ForkID)
@@ -879,7 +879,7 @@ func buildStockFittingView(state workbenchState, wb bikeWorkbench, offered []cat
 		bar := submittedBar
 		if c.HasHandlebarOption {
 			if c.HandlebarIndex < 0 || c.HandlebarIndex >= len(offered) {
-				return nil, fmt.Errorf("stock candidate %d names handlebar %d of %d offered", i+1, c.HandlebarIndex, len(offered))
+				return nil, fmt.Errorf("scored build %d names handlebar %d of %d offered", i+1, c.HandlebarIndex, len(offered))
 			}
 			bar = offered[c.HandlebarIndex]
 			applied.BarID = bar.ID
@@ -887,13 +887,13 @@ func buildStockFittingView(state workbenchState, wb bikeWorkbench, offered []cat
 		fork := submittedFork
 		if c.HasForkOption {
 			if c.ForkIndex < 0 || c.ForkIndex >= len(offeredForks) {
-				return nil, fmt.Errorf("stock candidate %d names fork %d of %d offered", i+1, c.ForkIndex, len(offeredForks))
+				return nil, fmt.Errorf("scored build %d names fork %d of %d offered", i+1, c.ForkIndex, len(offeredForks))
 			}
 			fork = offeredForks[c.ForkIndex].Option
 			applied.ForkID = fork.ID
 		}
 		tierClass, tierLabel := fitTierPresentation(c.Score.Tier)
-		row := stockCandidateView{
+		row := scoredBuildView{
 			Rank:         i + 1,
 			Tier:         c.Score.Tier,
 			TierClass:    tierClass,
@@ -917,8 +917,8 @@ func buildStockFittingView(state workbenchState, wb bikeWorkbench, offered []cat
 	return view, nil
 }
 
-// stockPartsText names the parts enumerated by stock fitting.
-func stockPartsText(allForks, allBars bool) string {
+// buildPartsText names the parts enumerated by build fitting.
+func buildPartsText(allForks, allBars bool) string {
 	switch {
 	case allForks && allBars:
 		return "fork, handlebar, stem, and spacer"
@@ -968,10 +968,10 @@ func fitTierLegend() []fitTierLegendItem {
 	return legend
 }
 
-// stockAttributeHeaders labels the 12 attribute score columns with their weights.
-func stockAttributeHeaders(w assembly.ScoreWeights) []stockAttributeHeader {
+// buildAttributeHeaders labels the 12 attribute score columns with their weights.
+func buildAttributeHeaders(w assembly.ScoreWeights) []buildAttributeHeader {
 	weight := func(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
-	return []stockAttributeHeader{
+	return []buildAttributeHeader{
 		{assembly.AttrHandGrip, "Grip (" + weight(w.HandGrip) + ")"},
 		{assembly.AttrSaddleBrpY, "BRP Y (" + weight(w.SaddleBrpY) + ")"},
 		{assembly.AttrSaddleBrpX, "BRP X (" + weight(w.SaddleBrpX) + ")"},
@@ -1017,8 +1017,8 @@ func renderBikeError(w http.ResponseWriter, wb bikeWorkbench, resolved bikeResol
 	if resolved.State.PostID != "" {
 		cadBase.PostID = resolved.State.PostID
 	}
-	cadBase.AllStockBars = resolved.State.AllStockBars
-	cadBase.AllStockForks = resolved.State.AllStockForks
+	cadBase.AllBarOptions = resolved.State.AllBarOptions
+	cadBase.AllForkOptions = resolved.State.AllForkOptions
 	defaultsURL, cadURL := presetURLs(wb, cadBase, resolved.State.View)
 	minRail, maxRail := railOffsetRange(resolved.Setup.Saddle, resolved.Setup.Seatpost)
 	postBounds := postInsertionBounds(resolved.Setup.Frame, resolved.Setup.Seatpost.Spec)
@@ -1043,7 +1043,7 @@ func renderBikeError(w http.ResponseWriter, wb bikeWorkbench, resolved bikeResol
 		PostClampLengthMm:  resolved.Setup.Seatpost.Spec.RailClampLengthMm,
 		BikeName:           wb.Name,
 		Forks:              wb.Forks,
-		StockForkCount:     len(wb.forkOptions()),
+		ForkOptionCount:    len(wb.forkOptions()),
 		CadForkOption:      wb.cadForkOption(),
 		SelectedForkID:     resolved.State.ForkID,
 		Handlebars:         wb.Handlebars,
@@ -1245,25 +1245,25 @@ func decodeWorkbenchState(wb bikeWorkbench, q url.Values) (bikeResolvedInput, *b
 		state.Targets.HasGrip, state.Targets.GripX, state.Targets.GripY = true, grip.X, grip.Y
 	}
 
-	form.StockBars = stockBarsSelected
-	switch raw := strings.TrimSpace(q.Get("stock_bars")); raw {
-	case "", stockBarsSelected:
-	case stockBarsAll:
-		state.AllStockBars = true
-		form.StockBars = stockBarsAll
+	form.BarOptions = barOptionsSelected
+	switch raw := strings.TrimSpace(q.Get("bar_options")); raw {
+	case "", barOptionsSelected:
+	case barOptionsAll:
+		state.AllBarOptions = true
+		form.BarOptions = barOptionsAll
 	default:
-		form.StockBars = raw
-		p.fail("stock_bars", fmt.Errorf("unknown stock fitting handlebar option %q", raw))
+		form.BarOptions = raw
+		p.fail("bar_options", fmt.Errorf("unknown handlebar options value %q", raw))
 	}
-	form.StockForks = stockForksSelected
-	switch raw := strings.TrimSpace(q.Get("stock_forks")); raw {
-	case "", stockForksSelected:
-	case stockForksAll:
-		state.AllStockForks = true
-		form.StockForks = stockForksAll
+	form.ForkOptions = forkOptionsSelected
+	switch raw := strings.TrimSpace(q.Get("fork_options")); raw {
+	case "", forkOptionsSelected:
+	case forkOptionsAll:
+		state.AllForkOptions = true
+		form.ForkOptions = forkOptionsAll
 	default:
-		form.StockForks = raw
-		p.fail("stock_forks", fmt.Errorf("unknown stock fitting fork option %q", raw))
+		form.ForkOptions = raw
+		p.fail("fork_options", fmt.Errorf("unknown fork options value %q", raw))
 	}
 
 	// An unknown view keeps its raw value in the form echo, but the state (and
@@ -1468,7 +1468,7 @@ func workbenchLinks(wb bikeWorkbench, state workbenchState) (defaultsURL, cadURL
 }
 
 // buildBikeView renders the placed bike. The form echo and links carry submitted's options that are not part of the placed setup (fit
-// targets, stock bar and fork options).
+// targets, bar and fork options).
 func buildBikeView(
 	wb bikeWorkbench,
 	submitted workbenchState,
@@ -1630,7 +1630,7 @@ func buildBikeView(
 		SaddleName:           wb.SaddleName,
 		HandlebarName:        selectedBar.Name,
 		Forks:                wb.Forks,
-		StockForkCount:       len(wb.forkOptions()),
+		ForkOptionCount:      len(wb.forkOptions()),
 		CadForkOption:        wb.cadForkOption(),
 		SelectedForkID:       forkID,
 		Handlebars:           wb.Handlebars,

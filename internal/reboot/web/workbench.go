@@ -130,7 +130,7 @@ func forkOptionSetups(offered []forkSagOption) []assembly.ForkOption {
 	return setups
 }
 
-// forkCellName names a fork configuration in a stock row: the fork name, plus
+// forkCellName names a fork configuration in a ranked build row: the fork name, plus
 // ", N% sag" for a suspension fork.
 func forkCellName(opt forkOption, sagPct float64) string {
 	if opt.Spec.TravelMm == 0 {
