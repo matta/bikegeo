@@ -328,7 +328,7 @@ func TestApplyFittingDegenerateBox(t *testing.T) {
 }
 
 func TestFitGateConstants(t *testing.T) {
-	assertNear(t, "HandGrip R", assembly.FitGateGripR, 1, 0)
+	assertNear(t, "HandGrip normalized radius", assembly.FitGateGripNormalizedRadius, 1, 0)
 	assertNear(t, "BRP Y", assembly.FitGateBrpYMm, 2, 0)
 	assertNear(t, "BRP X", assembly.FitGateBrpXMm, 10, 0)
 }

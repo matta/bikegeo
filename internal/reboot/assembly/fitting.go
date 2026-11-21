@@ -15,11 +15,14 @@ type FitTarget struct {
 	HandGrip *pose.Point // handlebar HandGrip (Q11)
 }
 
-// Fit-gate thresholds (Q59a). A build passes the HandGrip gate when
-// GripR <= FitGateGripR and passes the BRP gate when |ΔY| <= FitGateBrpYMm
-// and |ΔX| <= FitGateBrpXMm.
+// FitGateGripNormalizedRadius is the largest normalized radius that passes
+// the HandGrip gate. A radius of 1 lies on the edge of the fit oval centered
+// on the HandGrip target.
+const FitGateGripNormalizedRadius = 1.0
+
+// The BRP gate requires the absolute vertical and horizontal misses to be
+// within their respective limits in millimeters.
 const (
-	FitGateGripR  = 1.0
 	FitGateBrpYMm = 2.0
 	FitGateBrpXMm = 10.0
 )
@@ -267,8 +270,8 @@ type fitAxis struct {
 // fitSaddleBox solves delta ≈ da·dir(a.heading) + db·dir(b.heading) over finite
 // bounds. Reachable targets return the exact solution, snapped within
 // fitBoundTolMm, with nil limited. Otherwise the optimum lies on a box edge.
-// It prefers points passing the BRP gate, then minimizes |ΔY| followed by |ΔX|
-// (Q60, Q68, Q74). ok is false when the headings are parallel.
+// It prefers points passing the BRP gate, then minimizes |ΔY| followed by |ΔX|.
+// ok is false when the headings are parallel.
 func fitSaddleBox(delta pose.Point, a, b fitAxis) (da, db float64, limited []InputField, ok bool) {
 	da, db, ok = pose.DecomposeAlong(delta, a.heading, b.heading)
 	if !ok {
@@ -343,7 +346,11 @@ func fitSaddleBox(delta pose.Point, a, b fitAxis) (da, db float64, limited []Inp
 // fitDirectionTol treats round-off in a horizontal or vertical direction as zero.
 const fitDirectionTol = 1e-12
 
-// clipLinearBound intersects [lo, hi] with the values of t where |c - t*s| <= limit.
+// clipLinearBound clips the horizontal interval [lo, hi] to the portion where
+// a line with intercept c and slope -s lies between heights -limit and +limit.
+// It returns the left and right endpoints of that portion and true, or
+// (0, 0, false) if it is empty. For example, clipLinearBound(0, 10, 6, 2, 2)
+// returns (2, 4, true): the line descends from height +2 at 2 to -2 at 4.
 func clipLinearBound(lo, hi, c, s, limit float64) (float64, float64, bool) {
 	if math.Abs(s) < fitDirectionTol {
 		if math.Abs(c) <= limit+fitBoundTolMm {
@@ -363,7 +370,10 @@ func clipLinearBound(lo, hi, c, s, limit float64) (float64, float64, bool) {
 	return newLo, newHi, true
 }
 
-// bestOnSegment minimizes |by - t*sy| first and then |bx - t*sx| over [lo, hi].
+// bestOnSegment chooses a multiplier from [lo, hi] for the vector (sx, sy).
+// It returns the multiplier whose scaled vector comes closest to the target
+// (bx, by) in Y, breaking ties by distance in X. Direction components within
+// round-off of zero are treated as zero. If both are zero, it returns lo.
 func bestOnSegment(lo, hi, bx, by, sx, sy float64) float64 {
 	if math.Abs(sy) >= fitDirectionTol {
 		return clampFit(by/sy, lo, hi)
