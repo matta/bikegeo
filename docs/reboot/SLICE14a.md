@@ -1,6 +1,30 @@
 # Slice 14a: Multi-frame `/bike`, shared bike query, and `bike` JSON CLI
 
-Status: Planned 2026-11-21
+Status: Implemented 2026-11-21; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-21, Claude Sonnet 5.5 (`claude-sonnet-5-5`).
+- **Commits:**
+  1. `Add catalog frame defaults and stem lookup` — `5af1fe2`
+  2. `Add bike query parsing and evaluation in query` — `a6a2c0b`
+  3. `Add bikegeo-reboot bike JSON CLI subcommand` — `1aac48d`
+  4. `Support all catalog frames and defaults on /bike` — `b52224c`
+- **Done and not done:** C1–C4, Q1–Q2, M1–M2, W1–W4 are all done. Nothing is left undone.
+- **Deviations:**
+  1. **`GripR` probe corrected (Q2 `TestBikeEvaluate`, W4 `TestBikeSubmittedBuildScoreQ110`, M2 unaffected).** The plan lists default-bike `Score.GripR ≈ 9.067441` and `submitted-oval-r = "9.07"`. The code returns `9.461226` / `"9.46"`. I recomputed it independently from the placed HandGrip `(389.217618, 755.120167)` against the `(481, 726)` target on the Q17 oval (±10 × ±20 mm, major axis 60°): `9.461226`. Every other probe in the plan (totals, BRP misses, insertions, reach/stack/ETT, 749 and 5243 evaluated builds, all score rows) matched as written, so I treat `9.067441` as a plan typo and used the verified value. This is not a design choice; Matt should confirm.
+  2. **`parseFloatOrDefault` did not exist** in `compare.go` (the plan says to reuse `parseTarget`, `checkKnownKeys`, `checkSingleValueKeys`, which do exist). I added `parseFloatOrDefault(q, key, def, label)` to `bike.go` on top of the existing `parseFiniteFloat`.
+  3. **`fork=cad` where max chainstay equals the published chainstay:** the plan's `SlidingDropoutsNote` cases cover physical-fork (both) and `fork=cad` (differs) only. For `fork=cad` with equal values I used the "matching published chart" wording. No catalog frame currently renders this case in a test.
+  4. **Error-page plumbing (W2):** the plan fixes the echo rules but not the mechanism. `web/bike_page.go` resolves the page structure on a `ParseBike` failure by dropping the rejected key(s) and re-parsing (`sanitizedBike`), echoes the submitted text through `echoForm`, and builds the CAD Baseline Fork preset from the resolved frame, size, bar, post, targets, and options with every other input at its default (`presetBase`), as the old workbench did. `DefaultsURL` keeps the (valid) view.
+  5. **New `submitted-table` class** for the Q110 attribute table (plus one CSS selector), instead of reusing `build-table`, so `TestBikeWorkbenchRanksBuilds`'s `table.build-table thead th` count of 23 still holds.
+  6. **`web_test.go` migration choices not spelled out in W4:** added `legacyPost`/`legacyBuild` constants for tests that pin numbers for the old `setback_0` at `180.576`; `TestWorkbenchStateCodecRoundTrip` became `TestFormatFormFloat` and `TestWorkbenchValidationAndCadBaselineForkInvariant` became `TestBikeCadBaselineForkURLDecodesToChartFork` (URL round-trip coverage now lives in `bike_test.go`); `TestBikeWorkbenchHalfEnteredTargetIsQuietlyIgnored` became `…IsRejected`; the three retired-key tests and `…IgnoresRetiredPostExtKey` collapsed into `TestBikeWorkbenchRejectsUnknownAndRetiredKeys`; `TestBikeWorkbenchDefaultSaddleHeightQ92` became `…DefaultInsertionMidpointQ109`. The form label count is now 21 (frame and size added). Expected values the plan did not probe were taken from the new code: `brp-grip-dist = "548.9 mm"` (independently recomputed: 548.86) and the seat close-up viewBox `"-263.50 -704.33 137.14 82.06"` (framing only, not independently probed). The whole-bike and stem viewBoxes did not change.
+- **Verification:**
+  - `make pre-commit` passed on each of the four commits, and a re-run on the final state leaves the tree unchanged.
+  - `go list -deps ./internal/reboot/query | grep -E '(^net/http$|^html/template$|reboot/web)'` prints nothing.
+  - `go test ./internal/reboot/catalog ./internal/reboot/query ./cmd/bikegeo-reboot ./internal/reboot/web -count=1` passes.
+  - Live CLI (`make build-reboot`): `bike` → exit 0, `FrameID otso-fenrir-stainless`, `Size L`, `PostID redshift_shockstop_pro`, `InsertionMm 175`, `Score.Total 53.142123`, `Builds.Evaluated 749`; the Krampus XL winning query → `fits_all`, `Score.Total 84.575011`, equal to `Builds.Builds[0]`; `bike 'fram=surly-krampus'` → exit 2, `unknown query parameter "fram"`.
+  - Live web (`serve --port 8081`, in-app browser): `/bike` opens on Otso Fenrir Stainless (2024, Size L) with Redshift post, the Q78 note, default idmatch targets, Submitted build score `53.1` / `Fits neither` / Oval R `9.46` / BRP miss `(-64.1, +29.8) mm`, Leveled Reach/Stack/ETT `421.9 / 646.0 / 598.5 mm`, and 5 ranked builds. Switching Frame to Esker Hayduke through the form gave sizes `S1`–`S4` (`S3` selected), fork `pike_120`, A2C `531.0`, sag `20.0`, and the sliding-dropout note (454 mm vs published 440 mm) with no error and a score of `52.8`. Clear Targets removed the fitting, score, and ranking blocks and the Clear Targets link, blanked all four target boxes, and the cleared state survived a `stem_length=80` form edit, the Seat view link (`brp=off&grip=off`), and a reload. No screenshot was saved to disk.
+- **Open issues:** confirm deviation 1 (the `GripR` plan typo). Nothing else noticed or left alone.
 
 **Rulings:** Q15, Q18, Q22, Q24, Q27–Q34, Q48, Q49a, Q53, Q54, Q56, Q57, Q58, Q59a, Q61–Q63, Q67, Q69, Q70, Q76, Q77, Q78, Q81, Q82, Q84, Q85, Q86, Q88, Q89, Q90, Q97, Q100, Q101, Q105, Q106, Q107, Q108–Q111; `AGENTS.md` rules.
 
