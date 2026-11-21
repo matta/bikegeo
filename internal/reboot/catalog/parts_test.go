@@ -170,3 +170,9 @@ func TestCatalogDefaultsAndLookups(t *testing.T) {
 		t.Errorf("ClampHeightMm = %v, want 40", stem.ClampHeightMm)
 	}
 }
+
+func TestDefaultSuspensionSagPct(t *testing.T) {
+	if catalog.DefaultSuspensionSagPct != 20.0 {
+		t.Errorf("DefaultSuspensionSagPct = %v, want 20", catalog.DefaultSuspensionSagPct)
+	}
+}

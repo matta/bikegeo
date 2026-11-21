@@ -70,6 +70,9 @@ func Frames() []Frame {
 	}
 }
 
+// DefaultFrameID is the default frame for /bike (Q109).
+const DefaultFrameID = "otso-fenrir-stainless"
+
 // FrameByID returns the frame with the exact ID.
 func FrameByID(id string) (Frame, bool) {
 	for _, f := range Frames() {

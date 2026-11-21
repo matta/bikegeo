@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"bikegeo/internal/reboot/assembly"
@@ -274,4 +275,20 @@ func DefaultStemSetup() assembly.StemSetup {
 		MinLengthMm:   40.0,
 		MaxLengthMm:   130.0,
 	}
+}
+
+// StemByDimensions returns the catalog stem matching lengthMm and angleDeg
+// within 1e-9, or false if the stem is off-catalog or non-finite (Q110).
+func StemByDimensions(lengthMm float64, angleDeg pose.Deg) (Stem, bool) {
+	if math.IsNaN(lengthMm) || math.IsInf(lengthMm, 0) ||
+		math.IsNaN(float64(angleDeg)) || math.IsInf(float64(angleDeg), 0) {
+		return Stem{}, false
+	}
+	const tol = 1e-9
+	for _, s := range Stems() {
+		if math.Abs(s.LengthMm-lengthMm) <= tol && math.Abs(float64(s.AngleDeg-angleDeg)) <= tol {
+			return s, true
+		}
+	}
+	return Stem{}, false
 }

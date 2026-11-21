@@ -318,3 +318,13 @@ func TestInstalledFrameUsesMaxChainstay(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultFrameID(t *testing.T) {
+	f, ok := catalog.FrameByID(catalog.DefaultFrameID)
+	if !ok {
+		t.Fatalf("FrameByID(DefaultFrameID) not found")
+	}
+	if f.ID != "otso-fenrir-stainless" || f.DefaultSize != "L" {
+		t.Errorf("default frame = %q size %q, want otso-fenrir-stainless L", f.ID, f.DefaultSize)
+	}
+}

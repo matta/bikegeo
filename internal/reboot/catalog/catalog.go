@@ -19,3 +19,7 @@ func DefaultBrpTarget() pose.Point { return pose.Point{X: -219.0, Y: 713.1} }
 
 // DefaultGripTarget returns the idmatch fit report's HandGrip (measured; Q53, Q64).
 func DefaultGripTarget() pose.Point { return pose.Point{X: 481.0, Y: 726.0} }
+
+// DefaultSuspensionSagPct is the default initial sag for a suspension fork on
+// /bike (the Q32/Q59a ideal sag).
+const DefaultSuspensionSagPct = 20.0

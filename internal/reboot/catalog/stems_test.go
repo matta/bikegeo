@@ -260,3 +260,27 @@ func TestStemOptions(t *testing.T) {
 		}
 	}
 }
+
+func TestStemByDimensions(t *testing.T) {
+	for _, tc := range []struct {
+		length, angle, score float64
+	}{
+		{60, -6, 86.5}, {70, -6, 100.0}, {100, -10, 62.5}, {120, -30, 0.0},
+	} {
+		s, ok := catalog.StemByDimensions(tc.length, pose.Deg(tc.angle))
+		if !ok || s.Score != tc.score {
+			t.Errorf("StemByDimensions(%v, %v) = (%+v, %v), want score %v", tc.length, tc.angle, s, ok, tc.score)
+		}
+	}
+	s, ok := catalog.StemByDimensions(70+1e-12, -6-1e-12)
+	if !ok || s.LengthMm != 70 || s.AngleDeg != -6 {
+		t.Errorf("tolerance match = (%+v, %v), want 70/-6", s, ok)
+	}
+	for _, tc := range []struct{ length, angle float64 }{
+		{65, -6}, {70, -8}, {134.2, -6}, {math.NaN(), -6}, {70, math.Inf(1)},
+	} {
+		if _, ok := catalog.StemByDimensions(tc.length, pose.Deg(tc.angle)); ok {
+			t.Errorf("StemByDimensions(%v, %v) ok = true, want false", tc.length, tc.angle)
+		}
+	}
+}
