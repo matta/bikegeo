@@ -245,7 +245,7 @@ func fitSaddle(setup BikeSetup, bounds InsertionBounds, probe BikePlacement, brp
 	delta := brp.Sub(probe.Saddle.BRP.Origin())
 	a := bounds.extensionAxis(probe.Seatpost.ShaftTop.HeadingDeg())
 	b := fitAxis{probe.Saddle.RailCenter.HeadingDeg() + 180, fitInterval{-railLimit, railLimit}, InputSaddleRailOffset}
-	de, dr, limited, ok := fitBox(delta, a, b, saddleGateFirst)
+	de, dr, limited, ok := fitBox(delta, a, b, inRectThenYFirst)
 	if !ok {
 		return 0, 0, nil, fmt.Errorf("saddle rail pitch is parallel to the seat axis; cannot fit the saddle")
 	}
@@ -322,7 +322,9 @@ type fitPriority int
 
 const (
 	nearestPoint fitPriority = iota
-	saddleGateFirst
+	// inRectThenYFirst prefers points inside the target's allowed error
+	// rectangle, then minimizes absolute Y error followed by absolute X error.
+	inRectThenYFirst
 )
 
 // A fitEdge holds one input at a bound and lets the other input vary.
@@ -334,7 +336,7 @@ type fitEdge struct {
 // candidates returns signed distances along the moving axis. Each distance,
 // paired with the fixed axis's bound, identifies a point on the edge.
 // nearestPoint projects delta onto the moving axis and clamps to the edge.
-// saddleGateFirst minimizes absolute Y error over the whole edge, breaking
+// inRectThenYFirst minimizes absolute Y error over the whole edge, breaking
 // ties by absolute X error. If the edge intersects the allowed error rectangle
 // around delta, it also returns the best distance within that intersection
 // using the same ordering.
@@ -423,9 +425,9 @@ func fitBox(delta pose.Point, a, b fitAxis, priority fitPriority) (da, db float6
 		}
 	}
 
-	// Saddle gate intersections can reach a hardware bound within round-off.
+	// Clipped error-rectangle intersections can reach a bound within round-off.
 	boundTol := 0.0
-	if priority == saddleGateFirst {
+	if priority == inRectThenYFirst {
 		boundTol = fitBoundTolMm
 	}
 	for i, axis := range axes {
