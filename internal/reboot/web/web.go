@@ -588,25 +588,44 @@ type bikeFittingView struct {
 	ApplyURL string              // the fitted build, with the submitted targets kept
 }
 
+type stockAttributeHeader struct {
+	Attribute assembly.AttributeName
+	Label     string
+}
+
+type fitTierLegendItem struct {
+	Tier       assembly.FitTier
+	Class      string
+	Label      string
+	Definition string
+}
+
 type stockFittingView struct {
-	AllForks       bool
-	PartsText      string
-	Evaluated      int
-	PreferenceNote string
-	Rows           []stockCandidateView
+	AllForks         bool
+	HasBrp           bool
+	ActiveWeight     float64
+	PartsText        string
+	Evaluated        int
+	AttributeHeaders []stockAttributeHeader
+	TierLegend       []fitTierLegendItem
+	Rows             []stockCandidateView
 }
 
 type stockCandidateView struct {
+	Rank                    int
+	Tier                    assembly.FitTier
+	TierClass               string
+	TierLabel               string
 	BarName                 string
 	ForkName                string
 	HasBrp                  bool
-	BrpMissMm               float64
-	Rank                    int
+	BrpMissXMm              float64
+	BrpMissYMm              float64
 	StemLengthMm, SpacersMm float64
 	StemAngleDeg            pose.Deg
 	GripMissMm, GripR       float64
-	Penalties               []assembly.Penalty // assembly's penalty order
 	Score                   float64
+	Attributes              []assembly.AttributeScore
 	ApplyURL                string // the candidate build, with the submitted targets kept
 }
 
@@ -764,7 +783,7 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 			stock := wb.CockpitStock
 			stock.Handlebars = handlebarSetups(offered)
 			stock.Forks = stockForkSetups(offeredForks)
-			result, err := assembly.ApplyStockFitting(resolved.Setup, target, stock, wb.CockpitPreferences, stockCandidateLimit)
+			result, err := assembly.ApplyStockFitting(resolved.Setup, target, stock, wb.ScoreWeights, stockCandidateLimit)
 			if err != nil {
 				renderBikeError(w, wb, resolved, bikeInputField(err), err.Error())
 				return
@@ -842,15 +861,15 @@ func buildFittingView(state workbenchState, bike assembly.BikePlacement, fitting
 // buildStockFittingView renders stock fitting results. The offered bars and
 // forks are in the same order as CockpitStock.Handlebars and CockpitStock.Forks.
 func buildStockFittingView(state workbenchState, wb bikeWorkbench, offered []catalog.Handlebar, offeredForks []stockForkOption, stock assembly.StockFitting) (*stockFittingView, error) {
-	prefs := wb.CockpitPreferences
-	o := prefs.GripOval
 	view := &stockFittingView{
-		AllForks:  state.AllStockForks,
-		PartsText: stockPartsText(state.AllStockForks, state.AllStockBars),
-		Evaluated: stock.Evaluated,
-		PreferenceNote: fmt.Sprintf("Free: HandGrip inside the ±%.0f × ±%.0f mm oval, stem length %s, stem angle %s, spacers %s, bar sweep %s, fork sag %s (suspension forks), BRP miss %s. Penalties are illustrative except bar sweep and fork sag (Q30, Q32).",
-			o.SemiMinorMm, o.SemiMajorMm, freeRangeText(prefs.StemLength, " mm"), freeRangeText(prefs.StemAngle, "°"), freeRangeText(prefs.Spacers, " mm"), freeRangeText(prefs.BarSweep, "°"), freeRangeText(prefs.ForkSag, "%"), freeRangeText(prefs.BrpMiss, " mm")),
-		Rows: make([]stockCandidateView, 0, len(stock.Candidates)),
+		AllForks:         state.AllStockForks,
+		HasBrp:           state.Targets.HasBrp,
+		ActiveWeight:     wb.ScoreWeights.ActiveTotal(state.Targets.HasBrp),
+		PartsText:        stockPartsText(state.AllStockForks, state.AllStockBars),
+		Evaluated:        stock.Evaluated,
+		AttributeHeaders: stockAttributeHeaders(wb.ScoreWeights),
+		TierLegend:       fitTierLegend(),
+		Rows:             make([]stockCandidateView, 0, len(stock.Candidates)),
 	}
 	submittedBar, _ := wb.resolveHandlebar(state.BarID)
 	submittedFork, _ := wb.resolveForkOption(state.ForkID)
@@ -873,22 +892,25 @@ func buildStockFittingView(state workbenchState, wb bikeWorkbench, offered []cat
 			fork = offeredForks[c.ForkIndex].Option
 			applied.ForkID = fork.ID
 		}
+		tierClass, tierLabel := fitTierPresentation(c.Score.Tier)
 		row := stockCandidateView{
 			Rank:         i + 1,
+			Tier:         c.Score.Tier,
+			TierClass:    tierClass,
+			TierLabel:    tierLabel,
 			BarName:      bar.Name,
 			ForkName:     forkCellName(fork, c.Placement.Setup.Fork.SagPct),
 			StemLengthMm: stem.LengthMm,
 			SpacersMm:    stem.SpacersMm,
 			StemAngleDeg: stem.AngleDeg,
 			GripMissMm:   c.GripMiss().Norm(),
-			GripR:        c.GripR,
-			Penalties:    c.Penalties,
-			Score:        c.Score(),
+			GripR:        c.Score.GripR,
+			HasBrp:       c.Score.HasBrp,
+			BrpMissXMm:   c.Score.BrpMissXMm,
+			BrpMissYMm:   c.Score.BrpMissYMm,
+			Score:        c.Score.Total,
+			Attributes:   c.Score.Attributes,
 			ApplyURL:     applied.URL(),
-		}
-		if miss, ok := c.BrpMiss(); ok {
-			row.HasBrp = true
-			row.BrpMissMm = miss.Norm()
 		}
 		view.Rows = append(view.Rows, row)
 	}
@@ -909,11 +931,60 @@ func stockPartsText(allForks, allBars bool) string {
 	}
 }
 
-func freeRangeText(b assembly.PenaltyBand, unit string) string {
-	if b.FreeMin == b.FreeMax {
-		return fmt.Sprintf("%.0f%s", b.FreeMin, unit)
+// fitTierPresentation returns the CSS class suffix and label of a fit tier.
+func fitTierPresentation(t assembly.FitTier) (class, label string) {
+	switch t {
+	case assembly.FitsAll:
+		return "fits-all", "Fits all"
+	case assembly.FitsBRP:
+		return "fits-brp", "Fits BRP"
+	case assembly.FitsGrip:
+		return "fits-grip", "Fits grip"
+	case assembly.FitsNeither:
+		return "fits-neither", "Fits neither"
+	default:
+		return "fits-neither", string(t)
 	}
-	return fmt.Sprintf("%.0f–%.0f%s", b.FreeMin, b.FreeMax, unit)
+}
+
+// fitTierLegend defines the four fit tiers in rank order (Q61, Q90).
+func fitTierLegend() []fitTierLegendItem {
+	oval := assembly.DefaultGripOval()
+	grip := fmt.Sprintf("HandGrip inside the ±%.0f × ±%.0f mm oval (R ≤ %.1f)", oval.SemiMinorMm, oval.SemiMajorMm, assembly.FitGateGripNormalizedRadius)
+	gripOut := fmt.Sprintf("HandGrip outside the oval (R > %.1f)", assembly.FitGateGripNormalizedRadius)
+	brp := fmt.Sprintf("saddle BRP within |ΔY| ≤ %.1f mm, |ΔX| ≤ %.1f mm", assembly.FitGateBrpYMm, assembly.FitGateBrpXMm)
+	definitions := map[assembly.FitTier]string{
+		assembly.FitsAll:     grip + " and " + brp + "; ranked by descending score.",
+		assembly.FitsBRP:     "Saddle BRP within |ΔY| ≤ " + fmt.Sprintf("%.1f mm, |ΔX| ≤ %.1f mm", assembly.FitGateBrpYMm, assembly.FitGateBrpXMm) + ", but " + gripOut + "; ranked by closest HandGrip R, then descending score.",
+		assembly.FitsGrip:    grip + ", but misses saddle BRP (or BRP target is unset); ranked by descending score.",
+		assembly.FitsNeither: gripOut + " and misses saddle BRP (or BRP target is unset); ranked by closest HandGrip R, then descending score.",
+	}
+	tiers := []assembly.FitTier{assembly.FitsAll, assembly.FitsBRP, assembly.FitsGrip, assembly.FitsNeither}
+	legend := make([]fitTierLegendItem, len(tiers))
+	for i, t := range tiers {
+		class, label := fitTierPresentation(t)
+		legend[i] = fitTierLegendItem{Tier: t, Class: class, Label: label, Definition: definitions[t]}
+	}
+	return legend
+}
+
+// stockAttributeHeaders labels the 12 attribute score columns with their weights.
+func stockAttributeHeaders(w assembly.ScoreWeights) []stockAttributeHeader {
+	weight := func(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
+	return []stockAttributeHeader{
+		{assembly.AttrHandGrip, "Grip (" + weight(w.HandGrip) + ")"},
+		{assembly.AttrSaddleBrpY, "BRP Y (" + weight(w.SaddleBrpY) + ")"},
+		{assembly.AttrSaddleBrpX, "BRP X (" + weight(w.SaddleBrpX) + ")"},
+		{assembly.AttrStem, "Stem (" + weight(w.Stem) + ")"},
+		{assembly.AttrHandlebarSweep, "Sweep (" + weight(w.HandlebarSweep) + ")"},
+		{assembly.AttrForkSag, "Sag (" + weight(w.ForkSag) + ")"},
+		{assembly.AttrSpacers, "Spacers (" + weight(w.Spacers) + ")"},
+		{assembly.AttrSaddleRailOffset, "Rail (" + weight(w.SaddleRailOffset) + ")"},
+		{assembly.AttrRcWbRatio, "RC/WB (" + weight(w.RcWbRatio) + ")"},
+		{assembly.AttrSeatpostInsertion, "Post (" + weight(w.SeatpostInsertion) + ")"},
+		{assembly.AttrLeveledBbDrop, "BB drop (" + weight(w.LeveledBbDrop) + ")"},
+		{assembly.AttrTrail, "Trail (" + weight(w.Trail) + ")"},
+	}
 }
 
 // railOffsetRange returns the saddle rail offset input bounds ∓L for saddle

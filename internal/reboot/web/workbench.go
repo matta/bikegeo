@@ -46,7 +46,7 @@ type bikeWorkbench struct {
 	Forks                  []forkOption
 	DefaultStem            assembly.StemSetup
 	CockpitStock           assembly.CockpitStock
-	CockpitPreferences     assembly.CockpitPreferences
+	ScoreWeights           assembly.ScoreWeights
 	StockSagPcts           []float64
 	DefaultHandlebarID     string
 	Handlebars             []catalog.Handlebar
@@ -185,8 +185,11 @@ func (w bikeWorkbench) validate() error {
 	if err := w.CockpitStock.Validate(); err != nil {
 		return fmt.Errorf("workbench %q cockpit stock invalid: %w", w.Name, err)
 	}
-	if err := w.CockpitPreferences.Validate(); err != nil {
-		return fmt.Errorf("workbench %q cockpit preferences invalid: %w", w.Name, err)
+	if err := w.ScoreWeights.Validate(); err != nil {
+		return fmt.Errorf("workbench %q score weights invalid: %w", w.Name, err)
+	}
+	if w.ScoreWeights.ActiveTotal(false) <= 0 {
+		return fmt.Errorf("workbench %q score weights have zero active weight without BRP", w.Name)
 	}
 	if w.DefaultForkID == "" {
 		return fmt.Errorf("workbench %q missing DefaultForkID", w.Name)
@@ -331,20 +334,11 @@ func fenrirWorkbench() bikeWorkbench {
 			MinLengthMm:   40.0, // illustrative stem length range
 			MaxLengthMm:   130.0,
 		},
-		CockpitStock: assembly.CockpitStock{ // illustrative stock stems and spacers
-			StemLengthStepMm: 10,
-			StemAnglesDeg:    []pose.Deg{-17, -6, 0, 6, 17},
-			SpacerStepMm:     5,
+		CockpitStock: assembly.CockpitStock{
+			Stems:        catalog.StockStems(),
+			SpacerStepMm: 5,
 		},
-		CockpitPreferences: assembly.CockpitPreferences{
-			GripOval:   assembly.FitOval{SemiMinorMm: 10, SemiMajorMm: 20, MajorAxisHeadingDeg: 60, PointsPerR: 22},      // legacy idmatch oval (Q17)
-			StemLength: assembly.PenaltyBand{FreeMin: 70, FreeMax: 80, PointsPerUnitBelow: 0.2, PointsPerUnitAbove: 0.2}, // illustrative
-			StemAngle:  assembly.PenaltyBand{PointsPerUnitBelow: 0.2, PointsPerUnitAbove: 0.2},                           // illustrative
-			Spacers:    assembly.PenaltyBand{FreeMax: 20, PointsPerUnitAbove: 0.4},                                       // illustrative
-			BarSweep:   assembly.PenaltyBand{FreeMin: 16, FreeMax: 20, PointsPerUnitBelow: 2, PointsPerUnitAbove: 2},     // Matt's preference (Q30)
-			ForkSag:    assembly.PenaltyBand{FreeMin: 20, FreeMax: 20, PointsPerUnitBelow: 2, PointsPerUnitAbove: 2},     // Matt's preference (Q32)
-			BrpMiss:    assembly.PenaltyBand{FreeMax: 1, PointsPerUnitAbove: 2},                                          // illustrative (Q32)
-		},
+		ScoreWeights:       catalog.DefaultScoreWeights(),
 		StockSagPcts:       catalog.SuspensionSagPcts(),
 		DefaultHandlebarID: "persuader20_800",
 		Handlebars:         catalog.Handlebars(),

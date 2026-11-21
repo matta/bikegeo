@@ -96,6 +96,32 @@ type BuildScore struct {
 	Attributes []AttributeScore
 }
 
+// FitOval is the legacy Area of Reasonable Fit around a HandGrip target (Q17).
+// Its major axis follows MajorAxisHeadingDeg in world coordinates.
+type FitOval struct {
+	SemiMinorMm, SemiMajorMm float64
+	MajorAxisHeadingDeg      pose.Deg
+}
+
+// Validate checks the oval's semi-axes and heading.
+func (o FitOval) Validate() error {
+	if !isFinite(o.SemiMinorMm) || !isFinite(o.SemiMajorMm) || o.SemiMinorMm <= 0 || o.SemiMajorMm <= 0 {
+		return fmt.Errorf("HandGrip oval: semi-axes must be positive and finite, got %v and %v mm", o.SemiMinorMm, o.SemiMajorMm)
+	}
+	if !isFinite(float64(o.MajorAxisHeadingDeg)) {
+		return fmt.Errorf("HandGrip oval: major axis heading must be finite, got %v°", o.MajorAxisHeadingDeg)
+	}
+	return nil
+}
+
+// NormalizedRadius returns R for p around center (R = 1 on the oval's edge).
+func (o FitOval) NormalizedRadius(center, p pose.Point) float64 {
+	d := p.Sub(center)
+	minor := pose.ProjectOnto(d, o.MajorAxisHeadingDeg-90) / o.SemiMinorMm
+	major := pose.ProjectOnto(d, o.MajorAxisHeadingDeg) / o.SemiMajorMm
+	return pose.Point{X: minor, Y: major}.Norm()
+}
+
 // DefaultGripOval returns the Q17 HandGrip fit oval.
 func DefaultGripOval() FitOval {
 	return FitOval{SemiMinorMm: 10, SemiMajorMm: 20, MajorAxisHeadingDeg: 60}
