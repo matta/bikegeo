@@ -444,11 +444,7 @@ func genericPostSpec(setbackMm float64) assembly.SeatpostSpec {
 
 func TestFramesetHandlingReadouts(t *testing.T) {
 	// Independent closed-form probe: trail = (R*cos(HTA_lev) - rake) / sin(HTA_lev) with R = 372.
-	// Reach, stack, and ETT values come from an independent Python probe that rebuilds the
-	// frameset from the chart (head tube down by HTL + cup + effective A2C, rake at 90°,
-	// rear axle at (-sqrt(CS^2 - drop^2), drop), pitch = -atan2(front - rear)), rotates
-	// (Reach, Stack) by the pitch, and takes ETT = x - y*cot(180° - STA + pitch). That probe
-	// and the Go readouts agree to 1e-9 mm.
+	// Reach, stack, and ETT values come from an independent closed-form Python probe.
 	frame := fenrirSizeLFrame()
 	wheels := fenrirWheels()
 
