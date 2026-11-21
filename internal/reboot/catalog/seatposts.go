@@ -58,3 +58,16 @@ func Seatposts() []Seatpost {
 		}},
 	}
 }
+
+// DefaultSeatpostID is the default seatpost for / and /bike (Q62, Q78).
+const DefaultSeatpostID = "redshift_shockstop_pro"
+
+// SeatpostByID returns the seatpost with the exact ID.
+func SeatpostByID(id string) (Seatpost, bool) {
+	for _, p := range Seatposts() {
+		if p.ID == id {
+			return p, true
+		}
+	}
+	return Seatpost{}, false
+}

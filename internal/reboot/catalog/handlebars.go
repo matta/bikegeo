@@ -56,3 +56,16 @@ func Handlebars() []Handlebar {
 		legacyHandlebar("sqlab311_flx_12_30", "SQlab 311 FL-X Carbon 12°, 30 mm rise (740 mm)", 740, 30, assembly.RiseModeStandardKnuckle, 12, 4, 82.0),
 	}
 }
+
+// DefaultHandlebarID is the default handlebar for / and /bike (Q56).
+const DefaultHandlebarID = "persuader20_800"
+
+// HandlebarByID returns the handlebar with the exact ID.
+func HandlebarByID(id string) (Handlebar, bool) {
+	for _, b := range Handlebars() {
+		if b.ID == id {
+			return b, true
+		}
+	}
+	return Handlebar{}, false
+}

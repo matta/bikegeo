@@ -255,3 +255,23 @@ func StemOptions() []assembly.StemOption {
 	}
 	return out
 }
+
+// SpacerStepMm is the steerer spacer increment build fitting enumerates (Q82).
+const SpacerStepMm = 5.0
+
+// DefaultStemSetup returns the baseline stem dimensions used to place builds.
+// UpperStackMm (11 mm) and MaxSpacersMm (30 mm) are Q82 constants; ClampHeightMm
+// (40 mm) and the continuous-fit length range (40–130 mm) are illustrative.
+// Build fitting overwrites LengthMm, AngleDeg, and SpacersMm from StemOptions().
+func DefaultStemSetup() assembly.StemSetup {
+	return assembly.StemSetup{
+		UpperStackMm:  assembly.DefaultUpperStackMm,
+		SpacersMm:     20.0,
+		ClampHeightMm: 40.0,
+		LengthMm:      60.0,
+		AngleDeg:      -6.0,
+		MaxSpacersMm:  assembly.DefaultMaxSpacersMm,
+		MinLengthMm:   40.0,
+		MaxLengthMm:   130.0,
+	}
+}

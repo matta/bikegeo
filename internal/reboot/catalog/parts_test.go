@@ -132,3 +132,41 @@ func TestDefaultSaddleAndTargets(t *testing.T) {
 		t.Errorf("mutating a returned SuspensionSagPcts slice changed the next call: %v", got)
 	}
 }
+
+// TestCatalogDefaultsAndLookups checks the default part IDs, ID lookups, and
+// the default stem setup (Q56, Q62, Q82).
+func TestCatalogDefaultsAndLookups(t *testing.T) {
+	bar, ok := catalog.HandlebarByID(catalog.DefaultHandlebarID)
+	if !ok || bar.ID != "persuader20_800" {
+		t.Errorf("HandlebarByID(%q) = %q, %v; want persuader20_800, true", catalog.DefaultHandlebarID, bar.ID, ok)
+	}
+	if _, ok := catalog.HandlebarByID("missing"); ok {
+		t.Errorf("HandlebarByID(missing) ok = true, want false")
+	}
+
+	post, ok := catalog.SeatpostByID(catalog.DefaultSeatpostID)
+	if !ok || post.ID != "redshift_shockstop_pro" {
+		t.Errorf("SeatpostByID(%q) = %q, %v; want redshift_shockstop_pro, true", catalog.DefaultSeatpostID, post.ID, ok)
+	}
+	if _, ok := catalog.SeatpostByID("missing"); ok {
+		t.Errorf("SeatpostByID(missing) ok = true, want false")
+	}
+
+	if catalog.SpacerStepMm != 5.0 {
+		t.Errorf("SpacerStepMm = %v, want 5", catalog.SpacerStepMm)
+	}
+
+	stem := catalog.DefaultStemSetup()
+	if _, err := assembly.PlaceStem(pose.NewPose(pose.Point{}, 111.75), stem); err != nil {
+		t.Errorf("PlaceStem(DefaultStemSetup()): %v", err)
+	}
+	if stem.UpperStackMm != assembly.DefaultUpperStackMm {
+		t.Errorf("UpperStackMm = %v, want %v", stem.UpperStackMm, assembly.DefaultUpperStackMm)
+	}
+	if stem.MaxSpacersMm != assembly.DefaultMaxSpacersMm {
+		t.Errorf("MaxSpacersMm = %v, want %v", stem.MaxSpacersMm, assembly.DefaultMaxSpacersMm)
+	}
+	if stem.ClampHeightMm != 40 {
+		t.Errorf("ClampHeightMm = %v, want 40", stem.ClampHeightMm)
+	}
+}
