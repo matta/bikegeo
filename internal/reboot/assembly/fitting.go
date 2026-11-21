@@ -181,16 +181,16 @@ func FitPostSetback(setup BikeSetup, brp pose.Point, railOffsetMm float64) (Fitt
 
 	delta := brp.Sub(probe.Saddle.BRP.Origin())
 	shaft := probe.Seatpost.ShaftTop.HeadingDeg()
-	a := fitAxis{shaft, 0, bounds.MaxAllowedInsertionMm - bounds.EffectiveMinInsertionMm, InputSeatpostInsertion}
-	b := fitAxis{shaft + 90, 0, math.Inf(1), InputSeatpostSetback} // PlaceSeatpost translates setback along local +Y
-	de, ds, limited, ok := fitBox(delta, a, b)
+	a := bounds.extensionAxis(shaft)
+	b := fitAxis{shaft + 90, fitInterval{0, math.Inf(1)}, InputSeatpostSetback} // PlaceSeatpost translates setback along local +Y
+	de, ds, limited, ok := fitBox(delta, a, b, nearestPoint)
 	if !ok {
 		return Fitting{}, fmt.Errorf("seatpost setback is parallel to the seat axis; cannot fit the setback")
 	}
 
 	fitted := probeSetup
-	fitted.Seatpost.InsertionMm = clampFit(bounds.MaxAllowedInsertionMm-de, bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm)
-	fitted.Seatpost.Spec.SetbackMm = clampFit(ds, 0, math.Inf(1))
+	fitted.Seatpost.InsertionMm = bounds.insertionAfterExtension(de)
+	fitted.Seatpost.Spec.SetbackMm = ds
 	placement, err := PlaceBike(fitted)
 	if err != nil {
 		return Fitting{}, err
@@ -225,13 +225,13 @@ func validateStemLengthRange(stem StemSetup) error {
 func fitCockpit(setup BikeSetup, probe BikePlacement, grip pose.Point) (spacers, length float64, limited []InputField, err error) {
 	minLen, maxLen := setup.Stem.MinLengthMm, setup.Stem.MaxLengthMm
 	delta := grip.Sub(probe.Handlebar.HandGrip.Origin())
-	a := fitAxis{probe.Stem.SpacerTop.HeadingDeg(), 0, setup.Stem.MaxSpacersMm, InputStemSpacers}
-	b := fitAxis{probe.Stem.BarClamp.HeadingDeg(), 0, maxLen - minLen, InputStemLength}
-	ds, dl, limited, ok := fitBox(delta, a, b)
+	a := fitAxis{probe.Stem.SpacerTop.HeadingDeg(), fitInterval{0, setup.Stem.MaxSpacersMm}, InputStemSpacers}
+	b := fitAxis{probe.Stem.BarClamp.HeadingDeg(), fitInterval{0, maxLen - minLen}, InputStemLength}
+	ds, dl, limited, ok := fitBox(delta, a, b, nearestPoint)
 	if !ok {
 		return 0, 0, nil, fmt.Errorf("stem axis is parallel to the steerer; cannot fit the cockpit")
 	}
-	return clampFit(ds, 0, setup.Stem.MaxSpacersMm), clampFit(minLen+dl, minLen, maxLen), limited, nil
+	return ds, (fitInterval{minLen, maxLen}).clamp(minLen + dl), limited, nil
 }
 
 // fitSaddle fits seatpost insertion and saddle rail offset to a BRP target,
@@ -243,203 +243,195 @@ func fitSaddle(setup BikeSetup, bounds InsertionBounds, probe BikePlacement, brp
 		return 0, 0, nil, err
 	}
 	delta := brp.Sub(probe.Saddle.BRP.Origin())
-	a := fitAxis{probe.Seatpost.ShaftTop.HeadingDeg(), 0, bounds.MaxAllowedInsertionMm - bounds.EffectiveMinInsertionMm, InputSeatpostInsertion}
-	b := fitAxis{probe.Saddle.RailCenter.HeadingDeg() + 180, -railLimit, railLimit, InputSaddleRailOffset}
-	de, dr, limited, ok := fitSaddleBox(delta, a, b)
+	a := bounds.extensionAxis(probe.Seatpost.ShaftTop.HeadingDeg())
+	b := fitAxis{probe.Saddle.RailCenter.HeadingDeg() + 180, fitInterval{-railLimit, railLimit}, InputSaddleRailOffset}
+	de, dr, limited, ok := fitBox(delta, a, b, saddleGateFirst)
 	if !ok {
 		return 0, 0, nil, fmt.Errorf("saddle rail pitch is parallel to the seat axis; cannot fit the saddle")
 	}
-	return clampFit(bounds.MaxAllowedInsertionMm-de, bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm), clampFit(dr, -railLimit, railLimit), limited, nil
+	return bounds.insertionAfterExtension(de), dr, limited, nil
 }
 
-func clampFit(v, lo, hi float64) float64 { return math.Min(math.Max(v, lo), hi) }
-
-// fitBoundTolMm allows for round-off at hardware bounds and in saddle fit
-// comparisons.
-const fitBoundTolMm = 1e-9
-
-// fitAxis is one fitted input: the world heading its Advance moves the target
-// landmark along, its bounds relative to the probe value (hi may be +Inf), and
-// the input reported when the fitted value sits on a bound.
-type fitAxis struct {
-	heading pose.Deg
-	lo, hi  float64
-	field   InputField
+// Extension is measured out along the shaft from maximum insertion.
+func (bounds InsertionBounds) extensionAxis(heading pose.Deg) fitAxis {
+	return fitAxis{heading, fitInterval{0, bounds.MaxAllowedInsertionMm - bounds.EffectiveMinInsertionMm}, InputSeatpostInsertion}
 }
 
-// fitSaddleBox solves delta ≈ da·dir(a.heading) + db·dir(b.heading) over finite
-// bounds. Reachable targets return the exact solution, snapped within
-// fitBoundTolMm, with nil limited. Otherwise the optimum lies on a box edge.
-// It prefers points passing the BRP gate, then minimizes |ΔY| followed by |ΔX|.
-// ok is false when the headings are parallel.
-func fitSaddleBox(delta pose.Point, a, b fitAxis) (da, db float64, limited []InputField, ok bool) {
-	da, db, ok = pose.DecomposeAlong(delta, a.heading, b.heading)
-	if !ok {
-		return 0, 0, nil, false
-	}
-	if da >= a.lo-fitBoundTolMm && da <= a.hi+fitBoundTolMm &&
-		db >= b.lo-fitBoundTolMm && db <= b.hi+fitBoundTolMm {
-		return clampFit(da, a.lo, a.hi), clampFit(db, b.lo, b.hi), nil, true
-	}
-
-	dirA, dirB := pose.Along(a.heading, 1), pose.Along(b.heading, 1)
-	type candidate struct {
-		da, db, absY, absX float64
-		inGate             bool
-	}
-	candidates := make([]candidate, 0, 8)
-	add := func(da, db float64) {
-		miss := delta.Sub(pose.Point{X: da*dirA.X + db*dirB.X, Y: da*dirA.Y + db*dirB.Y})
-		absY, absX := math.Abs(miss.Y), math.Abs(miss.X)
-		inGate := absY <= FitGateBrpYMm+fitBoundTolMm && absX <= FitGateBrpXMm+fitBoundTolMm
-		candidates = append(candidates, candidate{da, db, absY, absX, inGate})
-	}
-	addEdge := func(fixed float64, fixedDir pose.Point, moving fitAxis, dir pose.Point, fixedA bool) {
-		base := delta.Sub(pose.Point{X: fixed * fixedDir.X, Y: fixed * fixedDir.Y})
-		addAt := func(t float64) {
-			if fixedA {
-				add(fixed, t)
-			} else {
-				add(t, fixed)
-			}
-		}
-		lo, hi := moving.lo, moving.hi
-		addAt(bestOnSegment(lo, hi, base.X, base.Y, dir.X, dir.Y))
-		gateLo, gateHi, ok := clipLinearBound(lo, hi, base.Y, dir.Y, FitGateBrpYMm)
-		if !ok {
-			return
-		}
-		gateLo, gateHi, ok = clipLinearBound(gateLo, gateHi, base.X, dir.X, FitGateBrpXMm)
-		if ok {
-			addAt(clampFit(bestOnSegment(gateLo, gateHi, base.X, base.Y, dir.X, dir.Y), lo, hi))
-		}
-	}
-	addEdge(a.lo, dirA, b, dirB, true)
-	addEdge(a.hi, dirA, b, dirB, true)
-	addEdge(b.lo, dirB, a, dirA, false)
-	addEdge(b.hi, dirB, a, dirA, false)
-
-	best := candidates[0]
-	for _, c := range candidates[1:] {
-		switch {
-		case c.inGate != best.inGate:
-			if c.inGate {
-				best = c
-			}
-		case math.Abs(c.absY-best.absY) > fitBoundTolMm:
-			if c.absY < best.absY {
-				best = c
-			}
-		case c.absX < best.absX-fitBoundTolMm:
-			best = c
-		}
-	}
-	if math.Abs(best.da-a.lo) <= fitBoundTolMm || math.Abs(best.da-a.hi) <= fitBoundTolMm {
-		limited = append(limited, a.field)
-	}
-	if math.Abs(best.db-b.lo) <= fitBoundTolMm || math.Abs(best.db-b.hi) <= fitBoundTolMm {
-		limited = append(limited, b.field)
-	}
-	return clampFit(best.da, a.lo, a.hi), clampFit(best.db, b.lo, b.hi), limited, true
+func (bounds InsertionBounds) insertionAfterExtension(extension float64) float64 {
+	return (fitInterval{bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm}).clamp(bounds.MaxAllowedInsertionMm - extension)
 }
 
-// fitDirectionTol treats round-off in a horizontal or vertical direction as zero.
-const fitDirectionTol = 1e-12
+const (
+	fitBoundTolMm   = 1e-9
+	fitDirectionTol = 1e-12 // treat round-off in a horizontal or vertical direction as zero
+)
 
-// clipLinearBound clips the horizontal interval [lo, hi] to the portion where
-// a line with intercept c and slope -s lies between heights -limit and +limit.
-// It returns the left and right endpoints of that portion and true, or
-// (0, 0, false) if it is empty. For example, clipLinearBound(0, 10, 6, 2, 2)
-// returns (2, 4, true): the line descends from height +2 at 2 to -2 at 4.
-func clipLinearBound(lo, hi, c, s, limit float64) (float64, float64, bool) {
+// fitInterval is a closed range of adjustment values in millimeters.
+type fitInterval struct{ lo, hi float64 }
+
+func (r fitInterval) clamp(value float64) float64 { return min(max(value, r.lo), r.hi) }
+
+func (r fitInterval) contains(value float64) bool {
+	return value >= r.lo-fitBoundTolMm && value <= r.hi+fitBoundTolMm
+}
+
+// clip clips the horizontal interval to the portion where the line with
+// intercept c and slope -s lies between heights -limit and +limit.
+// It returns that interval and true, or an empty result and false. For example,
+// clipping [0, 10] with c=6, s=2, limit=2 yields [2, 4].
+func (r fitInterval) clip(c, s, limit float64) (fitInterval, bool) {
 	if math.Abs(s) < fitDirectionTol {
 		if math.Abs(c) <= limit+fitBoundTolMm {
-			return lo, hi, true
+			return r, true
 		}
-		return 0, 0, false
+		return fitInterval{}, false
 	}
-	t1, t2 := (c-limit)/s, (c+limit)/s
-	newLo, newHi := max(lo, min(t1, t2)), min(hi, max(t1, t2))
-	if newLo > newHi+fitBoundTolMm {
-		return 0, 0, false
+	left, right := (c-limit)/s, (c+limit)/s
+	lo, hi := max(r.lo, min(left, right)), min(r.hi, max(left, right))
+	if lo > hi+fitBoundTolMm {
+		return fitInterval{}, false
 	}
-	if newLo > newHi {
-		snapped := clampFit(0.5*(newLo+newHi), lo, hi)
-		return snapped, snapped, true
+	if lo > hi {
+		touch := r.clamp((lo + hi) / 2)
+		return fitInterval{touch, touch}, true
 	}
-	return newLo, newHi, true
+	return fitInterval{lo, hi}, true
 }
 
-// bestOnSegment chooses a multiplier from [lo, hi] for the vector (sx, sy).
-// It returns the multiplier whose scaled vector comes closest to the target
-// (bx, by) in Y, breaking ties by distance in X. Direction components within
-// round-off of zero are treated as zero. If both are zero, it returns lo.
-func bestOnSegment(lo, hi, bx, by, sx, sy float64) float64 {
-	if math.Abs(sy) >= fitDirectionTol {
-		return clampFit(by/sy, lo, hi)
+// heightFirst returns the multiplier in r that brings direction closest to
+// target in Y, breaking ties by distance in X.
+func (r fitInterval) heightFirst(target, direction pose.Point) float64 {
+	if math.Abs(direction.Y) >= fitDirectionTol {
+		return r.clamp(target.Y / direction.Y)
 	}
-	if math.Abs(sx) >= fitDirectionTol {
-		return clampFit(bx/sx, lo, hi)
+	if math.Abs(direction.X) >= fitDirectionTol {
+		return r.clamp(target.X / direction.X)
 	}
-	return lo
+	return r.lo
 }
 
-// fitBox solves delta ≈ da·dir(a.heading) + db·dir(b.heading) with da in
-// [a.lo, a.hi] and db in [b.lo, b.hi]. When the unconstrained solution is
-// outside the box, the box minimum lies on an edge; the four edges are
-// evaluated in a fixed order and the closest wins, with ties keeping the
-// earlier edge. limited lists a.field then b.field when the chosen value sits
-// on a bound; it is nil when delta is reachable. An unconstrained solution
-// within fitBoundTolMm of a bound counts as reachable and is snapped onto the
-// bound, so round-off in the decomposition cannot turn an exactly reachable
-// target into a limited one. ok is false when the headings are parallel.
-func fitBox(delta pose.Point, a, b fitAxis) (da, db float64, limited []InputField, ok bool) {
+// fitAxis describes how an input moves the landmark relative to the probe.
+// The upper bound can be infinite for seatpost setback.
+type fitAxis struct {
+	heading pose.Deg
+	fitInterval
+	field InputField
+}
+
+type fitPriority int
+
+const (
+	nearestPoint fitPriority = iota
+	saddleGateFirst
+)
+
+// A fitEdge holds one input at a bound and lets the other input vary.
+type fitEdge struct {
+	fixed, moving fitAxis
+	bound         float64
+}
+
+// candidates returns signed distances along the moving axis. Each distance,
+// paired with the fixed axis's bound, identifies a point on the edge.
+// nearestPoint projects delta onto the moving axis and clamps to the edge.
+// saddleGateFirst minimizes absolute Y error over the whole edge, breaking
+// ties by absolute X error. If the edge intersects the allowed error rectangle
+// around delta, it also returns the best distance within that intersection
+// using the same ordering.
+func (edge fitEdge) candidates(delta pose.Point, priority fitPriority) []float64 {
+	if priority == nearestPoint {
+		target := delta.Sub(pose.Along(edge.fixed.heading, edge.bound))
+		return []float64{edge.moving.clamp(pose.ProjectOnto(target, edge.moving.heading))}
+	}
+	fixedDir := pose.Along(edge.fixed.heading, 1)
+	target := delta.Sub(pose.Point{X: edge.bound * fixedDir.X, Y: edge.bound * fixedDir.Y})
+	dir := pose.Along(edge.moving.heading, 1)
+	travel := edge.moving.heightFirst(target, dir)
+	gate, ok := edge.moving.clip(target.Y, dir.Y, FitGateBrpYMm)
+	if ok {
+		if gate, ok = gate.clip(target.X, dir.X, FitGateBrpXMm); ok {
+			return []float64{travel, gate.heightFirst(target, dir)}
+		}
+	}
+	return []float64{travel}
+}
+
+// miss returns the vector from the resulting point to the target delta.
+// Each travel[i] is a signed distance along axes[i].heading. Together the two
+// displacements locate the point. nearestPoint subtracts each displacement
+// from delta in turn. The other priority subtracts their sum. Floating-point
+// rounding at a tolerance boundary can make the evaluation order significant.
+func (p fitPriority) miss(delta pose.Point, axes [2]fitAxis, travel [2]float64) pose.Point {
+	if p == nearestPoint {
+		return delta.Sub(pose.Along(axes[0].heading, travel[0])).Sub(pose.Along(axes[1].heading, travel[1]))
+	}
+	dirA, dirB := pose.Along(axes[0].heading, 1), pose.Along(axes[1].heading, 1)
+	return delta.Sub(pose.Point{X: travel[0]*dirA.X + travel[1]*dirB.X, Y: travel[0]*dirA.Y + travel[1]*dirB.Y})
+}
+
+// prefers compares target misses. Ties keep the first candidate visited.
+func (p fitPriority) prefers(miss, best pose.Point) bool {
+	if p == nearestPoint {
+		return miss.Norm() < best.Norm()-fitBoundTolMm
+	}
+	x, y := math.Abs(miss.X), math.Abs(miss.Y)
+	bestX, bestY := math.Abs(best.X), math.Abs(best.Y)
+	inGate := func(x, y float64) bool {
+		return y <= FitGateBrpYMm+fitBoundTolMm && x <= FitGateBrpXMm+fitBoundTolMm
+	}
+	if pass := inGate(x, y); pass != inGate(bestX, bestY) {
+		return pass
+	}
+	if math.Abs(y-bestY) > fitBoundTolMm {
+		return y < bestY
+	}
+	return x < bestX-fitBoundTolMm
+}
+
+// fitBox returns travel along axes a and b to reach delta. For a reachable
+// target, limited is nil, including at a bound within round-off. Otherwise
+// it fixes each axis at its finite bounds and reports the winning point's
+// limiting inputs in axis order. Parallel axes return ok=false.
+func fitBox(delta pose.Point, a, b fitAxis, priority fitPriority) (da, db float64, limited []InputField, ok bool) {
 	da, db, ok = pose.DecomposeAlong(delta, a.heading, b.heading)
 	if !ok {
 		return 0, 0, nil, false
 	}
-	if da >= a.lo-fitBoundTolMm && da <= a.hi+fitBoundTolMm &&
-		db >= b.lo-fitBoundTolMm && db <= b.hi+fitBoundTolMm {
-		return clampFit(da, a.lo, a.hi), clampFit(db, b.lo, b.hi), nil, true
+	if a.contains(da) && b.contains(db) {
+		return a.clamp(da), b.clamp(db), nil, true
 	}
 
-	miss := func(x, y float64) float64 {
-		return delta.Sub(pose.Along(a.heading, x)).Sub(pose.Along(b.heading, y)).Norm()
-	}
-	// Fix a at x; the best b is the clamped projection.
-	fixA := func(x float64) (float64, float64) {
-		y := clampFit(pose.ProjectOnto(delta.Sub(pose.Along(a.heading, x)), b.heading), b.lo, b.hi)
-		return x, y
-	}
-	// Fix b at y; the best a is the clamped projection.
-	fixB := func(y float64) (float64, float64) {
-		x := clampFit(pose.ProjectOnto(delta.Sub(pose.Along(b.heading, y)), a.heading), a.lo, a.hi)
-		return x, y
-	}
-
-	type candidate struct{ x, y, miss float64 }
-	var cands []candidate
-	add := func(x, y float64) { cands = append(cands, candidate{x, y, miss(x, y)}) }
-	add(fixA(a.lo))
-	if !math.IsInf(a.hi, 1) {
-		add(fixA(a.hi))
-	}
-	add(fixB(b.lo))
-	if !math.IsInf(b.hi, 1) {
-		add(fixB(b.hi))
-	}
-
-	best := cands[0]
-	for _, c := range cands[1:] {
-		if c.miss < best.miss-1e-9 {
-			best = c
+	axes := [2]fitAxis{a, b}
+	var best [2]float64
+	var bestMiss pose.Point
+	haveBest := false
+	for fixed, axis := range axes {
+		moving := 1 - fixed
+		for _, bound := range [...]float64{axis.lo, axis.hi} {
+			if math.IsInf(bound, 1) {
+				continue
+			}
+			edge := fitEdge{fixed: axis, moving: axes[moving], bound: bound}
+			for _, travel := range edge.candidates(delta, priority) {
+				var setting [2]float64
+				setting[fixed], setting[moving] = bound, travel
+				miss := priority.miss(delta, axes, setting)
+				if !haveBest || priority.prefers(miss, bestMiss) {
+					best, bestMiss, haveBest = setting, miss, true
+				}
+			}
 		}
 	}
-	if best.x == a.lo || best.x == a.hi {
-		limited = append(limited, a.field)
+
+	// Saddle gate intersections can reach a hardware bound within round-off.
+	boundTol := 0.0
+	if priority == saddleGateFirst {
+		boundTol = fitBoundTolMm
 	}
-	if best.y == b.lo || best.y == b.hi {
-		limited = append(limited, b.field)
+	for i, axis := range axes {
+		if math.Abs(best[i]-axis.lo) <= boundTol || math.Abs(best[i]-axis.hi) <= boundTol {
+			limited = append(limited, axis.field)
+		}
 	}
-	return best.x, best.y, limited, true
+	return best[0], best[1], limited, true
 }
