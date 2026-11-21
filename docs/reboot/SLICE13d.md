@@ -1,6 +1,15 @@
 # Slice 13d: Build-fitting vocabulary rename
 
-Status: Planned 2026-11-21
+Status: Implemented 2026-11-21; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-21, Claude Sonnet 5.5.
+- **Commits:** `Rename stock fitting Go API to PartOptions, FitBuilds, and BuildRanking` (9676745); `Rename /bike ranked-builds UI, URL parameters, and test hooks` (2341512). The handoff edits to this file and `DESIGN.md` are uncommitted.
+- **Done and not done:** A1, A2, A3, C1, W1, W2, W3, W4 all done.
+- **Deviations:** None, apart from two comment/message wordings the plan didn't specify (the `forkCellName` comment now says "ranked build row"; test failure messages say "build rows" and similar).
+- **Verification:** `make pre-commit` passes on both commits. The grep check returns only `StockWidthMm` and its uncut-width comments, `frameset.go:23`, and `TestBikeWorkbenchIgnoresRetiredStockKeys`. Live check, run on `:8091` instead of `make serve-reboot`'s `:8081` and with curl rather than a browser: the controls read "Handlebar options" and "Fork options", the heading reads "Ranked builds", and the first URL gives 749 combinations and row 1 `Fits neither`, `56.9`, `120 mm, -30°`, `0 mm`. The second URL gives 11235 combinations and row 1 `Fits all`, `80.0`, SQlab 311 2.0 Alloy 16°, 50 mm rise (740 mm). No screenshot taken, because the check was done on the HTML.
+- **Open issues:** None.
 
 **Rulings:** Q8, Q22, Q33, Q40, Q77, Q97, Q100, Q101, Q102; `AGENTS.md` rules.
 
