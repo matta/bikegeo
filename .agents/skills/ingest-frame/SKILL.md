@@ -47,7 +47,7 @@ Copy the shape of `frame_otso_fenrir_stainless.go`, but not its numbers: its rec
 
 - `frameFamily` holds the physical `LowerBore` and `DefaultLowerCup`. `family.sizes(publishedSize{...}, ...)` holds each size's published columns, plus an `Allowance` only if step 3 proves one is needed.
 - `ChartPrecision` is per column: half of the coarsest step that every size's value sits on. The length steps are 1, 0.5, 0.1, and 0.01 mm. The angle steps are 1, 0.5, 0.25, 0.1, 0.05, and 0.01°. A head angle of 68.25 in every size is on a 0.25° step, so its half-width is 0.125. Head angles of 68 and 68.5 give 0.25, and whole millimeters give 0.5 (Q80). Use the printed digits ("70.0°" is a 0.1° step) when a single size gives too little to judge.
-- `Forks` lists the catalog forks the frame supports, each at this frame's A2C and rake. Add a `Fork` to `forks.go` only for a real fork model.
+- `Forks` lists the fork models the manufacturer specifies (using catalog `Fork` vars, which own their A2C and rake variants; `CompatibleForks()` automatically opens other compatible catalog forks whose travel/rigid class and steerer fit the frame, per Q128–Q130, Q135). Add a `Fork` to `forks.go` only for a real fork model.
 - `MaxChainstayMm` is the rearmost sliding-dropout position (Q67), or 0 for fixed dropouts.
 - Start `BasisFork` and `BasisLowerCup` from the manufacturer's stated basis, or from a guess with the bare head tube (`assembly.LowerCupBareHeadTube`, stack 0).
 - Register the frame in `Frames()` in `frame.go`, in ID order.
@@ -56,88 +56,38 @@ Copy the shape of `frame_otso_fenrir_stainless.go`, but not its numbers: its rec
 
 ### 3. Find the basis with a temporary test
 
-Save this as `internal/reboot/catalog/scratch_basis_test.go`, set the frame ID and the published rake, and run `go test -run TestScratchBasis -v ./internal/reboot/catalog`:
+Write a short temporary test in `internal/reboot/catalog/scratch_basis_test.go` (`package catalog_test`) that calls `searchBasis`, `evalBasis`, and `logBasisSearch` from [internal/reboot/catalog/basis_search_test.go](internal/reboot/catalog/basis_search_test.go), then run `go test -run TestScratchBasis -v ./internal/reboot/catalog`:
 
 ```go
 package catalog_test
 
 import (
-	"math"
 	"testing"
+
+	"bikegeo/internal/reboot/assembly"
 )
 
-// TestScratchBasis finds each size's implied basis A2C and the basis A2C and
-// rake ranges where every size passes chart consistency.
 func TestScratchBasis(t *testing.T) {
 	f := mustFrame(t, "<frame-id>")
-	f.BasisFork.StaticA2cMm = 480 // a starting guess; the solve doesn't depend on it
-
-	// Each size's implied basis A2C, where its axle-height mismatch is zero.
-	// The mismatch is linear in A2C, so two placements 1 mm apart solve it.
-	lowest, highest := math.Inf(1), math.Inf(-1)
-	for _, s := range f.Sizes {
-		up := f
-		up.BasisFork.StaticA2cMm++
-		at, err := measureChartConsistency(f, s)
+	for _, tc := range []struct {
+		label        string
+		cup          assembly.LowerCupSetup
+		rake         float64
+		compareRakes []float64
+	}{
+		{"bare head tube", assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube}, 51, []float64{44, 51, 52}},
+		{"typical cup", f.Sizes[0].ChartFrame.DefaultLowerCup, 51, []float64{44, 51, 52}},
+	} {
+		res, err := searchBasis(f, tc.cup, tc.rake, tc.compareRakes)
 		if err != nil {
-			t.Fatalf("%s: %v", s.Name, err)
+			t.Fatalf("%s: %v", tc.label, err)
 		}
-		above, err := measureChartConsistency(up, s)
-		if err != nil {
-			t.Fatalf("%s: %v", s.Name, err)
-		}
-		m0, m1 := at.Checks[0].MismatchMm, above.Checks[0].MismatchMm
-		implied := f.BasisFork.StaticA2cMm - m0/(m1-m0)
-		lowest, highest = min(lowest, implied), max(highest, implied)
-		t.Logf("%s: implied basis A2C %.2f mm (axle-height rounding budget ±%.2f mm)", s.Name, implied, at.Checks[0].BudgetMm)
-	}
-	t.Logf("implied basis A2C %.2f–%.2f mm, minimax %.2f mm", lowest, highest, (lowest+highest)/2)
-
-	// passes reports whether every size passes with this basis A2C and rake, and
-	// each check's worst excess over its rounding budget (≤ 0: rounding explains it).
-	passes := func(a2c, rake float64) (ok bool, axleExcess, wheelbaseExcess float64) {
-		g := f
-		g.BasisFork.StaticA2cMm, g.BasisFork.RakeMm = a2c, rake
-		ok, axleExcess, wheelbaseExcess = true, math.Inf(-1), math.Inf(-1)
-		for _, s := range g.Sizes {
-			m, err := measureChartConsistency(g, s)
-			if err != nil {
-				t.Fatalf("%s at A2C %v, rake %v: %v", s.Name, a2c, rake, err)
-			}
-			if m.Err() != nil {
-				ok = false
-			}
-			axleExcess = max(axleExcess, m.Checks[0].ExcessMm)
-			if len(m.Checks) > 1 { // no wheelbase check when it is unpublished
-				wheelbaseExcess = max(wheelbaseExcess, m.Checks[1].ExcessMm)
-			}
-		}
-		return ok, axleExcess, wheelbaseExcess
-	}
-	// scan logs the passing range of one value with the other held fixed.
-	scan := func(name string, from, to, step float64, at func(v float64) (float64, float64)) {
-		first, last := math.NaN(), math.NaN()
-		for v := from; v <= to+step/2; v += step {
-			if ok, _, _ := passes(at(v)); ok {
-				if math.IsNaN(first) {
-					first = v
-				}
-				last = v
-			}
-		}
-		t.Logf("%s: every size passes from %.2f to %.2f (NaN: nowhere in %v–%v)", name, first, last, from, to)
-	}
-
-	a2c := math.Round((lowest+highest)/2*2) / 2 // minimax, to 0.5 mm
-	const rake = 54                              // the published or stated offset
-	scan("basis A2C at the rake", a2c-10, a2c+10, 0.05, func(v float64) (float64, float64) { return v, rake })
-	scan("rake at the basis A2C", rake-15, rake+15, 0.05, func(v float64) (float64, float64) { return a2c, v })
-	for _, r := range []float64{44, 52, 54} {
-		ok, ae, we := passes(a2c, r)
-		t.Logf("A2C %.1f, rake %.0f: passes %v, worst axle-height excess %+.2f mm, worst wheelbase excess %+.2f mm", a2c, r, ok, ae, we)
+		logBasisSearch(t, tc.label, res)
 	}
 }
 ```
+
+Use `evalBasis(f, cup, a2c, rake)` directly to check any specific `(cup, staticA2c, rake)` hypothesis (for example a stated fork position). Set `rake` and `compareRakes` to the offsets worth comparing for this chart, and try both the bare head tube and the specified headset's lower cup stack.
 
 Read the output this way:
 
@@ -145,9 +95,9 @@ Read the output this way:
 - **With no stated basis**, use the minimax A2C rounded to 0.5 mm, and record it as inferred from the published stacks, with the implied range (as `frame_ritchey_ultra.go` does).
 - **A spread of implied A2Cs wider than the axle-height budgets, or one size far from the rest,** points to a transcription error, a typo in the chart, or a cup the chart doesn't state. Investigate it; don't cover it with an allowance.
 - **A wheelbase check that fails at the published offset** but passes at another means the chart may be drawn for a different fork. Record what you found and ask Matt.
-- **Only if one size still fails** with the right basis does it get an allowance. Log that size's `m.Checks` (each check's `MismatchMm`, `Terms`, `BudgetMm`, and `ExcessMm`) and size the allowance from `ExcessMm`, within rule 4.
+- **Only if one size still fails** with the right basis does it get an allowance. Log that size's `m.Checks` (each check's `MismatchMm`, `Terms`, `BudgetMm`, and `ExcessMm`) from `measureChartConsistency` and size the allowance from `ExcessMm`, within rule 4.
 
-Change `{44, 52, 54}` to the offsets worth comparing for this chart. Try each published fork position, and the specified headset's lower cup stack as well as the bare head tube. Copy the readouts into the record's Chart consistency section with the date, then delete the file.
+Copy the readouts into the record's Chart consistency section with the date, then delete `internal/reboot/catalog/scratch_basis_test.go`.
 
 ### 4. Apply the basis
 
