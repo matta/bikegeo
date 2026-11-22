@@ -93,8 +93,8 @@ deadcode:
 test:
 	go test -v ./...
 
-# Temporarily omit `deadcode` during the reboot so slices can land foundational
-# functions before every caller exists; re-enable in `check` at cutover.
+# `deadcode` is deliberately not part of `check` (Q144): run `make deadcode` by
+# hand, periodically. Its findings don't block a commit.
 check: vet boundary exhaustive test
 
 # Required pre-commit workflow: modernize with go fix, then run full check.

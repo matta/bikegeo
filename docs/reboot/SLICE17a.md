@@ -1,6 +1,20 @@
 # Slice 17a: `deadcode` leaves the presubmit gate
 
-Status: Planned 2026-11-22
+Status: Implemented 2026-11-22; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-22, Claude Opus 5.5 (planning agent, implementing the Small slice itself).
+- **Commits:** `Take deadcode out of the presubmit gate` (the commit that carries this handoff). The plan was committed before it as `b4000d6`.
+- **Done and not done:** C1 and C2 done. Nothing left undone.
+- **Deviations:** None.
+- **Verification:**
+  1. The grep in Verification step 1 prints nothing.
+  2. `make pre-commit` exits 0 with 21 packages `ok`, and its log has no `deadcode` line.
+  3. `make deadcode` exits non-zero, reporting exactly `FitOval.Validate` (`assembly/scoring.go:107`), `RigidClass.ValidFor` (`catalog/forks.go:41`), and `ForkByID` (`catalog/forks.go:205`) under `unreachable functions from main`, as expected.
+  
+  There's no live check: nothing user-visible changed.
+- **Open issues:** None.
 
 Small slice: one commit and 2 files (`Makefile`, `AGENTS.md`). DESIGN.md's active rules were updated when Q144 was recorded, so this slice only touches DESIGN.md's Slice 17a status line.
 
