@@ -83,7 +83,7 @@ watch:
 # Benchmarks are not part of `check`. `make bench` runs every benchmark;
 # `make profile` runs one benchmark (BENCH, a -bench pattern) with CPU and
 # memory profiles under tmp/profile/ (gitignored) for `go tool pprof`.
-BENCH ?= BenchmarkComparePage/^all_bars$$
+BENCH ?= BenchmarkComparePage/^selected_bar$$
 PROFILE_PKG ?= ./internal/web
 PROFILE_DIR := tmp/profile
 
