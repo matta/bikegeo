@@ -14,49 +14,40 @@ vet:
 	go fmt ./...
 	go vet ./...
 
-# Enforce the reboot's zero-dependency rule, import isolation, and banned words.
+# Enforce the zero-dependency rule and the banned words.
 boundary:
-	@bad="$$({ \
-	  find cmd/bikegeo-reboot -type f -name '*.go' -exec grep -HnE '"bikegeo/' {} +; \
-	  find internal/reboot -type f -name '*.go' -exec grep -HnE '"bikegeo/' {} +; \
-	} | grep -vE '"bikegeo/(internal/reboot|cmd/bikegeo-reboot)(/|")' || true)"; \
+	@bad="$$(go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo \
+	  | grep -vE '^bikegeo/(cmd/bikegeo|internal)(/|$$)' || true)"; \
 	if [ -n "$$bad" ]; then \
 	  echo "$$bad"; \
-	  echo "boundary: reboot files must not import legacy bikegeo packages"; \
-	  exit 1; \
-	fi
-	@bad="$$(go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo-reboot \
-	  | grep -vE '^bikegeo/(cmd/bikegeo-reboot|internal/reboot)(/|$$)' || true)"; \
-	if [ -n "$$bad" ]; then \
-	  echo "$$bad"; \
-	  echo "boundary: cmd/bikegeo-reboot must not depend on legacy or third-party packages"; \
+	  echo "boundary: cmd/bikegeo must depend only on bikegeo packages and the standard library"; \
 	  exit 1; \
 	fi
 	@bad="$$({ \
-	  find cmd/bikegeo-reboot internal/reboot -iname '*chassis*'; \
-	  find cmd/bikegeo-reboot internal/reboot -type f -exec grep -Hin 'chassis' {} +; \
+	  find cmd internal -iname '*chassis*'; \
+	  find cmd internal -type f -exec grep -Hin 'chassis' {} +; \
 	} || true)"; \
 	if [ -n "$$bad" ]; then \
 	  echo "$$bad"; \
-	  echo "boundary: reboot files must not use the banned term 'chassis' (use frame, frameset, or bike)"; \
+	  echo "boundary: files under cmd and internal must not use the banned term 'chassis' (use frame, frameset, or bike)"; \
 	  exit 1; \
 	fi
 	@bad="$$({ \
-	  find cmd/bikegeo-reboot internal/reboot \( -iname '*price*' -o -iname '*pricing*' -o -iname '*cost*' -o -iname '*cheap*' -o -iname '*ledger*' \) -print; \
-	  find cmd/bikegeo-reboot internal/reboot -type f -exec grep -HinIE 'price|pricing|cost|cheap|ledger' {} +; \
+	  find cmd internal \( -iname '*price*' -o -iname '*pricing*' -o -iname '*cost*' -o -iname '*cheap*' -o -iname '*ledger*' \) -print; \
+	  find cmd internal -type f -exec grep -HinIE 'price|pricing|cost|cheap|ledger' {} +; \
 	} || true)"; \
 	if [ -n "$$bad" ]; then \
 	  echo "$$bad"; \
-	  echo "boundary: reboot files must not contain the words price, pricing, cost, cheap, or ledger, in any case or inside a longer word (PricedBand, CostPerR, cheapest); say score, penalty, points per unit, or best-scoring"; \
+	  echo "boundary: files under cmd and internal must not contain the words price, pricing, cost, cheap, or ledger, in any case or inside a longer word (PricedBand, CostPerR, cheapest); say score, penalty, points per unit, or best-scoring"; \
 	  exit 1; \
 	fi
 	@bad="$$({ \
-	  find cmd/bikegeo-reboot internal/reboot -iname '*cad*'; \
-	  find cmd/bikegeo-reboot internal/reboot -type f -exec grep -HinI 'cad' {} +; \
+	  find cmd internal -iname '*cad*'; \
+	  find cmd internal -type f -exec grep -HinI 'cad' {} +; \
 	} || true)"; \
 	if [ -n "$$bad" ]; then \
 	  echo "$$bad"; \
-	  echo "boundary: reboot files must not use 'CAD'; say basis (Q121)"; \
+	  echo "boundary: files under cmd and internal must not use 'CAD'; say basis (Q121)"; \
 	  exit 1; \
 	fi
 
@@ -90,7 +81,7 @@ watch:
 	watchexec -c -f '*.go' -f 'go.*' -f '*.json' -f '*.s' -f '*.[ch]' "go vet ./... && go test ./..."
 
 build-reboot:
-	go build -o bin/bikegeo-reboot ./cmd/bikegeo-reboot
+	go build -o bin/bikegeo-reboot ./cmd/bikegeo
 
 serve-reboot: build-reboot
 	./bin/bikegeo-reboot serve --port 8081 --open
