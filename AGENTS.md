@@ -66,7 +66,7 @@ Before analyzing Matt's personal bike fit, read [docs/RIDER_FIT.md](docs/RIDER_F
 
 ## Frame Datasets
 
-Legacy `internal/frames` is frozen: new frames go into `internal/reboot/catalog` only, following the [ingest-frame](.agents/skills/ingest-frame/SKILL.md) skill (DESIGN.md Q114, Q119). Published chart numbers are never nudged, and a chart allowance must be necessary and give its reason.
+Legacy `internal/frames` is frozen: new frames go into `internal/reboot/catalog` only, following the [ingest-frame](.agents/skills/ingest-frame/SKILL.md) skill (DESIGN.md Q114, Q119). Every value gathered for a frame, published or not, goes with its source into the frame's source record, `internal/reboot/catalog/frame_<id>.md`. Published chart numbers are never nudged, and a chart allowance must be necessary and give its reason.
 
 ## Testing
 

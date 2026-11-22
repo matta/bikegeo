@@ -9,6 +9,9 @@ import "bikegeo/internal/reboot/assembly"
 // physical forks install in the 12 mm EC44 cup, pending Otso's confirmation of
 // whether the chart omitted it. Tuning Chip dropouts run 430–450 mm; the
 // chart is drawn at 450 mm.
+//
+// Source record: frame_otso_fenrir_stainless.md (every gathered value, its
+// source, and open questions about this chart).
 func otsoFenrirStainless() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
