@@ -36,28 +36,73 @@ func legacyHeadset(t *testing.T, c model.HeadsetCupType) (assembly.LowerBore, as
 	return bore, assembly.LowerCupSetup{Standard: std, StackMm: c.CupStackMm()}
 }
 
-func legacyFramesByID(t *testing.T) map[string]model.FrameModel {
-	t.Helper()
+func legacyFramesByID() map[string]model.FrameModel {
 	out := map[string]model.FrameModel{}
 	for _, f := range legacyframes.AllFrames() {
 		out[f.ID] = f
 	}
-	if len(out) != len(catalog.Frames()) {
-		t.Fatalf("legacy has %d frames, catalog has %d", len(out), len(catalog.Frames()))
-	}
 	return out
 }
 
-// TestFramesMatchLegacy pins every ported frame value to legacy.
+// missingLegacyFrames returns, in legacy order, the IDs of legacy frames that
+// frames lacks (Q119). A catalog-only frame is not an error.
+func missingLegacyFrames(legacy []model.FrameModel, frames []catalog.Frame) []string {
+	have := map[string]bool{}
+	for _, f := range frames {
+		have[f.ID] = true
+	}
+	var missing []string
+	for _, l := range legacy {
+		if !have[l.ID] {
+			missing = append(missing, l.ID)
+		}
+	}
+	return missing
+}
+
+// TestMissingLegacyFrames checks that missingLegacyFrames catches dropped legacy
+// frames while allowing catalog-only frames (Q119).
+func TestMissingLegacyFrames(t *testing.T) {
+	legacy := legacyframes.AllFrames()
+	base := catalog.Frames()
+
+	dropped := slices.DeleteFunc(slices.Clone(base), func(f catalog.Frame) bool {
+		return f.ID == "otso-fenrir-stainless"
+	})
+	withExtra := append(slices.Clone(base), catalog.Frame{ID: "scratch-new-frame"})
+
+	for _, tc := range []struct {
+		name   string
+		frames []catalog.Frame
+		want   []string
+	}{
+		{"identical", base, nil},
+		{"catalog-only frame", withExtra, nil},
+		{"dropped frame", dropped, []string{"otso-fenrir-stainless"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := missingLegacyFrames(legacy, tc.frames)
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("missingLegacyFrames = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestFramesMatchLegacy pins every legacy frame value in the catalog, skipping
+// catalog-only frames (Q119).
 func TestFramesMatchLegacy(t *testing.T) {
+	if missing := missingLegacyFrames(legacyframes.AllFrames(), catalog.Frames()); len(missing) > 0 {
+		t.Fatalf("legacy frames missing from the catalog: %v", missing)
+	}
 	modelOverride := map[string]string{"otso-fenrir-stainless": "Fenrir Stainless"}
 	allowanceSizes := map[string]bool{"sklar-pbj/L": true, "esker-hayduke/S4": true}
-	legacy := legacyFramesByID(t)
+	legacy := legacyFramesByID()
 	for _, f := range catalog.Frames() {
 		t.Run(f.ID, func(t *testing.T) {
 			l, ok := legacy[f.ID]
 			if !ok {
-				t.Fatalf("no legacy frame %q", f.ID)
+				t.Skipf("catalog-only frame (Q119)")
 			}
 			wantModel := l.Model
 			if m, ok := modelOverride[f.ID]; ok {
@@ -157,11 +202,16 @@ func TestFramesMatchLegacy(t *testing.T) {
 	}
 }
 
-// TestPrecisionMatchesLegacyInference pins each frame's precision to legacy's inference (Q80).
+// TestPrecisionMatchesLegacyInference pins each ported frame's precision to
+// legacy's inference, skipping catalog-only frames (Q80, Q119).
 func TestPrecisionMatchesLegacyInference(t *testing.T) {
-	legacy := legacyFramesByID(t)
+	legacy := legacyFramesByID()
 	for _, f := range catalog.Frames() {
-		p := geometry.InferChartPrecision(legacy[f.ID])
+		l, ok := legacy[f.ID]
+		if !ok {
+			continue
+		}
+		p := geometry.InferChartPrecision(l)
 		want := catalog.ChartPrecision{
 			ReachMm:          p.ReachMm,
 			StackMm:          p.StackMm,
