@@ -46,7 +46,7 @@ When no existing test, `/bike`, or `compare` answers a question about geometry, 
 - Delete the file when you're done.
 - Call the real placement and chart-consistency functions, and never restate geometry formulas. Published chart values stay untouched in catalog files; a temporary test may only change copies.
 - If you write the same scratch helper twice, propose promoting it into a shared test helper.
-- Interim, until Slice 16b rewrites the ingest-frame skill: `measureChartConsistency` in `internal/reboot/catalog/chart_consistency_test.go` exposes each check's mismatch, rounding budget, per-column terms, allowance, and excess; call it from a temporary test in the same package.
+- For a new frame chart, follow the [ingest-frame](.agents/skills/ingest-frame/SKILL.md) skill; its basis-finding test is the template for chart questions.
 
 ## Rider Fit Provenance
 
@@ -64,14 +64,9 @@ Before analyzing Matt's personal bike fit, read [docs/RIDER_FIT.md](docs/RIDER_F
 - **Angles are `model.Deg`; lengths are `float64`.** Trig goes through `Deg.Angle()` and `model.DegOf`, never a hand-written `math.Pi / 180`.
 - `bikegeo fit` may list tied candidates in a different order between runs. That's a known, pre-existing behavior.
 
-## Frame Datasets (`internal/frames/*.go`)
+## Frame Datasets
 
-Follow the [ingest-frame](.agents/skills/ingest-frame/SKILL.md) skill. The non-negotiables:
-
-- Published chart numbers are ground truth: **never nudge them**, and omit an unpublished `Wheelbase` rather than deriving it.
-- `GeoSlopMm` is a last resort, never a cover for modeling errors. It must be necessary and must state a `Reason` (`TestDeclaredAllowancesAreNecessary`).
-- Use `bikegeo fit` (and `--try`) for CAD back-solving, not ad-hoc scripts.
-- Register new frames in `internal/frames/frames.go`. `TestAllFrameData` covers them, so no per-frame tests are needed.
+Legacy `internal/frames` is frozen: new frames go into `internal/reboot/catalog` only, following the [ingest-frame](.agents/skills/ingest-frame/SKILL.md) skill (DESIGN.md Q114, Q119). Published chart numbers are never nudged, and a chart allowance must be necessary and give its reason.
 
 ## Testing
 
