@@ -1,6 +1,22 @@
 # Slice 14b: Web `/` compare page and `/` → `/bike` verification
 
-Status: Planned 2026-11-21
+Status: Implemented 2026-11-21; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Commits:**
+  1. `8a2e017` — `Add compare URL and row bike-link helpers in query` (`internal/reboot/query/bike.go`, `internal/reboot/query/compare.go`, `internal/reboot/query/compare_test.go`)
+  2. `dbcced0` — `Add web comparison page and root navigation` (`internal/reboot/web/web.go`, `internal/reboot/web/bike_page.go`, `internal/reboot/web/compare_page.go`, `internal/reboot/web/templates/compare.html`, `internal/reboot/web/templates/bike.html`, `internal/reboot/web/web_test.go`)
+  3. `a66b379` — `Add compare page tests and update agent docs` (`internal/reboot/web/compare_test.go`, `AGENTS.md`)
+- **Verification:**
+  - `make pre-commit` passed on each of the 3 commits individually (`go fix`, `go fmt`, `go vet`, `go tool exhaustive`, `go test -v ./...`, `make boundary`).
+  - `go list -deps ./internal/reboot/query | grep -E '(^net/http$|^html/template$|reboot/web)'` printed nothing.
+  - `go test ./internal/reboot/query ./internal/reboot/web -count=1` passed.
+- **Live web check (`./bin/bikegeo-reboot serve --port 18081`, Chrome):**
+  - Desktop (`1440x900`), tablet (`1024x900`), and mobile (`390x844`): settings grid transitioned 3-col → 2-col (Ranking Limits spanning full width, zero orphan) → 1-col; all 3 tables rendered with right-aligned tabular numbers and scroll shadows; `<details>` 12-attribute score breakdown opened/closed cleanly; sliding-dropout `*` markers and footnote present; zero JS/runtime errors (only browser-initiated `/favicon.ico` 404).
+  - Form flows: added `Surly Krampus` via `Add a frame…`, narrowed to `XL` + `surly_krampus_483` + `20%` sag → HTTP `400` with `#form-error` and `aria-invalid="true"` on `Sag`; recovered via `Any sag` → `200`; verified `Remove` and `All 19 Frames`.
+  - Lossless `/` → `/bike` inspect & nav: Row #1 (`Surly Krampus XL`) reproduced `Submitted build score` (`Fits all`, `84.6`, Oval R `0.76`, BRP miss `(-4.1, +0.0) mm`) and `Ranked builds #1` (`84.6`, `100 mm, -10°`, `0 mm` spacers); Row #5 (`Salsa Fargo XL`) reproduced `Submitted build score` (`Fits BRP`, `54.5`, Oval R `4.33`, BRP miss `(-10.0, -0.9) mm`) and `Ranked builds #1` (`54.5`, `120 mm, -30°`, `0 mm` spacers); `Compare` nav link returned to `/`.
+- **Minor plan note:** in `TestCompareCustomSelectionsAndAutoTopPerFrame`, `sid_100`'s catalog name is `"RockShox SID 100mm"` (so `"RockShox SID 100mm, 25% sag"`) and `FramesetPlacement.EttMm()` for `otso-fenrir-stainless` L + `sid_100` @ `25%` formats to `"597.2"` (not `"597.3"`).
 
 **Rulings:** Q52, Q53, Q54, Q56, Q61, Q62, Q67, Q70, Q76, Q77, Q78, Q84, Q85, Q86, Q87, Q88, Q90, Q101, Q104, Q105, Q107, Q108, Q110, Q112, Q113; `AGENTS.md` rules.
 
