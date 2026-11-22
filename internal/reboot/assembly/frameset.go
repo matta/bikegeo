@@ -43,18 +43,18 @@ const (
 	Bore52Integrated LowerBore = "52_integrated"
 )
 
-// Steerer identifies a fork's steerer tube type. SteererCAD is the sentinel for
-// the CAD baseline fork, which has no physical steerer.
+// Steerer identifies a fork's steerer tube type. SteererBasis is the sentinel for
+// the basis fork, which has no physical steerer.
 type Steerer string
 
 const (
 	SteererStraight118 Steerer = "straight_118"
 	SteererTapered     Steerer = "tapered"
-	SteererCAD         Steerer = "cad"
+	SteererBasis       Steerer = "basis"
 )
 
 // LowerCupStandard identifies the SHIS lower headset cup interface marrying a
-// frame's head tube to a fork steerer (or BareHeadTube for an uncupped CAD chart).
+// frame's head tube to a fork steerer (or BareHeadTube for an uncupped basis chart).
 type LowerCupStandard string
 
 const (
@@ -136,9 +136,9 @@ func cupTakesTaperedSteerer(std LowerCupStandard) bool {
 }
 
 // validateHeadset checks that the lower cup is valid, fits the head tube's
-// lower bore, and accepts the fork's steerer. A bare head tube is a CAD
-// hypothesis: it fits any recognized bore but only the CAD steerer, and a
-// physical fork always requires a physical cup. SteererCAD fits any valid cup
+// lower bore, and accepts the fork's steerer. A bare head tube is a basis
+// hypothesis: it fits any recognized bore but only the basis steerer, and a
+// physical fork always requires a physical cup. SteererBasis fits any valid cup
 // on its matching bore.
 func validateHeadset(bore LowerBore, cup LowerCupSetup, steerer Steerer) error {
 	switch bore {
@@ -147,7 +147,7 @@ func validateHeadset(bore LowerBore, cup LowerCupSetup, steerer Steerer) error {
 		return invalidInput(InputLowerCup, "unknown or missing head tube lower bore %q", bore)
 	}
 	switch steerer {
-	case SteererStraight118, SteererTapered, SteererCAD:
+	case SteererStraight118, SteererTapered, SteererBasis:
 	default:
 		return invalidInput(InputLowerCup, "unknown or missing fork steerer %q", steerer)
 	}
@@ -156,7 +156,7 @@ func validateHeadset(bore LowerBore, cup LowerCupSetup, steerer Steerer) error {
 	}
 	cupFits, physical := cupBore(cup.Standard)
 	if !physical {
-		if steerer != SteererCAD {
+		if steerer != SteererBasis {
 			return invalidInput(InputLowerCup, "a %s steerer fork needs a physical lower cup, not %s", steerer, cup.Standard)
 		}
 		return nil
@@ -165,7 +165,7 @@ func validateHeadset(bore LowerBore, cup LowerCupSetup, steerer Steerer) error {
 		return invalidInput(InputLowerCup, "%s lower cup needs a %s head tube bore, but the frame has %s", cup.Standard, cupFits, bore)
 	}
 	switch steerer {
-	case SteererStraight118, SteererCAD:
+	case SteererStraight118, SteererBasis:
 		return nil
 	case SteererTapered:
 		if !cupTakesTaperedSteerer(cup.Standard) {
@@ -183,7 +183,7 @@ func validateDefaultLowerCup(frame FrameSetup) error {
 	if frame.DefaultLowerCup.Standard == LowerCupBareHeadTube {
 		return invalidInput(InputLowerCup, "frame default lower cup must be a physical cup, not %s", frame.DefaultLowerCup.Standard)
 	}
-	return validateHeadset(frame.LowerBore, frame.DefaultLowerCup, SteererCAD)
+	return validateHeadset(frame.LowerBore, frame.DefaultLowerCup, SteererBasis)
 }
 
 // ForkSpec describes a catalog fork before installation and sag.
@@ -230,8 +230,8 @@ func (f ForkSetup) Validate() error {
 	if !isFinite(f.Spec.TravelMm) || f.Spec.TravelMm < 0 {
 		return fmt.Errorf("fork travel must be finite and non-negative, got %v mm", f.Spec.TravelMm)
 	}
-	if f.Spec.Steerer == SteererCAD && f.Spec.TravelMm != 0 {
-		return fmt.Errorf("CAD baseline fork cannot have travel, got %v mm", f.Spec.TravelMm)
+	if f.Spec.Steerer == SteererBasis && f.Spec.TravelMm != 0 {
+		return fmt.Errorf("basis fork cannot have travel, got %v mm", f.Spec.TravelMm)
 	}
 	if !isFinite(f.SagPct) || f.SagPct < 0 || f.SagPct > 100 {
 		return invalidInput(InputForkSag, "fork sag must be in [0%%, 100%%], got %v%%", f.SagPct)

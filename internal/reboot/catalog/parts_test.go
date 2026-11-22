@@ -35,8 +35,8 @@ func TestForks(t *testing.T) {
 		case assembly.SteererStraight118:
 			straight = append(straight, f.ID)
 		case assembly.SteererTapered:
-		case assembly.SteererCAD:
-			t.Errorf("fork %q uses the CAD sentinel steerer", f.ID)
+		case assembly.SteererBasis:
+			t.Errorf("fork %q uses the basis sentinel steerer", f.ID)
 		default:
 			t.Errorf("fork %q has unknown steerer %q", f.ID, f.Steerer)
 		}

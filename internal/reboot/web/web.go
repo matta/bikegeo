@@ -281,7 +281,7 @@ type bikeView struct {
 	InvalidField           string
 	Form                   bikeFormValues
 	DefaultsURL            string
-	CadBaselineForkURL     string
+	BasisForkURL           string
 	View                   diagramView
 	ViewLinks              []diagramViewLink
 	DrawScale              float64 // view width / whole-bike width; 1 for the whole bike
@@ -305,7 +305,7 @@ type bikeView struct {
 	HandlebarName          string
 	Forks                  []forkOption
 	ForkOptionCount        int
-	CadForkOption          forkOption
+	BasisForkOption        forkOption
 	SelectedForkID         string
 	Handlebars             []catalog.Handlebar
 	SelectedBarID          string
@@ -317,9 +317,9 @@ type bikeView struct {
 	ForkA2cReadOnly        bool
 	CupReadOnly            bool
 	SagReadOnly            bool
-	CadBaselineNote        string
+	BasisForkNote          string
 	BasisFork              assembly.ForkSpec
-	CadLowerCupMm          float64
+	BasisLowerCupMm        float64
 	LowerCupMm             float64
 	SagPct                 float64
 	EffectiveA2cMm         float64
@@ -337,8 +337,8 @@ type bikeView struct {
 	SitBonesToGripRiseMm   float64
 	HandLateralMm          float64
 	PublishedWheelbaseMm   float64
-	CadHtaDeg              pose.Deg
-	CadWheelbaseMm         float64
+	BasisHtaDeg            pose.Deg
+	BasisWheelbaseMm       float64
 	DeltaPitchDeg          pose.Deg
 	WheelRadiusMm          float64
 	WheelLabel             string
@@ -853,7 +853,7 @@ func buildBikeView(
 	}
 	v.HasBuild = true
 	v.DefaultsURL = query.DefaultBike().WithView(string(view)).URL()
-	v.CadBaselineForkURL = parsed.WithView(string(view)).WithCadBaselineFork().URL()
+	v.BasisForkURL = parsed.WithView(string(view)).WithBasisFork().URL()
 	if parsed.BrpTarget != nil || parsed.GripTarget != nil {
 		v.ClearTargetsURL = parsed.WithoutTargets().URL()
 	}
@@ -883,8 +883,8 @@ func buildBikeView(
 	v.BrpToGripDistMm = bike.BrpToGripDistMm()
 	v.SitBonesToGripRiseMm = bike.SitBonesToGripRiseMm()
 	v.HandLateralMm = handlebar.HandLateralMm
-	v.CadHtaDeg = basis.LeveledHeadTubeAngleDeg()
-	v.CadWheelbaseMm = basis.WheelbaseMm()
+	v.BasisHtaDeg = basis.LeveledHeadTubeAngleDeg()
+	v.BasisWheelbaseMm = basis.WheelbaseMm()
 	v.DeltaPitchDeg = placed.PitchDeltaDeg(basis)
 	v.WheelRadiusMm = r
 	v.WheelLabel = catalog.WheelLabel

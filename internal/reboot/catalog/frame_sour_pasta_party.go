@@ -22,7 +22,7 @@ func sourPastaParty() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy fox34_120 @ 15% sag → 512 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 512, RakeMm: 44, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 512, RakeMm: 44, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

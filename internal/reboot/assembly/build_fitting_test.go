@@ -528,7 +528,7 @@ func TestFitBuildsScoresBrpMissForSubmittedFork(t *testing.T) {
 	}
 }
 
-func TestFitBuildsFourTiersAndCadFork(t *testing.T) {
+func TestFitBuildsFourTiersAndBasisFork(t *testing.T) {
 	setback := fenrirFittingSetup()
 	setback.Seatpost.Spec = genericPostSpec(25)
 	brp := pose.Point{X: -189, Y: 713.1}
@@ -547,10 +547,10 @@ func TestFitBuildsFourTiersAndCadFork(t *testing.T) {
 	}
 	requireRanks(t, two, rank(assembly.FitsAll, 79.775329, -10, 120, 0, 0.536417).onBar(1))
 
-	cad := mustFitBuilds(t, cadBaselineSetup(), assembly.FitTarget{HandGrip: &fitReportGrip}, 5)
-	requireRanks(t, cad, rank(assembly.FitsNeither, 69.082428, -20, 120, 0, 1.207581))
-	assertNear(t, "CAD fork sag", attrScore(t, cad.Builds[0].Score, assembly.AttrForkSag).Score, 100, 1e-9)
-	assertNear(t, "CAD trail", attrScore(t, cad.Builds[0].Score, assembly.AttrTrail).Score, 60.989388, 1e-5)
+	basis := mustFitBuilds(t, basisSetup(), assembly.FitTarget{HandGrip: &fitReportGrip}, 5)
+	requireRanks(t, basis, rank(assembly.FitsNeither, 69.082428, -20, 120, 0, 1.207581))
+	assertNear(t, "basis fork sag", attrScore(t, basis.Builds[0].Score, assembly.AttrForkSag).Score, 100, 1e-9)
+	assertNear(t, "basis trail", attrScore(t, basis.Builds[0].Score, assembly.AttrTrail).Score, 60.989388, 1e-5)
 }
 
 func TestCompareScoredBuildsTieBreaks(t *testing.T) {

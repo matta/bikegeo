@@ -5,7 +5,7 @@ import "bikegeo/internal/reboot/assembly"
 // turnerVennTi returns the Turner Venn Ti.
 //
 // The frame is a titanium trail hardtail with a ZS56 semi-integrated headset.
-// Its CAD fork is a 130 mm fork published unweighted (541 mm, 0% sag) on the
+// Its basis fork is a 130 mm fork published unweighted (541 mm, 0% sag) on the
 // bare head tube. Legacy notes the XL stack (670 mm) looks like a transcription
 // error for 690 mm; the published value is kept.
 func turnerVennTi() Frame {
@@ -23,7 +23,7 @@ func turnerVennTi() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
 		// hypothesis (Q44, Q81): legacy fox34_130 @ 0% sag → 541 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 541, RakeMm: 44, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 541, RakeMm: 44, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

@@ -7,7 +7,7 @@ import "bikegeo/internal/reboot/assembly"
 // The frame is a stainless bikepacking frame designed around the 495 mm Lithic
 // carbon rigid fork (54 mm offset). The chart is consistent with the bare head tube;
 // physical forks install in the 12 mm EC44 cup, pending Otso's confirmation of
-// whether the CAD chart omitted it. Tuning Chip dropouts run 430–450 mm; the
+// whether the chart omitted it. Tuning Chip dropouts run 430–450 mm; the
 // chart is drawn at 450 mm.
 func otsoFenrirStainless() Frame {
 	family := frameFamily{
@@ -25,7 +25,7 @@ func otsoFenrirStainless() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
 		// hypothesis (Q44, Q81): legacy lithic_carbon_mountain (rigid) → 495 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

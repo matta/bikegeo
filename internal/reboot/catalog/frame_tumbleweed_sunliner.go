@@ -6,7 +6,7 @@ import "bikegeo/internal/reboot/assembly"
 //
 // The frame is a chromoly rigid touring frame designed around the 440 mm
 // unicrown fork (55 mm offset), whose straight steerer runs in an EC44/30
-// reducer cup (Q66); the CAD cup is 13 mm EC44.
+// reducer cup (Q66); the basis cup is 13 mm EC44.
 func tumbleweedSunliner() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
@@ -22,7 +22,7 @@ func tumbleweedSunliner() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 13
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 13},
 		// hypothesis (Q44, Q81): legacy sunliner_440 (rigid) → 440 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 440, RakeMm: 55, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 440, RakeMm: 55, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

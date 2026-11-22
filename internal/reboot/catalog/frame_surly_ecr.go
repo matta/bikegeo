@@ -5,7 +5,7 @@ import "bikegeo/internal/reboot/assembly"
 // surlyEcr returns the Surly ECR.
 //
 // The frame is a chromoly 29+ rigid adventure bike designed around the 468 mm
-// ECR fork (43 mm offset), with a traditional 34 mm head tube (12 mm EC34 CAD
+// ECR fork (43 mm offset), with a traditional 34 mm head tube (12 mm EC34 basis
 // cup). Only straight-steerer forks fit.
 func surlyEcr() Frame {
 	family := frameFamily{
@@ -22,7 +22,7 @@ func surlyEcr() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC34, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy surly_ecr_468 (rigid) → 468 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 468, RakeMm: 43, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 468, RakeMm: 43, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.25,

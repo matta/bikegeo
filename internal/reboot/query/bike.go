@@ -12,9 +12,9 @@ import (
 	"bikegeo/internal/reboot/pose"
 )
 
-// CadForkID is the reserved fork query value selecting the frame's CAD baseline
-// fork and CAD lower cup (Q81, Q89).
-const CadForkID = "cad"
+// BasisForkID is the reserved fork query value selecting the frame's basis
+// fork and basis lower cup (Q81, Q89).
+const BasisForkID = "basis"
 
 // fork_options values (Q33, Q101).
 const (
@@ -45,8 +45,8 @@ type BikeForkOption struct {
 type Bike struct {
 	Frame          catalog.Frame
 	Size           catalog.FrameSize
-	ForkID         string            // catalog Fork.ID or CadForkID
-	FrameFork      catalog.FrameFork // zero when ForkID == CadForkID
+	ForkID         string            // catalog Fork.ID or BasisForkID
+	FrameFork      catalog.FrameFork // zero when ForkID == BasisForkID
 	Bar            catalog.Handlebar
 	Post           catalog.Seatpost
 	View           string // ViewBike, ViewSeat, or ViewStem
@@ -303,15 +303,15 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 	prevFork := strings.TrimSpace(q.Get("prev_fork"))
 
 	var ff catalog.FrameFork
-	var isCad bool
+	var isBasis bool
 	var forkID string
 	switch found, ok := findFrameFork(frame, rawFork); {
 	case rawFork == "":
 		ff = frame.Forks[0]
 		forkID = ff.Fork.ID
-	case rawFork == CadForkID:
-		isCad = true
-		forkID = CadForkID
+	case rawFork == BasisForkID:
+		isBasis = true
+		forkID = BasisForkID
 	case ok:
 		ff = found
 		forkID = ff.Fork.ID
@@ -325,7 +325,7 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 	forkSwitched := !frameSwitched && prevFork != "" && prevFork != forkID
 
 	b.ForkID = forkID
-	if isCad {
+	if isBasis {
 		b.FrameFork = catalog.FrameFork{}
 		return size.ChartFrame, frame.BasisLowerCup, basisForkSetup(frame), nil
 	}
@@ -346,14 +346,14 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 	case forkSwitched:
 		a2cMm, sagPct = ff.StaticA2cMm, defaultSag
 		var prevCupStd assembly.LowerCupStandard
-		if prevFork == CadForkID {
+		if prevFork == BasisForkID {
 			prevCupStd = frame.BasisLowerCup.Standard
 		} else if _, known := findFrameFork(frame, prevFork); known {
 			prevCupStd = frameSetup.DefaultLowerCup.Standard
 		}
-		// The CAD baseline's cup stack is locked to the chart, so leaving it always
+		// The basis's cup stack is locked to the chart, so leaving it always
 		// restores the physical default, even when both share a standard.
-		if prevFork == CadForkID || prevCupStd != frameSetup.DefaultLowerCup.Standard {
+		if prevFork == BasisForkID || prevCupStd != frameSetup.DefaultLowerCup.Standard {
 			cupMm = defaultCup
 		} else if cupMm, err = parseFloatOrDefault(q, "cup", defaultCup, "lower cup"); err != nil {
 			return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{}, err
@@ -466,10 +466,10 @@ func (b Bike) WithView(view string) Bike {
 	return b
 }
 
-// WithCadBaselineFork returns a copy of b using the CAD baseline fork, lower
+// WithBasisFork returns a copy of b using the basis fork, lower
 // cup, and published chainstay (Q81).
-func (b Bike) WithCadBaselineFork() Bike {
-	b.ForkID = CadForkID
+func (b Bike) WithBasisFork() Bike {
+	b.ForkID = BasisForkID
 	b.FrameFork = catalog.FrameFork{}
 	b.Setup.Frame = b.Size.ChartFrame
 	b.Setup.LowerCup = b.Frame.BasisLowerCup
@@ -615,7 +615,7 @@ func (b Bike) Evaluate(limit int) (BikeResult, error) {
 				}
 			}
 			// Installed physical forks use the sliding-dropout max chainstay even
-			// when the submitted bike is on the CAD baseline fork (Q67).
+			// when the submitted bike is on the basis fork (Q67).
 			fitSetup.Frame = b.Frame.InstalledFrame(b.Size)
 		}
 		ranking, err := assembly.FitBuilds(fitSetup, target, parts, catalog.DefaultScoreWeights(), limit)

@@ -24,7 +24,7 @@ func salsaFargo() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
 		// hypothesis (Q44, Q81): legacy firestarter_deluxe_483 (rigid) → 483 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 483, RakeMm: 51, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 483, RakeMm: 51, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

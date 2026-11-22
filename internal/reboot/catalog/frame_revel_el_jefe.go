@@ -5,7 +5,7 @@ import "bikegeo/internal/reboot/assembly"
 // revelElJefe returns the Revel El Jefe.
 //
 // The frame is a titanium trail hardtail with an IS52 integrated headset. Its
-// CAD fork is a 120 mm fork (530 mm static) at 20% sag, 506 mm effective, on
+// basis fork is a 120 mm fork (530 mm static) at 20% sag, 506 mm effective, on
 // the bare head tube. Sliding dropouts run 420–435 mm. The seat tube is bent;
 // only the published effective STA is modeled (Q75f).
 func revelElJefe() Frame {
@@ -24,7 +24,7 @@ func revelElJefe() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
 		// hypothesis (Q44, Q81): legacy sid_120 @ 20% sag → 506 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 506, RakeMm: 44, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 506, RakeMm: 44, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

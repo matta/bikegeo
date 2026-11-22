@@ -4,8 +4,8 @@ import "bikegeo/internal/reboot/assembly"
 
 // binaryHavok returns the Binary Havok.
 //
-// The frame is a titanium 29+ drop-bar adventure frame. Its CAD fork is a 485
-// mm rigid fork with a 10 mm EC44 CAD cup. Rocker sliding dropouts run 445–460
+// The frame is a titanium 29+ drop-bar adventure frame. Its basis fork is a 485
+// mm rigid fork with a 10 mm EC44 basis cup. Rocker sliding dropouts run 445–460
 // mm; the chart is drawn at the forward 445 mm position.
 func binaryHavok() Frame {
 	family := frameFamily{
@@ -23,7 +23,7 @@ func binaryHavok() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 10
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 10},
 		// hypothesis (Q44, Q81): legacy rigid_485 (rigid) → 485 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 485, RakeMm: 45, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 485, RakeMm: 45, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

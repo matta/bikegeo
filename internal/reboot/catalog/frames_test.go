@@ -104,8 +104,8 @@ func frameProblems(f catalog.Frame) []string {
 			problems = append(problems, fmt.Sprintf("max chainstay %v mm is below a published %v mm chainstay", f.MaxChainstayMm, longest))
 		}
 	}
-	if f.BasisFork.Steerer != assembly.SteererCAD {
-		problems = append(problems, fmt.Sprintf("basis fork steerer is %q, want %q", f.BasisFork.Steerer, assembly.SteererCAD))
+	if f.BasisFork.Steerer != assembly.SteererBasis {
+		problems = append(problems, fmt.Sprintf("basis fork steerer is %q, want %q", f.BasisFork.Steerer, assembly.SteererBasis))
 	}
 	if f.BasisFork.TravelMm != 0 {
 		problems = append(problems, fmt.Sprintf("basis fork has %v mm travel, want 0", f.BasisFork.TravelMm))
@@ -211,7 +211,7 @@ func TestChartAllowances(t *testing.T) {
 }
 
 // TestForkListsPlace places every size with every listed fork at every
-// enumerated sag, plus its CAD baseline fork (Q83).
+// enumerated sag, plus its basis fork (Q83).
 func TestForkListsPlace(t *testing.T) {
 	placements, bases := 0, 0
 	for _, f := range catalog.Frames() {
@@ -231,14 +231,14 @@ func TestForkListsPlace(t *testing.T) {
 				}
 			}
 			if _, err := assembly.PlaceFrameset(s.ChartFrame, f.BasisLowerCup, assembly.ForkSetup{Spec: f.BasisFork}, wheels); err != nil {
-				t.Errorf("%s/%s CAD baseline fork: %v", f.ID, s.Name, err)
+				t.Errorf("%s/%s basis fork: %v", f.ID, s.Name, err)
 			}
 			bases++
 		}
 	}
-	t.Logf("%d fork-list placements, %d CAD baseline placements", placements, bases)
+	t.Logf("%d fork-list placements, %d basis placements", placements, bases)
 	if placements != 701 || bases != 119 {
-		t.Errorf("got %d fork-list and %d CAD baseline placements, want 701 and 119", placements, bases)
+		t.Errorf("got %d fork-list and %d basis placements, want 701 and 119", placements, bases)
 	}
 }
 

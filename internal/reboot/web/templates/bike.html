@@ -364,8 +364,8 @@
                 <option value="{{.ID}}"{{if eq .ID $.SelectedForkID}} selected{{end}}>{{.Label}}</option>
                 {{end}}
               </optgroup>
-              <optgroup label="CAD Baseline Fork">
-                <option value="{{.CadForkOption.ID}}"{{if eq .CadForkOption.ID $.SelectedForkID}} selected{{end}}>{{.CadForkOption.Label}}</option>
+              <optgroup label="Chart Basis Fork">
+                <option value="{{.BasisForkOption.ID}}"{{if eq .BasisForkOption.ID $.SelectedForkID}} selected{{end}}>{{.BasisForkOption.Label}}</option>
               </optgroup>
             </select>
           </div>
@@ -382,8 +382,8 @@
             <input id="ctrl-sag" type="number" name="sag" step="1" min="0" max="100" value="{{.Form.Sag}}"{{if .SagReadOnly}} readonly{{end}}{{if and $.ErrorMessage (eq $.InvalidField "sag")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
           </div>
         </div>
-        {{if .CadBaselineNote}}
-        <p class="field-note" data-note="cad-baseline-fork">{{.CadBaselineNote}}</p>
+        {{if .BasisForkNote}}
+        <p class="field-note" data-note="basis-fork">{{.BasisForkNote}}</p>
         {{end}}
         {{if .SlidingDropoutsNote}}<p class="field-note" data-note="sliding-dropouts">{{.SlidingDropoutsNote}}</p>{{end}}
       </fieldset>
@@ -496,7 +496,7 @@
       <button id="ctrl-submit" type="submit">Update Build</button>
       <a id="preset-defaults" href="{{.DefaultsURL}}" data-preset="defaults">Reset Defaults</a>
       {{if .ClearTargetsURL}}<a id="preset-clear-targets" href="{{.ClearTargetsURL}}" data-preset="clear-targets">Clear Targets</a>{{end}}
-      <a id="preset-cad-baseline-fork" href="{{.CadBaselineForkURL}}" data-preset="cad-baseline-fork">CAD Baseline Fork ({{printf "%.0f" .CadLowerCupMm}} mm cup)</a>
+      <a id="preset-basis-fork" href="{{.BasisForkURL}}" data-preset="basis-fork">Chart Basis Fork ({{printf "%.0f" .BasisLowerCupMm}} mm cup)</a>
     </div>
   </form>
 
@@ -616,8 +616,8 @@
       </div>
       {{end}}
       <div class="summary" style="font-size: 0.82rem;">
-        <span>CAD Baseline Fork ({{printf "%.0f" .BasisFork.StaticA2cMm}} mm / {{printf "%.0f" .BasisFork.RakeMm}} mm / {{printf "%.0f" .CadLowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .CadHtaDeg}} HTA, {{printf "%.1f mm" .CadWheelbaseMm}} WB</strong> {{if gt .PublishedWheelbaseMm 0.0}} (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>){{end}}</span>
-        <span>ΔPitch vs CAD: <strong class="mono" data-metric="delta-pitch">{{printf "%+.2f°" .DeltaPitchDeg}}</strong></span>
+        <span>Chart Basis Fork ({{printf "%.0f" .BasisFork.StaticA2cMm}} mm / {{printf "%.0f" .BasisFork.RakeMm}} mm / {{printf "%.0f" .BasisLowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .BasisHtaDeg}} HTA, {{printf "%.1f mm" .BasisWheelbaseMm}} WB</strong> {{if gt .PublishedWheelbaseMm 0.0}} (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>){{end}}</span>
+        <span>ΔPitch vs Basis: <strong class="mono" data-metric="delta-pitch">{{printf "%+.2f°" .DeltaPitchDeg}}</strong></span>
       </div>
 
       <svg class="diagram" viewBox="{{.ViewBox}}" role="img" aria-label="Leveled bike geometry, {{.View.Description}}" data-diagram-view="{{.View}}"

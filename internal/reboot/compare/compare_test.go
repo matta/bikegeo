@@ -468,7 +468,7 @@ func TestRankRejectsInvalidRequests(t *testing.T) {
 		{"duplicate size", func(r *compare.Request) { r.Frames[0].Sizes[1].Name = "L" }, []string{`frame "surly-krampus" has duplicate size "L"`}},
 		{"empty fork ID", func(r *compare.Request) { r.Frames[0].Forks[1].ID = "" }, []string{`frame "surly-krampus" fork 1 has an empty ID`}},
 		{"duplicate fork", func(r *compare.Request) { r.Frames[0].Forks[1].ID = krampusForkID }, []string{`frame "surly-krampus" has duplicate fork "surly_krampus_483"`}},
-		{"CAD baseline fork", func(r *compare.Request) { r.Frames[0].Forks[0].Spec.Steerer = assembly.SteererCAD }, []string{"is the CAD baseline fork"}},
+		{"basis fork", func(r *compare.Request) { r.Frames[0].Forks[0].Spec.Steerer = assembly.SteererBasis }, []string{"is the chart basis fork"}},
 		{"no sag steps", func(r *compare.Request) { r.SuspensionSagPcts = nil }, []string{"compare needs suspension sag steps"}},
 		{"no BRP", func(r *compare.Request) { r.Target.BRP = nil }, []string{"compare needs a BRP target"}},
 		{"no HandGrip", func(r *compare.Request) { r.Target.HandGrip = nil }, []string{"compare needs a HandGrip target"}},

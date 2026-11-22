@@ -4,8 +4,8 @@ import "bikegeo/internal/reboot/assembly"
 
 // mootsMountaineer returns the Moots Mountaineer.
 //
-// The frame is a titanium YBB micro-suspension trail frame. Its CAD fork is a
-// 120 mm fork at 20% sag (507 mm effective) with a 12 mm EC44 CAD cup. Moots
+// The frame is a titanium YBB micro-suspension trail frame. Its basis fork is a
+// 120 mm fork at 20% sag (507 mm effective) with a 12 mm EC44 basis cup. Moots
 // publishes no wheelbase (Q57).
 func mootsMountaineer() Frame {
 	family := frameFamily{
@@ -22,7 +22,7 @@ func mootsMountaineer() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy pike_120 @ 20% sag → 507 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 507, RakeMm: 44, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 507, RakeMm: 44, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

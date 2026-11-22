@@ -55,7 +55,7 @@ When Matt accepts a slice, delete its plan file in the same commit that marks th
 
 - **(a) Readable physical code:** build structures from directional pose steps and component builders (seatpost, saddle, fork, spacers, stem, handlebar), not scattered trig. Code clarity replaces web trace introspection (Q48).
 - **(b) Focused Web 1.0 interface (parity with legacy `compare`):** Go-rendered HTML/SVG with plain `GET` forms, URL query state, and zero JS (Q48, Q54), serving `/` (multi-frame comparison matrix) and `/bike` (single-bike inspector with schematic SVG; open separate browser tabs to compare builds visually). No Construction Trace UI, no side-by-side or overlayed views, and no legacy secondary pages (Q48, Q52).
-- **(c) Validated Go catalogs + JSON agent/debug output:** compiled Go structs validated by `assembly.CheckChartConsistency` in `go test` (Q50, Q57), plus thin CLI JSON serialization of Go result structs for agents and debugging (Q49a). No MCP server, no file-based catalog persistence, and no chart-reconstruction solver UI (Q49, Q50).
+- **(c) Validated Go catalogs + JSON agent/debug output:** compiled Go structs validated by the chart-consistency check in `catalog`'s `go test` (Q91, Q118), plus thin CLI JSON serialization of Go result structs for agents and debugging (Q49a). No MCP server, no file-based catalog persistence, and no chart-reconstruction solver UI (Q49, Q50).
 - **(d) Fitting and `0–100` weighted scoring:** saddle fitting (height-first when rails clamp, Q60) and build fitting over the `docs/reboot/stems.yaml` stem catalog and part options (Q58, Q100), ranked by a 3-criterion fit gate and tunable `0–100` weighted attribute scores (Q59, Q59a).
 - **(e) Multi-frame comparison:** rank all 19 catalog frames (or custom frame/size/fork/sag selections) by best achievable fit and score (Q50, Q52, Q56).
 
@@ -96,10 +96,10 @@ Test: if fitting or comparison would need the code without HTTP, it belongs in `
 
 ### Frameset leveling: one recipe, two passes
 
-`placeFramesetAtPitch(frameRoot, frame, lowerCupMm, fork)` walks from `BB`: rear axle, then head tube top (reach, stack), then down the steerer by HTL, lower cup, and fork A2C, then rake at `+90°` to the front axle; separately, up the seat axis to `SeatTubeTop`.
+`placeFramesetAtPitch(pitchDeg, frame, lowerCupMm, fork, wheels)` walks from `BB`: rear axle, then head tube top (reach, stack), then down the steerer by HTL, lower cup, and fork A2C, then rake at `+90°` to the front axle; separately, up the seat axis to `SeatTubeTop`.
 
-1. Run it at 0° and measure `PitchDeg = -RearAxle.AngleTo(FrontAxle)`. The same run on `FrameChart` values gives the raw chart-consistency mismatches, which `catalog`'s `go test` consistency check holds to the chart's rounding budget (Q47, Q91).
-2. Run it again rooted at `bb.Turn(PitchDeg)` (unused `label` parameters are dropped in Slice 11 per Q48). The axles come out level and every step uses real dimensions.
+1. Pass 1 (`PlaceUnpitchedFrameset`): run at 0° and measure `LevelingPitchDeg()`; on the basis fork and cup, the same pass gives the chart-consistency mismatches that catalog's `go test` holds to the chart's rounding budget (Q91, Q118).
+2. Pass 2 (`PlaceFrameset`): run again rooted at `bb.Turn(LevelingPitchDeg())`. The axles come out level and every step uses real dimensions.
 
 Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so no closed-form pitch trig is needed.
 
@@ -114,14 +114,14 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 | Seatpost | From `SeatTubeTop` (seat collar, `180° − STA`): advance `TotalLengthMm − InsertionMm` (Q84; `InsertionMm` is shaft below the collar) along the seat axis, translate local `+Y` by `SetbackMm` → `RailCradle` (renamed from `SeatpostClamp` in Slice 12a per Q75a). |
 | Saddle | `Face(RailPitchDeg)` (positive raises the nose); advance `−RailOffsetMm` (**positive moves the saddle rearward**) → `RailCenter`; `BRP` sits at `(+RailCenterToBrpMm, +RailToBrpHeightMm)` and `SitBones` at `(+RailCenterToSitBonesMm, +RailToBrpHeightMm + SitBonesElevationMm)` in the rail frame, where `SitBonesElevationMm` is height above BRP (not above the rails) (Q75a, Q75b). |
 | Readouts | `BrpToGripDistMm = |HandGrip − BRP|`; `SitBonesToGripRiseMm = HandGrip.Y − SitBones.Y` (measured from the sit bones so it carries across saddles); `RearCenterMm = −RearAxle.X` (horizontal BB-to-rear-axle distance on the leveled bike, used for `RC / WB`). |
-| CAD chart vs. installed fork | `FrameChart.CadFork` and `CadLowerCup` hold the manufacturer's CAD geometry, keeping bare `FrameSetup` free of chart quirks. Installed forks pair with a physical `LowerCupSetup`. |
+| Chart basis vs. installed fork | `catalog.Frame.BasisFork` (a `ForkSpec` with `SteererBasis`) and `BasisLowerCup` hold the chart's basis (Q120, Q121), keeping bare `FrameSetup` free of chart quirks. Installed forks pair with a physical `LowerCupSetup`. |
 
-### CAD Baseline Fork in the workbench
+### Chart Basis Fork in the workbench
 
-- `fork=cad` resolves A2C, cup, and sag (0%) from `FrameChart`, in one place, and ignores submitted overrides. Those fields render `readonly`. Sag is also read-only for rigid forks.
-- Only the cup + A2C sum moves the front axle, so locking loses nothing. On the Fenrir, a 12 mm EC44 cup + 483 mm A2C reproduces the CAD 0 mm + 495 mm.
+- `fork=basis` resolves A2C, cup, and sag (0%) from the frame's `BasisFork` and `BasisLowerCup` and the size's `ChartFrame`, in one place, and ignores submitted overrides. Those fields render `readonly`. Sag is also read-only for rigid forks.
+- Only the cup + A2C sum moves the front axle, so locking loses nothing. On the Fenrir, a 12 mm EC44 cup + 483 mm A2C reproduces the basis 0 mm + 495 mm.
 - This is a workbench rule only. `assembly` still accepts any explicit cup and fork.
-- Every visible label says "CAD Baseline Fork". The explanatory note is built from fixture data.
+- Every visible label says "Chart Basis Fork". The explanatory note is built from fixture data.
 
 ### Fitting (Q6–Q18, ruled 2026-11-19)
 

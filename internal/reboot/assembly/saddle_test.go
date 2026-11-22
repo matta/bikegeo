@@ -173,8 +173,8 @@ func TestPlaceSaddleWorldRelativePitch(t *testing.T) {
 func TestOtsoFenrirRearCockpit(t *testing.T) {
 	frame := fenrirSizeLFrame()
 	wheels := fenrirWheels()
-	cadFork := assembly.ForkSetup{
-		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0, Steerer: assembly.SteererCAD},
+	basisFork := assembly.ForkSetup{
+		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0, Steerer: assembly.SteererBasis},
 	}
 	postSetup := assembly.SeatpostSetup{Spec: genericPostSpec(0), InsertionMm: 180.576}
 	saddleSetup := sqlab610DefaultSaddle()
@@ -198,7 +198,7 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 	bikeSetup := assembly.BikeSetup{
 		Frame:     frame,
 		LowerCup:  assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0.0},
-		Fork:      cadFork,
+		Fork:      basisFork,
 		Wheels:    wheels,
 		Seatpost:  postSetup,
 		Saddle:    saddleSetup,
@@ -211,9 +211,9 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 	}
 
 	assertNear(t, "leveled BB to post top along seat axis", bike.SeatAxisToPostTopMm(), 709.424, 1e-9)
-	// The CAD fork levels the frame at a slightly different pitch than the unpitched
+	// The basis fork levels the frame at a slightly different pitch than the unpitched
 	// reference attitude, so its radial BRP height differs from 746.000 mm.
-	assertNear(t, "CAD leveled |BRP - BB|", bike.SaddleHeightMm(), 746.008, 0.001)
+	assertNear(t, "basis leveled |BRP - BB|", bike.SaddleHeightMm(), 746.008, 0.001)
 	assertNear(t, "Setup preserved on BikePlacement", bike.Setup.Seatpost.Spec.RailClampLengthMm, 30.0, 1e-12)
 	// The post shaft continues the seat axis from SeatTubeTop; the saddle shares the leveled-rail heading.
 	assertNear(t, "seat tube top to shaft top", bike.Frameset.SeatTubeTop.DistanceTo(bike.Seatpost.ShaftTop), postSetup.ExposedMm(), 1e-9)

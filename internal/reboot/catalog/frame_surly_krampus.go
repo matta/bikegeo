@@ -5,7 +5,7 @@ import "bikegeo/internal/reboot/assembly"
 // surlyKrampus returns the Surly Krampus.
 //
 // The frame is a chromoly 29+ trail hardtail designed around the 483 mm Krampus
-// fork (47 mm offset) with a 12 mm EC44 CAD cup.
+// fork (47 mm offset) with a 12 mm EC44 basis cup.
 func surlyKrampus() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
@@ -21,7 +21,7 @@ func surlyKrampus() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy surly_krampus_483 (rigid) → 483 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 483, RakeMm: 47, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 483, RakeMm: 47, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

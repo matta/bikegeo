@@ -258,8 +258,8 @@ func (r Request) validate() error {
 				return fmt.Errorf("frame %q has duplicate fork %q", f.ID, fk.ID)
 			}
 			seenForks[fk.ID] = true
-			if fk.Spec.Steerer == assembly.SteererCAD {
-				return fmt.Errorf("frame %q fork %q is the CAD baseline fork; compare installs physical forks only", f.ID, fk.ID)
+			if fk.Spec.Steerer == assembly.SteererBasis {
+				return fmt.Errorf("frame %q fork %q is the chart basis fork; compare installs physical forks only", f.ID, fk.ID)
 			}
 		}
 	}

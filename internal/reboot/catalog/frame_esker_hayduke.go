@@ -4,8 +4,8 @@ import "bikegeo/internal/reboot/assembly"
 
 // eskerHayduke returns the Esker Hayduke.
 //
-// The frame is a chromoly adventure hardtail. Its CAD fork is a 120 mm fork at
-// 30% sag (495 mm effective) with a 12 mm EC44 CAD cup. Portage dropouts run
+// The frame is a chromoly adventure hardtail. Its basis fork is a 120 mm fork at
+// 30% sag (495 mm effective) with a 12 mm EC44 basis cup. Portage dropouts run
 // 440–454 mm; the chart is drawn at 440 mm. The S4 wheelbase needs a documented
 // allowance (Q71).
 func eskerHayduke() Frame {
@@ -24,7 +24,7 @@ func eskerHayduke() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy pike_120 @ 30% sag → 495 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 44, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 44, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

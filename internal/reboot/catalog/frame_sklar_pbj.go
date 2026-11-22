@@ -6,7 +6,7 @@ import "bikegeo/internal/reboot/assembly"
 //
 // The frame is a chromoly rigid mountain touring frame designed around the 485
 // mm Sklar steel fork (52 mm offset), whose straight 1-1/8" steerer runs in an
-// EC44/30 reducer cup (Q66); the CAD cup is 12 mm EC44. Sliding dropouts run
+// EC44/30 reducer cup (Q66); the basis cup is 12 mm EC44. Sliding dropouts run
 // 432–452 mm. Legacy reads the published M wheelbase as 1156 mm (Sklar printed
 // 1165, a digit transposition). Size L needs a documented axle-height allowance
 // (Q71).
@@ -26,7 +26,7 @@ func sklarPbj() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy sklar_steel_485 (rigid) → 485 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 485, RakeMm: 52, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 485, RakeMm: 52, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
@@ -94,7 +94,7 @@ func sklarPbj() Frame {
 				WheelbaseMm:      1182,
 				Allowance: ChartAllowance{
 					AxleHeightMm: 0.4,
-					Reason:       "Size L's published Stack (641 mm) implies a 481.7 mm fork A2C with the 12 mm EC44 CAD cup, 3.3 mm short of the 485 mm rigid fork; every other size is consistent within rounding (Q71).",
+					Reason:       "Size L's published Stack (641 mm) implies a 481.7 mm fork A2C with the 12 mm EC44 basis cup, 3.3 mm short of the 485 mm rigid fork; every other size is consistent within rounding (Q71).",
 				},
 			},
 			publishedSize{

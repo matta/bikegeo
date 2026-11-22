@@ -64,6 +64,15 @@ boundary:
 	  echo "boundary: reboot files must not contain the words price, pricing, cost, cheap, or ledger, in any case or inside a longer word (PricedBand, CostPerR, cheapest); say score, penalty, points per unit, or best-scoring"; \
 	  exit 1; \
 	fi
+	@bad="$$({ \
+	  find cmd/bikegeo-reboot internal/reboot -iname '*cad*' ! -name '*_parity_test.go'; \
+	  find cmd/bikegeo-reboot internal/reboot -type f ! -name '*_parity_test.go' -exec grep -HinI 'cad' {} +; \
+	} || true)"; \
+	if [ -n "$$bad" ]; then \
+	  echo "$$bad"; \
+	  echo "boundary: reboot files must not use 'CAD'; say basis (Q121)"; \
+	  exit 1; \
+	fi
 
 # Every switch on an enum-like type must list all of its constants, even when it
 # has a default case. The linter is a `tool` dependency in go.mod, so it is

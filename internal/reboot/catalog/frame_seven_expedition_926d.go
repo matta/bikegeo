@@ -5,8 +5,8 @@ import "bikegeo/internal/reboot/assembly"
 // sevenExpedition926d returns the Seven Expedition 926d.
 //
 // The frame is a titanium drop-bar adventure frame in Standard ('S') and
-// Endurance ('E') fits of 12 sizes each. Its CAD fork is the 472 mm ENVE
-// Mountain at 55 mm rake with a 10 mm EC44 CAD cup. Seven publishes no
+// Endurance ('E') fits of 12 sizes each. Its basis fork is the 472 mm ENVE
+// Mountain at 55 mm rake with a 10 mm EC44 basis cup. Seven publishes no
 // wheelbase (Q57) and C-C seat tubes (Q75d).
 func sevenExpedition926d() Frame {
 	family := frameFamily{
@@ -23,7 +23,7 @@ func sevenExpedition926d() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 10
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 10},
 		// hypothesis (Q44, Q81): legacy enve_mountain_472 (rigid) → 472 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 472, RakeMm: 55, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 472, RakeMm: 55, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

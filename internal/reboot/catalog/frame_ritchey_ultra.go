@@ -4,9 +4,9 @@ import "bikegeo/internal/reboot/assembly"
 
 // ritcheyUltra returns the Ritchey Ultra.
 //
-// The frame is a steel hardtail with an IS52 integrated headset. Its CAD fork
+// The frame is a steel hardtail with an IS52 integrated headset. Its basis fork
 // is a 120 mm fork at 20% sag on the bare head tube. Ritchey's published stacks
-// imply a 508.1–508.9 mm A2C in every size, so the CAD fork is 508.5 mm with no
+// imply a 508.1–508.9 mm A2C in every size, so the basis fork is 508.5 mm with no
 // allowance (Q71). Wheelbases are for a 44 mm offset fork.
 func ritcheyUltra() Frame {
 	family := frameFamily{
@@ -24,7 +24,7 @@ func ritcheyUltra() Frame {
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
 		// hypothesis (Q44, Q81): legacy fox34_120 @ 20% sag → 506 mm effective. Q71 replaces that with
 		// 508.5 mm, the A2C Ritchey's published stacks imply in every size, with no allowance.
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 508.5, RakeMm: 44, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 508.5, RakeMm: 44, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

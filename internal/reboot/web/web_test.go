@@ -245,7 +245,7 @@ func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 	}
 }
 
-func TestBikeWorkbenchForkSwitchAndCadBaselineFork(t *testing.T) {
+func TestBikeWorkbenchForkSwitchAndBasisFork(t *testing.T) {
 	cases := []struct {
 		name        string
 		query       string
@@ -298,8 +298,8 @@ func TestBikeWorkbenchForkSwitchAndCadBaselineFork(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
-			name:        "CAD baseline fork preset uses workbench CadFork and 0 cup",
-			query:       query.DefaultBike().WithCadBaselineFork().URL(),
+			name:        "basis fork preset uses workbench BasisFork and 0 cup",
+			query:       query.DefaultBike().WithBasisFork().URL(),
 			wantCode:    http.StatusOK,
 			wantA2C:     "495.0 mm",
 			wantForkA2C: "495.0",
@@ -308,8 +308,8 @@ func TestBikeWorkbenchForkSwitchAndCadBaselineFork(t *testing.T) {
 			wantDelta:   "+0.00°",
 		},
 		{
-			name:        "switch CAD reference to Lithic restores physical 12 mm cup",
-			query:       "/bike?prev_fork=cad&fork=lithic_carbon_mountain&fork_a2c=495&cup=0&sag=0",
+			name:        "switch basis reference to Lithic restores physical 12 mm cup",
+			query:       "/bike?prev_fork=basis&fork=lithic_carbon_mountain&fork_a2c=495&cup=0&sag=0",
 			wantCode:    http.StatusOK,
 			wantA2C:     "495.0 mm",
 			wantForkA2C: "495.0",
@@ -317,8 +317,8 @@ func TestBikeWorkbenchForkSwitchAndCadBaselineFork(t *testing.T) {
 			wantCup:     "12.0",
 		},
 		{
-			name:        "switch CAD reference to Fox 34 restores physical 12 mm cup and Fox 34 defaults",
-			query:       "/bike?prev_fork=cad&fork=fox34_120&fork_a2c=495&cup=0&sag=0",
+			name:        "switch basis reference to Fox 34 restores physical 12 mm cup and Fox 34 defaults",
+			query:       "/bike?prev_fork=basis&fork=fox34_120&fork_a2c=495&cup=0&sag=0",
 			wantCode:    http.StatusOK,
 			wantA2C:     "506.0 mm",
 			wantForkA2C: "530.0",
@@ -326,8 +326,8 @@ func TestBikeWorkbenchForkSwitchAndCadBaselineFork(t *testing.T) {
 			wantCup:     "12.0",
 		},
 		{
-			name:        "switch Fox 34 to CAD reference adopts 0 mm CAD cup and 495/0 fork",
-			query:       "/bike?prev_fork=fox34_120&fork=cad&fork_a2c=530&cup=12&sag=20",
+			name:        "switch Fox 34 to basis reference adopts 0 mm basis cup and 495/0 fork",
+			query:       "/bike?prev_fork=fox34_120&fork=basis&fork_a2c=530&cup=12&sag=20",
 			wantCode:    http.StatusOK,
 			wantA2C:     "495.0 mm",
 			wantForkA2C: "495.0",
@@ -369,11 +369,11 @@ func TestBikeWorkbenchForkSwitchAndCadBaselineFork(t *testing.T) {
 					t.Errorf("delta-pitch = %q, want %q", got, tc.wantDelta)
 				}
 				selectedOpt := doc.Find(`select[name="fork"] option[selected]`)
-				if val, _ := selectedOpt.Attr("value"); val != query.CadForkID {
-					t.Errorf("CAD baseline fork selected fork option = %q, want %q", val, query.CadForkID)
+				if val, _ := selectedOpt.Attr("value"); val != query.BasisForkID {
+					t.Errorf("basis fork selected fork option = %q, want %q", val, query.BasisForkID)
 				}
 				if _, disabled := selectedOpt.Attr("disabled"); disabled {
-					t.Errorf("CAD baseline fork selected fork option should not be disabled")
+					t.Errorf("basis fork selected fork option should not be disabled")
 				}
 			}
 		})
@@ -502,7 +502,7 @@ func TestBikeWorkbenchRejectsInvalidQuery(t *testing.T) {
 		{"/bike?rail_offset=NaN", "rail_offset", "NaN"},
 		{"/bike?rail_pitch=Inf", "rail_pitch", "Inf"},
 		{"/bike?fork=lithic_carbon_mountain&fork_a2c=495.0&cup=0.0&sag=0.0&spacers=-1", "cup", "0.0"},
-		{"/bike?fork=cad&fork_a2c=495.0&cup=0.0&sag=0.0&spacers=-1", "spacers", "-1"},
+		{"/bike?fork=basis&fork_a2c=495.0&cup=0.0&sag=0.0&spacers=-1", "spacers", "-1"},
 		{"/bike?fork=lithic_carbon_mountain&cup=0", "cup", "0"},
 	}
 
@@ -641,21 +641,21 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 		t.Errorf("view.Form = %+v, want %+v", view.Form, wantForm)
 	}
 
-	cadURL, err := url.Parse(view.CadBaselineForkURL)
+	basisURL, err := url.Parse(view.BasisForkURL)
 	if err != nil {
-		t.Fatalf("parse CadBaselineForkURL %q: %v", view.CadBaselineForkURL, err)
+		t.Fatalf("parse BasisForkURL %q: %v", view.BasisForkURL, err)
 	}
-	cadDecoded := mustBikeValues(t, cadURL.Query())
-	wantCad := parsed.WithCadBaselineFork()
-	if cadDecoded.URL() != wantCad.URL() {
-		t.Errorf("decoded CadBaselineForkURL = %s, want %s", cadDecoded.URL(), wantCad.URL())
+	basisDecoded := mustBikeValues(t, basisURL.Query())
+	wantBasis := parsed.WithBasisFork()
+	if basisDecoded.URL() != wantBasis.URL() {
+		t.Errorf("decoded BasisForkURL = %s, want %s", basisDecoded.URL(), wantBasis.URL())
 	}
-	if cadDecoded.ForkID != query.CadForkID || cadDecoded.Setup.Fork.Spec.StaticA2cMm != parsed.Frame.BasisFork.StaticA2cMm ||
-		cadDecoded.Setup.LowerCup.StackMm != parsed.Frame.BasisLowerCup.StackMm || cadDecoded.Setup.Fork.SagPct != 0 {
-		t.Errorf("decoded CAD build = fork %q a2c %v cup %v sag %v", cadDecoded.ForkID, cadDecoded.Setup.Fork.Spec.StaticA2cMm, cadDecoded.Setup.LowerCup.StackMm, cadDecoded.Setup.Fork.SagPct)
+	if basisDecoded.ForkID != query.BasisForkID || basisDecoded.Setup.Fork.Spec.StaticA2cMm != parsed.Frame.BasisFork.StaticA2cMm ||
+		basisDecoded.Setup.LowerCup.StackMm != parsed.Frame.BasisLowerCup.StackMm || basisDecoded.Setup.Fork.SagPct != 0 {
+		t.Errorf("decoded basis build = fork %q a2c %v cup %v sag %v", basisDecoded.ForkID, basisDecoded.Setup.Fork.Spec.StaticA2cMm, basisDecoded.Setup.LowerCup.StackMm, basisDecoded.Setup.Fork.SagPct)
 	}
-	if s := cadDecoded.Setup.Stem; s.SpacersMm != 15 || s.LengthMm != 70 || s.AngleDeg != 6 || cadDecoded.Setup.Seatpost.InsertionMm != 160 {
-		t.Errorf("decoded CAD build lost the cockpit: stem %+v insertion %v", s, cadDecoded.Setup.Seatpost.InsertionMm)
+	if s := basisDecoded.Setup.Stem; s.SpacersMm != 15 || s.LengthMm != 70 || s.AngleDeg != 6 || basisDecoded.Setup.Seatpost.InsertionMm != 160 {
+		t.Errorf("decoded basis build lost the cockpit: stem %+v insertion %v", s, basisDecoded.Setup.Seatpost.InsertionMm)
 	}
 }
 
@@ -799,19 +799,19 @@ func TestBikeWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
 	defaultDoc := loadBikeDoc(t, "/bike")
 	assertUnchangedSubmitIdempotent(t, "default build", defaultDoc)
 
-	// 2. Follow CAD Baseline Fork preset from default build.
-	cadHref, ok := defaultDoc.Find(`a[data-preset="cad-baseline-fork"]`).Attr("href")
-	if !ok || cadHref == "" {
-		t.Fatalf("missing a[data-preset=cad-baseline-fork] href")
+	// 2. Follow Chart Basis Fork preset from default build.
+	basisHref, ok := defaultDoc.Find(`a[data-preset="basis-fork"]`).Attr("href")
+	if !ok || basisHref == "" {
+		t.Fatalf("missing a[data-preset=basis-fork] href")
 	}
-	cadDoc := loadBikeDoc(t, cadHref)
-	if got, _ := cadDoc.Find(`input[name="cup"]`).Attr("value"); got != "0.0" {
-		t.Errorf("cad preset cup = %q, want 0.0", got)
+	basisDoc := loadBikeDoc(t, basisHref)
+	if got, _ := basisDoc.Find(`input[name="cup"]`).Attr("value"); got != "0.0" {
+		t.Errorf("basis preset cup = %q, want 0.0", got)
 	}
-	if got := strings.TrimSpace(cadDoc.Find(`[data-metric="delta-pitch"]`).Text()); got != "+0.00°" {
-		t.Errorf("cad preset delta-pitch = %q, want +0.00°", got)
+	if got := strings.TrimSpace(basisDoc.Find(`[data-metric="delta-pitch"]`).Text()); got != "+0.00°" {
+		t.Errorf("basis preset delta-pitch = %q, want +0.00°", got)
 	}
-	assertUnchangedSubmitIdempotent(t, "cad preset from default", cadDoc)
+	assertUnchangedSubmitIdempotent(t, "basis preset from default", basisDoc)
 
 	// 3. Fully customized build.
 	customURL := "/bike?fork=fox34_120&fork_a2c=530&cup=12&sag=20&bar=sqlab3ox_16_45" +
@@ -820,30 +820,30 @@ func TestBikeWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
 	customDoc := loadBikeDoc(t, customURL)
 	assertUnchangedSubmitIdempotent(t, "custom build", customDoc)
 
-	// 4. Follow CAD Baseline Fork from customized build: preserves cockpit, sets cup=0,
-	//    round-trips unchanged, and keeps CAD baseline fork when spacers are later edited.
-	customCadHref, ok := customDoc.Find(`a[data-preset="cad-baseline-fork"]`).Attr("href")
-	if !ok || customCadHref == "" {
-		t.Fatalf("missing a[data-preset=cad-baseline-fork] href on custom build")
+	// 4. Follow Chart Basis Fork from customized build: preserves cockpit, sets cup=0,
+	//    round-trips unchanged, and keeps basis fork when spacers are later edited.
+	customBasisHref, ok := customDoc.Find(`a[data-preset="basis-fork"]`).Attr("href")
+	if !ok || customBasisHref == "" {
+		t.Fatalf("missing a[data-preset=basis-fork] href on custom build")
 	}
-	customCadDoc := loadBikeDoc(t, customCadHref)
-	if got, _ := customCadDoc.Find(`input[name="spacers"]`).Attr("value"); got != "25.0" {
-		t.Errorf("cad preset spacers = %q, want 25.0", got)
+	customBasisDoc := loadBikeDoc(t, customBasisHref)
+	if got, _ := customBasisDoc.Find(`input[name="spacers"]`).Attr("value"); got != "25.0" {
+		t.Errorf("basis preset spacers = %q, want 25.0", got)
 	}
-	if got, _ := customCadDoc.Find(`input[name="stem_length"]`).Attr("value"); got != "80.0" {
-		t.Errorf("cad preset stem_length = %q, want 80.0", got)
+	if got, _ := customBasisDoc.Find(`input[name="stem_length"]`).Attr("value"); got != "80.0" {
+		t.Errorf("basis preset stem_length = %q, want 80.0", got)
 	}
-	if got, _ := customCadDoc.Find(`input[name="cup"]`).Attr("value"); got != "0.0" {
-		t.Errorf("cad preset cup = %q, want 0.0", got)
+	if got, _ := customBasisDoc.Find(`input[name="cup"]`).Attr("value"); got != "0.0" {
+		t.Errorf("basis preset cup = %q, want 0.0", got)
 	}
-	if got := strings.TrimSpace(customCadDoc.Find(`[data-metric="delta-pitch"]`).Text()); got != "+0.00°" {
-		t.Errorf("cad preset delta-pitch = %q, want +0.00°", got)
+	if got := strings.TrimSpace(customBasisDoc.Find(`[data-metric="delta-pitch"]`).Text()); got != "+0.00°" {
+		t.Errorf("basis preset delta-pitch = %q, want +0.00°", got)
 	}
-	assertUnchangedSubmitIdempotent(t, "cad preset from custom build", customCadDoc)
+	assertUnchangedSubmitIdempotent(t, "basis preset from custom build", customBasisDoc)
 
-	rec, editedDoc := submitForm(t, customCadDoc, map[string]string{"spacers": "30"})
+	rec, editedDoc := submitForm(t, customBasisDoc, map[string]string{"spacers": "30"})
 	if rec.Code != http.StatusOK {
-		t.Fatalf("editing spacers on cad build status = %d, want 200", rec.Code)
+		t.Fatalf("editing spacers on basis build status = %d, want 200", rec.Code)
 	}
 	if got, _ := editedDoc.Find(`input[name="cup"]`).Attr("value"); got != "0.0" {
 		t.Errorf("after spacer edit cup = %q, want 0.0", got)
@@ -856,7 +856,7 @@ func TestBikeWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
 	}
 
 	// 5. Follow Reset Defaults preset link.
-	defaultsHref, ok := customCadDoc.Find(`a[data-preset="defaults"]`).Attr("href")
+	defaultsHref, ok := customBasisDoc.Find(`a[data-preset="defaults"]`).Attr("href")
 	if !ok || defaultsHref == "" {
 		t.Fatalf("missing a[data-preset=defaults] href")
 	}
@@ -872,11 +872,11 @@ func TestBikeWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
 
 func TestBikeWorkbenchEveryEnabledControlIsLive(t *testing.T) {
 	defaultDoc := loadBikeDoc(t, "/bike")
-	cadHref, _ := defaultDoc.Find(`a[data-preset="cad-baseline-fork"]`).Attr("href")
-	cadDoc := loadBikeDoc(t, cadHref)
-	cadMetrics := collectMetrics(cadDoc)
+	basisHref, _ := defaultDoc.Find(`a[data-preset="basis-fork"]`).Attr("href")
+	basisDoc := loadBikeDoc(t, basisHref)
+	basisMetrics := collectMetrics(basisDoc)
 
-	// Every editable control on the CAD baseline fork page must take effect and change the build.
+	// Every editable control on the basis fork page must take effect and change the build.
 	mutations := []struct {
 		field    string
 		val      string
@@ -896,8 +896,8 @@ func TestBikeWorkbenchEveryEnabledControlIsLive(t *testing.T) {
 		{field: "rail_pitch", val: "-4.0"},
 	}
 	for _, m := range mutations {
-		t.Run("cad/"+m.field, func(t *testing.T) {
-			rec, nextDoc := submitForm(t, cadDoc, map[string]string{m.field: m.val})
+		t.Run("basis/"+m.field, func(t *testing.T) {
+			rec, nextDoc := submitForm(t, basisDoc, map[string]string{m.field: m.val})
 			if rec.Code != http.StatusOK {
 				t.Fatalf("submit %s=%s status = %d, want 200", m.field, m.val, rec.Code)
 			}
@@ -908,7 +908,7 @@ func TestBikeWorkbenchEveryEnabledControlIsLive(t *testing.T) {
 				}
 				if m.field == "fork" {
 					if cup, _ := nextDoc.Find(`input[name="cup"]`).Attr("value"); cup != "12.0" {
-						t.Errorf("cup after switching from CAD to %s = %q, want 12.0", m.val, cup)
+						t.Errorf("cup after switching from basis to %s = %q, want 12.0", m.val, cup)
 					}
 				}
 			} else {
@@ -917,7 +917,7 @@ func TestBikeWorkbenchEveryEnabledControlIsLive(t *testing.T) {
 					t.Errorf("input[name=%q] value = %q, want %q", m.field, got, m.val)
 				}
 			}
-			if maps.Equal(collectMetrics(nextDoc), cadMetrics) {
+			if maps.Equal(collectMetrics(nextDoc), basisMetrics) {
 				t.Errorf("mutating %s=%s left all rendered metrics unchanged", m.field, m.val)
 			}
 		})
@@ -960,18 +960,18 @@ func TestBikeWorkbenchEveryEnabledControlIsLive(t *testing.T) {
 	}
 }
 
-func TestBikeCadBaselineForkURLDecodesToChartFork(t *testing.T) {
+func TestBikeBasisForkURLDecodesToChartFork(t *testing.T) {
 	base := query.DefaultBike()
-	cadURL, err := url.Parse(base.WithCadBaselineFork().URL())
+	basisURL, err := url.Parse(base.WithBasisFork().URL())
 	if err != nil {
-		t.Fatalf("parse CAD URL: %v", err)
+		t.Fatalf("parse basis URL: %v", err)
 	}
-	decoded, err := query.ParseBike(cadURL.Query())
+	decoded, err := query.ParseBike(basisURL.Query())
 	if err != nil {
 		t.Fatalf("ParseBike: %v", err)
 	}
-	if decoded.ForkID != query.CadForkID {
-		t.Errorf("decoded ForkID = %q, want %q", decoded.ForkID, query.CadForkID)
+	if decoded.ForkID != query.BasisForkID {
+		t.Errorf("decoded ForkID = %q, want %q", decoded.ForkID, query.BasisForkID)
 	}
 	if decoded.Setup.Frame != decoded.Size.ChartFrame {
 		t.Errorf("decoded Frame = %+v, want %+v", decoded.Setup.Frame, decoded.Size.ChartFrame)
@@ -994,22 +994,22 @@ func TestBikeCadBaselineForkURLDecodesToChartFork(t *testing.T) {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
 	if gotDelta := placed.PitchDeltaDeg(basis); math.Abs(float64(gotDelta)) > 1e-12 {
-		t.Errorf("CAD PitchDeltaDeg = %.6f°, want 0°", gotDelta)
+		t.Errorf("basis PitchDeltaDeg = %.6f°, want 0°", gotDelta)
 	}
 }
 
-func TestBikeWorkbenchCadBaselineForkLockAndLabels(t *testing.T) {
+func TestBikeWorkbenchBasisForkLockAndLabels(t *testing.T) {
 	hasReadOnly := func(doc *goquery.Document, name string) bool {
 		_, exists := doc.Find(fmt.Sprintf(`input[name=%q]`, name)).Attr("readonly")
 		return exists
 	}
 
-	// 1. Overrides on fork=cad are ignored (200, no error, chart values locked & readonly).
+	// 1. Overrides on fork=basis are ignored (200, no error, chart values locked & readonly).
 	for _, query := range []string{
-		"/bike?fork=cad&cup=12",
-		"/bike?fork=cad&fork_a2c=530",
-		"/bike?fork=cad&sag=10",
-		"/bike?fork=cad&fork_a2c=530&cup=12&sag=20&spacers=25",
+		"/bike?fork=basis&cup=12",
+		"/bike?fork=basis&fork_a2c=530",
+		"/bike?fork=basis&sag=10",
+		"/bike?fork=basis&fork_a2c=530&cup=12&sag=20&spacers=25",
 	} {
 		t.Run("locked/"+query, func(t *testing.T) {
 			doc := loadBikeDoc(t, query)
@@ -1025,14 +1025,14 @@ func TestBikeWorkbenchCadBaselineForkLockAndLabels(t *testing.T) {
 					t.Errorf("%s value = %q, want %q", field, got, want)
 				}
 				if !hasReadOnly(doc, field) {
-					t.Errorf("expected %s to be readonly under fork=cad", field)
+					t.Errorf("expected %s to be readonly under fork=basis", field)
 				}
 			}
 			if got := strings.TrimSpace(doc.Find(`[data-metric="delta-pitch"]`).Text()); got != "+0.00°" {
 				t.Errorf("delta-pitch = %q, want +0.00°", got)
 			}
 			if hasReadOnly(doc, "spacers") {
-				t.Errorf("cockpit field spacers should remain editable under fork=cad")
+				t.Errorf("cockpit field spacers should remain editable under fork=basis")
 			}
 		})
 	}
@@ -1050,54 +1050,54 @@ func TestBikeWorkbenchCadBaselineForkLockAndLabels(t *testing.T) {
 		t.Errorf("suspension fork should keep fork_a2c, cup, and sag editable")
 	}
 
-	// 3. Single "CAD Baseline Fork" naming, cup standard label, and data-driven note.
-	cadDoc := loadBikeDoc(t, "/bike?fork=cad")
-	cadHTML, err := cadDoc.Html()
+	// 3. Single "Chart Basis Fork" naming, cup standard label, and data-driven note.
+	basisDoc := loadBikeDoc(t, "/bike?fork=basis")
+	basisHTML, err := basisDoc.Html()
 	if err != nil {
 		t.Fatalf("render HTML: %v", err)
 	}
-	for _, banned := range []string{"Chart Inspection", "CAD Chart Reference", "chart only"} {
-		if strings.Contains(cadHTML, banned) {
+	for _, banned := range []string{"Chart Inspection", "basis Chart Reference", "chart only"} {
+		if strings.Contains(basisHTML, banned) {
 			t.Errorf("HTML unexpectedly contains legacy label %q", banned)
 		}
 	}
-	if got, _ := cadDoc.Find(`select[name="fork"] optgroup`).Last().Attr("label"); got != "CAD Baseline Fork" {
-		t.Errorf("last optgroup label = %q, want %q", got, "CAD Baseline Fork")
+	if got, _ := basisDoc.Find(`select[name="fork"] optgroup`).Last().Attr("label"); got != "Chart Basis Fork" {
+		t.Errorf("last optgroup label = %q, want %q", got, "Chart Basis Fork")
 	}
-	if got := strings.TrimSpace(cadDoc.Find(`label[for="ctrl-cup"]`).Text()); got != "No lower cup (bare head tube)" {
-		t.Errorf("cad cup label = %q, want %q", got, "No lower cup (bare head tube)")
+	if got := strings.TrimSpace(basisDoc.Find(`label[for="ctrl-cup"]`).Text()); got != "No lower cup (bare head tube)" {
+		t.Errorf("basis cup label = %q, want %q", got, "No lower cup (bare head tube)")
 	}
 	if got := strings.TrimSpace(rigidDoc.Find(`label[for="ctrl-cup"]`).Text()); got != "EC44 lower cup (mm, > 0)" {
 		t.Errorf("physical cup label = %q, want %q", got, "EC44 lower cup (mm, > 0)")
 	}
-	note := strings.TrimSpace(cadDoc.Find(`[data-note="cad-baseline-fork"]`).Text())
-	if !strings.Contains(note, "CAD Baseline Fork") || !strings.Contains(note, "bare head tube") || !strings.Contains(note, "EC44 (12 mm)") {
-		t.Errorf("unexpected cad-baseline-fork note: %q", note)
+	note := strings.TrimSpace(basisDoc.Find(`[data-note="basis-fork"]`).Text())
+	if !strings.Contains(note, "Chart Basis Fork") || !strings.Contains(note, "bare head tube") || !strings.Contains(note, "EC44 (12 mm)") {
+		t.Errorf("unexpected basis-fork note: %q", note)
 	}
-	if rigidDoc.Find(`[data-note="cad-baseline-fork"]`).Length() != 0 {
-		t.Errorf("cad-baseline-fork note should not render for physical forks")
+	if rigidDoc.Find(`[data-note="basis-fork"]`).Length() != 0 {
+		t.Errorf("basis-fork note should not render for physical forks")
 	}
 
-	// 4. Switching both ways between fork=cad and physical forks updates cup, A2C, and sag.
-	rec, fromCad := submitForm(t, cadDoc, map[string]string{"fork": "fox34_120"})
+	// 4. Switching both ways between fork=basis and physical forks updates cup, A2C, and sag.
+	rec, fromBasis := submitForm(t, basisDoc, map[string]string{"fork": "fox34_120"})
 	if rec.Code != http.StatusOK {
-		t.Fatalf("switch cad -> fox34_120 status = %d, want 200", rec.Code)
+		t.Fatalf("switch basis -> fox34_120 status = %d, want 200", rec.Code)
 	}
-	if got, _ := fromCad.Find(`input[name="cup"]`).Attr("value"); got != "12.0" {
-		t.Errorf("switch cad -> fox34_120 cup = %q, want 12.0", got)
+	if got, _ := fromBasis.Find(`input[name="cup"]`).Attr("value"); got != "12.0" {
+		t.Errorf("switch basis -> fox34_120 cup = %q, want 12.0", got)
 	}
-	if got, _ := fromCad.Find(`input[name="sag"]`).Attr("value"); got != "20.0" {
-		t.Errorf("switch cad -> fox34_120 sag = %q, want 20.0", got)
+	if got, _ := fromBasis.Find(`input[name="sag"]`).Attr("value"); got != "20.0" {
+		t.Errorf("switch basis -> fox34_120 sag = %q, want 20.0", got)
 	}
-	rec, backToCad := submitForm(t, fromCad, map[string]string{"fork": "cad"})
+	rec, backToBasis := submitForm(t, fromBasis, map[string]string{"fork": "basis"})
 	if rec.Code != http.StatusOK {
-		t.Fatalf("switch fox34_120 -> cad status = %d, want 200", rec.Code)
+		t.Fatalf("switch fox34_120 -> basis status = %d, want 200", rec.Code)
 	}
-	if got, _ := backToCad.Find(`input[name="cup"]`).Attr("value"); got != "0.0" {
-		t.Errorf("switch fox34_120 -> cad cup = %q, want 0.0", got)
+	if got, _ := backToBasis.Find(`input[name="cup"]`).Attr("value"); got != "0.0" {
+		t.Errorf("switch fox34_120 -> basis cup = %q, want 0.0", got)
 	}
-	if got, _ := backToCad.Find(`input[name="fork_a2c"]`).Attr("value"); got != "495.0" {
-		t.Errorf("switch fox34_120 -> cad fork_a2c = %q, want 495.0", got)
+	if got, _ := backToBasis.Find(`input[name="fork_a2c"]`).Attr("value"); got != "495.0" {
+		t.Errorf("switch fox34_120 -> basis fork_a2c = %q, want 495.0", got)
 	}
 }
 
@@ -1193,10 +1193,10 @@ func TestBikeWorkbenchRecoversFromInvalidRigidForkSag(t *testing.T) {
 	if !hasReadOnly(otherErr, "sag") {
 		t.Errorf("valid zero sag on rigid fork error page should stay readonly")
 	}
-	cadErr := loadBikeDocStatus(t, "/bike?fork=cad&spacers=-1", http.StatusBadRequest)
+	basisErr := loadBikeDocStatus(t, "/bike?fork=basis&spacers=-1", http.StatusBadRequest)
 	for _, field := range []string{"fork_a2c", "cup", "sag"} {
-		if !hasReadOnly(cadErr, field) {
-			t.Errorf("cad baseline field %q on error page should stay readonly", field)
+		if !hasReadOnly(basisErr, field) {
+			t.Errorf("basis baseline field %q on error page should stay readonly", field)
 		}
 	}
 }
@@ -1272,9 +1272,9 @@ func TestBikeWorkbenchActiveViewLinkCarriesResolvedBuild(t *testing.T) {
 			want: mustBike(t, "fork=fox34_120"),
 		},
 		{
-			name: "cad-baseline-fork-overrides-locked",
-			path: "/bike?fork=cad&cup=12&fork_a2c=530&sag=20",
-			want: query.DefaultBike().WithCadBaselineFork(),
+			name: "basis-fork-overrides-locked",
+			path: "/bike?fork=basis&cup=12&fork_a2c=530&sag=20",
+			want: query.DefaultBike().WithBasisFork(),
 		},
 	}
 
@@ -1304,8 +1304,8 @@ func TestBikeWorkbenchActiveViewLinkCarriesResolvedBuild(t *testing.T) {
 			if href, ok := form.Find(`a#preset-defaults[data-preset="defaults"]`).Attr("href"); !ok || href != query.DefaultBike().URL() {
 				t.Errorf("a#preset-defaults href = %q (ok=%v), want %q", href, ok, query.DefaultBike().URL())
 			}
-			if href, ok := form.Find(`a#preset-cad-baseline-fork[data-preset="cad-baseline-fork"]`).Attr("href"); !ok || !strings.HasPrefix(href, "/bike?") {
-				t.Errorf("a#preset-cad-baseline-fork href = %q (ok=%v), want /bike?...", href, ok)
+			if href, ok := form.Find(`a#preset-basis-fork[data-preset="basis-fork"]`).Attr("href"); !ok || !strings.HasPrefix(href, "/bike?") {
+				t.Errorf("a#preset-basis-fork href = %q (ok=%v), want /bike?...", href, ok)
 			}
 		})
 	}
@@ -1570,11 +1570,11 @@ func TestBikeWorkbenchControlChangesAndPresetsKeepView(t *testing.T) {
 	if got, want := decodeHref(t, defaultsHref), query.DefaultBike().WithView(query.ViewStem); got.URL() != want.URL() {
 		t.Errorf("Reset Defaults build = %s, want %s", got.URL(), want.URL())
 	}
-	cadHref, _ := doc.Find("a#preset-cad-baseline-fork").Attr("href")
-	if got, want := decodeHref(t, cadHref), state.WithCadBaselineFork(); got.URL() != want.URL() {
-		t.Errorf("CAD Baseline Fork build = %s, want %s", got.URL(), want.URL())
+	basisHref, _ := doc.Find("a#preset-basis-fork").Attr("href")
+	if got, want := decodeHref(t, basisHref), state.WithBasisFork(); got.URL() != want.URL() {
+		t.Errorf("Chart Basis Fork build = %s, want %s", got.URL(), want.URL())
 	}
-	for _, href := range []string{defaultsHref, cadHref} {
+	for _, href := range []string{defaultsHref, basisHref} {
 		if got := hiddenViewValue(loadBikeDoc(t, href)); got != "stem" {
 			t.Errorf("following preset %q: hidden view = %q, want stem", href, got)
 		}
@@ -1592,7 +1592,7 @@ func TestBikeWorkbenchUnknownViewRecoversThroughPresets(t *testing.T) {
 	if got := hiddenViewValue(doc); got != "zoom" {
 		t.Errorf("hidden view input = %q, want the submitted zoom", got)
 	}
-	for _, id := range []string{"preset-defaults", "preset-cad-baseline-fork"} {
+	for _, id := range []string{"preset-defaults", "preset-basis-fork"} {
 		href, _ := doc.Find("a#" + id).Attr("href")
 		if got := decodeHref(t, href).View; got != query.ViewBike {
 			t.Errorf("%s href %q view = %q, want bike", id, href, got)
@@ -1611,7 +1611,7 @@ func TestBikeWorkbenchUnknownViewRecoversThroughPresets(t *testing.T) {
 	if got := hiddenViewValue(badDoc); got != "seat" {
 		t.Errorf("bad control: hidden view = %q, want seat", got)
 	}
-	for _, id := range []string{"preset-defaults", "preset-cad-baseline-fork"} {
+	for _, id := range []string{"preset-defaults", "preset-basis-fork"} {
 		href, _ := badDoc.Find("a#" + id).Attr("href")
 		if got := decodeHref(t, href).View; got != query.ViewSeat {
 			t.Errorf("bad control: %s view = %q, want seat", id, got)
@@ -1882,16 +1882,16 @@ func TestBikeWorkbenchBrpTargetPresetLinks(t *testing.T) {
 	if q := hrefQuery(t, doc, "a#preset-defaults"); q.Get("brp_x") != "-219" || q.Get("brp_y") != "713.1" {
 		t.Errorf("Reset Defaults restores the default target: %v", q)
 	}
-	q := hrefQuery(t, doc, "a#preset-cad-baseline-fork")
+	q := hrefQuery(t, doc, "a#preset-basis-fork")
 	if q.Get("brp_x") != "-200" || q.Get("brp_y") != "710" {
-		t.Errorf("CAD Baseline Fork lost the target: %v", q)
+		t.Errorf("Chart Basis Fork lost the target: %v", q)
 	}
 	if v := activeViewHref(t, doc); !strings.Contains(v, "brp_x=-200") {
 		t.Errorf("canonical URL = %q, want it to keep the target", v)
 	}
 
 	cleared := loadBikeDoc(t, "/bike?brp=off")
-	for _, sel := range []string{"a#preset-cad-baseline-fork", "a#view-seat", "a#apply-fitting"} {
+	for _, sel := range []string{"a#preset-basis-fork", "a#view-seat", "a#apply-fitting"} {
 		q := hrefQuery(t, cleared, sel)
 		if q.Get("brp") != "off" || q.Has("brp_x") {
 			t.Errorf("%s dropped the cleared BRP target: %v", sel, q)
@@ -2028,7 +2028,7 @@ func TestBikeWorkbenchFitTargetsPresetLinks(t *testing.T) {
 			t.Errorf("Reset Defaults %s = %q, want the default %q", k, q.Get(k), want)
 		}
 	}
-	for _, sel := range []string{"a#preset-cad-baseline-fork", "a#view-seat"} {
+	for _, sel := range []string{"a#preset-basis-fork", "a#view-seat"} {
 		q = hrefQuery(t, doc, sel)
 		if q.Get("grip_x") != "470" || q.Get("grip_y") != "720" || q.Get("brp_x") != "-200" {
 			t.Errorf("%s lost a target: %v", sel, q)
@@ -2331,7 +2331,7 @@ func TestBikeWorkbenchKeepsBarOptionsWithoutTarget(t *testing.T) {
 	if got := workbenchCanonicalQuery(t, doc).Get("bar_options"); got != "all" {
 		t.Errorf("canonical bar_options = %q, want all", got)
 	}
-	for _, sel := range []string{"#view-bike", "#view-seat", "#view-stem", "#preset-cad-baseline-fork"} {
+	for _, sel := range []string{"#view-bike", "#view-seat", "#view-stem", "#preset-basis-fork"} {
 		if got := hrefQuery(t, doc, sel).Get("bar_options"); got != "all" {
 			t.Errorf("%s bar_options = %q, want all", sel, got)
 		}
@@ -2366,8 +2366,8 @@ func TestBikeWorkbenchBarOptionsErrorPage(t *testing.T) {
 
 	doc = loadBikeDocStatus(t, "/bike?bar_options=all&spacers=-1", http.StatusBadRequest)
 	assertSelectedBarOptions(t, doc, "all")
-	if got := hrefQuery(t, doc, "#preset-cad-baseline-fork").Get("bar_options"); got != "all" {
-		t.Errorf("error-page CAD preset bar_options = %q, want all", got)
+	if got := hrefQuery(t, doc, "#preset-basis-fork").Get("bar_options"); got != "all" {
+		t.Errorf("error-page basis preset bar_options = %q, want all", got)
 	}
 }
 
@@ -2525,7 +2525,7 @@ func TestBikeWorkbenchPresetAndViewLinksKeepHandlebar(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?bar="+bar+"&view=seat")
 	for _, selector := range []string{
 		`a[data-diagram-view="bike"]`, `a[data-diagram-view="seat"]`, `a[data-diagram-view="stem"]`,
-		`a[data-preset="cad-baseline-fork"]`,
+		`a[data-preset="basis-fork"]`,
 	} {
 		if got := hrefQuery(t, doc, selector).Get("bar"); got != bar {
 			t.Errorf("%s bar = %q, want %q", selector, got, bar)
@@ -2538,9 +2538,9 @@ func TestBikeWorkbenchPresetAndViewLinksKeepHandlebar(t *testing.T) {
 
 	errorDoc := loadBikeDocStatus(t, "/bike?bar="+bar+"&stem_length=0", http.StatusBadRequest)
 	assertSelectedHandlebar(t, errorDoc, bar)
-	cadQuery := hrefQuery(t, errorDoc, `a[data-preset="cad-baseline-fork"]`)
-	if got := cadQuery.Get("bar"); got != bar {
-		t.Errorf("CAD Baseline Fork bar on error page = %q, want %q", got, bar)
+	basisQuery := hrefQuery(t, errorDoc, `a[data-preset="basis-fork"]`)
+	if got := basisQuery.Get("bar"); got != bar {
+		t.Errorf("Chart Basis Fork bar on error page = %q, want %q", got, bar)
 	}
 	badBarDoc := loadBikeDocStatus(t, "/bike?bar=unknown", http.StatusBadRequest)
 	if got := badBarDoc.Find(`select[name="bar"] option[selected]`).Length(); got != 0 {
@@ -2656,8 +2656,8 @@ func TestBikeWorkbenchSeatpostSurvivesLinks(t *testing.T) {
 		href, _ := s.Attr("href")
 		assertHasPost(fmt.Sprintf("diagram-view %d", i), href)
 	})
-	cadHref, _ := doc.Find(`a[data-preset="cad-baseline-fork"]`).Attr("href")
-	assertHasPost("cad-baseline-fork", cadHref)
+	basisHref, _ := doc.Find(`a[data-preset="basis-fork"]`).Attr("href")
+	assertHasPost("basis-fork", basisHref)
 	applyHref, _ := doc.Find(`#apply-fitting`).Attr("href")
 	assertHasPost("apply-fitting", applyHref)
 	buildLinks := doc.Find(`[data-build-apply]`)
@@ -2843,7 +2843,7 @@ func TestBikeWorkbenchForkOptionsDefaultKeepsSubmittedFork(t *testing.T) {
 	for _, tc := range []struct{ name, query, fork, sagScore string }{
 		{"rigid", "", "Lithic Carbon Mountain", "100.0"},
 		{"suspension", "&fork=sid_100&sag=25", "RockShox SID 100mm, 25% sag", "50.0"},
-		{"CAD", "&fork=cad", "", "100.0"},
+		{"Basis", "&fork=basis", "", "100.0"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			doc := loadBikeDoc(t, "/bike?brp=off"+tc.query)
@@ -2872,12 +2872,12 @@ func TestBikeWorkbenchForkOptionsDefaultKeepsSubmittedFork(t *testing.T) {
 					t.Errorf("row %d Apply includes fork_options: %v", i+1, q)
 				}
 			})
-			if tc.name == "CAD" {
+			if tc.name == "Basis" {
 				if got := buildCell(rows.First(), "score"); got != "69.1" {
-					t.Errorf("CAD row 1 score = %q, want 69.1", got)
+					t.Errorf("basis row 1 score = %q, want 69.1", got)
 				}
 				if got := buildCell(rows.First(), "stem"); got != "120 mm, -20°" {
-					t.Errorf("CAD row 1 stem = %q, want 120 mm, -20°", got)
+					t.Errorf("basis row 1 stem = %q, want 120 mm, -20°", got)
 				}
 			}
 		})
@@ -3004,7 +3004,7 @@ func TestBikeWorkbenchKeepsForkOptionsWithoutTarget(t *testing.T) {
 	if got := workbenchCanonicalQuery(t, doc).Get("fork_options"); got != "all" {
 		t.Errorf("canonical fork_options = %q, want all", got)
 	}
-	for _, sel := range []string{"#view-bike", "#view-seat", "#view-stem", "#preset-cad-baseline-fork"} {
+	for _, sel := range []string{"#view-bike", "#view-seat", "#view-stem", "#preset-basis-fork"} {
 		if got := hrefQuery(t, doc, sel).Get("fork_options"); got != "all" {
 			t.Errorf("%s fork_options = %q, want all", sel, got)
 		}
@@ -3024,8 +3024,8 @@ func TestBikeWorkbenchForkOptionsErrorPage(t *testing.T) {
 	}
 	doc = loadBikeDocStatus(t, "/bike?fork_options=all&spacers=-1", http.StatusBadRequest)
 	assertSelectedForkOptions(t, doc, "all")
-	if got := hrefQuery(t, doc, "#preset-cad-baseline-fork").Get("fork_options"); got != "all" {
-		t.Errorf("error-page CAD preset fork_options = %q, want all", got)
+	if got := hrefQuery(t, doc, "#preset-basis-fork").Get("fork_options"); got != "all" {
+		t.Errorf("error-page basis preset fork_options = %q, want all", got)
 	}
 }
 
@@ -3202,7 +3202,7 @@ func assertWebNear(t *testing.T, label string, got, want, tol float64) {
 	}
 }
 
-// Q92: the default build puts the leveled Lithic BRP at (-155.065, 729.317) mm and the CAD fork at 746.008 mm.
+// Q92: the default build puts the leveled Lithic BRP at (-155.065, 729.317) mm and the basis fork at 746.008 mm.
 func TestBikeWorkbenchDefaultInsertionMidpointQ109(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike")
 	if got, _ := doc.Find(`select[name="post"] option[selected]`).Attr("value"); got != "redshift_shockstop_pro" {
@@ -3253,8 +3253,8 @@ func TestBikeWorkbenchFrameHandlingReadouts(t *testing.T) {
 			wantRatio: "38.5%",
 		},
 		{
-			name:      "CAD baseline",
-			path:      "/bike?fork=cad",
+			name:      "basis",
+			path:      "/bike?fork=basis",
 			wantTrail: "90.2 mm",
 			wantRC:    "444.2 mm",
 			wantRatio: "38.4%",
@@ -3475,23 +3475,23 @@ func TestBikeSlidingDropoutsAndUnpublishedWheelbase(t *testing.T) {
 		t.Errorf("sliding-dropouts note = %q, want it to mention 460 mm and 445 mm", note)
 	}
 
-	cad := loadBikeDoc(t, "/bike?frame=binary-havok&size=L&fork=cad")
+	basis := loadBikeDoc(t, "/bike?frame=binary-havok&size=L&fork=basis")
 	for name, want := range map[string]string{"wheelbase": "1110.6 mm", "rear-center": "439.5 mm", "delta-pitch": "+0.00°"} {
-		if got := metricText(cad, name); got != want {
-			t.Errorf("cad %s = %q, want %q", name, got, want)
+		if got := metricText(basis, name); got != want {
+			t.Errorf("basis %s = %q, want %q", name, got, want)
 		}
 	}
-	if got := inputValue(cad, "cup"); got != "10.0" {
-		t.Errorf("cad cup = %q, want 10.0", got)
+	if got := inputValue(basis, "cup"); got != "10.0" {
+		t.Errorf("basis cup = %q, want 10.0", got)
 	}
-	if _, ro := cad.Find(`input[name="cup"]`).Attr("readonly"); !ro {
-		t.Error("cad cup must be readonly")
+	if _, ro := basis.Find(`input[name="cup"]`).Attr("readonly"); !ro {
+		t.Error("basis cup must be readonly")
 	}
-	if strings.TrimSpace(cad.Find(`[data-note="cad-baseline-fork"]`).Text()) == "" {
-		t.Error("cad-baseline-fork note is empty")
+	if strings.TrimSpace(basis.Find(`[data-note="basis-fork"]`).Text()) == "" {
+		t.Error("basis-fork note is empty")
 	}
-	if cad.Find(`[data-note="sliding-dropouts"]`).Length() != 1 {
-		t.Error("cad page must explain the published chainstay")
+	if basis.Find(`[data-note="sliding-dropouts"]`).Length() != 1 {
+		t.Error("basis page must explain the published chainstay")
 	}
 
 	moots := loadBikeDoc(t, "/bike?frame=moots-mountaineer&size=M")
@@ -3514,10 +3514,10 @@ func TestBikeLeveledReadoutsAndRedshiftNote(t *testing.T) {
 	if doc.Find(`[data-note="redshift-mixed-state"]`).Length() != 1 {
 		t.Error("default /bike must render the Redshift mixed-state note (Q78)")
 	}
-	cad := loadBikeDoc(t, "/bike?fork=cad")
+	basis := loadBikeDoc(t, "/bike?fork=basis")
 	for name, want := range map[string]string{"leveled-reach": "428.1 mm", "leveled-stack": "641.9 mm", "ett": "597.0 mm"} {
-		if got := metricText(cad, name); got != want {
-			t.Errorf("cad %s = %q, want %q", name, got, want)
+		if got := metricText(basis, name); got != want {
+			t.Errorf("basis %s = %q, want %q", name, got, want)
 		}
 	}
 	if loadBikeDoc(t, "/bike?post=setback_0").Find(`[data-note="redshift-mixed-state"]`).Length() != 0 {
@@ -3653,7 +3653,7 @@ func TestBikeDurableClearedTargetsQ70(t *testing.T) {
 	}
 	cleared := loadBikeDoc(t, clearHref)
 	clearedState(t, cleared)
-	keepsOff(t, "clear link", hrefQuery(t, cleared, "#preset-cad-baseline-fork"), "brp", "grip")
+	keepsOff(t, "clear link", hrefQuery(t, cleared, "#preset-basis-fork"), "brp", "grip")
 
 	rec, edited := submitForm(t, cleared, map[string]string{"stem_length": "80"})
 	if rec.Code != http.StatusOK {
@@ -3663,7 +3663,7 @@ func TestBikeDurableClearedTargetsQ70(t *testing.T) {
 	if got := inputValue(edited, "stem_length"); got != "80.0" {
 		t.Errorf("edited stem_length = %q, want 80.0", got)
 	}
-	for _, sel := range []string{"#view-seat", "#view-stem", "#preset-cad-baseline-fork"} {
+	for _, sel := range []string{"#view-seat", "#view-stem", "#preset-basis-fork"} {
 		keepsOff(t, sel, hrefQuery(t, edited, sel), "brp", "grip")
 	}
 	reloaded := loadBikeDoc(t, activeViewHref(t, edited))
@@ -3671,7 +3671,7 @@ func TestBikeDurableClearedTargetsQ70(t *testing.T) {
 
 	t.Run("clear BRP only", func(t *testing.T) {
 		doc := loadBikeDoc(t, "/bike?brp_x=&brp_y=&grip_x=481&grip_y=726")
-		for _, sel := range []string{"#apply-fitting", `tr[data-build-rank="1"] a[data-build-apply]`, "#view-seat", "#preset-cad-baseline-fork"} {
+		for _, sel := range []string{"#apply-fitting", `tr[data-build-rank="1"] a[data-build-apply]`, "#view-seat", "#preset-basis-fork"} {
 			q := hrefQuery(t, doc, sel)
 			keepsOff(t, sel, q, "brp")
 			if q.Get("grip_x") != "481" {
@@ -3685,7 +3685,7 @@ func TestBikeDurableClearedTargetsQ70(t *testing.T) {
 	})
 	t.Run("clear HandGrip only", func(t *testing.T) {
 		doc := loadBikeDoc(t, "/bike?grip=off")
-		for _, sel := range []string{"#apply-fitting", "#view-seat", "#preset-cad-baseline-fork"} {
+		for _, sel := range []string{"#apply-fitting", "#view-seat", "#preset-basis-fork"} {
 			q := hrefQuery(t, doc, sel)
 			keepsOff(t, sel, q, "grip")
 			next := loadBikeDoc(t, "/bike?"+q.Encode())

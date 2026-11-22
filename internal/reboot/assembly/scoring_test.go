@@ -25,10 +25,10 @@ func fox34Fork(sag float64) assembly.ForkSetup {
 	return assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 530, TravelMm: 120, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: sag}
 }
 
-func cadBaselineSetup() assembly.BikeSetup {
+func basisSetup() assembly.BikeSetup {
 	setup := fenrirFittingSetup()
-	setup.LowerCup = fenrirCadCup()
-	setup.Fork = assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54, Steerer: assembly.SteererCAD}}
+	setup.LowerCup = fenrirBasisCup()
+	setup.Fork = assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54, Steerer: assembly.SteererBasis}}
 	return setup
 }
 
@@ -154,8 +154,8 @@ func TestAttributeCurves(t *testing.T) {
 	t.Run("Fork sag", func(t *testing.T) {
 		s := scoreExact(t, base, false, 100)
 		assertNear(t, "rigid", attrScore(t, s, assembly.AttrForkSag).Score, 100, tol)
-		s = scoreExact(t, cadBaselineSetup(), false, 100)
-		assertNear(t, "CAD", attrScore(t, s, assembly.AttrForkSag).Score, 100, tol)
+		s = scoreExact(t, basisSetup(), false, 100)
+		assertNear(t, "Basis", attrScore(t, s, assembly.AttrForkSag).Score, 100, tol)
 		for _, c := range []struct{ sag, want float64 }{{10, 0}, {15, 50}, {20, 100}, {25, 50}, {30, 0}} {
 			setup := base
 			setup.Fork = sidFork(c.sag)
@@ -205,7 +205,7 @@ func TestAttributeCurves(t *testing.T) {
 		}{
 			{"Lithic", lithic, 38.278721, 100, 67.819258, 100, 94.123289, 80.616445},
 			{"Fox 34 20%", fox, 38.511960, 100, 62.443349, 87.216745, 109.963183, 80.184085},
-			{"CAD baseline", cadBaselineSetup(), 38.369496, 100, 72.082893, 100, 90.197878, 60.989388},
+			{"basis", basisSetup(), 38.369496, 100, 72.082893, 100, 90.197878, 60.989388},
 		} {
 			p := gripPlacement(t, c.setup)
 			assertNear(t, c.name+" RC/WB", p.Frameset.RcWbRatioPct(), c.rcWb, tol)
@@ -256,17 +256,17 @@ func TestScoreBuildReferenceBuilds(t *testing.T) {
 	s = scoreExact(t, lithic, false, 100)
 	assertNear(t, "Lithic no-BRP total", s.Total, 99.157237, tol)
 
-	cad := withCockpit(cadBaselineSetup(), 120, -20, 0)
+	basis := withCockpit(basisSetup(), 120, -20, 0)
 	grip := fitReportGrip
-	s = mustScore(t, gripPlacement(t, cad), assembly.FitTarget{HandGrip: &grip}, 0)
+	s = mustScore(t, gripPlacement(t, basis), assembly.FitTarget{HandGrip: &grip}, 0)
 	if s.Tier != assembly.FitsNeither {
-		t.Errorf("CAD tier = %v", s.Tier)
+		t.Errorf("basis tier = %v", s.Tier)
 	}
-	assertNear(t, "CAD total", s.Total, 69.082428, tol)
-	assertNear(t, "CAD R", s.GripR, 1.207581, tol)
-	assertNear(t, "CAD grip", attrScore(t, s, assembly.AttrHandGrip).Score, 71.317744, tol)
-	assertNear(t, "CAD sag", attrScore(t, s, assembly.AttrForkSag).Score, 100, tol)
-	assertNear(t, "CAD trail", attrScore(t, s, assembly.AttrTrail).Score, 60.989388, tol)
+	assertNear(t, "basis total", s.Total, 69.082428, tol)
+	assertNear(t, "basis R", s.GripR, 1.207581, tol)
+	assertNear(t, "basis grip", attrScore(t, s, assembly.AttrHandGrip).Score, 71.317744, tol)
+	assertNear(t, "basis sag", attrScore(t, s, assembly.AttrForkSag).Score, 100, tol)
+	assertNear(t, "basis trail", attrScore(t, s, assembly.AttrTrail).Score, 60.989388, tol)
 
 	for _, c := range []struct {
 		name           string

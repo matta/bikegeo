@@ -46,7 +46,7 @@ type Frame struct {
 	// BasisLowerCup and BasisFork are the chart's basis: the lower cup and
 	// fork its numbers are computed on (Q44, Q81, Q121), whether stated by
 	// the manufacturer or inferred from the chart; not physical parts.
-	// BasisFork uses assembly.SteererCAD and has no travel; its StaticA2cMm
+	// BasisFork uses assembly.SteererBasis and has no travel; its StaticA2cMm
 	// is the basis axle-to-crown, sag included.
 	BasisLowerCup assembly.LowerCupSetup
 	BasisFork     assembly.ForkSpec

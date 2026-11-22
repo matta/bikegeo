@@ -7,9 +7,9 @@ const sevenCollarOffsetMm = 35.0 // illustrative C-C → C-T until Seven confirm
 
 // sevenCustom returns the Seven Custom.
 //
-// The frame is the rider's custom Seven titanium 29er (CAD preview 2026-11-11).
-// Its CAD fork is the ENVE Mountain Boost at 492 mm / 52 mm rake with an 11 mm
-// EC44 CAD cup. Stack, reach, and wheelbase come from the 1:5 CAD drawing.
+// The frame is the rider's custom Seven titanium 29er (design-drawing preview 2026-11-11).
+// Its basis fork is the ENVE Mountain Boost at 492 mm / 52 mm rake with an 11 mm
+// EC44 basis cup. Stack, reach, and wheelbase come from the 1:5 design drawing.
 // Seven publishes C-C seat tubes, converted with the illustrative
 // sevenCollarOffsetMm (Q75d).
 func sevenCustom() Frame {
@@ -27,7 +27,7 @@ func sevenCustom() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 11
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 11},
 		// hypothesis (Q44, Q81): legacy enve_mountain_boost (rigid) → 492 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 492, RakeMm: 52, Steerer: assembly.SteererCAD},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 492, RakeMm: 52, Steerer: assembly.SteererBasis},
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

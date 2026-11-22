@@ -77,10 +77,10 @@ func TestParseBikeAllFramesAndSlidingDropouts(t *testing.T) {
 		t.Errorf("havok physical = %s chainstay %v cup %s ins %v", b.ForkID, b.Setup.Frame.ChainstayMm, cupString(b.Setup.LowerCup), b.Setup.Seatpost.InsertionMm)
 	}
 
-	b = mustParseBike(t, "frame=binary-havok&size=L&fork=cad&cup=99&fork_a2c=999&sag=50")
+	b = mustParseBike(t, "frame=binary-havok&size=L&fork=basis&cup=99&fork_a2c=999&sag=50")
 	if b.Setup.Frame.ChainstayMm != 445 || cupString(b.Setup.LowerCup) != "EC44 10" || b.Setup.Fork.Spec.StaticA2cMm != 485 ||
-		b.Setup.Fork.SagPct != 0 || b.Setup.Fork.Spec.Steerer != assembly.SteererCAD {
-		t.Errorf("havok cad = chainstay %v cup %s fork %+v", b.Setup.Frame.ChainstayMm, cupString(b.Setup.LowerCup), b.Setup.Fork)
+		b.Setup.Fork.SagPct != 0 || b.Setup.Fork.Spec.Steerer != assembly.SteererBasis {
+		t.Errorf("havok basis = chainstay %v cup %s fork %+v", b.Setup.Frame.ChainstayMm, cupString(b.Setup.LowerCup), b.Setup.Fork)
 	}
 
 	b = mustParseBike(t, "frame=salsa-fargo&size=XS&post=setback_0")
@@ -120,9 +120,9 @@ func TestParseBikeSwitchesQ109(t *testing.T) {
 		t.Errorf("cutthroat switch = %s %s cup %s a2c %v rake %v sag %v", b.Size.Name, b.ForkID, cupString(b.Setup.LowerCup), b.Setup.Fork.Spec.StaticA2cMm, b.Setup.Fork.Spec.RakeMm, b.Setup.Fork.SagPct)
 	}
 
-	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=binary-havok&fork=cad&fork_a2c=495&cup=0&sag=0")
-	if b.ForkID != query.CadForkID || b.Setup.Fork.Spec.StaticA2cMm != 485 || cupString(b.Setup.LowerCup) != "EC44 10" || b.Setup.Frame.ChainstayMm != 445 {
-		t.Errorf("havok cad switch = %s a2c %v cup %s chainstay %v", b.ForkID, b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Frame.ChainstayMm)
+	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=binary-havok&fork=basis&fork_a2c=495&cup=0&sag=0")
+	if b.ForkID != query.BasisForkID || b.Setup.Fork.Spec.StaticA2cMm != 485 || cupString(b.Setup.LowerCup) != "EC44 10" || b.Setup.Frame.ChainstayMm != 445 {
+		t.Errorf("havok basis switch = %s a2c %v cup %s chainstay %v", b.ForkID, b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Frame.ChainstayMm)
 	}
 
 	b = mustParseBike(t, "prev_post=setback_0&post=redshift_shockstop_pro&post_insert=275")
@@ -138,15 +138,15 @@ func TestParseBikeSwitchesQ109(t *testing.T) {
 		t.Errorf("size switch insertion = %v, want 290", b.Setup.Seatpost.InsertionMm)
 	}
 
-	b = mustParseBike(t, "prev_fork=cad&fork=fox34_120&fork_a2c=495&cup=0&sag=0")
+	b = mustParseBike(t, "prev_fork=basis&fork=fox34_120&fork_a2c=495&cup=0&sag=0")
 	if b.Setup.Fork.Spec.StaticA2cMm != 530 || cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Fork.SagPct != 20 {
-		t.Errorf("cad->fox = a2c %v cup %s sag %v", b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct)
+		t.Errorf("basis->fox = a2c %v cup %s sag %v", b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct)
 	}
-	// Leaving the CAD baseline restores the physical cup even when the cup
-	// standard is shared (binary-havok: CAD EC44 10 mm, physical EC44 12 mm).
-	b = mustParseBike(t, "frame=binary-havok&size=L&prev_fork=cad&fork=rigid_485&fork_a2c=485&cup=10&sag=0")
+	// Leaving the basis restores the physical cup even when the cup
+	// standard is shared (binary-havok: basis EC44 10 mm, physical EC44 12 mm).
+	b = mustParseBike(t, "frame=binary-havok&size=L&prev_fork=basis&fork=rigid_485&fork_a2c=485&cup=10&sag=0")
 	if cupString(b.Setup.LowerCup) != "EC44 12" {
-		t.Errorf("cad->physical cup = %s, want EC44 12", cupString(b.Setup.LowerCup))
+		t.Errorf("basis->physical cup = %s, want EC44 12", cupString(b.Setup.LowerCup))
 	}
 	b = mustParseBike(t, "prev_fork=lithic_carbon_mountain&fork=fox34_120&fork_a2c=495&cup=14&sag=0")
 	if b.Setup.Fork.Spec.StaticA2cMm != 530 || cupString(b.Setup.LowerCup) != "EC44 14" || b.Setup.Fork.SagPct != 20 {
@@ -164,7 +164,7 @@ func TestParseBikeTargetsAndURLRoundTrip(t *testing.T) {
 		"brp=off&brp_x=-200&brp_y=710",
 		"bar_options=all",
 		"fork_options=all",
-		"fork=cad",
+		"fork=basis",
 		"post_insert=144.10725197204226&cup=12.5000000001",
 		"view=seat&stem_angle=-0&rail_pitch=-0",
 	} {

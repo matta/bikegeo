@@ -271,7 +271,7 @@ func TestParseCompareRejectsInvalidQueries(t *testing.T) {
 		{"frame=surly-krampus&size=XXL", "size", "has no size"},
 		// The Krampus carries sid_100 in the catalog; fox36_150 is a catalog fork it does not.
 		{"frame=surly-krampus&fork=fox36_150", "fork", "has no fork"},
-		{"frame=surly-krampus&fork=cad", "fork", "has no fork"},
+		{"frame=surly-krampus&fork=basis", "fork", "has no fork"},
 		{"frame=surly-krampus&size=XL&sag=20", "sag", "sag requires a fork"},
 		{"frame=surly-krampus&fork=fox34_120&sag=abc", "sag", "finite number"},
 		{"frame=surly-krampus&fork=fox34_120&sag=NaN", "sag", "finite number"},

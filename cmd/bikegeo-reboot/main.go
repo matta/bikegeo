@@ -54,7 +54,7 @@ Otso Fenrir Stainless L build is evaluated against the default fit targets.
 
 Query keys:
   frame, size                 catalog frame ID and size name
-  fork, fork_a2c, cup, sag    fork ID ("cad" selects the CAD baseline fork), static A2C, lower cup stack, sag
+  fork, fork_a2c, cup, sag    fork ID ("basis" selects the chart basis fork), static A2C, lower cup stack, sag
   bar, spacers, stem_length, stem_angle, bar_roll
                               handlebar ID, spacer stack, stem length and angle, handlebar roll
   post, post_insert, rail_offset, rail_pitch

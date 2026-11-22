@@ -99,7 +99,7 @@ func TestFramesMatchLegacy(t *testing.T) {
 			basisFork := assembly.ForkSpec{
 				StaticA2cMm: l.CadFork.A2cMm,
 				RakeMm:      l.CadFork.RakeMm,
-				Steerer:     assembly.SteererCAD,
+				Steerer:     assembly.SteererBasis,
 			}
 			if f.ID == "ritchey-ultra" {
 				basisFork.StaticA2cMm = 508.5 // Q71

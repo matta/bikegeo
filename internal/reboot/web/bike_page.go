@@ -28,7 +28,7 @@ type forkOption struct {
 	TravelMm float64
 }
 
-const cadForkName = "CAD Baseline Fork"
+const basisForkName = "Chart Basis Fork"
 
 func makeForkOption(ff catalog.FrameFork) forkOption {
 	var kind string
@@ -47,10 +47,10 @@ func makeForkOption(ff catalog.FrameFork) forkOption {
 
 func makeBasisForkOption(frame catalog.Frame) forkOption {
 	return forkOption{
-		ID:   query.CadForkID,
-		Name: cadForkName,
+		ID:   query.BasisForkID,
+		Name: basisForkName,
 		Label: fmt.Sprintf("%s (%.0f mm A2C / %.0f mm rake, %.0f mm cup)",
-			cadForkName, frame.BasisFork.StaticA2cMm, frame.BasisFork.RakeMm, frame.BasisLowerCup.StackMm),
+			basisForkName, frame.BasisFork.StaticA2cMm, frame.BasisFork.RakeMm, frame.BasisLowerCup.StackMm),
 	}
 }
 
@@ -65,8 +65,8 @@ func forkCellName(name string, travelMm, sagPct float64) string {
 
 // forkNameAndTravel resolves a build's fork ID on b's frame.
 func forkNameAndTravel(b query.Bike, id string) (string, float64) {
-	if id == query.CadForkID {
-		return cadForkName, 0
+	if id == query.BasisForkID {
+		return basisForkName, 0
 	}
 	for _, ff := range b.Frame.Forks {
 		if ff.Fork.ID == id {
@@ -154,7 +154,7 @@ func formFromBike(b query.Bike) bikeFormValues {
 }
 
 // echoForm returns the form values of an error page: the exact text submitted
-// in q where there is any, otherwise the values of base. A locked CAD baseline
+// in q where there is any, otherwise the values of base. A locked basis
 // fork echoes its chart values.
 func echoForm(q url.Values, base query.Bike, sel selectedIDs) bikeFormValues {
 	form := formFromBike(base)
@@ -168,7 +168,7 @@ func echoForm(q url.Values, base query.Bike, sel selectedIDs) bikeFormValues {
 	// dependent size and fork options the page renders, so choosing another
 	// frame after a rejected one is seen as a switch and recovers (Q109).
 	override(&form.View, "view")
-	if base.ForkID != query.CadForkID || sel.Fork == "" {
+	if base.ForkID != query.BasisForkID || sel.Fork == "" {
 		override(&form.ForkA2c, "fork_a2c")
 		override(&form.Cup, "cup")
 		override(&form.Sag, "sag")
@@ -235,7 +235,7 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs) bikeView {
 		SelectedSize:         sel.Size,
 		Forks:                forks,
 		ForkOptionCount:      len(b.ForkOptions()),
-		CadForkOption:        makeBasisForkOption(b.Frame),
+		BasisForkOption:      makeBasisForkOption(b.Frame),
 		SelectedForkID:       sel.Fork,
 		Handlebars:           catalog.Handlebars(),
 		SelectedBarID:        sel.Bar,
@@ -245,10 +245,10 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs) bikeView {
 		ForkA2cReadOnly:      forkA2cRO,
 		CupReadOnly:          cupRO,
 		SagReadOnly:          sagRO,
-		CadBaselineNote:      cadBaselineForkNote(b, sel.Fork),
+		BasisForkNote:        basisForkNote(b, sel.Fork),
 		SlidingDropoutsNote:  slidingDropoutsNote(b),
 		BasisFork:            b.Frame.BasisFork,
-		CadLowerCupMm:        b.Frame.BasisLowerCup.StackMm,
+		BasisLowerCupMm:      b.Frame.BasisLowerCup.StackMm,
 		PublishedWheelbaseMm: b.Size.PublishedWheelbaseMm,
 	}
 	if sel.Post == catalog.DefaultSeatpostID {
@@ -260,34 +260,34 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs) bikeView {
 // forkFieldViewState says which fork inputs are read-only and how the lower
 // cup is labelled. selectedForkID is empty when the submitted fork was rejected.
 func forkFieldViewState(b query.Bike, selectedForkID, sagValue string) (forkA2cRO, cupRO, sagRO bool, cupLabel string) {
-	isCad := selectedForkID == query.CadForkID
-	forkA2cRO = isCad
-	cupRO = isCad
+	isBasis := selectedForkID == query.BasisForkID
+	forkA2cRO = isBasis
+	cupRO = isBasis
 	// On a known rigid fork, keep sag read-only only when the displayed value is
 	// already valid zero; if an invalid or non-zero sag was submitted, leave the
 	// input editable so the user can reset it to 0 without losing other settings.
-	rigid := !isCad && b.Setup.Fork.Spec.TravelMm == 0
-	sagRO = isCad || (selectedForkID != "" && rigid && isZeroFormFloat(sagValue))
+	rigid := !isBasis && b.Setup.Fork.Spec.TravelMm == 0
+	sagRO = isBasis || (selectedForkID != "" && rigid && isZeroFormFloat(sagValue))
 	cupLabel = lowerCupLabel(b.Setup.LowerCup.Standard)
 	return forkA2cRO, cupRO, sagRO, cupLabel
 }
 
-func cadBaselineForkNote(b query.Bike, selectedForkID string) string {
-	if selectedForkID != query.CadForkID {
+func basisForkNote(b query.Bike, selectedForkID string) string {
+	if selectedForkID != query.BasisForkID {
 		return ""
 	}
-	cadCup := b.Frame.BasisLowerCup
+	basisCup := b.Frame.BasisLowerCup
 	physCup := b.Frame.InstalledFrame(b.Size).DefaultLowerCup
-	if cadCup.Standard == assembly.LowerCupBareHeadTube {
+	if basisCup.Standard == assembly.LowerCupBareHeadTube {
 		return fmt.Sprintf(
-			"CAD Baseline Fork: the published frame chart omits the lower headset cup (%s, %s mm), and these chart fields are locked. Physical fork pairings default to %s (%s mm) — switch to an installed fork to explore cup or sag changes.",
-			lowerCupStandardName(cadCup.Standard), query.FormatFloat(cadCup.StackMm),
+			"Chart Basis Fork: the published frame chart omits the lower headset cup (%s, %s mm), and these chart fields are locked. Physical fork pairings default to %s (%s mm) — switch to an installed fork to explore cup or sag changes.",
+			lowerCupStandardName(basisCup.Standard), query.FormatFloat(basisCup.StackMm),
 			lowerCupStandardName(physCup.Standard), query.FormatFloat(physCup.StackMm),
 		)
 	}
 	return fmt.Sprintf(
-		"CAD Baseline Fork: chart A2C, lower cup (%s, %s mm), and 0%% sag are locked. Physical fork pairings default to %s (%s mm) — switch to an installed fork to explore cup or sag changes.",
-		lowerCupStandardName(cadCup.Standard), query.FormatFloat(cadCup.StackMm),
+		"Chart Basis Fork: chart A2C, lower cup (%s, %s mm), and 0%% sag are locked. Physical fork pairings default to %s (%s mm) — switch to an installed fork to explore cup or sag changes.",
+		lowerCupStandardName(basisCup.Standard), query.FormatFloat(basisCup.StackMm),
 		lowerCupStandardName(physCup.Standard), query.FormatFloat(physCup.StackMm),
 	)
 }
@@ -301,8 +301,8 @@ func slidingDropoutsNote(b query.Bike) string {
 	}
 	published := b.Size.ChartFrame.ChainstayMm
 	switch {
-	case b.ForkID == query.CadForkID && maxCs != published:
-		return fmt.Sprintf("CAD Baseline Fork uses published chainstay (%.0f mm); installed physical forks evaluate sliding dropouts at max chainstay (%.0f mm).", published, maxCs)
+	case b.ForkID == query.BasisForkID && maxCs != published:
+		return fmt.Sprintf("Chart Basis Fork uses published chainstay (%.0f mm); installed physical forks evaluate sliding dropouts at max chainstay (%.0f mm).", published, maxCs)
 	case maxCs != published:
 		return fmt.Sprintf("Sliding dropouts evaluated at max chainstay (%.0f mm; published chart %.0f mm).", maxCs, published)
 	default:
@@ -384,7 +384,7 @@ func sanitizedBike(q url.Values) query.Bike {
 	return query.DefaultBike()
 }
 
-// presetBase returns the build the CAD Baseline Fork preset applies the chart
+// presetBase returns the build the Chart Basis Fork preset applies the chart
 // fork to on an error page: base's frame, size, bar, post, targets, and bar and
 // fork options, with every other input at its default, so the link is valid.
 func presetBase(base query.Bike) query.Bike {
@@ -440,7 +440,7 @@ func renderBikeError(w http.ResponseWriter, q url.Values, base query.Bike, inval
 	view.ErrorMessage = msg
 	view.InvalidField = invalid
 	view.DefaultsURL = query.DefaultBike().WithView(base.View).URL()
-	view.CadBaselineForkURL = presetBase(base).WithView(base.View).WithCadBaselineFork().URL()
+	view.BasisForkURL = presetBase(base).WithView(base.View).WithBasisFork().URL()
 	renderBikeTemplate(w, http.StatusBadRequest, view)
 }
 
