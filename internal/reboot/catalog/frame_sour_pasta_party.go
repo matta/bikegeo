@@ -12,12 +12,19 @@ func sourPastaParty() Frame {
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
+	}
+	return Frame{
+		ID:           "sour-pasta-party",
+		Manufacturer: "Sour",
+		Model:        "Pasta Party",
+		Year:         2024,
+		DefaultSize:  "L",
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
-		CadLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
+		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy fox34_120 @ 15% sag → 512 mm effective
-		CadFork: assembly.ForkGeometry{A2cMm: 512, RakeMm: 44},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 512, RakeMm: 44, Steerer: assembly.SteererCAD},
 		// inferred from published digits (legacy), Q80
-		Precision: assembly.ChartPrecision{
+		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
 			HeadTubeAngleDeg: 0.05,
@@ -26,13 +33,6 @@ func sourPastaParty() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-	}
-	return Frame{
-		ID:           "sour-pasta-party",
-		Manufacturer: "Sour",
-		Model:        "Pasta Party",
-		Year:         2024,
-		DefaultSize:  "L",
 		// catalog: legacy Forks, each at this frame's A2C and rake
 		Forks: []FrameFork{
 			{Fork: fox34_120, StaticA2cMm: 530, RakeMm: 44},

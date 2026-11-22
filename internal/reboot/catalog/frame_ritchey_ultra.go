@@ -13,13 +13,20 @@ func ritcheyUltra() Frame {
 		// Q66: inferred from legacy HeadsetCupType IS52; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore52Integrated,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0},
+	}
+	return Frame{
+		ID:           "ritchey-ultra",
+		Manufacturer: "Ritchey",
+		Model:        "Ultra",
+		Year:         2024,
+		DefaultSize:  "L",
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
-		CadLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
+		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
 		// hypothesis (Q44, Q81): legacy fox34_120 @ 20% sag → 506 mm effective. Q71 replaces that with
 		// 508.5 mm, the A2C Ritchey's published stacks imply in every size, with no allowance.
-		CadFork: assembly.ForkGeometry{A2cMm: 508.5, RakeMm: 44},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 508.5, RakeMm: 44, Steerer: assembly.SteererCAD},
 		// inferred from published digits (legacy), Q80
-		Precision: assembly.ChartPrecision{
+		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
 			HeadTubeAngleDeg: 0.25,
@@ -28,13 +35,6 @@ func ritcheyUltra() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-	}
-	return Frame{
-		ID:           "ritchey-ultra",
-		Manufacturer: "Ritchey",
-		Model:        "Ultra",
-		Year:         2024,
-		DefaultSize:  "L",
 		// catalog: legacy Forks, each at this frame's A2C and rake
 		Forks: []FrameFork{
 			{Fork: fox34_120, StaticA2cMm: 530, RakeMm: 44},

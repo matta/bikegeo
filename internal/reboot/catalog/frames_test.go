@@ -98,11 +98,17 @@ func frameProblems(f catalog.Frame) []string {
 	if f.MaxChainstayMm != 0 {
 		longest := 0.0
 		for _, s := range f.Sizes {
-			longest = math.Max(longest, s.Chart.Frame.ChainstayMm)
+			longest = math.Max(longest, s.ChartFrame.ChainstayMm)
 		}
 		if f.MaxChainstayMm < longest {
 			problems = append(problems, fmt.Sprintf("max chainstay %v mm is below a published %v mm chainstay", f.MaxChainstayMm, longest))
 		}
+	}
+	if f.BasisFork.Steerer != assembly.SteererCAD {
+		problems = append(problems, fmt.Sprintf("basis fork steerer is %q, want %q", f.BasisFork.Steerer, assembly.SteererCAD))
+	}
+	if f.BasisFork.TravelMm != 0 {
+		problems = append(problems, fmt.Sprintf("basis fork has %v mm travel, want 0", f.BasisFork.TravelMm))
 	}
 	return problems
 }
@@ -127,6 +133,8 @@ func TestFrameProblemsCatchMistakes(t *testing.T) {
 		{"no forks", func(f *catalog.Frame) { f.Forks = nil }, "no forks"},
 		{"duplicate fork", func(f *catalog.Frame) { f.Forks[1] = f.Forks[0] }, "duplicate fork"},
 		{"max chainstay below a size", func(f *catalog.Frame) { f.MaxChainstayMm = 440 }, "max chainstay"},
+		{"basis fork non-basis steerer", func(f *catalog.Frame) { f.BasisFork.Steerer = assembly.SteererTapered }, "basis fork steerer"},
+		{"basis fork with travel", func(f *catalog.Frame) { f.BasisFork.TravelMm = 120 }, "basis fork has"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := mustFrame(t, "otso-fenrir-stainless")
@@ -147,7 +155,7 @@ func TestEveryChartIsConsistent(t *testing.T) {
 	for _, f := range catalog.Frames() {
 		for _, s := range f.Sizes {
 			t.Run(f.ID+"/"+s.Name, func(t *testing.T) {
-				if err := checkChartConsistency(s.Chart); err != nil {
+				if err := checkChartConsistency(f, s); err != nil {
 					t.Error(err)
 				}
 			})
@@ -158,15 +166,15 @@ func TestEveryChartIsConsistent(t *testing.T) {
 // TestChartAllowances checks exactly the two Q71 allowances exist and are needed (Q93).
 func TestChartAllowances(t *testing.T) {
 	want := map[string]struct {
-		allowance assembly.ChartAllowance
+		allowance catalog.ChartAllowance
 		errPrefix string
 	}{
 		"sklar-pbj/L": {
-			assembly.ChartAllowance{AxleHeightMm: 0.4},
+			catalog.ChartAllowance{AxleHeightMm: 0.4},
 			"chart consistency: axle height mismatch -3.06 mm exceeds its ±2.68 mm rounding budget",
 		},
 		"esker-hayduke/S4": {
-			assembly.ChartAllowance{WheelbaseMm: 1.2},
+			catalog.ChartAllowance{WheelbaseMm: 1.2},
 			"chart consistency: wheelbase mismatch +5.42 mm exceeds its ±4.31 mm rounding budget",
 		},
 	}
@@ -174,10 +182,10 @@ func TestChartAllowances(t *testing.T) {
 	for _, f := range catalog.Frames() {
 		for _, s := range f.Sizes {
 			key := f.ID + "/" + s.Name
-			a := s.Chart.Allowance
+			a := s.Allowance
 			w, ok := want[key]
 			if !ok {
-				if a != (assembly.ChartAllowance{}) {
+				if a != (catalog.ChartAllowance{}) {
 					t.Errorf("%s has unexpected allowance %+v", key, a)
 				}
 				continue
@@ -189,9 +197,9 @@ func TestChartAllowances(t *testing.T) {
 			if strings.TrimSpace(a.Reason) == "" {
 				t.Errorf("%s allowance has a blank reason", key)
 			}
-			chart := s.Chart
-			chart.Allowance = assembly.ChartAllowance{}
-			err := checkChartConsistency(chart)
+			noAllowance := s
+			noAllowance.Allowance = catalog.ChartAllowance{}
+			err := checkChartConsistency(f, noAllowance)
 			if err == nil || !strings.HasPrefix(err.Error(), w.errPrefix) {
 				t.Errorf("%s without its allowance: err = %v, want prefix %q", key, err, w.errPrefix)
 			}
@@ -199,16 +207,6 @@ func TestChartAllowances(t *testing.T) {
 	}
 	if found != len(want) {
 		t.Errorf("found %d allowance sizes, want %d", found, len(want))
-	}
-}
-
-func basisForkOf(chart assembly.FrameChart) assembly.ForkSetup {
-	return assembly.ForkSetup{
-		Spec: assembly.ForkSpec{
-			StaticA2cMm: chart.CadFork.A2cMm,
-			RakeMm:      chart.CadFork.RakeMm,
-			Steerer:     assembly.SteererCAD,
-		},
 	}
 }
 
@@ -226,13 +224,13 @@ func TestForkListsPlace(t *testing.T) {
 				}
 				for _, sag := range sags {
 					fork := assembly.ForkSetup{Spec: ff.Spec(), SagPct: sag}
-					if _, err := assembly.PlaceFrameset(installed, s.Chart.Frame.DefaultLowerCup, fork, wheels); err != nil {
+					if _, err := assembly.PlaceFrameset(installed, s.ChartFrame.DefaultLowerCup, fork, wheels); err != nil {
 						t.Errorf("%s/%s with %s at %v%% sag: %v", f.ID, s.Name, ff.Fork.ID, sag, err)
 					}
 					placements++
 				}
 			}
-			if _, err := assembly.PlaceFrameset(s.Chart.Frame, s.Chart.CadLowerCup, basisForkOf(s.Chart), wheels); err != nil {
+			if _, err := assembly.PlaceFrameset(s.ChartFrame, f.BasisLowerCup, assembly.ForkSetup{Spec: f.BasisFork}, wheels); err != nil {
 				t.Errorf("%s/%s CAD baseline fork: %v", f.ID, s.Name, err)
 			}
 			bases++
@@ -254,7 +252,7 @@ func TestForkListsPlaceChecksSteerers(t *testing.T) {
 		t.Fatalf("first fork = %q, want sid_100", sid.ID)
 	}
 	ff := catalog.FrameFork{Fork: sid, StaticA2cMm: 506, RakeMm: 44}
-	_, err := assembly.PlaceFrameset(f.InstalledFrame(s), s.Chart.Frame.DefaultLowerCup, assembly.ForkSetup{Spec: ff.Spec(), SagPct: 20}, wheels)
+	_, err := assembly.PlaceFrameset(f.InstalledFrame(s), s.ChartFrame.DefaultLowerCup, assembly.ForkSetup{Spec: ff.Spec(), SagPct: 20}, wheels)
 	if err == nil || !strings.Contains(err.Error(), "does not fit a tapered steerer") {
 		t.Errorf("err = %v, want one containing %q", err, "does not fit a tapered steerer")
 	}
@@ -265,7 +263,7 @@ func TestSeatpostBoundsEverySize(t *testing.T) {
 	for _, f := range catalog.Frames() {
 		for _, s := range f.Sizes {
 			for _, p := range catalog.Seatposts() {
-				if _, err := assembly.SeatpostInsertionBounds(s.Chart.Frame, p.Spec); err != nil {
+				if _, err := assembly.SeatpostInsertionBounds(s.ChartFrame, p.Spec); err != nil {
 					t.Errorf("%s/%s with %s: %v", f.ID, s.Name, p.ID, err)
 				}
 			}
@@ -286,7 +284,7 @@ func TestSeatpostBoundsEverySize(t *testing.T) {
 		{"seven-expedition-926d", "S 52cm", "setback_0", 100, 365},
 	} {
 		s := mustSize(t, mustFrame(t, tc.frame), tc.size)
-		b, err := assembly.SeatpostInsertionBounds(s.Chart.Frame, posts[tc.post])
+		b, err := assembly.SeatpostInsertionBounds(s.ChartFrame, posts[tc.post])
 		if err != nil {
 			t.Errorf("%s/%s with %s: %v", tc.frame, tc.size, tc.post, err)
 			continue
@@ -311,11 +309,11 @@ func TestInstalledFrameUsesMaxChainstay(t *testing.T) {
 		s := mustSize(t, f, tc.size)
 		got := f.InstalledFrame(s)
 		if tc.chart != 0 {
-			if s.Chart.Frame.ChainstayMm != tc.chart || got.ChainstayMm != tc.installedCs {
-				t.Errorf("%s/%s chainstay chart %v installed %v, want %v and %v", tc.frame, tc.size, s.Chart.Frame.ChainstayMm, got.ChainstayMm, tc.chart, tc.installedCs)
+			if s.ChartFrame.ChainstayMm != tc.chart || got.ChainstayMm != tc.installedCs {
+				t.Errorf("%s/%s chainstay chart %v installed %v, want %v and %v", tc.frame, tc.size, s.ChartFrame.ChainstayMm, got.ChainstayMm, tc.chart, tc.installedCs)
 			}
 		}
-		want := s.Chart.Frame
+		want := s.ChartFrame
 		if tc.chart == 0 {
 			if got != want {
 				t.Errorf("%s/%s installed frame %+v, want the chart frame %+v", tc.frame, tc.size, got, want)

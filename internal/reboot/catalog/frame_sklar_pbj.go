@@ -15,20 +15,6 @@ func sklarPbj() Frame {
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
-		CadLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
-		// hypothesis (Q44, Q81): legacy sklar_steel_485 (rigid) → 485 mm effective
-		CadFork: assembly.ForkGeometry{A2cMm: 485, RakeMm: 52},
-		// inferred from published digits (legacy), Q80
-		Precision: assembly.ChartPrecision{
-			ReachMm:          0.5,
-			StackMm:          0.5,
-			HeadTubeAngleDeg: 0.25,
-			HeadTubeLengthMm: 0.5,
-			BbDropMm:         0.5,
-			ChainstayMm:      0.5,
-			WheelbaseMm:      0.5,
-		},
 	}
 	return Frame{
 		ID:             "sklar-pbj",
@@ -37,6 +23,20 @@ func sklarPbj() Frame {
 		Year:           2025,
 		DefaultSize:    "M",
 		MaxChainstayMm: 452, // published: sliding dropouts 432–452 mm (Q67)
+		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
+		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
+		// hypothesis (Q44, Q81): legacy sklar_steel_485 (rigid) → 485 mm effective
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 485, RakeMm: 52, Steerer: assembly.SteererCAD},
+		// inferred from published digits (legacy), Q80
+		ChartPrecision: ChartPrecision{
+			ReachMm:          0.5,
+			StackMm:          0.5,
+			HeadTubeAngleDeg: 0.25,
+			HeadTubeLengthMm: 0.5,
+			BbDropMm:         0.5,
+			ChainstayMm:      0.5,
+			WheelbaseMm:      0.5,
+		},
 		// catalog: legacy Forks, each at this frame's A2C and rake
 		Forks: []FrameFork{
 			{Fork: sklarSteel485, StaticA2cMm: 485, RakeMm: 52},
@@ -92,7 +92,7 @@ func sklarPbj() Frame {
 				ChainstayMm:      432,
 				SeatTubeLengthMm: 505,
 				WheelbaseMm:      1182,
-				Allowance: assembly.ChartAllowance{
+				Allowance: ChartAllowance{
 					AxleHeightMm: 0.4,
 					Reason:       "Size L's published Stack (641 mm) implies a 481.7 mm fork A2C with the 12 mm EC44 CAD cup, 3.3 mm short of the 485 mm rigid fork; every other size is consistent within rounding (Q71).",
 				},

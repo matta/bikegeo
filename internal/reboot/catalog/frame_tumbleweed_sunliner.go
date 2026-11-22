@@ -12,12 +12,19 @@ func tumbleweedSunliner() Frame {
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
+	}
+	return Frame{
+		ID:           "tumbleweed-sunliner",
+		Manufacturer: "Tumbleweed",
+		Model:        "Sunliner",
+		Year:         2024,
+		DefaultSize:  "L",
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 13
-		CadLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 13},
+		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 13},
 		// hypothesis (Q44, Q81): legacy sunliner_440 (rigid) → 440 mm effective
-		CadFork: assembly.ForkGeometry{A2cMm: 440, RakeMm: 55},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 440, RakeMm: 55, Steerer: assembly.SteererCAD},
 		// inferred from published digits (legacy), Q80
-		Precision: assembly.ChartPrecision{
+		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
 			HeadTubeAngleDeg: 0.5,
@@ -26,13 +33,6 @@ func tumbleweedSunliner() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-	}
-	return Frame{
-		ID:           "tumbleweed-sunliner",
-		Manufacturer: "Tumbleweed",
-		Model:        "Sunliner",
-		Year:         2024,
-		DefaultSize:  "L",
 		// catalog: legacy Forks, each at this frame's A2C and rake
 		Forks: []FrameFork{
 			{Fork: sunliner440, StaticA2cMm: 440, RakeMm: 55},

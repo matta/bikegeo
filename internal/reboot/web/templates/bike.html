@@ -616,7 +616,7 @@
       </div>
       {{end}}
       <div class="summary" style="font-size: 0.82rem;">
-        <span>CAD Baseline Fork ({{printf "%.0f" .CadFork.A2cMm}} mm / {{printf "%.0f" .CadFork.RakeMm}} mm / {{printf "%.0f" .CadLowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .CadHtaDeg}} HTA, {{printf "%.1f mm" .CadWheelbaseMm}} WB</strong> {{if gt .PublishedWheelbaseMm 0.0}} (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>){{end}}</span>
+        <span>CAD Baseline Fork ({{printf "%.0f" .BasisFork.StaticA2cMm}} mm / {{printf "%.0f" .BasisFork.RakeMm}} mm / {{printf "%.0f" .CadLowerCupMm}} mm cup): <strong class="mono">{{printf "%.2f°" .CadHtaDeg}} HTA, {{printf "%.1f mm" .CadWheelbaseMm}} WB</strong> {{if gt .PublishedWheelbaseMm 0.0}} (Published <strong class="mono">{{printf "%.1f mm" .PublishedWheelbaseMm}}</strong>){{end}}</span>
         <span>ΔPitch vs CAD: <strong class="mono" data-metric="delta-pitch">{{printf "%+.2f°" .DeltaPitchDeg}}</strong></span>
       </div>
 

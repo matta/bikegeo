@@ -92,13 +92,23 @@ func TestFramesMatchLegacy(t *testing.T) {
 				}
 			}
 			bore, cup := legacyHeadset(t, l.HeadsetCupType)
-			cadCup := assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube}
+			basisCup := assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube}
 			if l.GeoHeadsetSpacerMm != 0 {
-				cadCup = assembly.LowerCupSetup{Standard: cup.Standard, StackMm: l.GeoHeadsetSpacerMm}
+				basisCup = assembly.LowerCupSetup{Standard: cup.Standard, StackMm: l.GeoHeadsetSpacerMm}
 			}
-			cadFork := assembly.ForkGeometry{A2cMm: l.CadFork.A2cMm, RakeMm: l.CadFork.RakeMm}
+			basisFork := assembly.ForkSpec{
+				StaticA2cMm: l.CadFork.A2cMm,
+				RakeMm:      l.CadFork.RakeMm,
+				Steerer:     assembly.SteererCAD,
+			}
 			if f.ID == "ritchey-ultra" {
-				cadFork.A2cMm = 508.5 // Q71
+				basisFork.StaticA2cMm = 508.5 // Q71
+			}
+			if f.BasisLowerCup != basisCup {
+				t.Errorf("BasisLowerCup = %+v, want %+v", f.BasisLowerCup, basisCup)
+			}
+			if f.BasisFork != basisFork {
+				t.Errorf("BasisFork = %+v, want %+v", f.BasisFork, basisFork)
 			}
 			collar := 0.0
 			if strings.HasPrefix(f.ID, "seven-") {
@@ -110,8 +120,7 @@ func TestFramesMatchLegacy(t *testing.T) {
 					t.Errorf("legacy has no geometry for %q", s.Name)
 					continue
 				}
-				c := s.Chart
-				fr := c.Frame
+				fr := s.ChartFrame
 				for _, col := range []struct {
 					name      string
 					got, want float64
@@ -123,7 +132,7 @@ func TestFramesMatchLegacy(t *testing.T) {
 					{"HTL", fr.HeadTubeLengthMm, g.Htl},
 					{"BB drop", fr.BbDropMm, g.BbDrop},
 					{"Chainstay", fr.ChainstayMm, g.ChainstayLength},
-					{"Wheelbase", c.PublishedWheelbaseMm, g.Wheelbase},
+					{"Wheelbase", s.PublishedWheelbaseMm, g.Wheelbase},
 					{"Seat tube", fr.SeatTubeLengthMm, g.SeatTubeLength + collar},
 				} {
 					if col.got != col.want {
@@ -133,12 +142,6 @@ func TestFramesMatchLegacy(t *testing.T) {
 				if fr.LowerBore != bore || fr.DefaultLowerCup != cup {
 					t.Errorf("%s headset = %s %+v, want %s %+v", s.Name, fr.LowerBore, fr.DefaultLowerCup, bore, cup)
 				}
-				if c.CadLowerCup != cadCup {
-					t.Errorf("%s CadLowerCup = %+v, want %+v", s.Name, c.CadLowerCup, cadCup)
-				}
-				if c.CadFork != cadFork {
-					t.Errorf("%s CadFork = %+v, want %+v", s.Name, c.CadFork, cadFork)
-				}
 				wantInsertion := 0.0
 				if f.ID == "otso-fenrir-stainless" && s.Name == "L" {
 					wantInsertion = 290 // Q95
@@ -146,20 +149,20 @@ func TestFramesMatchLegacy(t *testing.T) {
 				if fr.MaxPostInsertionMm != wantInsertion || fr.MinFrameInsertionMm != 0 {
 					t.Errorf("%s insertion max/min = %v/%v, want %v/0", s.Name, fr.MaxPostInsertionMm, fr.MinFrameInsertionMm, wantInsertion)
 				}
-				if has := c.Allowance != (assembly.ChartAllowance{}); has != allowanceSizes[f.ID+"/"+s.Name] {
-					t.Errorf("%s allowance = %+v", s.Name, c.Allowance)
+				if has := s.Allowance != (catalog.ChartAllowance{}); has != allowanceSizes[f.ID+"/"+s.Name] {
+					t.Errorf("%s allowance = %+v", s.Name, s.Allowance)
 				}
 			}
 		})
 	}
 }
 
-// TestPrecisionMatchesLegacyInference pins each size's precision to legacy's inference (Q80).
+// TestPrecisionMatchesLegacyInference pins each frame's precision to legacy's inference (Q80).
 func TestPrecisionMatchesLegacyInference(t *testing.T) {
 	legacy := legacyFramesByID(t)
 	for _, f := range catalog.Frames() {
 		p := geometry.InferChartPrecision(legacy[f.ID])
-		want := assembly.ChartPrecision{
+		want := catalog.ChartPrecision{
 			ReachMm:          p.ReachMm,
 			StackMm:          p.StackMm,
 			HeadTubeAngleDeg: pose.Deg(p.HtaDeg),
@@ -168,10 +171,8 @@ func TestPrecisionMatchesLegacyInference(t *testing.T) {
 			ChainstayMm:      p.ChainstayMm,
 			WheelbaseMm:      p.WheelbaseMm,
 		}
-		for _, s := range f.Sizes {
-			if s.Chart.Precision != want {
-				t.Errorf("%s/%s precision = %+v, legacy inference %+v", f.ID, s.Name, s.Chart.Precision, want)
-			}
+		if f.ChartPrecision != want {
+			t.Errorf("%s precision = %+v, legacy inference %+v", f.ID, f.ChartPrecision, want)
 		}
 	}
 }

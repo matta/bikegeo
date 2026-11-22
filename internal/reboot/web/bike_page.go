@@ -45,12 +45,12 @@ func makeForkOption(ff catalog.FrameFork) forkOption {
 	}
 }
 
-func makeCadForkOption(size catalog.FrameSize) forkOption {
+func makeBasisForkOption(frame catalog.Frame) forkOption {
 	return forkOption{
 		ID:   query.CadForkID,
 		Name: cadForkName,
 		Label: fmt.Sprintf("%s (%.0f mm A2C / %.0f mm rake, %.0f mm cup)",
-			cadForkName, size.Chart.CadFork.A2cMm, size.Chart.CadFork.RakeMm, size.Chart.CadLowerCup.StackMm),
+			cadForkName, frame.BasisFork.StaticA2cMm, frame.BasisFork.RakeMm, frame.BasisLowerCup.StackMm),
 	}
 }
 
@@ -235,7 +235,7 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs) bikeView {
 		SelectedSize:         sel.Size,
 		Forks:                forks,
 		ForkOptionCount:      len(b.ForkOptions()),
-		CadForkOption:        makeCadForkOption(b.Size),
+		CadForkOption:        makeBasisForkOption(b.Frame),
 		SelectedForkID:       sel.Fork,
 		Handlebars:           catalog.Handlebars(),
 		SelectedBarID:        sel.Bar,
@@ -247,9 +247,9 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs) bikeView {
 		SagReadOnly:          sagRO,
 		CadBaselineNote:      cadBaselineForkNote(b, sel.Fork),
 		SlidingDropoutsNote:  slidingDropoutsNote(b),
-		CadFork:              b.Size.Chart.CadFork,
-		CadLowerCupMm:        b.Size.Chart.CadLowerCup.StackMm,
-		PublishedWheelbaseMm: b.Size.Chart.PublishedWheelbaseMm,
+		BasisFork:            b.Frame.BasisFork,
+		CadLowerCupMm:        b.Frame.BasisLowerCup.StackMm,
+		PublishedWheelbaseMm: b.Size.PublishedWheelbaseMm,
 	}
 	if sel.Post == catalog.DefaultSeatpostID {
 		v.RedshiftMixedStateNote = redshiftMixedStateNote
@@ -276,7 +276,7 @@ func cadBaselineForkNote(b query.Bike, selectedForkID string) string {
 	if selectedForkID != query.CadForkID {
 		return ""
 	}
-	cadCup := b.Size.Chart.CadLowerCup
+	cadCup := b.Frame.BasisLowerCup
 	physCup := b.Frame.InstalledFrame(b.Size).DefaultLowerCup
 	if cadCup.Standard == assembly.LowerCupBareHeadTube {
 		return fmt.Sprintf(
@@ -299,7 +299,7 @@ func slidingDropoutsNote(b query.Bike) string {
 	if maxCs <= 0 {
 		return ""
 	}
-	published := b.Size.Chart.Frame.ChainstayMm
+	published := b.Size.ChartFrame.ChainstayMm
 	switch {
 	case b.ForkID == query.CadForkID && maxCs != published:
 		return fmt.Sprintf("CAD Baseline Fork uses published chainstay (%.0f mm); installed physical forks evaluate sliding dropouts at max chainstay (%.0f mm).", published, maxCs)

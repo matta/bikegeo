@@ -11,12 +11,19 @@ func surlyKrampus() Frame {
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
+	}
+	return Frame{
+		ID:           "surly-krampus",
+		Manufacturer: "Surly",
+		Model:        "Krampus",
+		Year:         2024,
+		DefaultSize:  "L",
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
-		CadLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
+		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy surly_krampus_483 (rigid) → 483 mm effective
-		CadFork: assembly.ForkGeometry{A2cMm: 483, RakeMm: 47},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 483, RakeMm: 47, Steerer: assembly.SteererCAD},
 		// inferred from published digits (legacy), Q80
-		Precision: assembly.ChartPrecision{
+		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
 			HeadTubeAngleDeg: 0.5,
@@ -25,13 +32,6 @@ func surlyKrampus() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-	}
-	return Frame{
-		ID:           "surly-krampus",
-		Manufacturer: "Surly",
-		Model:        "Krampus",
-		Year:         2024,
-		DefaultSize:  "L",
 		// catalog: legacy Forks, each at this frame's A2C and rake
 		Forks: []FrameFork{
 			{Fork: surlyKrampus483, StaticA2cMm: 483, RakeMm: 47},

@@ -195,7 +195,7 @@ type ForkSpec struct {
 }
 
 // ForkGeometry holds the resolved fixed fork dimensions (effective axle-to-crown
-// and rake) used by the frameset Pose recipe and FrameChart.CadFork.
+// and rake) used by the frameset Pose recipe.
 type ForkGeometry struct {
 	A2cMm  float64
 	RakeMm float64
@@ -378,44 +378,6 @@ func (f FramesetPlacement) EttMm() float64 {
 		return math.NaN() // a horizontal seat axis never reaches HeadTubeTop's height
 	}
 	return ett
-}
-
-// ChartPrecision holds the rounding half-width of each published chart column
-// that catalog's chart-consistency test reads: a length printed as 642 could be
-// anything in 642 ± 0.5 before the manufacturer rounded it. Zero means the
-// column is exact and gets no term. The CAD fork and CAD lower cup are
-// hypotheses, not rounded chart numbers, so they have no half-width (Q44).
-type ChartPrecision struct {
-	ReachMm          float64
-	StackMm          float64
-	HeadTubeAngleDeg pose.Deg
-	HeadTubeLengthMm float64
-	BbDropMm         float64
-	ChainstayMm      float64
-	WheelbaseMm      float64
-}
-
-// ChartAllowance widens one size's consistency checks beyond what rounding of
-// its published columns explains (Q65, Q71). Catalog's chart-consistency test
-// reads these and rejects an allowance on a check that passes on rounding
-// alone, or one more than 0.5 mm beyond that check's excess (Q93). Reason
-// documents why the chart is inconsistent and is required whenever a field is
-// non-zero.
-type ChartAllowance struct {
-	AxleHeightMm float64
-	WheelbaseMm  float64
-	Reason       string
-}
-
-// FrameChart groups a bare frame's unpitched reference dimensions, its CAD
-// lower headset cup, its fixed CAD baseline fork geometry, and its published wheelbase.
-type FrameChart struct {
-	Frame                FrameSetup
-	CadLowerCup          LowerCupSetup
-	CadFork              ForkGeometry
-	PublishedWheelbaseMm float64        // 0 means unpublished and skips the wheelbase consistency check (Q57)
-	Precision            ChartPrecision // rounding half-widths of the published columns (Q43)
-	Allowance            ChartAllowance // documented widening beyond rounding for this size only (Q65, Q71, Q93)
 }
 
 // PlaceUnpitchedFrameset builds the frameset in the chart's own orientation:

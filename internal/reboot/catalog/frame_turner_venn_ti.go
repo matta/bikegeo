@@ -13,12 +13,19 @@ func turnerVennTi() Frame {
 		// Q66: inferred from legacy HeadsetCupType ZS56; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore56Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupZS56, StackMm: 2},
+	}
+	return Frame{
+		ID:           "turner-venn-ti",
+		Manufacturer: "Turner",
+		Model:        "Venn Ti",
+		Year:         2024,
+		DefaultSize:  "L",
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
-		CadLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
+		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
 		// hypothesis (Q44, Q81): legacy fox34_130 @ 0% sag → 541 mm effective
-		CadFork: assembly.ForkGeometry{A2cMm: 541, RakeMm: 44},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 541, RakeMm: 44, Steerer: assembly.SteererCAD},
 		// inferred from published digits (legacy), Q80
-		Precision: assembly.ChartPrecision{
+		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
 			HeadTubeAngleDeg: 0.5,
@@ -27,13 +34,6 @@ func turnerVennTi() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-	}
-	return Frame{
-		ID:           "turner-venn-ti",
-		Manufacturer: "Turner",
-		Model:        "Venn Ti",
-		Year:         2024,
-		DefaultSize:  "L",
 		// catalog: legacy Forks, each at this frame's A2C and rake
 		Forks: []FrameFork{
 			{Fork: fox34_130, StaticA2cMm: 541, RakeMm: 44},

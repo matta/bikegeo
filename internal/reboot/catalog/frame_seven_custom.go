@@ -17,12 +17,19 @@ func sevenCustom() Frame {
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
+	}
+	return Frame{
+		ID:           "seven-custom",
+		Manufacturer: "Seven",
+		Model:        "Custom",
+		Year:         2026,
+		DefaultSize:  "Custom",
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 11
-		CadLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 11},
+		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 11},
 		// hypothesis (Q44, Q81): legacy enve_mountain_boost (rigid) → 492 mm effective
-		CadFork: assembly.ForkGeometry{A2cMm: 492, RakeMm: 52},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 492, RakeMm: 52, Steerer: assembly.SteererCAD},
 		// inferred from published digits (legacy), Q80
-		Precision: assembly.ChartPrecision{
+		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
 			HeadTubeAngleDeg: 0.05,
@@ -31,13 +38,6 @@ func sevenCustom() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.05,
 		},
-	}
-	return Frame{
-		ID:           "seven-custom",
-		Manufacturer: "Seven",
-		Model:        "Custom",
-		Year:         2026,
-		DefaultSize:  "Custom",
 		// catalog: legacy Forks, each at this frame's A2C and rake
 		Forks: []FrameFork{
 			{Fork: enveMountainBoost, StaticA2cMm: 492, RakeMm: 52},

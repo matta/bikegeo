@@ -89,8 +89,8 @@ func TestCatalogFrames(t *testing.T) {
 	if !ok {
 		t.Fatal("binary-havok has no size L")
 	}
-	if sz.Chart.Frame.ChainstayMm != 445 {
-		t.Errorf("binary-havok L published chainstay = %v, want 445", sz.Chart.Frame.ChainstayMm)
+	if sz.ChartFrame.ChainstayMm != 445 {
+		t.Errorf("binary-havok L published chainstay = %v, want 445", sz.ChartFrame.ChainstayMm)
 	}
 	for _, cf := range got {
 		if cf.ID != "binary-havok" {

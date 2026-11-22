@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"bikegeo/internal/reboot/assembly"
+	"bikegeo/internal/reboot/catalog"
 	"bikegeo/internal/reboot/pose"
 )
 
@@ -26,16 +27,16 @@ var consistencyCheckNames = [2]string{"axle height", "wheelbase"}
 // order, with how to read each column's half-width and how to move it.
 var chartColumns = []struct {
 	name      string
-	halfWidth func(assembly.ChartPrecision) float64
-	nudge     func(*assembly.FrameChart, float64)
+	halfWidth func(catalog.ChartPrecision) float64
+	nudge     func(*catalog.FrameSize, float64)
 }{
-	{"Reach", func(p assembly.ChartPrecision) float64 { return p.ReachMm }, func(c *assembly.FrameChart, d float64) { c.Frame.ReachMm += d }},
-	{"Stack", func(p assembly.ChartPrecision) float64 { return p.StackMm }, func(c *assembly.FrameChart, d float64) { c.Frame.StackMm += d }},
-	{"HTA", func(p assembly.ChartPrecision) float64 { return float64(p.HeadTubeAngleDeg) }, func(c *assembly.FrameChart, d float64) { c.Frame.HeadTubeAngleDeg += pose.Deg(d) }},
-	{"HTL", func(p assembly.ChartPrecision) float64 { return p.HeadTubeLengthMm }, func(c *assembly.FrameChart, d float64) { c.Frame.HeadTubeLengthMm += d }},
-	{"BB drop", func(p assembly.ChartPrecision) float64 { return p.BbDropMm }, func(c *assembly.FrameChart, d float64) { c.Frame.BbDropMm += d }},
-	{"Chainstay", func(p assembly.ChartPrecision) float64 { return p.ChainstayMm }, func(c *assembly.FrameChart, d float64) { c.Frame.ChainstayMm += d }},
-	{"Wheelbase", func(p assembly.ChartPrecision) float64 { return p.WheelbaseMm }, func(c *assembly.FrameChart, d float64) { c.PublishedWheelbaseMm += d }},
+	{"Reach", func(p catalog.ChartPrecision) float64 { return p.ReachMm }, func(s *catalog.FrameSize, d float64) { s.ChartFrame.ReachMm += d }},
+	{"Stack", func(p catalog.ChartPrecision) float64 { return p.StackMm }, func(s *catalog.FrameSize, d float64) { s.ChartFrame.StackMm += d }},
+	{"HTA", func(p catalog.ChartPrecision) float64 { return float64(p.HeadTubeAngleDeg) }, func(s *catalog.FrameSize, d float64) { s.ChartFrame.HeadTubeAngleDeg += pose.Deg(d) }},
+	{"HTL", func(p catalog.ChartPrecision) float64 { return p.HeadTubeLengthMm }, func(s *catalog.FrameSize, d float64) { s.ChartFrame.HeadTubeLengthMm += d }},
+	{"BB drop", func(p catalog.ChartPrecision) float64 { return p.BbDropMm }, func(s *catalog.FrameSize, d float64) { s.ChartFrame.BbDropMm += d }},
+	{"Chainstay", func(p catalog.ChartPrecision) float64 { return p.ChainstayMm }, func(s *catalog.FrameSize, d float64) { s.ChartFrame.ChainstayMm += d }},
+	{"Wheelbase", func(p catalog.ChartPrecision) float64 { return p.WheelbaseMm }, func(s *catalog.FrameSize, d float64) { s.PublishedWheelbaseMm += d }},
 }
 
 // roundingTerm is one published column's contribution to a check's rounding budget.
@@ -74,22 +75,23 @@ func chartMismatches(unpitched assembly.FramesetPlacement, publishedWheelbaseMm 
 // measureChartConsistency places the chart's unpitched basis frameset and each
 // ±half-width column nudge, and returns every check. Its error reports input
 // the check cannot measure.
-func measureChartConsistency(chart assembly.FrameChart) (chartConsistency, error) {
-	unpitched, err := assembly.PlaceUnpitchedFrameset(chart.Frame, chart.CadLowerCup, basisForkOf(chart), wheels)
+func measureChartConsistency(f catalog.Frame, s catalog.FrameSize) (chartConsistency, error) {
+	basisFork := assembly.ForkSetup{Spec: f.BasisFork}
+	unpitched, err := assembly.PlaceUnpitchedFrameset(s.ChartFrame, f.BasisLowerCup, basisFork, wheels)
 	if err != nil {
 		return chartConsistency{}, err
 	}
-	if !isFinite(chart.PublishedWheelbaseMm) || chart.PublishedWheelbaseMm < 0 {
-		return chartConsistency{}, fmt.Errorf("published wheelbase must be finite and non-negative (0 = unpublished), got %v mm", chart.PublishedWheelbaseMm)
+	if !isFinite(s.PublishedWheelbaseMm) || s.PublishedWheelbaseMm < 0 {
+		return chartConsistency{}, fmt.Errorf("published wheelbase must be finite and non-negative (0 = unpublished), got %v mm", s.PublishedWheelbaseMm)
 	}
-	allowances := [2]float64{chart.Allowance.AxleHeightMm, chart.Allowance.WheelbaseMm}
+	allowances := [2]float64{s.Allowance.AxleHeightMm, s.Allowance.WheelbaseMm}
 	for i, name := range consistencyCheckNames {
 		if allowance := allowances[i]; !isFinite(allowance) || allowance < 0 {
 			return chartConsistency{}, fmt.Errorf("chart allowance: %s must be finite and non-negative, got %v mm", name, allowance)
 		}
 	}
-	hasAllowance := chart.Allowance.AxleHeightMm > 0 || chart.Allowance.WheelbaseMm > 0
-	hasReason := strings.TrimSpace(chart.Allowance.Reason) != ""
+	hasAllowance := s.Allowance.AxleHeightMm > 0 || s.Allowance.WheelbaseMm > 0
+	hasReason := strings.TrimSpace(s.Allowance.Reason) != ""
 	if hasAllowance && !hasReason {
 		return chartConsistency{}, errors.New("chart allowance: a non-zero allowance needs a reason")
 	}
@@ -97,8 +99,8 @@ func measureChartConsistency(chart assembly.FrameChart) (chartConsistency, error
 		return chartConsistency{}, errors.New("chart allowance: a reason without an allowance")
 	}
 	checkNames, budgetColumns := consistencyCheckNames[:], chartColumns
-	if chart.PublishedWheelbaseMm == 0 {
-		if chart.Allowance.WheelbaseMm > 0 {
+	if s.PublishedWheelbaseMm == 0 {
+		if s.Allowance.WheelbaseMm > 0 {
 			return chartConsistency{}, errors.New("chart allowance: wheelbase allowance on a chart with no published wheelbase")
 		}
 		// Wheelbase is the final check and chart column.
@@ -106,27 +108,27 @@ func measureChartConsistency(chart assembly.FrameChart) (chartConsistency, error
 		budgetColumns = budgetColumns[:len(budgetColumns)-1]
 	}
 	for _, col := range chartColumns {
-		if hw := col.halfWidth(chart.Precision); !isFinite(hw) || hw < 0 {
+		if hw := col.halfWidth(f.ChartPrecision); !isFinite(hw) || hw < 0 {
 			return chartConsistency{}, fmt.Errorf("chart precision: %s half-width must be finite and non-negative, got %v", col.name, hw)
 		}
 	}
 
-	mismatches := chartMismatches(unpitched, chart.PublishedWheelbaseMm)
+	mismatches := chartMismatches(unpitched, s.PublishedWheelbaseMm)
 	var budgets [2]float64
 	var terms [2][]roundingTerm
 	for _, col := range budgetColumns {
-		hw := col.halfWidth(chart.Precision)
+		hw := col.halfWidth(f.ChartPrecision)
 		if hw == 0 {
 			continue
 		}
-		up, down := chart, chart
+		up, down := s, s
 		col.nudge(&up, hw)
 		col.nudge(&down, -hw)
-		upPlaced, err := assembly.PlaceUnpitchedFrameset(up.Frame, up.CadLowerCup, basisForkOf(up), wheels)
+		upPlaced, err := assembly.PlaceUnpitchedFrameset(up.ChartFrame, f.BasisLowerCup, basisFork, wheels)
 		if err != nil {
 			return chartConsistency{}, fmt.Errorf("chart precision: %s ±%v moves the chart out of range: %w", col.name, hw, err)
 		}
-		downPlaced, err := assembly.PlaceUnpitchedFrameset(down.Frame, down.CadLowerCup, basisForkOf(down), wheels)
+		downPlaced, err := assembly.PlaceUnpitchedFrameset(down.ChartFrame, f.BasisLowerCup, basisFork, wheels)
 		if err != nil {
 			return chartConsistency{}, fmt.Errorf("chart precision: %s ±%v moves the chart out of range: %w", col.name, hw, err)
 		}
@@ -191,129 +193,113 @@ func (c chartConsistency) Err() error {
 }
 
 // checkChartConsistency returns measureChartConsistency's error, else Err().
-func checkChartConsistency(chart assembly.FrameChart) error {
-	m, err := measureChartConsistency(chart)
+func checkChartConsistency(f catalog.Frame, s catalog.FrameSize) error {
+	m, err := measureChartConsistency(f, s)
 	if err != nil {
 		return err
 	}
 	return m.Err()
 }
 
-func fenrirChart(t *testing.T) assembly.FrameChart {
+func fenrirL(t *testing.T) (catalog.Frame, catalog.FrameSize) {
 	t.Helper()
-	return mustSize(t, mustFrame(t, "otso-fenrir-stainless"), "L").Chart
+	f := mustFrame(t, "otso-fenrir-stainless")
+	return f, mustSize(t, f, "L")
 }
 
-func haydukeS4Chart(t *testing.T) assembly.FrameChart {
+func haydukeS4(t *testing.T) (catalog.Frame, catalog.FrameSize) {
 	t.Helper()
-	return mustSize(t, mustFrame(t, "esker-hayduke"), "S4").Chart
+	f := mustFrame(t, "esker-hayduke")
+	return f, mustSize(t, f, "S4")
 }
 
-func sklarLChart(t *testing.T) assembly.FrameChart {
+func sklarL(t *testing.T) (catalog.Frame, catalog.FrameSize) {
 	t.Helper()
-	return mustSize(t, mustFrame(t, "sklar-pbj"), "L").Chart
+	f := mustFrame(t, "sklar-pbj")
+	return f, mustSize(t, f, "L")
 }
 
 func TestCheckChartConsistencyFenrirPasses(t *testing.T) {
-	if err := checkChartConsistency(fenrirChart(t)); err != nil {
-		t.Fatalf("checkChartConsistency(fenrirChart(t)): %v", err)
+	f, s := fenrirL(t)
+	if err := checkChartConsistency(f, s); err != nil {
+		t.Fatalf("checkChartConsistency(fenrir L): %v", err)
 	}
 }
 
 func TestCheckChartConsistencyBudgetEdges(t *testing.T) {
 	cases := []struct {
-		name  string
-		chart func() assembly.FrameChart
-		want  string
+		name   string
+		mutate func(*catalog.FrameSize)
+		want   string
 	}{
 		{
-			name: "axle height inside",
-			chart: func() assembly.FrameChart {
-				c := fenrirChart(t)
-				c.Frame.StackMm = 643.8
-				return c
-			},
-			want: "",
+			name:   "axle height inside",
+			mutate: func(s *catalog.FrameSize) { s.ChartFrame.StackMm = 643.8 },
+			want:   "",
 		},
 		{
-			name: "axle height outside",
-			chart: func() assembly.FrameChart {
-				c := fenrirChart(t)
-				c.Frame.StackMm = 643.95
-				return c
-			},
-			want: "chart consistency: axle height mismatch +2.17 mm exceeds its ±2.09 mm rounding budget (Stack 0.50 mm, HTA 0.62 mm, HTL 0.46 mm, BB drop 0.50 mm)",
+			name:   "axle height outside",
+			mutate: func(s *catalog.FrameSize) { s.ChartFrame.StackMm = 643.95 },
+			want:   "chart consistency: axle height mismatch +2.17 mm exceeds its ±2.09 mm rounding budget (Stack 0.50 mm, HTA 0.62 mm, HTL 0.46 mm, BB drop 0.50 mm)",
 		},
 		{
-			name: "wheelbase inside",
-			chart: func() assembly.FrameChart {
-				c := fenrirChart(t)
-				c.PublishedWheelbaseMm = 1160.6
-				return c
-			},
-			want: "",
+			name:   "wheelbase inside",
+			mutate: func(s *catalog.FrameSize) { s.PublishedWheelbaseMm = 1160.6 },
+			want:   "",
 		},
 		{
-			name: "wheelbase outside",
-			chart: func() assembly.FrameChart {
-				c := fenrirChart(t)
-				c.PublishedWheelbaseMm = 1160.8
-				return c
-			},
-			want: "chart consistency: wheelbase mismatch -3.14 mm exceeds its ±3.02 mm rounding budget (Reach 0.50 mm, HTA 1.24 mm, HTL 0.19 mm, BB drop 0.08 mm, Chainstay 0.51 mm, Wheelbase 0.50 mm)",
+			name:   "wheelbase outside",
+			mutate: func(s *catalog.FrameSize) { s.PublishedWheelbaseMm = 1160.8 },
+			want:   "chart consistency: wheelbase mismatch -3.14 mm exceeds its ±3.02 mm rounding budget (Reach 0.50 mm, HTA 1.24 mm, HTL 0.19 mm, BB drop 0.08 mm, Chainstay 0.51 mm, Wheelbase 0.50 mm)",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			requireChartConsistency(t, tc.chart(), tc.want)
+			f, s := fenrirL(t)
+			tc.mutate(&s)
+			requireChartConsistency(t, f, s, tc.want)
 		})
 	}
 }
 
 func TestCheckChartConsistencyWithoutPrecision(t *testing.T) {
-	c := fenrirChart(t)
-	c.Precision = assembly.ChartPrecision{}
+	f, s := fenrirL(t)
+	f.ChartPrecision = catalog.ChartPrecision{}
 	want := "chart consistency: axle height mismatch +0.22 mm exceeds its ±0.00 mm rounding budget (no rounded columns)\nchart consistency: wheelbase mismatch -0.34 mm exceeds its ±0.00 mm rounding budget (no rounded columns)"
-	requireChartConsistency(t, c, want)
+	requireChartConsistency(t, f, s, want)
 }
 
 func TestCheckChartConsistencyInvalidPrecision(t *testing.T) {
 	cases := []struct {
-		name  string
-		chart func() assembly.FrameChart
-		want  string
+		name   string
+		mutate func(*catalog.Frame)
+		want   string
 	}{
 		{
-			name: "NaN Stack",
-			chart: func() assembly.FrameChart {
-				c := fenrirChart(t)
-				c.Precision.StackMm = math.NaN()
-				return c
-			},
-			want: "chart precision: Stack half-width must be finite and non-negative, got NaN",
+			name:   "NaN Stack",
+			mutate: func(f *catalog.Frame) { f.ChartPrecision.StackMm = math.NaN() },
+			want:   "chart precision: Stack half-width must be finite and non-negative, got NaN",
 		},
 		{
-			name: "negative HTA",
-			chart: func() assembly.FrameChart {
-				c := fenrirChart(t)
-				c.Precision.HeadTubeAngleDeg = -0.1
-				return c
-			},
-			want: "chart precision: HTA half-width must be finite and non-negative, got -0.1",
+			name:   "negative HTA",
+			mutate: func(f *catalog.Frame) { f.ChartPrecision.HeadTubeAngleDeg = -0.1 },
+			want:   "chart precision: HTA half-width must be finite and non-negative, got -0.1",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			requireChartConsistency(t, tc.chart(), tc.want)
+			f, s := fenrirL(t)
+			tc.mutate(&f)
+			requireChartConsistency(t, f, s, tc.want)
 		})
 	}
 }
 
 func TestCheckChartConsistencyNudgeOutOfRange(t *testing.T) {
-	c := fenrirChart(t)
-	c.Frame.ChainstayMm = 72.4
-	c.Precision = assembly.ChartPrecision{ChainstayMm: 0.5}
-	err := checkChartConsistency(c)
+	f, s := fenrirL(t)
+	s.ChartFrame.ChainstayMm = 72.4
+	f.ChartPrecision = catalog.ChartPrecision{ChainstayMm: 0.5}
+	err := checkChartConsistency(f, s)
 	if err == nil {
 		t.Fatal("checkChartConsistency: got nil, want out-of-range error")
 	}
@@ -326,9 +312,9 @@ func TestCheckChartConsistencyNudgeOutOfRange(t *testing.T) {
 func TestCheckChartConsistencyInvalidWheelbase(t *testing.T) {
 	const want = "published wheelbase must be finite and non-negative (0 = unpublished)"
 	for _, wb := range []float64{-1, math.NaN()} {
-		c := fenrirChart(t)
-		c.PublishedWheelbaseMm = wb
-		err := checkChartConsistency(c)
+		f, s := fenrirL(t)
+		s.PublishedWheelbaseMm = wb
+		err := checkChartConsistency(f, s)
 		if err == nil {
 			t.Fatalf("PublishedWheelbaseMm = %v: got nil, want error", wb)
 		}
@@ -344,20 +330,20 @@ func TestCheckChartConsistencyHaydukeS4Allowance(t *testing.T) {
 	const failure = "chart consistency: wheelbase mismatch +5.42 mm exceeds its ±4.31 mm rounding budget"
 	cases := []struct {
 		name      string
-		allowance assembly.ChartAllowance
+		allowance catalog.ChartAllowance
 		want      string
 	}{
-		{"none", assembly.ChartAllowance{}, failure + terms},
-		{"documented", assembly.ChartAllowance{WheelbaseMm: 1.2, Reason: reason}, ""},
-		{"too small", assembly.ChartAllowance{WheelbaseMm: 1.0, Reason: reason}, failure + " plus its 1.00 mm allowance" + terms},
-		{"inside slack", assembly.ChartAllowance{WheelbaseMm: 1.6, Reason: reason}, ""},
-		{"outside slack", assembly.ChartAllowance{WheelbaseMm: 1.7, Reason: reason}, "chart allowance: wheelbase allowance 1.70 mm exceeds the 1.11 mm needed beyond rounding by more than 0.50 mm"},
+		{"none", catalog.ChartAllowance{}, failure + terms},
+		{"documented", catalog.ChartAllowance{WheelbaseMm: 1.2, Reason: reason}, ""},
+		{"too small", catalog.ChartAllowance{WheelbaseMm: 1.0, Reason: reason}, failure + " plus its 1.00 mm allowance" + terms},
+		{"inside slack", catalog.ChartAllowance{WheelbaseMm: 1.6, Reason: reason}, ""},
+		{"outside slack", catalog.ChartAllowance{WheelbaseMm: 1.7, Reason: reason}, "chart allowance: wheelbase allowance 1.70 mm exceeds the 1.11 mm needed beyond rounding by more than 0.50 mm"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			chart := haydukeS4Chart(t)
-			chart.Allowance = tc.allowance
-			requireChartConsistency(t, chart, tc.want)
+			f, s := haydukeS4(t)
+			s.Allowance = tc.allowance
+			requireChartConsistency(t, f, s, tc.want)
 		})
 	}
 }
@@ -368,81 +354,81 @@ func TestCheckChartConsistencySklarLAllowance(t *testing.T) {
 	const failure = "chart consistency: axle height mismatch -3.06 mm exceeds its ±2.68 mm rounding budget"
 	cases := []struct {
 		name      string
-		allowance assembly.ChartAllowance
+		allowance catalog.ChartAllowance
 		want      string
 	}{
-		{"none", assembly.ChartAllowance{}, failure + terms},
-		{"documented", assembly.ChartAllowance{AxleHeightMm: 0.4, Reason: reason}, ""},
-		{"too small", assembly.ChartAllowance{AxleHeightMm: 0.3, Reason: reason}, failure + " plus its 0.30 mm allowance" + terms},
-		{"unnecessary wheelbase allowance", assembly.ChartAllowance{AxleHeightMm: 0.4, WheelbaseMm: 0.5, Reason: reason}, "chart allowance: wheelbase allowance 0.50 mm is unnecessary: mismatch -3.56 mm is within its ±4.28 mm rounding budget"},
+		{"none", catalog.ChartAllowance{}, failure + terms},
+		{"documented", catalog.ChartAllowance{AxleHeightMm: 0.4, Reason: reason}, ""},
+		{"too small", catalog.ChartAllowance{AxleHeightMm: 0.3, Reason: reason}, failure + " plus its 0.30 mm allowance" + terms},
+		{"unnecessary wheelbase allowance", catalog.ChartAllowance{AxleHeightMm: 0.4, WheelbaseMm: 0.5, Reason: reason}, "chart allowance: wheelbase allowance 0.50 mm is unnecessary: mismatch -3.56 mm is within its ±4.28 mm rounding budget"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			chart := sklarLChart(t)
-			chart.Allowance = tc.allowance
-			requireChartConsistency(t, chart, tc.want)
+			f, s := sklarL(t)
+			s.Allowance = tc.allowance
+			requireChartConsistency(t, f, s, tc.want)
 		})
 	}
 }
 
 func TestCheckChartConsistencyUnnecessaryAllowance(t *testing.T) {
-	chart := fenrirChart(t)
-	chart.Allowance = assembly.ChartAllowance{AxleHeightMm: 0.5, Reason: "Axle height discrepancy."}
-	requireChartConsistency(t, chart, "chart allowance: axle height allowance 0.50 mm is unnecessary: mismatch +0.22 mm is within its ±2.09 mm rounding budget")
+	f, s := fenrirL(t)
+	s.Allowance = catalog.ChartAllowance{AxleHeightMm: 0.5, Reason: "Axle height discrepancy."}
+	requireChartConsistency(t, f, s, "chart allowance: axle height allowance 0.50 mm is unnecessary: mismatch +0.22 mm is within its ±2.09 mm rounding budget")
 }
 
 func TestCheckChartConsistencyInvalidAllowance(t *testing.T) {
 	cases := []struct {
 		name        string
-		allowance   assembly.ChartAllowance
+		allowance   catalog.ChartAllowance
 		unpublished bool
 		want        string
 	}{
-		{"negative axle height", assembly.ChartAllowance{AxleHeightMm: -0.1, Reason: "x"}, false, "chart allowance: axle height must be finite and non-negative, got -0.1 mm"},
-		{"NaN wheelbase", assembly.ChartAllowance{WheelbaseMm: math.NaN(), Reason: "x"}, false, "chart allowance: wheelbase must be finite and non-negative, got NaN mm"},
-		{"missing reason", assembly.ChartAllowance{AxleHeightMm: 0.5, Reason: "  "}, false, "chart allowance: a non-zero allowance needs a reason"},
-		{"reason only", assembly.ChartAllowance{Reason: "x"}, false, "chart allowance: a reason without an allowance"},
-		{"unpublished wheelbase", assembly.ChartAllowance{WheelbaseMm: 1.0, Reason: "x"}, true, "chart allowance: wheelbase allowance on a chart with no published wheelbase"},
+		{"negative axle height", catalog.ChartAllowance{AxleHeightMm: -0.1, Reason: "x"}, false, "chart allowance: axle height must be finite and non-negative, got -0.1 mm"},
+		{"NaN wheelbase", catalog.ChartAllowance{WheelbaseMm: math.NaN(), Reason: "x"}, false, "chart allowance: wheelbase must be finite and non-negative, got NaN mm"},
+		{"missing reason", catalog.ChartAllowance{AxleHeightMm: 0.5, Reason: "  "}, false, "chart allowance: a non-zero allowance needs a reason"},
+		{"reason only", catalog.ChartAllowance{Reason: "x"}, false, "chart allowance: a reason without an allowance"},
+		{"unpublished wheelbase", catalog.ChartAllowance{WheelbaseMm: 1.0, Reason: "x"}, true, "chart allowance: wheelbase allowance on a chart with no published wheelbase"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			chart := fenrirChart(t)
-			chart.Allowance = tc.allowance
+			f, s := fenrirL(t)
+			s.Allowance = tc.allowance
 			if tc.unpublished {
-				chart.PublishedWheelbaseMm = 0
+				s.PublishedWheelbaseMm = 0
 			}
-			requireChartConsistency(t, chart, tc.want)
+			requireChartConsistency(t, f, s, tc.want)
 		})
 	}
 }
 
 func TestCheckChartConsistencyUnpublishedWheelbase(t *testing.T) {
-	chart := fenrirChart(t)
-	chart.PublishedWheelbaseMm = 0
+	f, s := fenrirL(t)
+	s.PublishedWheelbaseMm = 0
 	t.Run("rounding covers axle height", func(t *testing.T) {
-		requireChartConsistency(t, chart, "")
+		requireChartConsistency(t, f, s, "")
 	})
 	t.Run("axle height outside budget", func(t *testing.T) {
-		chart := chart
-		chart.Frame.StackMm = 643.95
-		requireChartConsistency(t, chart, "chart consistency: axle height mismatch +2.17 mm exceeds its ±2.09 mm rounding budget (Stack 0.50 mm, HTA 0.62 mm, HTL 0.46 mm, BB drop 0.50 mm)")
+		s := s
+		s.ChartFrame.StackMm = 643.95
+		requireChartConsistency(t, f, s, "chart consistency: axle height mismatch +2.17 mm exceeds its ±2.09 mm rounding budget (Stack 0.50 mm, HTA 0.62 mm, HTL 0.46 mm, BB drop 0.50 mm)")
 	})
 	t.Run("no rounding", func(t *testing.T) {
-		chart := chart
-		chart.Precision = assembly.ChartPrecision{}
-		requireChartConsistency(t, chart, "chart consistency: axle height mismatch +0.22 mm exceeds its ±0.00 mm rounding budget (no rounded columns)")
+		f := f
+		f.ChartPrecision = catalog.ChartPrecision{}
+		requireChartConsistency(t, f, s, "chart consistency: axle height mismatch +0.22 mm exceeds its ±0.00 mm rounding budget (no rounded columns)")
 	})
 }
 
 func TestCheckChartConsistencyRejectsMismatchedBasisCup(t *testing.T) {
-	chart := fenrirChart(t)
-	chart.CadLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0}
+	f, s := fenrirL(t)
+	f.BasisLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0}
 	var inputErr *assembly.InputError
-	if err := checkChartConsistency(chart); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+	if err := checkChartConsistency(f, s); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
 		t.Errorf("checkChartConsistency error = %v, want InputLowerCup", err)
 	}
-	chart.CadLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12}
-	if err := checkChartConsistency(chart); err != nil && errors.As(err, &inputErr) && inputErr.Field == assembly.InputLowerCup {
+	f.BasisLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12}
+	if err := checkChartConsistency(f, s); err != nil && errors.As(err, &inputErr) && inputErr.Field == assembly.InputLowerCup {
 		t.Errorf("matching cup rejected as a headset error: %v", err)
 	}
 }
@@ -468,7 +454,8 @@ func TestMeasureChartConsistencyExposesChecks(t *testing.T) {
 	}
 
 	t.Run("Hayduke S4", func(t *testing.T) {
-		m, err := measureChartConsistency(haydukeS4Chart(t))
+		f, s := haydukeS4(t)
+		m, err := measureChartConsistency(f, s)
 		if err != nil {
 			t.Fatalf("measureChartConsistency: %v", err)
 		}
@@ -492,9 +479,9 @@ func TestMeasureChartConsistencyExposesChecks(t *testing.T) {
 	})
 
 	t.Run("Fenrir L unpublished wheelbase", func(t *testing.T) {
-		chart := fenrirChart(t)
-		chart.PublishedWheelbaseMm = 0
-		m, err := measureChartConsistency(chart)
+		f, s := fenrirL(t)
+		s.PublishedWheelbaseMm = 0
+		m, err := measureChartConsistency(f, s)
 		if err != nil {
 			t.Fatalf("measureChartConsistency: %v", err)
 		}
@@ -517,9 +504,9 @@ func TestMeasureChartConsistencyExposesChecks(t *testing.T) {
 	})
 }
 
-func requireChartConsistency(t *testing.T, chart assembly.FrameChart, want string) {
+func requireChartConsistency(t *testing.T, f catalog.Frame, s catalog.FrameSize, want string) {
 	t.Helper()
-	err := checkChartConsistency(chart)
+	err := checkChartConsistency(f, s)
 	if want == "" {
 		if err != nil {
 			t.Fatalf("checkChartConsistency: got %v, want nil", err)

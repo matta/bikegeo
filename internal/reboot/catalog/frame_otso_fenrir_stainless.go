@@ -14,20 +14,6 @@ func otsoFenrirStainless() Frame {
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
-		CadLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
-		// hypothesis (Q44, Q81): legacy lithic_carbon_mountain (rigid) → 495 mm effective
-		CadFork: assembly.ForkGeometry{A2cMm: 495, RakeMm: 54},
-		// inferred from published digits (legacy), Q80
-		Precision: assembly.ChartPrecision{
-			ReachMm:          0.5,
-			StackMm:          0.5,
-			HeadTubeAngleDeg: 0.125,
-			HeadTubeLengthMm: 0.5,
-			BbDropMm:         0.5,
-			ChainstayMm:      0.5,
-			WheelbaseMm:      0.5,
-		},
 	}
 	return Frame{
 		ID:             "otso-fenrir-stainless",
@@ -36,6 +22,20 @@ func otsoFenrirStainless() Frame {
 		Year:           2024,
 		DefaultSize:    "L",
 		MaxChainstayMm: 450, // published: sliding dropouts 430–450 mm (Q67)
+		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
+		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
+		// hypothesis (Q44, Q81): legacy lithic_carbon_mountain (rigid) → 495 mm effective
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: assembly.SteererCAD},
+		// inferred from published digits (legacy), Q80
+		ChartPrecision: ChartPrecision{
+			ReachMm:          0.5,
+			StackMm:          0.5,
+			HeadTubeAngleDeg: 0.125,
+			HeadTubeLengthMm: 0.5,
+			BbDropMm:         0.5,
+			ChainstayMm:      0.5,
+			WheelbaseMm:      0.5,
+		},
 		// catalog: legacy Forks, each at this frame's A2C and rake
 		Forks: []FrameFork{
 			{Fork: lithicCarbonMountain, StaticA2cMm: 495, RakeMm: 54},

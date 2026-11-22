@@ -12,12 +12,19 @@ func salsaCutthroat() Frame {
 		// Q66: inferred from legacy HeadsetCupType IS52; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore52Integrated,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0},
+	}
+	return Frame{
+		ID:           "salsa-cutthroat",
+		Manufacturer: "Salsa",
+		Model:        "Cutthroat",
+		Year:         2024,
+		DefaultSize:  "56cm",
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
-		CadLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
+		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
 		// hypothesis (Q44, Q81): legacy sid_100 @ 25% sag → 481 mm effective
-		CadFork: assembly.ForkGeometry{A2cMm: 481, RakeMm: 51},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 481, RakeMm: 51, Steerer: assembly.SteererCAD},
 		// inferred from published digits (legacy), Q80
-		Precision: assembly.ChartPrecision{
+		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
 			HeadTubeAngleDeg: 0.5,
@@ -26,13 +33,6 @@ func salsaCutthroat() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-	}
-	return Frame{
-		ID:           "salsa-cutthroat",
-		Manufacturer: "Salsa",
-		Model:        "Cutthroat",
-		Year:         2024,
-		DefaultSize:  "56cm",
 		// catalog: legacy Forks, each at this frame's A2C and rake
 		Forks: []FrameFork{
 			{Fork: firestarterDeluxe483, StaticA2cMm: 483, RakeMm: 51},

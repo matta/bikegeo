@@ -144,17 +144,9 @@ func parseFloatOrDefault(q url.Values, key string, def float64, label string) (f
 	return v, nil
 }
 
-// cadForkSetup returns the CAD baseline fork for size (Q81).
-func cadForkSetup(size catalog.FrameSize) assembly.ForkSetup {
-	return assembly.ForkSetup{
-		Spec: assembly.ForkSpec{
-			StaticA2cMm: size.Chart.CadFork.A2cMm,
-			TravelMm:    0,
-			RakeMm:      size.Chart.CadFork.RakeMm,
-			Steerer:     assembly.SteererCAD,
-		},
-		SagPct: 0,
-	}
+// basisForkSetup returns the chart basis fork for frame (Q81, Q120).
+func basisForkSetup(frame catalog.Frame) assembly.ForkSetup {
+	return assembly.ForkSetup{Spec: frame.BasisFork}
 }
 
 // ParseBike parses a /bike query into a catalog-resolved Bike, applying the
@@ -335,7 +327,7 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 	b.ForkID = forkID
 	if isCad {
 		b.FrameFork = catalog.FrameFork{}
-		return size.Chart.Frame, size.Chart.CadLowerCup, cadForkSetup(size), nil
+		return size.ChartFrame, frame.BasisLowerCup, basisForkSetup(frame), nil
 	}
 	b.FrameFork = ff
 
@@ -355,7 +347,7 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 		a2cMm, sagPct = ff.StaticA2cMm, defaultSag
 		var prevCupStd assembly.LowerCupStandard
 		if prevFork == CadForkID {
-			prevCupStd = size.Chart.CadLowerCup.Standard
+			prevCupStd = frame.BasisLowerCup.Standard
 		} else if _, known := findFrameFork(frame, prevFork); known {
 			prevCupStd = frameSetup.DefaultLowerCup.Standard
 		}
@@ -479,9 +471,9 @@ func (b Bike) WithView(view string) Bike {
 func (b Bike) WithCadBaselineFork() Bike {
 	b.ForkID = CadForkID
 	b.FrameFork = catalog.FrameFork{}
-	b.Setup.Frame = b.Size.Chart.Frame
-	b.Setup.LowerCup = b.Size.Chart.CadLowerCup
-	b.Setup.Fork = cadForkSetup(b.Size)
+	b.Setup.Frame = b.Size.ChartFrame
+	b.Setup.LowerCup = b.Frame.BasisLowerCup
+	b.Setup.Fork = basisForkSetup(b.Frame)
 	return b
 }
 
@@ -542,7 +534,7 @@ func (b Bike) URL() string {
 // BasisFrameset places b's size on its published chart frame with the chart's
 // basis fork and lower cup (Q81, Q121), for the basis readouts and ΔPitch.
 func (b Bike) BasisFrameset() (assembly.FramesetPlacement, error) {
-	return assembly.PlaceFrameset(b.Size.Chart.Frame, b.Size.Chart.CadLowerCup, cadForkSetup(b.Size), b.Setup.Wheels)
+	return assembly.PlaceFrameset(b.Size.ChartFrame, b.Frame.BasisLowerCup, basisForkSetup(b.Frame), b.Setup.Wheels)
 }
 
 // Evaluate places the bike and, when targets are set, scores the submitted

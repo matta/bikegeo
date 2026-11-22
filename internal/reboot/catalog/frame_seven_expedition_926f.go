@@ -14,12 +14,19 @@ func sevenExpedition926f() Frame {
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
+	}
+	return Frame{
+		ID:           "seven-expedition-926f",
+		Manufacturer: "Seven",
+		Model:        "Expedition 926f",
+		Year:         2025,
+		DefaultSize:  "S 60cm",
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 10
-		CadLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 10},
+		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 10},
 		// hypothesis (Q44, Q81): legacy enve_mountain_472 (rigid) → 472 mm effective
-		CadFork: assembly.ForkGeometry{A2cMm: 472, RakeMm: 55},
+		BasisFork: assembly.ForkSpec{StaticA2cMm: 472, RakeMm: 55, Steerer: assembly.SteererCAD},
 		// inferred from published digits (legacy), Q80
-		Precision: assembly.ChartPrecision{
+		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
 			HeadTubeAngleDeg: 0.125,
@@ -28,13 +35,6 @@ func sevenExpedition926f() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-	}
-	return Frame{
-		ID:           "seven-expedition-926f",
-		Manufacturer: "Seven",
-		Model:        "Expedition 926f",
-		Year:         2025,
-		DefaultSize:  "S 60cm",
 		// catalog: legacy Forks, each at this frame's A2C and rake
 		Forks: []FrameFork{
 			{Fork: enveMountain472, StaticA2cMm: 472, RakeMm: 55},

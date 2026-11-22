@@ -318,7 +318,7 @@ type bikeView struct {
 	CupReadOnly            bool
 	SagReadOnly            bool
 	CadBaselineNote        string
-	CadFork                assembly.ForkGeometry
+	BasisFork              assembly.ForkSpec
 	CadLowerCupMm          float64
 	LowerCupMm             float64
 	SagPct                 float64

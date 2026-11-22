@@ -646,13 +646,12 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 		t.Fatalf("parse CadBaselineForkURL %q: %v", view.CadBaselineForkURL, err)
 	}
 	cadDecoded := mustBikeValues(t, cadURL.Query())
-	chart := parsed.Size.Chart
 	wantCad := parsed.WithCadBaselineFork()
 	if cadDecoded.URL() != wantCad.URL() {
 		t.Errorf("decoded CadBaselineForkURL = %s, want %s", cadDecoded.URL(), wantCad.URL())
 	}
-	if cadDecoded.ForkID != query.CadForkID || cadDecoded.Setup.Fork.Spec.StaticA2cMm != chart.CadFork.A2cMm ||
-		cadDecoded.Setup.LowerCup.StackMm != chart.CadLowerCup.StackMm || cadDecoded.Setup.Fork.SagPct != 0 {
+	if cadDecoded.ForkID != query.CadForkID || cadDecoded.Setup.Fork.Spec.StaticA2cMm != parsed.Frame.BasisFork.StaticA2cMm ||
+		cadDecoded.Setup.LowerCup.StackMm != parsed.Frame.BasisLowerCup.StackMm || cadDecoded.Setup.Fork.SagPct != 0 {
 		t.Errorf("decoded CAD build = fork %q a2c %v cup %v sag %v", cadDecoded.ForkID, cadDecoded.Setup.Fork.Spec.StaticA2cMm, cadDecoded.Setup.LowerCup.StackMm, cadDecoded.Setup.Fork.SagPct)
 	}
 	if s := cadDecoded.Setup.Stem; s.SpacersMm != 15 || s.LengthMm != 70 || s.AngleDeg != 6 || cadDecoded.Setup.Seatpost.InsertionMm != 160 {
@@ -971,21 +970,20 @@ func TestBikeCadBaselineForkURLDecodesToChartFork(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseBike: %v", err)
 	}
-	chart := decoded.Size.Chart
 	if decoded.ForkID != query.CadForkID {
 		t.Errorf("decoded ForkID = %q, want %q", decoded.ForkID, query.CadForkID)
 	}
-	if decoded.Setup.Frame != chart.Frame {
-		t.Errorf("decoded Frame = %+v, want %+v", decoded.Setup.Frame, chart.Frame)
+	if decoded.Setup.Frame != decoded.Size.ChartFrame {
+		t.Errorf("decoded Frame = %+v, want %+v", decoded.Setup.Frame, decoded.Size.ChartFrame)
 	}
-	if decoded.Setup.LowerCup != chart.CadLowerCup {
-		t.Errorf("decoded LowerCup = %+v, want %+v", decoded.Setup.LowerCup, chart.CadLowerCup)
+	if decoded.Setup.LowerCup != decoded.Frame.BasisLowerCup {
+		t.Errorf("decoded LowerCup = %+v, want %+v", decoded.Setup.LowerCup, decoded.Frame.BasisLowerCup)
 	}
 	if err := decoded.Setup.Fork.Validate(); err != nil {
 		t.Fatalf("decoded Fork.Validate: %v", err)
 	}
-	if decoded.Setup.Fork.Geometry() != chart.CadFork {
-		t.Errorf("decoded Fork.Geometry() = %+v, want %+v", decoded.Setup.Fork.Geometry(), chart.CadFork)
+	if decoded.Setup.Fork.Spec != decoded.Frame.BasisFork {
+		t.Errorf("decoded Fork.Spec = %+v, want %+v", decoded.Setup.Fork.Spec, decoded.Frame.BasisFork)
 	}
 	basis, err := decoded.BasisFrameset()
 	if err != nil {
