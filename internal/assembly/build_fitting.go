@@ -4,7 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"math"
-	"slices"
+	"sort"
 
 	"bikegeo/internal/pose"
 )
@@ -186,7 +186,8 @@ func FitBuilds(setup BikeSetup, target FitTarget, parts PartOptions, weights Sco
 		}
 	}
 	var stacks []float64
-	var builds []ScoredBuild
+	best := make([]ScoredBuild, 0, min(limit, maxPreallocatedBuilds))
+	evaluated := 0
 	for _, fork := range forks {
 		base := setup
 		base.Fork, base.LowerCup = fork.fork, fork.lowerCup
@@ -221,7 +222,7 @@ func FitBuilds(setup BikeSetup, target FitTarget, parts PartOptions, weights Sco
 					if err != nil {
 						return BuildRanking{}, err
 					}
-					builds = append(builds, ScoredBuild{
+					build := ScoredBuild{
 						Placement:          placement,
 						Target:             grip,
 						HasHandlebarOption: bar.fromOptions,
@@ -230,16 +231,39 @@ func FitBuilds(setup BikeSetup, target FitTarget, parts PartOptions, weights Sco
 						ForkIndex:          fork.index,
 						BrpTarget:          brp,
 						Score:              score,
-					})
+					}
+					evaluated++
+					best = keepBest(best, &build, limit)
 				}
 			}
 		}
 	}
-	slices.SortFunc(builds, CompareScoredBuilds)
 	return BuildRanking{
-		Builds:    builds[:min(limit, len(builds))],
-		Evaluated: len(builds),
+		Builds:    best,
+		Evaluated: evaluated,
 	}, nil
+}
+
+// maxPreallocatedBuilds caps FitBuilds' up-front allocation for a large limit;
+// the kept builds grow past it as needed.
+const maxPreallocatedBuilds = 16
+
+// keepBest adds build to best, which holds at most limit builds in
+// CompareScoredBuilds order, dropping the worst build when best is full. A
+// build that ties one already kept goes after it, so the first one visited
+// stays ahead. FitBuilds keeps only these builds instead of sorting every
+// combination it places.
+func keepBest(best []ScoredBuild, build *ScoredBuild, limit int) []ScoredBuild {
+	if len(best) == limit && CompareScoredBuilds(*build, best[len(best)-1]) >= 0 {
+		return best
+	}
+	i := sort.Search(len(best), func(i int) bool { return CompareScoredBuilds(*build, best[i]) < 0 })
+	if len(best) < limit {
+		best = append(best, ScoredBuild{})
+	}
+	copy(best[i+1:], best[i:len(best)-1])
+	best[i] = *build
+	return best
 }
 
 func spacerSteps(lo, hi, step float64) []float64 {
