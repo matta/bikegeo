@@ -161,7 +161,7 @@ Reading: the chart's front end fits a 495–498 mm fork at about 51 mm offset wi
 
 ## Open questions
 
-The Fenrir correction slice settles these (DESIGN.md Q126).
+Slice 16e, the Fenrir correction, settles these (DESIGN.md Q126).
 
 1. Which chip position the catalog transcribes. The nominal middle (68°, 75°, 70 mm drop, 440 mm chainstay) is the only one printed. How `MaxChainstayMm` (Q67) should treat a Tuning Chip.
 2. The basis:
@@ -170,5 +170,5 @@ The Fenrir correction slice settles these (DESIGN.md Q126).
    - or the ENVE 492/52 with a cup the spec'd headset doesn't have.
 3. Wheelbase: leave it at 0 (Q57), since only ranges are published and none fit, or rule on the ranges.
 4. HTA precision: 0.5 (S1 `68°`) or 0.05 (S2 `68.0°`) (Q80).
-5. The fork list: Lithic at 498/51.5 and 495/44 (two entries?), and whether to add an ENVE Boost entry at 490/44 and 492/52. The catalog's `enve_mountain_boost` also carries a 492/55 option that S5 doesn't list.
+5. ~~The fork list.~~ Ruled in Q128 (2026-11-22): the list is a minimum, not the only choices. It holds the Lithic Mountain (495/44, 498/51.5) and the ENVE Mountain Boost (490/44, 492/52), each a fork with two variants, plus 100–120 mm suspension forks. The catalog's `enve_mountain_boost` also carries a 492/55 variant that S5 doesn't list; Slice 16c checks it against ENVE's spec.
 6. Insertion depths for XS, S, M, and XL (Q95 follow-up).
