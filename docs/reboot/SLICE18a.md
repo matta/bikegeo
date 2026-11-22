@@ -1,6 +1,15 @@
 # Slice 18a: tag and delete legacy
 
-Status: Planned 2026-11-22
+Status: Implemented 2026-11-22; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-22, Claude Sonnet 5.5.
+- **Commits:** A1 tag `legacy-final` (lightweight, local, not pushed) on `c74f331`; A2–A4 `Delete the legacy parity tests` (`3f9e6c1`); B1–B6 `Delete the legacy app` (`001bfea`).
+- **Done and not done:** all of A1–A4 and B1–B6 done.
+- **Deviations:** the plan's B3 list didn't name the "legacy must not import reboot" boundary block as a separate deletion from the `go list -deps ./cmd/bikegeo` block; it did (three blocks), and both were removed. `AGENTS.md` line "Angles are `model.Deg`" in Architecture was left for Slice 20, as the plan only listed the Isolation bullet.
+- **Verification:** `make pre-commit` passes after each commit. A3 negative test: a temporary reboot file importing `bikegeo/internal/model` failed `make boundary` with "must not import legacy"; removed. `go list ./...` lists only reboot packages; `go mod tidy -diff` is empty; `git ls-tree` on `legacy-final` shows 22 `internal/frames/` files; no legacy import hits; `make build`/`make run` fail with "No rule". Live check: `/` and `/bike` return 200; `bikegeo-reboot compare` JSON lists 19 frames. No screenshot taken.
+- **Open issues:** `AGENTS.md` still describes legacy details (Architecture bullets on `model.Deg`, `internal/frames`, scores) until Slice 20.
 
 Rulings it rests on: Q115 (retire every legacy-only workflow), Q116 (UI overhauls follow cutover), Q119 and Q145 (parity tests are the last link to legacy; Slice 17b already archived the legacy notes), Q144 (`deadcode` is not a gate). Tag-push choice (slice-local, Matt, 2026-11-22): **create the tag locally and never push it.**
 
