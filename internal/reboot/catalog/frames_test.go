@@ -161,7 +161,7 @@ func TestFrameProblemsCatchMistakes(t *testing.T) {
 		{"unknown default size", func(f *catalog.Frame) { f.DefaultSize = "XXL" }, "default size"},
 		{"no forks", func(f *catalog.Frame) { f.Forks = nil }, "no forks"},
 		{"duplicate fork", func(f *catalog.Frame) { f.Forks[1] = f.Forks[0] }, "duplicate fork"},
-		{"max chainstay below a size", func(f *catalog.Frame) { f.MaxChainstayMm = 440 }, "max chainstay"},
+		{"max chainstay below a size", func(f *catalog.Frame) { f.MaxChainstayMm = 430 }, "max chainstay"},
 		{"size headset bore differs", func(f *catalog.Frame) { f.Sizes[1].ChartFrame.LowerBore = assembly.Bore56Pressed }, "headset differs"},
 		{"size default cup differs", func(f *catalog.Frame) { f.Sizes[1].ChartFrame.DefaultLowerCup.StackMm = 5 }, "headset differs"},
 		{"non-typical default cup", func(f *catalog.Frame) {
@@ -172,7 +172,7 @@ func TestFrameProblemsCatchMistakes(t *testing.T) {
 		{"rigid fork without class", func(f *catalog.Frame) {
 			fk := f.Forks[0]
 			fk.RigidClass = catalog.RigidClassNone
-			f.Forks = []catalog.Fork{fk, f.Forks[1], f.Forks[2]}
+			f.Forks = append([]catalog.Fork{fk}, f.Forks[1:]...)
 		}, "rigid class"},
 		{"tapered fork on a 34 mm bore", func(f *catalog.Frame) {
 			f.Forks = f.Forks[:1]
@@ -325,8 +325,16 @@ func TestSeatpostBoundsEverySize(t *testing.T) {
 		frame, size, post string
 		lo, hi            float64
 	}{
+		{"otso-fenrir-stainless", "XS", "setback_0", 100, 170},
+		{"otso-fenrir-stainless", "XS", "redshift_shockstop_pro", 100, 170},
+		{"otso-fenrir-stainless", "S", "setback_0", 100, 210},
+		{"otso-fenrir-stainless", "S", "redshift_shockstop_pro", 100, 210},
+		{"otso-fenrir-stainless", "M", "setback_0", 100, 260},
+		{"otso-fenrir-stainless", "M", "redshift_shockstop_pro", 100, 250},
 		{"otso-fenrir-stainless", "L", "setback_0", 100, 290},
 		{"otso-fenrir-stainless", "L", "redshift_shockstop_pro", 100, 250},
+		{"otso-fenrir-stainless", "XL", "setback_0", 100, 330},
+		{"otso-fenrir-stainless", "XL", "redshift_shockstop_pro", 100, 250},
 		{"salsa-fargo", "XS", "setback_0", 100, 335.6},
 		// post-limited: the frame cap is C-C 355 + 35 − 20 = 370 (Q75d)
 		{"seven-expedition-926d", "S 52cm", "setback_0", 100, 365},
@@ -350,8 +358,9 @@ func TestInstalledFrameUsesMaxChainstay(t *testing.T) {
 		chart, installedCs float64
 	}{
 		{"esker-hayduke", "S4", 440, 454},
-		{"otso-fenrir-stainless", "L", 450, 450},
-		{"ritchey-ultra", "L", 0, 0}, // fixed dropouts: the chart's own chainstay
+		{"salsa-fargo", "L", 462, 462},
+		{"otso-fenrir-stainless", "L", 0, 0}, // Tuning Chip frame stays at chart chainstay (Q140)
+		{"ritchey-ultra", "L", 0, 0},         // fixed dropouts: the chart's own chainstay
 	} {
 		f := mustFrame(t, tc.frame)
 		s := mustSize(t, f, tc.size)
@@ -447,6 +456,16 @@ func TestCompatibleForksRules(t *testing.T) {
 	}
 	if mustFrame(t, "surly-krampus").IsListedFork("pike_120") {
 		t.Error("surly-krampus lists pike_120, want only compatible")
+	}
+
+	fenrir := mustFrame(t, "otso-fenrir-stainless")
+	fenrirGot := compatibleIDs(fenrir)
+	wantFenrirPrefix := []string{"lithic_carbon_mountain", "enve_mountain_boost", "sid_100", "fox34_120"}
+	if len(fenrirGot) < len(wantFenrirPrefix) || !slices.Equal(fenrirGot[:len(wantFenrirPrefix)], wantFenrirPrefix) {
+		t.Errorf("otso-fenrir-stainless compatible forks prefix = %v, want %v", fenrirGot, wantFenrirPrefix)
+	}
+	if !fenrir.IsListedFork("enve_mountain_boost") {
+		t.Error("otso-fenrir-stainless IsListedFork(enve_mountain_boost) = false, want true (Q128)")
 	}
 }
 

@@ -277,7 +277,7 @@ func TestRunBikeDefaultAndWinningBuildJSON(t *testing.T) {
 	if r.Score == nil || r.Score.Tier != "fits_neither" {
 		t.Fatalf("Score = %+v, want fits_neither", r.Score)
 	}
-	assertNear(t, "Total", r.Score.Total, 53.639215, 1e-5)
+	assertNear(t, "Total", r.Score.Total, 53.545302, 1e-5)
 	if r.Builds == nil || r.Builds.Evaluated != 749 || len(r.Builds.Builds) != 5 {
 		t.Fatalf("Builds = %+v, want 749 evaluated, 5 builds", r.Builds)
 	}

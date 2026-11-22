@@ -207,6 +207,12 @@ func fenrirL(t *testing.T) (catalog.Frame, catalog.FrameSize) {
 	return f, mustSize(t, f, "L")
 }
 
+func krampusL(t *testing.T) (catalog.Frame, catalog.FrameSize) {
+	t.Helper()
+	f := mustFrame(t, "surly-krampus")
+	return f, mustSize(t, f, "L")
+}
+
 func haydukeS4(t *testing.T) (catalog.Frame, catalog.FrameSize) {
 	t.Helper()
 	f := mustFrame(t, "esker-hayduke")
@@ -234,28 +240,28 @@ func TestCheckChartConsistencyBudgetEdges(t *testing.T) {
 	}{
 		{
 			name:   "axle height inside",
-			mutate: func(s *catalog.FrameSize) { s.ChartFrame.StackMm = 643.8 },
+			mutate: func(s *catalog.FrameSize) { s.ChartFrame.StackMm = 616.7 },
 			want:   "",
 		},
 		{
 			name:   "axle height outside",
-			mutate: func(s *catalog.FrameSize) { s.ChartFrame.StackMm = 643.95 },
-			want:   "chart consistency: axle height mismatch +2.17 mm exceeds its ±2.09 mm rounding budget (Stack 0.50 mm, HTA 0.62 mm, HTL 0.46 mm, BB drop 0.50 mm)",
+			mutate: func(s *catalog.FrameSize) { s.ChartFrame.StackMm = 616.8 },
+			want:   "chart consistency: axle height mismatch +3.83 mm exceeds its ±3.76 mm rounding budget (Stack 0.50 mm, HTA 2.30 mm, HTL 0.47 mm, BB drop 0.50 mm)",
 		},
 		{
 			name:   "wheelbase inside",
-			mutate: func(s *catalog.FrameSize) { s.PublishedWheelbaseMm = 1160.6 },
+			mutate: func(s *catalog.FrameSize) { s.PublishedWheelbaseMm = 1145.3 },
 			want:   "",
 		},
 		{
 			name:   "wheelbase outside",
-			mutate: func(s *catalog.FrameSize) { s.PublishedWheelbaseMm = 1160.8 },
-			want:   "chart consistency: wheelbase mismatch -3.14 mm exceeds its ±3.02 mm rounding budget (Reach 0.50 mm, HTA 1.24 mm, HTL 0.19 mm, BB drop 0.08 mm, Chainstay 0.51 mm, Wheelbase 0.50 mm)",
+			mutate: func(s *catalog.FrameSize) { s.PublishedWheelbaseMm = 1145.4 },
+			want:   "chart consistency: wheelbase mismatch -6.59 mm exceeds its ±6.55 mm rounding budget (Reach 0.50 mm, HTA 4.79 mm, HTL 0.18 mm, BB drop 0.08 mm, Chainstay 0.51 mm, Wheelbase 0.50 mm)",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			f, s := fenrirL(t)
+			f, s := krampusL(t)
 			tc.mutate(&s)
 			requireChartConsistency(t, f, s, tc.want)
 		})
@@ -263,9 +269,9 @@ func TestCheckChartConsistencyBudgetEdges(t *testing.T) {
 }
 
 func TestCheckChartConsistencyWithoutPrecision(t *testing.T) {
-	f, s := fenrirL(t)
+	f, s := krampusL(t)
 	f.ChartPrecision = catalog.ChartPrecision{}
-	want := "chart consistency: axle height mismatch +0.22 mm exceeds its ±0.00 mm rounding budget (no rounded columns)\nchart consistency: wheelbase mismatch -0.34 mm exceeds its ±0.00 mm rounding budget (no rounded columns)"
+	want := "chart consistency: axle height mismatch -0.97 mm exceeds its ±0.00 mm rounding budget (no rounded columns)\nchart consistency: wheelbase mismatch +0.81 mm exceeds its ±0.00 mm rounding budget (no rounded columns)"
 	requireChartConsistency(t, f, s, want)
 }
 
@@ -297,7 +303,7 @@ func TestCheckChartConsistencyInvalidPrecision(t *testing.T) {
 
 func TestCheckChartConsistencyNudgeOutOfRange(t *testing.T) {
 	f, s := fenrirL(t)
-	s.ChartFrame.ChainstayMm = 72.4
+	s.ChartFrame.ChainstayMm = 70.4
 	f.ChartPrecision = catalog.ChartPrecision{ChainstayMm: 0.5}
 	err := checkChartConsistency(f, s)
 	if err == nil {
@@ -374,7 +380,7 @@ func TestCheckChartConsistencySklarLAllowance(t *testing.T) {
 func TestCheckChartConsistencyUnnecessaryAllowance(t *testing.T) {
 	f, s := fenrirL(t)
 	s.Allowance = catalog.ChartAllowance{AxleHeightMm: 0.5, Reason: "Axle height discrepancy."}
-	requireChartConsistency(t, f, s, "chart allowance: axle height allowance 0.50 mm is unnecessary: mismatch +0.22 mm is within its ±2.09 mm rounding budget")
+	requireChartConsistency(t, f, s, "chart allowance: axle height allowance 0.50 mm is unnecessary: mismatch +2.34 mm is within its ±3.97 mm rounding budget")
 }
 
 func TestCheckChartConsistencyInvalidAllowance(t *testing.T) {
@@ -392,7 +398,7 @@ func TestCheckChartConsistencyInvalidAllowance(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			f, s := fenrirL(t)
+			f, s := krampusL(t)
 			s.Allowance = tc.allowance
 			if tc.unpublished {
 				s.PublishedWheelbaseMm = 0
@@ -404,19 +410,21 @@ func TestCheckChartConsistencyInvalidAllowance(t *testing.T) {
 
 func TestCheckChartConsistencyUnpublishedWheelbase(t *testing.T) {
 	f, s := fenrirL(t)
-	s.PublishedWheelbaseMm = 0
+	if s.PublishedWheelbaseMm != 0 {
+		t.Fatalf("fenrir L PublishedWheelbaseMm = %v, want 0", s.PublishedWheelbaseMm)
+	}
 	t.Run("rounding covers axle height", func(t *testing.T) {
 		requireChartConsistency(t, f, s, "")
 	})
 	t.Run("axle height outside budget", func(t *testing.T) {
 		s := s
-		s.ChartFrame.StackMm = 643.95
-		requireChartConsistency(t, f, s, "chart consistency: axle height mismatch +2.17 mm exceeds its ±2.09 mm rounding budget (Stack 0.50 mm, HTA 0.62 mm, HTL 0.46 mm, BB drop 0.50 mm)")
+		s.ChartFrame.StackMm = 644.0
+		requireChartConsistency(t, f, s, "chart consistency: axle height mismatch +4.34 mm exceeds its ±3.97 mm rounding budget (Stack 0.50 mm, HTA 2.51 mm, HTL 0.46 mm, BB drop 0.50 mm)")
 	})
 	t.Run("no rounding", func(t *testing.T) {
 		f := f
 		f.ChartPrecision = catalog.ChartPrecision{}
-		requireChartConsistency(t, f, s, "chart consistency: axle height mismatch +0.22 mm exceeds its ±0.00 mm rounding budget (no rounded columns)")
+		requireChartConsistency(t, f, s, "chart consistency: axle height mismatch +2.34 mm exceeds its ±0.00 mm rounding budget (no rounded columns)")
 	})
 }
 
@@ -480,7 +488,6 @@ func TestMeasureChartConsistencyExposesChecks(t *testing.T) {
 
 	t.Run("Fenrir L unpublished wheelbase", func(t *testing.T) {
 		f, s := fenrirL(t)
-		s.PublishedWheelbaseMm = 0
 		m, err := measureChartConsistency(f, s)
 		if err != nil {
 			t.Fatalf("measureChartConsistency: %v", err)
@@ -492,12 +499,12 @@ func TestMeasureChartConsistencyExposesChecks(t *testing.T) {
 		if ah.Name != "axle height" {
 			t.Errorf("Checks[0].Name = %q, want axle height", ah.Name)
 		}
-		near("MismatchMm", ah.MismatchMm, 0.22, 0.005)
-		near("BudgetMm", ah.BudgetMm, 2.09, 0.005)
+		near("MismatchMm", ah.MismatchMm, 2.34, 0.005)
+		near("BudgetMm", ah.BudgetMm, 3.97, 0.005)
 		if ah.AllowanceMm != 0 {
 			t.Errorf("AllowanceMm = %v, want 0", ah.AllowanceMm)
 		}
-		assertTerms(ah.Terms, []string{"Stack", "HTA", "HTL", "BB drop"}, []float64{0.50, 0.62, 0.46, 0.50})
+		assertTerms(ah.Terms, []string{"Stack", "HTA", "HTL", "BB drop"}, []float64{0.50, 2.51, 0.46, 0.50})
 		if err := m.Err(); err != nil {
 			t.Errorf("Err() = %v, want nil", err)
 		}

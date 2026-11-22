@@ -43,7 +43,7 @@ Don't put the words the `make boundary` check bans in the record (for example "c
 
 ### 2. Write `internal/reboot/catalog/frame_<id>.go`
 
-Copy the shape of `frame_otso_fenrir_stainless.go`, but not its numbers: its record shows that its chart values were derived, not published.
+Copy the shape of `frame_otso_fenrir_stainless.go` and `frame_otso_fenrir_stainless.md`.
 
 - `frameFamily` holds the physical `LowerBore` and `DefaultLowerCup`. `family.sizes(publishedSize{...}, ...)` holds each size's published columns, plus an `Allowance` only if step 3 proves one is needed.
 - `ChartPrecision` is per column: half of the coarsest step that every size's value sits on. The length steps are 1, 0.5, 0.1, and 0.01 mm. The angle steps are 1, 0.5, 0.25, 0.1, 0.05, and 0.01°. A head angle of 68.25 in every size is on a 0.25° step, so its half-width is 0.125. Head angles of 68 and 68.5 give 0.25, and whole millimeters give 0.5 (Q80). Use the printed digits ("70.0°" is a 0.1° step) when a single size gives too little to judge.

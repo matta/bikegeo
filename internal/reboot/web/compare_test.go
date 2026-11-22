@@ -224,6 +224,27 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 		t.Errorf("row 8 brp-miss = %q, want (-37.0, +0.0) mm", got)
 	}
 
+	// Row #17: Otso Fenrir Stainless XL (Tuning Chip frame, non-sliding)
+	fit17 := doc.Find(`tr[data-compare-rank="17"]`)
+	if got := strings.TrimSpace(fit17.Find(`[data-compare-cell="frame"]`).Text()); got != "Otso Fenrir Stainless" {
+		t.Errorf("row 17 frame = %q, want Otso Fenrir Stainless", got)
+	}
+	if fit17.Find(`abbr.sliding-mark`).Length() != 0 {
+		t.Error("row 17 should not have sliding-mark")
+	}
+	if got, _ := fit17.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_grip" {
+		t.Errorf("row 17 tier = %q, want fits_grip", got)
+	}
+	if got := strings.TrimSpace(fit17.Find(`[data-compare-cell="score"]`).Text()); got != "69.1" {
+		t.Errorf("row 17 score = %q, want 69.1", got)
+	}
+	if got := strings.TrimSpace(fit17.Find(`[data-compare-cell="oval-r"]`).Text()); got != "0.96" {
+		t.Errorf("row 17 oval-r = %q, want 0.96", got)
+	}
+	if got := strings.TrimSpace(doc.Find(`tr[data-geometry-rank="17"] [data-geometry-cell="chainstay"]`).Text()); got != "440.0" {
+		t.Errorf("row 17 chainstay = %q, want 440.0", got)
+	}
+
 	// Row #19: Salsa Cutthroat 60cm
 	fit19 := doc.Find(`tr[data-compare-rank="19"]`)
 	if got, _ := fit19.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_neither" {
@@ -239,11 +260,14 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	slidingNote := doc.Find(`[data-note="sliding-dropouts"]`).Text()
 	for _, name := range []string{
 		"Binary Havok", "Binary Kinetik", "Esker Hayduke",
-		"Otso Fenrir Stainless", "Revel El Jefe", "Salsa Fargo", "Sklar PBJ",
+		"Revel El Jefe", "Salsa Fargo", "Sklar PBJ",
 	} {
 		if !strings.Contains(slidingNote, name) {
 			t.Errorf("sliding-dropouts note %q missing %q", slidingNote, name)
 		}
+	}
+	if strings.Contains(slidingNote, "Otso Fenrir Stainless") {
+		t.Errorf("sliding-dropouts note %q must not include Otso Fenrir Stainless (Q140)", slidingNote)
 	}
 }
 
@@ -289,14 +313,14 @@ func TestCompareCustomSelectionsAndAutoTopPerFrame(t *testing.T) {
 	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="fork"]`).Text()); got != "Salsa Firestarter / Cutthroat Carbon Deluxe 483mm" {
 		t.Errorf("fenrir row 1 fork = %q", got)
 	}
-	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="score"]`).Text()); got != "63.1" {
-		t.Errorf("fenrir row 1 score = %q, want 63.1", got)
+	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="score"]`).Text()); got != "65.7" {
+		t.Errorf("fenrir row 1 score = %q, want 65.7", got)
 	}
-	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="oval-r"]`).Text()); got != "1.27" {
-		t.Errorf("fenrir row 1 oval-r = %q, want 1.27", got)
+	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="oval-r"]`).Text()); got != "1.10" {
+		t.Errorf("fenrir row 1 oval-r = %q, want 1.10", got)
 	}
 	geom1 := doc.Find(`tr[data-geometry-rank="1"]`)
-	for cell, want := range map[string]string{"reach": "427.5", "stack": "642.3", "ett": "597.1", "chainstay": "450.0*"} {
+	for cell, want := range map[string]string{"reach": "429.3", "stack": "641.1", "ett": "599.7", "chainstay": "440.0"} {
 		if got := strings.TrimSpace(geom1.Find(fmt.Sprintf(`[data-geometry-cell="%s"]`, cell)).Text()); got != want {
 			t.Errorf("fenrir row 1 %s = %q, want %q", cell, got, want)
 		}

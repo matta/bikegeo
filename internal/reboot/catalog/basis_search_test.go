@@ -228,13 +228,14 @@ func TestBasisSearchCatalogFrames(t *testing.T) {
 		wantEval   []basisEval
 	}{
 		{
-			id: "otso-fenrir-stainless", rake: 54, compare: []float64{44, 52, 54},
-			minA2c: 494.6122, maxA2c: 495.3967, minimaxA2c: 495.0044, roundedA2c: 495.0,
-			a2cRange: basisRange{493.20, 496.80}, rakeRange: basisRange{51.15, 56.90},
+			id: "otso-fenrir-stainless", rake: 51, compare: []float64{44, 51, 51.5, 52},
+			minA2c: 496.8361, maxA2c: 497.6214, minimaxA2c: 497.2288, roundedA2c: 497.0,
+			a2cRange: basisRange{493.50, 500.95}, rakeRange: basisRange{41.45, 59.90},
 			wantEval: []basisEval{
-				{A2cMm: 495.0, RakeMm: 44, Passes: false, AxleHeightExcess: 2.0213, HasWheelbase: true, WheelbaseExcess: 6.6008},
-				{A2cMm: 495.0, RakeMm: 52, Passes: true, AxleHeightExcess: -0.9594, HasWheelbase: true, WheelbaseExcess: -0.8232},
-				{A2cMm: 495.0, RakeMm: 54, Passes: true, AxleHeightExcess: -1.6877, HasWheelbase: true, WheelbaseExcess: -2.6792},
+				{A2cMm: 497.0, RakeMm: 44, Passes: true, AxleHeightExcess: -0.9844, HasWheelbase: false, WheelbaseExcess: math.NaN()},
+				{A2cMm: 497.0, RakeMm: 51, Passes: true, AxleHeightExcess: -3.2720, HasWheelbase: false, WheelbaseExcess: math.NaN()},
+				{A2cMm: 497.0, RakeMm: 51.5, Passes: true, AxleHeightExcess: -3.0888, HasWheelbase: false, WheelbaseExcess: math.NaN()},
+				{A2cMm: 497.0, RakeMm: 52, Passes: true, AxleHeightExcess: -2.9055, HasWheelbase: false, WheelbaseExcess: math.NaN()},
 			},
 		},
 		{
@@ -294,6 +295,16 @@ func TestBasisSearchCatalogFrames(t *testing.T) {
 			}
 		})
 	}
+
+	fenrir := mustFrame(t, "otso-fenrir-stainless")
+	ev, err := evalBasis(fenrir, fenrir.BasisLowerCup, 495, 51)
+	if err != nil {
+		t.Fatalf("evalBasis(fenrir 495/51): %v", err)
+	}
+	if !ev.Passes || ev.HasWheelbase {
+		t.Fatalf("evalBasis(fenrir 495/51) = %+v, want Passes=true HasWheelbase=false", ev)
+	}
+	assertNearBasis(t, "fenrir 495/51 AxleHeightExcess", ev.AxleHeightExcess, -1.4110, 0.02)
 }
 
 // TestBasisSearchErrorsAndRakeIndependence covers validation failures and
@@ -321,6 +332,7 @@ func TestBasisSearchErrorsAndRakeIndependence(t *testing.T) {
 
 	// Regression guard: implied A2C depends on rake, so f.BasisFork.RakeMm must not bleed into searchBasis.
 	f54 := mustFrame(t, "otso-fenrir-stainless")
+	f54.BasisFork.RakeMm = 54
 	f44 := f54
 	f44.BasisFork.RakeMm = 44
 	resFrom54, err := searchBasis(f54, f54.BasisLowerCup, 44, []float64{44})
@@ -336,8 +348,8 @@ func TestBasisSearchErrorsAndRakeIndependence(t *testing.T) {
 		t.Fatalf("searchBasis(f54, 54): %v", err)
 	}
 	assertNearBasis(t, "minimax match", resFrom54.MinimaxA2cMm, resFrom44.MinimaxA2cMm, 1e-12)
-	assertNearBasis(t, "rake 44 minimax", resFrom54.MinimaxA2cMm, 491.0149, 0.02)
-	assertNearBasis(t, "rake 54 minimax", res54.MinimaxA2cMm, 495.0044, 0.02)
+	assertNearBasis(t, "rake 44 minimax", resFrom54.MinimaxA2cMm, 494.4006, 0.02)
+	assertNearBasis(t, "rake 54 minimax", res54.MinimaxA2cMm, 498.4408, 0.02)
 	if math.Abs(resFrom54.MinimaxA2cMm-res54.MinimaxA2cMm) < 3.0 {
 		t.Errorf("expected rake 44 vs 54 minimax A2C to differ by >3 mm, got %v vs %v", resFrom54.MinimaxA2cMm, res54.MinimaxA2cMm)
 	}

@@ -90,27 +90,26 @@ func TestMissingLegacyFrames(t *testing.T) {
 }
 
 // TestFramesMatchLegacy pins every legacy frame value in the catalog, skipping
-// catalog-only frames (Q119).
+// catalog-only frames (Q119) and otso-fenrir-stainless once re-ingested from
+// Otso's published chart (Q126).
 func TestFramesMatchLegacy(t *testing.T) {
 	if missing := missingLegacyFrames(legacyframes.AllFrames(), catalog.Frames()); len(missing) > 0 {
 		t.Fatalf("legacy frames missing from the catalog: %v", missing)
 	}
-	modelOverride := map[string]string{"otso-fenrir-stainless": "Fenrir Stainless"}
 	allowanceSizes := map[string]bool{"sklar-pbj/L": true, "esker-hayduke/S4": true}
 	legacy := legacyFramesByID()
 	for _, f := range catalog.Frames() {
 		t.Run(f.ID, func(t *testing.T) {
+			if f.ID == "otso-fenrir-stainless" {
+				t.Skipf("re-ingested from published Otso chart (Q126)")
+			}
 			l, ok := legacy[f.ID]
 			if !ok {
 				t.Skipf("catalog-only frame (Q119)")
 			}
-			wantModel := l.Model
-			if m, ok := modelOverride[f.ID]; ok {
-				wantModel = m
-			}
-			if f.Manufacturer != l.Manufacturer || f.Model != wantModel || f.Year != l.Year || f.DefaultSize != l.DefaultSize {
+			if f.Manufacturer != l.Manufacturer || f.Model != l.Model || f.Year != l.Year || f.DefaultSize != l.DefaultSize {
 				t.Errorf("identity = %q %q %d default %q, want %q %q %d default %q",
-					f.Manufacturer, f.Model, f.Year, f.DefaultSize, l.Manufacturer, wantModel, l.Year, l.DefaultSize)
+					f.Manufacturer, f.Model, f.Year, f.DefaultSize, l.Manufacturer, l.Model, l.Year, l.DefaultSize)
 			}
 			var names []string
 			for _, s := range f.Sizes {
@@ -177,12 +176,8 @@ func TestFramesMatchLegacy(t *testing.T) {
 				if fr.LowerBore != bore || fr.DefaultLowerCup.Standard != cup.Standard {
 					t.Errorf("%s headset = %s %s, want %s %s (stacks follow Q136)", s.Name, fr.LowerBore, fr.DefaultLowerCup.Standard, bore, cup.Standard)
 				}
-				wantInsertion := 0.0
-				if f.ID == "otso-fenrir-stainless" && s.Name == "L" {
-					wantInsertion = 290 // Q95
-				}
-				if fr.MaxPostInsertionMm != wantInsertion || fr.MinFrameInsertionMm != 0 {
-					t.Errorf("%s insertion max/min = %v/%v, want %v/0", s.Name, fr.MaxPostInsertionMm, fr.MinFrameInsertionMm, wantInsertion)
+				if fr.MaxPostInsertionMm != 0 || fr.MinFrameInsertionMm != 0 {
+					t.Errorf("%s insertion max/min = %v/%v, want 0/0", s.Name, fr.MaxPostInsertionMm, fr.MinFrameInsertionMm)
 				}
 				if has := s.Allowance != (catalog.ChartAllowance{}); has != allowanceSizes[f.ID+"/"+s.Name] {
 					t.Errorf("%s allowance = %+v", s.Name, s.Allowance)
@@ -193,10 +188,14 @@ func TestFramesMatchLegacy(t *testing.T) {
 }
 
 // TestPrecisionMatchesLegacyInference pins each ported frame's precision to
-// legacy's inference, skipping catalog-only frames (Q80, Q119).
+// legacy's inference, skipping catalog-only frames (Q80, Q119) and
+// otso-fenrir-stainless after its Q126/Q142 re-ingestion.
 func TestPrecisionMatchesLegacyInference(t *testing.T) {
 	legacy := legacyFramesByID()
 	for _, f := range catalog.Frames() {
+		if f.ID == "otso-fenrir-stainless" {
+			continue
+		}
 		l, ok := legacy[f.ID]
 		if !ok {
 			continue

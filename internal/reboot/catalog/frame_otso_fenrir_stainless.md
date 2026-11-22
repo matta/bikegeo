@@ -1,8 +1,8 @@
 # Otso Fenrir Stainless: source record
 
-Catalog file: `frame_otso_fenrir_stainless.go`. Gathered 2026-11-21.
+Catalog file: `frame_otso_fenrir_stainless.go`. Gathered 2026-11-21; catalog re-ingested 2026-11-22 (Slice 16e, Q126, Q140–Q143).
 
-The catalog's chart values don't match this record yet. The head angle, seat angle, and wheelbases were derived in the 2026-10-17 refit (`ea9d423`), and the basis fork isn't a real fork position. See **Catalog values** and **Open questions**.
+The catalog now transcribes S1's nominal middle Tuning Chip chart (`68°` HTA, `75°` STA, `70 mm` BB drop, `440 mm` chainstay, unpublished wheelbases) with `495/51` on the bare head tube, all five published seatpost insertion depths, and `enve_mountain_boost` included in the listed forks. See **Catalog values**, **Chart consistency**, and **Open questions**.
 
 ## Sources
 
@@ -120,32 +120,37 @@ Both flip-chip positions put the axle at almost the same height below the crown 
 
 ## Catalog values
 
-As of `d60d04f`. Labels are what the values actually are, not what the Go comments currently say.
+As of Slice 16e (`Q126`, `Q128`, `Q133`, `Q136`, `Q140`–`Q143`).
 
 | Field | Catalog value | Actual provenance | Source or derivation |
 | --- | --- | --- | --- |
 | Reach, Stack, Head tube length, Seat tube length | as S1 | published | S1 |
-| HeadTubeAngleDeg | 68.25 | derived | `ea9d423`: nominal 68° + 0.25° chip change. Not printed anywhere. |
-| SeatTubeAngleDeg | 75.25 | derived | `ea9d423`: nominal 75° + 0.25°. Not printed anywhere. |
-| BbDropMm | 72 | published range endpoint | S1 `68-72mm`. Pairing 72 mm with the steeper angle is an assumption. More drop slackens the frame, so 72 mm likely goes with 67.75°. |
-| ChainstayMm, MaxChainstayMm | 450 | published range endpoint | S1 `430-450mm`. A Tuning Chip is not a sliding dropout (Q67). |
-| WheelbaseMm | 1098 / 1118 / 1138 / 1158 / 1178 | derived | `ea9d423` "exact wheelbases". They fit a 495/54 basis to within 0.3 mm. S1 prints only ranges. |
-| MaxPostInsertionMm | L 290, others 0 | published (L only) | S1/S3 publish all five: 170 / 210 / 260 / 290 / 330 |
-| LowerBore, DefaultLowerCup | 44 mm pressed, EC44 12 mm | published standard; illustrative stack | S1 headset; S8 gives 12.25 mm for the spec'd cup |
-| BasisLowerCup | bare head tube | hypothesis | Legacy `GeoHeadsetSpacerMm: 0` |
-| BasisFork | 495 mm, 54 mm rake | hypothesis | `ea9d423`. No fork has a 54 mm position (S5, S6). |
-| Forks: Lithic Carbon Mountain | 495 / 54 | catalog (wrong) | S6: 495/44 or 498/51.5 |
-| Forks: SID 100, Fox 34 120 | 506 / 44, 530 / 44 | catalog | Not from an Otso source |
-| ChartPrecision | lengths 0.5, HTA 0.125 | derived | From the derived 68.25°. Printed digits give 0.5 (S1 `68°`) or 0.05 (S2 `68.0°`). |
-| Year | 2024 | catalog | Unsourced; the chart dates to 2022 (S2 upload, S4) |
+| HeadTubeAngleDeg | 68 | published | S1 nominal middle Tuning Chip |
+| SeatTubeAngleDeg | 75 | published | S1 nominal middle Tuning Chip |
+| BbDropMm | 70 | derived | Midpoint of S1 `68-72mm` range (`Q140`) |
+| ChainstayMm | 440 | derived | Midpoint of S1 `430-450mm` range (`Q140`) |
+| MaxChainstayMm | 0 | catalog | `Q140`: Tuning Chip alters drop/angles/chainstay together rather than sliding horizontally |
+| WheelbaseMm | 0 | unpublished | `Q57`, `Q141`: S1 prints only 10-mm-rounded ranges (`1090-1110` to `1170-1190mm`) |
+| MaxPostInsertionMm | 170 / 210 / 260 / 290 / 330 | published | S1 / S3 across XS–XL (`Q143`) |
+| LowerBore, DefaultLowerCup | `44_pressed`, `EC44 12 mm` | published standard; illustrative stack | S1 headset (`ZS44/28.6` upper, `EC44/40.0` lower); Cane Creek 40 typical lower stack (`Q136`; S8 Wolf Tooth is `12.25 mm`) |
+| BasisLowerCup | bare head tube (`0 mm`) | hypothesis | `Q142` (S1 omits lower cup stack) |
+| BasisFork | `495 mm`, `51 mm` offset | hypothesis | `Q142` (matches S1's printed `495mm` A2C, `51mm` offset, `88mm` trail) |
+| Forks | `lithic_carbon_mountain`, `enve_mountain_boost`, `sid_100`, `fox34_120` | catalog | `Q128`, `Q133` (`enve_mountain_boost` 490/44 & 492/52 from S5; `lithic_carbon_mountain` 495/44 & 498/51.5 from S6) |
+| ChartPrecision | lengths `0.5`, HTA `0.5` | derived | Inferred from S1 printed digits (`68°`, whole mm) (`Q80`, `Q142`) |
+| Year | 2024 | catalog | Chart dates to 2022 (`S2` upload, `S4`) |
 
 ## Chart consistency
 
-**2026-11-21, Slice 16b P2/P3.** The catalog chart at 495/54 on a bare head tube implies a 494.61–495.40 mm A2C. Every coarse transcription of S1 fails the wheelbase check at 495 mm. The full readouts are in the Slice 16b implementation handoff: `git show d60d04f:docs/reboot/SLICE16b.md`.
+**2026-11-22, Slice 16e.** Committed `TestEveryChartIsConsistent` and `TestBasisSearchCatalogFrames` on the nominal S1 chart (`68°`, `70 mm` drop, `440 mm` CS, `PublishedWheelbaseMm = 0`, HTA half-width `0.5°`, bare head tube):
+
+- **At `495 / 51` (`BasisFork`):** all 5 sizes pass axle height with zero allowances: `XS +1.70 mm` (`±3.81`), `S +2.43 mm` (`±3.84`), `M +1.89 mm` (`±3.91`), `L +2.34 mm` (`±3.97`), `XL +1.80 mm` (`±4.04`); worst excess `-1.41 mm` (`S`).
+- **`searchBasis` at `51 mm` offset:** implied A2C `XS 496.84`, `S 497.62`, `M 497.04`, `L 497.53`, `XL 496.94 mm` (range `496.84–497.62 mm`, minimax `497.23 mm`, rounded `497.0 mm`); passing A2C interval `493.50–500.95 mm`; passing offset interval at `497.0 mm` A2C `41.45–59.90 mm`.
+
+**2026-11-21, Slice 16b P2/P3 (prior catalog revision).** The earlier `ea9d423` chart at `495/54` on a bare head tube implied `494.61–495.40 mm` A2C.
 
 **2026-11-21, Slice 16b review** (temporary tests, axle-height budget about ±2.0 mm, wheelbase budget about ±3.0 mm):
 
-1. **The catalog chart fits too well.** At 495/54 on a bare head tube, axle-height mismatch is within 0.4 mm and wheelbase within 0.3 mm in every size. That confirms its wheelbases were computed from that basis.
+1. **The prior `ea9d423` catalog chart fit too well.** At 495/54 on a bare head tube, axle-height mismatch was within 0.4 mm and wheelbase within 0.3 mm in every size. That confirmed its wheelbases were computed from that basis.
 2. **S1's nominal chart** (68°, 70 mm drop, 440 mm chainstay, range-midpoint wheelbases) with the Lithic fork on a bare head tube:
    - Axle height passes in every size at both positions: −0.9 to −0.2 mm at 495/44 and at 498/51.5.
    - It passes only up to a 1.2 mm lower cup (0.8 mm at HTA ±0.05).
@@ -161,14 +166,11 @@ Reading: the chart's front end fits a 495–498 mm fork at about 51 mm offset wi
 
 ## Open questions
 
-Slice 16e, the Fenrir correction, settles these (DESIGN.md Q126).
+All open questions resolved in Slice 16e (`Q128`, `Q133`, `Q140`–`Q143`):
 
-1. Which chip position the catalog transcribes. The nominal middle (68°, 75°, 70 mm drop, 440 mm chainstay) is the only one printed. How `MaxChainstayMm` (Q67) should treat a Tuning Chip.
-2. The basis:
-   - the chart's own 495/51 on a bare head tube, which passes axle height only marginally (S and L by about 0.3 mm);
-   - the Lithic front position 498/51.5 on a bare head tube, which passes;
-   - or the ENVE 492/52 with a cup the spec'd headset doesn't have.
-3. Wheelbase: leave it at 0 (Q57), since only ranges are published and none fit, or rule on the ranges.
-4. HTA precision: 0.5 (S1 `68°`) or 0.05 (S2 `68.0°`) (Q80).
-5. ~~The fork list.~~ Ruled in Q128 (2026-11-22): the list is a minimum, not the only choices. It holds the Lithic Mountain (495/44, 498/51.5) and the ENVE Mountain Boost (490/44, 492/52), each a fork with two variants, plus 100–120 mm suspension forks. The catalog's `enve_mountain_boost` also carries a 492/55 variant that S5 doesn't list; Slice 16c checks it against ENVE's spec.
-6. Insertion depths for XS, S, M, and XL (Q95 follow-up).
+1. ~~Which chip position the catalog transcribes.~~ Ruled in **Q140** (2026-11-22): nominal middle (`68°`, `75°`, `70 mm` drop, `440 mm` chainstay) with `MaxChainstayMm: 0` (Tuning Chip is not modeled as a sliding dropout).
+2. ~~The basis.~~ Ruled in **Q142** (2026-11-22): `495 mm` A2C / `51 mm` offset on a bare head tube (`0 mm`).
+3. ~~Wheelbase.~~ Ruled in **Q141** (2026-11-22): `PublishedWheelbaseMm: 0` (unpublished; printed ranges kept in this record).
+4. ~~HTA precision.~~ Ruled in **Q142** (2026-11-22): `0.5°` (from S1's `68°`).
+5. ~~The fork list.~~ Ruled in **Q128** and **Q133** (2026-11-22): `[lithic_carbon_mountain, enve_mountain_boost, sid_100, fox34_120]`, with `enve_mountain_boost` trimmed to `490/44` & `492/52` (S5) and `lithic_carbon_mountain` trimmed to `495/44` & `498/51.5` (S6).
+6. ~~Insertion depths for XS, S, M, and XL.~~ Ruled in **Q143** (2026-11-22): all five published S1/S3 depths (`170 / 210 / 260 / 290 / 330 mm`) populated.

@@ -496,6 +496,7 @@ func TestParseCompareDefaultAll19Frames(t *testing.T) {
 		{1, "sklar-pbj", "L", "fox36_sl_120", 15, assembly.FitsAll, 76.200061329, 0.887113437},
 		{2, "seven-custom", "Custom", "fox34_120-534x44", 25, assembly.FitsBRP, 53.126792179, 2.092042057},
 		{7, "esker-hayduke", "S3", "enve_mountain_boost-492x52", 0, assembly.FitsGrip, 81.320323095, 0.952602612},
+		{16, "otso-fenrir-stainless", "XL", "firestarter_deluxe_483", 0, assembly.FitsGrip, 69.087518917, 0.956687823},
 		{18, "salsa-cutthroat", "60cm", "firestarter_deluxe_483", 0, assembly.FitsNeither, 50.260457620, 3.453797202},
 	}
 	for _, w := range want {

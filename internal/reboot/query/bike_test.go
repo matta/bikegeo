@@ -253,38 +253,38 @@ func TestBikeEvaluate(t *testing.T) {
 
 	r := eval("")
 	fs := r.Placement.Frameset
-	near(t, "reach", fs.LeveledReachMm(), 419.815874, 1e-5)
-	near(t, "stack", fs.LeveledStackMm(), 647.381365, 1e-5)
-	near(t, "ett", fs.EttMm(), 599.074926, 1e-5)
-	near(t, "wheelbase", fs.WheelbaseMm(), 1152.913834, 1e-5)
+	near(t, "reach", fs.LeveledReachMm(), 421.587331, 1e-5)
+	near(t, "stack", fs.LeveledStackMm(), 646.229156, 1e-5)
+	near(t, "ett", fs.EttMm(), 601.658169, 1e-5)
+	near(t, "wheelbase", fs.WheelbaseMm(), 1145.619462, 1e-5)
 	brp := r.Placement.Saddle.BRP.Origin()
-	near(t, "brp x", brp.X, -157.024907, 1e-5)
-	near(t, "brp y", brp.Y, 682.682197, 1e-5)
+	near(t, "brp x", brp.X, -158.060601, 1e-5)
+	near(t, "brp y", brp.Y, 682.374276, 1e-5)
 	if r.Score == nil {
 		t.Fatal("default Score nil")
 	}
 	if r.Score.Tier != assembly.FitsNeither {
 		t.Errorf("tier = %v", r.Score.Tier)
 	}
-	near(t, "score", r.Score.Total, 53.639215, 1e-5)
-	near(t, "gripR", r.Score.GripR, 9.736876, 1e-5)
-	near(t, "brp miss x", r.Score.BrpMissXMm, -61.975093, 1e-5)
-	near(t, "brp miss y", r.Score.BrpMissYMm, 30.417803, 1e-5)
+	near(t, "score", r.Score.Total, 53.545302, 1e-5)
+	near(t, "gripR", r.Score.GripR, 9.539697, 1e-5)
+	near(t, "brp miss x", r.Score.BrpMissXMm, -60.939399, 1e-5)
+	near(t, "brp miss y", r.Score.BrpMissYMm, 30.725724, 1e-5)
 	if r.Fitting == nil {
 		t.Fatal("Fitting nil")
 	}
 	fsu := r.Fitting.Placement.Setup
-	near(t, "fit insertion", fsu.Seatpost.InsertionMm, 143.437621, 1e-5)
+	near(t, "fit insertion", fsu.Seatpost.InsertionMm, 143.103723, 1e-5)
 	if fsu.Saddle.RailOffsetMm != 15 || fsu.Stem.SpacersMm != 0 || fsu.Stem.LengthMm != 130 {
 		t.Errorf("fit setup = rail %v spacers %v stem %v", fsu.Saddle.RailOffsetMm, fsu.Stem.SpacersMm, fsu.Stem.LengthMm)
 	}
 	if r.SetbackCentered == nil || r.SetbackReach == nil {
 		t.Fatal("setback fittings nil")
 	}
-	near(t, "centered setback", r.SetbackCentered.Placement.Setup.Seatpost.Spec.SetbackMm, 63.610422, 1e-5)
-	near(t, "centered insertion", r.SetbackCentered.Placement.Setup.Seatpost.InsertionMm, 129.146763, 1e-5)
-	near(t, "reach setback", r.SetbackReach.Placement.Setup.Seatpost.Spec.SetbackMm, 49.154381, 1e-5)
-	near(t, "reach insertion", r.SetbackReach.Placement.Setup.Seatpost.InsertionMm, 133.149622, 1e-5)
+	near(t, "centered setback", r.SetbackCentered.Placement.Setup.Seatpost.Spec.SetbackMm, 62.455524, 1e-5)
+	near(t, "centered insertion", r.SetbackCentered.Placement.Setup.Seatpost.InsertionMm, 129.044363, 1e-5)
+	near(t, "reach setback", r.SetbackReach.Placement.Setup.Seatpost.Spec.SetbackMm, 48.006005, 1e-5)
+	near(t, "reach insertion", r.SetbackReach.Placement.Setup.Seatpost.InsertionMm, 133.070701, 1e-5)
 	if r.Builds == nil || r.Builds.Evaluated != 749 || len(r.Builds.Builds) != 5 {
 		t.Fatalf("builds = %+v", r.Builds)
 	}
@@ -294,8 +294,8 @@ func TestBikeEvaluate(t *testing.T) {
 		st.LengthMm != 120 || st.AngleDeg != -30 || st.SpacersMm != 0 {
 		t.Errorf("top build = %v %s %s stem %+v", top.Score.Tier, top.HandlebarID, top.ForkID, st)
 	}
-	near(t, "top total", top.Score.Total, 54.271845, 1e-5)
-	near(t, "top gripR", top.Score.GripR, 1.897639, 1e-5)
+	near(t, "top total", top.Score.Total, 55.893999, 1e-5)
+	near(t, "top gripR", top.Score.GripR, 1.783235, 1e-5)
 
 	r = eval("stem_length=65&stem_angle=-6")
 	if r.Score != nil || r.Fitting == nil || r.Builds == nil {
@@ -306,8 +306,8 @@ func TestBikeEvaluate(t *testing.T) {
 	if r.Score == nil || r.Score.Tier != assembly.FitsNeither || r.Score.HasBrp || r.SetbackCentered != nil || r.SetbackReach != nil {
 		t.Fatalf("brp off = %+v", r)
 	}
-	near(t, "brp off total", r.Score.Total, 70.913554, 1e-5)
-	near(t, "brp off top total", r.Builds.Builds[0].Score.Total, 54.512454, 1e-5)
+	near(t, "brp off total", r.Score.Total, 70.766560, 1e-5)
+	near(t, "brp off top total", r.Builds.Builds[0].Score.Total, 57.051476, 1e-5)
 
 	r = eval("grip=off")
 	if r.Score != nil || r.Builds != nil || r.Fitting == nil || r.SetbackCentered == nil {
@@ -340,8 +340,8 @@ func TestBikeEvaluate(t *testing.T) {
 	if top.ForkID != "firestarter_deluxe_483" || top.Placement.Setup.Fork.SagPct != 0 {
 		t.Errorf("all forks top = %s sag %v", top.ForkID, top.Placement.Setup.Fork.SagPct)
 	}
-	near(t, "all forks total", top.Score.Total, 63.094565950, 1e-6)
-	near(t, "all forks gripR", top.Score.GripR, 1.273523966, 1e-6)
+	near(t, "all forks total", top.Score.Total, 65.713076690, 1e-6)
+	near(t, "all forks gripR", top.Score.GripR, 1.104821393, 1e-6)
 
 	_, err := mustParseBike(t, "post=redshift_shockstop_pro&post_insert=275").Evaluate(query.RankedBuildLimit)
 	var ie *assembly.InputError
@@ -355,7 +355,7 @@ func TestBasisFrameset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BasisFrameset: %v", err)
 	}
-	near(t, "default basis pitch", float64(fs.PitchDeg()), -0.010692172, 1e-9)
+	near(t, "default basis pitch", float64(fs.PitchDeg()), -0.116991618, 1e-9)
 }
 
 // TestParseBikeOpenForkChoice opens an unlisted compatible fork directly and

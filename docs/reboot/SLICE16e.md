@@ -1,6 +1,24 @@
 # Slice 16e: The Fenrir Correction and Promoted Basis Search
 
-Status: Planned 2026-11-22 (Q126–Q130, Q140–Q143; ready for implementation)
+Status: Implemented 2026-11-22; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-22, Antigravity (planning and execution).
+- **Commits:**
+  1. `Promote basis search into catalog tests and update ingest-frame skill`: `80dac4d`
+  2. `Re-ingest Otso Fenrir Stainless from Otso's published chart`: the commit that adds this section (see `git log`).
+- **Done and not done:** C1 (`A1`, `S1`) and C2 (`A2`–`A5`) are all done. Nothing is left over.
+- **Deviations** (none changes a ruling):
+  - `A5` item 5 listed `TestBikeWorkbenchFitsFitReportGripAtLimits` `fit-grip-miss` as `"35.7 mm"` (the post-fitting miss); `bike_page.go` renders the current pre-fitting HandGrip miss (`(388.55, 755.54)` to `(481, 726)` = `97.1 mm`, vs `"99.0 mm"` prior to C2), so `web_test.go` asserts `"97.1 mm"`.
+  - `A1`/`A4` listed the C1 rake-independence minimax targets (`491.0149` / `495.0044`); after C2 re-ingested Fenrir, `TestBasisSearchErrorsAndRakeIndependence` asserts the corrected Fenrir rake-44 vs rake-54 minimax values (`494.4006` and `498.4408`, `±0.02 mm`).
+- **Verification:**
+  - `make pre-commit` exits 0 on the final state (also passed cleanly after C1 commit `80dac4d`).
+  - `go test -run 'TestBasisSearch|TestEveryChartIsConsistent|TestForkListsPlace|TestSeatpostBoundsEverySize|TestFramesMatchLegacy' -v ./internal/reboot/catalog` passes: `2989 fork-list placements, 119 basis placements`, `otso-fenrir-stainless` skipped in `TestFramesMatchLegacy` citing `Q126`.
+  - `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo-reboot` lists only `bikegeo/...`.
+  - CLI: `go run ./cmd/bikegeo-reboot bike` outputs Fenrir L with `HeadTubeTop` `(421.59, 646.23)` mm and `Score.Total` `53.55`; `compare 'frame=otso-fenrir-stainless&size=L'` outputs 32 Fenrir L rows with `ChainstayMm: 440` and top fork `firestarter_deluxe_483` (`Total` `65.71`).
+  - Live HTTP (`http://localhost:8081`): `/bike` has zero `data-note="sliding-dropouts"` and zero `(Published`, lists `ENVE Mountain Carbon Boost` (`490/44`, `492/52`) under `Listed Forks`, and renders `Chart Basis Fork (495 mm A2C / 51 mm rake, 0 mm cup)`; `/bike?fork=basis` selects `<option value="basis" selected>`; `/` shows rank 17 `Otso Fenrir Stainless` XL (`chainstay` `440.0` without `*`, score `69.1`, `0.96`, `Fits grip`) and lists only the 6 sliding-dropout frames in the `data-note="sliding-dropouts"` footnote.
+- **Open issues:** none found.
 
 ## Goal
 

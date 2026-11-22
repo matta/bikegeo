@@ -1417,8 +1417,8 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 	if view.DrawScale != 1 {
 		t.Errorf("whole-bike DrawScale = %v, want exactly 1", view.DrawScale)
 	}
-	if got, _ := doc.Find("svg.diagram").Attr("viewBox"); got != "-912.08 -851.63 2086.91 1257.27" {
-		t.Errorf("whole-bike viewBox = %q, want the pre-view framing -912.08 -851.63 2086.91 1257.27", got)
+	if got, _ := doc.Find("svg.diagram").Attr("viewBox"); got != "-902.07 -850.54 2079.62 1256.87" {
+		t.Errorf("whole-bike viewBox = %q, want the pre-view framing -902.07 -850.54 2079.62 1256.87", got)
 	}
 
 	checks := []struct{ sel, attr, want string }{
@@ -1433,7 +1433,7 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 		{`[data-segment="seat-tube"]`, "stroke-dasharray", "12 6"},
 		{`.component-outlines`, "stroke-width", "1.5"},
 		{`.component-outlines rect`, "rx", "2"},
-		{`svg.diagram`, "style", fmt.Sprintf("--units-per-px: %.4f;", 2086.91/nominalDiagramWidthPx)},
+		{`svg.diagram`, "style", fmt.Sprintf("--units-per-px: %.4f;", 2079.62/nominalDiagramWidthPx)},
 		// Labels sit on their point and are offset in ems, so the offset
 		// follows the on-screen (rem) label size set by CSS.
 		{`.landmarks [data-landmark="BB"] text`, "dx", "0em"},
@@ -1723,18 +1723,18 @@ func TestBikeWorkbenchCloseUpsContainTheirOutlines(t *testing.T) {
 // the framing changes.
 func TestBikeWorkbenchViewsShareReadoutsAndDifferInFraming(t *testing.T) {
 	cases := []struct{ view, viewBox string }{
-		{"bike", "-912.08 -851.63 2086.91 1257.27"},
-		{"seat", "-265.60 -703.99 137.14 82.62"},
-		{"stem", "298.49 -769.98 240.24 144.74"},
+		{"bike", "-902.07 -850.54 2079.62 1256.87"},
+		{"seat", "-266.63 -703.82 137.14 82.89"},
+		{"stem", "300.54 -768.85 239.50 144.75"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.view, func(t *testing.T) {
 			doc := loadBikeDoc(t, "/bike?view="+tc.view)
-			if got := metricText(doc, "wheelbase"); got != "1152.9 mm" {
-				t.Errorf("wheelbase = %q, want 1152.9 mm", got)
+			if got := metricText(doc, "wheelbase"); got != "1145.6 mm" {
+				t.Errorf("wheelbase = %q, want 1145.6 mm", got)
 			}
-			if got := metricText(doc, "brp-grip-dist"); got != "548.9 mm" {
-				t.Errorf("brp-grip-dist = %q, want 548.9 mm", got)
+			if got := metricText(doc, "brp-grip-dist"); got != "551.5 mm" {
+				t.Errorf("brp-grip-dist = %q, want 551.5 mm", got)
 			}
 			if got, _ := doc.Find("svg.diagram").Attr("viewBox"); got != tc.viewBox {
 				t.Errorf("viewBox = %q, want %q", got, tc.viewBox)
@@ -1795,15 +1795,15 @@ func TestBikeWorkbenchFitsFitReportBrpAtRailLimit(t *testing.T) {
 	if got := metric("fit-rail-offset"); got != "15.0 mm" {
 		t.Errorf("fit-rail-offset = %q, want 15.0 mm", got)
 	}
-	if got := metric("fit-insertion"); got != "196.8 mm" {
-		t.Errorf("fit-insertion = %q, want 196.8 mm", got)
+	if got := metric("fit-insertion"); got != "196.4 mm" {
+		t.Errorf("fit-insertion = %q, want 196.4 mm", got)
 	}
 	q := hrefQuery(t, doc, "a#apply-fitting")
 	if got := q.Get("rail_offset"); got != "15" {
 		t.Errorf("apply rail_offset = %q, want 15", got)
 	}
-	if ext, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ext-196.760406) > 1e-6 {
-		t.Errorf("apply post_insert = %q (%v), want ≈196.760406", q.Get("post_insert"), err)
+	if ext, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ext-196.447506) > 1e-6 {
+		t.Errorf("apply post_insert = %q (%v), want ≈196.447506", q.Get("post_insert"), err)
 	}
 	if q.Get("brp_x") != "-219" || q.Get("brp_y") != "713.1" || q.Get("grip") != "off" {
 		t.Errorf("apply link lost the targets: %v", q)
@@ -1962,7 +1962,7 @@ func TestBikeWorkbenchFitsFitReportGripAtLimits(t *testing.T) {
 		"fit-cockpit-outcome": "limited by stem spacers, stem length",
 		"fit-spacers":         "0.0 mm",
 		"fit-stem-length":     "130.0 mm",
-		"fit-grip-miss":       "99.0 mm",
+		"fit-grip-miss":       "97.1 mm",
 	} {
 		if got := metricText(doc, name); got != want {
 			t.Errorf("%s = %q, want %q", name, got, want)
@@ -2010,8 +2010,8 @@ func TestBikeWorkbenchBothFitTargets(t *testing.T) {
 	if q.Get("rail_offset") != "15" || q.Get("spacers") != "0" || q.Get("stem_length") != "130" {
 		t.Errorf("apply link values: %v", q)
 	}
-	if ext, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ext-196.760406) > 1e-6 {
-		t.Errorf("apply post_insert = %q, want ≈196.760406", q.Get("post_insert"))
+	if ext, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ext-196.447506) > 1e-6 {
+		t.Errorf("apply post_insert = %q, want ≈196.447506", q.Get("post_insert"))
 	}
 	for _, k := range []string{"brp_x", "brp_y", "grip_x", "grip_y"} {
 		if !q.Has(k) {
@@ -2072,14 +2072,14 @@ func TestBikeWorkbenchRanksBuilds(t *testing.T) {
 		t.Errorf("tier legend items = %d, want 4", n)
 	}
 	for name, want := range map[string]string{
-		"tier": "Fits neither", "score": "54.5", "stem": "120 mm, -30°", "spacers": "0 mm", "grip-miss": "32.4 mm",
-		"oval-r": "1.90", "fork": "Lithic Carbon Mountain (495/44)", "brp-miss": "—",
+		"tier": "Fits neither", "score": "57.1", "stem": "120 mm, -30°", "spacers": "0 mm", "grip-miss": "31.7 mm",
+		"oval-r": "1.78", "fork": "Lithic Carbon Mountain (495/44)", "brp-miss": "—",
 	} {
 		if got := buildCell(rows.First(), name); got != want {
 			t.Errorf("row 1 %s = %q, want %q", name, got, want)
 		}
 	}
-	for i, want := range []string{"54.5", "52.1", "52.1"} {
+	for i, want := range []string{"57.1", "54.1", "52.0"} {
 		if got := buildCell(rows.Eq(i), "score"); got != want {
 			t.Errorf("row %d score = %q, want %q", i+1, got, want)
 		}
@@ -2094,7 +2094,7 @@ func TestBikeWorkbenchRanksBuilds(t *testing.T) {
 			t.Errorf("attribute header %d = %q, want %q", i, got, want)
 		}
 	}
-	for i, want := range []string{"9.2", "—", "—", "0.0", "100.0", "100.0", "100.0", "—", "100.0", "—", "100.0", "98.5"} {
+	for i, want := range []string{"19.5", "—", "—", "0.0", "100.0", "100.0", "100.0", "—", "100.0", "—", "100.0", "95.1"} {
 		if got := strings.TrimSpace(attrs.Eq(i).Text()); got != want {
 			t.Errorf("row 1 attribute %d = %q, want %q", i, got, want)
 		}
@@ -2226,11 +2226,11 @@ func TestBikeWorkbenchFitsBuildsAcrossAllBars(t *testing.T) {
 		t.Errorf("build count note = %q", got)
 	}
 	want := []barOptionRow{
-		{barFLX12x15, "120 mm, -10°", "0 mm", "0.82", "67.3"},
-		{barFLX12x15, "110 mm, -17°", "0 mm", "0.97", "67.3"},
-		{barFLX12x15, "120 mm, -17°", "5 mm", "0.36", "66.6"},
-		{barFLX12x15, "120 mm, -17°", "0 mm", "0.41", "66.5"},
-		{barFLX12x30, "120 mm, -17°", "0 mm", "0.44", "66.4"},
+		{barAlloy50, "120 mm, -30°", "0 mm", "0.90", "67.8"},
+		{barFLX12x15, "120 mm, -10°", "0 mm", "0.63", "67.5"},
+		{barFLX12x15, "110 mm, -17°", "0 mm", "0.84", "67.4"},
+		{barFLX12x30, "110 mm, -17°", "0 mm", "0.95", "67.2"},
+		{barFLX12x15, "120 mm, -17°", "5 mm", "0.25", "66.7"},
 	}
 	assertBarOptionRows(t, doc, want)
 	if got := buildCell(doc.Find(`tr[data-build-rank="1"]`), "tier"); got != "Fits grip" {
@@ -2240,7 +2240,7 @@ func TestBikeWorkbenchFitsBuildsAcrossAllBars(t *testing.T) {
 	const rowTwoApply = `tr[data-build-rank="2"] a[data-build-apply]`
 	q := hrefQuery(t, doc, rowTwoApply)
 	for name, value := range map[string]string{
-		"bar": "sqlab311_flx_12_15", "bar_options": "all", "stem_length": "110", "stem_angle": "-17",
+		"bar": "sqlab311_flx_12_15", "bar_options": "all", "stem_length": "120", "stem_angle": "-10",
 		"spacers": "0", "bar_roll": "0", "rail_offset": "15", "brp_x": "-219", "grip_x": "481",
 	} {
 		if got := q.Get(name); got != value {
@@ -2266,7 +2266,7 @@ func TestBikeWorkbenchFitsBuildsAcrossAllBars(t *testing.T) {
 	})
 	t.Run("different submitted bar", func(t *testing.T) {
 		other := loadBikeDoc(t, "/bike?bar_options=all&bar=sqlab3ox_12_15&brp=off")
-		for i, score := range []string{"74.9", "74.9", "73.8", "73.7", "73.6"} {
+		for i, score := range []string{"75.7", "75.2", "75.0", "74.8", "73.9"} {
 			row := other.Find("tr[data-build-rank]").Eq(i)
 			if got := buildCell(row, "score"); got != score {
 				t.Errorf("row %d score = %q, want %s", i+1, got, score)
@@ -2281,11 +2281,11 @@ func TestBikeWorkbenchFitsBuildsAcrossAllBars(t *testing.T) {
 func TestBikeWorkbenchFitsBuildsKeepsSubmittedBarRoll(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?bar_options=all&bar_roll=5&brp=off")
 	assertBarOptionRows(t, doc, []barOptionRow{
-		{barAlloy50, "120 mm, -30°", "0 mm", "0.80", "76.1"},
-		{barFLX12x15, "110 mm, -17°", "0 mm", "0.77", "75.4"},
-		{barFLX12x15, "120 mm, -10°", "0 mm", "0.87", "74.7"},
-		{barFLX12x15, "120 mm, -17°", "0 mm", "0.21", "74.2"},
-		{barFLX12x15, "120 mm, -17°", "5 mm", "0.23", "74.1"},
+		{barAlloy50, "120 mm, -30°", "0 mm", "0.61", "76.5"},
+		{barFLX12x15, "110 mm, -17°", "0 mm", "0.62", "75.6"},
+		{barFLX16x30, "120 mm, -30°", "5 mm", "0.96", "75.5"},
+		{barFLX16x30, "120 mm, -30°", "0 mm", "0.97", "75.5"},
+		{bar3OX16x45, "120 mm, -30°", "0 mm", "0.99", "75.5"},
 	})
 	for i := range 5 {
 		q := hrefQuery(t, doc, fmt.Sprintf(`tr[data-build-rank="%d"] a[data-build-apply]`, i+1))
@@ -2299,7 +2299,7 @@ func TestBikeWorkbenchBuildSweepColumn(t *testing.T) {
 	for _, tc := range []struct {
 		name, query, score string
 	}{
-		{"all bars", "bar_options=all", "33.3"},
+		{"all bars", "bar_options=all", "100.0"},
 		{"selected bar", "bar=persuader20_800", "100.0"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2350,8 +2350,8 @@ func TestBikeWorkbenchSubmitsBarOptionsSelect(t *testing.T) {
 	if got := next.Find("[data-build-evaluated]").Text(); got != "11235" {
 		t.Errorf("evaluated = %q, want 11235", got)
 	}
-	if got := buildCell(next.Find(`tr[data-build-rank="1"]`), "bar"); got != barFLX12x15 {
-		t.Errorf("row 1 bar = %q, want %q", got, barFLX12x15)
+	if got := buildCell(next.Find(`tr[data-build-rank="1"]`), "bar"); got != barAlloy50 {
+		t.Errorf("row 1 bar = %q, want %q", got, barAlloy50)
 	}
 }
 
@@ -2376,7 +2376,7 @@ func TestBikeWorkbenchAppliesFreeScoredBuild(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?brp=off&grip_x="+formatFormFloat(x)+"&grip_y="+formatFormFloat(y))
 	const rankOne = `tr[data-build-rank="1"]`
 	row := doc.Find(rankOne)
-	for name, want := range map[string]string{"stem": "70 mm, +0°", "spacers": "10 mm", "oval-r": "0.00", "score": "99.9", "tier": "Fits grip"} {
+	for name, want := range map[string]string{"stem": "70 mm, +0°", "spacers": "10 mm", "oval-r": "0.00", "score": "99.8", "tier": "Fits grip"} {
 		if got := buildCell(row, name); got != want {
 			t.Errorf("row 1 %s = %q, want %q", name, got, want)
 		}
@@ -2400,7 +2400,7 @@ func TestBikeWorkbenchAppliesFreeScoredBuild(t *testing.T) {
 func TestBikeWorkbenchBuildRankingKeepsSaddleFitAndTargets(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?"+legacyPost+"&brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726")
 	row := doc.Find(`tr[data-build-rank="1"]`)
-	for name, want := range map[string]string{"tier": "Fits neither", "score": "54.3", "brp-miss": "(-51.0, +0.0) mm"} {
+	for name, want := range map[string]string{"tier": "Fits neither", "score": "55.9", "brp-miss": "(-49.8, +0.0) mm"} {
 		if got := buildCell(row, name); got != want {
 			t.Errorf("row 1 %s = %q, want %q", name, got, want)
 		}
@@ -2414,8 +2414,8 @@ func TestBikeWorkbenchBuildRankingKeepsSaddleFitAndTargets(t *testing.T) {
 			t.Errorf("build apply %s = %q, want %q", k, got, want)
 		}
 	}
-	if ext, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ext-196.760406) > 1e-6 {
-		t.Errorf("build apply post_insert = %q, want ≈196.760406", q.Get("post_insert"))
+	if ext, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ext-196.447506) > 1e-6 {
+		t.Errorf("build apply post_insert = %q, want ≈196.447506", q.Get("post_insert"))
 	}
 	if n := doc.Find("#apply-fitting").Length(); n != 1 {
 		t.Errorf("continuous apply links = %d, want 1", n)
@@ -2428,21 +2428,21 @@ func TestWorkbenchHandlebarReferenceHandGrips(t *testing.T) {
 		id            string
 		x, y, lateral float64
 	}{
-		{"persuader20_800", 386.879379, 756.630227, 330},
-		{"persuader20_840", 379.599974, 756.630227, 350},
-		{"sqlab3ox_16_15", 385.737110, 744.111697, 320},
-		{"sqlab3ox_16_30", 389.608172, 758.167685, 320},
-		{"sqlab3ox_16_45", 393.479235, 772.223673, 320},
-		{"sqlab3ox_12_15", 404.395599, 744.111697, 320},
-		{"sqlab3ox_12_30", 407.265113, 758.167685, 320},
-		{"sqlab3ox_12_45", 410.134626, 772.223673, 320},
-		{"sqlab311_20_16_15", 391.472017, 746.778729, 300},
-		{"sqlab311_20_16_25", 394.052726, 755.991331, 300},
-		{"sqlab311_20_16_50", 400.504497, 779.022836, 300},
-		{"sqlab311_flx_16_15", 391.472017, 742.713160, 300},
-		{"sqlab311_flx_16_30", 395.343080, 756.769148, 300},
-		{"sqlab311_flx_12_15", 408.646730, 742.713160, 300},
-		{"sqlab311_flx_12_30", 411.516244, 756.769148, 300},
+		{"persuader20_800", 388.546580, 755.539727, 330},
+		{"persuader20_840", 381.267176, 755.539727, 350},
+		{"sqlab3ox_16_15", 387.404312, 743.021197, 320},
+		{"sqlab3ox_16_30", 391.275374, 757.077185, 320},
+		{"sqlab3ox_16_45", 395.146437, 771.133174, 320},
+		{"sqlab3ox_12_15", 406.062801, 743.021197, 320},
+		{"sqlab3ox_12_30", 408.932314, 757.077185, 320},
+		{"sqlab3ox_12_45", 411.801828, 771.133174, 320},
+		{"sqlab311_20_16_15", 393.139219, 745.688230, 300},
+		{"sqlab311_20_16_25", 395.719928, 754.900832, 300},
+		{"sqlab311_20_16_50", 402.171699, 777.932337, 300},
+		{"sqlab311_flx_16_15", 393.139219, 741.622661, 300},
+		{"sqlab311_flx_16_30", 397.010282, 755.678649, 300},
+		{"sqlab311_flx_12_15", 410.313932, 741.622661, 300},
+		{"sqlab311_flx_12_30", 413.183446, 755.678649, 300},
 	}
 	if len(bars) != len(want) {
 		t.Fatalf("catalog has %d handlebars, want %d", len(bars), len(want))
@@ -2487,8 +2487,8 @@ func TestBikeWorkbenchDefaultHandlebar(t *testing.T) {
 	if got := u.Query().Get("bar"); got != "persuader20_800" {
 		t.Errorf("canonical bar = %q, want persuader20_800", got)
 	}
-	if got := metricText(doc, "brp-grip-dist"); got != "548.9 mm" {
-		t.Errorf("BRP to HandGrip = %q, want 548.9 mm", got)
+	if got := metricText(doc, "brp-grip-dist"); got != "551.5 mm" {
+		t.Errorf("BRP to HandGrip = %q, want 551.5 mm", got)
 	}
 }
 
@@ -2496,7 +2496,7 @@ func TestBikeWorkbenchChosenHandlebarChangesBuild(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?"+legacyPost+"&bar=sqlab3ox_12_15&view=stem")
 	assertSelectedHandlebar(t, doc, "sqlab3ox_12_15")
 	for metric, want := range map[string]string{
-		"hand-lateral": "320.0 mm", "brp-grip-dist": "561.9 mm", "sitbones-grip-rise": "+5.4 mm",
+		"hand-lateral": "320.0 mm", "brp-grip-dist": "564.7 mm", "sitbones-grip-rise": "+4.6 mm",
 	} {
 		if got := metricText(doc, metric); got != want {
 			t.Errorf("%s = %q, want %q", metric, got, want)
@@ -2552,7 +2552,7 @@ func TestBikeWorkbenchFitsAroundChosenHandlebar(t *testing.T) {
 	const bar = "sqlab3ox_12_15"
 	doc := loadBikeDoc(t, "/bike?bar="+bar+"&brp=off&view=stem")
 	for metric, want := range map[string]string{
-		"fit-cockpit-outcome": "limited by stem spacers", "fit-spacers": "0.0 mm", "fit-stem-length": "126.2 mm",
+		"fit-cockpit-outcome": "limited by stem spacers", "fit-spacers": "0.0 mm", "fit-stem-length": "124.9 mm",
 	} {
 		if got := metricText(doc, metric); got != want {
 			t.Errorf("%s = %q, want %q", metric, got, want)
@@ -2563,7 +2563,7 @@ func TestBikeWorkbenchFitsAroundChosenHandlebar(t *testing.T) {
 	}
 	const firstRow = `tr[data-build-rank="1"]`
 	for cell, want := range map[string]string{
-		"tier": "Fits grip", "stem": "120 mm, -17°", "spacers": "0 mm", "oval-r": "0.53", "score": "73.3",
+		"tier": "Fits grip", "stem": "120 mm, -17°", "spacers": "0 mm", "oval-r": "0.45", "score": "73.4",
 	} {
 		if got := buildCell(doc.Find(firstRow), cell); got != want {
 			t.Errorf("row 1 %s = %q, want %q", cell, got, want)
@@ -2709,11 +2709,11 @@ func TestBikeWorkbenchSetbackNotesFitReport(t *testing.T) {
 		t.Errorf("fit-saddle-outcome = %q, want limited by saddle rail offset", got)
 	}
 	for k, want := range map[string]string{
-		"fit-setback-centered":           "63.6 mm",
-		"fit-setback-centered-insertion": "179.1 mm",
+		"fit-setback-centered":           "62.5 mm",
+		"fit-setback-centered-insertion": "179.0 mm",
 		"fit-setback-centered-outcome":   "reached",
 		"fit-setback-reach-rail":         "+15.0 mm",
-		"fit-setback-reach":              "49.2 mm",
+		"fit-setback-reach":              "48.0 mm",
 		"fit-setback-reach-insertion":    "183.1 mm",
 		"fit-setback-reach-outcome":      "reached",
 	} {
@@ -2752,15 +2752,15 @@ func TestBikeWorkbenchSetbackNotesReachedFit(t *testing.T) {
 	if got := metricText(doc, "fit-saddle-outcome"); got != "reached" {
 		t.Errorf("fit-saddle-outcome = %q, want reached", got)
 	}
-	if got := metricText(doc, "fit-rail-offset"); got != "10.1 mm" {
-		t.Errorf("fit-rail-offset = %q, want 10.1 mm", got)
+	if got := metricText(doc, "fit-rail-offset"); got != "8.9 mm" {
+		t.Errorf("fit-rail-offset = %q, want 8.9 mm", got)
 	}
 	if doc.Find(`[data-metric="fit-setback-reach"]`).Length() != 0 {
 		t.Errorf("expected no fit-setback-reach when saddle fit is reached")
 	}
 	for k, want := range map[string]string{
-		"fit-setback-centered":           "34.7 mm",
-		"fit-setback-centered-insertion": "187.2 mm",
+		"fit-setback-centered":           "33.6 mm",
+		"fit-setback-centered-insertion": "187.1 mm",
 		"fit-setback-centered-outcome":   "reached",
 	} {
 		if got := metricText(doc, k); got != want {
@@ -2791,8 +2791,8 @@ func TestBikeWorkbenchSetbackNotesForwardTarget(t *testing.T) {
 		}
 	}
 	centeredSpan := doc.Find(`[data-metric="fit-setback-centered"]`).Parent().Text()
-	if !strings.Contains(centeredSpan, "14.9 mm short") {
-		t.Errorf("centered span = %q, want 14.9 mm short", centeredSpan)
+	if !strings.Contains(centeredSpan, "16.1 mm short") {
+		t.Errorf("centered span = %q, want 16.1 mm short", centeredSpan)
 	}
 }
 
@@ -2802,7 +2802,7 @@ func TestBikeWorkbenchSetbackNotesInsertionLimit(t *testing.T) {
 		t.Errorf("fit-saddle-outcome = %q, want limited by seatpost insertion, saddle rail offset", got)
 	}
 	for k, want := range map[string]string{
-		"fit-setback-centered":           "1.7 mm",
+		"fit-setback-centered":           "0.2 mm",
 		"fit-setback-centered-insertion": "100.0 mm",
 		"fit-setback-centered-outcome":   "limited by seatpost insertion",
 		"fit-setback-reach-rail":         "+15.0 mm",
@@ -2819,8 +2819,8 @@ func TestBikeWorkbenchSetbackNotesInsertionLimit(t *testing.T) {
 		t.Errorf("centered span = %q, want 144.3 mm short", centeredSpan)
 	}
 	reachSpan := doc.Find(`[data-metric="fit-setback-reach"]`).Parent().Text()
-	if !strings.Contains(reachSpan, "140.9 mm short") {
-		t.Errorf("reach span = %q, want 140.9 mm short", reachSpan)
+	if !strings.Contains(reachSpan, "141.0 mm short") {
+		t.Errorf("reach span = %q, want 141.0 mm short", reachSpan)
 	}
 }
 
@@ -2873,8 +2873,8 @@ func TestBikeWorkbenchForkOptionsDefaultKeepsSubmittedFork(t *testing.T) {
 				}
 			})
 			if tc.name == "Basis" {
-				if got := buildCell(rows.First(), "score"); got != "69.1" {
-					t.Errorf("basis row 1 score = %q, want 69.1", got)
+				if got := buildCell(rows.First(), "score"); got != "72.4" {
+					t.Errorf("basis row 1 score = %q, want 72.4", got)
 				}
 				if got := buildCell(rows.First(), "stem"); got != "120 mm, -20°" {
 					t.Errorf("basis row 1 stem = %q, want 120 mm, -20°", got)
@@ -2927,11 +2927,11 @@ func TestBikeWorkbenchFitsBuildsAcrossAllForks(t *testing.T) {
 		t.Errorf("build count note = %q", got)
 	}
 	assertForkOptionRows(t, doc, []string{"fork", "stem", "spacers", "oval-r", "score"}, "Fork sag", [][]string{
-		{forkFirestarter, "120 mm, -20°", "0 mm", "1.27", "68.3", "100.0"},
-		{forkSklar, "120 mm, -20°", "0 mm", "1.36", "66.1", "100.0"},
-		{forkKrampus483, "120 mm, -20°", "0 mm", "1.36", "67.1", "100.0"},
-		{forkSID51_20, "120 mm, -20°", "0 mm", "1.45", "64.5", "100.0"},
-		{forkFirestarter, "120 mm, -17°", "0 mm", "1.49", "68.5", "100.0"},
+		{forkFirestarter, "120 mm, -20°", "0 mm", "1.10", "72.4", "100.0"},
+		{forkSklar, "120 mm, -20°", "0 mm", "1.19", "70.3", "100.0"},
+		{forkKrampus483, "120 mm, -20°", "0 mm", "1.19", "71.2", "100.0"},
+		{forkSID51_20, "120 mm, -20°", "0 mm", "1.27", "68.8", "100.0"},
+		{forkFirestarter, "120 mm, -17°", "0 mm", "1.29", "73.2", "100.0"},
 	})
 	q := hrefQuery(t, doc, firstBuildApply)
 	for key, want := range map[string]string{
@@ -2948,15 +2948,15 @@ func TestBikeWorkbenchForkOptionsWithSaddle(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?"+legacyPost+"&fork_options=all&brp_x=-219&brp_y=713.1&grip_x=481&grip_y=726")
 	cells := []string{"fork", "stem", "spacers", "score"}
 	want := [][]string{
-		{forkFirestarter, "120 mm, -20°", "0 mm", "63.1", "0.0"},
-		{forkSklar, "120 mm, -20°", "0 mm", "61.7", "0.0"},
-		{forkKrampus483, "120 mm, -20°", "0 mm", "62.3", "0.0"},
-		{forkSID51_20, "120 mm, -20°", "0 mm", "60.6", "0.0"},
-		{forkFirestarter, "120 mm, -17°", "0 mm", "63.2", "0.0"},
+		{forkFirestarter, "120 mm, -20°", "0 mm", "65.7", "0.0"},
+		{forkSklar, "120 mm, -20°", "0 mm", "64.4", "0.0"},
+		{forkKrampus483, "120 mm, -20°", "0 mm", "64.9", "0.0"},
+		{forkSID51_20, "120 mm, -20°", "0 mm", "63.4", "0.0"},
+		{forkFirestarter, "120 mm, -17°", "0 mm", "66.2", "0.0"},
 	}
 	assertForkOptionRows(t, doc, cells, "Saddle BRP X", want)
-	if got := buildCell(doc.Find(`tr[data-build-rank="1"]`), "brp-miss"); got != "(-59.5, +0.0) mm" {
-		t.Errorf("row 1 BRP miss = %q, want (-59.5, +0.0) mm", got)
+	if got := buildCell(doc.Find(`tr[data-build-rank="1"]`), "brp-miss"); got != "(-58.4, +0.0) mm" {
+		t.Errorf("row 1 BRP miss = %q, want (-58.4, +0.0) mm", got)
 	}
 	q := hrefQuery(t, doc, firstBuildApply)
 	for key, value := range map[string]string{"fork": "firestarter_deluxe_483", "sag": "0", "rail_offset": "15"} {
@@ -2964,8 +2964,8 @@ func TestBikeWorkbenchForkOptionsWithSaddle(t *testing.T) {
 			t.Errorf("row 1 Apply %s = %q, want %q", key, got, value)
 		}
 	}
-	if ins, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ins-198.991834) > 1e-6 {
-		t.Errorf("row 1 Apply post_insert = %q, want 198.991834", q.Get("post_insert"))
+	if ins, err := strconv.ParseFloat(q.Get("post_insert"), 64); err != nil || math.Abs(ins-198.708763) > 1e-6 {
+		t.Errorf("row 1 Apply post_insert = %q, want 198.708763", q.Get("post_insert"))
 	}
 	href, _ := doc.Find(firstBuildApply).Attr("href")
 	applied := loadBikeDoc(t, href)
@@ -2995,11 +2995,11 @@ func TestBikeWorkbenchForkOptionsAndBarOptions(t *testing.T) {
 		flx16x15   = "SQlab 311 FL-X Carbon 16°, 15 mm rise (740 mm)"
 	)
 	assertForkOptionRows(t, doc, []string{"bar", "fork", "stem", "spacers", "score"}, "", [][]string{
-		{barFLX16x30, forkKrampus483, "120 mm, -17°", "0 mm", "71.4"},
-		{alloy16x25, forkKrampus483, "120 mm, -17°", "0 mm", "71.2"},
-		{alloy16x15, forkKrampus483, "120 mm, -17°", "0 mm", "71.2"},
-		{flx16x15, forkKrampus483, "120 mm, -17°", "0 mm", "71.1"},
-		{barFLX16x30, forkFirestarter, "120 mm, -17°", "0 mm", "71.0"},
+		{barFLX16x30, forkKrampus483, "120 mm, -17°", "0 mm", "71.7"},
+		{alloy16x25, forkKrampus483, "120 mm, -17°", "0 mm", "71.6"},
+		{barFLX16x30, forkFirestarter, "120 mm, -17°", "0 mm", "71.4"},
+		{alloy16x15, forkKrampus483, "120 mm, -17°", "0 mm", "71.4"},
+		{flx16x15, forkKrampus483, "120 mm, -17°", "0 mm", "71.3"},
 	})
 }
 
@@ -3222,12 +3222,12 @@ func TestBikeWorkbenchDefaultInsertionMidpointQ109(t *testing.T) {
 	if got := metricText(doc, "post-exposed"); got != "175.0 mm" {
 		t.Errorf("exposed length = %q, want 175.0 mm", got)
 	}
-	if got := metricText(doc, "brp-height"); got != "700.5 mm" {
-		t.Errorf("BRP height = %q, want 700.5 mm", got)
+	if got := metricText(doc, "brp-height"); got != "700.4 mm" {
+		t.Errorf("BRP height = %q, want 700.4 mm", got)
 	}
 	brp := mustPlace(t, mustBike(t, "")).Saddle.BRP.Origin()
-	assertWebNear(t, "BRP.X", brp.X, -157.025, 0.001)
-	assertWebNear(t, "BRP.Y", brp.Y, 682.682, 0.001)
+	assertWebNear(t, "BRP.X", brp.X, -158.061, 0.001)
+	assertWebNear(t, "BRP.Y", brp.Y, 682.374, 0.001)
 
 	setback := loadBikeDoc(t, "/bike?post=setback_0")
 	if got, _ := setback.Find("#ctrl-post-insert").Attr("value"); got != "195.0" {
@@ -3249,23 +3249,23 @@ func TestBikeWorkbenchFrameHandlingReadouts(t *testing.T) {
 		{
 			name:      "default Lithic",
 			path:      "/bike",
-			wantTrail: "106.3 mm",
-			wantRC:    "445.1 mm",
-			wantRatio: "38.6%",
+			wantTrail: "107.0 mm",
+			wantRC:    "435.1 mm",
+			wantRatio: "38.0%",
 		},
 		{
 			name:      "Fox 34 at 20%",
 			path:      "/bike?fork=fox34_120-534x44&sag=20",
-			wantTrail: "111.3 mm",
-			wantRC:    "445.8 mm",
-			wantRatio: "38.5%",
+			wantTrail: "112.0 mm",
+			wantRC:    "435.8 mm",
+			wantRatio: "37.9%",
 		},
 		{
 			name:      "basis",
 			path:      "/bike?fork=basis",
-			wantTrail: "90.2 mm",
-			wantRC:    "444.2 mm",
-			wantRatio: "38.4%",
+			wantTrail: "94.5 mm",
+			wantRC:    "434.3 mm",
+			wantRatio: "37.8%",
 		},
 	}
 
@@ -3292,13 +3292,13 @@ func TestBikeWorkbenchBuildTiersAndLegend(t *testing.T) {
 	if got, _ := row.Find("[data-fit-tier]").Attr("data-fit-tier"); got != "fits_brp" {
 		t.Errorf("row 1 data-fit-tier = %q, want fits_brp", got)
 	}
-	for name, want := range map[string]string{"tier": "Fits BRP", "score": "68.1", "brp-miss": "(+0.0, +0.0) mm"} {
+	for name, want := range map[string]string{"tier": "Fits BRP", "score": "70.4", "brp-miss": "(+0.0, +0.0) mm"} {
 		if got := buildCell(row, name); got != want {
 			t.Errorf("row 1 %s = %q, want %q", name, got, want)
 		}
 	}
-	if got := buildAttr(row, "Saddle rail offset"); got != "49.4" {
-		t.Errorf("row 1 rail score = %q, want 49.4", got)
+	if got := buildAttr(row, "Saddle rail offset"); got != "61.2" {
+		t.Errorf("row 1 rail score = %q, want 61.2", got)
 	}
 
 	doc = loadBikeDoc(t, prefix+"&bar_options=all")
@@ -3307,14 +3307,14 @@ func TestBikeWorkbenchBuildTiersAndLegend(t *testing.T) {
 		t.Errorf("all-bars row 1 data-fit-tier = %q, want fits_all", got)
 	}
 	for name, want := range map[string]string{
-		"tier": "Fits all", "score": "81.1", "bar": barFLX12x15, "stem": "120 mm, -10°", "spacers": "0 mm", "oval-r": "0.82",
+		"tier": "Fits all", "score": "82.3", "bar": barAlloy50, "stem": "120 mm, -30°", "spacers": "0 mm", "oval-r": "0.90",
 	} {
 		if got := buildCell(row, name); got != want {
 			t.Errorf("all-bars row 1 %s = %q, want %q", name, got, want)
 		}
 	}
-	if got := buildAttr(row, "Saddle rail offset"); got != "49.4" {
-		t.Errorf("all-bars row 1 rail score = %q, want 49.4", got)
+	if got := buildAttr(row, "Saddle rail offset"); got != "61.2" {
+		t.Errorf("all-bars row 1 rail score = %q, want 61.2", got)
 	}
 	if n := row.Find("[data-build-attr]").Length(); n != 12 {
 		t.Errorf("attribute cells = %d, want 12", n)
@@ -3534,14 +3534,21 @@ func TestBikeSlidingDropoutsAndUnpublishedWheelbase(t *testing.T) {
 		t.Error("unpublished wheelbase must not print (Published ...) (Q57)")
 	}
 	fenrir := loadBikeDoc(t, "/bike")
-	if !strings.Contains(fenrir.Text(), "(Published") {
-		t.Error("published wheelbase must print (Published ...)")
+	if strings.Contains(fenrir.Text(), "(Published") {
+		t.Error("Fenrir unpublished wheelbase must not print (Published ...) (Q141)")
+	}
+	if fenrir.Find(`[data-note="sliding-dropouts"]`).Length() != 0 {
+		t.Error("Fenrir Tuning Chip frame must not print sliding-dropouts note (Q140)")
+	}
+	krampus := loadBikeDoc(t, "/bike?frame=surly-krampus&size=L")
+	if !strings.Contains(krampus.Text(), "(Published 1138.0 mm)") {
+		t.Error("published wheelbase must print (Published 1138.0 mm)")
 	}
 }
 
 func TestBikeLeveledReadoutsAndRedshiftNote(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike")
-	for name, want := range map[string]string{"leveled-reach": "419.8 mm", "leveled-stack": "647.4 mm", "ett": "599.1 mm"} {
+	for name, want := range map[string]string{"leveled-reach": "421.6 mm", "leveled-stack": "646.2 mm", "ett": "601.7 mm"} {
 		if got := metricText(doc, name); got != want {
 			t.Errorf("default %s = %q, want %q", name, got, want)
 		}
@@ -3550,7 +3557,7 @@ func TestBikeLeveledReadoutsAndRedshiftNote(t *testing.T) {
 		t.Error("default /bike must render the Redshift mixed-state note (Q78)")
 	}
 	basis := loadBikeDoc(t, "/bike?fork=basis")
-	for name, want := range map[string]string{"leveled-reach": "428.1 mm", "leveled-stack": "641.9 mm", "ett": "597.0 mm"} {
+	for name, want := range map[string]string{"leveled-reach": "429.3 mm", "leveled-stack": "641.1 mm", "ett": "599.7 mm"} {
 		if got := metricText(basis, name); got != want {
 			t.Errorf("basis %s = %q, want %q", name, got, want)
 		}
@@ -3578,7 +3585,7 @@ func TestBikeSubmittedBuildScoreQ110(t *testing.T) {
 		t.Errorf("tier = %q, want fits_neither", got)
 	}
 	for name, want := range map[string]string{
-		"submitted-score": "53.6", "submitted-oval-r": "9.74", "submitted-brp-miss": "(-62.0, +30.4) mm",
+		"submitted-score": "53.5", "submitted-oval-r": "9.54", "submitted-brp-miss": "(-60.9, +30.7) mm",
 	} {
 		if got := metricText(doc, name); got != want {
 			t.Errorf("default %s = %q, want %q", name, got, want)
@@ -3618,8 +3625,8 @@ func TestBikeSubmittedBuildScoreQ110(t *testing.T) {
 	if got, _ := cleared.Find(`[data-submitted-tier]`).Attr("data-submitted-tier"); got != "fits_neither" {
 		t.Errorf("cleared BRP tier = %q, want fits_neither", got)
 	}
-	if got := metricText(cleared, "submitted-score"); got != "70.9" {
-		t.Errorf("cleared BRP score = %q, want 70.9", got)
+	if got := metricText(cleared, "submitted-score"); got != "70.8" {
+		t.Errorf("cleared BRP score = %q, want 70.8", got)
 	}
 	if got := metricText(cleared, "submitted-brp-miss"); got != "—" {
 		t.Errorf("cleared BRP miss = %q, want —", got)
@@ -3778,6 +3785,13 @@ func TestBikeForkSelectGroupsListedAndOtherForks(t *testing.T) {
 	}
 	if n := doc.Find(`select[name="fork"] optgroup[label="Listed Forks"] option[value="surly_krampus_483"]`).Length(); n != 1 {
 		t.Errorf("surly_krampus_483 under Listed Forks = %d options, want 1", n)
+	}
+	fenrirDoc := loadBikeDoc(t, "/bike")
+	if n := fenrirDoc.Find(`select[name="fork"] optgroup[label="Listed Forks"] option[value="enve_mountain_boost-490x44"]`).Length(); n != 1 {
+		t.Errorf("enve_mountain_boost-490x44 under Fenrir Listed Forks = %d, want 1 (Q128)", n)
+	}
+	if n := fenrirDoc.Find(`select[name="fork"] optgroup[label="Other Compatible Forks"] option[value="enve_mountain_boost-490x44"]`).Length(); n != 0 {
+		t.Errorf("enve_mountain_boost-490x44 under Fenrir Other Compatible Forks = %d, want 0", n)
 	}
 }
 
