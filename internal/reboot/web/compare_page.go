@@ -200,7 +200,7 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 		var forkLabel string
 		for _, ff := range f.Forks {
 			if ff.Fork.ID == row.ForkID {
-				forkLabel = forkCellName(ff.Fork.Name, ff.Fork.TravelMm, row.SagPct)
+				forkLabel = forkCellName(ff.Fork.Name, ff.Fork.Travel.Mm(), row.SagPct)
 				break
 			}
 		}

@@ -205,6 +205,21 @@ func scoreRange(v, idealMin, idealMax, worstMin, worstMax float64) float64 {
 	return 100
 }
 
+func scoreForkSag(travel ForkTravel, sagPct float64) float64 {
+	minSag, maxSag, ok := travel.SagRange()
+	if !ok {
+		return 100
+	}
+	switch {
+	case sagPct >= maxSag:
+		return 100 * clamp01((maxSag+10-sagPct)/10)
+	case sagPct >= minSag:
+		return 90 + 10*(sagPct-minSag)/(maxSag-minSag)
+	default:
+		return 90 * clamp01((sagPct-(minSag-10))/10)
+	}
+}
+
 func scoreInsertionMargin(insertionMm float64, bounds InsertionBounds) float64 {
 	margin := min(insertionMm-bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm-insertionMm)
 	return 100.0 * clamp01(margin/30.0)
@@ -276,10 +291,7 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 		}
 	}
 
-	forkSag := 100.0
-	if setup.Fork.Spec.TravelMm != 0 {
-		forkSag = scoreRange(setup.Fork.SagPct, 20, 20, 10, 30)
-	}
+	forkSag := scoreForkSag(setup.Fork.Spec.Travel, setup.Fork.SagPct)
 	w := weights
 	attrs := []AttributeScore{
 		{Attribute: AttrHandGrip, Weight: w.HandGrip, Score: scoreThreePoint(gripR, 0, FitGateGripNormalizedRadius, 90, 2), Active: true},

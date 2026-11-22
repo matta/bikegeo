@@ -9,21 +9,6 @@ import (
 	"bikegeo/internal/reboot/catalog"
 )
 
-// TestForksMatchLegacy checks the fork port against legacy CommonForkCatalog.
-func TestForksMatchLegacy(t *testing.T) {
-	forks := catalog.Forks()
-	legacy := legacycatalog.CommonForkCatalog
-	if len(forks) != len(legacy) {
-		t.Fatalf("catalog has %d forks, legacy has %d", len(forks), len(legacy))
-	}
-	for i, f := range forks {
-		l := legacy[i]
-		if f.ID != l.ID || f.Name != l.Name || f.TravelMm != l.TravelMm {
-			t.Errorf("fork %d = {%q %q %v}, legacy {%q %q %v}", i, f.ID, f.Name, f.TravelMm, l.ID, l.Name, l.TravelMm)
-		}
-	}
-}
-
 // TestHandlebarsMatchLegacy checks the exact handlebar port (Q20). The
 // workbench supplies its own grip inset and roll separately.
 func TestHandlebarsMatchLegacy(t *testing.T) {

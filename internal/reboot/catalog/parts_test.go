@@ -9,11 +9,11 @@ import (
 	"bikegeo/internal/reboot/pose"
 )
 
-// TestForks checks the 22 fork models and the Q72 steerers.
+// TestForks checks the 19 fork models and the Q72 steerers.
 func TestForks(t *testing.T) {
 	forks := catalog.Forks()
-	if len(forks) != 22 {
-		t.Fatalf("got %d forks, want 22", len(forks))
+	if len(forks) != 19 {
+		t.Fatalf("got %d forks, want 19", len(forks))
 	}
 	seen := map[string]bool{}
 	var straight []string
@@ -28,8 +28,8 @@ func TestForks(t *testing.T) {
 		if f.Name == "" {
 			t.Errorf("fork %q has an empty name", f.ID)
 		}
-		if f.TravelMm < 0 {
-			t.Errorf("fork %q travel %v mm < 0", f.ID, f.TravelMm)
+		if !f.Travel.Valid() {
+			t.Errorf("fork %q has unsupported travel %v", f.ID, f.Travel)
 		}
 		switch f.Steerer {
 		case assembly.SteererStraight118:
@@ -123,14 +123,6 @@ func TestDefaultSaddleAndTargets(t *testing.T) {
 	if got := catalog.DefaultGripTarget(); got != (pose.Point{X: 481, Y: 726}) {
 		t.Errorf("DefaultGripTarget() = %v", got)
 	}
-	sags := catalog.SuspensionSagPcts()
-	if !slices.Equal(sags, []float64{15, 20, 25}) {
-		t.Fatalf("SuspensionSagPcts() = %v, want [15 20 25]", sags)
-	}
-	sags[0] = 99
-	if got := catalog.SuspensionSagPcts(); got[0] != 15 {
-		t.Errorf("mutating a returned SuspensionSagPcts slice changed the next call: %v", got)
-	}
 }
 
 // TestCatalogDefaultsAndLookups checks the default part IDs, ID lookups, and
@@ -168,11 +160,5 @@ func TestCatalogDefaultsAndLookups(t *testing.T) {
 	}
 	if stem.ClampHeightMm != 40 {
 		t.Errorf("ClampHeightMm = %v, want 40", stem.ClampHeightMm)
-	}
-}
-
-func TestDefaultSuspensionSagPct(t *testing.T) {
-	if catalog.DefaultSuspensionSagPct != 20.0 {
-		t.Errorf("DefaultSuspensionSagPct = %v, want 20", catalog.DefaultSuspensionSagPct)
 	}
 }

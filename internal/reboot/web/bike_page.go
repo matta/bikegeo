@@ -32,16 +32,16 @@ const basisForkName = "Chart Basis Fork"
 
 func makeForkOption(ff catalog.FrameFork) forkOption {
 	var kind string
-	if ff.Fork.TravelMm == 0 {
+	if !ff.Fork.Travel.IsSuspension() {
 		kind = "Rigid"
 	} else {
-		kind = fmt.Sprintf("%.0f mm travel", ff.Fork.TravelMm)
+		kind = fmt.Sprintf("%.0f mm travel", ff.Fork.Travel.Mm())
 	}
 	return forkOption{
 		ID:       ff.Fork.ID,
 		Name:     ff.Fork.Name,
 		Label:    fmt.Sprintf("%s (%s, %.0f mm A2C / %.0f mm rake)", ff.Fork.Name, kind, ff.StaticA2cMm, ff.RakeMm),
-		TravelMm: ff.Fork.TravelMm,
+		TravelMm: ff.Fork.Travel.Mm(),
 	}
 }
 
@@ -70,7 +70,7 @@ func forkNameAndTravel(b query.Bike, id string) (string, float64) {
 	}
 	for _, ff := range b.Frame.Forks {
 		if ff.Fork.ID == id {
-			return ff.Fork.Name, ff.Fork.TravelMm
+			return ff.Fork.Name, ff.Fork.Travel.Mm()
 		}
 	}
 	return id, 0
@@ -266,7 +266,7 @@ func forkFieldViewState(b query.Bike, selectedForkID, sagValue string) (forkA2cR
 	// On a known rigid fork, keep sag read-only only when the displayed value is
 	// already valid zero; if an invalid or non-zero sag was submitted, leave the
 	// input editable so the user can reset it to 0 without losing other settings.
-	rigid := !isBasis && b.Setup.Fork.Spec.TravelMm == 0
+	rigid := !isBasis && !b.Setup.Fork.Spec.Travel.IsSuspension()
 	sagRO = isBasis || (selectedForkID != "" && rigid && isZeroFormFloat(sagValue))
 	cupLabel = lowerCupLabel(b.Setup.LowerCup.Standard)
 	return forkA2cRO, cupRO, sagRO, cupLabel

@@ -107,7 +107,7 @@ func TestRunCompareSingleRowJSON(t *testing.T) {
 	if score.Tier != "fits_all" {
 		t.Errorf("Tier = %q, want fits_all", score.Tier)
 	}
-	assertNear(t, "Total", score.Total, 84.575011405, 1e-6)
+	assertNear(t, "Total", score.Total, 84.158344739, 1e-6)
 	assertNear(t, "GripR", score.GripR, 0.759424168, 1e-6)
 	if len(score.Attributes) != 12 {
 		t.Errorf("got %d attributes, want 12", len(score.Attributes))
@@ -146,7 +146,7 @@ func TestRunCompareAllBarsJSON(t *testing.T) {
 	if r.Rows[0].HandlebarID != "sqlab311_flx_16_30" {
 		t.Errorf("HandlebarID = %q, want sqlab311_flx_16_30", r.Rows[0].HandlebarID)
 	}
-	assertNear(t, "Total", r.Rows[0].Build.Score.Total, 86.650135345, 1e-6)
+	assertNear(t, "Total", r.Rows[0].Build.Score.Total, 86.233468678, 1e-6)
 }
 
 func TestRunCompareHelpAndUsage(t *testing.T) {
@@ -284,8 +284,8 @@ func TestRunBikeDefaultAndWinningBuildJSON(t *testing.T) {
 	if r.Score == nil || r.Score.Tier != "fits_all" || r.Builds == nil || len(r.Builds.Builds) == 0 {
 		t.Fatalf("winning = %+v", r)
 	}
-	assertNear(t, "winning Total", r.Score.Total, 84.575011405, 1e-6)
-	assertNear(t, "winning top build Total", r.Builds.Builds[0].Score.Total, 84.575011405, 1e-6)
+	assertNear(t, "winning Total", r.Score.Total, 84.158344739, 1e-6)
+	assertNear(t, "winning top build Total", r.Builds.Builds[0].Score.Total, 84.158344739, 1e-6)
 	code2, stdout2, stderr2 := runCLI("bike", winning)
 	if code2 != 0 || stderr2 != "" || stdout2 != stdout {
 		t.Errorf("without ?: exit %d, stderr %q, identical stdout %v; want 0, empty, true", code2, stderr2, stdout2 == stdout)

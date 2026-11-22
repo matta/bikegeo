@@ -4,10 +4,10 @@ import "bikegeo/internal/reboot/assembly"
 
 // Fork is a catalog fork model. Frames install it at a frame-specific A2C and rake (Q66).
 type Fork struct {
-	ID       string
-	Name     string
-	TravelMm float64 // 0 for rigid forks
-	Steerer  assembly.Steerer
+	ID      string
+	Name    string
+	Travel  assembly.ForkTravel
+	Steerer assembly.Steerer
 }
 
 // FrameFork is one fork a frame supports, at that frame's A2C and rake variant.
@@ -21,25 +21,22 @@ type FrameFork struct {
 func (f FrameFork) Spec() assembly.ForkSpec {
 	return assembly.ForkSpec{
 		StaticA2cMm: f.StaticA2cMm,
-		TravelMm:    f.Fork.TravelMm,
+		Travel:      f.Fork.Travel,
 		RakeMm:      f.RakeMm,
 		Steerer:     f.Fork.Steerer,
 	}
 }
 
-// The 22 fork models, ported from legacy internal/catalog CommonForkCatalog
+// The fork models, ported from legacy internal/catalog CommonForkCatalog
 // (IDs, names, and travel). Steerers follow Q72: the four named straight
 // 1-1/8" forks and the other named tapered forks are catalog values; the
 // generic rigid_* forks are illustratively tapered.
 var (
-	sid100               = Fork{ID: "sid_100", Name: "RockShox SID 100mm", TravelMm: 100, Steerer: assembly.SteererTapered}                                // catalog
-	sid110               = Fork{ID: "sid_110", Name: "RockShox SID 110mm", TravelMm: 110, Steerer: assembly.SteererTapered}                                // catalog
-	fox34_120            = Fork{ID: "fox34_120", Name: "Fox Float 34 120mm", TravelMm: 120, Steerer: assembly.SteererTapered}                              // catalog
-	sid120               = Fork{ID: "sid_120", Name: "RockShox SID 120mm", TravelMm: 120, Steerer: assembly.SteererTapered}                                // catalog
-	pike120              = Fork{ID: "pike_120", Name: "RockShox Pike 120mm", TravelMm: 120, Steerer: assembly.SteererTapered}                              // catalog
-	fox34_130            = Fork{ID: "fox34_130", Name: "Fox Float 34 130mm", TravelMm: 130, Steerer: assembly.SteererTapered}                              // catalog
-	pike140              = Fork{ID: "pike_140", Name: "RockShox Pike 140mm", TravelMm: 140, Steerer: assembly.SteererTapered}                              // catalog
-	fox36_150            = Fork{ID: "fox36_150", Name: "Fox 36 / Lyrik 150mm", TravelMm: 150, Steerer: assembly.SteererTapered}                            // catalog
+	sid100               = Fork{ID: "sid_100", Name: "RockShox SID 100mm", Travel: assembly.Travel100, Steerer: assembly.SteererTapered}                   // catalog
+	fox34_120            = Fork{ID: "fox34_120", Name: "Fox Float 34 120mm", Travel: assembly.Travel120, Steerer: assembly.SteererTapered}                 // catalog
+	sid120               = Fork{ID: "sid_120", Name: "RockShox SID 120mm", Travel: assembly.Travel120, Steerer: assembly.SteererTapered}                   // catalog
+	pike120              = Fork{ID: "pike_120", Name: "RockShox Pike 120mm", Travel: assembly.Travel120, Steerer: assembly.SteererTapered}                 // catalog
+	fox34_130            = Fork{ID: "fox34_130", Name: "Fox Float 34 130mm", Travel: assembly.Travel130, Steerer: assembly.SteererTapered}                 // catalog
 	sunliner440          = Fork{ID: "sunliner_440", Name: "Tumbleweed Chromoly Steel Unicrown 440mm", Steerer: assembly.SteererStraight118}                // catalog
 	surlyEcr468          = Fork{ID: "surly_ecr_468", Name: "Surly ECR 4130 Chromoly 468mm", Steerer: assembly.SteererStraight118}                          // catalog
 	enveMountain472      = Fork{ID: "enve_mountain_472", Name: "ENVE Mountain Carbon 472mm", Steerer: assembly.SteererTapered}                             // catalog
@@ -56,10 +53,10 @@ var (
 	rigid510             = Fork{ID: "rigid_510", Name: "Rigid Bikepacking 510mm", Steerer: assembly.SteererTapered}                                        // illustrative
 )
 
-// Forks returns the 22 fork models in legacy catalog order.
+// Forks returns the fork models in catalog order.
 func Forks() []Fork {
 	return []Fork{
-		sid100, sid110, fox34_120, sid120, pike120, fox34_130, pike140, fox36_150,
+		sid100, fox34_120, sid120, pike120, fox34_130,
 		sunliner440, surlyEcr468, enveMountain472, enveMountainBoost,
 		firestarterDeluxe483, surlyKrampus483, rigid483, rigid485, sklarSteel485,
 		rigid490, lithicCarbonMountain, rigid495, rigid500, rigid510,

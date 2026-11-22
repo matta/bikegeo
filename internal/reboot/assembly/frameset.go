@@ -186,10 +186,122 @@ func validateDefaultLowerCup(frame FrameSetup) error {
 	return validateHeadset(frame.LowerBore, frame.DefaultLowerCup, SteererBasis)
 }
 
+// ForkTravel is the closed set of supported fork suspension travels (Q129).
+type ForkTravel int
+
+const (
+	TravelRigid ForkTravel = 0
+	Travel100   ForkTravel = 100
+	Travel120   ForkTravel = 120
+	Travel130   ForkTravel = 130
+)
+
+// Valid reports whether t is one of the supported fork travel values.
+func (t ForkTravel) Valid() bool {
+	switch t {
+	case TravelRigid, Travel100, Travel120, Travel130:
+		return true
+	default:
+		return false
+	}
+}
+
+// Mm returns the travel in millimetres (0 for rigid or unknown travel).
+func (t ForkTravel) Mm() float64 {
+	switch t {
+	case TravelRigid:
+		return 0
+	case Travel100:
+		return 100
+	case Travel120:
+		return 120
+	case Travel130:
+		return 130
+	default:
+		return 0
+	}
+}
+
+// IsSuspension reports whether t is a suspension fork travel.
+func (t ForkTravel) IsSuspension() bool {
+	switch t {
+	case Travel100, Travel120, Travel130:
+		return true
+	case TravelRigid:
+		return false
+	default:
+		return false
+	}
+}
+
+// SagRange returns the travel's recommended [minPct, maxPct] sag range (Q129, Q132).
+func (t ForkTravel) SagRange() (minPct, maxPct float64, ok bool) {
+	switch t {
+	case Travel100:
+		return 15, 20, true
+	case Travel120:
+		return 15, 25, true
+	case Travel130:
+		return 20, 25, true
+	case TravelRigid:
+		return 0, 0, false
+	default:
+		return 0, 0, false
+	}
+}
+
+// SagPcts returns a fresh slice of the standard sag percentages for t (Q129).
+func (t ForkTravel) SagPcts() []float64 {
+	switch t {
+	case Travel100:
+		return []float64{15, 20}
+	case Travel120:
+		return []float64{15, 20, 25}
+	case Travel130:
+		return []float64{20, 25}
+	case TravelRigid:
+		return nil
+	default:
+		return nil
+	}
+}
+
+// DefaultSagPct returns the default sag percentage for t when sag is omitted (Q134).
+func (t ForkTravel) DefaultSagPct() float64 {
+	switch t {
+	case TravelRigid:
+		return 0
+	case Travel100:
+		return 20
+	case Travel120:
+		return 25
+	case Travel130:
+		return 25
+	default:
+		return 0
+	}
+}
+
+// String returns a human-readable label for t.
+func (t ForkTravel) String() string {
+	switch t {
+	case TravelRigid:
+		return "rigid"
+	case Travel100:
+		return "100mm"
+	case Travel120:
+		return "120mm"
+	case Travel130:
+		return "130mm"
+	default:
+		return fmt.Sprintf("%dmm", int(t))
+	}
+}
+
 // ForkSpec describes a catalog fork before installation and sag.
 type ForkSpec struct {
 	StaticA2cMm float64
-	TravelMm    float64 // 0 for rigid forks
+	Travel      ForkTravel
 	RakeMm      float64
 	Steerer     Steerer
 }
@@ -210,7 +322,7 @@ type ForkSetup struct {
 
 // EffectiveA2cMm returns the fork's effective (sagged) axle-to-crown length.
 func (f ForkSetup) EffectiveA2cMm() float64 {
-	return f.Spec.StaticA2cMm - f.Spec.TravelMm*(f.SagPct/100.0)
+	return f.Spec.StaticA2cMm - f.Spec.Travel.Mm()*(f.SagPct/100.0)
 }
 
 // Geometry resolves the fork setup's effective A2C and rake into ForkGeometry.
@@ -227,16 +339,16 @@ func (f ForkSetup) Validate() error {
 	if !isFinite(f.Spec.StaticA2cMm) || f.Spec.StaticA2cMm <= 0 {
 		return invalidInput(InputForkA2c, "fork static A2C must be finite and positive, got %v mm", f.Spec.StaticA2cMm)
 	}
-	if !isFinite(f.Spec.TravelMm) || f.Spec.TravelMm < 0 {
-		return fmt.Errorf("fork travel must be finite and non-negative, got %v mm", f.Spec.TravelMm)
+	if !f.Spec.Travel.Valid() {
+		return fmt.Errorf("unsupported fork travel %d mm", f.Spec.Travel)
 	}
-	if f.Spec.Steerer == SteererBasis && f.Spec.TravelMm != 0 {
-		return fmt.Errorf("basis fork cannot have travel, got %v mm", f.Spec.TravelMm)
+	if f.Spec.Steerer == SteererBasis && f.Spec.Travel != TravelRigid {
+		return fmt.Errorf("basis fork cannot have travel, got %d mm", f.Spec.Travel)
 	}
 	if !isFinite(f.SagPct) || f.SagPct < 0 || f.SagPct > 100 {
 		return invalidInput(InputForkSag, "fork sag must be in [0%%, 100%%], got %v%%", f.SagPct)
 	}
-	if f.Spec.TravelMm == 0 && f.SagPct != 0 {
+	if f.Spec.Travel == TravelRigid && f.SagPct != 0 {
 		return invalidInput(InputForkSag, "rigid fork (0 mm travel) cannot have non-zero sag, got %v%%", f.SagPct)
 	}
 	eff := f.EffectiveA2cMm()

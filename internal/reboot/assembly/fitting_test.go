@@ -18,7 +18,7 @@ func fenrirFittingSetup() assembly.BikeSetup {
 		Frame:    fenrirSizeLFrame(),
 		LowerCup: fenrirEc44Cup(),
 		Fork: assembly.ForkSetup{
-			Spec:   assembly.ForkSpec{StaticA2cMm: 495.0, TravelMm: 0.0, RakeMm: 54.0, Steerer: assembly.SteererTapered},
+			Spec:   assembly.ForkSpec{StaticA2cMm: 495.0, Travel: assembly.TravelRigid, RakeMm: 54.0, Steerer: assembly.SteererTapered},
 			SagPct: 0.0,
 		},
 		Wheels:    fenrirWheels(),

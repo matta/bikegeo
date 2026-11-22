@@ -107,8 +107,8 @@ func frameProblems(f catalog.Frame) []string {
 	if f.BasisFork.Steerer != assembly.SteererBasis {
 		problems = append(problems, fmt.Sprintf("basis fork steerer is %q, want %q", f.BasisFork.Steerer, assembly.SteererBasis))
 	}
-	if f.BasisFork.TravelMm != 0 {
-		problems = append(problems, fmt.Sprintf("basis fork has %v mm travel, want 0", f.BasisFork.TravelMm))
+	if f.BasisFork.Travel != assembly.TravelRigid {
+		problems = append(problems, fmt.Sprintf("basis fork has %v travel, want rigid", f.BasisFork.Travel))
 	}
 	return problems
 }
@@ -134,7 +134,7 @@ func TestFrameProblemsCatchMistakes(t *testing.T) {
 		{"duplicate fork", func(f *catalog.Frame) { f.Forks[1] = f.Forks[0] }, "duplicate fork"},
 		{"max chainstay below a size", func(f *catalog.Frame) { f.MaxChainstayMm = 440 }, "max chainstay"},
 		{"basis fork non-basis steerer", func(f *catalog.Frame) { f.BasisFork.Steerer = assembly.SteererTapered }, "basis fork steerer"},
-		{"basis fork with travel", func(f *catalog.Frame) { f.BasisFork.TravelMm = 120 }, "basis fork has"},
+		{"basis fork with travel", func(f *catalog.Frame) { f.BasisFork.Travel = assembly.Travel120 }, "basis fork has"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := mustFrame(t, "otso-fenrir-stainless")
@@ -219,8 +219,8 @@ func TestForkListsPlace(t *testing.T) {
 			installed := f.InstalledFrame(s)
 			for _, ff := range f.Forks {
 				sags := []float64{0}
-				if ff.Fork.TravelMm != 0 {
-					sags = catalog.SuspensionSagPcts()
+				if ff.Fork.Travel.IsSuspension() {
+					sags = ff.Fork.Travel.SagPcts()
 				}
 				for _, sag := range sags {
 					fork := assembly.ForkSetup{Spec: ff.Spec(), SagPct: sag}
@@ -237,8 +237,8 @@ func TestForkListsPlace(t *testing.T) {
 		}
 	}
 	t.Logf("%d fork-list placements, %d basis placements", placements, bases)
-	if placements != 701 || bases != 119 {
-		t.Errorf("got %d fork-list and %d basis placements, want 701 and 119", placements, bases)
+	if placements != 581 || bases != 119 {
+		t.Errorf("got %d fork-list and %d basis placements, want 581 and 119", placements, bases)
 	}
 }
 

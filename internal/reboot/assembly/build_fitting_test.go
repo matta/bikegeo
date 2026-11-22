@@ -46,18 +46,17 @@ func twoBarOptions() assembly.PartOptions {
 	return parts
 }
 
-// fenrirForkOptions returns the Q31 configurations in fixture order: Lithic
-// rigid; SID at 15, 20, 25% sag; Fox 34 at 15, 20, 25% sag; all on the EC44 12 mm cup.
+// fenrirForkOptions returns the Q31/Q129 configurations in fixture order: Lithic
+// rigid; SID at 15, 20% sag; Fox 34 at 15, 20, 25% sag; all on the EC44 12 mm cup.
 func fenrirForkOptions() []assembly.ForkOption {
-	lithic := assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54, Steerer: assembly.SteererTapered}
-	sid := assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44, Steerer: assembly.SteererTapered}
-	fox34 := assembly.ForkSpec{StaticA2cMm: 530, TravelMm: 120, RakeMm: 44, Steerer: assembly.SteererTapered}
+	lithic := assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 54, Steerer: assembly.SteererTapered}
+	sid := assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}
+	fox34 := assembly.ForkSpec{StaticA2cMm: 530, Travel: assembly.Travel120, RakeMm: 44, Steerer: assembly.SteererTapered}
 	cup := fenrirEc44Cup()
 	return []assembly.ForkOption{
 		{Fork: assembly.ForkSetup{Spec: lithic}, LowerCup: cup},
 		{Fork: assembly.ForkSetup{Spec: sid, SagPct: 15}, LowerCup: cup},
 		{Fork: assembly.ForkSetup{Spec: sid, SagPct: 20}, LowerCup: cup},
-		{Fork: assembly.ForkSetup{Spec: sid, SagPct: 25}, LowerCup: cup},
 		{Fork: assembly.ForkSetup{Spec: fox34, SagPct: 15}, LowerCup: cup},
 		{Fork: assembly.ForkSetup{Spec: fox34, SagPct: 20}, LowerCup: cup},
 		{Fork: assembly.ForkSetup{Spec: fox34, SagPct: 25}, LowerCup: cup},
@@ -444,11 +443,11 @@ func TestFitBuildsKeepsSubmittedForkByDefault(t *testing.T) {
 func TestFitBuildsChoosesAmongForks(t *testing.T) {
 	setup := fenrirFittingSetup()
 	parts := fenrirMultiForkOptions()
-	full := mustFitBuildsWith(t, setup, assembly.FitTarget{HandGrip: &fitReportGrip}, parts, 490)
-	if full.Evaluated != 490 || len(full.Builds) != 490 {
-		t.Fatalf("evaluated %d, returned %d, want 490 each", full.Evaluated, len(full.Builds))
+	full := mustFitBuildsWith(t, setup, assembly.FitTarget{HandGrip: &fitReportGrip}, parts, 420)
+	if full.Evaluated != 420 || len(full.Builds) != 420 {
+		t.Fatalf("evaluated %d, returned %d, want 420 each", full.Evaluated, len(full.Builds))
 	}
-	var counts [7]int
+	var counts [6]int
 	for i, c := range full.Builds {
 		index := c.ForkIndex
 		if !c.HasForkOption || index < 0 || index >= len(parts.Forks) {
@@ -459,15 +458,15 @@ func TestFitBuildsChoosesAmongForks(t *testing.T) {
 			t.Errorf("rank %d did not install fork configuration %d", i+1, index)
 		}
 	}
-	if counts != [7]int{70, 70, 70, 70, 70, 70, 70} {
+	if counts != [6]int{70, 70, 70, 70, 70, 70} {
 		t.Errorf("candidate count by fork = %v, want 70 each", counts)
 	}
 	requireRanks(t, full,
-		rank(assembly.FitsNeither, 61.643767, -20, 120, 0, 1.318877).onFork(3),
-		rank(assembly.FitsNeither, 61.669799, -17, 120, 0, 1.539990).onFork(3),
-		rank(assembly.FitsNeither, 56.130389, -30, 120, 5, 1.553706).onFork(3),
-		rank(assembly.FitsNeither, 54.965173, -30, 120, 0, 1.603335).onFork(3),
 		rank(assembly.FitsNeither, 61.179441, -20, 120, 0, 1.616431).onFork(2),
+		rank(assembly.FitsNeither, 60.317274, -30, 120, 0, 1.653153).onFork(2),
+		rank(assembly.FitsNeither, 59.467269, -30, 120, 5, 1.689357).onFork(2),
+		rank(assembly.FitsNeither, 56.854583, -30, 120, 0, 1.764743).onFork(0),
+		rank(assembly.FitsNeither, 56.326779, -30, 120, 0, 1.767563).onFork(1),
 	)
 }
 
@@ -475,18 +474,18 @@ func TestFitBuildsRefitsSaddlePerFork(t *testing.T) {
 	setup := fenrirFittingSetup()
 	target := assembly.FitTarget{BRP: &fitReportBRP, HandGrip: &fitReportGrip}
 	parts := fenrirMultiForkOptions()
-	full := mustFitBuildsWith(t, setup, target, parts, 490)
-	if full.Evaluated != 490 || len(full.Builds) != 490 {
-		t.Fatalf("evaluated %d, returned %d, want 490 each", full.Evaluated, len(full.Builds))
+	full := mustFitBuildsWith(t, setup, target, parts, 420)
+	if full.Evaluated != 420 || len(full.Builds) != 420 {
+		t.Fatalf("evaluated %d, returned %d, want 420 each", full.Evaluated, len(full.Builds))
 	}
-	var saddles [7]assembly.BikeSetup
+	var saddles [6]assembly.BikeSetup
 	for i, fork := range parts.Forks {
 		base := setup
 		base.Fork, base.LowerCup = fork.Fork, fork.LowerCup
 		saddles[i] = mustFit(t, base, fitReportBRP).Placement.Setup
 	}
-	wantMiss := [...]float64{53.368222, 53.311080, 56.197798, 59.087687, 41.221376, 44.669901, 48.122963}
-	wantInsertion := [...]float64{197.387571, 197.372502, 198.128305, 198.873690, 194.085981, 195.043299, 195.986030}
+	wantMiss := [...]float64{53.368222, 53.311080, 56.197798, 41.221376, 44.669901, 48.122963}
+	wantInsertion := [...]float64{197.387571, 197.372502, 198.128305, 194.085981, 195.043299, 195.986030}
 	for i, c := range full.Builds {
 		index := c.ForkIndex
 		got, want := c.Placement.Setup, saddles[index]
@@ -503,14 +502,14 @@ func TestFitBuildsRefitsSaddlePerFork(t *testing.T) {
 		assertNear(t, "fitted rail offset", got.Saddle.RailOffsetMm, 15, 1e-9)
 	}
 	requireRanks(t, full,
-		rank(assembly.FitsNeither, 58.827962, -20, 120, 0, 1.318877).onFork(3),
-		rank(assembly.FitsNeither, 58.844594, -17, 120, 0, 1.539990).onFork(3),
-		rank(assembly.FitsNeither, 55.305526, -30, 120, 5, 1.553706).onFork(3),
-		rank(assembly.FitsNeither, 54.561083, -30, 120, 0, 1.603335).onFork(3),
 		rank(assembly.FitsNeither, 58.531310, -20, 120, 0, 1.616431).onFork(2),
+		rank(assembly.FitsNeither, 57.980481, -30, 120, 0, 1.653153).onFork(2),
+		rank(assembly.FitsNeither, 57.437422, -30, 120, 5, 1.689357).onFork(2),
+		rank(assembly.FitsNeither, 55.768206, -30, 120, 0, 1.764743).onFork(0),
+		rank(assembly.FitsNeither, 55.430998, -30, 120, 0, 1.767563).onFork(1),
 	)
 	miss, _ := full.Builds[0].BrpMiss()
-	assertNear(t, "rank 1 miss", miss.Norm(), 59.087687, 1e-6)
+	assertNear(t, "rank 1 miss", miss.Norm(), 56.197798, 1e-6)
 }
 
 func TestFitBuildsScoresBrpMissForSubmittedFork(t *testing.T) {

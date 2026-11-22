@@ -332,10 +332,7 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 	b.FrameFork = ff
 
 	frameSetup := frame.InstalledFrame(size)
-	defaultSag := 0.0
-	if ff.Fork.TravelMm != 0 {
-		defaultSag = catalog.DefaultSuspensionSagPct
-	}
+	defaultSag := ff.Fork.Travel.DefaultSagPct()
 	defaultCup := frameSetup.DefaultLowerCup.StackMm
 
 	var a2cMm, cupMm, sagPct float64
@@ -438,16 +435,16 @@ func (b Bike) FitTarget() assembly.FitTarget {
 
 // ForkOptions enumerates the frame's physical fork configurations offered to
 // build fitting in declared order: a rigid fork once at 0% sag, a suspension
-// fork at each catalog.SuspensionSagPcts (Q31).
+// fork at each Travel.SagPcts() (Q31, Q129).
 func (b Bike) ForkOptions() []BikeForkOption {
 	cup := b.Frame.InstalledFrame(b.Size).DefaultLowerCup
 	var out []BikeForkOption
 	for _, ff := range b.Frame.Forks {
-		if ff.Fork.TravelMm == 0 {
+		if !ff.Fork.Travel.IsSuspension() {
 			out = append(out, BikeForkOption{FrameFork: ff, LowerCup: cup})
 			continue
 		}
-		for _, sag := range catalog.SuspensionSagPcts() {
+		for _, sag := range ff.Fork.Travel.SagPcts() {
 			out = append(out, BikeForkOption{FrameFork: ff, SagPct: sag, LowerCup: cup})
 		}
 	}

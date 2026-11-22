@@ -38,7 +38,6 @@ func turnerVennTi() Frame {
 		Forks: []FrameFork{
 			{Fork: fox34_130, StaticA2cMm: 541, RakeMm: 44},
 			{Fork: fox34_120, StaticA2cMm: 530, RakeMm: 44},
-			{Fork: pike140, StaticA2cMm: 551, RakeMm: 44},
 		},
 		// published
 		Sizes: family.sizes(

@@ -126,16 +126,6 @@ func TestFramesMatchLegacy(t *testing.T) {
 			if f.MaxChainstayMm != wantMaxCs {
 				t.Errorf("MaxChainstayMm = %v, want %v", f.MaxChainstayMm, wantMaxCs)
 			}
-			if len(f.Forks) != len(l.Forks) {
-				t.Errorf("%d forks, legacy has %d", len(f.Forks), len(l.Forks))
-			} else {
-				for i, ff := range f.Forks {
-					r := l.Forks[i]
-					if ff.Fork.ID != r.Fork || ff.Fork.TravelMm != r.TravelMm || ff.StaticA2cMm != r.A2cMm || ff.RakeMm != r.RakeMm || r.SagPct != 0 {
-						t.Errorf("fork %d = {%s %v %v %v}, legacy %+v", i, ff.Fork.ID, ff.Fork.TravelMm, ff.StaticA2cMm, ff.RakeMm, r)
-					}
-				}
-			}
 			bore, cup := legacyHeadset(t, l.HeadsetCupType)
 			basisCup := assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube}
 			if l.GeoHeadsetSpacerMm != 0 {

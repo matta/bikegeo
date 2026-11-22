@@ -36,7 +36,7 @@ type Fork struct {
 
 // Selection picks rows from one frame (Q87). An empty Size or ForkID selects
 // every size or fork. A nil SagPct selects 0% for a rigid fork and each of
-// Request.SuspensionSagPcts for a suspension fork. A non-nil SagPct needs a ForkID.
+// Fork.Spec.Travel.SagPcts() for a suspension fork. A non-nil SagPct needs a ForkID.
 type Selection struct {
 	FrameID string
 	Size    string
@@ -46,19 +46,18 @@ type Selection struct {
 
 // Request is one comparison.
 type Request struct {
-	Frames            []Frame
-	Selections        []Selection // empty selects every size, fork, and sag of every frame
-	SuspensionSagPcts []float64   // sags an open selection expands a suspension fork to (Q56)
-	Wheels            assembly.WheelSetup
-	Seatpost          assembly.SeatpostSpec
-	Saddle            assembly.SaddleSetup    // the saddle fit sets RailOffsetMm; RailPitchDeg is kept
-	Stem              assembly.StemSetup      // build fitting sets LengthMm, AngleDeg, and SpacersMm
-	Handlebar         assembly.HandlebarSetup // the selected bar; its BarRollDeg applies to every bar (Q24)
-	Target            assembly.FitTarget      // needs both BRP and HandGrip (Q76)
-	Parts             assembly.PartOptions    // Forks must be empty: each row fixes its fork
-	Weights           assembly.ScoreWeights
-	TopPerFrame       int // most rows kept per frame; 0 keeps all
-	Top               int // most rows kept overall; 0 keeps all
+	Frames      []Frame
+	Selections  []Selection // empty selects every size, fork, and sag of every frame
+	Wheels      assembly.WheelSetup
+	Seatpost    assembly.SeatpostSpec
+	Saddle      assembly.SaddleSetup    // the saddle fit sets RailOffsetMm; RailPitchDeg is kept
+	Stem        assembly.StemSetup      // build fitting sets LengthMm, AngleDeg, and SpacersMm
+	Handlebar   assembly.HandlebarSetup // the selected bar; its BarRollDeg applies to every bar (Q24)
+	Target      assembly.FitTarget      // needs both BRP and HandGrip (Q76)
+	Parts       assembly.PartOptions    // Forks must be empty: each row fixes its fork
+	Weights     assembly.ScoreWeights
+	TopPerFrame int // most rows kept per frame; 0 keeps all
+	Top         int // most rows kept overall; 0 keeps all
 }
 
 // Row is one distinct (frame, size, fork, sag) and its winning build (Q69).
@@ -136,10 +135,10 @@ func Rank(req Request) (Ranking, error) {
 				switch {
 				case sel.SagPct != nil:
 					sags = []float64{*sel.SagPct}
-				case fk.Spec.TravelMm == 0:
+				case fk.Spec.Travel == assembly.TravelRigid:
 					sags = []float64{0}
 				default:
-					sags = req.SuspensionSagPcts
+					sags = fk.Spec.Travel.SagPcts()
 				}
 				for _, sag := range sags {
 					key := rowKey{frameID: f.ID, size: sz.Name, forkID: fk.ID, sagPct: sag}
@@ -261,12 +260,12 @@ func (r Request) validate() error {
 			if fk.Spec.Steerer == assembly.SteererBasis {
 				return fmt.Errorf("frame %q fork %q is the chart basis fork; compare installs physical forks only", f.ID, fk.ID)
 			}
+			if !fk.Spec.Travel.Valid() {
+				return fmt.Errorf("frame %q fork %q has unsupported travel %d mm", f.ID, fk.ID, fk.Spec.Travel)
+			}
 		}
 	}
 
-	if len(r.SuspensionSagPcts) == 0 {
-		return fmt.Errorf("compare needs suspension sag steps")
-	}
 	if r.Target.BRP == nil {
 		return fmt.Errorf("compare needs a BRP target (Q76)")
 	}

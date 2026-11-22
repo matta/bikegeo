@@ -43,7 +43,7 @@ func TestPlaceFramesetBasisForkAndInvariants(t *testing.T) {
 	basisFork := assembly.ForkSetup{
 		Spec: assembly.ForkSpec{
 			StaticA2cMm: 495.0,
-			TravelMm:    0.0,
+			Travel:      assembly.TravelRigid,
 			RakeMm:      54.0,
 			Steerer:     assembly.SteererBasis,
 		},
@@ -105,7 +105,7 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 	// (positive frame pitch, slackening the leveled head tube angle) and lowering BB drop.
 	fox34Spec := assembly.ForkSpec{
 		StaticA2cMm: 530.0,
-		TravelMm:    120.0,
+		Travel:      assembly.Travel120,
 		RakeMm:      44.0,
 		Steerer:     assembly.SteererTapered,
 	}
@@ -190,15 +190,18 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 		wantField assembly.InputField
 	}{
 		{"zero static A2C", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 0, RakeMm: 54, Steerer: assembly.SteererTapered}}, assembly.InputForkA2c},
-		{"negative travel", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: -10, RakeMm: 44, Steerer: assembly.SteererTapered}}, ""},
+		{"negative travel", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: -10, RakeMm: 44, Steerer: assembly.SteererTapered}}, ""},
+		{"unsupported 110mm travel", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: 110, RakeMm: 44, Steerer: assembly.SteererTapered}}, ""},
+		{"unsupported 140mm travel", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 551, Travel: 140, RakeMm: 44, Steerer: assembly.SteererTapered}}, ""},
+		{"unsupported 150mm travel", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 561, Travel: 150, RakeMm: 44, Steerer: assembly.SteererTapered}}, ""},
 		{"NaN rake", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, RakeMm: math.NaN(), Steerer: assembly.SteererTapered}}, ""},
-		{"negative sag", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: -5}, assembly.InputForkSag},
-		{"sag over 100%", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 105}, assembly.InputForkSag},
-		{"non-zero sag on rigid fork", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54, Steerer: assembly.SteererTapered}, SagPct: 20}, assembly.InputForkSag},
-		{"non-positive effective A2C", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 80, TravelMm: 100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 90}, assembly.InputForkA2c},
-		{"basis fork with travel at 0% sag", fenrirBasisCup(), assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44, Steerer: assembly.SteererBasis}, SagPct: 0}, ""},
-		{"basis fork with travel and sag", fenrirBasisCup(), assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44, Steerer: assembly.SteererBasis}, SagPct: 20}, ""},
-		{"basis fork with zero travel and non-zero sag", fenrirBasisCup(), assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54, Steerer: assembly.SteererBasis}, SagPct: 20}, assembly.InputForkSag},
+		{"negative sag", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: -5}, assembly.InputForkSag},
+		{"sag over 100%", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 105}, assembly.InputForkSag},
+		{"non-zero sag on rigid fork", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 54, Steerer: assembly.SteererTapered}, SagPct: 20}, assembly.InputForkSag},
+		{"non-positive effective A2C", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 80, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 90}, assembly.InputForkA2c},
+		{"basis fork with travel at 0% sag", fenrirBasisCup(), assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererBasis}, SagPct: 0}, ""},
+		{"basis fork with travel and sag", fenrirBasisCup(), assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererBasis}, SagPct: 20}, ""},
+		{"basis fork with zero travel and non-zero sag", fenrirBasisCup(), assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 54, Steerer: assembly.SteererBasis}, SagPct: 20}, assembly.InputForkSag},
 		{"missing lower cup standard", assembly.LowerCupSetup{}, fork, assembly.InputLowerCup},
 		{"unknown lower cup standard", assembly.LowerCupSetup{Standard: "EC99", StackMm: 12}, fork, assembly.InputLowerCup},
 		{"EC44 zero stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 0}, fork, assembly.InputLowerCup},
@@ -260,7 +263,7 @@ func TestPlaceUnpitchedFrameset(t *testing.T) {
 	assertNear(t, "FrontAxle heading delta", float64(leveled.FrontAxle.HeadingDeg()-unpitched.FrontAxle.HeadingDeg()), -0.010692172, 1e-9)
 
 	installedFork := assembly.ForkSetup{
-		Spec:   assembly.ForkSpec{StaticA2cMm: 530.0, TravelMm: 120.0, RakeMm: 44.0, Steerer: assembly.SteererTapered},
+		Spec:   assembly.ForkSpec{StaticA2cMm: 530.0, Travel: assembly.Travel120, RakeMm: 44.0, Steerer: assembly.SteererTapered},
 		SagPct: 20.0,
 	}
 	installed, err := assembly.PlaceFrameset(frame, fenrirEc44Cup(), installedFork, wheels)
@@ -471,7 +474,7 @@ func TestFramesetHandlingReadouts(t *testing.T) {
 		{
 			name:      "Fox 34 at 20%",
 			cup:       fenrirEc44Cup(),
-			fork:      assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 530, TravelMm: 120, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 20},
+			fork:      assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 530, Travel: assembly.Travel120, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 20},
 			wantTrail: 109.963183,
 			wantRC:    445.646528,
 			wantRatio: 38.511960,

@@ -36,8 +36,8 @@ func fixtureFrames() []compare.Frame {
 				},
 			},
 			Forks: []compare.Fork{
-				{ID: "surly_krampus_483", Spec: assembly.ForkSpec{StaticA2cMm: 483, TravelMm: 0, RakeMm: 47, Steerer: assembly.SteererStraight118}},
-				{ID: "fox34_120", Spec: assembly.ForkSpec{StaticA2cMm: 530, TravelMm: 120, RakeMm: 44, Steerer: assembly.SteererTapered}},
+				{ID: "surly_krampus_483", Spec: assembly.ForkSpec{StaticA2cMm: 483, Travel: assembly.TravelRigid, RakeMm: 47, Steerer: assembly.SteererStraight118}},
+				{ID: "fox34_120", Spec: assembly.ForkSpec{StaticA2cMm: 530, Travel: assembly.Travel120, RakeMm: 44, Steerer: assembly.SteererTapered}},
 			},
 		},
 		{
@@ -61,8 +61,8 @@ func fixtureFrames() []compare.Frame {
 				},
 			},
 			Forks: []compare.Fork{
-				{ID: "lithic_carbon_mountain", Spec: assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54, Steerer: assembly.SteererTapered}},
-				{ID: "sid_100", Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44, Steerer: assembly.SteererTapered}},
+				{ID: "lithic_carbon_mountain", Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 54, Steerer: assembly.SteererTapered}},
+				{ID: "sid_100", Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}},
 			},
 		},
 	}
@@ -101,9 +101,8 @@ func fixtureRequest() compare.Request {
 	brp := pose.Point{X: -219, Y: 713.1}
 	grip := pose.Point{X: 481, Y: 726}
 	return compare.Request{
-		Frames:            fixtureFrames(),
-		SuspensionSagPcts: []float64{15, 20, 25},
-		Wheels:            assembly.WheelSetup{RadiusMm: 372},
+		Frames: fixtureFrames(),
+		Wheels: assembly.WheelSetup{RadiusMm: 372},
 		Seatpost: assembly.SeatpostSpec{
 			TotalLengthMm: 350, MaxInsertionMm: 250, MinInsertionMm: 100, SetbackMm: 12, RailClampLengthMm: 30,
 		},
@@ -153,22 +152,20 @@ const (
 )
 
 var t1WantRows = []wantRow{
-	{krampusFrameID, "XL", foxForkID, 20, assembly.FitsAll, 81.951358, 0.146116, 110, -17, 10, false, 0},
-	{krampusFrameID, "L", foxForkID, 20, assembly.FitsAll, 79.262788, 0.850141, 120, -10, 0, false, 0},
-	{krampusFrameID, "XL", foxForkID, 15, assembly.FitsAll, 79.151692, 0.254290, 110, -17, 5, false, 0},
-	{krampusFrameID, "XL", foxForkID, 25, assembly.FitsAll, 76.070832, 0.089092, 110, -17, 15, false, 0},
-	{krampusFrameID, "L", foxForkID, 25, assembly.FitsAll, 73.659999, 0.613347, 120, -10, 0, false, 0},
-	{krampusFrameID, "L", foxForkID, 15, assembly.FitsBRP, 73.775410, 1.069619, 120, -17, 5, false, 0},
+	{krampusFrameID, "XL", foxForkID, 15, assembly.FitsAll, 82.485025, 0.254290, 110, -17, 5, false, 0},
+	{krampusFrameID, "XL", foxForkID, 20, assembly.FitsAll, 81.534691, 0.146116, 110, -17, 10, false, 0},
+	{krampusFrameID, "XL", foxForkID, 25, assembly.FitsAll, 80.237499, 0.089092, 110, -17, 15, false, 0},
+	{krampusFrameID, "L", foxForkID, 20, assembly.FitsAll, 78.846121, 0.850141, 120, -10, 0, false, 0},
+	{krampusFrameID, "L", foxForkID, 25, assembly.FitsAll, 77.826666, 0.613347, 120, -10, 0, false, 0},
+	{krampusFrameID, "L", foxForkID, 15, assembly.FitsBRP, 77.108743, 1.069619, 120, -17, 5, false, 0},
 	{krampusFrameID, "XL", krampusForkID, 0, assembly.FitsGrip, 76.852325, 0.741170, 90, -17, 15, false, 0},
 	{krampusFrameID, "L", krampusForkID, 0, assembly.FitsGrip, 72.694567, 0.245436, 120, -10, 15, false, 0},
 	{fenrirFrameID, "XL", sidForkID, 20, assembly.FitsGrip, 68.479876, 0.578741, 120, -30, 0, false, 0},
 	{fenrirFrameID, "XL", lithicForkID, 0, assembly.FitsGrip, 67.571942, 0.811560, 120, -30, 0, false, 0},
-	{fenrirFrameID, "XL", sidForkID, 25, assembly.FitsGrip, 64.472103, 0.483405, 120, -30, 0, false, 0},
-	{fenrirFrameID, "XL", sidForkID, 15, assembly.FitsGrip, 63.915801, 0.817186, 120, -30, 0, false, 0},
-	{fenrirFrameID, "L", sidForkID, 25, assembly.FitsNeither, 58.827962, 1.318877, 120, -20, 0, false, 0},
+	{fenrirFrameID, "XL", sidForkID, 15, assembly.FitsGrip, 67.249134, 0.817186, 120, -30, 0, false, 0},
 	{fenrirFrameID, "L", sidForkID, 20, assembly.FitsNeither, 58.531310, 1.616431, 120, -20, 0, false, 0},
 	{fenrirFrameID, "L", lithicForkID, 0, assembly.FitsNeither, 55.768206, 1.764743, 120, -30, 0, false, 0},
-	{fenrirFrameID, "L", sidForkID, 15, assembly.FitsNeither, 52.097664, 1.767563, 120, -30, 0, false, 0},
+	{fenrirFrameID, "L", sidForkID, 15, assembly.FitsNeither, 55.430997, 1.767563, 120, -30, 0, false, 0},
 }
 
 func assertNear(t *testing.T, label string, got, want, tol float64) {
@@ -211,11 +208,11 @@ func TestRankFullFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
-	if ranking.RowCount != 16 {
-		t.Fatalf("RowCount = %d, want 16", ranking.RowCount)
+	if ranking.RowCount != 14 {
+		t.Fatalf("RowCount = %d, want 14", ranking.RowCount)
 	}
-	if ranking.Evaluated != 1120 {
-		t.Fatalf("Evaluated = %d, want 1120", ranking.Evaluated)
+	if ranking.Evaluated != 980 {
+		t.Fatalf("Evaluated = %d, want 980", ranking.Evaluated)
 	}
 	for i, row := range ranking.Rows {
 		if row.Evaluated != 70 {
@@ -224,8 +221,8 @@ func TestRankFullFixture(t *testing.T) {
 		assertNear(t, "RailOffsetMm", row.Build.Placement.Setup.Saddle.RailOffsetMm, 15, 1e-9)
 	}
 	assertRows(t, ranking.Rows, t1WantRows)
-	assertNear(t, "row 1 InsertionMm", ranking.Rows[0].Build.Placement.Setup.Seatpost.InsertionMm, 163.906090, 1e-6)
-	assertNear(t, "row 15 InsertionMm", ranking.Rows[14].Build.Placement.Setup.Seatpost.InsertionMm, 144.107252, 1e-6)
+	assertNear(t, "row 1 InsertionMm", ranking.Rows[0].Build.Placement.Setup.Seatpost.InsertionMm, 162.739682, 1e-6)
+	assertNear(t, "row 13 InsertionMm", ranking.Rows[12].Build.Placement.Setup.Seatpost.InsertionMm, 144.107252, 1e-6)
 }
 
 func TestRankRowsMatchFitBuilds(t *testing.T) {
@@ -291,11 +288,11 @@ func TestRankAllHandlebars(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
-	if ranking.RowCount != 16 {
-		t.Fatalf("RowCount = %d, want 16", ranking.RowCount)
+	if ranking.RowCount != 14 {
+		t.Fatalf("RowCount = %d, want 14", ranking.RowCount)
 	}
-	if ranking.Evaluated != 2240 {
-		t.Fatalf("Evaluated = %d, want 2240", ranking.Evaluated)
+	if ranking.Evaluated != 1960 {
+		t.Fatalf("Evaluated = %d, want 1960", ranking.Evaluated)
 	}
 	for i, row := range ranking.Rows {
 		if !row.Build.HasHandlebarOption {
@@ -303,22 +300,20 @@ func TestRankAllHandlebars(t *testing.T) {
 		}
 	}
 	want := []wantRow{
-		{krampusFrameID, "XL", foxForkID, 20, assembly.FitsAll, 84.481849, 0.773655, 90, -17, 0, true, 1},
-		{krampusFrameID, "L", foxForkID, 20, assembly.FitsAll, 80.065939, 0.514084, 110, -17, 0, true, 1},
-		{krampusFrameID, "XL", foxForkID, 15, assembly.FitsAll, 79.151692, 0.254290, 110, -17, 5, true, 0},
-		{krampusFrameID, "XL", foxForkID, 25, assembly.FitsAll, 79.110589, 0.411071, 90, -17, 0, true, 1},
-		{krampusFrameID, "L", foxForkID, 15, assembly.FitsAll, 76.661843, 0.915548, 110, -17, 0, true, 1},
-		{krampusFrameID, "L", foxForkID, 25, assembly.FitsAll, 74.677138, 0.148898, 110, -17, 0, true, 1},
+		{krampusFrameID, "XL", foxForkID, 20, assembly.FitsAll, 84.065182, 0.773655, 90, -17, 0, true, 1},
+		{krampusFrameID, "XL", foxForkID, 25, assembly.FitsAll, 83.277256, 0.411071, 90, -17, 0, true, 1},
+		{krampusFrameID, "XL", foxForkID, 15, assembly.FitsAll, 82.485025, 0.254290, 110, -17, 5, true, 0},
+		{krampusFrameID, "L", foxForkID, 15, assembly.FitsAll, 79.995176, 0.915548, 110, -17, 0, true, 1},
+		{krampusFrameID, "L", foxForkID, 20, assembly.FitsAll, 79.649272, 0.514084, 110, -17, 0, true, 1},
+		{krampusFrameID, "L", foxForkID, 25, assembly.FitsAll, 78.843805, 0.148898, 110, -17, 0, true, 1},
 		{krampusFrameID, "XL", krampusForkID, 0, assembly.FitsGrip, 77.253680, 0.500357, 90, -17, 10, true, 1},
 		{krampusFrameID, "L", krampusForkID, 0, assembly.FitsGrip, 75.370042, 0.931818, 90, -17, 0, true, 1},
 		{fenrirFrameID, "L", sidForkID, 20, assembly.FitsGrip, 68.546221, 0.538934, 120, -30, 0, true, 1},
 		{fenrirFrameID, "XL", sidForkID, 20, assembly.FitsGrip, 68.479876, 0.578741, 120, -30, 0, true, 0},
 		{fenrirFrameID, "XL", lithicForkID, 0, assembly.FitsGrip, 67.571942, 0.811560, 120, -30, 0, true, 0},
 		{fenrirFrameID, "L", lithicForkID, 0, assembly.FitsGrip, 67.511970, 0.836426, 120, -30, 0, true, 1},
-		{fenrirFrameID, "L", sidForkID, 25, assembly.FitsGrip, 64.755971, 0.313084, 120, -30, 0, true, 1},
-		{fenrirFrameID, "XL", sidForkID, 25, assembly.FitsGrip, 64.472103, 0.483405, 120, -30, 0, true, 0},
-		{fenrirFrameID, "XL", sidForkID, 15, assembly.FitsGrip, 63.915801, 0.817186, 120, -30, 0, true, 0},
-		{fenrirFrameID, "L", sidForkID, 15, assembly.FitsGrip, 63.873308, 0.842682, 120, -30, 0, true, 1},
+		{fenrirFrameID, "XL", sidForkID, 15, assembly.FitsGrip, 67.249134, 0.817186, 120, -30, 0, true, 0},
+		{fenrirFrameID, "L", sidForkID, 15, assembly.FitsGrip, 67.206641, 0.842682, 120, -30, 0, true, 1},
 	}
 	assertRows(t, ranking.Rows, want)
 }
@@ -353,11 +348,11 @@ func TestRankPrunes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Rank: %v", err)
 			}
-			if ranking.RowCount != 16 {
-				t.Fatalf("RowCount = %d, want 16", ranking.RowCount)
+			if ranking.RowCount != 14 {
+				t.Fatalf("RowCount = %d, want 14", ranking.RowCount)
 			}
-			if ranking.Evaluated != 1120 {
-				t.Fatalf("Evaluated = %d, want 1120", ranking.Evaluated)
+			if ranking.Evaluated != 980 {
+				t.Fatalf("Evaluated = %d, want 980", ranking.Evaluated)
 			}
 			assertRows(t, ranking.Rows, tc.want)
 		})
@@ -385,13 +380,13 @@ func TestRankSelections(t *testing.T) {
 			name:       "one fork, open sag",
 			selections: []compare.Selection{{FrameID: krampusFrameID, Size: "XL", ForkID: foxForkID}},
 			wantCount:  3,
-			wantRows:   pick(1, 3, 4),
+			wantRows:   pick(1, 2, 3),
 		},
 		{
 			name:       "one fork, all sizes",
 			selections: []compare.Selection{{FrameID: fenrirFrameID, ForkID: lithicForkID}},
 			wantCount:  2,
-			wantRows:   pick(10, 15),
+			wantRows:   pick(10, 13),
 		},
 		{
 			name:       "frame only",
@@ -407,7 +402,7 @@ func TestRankSelections(t *testing.T) {
 				{FrameID: krampusFrameID, Size: "XL", ForkID: foxForkID},
 			},
 			wantCount: 5,
-			wantRows:  pick(1, 3, 4, 10, 15),
+			wantRows:  pick(1, 2, 3, 10, 13),
 		},
 		{
 			name: "per-frame pruning on a selection",
@@ -424,7 +419,7 @@ func TestRankSelections(t *testing.T) {
 			selections: []compare.Selection{{FrameID: krampusFrameID, Size: "L", ForkID: foxForkID, SagPct: sag(22)}},
 			wantCount:  1,
 			wantRows: []wantRow{
-				{krampusFrameID, "L", foxForkID, 22, assembly.FitsAll, 77.053503, 0.736472, 120, -10, 0, false, 0},
+				{krampusFrameID, "L", foxForkID, 22, assembly.FitsAll, 78.470170, 0.736472, 120, -10, 0, false, 0},
 			},
 		},
 	}
@@ -469,7 +464,7 @@ func TestRankRejectsInvalidRequests(t *testing.T) {
 		{"empty fork ID", func(r *compare.Request) { r.Frames[0].Forks[1].ID = "" }, []string{`frame "surly-krampus" fork 1 has an empty ID`}},
 		{"duplicate fork", func(r *compare.Request) { r.Frames[0].Forks[1].ID = krampusForkID }, []string{`frame "surly-krampus" has duplicate fork "surly_krampus_483"`}},
 		{"basis fork", func(r *compare.Request) { r.Frames[0].Forks[0].Spec.Steerer = assembly.SteererBasis }, []string{"is the chart basis fork"}},
-		{"no sag steps", func(r *compare.Request) { r.SuspensionSagPcts = nil }, []string{"compare needs suspension sag steps"}},
+		{"unsupported travel", func(r *compare.Request) { r.Frames[0].Forks[1].Spec.Travel = assembly.ForkTravel(110) }, []string{"has unsupported travel 110 mm"}},
 		{"no BRP", func(r *compare.Request) { r.Target.BRP = nil }, []string{"compare needs a BRP target"}},
 		{"no HandGrip", func(r *compare.Request) { r.Target.HandGrip = nil }, []string{"compare needs a HandGrip target"}},
 		{"fork options", func(r *compare.Request) { r.Parts.Forks = []assembly.ForkOption{{}} }, []string{"part options must not list forks"}},

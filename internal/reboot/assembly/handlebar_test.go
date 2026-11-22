@@ -183,7 +183,7 @@ func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 	forkSetup := assembly.ForkSetup{
 		Spec: assembly.ForkSpec{
 			StaticA2cMm: 530.0,
-			TravelMm:    120.0,
+			Travel:      assembly.Travel120,
 			RakeMm:      44.0,
 			Steerer:     assembly.SteererTapered,
 		},

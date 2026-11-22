@@ -18,17 +18,21 @@ func testDefaultScoreWeights() assembly.ScoreWeights {
 }
 
 func sidFork(sag float64) assembly.ForkSetup {
-	return assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, TravelMm: 100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: sag}
+	return assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: sag}
 }
 
 func fox34Fork(sag float64) assembly.ForkSetup {
-	return assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 530, TravelMm: 120, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: sag}
+	return assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 530, Travel: assembly.Travel120, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: sag}
+}
+
+func fox34_130Fork(sag float64) assembly.ForkSetup {
+	return assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 544, Travel: assembly.Travel130, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: sag}
 }
 
 func basisSetup() assembly.BikeSetup {
 	setup := fenrirFittingSetup()
 	setup.LowerCup = fenrirBasisCup()
-	setup.Fork = assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, TravelMm: 0, RakeMm: 54, Steerer: assembly.SteererBasis}}
+	setup.Fork = assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 54, Steerer: assembly.SteererBasis}}
 	return setup
 }
 
@@ -156,11 +160,29 @@ func TestAttributeCurves(t *testing.T) {
 		assertNear(t, "rigid", attrScore(t, s, assembly.AttrForkSag).Score, 100, tol)
 		s = scoreExact(t, basisSetup(), false, 100)
 		assertNear(t, "Basis", attrScore(t, s, assembly.AttrForkSag).Score, 100, tol)
-		for _, c := range []struct{ sag, want float64 }{{10, 0}, {15, 50}, {20, 100}, {25, 50}, {30, 0}} {
+		for _, c := range []struct{ sag, want float64 }{
+			{0, 0}, {5, 0}, {10, 45}, {15, 90}, {17.5, 95}, {18, 96}, {20, 100}, {22, 80}, {22.5, 75}, {25, 50}, {30, 0}, {35, 0}, {50, 0},
+		} {
 			setup := base
 			setup.Fork = sidFork(c.sag)
 			s := scoreExact(t, setup, false, 100)
-			assertNear(t, "sag", attrScore(t, s, assembly.AttrForkSag).Score, c.want, tol)
+			assertNear(t, "100mm sag", attrScore(t, s, assembly.AttrForkSag).Score, c.want, tol)
+		}
+		for _, c := range []struct{ sag, want float64 }{
+			{0, 0}, {5, 0}, {10, 45}, {15, 90}, {17.5, 92.5}, {18, 93}, {20, 95}, {22, 97}, {22.5, 97.5}, {25, 100}, {30, 50}, {35, 0}, {50, 0},
+		} {
+			setup := base
+			setup.Fork = fox34Fork(c.sag)
+			s := scoreExact(t, setup, false, 100)
+			assertNear(t, "120mm sag", attrScore(t, s, assembly.AttrForkSag).Score, c.want, tol)
+		}
+		for _, c := range []struct{ sag, want float64 }{
+			{0, 0}, {5, 0}, {10, 0}, {15, 45}, {17.5, 67.5}, {18, 72}, {20, 90}, {22, 94}, {22.5, 95}, {25, 100}, {30, 50}, {35, 0}, {50, 0},
+		} {
+			setup := base
+			setup.Fork = fox34_130Fork(c.sag)
+			s := scoreExact(t, setup, false, 100)
+			assertNear(t, "130mm sag", attrScore(t, s, assembly.AttrForkSag).Score, c.want, tol)
 		}
 	})
 	t.Run("Spacers", func(t *testing.T) {
