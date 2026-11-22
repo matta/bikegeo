@@ -30,11 +30,13 @@ type Size struct {
 // Fork is one physical fork variant the frame supports (Q66, Q128).
 // ModelID is the fork model ID (defaults to ID when empty) so a Selection may
 // target either a concrete variant ID or a multi-variant model ID (Q131).
-// Every row installs it on Size.Frame.DefaultLowerCup.
+// LowerCup is the lower headset cup the fork installs with (Q136); the zero
+// value installs Size.Frame.DefaultLowerCup.
 type Fork struct {
-	ID      string
-	ModelID string
-	Spec    assembly.ForkSpec
+	ID       string
+	ModelID  string
+	Spec     assembly.ForkSpec
+	LowerCup assembly.LowerCupSetup
 }
 
 func (f Fork) modelID() string {
@@ -182,9 +184,13 @@ func Rank(req Request) (Ranking, error) {
 		if err != nil {
 			return Ranking{}, fmt.Errorf("frame %q size %q fork %q at %v%% sag: %w", item.frameID, item.size.Name, item.fork.ID, item.sagPct, err)
 		}
+		lowerCup := item.size.Frame.DefaultLowerCup
+		if item.fork.LowerCup != (assembly.LowerCupSetup{}) {
+			lowerCup = item.fork.LowerCup
+		}
 		setup := assembly.BikeSetup{
 			Frame:     item.size.Frame,
-			LowerCup:  item.size.Frame.DefaultLowerCup,
+			LowerCup:  lowerCup,
 			Fork:      assembly.ForkSetup{Spec: item.fork.Spec, SagPct: item.sagPct},
 			Wheels:    req.Wheels,
 			Seatpost:  assembly.SeatpostSetup{Spec: req.Seatpost, InsertionMm: bounds.EffectiveMinInsertionMm}, // the saddle fit replaces it
@@ -279,6 +285,11 @@ func (r Request) validate() error {
 			if !fk.Spec.Travel.Valid() {
 				return fmt.Errorf("frame %q fork %q has unsupported travel %d mm", f.ID, fk.ID, fk.Spec.Travel)
 			}
+			if fk.LowerCup != (assembly.LowerCupSetup{}) {
+				if err := validateForkLowerCup(fk, f.Sizes); err != nil {
+					return fmt.Errorf("frame %q fork %q: %w", f.ID, fk.ID, err)
+				}
+			}
 		}
 	}
 
@@ -314,6 +325,46 @@ func (r Request) validate() error {
 		}
 	}
 
+	return nil
+}
+
+// validateForkLowerCup checks a fork's own lower cup: a physical standard with
+// a valid stack that fits every size's lower bore and the fork's steerer (Q136).
+func validateForkLowerCup(fk Fork, sizes []Size) error {
+	cup := fk.LowerCup
+	if cup.Standard == assembly.LowerCupBareHeadTube {
+		return fmt.Errorf("lower cup must be a physical cup, not %s", cup.Standard)
+	}
+	if err := cup.Validate(); err != nil {
+		return err
+	}
+	for _, sz := range sizes {
+		bore := sz.Frame.LowerBore
+		var allowed []assembly.LowerCupStandard
+		switch bore {
+		case assembly.Bore34Pressed:
+			allowed = []assembly.LowerCupStandard{assembly.LowerCupEC34}
+		case assembly.Bore42Integrated:
+			allowed = []assembly.LowerCupStandard{assembly.LowerCupIS42}
+		case assembly.Bore44Pressed:
+			allowed = []assembly.LowerCupStandard{assembly.LowerCupEC44}
+			if fk.Spec.Steerer == assembly.SteererStraight118 {
+				allowed = append(allowed, assembly.LowerCupZS44)
+			}
+		case assembly.Bore56Pressed:
+			allowed = []assembly.LowerCupStandard{assembly.LowerCupZS56}
+		case assembly.Bore52Integrated:
+			allowed = []assembly.LowerCupStandard{assembly.LowerCupIS52}
+		default:
+			return fmt.Errorf("size %q has unknown lower bore %q", sz.Name, bore)
+		}
+		if !slices.Contains(allowed, cup.Standard) {
+			return fmt.Errorf("%s lower cup does not fit %s on size %q with a %s steerer", cup.Standard, bore, sz.Name, fk.Spec.Steerer)
+		}
+		if fk.Spec.Steerer == assembly.SteererTapered && (bore == assembly.Bore34Pressed || bore == assembly.Bore42Integrated) {
+			return fmt.Errorf("a tapered steerer does not fit %s on size %q", bore, sz.Name)
+		}
+	}
 	return nil
 }
 

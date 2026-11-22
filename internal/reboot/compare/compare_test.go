@@ -510,3 +510,57 @@ func TestRankRejectsInvalidRequests(t *testing.T) {
 		})
 	}
 }
+
+// TestRankRejectsInvalidForkLowerCups checks each per-fork cup rule (Q136).
+func TestRankRejectsInvalidForkLowerCups(t *testing.T) {
+	cup := func(std assembly.LowerCupStandard, stack float64) assembly.LowerCupSetup {
+		return assembly.LowerCupSetup{Standard: std, StackMm: stack}
+	}
+	cases := []struct {
+		name     string
+		forkIdx  int
+		lowerCup assembly.LowerCupSetup
+		want     string
+	}{
+		{"bare head tube", 0, cup(assembly.LowerCupBareHeadTube, 0), "must be a physical cup"},
+		{"unknown standard", 0, cup("nope", 4), "unknown or missing lower headset cup standard"},
+		{"negative stack", 0, cup(assembly.LowerCupZS44, -1), "non-negative"},
+		{"NaN stack", 0, cup(assembly.LowerCupZS44, math.NaN()), "finite"},
+		{"Inf stack", 0, cup(assembly.LowerCupZS44, math.Inf(1)), "finite"},
+		{"wrong standard for bore", 0, cup(assembly.LowerCupEC34, 12), "does not fit"},
+		{"ZS44 with tapered steerer", 1, cup(assembly.LowerCupZS44, 4), "does not fit"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := fixtureRequest()
+			req.Frames[0].Forks[tc.forkIdx].LowerCup = tc.lowerCup
+			_, err := compare.Rank(req)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want it to contain %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// TestRankUsesForkLowerCup checks that a straight fork with ZS44 and a tapered
+// fork with EC44 each place with their own cup on one 44 mm frame (Q136).
+func TestRankUsesForkLowerCup(t *testing.T) {
+	req := fixtureRequest()
+	req.Frames = req.Frames[:1]
+	req.Frames[0].Forks[0].LowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupZS44, StackMm: 4}
+	req.Frames[0].Forks[1].LowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12}
+	ranking, err := compare.Rank(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]assembly.LowerCupSetup{}
+	for _, row := range ranking.Rows {
+		seen[row.ForkID] = row.Build.Placement.Setup.LowerCup
+	}
+	if got := seen[krampusForkID]; got.Standard != assembly.LowerCupZS44 || got.StackMm != 4 {
+		t.Errorf("straight fork cup = %+v, want ZS44 4", got)
+	}
+	if got := seen[foxForkID]; got.Standard != assembly.LowerCupEC44 || got.StackMm != 12 {
+		t.Errorf("tapered fork cup = %+v, want EC44 12", got)
+	}
+}

@@ -188,3 +188,73 @@ func TestCatalogDefaultsAndLookups(t *testing.T) {
 		t.Errorf("ClampHeightMm = %v, want 40", stem.ClampHeightMm)
 	}
 }
+
+// TestTypicalLowerCup checks the Cane Creek 40-Series stacks (Q136).
+func TestTypicalLowerCup(t *testing.T) {
+	want := map[assembly.LowerCupStandard]float64{
+		assembly.LowerCupEC34: 12, assembly.LowerCupEC44: 12,
+		assembly.LowerCupZS44: 4, assembly.LowerCupZS56: 4,
+		assembly.LowerCupIS42: 1, assembly.LowerCupIS52: 1,
+	}
+	for std, stack := range want {
+		got, ok := catalog.TypicalLowerCup(std)
+		if !ok || got.Standard != std || got.StackMm != stack {
+			t.Errorf("TypicalLowerCup(%s) = %+v, %v; want stack %v", std, got, ok, stack)
+		}
+	}
+	for _, std := range []assembly.LowerCupStandard{assembly.LowerCupBareHeadTube, "invalid"} {
+		if got, ok := catalog.TypicalLowerCup(std); ok || got != (assembly.LowerCupSetup{}) {
+			t.Errorf("TypicalLowerCup(%q) = %+v, %v; want zero, false", std, got, ok)
+		}
+	}
+}
+
+// TestLowerCupFor checks per-fork cup resolution and steerer rejection (Q130, Q136).
+func TestLowerCupFor(t *testing.T) {
+	cup := func(std assembly.LowerCupStandard, stack float64) assembly.LowerCupSetup {
+		return assembly.LowerCupSetup{Standard: std, StackMm: stack}
+	}
+	straight, tapered := assembly.SteererStraight118, assembly.SteererTapered
+	cases := []struct {
+		name       string
+		bore       assembly.LowerBore
+		defaultStd assembly.LowerCupStandard
+		steerer    assembly.Steerer
+		want       assembly.LowerCupSetup
+		ok         bool
+	}{
+		{"34 straight", assembly.Bore34Pressed, assembly.LowerCupEC34, straight, cup(assembly.LowerCupEC34, 12), true},
+		{"34 tapered", assembly.Bore34Pressed, assembly.LowerCupEC34, tapered, assembly.LowerCupSetup{}, false},
+		{"42 straight", assembly.Bore42Integrated, assembly.LowerCupIS42, straight, cup(assembly.LowerCupIS42, 1), true},
+		{"42 tapered", assembly.Bore42Integrated, assembly.LowerCupIS42, tapered, assembly.LowerCupSetup{}, false},
+		{"44 straight keeps ZS44", assembly.Bore44Pressed, assembly.LowerCupZS44, straight, cup(assembly.LowerCupZS44, 4), true},
+		{"44 straight EC44 default", assembly.Bore44Pressed, assembly.LowerCupEC44, straight, cup(assembly.LowerCupEC44, 12), true},
+		{"44 tapered from ZS44 default", assembly.Bore44Pressed, assembly.LowerCupZS44, tapered, cup(assembly.LowerCupEC44, 12), true},
+		{"44 tapered", assembly.Bore44Pressed, assembly.LowerCupEC44, tapered, cup(assembly.LowerCupEC44, 12), true},
+		{"56 straight", assembly.Bore56Pressed, assembly.LowerCupZS56, straight, cup(assembly.LowerCupZS56, 4), true},
+		{"56 tapered", assembly.Bore56Pressed, assembly.LowerCupZS56, tapered, cup(assembly.LowerCupZS56, 4), true},
+		{"52 straight", assembly.Bore52Integrated, assembly.LowerCupIS52, straight, cup(assembly.LowerCupIS52, 1), true},
+		{"52 tapered", assembly.Bore52Integrated, assembly.LowerCupIS52, tapered, cup(assembly.LowerCupIS52, 1), true},
+		{"unknown bore", "nope", assembly.LowerCupEC44, straight, assembly.LowerCupSetup{}, false},
+		{"unknown steerer", assembly.Bore44Pressed, assembly.LowerCupEC44, "nope", assembly.LowerCupSetup{}, false},
+	}
+	for _, bore := range []assembly.LowerBore{
+		assembly.Bore34Pressed, assembly.Bore44Pressed, assembly.Bore56Pressed,
+		assembly.Bore42Integrated, assembly.Bore52Integrated,
+	} {
+		cases = append(cases, struct {
+			name       string
+			bore       assembly.LowerBore
+			defaultStd assembly.LowerCupStandard
+			steerer    assembly.Steerer
+			want       assembly.LowerCupSetup
+			ok         bool
+		}{"basis steerer on " + string(bore), bore, assembly.LowerCupEC44, assembly.SteererBasis, assembly.LowerCupSetup{}, false})
+	}
+	for _, tc := range cases {
+		got, ok := catalog.LowerCupFor(tc.bore, tc.defaultStd, tc.steerer)
+		if ok != tc.ok || got != tc.want {
+			t.Errorf("%s: LowerCupFor = %+v, %v; want %+v, %v", tc.name, got, ok, tc.want, tc.ok)
+		}
+	}
+}
