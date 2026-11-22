@@ -1,4 +1,4 @@
-.PHONY: all fix fmt vet boundary exhaustive deadcode test check pre-commit build serve watch clean
+.PHONY: all fix fmt vet boundary exhaustive deadcode test check pre-commit bench profile build serve watch clean
 
 export PATH := $(HOME)/go/bin:$(PATH)
 
@@ -79,6 +79,24 @@ pre-commit: fix check
 
 watch:
 	watchexec -c -f '*.go' -f 'go.*' -f '*.json' -f '*.s' -f '*.[ch]' "go vet ./... && go test ./..."
+
+# Benchmarks are not part of `check`. `make bench` runs every benchmark;
+# `make profile` runs one benchmark (BENCH, a -bench pattern) with CPU and
+# memory profiles under tmp/profile/ (gitignored) for `go tool pprof`.
+BENCH ?= BenchmarkComparePage/^all_bars$$
+PROFILE_PKG ?= ./internal/web
+PROFILE_DIR := tmp/profile
+
+bench:
+	go test -run '^$$' -bench . -benchmem ./...
+
+profile:
+	mkdir -p $(PROFILE_DIR)
+	go test -run '^$$' -bench '$(BENCH)' -benchtime=1x -benchmem \
+	  -cpuprofile $(PROFILE_DIR)/cpu.pprof -memprofile $(PROFILE_DIR)/mem.pprof \
+	  -o $(PROFILE_DIR)/bench.test $(PROFILE_PKG)
+	@echo "go tool pprof -http=: $(PROFILE_DIR)/bench.test $(PROFILE_DIR)/cpu.pprof"
+	@echo "go tool pprof -http=: -sample_index=alloc_space $(PROFILE_DIR)/bench.test $(PROFILE_DIR)/mem.pprof"
 
 build:
 	go build -o bin/bikegeo ./cmd/bikegeo
