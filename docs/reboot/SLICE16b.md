@@ -1,6 +1,68 @@
 # Slice 16b: frame ingestion workflow
 
-Status: Planned 2026-11-21
+Status: Implemented 2026-11-21; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-21, Orchestrator (Neon).
+- **Commits:**
+  - C1 `Let catalog-only frames pass the parity test`: `210ec1d`
+  - C2 `Derive frame counts in / labels from the catalog`: `56f5205`
+  - C3 `Rewrite the ingest-frame skill for the reboot catalog`: `8c413a1`
+- **Done and not done:** C1 (`A1`, `T1`), C2 (`A2`–`A4`, `T2`), C3 (`S1`–`S2`), `P` (`P1`–`P5`), and Verification steps 1–6 are all done. Nothing is left undone.
+- **Deviations:**
+  - In `A2` (`internal/reboot/web/compare_page.go`), the form view struct is named `compareFormValues`, not `compareFormView` as written in the plan; added `FrameCount int` to `compareFormValues`.
+  - In `P3`, `TestScratchLiveChart` evaluated six Tuning Chip/precision transcriptions on temporary copies (literal nominal HTML, chart-image `0.1°` HTA precision, `450 mm` max-CS and `430 mm` min-CS under both `±0.25°` directions) and checked Otso's `51 mm` Geometry-table offset alongside `44`, `52`, and `54 mm`.
+- **Verification:**
+  - `make pre-commit` passed after C1 (`210ec1d`), C2 (`56f5205`), and C3 (`8c413a1`). `git diff` over `internal/reboot/catalog/frame*.go` and `forks.go` changed only the single `Frames()` doc comment line in `frame.go` (in C2), and `git status` had zero scratch files before committing C3.
+  - After C1: `go test -run 'Legacy|MissingLegacy' -v ./internal/reboot/catalog` ran `TestMissingLegacyFrames` (all 3 cases passed: `identical`, `catalog-only frame`, `dropped frame`) and `TestFramesMatchLegacy` (all 19 subtests ran and passed with 0 skips).
+  - C2 snapshots (`/` and `/?frame=otso-fenrir-stainless&size=L&fork=lithic_carbon_mountain&sag=0`, `/bike`, `bikegeo-reboot compare`, and `bikegeo-reboot bike`): `diff -u` on `/bike` HTML, `compare` JSON, and `bike` JSON was empty (byte-identical); `/` and the custom `/` query differed only on `[data-note="bar-options-speed"]` (`(~35 s across all 19 frames)` → `(about 2 s per frame)`).
+  - `go run ./cmd/bikegeo-reboot compare -h` prints `every catalog frame`.
+  - **P1 URLs visited and read:**
+    - `https://otsocycles.com/pages/bike-specs-tables` (`Fenrir Stainless Frame` specs: `ZS44/28.6` upper, `EC44/40.0` lower; fork A2C `490mm (suspension-corrected for 100mm suspension fork)`, offset `44mm or 52mm`; seatpost insertion depths `X-Small 170mm; Small 210mm; Medium 260mm; Large 290mm; X-Large 330mm`; tire clearance `2.3" at 420mm` / `2.8" (27.5") or 2.6" (29") at 430/440mm`).
+    - `https://otsocycles.com/collections/fenrir-stainless`, `https://otsocycles.com/products/fenrir-stainless-frameset?_pos=18&_sid=10244ef9f&_ss=r`, and `https://otsocycles.com/products/fenrir-stainless-drop-bar` (identical HTML `Geometry` table across XS–XL; `Frame Specs` on `/collections/fenrir-stainless` and `/products/fenrir-stainless-frameset` says `490mm (suspension-corrected for 120mm suspension fork)` instead of `100mm`).
+    - `https://otsocycles.com/cdn/shop/products/Otso-Fenrir_size_chart_69d560f9-1ee7-4bff-9bbc-c0a9cad269ce.jpg?v=1664562021&width=2400` (product-gallery geometry image: matches HTML table except `68.0°` `(Rigid and 100 mm suspension fork)` and Tuning Chip `±0.2°`).
+    - Also checked `/search?q=fenrir`, `/search?q=fenrir+stainless`, `/collections/bikepacking-bikes`, `/collections/fenrir-ti`, `/collections/fenrir-steel`, and `/pages/tech-documents-and-manuals`.
+  - **P2 catalog stand-in (`TestScratchBasis`, rake `54 mm`):** all readouts matched `SLICE16b.md` within tolerance:
+    - Implied basis A2C XS / S / M / L / XL: `494.63 / 495.40 / 494.78 / 495.23 / 494.61 mm` (want `494.63 / 495.40 / 494.78 / 495.23 / 494.61 mm`).
+    - Axle-height budgets XS / S / M / L / XL: `±2.04 / ±2.04 / ±2.06 / ±2.08 / ±2.09 mm` (want `±2.04 / 2.04 / 2.06 / 2.08 / 2.09 mm`).
+    - Implied range, minimax: `494.61–495.40 mm, 495.00 mm` (rounded `a2c = 495.0`).
+    - A2C passing range at rake `54`: `493.20–496.80 mm`; rake passing range at A2C `495`: `51.15–56.90 mm`.
+    - `A2C 495.0, rake 44`: `passes false`, worst axle-height excess `+2.02 mm`, worst wheelbase excess `+6.60 mm`.
+    - `A2C 495.0, rake 52`: `passes true`, `-0.96 mm`, `-0.82 mm`.
+    - `A2C 495.0, rake 54`: `passes true`, `-1.69 mm`, `-2.68 mm`.
+  - **P3 live transcription (`TestScratchLiveChart`):** ran across offsets `44, 51, 52, 54 mm`; full diffs, implied ranges, and reading-rule conclusions are recorded under **Open issues** below.
+  - **P4 skill pin/test check:** verified every file and test name referenced in S1 step 5 and step 6 (`TestFramesRegistry`, `TestForkListsPlace`, `TestChartAllowances`, `TestEveryChartIsConsistent`, `TestFrameStructure`, `TestForks`, `TestCatalogFrames`, `TestParseCompareDefaultAll19Frames`, `TestCompareDefaultAll19Frames`, `TestBikeMultiFrameSelectAndSwitching`, and `.claude/launch.json` `"reboot"`).
+  - **Live check (`http://127.0.0.1:8081/`, 0 console errors):**
+    - On `/`: header badge `"All 19 frames"`, mode note `"Comparing all 19 catalog frames (best configuration each). Add a frame below to narrow to custom selections."`, speed note `"All 15 handlebars evaluates ~15× more builds (about 2 s per frame)."`. Screenshot: `/Users/matt/.gemini/antigravity/brain/8fcd79bf-1f2a-4a55-bc4f-09dc3c0be068/scratch/compare_home.png`.
+    - After selecting `Otso Fenrir Stainless` in `#ctrl-add-frame` and submitting `#ctrl-submit`: `a#preset-all-frames` rendered `"All 19 Frames"`. Screenshot: `/Users/matt/.gemini/antigravity/brain/8fcd79bf-1f2a-4a55-bc4f-09dc3c0be068/scratch/compare_submitted.png`.
+- **Open issues:**
+  - **P3 live Otso Fenrir Stainless chart findings for Matt (Q123 — no catalog data changed):**
+    - **Catalog vs. live chart differences (`size / column / catalog / live`):**
+      - `XS–XL / Reach`: `387 / 403 / 416 / 428 / 441 mm` vs. `387 / 403 / 416 / 428 / 441 mm` (identical).
+      - `XS–XL / Stack`: `595 / 605 / 623 / 642 / 660 mm` vs. `595 / 605 / 623 / 642 / 660 mm` (identical).
+      - `XS–XL / HTL`: `90 / 100 / 120 / 140 / 160 mm` vs. `90 / 100 / 120 / 140 / 160 mm` (identical).
+      - `XS–XL / Seat tube length`: `360 / 400 / 450 / 490 / 530 mm` vs. `360 / 400 / 450 / 490 / 530 mm` (identical).
+      - `XS–XL / HTA`: `68.25°` vs. `68°` (HTML) / `68.0°` (image) nominal + separate Tuning Chip row `±0.25°` (HTML) / `±0.2°` (image) from middle position.
+      - `XS–XL / STA`: `75.25°` vs. `75°` nominal + Tuning Chip `±0.25°` (image `±0.2°`).
+      - `XS–XL / BB drop`: `72 mm` vs. `68-72mm` range.
+      - `XS–XL / Chainstay`: `450 mm` (of `430–450 mm`) vs. `430-450mm` range in `Geometry` table (and `420/430/440mm` in `Frame Specs` tire-clearance row).
+      - `XS / Wheelbase`: `1098 mm` vs. `1090-1110mm`.
+      - `S / Wheelbase`: `1118 mm` vs. `1110-1120mm` (10 mm width, vs. 20 mm on XS/M/L/XL).
+      - `M / Wheelbase`: `1138 mm` vs. `1130-1150mm`.
+      - `L / Wheelbase`: `1158 mm` vs. `1150-1170mm`.
+      - `XL / Wheelbase`: `1178 mm` vs. `1170-1190mm`.
+      - `Basis fork offset`: `54 mm` vs. `51mm` in `Geometry` table (`44mm or 52mm` in `Frame Specs` and `/pages/bike-specs-tables`).
+      - `Basis fork A2C`: `495 mm` (matches `Geometry` table `Rigid fork axle to crown length: 495mm`) vs. `Frame Specs` `490mm (suspension-corrected for 120mm suspension fork)` (`/pages/bike-specs-tables` says `100mm suspension fork`).
+      - `XS / S / M / L / XL / MaxPostInsertionMm`: `0 / 0 / 0 / 290 / 0 mm` vs. `170 / 210 / 260 / 290 / 330 mm` published in `Frame Specs` and `/pages/bike-specs-tables` (Q95 follow-up candidate).
+      - `Headset`: live `Frame Specs` explicitly states `ZS44/28.6 upper, EC44/40.0 lower`, confirming the catalog's physical `Bore44Pressed` + `EC44`.
+    - **P3 `TestScratchLiveChart` sweep results (`44 / 51 / 52 / 54 mm` offsets):**
+      1. *Nominal HTML (`68°`, `75°`, `BB drop 70`, `CS 440`, mid WB `1100/1115/1140/1160/1180`, `1°` → `0.5°` HTA precision):* implied A2C `498.05–498.83 mm`, minimax `498.44 mm` (rounded `498.5 mm`, axle-height budgets `±3.78–4.01 mm`). No A2C in `488.5–508.5 mm` passes at `51 mm` rake; at `498.5 mm`, `55.90–63.70 mm` rake passes (`498.5` fails at `44/51/52/54`: WB excess `+10.95/+4.48/+3.56/+1.71 mm`). At `495.0 mm` (`51 mm` rake), axle height passes (`-1.41` to `-2.24 mm` excess), but wheelbase fails every size (`-7.43` to `-12.44 mm` mismatch, `+0.99` to `+5.82 mm` excess).
+      2. *Nominal image precision (`68.0°` → `0.05°` HTA precision, budgets `±1.69–1.72 mm`):* implied A2C `498.05–498.83 mm`, minimax `498.44 mm`. No basis passes in `488.5–508.5 mm` A2C (`51 mm` rake) or `36–66 mm` rake (`498.5 mm` A2C); `495/51` fails both AH (`+0.73 mm` excess) and WB (`+10.17 mm` excess).
+      3. *450 mm max-CS at `68.25° / 75.25° / BB drop 72`, max WB `1110/1120/1150/1170/1190`, `0.125°` HTA precision:* recovers the catalog's exact implied A2C `494.61–495.40 mm`, minimax `495.00 mm` (budgets `±2.04–2.09 mm`), so `495.0 mm` passes axle height at `51/52/54 mm` (`-0.59/-0.96/-1.69 mm`) and fails at `44 mm` (`+2.02 mm`), **but** wheelbase fails everywhere (`+18.60/+12.10/+11.18/+9.32 mm` for `44/51/52/54`; per-size at `495/51`: WB mismatch `-14.65/-4.95/-14.54/-15.12/-14.71 mm`, excess `+11.73/+2.01/+11.56/+12.10/+11.65 mm`).
+      4. *450 mm max-CS at `67.75° / 74.75° / BB drop 68`, max WB:* implied A2C `501.49–502.29 mm`, minimax `501.89 mm` (`502.0 mm`); fails `495.0 mm` axle height (`+0.92` to `+4.69 mm`) and fails WB everywhere (`+2.81` to `+13.02 mm`).
+      5. *430 mm min-CS (`min WB 1090/1110/1130/1150/1170`):* under `68.25°/72`, implied A2C `494.61–495.40 mm` (`495.00 mm` minimax), WB fails everywhere (`+18.87/+12.37/+11.45/+9.59 mm` for `44/51/52/54`); under `67.75°/68`, implied A2C `501.49–502.29 mm` (`501.89 mm` minimax), at `502.0 mm` rake `55.70–58.75 mm` passes (`44/51/52/54` fail WB `+10.78/+4.31/+3.39/+1.54 mm`).
+    - **S1 reading-rule conclusion:** Otso's live Fenrir Stainless chart is a **different, coarser chart revision** — single-position columns were replaced with Tuning Chip ranges (`68° ± 0.25°`, `75° ± 0.25°`, `68-72mm` BB drop, `430-450mm` CS, and 10-mm-rounded wheelbase ranges with an apparent `1110-1120mm` S typo) plus internal discrepancies between `Geometry` (`495 mm` A2C, `51 mm` offset, `430-450 mm` CS) and `Frame Specs` (`490 mm` A2C for `100 mm`/`120 mm` suspension fork, `44 mm or 52 mm` offset, `420/430/440 mm` CS). The existing catalog's single-position chart (`68.25° / 75.25° / 72 mm / 450 mm / 1098–1178 mm`) stays consistent at `495 mm` A2C, `54 mm` offset, bare head tube; none of the coarse live-range transcriptions pass wheelbase on a `495 mm` basis without Matt's ruling. Separately, Otso now publishes all five sizes' `MaxPostInsertionMm` (`170/210/260/290/330 mm`).
 
 Implement this plan exactly. If the code disagrees with it, or a design choice comes up that the plan doesn't cover, stop. Record `Status: Blocked <date> on <question>` and the Implementation handoff, then tell Matt to switch to a Frontier model. "Seemed cleaner" is not a reason to deviate.
 
