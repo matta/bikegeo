@@ -46,8 +46,8 @@ type Compare struct {
 	Selections          []compare.Selection
 	TopPerFrame         int
 	Top                 int
-	TopPerFrameExplicit bool
-	TopExplicit         bool
+	TopPerFrameExplicit bool // whether top_per_frame was explicitly set in the query (distinguishes explicit "0" from omitted auto mode)
+	TopExplicit         bool // whether top was explicitly set in the query (distinguishes explicit "0" from omitted)
 	Request             compare.Request
 }
 
