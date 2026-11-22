@@ -132,6 +132,12 @@ func TestParseCompareDefaults(t *testing.T) {
 		if c.TopPerFrame != 1 || c.Top != 0 {
 			t.Errorf("%q: TopPerFrame = %d, Top = %d; want 1, 0", raw, c.TopPerFrame, c.Top)
 		}
+		if c.TopPerFrameExplicit || c.TopExplicit {
+			t.Errorf("%q: TopPerFrameExplicit = %v, TopExplicit = %v; want false, false", raw, c.TopPerFrameExplicit, c.TopExplicit)
+		}
+		if got := c.URL(); got != "/" {
+			t.Errorf("%q: URL() = %q, want %q", raw, got, "/")
+		}
 		if c.Request.Parts.Handlebars != nil {
 			t.Errorf("%q: Request.Parts.Handlebars = %v, want nil", raw, c.Request.Parts.Handlebars)
 		}
@@ -149,6 +155,9 @@ func TestParseCompareSelectionsAndFlags(t *testing.T) {
 		c := mustParseCompare(t, "frame=surly-krampus&size=XL&fork=fox34_120&sag=20")
 		if len(c.Selections) != 1 || c.TopPerFrame != 0 {
 			t.Fatalf("got %d selections, TopPerFrame %d; want 1, 0", len(c.Selections), c.TopPerFrame)
+		}
+		if c.TopPerFrameExplicit || c.TopExplicit {
+			t.Errorf("TopPerFrameExplicit = %v, TopExplicit = %v; want false, false", c.TopPerFrameExplicit, c.TopExplicit)
 		}
 		if c.Selections[0].SagPct == nil || *c.Selections[0].SagPct != 20 {
 			t.Errorf("SagPct = %v, want 20", c.Selections[0].SagPct)
@@ -180,10 +189,13 @@ func TestParseCompareSelectionsAndFlags(t *testing.T) {
 			if c.TopPerFrame != 2 || c.Top != 5 || c.Request.TopPerFrame != 2 || c.Request.Top != 5 {
 				t.Errorf("%q: TopPerFrame %d, Top %d; want 2, 5", raw, c.TopPerFrame, c.Top)
 			}
+			if !c.TopPerFrameExplicit || !c.TopExplicit {
+				t.Errorf("%q: TopPerFrameExplicit = %v, TopExplicit = %v; want true, true", raw, c.TopPerFrameExplicit, c.TopExplicit)
+			}
 		}
 		c := mustParseCompare(t, "top_per_frame=0")
-		if c.TopPerFrame != 0 {
-			t.Errorf("top_per_frame=0: TopPerFrame = %d, want 0", c.TopPerFrame)
+		if c.TopPerFrame != 0 || !c.TopPerFrameExplicit || c.TopExplicit {
+			t.Errorf("top_per_frame=0: TopPerFrame = %d, TopPerFrameExplicit = %v, TopExplicit = %v; want 0, true, false", c.TopPerFrame, c.TopPerFrameExplicit, c.TopExplicit)
 		}
 	})
 
@@ -489,4 +501,212 @@ func TestParseCompareDefaultAll19Frames(t *testing.T) {
 	if result.Rows[0].HandlebarID != "persuader20_800" {
 		t.Errorf("row 1 HandlebarID = %q, want persuader20_800", result.Rows[0].HandlebarID)
 	}
+}
+
+func TestCompareURLAndSelectionHelpers(t *testing.T) {
+	t.Run("URL round-trip", func(t *testing.T) {
+		cases := []string{
+			"",
+			"frame=surly-krampus&size=XL&fork=fox34_120&sag=20",
+			"frame=surly-krampus&frame=binary-havok&top_per_frame=1&top=5&post=setback_25&bar=sqlab311_20_16_50&bar_options=all&bar_roll=10&rail_pitch=-2&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
+			"top_per_frame=0",
+		}
+		for _, raw := range cases {
+			c := mustParseCompare(t, raw)
+			u := c.URL()
+			if raw == "" && u != "/" {
+				t.Errorf("empty query URL() = %q, want %q", u, "/")
+			}
+			if raw == "top_per_frame=0" && !strings.Contains(u, "top_per_frame=0") {
+				t.Errorf("top_per_frame=0 URL() = %q, want top_per_frame=0", u)
+			}
+			parsedURL, err := url.Parse(u)
+			if err != nil {
+				t.Fatalf("url.Parse(%q): %v", u, err)
+			}
+			got, err := query.ParseCompare(parsedURL.Query())
+			if err != nil {
+				t.Fatalf("ParseCompare(%q): %v", u, err)
+			}
+			if got.Post.ID != c.Post.ID || got.Bar.ID != c.Bar.ID || got.AllBarOptions != c.AllBarOptions {
+				t.Errorf("%q round-trip parts mismatch: got (%q, %q, %v), want (%q, %q, %v)",
+					raw, got.Post.ID, got.Bar.ID, got.AllBarOptions, c.Post.ID, c.Bar.ID, c.AllBarOptions)
+			}
+			if got.BarRollDeg != c.BarRollDeg || got.RailPitchDeg != c.RailPitchDeg || got.BrpTarget != c.BrpTarget || got.GripTarget != c.GripTarget {
+				t.Errorf("%q round-trip posture/targets mismatch", raw)
+			}
+			if !reflect.DeepEqual(got.Selections, c.Selections) {
+				t.Errorf("%q round-trip Selections = %+v, want %+v", raw, got.Selections, c.Selections)
+			}
+			if got.TopPerFrame != c.TopPerFrame || got.TopPerFrameExplicit != c.TopPerFrameExplicit || got.Top != c.Top || got.TopExplicit != c.TopExplicit {
+				t.Errorf("%q round-trip limits mismatch: got (%d, %v, %d, %v), want (%d, %v, %d, %v)",
+					raw, got.TopPerFrame, got.TopPerFrameExplicit, got.Top, got.TopExplicit,
+					c.TopPerFrame, c.TopPerFrameExplicit, c.Top, c.TopExplicit)
+			}
+		}
+	})
+
+	t.Run("WithoutSelection", func(t *testing.T) {
+		c := mustParseCompare(t, "frame=surly-krampus&frame=binary-havok&post=setback_25")
+		c1 := c.WithoutSelection(0)
+		if len(c1.Selections) != 1 || c1.Selections[0].FrameID != "binary-havok" || c1.TopPerFrame != 0 || c1.Post.ID != "setback_25" {
+			t.Fatalf("after first WithoutSelection(0): %+v", c1)
+		}
+		c2 := c1.WithoutSelection(0)
+		if c2.Selections != nil || c2.TopPerFrame != 1 || c2.TopPerFrameExplicit || c2.URL() != "/?post=setback_25" {
+			t.Fatalf("after second WithoutSelection(0): Selections=%v TopPerFrame=%d Explicit=%v URL=%q",
+				c2.Selections, c2.TopPerFrame, c2.TopPerFrameExplicit, c2.URL())
+		}
+		for _, badIdx := range []int{-1, 2} {
+			unchanged := c.WithoutSelection(badIdx)
+			if !reflect.DeepEqual(unchanged.Selections, c.Selections) {
+				t.Errorf("WithoutSelection(%d) modified Selections", badIdx)
+			}
+		}
+	})
+
+	t.Run("AllFrames", func(t *testing.T) {
+		c := mustParseCompare(t, "frame=surly-krampus&size=XL&top_per_frame=2&top=5&post=setback_25&bar_options=all")
+		got := c.AllFrames()
+		if got.Selections != nil || got.TopPerFrame != 1 || got.TopPerFrameExplicit || got.Top != 5 || !got.TopExplicit || got.Post.ID != "setback_25" || !got.AllBarOptions {
+			t.Fatalf("AllFrames() = %+v", got)
+		}
+	})
+}
+
+func TestCompareRowBikeURLRoundTrip(t *testing.T) {
+	requiredKeys := []string{
+		"frame", "size", "fork", "sag", "post", "post_insert", "rail_offset", "rail_pitch",
+		"bar", "bar_roll", "stem_length", "stem_angle", "spacers", "brp_x", "brp_y", "grip_x", "grip_y",
+		"bar_options", "fork_options",
+	}
+	cases := []struct {
+		raw            string
+		wantTier       assembly.FitTier
+		wantScore      float64
+		wantBarID      string
+		wantBarOptions string
+		wantChainstay  float64
+	}{
+		{
+			raw:            "frame=surly-krampus&size=XL&fork=fox34_120&sag=20",
+			wantTier:       assembly.FitsAll,
+			wantScore:      84.575011405,
+			wantBarID:      "persuader20_800",
+			wantBarOptions: query.BarOptionsSelected,
+		},
+		{
+			raw:            "frame=surly-krampus&size=XL&fork=fox34_120&sag=20&bar_options=all",
+			wantTier:       assembly.FitsAll,
+			wantScore:      86.650135345,
+			wantBarID:      "sqlab311_flx_16_30",
+			wantBarOptions: query.BarOptionsAll,
+		},
+		{
+			raw:            "frame=binary-havok&size=L&fork=rigid_485",
+			wantTier:       assembly.FitsNeither,
+			wantScore:      49.866243596,
+			wantBarID:      "persuader20_800",
+			wantBarOptions: query.BarOptionsSelected,
+			wantChainstay:  460,
+		},
+		{
+			raw:            "frame=surly-krampus&size=XL&fork=fox34_120&sag=20&post=setback_25&bar=sqlab311_20_16_50&bar_roll=10&rail_pitch=-2&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
+			wantTier:       assembly.FitsAll,
+			wantScore:      94.341904588,
+			wantBarID:      "sqlab311_20_16_50",
+			wantBarOptions: query.BarOptionsSelected,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.raw, func(t *testing.T) {
+			c := mustParseCompare(t, tc.raw)
+			ranking, err := compare.Rank(c.Request)
+			if err != nil {
+				t.Fatalf("compare.Rank: %v", err)
+			}
+			u, err := c.RowBikeURL(ranking.Rows[0])
+			if err != nil {
+				t.Fatalf("RowBikeURL: %v", err)
+			}
+			parsedURL, err := url.Parse(u)
+			if err != nil {
+				t.Fatalf("url.Parse(%q): %v", u, err)
+			}
+			q := parsedURL.Query()
+			for _, key := range requiredKeys {
+				if !q.Has(key) {
+					t.Errorf("RowBikeURL missing key %q in %q", key, u)
+				}
+			}
+			if got := q.Get("bar_options"); got != tc.wantBarOptions {
+				t.Errorf("bar_options = %q, want %q", got, tc.wantBarOptions)
+			}
+			if got := q.Get("fork_options"); got != query.ForkOptionsSelected {
+				t.Errorf("fork_options = %q, want %q", got, query.ForkOptionsSelected)
+			}
+			b, err := query.ParseBike(q)
+			if err != nil {
+				t.Fatalf("ParseBike(%q): %v", u, err)
+			}
+			if b.Bar.ID != tc.wantBarID {
+				t.Errorf("Bar.ID = %q, want %q", b.Bar.ID, tc.wantBarID)
+			}
+			if tc.wantChainstay != 0 && b.Setup.Frame.ChainstayMm != tc.wantChainstay {
+				t.Errorf("Setup.Frame.ChainstayMm = %v, want %v", b.Setup.Frame.ChainstayMm, tc.wantChainstay)
+			}
+			res, err := b.Evaluate(query.RankedBuildLimit)
+			if err != nil {
+				t.Fatalf("Evaluate: %v", err)
+			}
+			if res.Score == nil {
+				t.Fatal("Score is nil")
+			}
+			if res.Score.Tier != tc.wantTier {
+				t.Errorf("Score.Tier = %q, want %q", res.Score.Tier, tc.wantTier)
+			}
+			assertNear(t, "Score.Total", res.Score.Total, tc.wantScore, 1e-9)
+			assertNear(t, "Builds[0].Score.Total", res.Builds.Builds[0].Score.Total, tc.wantScore, 1e-9)
+			if res.Builds.Builds[0].HandlebarID != tc.wantBarID {
+				t.Errorf("Builds[0].HandlebarID = %q, want %q", res.Builds.Builds[0].HandlebarID, tc.wantBarID)
+			}
+		})
+	}
+
+	t.Run("negative cases", func(t *testing.T) {
+		c := mustParseCompare(t, "")
+		badRows := []struct {
+			row     compare.Row
+			wantErr string
+		}{
+			{compare.Row{FrameID: "nope"}, "unknown frame"},
+			{compare.Row{FrameID: "surly-krampus", Size: "XXL"}, "has no size"},
+			{compare.Row{FrameID: "surly-krampus", Size: "XL", ForkID: "nope"}, "has no fork"},
+		}
+		for _, tc := range badRows {
+			if _, err := c.BikeForRow(tc.row); err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("BikeForRow(%+v) err = %v, want containing %q", tc.row, err, tc.wantErr)
+			}
+			if _, err := c.RowBikeURL(tc.row); err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("RowBikeURL(%+v) err = %v, want containing %q", tc.row, err, tc.wantErr)
+			}
+		}
+
+		cAll := mustParseCompare(t, "bar_options=all")
+		for _, idx := range []int{-1, 15} {
+			row := compare.Row{
+				FrameID: "surly-krampus",
+				Size:    "XL",
+				ForkID:  "fox34_120",
+				Build:   assembly.ScoredBuild{HasHandlebarOption: true, HandlebarIndex: idx},
+			}
+			if _, err := cAll.BikeForRow(row); err == nil || !strings.Contains(err.Error(), "out of range") {
+				t.Errorf("BikeForRow(idx %d) err = %v, want out of range", idx, err)
+			}
+			if _, err := cAll.RowBikeURL(row); err == nil || !strings.Contains(err.Error(), "out of range") {
+				t.Errorf("RowBikeURL(idx %d) err = %v, want out of range", idx, err)
+			}
+		}
+	})
 }

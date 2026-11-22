@@ -35,18 +35,20 @@ func (e *InputError) Unwrap() error { return e.Err }
 // Compare holds the parsed, catalog-resolved compare query and the
 // ready-to-run compare.Request.
 type Compare struct {
-	Post          catalog.Seatpost
-	Bar           catalog.Handlebar
-	AllBarOptions bool
-	OfferedBars   []catalog.Handlebar // all catalog bars when AllBarOptions is true; nil otherwise
-	BarRollDeg    pose.Deg
-	RailPitchDeg  pose.Deg
-	BrpTarget     pose.Point
-	GripTarget    pose.Point
-	Selections    []compare.Selection
-	TopPerFrame   int
-	Top           int
-	Request       compare.Request
+	Post                catalog.Seatpost
+	Bar                 catalog.Handlebar
+	AllBarOptions       bool
+	OfferedBars         []catalog.Handlebar // all catalog bars when AllBarOptions is true; nil otherwise
+	BarRollDeg          pose.Deg
+	RailPitchDeg        pose.Deg
+	BrpTarget           pose.Point
+	GripTarget          pose.Point
+	Selections          []compare.Selection
+	TopPerFrame         int
+	Top                 int
+	TopPerFrameExplicit bool
+	TopExplicit         bool
+	Request             compare.Request
 }
 
 // CompareRow pairs a ranked compare.Row with the winning build's catalog
@@ -119,6 +121,8 @@ func ParseCompare(q url.Values) (Compare, error) {
 		return Compare{}, err
 	}
 
+	topPerFrameExplicit := strings.TrimSpace(q.Get("top_per_frame")) != ""
+	topExplicit := strings.TrimSpace(q.Get("top")) != ""
 	defaultTopPerFrame := 1
 	if len(selections) > 0 {
 		defaultTopPerFrame = 0
@@ -200,17 +204,19 @@ func ParseCompare(q url.Values) (Compare, error) {
 	barSetup.BarRollDeg = barRollDeg
 
 	return Compare{
-		Post:          post,
-		Bar:           bar,
-		AllBarOptions: allBars,
-		OfferedBars:   offeredBars,
-		BarRollDeg:    barRollDeg,
-		RailPitchDeg:  railPitchDeg,
-		BrpTarget:     *brp,
-		GripTarget:    *grip,
-		Selections:    selections,
-		TopPerFrame:   topPerFrame,
-		Top:           top,
+		Post:                post,
+		Bar:                 bar,
+		AllBarOptions:       allBars,
+		OfferedBars:         offeredBars,
+		BarRollDeg:          barRollDeg,
+		RailPitchDeg:        railPitchDeg,
+		BrpTarget:           *brp,
+		GripTarget:          *grip,
+		Selections:          selections,
+		TopPerFrame:         topPerFrame,
+		Top:                 top,
+		TopPerFrameExplicit: topPerFrameExplicit,
+		TopExplicit:         topExplicit,
 		Request: compare.Request{
 			Frames:            frames,
 			Selections:        selections,
@@ -244,6 +250,142 @@ func (c Compare) WinningHandlebar(row compare.Row) (catalog.Handlebar, error) {
 		return catalog.Handlebar{}, fmt.Errorf("frame %q size %q: handlebar option index %d out of range [0, %d)", row.FrameID, row.Size, i, len(c.OfferedBars))
 	}
 	return c.OfferedBars[i], nil
+}
+
+// BikeForRow constructs the exact single-bike workbench state represented by a
+// ranked compare row (Q67, Q77).
+func (c Compare) BikeForRow(row compare.Row) (Bike, error) {
+	frame, ok := catalog.FrameByID(row.FrameID)
+	if !ok {
+		return Bike{}, fmt.Errorf("unknown frame %q", row.FrameID)
+	}
+	size, ok := frame.Size(row.Size)
+	if !ok {
+		return Bike{}, fmt.Errorf("frame %q has no size %q", row.FrameID, row.Size)
+	}
+	ff, ok := findFrameFork(frame, row.ForkID)
+	if !ok {
+		return Bike{}, fmt.Errorf("frame %q has no fork %q", row.FrameID, row.ForkID)
+	}
+	bar, err := c.WinningHandlebar(row)
+	if err != nil {
+		return Bike{}, err
+	}
+	brp := c.BrpTarget
+	grip := c.GripTarget
+	return Bike{
+		Frame:          frame,
+		Size:           size,
+		ForkID:         row.ForkID,
+		FrameFork:      ff,
+		Bar:            bar,
+		Post:           c.Post,
+		View:           ViewBike,
+		BrpTarget:      &brp,
+		GripTarget:     &grip,
+		AllBarOptions:  c.AllBarOptions,
+		AllForkOptions: false,
+		Setup:          row.Build.Placement.Setup,
+	}, nil
+}
+
+// RowBikeURL returns the lossless /bike inspect URL for a ranked compare row
+// (Q67, Q77), carrying explicit bar_options and fork_options=selected.
+func (c Compare) RowBikeURL(row compare.Row) (string, error) {
+	b, err := c.BikeForRow(row)
+	if err != nil {
+		return "", err
+	}
+	v := b.queryValues()
+	if b.AllBarOptions {
+		v.Set("bar_options", BarOptionsAll)
+	} else {
+		v.Set("bar_options", BarOptionsSelected)
+	}
+	v.Set("fork_options", ForkOptionsSelected)
+	return "/bike?" + v.Encode(), nil
+}
+
+// URL encodes c as a canonical / compare URL, omitting default global values.
+func (c Compare) URL() string {
+	v := url.Values{}
+	for _, sel := range c.Selections {
+		v.Add("frame", sel.FrameID)
+		v.Add("size", sel.Size)
+		v.Add("fork", sel.ForkID)
+		if sel.SagPct != nil {
+			v.Add("sag", FormatFloat(*sel.SagPct))
+		} else {
+			v.Add("sag", "")
+		}
+	}
+	if c.TopPerFrameExplicit {
+		v.Set("top_per_frame", strconv.Itoa(c.TopPerFrame))
+	}
+	if c.TopExplicit {
+		v.Set("top", strconv.Itoa(c.Top))
+	}
+	if c.Post.ID != catalog.DefaultSeatpostID {
+		v.Set("post", c.Post.ID)
+	}
+	if c.Bar.ID != catalog.DefaultHandlebarID {
+		v.Set("bar", c.Bar.ID)
+	}
+	if c.AllBarOptions {
+		v.Set("bar_options", BarOptionsAll)
+	}
+	if c.BarRollDeg != 0 {
+		v.Set("bar_roll", FormatFloat(float64(c.BarRollDeg)))
+	}
+	if c.RailPitchDeg != 0 {
+		v.Set("rail_pitch", FormatFloat(float64(c.RailPitchDeg)))
+	}
+	if c.BrpTarget != catalog.DefaultBrpTarget() {
+		v.Set("brp_x", FormatFloat(c.BrpTarget.X))
+		v.Set("brp_y", FormatFloat(c.BrpTarget.Y))
+	}
+	if c.GripTarget != catalog.DefaultGripTarget() {
+		v.Set("grip_x", FormatFloat(c.GripTarget.X))
+		v.Set("grip_y", FormatFloat(c.GripTarget.Y))
+	}
+	if len(v) == 0 {
+		return "/"
+	}
+	return "/?" + v.Encode()
+}
+
+// WithoutSelection returns a copy of c with custom selection index removed.
+// When removing the last selection and top_per_frame was not explicitly set,
+// TopPerFrame reverts to the all-frames default of 1 (Q87).
+func (c Compare) WithoutSelection(index int) Compare {
+	if index < 0 || index >= len(c.Selections) {
+		return c
+	}
+	next := make([]compare.Selection, 0, len(c.Selections)-1)
+	next = append(next, c.Selections[:index]...)
+	next = append(next, c.Selections[index+1:]...)
+	if len(next) == 0 {
+		next = nil
+	}
+	c.Selections = next
+	c.Request.Selections = next
+	if len(next) == 0 && !c.TopPerFrameExplicit {
+		c.TopPerFrame = 1
+		c.Request.TopPerFrame = 1
+	}
+	return c
+}
+
+// AllFrames returns a copy of c cleared back to "All 19 frames" mode with auto
+// per-frame ranking (TopPerFrame = 1, TopPerFrameExplicit = false), keeping
+// global seatpost, handlebar, posture, target, and overall top settings (Q112).
+func (c Compare) AllFrames() Compare {
+	c.Selections = nil
+	c.Request.Selections = nil
+	c.TopPerFrameExplicit = false
+	c.TopPerFrame = 1
+	c.Request.TopPerFrame = 1
+	return c
 }
 
 // ResolveResult pairs each ranked row with its winning catalog handlebar ID

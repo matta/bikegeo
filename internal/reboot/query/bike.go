@@ -492,9 +492,8 @@ func (b Bike) WithoutTargets() Bike {
 	return b
 }
 
-// URL encodes the bike as a lossless /bike URL (Q70, Q77). It never emits
-// prev_* keys.
-func (b Bike) URL() string {
+// queryValues encodes b into /bike query values (Q70, Q77), omitting prev_* keys.
+func (b Bike) queryValues() url.Values {
 	s := b.Setup
 	v := url.Values{}
 	v.Set("frame", b.Frame.ID)
@@ -531,7 +530,13 @@ func (b Bike) URL() string {
 	if b.AllForkOptions {
 		v.Set("fork_options", ForkOptionsAll)
 	}
-	return "/bike?" + v.Encode()
+	return v
+}
+
+// URL encodes the bike as a lossless /bike URL (Q70, Q77). It never emits
+// prev_* keys.
+func (b Bike) URL() string {
+	return "/bike?" + b.queryValues().Encode()
 }
 
 // Evaluate places the bike and, when targets are set, scores the submitted
