@@ -1722,14 +1722,16 @@ func TestBikeWorkbenchCloseUpsContainTheirOutlines(t *testing.T) {
 // Every view draws the same build: the readouts match across views, and only
 // the framing changes.
 func TestBikeWorkbenchViewsShareReadoutsAndDifferInFraming(t *testing.T) {
-	cases := []struct{ view, viewBox string }{
-		{"bike", "-902.07 -850.54 2079.62 1256.87"},
-		{"seat", "-266.63 -703.82 137.14 82.89"},
-		{"stem", "300.54 -768.85 239.50 144.75"},
+	cases := []struct{ path, view, viewBox string }{
+		{"/bike?view=bike", "bike", "-902.07 -850.54 2079.62 1256.87"},
+		{"/bike?view=seat", "seat", "-281.92 -724.42 167.71 101.36"},
+		{"/bike?view=stem", "stem", "318.47 -768.85 239.50 144.75"},
+		{"/bike?brp=off&grip=off&view=seat", "seat", "-266.63 -703.82 137.14 82.89"},
+		{"/bike?brp=off&grip=off&view=stem", "stem", "300.54 -768.85 239.50 144.75"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.view, func(t *testing.T) {
-			doc := loadBikeDoc(t, "/bike?view="+tc.view)
+		t.Run(tc.path, func(t *testing.T) {
+			doc := loadBikeDoc(t, tc.path)
 			if got := metricText(doc, "wheelbase"); got != "1145.6 mm" {
 				t.Errorf("wheelbase = %q, want 1145.6 mm", got)
 			}
@@ -3853,7 +3855,7 @@ func TestCompareForkSelectGroupsListedAndOtherForks(t *testing.T) {
 
 func TestBikeWorkbenchLayoutAndDisclosures(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike")
-	if got := strings.TrimSpace(doc.Find("title").Text()); got != "Otso Fenrir Stainless (2024, Size L) — bikegeo" {
+	if got := strings.TrimSpace(doc.Find("head title").Text()); got != "Otso Fenrir Stainless (2024, Size L) — bikegeo" {
 		t.Errorf("title = %q, want Otso Fenrir Stainless (2024, Size L) — bikegeo", got)
 	}
 	if n := doc.Find(".diagram-panel nav.diagram-views").Length(); n != 1 {

@@ -488,15 +488,67 @@
     }
     /* Labels are sized in screen units: --units-per-px converts CSS px to SVG
        units at the nominal diagram width, so 1rem follows the page font. */
-    svg.diagram .landmarks text {
+    svg.diagram .landmarks text,
+    svg.diagram .target-label {
       font-size: calc(1rem * var(--units-per-px, 1));
       paint-order: stroke;
       stroke: #fcfcfa;
       stroke-width: 0.25em;
       stroke-linejoin: round;
     }
+    svg.diagram .target-label {
+      font-weight: 700;
+    }
+    svg.diagram .target-label[data-target-status="pass"] {
+      fill: var(--tier-all-text);
+    }
+    svg.diagram .target-label[data-target-status="fail"] {
+      fill: var(--danger);
+    }
+    svg.diagram [data-target-status="pass"] [data-target-zone] {
+      fill: var(--tier-all-bg);
+      fill-opacity: 0.42;
+      stroke: var(--tier-all-text);
+    }
+    svg.diagram [data-target-status="fail"] [data-target-zone] {
+      fill: var(--error-bg);
+      fill-opacity: 0.42;
+      stroke: var(--danger);
+    }
+    svg.diagram [data-target-status="pass"] [data-target-miss],
+    svg.diagram [data-target-status="pass"] [data-target-marker] {
+      stroke: var(--tier-all-text);
+    }
+    svg.diagram [data-target-status="fail"] [data-target-miss],
+    svg.diagram [data-target-status="fail"] [data-target-marker] {
+      stroke: var(--danger);
+    }
     svg.diagram .axis-label {
       font-size: calc(0.875rem * var(--units-per-px, 1));
+    }
+    .diagram-legend {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem 0.9rem;
+      margin: 0.5rem 0 0;
+      padding: 0.4rem 0.6rem;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .legend-swatch {
+      inline-size: 1.35rem;
+      block-size: 0.95rem;
+      flex: none;
     }
     .diagram-note {
       margin: 0.55rem 0 0;
@@ -1173,6 +1225,48 @@
               {{end}}
             </g>
 
+            {{if .FitTargets}}
+            <g class="fit-targets">
+              {{range .FitTargets}}
+              <g data-target="{{.Kind}}" data-target-status="{{.Status}}">
+                {{if eq .ZoneShape "rect"}}
+                <rect data-target-zone="{{.Kind}}"
+                      x="{{printf "%.2f" .ZoneX}}" y="{{printf "%.2f" .ZoneY}}"
+                      width="{{printf "%.2f" .ZoneWidth}}" height="{{printf "%.2f" .ZoneHeight}}"
+                      stroke-width="{{$.Px 1.5}}"
+                      stroke-dasharray="{{if eq .Status "pass"}}{{$.Px 5}} {{$.Px 3}}{{else}}{{$.Px 9}} {{$.Px 3}} {{$.Px 2}} {{$.Px 3}}{{end}}" />
+                {{else}}
+                <ellipse data-target-zone="{{.Kind}}"
+                         cx="0" cy="0"
+                         rx="{{printf "%.2f" .ZoneRx}}" ry="{{printf "%.2f" .ZoneRy}}"
+                         transform="{{.ZoneTransform}}"
+                         stroke-width="{{$.Px 1.5}}"
+                         stroke-dasharray="{{if eq .Status "pass"}}{{$.Px 5}} {{$.Px 3}}{{else}}{{$.Px 9}} {{$.Px 3}} {{$.Px 2}} {{$.Px 3}}{{end}}" />
+                {{end}}
+                {{if .ShowMiss}}
+                <line data-target-miss="{{.Kind}}"
+                      x1="{{printf "%.2f" .PlacedX}}" y1="{{printf "%.2f" .PlacedY}}"
+                      x2="{{printf "%.2f" .X}}" y2="{{printf "%.2f" .Y}}"
+                      stroke-width="{{$.Px 1.8}}" stroke-dasharray="{{$.Px 4}} {{$.Px 3}}" />
+                {{end}}
+                <g data-target-marker="{{.Kind}}" transform="translate({{printf "%.2f" .X}} {{printf "%.2f" .Y}})"
+                   fill="none" stroke-width="{{$.Px 1.8}}" stroke-linecap="round">
+                  <title>{{.Tooltip}}</title>
+                  {{if eq .Status "pass"}}
+                  <circle cx="0" cy="0" r="{{$.Px 6.5}}" />
+                  <line x1="{{$.Px -10}}" y1="0" x2="{{$.Px 10}}" y2="0" />
+                  <line x1="0" y1="{{$.Px -10}}" x2="0" y2="{{$.Px 10}}" />
+                  {{else}}
+                  <circle cx="0" cy="0" r="{{$.Px 6.5}}" stroke-dasharray="{{$.Px 3}} {{$.Px 2}}" />
+                  <line x1="{{$.Px -7.5}}" y1="{{$.Px -7.5}}" x2="{{$.Px 7.5}}" y2="{{$.Px 7.5}}" />
+                  <line x1="{{$.Px -7.5}}" y1="{{$.Px 7.5}}" x2="{{$.Px 7.5}}" y2="{{$.Px -7.5}}" />
+                  {{end}}
+                </g>
+              </g>
+              {{end}}
+            </g>
+            {{end}}
+
             <g class="landmarks">
               {{range .Landmarks}}
               <g data-landmark="{{.Name}}">
@@ -1183,7 +1277,54 @@
               {{end}}
             </g>
 
+            {{if .FitTargets}}
+            <g class="target-labels">
+              {{range .FitTargets}}
+              {{if .ShowLabel}}
+              <text class="target-label" data-target-label="{{.Kind}}" data-target-status="{{.Status}}"
+                    x="{{printf "%.2f" .LabelX}}" y="{{printf "%.2f" .LabelY}}" dx="{{.LabelDx}}" dy="{{.LabelDy}}"
+                    text-anchor="{{.Anchor}}" font-family="ui-monospace, monospace">{{.Name}}</text>
+              {{end}}
+              {{end}}
+            </g>
+            {{end}}
+
           </svg>
+          {{if .FitTargets}}
+          <ul class="diagram-legend" role="list" aria-label="Fit target legend">
+            <li class="legend-item">
+              <svg class="legend-swatch" viewBox="0 0 20 14" aria-hidden="true">
+                <circle cx="10" cy="7" r="4.5" fill="#0969da" stroke="#ffffff" stroke-width="1.5" />
+              </svg>
+              <span>Placed landmark</span>
+            </li>
+            <li class="legend-item">
+              <svg class="legend-swatch" viewBox="0 0 20 14" aria-hidden="true">
+                <rect x="1.5" y="1.5" width="17" height="11" rx="1.5" fill="#dafbe1" stroke="#116329" stroke-width="1.2" stroke-dasharray="3 2" />
+                <circle cx="10" cy="7" r="3" fill="none" stroke="#116329" stroke-width="1.3" />
+                <line x1="6" y1="7" x2="14" y2="7" stroke="#116329" stroke-width="1.3" />
+                <line x1="10" y1="3" x2="10" y2="11" stroke="#116329" stroke-width="1.3" />
+              </svg>
+              <span>Target pass (in gate)</span>
+            </li>
+            <li class="legend-item">
+              <svg class="legend-swatch" viewBox="0 0 20 14" aria-hidden="true">
+                <rect x="1.5" y="1.5" width="17" height="11" rx="1.5" fill="#ffebe9" stroke="#a40e26" stroke-width="1.2" stroke-dasharray="5 2 1.5 2" />
+                <circle cx="10" cy="7" r="3" fill="none" stroke="#a40e26" stroke-width="1.3" stroke-dasharray="2 1.5" />
+                <line x1="7" y1="4" x2="13" y2="10" stroke="#a40e26" stroke-width="1.3" />
+                <line x1="7" y1="10" x2="13" y2="4" stroke="#a40e26" stroke-width="1.3" />
+              </svg>
+              <span>Target fail (out of gate)</span>
+            </li>
+            <li class="legend-item">
+              <svg class="legend-swatch" viewBox="0 0 20 14" aria-hidden="true">
+                <circle cx="4" cy="7" r="2.5" fill="#0969da" />
+                <line x1="6.5" y1="7" x2="16.5" y2="7" stroke="#57606a" stroke-width="1.5" stroke-dasharray="2.5 2" />
+              </svg>
+              <span>Miss (placed → target)</span>
+            </li>
+          </ul>
+          {{end}}
           <p class="diagram-note">
             Note: Dashed <code>seat-tube</code> (straight along effective STA), <code>seatstay</code> (to <code>SeatTubeTop</code>), <code>saddle-profile</code> (<code>SitBones</code> to <code>BRP</code>), and <code>handlebar-rise-sweep</code> (2D side projection from <code>BarClamp</code> to <code>HandGrip</code>) lines are illustrative schematic shapes, not measured frame tubes. Wheel circles use the declared {{.WheelLabel}} ({{printf "%.1f" .WheelRadiusMm}} mm) baseline radius.
           </p>
