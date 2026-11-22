@@ -412,23 +412,19 @@ func TestFrameDefaultLowerCupMustBePhysicalAndFitBore(t *testing.T) {
 	}
 }
 
-func TestMismatchedPhysicalCupFailsBothChartEntryPoints(t *testing.T) {
-	chart := fenrirChart()
-	chart.CadLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0}
-	var inputErr *assembly.InputError
-	if err := assembly.CheckChartConsistency(chart); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
-		t.Errorf("CheckChartConsistency error = %v, want InputLowerCup", err)
-	}
+func TestMismatchedBasisCupFailsUnpitchedPlacement(t *testing.T) {
+	frame := fenrirSizeLFrame()
 	basisFork := assembly.ForkSetup{
-		Spec: assembly.ForkSpec{StaticA2cMm: chart.CadFork.A2cMm, RakeMm: chart.CadFork.RakeMm, Steerer: assembly.SteererCAD},
+		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0, Steerer: assembly.SteererCAD},
 	}
-	if _, err := assembly.PlaceUnpitchedFrameset(chart.Frame, chart.CadLowerCup, basisFork, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+	badCup := assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0}
+	var inputErr *assembly.InputError
+	if _, err := assembly.PlaceUnpitchedFrameset(frame, badCup, basisFork, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
 		t.Errorf("PlaceUnpitchedFrameset error = %v, want InputLowerCup", err)
 	}
-	// A matching physical cup on the CAD fork is accepted, as is a bare head tube on another bore.
-	chart.CadLowerCup = fenrirEc44Cup()
-	if err := assembly.CheckChartConsistency(chart); err != nil && errors.As(err, &inputErr) && inputErr.Field == assembly.InputLowerCup {
-		t.Errorf("matching cup rejected as a headset error: %v", err)
+	// A matching physical cup on the CAD fork is accepted.
+	if _, err := assembly.PlaceUnpitchedFrameset(frame, fenrirEc44Cup(), basisFork, fenrirWheels()); err != nil {
+		t.Errorf("matching cup rejected: %v", err)
 	}
 }
 

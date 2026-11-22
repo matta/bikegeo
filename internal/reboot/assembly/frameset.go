@@ -380,6 +380,33 @@ func (f FramesetPlacement) EttMm() float64 {
 	return ett
 }
 
+// ChartPrecision holds the rounding half-width of each published chart column
+// that catalog's chart-consistency test reads: a length printed as 642 could be
+// anything in 642 ± 0.5 before the manufacturer rounded it. Zero means the
+// column is exact and gets no term. The CAD fork and CAD lower cup are
+// hypotheses, not rounded chart numbers, so they have no half-width (Q44).
+type ChartPrecision struct {
+	ReachMm          float64
+	StackMm          float64
+	HeadTubeAngleDeg pose.Deg
+	HeadTubeLengthMm float64
+	BbDropMm         float64
+	ChainstayMm      float64
+	WheelbaseMm      float64
+}
+
+// ChartAllowance widens one size's consistency checks beyond what rounding of
+// its published columns explains (Q65, Q71). Catalog's chart-consistency test
+// reads these and rejects an allowance on a check that passes on rounding
+// alone, or one more than 0.5 mm beyond that check's excess (Q93). Reason
+// documents why the chart is inconsistent and is required whenever a field is
+// non-zero.
+type ChartAllowance struct {
+	AxleHeightMm float64
+	WheelbaseMm  float64
+	Reason       string
+}
+
 // FrameChart groups a bare frame's unpitched reference dimensions, its CAD
 // lower headset cup, its fixed CAD baseline fork geometry, and its published wheelbase.
 type FrameChart struct {
@@ -451,16 +478,6 @@ func placeFramesetAtPitch(pitchDeg pose.Deg, frame FrameSetup, lowerCupMm float6
 		FrontAxle:        frontAxle,
 		FrontTireContact: frontTireContact,
 	}
-}
-
-func validateForkGeometry(fork ForkGeometry) error {
-	if !isFinite(fork.A2cMm) || fork.A2cMm <= 0 {
-		return invalidInput(InputForkA2c, "fork A2C must be finite and positive, got %v mm", fork.A2cMm)
-	}
-	if !isFinite(fork.RakeMm) {
-		return fmt.Errorf("fork rake must be finite, got %v mm", fork.RakeMm)
-	}
-	return nil
 }
 
 func validateWheels(wheels WheelSetup) error {

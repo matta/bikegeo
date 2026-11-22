@@ -147,7 +147,7 @@ func TestEveryChartIsConsistent(t *testing.T) {
 	for _, f := range catalog.Frames() {
 		for _, s := range f.Sizes {
 			t.Run(f.ID+"/"+s.Name, func(t *testing.T) {
-				if err := assembly.CheckChartConsistency(s.Chart); err != nil {
+				if err := checkChartConsistency(s.Chart); err != nil {
 					t.Error(err)
 				}
 			})
@@ -191,7 +191,7 @@ func TestChartAllowances(t *testing.T) {
 			}
 			chart := s.Chart
 			chart.Allowance = assembly.ChartAllowance{}
-			err := assembly.CheckChartConsistency(chart)
+			err := checkChartConsistency(chart)
 			if err == nil || !strings.HasPrefix(err.Error(), w.errPrefix) {
 				t.Errorf("%s without its allowance: err = %v, want prefix %q", key, err, w.errPrefix)
 			}

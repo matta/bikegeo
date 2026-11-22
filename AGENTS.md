@@ -46,7 +46,7 @@ When no existing test, `/bike`, or `compare` answers a question about geometry, 
 - Delete the file when you're done.
 - Call the real placement and chart-consistency functions, and never restate geometry formulas. Published chart values stay untouched in catalog files; a temporary test may only change copies.
 - If you write the same scratch helper twice, propose promoting it into a shared test helper.
-- Interim, until Slice 16 lands (DESIGN.md Q114): the chart-consistency mismatch numbers are reachable only through `assembly.CheckChartConsistency`'s error text. Legacy frames under `internal/frames` still follow **Frame Datasets** below.
+- Interim, until Slice 16b rewrites the ingest-frame skill: `measureChartConsistency` in `internal/reboot/catalog/chart_consistency_test.go` exposes each check's mismatch, rounding budget, per-column terms, allowance, and excess; call it from a temporary test in the same package.
 
 ## Rider Fit Provenance
 
