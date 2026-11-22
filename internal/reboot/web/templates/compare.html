@@ -638,7 +638,7 @@
         <fieldset class="control-group">
           <legend>Bikes to Compare</legend>
           {{if not .Form.SelectionRows}}
-          <p class="mode-note" data-compare-mode="all">Comparing <strong>all 19 catalog frames</strong> (best configuration each). Add a frame below to narrow to custom selections.</p>
+          <p class="mode-note" data-compare-mode="all">Comparing <strong>all {{.Form.FrameCount}} catalog frames</strong> (best configuration each). Add a frame below to narrow to custom selections.</p>
           {{else}}
           <div class="table-scroll" tabindex="0" role="region" aria-label="Custom frame selections">
             <table class="selection-table">
@@ -745,7 +745,7 @@
                 <select id="ctrl-bar-options" name="bar_options"{{if .Form.BarOptionModeInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
                   {{range .Form.BarOptionModes}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
                 </select>
-                <p class="field-note" data-note="bar-options-speed">All {{.Form.HandlebarCount}} handlebars evaluates ~15× more builds (~35 s across all 19 frames).</p>
+                <p class="field-note" data-note="bar-options-speed">All {{.Form.HandlebarCount}} handlebars evaluates ~15× more builds (about 2 s per frame).</p>
               </div>
               <div class="field-grid-2">
                 <div class="field">
@@ -780,7 +780,7 @@
         <div class="control-actions">
           <button id="ctrl-submit" class="btn-primary" type="submit">Compare Bikes</button>
           <a id="preset-defaults" class="btn-secondary" href="/" data-preset="defaults">Reset Defaults</a>
-          {{if .Form.ShowAllFramesLink}}<a id="preset-all-frames" class="btn-secondary" href="{{.Form.AllFramesURL}}" data-preset="all-frames">All 19 Frames</a>{{end}}
+          {{if .Form.ShowAllFramesLink}}<a id="preset-all-frames" class="btn-secondary" href="{{.Form.AllFramesURL}}" data-preset="all-frames">All {{.Form.FrameCount}} Frames</a>{{end}}
         </div>
       </form>
 

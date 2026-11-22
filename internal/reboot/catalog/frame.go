@@ -84,7 +84,7 @@ func (f Frame) InstalledFrame(size FrameSize) assembly.FrameSetup {
 	return frame
 }
 
-// Frames returns the 19 frames in ascending ID order.
+// Frames returns every catalog frame in ascending ID order (TestFramesRegistry pins the list).
 func Frames() []Frame {
 	return []Frame{
 		binaryHavok(),

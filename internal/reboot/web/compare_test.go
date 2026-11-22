@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"bikegeo/internal/reboot/catalog"
 	"github.com/PuerkitoBio/goquery"
 )
 
@@ -33,6 +34,13 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	}
 	if doc.Find(`[data-compare-mode="all"]`).Length() != 1 {
 		t.Error("expected [data-compare-mode=all]")
+	}
+	if got := doc.Find(`[data-compare-mode="all"]`).Text(); !strings.Contains(got, "all 19 catalog frames") {
+		t.Errorf("compare-mode note = %q, want substring %q", got, "all 19 catalog frames")
+	}
+	wantSpeedNote := fmt.Sprintf("All %d handlebars evaluates ~15× more builds (about 2 s per frame).", len(catalog.Handlebars()))
+	if got := strings.TrimSpace(doc.Find(`[data-note="bar-options-speed"]`).Text()); got != wantSpeedNote {
+		t.Errorf("bar-options-speed note = %q, want %q", got, wantSpeedNote)
 	}
 	if n := doc.Find(`[data-selection-row]`).Length(); n != 0 {
 		t.Errorf("got %d selection rows, want 0", n)
@@ -294,6 +302,9 @@ func TestCompareCustomSelectionsAndAutoTopPerFrame(t *testing.T) {
 		t.Errorf("after remove 1: status %d, rows %d", rStatus, rDoc.Find(`table[data-table="fit"] tbody tr`).Length())
 	}
 	allHref, _ := multi.Find(`#preset-all-frames`).Attr("href")
+	if got := strings.TrimSpace(multi.Find("a#preset-all-frames").Text()); got != "All 19 Frames" {
+		t.Errorf("a#preset-all-frames text = %q, want %q", got, "All 19 Frames")
+	}
 	if !strings.Contains(allHref, "post=setback_25") || strings.Contains(allHref, "frame=") || strings.Contains(allHref, "top_per_frame=") {
 		t.Errorf("all-frames href = %q", allHref)
 	}

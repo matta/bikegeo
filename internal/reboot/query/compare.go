@@ -376,7 +376,7 @@ func (c Compare) WithoutSelection(index int) Compare {
 	return c
 }
 
-// AllFrames returns a copy of c cleared back to "All 19 frames" mode with auto
+// AllFrames returns a copy of c cleared back to all-frames mode with auto
 // per-frame ranking (TopPerFrame = 1, TopPerFrameExplicit = false), keeping
 // global seatpost, handlebar, posture, target, and overall top settings (Q112).
 func (c Compare) AllFrames() Compare {

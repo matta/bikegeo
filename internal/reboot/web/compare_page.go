@@ -78,6 +78,7 @@ type compareFormValues struct {
 	ExampleGripX           string
 	ExampleGripY           string
 	HandlebarCount         int
+	FrameCount             int
 }
 
 type compareRowView struct {
@@ -278,9 +279,10 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 
 	var pageTitle, headerBadge, modeLabel string
 	if len(parsed.Selections) == 0 {
-		pageTitle = "Compare 19 Frames — bikegeo-reboot"
-		headerBadge = "All 19 frames"
-		modeLabel = "All 19 frames"
+		n := len(catalog.Frames())
+		pageTitle = fmt.Sprintf("Compare %d Frames — bikegeo-reboot", n)
+		headerBadge = fmt.Sprintf("All %d frames", n)
+		modeLabel = headerBadge
 	} else {
 		n := len(parsed.Selections)
 		setupNoun := "Setups"
@@ -381,6 +383,7 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 			ExampleGripX:           formatFormFloat(defGrip.X),
 			ExampleGripY:           formatFormFloat(defGrip.Y),
 			HandlebarCount:         len(bars),
+			FrameCount:             len(catalog.Frames()),
 		},
 		Summary: compareSummaryView{
 			ModeLabel:        modeLabel,
@@ -526,6 +529,7 @@ func renderCompareError(w http.ResponseWriter, q url.Values, invalidField, msg s
 			ExampleGripX:           formatFormFloat(defGrip.X),
 			ExampleGripY:           formatFormFloat(defGrip.Y),
 			HandlebarCount:         len(catalog.Handlebars()),
+			FrameCount:             len(catalog.Frames()),
 		},
 	}
 	renderCompareTemplate(w, http.StatusBadRequest, view)

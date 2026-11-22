@@ -30,7 +30,8 @@ const compareUsage = `Usage: bikegeo-reboot compare [query]
 
 Ranks catalog bikes for the / compare query and prints indented JSON.
 The query is URL-encoded; a leading "?" is ignored. With no query, every
-size, fork, and sag of all 19 frames is ranked, keeping the best row per frame.
+size, fork, and sag of every catalog frame is ranked, keeping the best
+row per frame.
 
 Query keys:
   frame, size, fork, sag   repeated, aligned selection columns
