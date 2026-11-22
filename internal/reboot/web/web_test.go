@@ -3357,8 +3357,8 @@ func TestBikeMultiFrameSelectAndSwitching(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike")
 	frames := catalog.Frames()
 	options := doc.Find(`select[name="frame"] option`)
-	if options.Length() != 19 || len(frames) != 19 {
-		t.Fatalf("frame options = %d (catalog %d), want 19", options.Length(), len(frames))
+	if options.Length() != 18 || len(frames) != 18 {
+		t.Fatalf("frame options = %d (catalog %d), want 18", options.Length(), len(frames))
 	}
 	for i, f := range frames {
 		opt := options.Eq(i)
@@ -3482,8 +3482,8 @@ func TestBikeMultiFrameSelectAndSwitching(t *testing.T) {
 		if n := frameDoc.Find(`select[name="frame"] option[selected]`).Length(); n != 0 {
 			t.Errorf("unknown frame has %d selected options, want 0", n)
 		}
-		if got := frameDoc.Find(`select[name="frame"] option`).Length(); got != 19 {
-			t.Errorf("error page frame options = %d, want 19", got)
+		if got := frameDoc.Find(`select[name="frame"] option`).Length(); got != 18 {
+			t.Errorf("error page frame options = %d, want 18", got)
 		}
 		sizeDoc := loadBikeDocStatus(t, "/bike?size=XXL", http.StatusBadRequest)
 		if got, _ := sizeDoc.Find(`select[name="size"]`).Attr("aria-invalid"); got != "true" {

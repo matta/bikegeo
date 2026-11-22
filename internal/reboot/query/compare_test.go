@@ -44,8 +44,8 @@ func assertNear(t *testing.T, name string, got, want, tol float64) {
 func TestCatalogFrames(t *testing.T) {
 	frames := catalog.Frames()
 	got := query.CatalogFrames()
-	if len(got) != 19 || len(got) != len(frames) {
-		t.Fatalf("got %d frames, want 19 (catalog has %d)", len(got), len(frames))
+	if len(got) != 18 || len(got) != len(frames) {
+		t.Fatalf("got %d frames, want 18 (catalog has %d)", len(got), len(frames))
 	}
 	totalSizes := 0
 	for i, f := range frames {
@@ -84,8 +84,8 @@ func TestCatalogFrames(t *testing.T) {
 			}
 		}
 	}
-	if totalSizes != 119 {
-		t.Errorf("got %d sizes, want 119", totalSizes)
+	if totalSizes != 115 {
+		t.Errorf("got %d sizes, want 115", totalSizes)
 	}
 
 	havok, ok := catalog.FrameByID("binary-havok")
@@ -475,8 +475,8 @@ func TestWinningHandlebarOutOfRange(t *testing.T) {
 // selected bar (~1.8 s, Q104).
 func TestParseCompareDefaultAll19Frames(t *testing.T) {
 	_, result := rankAndResolve(t, "")
-	if result.RowCount != 2989 || result.Evaluated != 2238761 || len(result.Rows) != 19 {
-		t.Fatalf("RowCount %d, Evaluated %d, %d rows; want 2989, 2238761, 19", result.RowCount, result.Evaluated, len(result.Rows))
+	if result.RowCount != 2889 || result.Evaluated != 2163861 || len(result.Rows) != 18 {
+		t.Fatalf("RowCount %d, Evaluated %d, %d rows; want 2889, 2163861, 18", result.RowCount, result.Evaluated, len(result.Rows))
 	}
 	if result.PostID != "redshift_shockstop_pro" || result.BarID != "persuader20_800" || result.AllBarOptions {
 		t.Errorf("PostID %q, BarID %q, AllBarOptions %v", result.PostID, result.BarID, result.AllBarOptions)
@@ -496,8 +496,8 @@ func TestParseCompareDefaultAll19Frames(t *testing.T) {
 		{1, "sklar-pbj", "L", "fox36_sl_120", 15, assembly.FitsAll, 76.200061329, 0.887113437},
 		{2, "seven-custom", "Custom", "fox34_120-534x44", 25, assembly.FitsBRP, 53.126792179, 2.092042057},
 		{7, "esker-hayduke", "S3", "enve_mountain_boost-492x52", 0, assembly.FitsGrip, 81.320323095, 0.952602612},
-		{16, "otso-fenrir-stainless", "XL", "firestarter_deluxe_483", 0, assembly.FitsGrip, 69.087518917, 0.956687823},
-		{18, "salsa-cutthroat", "60cm", "firestarter_deluxe_483", 0, assembly.FitsNeither, 50.260457620, 3.453797202},
+		{15, "otso-fenrir-stainless", "XL", "firestarter_deluxe_483", 0, assembly.FitsGrip, 69.087518917, 0.956687823},
+		{17, "salsa-cutthroat", "60cm", "firestarter_deluxe_483", 0, assembly.FitsNeither, 50.260457620, 3.453797202},
 	}
 	for _, w := range want {
 		row := result.Rows[w.index]
@@ -738,7 +738,7 @@ func TestParseCompareOpenForkChoice(t *testing.T) {
 	for _, f := range query.CatalogFrames() {
 		forks += len(f.Forks)
 	}
-	if forks != 234 {
-		t.Errorf("catalog frames carry %d fork variants, want 234", forks)
+	if forks != 223 {
+		t.Errorf("catalog frames carry %d fork variants, want 223", forks)
 	}
 }

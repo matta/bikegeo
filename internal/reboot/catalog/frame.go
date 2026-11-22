@@ -195,7 +195,6 @@ func Frames() []Frame {
 		mootsMountaineer(),
 		otsoFenrirStainless(),
 		revelElJefe(),
-		ritcheyUltra(),
 		salsaCutthroat(),
 		salsaFargo(),
 		sevenCustom(),

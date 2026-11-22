@@ -29,14 +29,14 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", status)
 	}
-	if got := strings.TrimSpace(doc.Find("title").Text()); got != "Compare 19 Frames — bikegeo-reboot" {
-		t.Errorf("title = %q, want Compare 19 Frames — bikegeo-reboot", got)
+	if got := strings.TrimSpace(doc.Find("title").Text()); got != "Compare 18 Frames — bikegeo-reboot" {
+		t.Errorf("title = %q, want Compare 18 Frames — bikegeo-reboot", got)
 	}
 	if doc.Find(`[data-compare-mode="all"]`).Length() != 1 {
 		t.Error("expected [data-compare-mode=all]")
 	}
-	if got := doc.Find(`[data-compare-mode="all"]`).Text(); !strings.Contains(got, "all 19 catalog frames") {
-		t.Errorf("compare-mode note = %q, want substring %q", got, "all 19 catalog frames")
+	if got := doc.Find(`[data-compare-mode="all"]`).Text(); !strings.Contains(got, "all 18 catalog frames") {
+		t.Errorf("compare-mode note = %q, want substring %q", got, "all 18 catalog frames")
 	}
 	wantSpeedNote := fmt.Sprintf("All %d handlebars evaluates ~15× more builds (about 2 s per frame).", len(catalog.Handlebars()))
 	if got := strings.TrimSpace(doc.Find(`[data-note="bar-options-speed"]`).Text()); got != wantSpeedNote {
@@ -59,7 +59,7 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	}
 
 	configsText := doc.Find(`[data-summary="configs"]`).Text()
-	for _, want := range []string{"19", "2989", "2238761"} {
+	for _, want := range []string{"18", "2889", "2163861"} {
 		if !strings.Contains(configsText, want) {
 			t.Errorf("configs summary %q missing %q", configsText, want)
 		}
@@ -73,8 +73,8 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 
 	for _, tableName := range []string{"fit", "geometry", "breakdown"} {
 		sel := fmt.Sprintf(`table[data-table="%s"] tbody tr`, tableName)
-		if n := doc.Find(sel).Length(); n != 19 {
-			t.Errorf("%s row count = %d, want 19", sel, n)
+		if n := doc.Find(sel).Length(); n != 18 {
+			t.Errorf("%s row count = %d, want 18", sel, n)
 		}
 	}
 
@@ -224,37 +224,37 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 		t.Errorf("row 8 brp-miss = %q, want (-37.0, +0.0) mm", got)
 	}
 
-	// Row #17: Otso Fenrir Stainless XL (Tuning Chip frame, non-sliding)
-	fit17 := doc.Find(`tr[data-compare-rank="17"]`)
-	if got := strings.TrimSpace(fit17.Find(`[data-compare-cell="frame"]`).Text()); got != "Otso Fenrir Stainless" {
-		t.Errorf("row 17 frame = %q, want Otso Fenrir Stainless", got)
+	// Row #16: Otso Fenrir Stainless XL (Tuning Chip frame, non-sliding)
+	fit16 := doc.Find(`tr[data-compare-rank="16"]`)
+	if got := strings.TrimSpace(fit16.Find(`[data-compare-cell="frame"]`).Text()); got != "Otso Fenrir Stainless" {
+		t.Errorf("row 16 frame = %q, want Otso Fenrir Stainless", got)
 	}
-	if fit17.Find(`abbr.sliding-mark`).Length() != 0 {
-		t.Error("row 17 should not have sliding-mark")
+	if fit16.Find(`abbr.sliding-mark`).Length() != 0 {
+		t.Error("row 16 should not have sliding-mark")
 	}
-	if got, _ := fit17.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_grip" {
-		t.Errorf("row 17 tier = %q, want fits_grip", got)
+	if got, _ := fit16.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_grip" {
+		t.Errorf("row 16 tier = %q, want fits_grip", got)
 	}
-	if got := strings.TrimSpace(fit17.Find(`[data-compare-cell="score"]`).Text()); got != "69.1" {
-		t.Errorf("row 17 score = %q, want 69.1", got)
+	if got := strings.TrimSpace(fit16.Find(`[data-compare-cell="score"]`).Text()); got != "69.1" {
+		t.Errorf("row 16 score = %q, want 69.1", got)
 	}
-	if got := strings.TrimSpace(fit17.Find(`[data-compare-cell="oval-r"]`).Text()); got != "0.96" {
-		t.Errorf("row 17 oval-r = %q, want 0.96", got)
+	if got := strings.TrimSpace(fit16.Find(`[data-compare-cell="oval-r"]`).Text()); got != "0.96" {
+		t.Errorf("row 16 oval-r = %q, want 0.96", got)
 	}
-	if got := strings.TrimSpace(doc.Find(`tr[data-geometry-rank="17"] [data-geometry-cell="chainstay"]`).Text()); got != "440.0" {
-		t.Errorf("row 17 chainstay = %q, want 440.0", got)
+	if got := strings.TrimSpace(doc.Find(`tr[data-geometry-rank="16"] [data-geometry-cell="chainstay"]`).Text()); got != "440.0" {
+		t.Errorf("row 16 chainstay = %q, want 440.0", got)
 	}
 
-	// Row #19: Salsa Cutthroat 60cm
-	fit19 := doc.Find(`tr[data-compare-rank="19"]`)
-	if got, _ := fit19.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_neither" {
-		t.Errorf("row 19 tier = %q, want fits_neither", got)
+	// Row #18: Salsa Cutthroat 60cm
+	fit18 := doc.Find(`tr[data-compare-rank="18"]`)
+	if got, _ := fit18.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_neither" {
+		t.Errorf("row 18 tier = %q, want fits_neither", got)
 	}
-	if got := strings.TrimSpace(fit19.Find(`[data-compare-cell="score"]`).Text()); got != "50.3" {
-		t.Errorf("row 19 score = %q, want 50.3", got)
+	if got := strings.TrimSpace(fit18.Find(`[data-compare-cell="score"]`).Text()); got != "50.3" {
+		t.Errorf("row 18 score = %q, want 50.3", got)
 	}
-	if got := strings.TrimSpace(fit19.Find(`[data-compare-cell="oval-r"]`).Text()); got != "3.45" {
-		t.Errorf("row 19 oval-r = %q, want 3.45", got)
+	if got := strings.TrimSpace(fit18.Find(`[data-compare-cell="oval-r"]`).Text()); got != "3.45" {
+		t.Errorf("row 18 oval-r = %q, want 3.45", got)
 	}
 
 	slidingNote := doc.Find(`[data-note="sliding-dropouts"]`).Text()
@@ -277,8 +277,8 @@ func TestCompareCustomSelectionsAndAutoTopPerFrame(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
 	}
-	if doc.Find(`table[data-table="fit"] tbody tr`).Length() != 19 {
-		t.Errorf("expected 19 rows for blank frame query")
+	if doc.Find(`table[data-table="fit"] tbody tr`).Length() != 18 {
+		t.Errorf("expected 18 rows for blank frame query")
 	}
 	if doc.Find(`[data-selection-row]`).Length() != 0 {
 		t.Errorf("expected 0 selection rows for blank frame query")
@@ -326,7 +326,7 @@ func TestCompareCustomSelectionsAndAutoTopPerFrame(t *testing.T) {
 		}
 	}
 
-	// Multi-selection + Remove + All 19 Frames links.
+	// Multi-selection + Remove + All 18 Frames links.
 	status, multi := loadCompareDoc(t, "/?frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&frame=binary-havok&size=L&fork=sklar_steel_485&sag=&post=setback_25")
 	if status != http.StatusOK {
 		t.Fatalf("multi status = %d, want 200", status)
@@ -352,14 +352,14 @@ func TestCompareCustomSelectionsAndAutoTopPerFrame(t *testing.T) {
 		t.Errorf("after remove 1: status %d, rows %d", rStatus, rDoc.Find(`table[data-table="fit"] tbody tr`).Length())
 	}
 	allHref, _ := multi.Find(`#preset-all-frames`).Attr("href")
-	if got := strings.TrimSpace(multi.Find("a#preset-all-frames").Text()); got != "All 19 Frames" {
-		t.Errorf("a#preset-all-frames text = %q, want %q", got, "All 19 Frames")
+	if got := strings.TrimSpace(multi.Find("a#preset-all-frames").Text()); got != "All 18 Frames" {
+		t.Errorf("a#preset-all-frames text = %q, want %q", got, "All 18 Frames")
 	}
 	if !strings.Contains(allHref, "post=setback_25") || strings.Contains(allHref, "frame=") || strings.Contains(allHref, "top_per_frame=") {
 		t.Errorf("all-frames href = %q", allHref)
 	}
 	aStatus, aDoc := loadCompareDoc(t, allHref)
-	if aStatus != http.StatusOK || aDoc.Find(`table[data-table="fit"] tbody tr`).Length() != 19 {
+	if aStatus != http.StatusOK || aDoc.Find(`table[data-table="fit"] tbody tr`).Length() != 18 {
 		t.Errorf("after all-frames: status %d, rows %d", aStatus, aDoc.Find(`table[data-table="fit"] tbody tr`).Length())
 	}
 	if val, _ := aDoc.Find(`#ctrl-post option[selected]`).Attr("value"); val != "setback_25" {

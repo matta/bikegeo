@@ -31,18 +31,18 @@ func mustSize(t *testing.T, f catalog.Frame, name string) catalog.FrameSize {
 	return s
 }
 
-// TestFramesRegistry checks the 19 frames, their order, and their size counts.
+// TestFramesRegistry checks the 18 frames, their order, and their size counts.
 func TestFramesRegistry(t *testing.T) {
 	want := map[string]int{
 		"binary-havok": 5, "binary-kinetik": 6, "esker-hayduke": 4, "fairlight-holt-2": 4,
-		"moots-mountaineer": 4, "otso-fenrir-stainless": 5, "revel-el-jefe": 4, "ritchey-ultra": 4,
+		"moots-mountaineer": 4, "otso-fenrir-stainless": 5, "revel-el-jefe": 4,
 		"salsa-cutthroat": 5, "salsa-fargo": 5, "seven-custom": 1, "seven-expedition-926d": 24,
 		"seven-expedition-926f": 24, "sklar-pbj": 5, "sour-pasta-party": 4, "surly-ecr": 3,
 		"surly-krampus": 4, "tumbleweed-sunliner": 4, "turner-venn-ti": 4,
 	}
 	frames := catalog.Frames()
-	if len(frames) != 19 {
-		t.Fatalf("got %d frames, want 19", len(frames))
+	if len(frames) != 18 {
+		t.Fatalf("got %d frames, want 18", len(frames))
 	}
 	total := 0
 	for i, f := range frames {
@@ -56,8 +56,8 @@ func TestFramesRegistry(t *testing.T) {
 		}
 		total += len(f.Sizes)
 	}
-	if total != 119 {
-		t.Errorf("got %d sizes, want 119", total)
+	if total != 115 {
+		t.Errorf("got %d sizes, want 115", total)
 	}
 	if _, ok := catalog.FrameByID("otso-fenrir-stainless"); !ok {
 		t.Error(`FrameByID("otso-fenrir-stainless") not found`)
@@ -285,8 +285,8 @@ func TestForkListsPlace(t *testing.T) {
 		}
 	}
 	t.Logf("%d fork-list placements, %d basis placements", placements, bases)
-	if placements != 2989 || bases != 119 {
-		t.Errorf("got %d fork-list and %d basis placements, want 2989 and 119", placements, bases)
+	if placements != 2889 || bases != 115 {
+		t.Errorf("got %d fork-list and %d basis placements, want 2889 and 115", placements, bases)
 	}
 }
 
@@ -360,7 +360,6 @@ func TestInstalledFrameUsesMaxChainstay(t *testing.T) {
 		{"esker-hayduke", "S4", 440, 454},
 		{"salsa-fargo", "L", 462, 462},
 		{"otso-fenrir-stainless", "L", 0, 0}, // Tuning Chip frame stays at chart chainstay (Q140)
-		{"ritchey-ultra", "L", 0, 0},         // fixed dropouts: the chart's own chainstay
 	} {
 		f := mustFrame(t, tc.frame)
 		s := mustSize(t, f, tc.size)

@@ -1,6 +1,15 @@
 # Slice 18b: Delete the Ritchey Ultra
 
-Status: Planned 2026-11-22
+Status: Implemented 2026-11-22; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** Sonnet 5.5, 2026-11-22.
+- **Commits:** `Delete the Ritchey Ultra` (see `git log` for the hash). Plan changes 1–7 are all in that one commit.
+- **Done and not done:** changes 1–7 done; Verification 1 and 2 done. Nothing left.
+- **Deviations:** None.
+- **Verification:** `make pre-commit` exits 0 on the final state. Live check on port 8081: `/` titled "Compare 18 Frames — bikegeo-reboot", "Showing 18 of 2889 configurations (2163861 builds evaluated)", 18 rows in each table, no Ritchey in the page text; `/bike` has 18 frame options and no Ritchey text; `/bike?frame=ritchey-ultra` returns 400 with the frame select `aria-invalid="true"`; `compare` CLI JSON gives RowCount 2889, Evaluated 2163861, 18 rows, and no `ritchey-ultra` row. No screenshot was taken.
+- **Open issues:** the `/bike?frame=ritchey-ultra` 400 page still contains the string "ritchey" somewhere in its body text, almost certainly the existing unknown-frame message echoing the rejected value. I didn't locate the exact element. Today's behavior, no change made.
 
 **Goal:** remove the `ritchey-ultra` frame from the catalog (Q125). Its catalog wheelbases aren't published values, and Ritchey's own chart is gone, so it can't be re-ingested. Slice 18a deleted the parity tests, so Q119 no longer requires every legacy frame to be in the catalog. The only user-visible change is that the frame disappears from `/`, `/bike`, and the CLI.
 

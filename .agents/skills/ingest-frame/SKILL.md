@@ -92,7 +92,7 @@ Use `evalBasis(f, cup, a2c, rake)` directly to check any specific `(cup, staticA
 Read the output this way:
 
 - **A stated basis that passes wins**, even if it isn't the minimax value. Record it as stated.
-- **With no stated basis**, use the minimax A2C rounded to 0.5 mm, and record it as inferred from the published stacks, with the implied range (as `frame_ritchey_ultra.go` does).
+- **With no stated basis**, use the minimax A2C rounded to 0.5 mm, and record it as inferred from the published stacks, with the implied range, in the frame's Go comment (for example, "the published stacks imply a 508.1–508.9 mm A2C in every size, so the basis fork is 508.5 mm").
 - **A spread of implied A2Cs wider than the axle-height budgets, or one size far from the rest,** points to a transcription error, a typo in the chart, or a cup the chart doesn't state. Investigate it; don't cover it with an allowance.
 - **A wheelbase check that fails at the published offset** but passes at another means the chart may be drawn for a different fork. Record what you found and ask Matt.
 - **Only if one size still fails** with the right basis does it get an allowance. Log that size's `m.Checks` (each check's `MismatchMm`, `Terms`, `BudgetMm`, and `ExcessMm`) from `measureChartConsistency` and size the allowance from `ExcessMm`, within rule 4.
