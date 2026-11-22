@@ -45,12 +45,12 @@ func makeForkOption(opt catalog.ForkOption) forkOption {
 	}
 }
 
-func makeBasisForkOption(frame catalog.Frame) forkOption {
-	return forkOption{
-		ID:   query.BasisForkID,
-		Name: basisForkName,
+func makeBasisForkOption(frame catalog.Frame, selected bool) selectOption {
+	return selectOption{
+		Value: query.BasisForkID,
 		Label: fmt.Sprintf("%s (%.0f mm A2C / %.0f mm rake, %.0f mm cup)",
 			basisForkName, frame.BasisFork.StaticA2cMm, frame.BasisFork.RakeMm, frame.BasisLowerCup.StackMm),
+		Selected: selected,
 	}
 }
 
@@ -193,28 +193,79 @@ func echoForm(q url.Values, base query.Bike, sel selectedIDs) bikeFormValues {
 	return form
 }
 
+func buildBikeFrameOptions(selectedID, invalidRaw string, invalid bool) []selectOption {
+	frames := catalog.Frames()
+	opts := make([]selectOption, 0, len(frames)+1)
+	if invalid && invalidRaw != "" {
+		opts = append(opts, selectOption{Value: invalidRaw, Label: "Invalid: " + invalidRaw, Selected: true, Invalid: true})
+	}
+	for _, f := range frames {
+		opts = append(opts, selectOption{
+			Value:    f.ID,
+			Label:    fmt.Sprintf("%s %s (%d)", f.Manufacturer, f.Model, f.Year),
+			Selected: !invalid && f.ID == selectedID,
+		})
+	}
+	return opts
+}
+
+func buildBikeSizeOptions(f catalog.Frame, selectedSize, invalidRaw string, invalid bool) []selectOption {
+	opts := make([]selectOption, 0, len(f.Sizes)+1)
+	if invalid && invalidRaw != "" {
+		opts = append(opts, selectOption{Value: invalidRaw, Label: "Invalid: " + invalidRaw, Selected: true, Invalid: true})
+	}
+	for _, sz := range f.Sizes {
+		opts = append(opts, selectOption{
+			Value:    sz.Name,
+			Label:    sz.Name,
+			Selected: !invalid && sz.Name == selectedSize,
+		})
+	}
+	return opts
+}
+
+func buildBikeModeOptions(allSelected bool, selectedLabel, allLabel, invalidRaw string, invalid bool) []selectOption {
+	opts := make([]selectOption, 0, 3)
+	if invalid && invalidRaw != "" {
+		opts = append(opts, selectOption{Value: invalidRaw, Label: "Invalid: " + invalidRaw, Selected: true, Invalid: true})
+	}
+	opts = append(opts,
+		selectOption{Value: query.BarOptionsSelected, Label: selectedLabel, Selected: !invalid && !allSelected},
+		selectOption{Value: query.BarOptionsAll, Label: allLabel, Selected: !invalid && allSelected},
+	)
+	return opts
+}
+
 // controlsView fills the parts of bikeView the controls form needs: the
 // selects, bounds, notes, and form values. It is shared by the build page and
 // the error pages.
-func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs) bikeView {
-	frames := catalog.Frames()
-	frameOptions := make([]frameSelectOption, len(frames))
-	for i, f := range frames {
-		frameOptions[i] = frameSelectOption{ID: f.ID, Label: fmt.Sprintf("%s %s (%d)", f.Manufacturer, f.Model, f.Year)}
-	}
-	sizes := make([]string, len(b.Frame.Sizes))
-	for i, sz := range b.Frame.Sizes {
-		sizes[i] = sz.Name
-	}
+func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs, invalidField, invalidRaw string) bikeView {
 	frameForkOptions := b.Frame.ForkOptions()
-	var listedForks, otherForks []forkOption
+	var forkLeading, listedForks, otherForks []selectOption
+	forkInvalid := invalidField == "fork" && invalidRaw != ""
+	if forkInvalid {
+		forkLeading = append(forkLeading, selectOption{Value: invalidRaw, Label: "Invalid: " + invalidRaw, Selected: true, Invalid: true})
+	}
 	for _, opt := range frameForkOptions {
+		fo := makeForkOption(opt)
+		so := selectOption{Value: fo.ID, Label: fo.Label, Selected: !forkInvalid && fo.ID == sel.Fork}
 		if b.Frame.IsListedFork(opt.Fork.ID) {
-			listedForks = append(listedForks, makeForkOption(opt))
+			listedForks = append(listedForks, so)
 		} else {
-			otherForks = append(otherForks, makeForkOption(opt))
+			otherForks = append(otherForks, so)
 		}
 	}
+	barInvalid := invalidField == "bar" && invalidRaw != ""
+	barSelected := sel.Bar
+	if barInvalid {
+		barSelected = invalidRaw
+	}
+	postInvalid := invalidField == "post" && invalidRaw != ""
+	postSelected := sel.Post
+	if postInvalid {
+		postSelected = invalidRaw
+	}
+	bars := catalog.Handlebars()
 	forkA2cRO, cupRO, sagRO, cupLabel := forkFieldViewState(b, sel.Fork, form.Sag)
 	minRail, maxRail := railOffsetRange(b.Setup.Saddle, b.Setup.Seatpost)
 	postBounds := postInsertionBounds(b.Setup.Frame, b.Setup.Seatpost.Spec)
@@ -234,19 +285,16 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs) bikeView {
 		PostSetbackMm:        b.Setup.Seatpost.Spec.SetbackMm,
 		PostClampLengthMm:    b.Setup.Seatpost.Spec.RailClampLengthMm,
 		BikeName:             fmt.Sprintf("%s %s (%d, Size %s)", b.Frame.Manufacturer, b.Frame.Model, b.Frame.Year, b.Size.Name),
-		Frames:               frameOptions,
-		SelectedFrameID:      sel.Frame,
-		Sizes:                sizes,
-		SelectedSize:         sel.Size,
-		ListedForks:          listedForks,
-		OtherForks:           otherForks,
-		ForkOptionCount:      len(b.ForkOptions()),
-		BasisForkOption:      makeBasisForkOption(b.Frame),
-		SelectedForkID:       sel.Fork,
-		Handlebars:           catalog.Handlebars(),
-		SelectedBarID:        sel.Bar,
-		Seatposts:            catalog.Seatposts(),
-		SelectedPostID:       sel.Post,
+		FrameOptions:         buildBikeFrameOptions(sel.Frame, invalidRaw, invalidField == "frame" && invalidRaw != ""),
+		SizeOptions:          buildBikeSizeOptions(b.Frame, sel.Size, invalidRaw, invalidField == "size" && invalidRaw != ""),
+		ForkLeading:          forkLeading,
+		ListedForkOptions:    listedForks,
+		OtherForkOptions:     otherForks,
+		BasisForkOptions:     []selectOption{makeBasisForkOption(b.Frame, !forkInvalid && sel.Fork == query.BasisForkID)},
+		BarSelectOptions:     buildBarSelectOptions(barSelected, barInvalid),
+		PostSelectOptions:    buildPostSelectOptions(postSelected, postInvalid),
+		BarOptionModes:       buildBikeModeOptions(form.BarOptions == query.BarOptionsAll, "Selected handlebar only", fmt.Sprintf("All %d handlebars", len(bars)), invalidRaw, invalidField == "bar_options" && invalidRaw != ""),
+		ForkOptionModes:      buildBikeModeOptions(form.ForkOptions == query.ForkOptionsAll, "Selected fork only", fmt.Sprintf("All %d fork setups", len(b.ForkOptions())), invalidRaw, invalidField == "fork_options" && invalidRaw != ""),
 		CupLabel:             cupLabel,
 		ForkA2cReadOnly:      forkA2cRO,
 		CupReadOnly:          cupRO,
@@ -442,7 +490,8 @@ func renderBikeError(w http.ResponseWriter, q url.Values, base query.Bike, inval
 	case "post":
 		sel.Post = ""
 	}
-	view := controlsView(base, echoForm(q, base, sel), sel)
+	view := controlsView(base, echoForm(q, base, sel), sel, invalid, strings.TrimSpace(q.Get(invalid)))
+	view.PageTitle = "Error — " + view.BikeName + " — bikegeo"
 	view.ErrorMessage = msg
 	view.InvalidField = invalid
 	view.DefaultsURL = query.DefaultBike().WithView(base.View).URL()
@@ -576,25 +625,30 @@ func makeBuildRankingView(parsed query.Bike, ranking query.BikeBuildRanking) (*b
 			applied.ForkOption = opt
 		}
 		forkName, travelMm := forkNameAndTravel(parsed, c.ForkID)
+		forkLabel := forkCellName(forkName, travelMm, c.Placement.Setup.Fork.SagPct)
 		tierClass, tierLabel := fitTierPresentation(c.Score.Tier)
+		gripMiss := c.GripMiss()
 		view.Rows = append(view.Rows, scoredBuildView{
-			Rank:         i + 1,
-			Tier:         c.Score.Tier,
-			TierClass:    tierClass,
-			TierLabel:    tierLabel,
-			BarName:      bar.Name,
-			ForkName:     forkCellName(forkName, travelMm, c.Placement.Setup.Fork.SagPct),
-			StemLengthMm: stem.LengthMm,
-			SpacersMm:    stem.SpacersMm,
-			StemAngleDeg: stem.AngleDeg,
-			GripMissMm:   c.GripMiss().Norm(),
-			GripR:        c.Score.GripR,
-			HasBrp:       c.Score.HasBrp,
-			BrpMissXMm:   cleanZero(c.Score.BrpMissXMm, 0.05),
-			BrpMissYMm:   cleanZero(c.Score.BrpMissYMm, 0.05),
-			Score:        c.Score.Total,
-			Attributes:   c.Score.Attributes,
-			ApplyURL:     applied.URL(),
+			Rank:           i + 1,
+			Tier:           c.Score.Tier,
+			TierClass:      tierClass,
+			TierLabel:      tierLabel,
+			BarName:        bar.Name,
+			ForkName:       forkLabel,
+			StemLengthMm:   stem.LengthMm,
+			SpacersMm:      stem.SpacersMm,
+			StemAngleDeg:   stem.AngleDeg,
+			GripMissMm:     gripMiss.Norm(),
+			GripMissXMm:    cleanZero(gripMiss.X, 0.05),
+			GripMissYMm:    cleanZero(gripMiss.Y, 0.05),
+			GripR:          c.Score.GripR,
+			HasBrp:         c.Score.HasBrp,
+			BrpMissXMm:     cleanZero(c.Score.BrpMissXMm, 0.05),
+			BrpMissYMm:     cleanZero(c.Score.BrpMissYMm, 0.05),
+			Score:          c.Score.Total,
+			Attributes:     c.Score.Attributes,
+			ApplyURL:       applied.URL(),
+			ApplyAriaLabel: fmt.Sprintf("Apply rank %d build: %.0f mm %+.0f° stem, %.0f mm spacers, %s, %s", i+1, stem.LengthMm, cleanZero(float64(stem.AngleDeg), 0.5), stem.SpacersMm, bar.Name, forkLabel),
 		})
 	}
 	return view, nil

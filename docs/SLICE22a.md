@@ -1,8 +1,16 @@
 # Slice 22a: `/bike` UI Redesign — Engineering Workbench
 
-Status: Planned 2026-11-22
+Status: Implemented 2026-11-22; awaiting Matt's acceptance
 Implementer: Medium (mid-tier) — single-route HTML/CSS workbench redesign and view-model cleanup in `internal/web` mirroring Slice 21 (`compare.html`), plus browserless `goquery` test updates and live visual verification.
 Review: optional — `/bike` UI, template, and view-model refactor only; zero geometry, SVG-placement, scoring, query-parsing, or package-boundary changes, covered by `web_test.go` and live visual verification.
+
+## Implementation handoff
+
+- **Who & when:** Gemini 4 Hydrogen (High), 2026-11-22.
+- **Commits:** Single implementation commit (this commit).
+- **Deviations:** None.
+- **Verification:** `make pre-commit` passed after final edit; live browser verification across `1440×900` (single-line 32 px `Frameset` strip, 3-column parameter band, 2-column diagram + structured geometry hero above the fold, expanded `<details>` drawers), `1280×800`, and `390×844` (zero horizontal page overflow, independently scrollable `.table-scroll` tables), plus `view=seat`/`view=stem` switching and `400` error recovery (`?frame=nope`).
+- **Open issues:** None.
 
 ## Goal
 

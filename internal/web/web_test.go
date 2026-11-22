@@ -1869,7 +1869,7 @@ func TestBikeWorkbenchNonFiniteTargetStillErrors(t *testing.T) {
 
 func TestBikeWorkbenchTargetExampleIsInNote(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike")
-	notes := doc.Find(".fit-note").Text()
+	notes := doc.Find(`[data-notes-drawer] [data-note="targets-help"]`).Text()
 	for _, want := range []string{"-219.0, 713.1", "481.0, 726.0"} {
 		if !strings.Contains(notes, want) {
 			t.Errorf("notes %q missing example %q", notes, want)
@@ -2043,8 +2043,8 @@ func buildCell(row *goquery.Selection, name string) string {
 	return strings.TrimSpace(row.Find(`[data-build-cell="` + name + `"]`).Text())
 }
 
-func buildAttr(row *goquery.Selection, attr string) string {
-	return strings.TrimSpace(row.Find(`[data-build-attr="` + attr + `"]`).Text())
+func buildAttr(doc *goquery.Document, rank int, attr string) string {
+	return strings.TrimSpace(doc.Find(fmt.Sprintf(`tr[data-build-breakdown-rank="%d"] [data-build-attr="%s"]`, rank, attr)).Text())
 }
 
 func TestBikeWorkbenchBuildRankingRequiresGrip(t *testing.T) {
@@ -2072,7 +2072,7 @@ func TestBikeWorkbenchRanksBuilds(t *testing.T) {
 		t.Errorf("tier legend items = %d, want 4", n)
 	}
 	for name, want := range map[string]string{
-		"tier": "Fits neither", "score": "57.1", "stem": "120 mm, -30°", "spacers": "0 mm", "grip-miss": "31.7 mm",
+		"tier": "Fits neither", "score": "57.1", "stem": "120 mm, -30°", "spacers": "0 mm", "grip-miss": "(+23.3, +21.6) mm · 31.7 mm",
 		"oval-r": "1.78", "fork": "Lithic Carbon Mountain (495/44)", "brp-miss": "—",
 	} {
 		if got := buildCell(rows.First(), name); got != want {
@@ -2084,13 +2084,34 @@ func TestBikeWorkbenchRanksBuilds(t *testing.T) {
 			t.Errorf("row %d score = %q, want %q", i+1, got, want)
 		}
 	}
-	attrs := rows.First().Find("[data-build-attr]")
 	headers := doc.Find("table.build-table thead th")
-	if attrs.Length() != 12 || headers.Length() != 23 {
-		t.Fatalf("build attribute cells = %d, headers = %d; want 12 and 23", attrs.Length(), headers.Length())
+	if headers.Length() != 11 {
+		t.Fatalf("build table headers = %d, want 11", headers.Length())
+	}
+	if got := headers.Eq(1).Text(); got != "Action" {
+		t.Errorf("header 2 = %q, want Action", got)
+	}
+	if got := headers.Eq(2).Text(); got != "Tier" {
+		t.Errorf("header 3 = %q, want Tier", got)
+	}
+	if got := headers.Eq(3).Text(); got != "Score" {
+		t.Errorf("header 4 = %q, want Score", got)
+	}
+	if rows.First().Find("[data-build-attr]").Length() != 0 {
+		t.Errorf("primary build table should not inline [data-build-attr] cells")
+	}
+
+	breakdownRows := doc.Find(`tr[data-build-breakdown-rank]`)
+	if breakdownRows.Length() != 5 {
+		t.Fatalf("breakdown rows = %d, want 5", breakdownRows.Length())
+	}
+	attrs := doc.Find(`tr[data-build-breakdown-rank="1"] [data-build-attr]`)
+	breakdownHeaders := doc.Find("table.build-breakdown-table thead th")
+	if attrs.Length() != 12 || breakdownHeaders.Length() != 17 {
+		t.Fatalf("build attribute cells = %d, breakdown headers = %d; want 12 and 17", attrs.Length(), breakdownHeaders.Length())
 	}
 	for i, want := range []string{"Grip (6)", "BRP Y (6)", "BRP X (4)", "Stem (5)", "Sweep (3)", "Sag (3)", "Spacers (2)", "Rail (2)", "RC/WB (2)", "Post (1)", "BB drop (1)", "Trail (1)"} {
-		if got := headers.Eq(11 + i).Text(); got != want {
+		if got := breakdownHeaders.Eq(5 + i).Text(); got != want {
 			t.Errorf("attribute header %d = %q, want %q", i, got, want)
 		}
 	}
@@ -2098,12 +2119,6 @@ func TestBikeWorkbenchRanksBuilds(t *testing.T) {
 		if got := strings.TrimSpace(attrs.Eq(i).Text()); got != want {
 			t.Errorf("row 1 attribute %d = %q, want %q", i, got, want)
 		}
-	}
-	if got := headers.Eq(2).Text(); got != "Tier" {
-		t.Errorf("header 3 = %q, want Tier", got)
-	}
-	if got := headers.Eq(3).Text(); got != "Score" {
-		t.Errorf("header 4 = %q, want Score", got)
 	}
 	firstCells := rows.First().Children()
 	if firstCells.Eq(1).Find("a[data-build-apply]").Length() != 1 {
@@ -2308,9 +2323,9 @@ func TestBikeWorkbenchBuildSweepColumn(t *testing.T) {
 			if rows.Length() != 5 {
 				t.Fatalf("build rows = %d, want 5", rows.Length())
 			}
-			checked := rows
+			checked := doc.Find("tr[data-build-breakdown-rank]")
 			if tc.query == "bar_options=all" {
-				checked = rows.First() // later rows may install other bars
+				checked = checked.First() // later rows may install other bars
 			}
 			checked.Each(func(i int, row *goquery.Selection) {
 				cells := row.Find(`[data-build-attr="Handlebar sweep"]`)
@@ -2543,8 +2558,9 @@ func TestBikeWorkbenchPresetAndViewLinksKeepHandlebar(t *testing.T) {
 		t.Errorf("Chart Basis Fork bar on error page = %q, want %q", got, bar)
 	}
 	badBarDoc := loadBikeDocStatus(t, "/bike?bar=unknown", http.StatusBadRequest)
-	if got := badBarDoc.Find(`select[name="bar"] option[selected]`).Length(); got != 0 {
-		t.Errorf("unknown bar yielded %d selected options, want 0", got)
+	selBar := badBarDoc.Find(`select[name="bar"] option[selected]`)
+	if selBar.Length() != 1 || strings.TrimSpace(selBar.Text()) != "Invalid: unknown" {
+		t.Errorf("unknown bar selected = %d %q, want 1 'Invalid: unknown'", selBar.Length(), selBar.Text())
 	}
 }
 
@@ -2864,7 +2880,7 @@ func TestBikeWorkbenchForkOptionsDefaultKeepsSubmittedFork(t *testing.T) {
 				if got := buildCell(row, "fork"); got != first || (tc.fork != "" && got != tc.fork) {
 					t.Errorf("row %d fork = %q, want %q", i+1, got, first)
 				}
-				if got := buildAttr(row, "Fork sag"); got != tc.sagScore {
+				if got := buildAttr(doc, i+1, "Fork sag"); got != tc.sagScore {
 					t.Errorf("row %d sag score = %q, want %q", i+1, got, tc.sagScore)
 				}
 				q := hrefQuery(t, doc, fmt.Sprintf(`tr[data-build-rank="%d"] a[data-build-apply]`, i+1))
@@ -2910,7 +2926,7 @@ func assertForkOptionRows(t *testing.T, doc *goquery.Document, cells []string, a
 			}
 		}
 		if attr != "" {
-			if got := buildAttr(row, attr); got != values[len(cells)] {
+			if got := buildAttr(doc, i+1, attr); got != values[len(cells)] {
 				t.Errorf("row %d %s score = %q, want %q", i+1, attr, got, values[len(cells)])
 			}
 		}
@@ -3297,7 +3313,7 @@ func TestBikeWorkbenchBuildTiersAndLegend(t *testing.T) {
 			t.Errorf("row 1 %s = %q, want %q", name, got, want)
 		}
 	}
-	if got := buildAttr(row, "Saddle rail offset"); got != "61.2" {
+	if got := buildAttr(doc, 1, "Saddle rail offset"); got != "61.2" {
 		t.Errorf("row 1 rail score = %q, want 61.2", got)
 	}
 
@@ -3313,13 +3329,14 @@ func TestBikeWorkbenchBuildTiersAndLegend(t *testing.T) {
 			t.Errorf("all-bars row 1 %s = %q, want %q", name, got, want)
 		}
 	}
-	if got := buildAttr(row, "Saddle rail offset"); got != "61.2" {
+	if got := buildAttr(doc, 1, "Saddle rail offset"); got != "61.2" {
 		t.Errorf("all-bars row 1 rail score = %q, want 61.2", got)
 	}
-	if n := row.Find("[data-build-attr]").Length(); n != 12 {
+	bdRow := doc.Find(`tr[data-build-breakdown-rank="1"]`)
+	if n := bdRow.Find("[data-build-attr]").Length(); n != 12 {
 		t.Errorf("attribute cells = %d, want 12", n)
 	}
-	row.Find("[data-build-attr]").Each(func(i int, cell *goquery.Selection) {
+	bdRow.Find("[data-build-attr]").Each(func(i int, cell *goquery.Selection) {
 		if strings.TrimSpace(cell.Text()) == "—" {
 			t.Errorf("attribute cell %d is blank with a BRP target", i)
 		}
@@ -3479,18 +3496,23 @@ func TestBikeMultiFrameSelectAndSwitching(t *testing.T) {
 		if got, _ := frameDoc.Find(`select[name="frame"]`).Attr("aria-invalid"); got != "true" {
 			t.Errorf("frame aria-invalid = %q, want true", got)
 		}
-		if n := frameDoc.Find(`select[name="frame"] option[selected]`).Length(); n != 0 {
-			t.Errorf("unknown frame has %d selected options, want 0", n)
+		selFrame := frameDoc.Find(`select[name="frame"] option[selected]`)
+		if selFrame.Length() != 1 || strings.TrimSpace(selFrame.Text()) != "Invalid: nope" {
+			t.Errorf("unknown frame selected = %d %q, want 1 'Invalid: nope'", selFrame.Length(), selFrame.Text())
 		}
-		if got := frameDoc.Find(`select[name="frame"] option`).Length(); got != 18 {
-			t.Errorf("error page frame options = %d, want 18", got)
+		if got := frameDoc.Find(`select[name="frame"] option`).Length(); got != 19 {
+			t.Errorf("error page frame options = %d, want 19", got)
 		}
 		sizeDoc := loadBikeDocStatus(t, "/bike?size=XXL", http.StatusBadRequest)
 		if got, _ := sizeDoc.Find(`select[name="size"]`).Attr("aria-invalid"); got != "true" {
 			t.Errorf("size aria-invalid = %q, want true", got)
 		}
-		if got := sizeDoc.Find(`select[name="size"] option`).Length(); got != len(fenrir.Sizes) {
-			t.Errorf("error page size options = %d, want the default frame's %d", got, len(fenrir.Sizes))
+		selSize := sizeDoc.Find(`select[name="size"] option[selected]`)
+		if selSize.Length() != 1 || strings.TrimSpace(selSize.Text()) != "Invalid: XXL" {
+			t.Errorf("unknown size selected = %d %q, want 1 'Invalid: XXL'", selSize.Length(), selSize.Text())
+		}
+		if got := sizeDoc.Find(`select[name="size"] option`).Length(); got != len(fenrir.Sizes)+1 {
+			t.Errorf("error page size options = %d, want %d", got, len(fenrir.Sizes)+1)
 		}
 	})
 }
@@ -3826,5 +3848,187 @@ func TestCompareForkSelectGroupsListedAndOtherForks(t *testing.T) {
 	}
 	if got := optgroupLabels(sel); !slices.Equal(got, []string{"Listed Forks", "Other Compatible Forks"}) {
 		t.Errorf("invalid optgroups = %v", got)
+	}
+}
+
+func TestBikeWorkbenchLayoutAndDisclosures(t *testing.T) {
+	doc := loadBikeDoc(t, "/bike")
+	if got := strings.TrimSpace(doc.Find("title").Text()); got != "Otso Fenrir Stainless (2024, Size L) — bikegeo" {
+		t.Errorf("title = %q, want Otso Fenrir Stainless (2024, Size L) — bikegeo", got)
+	}
+	if n := doc.Find(".diagram-panel nav.diagram-views").Length(); n != 1 {
+		t.Errorf("got %d .diagram-panel nav.diagram-views, want 1", n)
+	}
+	if n := doc.Find("form.controls nav.diagram-views").Length(); n != 0 {
+		t.Errorf("got %d nav.diagram-views inside form.controls, want 0", n)
+	}
+
+	notesDrawer := doc.Find("[data-notes-drawer]")
+	if notesDrawer.Length() != 1 {
+		t.Fatalf("got %d [data-notes-drawer], want 1", notesDrawer.Length())
+	}
+	if _, open := notesDrawer.Attr("open"); open {
+		t.Error("[data-notes-drawer] should be closed by default")
+	}
+	if sum := strings.TrimSpace(notesDrawer.Find("summary").Text()); !strings.Contains(sum, "Build & model notes") || !strings.Contains(sum, "(Redshift caveat)") {
+		t.Errorf("notes drawer summary = %q, want Build & model notes + (Redshift caveat)", sum)
+	}
+	if n := notesDrawer.Find(`[data-note="redshift-mixed-state"]`).Length(); n != 1 {
+		t.Errorf("got %d redshift-mixed-state notes, want 1", n)
+	}
+	if n := notesDrawer.Find(`[data-note="post-setback"]`).Length(); n != 1 {
+		t.Errorf("got %d post-setback notes, want 1", n)
+	}
+
+	for _, sel := range []string{"[data-submitted-breakdown]", "[data-tier-definitions]", "[data-build-breakdown]"} {
+		el := doc.Find(sel)
+		if el.Length() != 1 {
+			t.Fatalf("got %d %s, want 1", el.Length(), sel)
+		}
+		if _, open := el.Attr("open"); open {
+			t.Errorf("%s should be closed by default", sel)
+		}
+	}
+
+	nonRedshift := loadBikeDoc(t, "/bike?post=setback_0")
+	if sum := nonRedshift.Find("[data-notes-drawer] summary").Text(); strings.Contains(sum, "Redshift caveat") {
+		t.Errorf("setback_0 notes drawer summary = %q, must omit Redshift caveat", sum)
+	}
+	if n := nonRedshift.Find(`[data-note="redshift-mixed-state"]`).Length(); n != 0 {
+		t.Errorf("setback_0 got %d redshift-mixed-state notes, want 0", n)
+	}
+
+	offCatalog := loadBikeDoc(t, "/bike?stem_length=65&stem_angle=-6")
+	if n := offCatalog.Find(`[data-note="off-catalog-stem"]`).Length(); n != 1 {
+		t.Errorf("off-catalog stem got %d notes, want 1", n)
+	}
+	if n := offCatalog.Find(`[data-submitted-breakdown]`).Length(); n != 0 {
+		t.Errorf("off-catalog stem got %d [data-submitted-breakdown], want 0", n)
+	}
+}
+
+func TestBikeWorkbenchErrorInvalidSelectOptions(t *testing.T) {
+	for _, key := range []string{"frame", "size", "fork", "bar", "post", "bar_options", "fork_options"} {
+		t.Run(key, func(t *testing.T) {
+			doc := loadBikeDocStatus(t, "/bike?"+key+"=nope", http.StatusBadRequest)
+			if got := strings.TrimSpace(doc.Find("title").Text()); !strings.HasPrefix(got, "Error — ") {
+				t.Errorf("400 title = %q, want Error — prefix", got)
+			}
+			if doc.Find(`#form-error[role="alert"]`).Length() != 1 {
+				t.Fatalf("missing #form-error[role=alert]")
+			}
+			if doc.Find(`#form-error [data-preset="error-reset"]`).Length() != 1 {
+				t.Errorf("missing error-reset link in #form-error")
+			}
+			sel := doc.Find(fmt.Sprintf(`select[name=%q]`, key))
+			if inv, _ := sel.Attr("aria-invalid"); inv != "true" {
+				t.Errorf("select[name=%q] aria-invalid = %q, want true", key, inv)
+			}
+			selected := sel.Find("option[selected]")
+			if selected.Length() != 1 {
+				t.Fatalf("select[name=%q] selected options = %d, want 1", key, selected.Length())
+			}
+			if val, _ := selected.Attr("value"); val != "nope" {
+				t.Errorf("selected value = %q, want nope", val)
+			}
+			if got := strings.TrimSpace(selected.Text()); got != "Invalid: nope" {
+				t.Errorf("selected text = %q, want 'Invalid: nope'", got)
+			}
+			firstOpt := sel.Find("option").First()
+			if val, _ := firstOpt.Attr("value"); val != "nope" {
+				t.Errorf("first option value = %q, want nope", val)
+			}
+		})
+	}
+}
+
+func TestBikeHTMLAccessibilityAndNoJS(t *testing.T) {
+	for _, tc := range []struct {
+		rawPath    string
+		wantStatus int
+	}{
+		{"/bike", http.StatusOK},
+		{"/bike?view=seat", http.StatusOK},
+		{"/bike?brp=off&grip=off", http.StatusOK},
+		{"/bike?frame=nope", http.StatusBadRequest},
+		{"/bike?spacers=-1", http.StatusBadRequest},
+	} {
+		t.Run(tc.rawPath, func(t *testing.T) {
+			doc := loadBikeDocStatus(t, tc.rawPath, tc.wantStatus)
+			if n := doc.Find("script").Length(); n != 0 {
+				t.Errorf("found %d <script> tags, want 0", n)
+			}
+			doc.Find("[style]").Each(func(i int, el *goquery.Selection) {
+				if !el.Is("svg.diagram") {
+					t.Errorf("non-diagram element %d has inline style attribute", i)
+				}
+			})
+			for _, attr := range []string{"onclick", "onchange", "onsubmit"} {
+				if n := doc.Find(fmt.Sprintf("[%s]", attr)).Length(); n != 0 {
+					t.Errorf("found %d [%s] attributes, want 0", n, attr)
+				}
+			}
+			doc.Find("form.controls fieldset").Each(func(i int, fs *goquery.Selection) {
+				leg := fs.ChildrenFiltered("legend")
+				if leg.Length() != 1 || strings.TrimSpace(leg.Text()) == "" {
+					t.Errorf("fieldset %d missing non-empty direct <legend>", i)
+				}
+			})
+			doc.Find("[aria-describedby]").Each(func(i int, el *goquery.Selection) {
+				rawIDs, _ := el.Attr("aria-describedby")
+				for id := range strings.FieldsSeq(rawIDs) {
+					if doc.Find("#"+id).Length() == 0 {
+						t.Errorf("element %d references missing aria-describedby #%s", i, id)
+					}
+				}
+			})
+			doc.Find("table.data-table").Each(func(i int, tbl *goquery.Selection) {
+				capSel := tbl.Find("caption")
+				if capSel.Length() != 1 || strings.TrimSpace(capSel.Text()) == "" {
+					t.Errorf("table %d missing non-empty <caption>", i)
+				}
+				tbl.Find("thead th").Each(func(j int, th *goquery.Selection) {
+					if scope, _ := th.Attr("scope"); scope != "col" {
+						t.Errorf("table %d th %d scope = %q, want col", i, j, scope)
+					}
+					if strings.TrimSpace(th.Text()) == "" {
+						t.Errorf("table %d th %d is empty", i, j)
+					}
+				})
+			})
+			doc.Find(".table-scroll").Each(func(i int, sc *goquery.Selection) {
+				if ti, _ := sc.Attr("tabindex"); ti != "0" {
+					t.Errorf(".table-scroll %d tabindex = %q, want 0", i, ti)
+				}
+				if role, _ := sc.Attr("role"); role != "region" {
+					t.Errorf(".table-scroll %d role = %q, want region", i, role)
+				}
+				lb, _ := sc.Attr("aria-labelledby")
+				lbl, _ := sc.Attr("aria-label")
+				if strings.TrimSpace(lb) == "" && strings.TrimSpace(lbl) == "" {
+					t.Errorf(".table-scroll %d missing aria-labelledby or aria-label", i)
+				}
+				for id := range strings.FieldsSeq(lb) {
+					if doc.Find("#"+id).Length() == 0 {
+						t.Errorf(".table-scroll %d references missing aria-labelledby #%s", i, id)
+					}
+				}
+			})
+			if n := doc.Find("details summary").Find("h1, h2, h3, h4, h5, h6").Length(); n != 0 {
+				t.Errorf("found %d heading(s) inside details summary, want 0", n)
+			}
+			seenLabels := make(map[string]bool)
+			doc.Find("a[data-build-apply]").Each(func(i int, a *goquery.Selection) {
+				lbl, _ := a.Attr("aria-label")
+				lbl = strings.TrimSpace(lbl)
+				if lbl == "" || !strings.Contains(lbl, "Apply") {
+					t.Errorf("apply link %d aria-label = %q, want non-empty containing 'Apply'", i, lbl)
+				}
+				if seenLabels[lbl] {
+					t.Errorf("duplicate apply link aria-label %q", lbl)
+				}
+				seenLabels[lbl] = true
+			})
+		})
 	}
 }

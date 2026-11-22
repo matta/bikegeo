@@ -253,9 +253,9 @@ func (v diagramView) LinkText() string {
 	case diagramViewBike:
 		return "Whole bike"
 	case diagramViewSeat:
-		return "Seat"
+		return "Seatpost & saddle"
 	case diagramViewStem:
-		return "Stem"
+		return "Stem & bar"
 	default:
 		return string(v)
 	}
@@ -276,6 +276,7 @@ func (v diagramView) Description() string {
 }
 
 type bikeView struct {
+	PageTitle              string
 	HasBuild               bool
 	ErrorMessage           string
 	InvalidField           string
@@ -291,10 +292,8 @@ type bikeView struct {
 	PostTotalLengthMm      float64
 	PostExposedMm          float64
 	BikeName               string
-	Frames                 []frameSelectOption
-	SelectedFrameID        string
-	Sizes                  []string
-	SelectedSize           string
+	FrameOptions           []selectOption
+	SizeOptions            []selectOption
 	ClearTargetsURL        string
 	SlidingDropoutsNote    string
 	RedshiftMixedStateNote string
@@ -303,15 +302,14 @@ type bikeView struct {
 	EttMm                  float64
 	SaddleName             string
 	HandlebarName          string
-	ListedForks            []forkOption
-	OtherForks             []forkOption
-	ForkOptionCount        int
-	BasisForkOption        forkOption
-	SelectedForkID         string
-	Handlebars             []catalog.Handlebar
-	SelectedBarID          string
-	Seatposts              []catalog.Seatpost
-	SelectedPostID         string
+	ForkLeading            []selectOption
+	ListedForkOptions      []selectOption
+	OtherForkOptions       []selectOption
+	BasisForkOptions       []selectOption
+	BarSelectOptions       []selectOption
+	PostSelectOptions      []selectOption
+	BarOptionModes         []selectOption
+	ForkOptionModes        []selectOption
 	PostSetbackMm          float64
 	PostClampLengthMm      float64
 	CupLabel               string
@@ -424,10 +422,14 @@ type scoredBuildView struct {
 	BrpMissYMm              float64
 	StemLengthMm, SpacersMm float64
 	StemAngleDeg            pose.Deg
-	GripMissMm, GripR       float64
+	GripMissMm              float64
+	GripMissXMm             float64
+	GripMissYMm             float64
+	GripR                   float64
 	Score                   float64
 	Attributes              []assembly.AttributeScore
 	ApplyURL                string // the candidate build, with the submitted targets kept
+	ApplyAriaLabel          string
 }
 
 // postSetbackView is one setback note (Q29): the setback and extension
@@ -847,7 +849,8 @@ func buildBikeView(
 
 	v := controlsView(parsed, formFromBike(parsed), selectedIDs{
 		Frame: parsed.Frame.ID, Size: parsed.Size.Name, Fork: parsed.ForkID, Bar: parsed.Bar.ID, Post: parsed.Post.ID,
-	})
+	}, "", "")
+	v.PageTitle = v.BikeName + " — bikegeo"
 	viewLinks := make([]diagramViewLink, 0, len(diagramViews))
 	for _, dv := range diagramViews {
 		viewLinks = append(viewLinks, diagramViewLink{View: dv, URL: parsed.WithView(string(dv)).URL(), Current: dv == view})
