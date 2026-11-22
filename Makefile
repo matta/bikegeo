@@ -1,8 +1,8 @@
-.PHONY: all fix fmt vet boundary exhaustive deadcode test check pre-commit build build-reboot run serve serve-reboot watch watch-serve clean
+.PHONY: all fix fmt vet boundary exhaustive deadcode test check pre-commit build-reboot serve-reboot watch clean
 
 export PATH := $(HOME)/go/bin:$(PATH)
 
-all: check build
+all: check build-reboot
 
 fix:
 	go fix ./...
@@ -14,8 +14,7 @@ vet:
 	go fmt ./...
 	go vet ./...
 
-# Enforce strict import isolation between the legacy tree and internal/reboot/.
-# No reboot file may import a legacy package.
+# Enforce the reboot's zero-dependency rule, import isolation, and banned words.
 boundary:
 	@bad="$$({ \
 	  find cmd/bikegeo-reboot -type f -name '*.go' -exec grep -HnE '"bikegeo/' {} +; \
@@ -26,24 +25,11 @@ boundary:
 	  echo "boundary: reboot files must not import legacy bikegeo packages"; \
 	  exit 1; \
 	fi
-	@bad="$$(find cmd/bikegeo internal -path internal/reboot -prune -o -type f -name '*.go' \
-	  -exec grep -HnE '"bikegeo/(internal/reboot|cmd/bikegeo-reboot)(/|")' {} + || true)"; \
-	if [ -n "$$bad" ]; then \
-	  echo "$$bad"; \
-	  echo "boundary: legacy packages must not import reboot packages"; \
-	  exit 1; \
-	fi
 	@bad="$$(go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo-reboot \
 	  | grep -vE '^bikegeo/(cmd/bikegeo-reboot|internal/reboot)(/|$$)' || true)"; \
 	if [ -n "$$bad" ]; then \
 	  echo "$$bad"; \
 	  echo "boundary: cmd/bikegeo-reboot must not depend on legacy or third-party packages"; \
-	  exit 1; \
-	fi
-	@bad="$$(go list -deps ./cmd/bikegeo | grep -E '^bikegeo/(cmd/bikegeo-reboot|internal/reboot)(/|$$)' || true)"; \
-	if [ -n "$$bad" ]; then \
-	  echo "$$bad"; \
-	  echo "boundary: cmd/bikegeo must not depend on reboot packages"; \
 	  exit 1; \
 	fi
 	@bad="$$({ \
@@ -103,23 +89,11 @@ pre-commit: fix check
 watch:
 	watchexec -c -f '*.go' -f 'go.*' -f '*.json' -f '*.s' -f '*.[ch]' "go vet ./... && go test ./..."
 
-build:
-	go build -o bin/bikegeo ./cmd/bikegeo
-
 build-reboot:
 	go build -o bin/bikegeo-reboot ./cmd/bikegeo-reboot
 
-run: build
-	./bin/bikegeo compare
-
-serve: build
-	./bin/bikegeo serve --open
-
 serve-reboot: build-reboot
 	./bin/bikegeo-reboot serve --port 8081 --open
-
-watch-serve:
-	watchexec -r -e go,html,css -- go run ./cmd/bikegeo serve
 
 clean:
 	rm -rf bin/

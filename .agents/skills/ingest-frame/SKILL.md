@@ -5,7 +5,7 @@ description: Ingest a new bike frame or geometry chart into the reboot catalog (
 
 # Frame ingestion
 
-New frames go into `internal/reboot/catalog` only. Legacy `internal/frames` is frozen and `bikegeo fit`/`validate` are not used (DESIGN.md Q114, Q119). Every question a chart raises is answered with a temporary Go test, following AGENTS.md "One-off investigations".
+New frames go into `internal/reboot/catalog` only. The legacy app is gone; its history lives at tag `legacy-final` (DESIGN.md Q114, Q119). Every question a chart raises is answered with a temporary Go test, following AGENTS.md "One-off investigations".
 
 ## Rules
 
@@ -111,7 +111,6 @@ The `/` page's labels count the catalog on their own (Q124). Don't edit DESIGN.m
 
 ### 6. Verify
 
-- `go test ./internal/reboot/catalog` passes, including `TestEveryChartIsConsistent` and `TestFrameStructure`. The legacy parity test skips the new frame (Q119).
-- `make pre-commit` passes.
+- `go test ./internal/reboot/catalog` passes, including `TestEveryChartIsConsistent` and `TestFrameStructure`.- `make pre-commit` passes.
 - The record's Catalog values table matches the Go file, value for value and label for label.
 - In the `reboot` preview, `/bike?frame=<id>` and `/bike?frame=<id>&fork=basis` render, and the Chart Basis Fork readout's wheelbase is close to the published one. The new frame appears on `/`.
