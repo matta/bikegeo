@@ -12,6 +12,8 @@ const sevenCollarOffsetMm = 35.0 // illustrative C-C → C-T until Seven confirm
 // EC44 basis cup. Stack, reach, and wheelbase come from the 1:5 design drawing.
 // Seven publishes C-C seat tubes, converted with the illustrative
 // sevenCollarOffsetMm (Q75d).
+//
+// Legacy notes: legacy_frame_notes.md, section seven-custom (Q145).
 func sevenCustom() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)

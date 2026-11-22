@@ -12,6 +12,7 @@ import "bikegeo/internal/reboot/assembly"
 // physical forks install in the typical 12 mm EC44 cup (Q136).
 //
 // Source record: frame_otso_fenrir_stainless.md.
+// Legacy notes: legacy_frame_notes.md, section otso-fenrir-stainless (Q145).
 func otsoFenrirStainless() Frame {
 	family := frameFamily{
 		// published standard S1 (ZS44/28.6 upper, EC44/40.0 lower); stack is Cane Creek 40 typical EC44 (illustrative, Q136)

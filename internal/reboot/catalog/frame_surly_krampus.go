@@ -6,6 +6,8 @@ import "bikegeo/internal/reboot/assembly"
 //
 // The frame is a chromoly 29+ trail hardtail designed around the 483 mm Krampus
 // fork (47 mm offset) with a 12 mm EC44 basis cup.
+//
+// Legacy notes: legacy_frame_notes.md, section surly-krampus (Q145).
 func surlyKrampus() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)

@@ -7,6 +7,8 @@ import "bikegeo/internal/reboot/assembly"
 // The frame is a titanium YBB micro-suspension trail frame. Its basis fork is a
 // 120 mm fork at 20% sag (507 mm effective) with a 12 mm EC44 basis cup. Moots
 // publishes no wheelbase (Q57).
+//
+// Legacy notes: legacy_frame_notes.md, section moots-mountaineer (Q145).
 func mootsMountaineer() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)

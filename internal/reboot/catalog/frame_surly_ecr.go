@@ -7,6 +7,8 @@ import "bikegeo/internal/reboot/assembly"
 // The frame is a chromoly 29+ rigid adventure bike designed around the 468 mm
 // ECR fork (43 mm offset), with a traditional 34 mm head tube (12 mm EC34 basis
 // cup). Only straight-steerer forks fit.
+//
+// Legacy notes: legacy_frame_notes.md, section surly-ecr (Q145).
 func surlyEcr() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC34; stack is legacy CupStackMm (illustrative)

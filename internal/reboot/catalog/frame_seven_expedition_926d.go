@@ -8,6 +8,9 @@ import "bikegeo/internal/reboot/assembly"
 // Endurance ('E') fits of 12 sizes each. Its basis fork is the 472 mm ENVE
 // Mountain at 55 mm rake with a 10 mm EC44 basis cup. Seven publishes no
 // wheelbase (Q57) and C-C seat tubes (Q75d).
+//
+// Legacy notes: legacy_frame_notes.md, section seven-expedition-926d, and the
+// basis-fork analysis legacy_seven_expedition_926d.md (Q145).
 func sevenExpedition926d() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)

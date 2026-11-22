@@ -7,6 +7,8 @@ import "bikegeo/internal/reboot/assembly"
 // The frame is a Reynolds 853 steel XC/downcountry hardtail. Its basis fork is a
 // 120 mm fork at 20% sag (507 mm effective) with a 12 mm EC44 basis cup. The seat
 // tube is bent; only the published effective STA is modeled (Q75f).
+//
+// Legacy notes: legacy_frame_notes.md, section fairlight-holt-2 (Q145).
 func fairlightHolt2() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)

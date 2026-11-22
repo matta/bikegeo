@@ -1,8 +1,18 @@
 # Slice 17b: final parity audit and legacy frame notes
 
-Status: Planned 2026-11-22
+Status: Implemented 2026-11-22; awaiting Matt's acceptance
 
 Larger slice: 2 commits touching 21 files (3 new Markdown files in `internal/reboot/catalog`, plus doc comments in 18 `frame_*.go` files). It is written for a lower-tier implementer, so everything below is exact. **If something doesn't match this plan (a frame comment reads differently, a banned word appears that the table doesn't cover, a parity test fails), stop and record `Status: Blocked` instead of improvising.** No Go behavior, data value, URL, or test changes.
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-22, Claude Sonnet 5.5.
+- **Commits:** `920bf72` Archive legacy frame notes in the catalog (N1, N2, N3); "Point catalog frames at their legacy notes" (G1, G2, and these status edits), the commit that contains this file's change.
+- **Done and not done:** A1, N1, N2, N3, G1, G2 all done.
+- **A1 output:** `git log --oneline 9942803..HEAD -- internal/frames internal/catalog internal/model internal/geometry` printed nothing. `go test -count=1 -run 'Legacy' -v ./internal/reboot/catalog` passed `TestMissingLegacyFrames`, `TestFramesMatchLegacy` (subtest `otso-fenrir-stainless` skipped), `TestPrecisionMatchesLegacyInference`, `TestHandlebarsMatchLegacy`, and `TestWheelRadiusMatchesLegacy`, as measured.
+- **Deviations:** one. The N2 header note, written verbatim, contains the literal text `file:///`, which makes Verification 2 (`grep -rn 'file:///' internal/reboot` prints nothing) fail. I reworded "the removed local `file:///` links" to "the removed local file links" in both copies. Nothing else differs. In 926d the 4 original links became 3 plain-text replacements plus the one relative link to `legacy_seven_expedition_926f.md`; 926f had 2.
+- **Verification:** (1) 18 sections, 1 `ritchey` hit (the intro). (2) no `file:///` under `internal/reboot`. (3) no `cad` in `legacy_*.md`. (4) only `frame_ritchey_ultra.go` lacks the pointer. (5) `internal/frames` is untouched. (6) the Go diff changes comment lines only. (7) `make pre-commit` passes after each commit. (8) No live check: nothing user-visible changes.
+- **Open issues:** none for Matt to decide. Notes left alone that read as stale or doubtful: the Fenrir section (superseded, flagged in the archive), the Seven Custom section's long fit-provenance narrative (partly overtaken by later rulings, and the archive says so), and the Kinetik and Revel sections, whose fork and sag figures are the legacy basis hypotheses (Q44, Q81).
 
 ## Goal
 

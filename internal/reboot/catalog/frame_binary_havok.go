@@ -7,6 +7,8 @@ import "bikegeo/internal/reboot/assembly"
 // The frame is a titanium 29+ drop-bar adventure frame. Its basis fork is a 485
 // mm rigid fork with a 10 mm EC44 basis cup. Rocker sliding dropouts run 445–460
 // mm; the chart is drawn at the forward 445 mm position.
+//
+// Legacy notes: legacy_frame_notes.md, section binary-havok (Q145).
 func binaryHavok() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)

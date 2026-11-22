@@ -8,6 +8,8 @@ import "bikegeo/internal/reboot/assembly"
 // Cutthroat Carbon Deluxe fork (51 mm offset). The chart is consistent with the bare
 // head tube; physical forks install in the 12 mm EC44 cup. Alternator dropouts
 // run 445–462 mm.
+//
+// Legacy notes: legacy_frame_notes.md, section salsa-fargo (Q145).
 func salsaFargo() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)

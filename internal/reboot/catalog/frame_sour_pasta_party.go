@@ -5,8 +5,12 @@ import "bikegeo/internal/reboot/assembly"
 // sourPastaParty returns the Sour Pasta Party.
 //
 // The frame is a CrMo steel trail hardtail. Its chart is drawn with a 120 mm
-// fork at 15% sag (512 mm effective) and a 12 mm EC44 cup. Wheelbases are for a
-// 44 mm offset fork.
+// fork at 15% sag (512 mm effective) and a 12 mm EC44 cup. Legacy says its
+// wheelbases were adapted to a 44 mm offset fork, so they may not be Sour's
+// printed values; they stay labelled published until the frame is re-ingested
+// (Q146).
+//
+// Legacy notes: legacy_frame_notes.md, section sour-pasta-party (Q145).
 func sourPastaParty() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
@@ -35,7 +39,7 @@ func sourPastaParty() Frame {
 		},
 		// catalog: compatible forks (Q128)
 		Forks: []Fork{fox34_120, sid100},
-		// published
+		// published; wheelbases unverified (Q146)
 		Sizes: family.sizes(
 			publishedSize{
 				Name:             "S",

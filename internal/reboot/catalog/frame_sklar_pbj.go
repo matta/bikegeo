@@ -10,6 +10,8 @@ import "bikegeo/internal/reboot/assembly"
 // 432–452 mm. Legacy reads the published M wheelbase as 1156 mm (Sklar printed
 // 1165, a digit transposition). Size L needs a documented axle-height allowance
 // (Q71).
+//
+// Legacy notes: legacy_frame_notes.md, section sklar-pbj (Q145).
 func sklarPbj() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)

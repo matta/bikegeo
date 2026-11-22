@@ -8,6 +8,8 @@ import "bikegeo/internal/reboot/assembly"
 // Its basis fork is a 130 mm fork published unweighted (541 mm, 0% sag) on the
 // bare head tube. Legacy notes the XL stack (670 mm) looks like a transcription
 // error for 690 mm; the published value is kept.
+//
+// Legacy notes: legacy_frame_notes.md, section turner-venn-ti (Q145).
 func turnerVennTi() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType ZS56; stack is legacy CupStackMm (illustrative)

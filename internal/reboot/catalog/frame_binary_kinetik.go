@@ -7,6 +7,8 @@ import "bikegeo/internal/reboot/assembly"
 // The frame is a titanium expedition hardtail. Its basis fork is a 120 mm fork
 // (530 mm static) at 15% sag, 512 mm effective, with a 10 mm EC44 basis cup.
 // Rocker dropouts run 455–472 mm; the chart is drawn at 455 mm.
+//
+// Legacy notes: legacy_frame_notes.md, section binary-kinetik (Q145).
 func binaryKinetik() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)

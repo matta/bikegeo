@@ -7,6 +7,8 @@ import "bikegeo/internal/reboot/assembly"
 // The frame is a carbon drop-bar endurance frame with an IS52 integrated
 // headset. The published geometry is drawn around a 100 mm fork (506 mm static)
 // at 25% sag, 481 mm effective, 51 mm offset, on the bare head tube.
+//
+// Legacy notes: legacy_frame_notes.md, section salsa-cutthroat (Q145).
 func salsaCutthroat() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType IS52; stack is legacy CupStackMm (illustrative)

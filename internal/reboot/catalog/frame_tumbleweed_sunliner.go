@@ -7,6 +7,8 @@ import "bikegeo/internal/reboot/assembly"
 // The frame is a chromoly rigid touring frame designed around the 440 mm
 // unicrown fork (55 mm offset), whose straight steerer runs in an EC44/30
 // reducer cup (Q66); the basis cup is 13 mm EC44.
+//
+// Legacy notes: legacy_frame_notes.md, section tumbleweed-sunliner (Q145).
 func tumbleweedSunliner() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)

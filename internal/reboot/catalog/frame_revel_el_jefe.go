@@ -8,6 +8,8 @@ import "bikegeo/internal/reboot/assembly"
 // basis fork is a 120 mm fork (530 mm static) at 20% sag, 506 mm effective, on
 // the bare head tube. Sliding dropouts run 420–435 mm. The seat tube is bent;
 // only the published effective STA is modeled (Q75f).
+//
+// Legacy notes: legacy_frame_notes.md, section revel-el-jefe (Q145).
 func revelElJefe() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType IS52; stack is legacy CupStackMm (illustrative)

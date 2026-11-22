@@ -8,6 +8,8 @@ import "bikegeo/internal/reboot/assembly"
 // 30% sag (495 mm effective) with a 12 mm EC44 basis cup. Portage dropouts run
 // 440–454 mm; the chart is drawn at 440 mm. The S4 wheelbase needs a documented
 // allowance (Q71).
+//
+// Legacy notes: legacy_frame_notes.md, section esker-hayduke (Q145).
 func eskerHayduke() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)

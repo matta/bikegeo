@@ -9,6 +9,9 @@ import "bikegeo/internal/reboot/assembly"
 // Mountain at 55 mm rake with a 10 mm EC44 basis cup. Legacy reads the Endurance
 // chainstay Seven printed as 563 mm as 463 mm (a digit error). Seven publishes
 // no wheelbase (Q57) and C-C seat tubes (Q75d).
+//
+// Legacy notes: legacy_frame_notes.md, section seven-expedition-926f, and the
+// basis-fork analysis legacy_seven_expedition_926f.md (Q145).
 func sevenExpedition926f() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
