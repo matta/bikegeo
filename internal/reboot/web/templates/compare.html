@@ -670,7 +670,13 @@
                   </td>
                   <td>
                     <select name="fork" aria-label="Fork for selection {{.Index}}"{{if .ForkInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
-                      {{range .Forks}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                      {{range .ForkLeading}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                      <optgroup label="Listed Forks">
+                        {{range .ListedForks}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                      </optgroup>
+                      {{if .OtherForks}}<optgroup label="Other Compatible Forks">
+                        {{range .OtherForks}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                      </optgroup>{{end}}
                     </select>
                   </td>
                   <td>

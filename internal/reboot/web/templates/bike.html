@@ -359,11 +359,18 @@
           <div class="field field-full">
             <label for="ctrl-fork">Fork</label>
             <select id="ctrl-fork" name="fork"{{if and $.ErrorMessage (eq $.InvalidField "fork")}} aria-invalid="true" aria-describedby="form-error"{{end}}>
-              <optgroup label="Installed Forks">
-                {{range .Forks}}
+              <optgroup label="Listed Forks">
+                {{range .ListedForks}}
                 <option value="{{.ID}}"{{if eq .ID $.SelectedForkID}} selected{{end}}>{{.Label}}</option>
                 {{end}}
               </optgroup>
+              {{if .OtherForks}}
+              <optgroup label="Other Compatible Forks">
+                {{range .OtherForks}}
+                <option value="{{.ID}}"{{if eq .ID $.SelectedForkID}} selected{{end}}>{{.Label}}</option>
+                {{end}}
+              </optgroup>
+              {{end}}
               <optgroup label="Chart Basis Fork">
                 <option value="{{.BasisForkOption.ID}}"{{if eq .BasisForkOption.ID $.SelectedForkID}} selected{{end}}>{{.BasisForkOption.Label}}</option>
               </optgroup>

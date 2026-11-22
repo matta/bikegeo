@@ -35,7 +35,9 @@ type compareSelectionRowView struct {
 	RawFork         string
 	RawSag          string
 	Sizes           []selectOption
-	Forks           []selectOption
+	ForkLeading     []selectOption
+	ListedForks     []selectOption
+	OtherForks      []selectOption
 	Sags            []selectOption
 	FrameInvalid    bool
 	SizeInvalid     bool
@@ -323,6 +325,7 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 		if sel.SagPct != nil {
 			rawSag = query.FormatFloat(*sel.SagPct)
 		}
+		forkLeading, listedForks, otherForks := buildSelectionForkOptions(f, sel.ForkID, false)
 		selectionRows[i] = compareSelectionRowView{
 			Index:           i + 1,
 			FrameID:         sel.FrameID,
@@ -331,7 +334,9 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 			RawFork:         sel.ForkID,
 			RawSag:          rawSag,
 			Sizes:           buildSelectionSizeOptions(f, sel.Size, false),
-			Forks:           buildSelectionForkOptions(f, sel.ForkID, false),
+			ForkLeading:     forkLeading,
+			ListedForks:     listedForks,
+			OtherForks:      otherForks,
 			Sags:            buildSelectionSagOptions(rawSag, selectedFork, true),
 			RemoveURL:       parsed.WithoutSelection(i).URL(),
 			RemoveAriaLabel: fmt.Sprintf("Remove selection %d: %s", i+1, frameLabel),
@@ -616,6 +621,7 @@ func buildErrorSelectionRows(q url.Values) []compareSelectionRowView {
 			}
 		}
 
+		forkLeading, listedForks, otherForks := buildSelectionForkOptions(frame, fk, !forkValid)
 		rows = append(rows, compareSelectionRowView{
 			Index:           len(rows) + 1,
 			FrameID:         f,
@@ -624,7 +630,9 @@ func buildErrorSelectionRows(q url.Values) []compareSelectionRowView {
 			RawFork:         fk,
 			RawSag:          sg,
 			Sizes:           buildSelectionSizeOptions(frame, sz, !sizeValid),
-			Forks:           buildSelectionForkOptions(frame, fk, !forkValid),
+			ForkLeading:     forkLeading,
+			ListedForks:     listedForks,
+			OtherForks:      otherForks,
 			Sags:            buildSelectionSagOptions(sg, selectedFork, sagValid),
 			SizeInvalid:     !sizeValid,
 			ForkInvalid:     !forkValid,
@@ -790,46 +798,54 @@ func buildSelectionSizeOptions(f catalog.Frame, selectedSize string, invalid boo
 	return opts
 }
 
-func buildSelectionForkOptions(f catalog.Frame, selectedFork string, invalid bool) []selectOption {
-	opts := make([]selectOption, 0, len(f.ForkOptions())+len(f.Forks)+2)
+// buildSelectionForkOptions returns a selection row's fork options in three
+// parts: the leading "Invalid: ..." and "Any fork" options, the frame's listed
+// forks, and its other compatible forks (Q139).
+func buildSelectionForkOptions(f catalog.Frame, selectedFork string, invalid bool) (leading, listed, other []selectOption) {
 	if invalid && selectedFork != "" {
-		opts = append(opts, selectOption{
+		leading = append(leading, selectOption{
 			Value:    selectedFork,
 			Label:    "Invalid: " + selectedFork,
 			Selected: true,
 			Invalid:  true,
 		})
 	}
-	opts = append(opts, selectOption{
+	leading = append(leading, selectOption{
 		Value:    "",
 		Label:    "Any fork",
 		Selected: !invalid && selectedFork == "",
 	})
-	for _, fk := range f.Forks {
+	for _, fk := range f.CompatibleForks() {
+		var group []selectOption
 		if !fk.IsMultiVariant() {
 			opt := catalog.ForkOption{Fork: fk, Variant: fk.Variants[0]}
-			opts = append(opts, selectOption{
+			group = append(group, selectOption{
 				Value:    opt.ID(),
 				Label:    makeForkOption(opt).Label,
 				Selected: !invalid && opt.ID() == selectedFork,
 			})
-			continue
+		} else {
+			group = append(group, selectOption{
+				Value:    fk.ID,
+				Label:    fk.Name + " (all variants)",
+				Selected: !invalid && fk.ID == selectedFork,
+			})
+			for _, v := range fk.Variants {
+				opt := catalog.ForkOption{Fork: fk, Variant: v}
+				group = append(group, selectOption{
+					Value:    opt.ID(),
+					Label:    makeForkOption(opt).Label,
+					Selected: !invalid && opt.ID() == selectedFork,
+				})
+			}
 		}
-		opts = append(opts, selectOption{
-			Value:    fk.ID,
-			Label:    fk.Name + " (all variants)",
-			Selected: !invalid && fk.ID == selectedFork,
-		})
-		for _, v := range fk.Variants {
-			opt := catalog.ForkOption{Fork: fk, Variant: v}
-			opts = append(opts, selectOption{
-				Value:    opt.ID(),
-				Label:    makeForkOption(opt).Label,
-				Selected: !invalid && opt.ID() == selectedFork,
-			})
+		if f.IsListedFork(fk.ID) {
+			listed = append(listed, group...)
+		} else {
+			other = append(other, group...)
 		}
 	}
-	return opts
+	return leading, listed, other
 }
 
 func buildSelectionSagOptions(rawSag string, selectedFork *catalog.Fork, sagValid bool) []selectOption {

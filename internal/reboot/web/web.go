@@ -303,7 +303,8 @@ type bikeView struct {
 	EttMm                  float64
 	SaddleName             string
 	HandlebarName          string
-	Forks                  []forkOption
+	ListedForks            []forkOption
+	OtherForks             []forkOption
 	ForkOptionCount        int
 	BasisForkOption        forkOption
 	SelectedForkID         string

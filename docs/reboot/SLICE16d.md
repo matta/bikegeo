@@ -1,6 +1,29 @@
 # Slice 16d: Open Fork Choice
 
-Status: Planned 2026-11-22 (Q128–Q130, Q135–Q139; ready for implementation)
+Status: Implemented 2026-11-22; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-22, Claude Sonnet 5.5 (`claude-sonnet-5-5`).
+- **Commits:**
+  1. `Add typical lower-cup catalog and per-fork cups in compare`: `c5063e9`
+  2. `Enable open fork choice and drop illustrative rigid forks`: `eae52e5`
+  3. `Group listed and compatible forks in web selects and record handoff`: the commit that adds this section (see `git log`).
+- **Done and not done:** D1–D8 are all done. Nothing is left over.
+- **Deviations** (none changes a ruling):
+  - `catalog.Frame` has no `LowerBore` or `DefaultLowerCup` fields, which D3 reads as `f.LowerBore` and `f.DefaultLowerCup`. I added an unexported `Frame.headset()` that reads them from the first size. `frameProblems` already checks every size agrees.
+  - D7 says the total `compare.Fork` count is `294`. The per-frame variant counts the plan lists sum to `234`, which is what the code produces. `TestParseCompareOpenForkChoice` asserts `234`.
+  - D7 says `surly-krampus` + `pike_120` gives a row count of `4`. Four sizes at three sag steps (15, 20, 25) give `12`, so the test asserts `12`.
+  - D8 says to change `buildSelectionSagOptions` to scan `f.CompatibleForks()`. It doesn't scan forks: the caller already resolves the selected fork with `Frame.LookupFork`, which now covers every compatible fork. It needed no change.
+  - D5 lists the frames that list a rigid fork. `forks_rigid.md` also names `seven-custom`, which lists `enve_mountain_boost`.
+  - D8 gave expected values only for rows 1–2 of the `/bike` all-forks build tables. The rest come from the code (rows 1–2 match the plan's probes exactly): `TestBikeWorkbenchFitsBuildsAcrossAllForks`, `TestBikeWorkbenchForkOptionsWithSaddle`, and `TestBikeWorkbenchForkOptionsAndBarOptions` (whose five rows match the plan's bar-options probe). I did not re-measure these by an independent method.
+  - The CLI commands in Verification Steps (`compare -spec …`, `bike -frame …`) don't match the CLI, which takes a query string. I ran the equivalents: `compare 'frame=…&size=L'` and `bike 'frame=…&fork=…'`.
+- **Verification:**
+  - `make pre-commit` exits 0 on the final state (it was also run for each of the three commits).
+  - `go list -deps` on `./cmd/bikegeo-reboot` lists only `bikegeo/...`.
+  - CLI: `compare 'frame=otso-fenrir-stainless&size=L'` gives `RowCount 32`, `Evaluated 23968`, top fork `firestarter_deluxe_483`. `compare 'frame=surly-ecr&size=L&fork=firestarter_deluxe_483'` fails with `frame "surly-ecr" has no fork "firestarter_deluxe_483"`. `bike 'frame=surly-krampus&size=L&fork=pike_120'` gives `SagPct 25` and lower cup `EC44 12`.
+  - `/` and `/bike` were checked through the browserless `httptest` tests (optgroup order and omission of `Other Compatible Forks`), not a running `make serve-reboot` or a screenshot.
+- **Open issues:** none found.
 
 ## Goal
 

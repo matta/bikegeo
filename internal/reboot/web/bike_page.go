@@ -207,9 +207,13 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs) bikeView {
 		sizes[i] = sz.Name
 	}
 	frameForkOptions := b.Frame.ForkOptions()
-	forks := make([]forkOption, len(frameForkOptions))
-	for i, opt := range frameForkOptions {
-		forks[i] = makeForkOption(opt)
+	var listedForks, otherForks []forkOption
+	for _, opt := range frameForkOptions {
+		if b.Frame.IsListedFork(opt.Fork.ID) {
+			listedForks = append(listedForks, makeForkOption(opt))
+		} else {
+			otherForks = append(otherForks, makeForkOption(opt))
+		}
 	}
 	forkA2cRO, cupRO, sagRO, cupLabel := forkFieldViewState(b, sel.Fork, form.Sag)
 	minRail, maxRail := railOffsetRange(b.Setup.Saddle, b.Setup.Seatpost)
@@ -234,7 +238,8 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs) bikeView {
 		SelectedFrameID:      sel.Frame,
 		Sizes:                sizes,
 		SelectedSize:         sel.Size,
-		Forks:                forks,
+		ListedForks:          listedForks,
+		OtherForks:           otherForks,
 		ForkOptionCount:      len(b.ForkOptions()),
 		BasisForkOption:      makeBasisForkOption(b.Frame),
 		SelectedForkID:       sel.Fork,

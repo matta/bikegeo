@@ -3747,3 +3747,70 @@ func TestBikeWorkbenchRecoversFromRejectedSelects(t *testing.T) {
 		})
 	}
 }
+
+// optgroupLabels returns the labels of a select's option groups in order.
+func optgroupLabels(sel *goquery.Selection) []string {
+	return sel.Find("optgroup").Map(func(_ int, g *goquery.Selection) string {
+		label, _ := g.Attr("label")
+		return label
+	})
+}
+
+// TestBikeForkSelectGroupsListedAndOtherForks checks Q139 on /bike.
+func TestBikeForkSelectGroupsListedAndOtherForks(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		want []string
+	}{
+		{"/bike", []string{"Listed Forks", "Other Compatible Forks", "Chart Basis Fork"}},
+		{"/bike?frame=surly-krampus&size=L", []string{"Listed Forks", "Other Compatible Forks", "Chart Basis Fork"}},
+		{"/bike?frame=surly-ecr&size=L", []string{"Listed Forks", "Chart Basis Fork"}},
+		{"/bike?frame=tumbleweed-sunliner&size=L", []string{"Listed Forks", "Chart Basis Fork"}},
+	} {
+		doc := loadBikeDoc(t, tc.path)
+		if got := optgroupLabels(doc.Find(`select[name="fork"]`)); !slices.Equal(got, tc.want) {
+			t.Errorf("%s fork optgroups = %v, want %v", tc.path, got, tc.want)
+		}
+	}
+	doc := loadBikeDoc(t, "/bike?frame=surly-krampus&size=L")
+	if n := doc.Find(`select[name="fork"] optgroup[label="Other Compatible Forks"] option[value="pike_120"]`).Length(); n != 1 {
+		t.Errorf("pike_120 under Other Compatible Forks = %d options, want 1", n)
+	}
+	if n := doc.Find(`select[name="fork"] optgroup[label="Listed Forks"] option[value="surly_krampus_483"]`).Length(); n != 1 {
+		t.Errorf("surly_krampus_483 under Listed Forks = %d options, want 1", n)
+	}
+}
+
+// TestCompareForkSelectGroupsListedAndOtherForks checks Q139 on /.
+func TestCompareForkSelectGroupsListedAndOtherForks(t *testing.T) {
+	leading := func(sel *goquery.Selection) []string {
+		return sel.ChildrenFiltered("option").Map(func(_ int, o *goquery.Selection) string { return strings.TrimSpace(o.Text()) })
+	}
+	_, doc := loadCompareDoc(t, "/?frame=surly-krampus")
+	sel := doc.Find(`tr[data-selection-row="1"] select[name="fork"]`)
+	if got := optgroupLabels(sel); !slices.Equal(got, []string{"Listed Forks", "Other Compatible Forks"}) {
+		t.Errorf("krampus optgroups = %v", got)
+	}
+	if got := leading(sel); !slices.Equal(got, []string{"Any fork"}) {
+		t.Errorf("krampus leading options = %v, want [Any fork]", got)
+	}
+
+	_, doc = loadCompareDoc(t, "/?frame=surly-ecr")
+	sel = doc.Find(`tr[data-selection-row="1"] select[name="fork"]`)
+	if got := optgroupLabels(sel); !slices.Equal(got, []string{"Listed Forks"}) {
+		t.Errorf("ecr optgroups = %v, want only Listed Forks", got)
+	}
+	if got := leading(sel); !slices.Equal(got, []string{"Any fork"}) {
+		t.Errorf("ecr leading options = %v, want [Any fork]", got)
+	}
+
+	// An invalid fork keeps "Invalid: ..." above the groups.
+	_, doc = loadCompareDoc(t, "/?frame=otso-fenrir-stainless&fork=nope")
+	sel = doc.Find(`tr[data-selection-row="1"] select[name="fork"]`)
+	if got := leading(sel); !slices.Equal(got, []string{"Invalid: nope", "Any fork"}) {
+		t.Errorf("invalid leading options = %v, want [Invalid: nope Any fork]", got)
+	}
+	if got := optgroupLabels(sel); !slices.Equal(got, []string{"Listed Forks", "Other Compatible Forks"}) {
+		t.Errorf("invalid optgroups = %v", got)
+	}
+}
