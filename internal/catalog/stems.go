@@ -49,7 +49,7 @@ type stemAngle struct {
 func flip(deg pose.Deg) stemAngle  { return stemAngle{Deg: deg, Reversible: true} }
 func fixed(deg pose.Deg) stemAngle { return stemAngle{Deg: deg} }
 
-// stemLength is one stems_by_length entry of docs/reboot/stems.yaml (catalog).
+// stemLength is one stems_by_length entry of docs/stems.yaml (catalog).
 type stemLength struct {
 	LengthMm                float64
 	Availability            LengthAvailability
@@ -129,7 +129,7 @@ const (
 	stemAngleRoomWeight          = 15.0
 )
 
-// Stems returns the 107 stems from docs/reboot/stems.yaml, ordered by length
+// Stems returns the 107 stems from docs/stems.yaml, ordered by length
 // and then by signed angle, both ascending.
 func Stems() []Stem {
 	var out []Stem

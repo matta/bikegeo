@@ -1,6 +1,6 @@
-# bikegeo Reboot: Design and Plan
+# bikegeo: Design and Plan
 
-A clean-slate reboot, now the only app, under `cmd/bikegeo` and `internal/...` (promoted in Slice 19). This file describes the current design; git history holds past discussion.
+The app lives under `cmd/bikegeo` and `internal/...`. This file describes the current design; git history holds past discussion.
 
 ## Working rules
 
@@ -11,8 +11,8 @@ A clean-slate reboot, now the only app, under `cmd/bikegeo` and `internal/...` (
 - When a choice is open, sketch the options briefly and recommend one. Don't write a deep spec that assumes an answer. Number open questions `Q#` and never reuse a number.
 - Prefer fewer types and clearer physical steps over heavier machinery. Show how a real bike assembly step reads in code.
 - Back technical claims with arithmetic, existing behavior, or a measurement. Two agents agreeing does not prove an unmeasured claim.
-- **Scoring words:** a build's **score** (0–100) is the weighted average of its 0–100 attribute scores (Q59, superseding Q35–Q37). Don't describe scoring as pricing or cost in prose; call each criterion's value its **attribute score** and the top builds **best-scoring**. `make boundary` bans the words `price`, `pricing`, `cost`, `cheap`, and `ledger` in reboot files (Q40).
-- **Physical modeling improvements are in scope (Q72):** the focus redirect cut UI, surface, and infrastructure bloat (JS, MCP, trace UI, secondary pages, persistence, chart solver UI), not physical fidelity. Accurate physical modeling — such as head-tube bore / steerer / SHIS lower-cup compatibility and physical frame/seatpost/saddle geometry — is explicitly in scope for the reboot.
+- **Scoring words:** a build's **score** (0–100) is the weighted average of its 0–100 attribute scores (Q59, superseding Q35–Q37). Don't describe scoring as pricing or cost in prose; call each criterion's value its **attribute score** and the top builds **best-scoring**. `make boundary` bans the words `price`, `pricing`, `cost`, `cheap`, and `ledger` in the files under `cmd` and `internal` (Q40).
+- **Physical modeling improvements are in scope (Q72):** the focus redirect cut UI, surface, and infrastructure bloat (JS, MCP, trace UI, secondary pages, persistence, chart solver UI), not physical fidelity. Accurate physical modeling — such as head-tube bore / steerer / SHIS lower-cup compatibility and physical frame/seatpost/saddle geometry — is explicitly in scope.
 
 ### Slice planning
 
@@ -21,22 +21,12 @@ Slice planning, the one-active-plan gate, `SLICE<n>.md` headers (`Status`, `Impl
 ## Requirements
 
 - **(a) Readable physical code:** build structures from directional pose steps and component builders (seatpost, saddle, fork, spacers, stem, handlebar), not scattered trig. Code clarity replaces web trace introspection (Q48).
-- **(b) Focused Web 1.0 interface (parity with legacy `compare`):** Go-rendered HTML/SVG with plain `GET` forms, URL query state, and zero JS (Q48, Q54), serving `/` (multi-frame comparison matrix) and `/bike` (single-bike inspector with schematic SVG; open separate browser tabs to compare builds visually). No Construction Trace UI, no side-by-side or overlayed views, and no legacy secondary pages (Q48, Q52).
+- **(b) Focused Web 1.0 interface:** Go-rendered HTML/SVG with plain `GET` forms, URL query state, and zero JS (Q48, Q54), serving `/` (multi-frame comparison matrix) and `/bike` (single-bike inspector with schematic SVG; open separate browser tabs to compare builds visually). No Construction Trace UI, no side-by-side or overlayed views, and no secondary pages (Q48, Q52).
 - **(c) Validated Go catalogs + JSON agent/debug output:** compiled Go structs validated by the chart-consistency check in `catalog`'s `go test` (Q91, Q118), plus thin CLI JSON serialization of Go result structs for agents and debugging (Q49a). No MCP server, no file-based catalog persistence, and no chart-reconstruction solver UI (Q49, Q50).
-- **(d) Fitting and `0–100` weighted scoring:** saddle fitting (height-first when rails clamp, Q60) and build fitting over the `docs/reboot/stems.yaml` stem catalog and part options (Q58, Q100), ranked by a 3-criterion fit gate and tunable `0–100` weighted attribute scores (Q59, Q59a).
-- **(e) Multi-frame comparison:** rank all 19 catalog frames (or custom frame/size/fork/sag selections) by best achievable fit and score (Q50, Q52, Q56).
+- **(d) Fitting and `0–100` weighted scoring:** saddle fitting (height-first when rails clamp, Q60) and build fitting over the `docs/stems.yaml` stem catalog and part options (Q58, Q100), ranked by a 3-criterion fit gate and tunable `0–100` weighted attribute scores (Q59, Q59a).
+- **(e) Multi-frame comparison:** rank all catalog frames (or custom frame/size/fork/sag selections) by best achievable fit and score (Q50, Q52, Q56).
 
 ## Confirmed decisions
-
-### Precedence over legacy specs
-
-For reboot code (`cmd/bikegeo-reboot` and `internal/reboot/...`), this document takes precedence over conflicting legacy specifications in `AGENTS.md` (Architecture and Frame Datasets), `docs/WEB.md`, and `internal/ideal/readme.md`:
-
-- `0–100` weighted attribute scoring (`Q59`, `Q59a`) supersedes legacy's unweighted `100 − Σ points lost` model.
-- `docs/reboot/stems.yaml` (107 stems and composite `0–100` stem score, `Q58`) supersedes legacy's `mtb`/`gravel` stem catalogs.
-- The 3-criterion fit gate (`R ≤ 1.0`, `|ΔY| ≤ 2.0 mm`, `|ΔX| ≤ 10.0 mm`), unified 4-tier ranking (`Q61`, `Q90`), and height-first rail clamping (`Q60`) supersede legacy's 2-criterion gate and Euclidean/rail-scan solvers.
-- Direct `encoding/json` CLI output (`Q49a`) replaces legacy's shared `report.Document` Markdown CLI layer.
-- Single-row `/` web compare without `+spec`/`-spec` query grammar or legacy secondary routes (`Q52`), defaulting to `redshift_shockstop_pro` (`Q62`) instead of legacy's hardcoded `0 mm` dropper.
 
 ### Go core, pure Web 1.0 server-rendered workbench
 
@@ -324,25 +314,24 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 
 ## Run and inspect
 
-- `make serve` serves the pure Web 1.0 app on `:8080`. `/` is the multi-frame comparison matrix, and `/bike` is the single-bike inspector (`view=bike|seat|stem`, `fork=cad`). State lives in the URL query with zero JS.
-- Catalog data lives in `internal/catalog/` (19 legacy frames, 22 forks, 15 handlebars, 4 seatposts, SQlab 610 saddle, and default fit targets; 107 stems from `docs/reboot/stems.yaml` join in Slice 13b). Values remain labelled published, catalog, measured, owner-reported, or illustrative.
+- `make serve` serves the pure Web 1.0 app on `:8080`. `/` is the multi-frame comparison matrix, and `/bike` is the single-bike inspector (`view=bike|seat|stem`, `fork=basis`). State lives in the URL query with zero JS.
+- Catalog data lives in `internal/catalog/` (18 frames, 16 forks, 15 handlebars, 4 seatposts, the SQlab 610 saddle, and default fit targets; 107 stems from `docs/stems.yaml`). Values remain labelled published, catalog, measured, owner-reported, or illustrative.
 
 ## Layout and boundaries
 
 ```text
-cmd/bikegeo/              entrypoint; `serve` on port 8080 (and URL-query JSON CLI in Slices 13f–14a)
+cmd/bikegeo/              entrypoint; `serve` on port 8080, and the URL-query JSON CLI (`compare`, `bike`)
 internal/pose/            poses, units, primitives
 internal/assembly/        component setups, placements, fitting, scoring, chart consistency
-internal/catalog/         19 frames, 22 forks, 15 bars, 4 seatposts, SQlab 610, default targets (stems.go in Slice 13b, weights in 13c)
-internal/compare/         (Slice 13e) multi-frame expansion, fitting, ranking, pruning
-internal/query/           (Slice 13f; /bike query in Slice 14a) shared url.Values query parsing for CLI and web (no HTTP/templates)
+internal/catalog/         18 frames, 16 forks, 15 bars, 4 seatposts, 107 stems, SQlab 610, default targets and score weights
+internal/compare/         multi-frame expansion, fitting, ranking, pruning
+internal/query/           shared url.Values query parsing for CLI and web (no HTTP/templates)
 internal/web/             pure Web 1.0 handlers, HTML/SVG views, embedded templates (no JS)
 ```
 
 - Dependencies flow `cmd → {web, query, compare, catalog, assembly}`, `web → {query, compare, catalog, assembly, pose}`, `query → {compare, catalog, assembly, pose}`, `compare → {assembly, pose}`, `catalog → {assembly, pose}`, `assembly → pose`. Neither `assembly` nor `compare` imports `catalog`; callers pass catalog slices as explicit arguments so both packages stay unit-testable with small fixtures. CLI subcommands call `query` and `compare`/`assembly` directly rather than depending on `web`.
 - Add packages only when a slice needs them. Keep each component's setup and placement types with its assembly code; don't rebuild a catch-all `model` package.
 - `make boundary` enforces the zero-dependency rule and the banned-term rule described in AGENTS.md.
-- To reuse legacy code, read, audit, and port only what's needed. Never wrap an old implementation under a new name. Small duplicated primitives are acceptable; a shared package created just to avoid duplication is not. A parity test must explain differences, not assume the old result is right.
 - Label catalog and fixture values as measured, catalog, or illustrative. Never present an invented outline as manufacturer truth.
 
 ## Milestones

@@ -69,4 +69,4 @@ make pre-commit  # required before committing: runs go fix, then make check
 make deadcode    # unreachable-function report; run by hand, never a gate
 ```
 
-The design and its rulings are in [`docs/reboot/DESIGN.md`](docs/reboot/DESIGN.md), the workflow in [`docs/reboot/WORKFLOW.md`](docs/reboot/WORKFLOW.md), and the working rules for agents in [`AGENTS.md`](AGENTS.md).
+The design and its rulings are in [`docs/DESIGN.md`](docs/DESIGN.md), the workflow in [`docs/WORKFLOW.md`](docs/WORKFLOW.md), and the working rules for agents in [`AGENTS.md`](AGENTS.md).

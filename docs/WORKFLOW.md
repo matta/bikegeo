@@ -1,4 +1,4 @@
-# bikegeo Reboot: Rolling-Wave Workflow & Prompt Playbook
+# bikegeo: Rolling-Wave Workflow & Prompt Playbook
 
 This document is the single source of truth for the **Rolling-Wave (Just-in-Time) workflow** for `cmd/bikegeo` and `internal/...`. Both Matt and agents consult it to know **what phase we are in**, **what level of detail belongs in each document**, **which model tier to use**, and **which prompt to run**.
 
@@ -36,7 +36,7 @@ Don't pre-split future slices aggressively in `DESIGN.md`; split just-in-time wh
 
 ### Slice Planning & Blueprints
 
-Each slice plan lives in `docs/reboot/SLICE<n>.md` (for example `SLICE20.md`) only until Matt accepts the slice. Plan **one slice ahead** against committed code.
+Each slice plan lives in `docs/SLICE<n>.md` (for example `SLICE20.md`) only until Matt accepts the slice. Plan **one slice ahead** against committed code.
 
 - **Planning gate:** don't start planning a new slice while any `SLICE*.md` file exists, whatever its status. List the remaining plan with its `Status:` line and follow the state router in §2 instead. Hold to this even if asked for a new plan.
 - **Rulings first:** before writing `SLICE<n>.md`, get Matt's rulings on any genuine slice-local choices (`Q#`) and record lasting ones under **Confirmed decisions** in `DESIGN.md`. The plan cites them and doesn't decide them.
@@ -61,7 +61,7 @@ Each slice plan lives in `docs/reboot/SLICE<n>.md` (for example `SLICE20.md`) on
 - **After acceptance:** when Matt accepts the slice, make one cleanup commit that:
   1. Promotes any lasting rulings or open issues Matt wants kept into `DESIGN.md`.
   2. Updates the slice's line in `DESIGN.md` Milestones to `done and accepted <date>` with its commit hashes.
-  3. Deletes `docs/reboot/SLICE<n>.md` and removes/rewrites any links to it.
+  3. Deletes `docs/SLICE<n>.md` and removes/rewrites any links to it.
 
 ---
 
@@ -69,7 +69,7 @@ Each slice plan lives in `docs/reboot/SLICE<n>.md` (for example `SLICE20.md`) on
 
 When Matt asks **"What's next?"**, inspect:
 1. `git status --short` (uncommitted work?)
-2. `docs/reboot/SLICE*.md` (any active slice plan, and its `Status:`, `Implementer:`, and `Review:` lines)
+2. `docs/SLICE*.md` (any active slice plan, and its `Status:`, `Implementer:`, and `Review:` lines)
 3. `## Milestones` in [DESIGN.md](DESIGN.md) (next slice not marked `done and accepted`)
 
 Match the first applicable row below, state the **current phase**, recommend the **model tier**, and wait (or proceed if already on the right tier and asked to act):
@@ -124,7 +124,7 @@ Copy any prompt below verbatim (filling in `<N>` where shown).
 ### A. Router — "What's next?" *(any model)*
 
 ```text
-Consult docs/reboot/WORKFLOW.md, check git status, docs/reboot/SLICE*.md, and docs/reboot/DESIGN.md Milestones.
+Consult docs/WORKFLOW.md, check git status, docs/SLICE*.md, and docs/DESIGN.md Milestones.
 Tell me:
 1. What phase we are currently in.
 2. Exactly what the next step is.
@@ -135,7 +135,7 @@ Do not edit files or start investigating future slices yet.
 ### B. Horizon 1 — Direction Review of `DESIGN.md` / Workflow Docs *(Frontier model)*
 
 ```text
-Review docs/reboot/DESIGN.md (and any changed reboot docs) using the Rolling-Wave Horizon rule and Review Calibration in docs/reboot/WORKFLOW.md.
+Review docs/DESIGN.md (and any changed docs) using the Rolling-Wave Horizon rule and Review Calibration in docs/WORKFLOW.md.
 Audit ONLY for directional soundness, physical-model bugs, broken provenance, and real contradictions between active rules.
 Do NOT emit nit-severity findings, stylistic tweaks, or detailed specs for future slices; park genuine slice-local choices as one-line reminders under the owning slice.
 End with a clear verdict: ready to green-light, or the minimal list of real issues that need fixing now.
@@ -144,7 +144,7 @@ End with a clear verdict: ready to green-light, or the minimal list of real issu
 ### C. Horizon 2 — Plan Next Slice (or Sub-Slice) *(Frontier model)*
 
 ```text
-Follow docs/reboot/WORKFLOW.md to plan the next unstarted slice: Slice <N>.
+Follow docs/WORKFLOW.md to plan the next unstarted slice: Slice <N>.
 1. Enforce the planning gate (stop if any SLICE*.md exists).
 2. Read the committed code relevant to Slice <N> ONLY (do not pre-spec Slice <N+1>).
 3. Check whether Slice <N> should be split into sub-slices; if so, propose the split first.
@@ -156,7 +156,7 @@ Do not write code yet (unless it's a Small slice you are offering to implement d
 ### D. Horizon 3 — Implement Planned Slice *(tier per `Implementer:` in `SLICE<N>.md`)*
 
 ```text
-Implement docs/reboot/SLICE<N>.md per docs/reboot/WORKFLOW.md.
+Implement docs/SLICE<N>.md per docs/WORKFLOW.md.
 - Follow the rough commit split and run `make pre-commit` for each commit.
 - Handle routine mechanics cleanly; if you hit a genuine unspec'd design fork, stop, mark Status: Blocked with a brief handoff, and tell me to switch to a Frontier model.
 - In the final implementation commit, update SLICE<N>.md's Status line and add the 3–5 line Implementation handoff. Do not edit DESIGN.md Milestones.
@@ -165,7 +165,7 @@ Implement docs/reboot/SLICE<N>.md per docs/reboot/WORKFLOW.md.
 ### E. Horizon 3 — Review Implemented Slice *(Frontier model, when `Review: required`)*
 
 ```text
-Independently review Slice <N> per docs/reboot/WORKFLOW.md (§3): diff-only judgment review against docs/reboot/SLICE<N>.md, docs/reboot/DESIGN.md invariants, and AGENTS.md rules.
+Independently review Slice <N> per docs/WORKFLOW.md (§3): diff-only judgment review against docs/SLICE<N>.md, docs/DESIGN.md invariants, and AGENTS.md rules.
 Read the git diff for math, invariants, edge cases, design drift, and test quality. Trust the implementer's reported `make pre-commit` and live-check results — do NOT re-run builds, tests, or manual checks unless proving a specific finding. Drop nit-severity noise.
 Append concise findings under `## Implementation handoff` in SLICE<N>.md (do not rewrite the implementer's record) and state whether Slice <N> is ready for acceptance.
 ```
@@ -173,15 +173,15 @@ Append concise findings under `## Implementation handoff` in SLICE<N>.md (do not
 ### F. Horizon 3 — Accept Slice *(any model)*
 
 ```text
-I accept Slice <N>. Execute the "After acceptance" checklist in docs/reboot/WORKFLOW.md (§1):
+I accept Slice <N>. Execute the "After acceptance" checklist in docs/WORKFLOW.md (§1):
 1. Promote any lasting rulings or open issues I want kept into DESIGN.md.
 2. Update the Milestones line for Slice <N> to `done and accepted <today>` with its commit hashes.
-3. Delete docs/reboot/SLICE<N>.md and remove/rewrite any links to it.
-Commit the acceptance cleanup and tell me what the next phase and recommended model tier are per docs/reboot/WORKFLOW.md.
+3. Delete docs/SLICE<N>.md and remove/rewrite any links to it.
+Commit the acceptance cleanup and tell me what the next phase and recommended model tier are per docs/WORKFLOW.md.
 ```
 
 ### G. Drop-in Calibration Snippet *(for external/standalone code reviewers)*
 
 ```text
-Follow docs/reboot/WORKFLOW.md (§3): diff-only judgment review on code/tests (trust the implementer's reported `make pre-commit` unless proving a specific finding), directional rigor only on Markdown docs, no `nit`-severity noise or contrived literalist failure scenarios.
+Follow docs/WORKFLOW.md (§3): diff-only judgment review on code/tests (trust the implementer's reported `make pre-commit` unless proving a specific finding), directional rigor only on Markdown docs, no `nit`-severity noise or contrived literalist failure scenarios.
 ```

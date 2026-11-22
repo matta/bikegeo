@@ -36,7 +36,7 @@ Matt confirmed that the fit report's BRP and handlebar X/Y coordinates match the
 | BRP coordinates, X forward / Y upward | Approximately (−219, 713.1) mm |
 | Report handlebar coordinates (HandGrip) | Approximately (481, 726) mm |
 
-Confirmed by Matt on 2026-11-20: `(481, 726) mm` represents the physical hand grip (`HandGrip`) location rather than the stem clamp. See [the ideal-profile documentation](../internal/ideal/readme.md) for the coordinate definitions and how `HandGrip` translates to `StemClamp`; the transfer procedure above separately establishes the unsagged saddle measurement state.
+Confirmed by Matt on 2026-11-20: `(481, 726) mm` represents the physical hand grip (`HandGrip`) location rather than the stem clamp. See [DESIGN.md](DESIGN.md) (coordinate and sign conventions, cockpit placement) for the coordinate definitions, and `DefaultGripTarget` in [`internal/catalog/catalog.go`](../internal/catalog/catalog.go) for the default target; the transfer procedure above separately establishes the unsagged saddle measurement state.
 
 The report values document the tested setup; they do not establish that 219 mm is uniquely optimal or that nearby saddle positions were compared.
 
@@ -62,7 +62,7 @@ Under the **level-rail approximation**, the W70-to-SIT displacement is `(-80, +1
 - Modeled SIT setback: `219 + 80 = 299 mm` behind BB.
 - Modeled SIT coordinates: approximately `(-299, 723.1) mm`, from `(-219, 713.1) + (-80, +10) mm`.
 
-This corrected derivation supersedes the earlier model-derived 292 mm setback based on a 73 mm span. It is not a new fit-report reading, an independent pelvic measurement or a demonstrated optimal position. The 10 mm elevation is measured; the level-rail installation orientation is an assumption. No numerical installed rail pitch has been supplied. The [ideal profile documentation](../internal/ideal/readme.md) records the rail placement equations and translated saddle targets.
+This corrected derivation supersedes the earlier model-derived 292 mm setback based on a 73 mm span. It is not a new fit-report reading, an independent pelvic measurement or a demonstrated optimal position. The 10 mm elevation is measured; the level-rail installation orientation is an assumption. No numerical installed rail pitch has been supplied. [DESIGN.md](DESIGN.md) records the saddle and rail placement model, and `DefaultBrpTarget` in [`internal/catalog/catalog.go`](../internal/catalog/catalog.go) holds the default saddle target.
 
 ## Owner-Reported Riding History and Observations
 

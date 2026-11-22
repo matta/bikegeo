@@ -1,8 +1,16 @@
 # Slice 20: Docs Consolidation
 
-Status: Planned 2026-11-22
+Status: Implemented 2026-11-22; awaiting Matt's acceptance
 Implementer: Low (fast/lower-tier) — mechanical doc moves, path updates, and retiring legacy-only rules; only two comment lines change in Go.
 Review: optional — documentation consolidation and two Go comments; no behavior, geometry, or scoring changes.
+
+## Implementation handoff
+
+- **Who & when:** Claude Sonnet 5.5, 2026-11-22.
+- **Commits:** `1044117` (move `docs/reboot/*` to `docs/`); the consolidation commit follows it.
+- **Deviations:** `RIDER_FIT.md` points to `internal/catalog/catalog.go` (`DefaultGripTarget`, `DefaultBrpTarget`) because `internal/catalog/defaults.go` doesn't exist. The AGENTS.md `Interfaces` and `Comparison columns` legacy bullets are replaced by a short `CLI` bullet.
+- **Verification:** `make pre-commit` passes; no stale `docs/reboot/`, `internal/ideal`, `internal/frames`, or `bikegeo-reboot` references remain outside historical `Q#`/Milestones text and `legacy_*` notes; relative links resolve.
+- **Open issues:** the Slice 19 CI workflow is still unverified until the first push.
 
 ## Goal
 

@@ -1,6 +1,6 @@
 ---
 name: ingest-frame
-description: Ingest a new bike frame or geometry chart into the reboot catalog (internal/catalog) — record every gathered value and its source in the frame's source record, transcribe the published chart, find its basis with a temporary Go test, update the catalog-size pins, and pass the catalog go test.
+description: Ingest a new bike frame or geometry chart into the catalog (internal/catalog) — record every gathered value and its source in the frame's source record, transcribe the published chart, find its basis with a temporary Go test, update the catalog-size pins, and pass the catalog go test.
 ---
 
 # Frame ingestion

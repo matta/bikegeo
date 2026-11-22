@@ -1,6 +1,6 @@
 # Legacy frame notes
 
-These are the `Notes` strings of the legacy frames in `internal/frames`, unchanged since the port commit `9942803` and carried over in Slice 17b (Q145) before Slice 18a deletes legacy. They are history, not current provenance: where a section disagrees with the frame's Go file, its source record (`frame_<id>.md`), or a ruling in `docs/reboot/DESIGN.md`, those win. When a frame is re-ingested (Q127), move its section into its source record and delete it here. The Ritchey Ultra is left out because Slice 18b deletes it (Q125).
+These are the `Notes` strings of the legacy frames in `internal/frames`, unchanged since the port commit `9942803` and carried over in Slice 17b (Q145) before Slice 18a deletes legacy. They are history, not current provenance: where a section disagrees with the frame's Go file, its source record (`frame_<id>.md`), or a ruling in `docs/DESIGN.md`, those win. When a frame is re-ingested (Q127), move its section into its source record and delete it here. The Ritchey Ultra is left out because Slice 18b deletes it (Q125).
 
 The text is verbatim except where `make boundary` bans a word (Q121). Each replacement is followed by `[edited]`, and the original wording is in git history at `9942803`. Fork IDs and field names (for example `enve_mountain_472`, `GeoHeadsetSpacerMm`, `HeadsetCupType`) are legacy names and may no longer exist.
 
