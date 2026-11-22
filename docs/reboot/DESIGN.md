@@ -1,6 +1,6 @@
 # bikegeo Reboot: Design and Plan
 
-A clean-slate reboot built beside the existing application under `cmd/bikegeo-reboot` and `internal/reboot/...`. This file describes the current design; git history holds past discussion.
+A clean-slate reboot, now the only app, under `cmd/bikegeo` and `internal/...` (promoted in Slice 19). This file describes the current design; git history holds past discussion.
 
 ## Working rules
 
@@ -92,7 +92,7 @@ Test: if fitting or comparison would need the code without HTTP, it belongs in `
 - Composition (frameset → seatpost → saddle, stem → handlebar) happens in one `assembly` entry point (`PlaceBike`).
 - Any scalar derived from placed poses is a method on a placement type. Callers, including tests, call it rather than restating the expression.
 - Outlines and readouts use the setup that was actually placed, never catalog defaults or a second computation.
-- Catalog data is application input in `internal/reboot/catalog`. `assembly` never imports it.
+- Catalog data is application input in `internal/catalog`. `assembly` never imports it.
 
 ### Frameset leveling: one recipe, two passes
 
@@ -357,24 +357,24 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 
 ## Run and inspect
 
-- `make serve-reboot` serves the pure Web 1.0 app on `:8081`. `/` is the multi-frame comparison matrix, and `/bike` is the single-bike inspector (`view=bike|seat|stem`, `fork=cad`). State lives in the URL query with zero JS.
-- Catalog data lives in `internal/reboot/catalog/` (19 legacy frames, 22 forks, 15 handlebars, 4 seatposts, SQlab 610 saddle, and default fit targets; 107 stems from `docs/reboot/stems.yaml` join in Slice 13b). Values remain labelled published, catalog, measured, owner-reported, or illustrative.
+- `make serve` serves the pure Web 1.0 app on `:8080`. `/` is the multi-frame comparison matrix, and `/bike` is the single-bike inspector (`view=bike|seat|stem`, `fork=cad`). State lives in the URL query with zero JS.
+- Catalog data lives in `internal/catalog/` (19 legacy frames, 22 forks, 15 handlebars, 4 seatposts, SQlab 610 saddle, and default fit targets; 107 stems from `docs/reboot/stems.yaml` join in Slice 13b). Values remain labelled published, catalog, measured, owner-reported, or illustrative.
 
 ## Layout and boundaries
 
 ```text
-cmd/bikegeo-reboot/       entrypoint; `serve` on port 8081 (and URL-query JSON CLI in Slices 13f–14a)
-internal/reboot/pose/     poses, units, primitives
-internal/reboot/assembly/ component setups, placements, fitting, scoring, chart consistency
-internal/reboot/catalog/  19 frames, 22 forks, 15 bars, 4 seatposts, SQlab 610, default targets (stems.go in Slice 13b, weights in 13c)
-internal/reboot/compare/  (Slice 13e) multi-frame expansion, fitting, ranking, pruning
-internal/reboot/query/    (Slice 13f; /bike query in Slice 14a) shared url.Values query parsing for CLI and web (no HTTP/templates)
-internal/reboot/web/      pure Web 1.0 handlers, HTML/SVG views, embedded templates (no JS)
+cmd/bikegeo/              entrypoint; `serve` on port 8080 (and URL-query JSON CLI in Slices 13f–14a)
+internal/pose/            poses, units, primitives
+internal/assembly/        component setups, placements, fitting, scoring, chart consistency
+internal/catalog/         19 frames, 22 forks, 15 bars, 4 seatposts, SQlab 610, default targets (stems.go in Slice 13b, weights in 13c)
+internal/compare/         (Slice 13e) multi-frame expansion, fitting, ranking, pruning
+internal/query/           (Slice 13f; /bike query in Slice 14a) shared url.Values query parsing for CLI and web (no HTTP/templates)
+internal/web/             pure Web 1.0 handlers, HTML/SVG views, embedded templates (no JS)
 ```
 
 - Dependencies flow `cmd → {web, query, compare, catalog, assembly}`, `web → {query, compare, catalog, assembly, pose}`, `query → {compare, catalog, assembly, pose}`, `compare → {assembly, pose}`, `catalog → {assembly, pose}`, `assembly → pose`. Neither `assembly` nor `compare` imports `catalog`; callers pass catalog slices as explicit arguments so both packages stay unit-testable with small fixtures. CLI subcommands call `query` and `compare`/`assembly` directly rather than depending on `web`.
 - Add packages only when a slice needs them. Keep each component's setup and placement types with its assembly code; don't rebuild a catch-all `model` package.
-- `make boundary` enforces the import isolation and the banned-term rule described in AGENTS.md.
+- `make boundary` enforces the zero-dependency rule and the banned-term rule described in AGENTS.md.
 - To reuse legacy code, read, audit, and port only what's needed. Never wrap an old implementation under a new name. Small duplicated primitives are acceptable; a shared package created just to avoid duplication is not. A parity test must explain differences, not assume the old result is right.
 - Label catalog and fixture values as measured, catalog, or illustrative. Never present an invented outline as manufacturer truth.
 

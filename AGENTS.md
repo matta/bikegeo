@@ -24,7 +24,7 @@ Write plain-language subjects (for example `Fix fork sag validation`). Conventio
 - Before committing or finishing: `make pre-commit`. It runs `fix` (`go fix`, `go fmt`) and then `check` (vet, `boundary`, `exhaustive`, and Go tests; not `deadcode`, which runs only by hand). If `go fix` changes anything, re-run until it's clean.
 - Markdown-only changes don't need `make pre-commit`.
 
-## Reboot Tree (`cmd/bikegeo-reboot`, `internal/reboot/...`)
+## Reboot Tree (`cmd/bikegeo`, `internal/...`)
 
 A clean-slate reboot is being built beside the existing app; see [docs/reboot/DESIGN.md](docs/reboot/DESIGN.md) and the Rolling-Wave workflow/prompt playbook in [docs/reboot/WORKFLOW.md](docs/reboot/WORKFLOW.md). For reboot code, `DESIGN.md` overrides **Architecture** and **Frame Datasets** below wherever they differ. Don't change the existing app during reboot work unless asked.
 
@@ -32,17 +32,17 @@ A clean-slate reboot is being built beside the existing app; see [docs/reboot/DE
 
 - **Web:** server-rendered HTML/SVG driven by plain `GET` forms and the URL query, with no JavaScript, framework, `package.json`, npm, or build step. `/` is the multi-frame comparison matrix and `/bike` is the single-bike inspector. Web tests are browserless Go (`httptest` + `goquery`).
 - **Isolation (`make boundary`):** reboot code never imports legacy `bikegeo/...` packages. Angles use `pose.Deg`.
-- **Trig lives in `internal/reboot/pose`:** outside `pose`, non-test reboot code uses `pose`'s semantic operations for all trig, radian conversion, and geometric math. Inside `pose`, raw trig stays unexported. `Abs`, `IsNaN`, `IsInf`, and independent `math` in tests are fine. Enforced by code review.
-- **Catalog:** reboot frames, forks, handlebars, seatposts, the SQlab 610, and default fit targets are Go values in `internal/reboot/catalog` (not `internal/frames`), validated by its go test (chart consistency, fork-list placement, seatpost bounds). Published chart values are never nudged.
-- **Terminology:** **Frame** (`FrameSetup`) is the bare frame. **Frameset** (`FramesetPlacement`, `PlaceFrameset`) is the leveled frame + fork + lower cup + wheel contacts. **Bike** (`BikePlacement`, `PlaceBike`, `/bike`) is the full assembly. **Build** (`ScoreBuild`, `BuildScore`, `FitBuilds`, `BuildRanking`, `ScoredBuild`) is a complete realized/scored bike; **Part / Option** (`PartOptions`, `StemOption`, `ForkOption`) names discrete component inputs; **Catalog** belongs only to the `internal/reboot/catalog` data-provider layer; **`stock`** keeps its cycling meaning (factory-installed or uncut, e.g. `HandlebarSetup.StockWidthMm`) and is not used for discrete fitting options (Q100–Q102, Slice 13d). URL query keys are nouns (`bar_options`, `fork_options`, `post_insert`, `rail_offset`), never verb+noun commands. `chassis` is banned in reboot code and docs (`make boundary`). Scoring uses score words: the words `price`, `pricing`, `cost`, `cheap`, and `ledger` are banned in reboot files too, in any case and inside longer words such as `PricedBand` or `cheapest` (`make boundary`; DESIGN.md "Scoring words").
+- **Trig lives in `internal/pose`:** outside `pose`, non-test reboot code uses `pose`'s semantic operations for all trig, radian conversion, and geometric math. Inside `pose`, raw trig stays unexported. `Abs`, `IsNaN`, `IsInf`, and independent `math` in tests are fine. Enforced by code review.
+- **Catalog:** reboot frames, forks, handlebars, seatposts, the SQlab 610, and default fit targets are Go values in `internal/catalog` (not `internal/frames`), validated by its go test (chart consistency, fork-list placement, seatpost bounds). Published chart values are never nudged.
+- **Terminology:** **Frame** (`FrameSetup`) is the bare frame. **Frameset** (`FramesetPlacement`, `PlaceFrameset`) is the leveled frame + fork + lower cup + wheel contacts. **Bike** (`BikePlacement`, `PlaceBike`, `/bike`) is the full assembly. **Build** (`ScoreBuild`, `BuildScore`, `FitBuilds`, `BuildRanking`, `ScoredBuild`) is a complete realized/scored bike; **Part / Option** (`PartOptions`, `StemOption`, `ForkOption`) names discrete component inputs; **Catalog** belongs only to the `internal/catalog` data-provider layer; **`stock`** keeps its cycling meaning (factory-installed or uncut, e.g. `HandlebarSetup.StockWidthMm`) and is not used for discrete fitting options (Q100–Q102, Slice 13d). URL query keys are nouns (`bar_options`, `fork_options`, `post_insert`, `rail_offset`), never verb+noun commands. `chassis` is banned in reboot code and docs (`make boundary`). Scoring uses score words: the words `price`, `pricing`, `cost`, `cheap`, and `ledger` are banned in reboot files too, in any case and inside longer words such as `PricedBand` or `cheapest` (`make boundary`; DESIGN.md "Scoring words").
 
 ## One-off investigations
 
-When no existing test, `/bike`, or `compare` answers a question about geometry, a frame chart, or fitting, answer it with a temporary Go test in the package that owns the data. For frame charts, that package is `internal/reboot/catalog`. Never write a Python or standalone Go reimplementation.
+When no existing test, `/bike`, or `compare` answers a question about geometry, a frame chart, or fitting, answer it with a temporary Go test in the package that owns the data. For frame charts, that package is `internal/catalog`. Never write a Python or standalone Go reimplementation.
 
 - Name the file `scratch_<topic>_test.go` and its tests `TestScratch…`. The file pattern is gitignored, so it can't be committed.
 - Print results with `t.Logf`.
-- Run it with `go test -run TestScratch -v ./internal/reboot/catalog`.
+- Run it with `go test -run TestScratch -v ./internal/catalog`.
 - Delete the file when you're done.
 - Call the real placement and chart-consistency functions, and never restate geometry formulas. Published chart values stay untouched in catalog files; a temporary test may only change copies.
 - If you write the same scratch helper twice, propose promoting it into a shared test helper.
@@ -54,7 +54,7 @@ Before analyzing Matt's personal bike fit, read [docs/RIDER_FIT.md](docs/RIDER_F
 
 ## Architecture
 
-- **Zero runtime dependencies:** the binary uses only the standard library. `goquery` is allowed only in `_test.go` files. `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo-reboot` must list only `bikegeo/...`. `exhaustive` and `deadcode` are `go.mod` tool dependencies and are never linked into the binary.
+- **Zero runtime dependencies:** the binary uses only the standard library. `goquery` is allowed only in `_test.go` files. `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo` must list only `bikegeo/...`. `exhaustive` and `deadcode` are `go.mod` tool dependencies and are never linked into the binary.
 - **`exhaustive`:** every `switch` on an enum-like type names every constant, even when it has a `default`.
 - **`deadcode`:** not part of `make check` or `make pre-commit` (Q144). Run `make deadcode` by hand, periodically; its findings don't block a commit. When you choose to clean one up, delete the unreachable function or move a test-only helper into a `*_test.go` file.
 - **Data is Go structs:** frames (`internal/frames`), fork/stem catalogs (`internal/catalog`), ideal profiles (`internal/ideal/loader.go`), and the default baseline (`compare.DefaultComparisonState()`). There are no data or persistence files.
@@ -66,7 +66,7 @@ Before analyzing Matt's personal bike fit, read [docs/RIDER_FIT.md](docs/RIDER_F
 
 ## Frame Datasets
 
-Legacy `internal/frames` is frozen: new frames go into `internal/reboot/catalog` only, following the [ingest-frame](.agents/skills/ingest-frame/SKILL.md) skill (DESIGN.md Q114, Q119). Every value gathered for a frame, published or not, goes with its source into the frame's source record, `internal/reboot/catalog/frame_<id>.md`. Published chart numbers are never nudged, and a chart allowance must be necessary and give its reason.
+Legacy `internal/frames` is frozen: new frames go into `internal/catalog` only, following the [ingest-frame](.agents/skills/ingest-frame/SKILL.md) skill (DESIGN.md Q114, Q119). Every value gathered for a frame, published or not, goes with its source into the frame's source record, `internal/catalog/frame_<id>.md`. Published chart numbers are never nudged, and a chart allowance must be necessary and give its reason.
 
 ## Testing
 

@@ -1,6 +1,6 @@
 # bikegeo Reboot: Rolling-Wave Workflow & Prompt Playbook
 
-This document codifies the **Rolling-Wave (Just-in-Time) workflow** for `cmd/bikegeo-reboot` and `internal/reboot/...`. Both Matt and agents consult it to know **what phase we are in**, **what level of detail belongs in each document**, **which model tier to use**, and **which prompt to run**.
+This document codifies the **Rolling-Wave (Just-in-Time) workflow** for `cmd/bikegeo` and `internal/...`. Both Matt and agents consult it to know **what phase we are in**, **what level of detail belongs in each document**, **which model tier to use**, and **which prompt to run**.
 
 ## 1. Two Horizons & Three Decision Tiers
 
@@ -81,7 +81,7 @@ Then match the first applicable row below, state the **current phase**, recommen
 All review passes — whether reviewing `DESIGN.md`, `WORKFLOW.md`, a slice plan, or implemented code — must calibrate rigor to the artifact being reviewed:
 
 - **Match rigor to the file type:**
-  - **Code & tests (`internal/reboot/**`, `cmd/**`):** full rigor (geometry math, edge cases, physical invariants, nil/NaN safety, boundary rules).
+  - **Code & tests (`internal/**`, `cmd/**`):** full rigor (geometry math, edge cases, physical invariants, nil/NaN safety, boundary rules).
   - **Docs (`DESIGN.md`, `WORKFLOW.md`, `AGENTS.md`):** directional rigor only — report real contradictions between active rules, broken provenance (`illustrative` mislabeled as measured/physical), or broken workflow routing/links.
 - **No `nit`-severity noise:** do not report `nit`-severity items or stylistic phrasing preferences. (Practical git-hygiene catches — such as a newly linked untracked file — are still welcome.)
 - **Assume a competent reader with live code:** never flag a doc omission that the Go compiler or the committed code of prior slices makes obvious (for example, skipping tie-breaks on a `nil` pointer, updating callers of a renamed field, or internal file layout).

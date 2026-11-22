@@ -1,105 +1,72 @@
-# BikeGeo Analyst CLI 🚲
+# bikegeo 🚲
 
-A zero-dependency Go application for **bicycle geometry validation and apples-to-apples frame comparisons**, with two interfaces, each used for what it suits: a **local web app** (`bikegeo serve`) for people, and a **Markdown command line** for agents and scripts.
+A zero-dependency Go application that compares bicycle frames the way a fitter does. It assembles each candidate bike physically (frame, fork, headset, stem, spacers, handlebar, seatpost, saddle), finds the best-fitting build for a rider's saddle and hand-position targets, and scores it. Two interfaces share one engine: a **local web app** (`bikegeo serve`) for people, and a **JSON command line** (`bikegeo compare`, `bikegeo bike`) for agents and scripts.
 
-All bike frame definitions ([`internal/frames/`](internal/frames)), fork and stem catalogs ([`internal/catalog/catalog.go`](internal/catalog/catalog.go)), ideal fit profiles ([`internal/ideal/loader.go`](internal/ideal/loader.go)), and the baseline comparison state ([`internal/compare/specs.go`](internal/compare/specs.go)) are compiled directly into Go structs with zero external dependencies or JSON configuration files.
-
----
-
-## Key Features
-
-1. **Unified Per-Column Comparison Model (`Frame + Size + Fork + Sag`)**:
-   - Every column in `bikegeo compare` is an independent setup (`frame[@size][@fork][@sag%]`).
-   - Compare the **exact same frame** across different sag points (`havok:L@110mm@20% havok:L@110mm@25%`) or across its supported forks (`havok:L@110mm@20% havok:L@rigid`).
-   - Compare **different frames** at different sag points and fork capacities (`havok:L@110mm@20% hayduke:S3@110mm@20% fenrir:L@rigid`).
-
-2. **Strict Frame-Level Fork & Sag Constraint Enforcement**:
-   - Frames specify their CAD fork (`CadFork`) and supported forks (`Forks`) in [`internal/frames/`](internal/frames).
-   - Automatically prevents invalid combinations:
-     - Rejects unsupported suspension travel capacities for a frame.
-     - Rejects `rigid` forks on suspension-only frames.
-     - Rejects non-zero sag (`@20%`) on rigid forks.
-     - Enforces fixed-fork frame constraints seamlessly.
-
-3. **Compiled Baseline Comparison & Incremental Tweaks**:
-   - Running bare `bikegeo compare` evaluates the compiled default comparison baseline (`compare.DefaultComparisonState()`).
-   - Use `+spec` / `-spec` / `-col_num` to incrementally add or remove columns against the baseline in memory.
-
-4. **Master Stack Equation & CAD Reverse-Engineering (`bikegeo validate` & `bikegeo fit`)**:
-   - Proves whether published manufacturer charts match physical front-end geometry:
-     `Stack = BB_drop - Rake * cos(HTA) + (A2C + cup_stack + HTL) * sin(HTA)`
-   - Reverse-engineers geometric Axle-to-Crown:
-     `A2C_geo = (Stack - BB_drop + Rake * cos(HTA)) / sin(HTA) - HTL - cup_stack`
-   - Detects whether the manufacturer published numbers at **0% static sag** or **15–30% sagged CAD**, or whether there is a published typo/inconsistency.
-   - `bikegeo fit <frame>` automatically solves for candidate physical fork/spacer/sag combinations when ingesting new frames.
-
-5. **Ideal Frame Profiles & Sweet-Spot Scoring (`internal/ideal`, `internal/scoring`)**:
-   - Frames are evaluated against parameterized sweet-spot ranges defined in [`internal/ideal/loader.go`](internal/ideal/loader.go) (`idmatch` biomechanical fit profile).
-   - Scores are a points-lost ledger: `Total = 100 − Σ points lost`. Each scored band is free inside its ideal range (e.g. BRP Setback 219mm, inside the fit oval, BB Drop 65–75mm, Trail 98–106mm) and loses a stated number of points of total per unit outside it, linearly and with no floor, so totals can go below 0.
-     - Scored cells show `✓` when the band is free and `✗ N pts` with the points it costs otherwise (e.g. `204 ✗ 18 pts`). There is no acceptable range and no `~`.
-   - A setup *fits* when some build puts the hands inside the oval and the BRP lands within 10 mm of 219 mm. Every fitting setup ranks above every non-fitting one; points order each group. Tables are sorted that way (with original `[#]` identifiers preserved).
-   - `compare all` keeps each frame's best setup over size, fork and sag; the frame's CAD fork is always one of the candidates, even at a sag outside 20/25/30%.
-   - Generates plain-English footer explanations (`Biggest Losses vs. Ideal` and `Head-to-Head Deciding Factors`).
-   - Disable scoring with `--no-score`, or inspect points lost per band with `--score-detail`.
-
-6. **Catalogs and Analysis in the Web UI**:
-   - The `/bike` workbench, saddles, saddle swap and handlebars are browsed and tuned in the web app only; the ideal profile, band costs and stem catalogs are on its `/help` page (see [docs/WEB.md](docs/WEB.md)).
-
-7. **Agent-Friendly CLI Output**:
-   - Every command prints Markdown (no `--format` flag). `compare` keeps a many-bike comparison as one wide table.
+Every frame, fork, handlebar, stem, seatpost, and saddle is compiled into Go structs under [`internal/catalog/`](internal/catalog), with no data or configuration files. Each frame has a source record (`frame_<id>.md`) that lists every value gathered and where it came from.
 
 ---
 
-## Quick Start
+## What it does
 
-### Build & Run
-```bash
-make build
-./bin/bikegeo help
-```
+1. **Physical assembly.** A bike is built by walking its parts in order: frame, fork (with sag), headset cup, spacers, stem, handlebar, and seatpost and saddle. The result is each landmark's position, so every readout comes from one placement rather than from separate formulas.
+2. **Fitting to two targets.** The rider's targets are the saddle's **BRP** and the **HandGrip** point, both measured from the bottom bracket. For each frame, size, fork, and sag, the engine finds the best stem, spacers, and saddle position it can. Builds fall into four fit tiers: `fits_all`, `fits_brp`, `fits_grip`, and `fits_neither`.
+3. **0–100 scoring.** Each build gets a score from 12 weighted attributes: three fit attributes, plus ranges such as trail, fork sag, spacer stack, and seatpost insertion. Builds are ranked by tier first, then by each tier's own tie-breaks and the score (DESIGN.md, Q61, Q69, Q90).
+4. **Open fork choice.** Any catalog fork that is compatible with a frame can be tried, in every variant and at the sags its travel allows. A frame's listed forks come first.
+5. **Charts are checked.** Each frame's published geometry chart is checked against its chart basis fork in `go test`, so a transcription error fails the build instead of reaching the app.
 
-### CLI (for agents and scripts)
+---
 
-`compare`, `validate`, `list` and `fit` print Markdown.
-
-```bash
-./bin/bikegeo help
-
-# List compiled frames, sizes, and supported fork capacities:
-./bin/bikegeo list
-./bin/bikegeo list --all-sizes
-
-# Compare setups (auto-transposed when >4 columns):
-./bin/bikegeo compare havok@110mm@20% hayduke:S3@110mm@20% fenrir:L@rigid
-./bin/bikegeo compare fenrir:all@120mm
-./bin/bikegeo compare                      # the default baseline
-./bin/bikegeo compare +surly-ecr:XL        # add to / remove from the baseline
-./bin/bikegeo compare -salsa-fargo:all
-./bin/bikegeo compare --score-detail       # points-lost breakdown
-
-# Validate frame CAD math across all sizes and configurations:
-./bin/bikegeo validate binary-havok
-./bin/bikegeo validate --all
-
-# Diagnose or sweep CAD assumptions on a frame:
-./bin/bikegeo fit surly-ecr
-./bin/bikegeo fit seven-expedition-926f --try fork.a2c=511,531 --try sag=0,20,25
-```
-
-### Web (for people)
+## Quick start
 
 ```bash
+make build                           # builds bin/bikegeo
 make serve                           # build, serve on http://127.0.0.1:8080, open the browser
 ./bin/bikegeo serve --port 0 --open  # or choose a free port
 ```
 
-Compare matrices with zone-coloured cells, sticky headers and linked metric definitions; frame and validation pages; the `/bike` workbench; and analysis pages for saddles, saddle swap and handlebars, each with a form for every input. Everything is a plain `GET` URL (`/?col=fenrir:L@110mm@20%25&col=hayduke:S3@110mm@20%25`) that you can bookmark or share. It listens on `127.0.0.1` only and uses no JavaScript. See [docs/WEB.md](docs/WEB.md).
+### Web (for people)
+
+- `/` is the multi-frame comparison matrix: the best configuration of every frame (or a custom selection), ranked, with a leveled-geometry table and a collapsible score breakdown.
+- `/bike` is the single-bike inspector: the diagram, the fitting readouts, the submitted build's score, and the ranked builds.
+
+Everything is a plain `GET` URL that you can bookmark or share, for example `/?frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20` and `/bike?frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20`. The URL query is the only state, there is no JavaScript, and the server listens on `127.0.0.1` only.
+
+### CLI (for agents and scripts)
+
+`compare` and `bike` take the same URL query as the web pages and print indented JSON. `--help` lists every query key.
+
+```bash
+./bin/bikegeo --help
+./bin/bikegeo compare --help
+
+# Rank every frame (best row each), keep the top 3:
+./bin/bikegeo compare 'top_per_frame=1&top=3'
+
+# One selection, then two frames across every handlebar:
+./bin/bikegeo compare 'frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20'
+./bin/bikegeo compare 'frame=surly-krampus&frame=otso-fenrir-stainless&bar_options=all&top=5'
+
+# Evaluate one bike, with or without fit targets:
+./bin/bikegeo bike
+./bin/bikegeo bike 'frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20'
+./bin/bikegeo bike 'frame=binary-havok&size=L&brp=off&grip=off'
+
+# Pick fields out with jq:
+./bin/bikegeo compare 'top_per_frame=1&top=3' | jq '[.Rows[] | {frame: .FrameID, size: .Size, fork: .ForkID, tier: .Build.Score.Tier, total: .Build.Score.Total}]'
+```
 
 ---
 
-## Running Verification & Tests
+## Adding a frame
+
+Follow the [ingest-frame skill](.agents/skills/ingest-frame/SKILL.md): record every value and its source first, transcribe the published chart, find its basis fork with a temporary Go test, and let the catalog's `go test` confirm the chart is consistent.
+
+## Running verification and tests
 
 ```bash
-make check       # format, vet, exhaustive enum check, dead-code check, and run tests
-make pre-commit  # required pre-commit step: runs go fix + make check
+make check       # format, vet, banned-term and dependency checks, exhaustive enum check, and tests
+make pre-commit  # required before committing: runs go fix, then make check
+make deadcode    # unreachable-function report; run by hand, never a gate
 ```
+
+The design and its rulings are in [`docs/reboot/DESIGN.md`](docs/reboot/DESIGN.md), the workflow in [`docs/reboot/WORKFLOW.md`](docs/reboot/WORKFLOW.md), and the working rules for agents in [`AGENTS.md`](AGENTS.md).

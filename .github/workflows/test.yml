@@ -20,14 +20,8 @@ jobs:
     - name: Verify dependencies
       run: go mod verify
 
-    - name: Vet
-      run: |
-        go fmt ./...
-        git diff --exit-code
-        go vet ./...
+    - name: Check
+      run: make check
 
-    - name: Exhaustive enum switches
-      run: go tool exhaustive ./...
-
-    - name: Test
-      run: go test -v ./...
+    - name: Formatting is clean
+      run: git diff --exit-code
