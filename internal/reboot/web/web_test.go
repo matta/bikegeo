@@ -3285,7 +3285,7 @@ func TestBikeWorkbenchBuildTiersAndLegend(t *testing.T) {
 	if got, _ := row.Find("[data-fit-tier]").Attr("data-fit-tier"); got != "fits_brp" {
 		t.Errorf("row 1 data-fit-tier = %q, want fits_brp", got)
 	}
-	for name, want := range map[string]string{"tier": "Fits BRP", "score": "68.1", "brp-miss": "(-0.0, +0.0) mm"} {
+	for name, want := range map[string]string{"tier": "Fits BRP", "score": "68.1", "brp-miss": "(+0.0, +0.0) mm"} {
 		if got := buildCell(row, name); got != want {
 			t.Errorf("row 1 %s = %q, want %q", name, got, want)
 		}

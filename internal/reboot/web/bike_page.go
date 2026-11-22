@@ -469,7 +469,7 @@ func buildFittingView(parsed query.Bike, res query.BikeResult) (*bikeFittingView
 		miss := bike.Saddle.BRP.OffsetTo(pose.NewPose(*brp, 0))
 		fv.Saddle = &saddleFittingView{
 			TargetX: brp.X, TargetY: brp.Y,
-			MissX: miss.X, MissY: miss.Y, MissMm: miss.Norm(),
+			MissX: cleanZero(miss.X, 0.05), MissY: cleanZero(miss.Y, 0.05), MissMm: miss.Norm(),
 			InsertionMm:  fitted.Seatpost.InsertionMm,
 			RailOffsetMm: fitted.Saddle.RailOffsetMm,
 			RailLimitMm:  railLimit,
@@ -486,7 +486,7 @@ func buildFittingView(parsed query.Bike, res query.BikeResult) (*bikeFittingView
 		stem := bike.Setup.Stem
 		fv.Cockpit = &cockpitFittingView{
 			TargetX: grip.X, TargetY: grip.Y,
-			MissX: miss.X, MissY: miss.Y, MissMm: miss.Norm(),
+			MissX: cleanZero(miss.X, 0.05), MissY: cleanZero(miss.Y, 0.05), MissMm: miss.Norm(),
 			SpacersMm:       fitted.Stem.SpacersMm,
 			MaxSpacersMm:    stem.MaxSpacersMm,
 			StemLengthMm:    fitted.Stem.LengthMm,
@@ -529,8 +529,8 @@ func makeSubmittedScoreView(parsed query.Bike, score *assembly.BuildScore) *subm
 		ActiveWeight:     weights.ActiveTotal(score.HasBrp),
 		HasBrp:           score.HasBrp,
 		GripR:            score.GripR,
-		BrpMissXMm:       score.BrpMissXMm,
-		BrpMissYMm:       score.BrpMissYMm,
+		BrpMissXMm:       cleanZero(score.BrpMissXMm, 0.05),
+		BrpMissYMm:       cleanZero(score.BrpMissYMm, 0.05),
 		AttributeHeaders: buildAttributeHeaders(weights),
 		Attributes:       score.Attributes,
 	}
@@ -585,8 +585,8 @@ func makeBuildRankingView(parsed query.Bike, ranking query.BikeBuildRanking) (*b
 			GripMissMm:   c.GripMiss().Norm(),
 			GripR:        c.Score.GripR,
 			HasBrp:       c.Score.HasBrp,
-			BrpMissXMm:   c.Score.BrpMissXMm,
-			BrpMissYMm:   c.Score.BrpMissYMm,
+			BrpMissXMm:   cleanZero(c.Score.BrpMissXMm, 0.05),
+			BrpMissYMm:   cleanZero(c.Score.BrpMissYMm, 0.05),
 			Score:        c.Score.Total,
 			Attributes:   c.Score.Attributes,
 			ApplyURL:     applied.URL(),
