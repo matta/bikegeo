@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.PageTitle}}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f5f0;
+      --surface: #ffffff;
+      --surface-subtle: #f9f8f4;
+      --border: #d8d5cc;
+      --border-strong: #bdb9ae;
+      --input-border: #6e7781;
+      --text: #1f2328;
+      --muted: #57606a;
+      --accent: #0969da;
+      --accent-hover: #0550ae;
+      --accent-subtle: #ddf4ff;
+      --accent-border: #80ccff;
+      --danger: #a40e26;
+      --error: #cf222e;
+      --error-text: #82071e;
+      --error-bg: #ffebe9;
+      --tier-all-bg: #dafbe1;
+      --tier-all-text: #116329;
+      --tier-all-border: #82e596;
+      --tier-brp-bg: #ddf4ff;
+      --tier-brp-text: #0550ae;
+      --tier-brp-border: #80ccff;
+      --tier-grip-bg: #fff8c5;
+      --tier-grip-text: #7d4e00;
+      --tier-grip-border: #eac54f;
+      --tier-neither-bg: #ffebe9;
+      --tier-neither-text: #82071e;
+      --tier-neither-border: #ffaba8;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-pill: 999px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 0.9375rem;
+      line-height: 1.5;
+    }
+    .visually-hidden {
+      position: absolute;
+      clip-path: inset(50%);
+      overflow: hidden;
+      inline-size: 1px;
+      block-size: 1px;
+      margin: -1px;
+      padding: 0;
+      border: 0;
+      white-space: nowrap;
+    }
+    .page {
+      max-inline-size: 96rem;
+      margin-inline: auto;
+      padding: 1.25rem 1.5rem 2.5rem;
+    }
+    .page-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    a {
+      color: var(--accent);
+    }
+    a:focus-visible,
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    summary:focus-visible,
+    .table-scroll:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .site-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem 1.25rem;
+      padding-block-end: 0.85rem;
+      margin-block-end: 1.25rem;
+      border-block-end: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.65rem;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.55rem;
+      border-radius: var(--radius-pill);
+      background: var(--accent-subtle);
+      color: var(--accent-hover);
+      border: 1px solid var(--accent-border);
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .site-nav ul {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0;
+      padding: 0;
+    }
+    .site-nav a {
+      display: inline-block;
+      padding: 0.38rem 0.75rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      color: var(--accent);
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .site-nav a:hover {
+      background: var(--surface);
+      border-color: var(--border);
+      text-decoration: underline;
+    }
+    .site-nav a[aria-current="page"] {
+      color: var(--text);
+      font-weight: 700;
+      background: var(--accent-subtle);
+      border-color: var(--accent-border);
+      box-shadow: inset 0 -2px 0 var(--accent);
+    }
+    @media (forced-colors: active) {
+      .site-nav a[aria-current="page"] {
+        outline: 2px solid Highlight;
+        outline-offset: -2px;
+      }
+    }
+    .controls {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.15rem;
+    }
+    .form-error {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.65rem 1rem;
+      margin-block-end: 1rem;
+      padding: 0.7rem 0.9rem;
+      border: 1px solid var(--error);
+      border-radius: var(--radius-sm);
+      background: var(--error-bg);
+      color: var(--error-text);
+      font-size: 0.9rem;
+    }
+    .control-group {
+      margin: 0;
+      padding: 0.75rem 0.9rem 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-subtle);
+      min-inline-size: 0;
+    }
+    .control-group legend {
+      padding: 0 0.35rem;
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .mode-note {
+      margin: 0 0 0.75rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+    .mode-note strong {
+      color: var(--text);
+    }
+    .selection-table {
+      inline-size: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    .selection-table th,
+    .selection-table td {
+      padding: 0.45rem 0.55rem;
+      border-block-end: 1px solid var(--border);
+      text-align: left;
+      vertical-align: middle;
+    }
+    .selection-table thead th {
+      background: var(--surface-subtle);
+      color: var(--muted);
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .selection-table tbody tr:last-child td {
+      border-block-end: 0;
+    }
+    .selection-table .frame-name {
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .selection-table .invalid-inline {
+      color: var(--error-text);
+      font-weight: 600;
+    }
+    .selection-table .muted-cell {
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+    .add-frame-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.55rem 0.85rem;
+      margin-block-start: 0.75rem;
+    }
+    .add-frame-bar label {
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .add-frame-bar select {
+      inline-size: auto;
+      min-inline-size: min(100%, 19rem);
+      max-inline-size: 100%;
+    }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.9rem;
+      margin-block-start: 0.9rem;
+    }
+    .field-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem 0.85rem;
+    }
+    .field-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      min-inline-size: 0;
+    }
+    .field label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .controls select,
+    .controls input[type="number"] {
+      inline-size: 100%;
+      font: inherit;
+      font-size: max(1rem, 0.88em);
+      min-block-size: 2.5rem;
+      padding: 0.4rem 0.55rem;
+      border: 1px solid var(--input-border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+    }
+    .selection-table select {
+      min-inline-size: 8.5rem;
+    }
+    .controls :is(input, select):user-invalid,
+    .controls :is(input, select)[aria-invalid="true"] {
+      border-color: var(--error);
+      background: var(--error-bg);
+    }
+    .field-note {
+      margin: 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .targets-help {
+      margin: 0 0 0.7rem;
+    }
+    .control-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.65rem 0.9rem;
+      margin-block-start: 1rem;
+    }
+    .btn-primary,
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-block-size: 2.5rem;
+      padding: 0.45rem 0.95rem;
+      border-radius: var(--radius-sm);
+      font: inherit;
+      font-size: 0.88rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .btn-primary {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #ffffff;
+    }
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+    .btn-secondary {
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      color: var(--text);
+    }
+    .btn-secondary:hover {
+      background: var(--surface-subtle);
+      text-decoration: none;
+    }
+    .remove-link {
+      color: var(--danger);
+      font-size: 0.84rem;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .remove-link:hover {
+      text-decoration: underline;
+    }
+    .inspect-link {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .inspect-link:hover {
+      text-decoration: underline;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.15rem;
+    }
+    .card h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .card-subtitle {
+      margin: 0 0 0.75rem;
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+    .summary-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.75rem;
+      margin-block: 0.65rem 0.85rem;
+    }
+    .chip {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.35rem;
+      padding: 0.32rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-subtle);
+      font-size: 0.84rem;
+    }
+    .chip-label {
+      color: var(--muted);
+    }
+    .chip-value {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .legend-box {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.65rem 0.85rem;
+    }
+    .tier-legend {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.35rem 0.75rem;
+      margin: 0;
+      font-size: 0.82rem;
+      color: var(--muted);
+      align-items: baseline;
+    }
+    .tier-legend dt,
+    .tier-legend dd {
+      margin: 0;
+    }
+    .tier-badge {
+      display: inline-block;
+      padding: 0.14rem 0.5rem;
+      border-radius: var(--radius-pill);
+      border: 1px solid transparent;
+      font-size: 0.76rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .tier-fits-all {
+      background: var(--tier-all-bg);
+      color: var(--tier-all-text);
+      border-color: var(--tier-all-border);
+    }
+    .tier-fits-brp {
+      background: var(--tier-brp-bg);
+      color: var(--tier-brp-text);
+      border-color: var(--tier-brp-border);
+    }
+    .tier-fits-grip {
+      background: var(--tier-grip-bg);
+      color: var(--tier-grip-text);
+      border-color: var(--tier-grip-border);
+    }
+    .tier-fits-neither {
+      background: var(--tier-neither-bg);
+      color: var(--tier-neither-text);
+      border-color: var(--tier-neither-border);
+    }
+    .table-scroll {
+      overflow-x: auto;
+      max-inline-size: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background:
+        linear-gradient(to right, var(--surface) 30%, transparent) left center / 2.25rem 100% no-repeat local,
+        linear-gradient(to left, var(--surface) 30%, transparent) right center / 2.25rem 100% no-repeat local,
+        radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 0.14), transparent) left center / 0.75rem 100% no-repeat scroll,
+        radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.14), transparent) right center / 0.75rem 100% no-repeat scroll,
+        var(--surface);
+    }
+    table.data-table {
+      inline-size: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 0.875rem;
+      background: transparent;
+    }
+    table.data-table thead th {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 1;
+      background: var(--surface-subtle);
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      text-align: left;
+      white-space: nowrap;
+      padding: 0.55rem 0.65rem;
+      border-block-end: 2px solid var(--border-strong);
+    }
+    table.data-table tbody td {
+      padding: 0.5rem 0.65rem;
+      border-block-end: 1px solid var(--border);
+      vertical-align: middle;
+      white-space: nowrap;
+      background: transparent;
+    }
+    table.data-table tbody tr:last-child td {
+      border-block-end: 0;
+    }
+    table.data-table tbody tr:hover td {
+      background: rgb(9 105 218 / 0.05);
+    }
+    table.data-table th.num,
+    table.data-table td.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    table.data-table td.num {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+    }
+    table.data-table td.score-cell {
+      font-weight: 700;
+    }
+    .sliding-mark {
+      color: var(--accent-hover);
+      font-weight: 700;
+      text-decoration: none;
+      margin-inline-start: 0.1rem;
+    }
+    .table-note {
+      margin: 0.65rem 0 0;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .disclosure summary {
+      list-style: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--accent);
+      padding: 0.35rem 0;
+      margin-block-end: 0.25rem;
+    }
+    .disclosure summary::-webkit-details-marker {
+      display: none;
+    }
+    .disclosure summary::before {
+      content: "";
+      inline-size: 0.48em;
+      block-size: 0.48em;
+      border-inline-end: 2px solid currentColor;
+      border-block-end: 2px solid currentColor;
+      rotate: -45deg;
+      transform-origin: center;
+      flex-shrink: 0;
+    }
+    .disclosure[open] > summary::before {
+      rotate: 45deg;
+    }
+    .disclosure .table-scroll {
+      margin-block-start: 0.5rem;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .disclosure summary::before {
+        transition: rotate 0.2s ease;
+      }
+    }
+    @supports (interpolate-size: allow-keywords) {
+      .disclosure::details-content {
+        interpolate-size: allow-keywords;
+        overflow: clip;
+        contain: layout;
+      }
+      .disclosure:not([open])::details-content {
+        block-size: 0;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .disclosure::details-content {
+          transition: block-size 0.25s ease, content-visibility 0.25s ease, display 0.25s ease;
+          transition-behavior: allow-discrete;
+        }
+      }
+    }
+    @media (max-width: 1024px) {
+      .settings-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .settings-grid > .control-group:last-child {
+        grid-column: 1 / -1;
+      }
+    }
+    @media (max-width: 680px) {
+      .page {
+        padding: 0.9rem 1rem 2rem;
+      }
+      .settings-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .settings-grid > .control-group:last-child {
+        grid-column: auto;
+      }
+      .field-grid-2 {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .tier-legend {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.2rem;
+      }
+      .tier-legend dt {
+        margin-block-start: 0.35rem;
+      }
+    }
+    @media (pointer: coarse) {
+      .controls select,
+      .controls input[type="number"],
+      .btn-primary,
+      .btn-secondary {
+        min-block-size: 3rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="site-header">
+      <div class="brand">
+        <h1>bikegeo-reboot</h1>
+        <span class="badge">{{.HeaderBadge}}</span>
+      </div>
+      <nav class="site-nav" aria-label="Primary">
+        <ul>
+          <li><a href="/" aria-current="page">Compare</a></li>
+          <li><a href="/bike">Bike Inspector</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main class="page-stack">
+      <form class="controls" method="get" action="/" aria-label="Comparison controls">
+        {{if .ErrorMessage}}
+        <div id="form-error" class="form-error" role="alert">
+          <div><strong>Error:</strong> {{.ErrorMessage}}</div>
+          <a class="btn-secondary" href="/" data-preset="error-reset">Reset Defaults</a>
+        </div>
+        {{end}}
+
+        <fieldset class="control-group">
+          <legend>Bikes to Compare</legend>
+          {{if not .Form.SelectionRows}}
+          <p class="mode-note" data-compare-mode="all">Comparing <strong>all 19 catalog frames</strong> (best configuration each). Add a frame below to narrow to custom selections.</p>
+          {{else}}
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Custom frame selections">
+            <table class="selection-table">
+              <thead>
+                <tr>
+                  <th scope="col">#</th>
+                  <th scope="col">Frame</th>
+                  <th scope="col">Size</th>
+                  <th scope="col">Fork</th>
+                  <th scope="col">Sag</th>
+                  <th scope="col">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{range .Form.SelectionRows}}
+                <tr data-selection-row="{{.Index}}" data-frame-id="{{.FrameID}}">
+                  <td>{{.Index}}</td>
+                  {{if .UnknownFrame}}
+                  <td class="frame-name invalid-inline" aria-invalid="true">{{.FrameLabel}}</td>
+                  <td><span class="muted-cell">{{if .RawSize}}{{.RawSize}}{{else}}Any size{{end}}</span></td>
+                  <td><span class="muted-cell">{{if .RawFork}}{{.RawFork}}{{else}}Any fork{{end}}</span></td>
+                  <td><span class="muted-cell">{{if .RawSag}}{{.RawSag}}%{{else}}Any sag{{end}}</span></td>
+                  {{else}}
+                  <td class="frame-name">{{.FrameLabel}}<input type="hidden" name="frame" value="{{.FrameID}}"></td>
+                  <td>
+                    <select name="size" aria-label="Size for selection {{.Index}}"{{if .SizeInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+                      {{range .Sizes}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                    </select>
+                  </td>
+                  <td>
+                    <select name="fork" aria-label="Fork for selection {{.Index}}"{{if .ForkInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+                      {{range .Forks}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                    </select>
+                  </td>
+                  <td>
+                    <select name="sag" aria-label="Sag for selection {{.Index}}"{{if .SagInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+                      {{range .Sags}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                    </select>
+                  </td>
+                  {{end}}
+                  <td><a class="remove-link" href="{{.RemoveURL}}" data-remove-selection="{{.Index}}" aria-label="{{.RemoveAriaLabel}}">Remove</a></td>
+                </tr>
+                {{end}}
+              </tbody>
+            </table>
+          </div>
+          {{end}}
+
+          <div class="add-frame-bar">
+            <label for="ctrl-add-frame">Add a frame</label>
+            <select id="ctrl-add-frame" name="frame">
+              <option value="">Add a frame…</option>
+              {{range .Form.AddFrames}}<option value="{{.ID}}">{{.Label}}</option>{{end}}
+            </select>
+            <input type="hidden" name="size" value="">
+            <input type="hidden" name="fork" value="">
+            <input type="hidden" name="sag" value="">
+            <span class="field-note">Pick a frame and click Compare Bikes to narrow by size, fork, and sag.</span>
+          </div>
+        </fieldset>
+
+        <div class="settings-grid">
+          <fieldset class="control-group">
+            <legend>Rider Fit Targets</legend>
+            <p id="targets-help" class="field-note targets-help">World coordinates in mm (BB at origin, +X forward, +Y up). Both targets are required. Defaults: BRP ({{.Form.ExampleBrpX}}, {{.Form.ExampleBrpY}}), HandGrip ({{.Form.ExampleGripX}}, {{.Form.ExampleGripY}}).</p>
+            <div class="field-grid-2">
+              <div class="field">
+                <label for="ctrl-brp-x">BRP X (mm)</label>
+                <input id="ctrl-brp-x" name="brp_x" type="number" step="any" value="{{.Form.BrpX}}" required aria-describedby="{{if .Form.BrpXInvalid}}targets-help form-error{{else}}targets-help{{end}}"{{if .Form.BrpXInvalid}} aria-invalid="true"{{end}}>
+              </div>
+              <div class="field">
+                <label for="ctrl-brp-y">BRP Y (mm)</label>
+                <input id="ctrl-brp-y" name="brp_y" type="number" step="any" value="{{.Form.BrpY}}" required aria-describedby="{{if .Form.BrpYInvalid}}targets-help form-error{{else}}targets-help{{end}}"{{if .Form.BrpYInvalid}} aria-invalid="true"{{end}}>
+              </div>
+              <div class="field">
+                <label for="ctrl-grip-x">HandGrip X (mm)</label>
+                <input id="ctrl-grip-x" name="grip_x" type="number" step="any" value="{{.Form.GripX}}" required aria-describedby="{{if .Form.GripXInvalid}}targets-help form-error{{else}}targets-help{{end}}"{{if .Form.GripXInvalid}} aria-invalid="true"{{end}}>
+              </div>
+              <div class="field">
+                <label for="ctrl-grip-y">HandGrip Y (mm)</label>
+                <input id="ctrl-grip-y" name="grip_y" type="number" step="any" value="{{.Form.GripY}}" required aria-describedby="{{if .Form.GripYInvalid}}targets-help form-error{{else}}targets-help{{end}}"{{if .Form.GripYInvalid}} aria-invalid="true"{{end}}>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="control-group">
+            <legend>Cockpit &amp; Seatpost</legend>
+            <div class="field-stack">
+              <div class="field">
+                <label for="ctrl-post">Seatpost</label>
+                <select id="ctrl-post" name="post"{{if .Form.PostInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+                  {{range .Form.PostOptions}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                </select>
+                {{if .Form.RedshiftMixedStateNote}}<p class="field-note" data-note="redshift-mixed-state">{{.Form.RedshiftMixedStateNote}}</p>{{end}}
+              </div>
+              <div class="field">
+                <label for="ctrl-bar">Handlebar</label>
+                <select id="ctrl-bar" name="bar"{{if .Form.BarInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+                  {{range .Form.BarOptions}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                </select>
+              </div>
+              <div class="field">
+                <label for="ctrl-bar-options">Handlebar options</label>
+                <select id="ctrl-bar-options" name="bar_options"{{if .Form.BarOptionModeInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+                  {{range .Form.BarOptionModes}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                </select>
+                <p class="field-note" data-note="bar-options-speed">All {{.Form.HandlebarCount}} handlebars evaluates ~15× more builds (~35 s across all 19 frames).</p>
+              </div>
+              <div class="field-grid-2">
+                <div class="field">
+                  <label for="ctrl-bar-roll">Handlebar Roll (°)</label>
+                  <input id="ctrl-bar-roll" name="bar_roll" type="number" step="0.5" value="{{.Form.BarRoll}}"{{if .Form.BarRollInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+                </div>
+                <div class="field">
+                  <label for="ctrl-rail-pitch">Saddle Rail Pitch (°)</label>
+                  <input id="ctrl-rail-pitch" name="rail_pitch" type="number" step="0.5" value="{{.Form.RailPitch}}"{{if .Form.RailPitchInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="control-group">
+            <legend>Ranking Limits</legend>
+            <div class="field-grid-2">
+              <div class="field">
+                <label for="ctrl-top-per-frame">Per frame</label>
+                <input id="ctrl-top-per-frame" name="top_per_frame" type="number" min="0" step="1" placeholder="auto" value="{{.Form.TopPerFrame}}" aria-describedby="{{if .Form.TopPerFrameInvalid}}top-per-frame-help form-error{{else}}top-per-frame-help{{end}}"{{if .Form.TopPerFrameInvalid}} aria-invalid="true"{{end}}>
+                <span id="top-per-frame-help" class="field-note">Blank: 1 in all-frames mode, unlimited in custom mode. 0 = unlimited.</span>
+              </div>
+              <div class="field">
+                <label for="ctrl-top">Overall limit</label>
+                <input id="ctrl-top" name="top" type="number" min="0" step="1" placeholder="all" value="{{.Form.Top}}" aria-describedby="{{if .Form.TopInvalid}}top-help form-error{{else}}top-help{{end}}"{{if .Form.TopInvalid}} aria-invalid="true"{{end}}>
+                <span id="top-help" class="field-note">Maximum rows to show overall. Blank or 0 = all.</span>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="control-actions">
+          <button id="ctrl-submit" class="btn-primary" type="submit">Compare Bikes</button>
+          <a id="preset-defaults" class="btn-secondary" href="/" data-preset="defaults">Reset Defaults</a>
+          {{if .Form.ShowAllFramesLink}}<a id="preset-all-frames" class="btn-secondary" href="{{.Form.AllFramesURL}}" data-preset="all-frames">All 19 Frames</a>{{end}}
+        </div>
+      </form>
+
+      {{if .HasResults}}
+      <section class="card" aria-labelledby="summary-heading">
+        <h2 id="summary-heading">Comparison Summary</h2>
+        <div class="summary-chips">
+          <div class="chip" data-summary="mode">
+            <span class="chip-label">Mode:</span>
+            <span class="chip-value">{{.Summary.ModeLabel}}</span>
+          </div>
+          <div class="chip" data-summary="configs">
+            <span class="chip-label">Configs:</span>
+            <span class="chip-value">Showing {{.Summary.ShownCount}} of {{.Summary.RowCount}} configurations ({{.Summary.Evaluated}} builds evaluated)</span>
+          </div>
+          <div class="chip" data-summary="post">
+            <span class="chip-label">Seatpost:</span>
+            <span class="chip-value">{{.Summary.SeatpostName}}</span>
+          </div>
+          <div class="chip" data-summary="bar">
+            <span class="chip-label">Handlebar:</span>
+            <span class="chip-value">{{.Summary.HandlebarSummary}}</span>
+          </div>
+          <div class="chip" data-summary="targets">
+            <span class="chip-label">Targets:</span>
+            <span class="chip-value">BRP {{.Summary.BrpTargetText}} · HandGrip {{.Summary.GripTargetText}}</span>
+          </div>
+          {{if .Summary.PostureNote}}
+          <div class="chip" data-summary="posture">
+            <span class="chip-label">Posture:</span>
+            <span class="chip-value">{{.Summary.PostureNote}}</span>
+          </div>
+          {{end}}
+        </div>
+        <div class="legend-box">
+          <dl class="tier-legend" data-fit-tier-legend>
+            {{range .TierLegend}}
+            <dt><span class="tier-badge tier-{{.Class}}">{{.Label}}</span></dt>
+            <dd>{{.Definition}}</dd>
+            {{end}}
+          </dl>
+        </div>
+      </section>
+
+      <section class="card" data-compare-table="fit" aria-labelledby="fit-heading">
+        <h2 id="fit-heading">Fit &amp; Winning Build</h2>
+        <p class="card-subtitle">Ranked by fit tier (Fits all → Fits BRP → Fits grip → Fits neither), then weighted 0–100 score. BRP miss is target − placed.</p>
+        <div class="table-scroll" tabindex="0" role="region" aria-labelledby="fit-heading">
+          <table class="data-table" data-table="fit">
+            <caption class="visually-hidden">Fit and winning build for each ranked bike</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="num">#</th>
+                <th scope="col">Inspect</th>
+                <th scope="col">Frame</th>
+                <th scope="col">Size</th>
+                <th scope="col">Fork</th>
+                <th scope="col">Tier</th>
+                <th scope="col" class="num">Score</th>
+                <th scope="col" class="num">Oval R</th>
+                <th scope="col" class="num">BRP miss</th>
+                <th scope="col" class="num">Stem</th>
+                <th scope="col" class="num">Spacers</th>
+                {{if .AllBarOptions}}<th scope="col">Handlebar</th>{{end}}
+                <th scope="col" class="num">Rail</th>
+                <th scope="col" class="num">Post insert</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{range .Rows}}
+              <tr data-compare-rank="{{.Rank}}" data-frame-id="{{.FrameID}}" data-size="{{.Size}}" data-fork-id="{{.ForkID}}">
+                <td class="num">{{.Rank}}</td>
+                <td data-compare-cell="inspect"><a class="inspect-link" href="{{.InspectURL}}" data-compare-inspect aria-label="{{.InspectAriaLabel}}">Inspect</a></td>
+                <td data-compare-cell="frame">{{.FrameLabel}}{{if .SlidingDropouts}}<abbr class="sliding-mark" title="Sliding dropouts evaluated at max chainstay">*</abbr>{{end}}</td>
+                <td data-compare-cell="size">{{.Size}}</td>
+                <td data-compare-cell="fork">{{.ForkLabel}}</td>
+                <td data-compare-cell="tier"><span class="tier-badge tier-{{.TierClass}}" data-fit-tier="{{.Tier}}">{{.TierLabel}}</span></td>
+                <td class="num score-cell" data-compare-cell="score">{{printf "%.1f" .Score}}</td>
+                <td class="num" data-compare-cell="oval-r">{{printf "%.2f" .GripR}}</td>
+                <td class="num" data-compare-cell="brp-miss">{{.BrpMissText}}</td>
+                <td class="num" data-compare-cell="stem">{{.StemText}}</td>
+                <td class="num" data-compare-cell="spacers">{{.SpacersText}}</td>
+                {{if $.AllBarOptions}}<td data-compare-cell="bar">{{.BarName}}</td>{{end}}
+                <td class="num" data-compare-cell="rail">{{.RailOffsetText}}</td>
+                <td class="num" data-compare-cell="post-insert">{{.PostInsertionText}}</td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" data-compare-table="geometry" aria-labelledby="geometry-heading">
+        <h2 id="geometry-heading">Leveled Geometry &amp; Handling</h2>
+        <p class="card-subtitle">Frameset geometry leveled on the installed fork and sag, in the same rank order.</p>
+        <div class="table-scroll" tabindex="0" role="region" aria-labelledby="geometry-heading">
+          <table class="data-table" data-table="geometry">
+            <caption class="visually-hidden">Leveled geometry and handling metrics for each ranked bike</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="num">#</th>
+                <th scope="col">Frame</th>
+                <th scope="col">Size</th>
+                <th scope="col">Fork</th>
+                <th scope="col" class="num">Reach (mm)</th>
+                <th scope="col" class="num">Stack (mm)</th>
+                <th scope="col" class="num">ETT (mm)</th>
+                <th scope="col" class="num">HTA</th>
+                <th scope="col" class="num">STA</th>
+                <th scope="col" class="num">CS (mm)</th>
+                <th scope="col" class="num">WB (mm)</th>
+                <th scope="col" class="num">RC/WB</th>
+                <th scope="col" class="num">BB drop (mm)</th>
+                <th scope="col" class="num">Trail (mm)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{range .Rows}}
+              <tr data-geometry-rank="{{.Rank}}" data-frame-id="{{.FrameID}}">
+                <td class="num">{{.Rank}}</td>
+                <td>{{.FrameLabel}}{{if .SlidingDropouts}}<abbr class="sliding-mark" title="Sliding dropouts evaluated at max chainstay">*</abbr>{{end}}</td>
+                <td>{{.Size}}</td>
+                <td>{{.ForkLabel}}</td>
+                <td class="num" data-geometry-cell="reach">{{printf "%.1f" .LeveledReachMm}}</td>
+                <td class="num" data-geometry-cell="stack">{{printf "%.1f" .LeveledStackMm}}</td>
+                <td class="num" data-geometry-cell="ett">{{printf "%.1f" .EttMm}}</td>
+                <td class="num" data-geometry-cell="hta">{{printf "%.1f°" .LeveledHtaDeg}}</td>
+                <td class="num" data-geometry-cell="sta">{{printf "%.1f°" .LeveledStaDeg}}</td>
+                <td class="num" data-geometry-cell="chainstay">{{printf "%.1f" .ChainstayMm}}{{if .SlidingDropouts}}<abbr class="sliding-mark" title="Max sliding-dropout position">*</abbr>{{end}}</td>
+                <td class="num" data-geometry-cell="wheelbase">{{printf "%.1f" .WheelbaseMm}}</td>
+                <td class="num" data-geometry-cell="rc-wb">{{printf "%.1f%%" .RcWbRatioPct}}</td>
+                <td class="num" data-geometry-cell="bb-drop">{{printf "%.1f" .LeveledBbDropMm}}</td>
+                <td class="num" data-geometry-cell="trail">{{printf "%.1f" .TrailMm}}</td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+        {{if .SlidingDropoutsSummary}}
+        <p class="table-note" data-note="sliding-dropouts">* Sliding dropouts evaluated at max chainstay: {{.SlidingDropoutsSummary}}.</p>
+        {{end}}
+      </section>
+
+      <section class="card" data-compare-table="breakdown" aria-labelledby="breakdown-heading">
+        <h2 id="breakdown-heading">Attribute Score Breakdown</h2>
+        <details class="disclosure" data-score-breakdown>
+          <summary>Show 12-attribute score breakdown (0–100 weighted, total weight {{printf "%.0f" .ActiveWeight}})</summary>
+          <div class="table-scroll" tabindex="0" role="region" aria-labelledby="breakdown-heading">
+            <table class="data-table" data-table="breakdown">
+              <caption class="visually-hidden">Twelve-attribute score breakdown for each ranked bike</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="num">#</th>
+                  <th scope="col">Frame</th>
+                  <th scope="col">Size</th>
+                  <th scope="col">Fork</th>
+                  <th scope="col">Tier</th>
+                  <th scope="col" class="num">Score</th>
+                  {{range .AttributeHeaders}}<th scope="col" class="num">{{.Label}}</th>{{end}}
+                </tr>
+              </thead>
+              <tbody>
+                {{range .Rows}}
+                <tr data-breakdown-rank="{{.Rank}}" data-frame-id="{{.FrameID}}">
+                  <td class="num">{{.Rank}}</td>
+                  <td>{{.FrameLabel}}</td>
+                  <td>{{.Size}}</td>
+                  <td>{{.ForkLabel}}</td>
+                  <td><span class="tier-badge tier-{{.TierClass}}">{{.TierLabel}}</span></td>
+                  <td class="num score-cell">{{printf "%.1f" .Score}}</td>
+                  {{range .Attributes}}<td class="num" data-breakdown-attr="{{.Attribute}}">{{printf "%.1f" .Score}}</td>{{end}}
+                </tr>
+                {{end}}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+      {{end}}
+    </main>
+  </div>
+</body>
+</html>

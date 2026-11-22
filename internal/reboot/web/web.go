@@ -18,10 +18,13 @@ import (
 	"bikegeo/internal/reboot/query"
 )
 
-//go:embed templates/bike.html
+//go:embed templates/bike.html templates/compare.html
 var templateFS embed.FS
 
-var bikeTemplate = template.Must(template.ParseFS(templateFS, "templates/bike.html"))
+var (
+	bikeTemplate    = template.Must(template.ParseFS(templateFS, "templates/bike.html"))
+	compareTemplate = template.Must(template.ParseFS(templateFS, "templates/compare.html"))
+)
 
 func toSVG(p pose.Point) svgPoint {
 	return svgPoint{X: p.X, Y: -p.Y}
@@ -70,12 +73,21 @@ const (
 // runs in the catalog's go test, not at startup (Q91).
 func NewHandler() http.Handler {
 	mux := http.NewServeMux()
-	// The root redirects to the inspector until the comparison page lands.
-	mux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/bike", http.StatusFound)
-	})
+	mux.HandleFunc("/{$}", handleCompare)
 	mux.HandleFunc("/bike", handleBikeWorkbench)
 	return mux
+}
+
+func renderCompareTemplate(w http.ResponseWriter, status int, view compareView) {
+	var buf bytes.Buffer
+	if err := compareTemplate.Execute(&buf, view); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = buf.WriteTo(w)
 }
 
 // poseOutline is a component silhouette drawn as a rectangle in a pose's

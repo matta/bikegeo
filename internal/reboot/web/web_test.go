@@ -57,21 +57,47 @@ const legacyBuild = legacyPost + "&brp=off&grip=off"
 // legacyPost is the zero-setback post at its Q92 insertion.
 const legacyPost = "post=setback_0&post_insert=180.576"
 
-func TestRootRedirectsToBikeInspector(t *testing.T) {
+func TestRootServesComparePageAndNavLinks(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/", nil)
 	rec := httptest.NewRecorder()
 	NewHandler().ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusFound {
-		t.Fatalf("GET / status = %d, want 302", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", rec.Code)
 	}
-	if loc := rec.Header().Get("Location"); loc != "/bike" {
-		t.Fatalf("GET / Location = %q, want /bike", loc)
+	rootDoc, err := goquery.NewDocumentFromReader(rec.Body)
+	if err != nil {
+		t.Fatalf("parse root HTML: %v", err)
+	}
+	if title := rootDoc.Find("h1").Text(); !strings.Contains(title, "bikegeo-reboot") {
+		t.Errorf("root h1 = %q, want bikegeo-reboot branding", title)
+	}
+	rootCurrent := rootDoc.Find(`nav.site-nav a[aria-current="page"]`)
+	if rootCurrent.Length() != 1 || strings.TrimSpace(rootCurrent.Text()) != "Compare" {
+		t.Errorf("root current nav = %d %q, want 1 Compare", rootCurrent.Length(), rootCurrent.Text())
+	}
+	if href, _ := rootCurrent.Attr("href"); href != "/" {
+		t.Errorf("root current nav href = %q, want /", href)
+	}
+	rootBikeLink := rootDoc.Find(`nav.site-nav a[href="/bike"]`)
+	if rootBikeLink.Length() != 1 || strings.TrimSpace(rootBikeLink.Text()) != "Bike Inspector" {
+		t.Errorf("root /bike nav = %d %q, want 1 Bike Inspector", rootBikeLink.Length(), rootBikeLink.Text())
 	}
 
-	doc := loadBikeDoc(t, "/bike")
-	if title := doc.Find("h1").Text(); !strings.Contains(title, "bikegeo-reboot") {
-		t.Errorf("heading = %q, want bikegeo-reboot branding", title)
+	bikeDoc := loadBikeDoc(t, "/bike")
+	if title := bikeDoc.Find("h1").Text(); !strings.Contains(title, "bikegeo-reboot") {
+		t.Errorf("bike h1 = %q, want bikegeo-reboot branding", title)
+	}
+	bikeCurrent := bikeDoc.Find(`nav.site-nav a[aria-current="page"]`)
+	if bikeCurrent.Length() != 1 || strings.TrimSpace(bikeCurrent.Text()) != "Bike Inspector" {
+		t.Errorf("bike current nav = %d %q, want 1 Bike Inspector", bikeCurrent.Length(), bikeCurrent.Text())
+	}
+	if href, _ := bikeCurrent.Attr("href"); href != "/bike" {
+		t.Errorf("bike current nav href = %q, want /bike", href)
+	}
+	bikeCompareLink := bikeDoc.Find(`nav.site-nav a[href="/"]`)
+	if bikeCompareLink.Length() != 1 || strings.TrimSpace(bikeCompareLink.Text()) != "Compare" {
+		t.Errorf("bike / nav = %d %q, want 1 Compare", bikeCompareLink.Length(), bikeCompareLink.Text())
 	}
 }
 

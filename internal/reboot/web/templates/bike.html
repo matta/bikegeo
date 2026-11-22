@@ -25,14 +25,23 @@
       color: var(--text);
       line-height: 1.45;
     }
-    header {
+    .site-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem 1.25rem;
+      padding-bottom: 0.85rem;
+      margin-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
       display: flex;
       flex-wrap: wrap;
       align-items: baseline;
-      gap: 0.75rem;
-      margin-bottom: 1.25rem;
+      gap: 0.65rem;
     }
-    header h1 {
+    .brand h1 {
       margin: 0;
       font-size: 1.35rem;
     }
@@ -44,6 +53,42 @@
       color: #0550ae;
       font-size: 0.8rem;
       font-weight: 600;
+    }
+    .site-nav ul {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0;
+      padding: 0;
+    }
+    .site-nav a {
+      display: inline-block;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      color: var(--accent);
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .site-nav a:hover {
+      background: var(--surface);
+      border-color: var(--border);
+      text-decoration: underline;
+    }
+    .site-nav a[aria-current="page"] {
+      color: var(--text);
+      font-weight: 700;
+      background: #ddf4ff;
+      border-color: #80ccff;
+      box-shadow: inset 0 -2px 0 var(--accent);
+    }
+    @media (forced-colors: active) {
+      .site-nav a[aria-current="page"] {
+        outline: 2px solid Highlight;
+        outline-offset: -2px;
+      }
     }
     nav a {
       color: var(--accent);
@@ -266,9 +311,17 @@
   </style>
 </head>
 <body>
-  <header>
-    <h1>bikegeo-reboot</h1>
-    <span class="badge">{{.BikeName}}</span>
+  <header class="site-header">
+    <div class="brand">
+      <h1>bikegeo-reboot</h1>
+      <span class="badge">{{.BikeName}}</span>
+    </div>
+    <nav class="site-nav" aria-label="Primary">
+      <ul>
+        <li><a href="/">Compare</a></li>
+        <li><a href="/bike" aria-current="page">Bike Inspector</a></li>
+      </ul>
+    </nav>
   </header>
 
   <main>

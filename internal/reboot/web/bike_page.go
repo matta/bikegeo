@@ -252,7 +252,7 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs) bikeView {
 		PublishedWheelbaseMm: b.Size.Chart.PublishedWheelbaseMm,
 	}
 	if sel.Post == catalog.DefaultSeatpostID {
-		v.RedshiftMixedStateNote = "Note: default BRP (−219, 713.1) mm comes from the unsagged Redshift transfer; this post models 12 mm sagged setback with no vertical compression adjustment."
+		v.RedshiftMixedStateNote = redshiftMixedStateNote
 	}
 	return v
 }
