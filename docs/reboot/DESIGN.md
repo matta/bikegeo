@@ -16,40 +16,7 @@ A clean-slate reboot, now the only app, under `cmd/bikegeo` and `internal/...` (
 
 ### Slice planning
 
-Each slice plan is its own file, `SLICE<n>.md` beside this one (for example `SLICE11.md` or `SLICE12a.md`), and it lives only until Matt accepts the slice. Plan **one slice (or sub-slice) ahead** against actual committed code (Rolling-Wave; see [WORKFLOW.md](WORKFLOW.md)). Every new slice plan starts with a `Status: Planned <date>` line right below its title.
-
-**Planning gate:** don't start planning a new slice while any `SLICE*.md` file remains beside this one, whatever its status (planned, partly implemented, blocked, or awaiting acceptance). The current slice must be implemented and accepted first. Instead of planning, list each remaining plan with its Status line and follow the state router in [WORKFLOW.md](WORKFLOW.md) to pick the next action (requesting review and acceptance once the slice is `Implemented`; see "After acceptance"). Hold to this even when Matt asks for a new plan. Planning resumes only when no `SLICE*.md` file remains.
-
-Before writing a plan, get Matt's rulings on the slice's open choices (numbered `Q#`) and record them under **Confirmed decisions** here. The plan cites them and doesn't decide them.
-
-Size the plan by the work. Count the code, test, template, and asset files the slice touches. The status edits to the slice plan and DESIGN.md don't count.
-
-- **Small: one commit and no more than 3 files.** Keep the plan sparse: the goal, the rulings it rests on, the files and the change in each, the tests and their expected values, and the verification steps. The planning agent offers to implement it itself.
-- **Anything larger.** Write the plan in enough detail that a less capable model (for example Sonnet) can implement it reliably without making design choices. It gives exact type, field, and function signatures; every caller to update; URL and form keys; the commit split with subjects; each test with its inputs, its expected values (measured by an independent probe), and their tolerances; the rules that bite; the verification steps; and an out-of-scope list. The planning agent suggests delegating the implementation to that model.
-
-Each planned commit must pass `make pre-commit` on its own (`make check` doesn't run `deadcode`; Q144). Every plan's "Rules that bite" section ends by requiring the implementation handoff below.
-
-#### Implementation handoff
-
-The implementing agent's last step is to record what it did and the state it left. It does this whether it finished, stopped early, or got blocked. The record goes in the same change as the work, or stays uncommitted alongside the work if the work isn't committed. A reviewer adds its findings under the same section and doesn't rewrite the implementer's record.
-
-1. **The slice plan's Status line** says one of: `Implemented <date>; awaiting Matt's acceptance`, `Partly implemented <date>; stopped after <plan step>`, or `Blocked <date> on <question>`.
-2. **An `## Implementation handoff` section** sits right after the Status paragraph in the slice plan. It contains:
-   - **Who and when:** the date and the model that did the work.
-   - **Commits:** each planned commit's subject with its hash, or "not committed". For uncommitted work, list the files that hold it and which planned commit each change belongs to.
-   - **Done and not done:** by the plan's step IDs (for example A1, W3, N4).
-   - **Deviations:** every place where the code or tests differ from the plan, and why. Write "None" if there are none. A deviation needs a reason. "Seemed cleaner" isn't one; stop and ask instead (see the plan's header).
-   - **Verification:** the result of `make pre-commit` on the final state, and the plan's live check: what you confirmed, with numbers, and where the screenshot is. If you skipped it, say so and why.
-   - **Open issues:** findings, questions for Matt, and anything you noticed but left alone.
-3. **DESIGN.md's Milestones line** for the slice uses the same status words as the Status line. Don't touch any other part of DESIGN.md. Only Matt's acceptance makes a slice "done" (see "After acceptance").
-
-#### After acceptance
-
-When Matt accepts a slice, delete its plan file in the same commit that marks the slice accepted. After that, the code, the tests, and git history are the record. That commit also does three things:
-
-1. **The Milestones line** says `done and accepted <date>` and lists the slice's commit hashes in place of the plan link.
-2. **Links to the plan:** remove or rewrite every link to the deleted file, in DESIGN.md and in other slice plans. A plan that builds on the slice names it by number and lists its commits.
-3. **Anything that must outlive the plan** moves into DESIGN.md first. That means a ruling not yet under **Confirmed decisions**, or an open issue Matt wants kept. Acceptance closes the handoff's other open issues, and the rest of the plan is dropped.
+Slice planning, the one-active-plan gate, `SLICE<n>.md` headers (`Status`, `Implementer`, `Review`), lightweight handoffs, diff-only reviews, and post-acceptance cleanup are specified in [WORKFLOW.md](WORKFLOW.md) (§1–§3). Confirmed `Q#` rulings and the `## Milestones` table remain here.
 
 ## Requirements
 
