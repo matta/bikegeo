@@ -9,11 +9,16 @@ import (
 	"bikegeo/internal/reboot/pose"
 )
 
-// TestForks checks the 21 fork models, their variants, Q131 IDs, and Q72 steerers.
+// TestForks checks the 16 fork models, their variants, Q131 IDs, and Q72 steerers.
 func TestForks(t *testing.T) {
 	forks := catalog.Forks()
-	if len(forks) != 21 {
-		t.Fatalf("got %d forks, want 21", len(forks))
+	if len(forks) != 16 {
+		t.Fatalf("got %d forks, want 16", len(forks))
+	}
+	for _, id := range []string{"rigid_483", "rigid_485", "rigid_490", "rigid_500", "rigid_510"} {
+		if _, ok := catalog.ForkByID(id); ok {
+			t.Errorf("ForkByID(%q) ok = true, want false (Q137)", id)
+		}
 	}
 	seen := map[string]bool{}
 	seenVariantIDs := map[string]bool{}
@@ -28,6 +33,9 @@ func TestForks(t *testing.T) {
 		seen[f.ID] = true
 		if f.Name == "" {
 			t.Errorf("fork %q has an empty name", f.ID)
+		}
+		if !f.RigidClass.ValidFor(f.Travel) {
+			t.Errorf("fork %q has rigid class %q for travel %v", f.ID, f.RigidClass, f.Travel)
 		}
 		if !f.Travel.Valid() {
 			t.Errorf("fork %q has unsupported travel %v", f.ID, f.Travel)
@@ -255,6 +263,33 @@ func TestLowerCupFor(t *testing.T) {
 		got, ok := catalog.LowerCupFor(tc.bore, tc.defaultStd, tc.steerer)
 		if ok != tc.ok || got != tc.want {
 			t.Errorf("%s: LowerCupFor = %+v, %v; want %+v, %v", tc.name, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+// TestRigidClassValidFor checks the class and travel pairing (Q135).
+func TestRigidClassValidFor(t *testing.T) {
+	for _, c := range []catalog.RigidClass{catalog.RigidClass440, catalog.RigidClass470, catalog.RigidClass485, catalog.RigidClass495} {
+		if !c.ValidFor(assembly.TravelRigid) {
+			t.Errorf("%q.ValidFor(rigid) = false, want true", c)
+		}
+	}
+	for _, tr := range []assembly.ForkTravel{assembly.Travel100, assembly.Travel120, assembly.Travel130} {
+		if !catalog.RigidClassNone.ValidFor(tr) {
+			t.Errorf("none.ValidFor(%v) = false, want true", tr)
+		}
+	}
+	for _, tc := range []struct {
+		c  catalog.RigidClass
+		tr assembly.ForkTravel
+	}{
+		{catalog.RigidClassNone, assembly.TravelRigid},
+		{catalog.RigidClass485, assembly.Travel100},
+		{catalog.RigidClass("510"), assembly.TravelRigid},
+		{catalog.RigidClassNone, assembly.ForkTravel(-1)},
+	} {
+		if tc.c.ValidFor(tc.tr) {
+			t.Errorf("%q.ValidFor(%v) = true, want false", tc.c, tc.tr)
 		}
 	}
 }

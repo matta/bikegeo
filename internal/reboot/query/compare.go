@@ -98,7 +98,7 @@ func CatalogFrames() []compare.Frame {
 		opts := f.ForkOptions()
 		forks := make([]compare.Fork, len(opts))
 		for j, opt := range opts {
-			forks[j] = compare.Fork{ID: opt.ID(), ModelID: opt.Fork.ID, Spec: opt.Spec()}
+			forks[j] = compare.Fork{ID: opt.ID(), ModelID: opt.Fork.ID, Spec: opt.Spec(), LowerCup: opt.LowerCup}
 		}
 		out[i] = compare.Frame{ID: f.ID, Sizes: sizes, Forks: forks}
 	}

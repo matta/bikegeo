@@ -174,8 +174,8 @@ func TestFramesMatchLegacy(t *testing.T) {
 						t.Errorf("%s %s = %v, legacy %v", s.Name, col.name, col.got, col.want)
 					}
 				}
-				if fr.LowerBore != bore || fr.DefaultLowerCup != cup {
-					t.Errorf("%s headset = %s %+v, want %s %+v", s.Name, fr.LowerBore, fr.DefaultLowerCup, bore, cup)
+				if fr.LowerBore != bore || fr.DefaultLowerCup.Standard != cup.Standard {
+					t.Errorf("%s headset = %s %s, want %s %s (stacks follow Q136)", s.Name, fr.LowerBore, fr.DefaultLowerCup.Standard, bore, cup.Standard)
 				}
 				wantInsertion := 0.0
 				if f.ID == "otso-fenrir-stainless" && s.Name == "L" {

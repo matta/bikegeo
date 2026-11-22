@@ -3,6 +3,7 @@ package catalog_test
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -97,6 +98,31 @@ func frameProblems(f catalog.Frame) []string {
 		if len(fk.Variants) == 0 {
 			problems = append(problems, fmt.Sprintf("fork %q has no variants", fk.ID))
 		}
+		if !fk.RigidClass.ValidFor(fk.Travel) {
+			problems = append(problems, fmt.Sprintf("fork %q has rigid class %q for travel %v", fk.ID, fk.RigidClass, fk.Travel))
+		}
+	}
+	if len(f.Sizes) > 0 {
+		first := f.Sizes[0].ChartFrame
+		for _, sz := range f.Sizes {
+			if sz.ChartFrame.LowerBore != first.LowerBore || sz.ChartFrame.DefaultLowerCup != first.DefaultLowerCup {
+				problems = append(problems, fmt.Sprintf("size %q headset differs from size %q", sz.Name, f.Sizes[0].Name))
+			}
+		}
+		if typical, ok := catalog.TypicalLowerCup(first.DefaultLowerCup.Standard); !ok || typical != first.DefaultLowerCup {
+			problems = append(problems, fmt.Sprintf("default lower cup %+v is not the typical cup", first.DefaultLowerCup))
+		}
+		compatible := map[string]bool{}
+		for _, fk := range f.CompatibleForks() {
+			compatible[fk.ID] = true
+		}
+		for _, fk := range f.Forks {
+			if _, ok := catalog.LowerCupFor(first.LowerBore, first.DefaultLowerCup.Standard, fk.Steerer); !ok {
+				problems = append(problems, fmt.Sprintf("listed fork %q has no lower cup on %s", fk.ID, first.LowerBore))
+			} else if !compatible[fk.ID] {
+				problems = append(problems, fmt.Sprintf("listed fork %q is missing from the compatible forks", fk.ID))
+			}
+		}
 	}
 	if f.MaxChainstayMm != 0 {
 		longest := 0.0
@@ -136,6 +162,25 @@ func TestFrameProblemsCatchMistakes(t *testing.T) {
 		{"no forks", func(f *catalog.Frame) { f.Forks = nil }, "no forks"},
 		{"duplicate fork", func(f *catalog.Frame) { f.Forks[1] = f.Forks[0] }, "duplicate fork"},
 		{"max chainstay below a size", func(f *catalog.Frame) { f.MaxChainstayMm = 440 }, "max chainstay"},
+		{"size headset bore differs", func(f *catalog.Frame) { f.Sizes[1].ChartFrame.LowerBore = assembly.Bore56Pressed }, "headset differs"},
+		{"size default cup differs", func(f *catalog.Frame) { f.Sizes[1].ChartFrame.DefaultLowerCup.StackMm = 5 }, "headset differs"},
+		{"non-typical default cup", func(f *catalog.Frame) {
+			for i := range f.Sizes {
+				f.Sizes[i].ChartFrame.DefaultLowerCup.StackMm = 0
+			}
+		}, "not the typical cup"},
+		{"rigid fork without class", func(f *catalog.Frame) {
+			fk := f.Forks[0]
+			fk.RigidClass = catalog.RigidClassNone
+			f.Forks = []catalog.Fork{fk, f.Forks[1], f.Forks[2]}
+		}, "rigid class"},
+		{"tapered fork on a 34 mm bore", func(f *catalog.Frame) {
+			f.Forks = f.Forks[:1]
+			for i := range f.Sizes {
+				f.Sizes[i].ChartFrame.LowerBore = assembly.Bore34Pressed
+				f.Sizes[i].ChartFrame.DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupEC34, StackMm: 12}
+			}
+		}, "has no lower cup"},
 		{"basis fork non-basis steerer", func(f *catalog.Frame) { f.BasisFork.Steerer = assembly.SteererTapered }, "basis fork steerer"},
 		{"basis fork with travel", func(f *catalog.Frame) { f.BasisFork.Travel = assembly.Travel120 }, "basis fork has"},
 	} {
@@ -227,7 +272,7 @@ func TestForkListsPlace(t *testing.T) {
 				}
 				for _, sag := range sags {
 					fork := assembly.ForkSetup{Spec: opt.Spec(), SagPct: sag}
-					if _, err := assembly.PlaceFrameset(installed, s.ChartFrame.DefaultLowerCup, fork, wheels); err != nil {
+					if _, err := assembly.PlaceFrameset(installed, opt.LowerCup, fork, wheels); err != nil {
 						t.Errorf("%s/%s with %s at %v%% sag: %v", f.ID, s.Name, opt.ID(), sag, err)
 					}
 					placements++
@@ -240,8 +285,8 @@ func TestForkListsPlace(t *testing.T) {
 		}
 	}
 	t.Logf("%d fork-list placements, %d basis placements", placements, bases)
-	if placements != 1100 || bases != 119 {
-		t.Errorf("got %d fork-list and %d basis placements, want 1100 and 119", placements, bases)
+	if placements != 2989 || bases != 119 {
+		t.Errorf("got %d fork-list and %d basis placements, want 2989 and 119", placements, bases)
 	}
 }
 
@@ -337,5 +382,95 @@ func TestDefaultFrameID(t *testing.T) {
 	}
 	if f.ID != "otso-fenrir-stainless" || f.DefaultSize != "L" {
 		t.Errorf("default frame = %q size %q, want otso-fenrir-stainless L", f.ID, f.DefaultSize)
+	}
+}
+
+// compatibleIDs returns the fork model IDs a frame accepts, in order.
+func compatibleIDs(f catalog.Frame) []string {
+	var ids []string
+	for _, fk := range f.CompatibleForks() {
+		ids = append(ids, fk.ID)
+	}
+	return ids
+}
+
+// TestCompatibleForksRules checks the Q128, Q135, Q136, and Q139 rules.
+func TestCompatibleForksRules(t *testing.T) {
+	cutthroat := compatibleIDs(mustFrame(t, "salsa-cutthroat"))
+	wantCutthroat := []string{"firestarter_deluxe_483", "sid_100", "surly_krampus_483", "sklar_steel_485"}
+	if !slices.Equal(cutthroat, wantCutthroat) {
+		t.Errorf("salsa-cutthroat compatible forks = %v, want %v", cutthroat, wantCutthroat)
+	}
+	for _, id := range []string{"fox34_120", "fox34_130", "enve_mountain_boost", "lithic_carbon_mountain"} {
+		if slices.Contains(cutthroat, id) {
+			t.Errorf("salsa-cutthroat accepts %q; a 100 mm and 485 listing must not unlock it", id)
+		}
+	}
+
+	seven := mustFrame(t, "seven-expedition-926d")
+	models, variants := 0, 0
+	for _, fk := range seven.CompatibleForks() {
+		models++
+		variants += len(fk.Variants)
+		if fk.Travel == assembly.TravelRigid && fk.RigidClass != catalog.RigidClass495 {
+			t.Errorf("926d accepts rigid fork %q of class %q", fk.ID, fk.RigidClass)
+		}
+		if fk.Travel == assembly.Travel100 || fk.Travel == assembly.Travel130 {
+			t.Errorf("926d accepts %v mm fork %q", fk.Travel, fk.ID)
+		}
+	}
+	if models != 7 || variants != 11 || len(seven.ForkOptions()) != 11 {
+		t.Errorf("926d has %d models, %d variants, %d options; want 7, 11, 11", models, variants, len(seven.ForkOptions()))
+	}
+
+	for id, only := range map[string]string{"surly-ecr": "surly_ecr_468", "tumbleweed-sunliner": "sunliner_440"} {
+		if got := compatibleIDs(mustFrame(t, id)); !slices.Equal(got, []string{only}) {
+			t.Errorf("%s compatible forks = %v, want only %s (rigid lists never unlock suspension)", id, got, only)
+		}
+	}
+
+	for _, f := range catalog.Frames() {
+		got := compatibleIDs(f)
+		for i, fk := range f.Forks {
+			if got[i] != fk.ID {
+				t.Errorf("%s compatible fork %d = %q, want listed %q first", f.ID, i, got[i], fk.ID)
+			}
+			if !f.IsListedFork(fk.ID) {
+				t.Errorf("%s IsListedFork(%q) = false", f.ID, fk.ID)
+			}
+		}
+		for _, id := range got[len(f.Forks):] {
+			if f.IsListedFork(id) {
+				t.Errorf("%s lists %q yet it is not first", f.ID, id)
+			}
+		}
+	}
+	if mustFrame(t, "surly-krampus").IsListedFork("pike_120") {
+		t.Error("surly-krampus lists pike_120, want only compatible")
+	}
+}
+
+// TestForkOptionsResolveLowerCups checks per-fork cups on a ZS44 frame (Q136).
+func TestForkOptionsResolveLowerCups(t *testing.T) {
+	f := mustFrame(t, "surly-krampus")
+	sid, _ := catalog.ForkByID("sid_100")
+	for i := range f.Sizes {
+		f.Sizes[i].ChartFrame.DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupZS44, StackMm: 4}
+	}
+	f.Forks = []catalog.Fork{sid}
+	want := map[string]assembly.LowerCupSetup{
+		"surly_krampus_483": {Standard: assembly.LowerCupZS44, StackMm: 4},
+		"sid_100":           {Standard: assembly.LowerCupEC44, StackMm: 12},
+	}
+	for _, opt := range f.ForkOptions() {
+		if w, ok := want[opt.Fork.ID]; ok && opt.LowerCup != w {
+			t.Errorf("%s cup = %+v, want %+v", opt.Fork.ID, opt.LowerCup, w)
+		}
+	}
+	if opts, ok := f.LookupFork("surly_krampus_483"); !ok || len(opts) != 1 || opts[0].LowerCup != want["surly_krampus_483"] {
+		t.Errorf("LookupFork(surly_krampus_483) = %+v, %v", opts, ok)
+	}
+	if _, ok := f.LookupFork("rigid_485"); ok {
+		t.Error("LookupFork(rigid_485) found a deleted fork")
 	}
 }

@@ -35,7 +35,7 @@ func binaryKinetik() Frame {
 			WheelbaseMm:      0.5,
 		},
 		// catalog: compatible forks (Q128)
-		Forks: []Fork{fox34_120, sid100, rigid500},
+		Forks: []Fork{fox34_120, sid100},
 		// published
 		Sizes: family.sizes(
 			publishedSize{

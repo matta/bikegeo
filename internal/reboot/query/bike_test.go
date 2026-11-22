@@ -73,8 +73,8 @@ func TestParseBikeAllFramesAndSlidingDropouts(t *testing.T) {
 	}
 
 	b = mustParseBike(t, "frame=binary-havok&size=L")
-	if b.ForkID != "rigid_485-485x45" || b.Setup.Frame.ChainstayMm != 460 || cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Seatpost.InsertionMm != 175.0 {
-		t.Errorf("havok physical = %s chainstay %v cup %s ins %v", b.ForkID, b.Setup.Frame.ChainstayMm, cupString(b.Setup.LowerCup), b.Setup.Seatpost.InsertionMm)
+	if b.ForkID != "sid_100-506x44" || b.Setup.Fork.SagPct != 20 || b.Setup.Frame.ChainstayMm != 460 || cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Seatpost.InsertionMm != 175.0 {
+		t.Errorf("havok default = %s chainstay %v cup %s ins %v", b.ForkID, b.Setup.Frame.ChainstayMm, cupString(b.Setup.LowerCup), b.Setup.Seatpost.InsertionMm)
 	}
 
 	b = mustParseBike(t, "frame=binary-havok&size=L&fork=basis&cup=99&fork_a2c=999&sag=50")
@@ -115,14 +115,23 @@ func TestParseBikeSwitchesQ109(t *testing.T) {
 		t.Errorf("esker switch (sid->pike) = %s %s a2c %v cup %s sag %v stem %v bar %s", b.Size.Name, b.ForkID, b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct, b.Setup.Stem.LengthMm, b.Bar.ID)
 	}
 
+	// Q135: the Krampus lists fox34_120, which unlocks the 495 rigid class, so
+	// Fenrir's lithic fork stays.
 	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=surly-krampus&size=L&fork=lithic_carbon_mountain-495x44&fork_a2c=495&cup=12&sag=0")
-	if b.Size.Name != "L" || b.ForkID != "surly_krampus_483" || b.Setup.Fork.Spec.StaticA2cMm != 483 ||
+	if b.Size.Name != "L" || b.ForkID != "lithic_carbon_mountain-495x44" || b.Setup.Fork.Spec.StaticA2cMm != 495 ||
 		cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Fork.SagPct != 0 {
 		t.Errorf("krampus switch = %s %s a2c %v cup %s sag %v", b.Size.Name, b.ForkID, b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct)
 	}
 
+	// The tapered lithic fork does not fit the Surly ECR's 34 mm bore (Q130),
+	// so a frame switch falls back to the ECR's default fork.
+	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=surly-ecr&size=L&fork=lithic_carbon_mountain-495x44&fork_a2c=495&cup=12&sag=0")
+	if b.ForkID != "surly_ecr_468" || cupString(b.Setup.LowerCup) != "EC34 12" {
+		t.Errorf("ecr switch = %s cup %s, want surly_ecr_468 EC34 12", b.ForkID, cupString(b.Setup.LowerCup))
+	}
+
 	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=salsa-cutthroat&size=L&fork=sid_100-506x44&fork_a2c=506&cup=12&sag=25")
-	if b.Size.Name != "56cm" || b.ForkID != "sid_100-506x44" || cupString(b.Setup.LowerCup) != "IS52 0" ||
+	if b.Size.Name != "56cm" || b.ForkID != "sid_100-506x44" || cupString(b.Setup.LowerCup) != "IS52 1" ||
 		b.Setup.Fork.Spec.StaticA2cMm != 506 || b.Setup.Fork.Spec.RakeMm != 44 || b.Setup.Fork.SagPct != 20 {
 		t.Errorf("cutthroat switch = %s %s cup %s a2c %v rake %v sag %v", b.Size.Name, b.ForkID, cupString(b.Setup.LowerCup), b.Setup.Fork.Spec.StaticA2cMm, b.Setup.Fork.Spec.RakeMm, b.Setup.Fork.SagPct)
 	}
@@ -151,7 +160,7 @@ func TestParseBikeSwitchesQ109(t *testing.T) {
 	}
 	// Leaving the basis restores the physical cup even when the cup
 	// standard is shared (binary-havok: basis EC44 10 mm, physical EC44 12 mm).
-	b = mustParseBike(t, "frame=binary-havok&size=L&prev_fork=basis&fork=rigid_485-485x45&fork_a2c=485&cup=10&sag=0")
+	b = mustParseBike(t, "frame=binary-havok&size=L&prev_fork=basis&fork=sklar_steel_485&fork_a2c=485&cup=10&sag=0")
 	if cupString(b.Setup.LowerCup) != "EC44 12" {
 		t.Errorf("basis->physical cup = %s, want EC44 12", cupString(b.Setup.LowerCup))
 	}
@@ -324,15 +333,15 @@ func TestBikeEvaluate(t *testing.T) {
 	}
 
 	r = eval("fork_options=all")
-	if r.Builds.Evaluated != 8988 {
-		t.Errorf("all forks evaluated = %d, want 8988", r.Builds.Evaluated)
+	if r.Builds.Evaluated != 23968 {
+		t.Errorf("all forks evaluated = %d, want 23968", r.Builds.Evaluated)
 	}
 	top = r.Builds.Builds[0]
-	if top.ForkID != "sid_100-506x51" || top.Placement.Setup.Fork.SagPct != 20 {
+	if top.ForkID != "firestarter_deluxe_483" || top.Placement.Setup.Fork.SagPct != 0 {
 		t.Errorf("all forks top = %s sag %v", top.ForkID, top.Placement.Setup.Fork.SagPct)
 	}
-	near(t, "all forks total", top.Score.Total, 60.642370, 1e-5)
-	near(t, "all forks gripR", top.Score.GripR, 1.446100, 1e-4)
+	near(t, "all forks total", top.Score.Total, 63.094565950, 1e-6)
+	near(t, "all forks gripR", top.Score.GripR, 1.273523966, 1e-6)
 
 	_, err := mustParseBike(t, "post=redshift_shockstop_pro&post_insert=275").Evaluate(query.RankedBuildLimit)
 	var ie *assembly.InputError
@@ -347,4 +356,26 @@ func TestBasisFrameset(t *testing.T) {
 		t.Fatalf("BasisFrameset: %v", err)
 	}
 	near(t, "default basis pitch", float64(fs.PitchDeg()), -0.010692172, 1e-9)
+}
+
+// TestParseBikeOpenForkChoice opens an unlisted compatible fork directly and
+// rejects incompatible or deleted ones (Q128, Q130, Q135, Q137).
+func TestParseBikeOpenForkChoice(t *testing.T) {
+	b := mustParseBike(t, "frame=surly-krampus&size=L&fork=pike_120")
+	if b.ForkID != "pike_120" || b.Setup.Fork.SagPct != 25 || cupString(b.Setup.LowerCup) != "EC44 12" {
+		t.Errorf("krampus pike_120 = %s sag %v cup %s, want pike_120 25%% EC44 12", b.ForkID, b.Setup.Fork.SagPct, cupString(b.Setup.LowerCup))
+	}
+	b = mustParseBike(t, "frame=binary-havok&size=L&fork=sklar_steel_485")
+	if b.ForkID != "sklar_steel_485" || b.Setup.Fork.SagPct != 0 || cupString(b.Setup.LowerCup) != "EC44 12" {
+		t.Errorf("havok sklar = %s sag %v cup %s, want sklar_steel_485 0%% EC44 12", b.ForkID, b.Setup.Fork.SagPct, cupString(b.Setup.LowerCup))
+	}
+	for _, raw := range []string{
+		"frame=surly-ecr&size=L&fork=firestarter_deluxe_483", // tapered steerer on a 34 mm bore
+		"frame=binary-havok&size=L&fork=rigid_485-485x45",    // deleted placeholder
+		"frame=surly-krampus&size=L&fork=fox34_130",          // 130 mm travel is not unlocked
+	} {
+		if _, err := query.ParseBike(mustParseQuery(t, raw)); err == nil {
+			t.Errorf("ParseBike(%q) succeeded, want an error", raw)
+		}
+	}
 }

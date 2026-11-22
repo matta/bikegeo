@@ -12,7 +12,7 @@ func revelElJefe() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType IS52; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore52Integrated,
-		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0},
+		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 1},
 	}
 	return Frame{
 		ID:             "revel-el-jefe",
@@ -36,7 +36,7 @@ func revelElJefe() Frame {
 			WheelbaseMm:      0.5,
 		},
 		// catalog: compatible forks (Q128)
-		Forks: []Fork{sid120, sid100, fox34_130, rigid510},
+		Forks: []Fork{sid120, sid100, fox34_130},
 		// published
 		Sizes: family.sizes(
 			publishedSize{

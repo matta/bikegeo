@@ -12,7 +12,7 @@ func turnerVennTi() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType ZS56; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore56Pressed,
-		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupZS56, StackMm: 2},
+		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupZS56, StackMm: 4},
 	}
 	return Frame{
 		ID:           "turner-venn-ti",

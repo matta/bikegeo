@@ -84,39 +84,105 @@ func (f Frame) InstalledFrame(size FrameSize) assembly.FrameSetup {
 	return frame
 }
 
-// ForkOptions expands f.Forks into concrete ForkOptions in declared fork and
-// variant order (Q128).
-func (f Frame) ForkOptions() []ForkOption {
-	var out []ForkOption
+// headset returns the lower bore and default cup standard every size shares
+// (frameProblems checks they agree); a frame with no sizes has neither.
+func (f Frame) headset() (assembly.LowerBore, assembly.LowerCupStandard) {
+	if len(f.Sizes) == 0 {
+		return "", ""
+	}
+	fr := f.Sizes[0].ChartFrame
+	return fr.LowerBore, fr.DefaultLowerCup.Standard
+}
+
+// IsListedFork reports whether modelID is one of f's listed forks (Q128).
+func (f Frame) IsListedFork(modelID string) bool {
 	for _, fk := range f.Forks {
+		if fk.ID == modelID {
+			return true
+		}
+	}
+	return false
+}
+
+// CompatibleForks returns the forks the frame accepts (Q128, Q129, Q130,
+// Q135): its listed forks first in declared order, then every other catalog
+// fork, in catalog order, whose steerer fits the head tube and whose class a
+// listed fork unlocks. A listed rigid fork unlocks only its own rigid class; a
+// listed suspension fork unlocks its own travel and the rigid classes that
+// stand in for it.
+func (f Frame) CompatibleForks() []Fork {
+	bore, std := f.headset()
+	seen := make(map[string]bool, len(f.Forks))
+	allowedRigid := make(map[RigidClass]bool)
+	allowedTravel := make(map[assembly.ForkTravel]bool)
+	out := make([]Fork, 0, len(f.Forks))
+	for _, fk := range f.Forks {
+		out = append(out, fk)
+		seen[fk.ID] = true
+		if fk.Travel == assembly.TravelRigid {
+			allowedRigid[fk.RigidClass] = true
+			continue
+		}
+		allowedTravel[fk.Travel] = true
+		for _, rc := range standInRigidClasses(fk.Travel) {
+			allowedRigid[rc] = true
+		}
+	}
+	for _, fk := range Forks() {
+		if seen[fk.ID] {
+			continue
+		}
+		if _, ok := LowerCupFor(bore, std, fk.Steerer); !ok {
+			continue
+		}
+		if fk.Travel == assembly.TravelRigid {
+			if !allowedRigid[fk.RigidClass] {
+				continue
+			}
+		} else if !allowedTravel[fk.Travel] {
+			continue
+		}
+		out = append(out, fk)
+		seen[fk.ID] = true
+	}
+	return out
+}
+
+// ForkOptions expands CompatibleForks into concrete ForkOptions in fork and
+// variant order, each with the typical lower cup it installs with (Q128, Q136).
+func (f Frame) ForkOptions() []ForkOption {
+	bore, std := f.headset()
+	var out []ForkOption
+	for _, fk := range f.CompatibleForks() {
+		cup, ok := LowerCupFor(bore, std, fk.Steerer)
+		if !ok {
+			continue // frameProblems forbids this for listed forks
+		}
 		for _, v := range fk.Variants {
-			out = append(out, ForkOption{Fork: fk, Variant: v})
+			out = append(out, ForkOption{Fork: fk, Variant: v, LowerCup: cup})
 		}
 	}
 	return out
 }
 
-// LookupFork resolves id against f.Forks (Q131):
+// LookupFork resolves id against f's compatible forks (Q131):
 //   - a concrete variant ID (bare ID on a single-variant fork, or
 //     "<model>-<a2c>x<rake>" on a multi-variant fork) returns that single ForkOption;
 //   - a bare multi-variant fork model ID returns all variants of that model.
 func (f Frame) LookupFork(id string) ([]ForkOption, bool) {
-	for _, fk := range f.Forks {
-		for _, v := range fk.Variants {
-			opt := ForkOption{Fork: fk, Variant: v}
-			if opt.ID() == id {
-				return []ForkOption{opt}, true
-			}
-		}
-		if fk.IsMultiVariant() && fk.ID == id {
-			out := make([]ForkOption, len(fk.Variants))
-			for i, v := range fk.Variants {
-				out[i] = ForkOption{Fork: fk, Variant: v}
-			}
-			return out, true
+	options := f.ForkOptions()
+	for _, opt := range options {
+		if opt.ID() == id {
+			return []ForkOption{opt}, true
 		}
 	}
-	return nil, false
+	var out []ForkOption
+	for _, opt := range options {
+		if opt.Fork.IsMultiVariant() && opt.Fork.ID == id {
+			out = append(out, opt)
+		}
+	}
+	return out, len(out) > 0
 }
 
 // Frames returns every catalog frame in ascending ID order (TestFramesRegistry pins the list).

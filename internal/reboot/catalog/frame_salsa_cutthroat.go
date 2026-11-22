@@ -11,7 +11,7 @@ func salsaCutthroat() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType IS52; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore52Integrated,
-		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0},
+		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 1},
 	}
 	return Frame{
 		ID:           "salsa-cutthroat",

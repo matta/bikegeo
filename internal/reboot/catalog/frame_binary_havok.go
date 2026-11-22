@@ -35,7 +35,7 @@ func binaryHavok() Frame {
 			WheelbaseMm:      0.5,
 		},
 		// catalog: compatible forks (Q128)
-		Forks: []Fork{rigid485, sid100, fox34_120},
+		Forks: []Fork{sid100, fox34_120},
 		// published
 		Sizes: family.sizes(
 			publishedSize{

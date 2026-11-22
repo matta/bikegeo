@@ -15,11 +15,61 @@ type ForkVariant struct {
 
 // Fork is a catalog fork model with its published A2C and rake variants (Q128).
 type Fork struct {
-	ID       string
-	Name     string
-	Travel   assembly.ForkTravel
-	Steerer  assembly.Steerer
-	Variants []ForkVariant
+	ID      string
+	Name    string
+	Travel  assembly.ForkTravel
+	Steerer assembly.Steerer
+	// RigidClass groups rigid forks by effective length for compatibility
+	// (Q135); suspension forks have RigidClassNone.
+	RigidClass RigidClass
+	Variants   []ForkVariant
+}
+
+// RigidClass is a hand-assigned length class of commercial rigid forks (Q135).
+type RigidClass string
+
+const (
+	RigidClassNone RigidClass = ""
+	RigidClass440  RigidClass = "440"
+	RigidClass470  RigidClass = "470"
+	RigidClass485  RigidClass = "485"
+	RigidClass495  RigidClass = "495"
+)
+
+// ValidFor reports whether c is a legal class for a fork of the given travel:
+// a rigid fork has one of the four classes and a suspension fork has none.
+func (c RigidClass) ValidFor(travel assembly.ForkTravel) bool {
+	switch travel {
+	case assembly.TravelRigid:
+		switch c {
+		case RigidClass440, RigidClass470, RigidClass485, RigidClass495:
+			return true
+		case RigidClassNone:
+			return false
+		default:
+			return false
+		}
+	case assembly.Travel100, assembly.Travel120, assembly.Travel130:
+		return c == RigidClassNone
+	default:
+		return false
+	}
+}
+
+// standInRigidClasses returns the rigid classes a listed suspension fork of the
+// given travel also unlocks (Q135). The stand-in is one way: a rigid fork never
+// unlocks a suspension travel.
+func standInRigidClasses(travel assembly.ForkTravel) []RigidClass {
+	switch travel {
+	case assembly.Travel100:
+		return []RigidClass{RigidClass485}
+	case assembly.Travel120:
+		return []RigidClass{RigidClass495}
+	case assembly.TravelRigid, assembly.Travel130:
+		return nil
+	default:
+		return nil
+	}
 }
 
 // IsMultiVariant reports whether f has more than one published variant (Q131).
@@ -45,6 +95,9 @@ func formatDim(x float64) string {
 type ForkOption struct {
 	Fork    Fork
 	Variant ForkVariant
+	// LowerCup is the typical cup this fork installs with on the offering
+	// frame's head tube (Q136).
+	LowerCup assembly.LowerCupSetup
 }
 
 // ID returns the concrete Q131 query identifier for o.
@@ -70,56 +123,36 @@ func (o ForkOption) Spec() assembly.ForkSpec {
 	}
 }
 
-// The 21 fork models and their published variants (Q128, Q129, Q133).
+// The 16 fork models and their published variants (Q128, Q129, Q133).
 var (
 	sunliner440 = Fork{
-		ID: "sunliner_440", Name: "Tumbleweed Chromoly Steel Unicrown 440mm", Steerer: assembly.SteererStraight118,
+		ID: "sunliner_440", Name: "Tumbleweed Chromoly Steel Unicrown 440mm", Steerer: assembly.SteererStraight118, RigidClass: RigidClass440,
 		Variants: []ForkVariant{{StaticA2cMm: 440, RakeMm: 55}},
 	} // catalog
 	surlyEcr468 = Fork{
-		ID: "surly_ecr_468", Name: "Surly ECR 4130 Chromoly 468mm", Steerer: assembly.SteererStraight118,
+		ID: "surly_ecr_468", Name: "Surly ECR 4130 Chromoly 468mm", Steerer: assembly.SteererStraight118, RigidClass: RigidClass470,
 		Variants: []ForkVariant{{StaticA2cMm: 468, RakeMm: 43}},
 	} // catalog
 	firestarterDeluxe483 = Fork{
-		ID: "firestarter_deluxe_483", Name: "Salsa Firestarter / Cutthroat Carbon Deluxe 483mm", Steerer: assembly.SteererTapered,
+		ID: "firestarter_deluxe_483", Name: "Salsa Firestarter / Cutthroat Carbon Deluxe 483mm", Steerer: assembly.SteererTapered, RigidClass: RigidClass485,
 		Variants: []ForkVariant{{StaticA2cMm: 483, RakeMm: 51}},
 	} // catalog
 	surlyKrampus483 = Fork{
-		ID: "surly_krampus_483", Name: "Surly Krampus 4130 Chromoly 483mm", Steerer: assembly.SteererStraight118,
+		ID: "surly_krampus_483", Name: "Surly Krampus 4130 Chromoly 483mm", Steerer: assembly.SteererStraight118, RigidClass: RigidClass485,
 		Variants: []ForkVariant{{StaticA2cMm: 483, RakeMm: 47}},
 	} // catalog
-	rigid483 = Fork{
-		ID: "rigid_483", Name: "Rigid Bikepacking 483mm", Steerer: assembly.SteererTapered,
-		Variants: []ForkVariant{{StaticA2cMm: 483, RakeMm: 44}, {StaticA2cMm: 483, RakeMm: 51}},
-	} // illustrative
-	rigid485 = Fork{
-		ID: "rigid_485", Name: "Rigid Bikepacking 485mm", Steerer: assembly.SteererTapered,
-		Variants: []ForkVariant{{StaticA2cMm: 485, RakeMm: 45}, {StaticA2cMm: 485, RakeMm: 52}},
-	} // illustrative
 	sklarSteel485 = Fork{
-		ID: "sklar_steel_485", Name: "Sklar Chromoly Steel 485mm", Steerer: assembly.SteererStraight118,
+		ID: "sklar_steel_485", Name: "Sklar Chromoly Steel 485mm", Steerer: assembly.SteererStraight118, RigidClass: RigidClass485,
 		Variants: []ForkVariant{{StaticA2cMm: 485, RakeMm: 52}},
 	} // catalog
-	rigid490 = Fork{
-		ID: "rigid_490", Name: "Rigid Bikepacking 490mm", Steerer: assembly.SteererTapered,
-		Variants: []ForkVariant{{StaticA2cMm: 490, RakeMm: 44}},
-	} // illustrative
 	enveMountainBoost = Fork{
-		ID: "enve_mountain_boost", Name: "ENVE Mountain Carbon Boost", Steerer: assembly.SteererTapered,
+		ID: "enve_mountain_boost", Name: "ENVE Mountain Carbon Boost", Steerer: assembly.SteererTapered, RigidClass: RigidClass495,
 		Variants: []ForkVariant{{StaticA2cMm: 490, RakeMm: 44}, {StaticA2cMm: 492, RakeMm: 52}},
 	} // published (S5)
 	lithicCarbonMountain = Fork{
-		ID: "lithic_carbon_mountain", Name: "Lithic Carbon Mountain", Steerer: assembly.SteererTapered,
+		ID: "lithic_carbon_mountain", Name: "Lithic Carbon Mountain", Steerer: assembly.SteererTapered, RigidClass: RigidClass495,
 		Variants: []ForkVariant{{StaticA2cMm: 495, RakeMm: 44}, {StaticA2cMm: 498, RakeMm: 51.5}},
 	} // published (S6)
-	rigid500 = Fork{
-		ID: "rigid_500", Name: "Rigid Bikepacking 500mm", Steerer: assembly.SteererTapered,
-		Variants: []ForkVariant{{StaticA2cMm: 500, RakeMm: 44}, {StaticA2cMm: 500, RakeMm: 51}},
-	} // illustrative
-	rigid510 = Fork{
-		ID: "rigid_510", Name: "Rigid Bikepacking 510mm", Steerer: assembly.SteererTapered,
-		Variants: []ForkVariant{{StaticA2cMm: 510, RakeMm: 44}},
-	} // illustrative
 	sid100 = Fork{
 		ID: "sid_100", Name: "RockShox SID 100mm", Travel: assembly.Travel100, Steerer: assembly.SteererTapered,
 		Variants: []ForkVariant{{StaticA2cMm: 506, RakeMm: 44}, {StaticA2cMm: 506, RakeMm: 51}},
@@ -158,12 +191,11 @@ var (
 	} // published (fork_fox_36_sl.md)
 )
 
-// Forks returns the 21 fork models in catalog order.
+// Forks returns the 16 fork models in catalog order.
 func Forks() []Fork {
 	return []Fork{
 		sunliner440, surlyEcr468, firestarterDeluxe483, surlyKrampus483,
-		rigid483, rigid485, sklarSteel485, rigid490, enveMountainBoost,
-		lithicCarbonMountain, rigid500, rigid510,
+		sklarSteel485, enveMountainBoost, lithicCarbonMountain,
 		sid100, fox34SL120, sid120, pike120, fox34_120, fox36SL120,
 		fox34SL130, fox34_130, fox36SL130,
 	}

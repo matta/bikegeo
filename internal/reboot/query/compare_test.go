@@ -76,6 +76,9 @@ func TestCatalogFrames(t *testing.T) {
 			if cf.Forks[j].ModelID != opt.Fork.ID {
 				t.Errorf("%s fork %d ModelID = %q, want %q", f.ID, j, cf.Forks[j].ModelID, opt.Fork.ID)
 			}
+			if cf.Forks[j].LowerCup != opt.LowerCup {
+				t.Errorf("%s fork %q cup = %+v, want %+v", f.ID, opt.ID(), cf.Forks[j].LowerCup, opt.LowerCup)
+			}
 			if cf.Forks[j].Spec != opt.Spec() {
 				t.Errorf("%s fork %q spec = %+v, want %+v", f.ID, opt.ID(), cf.Forks[j].Spec, opt.Spec())
 			}
@@ -273,8 +276,9 @@ func TestParseCompareRejectsInvalidQueries(t *testing.T) {
 		{"frame=surly-krampus&size=XL&fork=&sag=&frame=&size=&fork=sid_100&sag=", "frame", `selection 2 is missing "frame"`},
 		{"frame=unknown-bike", "frame", "unknown frame"},
 		{"frame=surly-krampus&size=XXL", "size", "has no size"},
-		// The Krampus carries sid_100 in the catalog; pike_120 is an existing catalog fork it does not, and fox36_150 is deleted.
-		{"frame=surly-krampus&fork=pike_120", "fork", "has no fork"},
+		// fox34_130 is a catalog fork whose 130 mm class the Krampus's listing does not unlock; the ECR's 34 mm bore rejects tapered forks; fox36_150 is deleted.
+		{"frame=surly-krampus&fork=fox34_130", "fork", "has no fork"},
+		{"frame=surly-ecr&fork=firestarter_deluxe_483", "fork", "has no fork"},
 		{"frame=surly-krampus&fork=fox36_150", "fork", "has no fork"},
 		{"frame=surly-krampus&fork=basis", "fork", "has no fork"},
 		{"frame=surly-krampus&size=XL&sag=20", "sag", "sag requires a fork"},
@@ -398,10 +402,10 @@ func TestParseCompareRankAndResolve(t *testing.T) {
 			},
 		},
 		{
-			name: "sliding dropout", raw: "frame=binary-havok&size=L&fork=rigid_485-485x45",
+			name: "sliding dropout", raw: "frame=binary-havok&size=L&fork=sklar_steel_485",
 			evaluated: 749, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "persuader20_800",
-			tier: assembly.FitsNeither, total: 49.866243596, gripR: 3.875593862,
-			stemLengthMm: 120, stemAngleDeg: -30, spacersMm: 0, insertionMm: 176.175807, railOffsetMm: 15.0,
+			tier: assembly.FitsNeither, total: 49.155334622, gripR: 3.718610833,
+			stemLengthMm: 120, stemAngleDeg: -30, spacersMm: 0, insertionMm: 176.648907, railOffsetMm: 15.0,
 			extra: func(t *testing.T, row query.CompareRow) {
 				if got := row.Build.Placement.Setup.Frame.ChainstayMm; got != 460 {
 					t.Errorf("Setup.Frame.ChainstayMm = %v, want 460 (Q67)", got)
@@ -471,8 +475,8 @@ func TestWinningHandlebarOutOfRange(t *testing.T) {
 // selected bar (~1.8 s, Q104).
 func TestParseCompareDefaultAll19Frames(t *testing.T) {
 	_, result := rankAndResolve(t, "")
-	if result.RowCount != 1100 || result.Evaluated != 823900 || len(result.Rows) != 19 {
-		t.Fatalf("RowCount %d, Evaluated %d, %d rows; want 1100, 823900, 19", result.RowCount, result.Evaluated, len(result.Rows))
+	if result.RowCount != 2989 || result.Evaluated != 2238761 || len(result.Rows) != 19 {
+		t.Fatalf("RowCount %d, Evaluated %d, %d rows; want 2989, 2238761, 19", result.RowCount, result.Evaluated, len(result.Rows))
 	}
 	if result.PostID != "redshift_shockstop_pro" || result.BarID != "persuader20_800" || result.AllBarOptions {
 		t.Errorf("PostID %q, BarID %q, AllBarOptions %v", result.PostID, result.BarID, result.AllBarOptions)
@@ -489,9 +493,10 @@ func TestParseCompareDefaultAll19Frames(t *testing.T) {
 		gripR  float64
 	}{
 		{0, "surly-krampus", "XL", "fox34_120-534x44", 25, assembly.FitsAll, 85.120463740, 0.945603917},
-		{1, "seven-custom", "Custom", "fox34_120-534x44", 25, assembly.FitsBRP, 53.126792179, 2.092042057},
-		{5, "esker-hayduke", "S3", "enve_mountain_boost-492x52", 0, assembly.FitsGrip, 81.320323095, 0.952602612},
-		{18, "salsa-cutthroat", "60cm", "firestarter_deluxe_483", 0, assembly.FitsNeither, 50.197172824, 3.390669575},
+		{1, "sklar-pbj", "L", "fox36_sl_120", 15, assembly.FitsAll, 76.200061329, 0.887113437},
+		{2, "seven-custom", "Custom", "fox34_120-534x44", 25, assembly.FitsBRP, 53.126792179, 2.092042057},
+		{7, "esker-hayduke", "S3", "enve_mountain_boost-492x52", 0, assembly.FitsGrip, 81.320323095, 0.952602612},
+		{18, "salsa-cutthroat", "60cm", "firestarter_deluxe_483", 0, assembly.FitsNeither, 50.260457620, 3.453797202},
 	}
 	for _, w := range want {
 		row := result.Rows[w.index]
@@ -608,9 +613,9 @@ func TestCompareRowBikeURLRoundTrip(t *testing.T) {
 			wantBarOptions: query.BarOptionsAll,
 		},
 		{
-			raw:            "frame=binary-havok&size=L&fork=rigid_485-485x45",
+			raw:            "frame=binary-havok&size=L&fork=sklar_steel_485",
 			wantTier:       assembly.FitsNeither,
-			wantScore:      49.866243596,
+			wantScore:      49.155334622,
 			wantBarID:      "persuader20_800",
 			wantBarOptions: query.BarOptionsSelected,
 			wantChainstay:  460,
@@ -714,4 +719,25 @@ func TestCompareRowBikeURLRoundTrip(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestParseCompareOpenForkChoice selects a compatible fork a frame does not
+// list (Q128, Q135) and counts the open fork rows.
+func TestParseCompareOpenForkChoice(t *testing.T) {
+	_, result := rankAndResolve(t, "frame=surly-krampus&fork=pike_120")
+	if result.RowCount != 12 || len(result.Rows) != 12 {
+		t.Errorf("krampus pike_120 RowCount %d, %d rows; want 12, 12 (4 sizes x 3 sags)", result.RowCount, len(result.Rows))
+	}
+	for _, row := range result.Rows {
+		if row.ForkID != "pike_120" {
+			t.Errorf("row fork = %q, want pike_120", row.ForkID)
+		}
+	}
+	forks := 0
+	for _, f := range query.CatalogFrames() {
+		forks += len(f.Forks)
+	}
+	if forks != 234 {
+		t.Errorf("catalog frames carry %d fork variants, want 234", forks)
+	}
 }

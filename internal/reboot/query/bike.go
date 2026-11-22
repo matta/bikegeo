@@ -341,7 +341,7 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 
 	frameSetup := frame.InstalledFrame(size)
 	defaultSag := opt.Fork.Travel.DefaultSagPct()
-	defaultCup := frameSetup.DefaultLowerCup.StackMm
+	defaultCup := opt.LowerCup.StackMm
 
 	var a2cMm, cupMm, sagPct float64
 	var err error
@@ -353,12 +353,12 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 		var prevCupStd assembly.LowerCupStandard
 		if prevFork == BasisForkID {
 			prevCupStd = frame.BasisLowerCup.Standard
-		} else if _, known := frame.LookupFork(prevFork); known {
-			prevCupStd = frameSetup.DefaultLowerCup.Standard
+		} else if prevMatches, known := frame.LookupFork(prevFork); known {
+			prevCupStd = prevMatches[0].LowerCup.Standard
 		}
 		// The basis's cup stack is locked to the chart, so leaving it always
 		// restores the physical default, even when both share a standard.
-		if prevFork == BasisForkID || prevCupStd != frameSetup.DefaultLowerCup.Standard {
+		if prevFork == BasisForkID || prevCupStd != opt.LowerCup.Standard {
 			cupMm = defaultCup
 		} else if cupMm, err = parseFloatOrDefault(q, "cup", defaultCup, "lower cup"); err != nil {
 			return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{}, err
@@ -374,7 +374,7 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 			return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{}, err
 		}
 	}
-	lowerCup := assembly.LowerCupSetup{Standard: frameSetup.DefaultLowerCup.Standard, StackMm: cupMm}
+	lowerCup := assembly.LowerCupSetup{Standard: opt.LowerCup.Standard, StackMm: cupMm}
 	spec := opt.Spec()
 	spec.StaticA2cMm = a2cMm
 	return frameSetup, lowerCup, assembly.ForkSetup{Spec: spec, SagPct: sagPct}, nil
@@ -442,12 +442,12 @@ func (b Bike) FitTarget() assembly.FitTarget {
 }
 
 // ForkOptions enumerates the frame's physical fork configurations offered to
-// build fitting in declared order: a rigid fork once at 0% sag, a suspension
-// fork at each Travel.SagPcts() (Q31, Q129).
+// build fitting, listed forks first: a rigid fork once at 0% sag, a suspension
+// fork at each Travel.SagPcts() (Q31, Q129), each with its own cup (Q136).
 func (b Bike) ForkOptions() []BikeForkOption {
-	cup := b.Frame.InstalledFrame(b.Size).DefaultLowerCup
 	var out []BikeForkOption
 	for _, opt := range b.Frame.ForkOptions() {
+		cup := opt.LowerCup
 		if !opt.Fork.Travel.IsSuspension() {
 			out = append(out, BikeForkOption{ForkOption: opt, LowerCup: cup})
 			continue

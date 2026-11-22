@@ -12,7 +12,7 @@ func ritcheyUltra() Frame {
 	family := frameFamily{
 		// Q66: inferred from legacy HeadsetCupType IS52; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore52Integrated,
-		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0},
+		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 1},
 	}
 	return Frame{
 		ID:           "ritchey-ultra",
@@ -36,7 +36,7 @@ func ritcheyUltra() Frame {
 			WheelbaseMm:      0.5,
 		},
 		// catalog: compatible forks (Q128)
-		Forks: []Fork{fox34_120, rigid500},
+		Forks: []Fork{fox34_120},
 		// published
 		Sizes: family.sizes(
 			publishedSize{
