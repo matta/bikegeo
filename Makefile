@@ -15,15 +15,15 @@ vet:
 	go vet ./...
 
 # Enforce strict import isolation between the legacy tree and internal/reboot/.
-# Only *_parity_test.go files under internal/reboot/ may import legacy packages.
+# No reboot file may import a legacy package.
 boundary:
 	@bad="$$({ \
 	  find cmd/bikegeo-reboot -type f -name '*.go' -exec grep -HnE '"bikegeo/' {} +; \
-	  find internal/reboot -type f -name '*.go' ! -name '*_parity_test.go' -exec grep -HnE '"bikegeo/' {} +; \
+	  find internal/reboot -type f -name '*.go' -exec grep -HnE '"bikegeo/' {} +; \
 	} | grep -vE '"bikegeo/(internal/reboot|cmd/bikegeo-reboot)(/|")' || true)"; \
 	if [ -n "$$bad" ]; then \
 	  echo "$$bad"; \
-	  echo "boundary: reboot non-parity files must not import legacy bikegeo packages"; \
+	  echo "boundary: reboot files must not import legacy bikegeo packages"; \
 	  exit 1; \
 	fi
 	@bad="$$(find cmd/bikegeo internal -path internal/reboot -prune -o -type f -name '*.go' \
@@ -65,8 +65,8 @@ boundary:
 	  exit 1; \
 	fi
 	@bad="$$({ \
-	  find cmd/bikegeo-reboot internal/reboot -iname '*cad*' ! -name '*_parity_test.go'; \
-	  find cmd/bikegeo-reboot internal/reboot -type f ! -name '*_parity_test.go' -exec grep -HinI 'cad' {} +; \
+	  find cmd/bikegeo-reboot internal/reboot -iname '*cad*'; \
+	  find cmd/bikegeo-reboot internal/reboot -type f -exec grep -HinI 'cad' {} +; \
 	} || true)"; \
 	if [ -n "$$bad" ]; then \
 	  echo "$$bad"; \
