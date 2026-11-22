@@ -21,12 +21,12 @@ import (
 )
 
 const usage = `Usage:
-  bikegeo-reboot serve [--port N] [--open]
-  bikegeo-reboot compare [query]
-  bikegeo-reboot bike [query]
+  bikegeo serve [--port N] [--open]
+  bikegeo compare [query]
+  bikegeo bike [query]
 `
 
-const compareUsage = `Usage: bikegeo-reboot compare [query]
+const compareUsage = `Usage: bikegeo compare [query]
 
 Ranks catalog bikes for the / compare query and prints indented JSON.
 The query is URL-encoded; a leading "?" is ignored. With no query, every
@@ -43,11 +43,11 @@ Query keys:
   grip_x, grip_y, grip     HandGrip target (mm); grip=off clears it
 
 Examples:
-  bikegeo-reboot compare 'frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20'
-  bikegeo-reboot compare 'frame=surly-krampus&frame=otso-fenrir-stainless&bar_options=all&top=5'
+  bikegeo compare 'frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20'
+  bikegeo compare 'frame=surly-krampus&frame=otso-fenrir-stainless&bar_options=all&top=5'
 `
 
-const bikeUsage = `Usage: bikegeo-reboot bike [query]
+const bikeUsage = `Usage: bikegeo bike [query]
 
 Evaluates one catalog bike for the /bike query and prints indented JSON.
 The query is URL-encoded; a leading "?" is ignored. With no query, the default
@@ -66,9 +66,9 @@ Query keys:
   view                        diagram view: bike, seat, or stem
 
 Examples:
-  bikegeo-reboot bike
-  bikegeo-reboot bike 'frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20'
-  bikegeo-reboot bike 'frame=binary-havok&size=L&brp=off&grip=off'
+  bikegeo bike
+  bikegeo bike 'frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20'
+  bikegeo bike 'frame=binary-havok&size=L&brp=off&grip=off'
 `
 
 func main() {
@@ -99,7 +99,7 @@ func runCompare(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if len(args) > 1 {
-		fmt.Fprintln(stderr, "Usage: bikegeo-reboot compare [query]")
+		fmt.Fprintln(stderr, "Usage: bikegeo compare [query]")
 		return 2
 	}
 	raw := ""
@@ -142,7 +142,7 @@ func runBike(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if len(args) > 1 {
-		fmt.Fprintln(stderr, "Usage: bikegeo-reboot bike [query]")
+		fmt.Fprintln(stderr, "Usage: bikegeo bike [query]")
 		return 2
 	}
 	raw := ""
@@ -177,7 +177,7 @@ func runBike(args []string, stdout, stderr io.Writer) int {
 func runServe(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	port := fs.Int("port", 8081, "TCP port to listen on (0 picks a free port)")
+	port := fs.Int("port", 8080, "TCP port to listen on (0 picks a free port)")
 	open := fs.Bool("open", false, "Open the default browser once the server is listening")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -196,7 +196,7 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	url := "http://" + ln.Addr().String() + "/"
-	fmt.Fprintf(stdout, "bikegeo-reboot serving on %s (Ctrl-C to stop)\n", url)
+	fmt.Fprintf(stdout, "bikegeo serving on %s (Ctrl-C to stop)\n", url)
 	if *open {
 		if err := openBrowser(url); err != nil {
 			fmt.Fprintf(stderr, "Warning: could not open browser: %v\n", err)

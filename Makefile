@@ -1,8 +1,8 @@
-.PHONY: all fix fmt vet boundary exhaustive deadcode test check pre-commit build-reboot serve-reboot watch clean
+.PHONY: all fix fmt vet boundary exhaustive deadcode test check pre-commit build serve watch clean
 
 export PATH := $(HOME)/go/bin:$(PATH)
 
-all: check build-reboot
+all: check build
 
 fix:
 	go fix ./...
@@ -80,11 +80,11 @@ pre-commit: fix check
 watch:
 	watchexec -c -f '*.go' -f 'go.*' -f '*.json' -f '*.s' -f '*.[ch]' "go vet ./... && go test ./..."
 
-build-reboot:
-	go build -o bin/bikegeo-reboot ./cmd/bikegeo
+build:
+	go build -o bin/bikegeo ./cmd/bikegeo
 
-serve-reboot: build-reboot
-	./bin/bikegeo-reboot serve --port 8081 --open
+serve: build
+	./bin/bikegeo serve --port 8080 --open
 
 clean:
 	rm -rf bin/

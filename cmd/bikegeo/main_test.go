@@ -173,7 +173,7 @@ func TestRunCompareHelpAndUsage(t *testing.T) {
 	if code != 0 || stderr != "" {
 		t.Errorf("compare --help: exit %d, stderr %q; want 0, empty", code, stderr)
 	}
-	if !strings.Contains(stdout, "bikegeo-reboot compare [query]") {
+	if !strings.Contains(stdout, "bikegeo compare [query]") {
 		t.Errorf("compare --help: usage %q does not mention the syntax", stdout)
 	}
 }
@@ -190,7 +190,7 @@ func TestRunCompareErrors(t *testing.T) {
 		wantErr string
 	}{
 		{"unknown subcommand", []string{"nope"}, 2, "Unknown command"},
-		{"too many args", []string{"compare", "a=1", "b=2"}, 2, "Usage: bikegeo-reboot compare [query]"},
+		{"too many args", []string{"compare", "a=1", "b=2"}, 2, "Usage: bikegeo compare [query]"},
 		{"bad URL escape", []string{"compare", "frame=%zz"}, 2, "invalid query"},
 		{"semicolon query", []string{"compare", "frame=surly-krampus;size=XL"}, 2, "invalid query"},
 		{"unknown query key", []string{"compare", "bar_option=all"}, 2, "unknown query parameter"},
@@ -326,7 +326,7 @@ func TestRunBikeHelpAndErrors(t *testing.T) {
 		t.Errorf("--help: exit %d, stderr %q, usage %q", code, stderr, stdout)
 	}
 	code, stdout, stderr = runCLI("bike", "--help")
-	if code != 0 || stderr != "" || !strings.Contains(stdout, "bikegeo-reboot bike [query]") {
+	if code != 0 || stderr != "" || !strings.Contains(stdout, "bikegeo bike [query]") {
 		t.Errorf("bike --help: exit %d, stderr %q, usage %q", code, stderr, stdout)
 	}
 
@@ -335,7 +335,7 @@ func TestRunBikeHelpAndErrors(t *testing.T) {
 		args    []string
 		wantErr string
 	}{
-		{"too many args", []string{"bike", "a=1", "b=2"}, "Usage: bikegeo-reboot bike [query]"},
+		{"too many args", []string{"bike", "a=1", "b=2"}, "Usage: bikegeo bike [query]"},
 		{"bad URL escape", []string{"bike", "frame=%zz"}, "invalid query"},
 		{"semicolon query", []string{"bike", "frame=surly-krampus;size=XL"}, "invalid query"},
 		{"unknown query key", []string{"bike", "fram=surly-krampus"}, "unknown query parameter"},

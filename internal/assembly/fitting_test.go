@@ -11,8 +11,8 @@ import (
 )
 
 // fenrirFittingSetup is the default Fenrir build (Lithic Carbon Mountain fork,
-// EC44 cup). Numbers copied from internal/reboot/web/fixture.go; assembly tests
-// must not import the web fixture.
+// EC44 cup). Numbers copied from the web fixture it replaced; assembly tests
+// must not import web code.
 func fenrirFittingSetup() assembly.BikeSetup {
 	return assembly.BikeSetup{
 		Frame:    fenrirSizeLFrame(),

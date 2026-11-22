@@ -1,4 +1,4 @@
-// Package catalog holds the reboot's frames, forks, handlebars, stems, seatposts,
+// Package catalog holds the frames, forks, handlebars, stems, seatposts,
 // saddle, and default fit targets as Go values. Every value is labelled
 // published, catalog, measured, owner-reported, or illustrative.
 package catalog

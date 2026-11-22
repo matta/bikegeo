@@ -58,7 +58,7 @@ const legacyBuild = legacyPost + "&brp=off&grip=off"
 const legacyPost = "post=setback_0&post_insert=180.576"
 
 func TestRootServesComparePageAndNavLinks(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8080/", nil)
 	rec := httptest.NewRecorder()
 	NewHandler().ServeHTTP(rec, req)
 
@@ -69,8 +69,8 @@ func TestRootServesComparePageAndNavLinks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse root HTML: %v", err)
 	}
-	if title := rootDoc.Find("h1").Text(); !strings.Contains(title, "bikegeo-reboot") {
-		t.Errorf("root h1 = %q, want bikegeo-reboot branding", title)
+	if title := rootDoc.Find("h1").Text(); !strings.Contains(title, "bikegeo") {
+		t.Errorf("root h1 = %q, want bikegeo branding", title)
 	}
 	rootCurrent := rootDoc.Find(`nav.site-nav a[aria-current="page"]`)
 	if rootCurrent.Length() != 1 || strings.TrimSpace(rootCurrent.Text()) != "Compare" {
@@ -85,8 +85,8 @@ func TestRootServesComparePageAndNavLinks(t *testing.T) {
 	}
 
 	bikeDoc := loadBikeDoc(t, "/bike")
-	if title := bikeDoc.Find("h1").Text(); !strings.Contains(title, "bikegeo-reboot") {
-		t.Errorf("bike h1 = %q, want bikegeo-reboot branding", title)
+	if title := bikeDoc.Find("h1").Text(); !strings.Contains(title, "bikegeo") {
+		t.Errorf("bike h1 = %q, want bikegeo branding", title)
 	}
 	bikeCurrent := bikeDoc.Find(`nav.site-nav a[aria-current="page"]`)
 	if bikeCurrent.Length() != 1 || strings.TrimSpace(bikeCurrent.Text()) != "Bike Inspector" {
@@ -120,7 +120,7 @@ func TestStemCloseUpDrawsStemBodyFromBarClamp(t *testing.T) {
 }
 
 func TestUnknownPathReturnsNotFound(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/nope", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8080/nope", nil)
 	rec := httptest.NewRecorder()
 	NewHandler().ServeHTTP(rec, req)
 
@@ -130,7 +130,7 @@ func TestUnknownPathReturnsNotFound(t *testing.T) {
 }
 
 func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/bike?fork=fox34_120-534x44&cup=12&sag=20", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8080/bike?fork=fox34_120-534x44&cup=12&sag=20", nil)
 	rec := httptest.NewRecorder()
 	NewHandler().ServeHTTP(rec, req)
 
@@ -339,7 +339,7 @@ func TestBikeWorkbenchForkSwitchAndBasisFork(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+tc.query, nil)
+			req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8080"+tc.query, nil)
 			rec := httptest.NewRecorder()
 			NewHandler().ServeHTTP(rec, req)
 			if rec.Code != tc.wantCode {
@@ -384,7 +384,7 @@ func TestBikeWorkbenchCockpitControlsUpdateBuild(t *testing.T) {
 	query := "/bike?fork=sid_100-506x44&prev_fork=sid_100-506x44&fork_a2c=515&cup=10&sag=20" +
 		"&spacers=25&stem_length=80&stem_angle=7&bar_roll=5" +
 		"&post=setback_25&post_insert=150&rail_offset=-10&rail_pitch=-2"
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+query, nil)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8080"+query, nil)
 	rec := httptest.NewRecorder()
 	NewHandler().ServeHTTP(rec, req)
 
@@ -508,7 +508,7 @@ func TestBikeWorkbenchRejectsInvalidQuery(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.query, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+tc.query, nil)
+			req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8080"+tc.query, nil)
 			rec := httptest.NewRecorder()
 			NewHandler().ServeHTTP(rec, req)
 
@@ -557,7 +557,7 @@ func TestBikeWorkbenchRejectsInvalidQuery(t *testing.T) {
 func TestBikeWorkbenchAcceptsSeatpostInsertionLimits(t *testing.T) {
 	for _, extension := range []string{"100", "290"} {
 		t.Run(extension, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/bike?post=setback_0&post_insert="+extension, nil)
+			req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8080/bike?post=setback_0&post_insert="+extension, nil)
 			rec := httptest.NewRecorder()
 			NewHandler().ServeHTTP(rec, req)
 			if rec.Code != http.StatusOK {
@@ -732,7 +732,7 @@ func submitForm(t *testing.T, doc *goquery.Document, override map[string]string)
 	for k, v := range override {
 		vals.Set(k, v)
 	}
-	target := "http://127.0.0.1:8081" + action + "?" + vals.Encode()
+	target := "http://127.0.0.1:8080" + action + "?" + vals.Encode()
 	req := httptest.NewRequest(http.MethodGet, target, nil)
 	rec := httptest.NewRecorder()
 	NewHandler().ServeHTTP(rec, req)
@@ -761,7 +761,7 @@ func loadBikeDoc(t *testing.T, path string) *goquery.Document {
 
 func loadBikeDocStatus(t *testing.T, path string, wantStatus int) *goquery.Document {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+path, nil)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8080"+path, nil)
 	rec := httptest.NewRecorder()
 	NewHandler().ServeHTTP(rec, req)
 	if rec.Code != wantStatus {
@@ -1218,7 +1218,7 @@ func activeViewHref(t *testing.T, doc *goquery.Document) string {
 
 func TestRemovedRoutesReturnNotFound(t *testing.T) {
 	for _, path := range []string{"/static/workbench.js", "/static/workbench_test.js", "/static/missing.js", "/nope"} {
-		req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+path, nil)
+		req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8080"+path, nil)
 		rec := httptest.NewRecorder()
 		NewHandler().ServeHTTP(rec, req)
 		if rec.Code != http.StatusNotFound {

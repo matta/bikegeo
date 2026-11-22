@@ -67,14 +67,14 @@ type BikeScoredBuild struct {
 }
 
 // BikeBuildRanking is the catalog-resolved ranked builds list for /bike and
-// bikegeo-reboot bike JSON output.
+// bikegeo bike JSON output.
 type BikeBuildRanking struct {
 	Evaluated int
 	Builds    []BikeScoredBuild
 }
 
 // BikeResult is a catalog-resolved single-bike evaluation for /bike and
-// bikegeo-reboot bike JSON output (Q49a, Q88, Q106, Q110).
+// bikegeo bike JSON output (Q49a, Q88, Q106, Q110).
 type BikeResult struct {
 	FrameID         string
 	Size            string

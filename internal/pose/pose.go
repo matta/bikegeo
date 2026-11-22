@@ -1,4 +1,4 @@
-// Package pose provides 2D planar poses and degree-valued angles for reboot
+// Package pose provides 2D planar poses and degree-valued angles for
 // component assembly.
 package pose
 

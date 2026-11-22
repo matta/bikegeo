@@ -282,7 +282,7 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 	var pageTitle, headerBadge, modeLabel string
 	if len(parsed.Selections) == 0 {
 		n := len(catalog.Frames())
-		pageTitle = fmt.Sprintf("Compare %d Frames — bikegeo-reboot", n)
+		pageTitle = fmt.Sprintf("Compare %d Frames — bikegeo", n)
 		headerBadge = fmt.Sprintf("All %d frames", n)
 		modeLabel = headerBadge
 	} else {
@@ -293,7 +293,7 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 			setupNoun = "Setup"
 			selNoun = "selection"
 		}
-		pageTitle = fmt.Sprintf("Compare %d %s — bikegeo-reboot", n, setupNoun)
+		pageTitle = fmt.Sprintf("Compare %d %s — bikegeo", n, setupNoun)
 		headerBadge = fmt.Sprintf("Custom (%d %s)", n, selNoun)
 		modeLabel = fmt.Sprintf("Custom (%d %s)", n, selNoun)
 	}
@@ -495,7 +495,7 @@ func renderCompareError(w http.ResponseWriter, q url.Values, invalidField, msg s
 	}
 
 	view := compareView{
-		PageTitle:    "Invalid Comparison — bikegeo-reboot",
+		PageTitle:    "Invalid Comparison — bikegeo",
 		HeaderBadge:  "Invalid query",
 		HasResults:   false,
 		ErrorMessage: msg,

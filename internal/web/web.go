@@ -1,4 +1,4 @@
-// Package web serves the reboot HTML/SVG workbench.
+// Package web serves the HTML/SVG workbench.
 package web
 
 import (
@@ -69,7 +69,7 @@ const (
 	saddleRailOutlineHeight    = 5.0  // illustrative saddle rail thickness
 )
 
-// NewHandler returns the HTTP handler for the reboot workbench. The chart-consistency check
+// NewHandler returns the HTTP handler for the workbench. The chart-consistency check
 // runs in the catalog's go test, not at startup (Q91).
 func NewHandler() http.Handler {
 	mux := http.NewServeMux()

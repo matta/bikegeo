@@ -14,7 +14,7 @@ import (
 
 func loadCompareDoc(t *testing.T, rawPath string) (int, *goquery.Document) {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+rawPath, nil)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8080"+rawPath, nil)
 	rec := httptest.NewRecorder()
 	NewHandler().ServeHTTP(rec, req)
 	doc, err := goquery.NewDocumentFromReader(rec.Body)
@@ -29,8 +29,8 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", status)
 	}
-	if got := strings.TrimSpace(doc.Find("title").Text()); got != "Compare 18 Frames — bikegeo-reboot" {
-		t.Errorf("title = %q, want Compare 18 Frames — bikegeo-reboot", got)
+	if got := strings.TrimSpace(doc.Find("title").Text()); got != "Compare 18 Frames — bikegeo" {
+		t.Errorf("title = %q, want Compare 18 Frames — bikegeo", got)
 	}
 	if doc.Find(`[data-compare-mode="all"]`).Length() != 1 {
 		t.Error("expected [data-compare-mode=all]")
