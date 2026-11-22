@@ -30,18 +30,18 @@ type forkOption struct {
 
 const basisForkName = "Chart Basis Fork"
 
-func makeForkOption(ff catalog.FrameFork) forkOption {
+func makeForkOption(opt catalog.ForkOption) forkOption {
 	var kind string
-	if !ff.Fork.Travel.IsSuspension() {
+	if !opt.Fork.Travel.IsSuspension() {
 		kind = "Rigid"
 	} else {
-		kind = fmt.Sprintf("%.0f mm travel", ff.Fork.Travel.Mm())
+		kind = fmt.Sprintf("%.0f mm travel", opt.Fork.Travel.Mm())
 	}
 	return forkOption{
-		ID:       ff.Fork.ID,
-		Name:     ff.Fork.Name,
-		Label:    fmt.Sprintf("%s (%s, %.0f mm A2C / %.0f mm rake)", ff.Fork.Name, kind, ff.StaticA2cMm, ff.RakeMm),
-		TravelMm: ff.Fork.Travel.Mm(),
+		ID:       opt.ID(),
+		Name:     opt.Name(),
+		Label:    fmt.Sprintf("%s (%s, %s mm A2C / %s mm rake)", opt.Fork.Name, kind, query.FormatFloat(opt.Variant.StaticA2cMm), query.FormatFloat(opt.Variant.RakeMm)),
+		TravelMm: opt.Fork.Travel.Mm(),
 	}
 }
 
@@ -68,9 +68,9 @@ func forkNameAndTravel(b query.Bike, id string) (string, float64) {
 	if id == query.BasisForkID {
 		return basisForkName, 0
 	}
-	for _, ff := range b.Frame.Forks {
-		if ff.Fork.ID == id {
-			return ff.Fork.Name, ff.Fork.Travel.Mm()
+	for _, opt := range b.Frame.ForkOptions() {
+		if opt.ID() == id {
+			return opt.Name(), opt.Fork.Travel.Mm()
 		}
 	}
 	return id, 0
@@ -206,9 +206,10 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs) bikeView {
 	for i, sz := range b.Frame.Sizes {
 		sizes[i] = sz.Name
 	}
-	forks := make([]forkOption, len(b.Frame.Forks))
-	for i, ff := range b.Frame.Forks {
-		forks[i] = makeForkOption(ff)
+	frameForkOptions := b.Frame.ForkOptions()
+	forks := make([]forkOption, len(frameForkOptions))
+	for i, opt := range frameForkOptions {
+		forks[i] = makeForkOption(opt)
 	}
 	forkA2cRO, cupRO, sagRO, cupLabel := forkFieldViewState(b, sel.Fork, form.Sag)
 	minRail, maxRail := railOffsetRange(b.Setup.Saddle, b.Setup.Seatpost)
@@ -562,12 +563,12 @@ func makeBuildRankingView(parsed query.Bike, ranking query.BikeBuildRanking) (*b
 			applied.Bar = found
 		}
 		if c.HasForkOption {
-			ff, ok := frameForkByID(parsed, c.ForkID)
+			opt, ok := forkOptionByID(parsed, c.ForkID)
 			if !ok {
 				return nil, fmt.Errorf("scored build %d names unknown fork %q", i+1, c.ForkID)
 			}
 			applied.ForkID = c.ForkID
-			applied.FrameFork = ff
+			applied.ForkOption = opt
 		}
 		forkName, travelMm := forkNameAndTravel(parsed, c.ForkID)
 		tierClass, tierLabel := fitTierPresentation(c.Score.Tier)
@@ -594,11 +595,11 @@ func makeBuildRankingView(parsed query.Bike, ranking query.BikeBuildRanking) (*b
 	return view, nil
 }
 
-func frameForkByID(b query.Bike, id string) (catalog.FrameFork, bool) {
-	for _, ff := range b.Frame.Forks {
-		if ff.Fork.ID == id {
-			return ff, true
+func forkOptionByID(b query.Bike, id string) (catalog.ForkOption, bool) {
+	for _, opt := range b.Frame.ForkOptions() {
+		if opt.ID() == id {
+			return opt, true
 		}
 	}
-	return catalog.FrameFork{}, false
+	return catalog.ForkOption{}, false
 }

@@ -27,11 +27,21 @@ type Size struct {
 	Frame assembly.FrameSetup
 }
 
-// Fork is one physical fork the frame supports, at this frame's A2C and rake
-// (Q66). Every row installs it on Size.Frame.DefaultLowerCup.
+// Fork is one physical fork variant the frame supports (Q66, Q128).
+// ModelID is the fork model ID (defaults to ID when empty) so a Selection may
+// target either a concrete variant ID or a multi-variant model ID (Q131).
+// Every row installs it on Size.Frame.DefaultLowerCup.
 type Fork struct {
-	ID   string
-	Spec assembly.ForkSpec
+	ID      string
+	ModelID string
+	Spec    assembly.ForkSpec
+}
+
+func (f Fork) modelID() string {
+	if f.ModelID != "" {
+		return f.ModelID
+	}
+	return f.ID
 }
 
 // Selection picks rows from one frame (Q87). An empty Size or ForkID selects
@@ -127,9 +137,15 @@ func Rank(req Request) (Ranking, error) {
 			if sel.Size != "" && sz.Name != sel.Size {
 				continue
 			}
+			exactFork := sel.ForkID != "" && slices.ContainsFunc(f.Forks, func(fk Fork) bool { return fk.ID == sel.ForkID })
 			for fi, fk := range f.Forks {
-				if sel.ForkID != "" && fk.ID != sel.ForkID {
-					continue
+				if sel.ForkID != "" {
+					if exactFork && fk.ID != sel.ForkID {
+						continue
+					}
+					if !exactFork && fk.modelID() != sel.ForkID {
+						continue
+					}
 				}
 				var sags []float64
 				switch {
@@ -312,7 +328,7 @@ func hasSize(sizes []Size, name string) bool {
 
 func hasFork(forks []Fork, id string) bool {
 	for _, f := range forks {
-		if f.ID == id {
+		if f.ID == id || f.modelID() == id {
 			return true
 		}
 	}

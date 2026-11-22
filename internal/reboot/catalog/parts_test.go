@@ -9,13 +9,14 @@ import (
 	"bikegeo/internal/reboot/pose"
 )
 
-// TestForks checks the 19 fork models and the Q72 steerers.
+// TestForks checks the 21 fork models, their variants, Q131 IDs, and Q72 steerers.
 func TestForks(t *testing.T) {
 	forks := catalog.Forks()
-	if len(forks) != 19 {
-		t.Fatalf("got %d forks, want 19", len(forks))
+	if len(forks) != 21 {
+		t.Fatalf("got %d forks, want 21", len(forks))
 	}
 	seen := map[string]bool{}
+	seenVariantIDs := map[string]bool{}
 	var straight []string
 	for _, f := range forks {
 		if f.ID == "" {
@@ -31,6 +32,28 @@ func TestForks(t *testing.T) {
 		if !f.Travel.Valid() {
 			t.Errorf("fork %q has unsupported travel %v", f.ID, f.Travel)
 		}
+		if len(f.Variants) == 0 {
+			t.Errorf("fork %q has no variants", f.ID)
+		}
+		for i, v := range f.Variants {
+			if v.StaticA2cMm <= 0 || v.RakeMm <= 0 {
+				t.Errorf("fork %q variant %d has non-positive dims %+v", f.ID, i, v)
+			}
+			if i > 0 {
+				prev := f.Variants[i-1]
+				if v.StaticA2cMm < prev.StaticA2cMm || (v.StaticA2cMm == prev.StaticA2cMm && v.RakeMm <= prev.RakeMm) {
+					t.Errorf("fork %q variants not strictly ascending: %+v then %+v", f.ID, prev, v)
+				}
+			}
+			vid := f.VariantID(v)
+			if seenVariantIDs[vid] {
+				t.Errorf("duplicate variant ID %q", vid)
+			}
+			seenVariantIDs[vid] = true
+		}
+		if got, ok := catalog.ForkByID(f.ID); !ok || got.ID != f.ID {
+			t.Errorf("ForkByID(%q) = %q, %v", f.ID, got.ID, ok)
+		}
 		switch f.Steerer {
 		case assembly.SteererStraight118:
 			straight = append(straight, f.ID)
@@ -44,6 +67,9 @@ func TestForks(t *testing.T) {
 	want := []string{"sunliner_440", "surly_ecr_468", "surly_krampus_483", "sklar_steel_485"}
 	if !slices.Equal(straight, want) {
 		t.Errorf("straight-steerer forks = %v, want %v (Q72)", straight, want)
+	}
+	if _, ok := catalog.ForkByID("missing"); ok {
+		t.Errorf("ForkByID(missing) ok = true, want false")
 	}
 }
 

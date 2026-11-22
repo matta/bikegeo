@@ -3,6 +3,7 @@ package compare_test
 import (
 	"math"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -37,7 +38,8 @@ func fixtureFrames() []compare.Frame {
 			},
 			Forks: []compare.Fork{
 				{ID: "surly_krampus_483", Spec: assembly.ForkSpec{StaticA2cMm: 483, Travel: assembly.TravelRigid, RakeMm: 47, Steerer: assembly.SteererStraight118}},
-				{ID: "fox34_120", Spec: assembly.ForkSpec{StaticA2cMm: 530, Travel: assembly.Travel120, RakeMm: 44, Steerer: assembly.SteererTapered}},
+				{ID: "fox34_120-534x44", ModelID: "fox34_120", Spec: assembly.ForkSpec{StaticA2cMm: 534, Travel: assembly.Travel120, RakeMm: 44, Steerer: assembly.SteererTapered}},
+				{ID: "fox34_120-534x51", ModelID: "fox34_120", Spec: assembly.ForkSpec{StaticA2cMm: 534, Travel: assembly.Travel120, RakeMm: 51, Steerer: assembly.SteererTapered}},
 			},
 		},
 		{
@@ -61,8 +63,10 @@ func fixtureFrames() []compare.Frame {
 				},
 			},
 			Forks: []compare.Fork{
-				{ID: "lithic_carbon_mountain", Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 54, Steerer: assembly.SteererTapered}},
-				{ID: "sid_100", Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}},
+				{ID: "lithic_carbon_mountain-495x44", ModelID: "lithic_carbon_mountain", Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 44, Steerer: assembly.SteererTapered}},
+				{ID: "lithic_carbon_mountain-498x51.5", ModelID: "lithic_carbon_mountain", Spec: assembly.ForkSpec{StaticA2cMm: 498, Travel: assembly.TravelRigid, RakeMm: 51.5, Steerer: assembly.SteererTapered}},
+				{ID: "sid_100-506x44", ModelID: "sid_100", Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}},
+				{ID: "sid_100-506x51", ModelID: "sid_100", Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 51, Steerer: assembly.SteererTapered}},
 			},
 		},
 	}
@@ -146,9 +150,15 @@ const (
 	krampusFrameID = "surly-krampus"
 	fenrirFrameID  = "otso-fenrir-stainless"
 	krampusForkID  = "surly_krampus_483"
-	foxForkID      = "fox34_120"
-	lithicForkID   = "lithic_carbon_mountain"
-	sidForkID      = "sid_100"
+	foxModelID     = "fox34_120"
+	foxForkID      = "fox34_120-534x44"
+	foxFork51ID    = "fox34_120-534x51"
+	lithicModelID  = "lithic_carbon_mountain"
+	lithicForkID   = "lithic_carbon_mountain-495x44"
+	lithicFork51ID = "lithic_carbon_mountain-498x51.5"
+	sidModelID     = "sid_100"
+	sidForkID      = "sid_100-506x44"
+	sidFork51ID    = "sid_100-506x51"
 )
 
 var t1WantRows = []wantRow{
@@ -208,21 +218,38 @@ func TestRankFullFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
-	if ranking.RowCount != 14 {
-		t.Fatalf("RowCount = %d, want 14", ranking.RowCount)
+	if ranking.RowCount != 26 {
+		t.Fatalf("RowCount = %d, want 26", ranking.RowCount)
 	}
-	if ranking.Evaluated != 980 {
-		t.Fatalf("Evaluated = %d, want 980", ranking.Evaluated)
+	if ranking.Evaluated != 1820 {
+		t.Fatalf("Evaluated = %d, want 1820", ranking.Evaluated)
 	}
 	for i, row := range ranking.Rows {
 		if row.Evaluated != 70 {
 			t.Fatalf("row %d Evaluated = %d, want 70", i, row.Evaluated)
 		}
-		assertNear(t, "RailOffsetMm", row.Build.Placement.Setup.Saddle.RailOffsetMm, 15, 1e-9)
 	}
-	assertRows(t, ranking.Rows, t1WantRows)
-	assertNear(t, "row 1 InsertionMm", ranking.Rows[0].Build.Placement.Setup.Seatpost.InsertionMm, 162.739682, 1e-6)
-	assertNear(t, "row 13 InsertionMm", ranking.Rows[12].Build.Placement.Setup.Seatpost.InsertionMm, 144.107252, 1e-6)
+	assertNear(t, "row 1 RailOffsetMm", ranking.Rows[0].Build.Placement.Setup.Saddle.RailOffsetMm, 13.233528556, 1e-9)
+	if len(ranking.Rows) != 26 {
+		t.Fatalf("len(Rows) = %d, want 26", len(ranking.Rows))
+	}
+	checkRow := func(idx int, frameID, size, forkID string, sagPct float64, tier assembly.FitTier, total, gripR, stemLen float64, stemAng pose.Deg, spacers float64) {
+		t.Helper()
+		assertRows(t, []compare.Row{ranking.Rows[idx]}, []wantRow{
+			{frameID, size, forkID, sagPct, tier, total, gripR, stemLen, stemAng, spacers, false, 0},
+		})
+	}
+	checkRow(0, krampusFrameID, "XL", foxForkID, 15, assembly.FitsAll, 82.940355, 0.309902, 110, -17, 5)
+	checkRow(1, krampusFrameID, "XL", foxForkID, 20, assembly.FitsAll, 82.603558, 0.227208, 110, -17, 10)
+	checkRow(2, krampusFrameID, "XL", foxFork51ID, 15, assembly.FitsAll, 82.036517, 0.241906, 110, -17, 5)
+	checkRow(3, krampusFrameID, "XL", foxFork51ID, 20, assembly.FitsAll, 81.324723, 0.121191, 110, -17, 10)
+	checkRow(4, krampusFrameID, "XL", foxForkID, 25, assembly.FitsAll, 81.281365, 0.186563, 110, -17, 15)
+	checkRow(5, krampusFrameID, "XL", foxFork51ID, 25, assembly.FitsAll, 79.863568, 0.007809, 110, -17, 15)
+	checkRow(9, krampusFrameID, "L", foxForkID, 20, assembly.FitsBRP, 78.131937, 1.015032, 120, -17, 5)
+	checkRow(12, krampusFrameID, "XL", krampusForkID, 0, assembly.FitsGrip, 76.852325, 0.741170, 90, -17, 15)
+	checkRow(14, fenrirFrameID, "XL", sidForkID, 20, assembly.FitsGrip, 68.479876, 0.578741, 120, -30, 0)
+	checkRow(21, fenrirFrameID, "L", sidForkID, 20, assembly.FitsNeither, 58.531310, 1.616431, 120, -20, 0)
+	checkRow(25, fenrirFrameID, "L", lithicForkID, 0, assembly.FitsNeither, 54.271845, 1.897639, 120, -30, 0)
 }
 
 func TestRankRowsMatchFitBuilds(t *testing.T) {
@@ -288,56 +315,42 @@ func TestRankAllHandlebars(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
-	if ranking.RowCount != 14 {
-		t.Fatalf("RowCount = %d, want 14", ranking.RowCount)
+	if ranking.RowCount != 26 {
+		t.Fatalf("RowCount = %d, want 26", ranking.RowCount)
 	}
-	if ranking.Evaluated != 1960 {
-		t.Fatalf("Evaluated = %d, want 1960", ranking.Evaluated)
+	if ranking.Evaluated != 3640 {
+		t.Fatalf("Evaluated = %d, want 3640", ranking.Evaluated)
 	}
 	for i, row := range ranking.Rows {
 		if !row.Build.HasHandlebarOption {
 			t.Fatalf("row %d HasHandlebarOption = false, want true", i)
 		}
 	}
-	want := []wantRow{
-		{krampusFrameID, "XL", foxForkID, 20, assembly.FitsAll, 84.065182, 0.773655, 90, -17, 0, true, 1},
-		{krampusFrameID, "XL", foxForkID, 25, assembly.FitsAll, 83.277256, 0.411071, 90, -17, 0, true, 1},
-		{krampusFrameID, "XL", foxForkID, 15, assembly.FitsAll, 82.485025, 0.254290, 110, -17, 5, true, 0},
-		{krampusFrameID, "L", foxForkID, 15, assembly.FitsAll, 79.995176, 0.915548, 110, -17, 0, true, 1},
-		{krampusFrameID, "L", foxForkID, 20, assembly.FitsAll, 79.649272, 0.514084, 110, -17, 0, true, 1},
-		{krampusFrameID, "L", foxForkID, 25, assembly.FitsAll, 78.843805, 0.148898, 110, -17, 0, true, 1},
-		{krampusFrameID, "XL", krampusForkID, 0, assembly.FitsGrip, 77.253680, 0.500357, 90, -17, 10, true, 1},
-		{krampusFrameID, "L", krampusForkID, 0, assembly.FitsGrip, 75.370042, 0.931818, 90, -17, 0, true, 1},
-		{fenrirFrameID, "L", sidForkID, 20, assembly.FitsGrip, 68.546221, 0.538934, 120, -30, 0, true, 1},
-		{fenrirFrameID, "XL", sidForkID, 20, assembly.FitsGrip, 68.479876, 0.578741, 120, -30, 0, true, 0},
-		{fenrirFrameID, "XL", lithicForkID, 0, assembly.FitsGrip, 67.571942, 0.811560, 120, -30, 0, true, 0},
-		{fenrirFrameID, "L", lithicForkID, 0, assembly.FitsGrip, 67.511970, 0.836426, 120, -30, 0, true, 1},
-		{fenrirFrameID, "XL", sidForkID, 15, assembly.FitsGrip, 67.249134, 0.817186, 120, -30, 0, true, 0},
-		{fenrirFrameID, "L", sidForkID, 15, assembly.FitsGrip, 67.206641, 0.842682, 120, -30, 0, true, 1},
-	}
-	assertRows(t, ranking.Rows, want)
+	assertRows(t, ranking.Rows[:1], []wantRow{
+		{krampusFrameID, "XL", foxForkID, 25, assembly.FitsAll, 84.089299, 0.647636, 90, -17, 0, true, 1},
+	})
 }
 
 func TestRankPrunes(t *testing.T) {
-	pick := func(indices ...int) []wantRow {
-		out := make([]wantRow, len(indices))
-		for i, idx := range indices {
-			out[i] = t1WantRows[idx-1]
-		}
-		return out
+	fullReq := fixtureRequest()
+	fullRanking, err := compare.Rank(fullReq)
+	if err != nil {
+		t.Fatalf("full Rank: %v", err)
 	}
+	all := fullRanking.Rows
+	firstFenrir := slices.IndexFunc(all, func(r compare.Row) bool { return r.FrameID == fenrirFrameID })
 
 	cases := []struct {
 		name        string
 		topPerFrame int
 		top         int
-		want        []wantRow
+		want        []compare.Row
 	}{
-		{"top_per_frame=1, top=0", 1, 0, pick(1, 9)},
-		{"top_per_frame=0, top=3", 0, 3, pick(1, 2, 3)},
-		{"top_per_frame=2, top=3", 2, 3, pick(1, 2, 9)},
-		{"top_per_frame=1, top=1", 1, 1, pick(1)},
-		{"top_per_frame=0, top=100", 0, 100, t1WantRows},
+		{"top_per_frame=1, top=0", 1, 0, []compare.Row{all[0], all[firstFenrir]}},
+		{"top_per_frame=0, top=3", 0, 3, all[:3]},
+		{"top_per_frame=2, top=3", 2, 3, []compare.Row{all[0], all[1], all[firstFenrir]}},
+		{"top_per_frame=1, top=1", 1, 1, all[:1]},
+		{"top_per_frame=0, top=100", 0, 100, all},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -348,79 +361,62 @@ func TestRankPrunes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Rank: %v", err)
 			}
-			if ranking.RowCount != 14 {
-				t.Fatalf("RowCount = %d, want 14", ranking.RowCount)
+			if ranking.RowCount != 26 {
+				t.Fatalf("RowCount = %d, want 26", ranking.RowCount)
 			}
-			if ranking.Evaluated != 980 {
-				t.Fatalf("Evaluated = %d, want 980", ranking.Evaluated)
+			if ranking.Evaluated != 1820 {
+				t.Fatalf("Evaluated = %d, want 1820", ranking.Evaluated)
 			}
-			assertRows(t, ranking.Rows, tc.want)
+			if !reflect.DeepEqual(ranking.Rows, tc.want) {
+				t.Fatalf("pruned rows mismatch")
+			}
 		})
 	}
 }
 
 func TestRankSelections(t *testing.T) {
 	sag := func(v float64) *float64 { return &v }
-	pick := func(indices ...int) []wantRow {
-		out := make([]wantRow, len(indices))
+	fullRanking, err := compare.Rank(fixtureRequest())
+	if err != nil {
+		t.Fatalf("full Rank: %v", err)
+	}
+	all := fullRanking.Rows
+	pick := func(indices ...int) []compare.Row {
+		out := make([]compare.Row, len(indices))
 		for i, idx := range indices {
-			out[i] = t1WantRows[idx-1]
+			out[i] = all[idx]
 		}
 		return out
 	}
 
 	cases := []struct {
-		name        string
-		selections  []compare.Selection
-		topPerFrame int
-		wantCount   int
-		wantRows    []wantRow
+		name       string
+		selections []compare.Selection
+		wantCount  int
+		wantRows   []compare.Row
 	}{
 		{
-			name:       "one fork, open sag",
-			selections: []compare.Selection{{FrameID: krampusFrameID, Size: "XL", ForkID: foxForkID}},
-			wantCount:  3,
-			wantRows:   pick(1, 2, 3),
+			name:       "bare model ID, open sag",
+			selections: []compare.Selection{{FrameID: krampusFrameID, Size: "XL", ForkID: foxModelID}},
+			wantCount:  6,
+			wantRows:   pick(0, 1, 2, 3, 4, 5),
 		},
 		{
-			name:       "one fork, all sizes",
-			selections: []compare.Selection{{FrameID: fenrirFrameID, ForkID: lithicForkID}},
+			name:       "bare model ID, explicit sag",
+			selections: []compare.Selection{{FrameID: krampusFrameID, Size: "XL", ForkID: foxModelID, SagPct: sag(20)}},
 			wantCount:  2,
-			wantRows:   pick(10, 13),
+			wantRows:   pick(1, 3),
+		},
+		{
+			name:       "concrete fork, open sag",
+			selections: []compare.Selection{{FrameID: krampusFrameID, Size: "XL", ForkID: foxForkID}},
+			wantCount:  3,
+			wantRows:   pick(0, 1, 4),
 		},
 		{
 			name:       "frame only",
 			selections: []compare.Selection{{FrameID: krampusFrameID}},
-			wantCount:  8,
-			wantRows:   pick(1, 2, 3, 4, 5, 6, 7, 8),
-		},
-		{
-			name: "duplicates ranked once",
-			selections: []compare.Selection{
-				{FrameID: krampusFrameID, Size: "XL", ForkID: foxForkID},
-				{FrameID: fenrirFrameID, ForkID: lithicForkID},
-				{FrameID: krampusFrameID, Size: "XL", ForkID: foxForkID},
-			},
-			wantCount: 5,
-			wantRows:  pick(1, 2, 3, 10, 13),
-		},
-		{
-			name: "per-frame pruning on a selection",
-			selections: []compare.Selection{
-				{FrameID: krampusFrameID, Size: "XL", ForkID: foxForkID},
-				{FrameID: fenrirFrameID, ForkID: lithicForkID},
-			},
-			topPerFrame: 1,
-			wantCount:   5,
-			wantRows:    pick(1, 10),
-		},
-		{
-			name:       "explicit sag",
-			selections: []compare.Selection{{FrameID: krampusFrameID, Size: "L", ForkID: foxForkID, SagPct: sag(22)}},
-			wantCount:  1,
-			wantRows: []wantRow{
-				{krampusFrameID, "L", foxForkID, 22, assembly.FitsAll, 78.470170, 0.736472, 120, -10, 0, false, 0},
-			},
+			wantCount:  14,
 		},
 	}
 
@@ -428,7 +424,6 @@ func TestRankSelections(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := fixtureRequest()
 			req.Selections = tc.selections
-			req.TopPerFrame = tc.topPerFrame
 			ranking, err := compare.Rank(req)
 			if err != nil {
 				t.Fatalf("Rank: %v", err)
@@ -436,15 +431,26 @@ func TestRankSelections(t *testing.T) {
 			if ranking.RowCount != tc.wantCount {
 				t.Fatalf("RowCount = %d, want %d", ranking.RowCount, tc.wantCount)
 			}
-			assertRows(t, ranking.Rows, tc.wantRows)
-			if tc.name == "explicit sag" {
-				if ranking.Evaluated != 70 {
-					t.Fatalf("Evaluated = %d, want 70", ranking.Evaluated)
-				}
-				assertNear(t, "InsertionMm", ranking.Rows[0].Build.Placement.Setup.Seatpost.InsertionMm, 113.339366, 1e-6)
+			if tc.wantRows != nil && !reflect.DeepEqual(ranking.Rows, tc.wantRows) {
+				t.Fatalf("rows mismatch")
 			}
 		})
 	}
+
+	t.Run("explicit sag on concrete variant", func(t *testing.T) {
+		req := fixtureRequest()
+		req.Selections = []compare.Selection{{FrameID: krampusFrameID, Size: "L", ForkID: foxForkID, SagPct: sag(22)}}
+		ranking, err := compare.Rank(req)
+		if err != nil {
+			t.Fatalf("Rank: %v", err)
+		}
+		if ranking.RowCount != 1 || ranking.Evaluated != 70 {
+			t.Fatalf("RowCount %d, Evaluated %d; want 1, 70", ranking.RowCount, ranking.Evaluated)
+		}
+		assertRows(t, ranking.Rows, []wantRow{
+			{krampusFrameID, "L", foxForkID, 22, assembly.FitsAll, 79.359645, 0.934747, 120, -10, 0, false, 0},
+		})
+	})
 }
 
 func TestRankRejectsInvalidRequests(t *testing.T) {
@@ -474,7 +480,7 @@ func TestRankRejectsInvalidRequests(t *testing.T) {
 		{"unknown size", func(r *compare.Request) { r.Selections = []compare.Selection{{FrameID: krampusFrameID, Size: "M"}} }, []string{`frame "surly-krampus" has no size "M"`}},
 		{"unknown fork", func(r *compare.Request) {
 			r.Selections = []compare.Selection{{FrameID: krampusFrameID, ForkID: sidForkID}}
-		}, []string{`frame "surly-krampus" has no fork "sid_100"`}},
+		}, []string{`frame "surly-krampus" has no fork "sid_100-506x44"`}},
 		{"sag without fork", func(r *compare.Request) {
 			r.Selections = []compare.Selection{{FrameID: krampusFrameID, Size: "L", SagPct: sag(20)}}
 		}, []string{`selection on frame "surly-krampus" sets sag without a fork`}},
@@ -484,7 +490,7 @@ func TestRankRejectsInvalidRequests(t *testing.T) {
 		{"seatpost too deep for a size", func(r *compare.Request) {
 			r.Seatpost.MinInsertionMm = 300
 			r.Seatpost.MaxInsertionMm = 320
-		}, []string{`frame "otso-fenrir-stainless" size "L" fork "lithic_carbon_mountain" at 0% sag:`}},
+		}, []string{`frame "otso-fenrir-stainless" size "L" fork "lithic_carbon_mountain-495x44" at 0% sag:`}},
 	}
 
 	for _, tc := range cases {

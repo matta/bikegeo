@@ -95,9 +95,10 @@ func CatalogFrames() []compare.Frame {
 		for j, sz := range f.Sizes {
 			sizes[j] = compare.Size{Name: sz.Name, Frame: f.InstalledFrame(sz)}
 		}
-		forks := make([]compare.Fork, len(f.Forks))
-		for j, fk := range f.Forks {
-			forks[j] = compare.Fork{ID: fk.Fork.ID, Spec: fk.Spec()}
+		opts := f.ForkOptions()
+		forks := make([]compare.Fork, len(opts))
+		for j, opt := range opts {
+			forks[j] = compare.Fork{ID: opt.ID(), ModelID: opt.Fork.ID, Spec: opt.Spec()}
 		}
 		out[i] = compare.Frame{ID: f.ID, Sizes: sizes, Forks: forks}
 	}
@@ -262,7 +263,7 @@ func (c Compare) BikeForRow(row compare.Row) (Bike, error) {
 	if !ok {
 		return Bike{}, fmt.Errorf("frame %q has no size %q", row.FrameID, row.Size)
 	}
-	ff, ok := findFrameFork(frame, row.ForkID)
+	opt, ok := findForkOption(frame, row.ForkID)
 	if !ok {
 		return Bike{}, fmt.Errorf("frame %q has no fork %q", row.FrameID, row.ForkID)
 	}
@@ -276,7 +277,7 @@ func (c Compare) BikeForRow(row compare.Row) (Bike, error) {
 		Frame:          frame,
 		Size:           size,
 		ForkID:         row.ForkID,
-		FrameFork:      ff,
+		ForkOption:     opt,
 		Bar:            bar,
 		Post:           c.Post,
 		View:           ViewBike,
@@ -496,13 +497,20 @@ func parseSelections(q url.Values, frames []compare.Frame) ([]compare.Selection,
 		if sz != "" && !slices.ContainsFunc(fr.Sizes, func(s compare.Size) bool { return s.Name == sz }) {
 			return nil, &InputError{Field: "size", Err: fmt.Errorf("selection %d: frame %q has no size %q", i+1, f, sz)}
 		}
-		var selectedFork compare.Fork
+		var matchedForks []compare.Fork
 		if fk != "" {
-			j := slices.IndexFunc(fr.Forks, func(k compare.Fork) bool { return k.ID == fk })
-			if j < 0 {
+			for _, k := range fr.Forks {
+				if k.ID == fk {
+					matchedForks = []compare.Fork{k}
+					break
+				}
+				if k.ModelID == fk {
+					matchedForks = append(matchedForks, k)
+				}
+			}
+			if len(matchedForks) == 0 {
 				return nil, &InputError{Field: "fork", Err: fmt.Errorf("selection %d: frame %q has no fork %q", i+1, f, fk)}
 			}
-			selectedFork = fr.Forks[j]
 		}
 		var sagPtr *float64
 		if sg != "" {
@@ -513,8 +521,10 @@ func parseSelections(q url.Values, frames []compare.Frame) ([]compare.Selection,
 			if !ok {
 				return nil, &InputError{Field: "sag", Err: fmt.Errorf("selection %d: fork sag must be a finite number, got %q", i+1, sg)}
 			}
-			if err := (assembly.ForkSetup{Spec: selectedFork.Spec, SagPct: v}).Validate(); err != nil {
-				return nil, &InputError{Field: "sag", Err: fmt.Errorf("selection %d: %w", i+1, err)}
+			for _, selectedFork := range matchedForks {
+				if err := (assembly.ForkSetup{Spec: selectedFork.Spec, SagPct: v}).Validate(); err != nil {
+					return nil, &InputError{Field: "sag", Err: fmt.Errorf("selection %d: %w", i+1, err)}
+				}
 			}
 			sagPtr = &v
 		}

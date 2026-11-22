@@ -35,11 +35,8 @@ func ritcheyUltra() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: legacy Forks, each at this frame's A2C and rake
-		Forks: []FrameFork{
-			{Fork: fox34_120, StaticA2cMm: 530, RakeMm: 44},
-			{Fork: rigid500, StaticA2cMm: 500, RakeMm: 44},
-		},
+		// catalog: compatible forks (Q128)
+		Forks: []Fork{fox34_120, rigid500},
 		// published
 		Sizes: family.sizes(
 			publishedSize{

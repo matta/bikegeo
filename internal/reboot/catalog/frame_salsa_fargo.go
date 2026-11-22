@@ -35,11 +35,8 @@ func salsaFargo() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: legacy Forks, each at this frame's A2C and rake
-		Forks: []FrameFork{
-			{Fork: firestarterDeluxe483, StaticA2cMm: 483, RakeMm: 51},
-			{Fork: sid100, StaticA2cMm: 506, RakeMm: 51},
-		},
+		// catalog: compatible forks (Q128)
+		Forks: []Fork{firestarterDeluxe483, sid100},
 		// published
 		Sizes: family.sizes(
 			publishedSize{

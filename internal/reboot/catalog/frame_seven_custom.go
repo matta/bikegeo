@@ -38,12 +38,8 @@ func sevenCustom() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.05,
 		},
-		// catalog: legacy Forks, each at this frame's A2C and rake
-		Forks: []FrameFork{
-			{Fork: enveMountainBoost, StaticA2cMm: 492, RakeMm: 52},
-			{Fork: sid100, StaticA2cMm: 506, RakeMm: 44},
-			{Fork: fox34_120, StaticA2cMm: 530, RakeMm: 44},
-		},
+		// catalog: compatible forks (Q128)
+		Forks: []Fork{enveMountainBoost, sid100, fox34_120},
 		// published
 		Sizes: family.sizes(
 			publishedSize{

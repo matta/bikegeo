@@ -39,7 +39,7 @@ type Frame struct {
 	Year         int
 	DefaultSize  string
 	Sizes        []FrameSize // declared order (Q69)
-	Forks        []FrameFork // declared order (Q69)
+	Forks        []Fork      // declared order (Q69, Q128)
 	// MaxChainstayMm is the rearmost sliding-dropout position, where / and
 	// /bike evaluate the frame (Q67); 0 means fixed dropouts.
 	MaxChainstayMm float64
@@ -82,6 +82,41 @@ func (f Frame) InstalledFrame(size FrameSize) assembly.FrameSetup {
 		frame.ChainstayMm = f.MaxChainstayMm
 	}
 	return frame
+}
+
+// ForkOptions expands f.Forks into concrete ForkOptions in declared fork and
+// variant order (Q128).
+func (f Frame) ForkOptions() []ForkOption {
+	var out []ForkOption
+	for _, fk := range f.Forks {
+		for _, v := range fk.Variants {
+			out = append(out, ForkOption{Fork: fk, Variant: v})
+		}
+	}
+	return out
+}
+
+// LookupFork resolves id against f.Forks (Q131):
+//   - a concrete variant ID (bare ID on a single-variant fork, or
+//     "<model>-<a2c>x<rake>" on a multi-variant fork) returns that single ForkOption;
+//   - a bare multi-variant fork model ID returns all variants of that model.
+func (f Frame) LookupFork(id string) ([]ForkOption, bool) {
+	for _, fk := range f.Forks {
+		for _, v := range fk.Variants {
+			opt := ForkOption{Fork: fk, Variant: v}
+			if opt.ID() == id {
+				return []ForkOption{opt}, true
+			}
+		}
+		if fk.IsMultiVariant() && fk.ID == id {
+			out := make([]ForkOption, len(fk.Variants))
+			for i, v := range fk.Variants {
+				out[i] = ForkOption{Fork: fk, Variant: v}
+			}
+			return out, true
+		}
+	}
+	return nil, false
 }
 
 // Frames returns every catalog frame in ascending ID order (TestFramesRegistry pins the list).

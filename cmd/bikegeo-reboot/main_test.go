@@ -84,7 +84,7 @@ func assertNear(t *testing.T, name string, got, want, tol float64) {
 }
 
 func TestRunCompareSingleRowJSON(t *testing.T) {
-	const q = "frame=surly-krampus&size=XL&fork=fox34_120&sag=20"
+	const q = "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20"
 	code, stdout, stderr := runCLI("compare", q)
 	if code != 0 || stderr != "" {
 		t.Fatalf("exit %d, stderr %q; want 0, empty", code, stderr)
@@ -97,7 +97,7 @@ func TestRunCompareSingleRowJSON(t *testing.T) {
 		t.Fatalf("RowCount %d, Evaluated %d, %d rows; want 1, 749, 1", r.RowCount, r.Evaluated, len(r.Rows))
 	}
 	row := r.Rows[0]
-	if row.FrameID != "surly-krampus" || row.Size != "XL" || row.ForkID != "fox34_120" || row.SagPct != 20 {
+	if row.FrameID != "surly-krampus" || row.Size != "XL" || row.ForkID != "fox34_120-534x44" || row.SagPct != 20 {
 		t.Errorf("row = %s %s %s %v%%", row.FrameID, row.Size, row.ForkID, row.SagPct)
 	}
 	if row.HandlebarID != "persuader20_800" {
@@ -107,14 +107,14 @@ func TestRunCompareSingleRowJSON(t *testing.T) {
 	if score.Tier != "fits_all" {
 		t.Errorf("Tier = %q, want fits_all", score.Tier)
 	}
-	assertNear(t, "Total", score.Total, 84.158344739, 1e-6)
-	assertNear(t, "GripR", score.GripR, 0.759424168, 1e-6)
+	assertNear(t, "Total", score.Total, 84.690417237, 1e-6)
+	assertNear(t, "GripR", score.GripR, 0.725092414, 1e-6)
 	if len(score.Attributes) != 12 {
 		t.Errorf("got %d attributes, want 12", len(score.Attributes))
 	}
 	stem := row.Build.Placement.Setup.Stem
-	if stem.LengthMm != 100 || stem.AngleDeg != -10 || stem.SpacersMm != 0 {
-		t.Errorf("stem (%v, %v, %v), want (100, -10, 0)", stem.LengthMm, stem.AngleDeg, stem.SpacersMm)
+	if stem.LengthMm != 110 || stem.AngleDeg != -7 || stem.SpacersMm != 0 {
+		t.Errorf("stem (%v, %v, %v), want (110, -7, 0)", stem.LengthMm, stem.AngleDeg, stem.SpacersMm)
 	}
 
 	p := row.Build.Placement
@@ -132,10 +132,20 @@ func TestRunCompareSingleRowJSON(t *testing.T) {
 	if code2 != 0 || stderr2 != "" || stdout2 != stdout {
 		t.Errorf("leading ?: exit %d, stderr %q, identical stdout %v; want 0, empty, true", code2, stderr2, stdout2 == stdout)
 	}
+
+	// Bare multi-variant model ID on compare expands all variants of that model (Q131).
+	code3, stdout3, stderr3 := runCLI("compare", "frame=surly-krampus&size=XL&fork=fox34_120&sag=20")
+	if code3 != 0 || stderr3 != "" {
+		t.Fatalf("multi-variant model: exit %d, stderr %q", code3, stderr3)
+	}
+	r3 := decodeResult(t, stdout3)
+	if r3.RowCount != 2 || r3.Evaluated != 1498 || len(r3.Rows) != 2 {
+		t.Fatalf("multi-variant RowCount %d, Evaluated %d, %d rows; want 2, 1498, 2", r3.RowCount, r3.Evaluated, len(r3.Rows))
+	}
 }
 
 func TestRunCompareAllBarsJSON(t *testing.T) {
-	code, stdout, stderr := runCLI("compare", "frame=surly-krampus&size=XL&fork=fox34_120&sag=20&bar_options=all")
+	code, stdout, stderr := runCLI("compare", "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&bar_options=all")
 	if code != 0 || stderr != "" {
 		t.Fatalf("exit %d, stderr %q; want 0, empty", code, stderr)
 	}
@@ -143,10 +153,10 @@ func TestRunCompareAllBarsJSON(t *testing.T) {
 	if !r.AllBarOptions || r.RowCount != 1 || r.Evaluated != 11235 || len(r.Rows) != 1 {
 		t.Fatalf("AllBarOptions %v, RowCount %d, Evaluated %d, %d rows; want true, 1, 11235, 1", r.AllBarOptions, r.RowCount, r.Evaluated, len(r.Rows))
 	}
-	if r.Rows[0].HandlebarID != "sqlab311_flx_16_30" {
-		t.Errorf("HandlebarID = %q, want sqlab311_flx_16_30", r.Rows[0].HandlebarID)
+	if r.Rows[0].HandlebarID != "sqlab311_20_16_15" {
+		t.Errorf("HandlebarID = %q, want sqlab311_20_16_15", r.Rows[0].HandlebarID)
 	}
-	assertNear(t, "Total", r.Rows[0].Build.Score.Total, 86.233468678, 1e-6)
+	assertNear(t, "Total", r.Rows[0].Build.Score.Total, 87.120779384, 1e-6)
 }
 
 func TestRunCompareHelpAndUsage(t *testing.T) {
@@ -257,7 +267,7 @@ func TestRunBikeDefaultAndWinningBuildJSON(t *testing.T) {
 		t.Fatalf("bike: exit %d, stderr %q; want 0, empty", code, stderr)
 	}
 	r := decodeBike(t, stdout)
-	if r.FrameID != "otso-fenrir-stainless" || r.Size != "L" || r.ForkID != "lithic_carbon_mountain" ||
+	if r.FrameID != "otso-fenrir-stainless" || r.Size != "L" || r.ForkID != "lithic_carbon_mountain-495x44" ||
 		r.PostID != "redshift_shockstop_pro" || r.BarID != "persuader20_800" {
 		t.Errorf("IDs = %s %s %s %s %s", r.FrameID, r.Size, r.ForkID, r.PostID, r.BarID)
 	}
@@ -267,7 +277,7 @@ func TestRunBikeDefaultAndWinningBuildJSON(t *testing.T) {
 	if r.Score == nil || r.Score.Tier != "fits_neither" {
 		t.Fatalf("Score = %+v, want fits_neither", r.Score)
 	}
-	assertNear(t, "Total", r.Score.Total, 53.142123, 1e-5)
+	assertNear(t, "Total", r.Score.Total, 53.639215, 1e-5)
 	if r.Builds == nil || r.Builds.Evaluated != 749 || len(r.Builds.Builds) != 5 {
 		t.Fatalf("Builds = %+v, want 749 evaluated, 5 builds", r.Builds)
 	}
@@ -275,7 +285,7 @@ func TestRunBikeDefaultAndWinningBuildJSON(t *testing.T) {
 		t.Errorf("HeadTubeTop %+v / BRP %+v must be non-zero", r.Placement.Frameset.HeadTubeTop, r.Placement.Saddle.BRP)
 	}
 
-	const winning = "frame=surly-krampus&size=XL&fork=fox34_120&sag=20&post=redshift_shockstop_pro&post_insert=163.90608956654532&rail_offset=15&rail_pitch=0&bar=persuader20_800&bar_roll=0&stem_length=100&stem_angle=-10&spacers=0"
+	const winning = "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&post=redshift_shockstop_pro&post_insert=163.13014276565696&rail_offset=15&rail_pitch=0&bar=persuader20_800&bar_roll=0&stem_length=110&stem_angle=-7&spacers=0"
 	code, stdout, stderr = runCLI("bike", "?"+winning)
 	if code != 0 || stderr != "" {
 		t.Fatalf("winning: exit %d, stderr %q; want 0, empty", code, stderr)
@@ -284,8 +294,8 @@ func TestRunBikeDefaultAndWinningBuildJSON(t *testing.T) {
 	if r.Score == nil || r.Score.Tier != "fits_all" || r.Builds == nil || len(r.Builds.Builds) == 0 {
 		t.Fatalf("winning = %+v", r)
 	}
-	assertNear(t, "winning Total", r.Score.Total, 84.158344739, 1e-6)
-	assertNear(t, "winning top build Total", r.Builds.Builds[0].Score.Total, 84.158344739, 1e-6)
+	assertNear(t, "winning Total", r.Score.Total, 84.690417237, 1e-6)
+	assertNear(t, "winning top build Total", r.Builds.Builds[0].Score.Total, 84.690417237, 1e-6)
 	code2, stdout2, stderr2 := runCLI("bike", winning)
 	if code2 != 0 || stderr2 != "" || stdout2 != stdout {
 		t.Errorf("without ?: exit %d, stderr %q, identical stdout %v; want 0, empty, true", code2, stderr2, stdout2 == stdout)
@@ -331,6 +341,7 @@ func TestRunBikeHelpAndErrors(t *testing.T) {
 		{"unknown query key", []string{"bike", "fram=surly-krampus"}, "unknown query parameter"},
 		{"retired key", []string{"bike", "post_ext=200"}, "unknown query parameter"},
 		{"unknown frame", []string{"bike", "frame=nope"}, "unknown frame"},
+		{"bare multi-variant fork", []string{"bike", "fork=fox34_120"}, "has multiple variants"},
 		{"out-of-bounds insertion", []string{"bike", "post=redshift_shockstop_pro&post_insert=275"}, "insertion"},
 		{"half target", []string{"bike", "brp_x=-219"}, "requires both"},
 	}

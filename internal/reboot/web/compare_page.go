@@ -198,9 +198,9 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 		}
 		frameLabel := f.Manufacturer + " " + f.Model
 		var forkLabel string
-		for _, ff := range f.Forks {
-			if ff.Fork.ID == row.ForkID {
-				forkLabel = forkCellName(ff.Fork.Name, ff.Fork.Travel.Mm(), row.SagPct)
+		for _, opt := range f.ForkOptions() {
+			if opt.ID() == row.ForkID {
+				forkLabel = forkCellName(opt.Name(), opt.Fork.Travel.Mm(), row.SagPct)
 				break
 			}
 		}
@@ -314,12 +314,10 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 	for i, sel := range parsed.Selections {
 		f := framesByID[sel.FrameID]
 		frameLabel := f.Manufacturer + " " + f.Model
-		var selectedFork *catalog.FrameFork
-		for j := range f.Forks {
-			if f.Forks[j].Fork.ID == sel.ForkID {
-				selectedFork = &f.Forks[j]
-				break
-			}
+		var selectedFork *catalog.Fork
+		if matches, ok := f.LookupFork(sel.ForkID); ok {
+			fk := matches[0].Fork
+			selectedFork = &fk
 		}
 		rawSag := ""
 		if sel.SagPct != nil {
@@ -594,22 +592,26 @@ func buildErrorSelectionRows(q url.Values) []compareSelectionRowView {
 		if sz != "" {
 			_, sizeValid = frame.Size(sz)
 		}
-		var selectedFork *catalog.FrameFork
+		var selectedFork *catalog.Fork
+		var matchedForks []catalog.ForkOption
 		forkValid := fk == ""
 		if fk != "" {
-			for j := range frame.Forks {
-				if frame.Forks[j].Fork.ID == fk {
-					selectedFork = &frame.Forks[j]
-					forkValid = true
-					break
-				}
+			if matches, ok := frame.LookupFork(fk); ok {
+				matchedForks = matches
+				selected := matches[0].Fork
+				selectedFork = &selected
+				forkValid = true
 			}
 		}
 		sagValid := sg == ""
-		if sg != "" && forkValid && selectedFork != nil {
+		if sg != "" && forkValid && len(matchedForks) > 0 {
 			if v, err := strconv.ParseFloat(sg, 64); err == nil && !math.IsNaN(v) && !math.IsInf(v, 0) {
-				if (assembly.ForkSetup{Spec: selectedFork.Spec(), SagPct: v}).Validate() == nil {
-					sagValid = true
+				sagValid = true
+				for _, m := range matchedForks {
+					if (assembly.ForkSetup{Spec: m.Spec(), SagPct: v}).Validate() != nil {
+						sagValid = false
+						break
+					}
 				}
 			}
 		}
@@ -789,7 +791,7 @@ func buildSelectionSizeOptions(f catalog.Frame, selectedSize string, invalid boo
 }
 
 func buildSelectionForkOptions(f catalog.Frame, selectedFork string, invalid bool) []selectOption {
-	opts := make([]selectOption, 0, len(f.Forks)+2)
+	opts := make([]selectOption, 0, len(f.ForkOptions())+len(f.Forks)+2)
 	if invalid && selectedFork != "" {
 		opts = append(opts, selectOption{
 			Value:    selectedFork,
@@ -803,26 +805,55 @@ func buildSelectionForkOptions(f catalog.Frame, selectedFork string, invalid boo
 		Label:    "Any fork",
 		Selected: !invalid && selectedFork == "",
 	})
-	for _, ff := range f.Forks {
+	for _, fk := range f.Forks {
+		if !fk.IsMultiVariant() {
+			opt := catalog.ForkOption{Fork: fk, Variant: fk.Variants[0]}
+			opts = append(opts, selectOption{
+				Value:    opt.ID(),
+				Label:    makeForkOption(opt).Label,
+				Selected: !invalid && opt.ID() == selectedFork,
+			})
+			continue
+		}
 		opts = append(opts, selectOption{
-			Value:    ff.Fork.ID,
-			Label:    makeForkOption(ff).Label,
-			Selected: !invalid && ff.Fork.ID == selectedFork,
+			Value:    fk.ID,
+			Label:    fk.Name + " (all variants)",
+			Selected: !invalid && fk.ID == selectedFork,
 		})
+		for _, v := range fk.Variants {
+			opt := catalog.ForkOption{Fork: fk, Variant: v}
+			opts = append(opts, selectOption{
+				Value:    opt.ID(),
+				Label:    makeForkOption(opt).Label,
+				Selected: !invalid && opt.ID() == selectedFork,
+			})
+		}
 	}
 	return opts
 }
 
-func buildSelectionSagOptions(rawSag string, selectedFork *catalog.FrameFork, sagValid bool) []selectOption {
-	steps := []struct {
+func buildSelectionSagOptions(rawSag string, selectedFork *catalog.Fork, sagValid bool) []selectOption {
+	type sagStep struct {
 		val   string
 		num   float64
 		label string
-	}{
-		{"0", 0, "0% (rigid)"},
-		{"15", 15, "15%"},
-		{"20", 20, "20%"},
-		{"25", 25, "25%"},
+	}
+	var steps []sagStep
+	switch {
+	case selectedFork == nil:
+		steps = []sagStep{
+			{"0", 0, "0% (rigid)"},
+			{"15", 15, "15%"},
+			{"20", 20, "20%"},
+			{"25", 25, "25%"},
+		}
+	case !selectedFork.Travel.IsSuspension():
+		steps = []sagStep{{"0", 0, "0% (rigid)"}}
+	default:
+		for _, pct := range selectedFork.Travel.SagPcts() {
+			val := query.FormatFloat(pct)
+			steps = append(steps, sagStep{val: val, num: pct, label: val + "%"})
+		}
 	}
 
 	var parsedSag float64

@@ -33,10 +33,8 @@ func surlyEcr() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.25,
 		},
-		// catalog: legacy Forks, each at this frame's A2C and rake
-		Forks: []FrameFork{
-			{Fork: surlyEcr468, StaticA2cMm: 468, RakeMm: 43},
-		},
+		// catalog: compatible forks (Q128)
+		Forks: []Fork{surlyEcr468},
 		// published
 		Sizes: family.sizes(
 			publishedSize{

@@ -89,11 +89,14 @@ func frameProblems(f catalog.Frame) []string {
 		problems = append(problems, "no forks")
 	}
 	forks := map[string]bool{}
-	for _, ff := range f.Forks {
-		if forks[ff.Fork.ID] {
-			problems = append(problems, fmt.Sprintf("duplicate fork %q", ff.Fork.ID))
+	for _, fk := range f.Forks {
+		if forks[fk.ID] {
+			problems = append(problems, fmt.Sprintf("duplicate fork %q", fk.ID))
 		}
-		forks[ff.Fork.ID] = true
+		forks[fk.ID] = true
+		if len(fk.Variants) == 0 {
+			problems = append(problems, fmt.Sprintf("fork %q has no variants", fk.ID))
+		}
 	}
 	if f.MaxChainstayMm != 0 {
 		longest := 0.0
@@ -217,15 +220,15 @@ func TestForkListsPlace(t *testing.T) {
 	for _, f := range catalog.Frames() {
 		for _, s := range f.Sizes {
 			installed := f.InstalledFrame(s)
-			for _, ff := range f.Forks {
+			for _, opt := range f.ForkOptions() {
 				sags := []float64{0}
-				if ff.Fork.Travel.IsSuspension() {
-					sags = ff.Fork.Travel.SagPcts()
+				if opt.Fork.Travel.IsSuspension() {
+					sags = opt.Fork.Travel.SagPcts()
 				}
 				for _, sag := range sags {
-					fork := assembly.ForkSetup{Spec: ff.Spec(), SagPct: sag}
+					fork := assembly.ForkSetup{Spec: opt.Spec(), SagPct: sag}
 					if _, err := assembly.PlaceFrameset(installed, s.ChartFrame.DefaultLowerCup, fork, wheels); err != nil {
-						t.Errorf("%s/%s with %s at %v%% sag: %v", f.ID, s.Name, ff.Fork.ID, sag, err)
+						t.Errorf("%s/%s with %s at %v%% sag: %v", f.ID, s.Name, opt.ID(), sag, err)
 					}
 					placements++
 				}
@@ -237,8 +240,8 @@ func TestForkListsPlace(t *testing.T) {
 		}
 	}
 	t.Logf("%d fork-list placements, %d basis placements", placements, bases)
-	if placements != 581 || bases != 119 {
-		t.Errorf("got %d fork-list and %d basis placements, want 581 and 119", placements, bases)
+	if placements != 1100 || bases != 119 {
+		t.Errorf("got %d fork-list and %d basis placements, want 1100 and 119", placements, bases)
 	}
 }
 
@@ -247,12 +250,12 @@ func TestForkListsPlace(t *testing.T) {
 func TestForkListsPlaceChecksSteerers(t *testing.T) {
 	f := mustFrame(t, "surly-ecr")
 	s := mustSize(t, f, "L")
-	sid := catalog.Forks()[0]
-	if sid.ID != "sid_100" {
-		t.Fatalf("first fork = %q, want sid_100", sid.ID)
+	sid, ok := catalog.ForkByID("sid_100")
+	if !ok {
+		t.Fatal("sid_100 missing from catalog")
 	}
-	ff := catalog.FrameFork{Fork: sid, StaticA2cMm: 506, RakeMm: 44}
-	_, err := assembly.PlaceFrameset(f.InstalledFrame(s), s.ChartFrame.DefaultLowerCup, assembly.ForkSetup{Spec: ff.Spec(), SagPct: 20}, wheels)
+	opt := catalog.ForkOption{Fork: sid, Variant: sid.Variants[0]}
+	_, err := assembly.PlaceFrameset(f.InstalledFrame(s), s.ChartFrame.DefaultLowerCup, assembly.ForkSetup{Spec: opt.Spec(), SagPct: 20}, wheels)
 	if err == nil || !strings.Contains(err.Error(), "does not fit a tapered steerer") {
 		t.Errorf("err = %v, want one containing %q", err, "does not fit a tapered steerer")
 	}

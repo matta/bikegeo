@@ -34,12 +34,8 @@ func sevenExpedition926d() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: legacy Forks, each at this frame's A2C and rake
-		Forks: []FrameFork{
-			{Fork: enveMountain472, StaticA2cMm: 472, RakeMm: 55},
-			{Fork: enveMountainBoost, StaticA2cMm: 492, RakeMm: 52},
-			{Fork: sid100, StaticA2cMm: 506, RakeMm: 44},
-		},
+		// catalog: compatible forks (Q128, Q133)
+		Forks: []Fork{enveMountainBoost, lithicCarbonMountain, fox34_120},
 		// published
 		Sizes: family.sizes(
 			publishedSize{

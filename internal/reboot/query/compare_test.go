@@ -65,15 +65,19 @@ func TestCatalogFrames(t *testing.T) {
 			}
 		}
 		totalSizes += len(cf.Sizes)
-		if len(cf.Forks) != len(f.Forks) {
-			t.Fatalf("%s: got %d forks, want %d", f.ID, len(cf.Forks), len(f.Forks))
+		forkOpts := f.ForkOptions()
+		if len(cf.Forks) != len(forkOpts) {
+			t.Fatalf("%s: got %d forks, want %d", f.ID, len(cf.Forks), len(forkOpts))
 		}
-		for j, fk := range f.Forks {
-			if cf.Forks[j].ID != fk.Fork.ID {
-				t.Errorf("%s fork %d = %q, want %q", f.ID, j, cf.Forks[j].ID, fk.Fork.ID)
+		for j, opt := range forkOpts {
+			if cf.Forks[j].ID != opt.ID() {
+				t.Errorf("%s fork %d = %q, want %q", f.ID, j, cf.Forks[j].ID, opt.ID())
 			}
-			if cf.Forks[j].Spec != fk.Spec() {
-				t.Errorf("%s fork %q spec = %+v, want %+v", f.ID, fk.Fork.ID, cf.Forks[j].Spec, fk.Spec())
+			if cf.Forks[j].ModelID != opt.Fork.ID {
+				t.Errorf("%s fork %d ModelID = %q, want %q", f.ID, j, cf.Forks[j].ModelID, opt.Fork.ID)
+			}
+			if cf.Forks[j].Spec != opt.Spec() {
+				t.Errorf("%s fork %q spec = %+v, want %+v", f.ID, opt.ID(), cf.Forks[j].Spec, opt.Spec())
 			}
 		}
 	}
@@ -269,7 +273,8 @@ func TestParseCompareRejectsInvalidQueries(t *testing.T) {
 		{"frame=surly-krampus&size=XL&fork=&sag=&frame=&size=&fork=sid_100&sag=", "frame", `selection 2 is missing "frame"`},
 		{"frame=unknown-bike", "frame", "unknown frame"},
 		{"frame=surly-krampus&size=XXL", "size", "has no size"},
-		// The Krampus carries sid_100 in the catalog; fox36_150 is a catalog fork it does not.
+		// The Krampus carries sid_100 in the catalog; pike_120 is an existing catalog fork it does not, and fox36_150 is deleted.
+		{"frame=surly-krampus&fork=pike_120", "fork", "has no fork"},
 		{"frame=surly-krampus&fork=fox36_150", "fork", "has no fork"},
 		{"frame=surly-krampus&fork=basis", "fork", "has no fork"},
 		{"frame=surly-krampus&size=XL&sag=20", "sag", "sag requires a fork"},
@@ -376,24 +381,24 @@ func TestParseCompareRankAndResolve(t *testing.T) {
 		extra        func(t *testing.T, row query.CompareRow)
 	}{
 		{
-			name: "selected bar", raw: "frame=surly-krampus&size=XL&fork=fox34_120&sag=20",
+			name: "selected bar", raw: "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20",
 			evaluated: 749, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "persuader20_800",
-			tier: assembly.FitsAll, total: 84.158344739, gripR: 0.759424168,
-			stemLengthMm: 100, stemAngleDeg: -10, spacersMm: 0, insertionMm: 163.906090, railOffsetMm: 15.0,
+			tier: assembly.FitsAll, total: 84.690417237, gripR: 0.725092414,
+			stemLengthMm: 110, stemAngleDeg: -7, spacersMm: 0, insertionMm: 163.130143, railOffsetMm: 15.0,
 		},
 		{
-			name: "all bars", raw: "frame=surly-krampus&size=XL&fork=fox34_120&sag=20&bar_options=all",
-			evaluated: 11235, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "sqlab311_flx_16_30", allBars: true,
-			tier: assembly.FitsAll, total: 86.233468678, gripR: 0.389349805,
-			stemLengthMm: 100, stemAngleDeg: -7, spacersMm: 0, insertionMm: 163.906090, railOffsetMm: 15.0,
+			name: "all bars", raw: "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&bar_options=all",
+			evaluated: 11235, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "sqlab311_20_16_15", allBars: true,
+			tier: assembly.FitsAll, total: 87.120779384, gripR: 0.579375126,
+			stemLengthMm: 100, stemAngleDeg: -7, spacersMm: 0, insertionMm: 163.130143, railOffsetMm: 15.0,
 			extra: func(t *testing.T, row query.CompareRow) {
-				if !row.Build.HasHandlebarOption || row.Build.HandlebarIndex != 12 {
-					t.Errorf("HasHandlebarOption %v, HandlebarIndex %d; want true, 12", row.Build.HasHandlebarOption, row.Build.HandlebarIndex)
+				if !row.Build.HasHandlebarOption || row.Build.HandlebarIndex != 8 {
+					t.Errorf("HasHandlebarOption %v, HandlebarIndex %d; want true, 8", row.Build.HasHandlebarOption, row.Build.HandlebarIndex)
 				}
 			},
 		},
 		{
-			name: "sliding dropout", raw: "frame=binary-havok&size=L&fork=rigid_485",
+			name: "sliding dropout", raw: "frame=binary-havok&size=L&fork=rigid_485-485x45",
 			evaluated: 749, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "persuader20_800",
 			tier: assembly.FitsNeither, total: 49.866243596, gripR: 3.875593862,
 			stemLengthMm: 120, stemAngleDeg: -30, spacersMm: 0, insertionMm: 176.175807, railOffsetMm: 15.0,
@@ -404,16 +409,16 @@ func TestParseCompareRankAndResolve(t *testing.T) {
 			},
 		},
 		{
-			name: "non-default parts", raw: "frame=surly-krampus&size=XL&fork=fox34_120&sag=20&post=setback_25&bar=sqlab311_20_16_50&bar_roll=10&rail_pitch=-2",
+			name: "non-default parts", raw: "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&post=setback_25&bar=sqlab311_20_16_50&bar_roll=10&rail_pitch=-2",
 			evaluated: 749, postID: "setback_25", barID: "sqlab311_20_16_50", handlebarID: "sqlab311_20_16_50",
-			tier: assembly.FitsAll, total: 90.785133010, gripR: 0.082545290,
-			stemLengthMm: 80, stemAngleDeg: -30, spacersMm: 0, insertionMm: 208.681544, railOffsetMm: 6.694435,
+			tier: assembly.FitsAll, total: 91.139658843, gripR: 0.284643315,
+			stemLengthMm: 80, stemAngleDeg: -30, spacersMm: 0, insertionMm: 207.770691, railOffsetMm: 4.292186,
 		},
 		{
-			name: "custom targets", raw: "frame=surly-krampus&size=XL&fork=fox34_120&sag=20&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
+			name: "custom targets", raw: "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
 			evaluated: 749, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "persuader20_800",
-			tier: assembly.FitsAll, total: 92.993102943, gripR: 0.703926294,
-			stemLengthMm: 90, stemAngleDeg: -7, spacersMm: 0, insertionMm: 156.644040, railOffsetMm: 7.855946,
+			tier: assembly.FitsAll, total: 93.656414150, gripR: 0.949174019,
+			stemLengthMm: 90, stemAngleDeg: -7, spacersMm: 0, insertionMm: 155.860514, railOffsetMm: 5.476248,
 		},
 	}
 	for _, tc := range cases {
@@ -466,8 +471,8 @@ func TestWinningHandlebarOutOfRange(t *testing.T) {
 // selected bar (~1.8 s, Q104).
 func TestParseCompareDefaultAll19Frames(t *testing.T) {
 	_, result := rankAndResolve(t, "")
-	if result.RowCount != 581 || result.Evaluated != 435169 || len(result.Rows) != 19 {
-		t.Fatalf("RowCount %d, Evaluated %d, %d rows; want 581, 435169, 19", result.RowCount, result.Evaluated, len(result.Rows))
+	if result.RowCount != 1100 || result.Evaluated != 823900 || len(result.Rows) != 19 {
+		t.Fatalf("RowCount %d, Evaluated %d, %d rows; want 1100, 823900, 19", result.RowCount, result.Evaluated, len(result.Rows))
 	}
 	if result.PostID != "redshift_shockstop_pro" || result.BarID != "persuader20_800" || result.AllBarOptions {
 		t.Errorf("PostID %q, BarID %q, AllBarOptions %v", result.PostID, result.BarID, result.AllBarOptions)
@@ -483,10 +488,10 @@ func TestParseCompareDefaultAll19Frames(t *testing.T) {
 		total  float64
 		gripR  float64
 	}{
-		{0, "surly-krampus", "XL", "fox34_120", 15, assembly.FitsAll, 84.401016224, 0.854695588},
-		{1, "seven-custom", "Custom", "fox34_120", 20, assembly.FitsBRP, 53.548588995, 2.197415122},
-		{5, "sour-pasta-party", "L", "sid_100", 20, assembly.FitsGrip, 80.881655493, 0.899510156},
-		{18, "binary-havok", "XL", "rigid_485", 0, assembly.FitsNeither, 50.871948252, 3.402613933},
+		{0, "surly-krampus", "XL", "fox34_120-534x44", 25, assembly.FitsAll, 85.120463740, 0.945603917},
+		{1, "seven-custom", "Custom", "fox34_120-534x44", 25, assembly.FitsBRP, 53.126792179, 2.092042057},
+		{5, "esker-hayduke", "S3", "enve_mountain_boost-492x52", 0, assembly.FitsGrip, 81.320323095, 0.952602612},
+		{18, "salsa-cutthroat", "60cm", "firestarter_deluxe_483", 0, assembly.FitsNeither, 50.197172824, 3.390669575},
 	}
 	for _, w := range want {
 		row := result.Rows[w.index]
@@ -589,21 +594,21 @@ func TestCompareRowBikeURLRoundTrip(t *testing.T) {
 		wantChainstay  float64
 	}{
 		{
-			raw:            "frame=surly-krampus&size=XL&fork=fox34_120&sag=20",
+			raw:            "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20",
 			wantTier:       assembly.FitsAll,
-			wantScore:      84.158344739,
+			wantScore:      84.690417237,
 			wantBarID:      "persuader20_800",
 			wantBarOptions: query.BarOptionsSelected,
 		},
 		{
-			raw:            "frame=surly-krampus&size=XL&fork=fox34_120&sag=20&bar_options=all",
+			raw:            "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&bar_options=all",
 			wantTier:       assembly.FitsAll,
-			wantScore:      86.233468678,
-			wantBarID:      "sqlab311_flx_16_30",
+			wantScore:      87.120779384,
+			wantBarID:      "sqlab311_20_16_15",
 			wantBarOptions: query.BarOptionsAll,
 		},
 		{
-			raw:            "frame=binary-havok&size=L&fork=rigid_485",
+			raw:            "frame=binary-havok&size=L&fork=rigid_485-485x45",
 			wantTier:       assembly.FitsNeither,
 			wantScore:      49.866243596,
 			wantBarID:      "persuader20_800",
@@ -611,9 +616,9 @@ func TestCompareRowBikeURLRoundTrip(t *testing.T) {
 			wantChainstay:  460,
 		},
 		{
-			raw:            "frame=surly-krampus&size=XL&fork=fox34_120&sag=20&post=setback_25&bar=sqlab311_20_16_50&bar_roll=10&rail_pitch=-2&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
+			raw:            "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&post=setback_25&bar=sqlab311_20_16_50&bar_roll=10&rail_pitch=-2&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
 			wantTier:       assembly.FitsAll,
-			wantScore:      93.925237921,
+			wantScore:      92.369622515,
 			wantBarID:      "sqlab311_20_16_50",
 			wantBarOptions: query.BarOptionsSelected,
 		},
@@ -698,7 +703,7 @@ func TestCompareRowBikeURLRoundTrip(t *testing.T) {
 			row := compare.Row{
 				FrameID: "surly-krampus",
 				Size:    "XL",
-				ForkID:  "fox34_120",
+				ForkID:  "fox34_120-534x44",
 				Build:   assembly.ScoredBuild{HasHandlebarOption: true, HandlebarIndex: idx},
 			}
 			if _, err := cAll.BikeForRow(row); err == nil || !strings.Contains(err.Error(), "out of range") {

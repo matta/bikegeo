@@ -35,12 +35,8 @@ func eskerHayduke() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: legacy Forks, each at this frame's A2C and rake
-		Forks: []FrameFork{
-			{Fork: pike120, StaticA2cMm: 531, RakeMm: 44},
-			{Fork: fox34_130, StaticA2cMm: 541, RakeMm: 44},
-			{Fork: rigid495, StaticA2cMm: 495, RakeMm: 51},
-		},
+		// catalog: compatible forks (Q128, Q133)
+		Forks: []Fork{pike120, fox34_130, enveMountainBoost, lithicCarbonMountain},
 		// published
 		Sizes: family.sizes(
 			publishedSize{

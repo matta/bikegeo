@@ -33,10 +33,8 @@ func tumbleweedSunliner() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: legacy Forks, each at this frame's A2C and rake
-		Forks: []FrameFork{
-			{Fork: sunliner440, StaticA2cMm: 440, RakeMm: 55},
-		},
+		// catalog: compatible forks (Q128)
+		Forks: []Fork{sunliner440},
 		// published
 		Sizes: family.sizes(
 			publishedSize{

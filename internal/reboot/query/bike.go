@@ -35,9 +35,9 @@ const RankedBuildLimit = 5
 // BikeForkOption is one physical fork configuration a frame offers to build
 // fitting when fork_options=all (Q31).
 type BikeForkOption struct {
-	FrameFork catalog.FrameFork
-	SagPct    float64
-	LowerCup  assembly.LowerCupSetup
+	ForkOption catalog.ForkOption
+	SagPct     float64
+	LowerCup   assembly.LowerCupSetup
 }
 
 // Bike holds the parsed, catalog-resolved /bike query and ready-to-place
@@ -45,8 +45,8 @@ type BikeForkOption struct {
 type Bike struct {
 	Frame          catalog.Frame
 	Size           catalog.FrameSize
-	ForkID         string            // catalog Fork.ID or BasisForkID
-	FrameFork      catalog.FrameFork // zero when ForkID == BasisForkID
+	ForkID         string             // concrete Q131 variant ID or BasisForkID
+	ForkOption     catalog.ForkOption // zero when ForkID == BasisForkID
 	Bar            catalog.Handlebar
 	Post           catalog.Seatpost
 	View           string // ViewBike, ViewSeat, or ViewStem
@@ -121,14 +121,13 @@ func DefaultBike() Bike {
 	return b
 }
 
-// findFrameFork returns the frame's fork with the given catalog ID.
-func findFrameFork(frame catalog.Frame, id string) (catalog.FrameFork, bool) {
-	for _, ff := range frame.Forks {
-		if ff.Fork.ID == id {
-			return ff, true
-		}
+// findForkOption returns the frame's single concrete ForkOption with the given Q131 ID.
+func findForkOption(frame catalog.Frame, id string) (catalog.ForkOption, bool) {
+	matches, ok := frame.LookupFork(id)
+	if !ok || len(matches) != 1 {
+		return catalog.ForkOption{}, false
 	}
-	return catalog.FrameFork{}, false
+	return matches[0], true
 }
 
 // parseFloatOrDefault reads a finite float; blank selects def.
@@ -296,28 +295,37 @@ func parseBikeFrameAndSize(q url.Values) (frame catalog.Frame, size catalog.Fram
 }
 
 // parseBikeFork resolves the fork, installed frame, lower cup, and fork setup,
-// recording ForkID and FrameFork on b.
+// recording ForkID and ForkOption on b.
 func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSetup, assembly.LowerCupSetup, assembly.ForkSetup, error) {
 	frame, size := b.Frame, b.Size
 	rawFork := strings.TrimSpace(q.Get("fork"))
 	prevFork := strings.TrimSpace(q.Get("prev_fork"))
 
-	var ff catalog.FrameFork
+	var opt catalog.ForkOption
 	var isBasis bool
 	var forkID string
-	switch found, ok := findFrameFork(frame, rawFork); {
+	matches, ok := frame.LookupFork(rawFork)
+	switch {
 	case rawFork == "":
-		ff = frame.Forks[0]
-		forkID = ff.Fork.ID
+		opt = frame.ForkOptions()[0]
+		forkID = opt.ID()
 	case rawFork == BasisForkID:
 		isBasis = true
 		forkID = BasisForkID
-	case ok:
-		ff = found
-		forkID = ff.Fork.ID
+	case ok && len(matches) == 1:
+		opt = matches[0]
+		forkID = opt.ID()
+	case ok && len(matches) > 1:
+		if frameSwitched {
+			opt = frame.ForkOptions()[0]
+			forkID = opt.ID()
+		} else {
+			return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{},
+				&InputError{Field: "fork", Err: fmt.Errorf("fork %q has multiple variants; select a specific variant such as %q", rawFork, matches[0].ID())}
+		}
 	case frameSwitched:
-		ff = frame.Forks[0]
-		forkID = ff.Fork.ID
+		opt = frame.ForkOptions()[0]
+		forkID = opt.ID()
 	default:
 		return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{},
 			&InputError{Field: "fork", Err: fmt.Errorf("frame %q has no fork %q", frame.ID, rawFork)}
@@ -326,26 +334,26 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 
 	b.ForkID = forkID
 	if isBasis {
-		b.FrameFork = catalog.FrameFork{}
+		b.ForkOption = catalog.ForkOption{}
 		return size.ChartFrame, frame.BasisLowerCup, basisForkSetup(frame), nil
 	}
-	b.FrameFork = ff
+	b.ForkOption = opt
 
 	frameSetup := frame.InstalledFrame(size)
-	defaultSag := ff.Fork.Travel.DefaultSagPct()
+	defaultSag := opt.Fork.Travel.DefaultSagPct()
 	defaultCup := frameSetup.DefaultLowerCup.StackMm
 
 	var a2cMm, cupMm, sagPct float64
 	var err error
 	switch {
 	case frameSwitched:
-		a2cMm, cupMm, sagPct = ff.StaticA2cMm, defaultCup, defaultSag
+		a2cMm, cupMm, sagPct = opt.Variant.StaticA2cMm, defaultCup, defaultSag
 	case forkSwitched:
-		a2cMm, sagPct = ff.StaticA2cMm, defaultSag
+		a2cMm, sagPct = opt.Variant.StaticA2cMm, defaultSag
 		var prevCupStd assembly.LowerCupStandard
 		if prevFork == BasisForkID {
 			prevCupStd = frame.BasisLowerCup.Standard
-		} else if _, known := findFrameFork(frame, prevFork); known {
+		} else if _, known := frame.LookupFork(prevFork); known {
 			prevCupStd = frameSetup.DefaultLowerCup.Standard
 		}
 		// The basis's cup stack is locked to the chart, so leaving it always
@@ -356,7 +364,7 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 			return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{}, err
 		}
 	default:
-		if a2cMm, err = parseFloatOrDefault(q, "fork_a2c", ff.StaticA2cMm, "fork static A2C"); err != nil {
+		if a2cMm, err = parseFloatOrDefault(q, "fork_a2c", opt.Variant.StaticA2cMm, "fork static A2C"); err != nil {
 			return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{}, err
 		}
 		if cupMm, err = parseFloatOrDefault(q, "cup", defaultCup, "lower cup"); err != nil {
@@ -367,7 +375,7 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 		}
 	}
 	lowerCup := assembly.LowerCupSetup{Standard: frameSetup.DefaultLowerCup.Standard, StackMm: cupMm}
-	spec := ff.Spec()
+	spec := opt.Spec()
 	spec.StaticA2cMm = a2cMm
 	return frameSetup, lowerCup, assembly.ForkSetup{Spec: spec, SagPct: sagPct}, nil
 }
@@ -439,13 +447,13 @@ func (b Bike) FitTarget() assembly.FitTarget {
 func (b Bike) ForkOptions() []BikeForkOption {
 	cup := b.Frame.InstalledFrame(b.Size).DefaultLowerCup
 	var out []BikeForkOption
-	for _, ff := range b.Frame.Forks {
-		if !ff.Fork.Travel.IsSuspension() {
-			out = append(out, BikeForkOption{FrameFork: ff, LowerCup: cup})
+	for _, opt := range b.Frame.ForkOptions() {
+		if !opt.Fork.Travel.IsSuspension() {
+			out = append(out, BikeForkOption{ForkOption: opt, LowerCup: cup})
 			continue
 		}
-		for _, sag := range ff.Fork.Travel.SagPcts() {
-			out = append(out, BikeForkOption{FrameFork: ff, SagPct: sag, LowerCup: cup})
+		for _, sag := range opt.Fork.Travel.SagPcts() {
+			out = append(out, BikeForkOption{ForkOption: opt, SagPct: sag, LowerCup: cup})
 		}
 	}
 	return out
@@ -467,7 +475,7 @@ func (b Bike) WithView(view string) Bike {
 // cup, and published chainstay (Q81).
 func (b Bike) WithBasisFork() Bike {
 	b.ForkID = BasisForkID
-	b.FrameFork = catalog.FrameFork{}
+	b.ForkOption = catalog.ForkOption{}
 	b.Setup.Frame = b.Size.ChartFrame
 	b.Setup.LowerCup = b.Frame.BasisLowerCup
 	b.Setup.Fork = basisForkSetup(b.Frame)
@@ -607,7 +615,7 @@ func (b Bike) Evaluate(limit int) (BikeResult, error) {
 			parts.Forks = make([]assembly.ForkOption, len(offeredForks))
 			for i, o := range offeredForks {
 				parts.Forks[i] = assembly.ForkOption{
-					Fork:     assembly.ForkSetup{Spec: o.FrameFork.Spec(), SagPct: o.SagPct},
+					Fork:     assembly.ForkSetup{Spec: o.ForkOption.Spec(), SagPct: o.SagPct},
 					LowerCup: o.LowerCup,
 				}
 			}
@@ -632,7 +640,7 @@ func (b Bike) Evaluate(limit int) (BikeResult, error) {
 				if c.ForkIndex < 0 || c.ForkIndex >= len(offeredForks) {
 					return BikeResult{}, fmt.Errorf("fork option index %d out of range [0, %d)", c.ForkIndex, len(offeredForks))
 				}
-				row.ForkID = offeredForks[c.ForkIndex].FrameFork.Fork.ID
+				row.ForkID = offeredForks[c.ForkIndex].ForkOption.ID()
 			}
 			rows[i] = row
 		}

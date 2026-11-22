@@ -33,12 +33,8 @@ func sourPastaParty() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: legacy Forks, each at this frame's A2C and rake
-		Forks: []FrameFork{
-			{Fork: fox34_120, StaticA2cMm: 530, RakeMm: 44},
-			{Fork: sid100, StaticA2cMm: 506, RakeMm: 44},
-			{Fork: rigid490, StaticA2cMm: 490, RakeMm: 44},
-		},
+		// catalog: compatible forks (Q128)
+		Forks: []Fork{fox34_120, sid100, rigid490},
 		// published
 		Sizes: family.sizes(
 			publishedSize{

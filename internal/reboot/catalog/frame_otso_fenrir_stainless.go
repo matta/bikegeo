@@ -39,12 +39,8 @@ func otsoFenrirStainless() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: legacy Forks, each at this frame's A2C and rake
-		Forks: []FrameFork{
-			{Fork: lithicCarbonMountain, StaticA2cMm: 495, RakeMm: 54},
-			{Fork: sid100, StaticA2cMm: 506, RakeMm: 44},
-			{Fork: fox34_120, StaticA2cMm: 530, RakeMm: 44},
-		},
+		// catalog: compatible forks (Q128)
+		Forks: []Fork{lithicCarbonMountain, sid100, fox34_120},
 		// published
 		Sizes: family.sizes(
 			publishedSize{

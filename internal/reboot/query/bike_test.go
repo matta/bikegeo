@@ -41,7 +41,7 @@ func TestParseBikeDefaults(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 		s := b.Setup
-		if b.Frame.ID != "otso-fenrir-stainless" || b.Size.Name != "L" || b.ForkID != "lithic_carbon_mountain" ||
+		if b.Frame.ID != "otso-fenrir-stainless" || b.Size.Name != "L" || b.ForkID != "lithic_carbon_mountain-495x44" ||
 			b.Bar.ID != "persuader20_800" || b.Post.ID != "redshift_shockstop_pro" || b.View != query.ViewBike {
 			t.Errorf("%s: unexpected IDs %q %q %q %q %q view %q", name, b.Frame.ID, b.Size.Name, b.ForkID, b.Bar.ID, b.Post.ID, b.View)
 		}
@@ -66,14 +66,14 @@ func TestParseBikeDefaults(t *testing.T) {
 }
 
 func TestParseBikeAllFramesAndSlidingDropouts(t *testing.T) {
-	b := mustParseBike(t, "frame=surly-krampus&size=XL&fork=fox34_120&sag=20")
-	if b.Frame.ID != "surly-krampus" || b.Size.Name != "XL" || b.ForkID != "fox34_120" ||
+	b := mustParseBike(t, "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20")
+	if b.Frame.ID != "surly-krampus" || b.Size.Name != "XL" || b.ForkID != "fox34_120-534x44" ||
 		b.Setup.Fork.SagPct != 20 || cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Seatpost.InsertionMm != 175.0 {
 		t.Errorf("krampus = %s %s %s sag %v cup %s ins %v", b.Frame.ID, b.Size.Name, b.ForkID, b.Setup.Fork.SagPct, cupString(b.Setup.LowerCup), b.Setup.Seatpost.InsertionMm)
 	}
 
 	b = mustParseBike(t, "frame=binary-havok&size=L")
-	if b.ForkID != "rigid_485" || b.Setup.Frame.ChainstayMm != 460 || cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Seatpost.InsertionMm != 175.0 {
+	if b.ForkID != "rigid_485-485x45" || b.Setup.Frame.ChainstayMm != 460 || cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Seatpost.InsertionMm != 175.0 {
 		t.Errorf("havok physical = %s chainstay %v cup %s ins %v", b.ForkID, b.Setup.Frame.ChainstayMm, cupString(b.Setup.LowerCup), b.Setup.Seatpost.InsertionMm)
 	}
 
@@ -102,21 +102,28 @@ func TestParseBikeAllFramesAndSlidingDropouts(t *testing.T) {
 }
 
 func TestParseBikeSwitchesQ109(t *testing.T) {
-	b := mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=esker-hayduke&size=L&fork=lithic_carbon_mountain&fork_a2c=495&cup=12&sag=0&stem_length=80&bar=sqlab3ox_16_30")
+	// D8: esker-hayduke now carries lithic_carbon_mountain, so switching from Fenrir's default
+	// preserves lithic_carbon_mountain-495x44, while switching from sid_100-506x44 falls back to pike_120.
+	b := mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=esker-hayduke&size=L&fork=lithic_carbon_mountain-495x44&fork_a2c=495&cup=12&sag=0&stem_length=80&bar=sqlab3ox_16_30")
+	if b.Size.Name != "S3" || b.ForkID != "lithic_carbon_mountain-495x44" || b.Setup.Fork.Spec.StaticA2cMm != 495 ||
+		cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Fork.SagPct != 0 || b.Setup.Stem.LengthMm != 80 || b.Bar.ID != "sqlab3ox_16_30" {
+		t.Errorf("esker switch (lithic) = %s %s a2c %v cup %s sag %v stem %v bar %s", b.Size.Name, b.ForkID, b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct, b.Setup.Stem.LengthMm, b.Bar.ID)
+	}
+	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=esker-hayduke&size=L&fork=sid_100-506x44&fork_a2c=506&cup=12&sag=20&stem_length=80&bar=sqlab3ox_16_30")
 	if b.Size.Name != "S3" || b.ForkID != "pike_120" || b.Setup.Fork.Spec.StaticA2cMm != 531 ||
 		cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Fork.SagPct != 25 || b.Setup.Stem.LengthMm != 80 || b.Bar.ID != "sqlab3ox_16_30" {
-		t.Errorf("esker switch = %s %s a2c %v cup %s sag %v stem %v bar %s", b.Size.Name, b.ForkID, b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct, b.Setup.Stem.LengthMm, b.Bar.ID)
+		t.Errorf("esker switch (sid->pike) = %s %s a2c %v cup %s sag %v stem %v bar %s", b.Size.Name, b.ForkID, b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct, b.Setup.Stem.LengthMm, b.Bar.ID)
 	}
 
-	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=surly-krampus&size=L&fork=lithic_carbon_mountain&fork_a2c=495&cup=12&sag=0")
+	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=surly-krampus&size=L&fork=lithic_carbon_mountain-495x44&fork_a2c=495&cup=12&sag=0")
 	if b.Size.Name != "L" || b.ForkID != "surly_krampus_483" || b.Setup.Fork.Spec.StaticA2cMm != 483 ||
 		cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Fork.SagPct != 0 {
 		t.Errorf("krampus switch = %s %s a2c %v cup %s sag %v", b.Size.Name, b.ForkID, b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct)
 	}
 
-	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=salsa-cutthroat&size=L&fork=sid_100&fork_a2c=506&cup=12&sag=25")
-	if b.Size.Name != "56cm" || b.ForkID != "sid_100" || cupString(b.Setup.LowerCup) != "IS52 0" ||
-		b.Setup.Fork.Spec.StaticA2cMm != 506 || b.Setup.Fork.Spec.RakeMm != 51 || b.Setup.Fork.SagPct != 20 {
+	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=salsa-cutthroat&size=L&fork=sid_100-506x44&fork_a2c=506&cup=12&sag=25")
+	if b.Size.Name != "56cm" || b.ForkID != "sid_100-506x44" || cupString(b.Setup.LowerCup) != "IS52 0" ||
+		b.Setup.Fork.Spec.StaticA2cMm != 506 || b.Setup.Fork.Spec.RakeMm != 44 || b.Setup.Fork.SagPct != 20 {
 		t.Errorf("cutthroat switch = %s %s cup %s a2c %v rake %v sag %v", b.Size.Name, b.ForkID, cupString(b.Setup.LowerCup), b.Setup.Fork.Spec.StaticA2cMm, b.Setup.Fork.Spec.RakeMm, b.Setup.Fork.SagPct)
 	}
 
@@ -138,18 +145,18 @@ func TestParseBikeSwitchesQ109(t *testing.T) {
 		t.Errorf("size switch insertion = %v, want 290", b.Setup.Seatpost.InsertionMm)
 	}
 
-	b = mustParseBike(t, "prev_fork=basis&fork=fox34_120&fork_a2c=495&cup=0&sag=0")
-	if b.Setup.Fork.Spec.StaticA2cMm != 530 || cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Fork.SagPct != 25 {
+	b = mustParseBike(t, "prev_fork=basis&fork=fox34_120-534x44&fork_a2c=495&cup=0&sag=0")
+	if b.Setup.Fork.Spec.StaticA2cMm != 534 || cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Fork.SagPct != 25 {
 		t.Errorf("basis->fox = a2c %v cup %s sag %v", b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct)
 	}
 	// Leaving the basis restores the physical cup even when the cup
 	// standard is shared (binary-havok: basis EC44 10 mm, physical EC44 12 mm).
-	b = mustParseBike(t, "frame=binary-havok&size=L&prev_fork=basis&fork=rigid_485&fork_a2c=485&cup=10&sag=0")
+	b = mustParseBike(t, "frame=binary-havok&size=L&prev_fork=basis&fork=rigid_485-485x45&fork_a2c=485&cup=10&sag=0")
 	if cupString(b.Setup.LowerCup) != "EC44 12" {
 		t.Errorf("basis->physical cup = %s, want EC44 12", cupString(b.Setup.LowerCup))
 	}
-	b = mustParseBike(t, "prev_fork=lithic_carbon_mountain&fork=fox34_120&fork_a2c=495&cup=14&sag=0")
-	if b.Setup.Fork.Spec.StaticA2cMm != 530 || cupString(b.Setup.LowerCup) != "EC44 14" || b.Setup.Fork.SagPct != 25 {
+	b = mustParseBike(t, "prev_fork=lithic_carbon_mountain-495x44&fork=fox34_120-534x44&fork_a2c=495&cup=14&sag=0")
+	if b.Setup.Fork.Spec.StaticA2cMm != 534 || cupString(b.Setup.LowerCup) != "EC44 14" || b.Setup.Fork.SagPct != 25 {
 		t.Errorf("fork switch = a2c %v cup %s sag %v", b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct)
 	}
 }
@@ -237,51 +244,49 @@ func TestBikeEvaluate(t *testing.T) {
 
 	r := eval("")
 	fs := r.Placement.Frameset
-	near(t, "reach", fs.LeveledReachMm(), 421.943305, 1e-5)
-	near(t, "stack", fs.LeveledStackMm(), 645.996786, 1e-5)
-	near(t, "ett", fs.EttMm(), 598.532950, 1e-5)
-	near(t, "wheelbase", fs.WheelbaseMm(), 1162.160430, 1e-5)
+	near(t, "reach", fs.LeveledReachMm(), 419.815874, 1e-5)
+	near(t, "stack", fs.LeveledStackMm(), 647.381365, 1e-5)
+	near(t, "ett", fs.EttMm(), 599.074926, 1e-5)
+	near(t, "wheelbase", fs.WheelbaseMm(), 1152.913834, 1e-5)
 	brp := r.Placement.Saddle.BRP.Origin()
-	near(t, "brp x", brp.X, -154.926089, 1e-5)
-	near(t, "brp y", brp.Y, 683.300585, 1e-5)
+	near(t, "brp x", brp.X, -157.024907, 1e-5)
+	near(t, "brp y", brp.Y, 682.682197, 1e-5)
 	if r.Score == nil {
 		t.Fatal("default Score nil")
 	}
 	if r.Score.Tier != assembly.FitsNeither {
 		t.Errorf("tier = %v", r.Score.Tier)
 	}
-	near(t, "score", r.Score.Total, 53.142123, 1e-5)
-	// The plan's probe said 9.067441; recomputing R from the placed grip point
-	// against the Q17 oval independently gives 9.461226.
-	near(t, "gripR", r.Score.GripR, 9.461226, 1e-5)
-	near(t, "brp miss x", r.Score.BrpMissXMm, -64.073911, 1e-5)
-	near(t, "brp miss y", r.Score.BrpMissYMm, 29.799415, 1e-5)
+	near(t, "score", r.Score.Total, 53.639215, 1e-5)
+	near(t, "gripR", r.Score.GripR, 9.736876, 1e-5)
+	near(t, "brp miss x", r.Score.BrpMissXMm, -61.975093, 1e-5)
+	near(t, "brp miss y", r.Score.BrpMissYMm, 30.417803, 1e-5)
 	if r.Fitting == nil {
 		t.Fatal("Fitting nil")
 	}
 	fsu := r.Fitting.Placement.Setup
-	near(t, "fit insertion", fsu.Seatpost.InsertionMm, 144.107252, 1e-5)
+	near(t, "fit insertion", fsu.Seatpost.InsertionMm, 143.437621, 1e-5)
 	if fsu.Saddle.RailOffsetMm != 15 || fsu.Stem.SpacersMm != 0 || fsu.Stem.LengthMm != 130 {
 		t.Errorf("fit setup = rail %v spacers %v stem %v", fsu.Saddle.RailOffsetMm, fsu.Stem.SpacersMm, fsu.Stem.LengthMm)
 	}
 	if r.SetbackCentered == nil || r.SetbackReach == nil {
 		t.Fatal("setback fittings nil")
 	}
-	near(t, "centered setback", r.SetbackCentered.Placement.Setup.Seatpost.Spec.SetbackMm, 65.948584, 1e-5)
-	near(t, "centered insertion", r.SetbackCentered.Placement.Setup.Seatpost.InsertionMm, 129.359870, 1e-5)
-	near(t, "reach setback", r.SetbackReach.Placement.Setup.Seatpost.Spec.SetbackMm, 51.479453, 1e-5)
-	near(t, "reach insertion", r.SetbackReach.Placement.Setup.Seatpost.InsertionMm, 133.315151, 1e-5)
+	near(t, "centered setback", r.SetbackCentered.Placement.Setup.Seatpost.Spec.SetbackMm, 63.610422, 1e-5)
+	near(t, "centered insertion", r.SetbackCentered.Placement.Setup.Seatpost.InsertionMm, 129.146763, 1e-5)
+	near(t, "reach setback", r.SetbackReach.Placement.Setup.Seatpost.Spec.SetbackMm, 49.154381, 1e-5)
+	near(t, "reach insertion", r.SetbackReach.Placement.Setup.Seatpost.InsertionMm, 133.149622, 1e-5)
 	if r.Builds == nil || r.Builds.Evaluated != 749 || len(r.Builds.Builds) != 5 {
 		t.Fatalf("builds = %+v", r.Builds)
 	}
 	top := r.Builds.Builds[0]
 	st := top.Placement.Setup.Stem
-	if top.Score.Tier != assembly.FitsNeither || top.HandlebarID != "persuader20_800" || top.ForkID != "lithic_carbon_mountain" ||
+	if top.Score.Tier != assembly.FitsNeither || top.HandlebarID != "persuader20_800" || top.ForkID != "lithic_carbon_mountain-495x44" ||
 		st.LengthMm != 120 || st.AngleDeg != -30 || st.SpacersMm != 0 {
 		t.Errorf("top build = %v %s %s stem %+v", top.Score.Tier, top.HandlebarID, top.ForkID, st)
 	}
-	near(t, "top total", top.Score.Total, 55.768206, 1e-5)
-	near(t, "top gripR", top.Score.GripR, 1.764743, 1e-5)
+	near(t, "top total", top.Score.Total, 54.271845, 1e-5)
+	near(t, "top gripR", top.Score.GripR, 1.897639, 1e-5)
 
 	r = eval("stem_length=65&stem_angle=-6")
 	if r.Score != nil || r.Fitting == nil || r.Builds == nil {
@@ -292,8 +297,8 @@ func TestBikeEvaluate(t *testing.T) {
 	if r.Score == nil || r.Score.Tier != assembly.FitsNeither || r.Score.HasBrp || r.SetbackCentered != nil || r.SetbackReach != nil {
 		t.Fatalf("brp off = %+v", r)
 	}
-	near(t, "brp off total", r.Score.Total, 70.135498, 1e-5)
-	near(t, "brp off top total", r.Builds.Builds[0].Score.Total, 56.854583, 1e-5)
+	near(t, "brp off total", r.Score.Total, 70.913554, 1e-5)
+	near(t, "brp off top total", r.Builds.Builds[0].Score.Total, 54.512454, 1e-5)
 
 	r = eval("grip=off")
 	if r.Score != nil || r.Builds != nil || r.Fitting == nil || r.SetbackCentered == nil {
@@ -305,13 +310,13 @@ func TestBikeEvaluate(t *testing.T) {
 		t.Errorf("both off = %+v", r)
 	}
 
-	r = eval("frame=surly-krampus&size=XL&fork=fox34_120&sag=20&post=redshift_shockstop_pro&post_insert=163.90608956654532&rail_offset=15&rail_pitch=0&bar=persuader20_800&bar_roll=0&stem_length=100&stem_angle=-10&spacers=0")
+	r = eval("frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&post=redshift_shockstop_pro&post_insert=163.13014276565696&rail_offset=15&rail_pitch=0&bar=persuader20_800&bar_roll=0&stem_length=110&stem_angle=-7&spacers=0")
 	if r.Score == nil || r.Score.Tier != assembly.FitsAll {
 		t.Fatalf("krampus score = %+v", r.Score)
 	}
-	near(t, "krampus total", r.Score.Total, 84.158344739, 1e-6)
-	near(t, "krampus gripR", r.Score.GripR, 0.759424168, 1e-6)
-	near(t, "krampus miss x", r.Score.BrpMissXMm, -4.120315310, 1e-6)
+	near(t, "krampus total", r.Score.Total, 84.690417237, 1e-6)
+	near(t, "krampus gripR", r.Score.GripR, 0.725092414, 1e-6)
+	near(t, "krampus miss x", r.Score.BrpMissXMm, -1.764808833, 1e-6)
 	near(t, "krampus miss y", r.Score.BrpMissYMm, 0, 1e-6)
 	near(t, "krampus top", r.Builds.Builds[0].Score.Total, r.Score.Total, 1e-9)
 	if r.Builds.Builds[0].Score.Tier != assembly.FitsAll {
@@ -319,15 +324,15 @@ func TestBikeEvaluate(t *testing.T) {
 	}
 
 	r = eval("fork_options=all")
-	if r.Builds.Evaluated != 4494 {
-		t.Errorf("all forks evaluated = %d, want 4494", r.Builds.Evaluated)
+	if r.Builds.Evaluated != 8988 {
+		t.Errorf("all forks evaluated = %d, want 8988", r.Builds.Evaluated)
 	}
 	top = r.Builds.Builds[0]
-	if top.ForkID != "sid_100" || top.Placement.Setup.Fork.SagPct != 20 {
+	if top.ForkID != "sid_100-506x51" || top.Placement.Setup.Fork.SagPct != 20 {
 		t.Errorf("all forks top = %s sag %v", top.ForkID, top.Placement.Setup.Fork.SagPct)
 	}
-	near(t, "all forks total", top.Score.Total, 58.531309737, 1e-5)
-	near(t, "all forks gripR", top.Score.GripR, 1.616431203, 1e-5)
+	near(t, "all forks total", top.Score.Total, 60.642370, 1e-5)
+	near(t, "all forks gripR", top.Score.GripR, 1.446100, 1e-4)
 
 	_, err := mustParseBike(t, "post=redshift_shockstop_pro&post_insert=275").Evaluate(query.RankedBuildLimit)
 	var ie *assembly.InputError

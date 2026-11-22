@@ -43,7 +43,7 @@ Query keys:
   grip_x, grip_y, grip     HandGrip target (mm); grip=off clears it
 
 Examples:
-  bikegeo-reboot compare 'frame=surly-krampus&size=XL&fork=fox34_120&sag=20'
+  bikegeo-reboot compare 'frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20'
   bikegeo-reboot compare 'frame=surly-krampus&frame=otso-fenrir-stainless&bar_options=all&top=5'
 `
 
@@ -67,7 +67,7 @@ Query keys:
 
 Examples:
   bikegeo-reboot bike
-  bikegeo-reboot bike 'frame=surly-krampus&size=XL&fork=fox34_120&sag=20'
+  bikegeo-reboot bike 'frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20'
   bikegeo-reboot bike 'frame=binary-havok&size=L&brp=off&grip=off'
 `
 

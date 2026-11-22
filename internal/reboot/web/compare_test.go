@@ -59,7 +59,7 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	}
 
 	configsText := doc.Find(`[data-summary="configs"]`).Text()
-	for _, want := range []string{"19", "581", "435169"} {
+	for _, want := range []string{"19", "1100", "823900"} {
 		if !strings.Contains(configsText, want) {
 			t.Errorf("configs summary %q missing %q", configsText, want)
 		}
@@ -78,7 +78,7 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 		}
 	}
 
-	// Row #1: Surly Krampus XL, Fox Float 34 120mm, 15% sag.
+	// Row #1: Surly Krampus XL, Fox Float 34 120mm (534/44), 25% sag.
 	fit1 := doc.Find(`tr[data-compare-rank="1"]`)
 	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="frame"]`).Text()); got != "Surly Krampus" {
 		t.Errorf("row 1 frame = %q, want Surly Krampus", got)
@@ -88,14 +88,14 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	}
 	for cell, want := range map[string]string{
 		"size":        "XL",
-		"fork":        "Fox Float 34 120mm, 15% sag",
-		"score":       "84.4",
-		"oval-r":      "0.85",
-		"brp-miss":    "(-0.6, +0.0) mm",
-		"stem":        "110 mm, -7°",
+		"fork":        "Fox Float 34 120mm (534/44), 25% sag",
+		"score":       "85.1",
+		"oval-r":      "0.95",
+		"brp-miss":    "(-5.3, +0.0) mm",
+		"stem":        "100 mm, -7°",
 		"spacers":     "0 mm",
 		"rail":        "+15.0 mm",
-		"post-insert": "162.7 mm",
+		"post-insert": "164.3 mm",
 	} {
 		if got := strings.TrimSpace(fit1.Find(fmt.Sprintf(`[data-compare-cell="%s"]`, cell)).Text()); got != want {
 			t.Errorf("row 1 %s = %q, want %q", cell, got, want)
@@ -113,16 +113,16 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 
 	geom1 := doc.Find(`tr[data-geometry-rank="1"]`)
 	for cell, want := range map[string]string{
-		"reach":     "454.2",
-		"stack":     "632.6",
-		"ett":       "665.2",
-		"hta":       "67.6°",
-		"sta":       "71.6°",
+		"reach":     "458.2",
+		"stack":     "629.7",
+		"ett":       "663.8",
+		"hta":       "67.9°",
+		"sta":       "71.9°",
 		"chainstay": "435.0",
-		"wheelbase": "1172.4",
-		"rc-wb":     "36.8%",
-		"bb-drop":   "54.2",
-		"trail":     "106.0",
+		"wheelbase": "1169.3",
+		"rc-wb":     "36.9%",
+		"bb-drop":   "56.9",
+		"trail":     "103.4",
 	} {
 		if got := strings.TrimSpace(geom1.Find(fmt.Sprintf(`[data-geometry-cell="%s"]`, cell)).Text()); got != want {
 			t.Errorf("row 1 geom %s = %q, want %q", cell, got, want)
@@ -131,18 +131,18 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 
 	bd1 := doc.Find(`tr[data-breakdown-rank="1"]`)
 	for attr, want := range map[string]string{
-		"HandGrip":           "91.5",
+		"HandGrip":           "90.5",
 		"Saddle BRP Y":       "100.0",
-		"Saddle BRP X":       "100.0",
-		"Stem":               "57.2",
+		"Saddle BRP X":       "76.1",
+		"Stem":               "73.0",
 		"Handlebar sweep":    "100.0",
-		"Fork sag":           "90.0",
+		"Fork sag":           "100.0",
 		"Spacers":            "100.0",
 		"Saddle rail offset": "0.0",
-		"RC / WB ratio":      "93.9",
+		"RC / WB ratio":      "96.0",
 		"Seatpost insertion": "100.0",
-		"Leveled BB drop":    "45.9",
-		"Trail":              "99.9",
+		"Leveled BB drop":    "59.5",
+		"Trail":              "100.0",
 	} {
 		if got := strings.TrimSpace(bd1.Find(fmt.Sprintf(`[data-breakdown-attr="%s"]`, attr)).Text()); got != want {
 			t.Errorf("row 1 breakdown %s = %q, want %q", attr, got, want)
@@ -154,48 +154,51 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	if got, _ := fit2.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_brp" {
 		t.Errorf("row 2 tier = %q, want fits_brp", got)
 	}
-	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="score"]`).Text()); got != "53.5" {
-		t.Errorf("row 2 score = %q, want 53.5", got)
+	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="score"]`).Text()); got != "53.1" {
+		t.Errorf("row 2 score = %q, want 53.1", got)
 	}
-	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="oval-r"]`).Text()); got != "2.20" {
-		t.Errorf("row 2 oval-r = %q, want 2.20", got)
+	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="oval-r"]`).Text()); got != "2.09" {
+		t.Errorf("row 2 oval-r = %q, want 2.09", got)
 	}
-	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="brp-miss"]`).Text()); got != "(-8.5, +0.0) mm" {
-		t.Errorf("row 2 brp-miss = %q, want (-8.5, +0.0) mm", got)
+	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="brp-miss"]`).Text()); got != "(-9.7, +0.0) mm" {
+		t.Errorf("row 2 brp-miss = %q, want (-9.7, +0.0) mm", got)
 	}
 	geom2 := doc.Find(`tr[data-geometry-rank="2"]`)
-	if got := strings.TrimSpace(geom2.Find(`[data-geometry-cell="reach"]`).Text()); got != "414.8" {
-		t.Errorf("row 2 reach = %q, want 414.8", got)
+	if got := strings.TrimSpace(geom2.Find(`[data-geometry-cell="reach"]`).Text()); got != "415.8" {
+		t.Errorf("row 2 reach = %q, want 415.8", got)
 	}
-	if got := strings.TrimSpace(geom2.Find(`[data-geometry-cell="stack"]`).Text()); got != "637.1" {
-		t.Errorf("row 2 stack = %q, want 637.1", got)
+	if got := strings.TrimSpace(geom2.Find(`[data-geometry-cell="stack"]`).Text()); got != "636.4" {
+		t.Errorf("row 2 stack = %q, want 636.4", got)
 	}
-	if got := strings.TrimSpace(geom2.Find(`[data-geometry-cell="ett"]`).Text()); got != "619.7" {
-		t.Errorf("row 2 ett = %q, want 619.7", got)
+	if got := strings.TrimSpace(geom2.Find(`[data-geometry-cell="ett"]`).Text()); got != "619.4" {
+		t.Errorf("row 2 ett = %q, want 619.4", got)
 	}
 
-	// Row #5: Salsa Fargo XL (sliding dropouts)
+	// Row #5: Seven Expedition 926d (or sliding dropouts check)
 	fit5 := doc.Find(`tr[data-compare-rank="5"]`)
-	if got := strings.TrimSpace(fit5.Find(`[data-compare-cell="frame"]`).Text()); !strings.Contains(got, "Salsa Fargo") {
-		t.Errorf("row 5 frame = %q, want Salsa Fargo", got)
+	if got := strings.TrimSpace(fit5.Find(`[data-compare-cell="frame"]`).Text()); !strings.Contains(got, "Seven Expedition 926d") {
+		t.Errorf("row 5 frame = %q, want Seven Expedition 926d", got)
 	}
-	if got := strings.TrimSpace(fit5.Find(`[data-compare-cell="frame"] abbr.sliding-mark`).Text()); got != "*" {
-		t.Errorf("row 5 sliding-mark = %q, want *", got)
-	}
-	if got := strings.TrimSpace(doc.Find(`tr[data-geometry-rank="5"] [data-geometry-cell="chainstay"]`).Text()); got != "462.0*" {
-		t.Errorf("row 5 chainstay = %q, want 462.0*", got)
+	if got := strings.TrimSpace(doc.Find(`tr[data-geometry-rank="5"] [data-geometry-cell="chainstay"]`).Text()); got != "453.0" {
+		t.Errorf("row 5 chainstay = %q, want 453.0", got)
 	}
 
-	// Row #6: Sour Pasta Party L (-0.0 normalized to +0.0)
+	// Row #6: Esker Hayduke S3 (sliding dropouts)
 	fit6 := doc.Find(`tr[data-compare-rank="6"]`)
 	if got, _ := fit6.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_grip" {
 		t.Errorf("row 6 tier = %q, want fits_grip", got)
 	}
-	if got := strings.TrimSpace(fit6.Find(`[data-compare-cell="score"]`).Text()); got != "80.9" {
-		t.Errorf("row 6 score = %q, want 80.9", got)
+	if got := strings.TrimSpace(fit6.Find(`[data-compare-cell="frame"] abbr.sliding-mark`).Text()); got != "*" {
+		t.Errorf("row 6 sliding-mark = %q, want *", got)
 	}
-	if got := strings.TrimSpace(fit6.Find(`[data-compare-cell="brp-miss"]`).Text()); got != "(-45.9, +0.0) mm" {
-		t.Errorf("row 6 brp-miss = %q, want (-45.9, +0.0) mm", got)
+	if got := strings.TrimSpace(doc.Find(`tr[data-geometry-rank="6"] [data-geometry-cell="chainstay"]`).Text()); got != "454.0*" {
+		t.Errorf("row 6 chainstay = %q, want 454.0*", got)
+	}
+	if got := strings.TrimSpace(fit6.Find(`[data-compare-cell="score"]`).Text()); got != "81.3" {
+		t.Errorf("row 6 score = %q, want 81.3", got)
+	}
+	if got := strings.TrimSpace(fit6.Find(`[data-compare-cell="brp-miss"]`).Text()); got != "(-37.0, +0.0) mm" {
+		t.Errorf("row 6 brp-miss = %q, want (-37.0, +0.0) mm", got)
 	}
 
 	// Row #19: Salsa Cutthroat 60cm
@@ -203,11 +206,11 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	if got, _ := fit19.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_neither" {
 		t.Errorf("row 19 tier = %q, want fits_neither", got)
 	}
-	if got := strings.TrimSpace(fit19.Find(`[data-compare-cell="score"]`).Text()); got != "50.9" {
-		t.Errorf("row 19 score = %q, want 50.9", got)
+	if got := strings.TrimSpace(fit19.Find(`[data-compare-cell="score"]`).Text()); got != "50.2" {
+		t.Errorf("row 19 score = %q, want 50.2", got)
 	}
-	if got := strings.TrimSpace(fit19.Find(`[data-compare-cell="oval-r"]`).Text()); got != "3.40" {
-		t.Errorf("row 19 oval-r = %q, want 3.40", got)
+	if got := strings.TrimSpace(fit19.Find(`[data-compare-cell="oval-r"]`).Text()); got != "3.39" {
+		t.Errorf("row 19 oval-r = %q, want 3.39", got)
 	}
 
 	slidingNote := doc.Find(`[data-note="sliding-dropouts"]`).Text()
@@ -243,12 +246,12 @@ func TestCompareCustomSelectionsAndAutoTopPerFrame(t *testing.T) {
 		t.Errorf("fenrir selection rows = %d, want 1", doc.Find(`[data-selection-row]`).Length())
 	}
 	for _, tbl := range []string{"fit", "geometry", "breakdown"} {
-		if n := doc.Find(fmt.Sprintf(`table[data-table="%s"] tbody tr`, tbl)).Length(); n != 6 {
-			t.Errorf("fenrir %s rows = %d, want 6", tbl, n)
+		if n := doc.Find(fmt.Sprintf(`table[data-table="%s"] tbody tr`, tbl)).Length(); n != 12 {
+			t.Errorf("fenrir %s rows = %d, want 12", tbl, n)
 		}
 	}
-	if !strings.Contains(doc.Find(`[data-summary="configs"]`).Text(), "4494") {
-		t.Errorf("fenrir configs summary %q missing 4494", doc.Find(`[data-summary="configs"]`).Text())
+	if !strings.Contains(doc.Find(`[data-summary="configs"]`).Text(), "8988") {
+		t.Errorf("fenrir configs summary %q missing 8988", doc.Find(`[data-summary="configs"]`).Text())
 	}
 	if val, _ := doc.Find(`#ctrl-top-per-frame`).Attr("value"); val != "" {
 		t.Errorf("#ctrl-top-per-frame value = %q, want empty", val)
@@ -260,24 +263,24 @@ func TestCompareCustomSelectionsAndAutoTopPerFrame(t *testing.T) {
 		t.Errorf("remove-selection 1 href = %q, want /", href)
 	}
 	fit1 := doc.Find(`tr[data-compare-rank="1"]`)
-	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="fork"]`).Text()); got != "RockShox SID 100mm, 20% sag" {
+	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="fork"]`).Text()); got != "RockShox SID 100mm (506/51), 20% sag" {
 		t.Errorf("fenrir row 1 fork = %q", got)
 	}
-	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="score"]`).Text()); got != "58.5" {
-		t.Errorf("fenrir row 1 score = %q, want 58.5", got)
+	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="score"]`).Text()); got != "60.6" {
+		t.Errorf("fenrir row 1 score = %q, want 60.6", got)
 	}
-	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="oval-r"]`).Text()); got != "1.62" {
-		t.Errorf("fenrir row 1 oval-r = %q, want 1.62", got)
+	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="oval-r"]`).Text()); got != "1.45" {
+		t.Errorf("fenrir row 1 oval-r = %q, want 1.45", got)
 	}
 	geom1 := doc.Find(`tr[data-geometry-rank="1"]`)
-	for cell, want := range map[string]string{"reach": "424.5", "stack": "644.3", "ett": "597.9", "chainstay": "450.0*"} {
+	for cell, want := range map[string]string{"reach": "426.0", "stack": "643.4", "ett": "597.5", "chainstay": "450.0*"} {
 		if got := strings.TrimSpace(geom1.Find(fmt.Sprintf(`[data-geometry-cell="%s"]`, cell)).Text()); got != want {
 			t.Errorf("fenrir row 1 %s = %q, want %q", cell, got, want)
 		}
 	}
 
 	// Multi-selection + Remove + All 19 Frames links.
-	status, multi := loadCompareDoc(t, "/?frame=surly-krampus&size=XL&fork=fox34_120&sag=20&frame=binary-havok&size=L&fork=rigid_485&sag=&post=setback_25")
+	status, multi := loadCompareDoc(t, "/?frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&frame=binary-havok&size=L&fork=rigid_485-485x45&sag=&post=setback_25")
 	if status != http.StatusOK {
 		t.Fatalf("multi status = %d, want 200", status)
 	}
@@ -342,7 +345,7 @@ func TestCompareCustomSelectionsAndAutoTopPerFrame(t *testing.T) {
 }
 
 func TestCompareAllBarOptionsShowsHandlebarColumn(t *testing.T) {
-	status, doc := loadCompareDoc(t, "/?frame=surly-krampus&size=XL&fork=fox34_120&sag=20&bar_options=all")
+	status, doc := loadCompareDoc(t, "/?frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&bar_options=all")
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
 	}
@@ -354,14 +357,14 @@ func TestCompareAllBarOptionsShowsHandlebarColumn(t *testing.T) {
 		t.Errorf("fit table headers %v missing Handlebar", headers)
 	}
 	fit1 := doc.Find(`tr[data-compare-rank="1"]`)
-	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="bar"]`).Text()); got != "SQlab 311 FL-X Carbon 16°, 30 mm rise (740 mm)" {
+	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="bar"]`).Text()); got != "SQlab 311 2.0 Alloy 16°, 15 mm rise (740 mm)" {
 		t.Errorf("bar = %q", got)
 	}
-	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="score"]`).Text()); got != "86.2" {
-		t.Errorf("score = %q, want 86.2", got)
+	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="score"]`).Text()); got != "87.1" {
+		t.Errorf("score = %q, want 87.1", got)
 	}
-	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="oval-r"]`).Text()); got != "0.39" {
-		t.Errorf("oval-r = %q, want 0.39", got)
+	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="oval-r"]`).Text()); got != "0.58" {
+		t.Errorf("oval-r = %q, want 0.58", got)
 	}
 	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="stem"]`).Text()); got != "100 mm, -7°" {
 		t.Errorf("stem = %q, want 100 mm, -7°", got)
@@ -476,17 +479,19 @@ func TestCompareErrorPagesAndRecoveryQ76Q112(t *testing.T) {
 		t.Errorf("invalid size option text = %q, want Invalid: XXL", txt)
 	}
 
-	// Invalid fork
-	doc = assertCommonError(t, "/?frame=surly-krampus&fork=fox36_150")
-	sel = doc.Find(`tr[data-selection-row="1"] select[name="fork"]`)
-	if inv, _ := sel.Attr("aria-invalid"); inv != "true" {
-		t.Errorf("invalid fork aria-invalid = %q, want true", inv)
-	}
-	if val, _ := sel.Find(`option[selected]`).Attr("value"); val != "fox36_150" {
-		t.Errorf("invalid fork option value = %q, want fox36_150", val)
-	}
-	if txt := strings.TrimSpace(sel.Find(`option[selected]`).Text()); txt != "Invalid: fox36_150" {
-		t.Errorf("invalid fork option text = %q, want Invalid: fox36_150", txt)
+	// Invalid fork (existing catalog fork not on frame, plus deleted fox36_150)
+	for _, badFork := range []string{"pike_120", "fox36_150"} {
+		doc = assertCommonError(t, "/?frame=surly-krampus&fork="+badFork)
+		sel = doc.Find(`tr[data-selection-row="1"] select[name="fork"]`)
+		if inv, _ := sel.Attr("aria-invalid"); inv != "true" {
+			t.Errorf("invalid fork %s aria-invalid = %q, want true", badFork, inv)
+		}
+		if val, _ := sel.Find(`option[selected]`).Attr("value"); val != badFork {
+			t.Errorf("invalid fork option value = %q, want %s", val, badFork)
+		}
+		if txt := strings.TrimSpace(sel.Find(`option[selected]`).Text()); txt != "Invalid: "+badFork {
+			t.Errorf("invalid fork option text = %q, want Invalid: %s", txt, badFork)
+		}
 	}
 
 	// Unknown frame
@@ -558,10 +563,10 @@ func TestCompareErrorPagesAndRecoveryQ76Q112(t *testing.T) {
 
 func TestCompareToBikeLosslessEndToEndQ67Q77Q110(t *testing.T) {
 	scenarios := []string{
-		"frame=surly-krampus&size=XL&fork=fox34_120&sag=20",
-		"frame=surly-krampus&size=XL&fork=fox34_120&sag=20&bar_options=all",
-		"frame=binary-havok&size=L&fork=rigid_485",
-		"frame=surly-krampus&size=XL&fork=fox34_120&sag=20&post=setback_25&bar=sqlab311_20_16_50&bar_roll=10&rail_pitch=-2&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
+		"frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20",
+		"frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&bar_options=all",
+		"frame=binary-havok&size=L&fork=rigid_485-485x45",
+		"frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&post=setback_25&bar=sqlab311_20_16_50&bar_roll=10&rail_pitch=-2&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
 	}
 
 	for _, raw := range scenarios {
