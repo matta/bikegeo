@@ -92,9 +92,9 @@ func sklarPbj() Frame {
 				ChainstayMm:      432,
 				SeatTubeLengthMm: 505,
 				WheelbaseMm:      1182,
-				Allowance: assembly.ClosureAllowance{
+				Allowance: assembly.ChartAllowance{
 					AxleHeightMm: 0.4,
-					Reason:       "Size L's published Stack (641 mm) implies a 481.7 mm fork A2C with the 12 mm EC44 CAD cup, 3.3 mm short of the 485 mm rigid fork; every other size closes within rounding (Q71).",
+					Reason:       "Size L's published Stack (641 mm) implies a 481.7 mm fork A2C with the 12 mm EC44 CAD cup, 3.3 mm short of the 485 mm rigid fork; every other size is consistent within rounding (Q71).",
 				},
 			},
 			publishedSize{

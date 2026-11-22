@@ -1,6 +1,15 @@
 # Slice 15: Chart-consistency rename
 
-Status: Planned 2026-11-21
+Status: Implemented 2026-11-21; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-21, Gemini 4 Hydrogen (Medium).
+- **Commits:** `Rename chart closure to chart consistency` (this commit).
+- **Done and not done:** R1, R2, R3, R4, V1, V2, V3, V4 all done.
+- **Deviations:** None.
+- **Verification:** `make pre-commit` (`go fix`, `go fmt`, `go vet`, `go tool exhaustive`, `go test -v ./...`, `boundary`) passed with exit code 0. V2 grep gates passed (`closure|residual` matched only `.disclosure` in `compare.html`; `closes?` matched only `chart_consistency.go` "close to the measured excess" and `web` "close-up" lines; old identifiers in `AGENTS.md` and `DESIGN.md` matched only Q47–Q93 history, done Milestones, and Q117). V3 test counts: `assembly 100`, `catalog 26`, `web 91`; `Closure|Closes` 0; `Consistency|Consistent|ChartAllowances` 13. V4: no live check (no user-visible change per Q47).
+- **Open issues:** None.
 
 **Rulings:** Q117 (the words), Q91 (the check runs only in `catalog`'s `go test`), Q47 (no `/bike` readout); `AGENTS.md` rules.
 

@@ -5,7 +5,7 @@ import "bikegeo/internal/reboot/assembly"
 // otsoFenrirStainless returns the Otso Fenrir Stainless.
 //
 // The frame is a stainless bikepacking frame designed around the 495 mm Lithic
-// carbon rigid fork (54 mm offset). The chart closes to the bare head tube;
+// carbon rigid fork (54 mm offset). The chart is consistent with the bare head tube;
 // physical forks install in the 12 mm EC44 cup, pending Otso's confirmation of
 // whether the CAD chart omitted it. Tuning Chip dropouts run 430–450 mm; the
 // chart is drawn at 450 mm.

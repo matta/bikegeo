@@ -5,7 +5,7 @@ import "bikegeo/internal/reboot/assembly"
 // salsaFargo returns the Salsa Fargo.
 //
 // The frame is a steel drop-bar bikepacking frame designed around the 483 mm
-// Cutthroat Carbon Deluxe fork (51 mm offset). The chart closes to the bare
+// Cutthroat Carbon Deluxe fork (51 mm offset). The chart is consistent with the bare
 // head tube; physical forks install in the 12 mm EC44 cup. Alternator dropouts
 // run 445–462 mm.
 func salsaFargo() Frame {

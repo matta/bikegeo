@@ -102,7 +102,7 @@ type publishedSize struct {
 	ChainstayMm, SeatTubeLengthMm      float64
 	WheelbaseMm                        float64 // 0 = unpublished (Q57)
 	MaxPostInsertionMm                 float64 // 0 = unpublished (Q95)
-	Allowance                          assembly.ClosureAllowance
+	Allowance                          assembly.ChartAllowance
 }
 
 // sizes builds each published size's chart on the family's shared values.

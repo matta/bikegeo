@@ -21,13 +21,13 @@ func fenrirChart() assembly.FrameChart {
 	}
 }
 
-func TestCheckChartClosureFenrirPasses(t *testing.T) {
-	if err := assembly.CheckChartClosure(fenrirChart()); err != nil {
-		t.Fatalf("CheckChartClosure(fenrirChart()): %v", err)
+func TestCheckChartConsistencyFenrirPasses(t *testing.T) {
+	if err := assembly.CheckChartConsistency(fenrirChart()); err != nil {
+		t.Fatalf("CheckChartConsistency(fenrirChart()): %v", err)
 	}
 }
 
-func TestCheckChartClosureBudgetEdges(t *testing.T) {
+func TestCheckChartConsistencyBudgetEdges(t *testing.T) {
 	cases := []struct {
 		name  string
 		chart func() assembly.FrameChart
@@ -49,7 +49,7 @@ func TestCheckChartClosureBudgetEdges(t *testing.T) {
 				c.Frame.StackMm = 643.95
 				return c
 			},
-			want: "chart closure: axle height residual +2.17 mm exceeds its ±2.09 mm rounding budget (Stack 0.50 mm, HTA 0.62 mm, HTL 0.46 mm, BB drop 0.50 mm)",
+			want: "chart consistency: axle height mismatch +2.17 mm exceeds its ±2.09 mm rounding budget (Stack 0.50 mm, HTA 0.62 mm, HTL 0.46 mm, BB drop 0.50 mm)",
 		},
 		{
 			name: "wheelbase inside",
@@ -67,20 +67,20 @@ func TestCheckChartClosureBudgetEdges(t *testing.T) {
 				c.PublishedWheelbaseMm = 1160.8
 				return c
 			},
-			want: "chart closure: wheelbase residual -3.14 mm exceeds its ±3.02 mm rounding budget (Reach 0.50 mm, HTA 1.24 mm, HTL 0.19 mm, BB drop 0.08 mm, Chainstay 0.51 mm, Wheelbase 0.50 mm)",
+			want: "chart consistency: wheelbase mismatch -3.14 mm exceeds its ±3.02 mm rounding budget (Reach 0.50 mm, HTA 1.24 mm, HTL 0.19 mm, BB drop 0.08 mm, Chainstay 0.51 mm, Wheelbase 0.50 mm)",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := assembly.CheckChartClosure(tc.chart())
+			err := assembly.CheckChartConsistency(tc.chart())
 			if tc.want == "" {
 				if err != nil {
-					t.Fatalf("CheckChartClosure: got %v, want nil", err)
+					t.Fatalf("CheckChartConsistency: got %v, want nil", err)
 				}
 				return
 			}
 			if err == nil {
-				t.Fatalf("CheckChartClosure: got nil, want %q", tc.want)
+				t.Fatalf("CheckChartConsistency: got nil, want %q", tc.want)
 			}
 			if err.Error() != tc.want {
 				t.Errorf("error = %q, want %q", err.Error(), tc.want)
@@ -89,20 +89,20 @@ func TestCheckChartClosureBudgetEdges(t *testing.T) {
 	}
 }
 
-func TestCheckChartClosureWithoutPrecision(t *testing.T) {
+func TestCheckChartConsistencyWithoutPrecision(t *testing.T) {
 	c := fenrirChart()
 	c.Precision = assembly.ChartPrecision{}
-	err := assembly.CheckChartClosure(c)
-	want := "chart closure: axle height residual +0.22 mm exceeds its ±0.00 mm rounding budget (no rounded columns)\nchart closure: wheelbase residual -0.34 mm exceeds its ±0.00 mm rounding budget (no rounded columns)"
+	err := assembly.CheckChartConsistency(c)
+	want := "chart consistency: axle height mismatch +0.22 mm exceeds its ±0.00 mm rounding budget (no rounded columns)\nchart consistency: wheelbase mismatch -0.34 mm exceeds its ±0.00 mm rounding budget (no rounded columns)"
 	if err == nil {
-		t.Fatalf("CheckChartClosure: got nil, want %q", want)
+		t.Fatalf("CheckChartConsistency: got nil, want %q", want)
 	}
 	if err.Error() != want {
 		t.Errorf("error = %q, want %q", err.Error(), want)
 	}
 }
 
-func TestCheckChartClosureInvalidPrecision(t *testing.T) {
+func TestCheckChartConsistencyInvalidPrecision(t *testing.T) {
 	cases := []struct {
 		name  string
 		chart func() assembly.FrameChart
@@ -129,9 +129,9 @@ func TestCheckChartClosureInvalidPrecision(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := assembly.CheckChartClosure(tc.chart())
+			err := assembly.CheckChartConsistency(tc.chart())
 			if err == nil {
-				t.Fatalf("CheckChartClosure: got nil, want %q", tc.want)
+				t.Fatalf("CheckChartConsistency: got nil, want %q", tc.want)
 			}
 			if err.Error() != tc.want {
 				t.Errorf("error = %q, want %q", err.Error(), tc.want)
@@ -140,13 +140,13 @@ func TestCheckChartClosureInvalidPrecision(t *testing.T) {
 	}
 }
 
-func TestCheckChartClosureNudgeOutOfRange(t *testing.T) {
+func TestCheckChartConsistencyNudgeOutOfRange(t *testing.T) {
 	c := fenrirChart()
 	c.Frame.ChainstayMm = 72.4
 	c.Precision = assembly.ChartPrecision{ChainstayMm: 0.5}
-	err := assembly.CheckChartClosure(c)
+	err := assembly.CheckChartConsistency(c)
 	if err == nil {
-		t.Fatal("CheckChartClosure: got nil, want out-of-range error")
+		t.Fatal("CheckChartConsistency: got nil, want out-of-range error")
 	}
 	const wantPrefix = "chart precision: Chainstay ±0.5 moves the chart out of range: "
 	if !strings.HasPrefix(err.Error(), wantPrefix) {
@@ -154,12 +154,12 @@ func TestCheckChartClosureNudgeOutOfRange(t *testing.T) {
 	}
 }
 
-func TestCheckChartClosureInvalidWheelbase(t *testing.T) {
+func TestCheckChartConsistencyInvalidWheelbase(t *testing.T) {
 	const want = "published wheelbase must be finite and non-negative (0 = unpublished)"
 	for _, wb := range []float64{-1, math.NaN()} {
 		c := fenrirChart()
 		c.PublishedWheelbaseMm = wb
-		err := assembly.CheckChartClosure(c)
+		err := assembly.CheckChartConsistency(c)
 		if err == nil {
 			t.Fatalf("PublishedWheelbaseMm = %v: got nil, want error", wb)
 		}
@@ -210,71 +210,71 @@ func sklarLChart() assembly.FrameChart {
 	}
 }
 
-func TestCheckChartClosureHaydukeS4Allowance(t *testing.T) {
+func TestCheckChartConsistencyHaydukeS4Allowance(t *testing.T) {
 	const reason = "The declared front axle position leaves a wheelbase discrepancy beyond rounding."
 	const terms = " (Reach 0.50 mm, HTA 2.54 mm, HTL 0.19 mm, BB drop 0.07 mm, Chainstay 0.51 mm, Wheelbase 0.50 mm)"
-	const failure = "chart closure: wheelbase residual +5.42 mm exceeds its ±4.31 mm rounding budget"
+	const failure = "chart consistency: wheelbase mismatch +5.42 mm exceeds its ±4.31 mm rounding budget"
 	cases := []struct {
 		name      string
-		allowance assembly.ClosureAllowance
+		allowance assembly.ChartAllowance
 		want      string
 	}{
-		{"none", assembly.ClosureAllowance{}, failure + terms},
-		{"documented", assembly.ClosureAllowance{WheelbaseMm: 1.2, Reason: reason}, ""},
-		{"too small", assembly.ClosureAllowance{WheelbaseMm: 1.0, Reason: reason}, failure + " plus its 1.00 mm allowance" + terms},
-		{"inside slack", assembly.ClosureAllowance{WheelbaseMm: 1.6, Reason: reason}, ""},
-		{"outside slack", assembly.ClosureAllowance{WheelbaseMm: 1.7, Reason: reason}, "closure allowance: wheelbase allowance 1.70 mm exceeds the 1.11 mm needed beyond rounding by more than 0.50 mm"},
+		{"none", assembly.ChartAllowance{}, failure + terms},
+		{"documented", assembly.ChartAllowance{WheelbaseMm: 1.2, Reason: reason}, ""},
+		{"too small", assembly.ChartAllowance{WheelbaseMm: 1.0, Reason: reason}, failure + " plus its 1.00 mm allowance" + terms},
+		{"inside slack", assembly.ChartAllowance{WheelbaseMm: 1.6, Reason: reason}, ""},
+		{"outside slack", assembly.ChartAllowance{WheelbaseMm: 1.7, Reason: reason}, "chart allowance: wheelbase allowance 1.70 mm exceeds the 1.11 mm needed beyond rounding by more than 0.50 mm"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			chart := haydukeS4Chart()
 			chart.Allowance = tc.allowance
-			requireChartClosure(t, chart, tc.want)
+			requireChartConsistency(t, chart, tc.want)
 		})
 	}
 }
 
-func TestCheckChartClosureSklarLAllowance(t *testing.T) {
+func TestCheckChartConsistencySklarLAllowance(t *testing.T) {
 	const reason = "The published chart leaves an axle height discrepancy beyond rounding."
 	const terms = " (Stack 0.50 mm, HTA 1.21 mm, HTL 0.47 mm, BB drop 0.50 mm)"
-	const failure = "chart closure: axle height residual -3.06 mm exceeds its ±2.68 mm rounding budget"
+	const failure = "chart consistency: axle height mismatch -3.06 mm exceeds its ±2.68 mm rounding budget"
 	cases := []struct {
 		name      string
-		allowance assembly.ClosureAllowance
+		allowance assembly.ChartAllowance
 		want      string
 	}{
-		{"none", assembly.ClosureAllowance{}, failure + terms},
-		{"documented", assembly.ClosureAllowance{AxleHeightMm: 0.4, Reason: reason}, ""},
-		{"too small", assembly.ClosureAllowance{AxleHeightMm: 0.3, Reason: reason}, failure + " plus its 0.30 mm allowance" + terms},
-		{"unnecessary wheelbase allowance", assembly.ClosureAllowance{AxleHeightMm: 0.4, WheelbaseMm: 0.5, Reason: reason}, "closure allowance: wheelbase allowance 0.50 mm is unnecessary: residual -3.56 mm is within its ±4.28 mm rounding budget"},
+		{"none", assembly.ChartAllowance{}, failure + terms},
+		{"documented", assembly.ChartAllowance{AxleHeightMm: 0.4, Reason: reason}, ""},
+		{"too small", assembly.ChartAllowance{AxleHeightMm: 0.3, Reason: reason}, failure + " plus its 0.30 mm allowance" + terms},
+		{"unnecessary wheelbase allowance", assembly.ChartAllowance{AxleHeightMm: 0.4, WheelbaseMm: 0.5, Reason: reason}, "chart allowance: wheelbase allowance 0.50 mm is unnecessary: mismatch -3.56 mm is within its ±4.28 mm rounding budget"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			chart := sklarLChart()
 			chart.Allowance = tc.allowance
-			requireChartClosure(t, chart, tc.want)
+			requireChartConsistency(t, chart, tc.want)
 		})
 	}
 }
 
-func TestCheckChartClosureUnnecessaryAllowance(t *testing.T) {
+func TestCheckChartConsistencyUnnecessaryAllowance(t *testing.T) {
 	chart := fenrirChart()
-	chart.Allowance = assembly.ClosureAllowance{AxleHeightMm: 0.5, Reason: "Axle height discrepancy."}
-	requireChartClosure(t, chart, "closure allowance: axle height allowance 0.50 mm is unnecessary: residual +0.22 mm is within its ±2.09 mm rounding budget")
+	chart.Allowance = assembly.ChartAllowance{AxleHeightMm: 0.5, Reason: "Axle height discrepancy."}
+	requireChartConsistency(t, chart, "chart allowance: axle height allowance 0.50 mm is unnecessary: mismatch +0.22 mm is within its ±2.09 mm rounding budget")
 }
 
-func TestCheckChartClosureInvalidAllowance(t *testing.T) {
+func TestCheckChartConsistencyInvalidAllowance(t *testing.T) {
 	cases := []struct {
 		name        string
-		allowance   assembly.ClosureAllowance
+		allowance   assembly.ChartAllowance
 		unpublished bool
 		want        string
 	}{
-		{"negative axle height", assembly.ClosureAllowance{AxleHeightMm: -0.1, Reason: "x"}, false, "closure allowance: axle height must be finite and non-negative, got -0.1 mm"},
-		{"NaN wheelbase", assembly.ClosureAllowance{WheelbaseMm: math.NaN(), Reason: "x"}, false, "closure allowance: wheelbase must be finite and non-negative, got NaN mm"},
-		{"missing reason", assembly.ClosureAllowance{AxleHeightMm: 0.5, Reason: "  "}, false, "closure allowance: a non-zero allowance needs a reason"},
-		{"reason only", assembly.ClosureAllowance{Reason: "x"}, false, "closure allowance: a reason without an allowance"},
-		{"unpublished wheelbase", assembly.ClosureAllowance{WheelbaseMm: 1.0, Reason: "x"}, true, "closure allowance: wheelbase allowance on a chart with no published wheelbase"},
+		{"negative axle height", assembly.ChartAllowance{AxleHeightMm: -0.1, Reason: "x"}, false, "chart allowance: axle height must be finite and non-negative, got -0.1 mm"},
+		{"NaN wheelbase", assembly.ChartAllowance{WheelbaseMm: math.NaN(), Reason: "x"}, false, "chart allowance: wheelbase must be finite and non-negative, got NaN mm"},
+		{"missing reason", assembly.ChartAllowance{AxleHeightMm: 0.5, Reason: "  "}, false, "chart allowance: a non-zero allowance needs a reason"},
+		{"reason only", assembly.ChartAllowance{Reason: "x"}, false, "chart allowance: a reason without an allowance"},
+		{"unpublished wheelbase", assembly.ChartAllowance{WheelbaseMm: 1.0, Reason: "x"}, true, "chart allowance: wheelbase allowance on a chart with no published wheelbase"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -283,40 +283,40 @@ func TestCheckChartClosureInvalidAllowance(t *testing.T) {
 			if tc.unpublished {
 				chart.PublishedWheelbaseMm = 0
 			}
-			requireChartClosure(t, chart, tc.want)
+			requireChartConsistency(t, chart, tc.want)
 		})
 	}
 }
 
-func TestCheckChartClosureUnpublishedWheelbase(t *testing.T) {
+func TestCheckChartConsistencyUnpublishedWheelbase(t *testing.T) {
 	chart := fenrirChart()
 	chart.PublishedWheelbaseMm = 0
 	t.Run("rounding covers axle height", func(t *testing.T) {
-		requireChartClosure(t, chart, "")
+		requireChartConsistency(t, chart, "")
 	})
 	t.Run("axle height outside budget", func(t *testing.T) {
 		chart := chart
 		chart.Frame.StackMm = 643.95
-		requireChartClosure(t, chart, "chart closure: axle height residual +2.17 mm exceeds its ±2.09 mm rounding budget (Stack 0.50 mm, HTA 0.62 mm, HTL 0.46 mm, BB drop 0.50 mm)")
+		requireChartConsistency(t, chart, "chart consistency: axle height mismatch +2.17 mm exceeds its ±2.09 mm rounding budget (Stack 0.50 mm, HTA 0.62 mm, HTL 0.46 mm, BB drop 0.50 mm)")
 	})
 	t.Run("no rounding", func(t *testing.T) {
 		chart := chart
 		chart.Precision = assembly.ChartPrecision{}
-		requireChartClosure(t, chart, "chart closure: axle height residual +0.22 mm exceeds its ±0.00 mm rounding budget (no rounded columns)")
+		requireChartConsistency(t, chart, "chart consistency: axle height mismatch +0.22 mm exceeds its ±0.00 mm rounding budget (no rounded columns)")
 	})
 }
 
-func requireChartClosure(t *testing.T, chart assembly.FrameChart, want string) {
+func requireChartConsistency(t *testing.T, chart assembly.FrameChart, want string) {
 	t.Helper()
-	err := assembly.CheckChartClosure(chart)
+	err := assembly.CheckChartConsistency(chart)
 	if want == "" {
 		if err != nil {
-			t.Fatalf("CheckChartClosure: got %v, want nil", err)
+			t.Fatalf("CheckChartConsistency: got %v, want nil", err)
 		}
 		return
 	}
 	if err == nil {
-		t.Fatalf("CheckChartClosure: got nil, want %q", want)
+		t.Fatalf("CheckChartConsistency: got nil, want %q", want)
 	}
 	if err.Error() != want {
 		t.Errorf("error = %q, want %q", err.Error(), want)

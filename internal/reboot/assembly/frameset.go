@@ -371,9 +371,9 @@ type FrameChart struct {
 	Frame                FrameSetup
 	CadLowerCup          LowerCupSetup
 	CadFork              ForkGeometry
-	PublishedWheelbaseMm float64          // 0 means unpublished and skips the wheelbase closure check (Q57)
-	Precision            ChartPrecision   // rounding half-widths of the published columns (Q43)
-	Allowance            ClosureAllowance // documented widening beyond rounding for this size only (Q65, Q71, Q93)
+	PublishedWheelbaseMm float64        // 0 means unpublished and skips the wheelbase consistency check (Q57)
+	Precision            ChartPrecision // rounding half-widths of the published columns (Q43)
+	Allowance            ChartAllowance // documented widening beyond rounding for this size only (Q65, Q71, Q93)
 }
 
 // ChartBaseline holds the leveled CAD baseline fork frameset placement.

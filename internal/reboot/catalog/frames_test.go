@@ -142,12 +142,12 @@ func TestFrameProblemsCatchMistakes(t *testing.T) {
 	}
 }
 
-// TestEverySizeCloses runs chart closure on every size (Q91).
-func TestEverySizeCloses(t *testing.T) {
+// TestEveryChartIsConsistent runs the chart-consistency check on every size (Q91).
+func TestEveryChartIsConsistent(t *testing.T) {
 	for _, f := range catalog.Frames() {
 		for _, s := range f.Sizes {
 			t.Run(f.ID+"/"+s.Name, func(t *testing.T) {
-				if err := assembly.CheckChartClosure(s.Chart); err != nil {
+				if err := assembly.CheckChartConsistency(s.Chart); err != nil {
 					t.Error(err)
 				}
 			})
@@ -155,19 +155,19 @@ func TestEverySizeCloses(t *testing.T) {
 	}
 }
 
-// TestClosureAllowances checks exactly the two Q71 allowances exist and are needed (Q93).
-func TestClosureAllowances(t *testing.T) {
+// TestChartAllowances checks exactly the two Q71 allowances exist and are needed (Q93).
+func TestChartAllowances(t *testing.T) {
 	want := map[string]struct {
-		allowance assembly.ClosureAllowance
+		allowance assembly.ChartAllowance
 		errPrefix string
 	}{
 		"sklar-pbj/L": {
-			assembly.ClosureAllowance{AxleHeightMm: 0.4},
-			"chart closure: axle height residual -3.06 mm exceeds its ±2.68 mm rounding budget",
+			assembly.ChartAllowance{AxleHeightMm: 0.4},
+			"chart consistency: axle height mismatch -3.06 mm exceeds its ±2.68 mm rounding budget",
 		},
 		"esker-hayduke/S4": {
-			assembly.ClosureAllowance{WheelbaseMm: 1.2},
-			"chart closure: wheelbase residual +5.42 mm exceeds its ±4.31 mm rounding budget",
+			assembly.ChartAllowance{WheelbaseMm: 1.2},
+			"chart consistency: wheelbase mismatch +5.42 mm exceeds its ±4.31 mm rounding budget",
 		},
 	}
 	found := 0
@@ -177,7 +177,7 @@ func TestClosureAllowances(t *testing.T) {
 			a := s.Chart.Allowance
 			w, ok := want[key]
 			if !ok {
-				if a != (assembly.ClosureAllowance{}) {
+				if a != (assembly.ChartAllowance{}) {
 					t.Errorf("%s has unexpected allowance %+v", key, a)
 				}
 				continue
@@ -190,8 +190,8 @@ func TestClosureAllowances(t *testing.T) {
 				t.Errorf("%s allowance has a blank reason", key)
 			}
 			chart := s.Chart
-			chart.Allowance = assembly.ClosureAllowance{}
-			err := assembly.CheckChartClosure(chart)
+			chart.Allowance = assembly.ChartAllowance{}
+			err := assembly.CheckChartConsistency(chart)
 			if err == nil || !strings.HasPrefix(err.Error(), w.errPrefix) {
 				t.Errorf("%s without its allowance: err = %v, want prefix %q", key, err, w.errPrefix)
 			}

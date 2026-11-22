@@ -69,7 +69,7 @@ const (
 	saddleRailOutlineHeight    = 5.0  // illustrative saddle rail thickness
 )
 
-// NewHandler returns the HTTP handler for the reboot workbench. Chart closure
+// NewHandler returns the HTTP handler for the reboot workbench. The chart-consistency check
 // runs in the catalog's go test, not at startup (Q91).
 func NewHandler() http.Handler {
 	mux := http.NewServeMux()

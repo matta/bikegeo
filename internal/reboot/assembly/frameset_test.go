@@ -69,7 +69,7 @@ func TestPlaceFramesetCADBaselineForkAndInvariants(t *testing.T) {
 	assertNear(t, "contact span equals axle wheelbase", placed.RearTireContact.DistanceTo(placed.FrontTireContact), placed.RearAxle.DistanceTo(placed.FrontAxle), 1e-9)
 	assertNear(t, "BB height above ground", placed.BB.Origin().Y-placed.RearTireContact.Origin().Y, wheels.RadiusMm-placed.RearAxle.Origin().Y, 1e-9)
 
-	// CAD baseline fork on Otso Fenrir L closes within chart rounding (~0° pitch, ~1158 mm wheelbase).
+	// CAD baseline fork on Otso Fenrir L is consistent within chart rounding (~0° pitch, ~1158 mm wheelbase).
 	if math.Abs(float64(placed.PitchDeg())) > 0.2 {
 		t.Fatalf("CAD baseline fork pitch = %.4f°, want near 0°", placed.PitchDeg())
 	}
@@ -419,15 +419,15 @@ func TestMismatchedPhysicalCupFailsBothChartEntryPoints(t *testing.T) {
 	chart := fenrirChart()
 	chart.CadLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0}
 	var inputErr *assembly.InputError
-	if err := assembly.CheckChartClosure(chart); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
-		t.Errorf("CheckChartClosure error = %v, want InputLowerCup", err)
+	if err := assembly.CheckChartConsistency(chart); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+		t.Errorf("CheckChartConsistency error = %v, want InputLowerCup", err)
 	}
 	if _, err := assembly.PlaceCadBaselineFork(chart, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
 		t.Errorf("PlaceCadBaselineFork error = %v, want InputLowerCup", err)
 	}
 	// A matching physical cup on the CAD fork is accepted, as is a bare head tube on another bore.
 	chart.CadLowerCup = fenrirEc44Cup()
-	if err := assembly.CheckChartClosure(chart); err != nil && errors.As(err, &inputErr) && inputErr.Field == assembly.InputLowerCup {
+	if err := assembly.CheckChartConsistency(chart); err != nil && errors.As(err, &inputErr) && inputErr.Field == assembly.InputLowerCup {
 		t.Errorf("matching cup rejected as a headset error: %v", err)
 	}
 }

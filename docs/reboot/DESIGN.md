@@ -55,7 +55,7 @@ When Matt accepts a slice, delete its plan file in the same commit that marks th
 
 - **(a) Readable physical code:** build structures from directional pose steps and component builders (seatpost, saddle, fork, spacers, stem, handlebar), not scattered trig. Code clarity replaces web trace introspection (Q48).
 - **(b) Focused Web 1.0 interface (parity with legacy `compare`):** Go-rendered HTML/SVG with plain `GET` forms, URL query state, and zero JS (Q48, Q54), serving `/` (multi-frame comparison matrix) and `/bike` (single-bike inspector with schematic SVG; open separate browser tabs to compare builds visually). No Construction Trace UI, no side-by-side or overlayed views, and no legacy secondary pages (Q48, Q52).
-- **(c) Validated Go catalogs + JSON agent/debug output:** compiled Go structs validated by `assembly.CheckChartClosure` in `go test` (Q50, Q57), plus thin CLI JSON serialization of Go result structs for agents and debugging (Q49a). No MCP server, no file-based catalog persistence, and no chart-reconstruction solver UI (Q49, Q50).
+- **(c) Validated Go catalogs + JSON agent/debug output:** compiled Go structs validated by `assembly.CheckChartConsistency` in `go test` (Q50, Q57), plus thin CLI JSON serialization of Go result structs for agents and debugging (Q49a). No MCP server, no file-based catalog persistence, and no chart-reconstruction solver UI (Q49, Q50).
 - **(d) Fitting and `0–100` weighted scoring:** saddle fitting (height-first when rails clamp, Q60) and build fitting over the `docs/reboot/stems.yaml` stem catalog and part options (Q58, Q100), ranked by a 3-criterion fit gate and tunable `0–100` weighted attribute scores (Q59, Q59a).
 - **(e) Multi-frame comparison:** rank all 19 catalog frames (or custom frame/size/fork/sag selections) by best achievable fit and score (Q50, Q52, Q56).
 
@@ -98,7 +98,7 @@ Test: if fitting or comparison would need the code without HTTP, it belongs in `
 
 `placeFramesetAtPitch(frameRoot, frame, lowerCupMm, fork)` walks from `BB`: rear axle, then head tube top (reach, stack), then down the steerer by HTL, lower cup, and fork A2C, then rake at `+90°` to the front axle; separately, up the seat axis to `SeatTubeTop`.
 
-1. Run it at 0° and measure `PitchDeg = -RearAxle.AngleTo(FrontAxle)`. The same run on `FrameChart` values gives the raw chart-closure residuals, which `catalog`'s `go test` closure check holds to the chart's rounding budget (Q47, Q91).
+1. Run it at 0° and measure `PitchDeg = -RearAxle.AngleTo(FrontAxle)`. The same run on `FrameChart` values gives the raw chart-consistency mismatches, which `catalog`'s `go test` consistency check holds to the chart's rounding budget (Q47, Q91).
 2. Run it again rooted at `bb.Turn(PitchDeg)` (unused `label` parameters are dropped in Slice 11 per Q48). The axles come out level and every step uses real dimensions.
 
 Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so no closed-form pitch trig is needed.
@@ -364,7 +364,7 @@ Rotating about `RearAxle` and re-centering `BB` equals rotating about `BB`, so n
 ```text
 cmd/bikegeo-reboot/       entrypoint; `serve` on port 8081 (and URL-query JSON CLI in Slices 13f–14a)
 internal/reboot/pose/     poses, units, primitives
-internal/reboot/assembly/ component setups, placements, fitting, scoring, chart closure
+internal/reboot/assembly/ component setups, placements, fitting, scoring, chart consistency
 internal/reboot/catalog/  19 frames, 22 forks, 15 bars, 4 seatposts, SQlab 610, default targets (stems.go in Slice 13b, weights in 13c)
 internal/reboot/compare/  (Slice 13e) multi-frame expansion, fitting, ranking, pruning
 internal/reboot/query/    (Slice 13f; /bike query in Slice 14a) shared url.Values query parsing for CLI and web (no HTTP/templates)
@@ -439,8 +439,8 @@ Milestone 3 is done, so the reboot now covers legacy's `compare` and `/bike` and
 - **Legacy surfaces:** CLI `compare` (`+spec`/`-spec` grammar, `--score-detail`), `list`, `validate`, `fit` (CAD back-solving with `--try` sweeps, used by the ingest-frame skill), and `serve`. Web `/`, `/bike`, `/help`, and the secondary pages `/frames`, `/saddles`, `/saddle-swap`, `/handlebars`, and `/validate`. About 33k Go lines (tests included) across 15 packages under `internal/`, plus `cmd/bikegeo`.
 - **Already replaced or retired by rulings:** web `/` and `/bike` (Slices 14a–14b), compare JSON CLI (Q49a, Q88), the secondary pages and the 5-stage arithmetic breakdown (Q52), the `+spec` grammar (Q49a, Q52), legacy scoring, stems, and the fit gate (precedence list above), and the MCP server (Q49).
 - **Data:** all 19 frames, 22 forks, 15 bars, and the seatposts are ported (Slice 12c). Nothing under `internal/frames` or `internal/catalog` has changed since the port commit `9942803`. Not ported: the Berthoud Aspin Open and Selle Italia SLR Boost saddles (deferred, Q52) and legacy ideal profiles and stem catalogs (superseded by Q58, Q59).
-- **No reboot replacement yet:** frame ingestion. The ingest-frame skill depends on legacy `bikegeo fit`/`validate` and `internal/frames`, and `assembly.CheckChartClosure` runs only from `catalog`'s `go test` (Q91).
-- **Reboot `deadcode` today:** 4 functions unreachable from `main` (`CheckChartClosure`, `chartResiduals`, `FitOval.Validate`, `catalog.Forks`).
+- **No reboot replacement yet:** frame ingestion. The ingest-frame skill depends on legacy `bikegeo fit`/`validate` and `internal/frames`, and `assembly.CheckChartConsistency` runs only from `catalog`'s `go test` (Q91).
+- **Reboot `deadcode` today:** 4 functions unreachable from `main` (`CheckChartConsistency`, `chartMismatches`, `FitOval.Validate`, `catalog.Forks`).
 - **Stale repo artifacts:** `INTENT.md` (a legacy package review), `docs/WEB.md` (legacy web spec), `docs/kinematic/` (the precursor to this reboot, plus legacy `internal/assembly`), and the `simplify-step` skill (its `SIMPLIFY_G.md` no longer exists). CI runs vet, `exhaustive`, and tests, but not `boundary` or `deadcode`.
 
 ### Open questions (cross-slice; Matt rules before Slice 18 planning)
@@ -455,7 +455,7 @@ Milestone 3 is done, so the reboot now covers legacy's `compare` and `/bike` and
 
 ### Slices
 
-- **Slice 15, chart-consistency rename (Q117; [SLICE15.md](SLICE15.md), Planned 2026-11-21):** a pure rename with no behavior change. It lands before Slice 16 so the moved check and the rewritten skill are written with the new words.
+- **Slice 15, chart-consistency rename (Q117; [SLICE15.md](SLICE15.md), Implemented 2026-11-21; awaiting Matt's acceptance):** a pure rename with no behavior change. It lands before Slice 16 so the moved check and the rewritten skill are written with the new words.
 - **Slice 16, frame ingestion on the reboot (Q114; small):** export the unpitched frameset placement from `assembly` and have `PlaceFrameset` and `PlaceCadBaselineFork` call it. Move the chart-consistency check, its result type, and its tests from `assembly` into catalog test code; the slice plan settles the exact names and files. Rewrite the ingest-frame skill against `internal/reboot/catalog`, the catalog `go test`, and temporary tests, and drop the interim note from AGENTS.md "One-off investigations". Prove the workflow by re-ingesting one existing frame from its published chart with a temporary test, then deleting the test.
 - **Slice 17, reboot `deadcode` clean and final parity audit:** run `deadcode` (main and `-test`) over the reboot packages only, and fix what Slice 16 leaves (`FitOval.Validate`, `catalog.Forks`). Run the `*_parity_test.go` files a last time, confirm no legacy data commits since `9942803`, and carry over any legacy frame `Notes` or provenance the port dropped. No behavior change.
 - **Slice 18, tag and delete legacy:** tag the last legacy-bearing commit (for example `legacy-final`; whether to push the tag is slice-local). Delete `cmd/bikegeo`, the 15 legacy `internal/` packages, the `*_parity_test.go` files, `INTENT.md`, `docs/WEB.md`, `docs/kinematic/`, the `simplify-step` skill, and the legacy `make` targets (`run`, `serve`, `watch-serve`) and import-isolation checks. Pure deletion: reboot code and tests don't change.

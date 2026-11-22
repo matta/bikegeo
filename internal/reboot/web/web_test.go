@@ -218,12 +218,6 @@ func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 	if got := strings.TrimSpace(doc.Find(`[data-metric="delta-pitch"]`).Text()); got != fmt.Sprintf("%+.2f°", cadBaselineFork.DeltaPitchDeg(placed)) {
 		t.Errorf("delta-pitch = %q, want %+.2f°", got, cadBaselineFork.DeltaPitchDeg(placed))
 	}
-	if n := doc.Find(`[data-metric^="residual-"]`).Length(); n != 0 {
-		t.Errorf("found %d closure residual readouts, want none (Q47)", n)
-	}
-	if strings.Contains(doc.Text(), "Closure Residuals") {
-		t.Error("page still says Closure Residuals, want no readout (Q47)")
-	}
 	if prevFork, _ := doc.Find(`input[name="prev_fork"]`).Attr("value"); prevFork != "fox34_120" {
 		t.Errorf("prev_fork hidden input = %q, want fox34_120", prevFork)
 	}

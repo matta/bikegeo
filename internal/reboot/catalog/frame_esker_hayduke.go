@@ -90,9 +90,9 @@ func eskerHayduke() Frame {
 				ChainstayMm:      440,
 				SeatTubeLengthMm: 530,
 				WheelbaseMm:      1218,
-				Allowance: assembly.ClosureAllowance{
+				Allowance: assembly.ChartAllowance{
 					WheelbaseMm: 1.2,
-					Reason:      "The published S4 wheelbase is 5.42 mm longer than the declared front axle position (HTL + cup + A2C) gives, 1.11 mm beyond rounding; S1–S3 close within rounding (Q71).",
+					Reason:      "The published S4 wheelbase is 5.42 mm longer than the declared front axle position (HTL + cup + A2C) gives, 1.11 mm beyond rounding; S1–S3 are consistent within rounding (Q71).",
 				},
 			},
 		),

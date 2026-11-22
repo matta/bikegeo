@@ -146,7 +146,7 @@ func TestFramesMatchLegacy(t *testing.T) {
 				if fr.MaxPostInsertionMm != wantInsertion || fr.MinFrameInsertionMm != 0 {
 					t.Errorf("%s insertion max/min = %v/%v, want %v/0", s.Name, fr.MaxPostInsertionMm, fr.MinFrameInsertionMm, wantInsertion)
 				}
-				if has := c.Allowance != (assembly.ClosureAllowance{}); has != allowanceSizes[f.ID+"/"+s.Name] {
+				if has := c.Allowance != (assembly.ChartAllowance{}); has != allowanceSizes[f.ID+"/"+s.Name] {
 					t.Errorf("%s allowance = %+v", s.Name, c.Allowance)
 				}
 			}
