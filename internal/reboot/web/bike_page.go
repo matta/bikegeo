@@ -331,13 +331,13 @@ func handleBikeWorkbench(w http.ResponseWriter, r *http.Request) {
 		renderBikeError(w, q, parsed, bikeInputField(err), err.Error())
 		return
 	}
-	cadBaselineFork, err := assembly.PlaceCadBaselineFork(parsed.Size.Chart, parsed.Setup.Wheels)
+	basis, err := parsed.BasisFrameset()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	view := buildBikeView(parsed, result.Placement, cadBaselineFork)
+	view := buildBikeView(parsed, result.Placement, basis)
 	if result.Fitting != nil {
 		view.Fitting, err = buildFittingView(parsed, result)
 		if err != nil {

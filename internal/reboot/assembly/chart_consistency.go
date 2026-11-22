@@ -172,7 +172,8 @@ func CheckChartConsistency(chart FrameChart) error {
 // baseline fork: FrontAxle.Y − RearAxle.Y, then the axle X span minus the
 // published wheelbase.
 func chartMismatches(chart FrameChart) [2]float64 {
-	unpitched, _ := measureUnpitchedFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork)
+	// Tire contacts are unused here.
+	unpitched := placeFramesetAtPitch(0, chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork, WheelSetup{})
 	return [2]float64{
 		unpitched.RearAxle.VerticalOffsetTo(unpitched.FrontAxle),
 		(unpitched.FrontAxle.Origin().X - unpitched.RearAxle.Origin().X) - chart.PublishedWheelbaseMm,

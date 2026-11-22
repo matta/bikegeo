@@ -202,10 +202,20 @@ func TestChartAllowances(t *testing.T) {
 	}
 }
 
+func basisForkOf(chart assembly.FrameChart) assembly.ForkSetup {
+	return assembly.ForkSetup{
+		Spec: assembly.ForkSpec{
+			StaticA2cMm: chart.CadFork.A2cMm,
+			RakeMm:      chart.CadFork.RakeMm,
+			Steerer:     assembly.SteererCAD,
+		},
+	}
+}
+
 // TestForkListsPlace places every size with every listed fork at every
 // enumerated sag, plus its CAD baseline fork (Q83).
 func TestForkListsPlace(t *testing.T) {
-	placements, baselines := 0, 0
+	placements, bases := 0, 0
 	for _, f := range catalog.Frames() {
 		for _, s := range f.Sizes {
 			installed := f.InstalledFrame(s)
@@ -222,15 +232,15 @@ func TestForkListsPlace(t *testing.T) {
 					placements++
 				}
 			}
-			if _, err := assembly.PlaceCadBaselineFork(s.Chart, wheels); err != nil {
+			if _, err := assembly.PlaceFrameset(s.Chart.Frame, s.Chart.CadLowerCup, basisForkOf(s.Chart), wheels); err != nil {
 				t.Errorf("%s/%s CAD baseline fork: %v", f.ID, s.Name, err)
 			}
-			baselines++
+			bases++
 		}
 	}
-	t.Logf("%d fork-list placements, %d CAD baseline placements", placements, baselines)
-	if placements != 701 || baselines != 119 {
-		t.Errorf("got %d fork-list and %d CAD baseline placements, want 701 and 119", placements, baselines)
+	t.Logf("%d fork-list placements, %d CAD baseline placements", placements, bases)
+	if placements != 701 || bases != 119 {
+		t.Errorf("got %d fork-list and %d CAD baseline placements, want 701 and 119", placements, bases)
 	}
 }
 

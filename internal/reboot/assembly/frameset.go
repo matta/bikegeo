@@ -255,12 +255,13 @@ type WheelSetup struct {
 	RadiusMm float64
 }
 
-// FramesetPlacement holds the leveled Pose-valued landmarks for a grounded
-// frameset (frame, fork, lower headset cup, and wheel-ground contacts), anchored
-// with BB at (0, 0) (+X forward, +Y up) and a horizontal axle line
-// (RearAxle.Origin().Y == FrontAxle.Origin().Y). RearTireContact and
-// FrontTireContact sit vertically below the leveled axles on the horizontal ground
-// plane (RearTireContact.Origin().Y == FrontTireContact.Origin().Y).
+// FramesetPlacement holds the Pose-valued landmarks for a frameset (frame,
+// fork, lower headset cup, and wheel-ground contacts), anchored with BB at
+// (0, 0) (+X forward, +Y up). PlaceFrameset returns it leveled (horizontal
+// axle line, RearAxle.Origin().Y == FrontAxle.Origin().Y, with RearTireContact
+// and FrontTireContact on one horizontal ground line); PlaceUnpitchedFrameset
+// returns the same landmarks at 0° pitch (each tire contact one wheel radius
+// straight below its axle).
 //
 // Each landmark is the Pose produced at that point as the turtle constructs
 // ("draws") the frameset from BB, so its local +X heading is a direct
@@ -291,6 +292,20 @@ type FramesetPlacement struct {
 // PitchDeg returns the counter-clockwise frame leveling pitch applied at BB.
 func (f FramesetPlacement) PitchDeg() pose.Deg {
 	return f.BB.HeadingDeg()
+}
+
+// LevelingPitchDeg returns the counter-clockwise rotation about BB that
+// would put the axles level: nonzero on an unpitched placement whose fork
+// and cup differ from the chart's basis, and 0 (to rounding) on a
+// placement PlaceFrameset returned.
+func (f FramesetPlacement) LevelingPitchDeg() pose.Deg {
+	return -f.RearAxle.AngleTo(f.FrontAxle)
+}
+
+// PitchDeltaDeg returns f's leveling pitch minus reference's: positive when
+// f's front end sits higher, as an installed fork does against the basis fork.
+func (f FramesetPlacement) PitchDeltaDeg(reference FramesetPlacement) pose.Deg {
+	return f.PitchDeg() - reference.PitchDeg()
 }
 
 // LeveledHeadTubeAngleDeg returns the leveled head tube angle in degrees.
@@ -376,69 +391,33 @@ type FrameChart struct {
 	Allowance            ChartAllowance // documented widening beyond rounding for this size only (Q65, Q71, Q93)
 }
 
-// ChartBaseline holds the leveled CAD baseline fork frameset placement.
-type ChartBaseline struct {
-	Placement FramesetPlacement
-}
-
-// DeltaPitchDeg returns the pitch change of installed relative to the CAD baseline fork.
-func (b ChartBaseline) DeltaPitchDeg(installed FramesetPlacement) pose.Deg {
-	return installed.PitchDeg() - b.Placement.PitchDeg()
-}
-
-// PlaceCadBaselineFork runs the unpitched (0°) frameset recipe once to measure
-// the leveling pitch, then builds the leveled CAD baseline fork frameset.
-func PlaceCadBaselineFork(chart FrameChart, wheels WheelSetup) (ChartBaseline, error) {
-	if err := validateFrameGeometry(chart.Frame); err != nil {
-		return ChartBaseline{}, err
-	}
-	if err := validateForkGeometry(chart.CadFork); err != nil {
-		return ChartBaseline{}, err
-	}
-	if err := validateHeadset(chart.Frame.LowerBore, chart.CadLowerCup, SteererCAD); err != nil {
-		return ChartBaseline{}, err
-	}
-	if err := validateWheels(wheels); err != nil {
-		return ChartBaseline{}, err
-	}
-
-	_, pitchDeg := measureUnpitchedFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork)
-
-	return ChartBaseline{
-		Placement: placeLeveledFrameset(chart.Frame, chart.CadLowerCup.StackMm, chart.CadFork, wheels, pitchDeg),
-	}, nil
-}
-
-// PlaceFrameset constructs a leveled frameset (frame, lower headset cup, fork,
-// and wheel-ground contacts) using a two-pass Pose recipe: Pass 1 measures the
-// axle-leveling pitch at 0° frame pitch, and Pass 2 builds the leveled frameset
-// rooted at BB rotated by that pitch and locates the wheel-ground contact
-// landmarks directly below each axle.
-func PlaceFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, wheels WheelSetup) (FramesetPlacement, error) {
+// PlaceUnpitchedFrameset builds the frameset in the chart's own orientation:
+// BB at the origin, frame reference axis horizontal (0° pitch). The axles are
+// level only when the fork and cup reproduce the chart's basis, and
+// LevelingPitchDeg measures how far off they are. Tire contacts sit one wheel
+// radius straight below each axle.
+func PlaceUnpitchedFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, wheels WheelSetup) (FramesetPlacement, error) {
 	if err := validateFramesetInputs(frame, lowerCup, fork, wheels); err != nil {
 		return FramesetPlacement{}, err
 	}
-
-	geom := fork.Geometry()
-	_, pitchDeg := measureUnpitchedFrameset(frame, lowerCup.StackMm, geom)
-	return placeLeveledFrameset(frame, lowerCup.StackMm, geom, wheels, pitchDeg), nil
+	return placeFramesetAtPitch(0, frame, lowerCup.StackMm, fork.Geometry(), wheels), nil
 }
 
-func measureUnpitchedFrameset(frame FrameSetup, lowerCupMm float64, fork ForkGeometry) (FramesetPlacement, pose.Deg) {
-	unpitched := placeFramesetAtPitch(pose.NewPose(pose.Point{}, 0), frame, lowerCupMm, fork)
-	return unpitched, -unpitched.RearAxle.AngleTo(unpitched.FrontAxle)
+// PlaceFrameset constructs a leveled frameset (frame, lower headset cup, fork,
+// and wheel-ground contacts) using a two-pass Pose recipe: Pass 1 calls
+// PlaceUnpitchedFrameset to measure the axle-leveling pitch at 0° frame pitch,
+// and Pass 2 builds the leveled frameset rooted at BB rotated by that pitch and
+// locates the wheel-ground contact landmarks directly below each axle.
+func PlaceFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, wheels WheelSetup) (FramesetPlacement, error) {
+	unpitched, err := PlaceUnpitchedFrameset(frame, lowerCup, fork, wheels)
+	if err != nil {
+		return FramesetPlacement{}, err
+	}
+	return placeFramesetAtPitch(unpitched.LevelingPitchDeg(), frame, lowerCup.StackMm, fork.Geometry(), wheels), nil
 }
 
-func placeLeveledFrameset(frame FrameSetup, lowerCupMm float64, fork ForkGeometry, wheels WheelSetup, pitchDeg pose.Deg) FramesetPlacement {
+func placeFramesetAtPitch(pitchDeg pose.Deg, frame FrameSetup, lowerCupMm float64, fork ForkGeometry, wheels WheelSetup) FramesetPlacement {
 	frameRoot := pose.NewPose(pose.Point{}, 0).Turn(pitchDeg)
-	leveled := placeFramesetAtPitch(frameRoot, frame, lowerCupMm, fork)
-	// Face straight down (-90°), then advance one wheel radius to the ground.
-	leveled.RearTireContact = leveled.RearAxle.Face(-90.0).Advance(wheels.RadiusMm)
-	leveled.FrontTireContact = leveled.FrontAxle.Face(-90.0).Advance(wheels.RadiusMm)
-	return leveled
-}
-
-func placeFramesetAtPitch(frameRoot pose.Pose, frame FrameSetup, lowerCupMm float64, fork ForkGeometry) FramesetPlacement {
 	rearX := -pose.RightTriangleLeg(frame.ChainstayMm, frame.BbDropMm)
 	rearAxle := frameRoot.Translate(rearX, frame.BbDropMm)
 
@@ -455,16 +434,22 @@ func placeFramesetAtPitch(frameRoot pose.Pose, frame FrameSetup, lowerCupMm floa
 	seatAxis := frameRoot.Turn(180.0 - frame.SeatTubeAngleDeg)
 	seatTubeTop := seatAxis.Advance(frame.SeatTubeLengthMm)
 
+	// Face straight down (-90°), then advance one wheel radius to the ground.
+	rearTireContact := rearAxle.Face(-90.0).Advance(wheels.RadiusMm)
+	frontTireContact := frontAxle.Face(-90.0).Advance(wheels.RadiusMm)
+
 	return FramesetPlacement{
-		BB:              frameRoot,
-		RearAxle:        rearAxle,
-		SeatAxis:        seatAxis,
-		SeatTubeTop:     seatTubeTop,
-		HeadTubeTop:     headTubeTop,
-		HeadTubeBottom:  headTubeBottom,
-		LowerCupBottom:  lowerCupBottom,
-		ForkSteererBase: forkSteererBase,
-		FrontAxle:       frontAxle,
+		BB:               frameRoot,
+		RearAxle:         rearAxle,
+		RearTireContact:  rearTireContact,
+		SeatAxis:         seatAxis,
+		SeatTubeTop:      seatTubeTop,
+		HeadTubeTop:      headTubeTop,
+		HeadTubeBottom:   headTubeBottom,
+		LowerCupBottom:   lowerCupBottom,
+		ForkSteererBase:  forkSteererBase,
+		FrontAxle:        frontAxle,
+		FrontTireContact: frontTireContact,
 	}
 }
 

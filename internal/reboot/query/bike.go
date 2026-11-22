@@ -539,6 +539,12 @@ func (b Bike) URL() string {
 	return "/bike?" + b.queryValues().Encode()
 }
 
+// BasisFrameset places b's size on its published chart frame with the chart's
+// basis fork and lower cup (Q81, Q121), for the basis readouts and ΔPitch.
+func (b Bike) BasisFrameset() (assembly.FramesetPlacement, error) {
+	return assembly.PlaceFrameset(b.Size.Chart.Frame, b.Size.Chart.CadLowerCup, cadForkSetup(b.Size), b.Setup.Wheels)
+}
+
 // Evaluate places the bike and, when targets are set, scores the submitted
 // build (Q110), fits it, and ranks builds (Q88, Q106).
 func (b Bike) Evaluate(limit int) (BikeResult, error) {

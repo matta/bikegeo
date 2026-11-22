@@ -211,12 +211,12 @@ func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 		t.Errorf("hand-lateral = %q, want %s", got, wantHandLateral)
 	}
 
-	cadBaselineFork, err := assembly.PlaceCadBaselineFork(parsed.Size.Chart, parsed.Setup.Wheels)
+	basis, err := parsed.BasisFrameset()
 	if err != nil {
-		t.Fatalf("PlaceCadBaselineFork: %v", err)
+		t.Fatalf("BasisFrameset: %v", err)
 	}
-	if got := strings.TrimSpace(doc.Find(`[data-metric="delta-pitch"]`).Text()); got != fmt.Sprintf("%+.2f°", cadBaselineFork.DeltaPitchDeg(placed)) {
-		t.Errorf("delta-pitch = %q, want %+.2f°", got, cadBaselineFork.DeltaPitchDeg(placed))
+	if got := strings.TrimSpace(doc.Find(`[data-metric="delta-pitch"]`).Text()); got != fmt.Sprintf("%+.2f°", placed.PitchDeltaDeg(basis)) {
+		t.Errorf("delta-pitch = %q, want %+.2f°", got, placed.PitchDeltaDeg(basis))
 	}
 	if prevFork, _ := doc.Find(`input[name="prev_fork"]`).Attr("value"); prevFork != "fox34_120" {
 		t.Errorf("prev_fork hidden input = %q, want fox34_120", prevFork)
@@ -584,12 +584,12 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	parsed.Setup.Wheels = customWheels
 
 	bike := mustPlace(t, parsed)
-	cadBaselineFork, err := assembly.PlaceCadBaselineFork(parsed.Size.Chart, customWheels)
+	basis, err := parsed.BasisFrameset()
 	if err != nil {
-		t.Fatalf("PlaceCadBaselineFork: %v", err)
+		t.Fatalf("BasisFrameset: %v", err)
 	}
 
-	view := buildBikeView(parsed, bike, cadBaselineFork)
+	view := buildBikeView(parsed, bike, basis)
 
 	if view.WheelRadiusMm != customWheels.RadiusMm {
 		t.Errorf("view.WheelRadiusMm = %.1f, want placed radius %.1f (not catalog %.1f)", view.WheelRadiusMm, customWheels.RadiusMm, catalog.WheelRadiusMm)
@@ -987,16 +987,16 @@ func TestBikeCadBaselineForkURLDecodesToChartFork(t *testing.T) {
 	if decoded.Setup.Fork.Geometry() != chart.CadFork {
 		t.Errorf("decoded Fork.Geometry() = %+v, want %+v", decoded.Setup.Fork.Geometry(), chart.CadFork)
 	}
-	cadBaseline, err := assembly.PlaceCadBaselineFork(chart, decoded.Setup.Wheels)
+	basis, err := decoded.BasisFrameset()
 	if err != nil {
-		t.Fatalf("PlaceCadBaselineFork: %v", err)
+		t.Fatalf("BasisFrameset: %v", err)
 	}
 	placed, err := assembly.PlaceFrameset(decoded.Setup.Frame, decoded.Setup.LowerCup, decoded.Setup.Fork, decoded.Setup.Wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
-	if gotDelta := cadBaseline.DeltaPitchDeg(placed); math.Abs(float64(gotDelta)) > 1e-12 {
-		t.Errorf("CAD DeltaPitchDeg = %.6f°, want 0°", gotDelta)
+	if gotDelta := placed.PitchDeltaDeg(basis); math.Abs(float64(gotDelta)) > 1e-12 {
+		t.Errorf("CAD PitchDeltaDeg = %.6f°, want 0°", gotDelta)
 	}
 }
 
@@ -1411,11 +1411,11 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 	// The whole-bike frame and drawing sizes are unchanged by the view work.
 	parsed := query.DefaultBike()
 	bike := mustPlace(t, parsed)
-	cad, err := assembly.PlaceCadBaselineFork(parsed.Size.Chart, parsed.Setup.Wheels)
+	basis, err := parsed.BasisFrameset()
 	if err != nil {
-		t.Fatalf("PlaceCadBaselineFork: %v", err)
+		t.Fatalf("BasisFrameset: %v", err)
 	}
-	view := buildBikeView(parsed, bike, cad)
+	view := buildBikeView(parsed, bike, basis)
 	if view.DrawScale != 1 {
 		t.Errorf("whole-bike DrawScale = %v, want exactly 1", view.DrawScale)
 	}

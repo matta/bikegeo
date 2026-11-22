@@ -227,73 +227,70 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 	}
 }
 
-func TestPlaceCadBaselineFork(t *testing.T) {
+func TestPlaceUnpitchedFrameset(t *testing.T) {
 	frame := fenrirSizeLFrame()
+	cup := fenrirCadCup()
 	wheels := fenrirWheels()
-	chart := assembly.FrameChart{
-		Frame:       frame,
-		CadLowerCup: fenrirCadCup(),
-		CadFork: assembly.ForkGeometry{
-			A2cMm:  495.0,
-			RakeMm: 54.0,
-		},
-		PublishedWheelbaseMm: 1158.0,
-	}
-
-	baselineFork, err := assembly.PlaceCadBaselineFork(chart, wheels)
-	if err != nil {
-		t.Fatalf("PlaceCadBaselineFork: %v", err)
-	}
-
-	cadForkSetup := assembly.ForkSetup{
+	basisFork := assembly.ForkSetup{
 		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0, Steerer: assembly.SteererCAD},
 	}
-	placed, err := assembly.PlaceFrameset(chart.Frame, chart.CadLowerCup, cadForkSetup, wheels)
+
+	unpitched, err := assembly.PlaceUnpitchedFrameset(frame, cup, basisFork, wheels)
+	if err != nil {
+		t.Fatalf("PlaceUnpitchedFrameset: %v", err)
+	}
+	leveled, err := assembly.PlaceFrameset(frame, cup, basisFork, wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
-	assertNear(t, "baseline fork pitch == PlaceFrameset", float64(baselineFork.Placement.PitchDeg()), float64(placed.PitchDeg()), 1e-12)
-	assertNear(t, "baseline fork wheelbase == PlaceFrameset", baselineFork.Placement.WheelbaseMm(), placed.WheelbaseMm(), 1e-12)
-	assertNear(t, "baseline fork FrontTireContact.Y", baselineFork.Placement.FrontTireContact.Origin().Y, placed.FrontTireContact.Origin().Y, 1e-12)
+
+	if unpitched.PitchDeg() != 0 {
+		t.Errorf("unpitched.PitchDeg() = %v, want exact 0", unpitched.PitchDeg())
+	}
+	assertNear(t, "unpitched.LevelingPitchDeg()", float64(unpitched.LevelingPitchDeg()), -0.010692172, 1e-9)
+	assertNear(t, "leveled.PitchDeg() - unpitched.LevelingPitchDeg()", float64(leveled.PitchDeg()-unpitched.LevelingPitchDeg()), 0, 1e-12)
+	assertNear(t, "leveled.LevelingPitchDeg()", float64(leveled.LevelingPitchDeg()), 0, 1e-12)
+	assertNear(t, "axle rise", unpitched.RearAxle.VerticalOffsetTo(unpitched.FrontAxle), 0.22, 0.005)
+	assertNear(t, "wheelbase mismatch", (unpitched.FrontAxle.Origin().X-unpitched.RearAxle.Origin().X)-1158.0, -0.34, 0.005)
+	assertNear(t, "rear contact X", unpitched.RearTireContact.Origin().X, unpitched.RearAxle.Origin().X, 1e-9)
+	assertNear(t, "rear contact Y", unpitched.RearTireContact.Origin().Y, unpitched.RearAxle.Origin().Y-wheels.RadiusMm, 1e-9)
+	assertNear(t, "front contact X", unpitched.FrontTireContact.Origin().X, unpitched.FrontAxle.Origin().X, 1e-9)
+	assertNear(t, "front contact Y", unpitched.FrontTireContact.Origin().Y, unpitched.FrontAxle.Origin().Y-wheels.RadiusMm, 1e-9)
+	assertNear(t, "BB to FrontAxle distance", leveled.BB.DistanceTo(leveled.FrontAxle), unpitched.BB.DistanceTo(unpitched.FrontAxle), 1e-9)
+	assertNear(t, "FrontAxle heading delta", float64(leveled.FrontAxle.HeadingDeg()-unpitched.FrontAxle.HeadingDeg()), -0.010692172, 1e-9)
 
 	installedFork := assembly.ForkSetup{
 		Spec:   assembly.ForkSpec{StaticA2cMm: 530.0, TravelMm: 120.0, RakeMm: 44.0, Steerer: assembly.SteererTapered},
 		SagPct: 20.0,
 	}
-	installed, err := assembly.PlaceFrameset(chart.Frame, fenrirEc44Cup(), installedFork, wheels)
+	installed, err := assembly.PlaceFrameset(frame, fenrirEc44Cup(), installedFork, wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset installed: %v", err)
 	}
-	wantDelta := installed.PitchDeg() - baselineFork.Placement.PitchDeg()
-	assertNear(t, "DeltaPitchDeg", float64(baselineFork.DeltaPitchDeg(installed)), float64(wantDelta), 1e-12)
-	if baselineFork.DeltaPitchDeg(installed) <= 0 {
-		t.Fatalf("DeltaPitchDeg = %.4f°, want > 0° for taller installed front end", baselineFork.DeltaPitchDeg(installed))
+	assertNear(t, "installed.PitchDeltaDeg(leveled)", float64(installed.PitchDeltaDeg(leveled)), 1.241315762, 1e-9)
+	if leveled.PitchDeltaDeg(leveled) != 0 {
+		t.Errorf("leveled.PitchDeltaDeg(leveled) = %v, want exact 0", leveled.PitchDeltaDeg(leveled))
 	}
 
-	badChart := chart
-	badChart.CadFork.A2cMm = 0
-	if _, err := assembly.PlaceCadBaselineFork(badChart, wheels); err == nil {
-		t.Fatal("expected error for non-positive CadFork.A2cMm")
-	}
-	badChart = chart
-	badChart.CadFork.RakeMm = math.NaN()
-	if _, err := assembly.PlaceCadBaselineFork(badChart, wheels); err == nil {
-		t.Fatal("expected error for NaN CadFork.RakeMm")
-	}
-	badChart = chart
-	badChart.CadLowerCup = assembly.LowerCupSetup{}
-	if _, err := assembly.PlaceCadBaselineFork(badChart, wheels); err == nil {
-		t.Fatal("expected error for missing CadLowerCup standard")
-	}
-	badChart = chart
-	badChart.CadLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 12}
-	if _, err := assembly.PlaceCadBaselineFork(badChart, wheels); err == nil {
-		t.Fatal("expected error for non-zero BareHeadTube CadLowerCup")
-	}
-	badChart = chart
-	badChart.CadLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 0}
-	if _, err := assembly.PlaceCadBaselineFork(badChart, wheels); err == nil {
-		t.Fatal("expected error for zero EC44 CadLowerCup")
+	for _, tc := range []struct {
+		name string
+		cup  assembly.LowerCupSetup
+		fork assembly.ForkSetup
+	}{
+		{"basis fork A2C 0", cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 0, RakeMm: 54.0, Steerer: assembly.SteererCAD}}},
+		{"rake NaN", cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: math.NaN(), Steerer: assembly.SteererCAD}}},
+		{"missing lower cup standard", assembly.LowerCupSetup{}, basisFork},
+		{"bare head tube with 12 mm stack", assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 12}, basisFork},
+		{"EC44 with 0 mm stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 0}, basisFork},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := assembly.PlaceUnpitchedFrameset(frame, tc.cup, tc.fork, wheels); err == nil {
+				t.Errorf("PlaceUnpitchedFrameset(%s): expected error", tc.name)
+			}
+			if _, err := assembly.PlaceFrameset(frame, tc.cup, tc.fork, wheels); err == nil {
+				t.Errorf("PlaceFrameset(%s): expected error", tc.name)
+			}
+		})
 	}
 }
 
@@ -422,8 +419,11 @@ func TestMismatchedPhysicalCupFailsBothChartEntryPoints(t *testing.T) {
 	if err := assembly.CheckChartConsistency(chart); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
 		t.Errorf("CheckChartConsistency error = %v, want InputLowerCup", err)
 	}
-	if _, err := assembly.PlaceCadBaselineFork(chart, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
-		t.Errorf("PlaceCadBaselineFork error = %v, want InputLowerCup", err)
+	basisFork := assembly.ForkSetup{
+		Spec: assembly.ForkSpec{StaticA2cMm: chart.CadFork.A2cMm, RakeMm: chart.CadFork.RakeMm, Steerer: assembly.SteererCAD},
+	}
+	if _, err := assembly.PlaceUnpitchedFrameset(chart.Frame, chart.CadLowerCup, basisFork, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+		t.Errorf("PlaceUnpitchedFrameset error = %v, want InputLowerCup", err)
 	}
 	// A matching physical cup on the CAD fork is accepted, as is a bare head tube on another bore.
 	chart.CadLowerCup = fenrirEc44Cup()

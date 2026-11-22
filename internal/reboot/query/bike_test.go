@@ -335,3 +335,11 @@ func TestBikeEvaluate(t *testing.T) {
 		t.Errorf("out-of-bounds Evaluate err = %v, want InputError seatpost insertion", err)
 	}
 }
+
+func TestBasisFrameset(t *testing.T) {
+	fs, err := query.DefaultBike().BasisFrameset()
+	if err != nil {
+		t.Fatalf("BasisFrameset: %v", err)
+	}
+	near(t, "default basis pitch", float64(fs.PitchDeg()), -0.010692172, 1e-9)
+}

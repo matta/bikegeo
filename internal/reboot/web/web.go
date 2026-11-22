@@ -721,7 +721,7 @@ type bikeLandmarkSpec struct {
 func buildBikeView(
 	parsed query.Bike,
 	bike assembly.BikePlacement,
-	cadBaselineFork assembly.ChartBaseline,
+	basis assembly.FramesetPlacement,
 ) bikeView {
 	view := diagramView(parsed.View)
 	placed := bike.Frameset
@@ -883,9 +883,9 @@ func buildBikeView(
 	v.BrpToGripDistMm = bike.BrpToGripDistMm()
 	v.SitBonesToGripRiseMm = bike.SitBonesToGripRiseMm()
 	v.HandLateralMm = handlebar.HandLateralMm
-	v.CadHtaDeg = cadBaselineFork.Placement.LeveledHeadTubeAngleDeg()
-	v.CadWheelbaseMm = cadBaselineFork.Placement.WheelbaseMm()
-	v.DeltaPitchDeg = cadBaselineFork.DeltaPitchDeg(placed)
+	v.CadHtaDeg = basis.LeveledHeadTubeAngleDeg()
+	v.CadWheelbaseMm = basis.WheelbaseMm()
+	v.DeltaPitchDeg = placed.PitchDeltaDeg(basis)
 	v.WheelRadiusMm = r
 	v.WheelLabel = catalog.WheelLabel
 	v.RearAxleSVG = rearSVG
