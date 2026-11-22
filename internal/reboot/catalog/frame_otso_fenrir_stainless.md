@@ -141,7 +141,7 @@ As of `d60d04f`. Labels are what the values actually are, not what the Go commen
 
 ## Chart consistency
 
-**2026-11-21, Slice 16b P2/P3.** The catalog chart at 495/54 on a bare head tube implies a 494.61–495.40 mm A2C. Every coarse transcription of S1 fails the wheelbase check at 495 mm. Details are in `docs/reboot/SLICE16b.md` (while it exists) and commit `d60d04f`.
+**2026-11-21, Slice 16b P2/P3.** The catalog chart at 495/54 on a bare head tube implies a 494.61–495.40 mm A2C. Every coarse transcription of S1 fails the wheelbase check at 495 mm. The full readouts are in the Slice 16b implementation handoff: `git show d60d04f:docs/reboot/SLICE16b.md`.
 
 **2026-11-21, Slice 16b review** (temporary tests, axle-height budget about ±2.0 mm, wheelbase budget about ±3.0 mm):
 
