@@ -48,11 +48,34 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	if n := doc.Find(`#preset-all-frames`).Length(); n != 0 {
 		t.Errorf("got %d #preset-all-frames links, want 0", n)
 	}
-	if n := doc.Find(`[data-note="redshift-mixed-state"]`).Length(); n != 1 {
+	notesDrawer := doc.Find(`[data-notes-drawer]`)
+	if notesDrawer.Length() != 1 {
+		t.Fatalf("got %d [data-notes-drawer], want 1", notesDrawer.Length())
+	}
+	if _, open := notesDrawer.Attr("open"); open {
+		t.Error("[data-notes-drawer] should be closed by default")
+	}
+	if summary := strings.TrimSpace(notesDrawer.Find("summary").Text()); !strings.Contains(summary, "Parameter & model notes") || !strings.Contains(summary, "(Redshift caveat)") {
+		t.Errorf("notes drawer summary = %q, want Parameter & model notes + (Redshift caveat)", summary)
+	}
+	if n := notesDrawer.Find(`[data-note="redshift-mixed-state"]`).Length(); n != 1 {
 		t.Errorf("got %d redshift-mixed-state notes, want 1", n)
 	}
-	if n := doc.Find(`[data-fit-tier-legend] dt`).Length(); n != 4 {
+	if n := doc.Find(`.tier-strip-badges .tier-badge`).Length(); n != 4 {
+		t.Errorf("got %d tier strip badges, want 4", n)
+	}
+	tierDefs := doc.Find(`[data-tier-definitions]`)
+	if tierDefs.Length() != 1 {
+		t.Fatalf("got %d [data-tier-definitions], want 1", tierDefs.Length())
+	}
+	if _, open := tierDefs.Attr("open"); open {
+		t.Error("[data-tier-definitions] should be closed by default")
+	}
+	if n := tierDefs.Find(`[data-fit-tier-legend] dt`).Length(); n != 4 {
 		t.Errorf("got %d tier legend items, want 4", n)
+	}
+	if _, open := doc.Find(`[data-score-breakdown]`).Attr("open"); open {
+		t.Error("[data-score-breakdown] should be closed by default")
 	}
 	if href, _ := doc.Find(`a#preset-defaults`).Attr("href"); href != "/" {
 		t.Errorf("a#preset-defaults href = %q, want /", href)
@@ -64,8 +87,11 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 			t.Errorf("configs summary %q missing %q", configsText, want)
 		}
 	}
-	if postText := doc.Find(`[data-summary="post"]`).Text(); !strings.Contains(postText, "Redshift ShockStop PRO") {
-		t.Errorf("post summary %q missing Redshift ShockStop PRO", postText)
+	if targetsText := doc.Find(`[data-summary="targets"]`).Text(); !strings.Contains(targetsText, "BRP (-219.0, 713.1) mm") || !strings.Contains(targetsText, "HandGrip (481.0, 726.0) mm") {
+		t.Errorf("targets summary = %q", targetsText)
+	}
+	if postSel := strings.TrimSpace(doc.Find(`#ctrl-post option[selected]`).Text()); !strings.Contains(postSel, "Redshift ShockStop PRO") {
+		t.Errorf("selected post option %q missing Redshift ShockStop PRO", postSel)
 	}
 	if barText := doc.Find(`[data-summary="bar"]`).Text(); !strings.Contains(barText, "Persuader") {
 		t.Errorf("bar summary %q missing Persuader", barText)
@@ -419,6 +445,26 @@ func TestCompareAllBarOptionsShowsHandlebarColumn(t *testing.T) {
 	if got := doc.Find(`[data-summary="configs"]`).Text(); !strings.Contains(got, "11235") {
 		t.Errorf("configs summary %q missing 11235", got)
 	}
+	if n := doc.Find(`[data-summary="bar"]`).Length(); n != 0 {
+		t.Errorf("got %d [data-summary=bar] when bar_options=all, want 0", n)
+	}
+}
+
+func TestCompareNonRedshiftPostOmitsCaveat(t *testing.T) {
+	status, doc := loadCompareDoc(t, "/?post=setback_0")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	notesDrawer := doc.Find(`[data-notes-drawer]`)
+	if notesDrawer.Length() != 1 {
+		t.Fatalf("got %d [data-notes-drawer], want 1", notesDrawer.Length())
+	}
+	if summary := strings.TrimSpace(notesDrawer.Find("summary").Text()); strings.Contains(summary, "Redshift caveat") {
+		t.Errorf("notes drawer summary = %q, must omit Redshift caveat for setback_0", summary)
+	}
+	if n := notesDrawer.Find(`[data-note="redshift-mixed-state"]`).Length(); n != 0 {
+		t.Errorf("got %d redshift-mixed-state notes, want 0 for setback_0", n)
+	}
 }
 
 func TestCompareErrorPagesAndRecoveryQ76Q112(t *testing.T) {
@@ -430,6 +476,9 @@ func TestCompareErrorPagesAndRecoveryQ76Q112(t *testing.T) {
 		}
 		if n := doc.Find(`[data-compare-table]`).Length(); n != 0 {
 			t.Errorf("%s rendered %d compare tables, want 0", raw, n)
+		}
+		if n := doc.Find(`.telemetry-strip`).Length(); n != 0 {
+			t.Errorf("%s rendered %d telemetry strips, want 0", raw, n)
 		}
 		if doc.Find(`#form-error[role="alert"]`).Length() != 1 {
 			t.Errorf("%s missing #form-error[role=alert]", raw)
@@ -702,11 +751,18 @@ func TestCompareToBikeLosslessEndToEndQ67Q77Q110(t *testing.T) {
 }
 
 func TestCompareHTMLAccessibilityAndNoJS(t *testing.T) {
-	for _, rawPath := range []string{"/", "/?frame=surly-krampus"} {
-		t.Run(rawPath, func(t *testing.T) {
-			status, doc := loadCompareDoc(t, rawPath)
-			if status != http.StatusOK {
-				t.Fatalf("status = %d, want 200", status)
+	for _, tc := range []struct {
+		rawPath    string
+		wantStatus int
+	}{
+		{"/", http.StatusOK},
+		{"/?frame=surly-krampus", http.StatusOK},
+		{"/?brp=off", http.StatusBadRequest},
+	} {
+		t.Run(tc.rawPath, func(t *testing.T) {
+			status, doc := loadCompareDoc(t, tc.rawPath)
+			if status != tc.wantStatus {
+				t.Fatalf("status = %d, want %d", status, tc.wantStatus)
 			}
 			if n := doc.Find("script").Length(); n != 0 {
 				t.Errorf("found %d <script> tags, want 0", n)
@@ -719,6 +775,20 @@ func TestCompareHTMLAccessibilityAndNoJS(t *testing.T) {
 					t.Errorf("found %d [%s] attributes, want 0", n, attr)
 				}
 			}
+			doc.Find("form.controls fieldset").Each(func(i int, fs *goquery.Selection) {
+				leg := fs.ChildrenFiltered("legend")
+				if leg.Length() != 1 || strings.TrimSpace(leg.Text()) == "" {
+					t.Errorf("fieldset %d missing non-empty direct <legend>", i)
+				}
+			})
+			doc.Find("[aria-describedby]").Each(func(i int, el *goquery.Selection) {
+				rawIDs, _ := el.Attr("aria-describedby")
+				for id := range strings.FieldsSeq(rawIDs) {
+					if doc.Find("#"+id).Length() == 0 {
+						t.Errorf("element %d references missing aria-describedby #%s", i, id)
+					}
+				}
+			})
 			doc.Find("table.data-table").Each(func(i int, tbl *goquery.Selection) {
 				capSel := tbl.Find("caption")
 				if capSel.Length() != 1 || strings.TrimSpace(capSel.Text()) == "" {

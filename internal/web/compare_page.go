@@ -118,11 +118,9 @@ type compareRowView struct {
 }
 
 type compareSummaryView struct {
-	ModeLabel        string
 	ShownCount       int
 	RowCount         int
 	Evaluated        int
-	SeatpostName     string
 	HandlebarSummary string
 	BrpTargetText    string
 	GripTargetText   string
@@ -279,12 +277,11 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 		slidingDropoutsSummary = strings.Join(parts, ", ")
 	}
 
-	var pageTitle, headerBadge, modeLabel string
+	var pageTitle, headerBadge string
 	if len(parsed.Selections) == 0 {
 		n := len(catalog.Frames())
 		pageTitle = fmt.Sprintf("Compare %d Frames — bikegeo", n)
 		headerBadge = fmt.Sprintf("All %d frames", n)
-		modeLabel = headerBadge
 	} else {
 		n := len(parsed.Selections)
 		setupNoun := "Setups"
@@ -295,7 +292,6 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 		}
 		pageTitle = fmt.Sprintf("Compare %d %s — bikegeo", n, setupNoun)
 		headerBadge = fmt.Sprintf("Custom (%d %s)", n, selNoun)
-		modeLabel = fmt.Sprintf("Custom (%d %s)", n, selNoun)
 	}
 
 	bars := catalog.Handlebars()
@@ -389,11 +385,9 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 			FrameCount:             len(catalog.Frames()),
 		},
 		Summary: compareSummaryView{
-			ModeLabel:        modeLabel,
 			ShownCount:       len(rows),
 			RowCount:         ranking.RowCount,
 			Evaluated:        ranking.Evaluated,
-			SeatpostName:     parsed.Post.Name,
 			HandlebarSummary: handlebarSummary,
 			BrpTargetText:    fmt.Sprintf("(%s, %s) mm", formatFormFloat(parsed.BrpTarget.X), formatFormFloat(parsed.BrpTarget.Y)),
 			GripTargetText:   fmt.Sprintf("(%.1f, %.1f) mm", parsed.GripTarget.X, parsed.GripTarget.Y),

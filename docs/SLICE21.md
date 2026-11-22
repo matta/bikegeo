@@ -1,8 +1,16 @@
 # Slice 21: `/` Compare UI Redesign — Engineering Workbench
 
-Status: Planned 2026-11-22
+Status: Implemented 2026-11-22; awaiting Matt's acceptance
 Implementer: Medium (mid-tier) — single-route HTML/CSS workbench redesign in `internal/web` following established Web 1.0 template, Go view-model, and browserless `goquery` test patterns, plus a live visual check.
 Review: optional — `/` UI and CSS refactor only; zero geometry, scoring, query-parsing, or package-boundary changes, covered by `compare_test.go` and live visual verification.
+
+## Implementation handoff
+
+- **Who & when:** Gemini 4 Hydrogen (High), 2026-11-22.
+- **Commits:** Single implementation commit (this commit).
+- **Deviations:** None.
+- **Verification:** `make pre-commit` passed after final edit; live browser verification across `1440×900` (9 full rows visible above the fold, all 13 columns fit without clipping), `1280×800` (6 full rows + 7th peeking above the fold, aligned 2-row parameter band, single-line `Seatpost` select), and `390×844` (zero page horizontal overflow), plus custom-selection mode, `400` error state, expanded `<details>` drawers, and sticky `<thead>` scrolling on the 32-row `otso-fenrir-stainless` size `L` view.
+- **Open issues:** None.
 
 ## Goal
 

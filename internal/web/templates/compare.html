@@ -38,7 +38,7 @@
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
       --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       --radius-sm: 6px;
-      --radius-md: 10px;
+      --radius-md: 8px;
       --radius-pill: 999px;
     }
     * { box-sizing: border-box; }
@@ -48,7 +48,14 @@
       color: var(--text);
       font-family: var(--font-sans);
       font-size: 0.9375rem;
-      line-height: 1.5;
+      line-height: 1.45;
+      overflow-wrap: break-word;
+    }
+    h1, h2, h3 {
+      text-wrap: balance;
+    }
+    p, li {
+      text-wrap: pretty;
     }
     .visually-hidden {
       position: absolute;
@@ -64,12 +71,12 @@
     .page {
       max-inline-size: 96rem;
       margin-inline: auto;
-      padding: 1.25rem 1.5rem 2.5rem;
+      padding: 0.75rem 1rem 2rem;
     }
     .page-stack {
       display: flex;
       flex-direction: column;
-      gap: 1.25rem;
+      gap: 0.75rem;
     }
     a {
       color: var(--accent);
@@ -88,31 +95,31 @@
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 0.75rem 1.25rem;
-      padding-block-end: 0.85rem;
-      margin-block-end: 1.25rem;
+      gap: 0.55rem 1.25rem;
+      padding-block-end: 0.55rem;
+      margin-block-end: 0.75rem;
       border-block-end: 1px solid var(--border);
     }
     .brand {
       display: flex;
       flex-wrap: wrap;
       align-items: baseline;
-      gap: 0.65rem;
+      gap: 0.6rem;
     }
     .brand h1 {
       margin: 0;
-      font-size: 1.25rem;
+      font-size: 1.2rem;
       font-weight: 700;
       letter-spacing: -0.01em;
     }
     .badge {
       display: inline-block;
-      padding: 0.15rem 0.55rem;
+      padding: 0.12rem 0.55rem;
       border-radius: var(--radius-pill);
       background: var(--accent-subtle);
       color: var(--accent-hover);
       border: 1px solid var(--accent-border);
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       font-weight: 600;
     }
     .site-nav ul {
@@ -124,12 +131,14 @@
       padding: 0;
     }
     .site-nav a {
-      display: inline-block;
-      padding: 0.38rem 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      min-block-size: 2rem;
+      padding: 0.25rem 0.7rem;
       border-radius: var(--radius-sm);
       border: 1px solid transparent;
       color: var(--accent);
-      font-size: 0.9rem;
+      font-size: 0.875rem;
       font-weight: 600;
       text-decoration: none;
     }
@@ -151,69 +160,93 @@
         outline-offset: -2px;
       }
     }
+
+    /* Unified Engineering Workbench Toolbar */
     .controls {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
-      padding: 1rem 1.15rem;
+      overflow: hidden;
     }
     .form-error {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 0.65rem 1rem;
-      margin-block-end: 1rem;
-      padding: 0.7rem 0.9rem;
-      border: 1px solid var(--error);
-      border-radius: var(--radius-sm);
+      gap: 0.5rem 1rem;
+      padding: 0.55rem 0.85rem;
+      border-block-end: 1px solid var(--error);
       background: var(--error-bg);
       color: var(--error-text);
-      font-size: 0.9rem;
+      font-size: 0.875rem;
     }
-    .control-group {
+    .scope-bar {
       margin: 0;
-      padding: 0.75rem 0.9rem 0.9rem;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
+      padding: 0.5rem 0.85rem;
+      border: 0;
+      border-block-end: 1px solid var(--border);
       background: var(--surface-subtle);
       min-inline-size: 0;
     }
-    .control-group legend {
-      padding: 0 0.35rem;
-      font-size: 0.76rem;
+    .scope-inline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.45rem 0.9rem;
+    }
+    .scope-summary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.45rem;
+      min-inline-size: 0;
+    }
+    .scope-tag {
+      font-size: 0.72rem;
       font-weight: 700;
-      color: var(--muted);
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.05em;
+      color: var(--muted);
     }
     .mode-note {
-      margin: 0 0 0.75rem;
-      font-size: 0.875rem;
+      margin: 0;
+      font-size: 0.84rem;
       color: var(--muted);
     }
     .mode-note strong {
       color: var(--text);
     }
+    .scope-custom-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.4rem;
+      margin-block-end: 0.45rem;
+    }
     .selection-table {
       inline-size: 100%;
       border-collapse: collapse;
-      font-size: 0.875rem;
+      font-size: 0.84rem;
     }
     .selection-table th,
     .selection-table td {
-      padding: 0.45rem 0.55rem;
+      padding: 0.35rem 0.5rem;
       border-block-end: 1px solid var(--border);
       text-align: left;
       vertical-align: middle;
     }
     .selection-table thead th {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 1;
       background: var(--surface-subtle);
       color: var(--muted);
-      font-size: 0.74rem;
+      font-size: 0.72rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.04em;
       white-space: nowrap;
     }
     .selection-table tbody tr:last-child td {
@@ -229,98 +262,157 @@
     }
     .selection-table .muted-cell {
       color: var(--muted);
-      font-size: 0.84rem;
+      font-size: 0.82rem;
+    }
+    .selection-table select {
+      min-inline-size: 8rem;
     }
     .add-frame-bar {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 0.55rem 0.85rem;
-      margin-block-start: 0.75rem;
+      gap: 0.45rem 0.65rem;
+      min-inline-size: 0;
+    }
+    .scope-bar-custom .add-frame-bar {
+      margin-block-start: 0.5rem;
     }
     .add-frame-bar label {
-      font-size: 0.84rem;
+      font-size: 0.8rem;
       font-weight: 600;
       color: var(--text);
+      white-space: nowrap;
     }
     .add-frame-bar select {
       inline-size: auto;
-      min-inline-size: min(100%, 19rem);
+      min-inline-size: min(100%, 13rem);
       max-inline-size: 100%;
     }
+    .field-note {
+      margin: 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    /* 3-column hairline-separated parameter band */
     .settings-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.9rem;
-      margin-block-start: 0.9rem;
+      grid-template-columns: minmax(13.5rem, 0.9fr) minmax(28rem, 2.35fr) minmax(9.5rem, 0.65fr);
+    }
+    .param-group {
+      margin: 0;
+      padding: 0.6rem 0.85rem 0.7rem;
+      border: 0;
+      border-inline-end: 1px solid var(--border);
+      min-inline-size: 0;
+    }
+    .param-group:last-child {
+      border-inline-end: 0;
+    }
+    .param-group legend {
+      float: left;
+      inline-size: 100%;
+      padding: 0;
+      margin-block-end: 0.45rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
     .field-grid-2 {
+      clear: both;
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.75rem 0.85rem;
+      gap: 0.45rem 0.6rem;
     }
-    .field-stack {
+    .components-grid {
+      clear: both;
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: 0.45rem;
+    }
+    .components-row-top {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.6rem;
+    }
+    .components-row-bottom {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 0.82fr));
+      gap: 0.6rem;
+    }
+    .limits-grid {
+      clear: both;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.45rem;
     }
     .field {
       display: flex;
       flex-direction: column;
-      gap: 0.25rem;
+      gap: 0.18rem;
       min-inline-size: 0;
     }
     .field label {
-      font-size: 0.82rem;
+      font-size: 0.78rem;
       font-weight: 600;
       color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .controls select,
     .controls input[type="number"] {
       inline-size: 100%;
       font: inherit;
-      font-size: max(1rem, 0.88em);
-      min-block-size: 2.5rem;
-      padding: 0.4rem 0.55rem;
+      font-size: 0.84rem;
+      min-block-size: 2rem;
+      padding: 0.25rem 0.45rem;
       border: 1px solid var(--input-border);
       border-radius: var(--radius-sm);
       background: var(--surface);
       color: var(--text);
     }
-    .selection-table select {
-      min-inline-size: 8.5rem;
+    .controls .add-frame-bar select {
+      inline-size: auto;
+      min-inline-size: min(100%, 12rem);
+      max-inline-size: 100%;
     }
     .controls :is(input, select):user-invalid,
     .controls :is(input, select)[aria-invalid="true"] {
       border-color: var(--error);
       background: var(--error-bg);
     }
-    .field-note {
-      margin: 0;
-      font-size: 0.8rem;
-      color: var(--muted);
-      line-height: 1.4;
-    }
-    .targets-help {
-      margin: 0 0 0.7rem;
+
+    /* Merged action & telemetry footer */
+    .workbench-footer {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.55rem 1rem;
+      padding: 0.55rem 0.85rem;
+      border-block-start: 1px solid var(--border);
+      background: var(--surface-subtle);
     }
     .control-actions {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 0.65rem 0.9rem;
-      margin-block-start: 1rem;
+      gap: 0.5rem;
     }
     .btn-primary,
     .btn-secondary {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-block-size: 2.5rem;
-      padding: 0.45rem 0.95rem;
+      min-block-size: 2rem;
+      padding: 0.3rem 0.85rem;
       border-radius: var(--radius-sm);
       font: inherit;
-      font-size: 0.88rem;
+      font-size: 0.84rem;
       font-weight: 600;
       text-decoration: none;
       cursor: pointer;
@@ -340,12 +432,61 @@
       color: var(--text);
     }
     .btn-secondary:hover {
-      background: var(--surface-subtle);
+      background: var(--bg);
       text-decoration: none;
     }
+    .telemetry-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.3rem 0.9rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .telemetry-item strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .telemetry-mono {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--text);
+    }
+
+    /* Progressive disclosure notes drawer */
+    .notes-drawer {
+      border-block-start: 1px solid var(--border);
+      padding: 0.3rem 0.85rem;
+      background: var(--surface);
+      font-size: 0.82rem;
+    }
+    .notes-drawer summary {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .notes-drawer summary:hover {
+      color: var(--accent);
+    }
+    .caveat-flag {
+      color: var(--tier-grip-text);
+      font-weight: 700;
+    }
+    .notes-list {
+      margin: 0.35rem 0 0.45rem;
+      padding-inline-start: 1.15rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      color: var(--muted);
+    }
+    .notes-list [data-note="redshift-mixed-state"] {
+      color: var(--tier-grip-text);
+      font-weight: 500;
+    }
+
     .remove-link {
       color: var(--danger);
-      font-size: 0.84rem;
+      font-size: 0.82rem;
       font-weight: 600;
       text-decoration: none;
       white-space: nowrap;
@@ -362,59 +503,58 @@
     .inspect-link:hover {
       text-decoration: underline;
     }
-    .card {
+
+    /* Tier strip & disclosure */
+    .tier-strip {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
-      padding: 1rem 1.15rem;
+      padding: 0.45rem 0.85rem;
     }
-    .card h2 {
-      margin: 0 0 0.35rem;
-      font-size: 1.05rem;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-    }
-    .card-subtitle {
-      margin: 0 0 0.75rem;
-      font-size: 0.84rem;
-      color: var(--muted);
-    }
-    .summary-chips {
+    .tier-strip-bar {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.5rem 0.75rem;
-      margin-block: 0.65rem 0.85rem;
+      align-items: center;
+      gap: 0.4rem 0.75rem;
     }
-    .chip {
-      display: inline-flex;
-      flex-wrap: wrap;
-      align-items: baseline;
-      gap: 0.35rem;
-      padding: 0.32rem 0.65rem;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      background: var(--surface-subtle);
-      font-size: 0.84rem;
-    }
-    .chip-label {
+    .tier-strip-label {
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
       color: var(--muted);
     }
-    .chip-value {
-      color: var(--text);
-      font-weight: 600;
+    .tier-strip-badges {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .tier-disclosure {
+      margin-inline-start: auto;
+    }
+    .tier-disclosure[open] {
+      flex-basis: 100%;
+      margin-inline-start: 0;
+    }
+    .tier-disclosure summary {
+      font-size: 0.8rem;
+      padding: 0.15rem 0;
+      margin-block-end: 0;
     }
     .legend-box {
+      margin-block-start: 0.45rem;
       background: var(--surface-subtle);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      padding: 0.65rem 0.85rem;
+      padding: 0.55rem 0.75rem;
     }
     .tier-legend {
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: 0.35rem 0.75rem;
+      gap: 0.3rem 0.7rem;
       margin: 0;
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       color: var(--muted);
       align-items: baseline;
     }
@@ -424,10 +564,10 @@
     }
     .tier-badge {
       display: inline-block;
-      padding: 0.14rem 0.5rem;
+      padding: 0.1rem 0.48rem;
       border-radius: var(--radius-pill);
       border: 1px solid transparent;
-      font-size: 0.76rem;
+      font-size: 0.74rem;
       font-weight: 600;
       white-space: nowrap;
     }
@@ -451,9 +591,37 @@
       color: var(--tier-neither-text);
       border-color: var(--tier-neither-border);
     }
+
+    /* Data-first result panels */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0.7rem 0.85rem;
+    }
+    .panel-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.25rem 0.85rem;
+      margin-block-end: 0.5rem;
+    }
+    .panel h2 {
+      margin: 0;
+      font-size: 0.98rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .panel-subtitle {
+      margin: 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
     .table-scroll {
-      overflow-x: auto;
+      overflow: auto;
       max-inline-size: 100%;
+      max-block-size: 70vh;
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
       background:
@@ -463,11 +631,14 @@
         radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.14), transparent) right center / 0.75rem 100% no-repeat scroll,
         var(--surface);
     }
+    .scope-scroll {
+      max-block-size: 18rem;
+    }
     table.data-table {
       inline-size: 100%;
       border-collapse: separate;
       border-spacing: 0;
-      font-size: 0.875rem;
+      font-size: 0.84rem;
       background: transparent;
     }
     table.data-table thead th {
@@ -476,17 +647,17 @@
       z-index: 1;
       background: var(--surface-subtle);
       color: var(--muted);
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.03em;
       text-align: left;
       white-space: nowrap;
-      padding: 0.55rem 0.65rem;
+      padding: 0.4rem 0.45rem;
       border-block-end: 2px solid var(--border-strong);
     }
     table.data-table tbody td {
-      padding: 0.5rem 0.65rem;
+      padding: 0.36rem 0.45rem;
       border-block-end: 1px solid var(--border);
       vertical-align: middle;
       white-space: nowrap;
@@ -505,7 +676,7 @@
     }
     table.data-table td.num {
       font-family: var(--font-mono);
-      font-size: 0.82rem;
+      font-size: 0.8rem;
     }
     table.data-table td.score-cell {
       font-weight: 700;
@@ -517,28 +688,30 @@
       margin-inline-start: 0.1rem;
     }
     .table-note {
-      margin: 0.65rem 0 0;
-      font-size: 0.82rem;
+      margin: 0.5rem 0 0;
+      font-size: 0.8rem;
       color: var(--muted);
     }
+
+    /* Native details/summary disclosures */
     .disclosure summary {
       list-style: none;
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.45rem;
       cursor: pointer;
       font-weight: 600;
       color: var(--accent);
-      padding: 0.35rem 0;
-      margin-block-end: 0.25rem;
+      min-block-size: 1.75rem;
+      padding: 0.15rem 0;
     }
     .disclosure summary::-webkit-details-marker {
       display: none;
     }
     .disclosure summary::before {
       content: "";
-      inline-size: 0.48em;
-      block-size: 0.48em;
+      inline-size: 0.45em;
+      block-size: 0.45em;
       border-inline-end: 2px solid currentColor;
       border-block-end: 2px solid currentColor;
       rotate: -45deg;
@@ -549,7 +722,11 @@
       rotate: 45deg;
     }
     .disclosure .table-scroll {
-      margin-block-start: 0.5rem;
+      margin-block-start: 0.45rem;
+    }
+    .panel[data-compare-table="breakdown"] .disclosure summary {
+      margin-block-start: 0.25rem;
+      font-size: 0.84rem;
     }
     @media (prefers-reduced-motion: no-preference) {
       .disclosure summary::before {
@@ -567,30 +744,53 @@
       }
       @media (prefers-reduced-motion: no-preference) {
         .disclosure::details-content {
-          transition: block-size 0.25s ease, content-visibility 0.25s ease, display 0.25s ease;
+          transition: block-size 0.22s ease, content-visibility 0.22s ease, display 0.22s ease;
           transition-behavior: allow-discrete;
         }
       }
     }
+
     @media (max-width: 1024px) {
       .settings-grid {
+        grid-template-columns: minmax(14rem, 1fr) minmax(20rem, 1.65fr);
+      }
+      .param-group-components {
+        border-inline-end: 0;
+      }
+      .param-group-limits {
+        grid-column: 1 / -1;
+        border-inline-end: 0;
+        border-block-start: 1px solid var(--border);
+      }
+      .limits-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
-      .settings-grid > .control-group:last-child {
-        grid-column: 1 / -1;
+      .tier-disclosure {
+        margin-inline-start: 0;
       }
     }
     @media (max-width: 680px) {
       .page {
-        padding: 0.9rem 1rem 2rem;
+        padding: 0.7rem 0.85rem 1.75rem;
       }
       .settings-grid {
         grid-template-columns: minmax(0, 1fr);
       }
-      .settings-grid > .control-group:last-child {
-        grid-column: auto;
+      .param-group {
+        border-inline-end: 0;
+        border-block-end: 1px solid var(--border);
       }
-      .field-grid-2 {
+      .param-group:last-child {
+        border-block-end: 0;
+      }
+      .param-group-limits {
+        grid-column: auto;
+        border-block-start: 0;
+      }
+      .field-grid-2,
+      .components-row-top,
+      .components-row-bottom,
+      .limits-grid {
         grid-template-columns: minmax(0, 1fr);
       }
       .tier-legend {
@@ -598,15 +798,22 @@
         gap: 0.2rem;
       }
       .tier-legend dt {
-        margin-block-start: 0.35rem;
+        margin-block-start: 0.3rem;
       }
     }
     @media (pointer: coarse) {
       .controls select,
       .controls input[type="number"],
       .btn-primary,
-      .btn-secondary {
-        min-block-size: 3rem;
+      .btn-secondary,
+      .site-nav a,
+      .disclosure summary {
+        min-block-size: 2.85rem;
+      }
+      .controls select,
+      .controls input[type="number"] {
+        font-size: max(1rem, 0.88em);
+        padding: 0.4rem 0.55rem;
       }
     }
   </style>
@@ -635,12 +842,30 @@
         </div>
         {{end}}
 
-        <fieldset class="control-group">
-          <legend>Bikes to Compare</legend>
+        <fieldset class="scope-bar{{if .Form.SelectionRows}} scope-bar-custom{{end}}">
+          <legend class="visually-hidden">Scope: Bikes to Compare</legend>
           {{if not .Form.SelectionRows}}
-          <p class="mode-note" data-compare-mode="all">Comparing <strong>all {{.Form.FrameCount}} catalog frames</strong> (best configuration each). Add a frame below to narrow to custom selections.</p>
+          <div class="scope-inline">
+            <div class="scope-summary">
+              <span class="scope-tag">Scope</span>
+              <p class="mode-note" data-compare-mode="all">Comparing <strong>all {{.Form.FrameCount}} catalog frames</strong> (best each)</p>
+            </div>
+            <div class="add-frame-bar">
+              <label for="ctrl-add-frame">Add a frame</label>
+              <select id="ctrl-add-frame" name="frame">
+                <option value="">Add a frame…</option>
+                {{range .Form.AddFrames}}<option value="{{.ID}}">{{.Label}}</option>{{end}}
+              </select>
+              <input type="hidden" name="size" value="">
+              <input type="hidden" name="fork" value="">
+              <input type="hidden" name="sag" value="">
+            </div>
+          </div>
           {{else}}
-          <div class="table-scroll" tabindex="0" role="region" aria-label="Custom frame selections">
+          <div class="scope-custom-head">
+            <span class="scope-tag">Scope · Custom Selections</span>
+          </div>
+          <div class="table-scroll scope-scroll" tabindex="0" role="region" aria-label="Custom frame selections">
             <table class="selection-table">
               <thead>
                 <tr>
@@ -691,8 +916,6 @@
               </tbody>
             </table>
           </div>
-          {{end}}
-
           <div class="add-frame-bar">
             <label for="ctrl-add-frame">Add a frame</label>
             <select id="ctrl-add-frame" name="frame">
@@ -704,136 +927,137 @@
             <input type="hidden" name="sag" value="">
             <span class="field-note">Pick a frame and click Compare Bikes to narrow by size, fork, and sag.</span>
           </div>
+          {{end}}
         </fieldset>
 
         <div class="settings-grid">
-          <fieldset class="control-group">
-            <legend>Rider Fit Targets</legend>
-            <p id="targets-help" class="field-note targets-help">World coordinates in mm (BB at origin, +X forward, +Y up). Both targets are required. Defaults: BRP ({{.Form.ExampleBrpX}}, {{.Form.ExampleBrpY}}), HandGrip ({{.Form.ExampleGripX}}, {{.Form.ExampleGripY}}).</p>
+          <fieldset class="param-group param-group-targets">
+            <legend>Targets (BB origin · mm)</legend>
             <div class="field-grid-2">
               <div class="field">
-                <label for="ctrl-brp-x">BRP X (mm)</label>
+                <label for="ctrl-brp-x">BRP X</label>
                 <input id="ctrl-brp-x" name="brp_x" type="number" step="any" value="{{.Form.BrpX}}" required aria-describedby="{{if .Form.BrpXInvalid}}targets-help form-error{{else}}targets-help{{end}}"{{if .Form.BrpXInvalid}} aria-invalid="true"{{end}}>
               </div>
               <div class="field">
-                <label for="ctrl-brp-y">BRP Y (mm)</label>
+                <label for="ctrl-brp-y">BRP Y</label>
                 <input id="ctrl-brp-y" name="brp_y" type="number" step="any" value="{{.Form.BrpY}}" required aria-describedby="{{if .Form.BrpYInvalid}}targets-help form-error{{else}}targets-help{{end}}"{{if .Form.BrpYInvalid}} aria-invalid="true"{{end}}>
               </div>
               <div class="field">
-                <label for="ctrl-grip-x">HandGrip X (mm)</label>
+                <label for="ctrl-grip-x">HandGrip X</label>
                 <input id="ctrl-grip-x" name="grip_x" type="number" step="any" value="{{.Form.GripX}}" required aria-describedby="{{if .Form.GripXInvalid}}targets-help form-error{{else}}targets-help{{end}}"{{if .Form.GripXInvalid}} aria-invalid="true"{{end}}>
               </div>
               <div class="field">
-                <label for="ctrl-grip-y">HandGrip Y (mm)</label>
+                <label for="ctrl-grip-y">HandGrip Y</label>
                 <input id="ctrl-grip-y" name="grip_y" type="number" step="any" value="{{.Form.GripY}}" required aria-describedby="{{if .Form.GripYInvalid}}targets-help form-error{{else}}targets-help{{end}}"{{if .Form.GripYInvalid}} aria-invalid="true"{{end}}>
               </div>
             </div>
           </fieldset>
 
-          <fieldset class="control-group">
-            <legend>Cockpit &amp; Seatpost</legend>
-            <div class="field-stack">
-              <div class="field">
-                <label for="ctrl-post">Seatpost</label>
-                <select id="ctrl-post" name="post"{{if .Form.PostInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
-                  {{range .Form.PostOptions}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
-                </select>
-                {{if .Form.RedshiftMixedStateNote}}<p class="field-note" data-note="redshift-mixed-state">{{.Form.RedshiftMixedStateNote}}</p>{{end}}
-              </div>
-              <div class="field">
-                <label for="ctrl-bar">Handlebar</label>
-                <select id="ctrl-bar" name="bar"{{if .Form.BarInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
-                  {{range .Form.BarOptions}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
-                </select>
-              </div>
-              <div class="field">
-                <label for="ctrl-bar-options">Handlebar options</label>
-                <select id="ctrl-bar-options" name="bar_options"{{if .Form.BarOptionModeInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
-                  {{range .Form.BarOptionModes}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
-                </select>
-                <p class="field-note" data-note="bar-options-speed">All {{.Form.HandlebarCount}} handlebars evaluates ~15× more builds (about 2 s per frame).</p>
-              </div>
-              <div class="field-grid-2">
+          <fieldset class="param-group param-group-components">
+            <legend>Components</legend>
+            <div class="components-grid">
+              <div class="components-row-top">
                 <div class="field">
-                  <label for="ctrl-bar-roll">Handlebar Roll (°)</label>
+                  <label for="ctrl-post">Seatpost</label>
+                  <select id="ctrl-post" name="post"{{if .Form.PostInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+                    {{range .Form.PostOptions}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="ctrl-bar">Handlebar</label>
+                  <select id="ctrl-bar" name="bar"{{if .Form.BarInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+                    {{range .Form.BarOptions}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                  </select>
+                </div>
+              </div>
+              <div class="components-row-bottom">
+                <div class="field">
+                  <label for="ctrl-bar-options">Handlebar options</label>
+                  <select id="ctrl-bar-options" name="bar_options"{{if .Form.BarOptionModeInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
+                    {{range .Form.BarOptionModes}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="ctrl-bar-roll">Bar Roll (°)</label>
                   <input id="ctrl-bar-roll" name="bar_roll" type="number" step="0.5" value="{{.Form.BarRoll}}"{{if .Form.BarRollInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
                 </div>
                 <div class="field">
-                  <label for="ctrl-rail-pitch">Saddle Rail Pitch (°)</label>
+                  <label for="ctrl-rail-pitch">Rail Pitch (°)</label>
                   <input id="ctrl-rail-pitch" name="rail_pitch" type="number" step="0.5" value="{{.Form.RailPitch}}"{{if .Form.RailPitchInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
                 </div>
               </div>
             </div>
           </fieldset>
 
-          <fieldset class="control-group">
-            <legend>Ranking Limits</legend>
-            <div class="field-grid-2">
+          <fieldset class="param-group param-group-limits">
+            <legend>Limits</legend>
+            <div class="limits-grid">
               <div class="field">
                 <label for="ctrl-top-per-frame">Per frame</label>
                 <input id="ctrl-top-per-frame" name="top_per_frame" type="number" min="0" step="1" placeholder="auto" value="{{.Form.TopPerFrame}}" aria-describedby="{{if .Form.TopPerFrameInvalid}}top-per-frame-help form-error{{else}}top-per-frame-help{{end}}"{{if .Form.TopPerFrameInvalid}} aria-invalid="true"{{end}}>
-                <span id="top-per-frame-help" class="field-note">Blank: 1 in all-frames mode, unlimited in custom mode. 0 = unlimited.</span>
               </div>
               <div class="field">
                 <label for="ctrl-top">Overall limit</label>
                 <input id="ctrl-top" name="top" type="number" min="0" step="1" placeholder="all" value="{{.Form.Top}}" aria-describedby="{{if .Form.TopInvalid}}top-help form-error{{else}}top-help{{end}}"{{if .Form.TopInvalid}} aria-invalid="true"{{end}}>
-                <span id="top-help" class="field-note">Maximum rows to show overall. Blank or 0 = all.</span>
               </div>
             </div>
           </fieldset>
         </div>
 
-        <div class="control-actions">
-          <button id="ctrl-submit" class="btn-primary" type="submit">Compare Bikes</button>
-          <a id="preset-defaults" class="btn-secondary" href="/" data-preset="defaults">Reset Defaults</a>
-          {{if .Form.ShowAllFramesLink}}<a id="preset-all-frames" class="btn-secondary" href="{{.Form.AllFramesURL}}" data-preset="all-frames">All {{.Form.FrameCount}} Frames</a>{{end}}
-        </div>
-      </form>
-
-      {{if .HasResults}}
-      <section class="card" aria-labelledby="summary-heading">
-        <h2 id="summary-heading">Comparison Summary</h2>
-        <div class="summary-chips">
-          <div class="chip" data-summary="mode">
-            <span class="chip-label">Mode:</span>
-            <span class="chip-value">{{.Summary.ModeLabel}}</span>
+        <div class="workbench-footer">
+          <div class="control-actions">
+            <button id="ctrl-submit" class="btn-primary" type="submit">Compare Bikes</button>
+            <a id="preset-defaults" class="btn-secondary" href="/" data-preset="defaults">Reset Defaults</a>
+            {{if .Form.ShowAllFramesLink}}<a id="preset-all-frames" class="btn-secondary" href="{{.Form.AllFramesURL}}" data-preset="all-frames">All {{.Form.FrameCount}} Frames</a>{{end}}
           </div>
-          <div class="chip" data-summary="configs">
-            <span class="chip-label">Configs:</span>
-            <span class="chip-value">Showing {{.Summary.ShownCount}} of {{.Summary.RowCount}} configurations ({{.Summary.Evaluated}} builds evaluated)</span>
-          </div>
-          <div class="chip" data-summary="post">
-            <span class="chip-label">Seatpost:</span>
-            <span class="chip-value">{{.Summary.SeatpostName}}</span>
-          </div>
-          <div class="chip" data-summary="bar">
-            <span class="chip-label">Handlebar:</span>
-            <span class="chip-value">{{.Summary.HandlebarSummary}}</span>
-          </div>
-          <div class="chip" data-summary="targets">
-            <span class="chip-label">Targets:</span>
-            <span class="chip-value">BRP {{.Summary.BrpTargetText}} · HandGrip {{.Summary.GripTargetText}}</span>
-          </div>
-          {{if .Summary.PostureNote}}
-          <div class="chip" data-summary="posture">
-            <span class="chip-label">Posture:</span>
-            <span class="chip-value">{{.Summary.PostureNote}}</span>
+          {{if .HasResults}}
+          <div class="telemetry-strip" aria-label="Comparison telemetry">
+            <span class="telemetry-item" data-summary="configs">Showing <strong>{{.Summary.ShownCount}}</strong> of <strong>{{.Summary.RowCount}}</strong> configurations · <strong>{{.Summary.Evaluated}}</strong> builds evaluated</span>
+            <span class="telemetry-item" data-summary="targets">Targets: <span class="telemetry-mono">BRP {{.Summary.BrpTargetText}} · HandGrip {{.Summary.GripTargetText}}</span></span>
+            {{if .Summary.PostureNote}}<span class="telemetry-item" data-summary="posture">{{.Summary.PostureNote}}</span>{{end}}
+            {{if not .AllBarOptions}}<span class="telemetry-item" data-summary="bar">Handlebar: <strong>{{.Summary.HandlebarSummary}}</strong></span>{{end}}
           </div>
           {{end}}
         </div>
-        <div class="legend-box">
-          <dl class="tier-legend" data-fit-tier-legend>
-            {{range .TierLegend}}
-            <dt><span class="tier-badge tier-{{.Class}}">{{.Label}}</span></dt>
-            <dd>{{.Definition}}</dd>
-            {{end}}
-          </dl>
+
+        <details class="disclosure notes-drawer" data-notes-drawer>
+          <summary>Parameter &amp; model notes{{if .Form.RedshiftMixedStateNote}} <span class="caveat-flag">(Redshift caveat)</span>{{end}}</summary>
+          <ul class="notes-list">
+            <li id="targets-help">World coordinates in mm (BB at origin, +X forward, +Y up). Both targets are required. Defaults: BRP ({{.Form.ExampleBrpX}}, {{.Form.ExampleBrpY}}), HandGrip ({{.Form.ExampleGripX}}, {{.Form.ExampleGripY}}).</li>
+            {{if .Form.RedshiftMixedStateNote}}<li data-note="redshift-mixed-state">{{.Form.RedshiftMixedStateNote}}</li>{{end}}
+            <li data-note="bar-options-speed">All {{.Form.HandlebarCount}} handlebars evaluates ~15× more builds (about 2 s per frame).</li>
+            <li id="top-per-frame-help">Per-frame limit: blank = 1 in all-frames mode, unlimited in custom mode. 0 = unlimited.</li>
+            <li id="top-help">Overall limit: maximum rows to show overall. Blank or 0 = all.</li>
+          </ul>
+        </details>
+      </form>
+
+      {{if .HasResults}}
+      <section class="tier-strip" aria-label="Fit tiers">
+        <div class="tier-strip-bar">
+          <span class="tier-strip-label">Fit tiers</span>
+          <div class="tier-strip-badges">
+            {{range .TierLegend}}<span class="tier-badge tier-{{.Class}}">{{.Label}}</span>{{end}}
+          </div>
+          <details class="disclosure tier-disclosure" data-tier-definitions>
+            <summary>Show tier definitions</summary>
+            <div class="legend-box">
+              <dl class="tier-legend" data-fit-tier-legend>
+                {{range .TierLegend}}
+                <dt><span class="tier-badge tier-{{.Class}}">{{.Label}}</span></dt>
+                <dd>{{.Definition}}</dd>
+                {{end}}
+              </dl>
+            </div>
+          </details>
         </div>
       </section>
 
-      <section class="card" data-compare-table="fit" aria-labelledby="fit-heading">
-        <h2 id="fit-heading">Fit &amp; Winning Build</h2>
-        <p class="card-subtitle">Ranked by fit tier (Fits all → Fits BRP → Fits grip → Fits neither), then weighted 0–100 score. BRP miss is target − placed.</p>
+      <section class="panel" data-compare-table="fit" aria-labelledby="fit-heading">
+        <div class="panel-header">
+          <h2 id="fit-heading">Fit &amp; Winning Build</h2>
+          <p class="panel-subtitle">Ranked by fit tier (Fits all → Fits BRP → Fits grip → Fits neither), then weighted 0–100 score. BRP miss is target − placed.</p>
+        </div>
         <div class="table-scroll" tabindex="0" role="region" aria-labelledby="fit-heading">
           <table class="data-table" data-table="fit">
             <caption class="visually-hidden">Fit and winning build for each ranked bike</caption>
@@ -867,7 +1091,7 @@
                 <td class="num score-cell" data-compare-cell="score">{{printf "%.1f" .Score}}</td>
                 <td class="num" data-compare-cell="oval-r">{{printf "%.2f" .GripR}}</td>
                 <td class="num" data-compare-cell="brp-miss">{{.BrpMissText}}</td>
-                <td class="num" data-compare-cell="stem">{{.StemText}}</td>
+                <td data-compare-cell="stem" class="num">{{.StemText}}</td>
                 <td class="num" data-compare-cell="spacers">{{.SpacersText}}</td>
                 {{if $.AllBarOptions}}<td data-compare-cell="bar">{{.BarName}}</td>{{end}}
                 <td class="num" data-compare-cell="rail">{{.RailOffsetText}}</td>
@@ -879,9 +1103,11 @@
         </div>
       </section>
 
-      <section class="card" data-compare-table="geometry" aria-labelledby="geometry-heading">
-        <h2 id="geometry-heading">Leveled Geometry &amp; Handling</h2>
-        <p class="card-subtitle">Frameset geometry leveled on the installed fork and sag, in the same rank order.</p>
+      <section class="panel" data-compare-table="geometry" aria-labelledby="geometry-heading">
+        <div class="panel-header">
+          <h2 id="geometry-heading">Leveled Geometry &amp; Handling</h2>
+          <p class="panel-subtitle">Frameset geometry leveled on the installed fork and sag, in the same rank order.</p>
+        </div>
         <div class="table-scroll" tabindex="0" role="region" aria-labelledby="geometry-heading">
           <table class="data-table" data-table="geometry">
             <caption class="visually-hidden">Leveled geometry and handling metrics for each ranked bike</caption>
@@ -930,7 +1156,7 @@
         {{end}}
       </section>
 
-      <section class="card" data-compare-table="breakdown" aria-labelledby="breakdown-heading">
+      <section class="panel" data-compare-table="breakdown" aria-labelledby="breakdown-heading">
         <h2 id="breakdown-heading">Attribute Score Breakdown</h2>
         <details class="disclosure" data-score-breakdown>
           <summary>Show 12-attribute score breakdown (0–100 weighted, total weight {{printf "%.0f" .ActiveWeight}})</summary>
