@@ -1,6 +1,15 @@
 # Slice 19: Promote the reboot to `bikegeo`
 
-Status: Planned 2026-11-22
+Status: Implemented 2026-11-22; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** Sonnet 5.5, 2026-11-22.
+- **Commits:** `Move the reboot packages to internal and cmd/bikegeo` (`7b59ecd`), `Rename bikegeo-reboot to bikegeo` (`fa957cd`), `Run make check in CI, rewrite the README, and fix paths in the docs` (`a9f09f0`).
+- **Done and not done:** every step of commits 1, 2, and 3 is done, including the README rewrite (step 0 of commit 3) and both `boundary` negative tests. Verification 1–3 are done. Verification 4 is not possible locally: the CI workflow is unverified until its first run after a push.
+- **Deviations:** None. Commit 2's hand edits ran from a script that asserted each target string occurred exactly once; the resulting diff matched the plan's shape (14 files, 58 insertions, 58 deletions, per-file counts equal).
+- **Verification:** `make pre-commit` exited 0 after commit 1, after commit 2, and on the final state; `go vet ./... && go test ./...` passed after commit 3. `boundary` negative tests: a file containing `the cost of a frame` made `make boundary` fail with the banned-word message, and a non-test import of `github.com/PuerkitoBio/goquery` made it fail with the `cmd/bikegeo must depend only on bikegeo packages and the standard library` message; both were removed and `make boundary` exits 0. `go list -deps` of `./cmd/bikegeo` lists only `bikegeo/cmd/bikegeo` and the six `bikegeo/internal/...` packages. Live check on port 8080 (`bikegeo` preview): `/` is titled `Compare 18 Frames — bikegeo` with `Showing 18 of 2889 configurations (2163861 builds evaluated)` and 18 rows; `/bike` is titled `bikegeo — Bike Workbench`; both `<h1>` read `bikegeo`; `/bike?frame=nope` is HTTP 400; no page contains the word "reboot". Screenshot of `/` taken in the preview pane (not saved to a file). `./bin/bikegeo --help` prints the three `bikegeo ...` usage lines, and `serve` prints `bikegeo serving on http://127.0.0.1:<port>/ (Ctrl-C to stop)`. Every command in the README's CLI block exits 0, and its jq line returns `surly-krampus`/`fits_all`, `sklar-pbj`/`fits_all`, `seven-custom`/`fits_brp`. The README has none of the legacy terms and every relative link resolves.
+- **Open issues:** (1) The CI workflow change is unverified until pushed. (2) AGENTS.md still says the reboot is "being built beside the existing app", keeps the isolation bullet that `make boundary` no longer checks, and still has the legacy Architecture and Frame Datasets sections; all Slice 20. (3) `internal/catalog/stems.go` still names `docs/reboot/stems.yaml` in two comments until Slice 20 moves the docs. (4) DESIGN.md layout lines still say "19 frames, 22 forks", which stale-counts predate this slice. (5) A stray `bin/bikegeo-go` binary is still in the ignored `bin/` directory; `make clean` removes it.
 
 **Goal:** the reboot becomes the only app under its real name. `internal/reboot/<pkg>` becomes `internal/<pkg>`, `cmd/bikegeo-reboot` becomes `cmd/bikegeo`, every user-visible `bikegeo-reboot` becomes `bikegeo`, the `make` targets lose their `-reboot` suffix, the default port becomes 8080, and CI runs `make check`. No behavior changes.
 
