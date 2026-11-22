@@ -1,8 +1,16 @@
 # Slice 22b: `/bike` SVG Diagram Targets & Label Collision Fixes
 
-Status: Planned 2026-11-22
+Status: Implemented 2026-11-22; awaiting Matt's acceptance
 Implementer: Medium (mid-tier) — `internal/web`-only SVG target rendering, target-aware framing, deterministic 2D label collision avoidance with leader lines, `goquery`/unit test coverage, and live visual verification across all three diagram views.
 Review: optional — `internal/web` SVG rendering and label layout only; zero physics, scoring, catalog, query-parsing, or package-boundary changes, verified by automated overlap/bounds tests and live visual inspection.
+
+## Implementation handoff
+
+- **Who & when:** Gemini 4 Hydrogen (High) · 2026-11-22
+- **Commits:** `505b8b4` (Commit 1: target markers, tolerance zones, miss vectors, target-aware framing, diagram legend); Commit 2 (HEAD: per-view label curation, 2D collision placer with leader lines, stress tests, handoff).
+- **Deviations:** None.
+- **Verification:** `make pre-commit` passed; live browser visual check on `/bike` (`bike`, `seat`, `stem` views across default, `#apply-fitting`, `spacers=0`, and cleared targets) confirmed crisp target/oval/gate rendering, legend, leader lines, zero label overlaps, and zero clipping.
+- **Open issues:** None.
 
 ## Goal
 

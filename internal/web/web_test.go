@@ -1425,6 +1425,8 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 		{`.landmarks [data-landmark="BB"] circle`, "r", "5"},
 		{`.landmarks [data-landmark="BB"] circle`, "stroke-width", "1.5"},
 		{`.landmarks [data-landmark="BB"] text`, "x", "0.00"},
+		{`.landmarks [data-landmark="BB"] text`, "dy", "0.35em"},
+		{`.landmarks [data-landmark="BB"] text`, "text-anchor", "middle"},
 		{`[data-element="world-axes"]`, "stroke-width", "1.8"},
 		{`[data-element="world-axes"]`, "stroke-dasharray", "6 4"},
 		{`[data-element="ground-line"]`, "stroke-dasharray", "10 6"},
@@ -1434,25 +1436,15 @@ func TestBikeWorkbenchDefaultViewKeepsWholeBikeDrawing(t *testing.T) {
 		{`.component-outlines`, "stroke-width", "1.5"},
 		{`.component-outlines rect`, "rx", "2"},
 		{`svg.diagram`, "style", fmt.Sprintf("--units-per-px: %.4f;", 2079.62/nominalDiagramWidthPx)},
-		// Labels sit on their point and are offset in ems, so the offset
-		// follows the on-screen (rem) label size set by CSS.
-		{`.landmarks [data-landmark="BB"] text`, "dx", "0em"},
-		{`.landmarks [data-landmark="BB"] text`, "dy", "1.44em"},
-		{`.landmarks [data-landmark="SitBones"] text`, "dx", "-0.78em"},
 	}
 	for _, c := range checks {
 		if got, _ := doc.Find(c.sel).First().Attr(c.attr); got != c.want {
 			t.Errorf("%s [%s] = %q, want %q", c.sel, c.attr, got, c.want)
 		}
 	}
-	bb := landmarkCentre(t, doc, "BB")
-	labelY, _ := doc.Find(`.landmarks [data-landmark="BB"] text`).Attr("y")
-	if y, err := strconv.ParseFloat(labelY, 64); err != nil || math.Abs(y-bb.Y) > 0.005 {
-		t.Errorf("BB label y = %q, want the point's %.2f", labelY, bb.Y)
-	}
 	// Label font sizes come from CSS in rem, not from SVG attributes, so they
 	// do not shrink with the diagram.
-	doc.Find(".landmarks text, [data-element=\"world-axes\"] text").Each(func(_ int, el *goquery.Selection) {
+	doc.Find(`.landmarks text, .target-labels text, [data-element="world-axes"] text`).Each(func(_ int, el *goquery.Selection) {
 		if fs, ok := el.Attr("font-size"); ok {
 			t.Errorf("label %q has font-size attribute %q; size labels with CSS rem", el.Text(), fs)
 		}

@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -281,5 +282,237 @@ func TestWebPackageUsesNoRawTrig(t *testing.T) {
 			}
 			return true
 		})
+	}
+}
+
+func TestDiagramLabelCurationAndDOMInvariants(t *testing.T) {
+	allLandmarks := []string{
+		"RearAxle", "RearContact", "BB", "SeatTubeTop",
+		"RailCradle", "RailCenter", "BRP", "SitBones",
+		"HeadTubeTop", "CoverTop", "SpacerTop", "SteererClamp",
+		"BarClamp", "HandGrip", "HeadTubeBottom", "LowerCupBottom",
+		"FrontAxle", "FrontContact",
+	}
+
+	cases := []struct {
+		path          string
+		wantLandmarks []string
+		wantTargets   []string
+	}{
+		{
+			path: "/bike",
+			wantLandmarks: []string{
+				"RearAxle", "RearContact", "BB", "SeatTubeTop",
+				"BRP", "SitBones", "HeadTubeTop", "HandGrip",
+				"FrontAxle", "FrontContact",
+			},
+			wantTargets: []string{"Target BRP", "Target Grip"},
+		},
+		{
+			path:          "/bike?view=seat",
+			wantLandmarks: []string{"RailCradle", "RailCenter", "BRP", "SitBones"},
+			wantTargets:   []string{"Target BRP"},
+		},
+		{
+			path:          "/bike?view=stem",
+			wantLandmarks: []string{"HeadTubeTop", "CoverTop", "SpacerTop", "SteererClamp", "BarClamp", "HandGrip"},
+			wantTargets:   []string{"Target Grip"},
+		},
+		{
+			path:          "/bike?view=seat&brp_x=-219&brp_y=450",
+			wantLandmarks: []string{"SeatTubeTop", "RailCradle", "RailCenter", "BRP", "SitBones"},
+			wantTargets:   []string{"Target BRP"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			doc := loadBikeDoc(t, tc.path)
+			// Every one of the 18 landmark dots + <title> tooltip stays in DOM.
+			if n := doc.Find("svg.diagram .landmarks [data-landmark]").Length(); n != len(allLandmarks) {
+				t.Fatalf("landmark count = %d, want %d", n, len(allLandmarks))
+			}
+			var gotLandmarks []string
+			for _, name := range allLandmarks {
+				g := doc.Find(fmt.Sprintf(`svg.diagram .landmarks [data-landmark=%q]`, name))
+				if g.Length() != 1 {
+					t.Fatalf("missing [data-landmark=%q]", name)
+				}
+				if g.Find("circle").Length() != 1 {
+					t.Errorf("%s missing <circle>", name)
+				}
+				if title := strings.TrimSpace(g.Find("title").Text()); title != name {
+					t.Errorf("%s <title> = %q, want %q", name, title, name)
+				}
+				if txt := g.Find("text"); txt.Length() == 1 {
+					gotLandmarks = append(gotLandmarks, strings.TrimSpace(txt.Text()))
+				}
+			}
+			if !slices.Equal(gotLandmarks, tc.wantLandmarks) {
+				t.Errorf("visible landmark labels = %v, want %v", gotLandmarks, tc.wantLandmarks)
+			}
+
+			var gotTargets []string
+			doc.Find("svg.diagram .target-labels text").Each(func(_ int, el *goquery.Selection) {
+				gotTargets = append(gotTargets, strings.TrimSpace(el.Text()))
+			})
+			if !slices.Equal(gotTargets, tc.wantTargets) {
+				t.Errorf("visible target labels = %v, want %v", gotTargets, tc.wantTargets)
+			}
+
+			doc.Find("svg.diagram text").Each(func(_ int, el *goquery.Selection) {
+				if fs, ok := el.Attr("font-size"); ok {
+					t.Errorf("text %q has font-size=%q; must use CSS rem", el.Text(), fs)
+				}
+			})
+		})
+	}
+
+	// In view=bike, detail dots render smaller (r="3") and subdued.
+	bikeDoc := loadBikeDoc(t, "/bike")
+	for _, detail := range []string{"RailCradle", "RailCenter", "CoverTop", "SpacerTop", "SteererClamp", "BarClamp", "HeadTubeBottom", "LowerCupBottom"} {
+		g := bikeDoc.Find(fmt.Sprintf(`svg.diagram .landmarks [data-landmark=%q]`, detail))
+		if d, _ := g.Attr("data-landmark-detail"); d != "true" {
+			t.Errorf("bike view %s data-landmark-detail = %q, want true", detail, d)
+		}
+		if r, _ := g.Find("circle").Attr("r"); r != "3" {
+			t.Errorf("bike view detail %s circle r = %q, want 3", detail, r)
+		}
+	}
+}
+
+func TestDiagramZeroLabelCollisionsAndViewBoxContainment(t *testing.T) {
+	// Build a reachable fitted URL so BRP == Target BRP and HandGrip == Target Grip.
+	targetSetup := mustPlace(t, mustBikeValues(t, map[string][]string{
+		"post_insert": {"200"},
+		"rail_offset": {"5"},
+		"stem_length": {"80"},
+		"spacers":     {"20"},
+	}))
+	wantBrp := targetSetup.Saddle.BRP.Origin()
+	wantGrip := targetSetup.Handlebar.HandGrip.Origin()
+	fittedURL := fmt.Sprintf("/bike?post_insert=200&rail_offset=5&stem_length=80&spacers=20&brp_x=%s&brp_y=%s&grip_x=%s&grip_y=%s",
+		formatFormFloat(wantBrp.X), formatFormFloat(wantBrp.Y),
+		formatFormFloat(wantGrip.X), formatFormFloat(wantGrip.Y),
+	)
+
+	builds := []struct {
+		name string
+		base string
+	}{
+		{"default", "/bike"},
+		{"cleared_targets", "/bike?brp=off&grip=off"},
+		{"fitted_coincident", fittedURL},
+		{"spacers_zero", "/bike?spacers=0"},
+		{"rail_offset_zero", "/bike?rail_offset=0"},
+		{"basis_fork", "/bike?fork=basis"},
+		{"swept_bar_short_stem", "/bike?bar=persuader20_840&stem_length=35&spacers=0"},
+		{"xs_frame", "/bike?frame=otso-fenrir-stainless&size=XS"},
+		{"xl_frame", "/bike?frame=otso-fenrir-stainless&size=XL"},
+	}
+
+	for _, b := range builds {
+		for _, view := range []string{"bike", "seat", "stem"} {
+			t.Run(b.name+"/"+view, func(t *testing.T) {
+				sep := "&"
+				if !strings.Contains(b.base, "?") {
+					sep = "?"
+				}
+				doc := loadBikeDoc(t, b.base+sep+"view="+view)
+				vb := parseViewBoxAttr(t, doc)
+				upp := unitsPerPx(t, doc)
+				viewW := vb.W / upp
+				viewH := vb.H / upp
+
+				// Pure Web 1.0 checks.
+				if doc.Find("script").Length() != 0 {
+					t.Errorf("unexpected <script> element")
+				}
+				doc.Find("[style]").Each(func(_ int, el *goquery.Selection) {
+					if !el.Is("svg.diagram") {
+						t.Errorf("unexpected inline style outside svg.diagram")
+					}
+				})
+
+				type placedLabel struct {
+					name   string
+					box    screenBox
+					ptPxX  float64
+					ptPxY  float64
+					leader *goquery.Selection
+				}
+				var placed []placedLabel
+
+				recordLabel := func(name string, ptSVG svgPoint, textSel, leaderSel *goquery.Selection) {
+					lx := parseFloatAttr(t, textSel, "x")
+					ly := parseFloatAttr(t, textSel, "y")
+					anchor, _ := textSel.Attr("text-anchor")
+					ax := (lx - vb.X) / upp
+					ay := (ly - vb.Y) / upp
+					box := boxForLabelAnchor(ax, ay, labelBoxWidthPx(name), labelBoxHeightPx, anchor)
+
+					// Every visible label box must stay inside viewBox.
+					if box.minX < -0.5 || box.maxX > viewW+0.5 || box.minY < -0.5 || box.maxY > viewH+0.5 {
+						t.Errorf("label %q box %+v escapes viewBox [0..%.1f, 0..%.1f]", name, box, viewW, viewH)
+					}
+
+					ptPxX := (ptSVG.X - vb.X) / upp
+					ptPxY := (ptSVG.Y - vb.Y) / upp
+					nx, ny := box.nearestPoint(ptPxX, ptPxY)
+					dist := pose.Point{X: nx - ptPxX, Y: ny - ptPxY}.Norm()
+					if dist > labelLeaderMinDistPx {
+						if leaderSel.Length() != 1 {
+							t.Errorf("displaced label %q (dist=%.1f px) missing .label-leader", name, dist)
+						} else {
+							x1 := parseFloatAttr(t, leaderSel, "x1")
+							y1 := parseFloatAttr(t, leaderSel, "y1")
+							if math.Abs(x1-ptSVG.X) > 0.05 || math.Abs(y1-ptSVG.Y) > 0.05 {
+								t.Errorf("leader %q start (%.2f, %.2f) != point (%.2f, %.2f)", name, x1, y1, ptSVG.X, ptSVG.Y)
+							}
+						}
+					} else if leaderSel.Length() != 0 {
+						t.Errorf("undisplaced label %q (dist=%.1f px) emitted unexpected .label-leader", name, dist)
+					}
+
+					placed = append(placed, placedLabel{name: name, box: box, ptPxX: ptPxX, ptPxY: ptPxY, leader: leaderSel})
+				}
+
+				doc.Find("svg.diagram .landmarks [data-landmark]").Each(func(_ int, g *goquery.Selection) {
+					txt := g.Find("text")
+					if txt.Length() == 0 {
+						return
+					}
+					name, _ := g.Attr("data-landmark")
+					ptSVG := landmarkCentre(t, doc, name)
+					recordLabel(name, ptSVG, txt, g.Find("line.label-leader"))
+				})
+
+				doc.Find("svg.diagram .target-labels [data-target-label-group]").Each(func(_ int, g *goquery.Selection) {
+					txt := g.Find("text")
+					if txt.Length() == 0 {
+						return
+					}
+					kind, _ := g.Attr("data-target-label-group")
+					marker := doc.Find(fmt.Sprintf(`[data-target-marker=%q]`, kind))
+					tr, _ := marker.Attr("transform")
+					var tx, ty float64
+					if _, err := fmt.Sscanf(tr, "translate(%g %g)", &tx, &ty); err != nil {
+						t.Fatalf("parse target transform %q: %v", tr, err)
+					}
+					recordLabel(strings.TrimSpace(txt.Text()), svgPoint{X: tx, Y: ty}, txt, g.Find("line.label-leader"))
+				})
+
+				if len(placed) == 0 {
+					t.Fatalf("expected at least 1 visible label")
+				}
+				for i := 0; i < len(placed); i++ {
+					for j := i + 1; j < len(placed); j++ {
+						if placed[i].box.intersects(placed[j].box, 0) {
+							t.Errorf("labels %q %+v and %q %+v intersect", placed[i].name, placed[i].box, placed[j].name, placed[j].box)
+						}
+					}
+				}
+			})
+		}
 	}
 }

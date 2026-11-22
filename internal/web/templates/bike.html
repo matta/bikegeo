@@ -490,11 +490,20 @@
        units at the nominal diagram width, so 1rem follows the page font. */
     svg.diagram .landmarks text,
     svg.diagram .target-label {
-      font-size: calc(1rem * var(--units-per-px, 1));
+      font-size: calc(0.8125rem * var(--units-per-px, 1));
       paint-order: stroke;
       stroke: #fcfcfa;
       stroke-width: 0.25em;
       stroke-linejoin: round;
+    }
+    svg.diagram .label-leader {
+      stroke: var(--muted);
+      stroke-opacity: 0.7;
+      fill: none;
+    }
+    svg.diagram [data-landmark-detail="true"] circle {
+      fill: var(--muted);
+      fill-opacity: 0.78;
     }
     svg.diagram .target-label {
       font-weight: 700;
@@ -1269,10 +1278,16 @@
 
             <g class="landmarks">
               {{range .Landmarks}}
-              <g data-landmark="{{.Name}}">
-                <circle cx="{{printf "%.2f" .X}}" cy="{{printf "%.2f" .Y}}" r="{{$.Px 5}}" fill="#0969da" stroke="#ffffff" stroke-width="{{$.Px 1.5}}" />
-                <text x="{{printf "%.2f" .LabelX}}" y="{{printf "%.2f" .LabelY}}" dx="{{.LabelDx}}" dy="{{.LabelDy}}"
+              <g data-landmark="{{.Name}}"{{if .Detail}} data-landmark-detail="true"{{end}}>
+                <title>{{.Name}}</title>
+                {{if .HasLeader}}
+                <line class="label-leader" x1="{{printf "%.2f" .LeaderX1}}" y1="{{printf "%.2f" .LeaderY1}}" x2="{{printf "%.2f" .LeaderX2}}" y2="{{printf "%.2f" .LeaderY2}}" stroke-width="{{$.Px 1}}" />
+                {{end}}
+                <circle cx="{{printf "%.2f" .X}}" cy="{{printf "%.2f" .Y}}" r="{{$.Px .DotRadius}}" fill="#0969da" stroke="#ffffff" stroke-width="{{$.Px 1.5}}" />
+                {{if .ShowLabel}}
+                <text x="{{printf "%.2f" .LabelX}}" y="{{printf "%.2f" .LabelY}}" dy="{{.LabelDy}}"
                       text-anchor="{{.Anchor}}" fill="#1f2328" font-family="ui-monospace, monospace">{{.Name}}</text>
+                {{end}}
               </g>
               {{end}}
             </g>
@@ -1281,9 +1296,14 @@
             <g class="target-labels">
               {{range .FitTargets}}
               {{if .ShowLabel}}
-              <text class="target-label" data-target-label="{{.Kind}}" data-target-status="{{.Status}}"
-                    x="{{printf "%.2f" .LabelX}}" y="{{printf "%.2f" .LabelY}}" dx="{{.LabelDx}}" dy="{{.LabelDy}}"
-                    text-anchor="{{.Anchor}}" font-family="ui-monospace, monospace">{{.Name}}</text>
+              <g data-target-label-group="{{.Kind}}">
+                {{if .HasLeader}}
+                <line class="label-leader" x1="{{printf "%.2f" .LeaderX1}}" y1="{{printf "%.2f" .LeaderY1}}" x2="{{printf "%.2f" .LeaderX2}}" y2="{{printf "%.2f" .LeaderY2}}" stroke-width="{{$.Px 1}}" />
+                {{end}}
+                <text class="target-label" data-target-label="{{.Kind}}" data-target-status="{{.Status}}"
+                      x="{{printf "%.2f" .LabelX}}" y="{{printf "%.2f" .LabelY}}" dy="{{.LabelDy}}"
+                      text-anchor="{{.Anchor}}" font-family="ui-monospace, monospace">{{.Name}}</text>
+              </g>
               {{end}}
               {{end}}
             </g>

@@ -30,16 +30,21 @@ type svgPoint struct {
 }
 
 type svgLandmark struct {
-	Name   string
-	X      float64
-	Y      float64
-	LabelX float64
-	LabelY float64
-	Anchor string
-	// LabelDx and LabelDy offset the label in ems, so the offset follows the
-	// label's on-screen font size (used on /bike).
-	LabelDx string
-	LabelDy string
+	Name      string
+	X         float64
+	Y         float64
+	DotRadius float64
+	Detail    bool
+	ShowLabel bool
+	LabelX    float64
+	LabelY    float64
+	Anchor    string
+	LabelDy   string
+	HasLeader bool
+	LeaderX1  float64
+	LeaderY1  float64
+	LeaderX2  float64
+	LeaderY2  float64
 }
 
 type svgFitTarget struct {
@@ -64,8 +69,12 @@ type svgFitTarget struct {
 	LabelX        float64
 	LabelY        float64
 	Anchor        string
-	LabelDx       string
 	LabelDy       string
+	HasLeader     bool
+	LeaderX1      float64
+	LeaderY1      float64
+	LeaderX2      float64
+	LeaderY2      float64
 }
 
 // Illustrative outline dimensions (not measured hardware geometry) used only
@@ -133,18 +142,6 @@ func poseRect(name string, p pose.Pose, startMm, lengthMm, thicknessMm float64) 
 		Width:     lengthMm,
 		Height:    thicknessMm,
 		Transform: fmt.Sprintf("translate(%.2f %.2f) rotate(%.2f)", o.X, o.Y, -float64(p.HeadingDeg())),
-	}
-}
-
-func makeLandmark(name string, p pose.Pose, dx, dy float64, anchor string) svgLandmark {
-	o := toSVG(p.Origin())
-	return svgLandmark{
-		Name:   name,
-		X:      o.X,
-		Y:      o.Y,
-		LabelX: o.X + dx,
-		LabelY: o.Y + dy,
-		Anchor: anchor,
 	}
 }
 
@@ -301,22 +298,34 @@ const (
 	// ("RailCradle") beside a point on the edge of the framing.
 	closeUpPadXPx = 150.0
 	closeUpPadYPx = 40.0
-	// bikeLabelEmUnits converts the label offsets below, written in SVG units
-	// for the original 18-unit labels, to ems.
-	bikeLabelEmUnits = 18.0
 	// fitGateTolMm matches assembly's round-off tolerance on gate checks.
 	fitGateTolMm = 1e-9
 	// missLineMinMm omits near-zero miss connectors when placed == target.
 	missLineMinMm = 0.1
+
+	// Label layout constants in nominal screen pixels (at nominalDiagramWidthPx).
+	labelFontPx          = 13.0 // 0.8125rem at 16px root
+	labelCharWidthPx     = 7.9
+	labelPadXPx          = 4.0
+	labelBoxHeightPx     = 19.0
+	labelBoxGapPx        = 3.0
+	labelViewMarginPx    = 6.0
+	labelPointKeepOutPx  = 7.0
+	labelLeaderMinDistPx = 18.0
+	labelBaselineDy      = "0.35em"
 )
 
-// bikeLandmarkSpec places a landmark label at an offset from its point
-// (written in units of an 18-unit font, rendered in ems).
+// bikeLandmarkSpec places a landmark label with a preferred direction and priority.
 type bikeLandmarkSpec struct {
-	name   string
-	pose   pose.Pose
-	dx, dy float64
-	anchor string
+	name      string
+	pose      pose.Pose
+	prefDx    float64
+	prefDy    float64
+	prefAnc   string
+	priority  int
+	bikeMacro bool
+	seatLabel bool
+	stemLabel bool
 }
 
 type bikeDiagram struct {
@@ -392,8 +401,7 @@ func buildFitTargets(parsed query.Bike, bike assembly.BikePlacement, view diagra
 			LabelX:     tSVG.X,
 			LabelY:     tSVG.Y,
 			Anchor:     "start",
-			LabelDx:    "0.78em",
-			LabelDy:    "-0.67em",
+			LabelDy:    labelBaselineDy,
 		})
 	}
 	if parsed.GripTarget != nil {
@@ -428,11 +436,363 @@ func buildFitTargets(parsed query.Bike, bike assembly.BikePlacement, view diagra
 			LabelX:        tSVG.X,
 			LabelY:        tSVG.Y,
 			Anchor:        "start",
-			LabelDx:       "0.78em",
-			LabelDy:       "-0.67em",
+			LabelDy:       labelBaselineDy,
 		})
 	}
 	return targets
+}
+
+type screenBox struct {
+	minX, minY, maxX, maxY float64
+}
+
+func (b screenBox) intersects(other screenBox, gap float64) bool {
+	return b.minX < other.maxX+gap && b.maxX+gap > other.minX &&
+		b.minY < other.maxY+gap && b.maxY+gap > other.minY
+}
+
+func (b screenBox) inside(bounds screenBox) bool {
+	return b.minX >= bounds.minX && b.maxX <= bounds.maxX &&
+		b.minY >= bounds.minY && b.maxY <= bounds.maxY
+}
+
+func (b screenBox) nearestPoint(px, py float64) (float64, float64) {
+	return min(max(px, b.minX), b.maxX), min(max(py, b.minY), b.maxY)
+}
+
+func (b screenBox) clampInside(bounds screenBox) screenBox {
+	w := b.maxX - b.minX
+	h := b.maxY - b.minY
+	minX := min(max(b.minX, bounds.minX), max(bounds.minX, bounds.maxX-w))
+	minY := min(max(b.minY, bounds.minY), max(bounds.minY, bounds.maxY-h))
+	return screenBox{minX: minX, minY: minY, maxX: minX + w, maxY: minY + h}
+}
+
+func boxIntersectsSegment(b screenBox, x1, y1, x2, y2 float64) bool {
+	dx, dy := x2-x1, y2-y1
+	t0, t1 := 0.0, 1.0
+	clip := func(p, q float64) bool {
+		if p == 0 {
+			return q >= 0
+		}
+		r := q / p
+		if p < 0 {
+			if r > t1 {
+				return false
+			}
+			if r > t0 {
+				t0 = r
+			}
+		} else {
+			if r < t0 {
+				return false
+			}
+			if r < t1 {
+				t1 = r
+			}
+		}
+		return true
+	}
+	return clip(-dx, x1-b.minX) &&
+		clip(dx, b.maxX-x1) &&
+		clip(-dy, y1-b.minY) &&
+		clip(dy, b.maxY-y1)
+}
+
+func labelBoxWidthPx(text string) float64 {
+	return float64(len(text))*labelCharWidthPx + 2*labelPadXPx
+}
+
+func boxForLabelAnchor(ax, ay, boxW, boxH float64, anchor string) screenBox {
+	halfH := boxH / 2.0
+	switch anchor {
+	case "end":
+		return screenBox{minX: ax - boxW, minY: ay - halfH, maxX: ax, maxY: ay + halfH}
+	case "middle":
+		return screenBox{minX: ax - boxW/2.0, minY: ay - halfH, maxX: ax + boxW/2.0, maxY: ay + halfH}
+	default:
+		return screenBox{minX: ax, minY: ay - halfH, maxX: ax + boxW, maxY: ay + halfH}
+	}
+}
+
+func anchorForBox(b screenBox, anchor string) (float64, float64) {
+	cy := (b.minY + b.maxY) / 2.0
+	switch anchor {
+	case "end":
+		return b.maxX, cy
+	case "middle":
+		return (b.minX + b.maxX) / 2.0, cy
+	default:
+		return b.minX, cy
+	}
+}
+
+func pointInViewBox(pt svgPoint, vb svgViewBox) bool {
+	return pt.X >= vb.X && pt.X <= vb.X+vb.W && pt.Y >= vb.Y && pt.Y <= vb.Y+vb.H
+}
+
+type labelPlaceItem struct {
+	text      string
+	svgX      float64
+	svgY      float64
+	prefDx    float64
+	prefDy    float64
+	prefAnc   string
+	priority  int
+	isTarget  bool
+	targetIdx int
+	lmIdx     int
+}
+
+type labelCandidate struct {
+	box       screenBox
+	anchor    string
+	preferred bool
+}
+
+var labelRadialDirs = []struct {
+	ux, uy float64
+	anchor string
+}{
+	{1.0, 0.0, "start"},
+	{-1.0, 0.0, "end"},
+	{0.0, -1.0, "middle"},
+	{0.0, 1.0, "middle"},
+	{0.866, -0.5, "start"},
+	{-0.866, -0.5, "end"},
+	{0.866, 0.5, "start"},
+	{-0.866, 0.5, "end"},
+	{0.5, -0.866, "start"},
+	{-0.5, -0.866, "end"},
+	{0.5, 0.866, "start"},
+	{-0.5, 0.866, "end"},
+}
+
+func placeDiagramLabels(
+	viewBox svgViewBox,
+	unitsPerPx float64,
+	scale float64,
+	segments []svgSegment,
+	landmarks []svgLandmark,
+	targets []svgFitTarget,
+	items []labelPlaceItem,
+) {
+	toPx := func(sx, sy float64) (float64, float64) {
+		return (sx - viewBox.X) / unitsPerPx, (sy - viewBox.Y) / unitsPerPx
+	}
+	toSVGCoords := func(px, py float64) (float64, float64) {
+		return viewBox.X + px*unitsPerPx, viewBox.Y + py*unitsPerPx
+	}
+
+	viewW := viewBox.W / unitsPerPx
+	viewH := viewBox.H / unitsPerPx
+	safeBounds := screenBox{
+		minX: labelViewMarginPx,
+		minY: labelViewMarginPx,
+		maxX: max(labelViewMarginPx, viewW-labelViewMarginPx),
+		maxY: max(labelViewMarginPx, viewH-labelViewMarginPx),
+	}
+
+	// Collect obstacle boxes for visible dots, target crosshairs, and world-axis labels.
+	var pointBoxes []screenBox
+	for _, lm := range landmarks {
+		pt := svgPoint{X: lm.X, Y: lm.Y}
+		if !pointInViewBox(pt, viewBox) {
+			continue
+		}
+		px, py := toPx(lm.X, lm.Y)
+		pointBoxes = append(pointBoxes, screenBox{
+			minX: px - labelPointKeepOutPx, minY: py - labelPointKeepOutPx,
+			maxX: px + labelPointKeepOutPx, maxY: py + labelPointKeepOutPx,
+		})
+	}
+	for _, tgt := range targets {
+		pt := svgPoint{X: tgt.X, Y: tgt.Y}
+		if !pointInViewBox(pt, viewBox) {
+			continue
+		}
+		px, py := toPx(tgt.X, tgt.Y)
+		pointBoxes = append(pointBoxes, screenBox{
+			minX: px - labelPointKeepOutPx, minY: py - labelPointKeepOutPx,
+			maxX: px + labelPointKeepOutPx, maxY: py + labelPointKeepOutPx,
+		})
+	}
+
+	var placedBoxes []screenBox
+	// Keep labels clear of "+X" and "+Y" world-axis labels when BB is in view.
+	if pointInViewBox(svgPoint{X: 0, Y: 0}, viewBox) {
+		xLabelX, xLabelY := toPx(114*scale, 4*scale)
+		placedBoxes = append(placedBoxes, boxForLabelAnchor(xLabelX, xLabelY-4, labelBoxWidthPx("+X"), 16, "start"))
+		yLabelX, yLabelY := toPx(6*scale, -106*scale)
+		placedBoxes = append(placedBoxes, boxForLabelAnchor(yLabelX, yLabelY-4, labelBoxWidthPx("+Y"), 16, "start"))
+	}
+
+	type segPx struct{ x1, y1, x2, y2 float64 }
+	var segsPx []segPx
+	for _, s := range segments {
+		x1, y1 := toPx(s.X1, s.Y1)
+		x2, y2 := toPx(s.X2, s.Y2)
+		segsPx = append(segsPx, segPx{x1, y1, x2, y2})
+	}
+	for _, tgt := range targets {
+		if !tgt.ShowMiss {
+			continue
+		}
+		x1, y1 := toPx(tgt.PlacedX, tgt.PlacedY)
+		x2, y2 := toPx(tgt.X, tgt.Y)
+		segsPx = append(segsPx, segPx{x1, y1, x2, y2})
+	}
+
+	// Deterministic priority order: lower priority number first, tie-broken by text.
+	order := make([]int, len(items))
+	for i := range items {
+		order[i] = i
+	}
+	for i := 1; i < len(order); i++ {
+		for j := i; j > 0; j-- {
+			a, b := items[order[j-1]], items[order[j]]
+			if b.priority < a.priority || (b.priority == a.priority && b.text < a.text) {
+				order[j-1], order[j] = order[j], order[j-1]
+			} else {
+				break
+			}
+		}
+	}
+
+	radii := []float64{16, 28, 42, 58, 76, 98, 124, 156, 194}
+
+	for _, idx := range order {
+		item := items[idx]
+		px, py := toPx(item.svgX, item.svgY)
+		boxW := labelBoxWidthPx(item.text)
+		boxH := labelBoxHeightPx
+
+		candidates := make([]labelCandidate, 0, 1+2*len(radii)*len(labelRadialDirs))
+		prefBox := boxForLabelAnchor(px+item.prefDx, py+item.prefDy, boxW, boxH, item.prefAnc)
+		candidates = append(candidates, labelCandidate{box: prefBox, anchor: item.prefAnc, preferred: true})
+		clampedPref := prefBox.clampInside(safeBounds)
+		if clampedPref != prefBox {
+			candidates = append(candidates, labelCandidate{box: clampedPref, anchor: item.prefAnc, preferred: false})
+		}
+
+		for _, r := range radii {
+			for _, d := range labelRadialDirs {
+				// Adjust vertical radii slightly so N/S labels clear the dot + box half-height.
+				offX := d.ux * r
+				offY := d.uy * r
+				if d.anchor == "middle" && r < 24 {
+					offY = d.uy * (r + boxH/2.0 - 4.0)
+				}
+				b := boxForLabelAnchor(px+offX, py+offY, boxW, boxH, d.anchor)
+				candidates = append(candidates, labelCandidate{box: b, anchor: d.anchor})
+				cb := b.clampInside(safeBounds)
+				if cb != b {
+					candidates = append(candidates, labelCandidate{box: cb, anchor: d.anchor})
+				}
+			}
+		}
+
+		bestFound := false
+		bestPenalty := math.Inf(1)
+		var bestBox screenBox
+		bestAnchor := item.prefAnc
+
+		evaluate := func(cand labelCandidate, requireNoPointHit bool, gap float64) {
+			if !cand.box.inside(safeBounds) {
+				return
+			}
+			for _, pb := range placedBoxes {
+				if cand.box.intersects(pb, gap) {
+					return
+				}
+			}
+			pointHits := 0
+			for _, ptb := range pointBoxes {
+				if cand.box.intersects(ptb, 0) {
+					if requireNoPointHit {
+						return
+					}
+					pointHits++
+				}
+			}
+			nx, ny := cand.box.nearestPoint(px, py)
+			dist := pose.Point{X: nx - px, Y: ny - py}.Norm()
+			penalty := dist + float64(pointHits)*200.0
+			if cand.preferred {
+				penalty -= 4.0
+			}
+			for _, s := range segsPx {
+				if boxIntersectsSegment(cand.box, s.x1, s.y1, s.x2, s.y2) {
+					penalty += 12.0
+				}
+			}
+			if !bestFound || penalty < bestPenalty {
+				bestFound = true
+				bestPenalty = penalty
+				bestBox = cand.box
+				bestAnchor = cand.anchor
+			}
+		}
+
+		for _, cand := range candidates {
+			evaluate(cand, true, labelBoxGapPx)
+		}
+		if !bestFound {
+			for _, cand := range candidates {
+				evaluate(cand, false, labelBoxGapPx)
+			}
+		}
+		if !bestFound {
+			// Deterministic grid scan inside safeBounds guarantees zero pairwise overlap.
+			for _, gap := range []float64{labelBoxGapPx, 1.0, 0.0} {
+				for y := safeBounds.minY + boxH/2.0; y <= safeBounds.maxY-boxH/2.0; y += 16.0 {
+					for x := safeBounds.minX; x <= safeBounds.maxX-boxW; x += 20.0 {
+						b := screenBox{minX: x, minY: y - boxH/2.0, maxX: x + boxW, maxY: y + boxH/2.0}
+						evaluate(labelCandidate{box: b, anchor: "start"}, false, gap)
+					}
+				}
+				if bestFound {
+					break
+				}
+			}
+		}
+		if !bestFound {
+			bestBox = prefBox.clampInside(safeBounds)
+			bestAnchor = item.prefAnc
+		}
+
+		placedBoxes = append(placedBoxes, bestBox)
+		ax, ay := anchorForBox(bestBox, bestAnchor)
+		svgLX, svgLY := toSVGCoords(ax, ay)
+		nx, ny := bestBox.nearestPoint(px, py)
+		dist := pose.Point{X: nx - px, Y: ny - py}.Norm()
+		hasLeader := dist > labelLeaderMinDistPx
+		lx2, ly2 := toSVGCoords(nx, ny)
+
+		if item.isTarget {
+			t := &targets[item.targetIdx]
+			t.LabelX = svgLX
+			t.LabelY = svgLY
+			t.Anchor = bestAnchor
+			t.LabelDy = labelBaselineDy
+			t.HasLeader = hasLeader
+			t.LeaderX1 = t.X
+			t.LeaderY1 = t.Y
+			t.LeaderX2 = lx2
+			t.LeaderY2 = ly2
+		} else {
+			lm := &landmarks[item.lmIdx]
+			lm.LabelX = svgLX
+			lm.LabelY = svgLY
+			lm.Anchor = bestAnchor
+			lm.LabelDy = labelBaselineDy
+			lm.HasLeader = hasLeader
+			lm.LeaderX1 = lm.X
+			lm.LeaderY1 = lm.Y
+			lm.LeaderX2 = lx2
+			lm.LeaderY2 = ly2
+		}
+	}
 }
 
 func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagram {
@@ -544,32 +904,93 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 	rects := append(outlineRects(stemParts), outlineRects(seatParts)...)
 
 	landmarkSpecs := []bikeLandmarkSpec{
-		{"RearAxle", placed.RearAxle, 0, -14, "middle"},
-		{"RearContact", placed.RearTireContact, 0, 24, "middle"},
-		{"BB", placed.BB, 0, 26, "middle"},
-		{"SeatTubeTop", placed.SeatTubeTop, -14, -10, "end"},
-		{"RailCradle", seatpost.RailCradle, 16, 6, "start"},
-		{"RailCenter", saddle.RailCenter, 16, 24, "start"},
-		{"BRP", saddle.BRP, 14, -10, "start"},
-		{"SitBones", saddle.SitBones, -14, -10, "end"},
-		{"HeadTubeTop", placed.HeadTubeTop, 14, 6, "start"},
-		{"CoverTop", stem.CoverTop, -14, 8, "end"},
-		{"SpacerTop", stem.SpacerTop, -14, -2, "end"},
-		{"SteererClamp", stem.SteererClamp, -14, -14, "end"},
-		{"BarClamp", stem.BarClamp, 14, 4, "start"},
-		{"HandGrip", handlebar.HandGrip, -14, -12, "end"},
-		{"HeadTubeBottom", placed.HeadTubeBottom, 16, 4, "start"},
-		{"LowerCupBottom", placed.LowerCupBottom, 16, 18, "start"},
-		{"FrontAxle", placed.FrontAxle, 0, -14, "middle"},
-		{"FrontContact", placed.FrontTireContact, 0, 24, "middle"},
+		{"RearAxle", placed.RearAxle, 0, -16, "middle", 1, true, false, false},
+		{"RearContact", placed.RearTireContact, 0, 18, "middle", 1, true, false, false},
+		{"BB", placed.BB, 0, 18, "middle", 1, true, false, false},
+		{"SeatTubeTop", placed.SeatTubeTop, -14, -10, "end", 2, true, true, false},
+		{"RailCradle", seatpost.RailCradle, 14, 2, "start", 2, false, true, false},
+		{"RailCenter", saddle.RailCenter, 14, 14, "start", 2, false, true, false},
+		{"BRP", saddle.BRP, 14, -10, "start", 1, true, true, false},
+		{"SitBones", saddle.SitBones, -14, -10, "end", 1, true, true, false},
+		{"HeadTubeTop", placed.HeadTubeTop, 14, 4, "start", 2, true, false, true},
+		{"CoverTop", stem.CoverTop, -14, 6, "end", 2, false, false, true},
+		{"SpacerTop", stem.SpacerTop, -14, -2, "end", 2, false, false, true},
+		{"SteererClamp", stem.SteererClamp, -14, -12, "end", 2, false, false, true},
+		{"BarClamp", stem.BarClamp, 14, 2, "start", 2, false, false, true},
+		{"HandGrip", handlebar.HandGrip, -14, -12, "end", 1, true, false, true},
+		{"HeadTubeBottom", placed.HeadTubeBottom, 14, 2, "start", 3, false, false, false},
+		{"LowerCupBottom", placed.LowerCupBottom, 14, 14, "start", 3, false, false, false},
+		{"FrontAxle", placed.FrontAxle, 0, -16, "middle", 1, true, false, false},
+		{"FrontContact", placed.FrontTireContact, 0, 18, "middle", 1, true, false, false},
 	}
+
+	unitsPerPx := viewBox.W / nominalDiagramWidthPx
+	targets := buildFitTargets(parsed, bike, view)
 	landmarks := make([]svgLandmark, 0, len(landmarkSpecs))
-	for _, spec := range landmarkSpecs {
-		lm := makeLandmark(spec.name, spec.pose, 0, 0, spec.anchor)
-		lm.LabelDx = formatSVGSize(spec.dx/bikeLabelEmUnits) + "em"
-		lm.LabelDy = formatSVGSize(spec.dy/bikeLabelEmUnits) + "em"
-		landmarks = append(landmarks, lm)
+	var labelItems []labelPlaceItem
+
+	for i, spec := range landmarkSpecs {
+		o := toSVG(spec.pose.Origin())
+		var show bool
+		switch view {
+		case diagramViewBike:
+			show = spec.bikeMacro
+		case diagramViewSeat:
+			show = spec.seatLabel
+		case diagramViewStem:
+			show = spec.stemLabel
+		}
+		if show && !pointInViewBox(o, viewBox) {
+			show = false
+		}
+		detail := view == diagramViewBike && !spec.bikeMacro
+		dotRadius := 5.0
+		if detail {
+			dotRadius = 3.0
+		}
+		landmarks = append(landmarks, svgLandmark{
+			Name:      spec.name,
+			X:         o.X,
+			Y:         o.Y,
+			DotRadius: dotRadius,
+			Detail:    detail,
+			ShowLabel: show,
+		})
+		if show {
+			labelItems = append(labelItems, labelPlaceItem{
+				text:     spec.name,
+				svgX:     o.X,
+				svgY:     o.Y,
+				prefDx:   spec.prefDx,
+				prefDy:   spec.prefDy,
+				prefAnc:  spec.prefAnc,
+				priority: spec.priority,
+				lmIdx:    i,
+			})
+		}
 	}
+
+	for i := range targets {
+		tgt := &targets[i]
+		if tgt.ShowLabel && !pointInViewBox(svgPoint{X: tgt.X, Y: tgt.Y}, viewBox) {
+			tgt.ShowLabel = false
+		}
+		if tgt.ShowLabel {
+			labelItems = append(labelItems, labelPlaceItem{
+				text:      tgt.Name,
+				svgX:      tgt.X,
+				svgY:      tgt.Y,
+				prefDx:    14,
+				prefDy:    -12,
+				prefAnc:   "start",
+				priority:  0,
+				isTarget:  true,
+				targetIdx: i,
+			})
+		}
+	}
+
+	placeDiagramLabels(viewBox, unitsPerPx, scale, segments, landmarks, targets, labelItems)
 
 	viewLinks := make([]diagramViewLink, 0, len(diagramViews))
 	for _, dv := range diagramViews {
@@ -580,7 +1001,7 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 		View:         view,
 		ViewLinks:    viewLinks,
 		DrawScale:    scale,
-		UnitsPerPx:   viewBox.W / nominalDiagramWidthPx,
+		UnitsPerPx:   unitsPerPx,
 		RearAxleSVG:  rearSVG,
 		FrontAxleSVG: frontSVG,
 		GroundY1:     rearContactSVG.Y,
@@ -591,6 +1012,6 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 		Rects:        rects,
 		Segments:     segments,
 		Landmarks:    landmarks,
-		FitTargets:   buildFitTargets(parsed, bike, view),
+		FitTargets:   targets,
 	}
 }
