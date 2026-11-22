@@ -1,6 +1,29 @@
 # Slice 16a: chart data ownership, the unpitched placement, and "basis"
 
-Status: Planned 2026-11-21
+Status: Implemented 2026-11-21; awaiting Matt's acceptance
+
+## Implementation handoff
+
+- **Who and when:** 2026-11-21, Gemini 4 Neon (Medium).
+- **Commits:**
+  - C1 `Place the basis frameset with PlaceFrameset`: `0532e01`
+  - C2 `Move the chart-consistency check to catalog tests`: `1db1eb8`
+  - C3 `Move chart data to catalog and delete FrameChart`: `7e444ee`
+  - C4 `Rename CAD to basis`: `c66571d`
+- **Done and not done:** C0, C1 (A1–A3, T1–T4), C2 (A4–A6, T5–T7), C3 (A7–A11, T8–T10), C4 (R1–R5, A12), and all Verification steps 1–6 are done. Nothing is left undone.
+- **Deviations:** None.
+- **Verification:**
+  - `make pre-commit` passed on each of C1–C4 and on the final state.
+  - Snapshot comparison (`bike.json`, `bike_basis.json`, `compare.json`, and 5 rendered HTML pages) was byte-identical after C1, C2, and C3, and empty after the 5 planned substitutions on C4 (no extra substitutions needed).
+  - `go test -run 'ChartConsistency' -v ./internal/reboot/catalog` listed and passed every T5 test plus `TestCheckChartConsistencyRejectsMismatchedBasisCup` and `TestMeasureChartConsistencyExposesChecks`. `go test -v ./internal/reboot/assembly` listed zero `ChartConsistency` tests.
+  - R5 negative check: temporarily appending `// CAD` to `internal/reboot/pose/pose.go` made `make boundary` fail with `boundary: reboot files must not use 'CAD'; say basis (Q121)`; removing it restored a clean `make boundary`.
+  - Grep gate after C4 found zero remaining matches for `FrameChart`, `PlaceCadBaselineFork`, `ChartBaseline`, `assembly.CheckChartConsistency`, `DeltaPitchDeg(`, `measureUnpitchedFrameset`, `placeLeveledFrameset`, `validateForkGeometry`, or `.Chart` (only the `TestCheckChartConsistency…` test names kept per D5 matched the unanchored `CheckChartConsistency` substring).
+  - `go tool deadcode ./...` reported only the two expected reboot entries: `FitOval.Validate` (`internal/reboot/assembly/scoring.go:107:18`) and `catalog.Forks` (`internal/reboot/catalog/forks.go:60:6`).
+  - Live check against `http://127.0.0.1:8081`:
+    - `/bike?fork=basis`: `Chart Basis Fork (495 mm / 54 mm / 0 mm cup): 68.26° HTA, 1157.7 mm WB (Published 1158.0 mm)`, `ΔPitch vs Basis: +0.00°`, Chart Basis Fork note visible (exact match to C0 snapshot). Screenshot: `/Users/matt/.gemini/antigravity/brain/dc6d5843-ee7c-4715-ad27-aec8943bc1dc/.system_generated/steps/11/media_0.png`.
+    - `/bike`: `Chart Basis Fork (495 mm / 54 mm / 0 mm cup): 68.26° HTA, 1157.7 mm WB (Published 1158.0 mm)`, `ΔPitch vs Basis: +0.55°` (exact match to C0 snapshot).
+    - `/bike?fork=cad`: confirmed HTTP `400` with banner `Error: frame "otso-fenrir-stainless" has no fork "cad"`.
+- **Open issues:** None.
 
 Implement this plan exactly. If the code disagrees with it, or a design choice comes up that the plan doesn't cover, stop. Record `Status: Blocked <date> on <question>` and the Implementation handoff, then tell Matt to switch to a Frontier model. "Seemed cleaner" is not a reason to deviate.
 
