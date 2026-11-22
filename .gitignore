@@ -6,3 +6,4 @@ bin/
 playwright-report/
 test-results/
 tmp/
+scratch_*_test.go

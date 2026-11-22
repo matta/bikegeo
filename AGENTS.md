@@ -36,6 +36,18 @@ A clean-slate reboot is being built beside the existing app; see [docs/reboot/DE
 - **Catalog:** reboot frames, forks, handlebars, seatposts, the SQlab 610, and default fit targets are Go values in `internal/reboot/catalog` (not `internal/frames`), validated by its go test (chart closure, fork-list placement, seatpost bounds). Published chart values are never nudged.
 - **Terminology:** **Frame** (`FrameSetup`) is the bare frame. **Frameset** (`FramesetPlacement`, `PlaceFrameset`) is the leveled frame + fork + lower cup + wheel contacts. **Bike** (`BikePlacement`, `PlaceBike`, `/bike`) is the full assembly. **Build** (`ScoreBuild`, `BuildScore`, `FitBuilds`, `BuildRanking`, `ScoredBuild`) is a complete realized/scored bike; **Part / Option** (`PartOptions`, `StemOption`, `ForkOption`) names discrete component inputs; **Catalog** belongs only to the `internal/reboot/catalog` data-provider layer; **`stock`** keeps its cycling meaning (factory-installed or uncut, e.g. `HandlebarSetup.StockWidthMm`) and is not used for discrete fitting options (Q100–Q102, Slice 13d). URL query keys are nouns (`bar_options`, `fork_options`, `post_insert`, `rail_offset`), never verb+noun commands. `chassis` is banned in reboot code and docs (`make boundary`). Scoring uses score words: the words `price`, `pricing`, `cost`, `cheap`, and `ledger` are banned in reboot files too, in any case and inside longer words such as `PricedBand` or `cheapest` (`make boundary`; DESIGN.md "Scoring words").
 
+## One-off investigations
+
+When no existing test, `/bike`, or `compare` answers a question about geometry, a frame chart, or fitting, answer it with a temporary Go test in the package that owns the data. For frame charts, that package is `internal/reboot/catalog`. Never write a Python or standalone Go reimplementation.
+
+- Name the file `scratch_<topic>_test.go` and its tests `TestScratch…`. The file pattern is gitignored, so it can't be committed.
+- Print results with `t.Logf`.
+- Run it with `go test -run TestScratch -v ./internal/reboot/catalog`.
+- Delete the file when you're done.
+- Call the real placement and chart-consistency functions, and never restate geometry formulas. Published chart values stay untouched in catalog files; a temporary test may only change copies.
+- If you write the same scratch helper twice, propose promoting it into a shared test helper.
+- Interim, until Slice 16 lands (DESIGN.md Q114): the chart-consistency mismatch numbers are reachable only through `assembly.CheckChartClosure`'s error text. Legacy frames under `internal/frames` still follow **Frame Datasets** below.
+
 ## Rider Fit Provenance
 
 Before analyzing Matt's personal bike fit, read [docs/RIDER_FIT.md](docs/RIDER_FIT.md). It records his confirmed saddle and seatpost, riding observations, and the idmatch transfer from his bike with an **unsagged Redshift post** to the test jig using the **same physical saddle**. Treat these owner-confirmed facts as established; do not ask him to repeat them. Keep reported measurements, model-derived sit-bone coordinates, and untested fit preferences distinct.
