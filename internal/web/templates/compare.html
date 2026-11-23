@@ -903,7 +903,7 @@
                 <th scope="col" class="num">Stem</th>
                 <th scope="col" class="num">Spacers</th>
                 {{if .AllBarOptions}}<th scope="col">Handlebar</th>{{end}}
-                <th scope="col" class="num">Rail</th>
+                <th scope="col">Rail</th>
                 <th scope="col" class="num">Post insert</th>
               </tr>
             </thead>
@@ -922,7 +922,7 @@
                 <td data-compare-cell="stem" class="num">{{.StemText}}</td>
                 <td class="num" data-compare-cell="spacers">{{.SpacersText}}</td>
                 {{if $.AllBarOptions}}<td data-compare-cell="bar">{{.BarName}}</td>{{end}}
-                <td class="num" data-compare-cell="rail">{{.RailOffsetText}}</td>
+                <td class="fit-cell" data-compare-cell="rail" title="{{.RailTitle}}"><span class="fit-primary">{{.RailPositionText}}</span><span class="fit-note">{{.RailOffsetText}}</span></td>
                 <td class="num" data-compare-cell="post-insert">{{.PostInsertionText}}</td>
               </tr>
               {{end}}

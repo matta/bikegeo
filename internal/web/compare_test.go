@@ -175,12 +175,21 @@ func TestCompareDefaultPage(t *testing.T) {
 		"grip-fit":    "8.8 mm back, 3.6 mm high",
 		"stem":        "100 mm, -7°",
 		"spacers":     "0 mm",
-		"rail":        "+15.0 mm",
 		"post-insert": "164.3 mm",
 	} {
 		if got := strings.TrimSpace(fit1.Find(fmt.Sprintf(`[data-compare-cell="%s"]`, cell)).Text()); got != want {
 			t.Errorf("row 1 %s = %q, want %q", cell, got, want)
 		}
+	}
+	rail1 := fit1.Find(`[data-compare-cell="rail"]`)
+	if got := strings.TrimSpace(rail1.Find(`.fit-primary`).Text()); got != "Max back" {
+		t.Errorf("row 1 rail primary = %q, want Max back", got)
+	}
+	if got := strings.TrimSpace(rail1.Find(`.fit-note`).Text()); got != "+15.0 mm" {
+		t.Errorf("row 1 rail note = %q, want +15.0 mm", got)
+	}
+	if got, _ := rail1.Attr("title"); got != "Rail offset +15.0 mm (range ±15.0 mm)" {
+		t.Errorf("row 1 rail title = %q, want Rail offset +15.0 mm (range ±15.0 mm)", got)
 	}
 	if got, _ := fit1.Find(`[data-compare-cell="grip-fit"]`).Attr("title"); got != "Oval R 0.95 · target − placed (+8.8, -3.6) mm (9.5 mm)" {
 		t.Errorf("row 1 grip-fit title = %q, want %q", got, "Oval R 0.95 · target − placed (+8.8, -3.6) mm (9.5 mm)")
@@ -891,5 +900,26 @@ func TestCompareBinaryHavokGateTradeoff(t *testing.T) {
 	}
 	if got, _ := grip.Attr("title"); got != "Oval R 5.95 · target − placed (+66.1, +0.3) mm (66.1 mm)" {
 		t.Errorf("grip-fit title = %q, want Oval R 5.95 · target − placed (+66.1, +0.3) mm (66.1 mm)", got)
+	}
+}
+
+func TestFormatRailPosition(t *testing.T) {
+	for _, tc := range []struct {
+		offset, limit float64
+		want          string
+	}{
+		{0, 15, "Centered"},
+		{5.0, 15, "Centered"},
+		{-5.0, 15, "Centered"},
+		{5.1, 15, "Shifted back"},
+		{14.9, 15, "Shifted back"},
+		{-5.1, 15, "Shifted fwd"},
+		{-14.9, 15, "Shifted fwd"},
+		{15.0, 15, "Max back"},
+		{-15.0, 15, "Max fwd"},
+	} {
+		if got := formatRailPosition(tc.offset, tc.limit); got != tc.want {
+			t.Errorf("formatRailPosition(%v, %v) = %q, want %q", tc.offset, tc.limit, got, tc.want)
+		}
 	}
 }

@@ -78,7 +78,9 @@ type compareRowView struct {
 	StemText          string
 	SpacersText       string
 	BarName           string
+	RailPositionText  string
 	RailOffsetText    string
+	RailTitle         string
 	PostInsertionText string
 	LeveledReachMm    float64
 	LeveledStackMm    float64
@@ -188,6 +190,28 @@ func brpFitNote(setup assembly.BikeSetup, missX, missY float64) (string, error) 
 	return strings.Join(reasons, ", "), nil
 }
 
+// formatRailPosition describes where the saddle sits along its rails relative
+// to the centered ±5 mm scoring band and the hardware travel limits.
+func formatRailPosition(offsetMm, limitMm float64) string {
+	const (
+		tol              = 1e-4
+		railIdealLimitMm = 5.0
+	)
+	if offsetMm >= limitMm-tol {
+		return "Max back"
+	}
+	if offsetMm <= -limitMm+tol {
+		return "Max fwd"
+	}
+	if math.Abs(offsetMm) <= railIdealLimitMm+tol {
+		return "Centered"
+	}
+	if offsetMm > 0 {
+		return "Shifted back"
+	}
+	return "Shifted fwd"
+}
+
 // handleCompare serves / over the frames compareFrames returns:
 // query.CatalogFrames in production, a few trimmed frames in tests.
 func handleCompare(w http.ResponseWriter, r *http.Request, compareFrames func() []compare.Frame) {
@@ -271,6 +295,11 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 		if err != nil {
 			return compareView{}, err
 		}
+		railLimit, err := setup.RailOffsetLimitMm()
+		if err != nil {
+			return compareView{}, err
+		}
+		railOffsetText := fmt.Sprintf("%+.1f mm", cleanZero(setup.Saddle.RailOffsetMm, 0.05))
 
 		rows[i] = compareRowView{
 			Rank:              i + 1,
@@ -297,7 +326,9 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 			StemText:          fmt.Sprintf("%.0f mm, %+.0f°", st.LengthMm, cleanZero(float64(st.AngleDeg), 0.5)),
 			SpacersText:       fmt.Sprintf("%.0f mm", st.SpacersMm),
 			BarName:           bar.Name,
-			RailOffsetText:    fmt.Sprintf("%+.1f mm", cleanZero(setup.Saddle.RailOffsetMm, 0.05)),
+			RailPositionText:  formatRailPosition(setup.Saddle.RailOffsetMm, railLimit),
+			RailOffsetText:    railOffsetText,
+			RailTitle:         fmt.Sprintf("Rail offset %s (range ±%.1f mm)", railOffsetText, railLimit),
 			PostInsertionText: fmt.Sprintf("%.1f mm", setup.Seatpost.InsertionMm),
 			LeveledReachMm:    fs.LeveledReachMm(),
 			LeveledStackMm:    fs.LeveledStackMm(),
