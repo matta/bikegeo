@@ -116,9 +116,29 @@ func (o FitOval) Validate() error {
 
 // NormalizedRadius returns R for p around center (R = 1 on the oval's edge).
 func (o FitOval) NormalizedRadius(center, p pose.Point) float64 {
-	d := p.Sub(center)
-	minor := pose.ProjectOnto(d, o.MajorAxisHeadingDeg-90) / o.SemiMinorMm
-	major := pose.ProjectOnto(d, o.MajorAxisHeadingDeg) / o.SemiMajorMm
+	return newGripOvalProjection(o).normalizedRadius(center, p)
+}
+
+// gripOvalProjection holds an oval's precomputed axis unit vectors so FitBuilds
+// can evaluate NormalizedRadius without repeating trig per candidate.
+type gripOvalProjection struct {
+	minorDir, majorDir       pose.Point
+	semiMinorMm, semiMajorMm float64
+}
+
+func newGripOvalProjection(o FitOval) gripOvalProjection {
+	return gripOvalProjection{
+		minorDir:    pose.Along(o.MajorAxisHeadingDeg-90, 1),
+		majorDir:    pose.Along(o.MajorAxisHeadingDeg, 1),
+		semiMinorMm: o.SemiMinorMm,
+		semiMajorMm: o.SemiMajorMm,
+	}
+}
+
+func (p gripOvalProjection) normalizedRadius(center, pt pose.Point) float64 {
+	d := pt.Sub(center)
+	minor := (d.X*p.minorDir.X + d.Y*p.minorDir.Y) / p.semiMinorMm
+	major := (d.X*p.majorDir.X + d.Y*p.majorDir.Y) / p.semiMajorMm
 	return pose.Point{X: minor, Y: major}.Norm()
 }
 
@@ -225,6 +245,111 @@ func scoreInsertionMargin(insertionMm float64, bounds InsertionBounds) float64 {
 	return 100.0 * clamp01(margin/30.0)
 }
 
+func scoreHandGrip(gripR float64) float64 {
+	return scoreThreePoint(gripR, 0, FitGateGripNormalizedRadius, 90, 2)
+}
+
+func scoreHandlebarSweep(backsweep pose.Deg) float64 {
+	return scoreRange(float64(backsweep), 16, 20, 10, 26)
+}
+
+func scoreSpacers(spacersMm float64) float64 {
+	return scoreRange(spacersMm, 0, 20, math.Inf(-1), DefaultMaxSpacersMm)
+}
+
+// forkScoreBase holds the fork-invariant parts of BuildScore computed once per
+// fork so FitBuilds can rank candidates without allocating AttributeScore slices.
+type forkScoreBase struct {
+	hasBrp       bool
+	passBrp      bool
+	brpMissXMm   float64
+	brpMissYMm   float64
+	activeWeight float64
+	handGripW    float64
+	brpYW        float64
+	brpXW        float64
+	forkSagW     float64
+	railW        float64
+	rcWbW        float64
+	insertW      float64
+	bbDropW      float64
+	trailW       float64
+}
+
+func newForkScoreBase(baseScore BuildScore, weights ScoreWeights) forkScoreBase {
+	a := baseScore.Attributes
+	weighted := func(i int) float64 {
+		if !a[i].Active {
+			return 0
+		}
+		return a[i].Weight * a[i].Score
+	}
+	return forkScoreBase{
+		hasBrp:       baseScore.HasBrp,
+		passBrp:      baseScore.Tier == FitsAll || baseScore.Tier == FitsBRP,
+		brpMissXMm:   baseScore.BrpMissXMm,
+		brpMissYMm:   baseScore.BrpMissYMm,
+		activeWeight: weights.ActiveTotal(baseScore.HasBrp),
+		handGripW:    weights.HandGrip,
+		brpYW:        weighted(1),
+		brpXW:        weighted(2),
+		forkSagW:     weighted(5),
+		railW:        weighted(7),
+		rcWbW:        weighted(8),
+		insertW:      weighted(9),
+		bbDropW:      weighted(10),
+		trailW:       weighted(11),
+	}
+}
+
+// score returns a BuildScore without its Attributes slice, matching ScoreBuild
+// on Tier, Total, GripR, and BRP misses for ranking candidates in FitBuilds.
+func (b forkScoreBase) score(gripR, stemW, sweepW, spacersW float64) BuildScore {
+	passGrip := gripR <= FitGateGripNormalizedRadius+fitBoundTolMm
+	tier := FitsNeither
+	if !b.hasBrp {
+		if passGrip {
+			tier = FitsGrip
+		}
+	} else {
+		switch {
+		case b.passBrp && passGrip:
+			tier = FitsAll
+		case b.passBrp:
+			tier = FitsBRP
+		case passGrip:
+			tier = FitsGrip
+		}
+	}
+	// Sum in the same attribute order as ScoreBuild so floating-point rounding matches.
+	weighted := b.handGripW * scoreHandGrip(gripR)
+	if b.hasBrp {
+		weighted += b.brpYW
+		weighted += b.brpXW
+	}
+	weighted += stemW
+	weighted += sweepW
+	weighted += b.forkSagW
+	weighted += spacersW
+	if b.hasBrp {
+		weighted += b.railW
+	}
+	weighted += b.rcWbW
+	if b.hasBrp {
+		weighted += b.insertW
+	}
+	weighted += b.bbDropW
+	weighted += b.trailW
+	return BuildScore{
+		Tier:       tier,
+		Total:      weighted / b.activeWeight,
+		GripR:      gripR,
+		HasBrp:     b.hasBrp,
+		BrpMissXMm: b.brpMissXMm,
+		BrpMissYMm: b.brpMissYMm,
+	}
+}
+
 // ScoreBuild classifies a placed build against the fit gates and scores its 12
 // attributes 0–100, combined by weights (Q59a). The four saddle attributes
 // count only when target.BRP is set (Q63, Q76).
@@ -294,13 +419,13 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 	forkSag := scoreForkSag(setup.Fork.Spec.Travel, setup.Fork.SagPct)
 	w := weights
 	attrs := []AttributeScore{
-		{Attribute: AttrHandGrip, Weight: w.HandGrip, Score: scoreThreePoint(gripR, 0, FitGateGripNormalizedRadius, 90, 2), Active: true},
+		{Attribute: AttrHandGrip, Weight: w.HandGrip, Score: scoreHandGrip(gripR), Active: true},
 		{Attribute: AttrSaddleBrpY, Weight: w.SaddleBrpY, Active: hasBrp},
 		{Attribute: AttrSaddleBrpX, Weight: w.SaddleBrpX, Active: hasBrp},
 		{Attribute: AttrStem, Weight: w.Stem, Score: stemScore, Active: true},
-		{Attribute: AttrHandlebarSweep, Weight: w.HandlebarSweep, Score: scoreRange(float64(setup.Handlebar.BacksweepDeg), 16, 20, 10, 26), Active: true},
+		{Attribute: AttrHandlebarSweep, Weight: w.HandlebarSweep, Score: scoreHandlebarSweep(setup.Handlebar.BacksweepDeg), Active: true},
 		{Attribute: AttrForkSag, Weight: w.ForkSag, Score: forkSag, Active: true},
-		{Attribute: AttrSpacers, Weight: w.Spacers, Score: scoreRange(setup.Stem.SpacersMm, 0, 20, math.Inf(-1), DefaultMaxSpacersMm), Active: true},
+		{Attribute: AttrSpacers, Weight: w.Spacers, Score: scoreSpacers(setup.Stem.SpacersMm), Active: true},
 		{Attribute: AttrSaddleRailOffset, Weight: w.SaddleRailOffset, Active: hasBrp},
 		{Attribute: AttrRcWbRatio, Weight: w.RcWbRatio, Score: scoreRange(rcWb, 37, 39, 34, 42), Active: true},
 		{Attribute: AttrSeatpostInsertion, Weight: w.SeatpostInsertion, Active: hasBrp},

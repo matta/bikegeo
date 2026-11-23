@@ -101,17 +101,21 @@ func (b ScoredBuild) BrpMiss() (pose.Point, bool) {
 // the Q69 deterministic cockpit tie-breaks (fewer spacers, shorter stem,
 // smaller |angle|, + over − angle, handlebar order, fork order).
 func CompareScoredBuilds(a, b ScoredBuild) int {
-	if order := CompareFitRank(a.Score, b.Score); order != 0 {
+	return compareBuildRank(a.Score, a.Placement.Setup.Stem, a.HandlebarIndex, a.ForkIndex, &b)
+}
+
+func compareBuildRank(aScore BuildScore, aStem StemSetup, aBarIndex, aForkIndex int, b *ScoredBuild) int {
+	if order := CompareFitRank(aScore, b.Score); order != 0 {
 		return order
 	}
-	sa, sb := a.Placement.Setup.Stem, b.Placement.Setup.Stem
+	sb := b.Placement.Setup.Stem
 	return cmp.Or(
-		cmp.Compare(sa.SpacersMm, sb.SpacersMm),
-		cmp.Compare(sa.LengthMm, sb.LengthMm),
-		cmp.Compare(math.Abs(float64(sa.AngleDeg)), math.Abs(float64(sb.AngleDeg))),
-		cmp.Compare(float64(sb.AngleDeg), float64(sa.AngleDeg)),
-		cmp.Compare(a.HandlebarIndex, b.HandlebarIndex),
-		cmp.Compare(a.ForkIndex, b.ForkIndex),
+		cmp.Compare(aStem.SpacersMm, sb.SpacersMm),
+		cmp.Compare(aStem.LengthMm, sb.LengthMm),
+		cmp.Compare(math.Abs(float64(aStem.AngleDeg)), math.Abs(float64(sb.AngleDeg))),
+		cmp.Compare(float64(sb.AngleDeg), float64(aStem.AngleDeg)),
+		cmp.Compare(aBarIndex, b.HandlebarIndex),
+		cmp.Compare(aForkIndex, b.ForkIndex),
 	)
 }
 
@@ -176,18 +180,35 @@ func FitBuilds(setup BikeSetup, target FitTarget, parts PartOptions, weights Sco
 		fromOptions bool
 		index       int
 		setup       HandlebarSetup
+		sweepW      float64
 	}
-	bars := []barChoice{{setup: setup.Handlebar}}
+	bars := []barChoice{{
+		setup:  setup.Handlebar,
+		sweepW: weights.HandlebarSweep * scoreHandlebarSweep(setup.Handlebar.BacksweepDeg),
+	}}
 	if len(parts.Handlebars) > 0 {
 		bars = make([]barChoice, len(parts.Handlebars))
 		for i, bar := range parts.Handlebars {
 			bar.BarRollDeg = setup.Handlebar.BarRollDeg // Q24
-			bars[i] = barChoice{fromOptions: true, index: i, setup: bar}
+			bars[i] = barChoice{
+				fromOptions: true,
+				index:       i,
+				setup:       bar,
+				sweepW:      weights.HandlebarSweep * scoreHandlebarSweep(bar.BacksweepDeg),
+			}
 		}
 	}
+	stemWeights := make([]float64, len(parts.Stems))
+	for i, stem := range parts.Stems {
+		stemWeights[i] = weights.Stem * stem.Score
+	}
+	oval := newGripOvalProjection(DefaultGripOval())
+
 	var stacks []float64
+	var spacerWeights []float64
 	best := make([]ScoredBuild, 0, min(limit, maxPreallocatedBuilds))
 	evaluated := 0
+	buildTarget := FitTarget{HandGrip: &grip, BRP: brp}
 	for _, fork := range forks {
 		base := setup
 		base.Fork, base.LowerCup = fork.fork, fork.lowerCup
@@ -198,27 +219,59 @@ func FitBuilds(setup BikeSetup, target FitTarget, parts PartOptions, weights Sco
 			}
 			base = saddle.Placement.Setup
 		}
-		if _, err := PlaceBike(base); err != nil {
+		basePlacement, err := PlaceBike(base)
+		if err != nil {
 			return BuildRanking{}, err
 		}
+		baseScore, err := ScoreBuild(basePlacement, buildTarget, 0, weights)
+		if err != nil {
+			return BuildRanking{}, err
+		}
+		forkScore := newForkScoreBase(baseScore, weights)
 		// Wait until PlaceBike has validated the stem's spacer allowance.
 		if stacks == nil {
 			stacks = spacerSteps(0, setup.Stem.MaxSpacersMm, parts.SpacerStepMm)
+			spacerWeights = make([]float64, len(stacks))
+			for i, spacers := range stacks {
+				spacerWeights[i] = weights.Spacers * scoreSpacers(spacers)
+			}
 		}
-		buildTarget := FitTarget{HandGrip: &grip, BRP: brp}
-		for _, bar := range bars {
-			for _, stem := range parts.Stems {
-				for _, spacers := range stacks {
-					candidate := base
-					candidate.Stem.AngleDeg = stem.AngleDeg
-					candidate.Stem.LengthMm = stem.LengthMm
-					candidate.Stem.SpacersMm = spacers
-					candidate.Handlebar = bar.setup
-					placement, err := PlaceBike(candidate)
+		for si, spacers := range stacks {
+			spacersW := spacerWeights[si]
+			for ti, stem := range parts.Stems {
+				stemW := stemWeights[ti]
+				candidate := base
+				candidate.Stem.AngleDeg = stem.AngleDeg
+				candidate.Stem.LengthMm = stem.LengthMm
+				candidate.Stem.SpacersMm = spacers
+				stemPlacement, err := PlaceStem(basePlacement.Frameset.HeadTubeTop, candidate.Stem)
+				if err != nil {
+					return BuildRanking{}, err
+				}
+				for _, bar := range bars {
+					handlebarPlacement, err := PlaceHandlebar(stemPlacement.BarClamp, bar.setup)
 					if err != nil {
 						return BuildRanking{}, err
 					}
-					score, err := ScoreBuild(placement, buildTarget, stem.Score, weights)
+					gripR := oval.normalizedRadius(grip, handlebarPlacement.HandGrip.Origin())
+					if !isFinite(gripR) {
+						return BuildRanking{}, fmt.Errorf("build scoring metric is not finite")
+					}
+					evaluated++
+					score := forkScore.score(gripR, stemW, bar.sweepW, spacersW)
+					if len(best) == limit && compareBuildRank(score, candidate.Stem, bar.index, fork.index, &best[len(best)-1]) >= 0 {
+						continue
+					}
+					candidate.Handlebar = bar.setup
+					placement := BikePlacement{
+						Setup:     candidate,
+						Frameset:  basePlacement.Frameset,
+						Seatpost:  basePlacement.Seatpost,
+						Saddle:    basePlacement.Saddle,
+						Stem:      stemPlacement,
+						Handlebar: handlebarPlacement,
+					}
+					fullScore, err := ScoreBuild(placement, buildTarget, stem.Score, weights)
 					if err != nil {
 						return BuildRanking{}, err
 					}
@@ -230,9 +283,8 @@ func FitBuilds(setup BikeSetup, target FitTarget, parts PartOptions, weights Sco
 						HasForkOption:      fork.fromOptions,
 						ForkIndex:          fork.index,
 						BrpTarget:          brp,
-						Score:              score,
+						Score:              fullScore,
 					}
-					evaluated++
 					best = keepBest(best, &build, limit)
 				}
 			}

@@ -8,7 +8,10 @@ import (
 	"cmp"
 	"fmt"
 	"math"
+	"runtime"
 	"slices"
+	"sync"
+	"sync/atomic"
 
 	"bikegeo/internal/assembly"
 )
@@ -76,6 +79,50 @@ type Ranking struct {
 // idealSagPct is the sag the Q69 cross-row tie-break prefers (the Q59a ideal).
 const idealSagPct = 20.0
 
+type expandedRow struct {
+	frameID   string
+	size      Size
+	sizeIndex int
+	fork      Fork
+	forkIndex int
+	sagPct    float64
+}
+
+func rankExpandedRow(req Request, item expandedRow) (Row, error) {
+	bounds, err := assembly.SeatpostInsertionBounds(item.size.Frame, req.Seatpost)
+	if err != nil {
+		return Row{}, fmt.Errorf("frame %q size %q fork %q at %v%% sag: %w", item.frameID, item.size.Name, item.fork.ID, item.sagPct, err)
+	}
+	lowerCup := item.size.Frame.DefaultLowerCup
+	if item.fork.LowerCup != (assembly.LowerCupSetup{}) {
+		lowerCup = item.fork.LowerCup
+	}
+	setup := assembly.BikeSetup{
+		Frame:     item.size.Frame,
+		LowerCup:  lowerCup,
+		Fork:      assembly.ForkSetup{Spec: item.fork.Spec, SagPct: item.sagPct},
+		Wheels:    req.Wheels,
+		Seatpost:  assembly.SeatpostSetup{Spec: req.Seatpost, InsertionMm: bounds.EffectiveMinInsertionMm}, // the saddle fit replaces it
+		Saddle:    req.Saddle,
+		Stem:      req.Stem,
+		Handlebar: req.Handlebar,
+	}
+	ranking, err := assembly.FitBuilds(setup, req.Target, req.Parts, req.Weights, 1)
+	if err != nil {
+		return Row{}, fmt.Errorf("frame %q size %q fork %q at %v%% sag: %w", item.frameID, item.size.Name, item.fork.ID, item.sagPct, err)
+	}
+	return Row{
+		FrameID:   item.frameID,
+		Size:      item.size.Name,
+		ForkID:    item.fork.ID,
+		SagPct:    item.sagPct,
+		Build:     ranking.Builds[0],
+		Evaluated: ranking.Evaluated,
+		sizeIndex: item.sizeIndex,
+		forkIndex: item.forkIndex,
+	}, nil
+}
+
 // Rank expands the requested rows, fits each row's winning build with
 // assembly.FitBuilds, orders the rows best first, and prunes them.
 func Rank(req Request) (Ranking, error) {
@@ -83,14 +130,6 @@ func Rank(req Request) (Ranking, error) {
 		return Ranking{}, err
 	}
 
-	type expandedRow struct {
-		frameID   string
-		size      Size
-		sizeIndex int
-		fork      Fork
-		forkIndex int
-		sagPct    float64
-	}
 	var expanded []expandedRow
 
 	for _, f := range req.Frames {
@@ -114,42 +153,51 @@ func Rank(req Request) (Ranking, error) {
 		}
 	}
 
-	rows := make([]Row, 0, len(expanded))
+	rows := make([]Row, len(expanded))
+	workers := min(runtime.GOMAXPROCS(0), len(expanded))
+	if workers <= 1 {
+		for i, item := range expanded {
+			row, err := rankExpandedRow(req, item)
+			if err != nil {
+				return Ranking{}, err
+			}
+			rows[i] = row
+		}
+	} else {
+		errs := make([]error, len(expanded))
+		var next atomic.Int64
+		var failed atomic.Bool
+		var wg sync.WaitGroup
+		wg.Add(workers)
+		for range workers {
+			go func() {
+				defer wg.Done()
+				for !failed.Load() {
+					i := int(next.Add(1) - 1)
+					if i >= len(expanded) {
+						return
+					}
+					row, err := rankExpandedRow(req, expanded[i])
+					if err != nil {
+						errs[i] = err
+						failed.Store(true)
+						return
+					}
+					rows[i] = row
+				}
+			}()
+		}
+		wg.Wait()
+		for _, err := range errs {
+			if err != nil {
+				return Ranking{}, err
+			}
+		}
+	}
+
 	totalEvaluated := 0
-	for _, item := range expanded {
-		bounds, err := assembly.SeatpostInsertionBounds(item.size.Frame, req.Seatpost)
-		if err != nil {
-			return Ranking{}, fmt.Errorf("frame %q size %q fork %q at %v%% sag: %w", item.frameID, item.size.Name, item.fork.ID, item.sagPct, err)
-		}
-		lowerCup := item.size.Frame.DefaultLowerCup
-		if item.fork.LowerCup != (assembly.LowerCupSetup{}) {
-			lowerCup = item.fork.LowerCup
-		}
-		setup := assembly.BikeSetup{
-			Frame:     item.size.Frame,
-			LowerCup:  lowerCup,
-			Fork:      assembly.ForkSetup{Spec: item.fork.Spec, SagPct: item.sagPct},
-			Wheels:    req.Wheels,
-			Seatpost:  assembly.SeatpostSetup{Spec: req.Seatpost, InsertionMm: bounds.EffectiveMinInsertionMm}, // the saddle fit replaces it
-			Saddle:    req.Saddle,
-			Stem:      req.Stem,
-			Handlebar: req.Handlebar,
-		}
-		ranking, err := assembly.FitBuilds(setup, req.Target, req.Parts, req.Weights, 1)
-		if err != nil {
-			return Ranking{}, fmt.Errorf("frame %q size %q fork %q at %v%% sag: %w", item.frameID, item.size.Name, item.fork.ID, item.sagPct, err)
-		}
-		rows = append(rows, Row{
-			FrameID:   item.frameID,
-			Size:      item.size.Name,
-			ForkID:    item.fork.ID,
-			SagPct:    item.sagPct,
-			Build:     ranking.Builds[0],
-			Evaluated: ranking.Evaluated,
-			sizeIndex: item.sizeIndex,
-			forkIndex: item.forkIndex,
-		})
-		totalEvaluated += ranking.Evaluated
+	for _, row := range rows {
+		totalEvaluated += row.Evaluated
 	}
 
 	slices.SortFunc(rows, compareRows)

@@ -806,10 +806,10 @@ func TestBikeWorkbenchFormRoundTripPreservesEveryBuild(t *testing.T) {
 	}
 	assertUnchangedSubmitIdempotent(t, "basis preset from default", basisDoc)
 
-	// 3. Fully customized build.
+	// 3. Fully customized build (targets off: ranking is covered by its own tests).
 	customURL := "/bike?fork=fox34_120-534x44&fork_a2c=534&cup=12&sag=20&bar=sqlab3ox_16_45" +
 		"&spacers=25&stem_length=80&stem_angle=7&bar_roll=-5" +
-		"&post=setback_25&post_insert=150&rail_offset=10&rail_pitch=-2&bar_options=all&fork_options=all"
+		"&post=setback_25&post_insert=150&rail_offset=10&rail_pitch=-2&bar_options=all&fork_options=all&brp=off&grip=off"
 	customDoc := loadBikeDoc(t, customURL)
 	assertUnchangedSubmitIdempotent(t, "custom build", customDoc)
 

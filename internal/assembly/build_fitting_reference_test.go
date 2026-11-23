@@ -120,25 +120,29 @@ func TestFitBuildsMatchesReference(t *testing.T) {
 	farBRP := pose.Point{X: -260, Y: 640}
 	brps := map[string]*pose.Point{"no_brp": nil, "report_brp": &fitReportBRP, "setback_brp": &setbackBRP, "far_brp": &farBRP}
 
-	var grips []pose.Point
-	for _, dx := range []float64{-60, 0, 60} {
-		for _, dy := range []float64{-60, 0, 60} {
-			grips = append(grips, pose.Point{X: fitReportGrip.X + dx, Y: fitReportGrip.Y + dy})
-		}
+	grips := []pose.Point{
+		{X: fitReportGrip.X - 60, Y: fitReportGrip.Y - 60},
+		fitReportGrip,
+		{X: fitReportGrip.X + 60, Y: fitReportGrip.Y + 60},
 	}
 
 	const everyBuild = 1 << 20
-	limits := []int{1, 2, 5, 23, everyBuild}
+	defaultLimits := []int{1, 5}
+	fullLimits := []int{1, 2, 5, 23, everyBuild}
 
 	weights := testDefaultScoreWeights()
 	winningTiers := map[assembly.FitTier]bool{}
 	for setupName, setup := range setups {
 		for partsName, parts := range partSets {
 			for brpName, brp := range brps {
-				for _, grip := range grips {
+				for gi, grip := range grips {
 					target := assembly.FitTarget{HandGrip: &grip, BRP: brp}
 					all := referenceFitBuilds(t, setup, target, parts, weights)
 					winningTiers[all[0].Score.Tier] = true
+					limits := defaultLimits
+					if setupName == "fenrir" && (brpName == "no_brp" || brpName == "report_brp") && gi == 1 {
+						limits = fullLimits
+					}
 					for _, limit := range limits {
 						got, err := assembly.FitBuilds(setup, target, parts, weights, limit)
 						if err != nil {

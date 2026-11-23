@@ -13,17 +13,28 @@ func BenchmarkComparePage(b *testing.B) {
 	cases := []struct {
 		name   string
 		target string
-		skip   string // non-empty skips the case with this reason
 	}{
-		{"selected_bar", "/", ""},
-		{"all_bars", "/?bar_options=all", "about 50 s per request; re-enable once compare build fitting is faster"},
-		{"one_frame_all_bars", "/?frame=surly-krampus&size=XL&bar_options=all", ""},
+		{"selected_bar", "/"},
+		{"all_bars", "/?bar_options=all"},
 	}
 	for _, c := range cases {
 		b.Run(c.name, func(b *testing.B) {
-			if c.skip != "" {
-				b.Skip(c.skip)
-			}
+			benchmarkPage(b, c.target)
+		})
+	}
+}
+
+// BenchmarkBikePage measures a full /bike request across default and all-options fitting.
+func BenchmarkBikePage(b *testing.B) {
+	cases := []struct {
+		name   string
+		target string
+	}{
+		{"default", "/bike"},
+		{"all_forks_and_bars", "/bike?bar_options=all&fork_options=all"},
+	}
+	for _, c := range cases {
+		b.Run(c.name, func(b *testing.B) {
 			benchmarkPage(b, c.target)
 		})
 	}
