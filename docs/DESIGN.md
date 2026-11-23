@@ -370,6 +370,8 @@ internal/web/             pure Web 1.0 handlers, HTML/SVG views, embedded templa
 
 ## Deferred follow-ups
 
+The [fit audit methodology proposal](fit-audit/README.md) and [BRP transfer discussion](fit-audit/brp-transfer.md) preserve the open geometry questions behind the proposed fit audit.
+
 - **Compare performance optimizations (Q86):** defer latency budgets, hoisting frameset/seatpost/saddle placement out of the inner cockpit loop, parallel row workers, and pruning until real usage shows strict `PlaceBike` enumeration is too slow.
 
 - **Radial BB-to-saddle height fitting (Q60 follow-up):** match `|BRP − BB|` within ~`1 mm` with a small allowed `X` range instead of holding `target.Y` when rails clamp.
