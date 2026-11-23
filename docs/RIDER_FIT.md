@@ -13,6 +13,8 @@ The confirmed saddle matches bikegeo's reference `sqlab-610-ergolux` / SQlab 610
 
 The owner-measured geometry of that actual saddle is recorded in [SQLAB_SADDLE.md](SQLAB_SADDLE.md), including Matt's physically measured 10 mm SIT elevation above the W70 / BRP reference plane.
 
+Redshift’s published offsets at rest and at 25% travel, the linkage’s effect on saddle pitch, and the catalog’s placement assumptions are documented in the [ShockStop PRO source record](../internal/catalog/seatpost_redshift_shockstop_pro.md).
+
 ## Confirmed idmatch Measurement and Transfer Procedure
 
 Matt described the procedure as follows:
