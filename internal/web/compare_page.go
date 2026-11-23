@@ -68,7 +68,13 @@ type compareRowView struct {
 	TierLabel         string
 	Score             float64
 	GripR             float64
+	GripMissText      string
+	GripFitText       string
+	GripFitTitle      string
 	BrpMissText       string
+	BrpFitText        string
+	BrpFitNote        string
+	BrpFitTitle       string
 	StemText          string
 	SpacersText       string
 	BarName           string
@@ -117,6 +123,69 @@ func cleanZero(v, halfStep float64) float64 {
 		return 0
 	}
 	return v
+}
+
+// formatPlacedOffset describes where a placed landmark sits relative to its
+// target given miss = target - placed (+X forward, +Y up).
+func formatPlacedOffset(missX, missY float64) string {
+	dx := cleanZero(-missX, 0.05)
+	dy := cleanZero(-missY, 0.05)
+	if dx == 0 && dy == 0 {
+		return "On target"
+	}
+	var parts []string
+	if dx > 0 {
+		parts = append(parts, fmt.Sprintf("%.1f mm fwd", dx))
+	} else if dx < 0 {
+		parts = append(parts, fmt.Sprintf("%.1f mm back", -dx))
+	}
+	if dy > 0 {
+		parts = append(parts, fmt.Sprintf("%.1f mm high", dy))
+	} else if dy < 0 {
+		parts = append(parts, fmt.Sprintf("%.1f mm low", -dy))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// brpFitNote returns a concise physical explanation for a non-zero BRP miss.
+func brpFitNote(setup assembly.BikeSetup, missX, missY float64) (string, error) {
+	dx := cleanZero(-missX, 0.05)
+	dy := cleanZero(-missY, 0.05)
+	if dx == 0 && dy == 0 {
+		return "", nil
+	}
+	railLimit, err := setup.RailOffsetLimitMm()
+	if err != nil {
+		return "", err
+	}
+	bounds, err := assembly.SeatpostInsertionBounds(setup.Frame, setup.Seatpost.Spec)
+	if err != nil {
+		return "", err
+	}
+	const tol = 1e-4
+	railAtRear := math.Abs(setup.Saddle.RailOffsetMm-railLimit) <= tol
+	railAtFront := math.Abs(setup.Saddle.RailOffsetMm+railLimit) <= tol
+	postAtMaxExt := math.Abs(setup.Seatpost.InsertionMm-bounds.EffectiveMinInsertionMm) <= tol
+	postAtBottom := math.Abs(setup.Seatpost.InsertionMm-bounds.MaxAllowedInsertionMm) <= tol
+
+	if (railAtRear || railAtFront) && !postAtMaxExt && !postAtBottom && dy != 0 {
+		if dy > 0 {
+			return "raised for setback", nil
+		}
+		return "lowered for setback", nil
+	}
+	var reasons []string
+	if railAtRear {
+		reasons = append(reasons, "rail maxed back")
+	} else if railAtFront {
+		reasons = append(reasons, "rail maxed fwd")
+	}
+	if postAtMaxExt {
+		reasons = append(reasons, "post maxed out")
+	} else if postAtBottom {
+		reasons = append(reasons, "post bottomed out")
+	}
+	return strings.Join(reasons, ", "), nil
 }
 
 // handleCompare serves / over the frames compareFrames returns:
@@ -195,6 +264,13 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 		if sliding {
 			slidingFrames[f.ID] = f
 		}
+		gripMiss := row.Build.GripMiss()
+		gripMissText := fmt.Sprintf("(%+.1f, %+.1f) mm", cleanZero(gripMiss.X, 0.05), cleanZero(gripMiss.Y, 0.05))
+		brpMissText := fmt.Sprintf("(%+.1f, %+.1f) mm", cleanZero(sc.BrpMissXMm, 0.05), cleanZero(sc.BrpMissYMm, 0.05))
+		brpNote, err := brpFitNote(setup, sc.BrpMissXMm, sc.BrpMissYMm)
+		if err != nil {
+			return compareView{}, err
+		}
 
 		rows[i] = compareRowView{
 			Rank:              i + 1,
@@ -211,7 +287,13 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 			TierLabel:         tierLabel,
 			Score:             sc.Total,
 			GripR:             sc.GripR,
-			BrpMissText:       fmt.Sprintf("(%+.1f, %+.1f) mm", cleanZero(sc.BrpMissXMm, 0.05), cleanZero(sc.BrpMissYMm, 0.05)),
+			GripMissText:      gripMissText,
+			GripFitText:       formatPlacedOffset(gripMiss.X, gripMiss.Y),
+			GripFitTitle:      fmt.Sprintf("Oval R %.2f · target − placed %s (%.1f mm)", sc.GripR, gripMissText, gripMiss.Norm()),
+			BrpMissText:       brpMissText,
+			BrpFitText:        formatPlacedOffset(sc.BrpMissXMm, sc.BrpMissYMm),
+			BrpFitNote:        brpNote,
+			BrpFitTitle:       fmt.Sprintf("target − placed %s", brpMissText),
 			StemText:          fmt.Sprintf("%.0f mm, %+.0f°", st.LengthMm, cleanZero(float64(st.AngleDeg), 0.5)),
 			SpacersText:       fmt.Sprintf("%.0f mm", st.SpacersMm),
 			BarName:           bar.Name,

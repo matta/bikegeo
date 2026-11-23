@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"bikegeo/internal/assembly"
 	"bikegeo/internal/catalog"
 	"bikegeo/internal/compare"
 	"bikegeo/internal/query"
@@ -171,8 +172,7 @@ func TestCompareDefaultPage(t *testing.T) {
 		"size":        "XL",
 		"fork":        "Fox Float 34 120mm (534/44), 25% sag",
 		"score":       "85.1",
-		"oval-r":      "0.95",
-		"brp-miss":    "(-5.3, +0.0) mm",
+		"grip-fit":    "8.8 mm back, 3.6 mm high",
 		"stem":        "100 mm, -7°",
 		"spacers":     "0 mm",
 		"rail":        "+15.0 mm",
@@ -181,6 +181,19 @@ func TestCompareDefaultPage(t *testing.T) {
 		if got := strings.TrimSpace(fit1.Find(fmt.Sprintf(`[data-compare-cell="%s"]`, cell)).Text()); got != want {
 			t.Errorf("row 1 %s = %q, want %q", cell, got, want)
 		}
+	}
+	if got, _ := fit1.Find(`[data-compare-cell="grip-fit"]`).Attr("title"); got != "Oval R 0.95 · target − placed (+8.8, -3.6) mm (9.5 mm)" {
+		t.Errorf("row 1 grip-fit title = %q, want %q", got, "Oval R 0.95 · target − placed (+8.8, -3.6) mm (9.5 mm)")
+	}
+	brp1 := fit1.Find(`[data-compare-cell="brp-fit"]`)
+	if got := strings.TrimSpace(brp1.Find(`.fit-primary`).Text()); got != "5.3 mm fwd" {
+		t.Errorf("row 1 brp-fit primary = %q, want 5.3 mm fwd", got)
+	}
+	if got := strings.TrimSpace(brp1.Find(`.fit-note`).Text()); got != "rail maxed back" {
+		t.Errorf("row 1 brp-fit note = %q, want rail maxed back", got)
+	}
+	if got, _ := brp1.Attr("title"); got != "target − placed (-5.3, +0.0) mm" {
+		t.Errorf("row 1 brp-fit title = %q, want target − placed (-5.3, +0.0) mm", got)
 	}
 	if got, _ := fit1.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_all" {
 		t.Errorf("row 1 tier attr = %q, want fits_all", got)
@@ -211,6 +224,15 @@ func TestCompareDefaultPage(t *testing.T) {
 	}
 
 	bd1 := doc.Find(`tr[data-breakdown-rank="1"]`)
+	for cell, want := range map[string]string{
+		"oval-r":    "0.95",
+		"grip-miss": "(+8.8, -3.6) mm",
+		"brp-miss":  "(-5.3, +0.0) mm",
+	} {
+		if got := strings.TrimSpace(bd1.Find(fmt.Sprintf(`[data-breakdown-cell="%s"]`, cell)).Text()); got != want {
+			t.Errorf("row 1 breakdown %s = %q, want %q", cell, got, want)
+		}
+	}
 	for attr, want := range map[string]string{
 		"HandGrip":           "90.5",
 		"Saddle BRP Y":       "100.0",
@@ -241,9 +263,22 @@ func TestCompareDefaultPage(t *testing.T) {
 	if got, _ := fit2.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_all" {
 		t.Errorf("row 2 tier = %q, want fits_all", got)
 	}
-	for cell, want := range map[string]string{"score": "76.2", "oval-r": "0.89", "brp-miss": "(-9.6, +0.0) mm"} {
-		if got := strings.TrimSpace(fit2.Find(fmt.Sprintf(`[data-compare-cell="%s"]`, cell)).Text()); got != want {
-			t.Errorf("row 2 %s = %q, want %q", cell, got, want)
+	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="score"]`).Text()); got != "76.2" {
+		t.Errorf("row 2 score = %q, want 76.2", got)
+	}
+	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="grip-fit"]`).Text()); got != "0.7 mm fwd, 13.9 mm high" {
+		t.Errorf("row 2 grip-fit = %q, want 0.7 mm fwd, 13.9 mm high", got)
+	}
+	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="brp-fit"] .fit-primary`).Text()); got != "9.6 mm fwd" {
+		t.Errorf("row 2 brp-fit primary = %q, want 9.6 mm fwd", got)
+	}
+	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="brp-fit"] .fit-note`).Text()); got != "rail maxed back" {
+		t.Errorf("row 2 brp-fit note = %q, want rail maxed back", got)
+	}
+	bd2 := doc.Find(`tr[data-breakdown-rank="2"]`)
+	for cell, want := range map[string]string{"oval-r": "0.89", "grip-miss": "(-0.7, -13.9) mm", "brp-miss": "(-9.6, +0.0) mm"} {
+		if got := strings.TrimSpace(bd2.Find(fmt.Sprintf(`[data-breakdown-cell="%s"]`, cell)).Text()); got != want {
+			t.Errorf("row 2 breakdown %s = %q, want %q", cell, got, want)
 		}
 	}
 	geom2 := doc.Find(`tr[data-geometry-rank="2"]`)
@@ -261,11 +296,20 @@ func TestCompareDefaultPage(t *testing.T) {
 	if got := strings.TrimSpace(fit3.Find(`[data-compare-cell="score"]`).Text()); got != "53.1" {
 		t.Errorf("row 3 score = %q, want 53.1", got)
 	}
-	if got := strings.TrimSpace(fit3.Find(`[data-compare-cell="oval-r"]`).Text()); got != "2.09" {
-		t.Errorf("row 3 oval-r = %q, want 2.09", got)
+	if got := strings.TrimSpace(fit3.Find(`[data-compare-cell="grip-fit"]`).Text()); got != "27.1 mm back, 13.9 mm low" {
+		t.Errorf("row 3 grip-fit = %q, want 27.1 mm back, 13.9 mm low", got)
 	}
-	if got := strings.TrimSpace(fit3.Find(`[data-compare-cell="brp-miss"]`).Text()); got != "(-9.7, +0.0) mm" {
-		t.Errorf("row 3 brp-miss = %q, want (-9.7, +0.0) mm", got)
+	if got := strings.TrimSpace(fit3.Find(`[data-compare-cell="brp-fit"] .fit-primary`).Text()); got != "9.7 mm fwd" {
+		t.Errorf("row 3 brp-fit primary = %q, want 9.7 mm fwd", got)
+	}
+	if got := strings.TrimSpace(fit3.Find(`[data-compare-cell="brp-fit"] .fit-note`).Text()); got != "rail maxed back" {
+		t.Errorf("row 3 brp-fit note = %q, want rail maxed back", got)
+	}
+	bd3 := doc.Find(`tr[data-breakdown-rank="3"]`)
+	for cell, want := range map[string]string{"oval-r": "2.09", "grip-miss": "(+27.1, +13.9) mm", "brp-miss": "(-9.7, +0.0) mm"} {
+		if got := strings.TrimSpace(bd3.Find(fmt.Sprintf(`[data-breakdown-cell="%s"]`, cell)).Text()); got != want {
+			t.Errorf("row 3 breakdown %s = %q, want %q", cell, got, want)
+		}
 	}
 	geom3 := doc.Find(`tr[data-geometry-rank="3"]`)
 	if got := strings.TrimSpace(geom3.Find(`[data-geometry-cell="reach"]`).Text()); got != "415.8" {
@@ -292,8 +336,14 @@ func TestCompareDefaultPage(t *testing.T) {
 	if got := strings.TrimSpace(fit8.Find(`[data-compare-cell="score"]`).Text()); got != "81.3" {
 		t.Errorf("row 8 score = %q, want 81.3", got)
 	}
-	if got := strings.TrimSpace(fit8.Find(`[data-compare-cell="brp-miss"]`).Text()); got != "(-37.0, +0.0) mm" {
-		t.Errorf("row 8 brp-miss = %q, want (-37.0, +0.0) mm", got)
+	if got := strings.TrimSpace(fit8.Find(`[data-compare-cell="brp-fit"] .fit-primary`).Text()); got != "37.0 mm fwd" {
+		t.Errorf("row 8 brp-fit primary = %q, want 37.0 mm fwd", got)
+	}
+	if got := strings.TrimSpace(fit8.Find(`[data-compare-cell="brp-fit"] .fit-note`).Text()); got != "rail maxed back" {
+		t.Errorf("row 8 brp-fit note = %q, want rail maxed back", got)
+	}
+	if got := strings.TrimSpace(doc.Find(`tr[data-breakdown-rank="4"] [data-breakdown-cell="brp-miss"]`).Text()); got != "(-37.0, +0.0) mm" {
+		t.Errorf("row 8 breakdown brp-miss = %q, want (-37.0, +0.0) mm", got)
 	}
 
 	// Row #5 (full-catalog #16): Otso Fenrir Stainless XL (Tuning Chip frame, non-sliding)
@@ -310,8 +360,11 @@ func TestCompareDefaultPage(t *testing.T) {
 	if got := strings.TrimSpace(fit16.Find(`[data-compare-cell="score"]`).Text()); got != "69.1" {
 		t.Errorf("row 16 score = %q, want 69.1", got)
 	}
-	if got := strings.TrimSpace(fit16.Find(`[data-compare-cell="oval-r"]`).Text()); got != "0.96" {
-		t.Errorf("row 16 oval-r = %q, want 0.96", got)
+	if got := strings.TrimSpace(fit16.Find(`[data-compare-cell="grip-fit"]`).Text()); got != "12.6 mm back, 8.3 mm low" {
+		t.Errorf("row 16 grip-fit = %q, want 12.6 mm back, 8.3 mm low", got)
+	}
+	if got := strings.TrimSpace(doc.Find(`tr[data-breakdown-rank="5"] [data-breakdown-cell="oval-r"]`).Text()); got != "0.96" {
+		t.Errorf("row 16 breakdown oval-r = %q, want 0.96", got)
 	}
 	if got := strings.TrimSpace(doc.Find(`tr[data-geometry-rank="5"] [data-geometry-cell="chainstay"]`).Text()); got != "440.0" {
 		t.Errorf("row 16 chainstay = %q, want 440.0", got)
@@ -325,8 +378,11 @@ func TestCompareDefaultPage(t *testing.T) {
 	if got := strings.TrimSpace(fit18.Find(`[data-compare-cell="score"]`).Text()); got != "50.3" {
 		t.Errorf("row 18 score = %q, want 50.3", got)
 	}
-	if got := strings.TrimSpace(fit18.Find(`[data-compare-cell="oval-r"]`).Text()); got != "3.45" {
-		t.Errorf("row 18 oval-r = %q, want 3.45", got)
+	if got := strings.TrimSpace(fit18.Find(`[data-compare-cell="grip-fit"]`).Text()); got != "40.3 mm back, 5.4 mm low" {
+		t.Errorf("row 18 grip-fit = %q, want 40.3 mm back, 5.4 mm low", got)
+	}
+	if got := strings.TrimSpace(doc.Find(`tr[data-breakdown-rank="6"] [data-breakdown-cell="oval-r"]`).Text()); got != "3.45" {
+		t.Errorf("row 18 breakdown oval-r = %q, want 3.45", got)
 	}
 
 	slidingNote := doc.Find(`[data-note="sliding-dropouts"]`).Text()
@@ -430,7 +486,12 @@ func TestCompareAllBarOptionsShowsHandlebarColumn(t *testing.T) {
 	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="score"]`).Text()); got != "87.1" {
 		t.Errorf("score = %q, want 87.1", got)
 	}
-	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="oval-r"]`).Text()); got != "0.58" {
+	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="grip-fit"]`).Text()); got != "7.5 mm back, 3.7 mm low" {
+		t.Errorf("grip-fit = %q, want 7.5 mm back, 3.7 mm low", got)
+	}
+	rank, _ := fit1.Attr("data-compare-rank")
+	bd := doc.Find(fmt.Sprintf(`tr[data-breakdown-rank="%s"]`, rank))
+	if got := strings.TrimSpace(bd.Find(`[data-breakdown-cell="oval-r"]`).Text()); got != "0.58" {
 		t.Errorf("oval-r = %q, want 0.58", got)
 	}
 	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="stem"]`).Text()); got != "100 mm, -7°" {
@@ -599,23 +660,25 @@ func TestCompareToBikeLosslessEndToEndQ67Q77Q110(t *testing.T) {
 			if bikeTier != cmpTier {
 				t.Errorf("submitted tier = %q, want %q", bikeTier, cmpTier)
 			}
+			bd1 := cmpDoc.Find(`tr[data-breakdown-rank="1"]`)
+			if got, want := strings.TrimSpace(bikeDoc.Find(`[data-metric="submitted-score"]`).Text()), strings.TrimSpace(row1.Find(`[data-compare-cell="score"]`).Text()); got != want {
+				t.Errorf("submitted-score = %q, want %q", got, want)
+			}
 			for _, pair := range []struct {
 				bikeMetric string
-				cmpCell    string
+				bdCell     string
 			}{
-				{"submitted-score", "score"},
 				{"submitted-oval-r", "oval-r"},
 				{"submitted-brp-miss", "brp-miss"},
 			} {
 				got := strings.TrimSpace(bikeDoc.Find(fmt.Sprintf(`[data-metric="%s"]`, pair.bikeMetric)).Text())
-				want := strings.TrimSpace(row1.Find(fmt.Sprintf(`[data-compare-cell="%s"]`, pair.cmpCell)).Text())
+				want := strings.TrimSpace(bd1.Find(fmt.Sprintf(`[data-breakdown-cell="%s"]`, pair.bdCell)).Text())
 				if got != want {
 					t.Errorf("%s = %q, want %q", pair.bikeMetric, got, want)
 				}
 			}
 
 			// All 12 attribute scores match breakdown row #1.
-			bd1 := cmpDoc.Find(`tr[data-breakdown-rank="1"]`)
 			if bikeDoc.Find(`[data-submitted-attr]`).Length() != 12 {
 				t.Errorf("bike submitted attrs = %d, want 12", bikeDoc.Find(`[data-submitted-attr]`).Length())
 			}
@@ -728,5 +791,105 @@ func TestCompareHTMLAccessibilityAndNoJS(t *testing.T) {
 				t.Errorf("found %d heading(s) inside details summary, want 0", n)
 			}
 		})
+	}
+}
+
+func TestFormatPlacedOffset(t *testing.T) {
+	for _, tc := range []struct {
+		missX, missY float64
+		want         string
+	}{
+		{0, 0, "On target"},
+		{0.04, -0.04, "On target"},
+		{-5.3, 0, "5.3 mm fwd"},
+		{4.2, 0, "4.2 mm back"},
+		{0, -2.0, "2.0 mm high"},
+		{0, 6.5, "6.5 mm low"},
+		{-10.0, -2.0, "10.0 mm fwd, 2.0 mm high"},
+		{8.8, -3.6, "8.8 mm back, 3.6 mm high"},
+		{27.1, 13.9, "27.1 mm back, 13.9 mm low"},
+		{-1.5, 3.2, "1.5 mm fwd, 3.2 mm low"},
+	} {
+		if got := formatPlacedOffset(tc.missX, tc.missY); got != tc.want {
+			t.Errorf("formatPlacedOffset(%v, %v) = %q, want %q", tc.missX, tc.missY, got, tc.want)
+		}
+	}
+}
+
+func TestBrpFitNote(t *testing.T) {
+	baseSetup := assembly.BikeSetup{
+		Frame: assembly.FrameSetup{
+			SeatTubeLengthMm:    480,
+			MinFrameInsertionMm: 100,
+			MaxPostInsertionMm:  250,
+		},
+		Seatpost: assembly.SeatpostSetup{
+			Spec: assembly.SeatpostSpec{
+				TotalLengthMm:     400,
+				MinInsertionMm:    80,
+				MaxInsertionMm:    270,
+				RailClampLengthMm: 40,
+			},
+			InsertionMm: 165,
+		},
+		Saddle: assembly.SaddleSetup{
+			RailLengthMm: 70,
+		},
+	}
+
+	for _, tc := range []struct {
+		name         string
+		railOffset   float64
+		insertion    float64
+		missX, missY float64
+		want         string
+	}{
+		{"on target", 0, 165, 0, 0, ""},
+		{"sub-threshold noise", 15, 165, -0.02, 0.01, ""},
+		{"rail maxed back", 15, 165, -5.3, 0, "rail maxed back"},
+		{"rail maxed fwd", -15, 165, 5.3, 0, "rail maxed fwd"},
+		{"raised for setback", 15, 165, -10.0, -2.0, "raised for setback"},
+		{"lowered for setback", -15, 165, 10.0, 2.0, "lowered for setback"},
+		{"post maxed out", 3, 100, 0, 6.0, "post maxed out"},
+		{"post bottomed out", 3, 250, 0, -4.0, "post bottomed out"},
+		{"rail and post combined", 15, 100, -4.0, 6.0, "rail maxed back, post maxed out"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setup := baseSetup
+			setup.Saddle.RailOffsetMm = tc.railOffset
+			setup.Seatpost.InsertionMm = tc.insertion
+			got, err := brpFitNote(setup, tc.missX, tc.missY)
+			if err != nil {
+				t.Fatalf("brpFitNote returned error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("brpFitNote = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCompareBinaryHavokGateTradeoff(t *testing.T) {
+	status, doc := loadCompareDoc(t, "/", frameSpec{"binary-havok", "L", "fox36_sl_120"})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	fit1 := doc.Find(`tr[data-compare-rank="1"]`)
+	brp := fit1.Find(`[data-compare-cell="brp-fit"]`)
+	if got := strings.TrimSpace(brp.Find(`.fit-primary`).Text()); got != "10.0 mm fwd, 2.0 mm high" {
+		t.Errorf("brp-fit primary = %q, want 10.0 mm fwd, 2.0 mm high", got)
+	}
+	if got := strings.TrimSpace(brp.Find(`.fit-note`).Text()); got != "raised for setback" {
+		t.Errorf("brp-fit note = %q, want raised for setback", got)
+	}
+	if got, _ := brp.Attr("title"); got != "target − placed (-10.0, -2.0) mm" {
+		t.Errorf("brp-fit title = %q, want target − placed (-10.0, -2.0) mm", got)
+	}
+	grip := fit1.Find(`[data-compare-cell="grip-fit"]`)
+	if got := strings.TrimSpace(grip.Text()); got != "66.1 mm back, 0.3 mm low" {
+		t.Errorf("grip-fit = %q, want 66.1 mm back, 0.3 mm low", got)
+	}
+	if got, _ := grip.Attr("title"); got != "Oval R 5.95 · target − placed (+66.1, +0.3) mm (66.1 mm)" {
+		t.Errorf("grip-fit title = %q, want Oval R 5.95 · target − placed (+66.1, +0.3) mm (66.1 mm)", got)
 	}
 }
