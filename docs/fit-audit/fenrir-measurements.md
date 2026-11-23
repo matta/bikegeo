@@ -1,8 +1,8 @@
 # Fenrir physical check
 
-Status: Draft, 2026-11-23. The procedure depends on Stage 1 rulings 1 and 4 (reference state and world axes) in [`01-definitions-and-states.md`](01-definitions-and-states.md). No measurements have been taken yet.
+Status: Draft, 2026-11-23. The procedure depends on the Stage 1 static and dynamic ruling and the open world-axes question in [`01-definitions-and-states.md`](01-definitions-and-states.md). No measurements have been taken yet.
 
-Purpose: compare Matt's own unsagged Otso Fenrir with the model's placement of the same build (T4 in the [README](README.md#questions-the-audit-must-answer)).
+Purpose: compare Matt's own Otso Fenrir, measured static, with the model's static placement of the same build (T4 in the [README](README.md#questions-the-audit-must-answer)).
 
 ## 1. Installed build
 
@@ -27,13 +27,13 @@ Matt fills in the **Installed** column. Model defaults are what `bikegeo bike 'f
 | Post insertion | 175 mm | | measure exposed length |
 | Saddle | SQlab 610 Ergolux Active 2.1 | SQlab 610 ERGOLUX active 2.1, 14 cm | `RIDER_FIT.md` |
 | Saddle rail position | centered | | measure clamp position on the rails |
-| Saddle rail angle | 0° | | digital level, reference state |
+| Saddle rail angle | 0° | | digital level, static state |
 
-The Drop Best adapter isn't represented in the model's default post. How to model it is part of Stage 1 ruling 3 (unsagged ShockStop).
+The Drop Best adapter isn't represented in the model's default post. How to model it is part of the open Stage 1 question on the static ShockStop.
 
 ## 2. Procedure (draft)
 
-Reference state (proposed): bike standing on a level floor, no rider, fork and post fully extended, tires at riding pressure. Record the floor's levelness and the tire pressures.
+Static state (per the proposed Stage 1 ruling): bike standing on a level floor, no rider, fork and post fully extended, tires at riding pressure. Record the floor's levelness and the tire pressures.
 
 Datum and axes: `X` is horizontal along the bike's centerline, positive forward. `Y` is height above the floor. Measure BB-relative coordinates as differences from the BB center.
 
@@ -47,7 +47,7 @@ Method: snap a chalk line or lay a straightedge on the floor through both tire c
 | M4 | Rear axle to BB, horizontal | `RearCenterMm` | |
 | M5 | Head tube top (top of the upper cover) relative to BB, X and Y | `HeadTubeTop` advanced by the upper stack | |
 | M6 | BRP relative to BB, X and Y | `Saddle.BRP` | |
-| M7 | Saddle rail angle | `RailPitchDeg` in the reference state | |
+| M7 | Saddle rail angle | static saddle tilt (`RailPitchDeg` today) | |
 | M8 | HandGrip relative to BB, X and Y | `Handlebar.HandGrip` | |
 
 Open definitions before M6 and M8 can be measured (Stage 1 item 7):
