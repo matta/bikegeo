@@ -129,23 +129,23 @@ No fitting operation varies the saddle model, seatpost model, wheel radius, lowe
 
 ### What fitting may vary: Matt's rulings, 2026-11-23
 
-Matt decided the role of every build input in matching a dynamic fit. Each input of a build has exactly one of the four roles below; this table is the complete assignment.
+Matt decided the role of every build input in matching a dynamic fit. The table assigns roles to the choices available to the rider and fitting. Placement also uses the fixed angle assumptions described below.
 
 | Role | Inputs | Notes |
 | --- | --- | --- |
 | **Compared** (never fitted) | frame and size, with the wheel size that comes with the frame | What compare ranks. |
-| **Fixed by the rider** (never fitted) | saddle; handlebar, including its cut width and grip position; dynamic saddle tilt; dynamic bar roll; sag of each suspension part | The handlebar is chosen once and applied to every frame. Because it never changes, hand width needs no separate model. |
+| **Fixed by the rider** (never fitted) | saddle; handlebar, including its cut width and grip position; sag of each suspension part | The handlebar is chosen once and applied to every frame. Because it never changes, hand width needs no separate model. |
 | **Part choices fitting may make** | fork, from the frame's supported forks (only frames that support more than one); seatpost, from an option list unless the rider fixes one post; stem, from the catalog; spacer stack, in steps; lower cup, which follows from the fork | |
-| **Settings fitting solves for** | insertion; rail offset; rail angle, solved so the dynamic saddle tilt matches; bar roll, solved so the dynamic bar roll matches; stem length, only where stems are hypothetical (`/bike`) | |
+| **Settings fitting solves for** | insertion; rail offset; stem length, only where stems are hypothetical (`/bike`) | |
 
 Rulings behind the table:
 
 1. **Fork sag is a property of the fork.** Each fork class gets one sag value. Examples of classes: 100 mm XC, 120 mm XC, 130 mm trail. Fitting never chooses sag. The values per class are still to be chosen, and they must be seated sag (see the consequences of the static and dynamic ruling).
 2. **The seatpost is a fitting choice, but can be fixed.** Fitting may choose the post from an option list. The rider must also be able to fix the fit to a single post: for example, a rider who needs the ShockStop, or a zero-offset post such as a dropper.
-3. **The handlebar is not a fitting choice.** The rider picks one bar, and it is applied to all frames. This keeps bar roll meaningful across candidates: matching the dynamic roll of the same bar gives the hands the same angle. It also makes hand width a property of the bar, not a fit item.
+3. **The handlebar is not a fitting choice.** The rider picks one bar, and it is applied to all frames. Using the same bar at the same fixed dynamic roll gives the hands the same angle across candidates. It also makes hand width a property of the bar, not a fit item.
 4. **The fork varies only in limited cases.** Some frames support a range of suspension forks or a set of rigid forks. For those, fitting varies the fork among the frame's supported forks, each at its class sag.
 
-Rail angle and bar roll are only nominally "solved": with the saddle and bar fixed, matching each dynamic angle fixes the setting. Static rail angle and static bar roll then differ per build by the frame's pitch change between states.
+**Dynamic angle assumptions (Matt, 2026-11-23).** Place the saddle level and the handlebar at a reasonable fixed roll in the dynamic state. Both angles affect landmark positions slightly. The model uses them internally, with no configuration, fitting search, or UI readout for either angle. In the static placement of that same build, the saddle follows the post head and the bar follows the stem. Matt did not specify a numerical bar roll.
 
 ### Behavior changes these rulings imply
 
@@ -154,7 +154,7 @@ These rulings deliberately change behavior. They aren't defects, so they become 
 - **Compare and fork sag.** Compare would place each fork at its class sag and stop trying each travel's standard sag values. Q132's sag score would no longer rank sag. It could become a check that the class sag lies in the manufacturer's range. This revises Q129, Q132, and Q134.
 - **Seatposts.** Seatpost options would become a fitting choice, with a control to fix one post.
 - **Handlebars.** Fitting would stop choosing among handlebars (`bar_options=all` in compare and `/bike`). This revises Q22–Q24 and Q101.
-- **Angles.** Static and dynamic saddle tilt and bar roll would be converted on input and output (the case B defect).
+- **Angles.** Placement would apply the fixed angles in the dynamic state and carry the clamped parts into the static state (the case B defect).
 
 ## Proposed ruling: static and dynamic states (awaiting Matt's confirmation)
 
@@ -172,16 +172,16 @@ Rules:
    - A suspension fork shortens, which pitches the frame.
    - A suspension seatpost moves its head relative to its shaft. On the ShockStop this is a translation: the source record says saddle pitch stays constant relative to the post's mounting orientation through travel.
 2. **Rule 1 describes results, not method.** It constrains the static and dynamic placements of a finished build. It doesn't constrain how fitting finds that build. Fitting may adjust settings with the bike placed dynamically, or in an intermediate state that is neither, as long as the result is one build whose two placements obey rule 1.
-3. **"Fit" covers both states.** A bike fitter's report is a set of static measurements, and it is commonly called the fit. When the state matters, say **static fit** or **dynamic fit**. A fit is a set of landmark positions and angles. Examples, not a complete list: BRP, HandGrip, saddle tilt, bar roll. Which items a fit includes is open.
-4. **Matching aims at the dynamic fit.** Across candidate builds, the goal is the dynamic fit closest to the source bike's dynamic fit. Scoring measures closeness to that goal.
-5. **The core workflow runs static → dynamic → static.**
+3. **BRP and HB each have a static and a dynamic position (Matt's ruling, 2026-11-23).** BRP is the saddle reference point. HB is the physical handgrip point (`HandGrip` in code). For each landmark, the static position is what the user measures on the riderless bike. The model derives its dynamic position with the rider seated. Fixed dynamic saddle tilt and bar roll affect these positions internally.
+4. **Fitting matches dynamic positions.** The source bike’s dynamic BRP and HB are the targets. Fitting seeks settings that bring the candidate’s dynamic BRP and HB as close as possible to those targets, and the fit score reflects that comparison.
+5. **Enter either a dynamic target directly or static measurements with a source build (Q160).** If the dynamic BRP and HB are known, enter those two points on `/` and proceed to step 3. For static measurements, compare links to `/bike`.
    1. Start from the source bike's static fit, its build, and the rider's sag on each of its suspension parts.
-   2. Place the source build dynamically to get its dynamic fit.
-   3. For each candidate (its frame, size, and part choices, with each suspension part at the rider's sag), choose the settings fitting is allowed to vary (open; see [What fitting may vary today](#what-fitting-may-vary-today)) to reproduce that dynamic fit as closely as possible.
-   4. Report the candidate's static fit, for setting it up in the workshop.
+   2. On `/bike`, derive the dynamic target and carry both points into compare.
+   3. For each candidate (its frame, size, and part choices, with each suspension part at the rider's sag), choose the settings allowed by [Matt’s fitting rulings](#what-fitting-may-vary-matts-rulings-2026-11-23) to reproduce that dynamic fit as closely as possible.
+   4. Open the exact fitted candidate in `/bike` with the target. Show its achieved dynamic fit and derive its static workshop measurements from that build, including when the candidate misses the target.
 
-   One example of the idea, not the whole rule: the saddle might read static angle X on bike A and static angle Y on bike B, while the two dynamic angles are as close to equal as possible.
-6. **Every target names its build and state.** A measured target is the static fit of a named build. A goal is a dynamic fit.
+   For example, a rigid-post candidate can match the seated BRP of a suspension-post source bike even when their static BRP measurements differ.
+6. **Make the state and purpose clear in the UX (Matt's ruling, 2026-11-23).** Identify source measurements and candidate workshop values as static. Identify fit targets, candidate positions used in scoring, and differences shown with the score as dynamic. Wherever both appear, label them so the user can tell which values to measure and which values explain the score.
 
 Consequences to carry into later stages:
 
@@ -221,13 +221,13 @@ Rejected pairs and why:
 | unweighted / weighted | Collides with scoring's `ScoreWeights` and "weighted score". |
 | nominal / effective | "Effective" is already overloaded (next section). |
 
-With this pair, users may not need a third term for the clamp setting. A build's settings are identified by its static fit, and its dynamic fit is computed from them. Code may still store a part-relative angle internally.
+Placement can derive the static angles internally from the dynamic assumptions and the motion of the clamped parts.
 
 ### Renames this implies (after the ruling)
 
 - `ForkSetup.EffectiveA2cMm` is the sagged A2C, so it is the dynamic A2C. "Effective" also means something unrelated in `InsertionBounds.EffectiveMinInsertionMm` (the combined frame and post bound) and in ETT and effective seat tube angle.
 - Drop the `Leveled…` prefix from readouts, since level is the default (item 1 note). Name the state instead wherever static and dynamic values differ. Name the unleveled chart attitude explicitly where it appears.
-- `RailPitchDeg` and `BarRollDeg` become a static or dynamic saddle tilt and bar roll, depending on which the input is.
+- For internal angle calculations, identify the state whenever it affects the meaning of a value.
 
 ## Code audit and tests
 
@@ -238,9 +238,9 @@ Nothing has been committed yet. Once the static and dynamic ruling is confirmed,
 - **Conclusion so far.** The model defines world axes by the axle line and load state by fork sag alone, and it holds rail pitch and bar roll fixed to the world. As a result, it doesn't carry the saddle and bar rigidly when sag changes. On the Fenrir L with SID 100 at 20% sag, that misplaces BRP and HandGrip by about 1 mm and the saddle and bar angles by 0.92°. Matt agreed to separate the static and dynamic placements of one build, chose those names, and ruled tire compression out of the model. The note now lists every input of a build and what each fitting operation varies, and records Matt's rulings on the role of each input. The ruling text awaits his confirmation. Once it is confirmed, case B is a defect.
 - **Evidence.** The code at `b4a46e974e02` (symbols listed under Scope, plus `ApplyFitting`, `FitPostSetback`, `FitBuilds`, and `compare.Rank`), and the CLI table above (**Observed**). Matt's direction, rulings, and choice of names are from chat on 2026-11-23.
 - **Waiting on Matt.**
-  1. Confirm the **static and dynamic ruling** text above, so it can be recorded as Q160 in `DESIGN.md`. The fitting-role rulings would be recorded with it.
+  1. Review the remaining details of the **static and dynamic ruling** above (the measurement and scoring roles of BRP and HB are confirmed), for a subsequent design ruling. [Q160](../DESIGN.md) records the agreed target entry and workshop workflow.
   2. Choose the **sag value for each fork class**, as seated sag. Today's defaults per travel are 20% for 100 mm and 25% for 120 mm and 130 mm (`ForkTravel.DefaultSagPct`).
-  3. Which items does a fit include, beyond BRP, HandGrip, saddle tilt, and bar roll? With the handlebar fixed, hand width no longer needs to be one.
+  3. Which items does a fit include, beyond BRP and HandGrip positions? With the handlebar fixed, hand width no longer needs to be one.
   4. Should **world axes** come from the floor, with front and rear radii given separately? This is part of the static state's definition.
   5. For the Fenrir check, how should the **static ShockStop** be represented? Options: (a) measure with a rigid post installed; (b) add a static state for the post, from Redshift's published offsets at rest (see the [source record](../../internal/catalog/seatpost_redshift_shockstop_pro.md)); (c) measure the post's static head offset directly.
   6. Build facts for the Fenrir: see the [Fenrir measurement note](fenrir-measurements.md). They include the fork's state when the idmatch BRP was measured.
