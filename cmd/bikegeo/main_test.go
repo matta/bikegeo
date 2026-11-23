@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
+	"bikegeo/internal/compare"
 	"bikegeo/internal/pose"
+	"bikegeo/internal/query"
 )
 
 // jsonPose mirrors pose.Pose's MarshalJSON output. pose.Pose has no
@@ -61,10 +64,37 @@ type jsonResult struct {
 	}
 }
 
+// krampusXLFox34 returns the Surly Krampus as the only compare frame, trimmed
+// to size XL on the Fox 34 534x44, so compare ranks its three sag rows instead
+// of the whole catalog.
+func krampusXLFox34() []compare.Frame {
+	for _, f := range query.CatalogFrames() {
+		if f.ID == "surly-krampus" {
+			f.Sizes = slices.DeleteFunc(f.Sizes, func(sz compare.Size) bool { return sz.Name != "XL" })
+			f.Forks = slices.DeleteFunc(f.Forks, func(fk compare.Fork) bool { return fk.ID != "fox34_120-534x44" })
+			return []compare.Frame{f}
+		}
+	}
+	panic("catalog has no surly-krampus")
+}
+
+// runCLI runs the CLI with compare ranking krampusXLFox34.
 func runCLI(args ...string) (code int, stdout, stderr string) {
 	var out, errOut bytes.Buffer
-	code = run(args, &out, &errOut)
+	code = runWith(krampusXLFox34, args, &out, &errOut)
 	return code, out.String(), errOut.String()
+}
+
+// sag20Row returns r's 20% sag row.
+func sag20Row(t *testing.T, r jsonResult) int {
+	t.Helper()
+	for i, row := range r.Rows {
+		if row.SagPct == 20 {
+			return i
+		}
+	}
+	t.Fatalf("no 20%% sag row in %d rows", len(r.Rows))
+	return -1
 }
 
 func decodeResult(t *testing.T, stdout string) jsonResult {
@@ -84,7 +114,7 @@ func assertNear(t *testing.T, name string, got, want, tol float64) {
 }
 
 func TestRunCompareSingleRowJSON(t *testing.T) {
-	const q = "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20"
+	const q = "top_per_frame=0"
 	code, stdout, stderr := runCLI("compare", q)
 	if code != 0 || stderr != "" {
 		t.Fatalf("exit %d, stderr %q; want 0, empty", code, stderr)
@@ -93,10 +123,10 @@ func TestRunCompareSingleRowJSON(t *testing.T) {
 	if r.PostID != "redshift_shockstop_pro" || r.BarID != "persuader20_800" || r.AllBarOptions {
 		t.Errorf("PostID %q, BarID %q, AllBarOptions %v", r.PostID, r.BarID, r.AllBarOptions)
 	}
-	if r.RowCount != 1 || r.Evaluated != 749 || len(r.Rows) != 1 {
-		t.Fatalf("RowCount %d, Evaluated %d, %d rows; want 1, 749, 1", r.RowCount, r.Evaluated, len(r.Rows))
+	if r.RowCount != 3 || r.Evaluated != 3*749 || len(r.Rows) != 3 {
+		t.Fatalf("RowCount %d, Evaluated %d, %d rows; want 3, %d, 3", r.RowCount, r.Evaluated, len(r.Rows), 3*749)
 	}
-	row := r.Rows[0]
+	row := r.Rows[sag20Row(t, r)]
 	if row.FrameID != "surly-krampus" || row.Size != "XL" || row.ForkID != "fox34_120-534x44" || row.SagPct != 20 {
 		t.Errorf("row = %s %s %s %v%%", row.FrameID, row.Size, row.ForkID, row.SagPct)
 	}
@@ -133,30 +163,22 @@ func TestRunCompareSingleRowJSON(t *testing.T) {
 		t.Errorf("leading ?: exit %d, stderr %q, identical stdout %v; want 0, empty, true", code2, stderr2, stdout2 == stdout)
 	}
 
-	// Bare multi-variant model ID on compare expands all variants of that model (Q131).
-	code3, stdout3, stderr3 := runCLI("compare", "frame=surly-krampus&size=XL&fork=fox34_120&sag=20")
-	if code3 != 0 || stderr3 != "" {
-		t.Fatalf("multi-variant model: exit %d, stderr %q", code3, stderr3)
-	}
-	r3 := decodeResult(t, stdout3)
-	if r3.RowCount != 2 || r3.Evaluated != 1498 || len(r3.Rows) != 2 {
-		t.Fatalf("multi-variant RowCount %d, Evaluated %d, %d rows; want 2, 1498, 2", r3.RowCount, r3.Evaluated, len(r3.Rows))
-	}
 }
 
 func TestRunCompareAllBarsJSON(t *testing.T) {
-	code, stdout, stderr := runCLI("compare", "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&bar_options=all")
+	code, stdout, stderr := runCLI("compare", "top_per_frame=0&bar_options=all")
 	if code != 0 || stderr != "" {
 		t.Fatalf("exit %d, stderr %q; want 0, empty", code, stderr)
 	}
 	r := decodeResult(t, stdout)
-	if !r.AllBarOptions || r.RowCount != 1 || r.Evaluated != 11235 || len(r.Rows) != 1 {
-		t.Fatalf("AllBarOptions %v, RowCount %d, Evaluated %d, %d rows; want true, 1, 11235, 1", r.AllBarOptions, r.RowCount, r.Evaluated, len(r.Rows))
+	if !r.AllBarOptions || r.RowCount != 3 || r.Evaluated != 3*11235 || len(r.Rows) != 3 {
+		t.Fatalf("AllBarOptions %v, RowCount %d, Evaluated %d, %d rows; want true, 3, %d, 3", r.AllBarOptions, r.RowCount, r.Evaluated, len(r.Rows), 3*11235)
 	}
-	if r.Rows[0].HandlebarID != "sqlab311_20_16_15" {
-		t.Errorf("HandlebarID = %q, want sqlab311_20_16_15", r.Rows[0].HandlebarID)
+	row := r.Rows[sag20Row(t, r)]
+	if row.HandlebarID != "sqlab311_20_16_15" {
+		t.Errorf("HandlebarID = %q, want sqlab311_20_16_15", row.HandlebarID)
 	}
-	assertNear(t, "Total", r.Rows[0].Build.Score.Total, 87.120779384, 1e-6)
+	assertNear(t, "Total", row.Build.Score.Total, 87.120779384, 1e-6)
 }
 
 func TestRunCompareHelpAndUsage(t *testing.T) {
@@ -196,7 +218,9 @@ func TestRunCompareErrors(t *testing.T) {
 		{"unknown query key", []string{"compare", "bar_option=all"}, 2, "unknown query parameter"},
 		{"cleared BRP", []string{"compare", "brp=off"}, 2, "compare requires a BRP target"},
 		{"cleared HandGrip", []string{"compare", "grip=off"}, 2, "compare requires a HandGrip target"},
-		{"unknown frame", []string{"compare", "frame=nope"}, 2, "unknown frame"},
+		{"selection key", []string{"compare", "frame=surly-krampus"}, 2, `unknown query parameter "frame"`},
+		{"bar roll", []string{"compare", "bar_roll=10"}, 2, `unknown query parameter "bar_roll"`},
+		{"rail pitch", []string{"compare", "rail_pitch=-2"}, 2, `unknown query parameter "rail_pitch"`},
 	}
 	for _, tc := range cases {
 		code, stdout, stderr := runCLI(tc.args...)
@@ -206,7 +230,7 @@ func TestRunCompareErrors(t *testing.T) {
 	}
 
 	var errOut bytes.Buffer
-	code := run([]string{"compare", "frame=surly-krampus&size=XL&fork=fox34_120&sag=20"}, failingWriter{}, &errOut)
+	code := runWith(krampusXLFox34, []string{"compare"}, failingWriter{}, &errOut)
 	if code != 1 || !strings.Contains(errOut.String(), "encode JSON") {
 		t.Errorf("failing stdout: exit %d, stderr %q; want 1, containing \"encode JSON\"", code, errOut.String())
 	}

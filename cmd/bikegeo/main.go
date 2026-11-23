@@ -28,23 +28,21 @@ const usage = `Usage:
 
 const compareUsage = `Usage: bikegeo compare [query]
 
-Ranks catalog bikes for the / compare query and prints indented JSON.
-The query is URL-encoded; a leading "?" is ignored. With no query, every
-size, fork, and sag of every catalog frame is ranked, keeping the best
-row per frame.
+Ranks every size, fork, and sag of every catalog frame for the / compare
+query and prints indented JSON. The query is URL-encoded; a leading "?" is
+ignored. To refine one bike's size, fork, sag, roll, or pitch, use
+bikegeo bike.
 
 Query keys:
-  frame, size, fork, sag   repeated, aligned selection columns
-  top_per_frame, top       most rows kept per frame / overall (0 keeps all)
+  top_per_frame, top       most rows kept per frame (default 1) / overall (0 keeps all)
   post, bar                seatpost and handlebar IDs
   bar_options              "selected" (default) or "all"
-  bar_roll, rail_pitch     handlebar roll and saddle rail pitch (degrees)
   brp_x, brp_y, brp        BRP target (mm); brp=off clears it
   grip_x, grip_y, grip     HandGrip target (mm); grip=off clears it
 
 Examples:
-  bikegeo compare 'frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20'
-  bikegeo compare 'frame=surly-krampus&frame=otso-fenrir-stainless&bar_options=all&top=5'
+  bikegeo compare
+  bikegeo compare 'top_per_frame=0&top=10&post=setback_25'
 `
 
 const bikeUsage = `Usage: bikegeo bike [query]
@@ -75,7 +73,14 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
+// run runs the CLI with compare ranking every catalog frame.
 func run(args []string, stdout, stderr io.Writer) int {
+	return runWith(query.CatalogFrames, args, stdout, stderr)
+}
+
+// runWith is run with compare ranking the frames compareFrames returns. Tests
+// pass a few catalog frames trimmed to a size or fork.
+func runWith(compareFrames func() []compare.Frame, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "help" {
 		fmt.Fprint(stdout, usage)
 		return 0
@@ -84,7 +89,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "serve":
 		return runServe(args[1:], stdout, stderr)
 	case "compare":
-		return runCompare(args[1:], stdout, stderr)
+		return runCompare(compareFrames, args[1:], stdout, stderr)
 	case "bike":
 		return runBike(args[1:], stdout, stderr)
 	default:
@@ -93,7 +98,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-func runCompare(args []string, stdout, stderr io.Writer) int {
+func runCompare(compareFrames func() []compare.Frame, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help" || args[0] == "help") {
 		fmt.Fprint(stdout, compareUsage)
 		return 0
@@ -116,6 +121,7 @@ func runCompare(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return 2
 	}
+	parsed.Request.Frames = compareFrames()
 	ranking, err := compare.Rank(parsed.Request)
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: %v\n", err)

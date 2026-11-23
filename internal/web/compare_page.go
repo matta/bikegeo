@@ -26,33 +26,10 @@ type selectOption struct {
 	Invalid  bool
 }
 
-type compareSelectionRowView struct {
-	Index           int
-	FrameID         string
-	FrameLabel      string
-	UnknownFrame    bool
-	RawSize         string
-	RawFork         string
-	RawSag          string
-	Sizes           []selectOption
-	ForkLeading     []selectOption
-	ListedForks     []selectOption
-	OtherForks      []selectOption
-	Sags            []selectOption
-	FrameInvalid    bool
-	SizeInvalid     bool
-	ForkInvalid     bool
-	SagInvalid      bool
-	RemoveURL       string
-	RemoveAriaLabel string
-}
-
 type compareFormValues struct {
 	PostOptions            []selectOption
 	BarOptions             []selectOption
 	BarOptionModes         []selectOption
-	BarRoll                string
-	RailPitch              string
 	BrpX                   string
 	BrpY                   string
 	GripX                  string
@@ -62,25 +39,18 @@ type compareFormValues struct {
 	PostInvalid            bool
 	BarInvalid             bool
 	BarOptionModeInvalid   bool
-	BarRollInvalid         bool
-	RailPitchInvalid       bool
 	BrpXInvalid            bool
 	BrpYInvalid            bool
 	GripXInvalid           bool
 	GripYInvalid           bool
 	TopPerFrameInvalid     bool
 	TopInvalid             bool
-	SelectionRows          []compareSelectionRowView
-	AddFrames              []frameSelectOption
-	ShowAllFramesLink      bool
-	AllFramesURL           string
 	RedshiftMixedStateNote string
 	ExampleBrpX            string
 	ExampleBrpY            string
 	ExampleGripX           string
 	ExampleGripY           string
 	HandlebarCount         int
-	FrameCount             int
 }
 
 type compareRowView struct {
@@ -124,12 +94,12 @@ type compareSummaryView struct {
 	HandlebarSummary string
 	BrpTargetText    string
 	GripTargetText   string
-	PostureNote      string
 }
 
 type compareView struct {
 	PageTitle              string
 	HeaderBadge            string
+	FrameCount             int // frames the page ranks
 	HasResults             bool
 	ErrorMessage           string
 	Form                   compareFormValues
@@ -149,11 +119,14 @@ func cleanZero(v, halfStep float64) float64 {
 	return v
 }
 
-func handleCompare(w http.ResponseWriter, r *http.Request) {
+// handleCompare serves / over the frames compareFrames returns:
+// query.CatalogFrames in production, a few trimmed frames in tests.
+func handleCompare(w http.ResponseWriter, r *http.Request, compareFrames func() []compare.Frame) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
+	frames := compareFrames()
 	q := r.URL.Query()
 	parsed, err := query.ParseCompare(q)
 	if err != nil {
@@ -161,12 +134,13 @@ func handleCompare(w http.ResponseWriter, r *http.Request) {
 		if inputErr, ok := errors.AsType[*query.InputError](err); ok {
 			field = inputErr.Field
 		}
-		renderCompareError(w, q, field, err.Error())
+		renderCompareError(w, q, len(frames), field, err.Error())
 		return
 	}
+	parsed.Request.Frames = frames
 	ranking, err := compare.Rank(parsed.Request)
 	if err != nil {
-		renderCompareError(w, q, "", err.Error())
+		renderCompareError(w, q, len(frames), "", err.Error())
 		return
 	}
 	view, err := buildCompareView(parsed, ranking)
@@ -180,13 +154,8 @@ func handleCompare(w http.ResponseWriter, r *http.Request) {
 func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareView, error) {
 	allFrames := catalog.Frames()
 	framesByID := make(map[string]catalog.Frame, len(allFrames))
-	addFrames := make([]frameSelectOption, len(allFrames))
-	for i, f := range allFrames {
+	for _, f := range allFrames {
 		framesByID[f.ID] = f
-		addFrames[i] = frameSelectOption{
-			ID:    f.ID,
-			Label: f.Manufacturer + " " + f.Model,
-		}
 	}
 
 	rows := make([]compareRowView, len(ranking.Rows))
@@ -277,66 +246,13 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 		slidingDropoutsSummary = strings.Join(parts, ", ")
 	}
 
-	var pageTitle, headerBadge string
-	if len(parsed.Selections) == 0 {
-		n := len(catalog.Frames())
-		pageTitle = fmt.Sprintf("Compare %d Frames — bikegeo", n)
-		headerBadge = fmt.Sprintf("All %d frames", n)
-	} else {
-		n := len(parsed.Selections)
-		setupNoun := "Setups"
-		selNoun := "selections"
-		if n == 1 {
-			setupNoun = "Setup"
-			selNoun = "selection"
-		}
-		pageTitle = fmt.Sprintf("Compare %d %s — bikegeo", n, setupNoun)
-		headerBadge = fmt.Sprintf("Custom (%d %s)", n, selNoun)
-	}
+	frameCount := len(parsed.Request.Frames)
+	pageTitle, headerBadge := compareTitle(frameCount)
 
 	bars := catalog.Handlebars()
 	handlebarSummary := parsed.Bar.Name
 	if parsed.AllBarOptions {
 		handlebarSummary = fmt.Sprintf("Best of all %d handlebars", len(bars))
-	}
-
-	var postureParts []string
-	if parsed.BarRollDeg != 0 {
-		postureParts = append(postureParts, fmt.Sprintf("Bar roll %+.1f°", parsed.BarRollDeg))
-	}
-	if parsed.RailPitchDeg != 0 {
-		postureParts = append(postureParts, fmt.Sprintf("Rail pitch %+.1f°", parsed.RailPitchDeg))
-	}
-
-	selectionRows := make([]compareSelectionRowView, len(parsed.Selections))
-	for i, sel := range parsed.Selections {
-		f := framesByID[sel.FrameID]
-		frameLabel := f.Manufacturer + " " + f.Model
-		var selectedFork *catalog.Fork
-		if matches, ok := f.LookupFork(sel.ForkID); ok {
-			fk := matches[0].Fork
-			selectedFork = &fk
-		}
-		rawSag := ""
-		if sel.SagPct != nil {
-			rawSag = query.FormatFloat(*sel.SagPct)
-		}
-		forkLeading, listedForks, otherForks := buildSelectionForkOptions(f, sel.ForkID, false)
-		selectionRows[i] = compareSelectionRowView{
-			Index:           i + 1,
-			FrameID:         sel.FrameID,
-			FrameLabel:      frameLabel,
-			RawSize:         sel.Size,
-			RawFork:         sel.ForkID,
-			RawSag:          rawSag,
-			Sizes:           buildSelectionSizeOptions(f, sel.Size, false),
-			ForkLeading:     forkLeading,
-			ListedForks:     listedForks,
-			OtherForks:      otherForks,
-			Sags:            buildSelectionSagOptions(rawSag, selectedFork, true),
-			RemoveURL:       parsed.WithoutSelection(i).URL(),
-			RemoveAriaLabel: fmt.Sprintf("Remove selection %d: %s", i+1, frameLabel),
-		}
 	}
 
 	var topPerFrameStr, topStr string
@@ -359,30 +275,24 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 	return compareView{
 		PageTitle:   pageTitle,
 		HeaderBadge: headerBadge,
+		FrameCount:  frameCount,
 		HasResults:  true,
 		Form: compareFormValues{
 			PostOptions:            buildPostSelectOptions(parsed.Post.ID, false),
 			BarOptions:             buildBarSelectOptions(parsed.Bar.ID, false),
 			BarOptionModes:         buildBarOptionModeOptions(parsed.AllBarOptions, "", false),
-			BarRoll:                formatFormFloat(float64(parsed.BarRollDeg)),
-			RailPitch:              formatFormFloat(float64(parsed.RailPitchDeg)),
 			BrpX:                   formatFormFloat(parsed.BrpTarget.X),
 			BrpY:                   formatFormFloat(parsed.BrpTarget.Y),
 			GripX:                  formatFormFloat(parsed.GripTarget.X),
 			GripY:                  formatFormFloat(parsed.GripTarget.Y),
 			TopPerFrame:            topPerFrameStr,
 			Top:                    topStr,
-			SelectionRows:          selectionRows,
-			AddFrames:              addFrames,
-			ShowAllFramesLink:      len(parsed.Selections) > 0,
-			AllFramesURL:           parsed.AllFrames().URL(),
 			RedshiftMixedStateNote: mixedNote,
 			ExampleBrpX:            formatFormFloat(defBrp.X),
 			ExampleBrpY:            formatFormFloat(defBrp.Y),
 			ExampleGripX:           formatFormFloat(defGrip.X),
 			ExampleGripY:           formatFormFloat(defGrip.Y),
 			HandlebarCount:         len(bars),
-			FrameCount:             len(catalog.Frames()),
 		},
 		Summary: compareSummaryView{
 			ShownCount:       len(rows),
@@ -391,7 +301,6 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 			HandlebarSummary: handlebarSummary,
 			BrpTargetText:    fmt.Sprintf("(%s, %s) mm", formatFormFloat(parsed.BrpTarget.X), formatFormFloat(parsed.BrpTarget.Y)),
 			GripTargetText:   fmt.Sprintf("(%.1f, %.1f) mm", parsed.GripTarget.X, parsed.GripTarget.Y),
-			PostureNote:      strings.Join(postureParts, " · "),
 		},
 		AllBarOptions:          parsed.AllBarOptions,
 		ActiveWeight:           weights.ActiveTotal(true),
@@ -402,16 +311,12 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 	}, nil
 }
 
-func renderCompareError(w http.ResponseWriter, q url.Values, invalidField, msg string) {
-	allFrames := catalog.Frames()
-	addFrames := make([]frameSelectOption, len(allFrames))
-	for i, f := range allFrames {
-		addFrames[i] = frameSelectOption{
-			ID:    f.ID,
-			Label: f.Manufacturer + " " + f.Model,
-		}
-	}
+// compareTitle returns the page title and header badge for ranking frameCount frames.
+func compareTitle(frameCount int) (pageTitle, headerBadge string) {
+	return fmt.Sprintf("Compare %d Frames — bikegeo", frameCount), fmt.Sprintf("All %d frames", frameCount)
+}
 
+func renderCompareError(w http.ResponseWriter, q url.Values, frameCount int, invalidField, msg string) {
 	postRaw := strings.TrimSpace(q.Get("post"))
 	if postRaw == "" {
 		postRaw = catalog.DefaultSeatpostID
@@ -438,15 +343,6 @@ func renderCompareError(w http.ResponseWriter, q url.Values, invalidField, msg s
 		barOptInvalid = true
 	}
 
-	barRoll := "0.0"
-	if q.Has("bar_roll") {
-		barRoll = strings.TrimSpace(q.Get("bar_roll"))
-	}
-	railPitch := "0.0"
-	if q.Has("rail_pitch") {
-		railPitch = strings.TrimSpace(q.Get("rail_pitch"))
-	}
-
 	defBrp := catalog.DefaultBrpTarget()
 	brpX := formatFormFloat(defBrp.X)
 	brpY := formatFormFloat(defBrp.Y)
@@ -469,20 +365,6 @@ func renderCompareError(w http.ResponseWriter, q url.Values, invalidField, msg s
 		gripY = ""
 	}
 
-	selectionRows := buildErrorSelectionRows(q)
-	hasAnySelParam := len(q["frame"]) > 0 || len(q["size"]) > 0 || len(q["fork"]) > 0 || len(q["sag"]) > 0
-
-	cleanQ := cloneURLValues(q)
-	cleanQ.Del("frame")
-	cleanQ.Del("size")
-	cleanQ.Del("fork")
-	cleanQ.Del("sag")
-	cleanQ.Del("top_per_frame")
-	allFramesURL := "/"
-	if len(cleanQ) > 0 {
-		allFramesURL = "/?" + cleanQ.Encode()
-	}
-
 	var mixedNote string
 	if postRaw == catalog.DefaultSeatpostID {
 		mixedNote = redshiftMixedStateNote
@@ -491,14 +373,13 @@ func renderCompareError(w http.ResponseWriter, q url.Values, invalidField, msg s
 	view := compareView{
 		PageTitle:    "Invalid Comparison — bikegeo",
 		HeaderBadge:  "Invalid query",
+		FrameCount:   frameCount,
 		HasResults:   false,
 		ErrorMessage: msg,
 		Form: compareFormValues{
 			PostOptions:            buildPostSelectOptions(postRaw, !postOK),
 			BarOptions:             buildBarSelectOptions(barRaw, !barOK),
 			BarOptionModes:         buildBarOptionModeOptions(allBarOpts, barOptRaw, barOptRaw != "" && barOptRaw != query.BarOptionsSelected && barOptRaw != query.BarOptionsAll),
-			BarRoll:                barRoll,
-			RailPitch:              railPitch,
 			BrpX:                   brpX,
 			BrpY:                   brpY,
 			GripX:                  gripX,
@@ -508,195 +389,21 @@ func renderCompareError(w http.ResponseWriter, q url.Values, invalidField, msg s
 			PostInvalid:            postInvalid,
 			BarInvalid:             barInvalid,
 			BarOptionModeInvalid:   barOptInvalid,
-			BarRollInvalid:         invalidField == "bar_roll",
-			RailPitchInvalid:       invalidField == "rail_pitch",
 			BrpXInvalid:            invalidField == "brp" || invalidField == "brp_x",
 			BrpYInvalid:            invalidField == "brp" || invalidField == "brp_y",
 			GripXInvalid:           invalidField == "grip" || invalidField == "grip_x",
 			GripYInvalid:           invalidField == "grip" || invalidField == "grip_y",
 			TopPerFrameInvalid:     invalidField == "top_per_frame",
 			TopInvalid:             invalidField == "top",
-			SelectionRows:          selectionRows,
-			AddFrames:              addFrames,
-			ShowAllFramesLink:      hasAnySelParam,
-			AllFramesURL:           allFramesURL,
 			RedshiftMixedStateNote: mixedNote,
 			ExampleBrpX:            formatFormFloat(defBrp.X),
 			ExampleBrpY:            formatFormFloat(defBrp.Y),
 			ExampleGripX:           formatFormFloat(defGrip.X),
 			ExampleGripY:           formatFormFloat(defGrip.Y),
 			HandlebarCount:         len(catalog.Handlebars()),
-			FrameCount:             len(catalog.Frames()),
 		},
 	}
 	renderCompareTemplate(w, http.StatusBadRequest, view)
-}
-
-func buildErrorSelectionRows(q url.Values) []compareSelectionRowView {
-	framesVals := q["frame"]
-	sizeVals := q["size"]
-	forkVals := q["fork"]
-	sagVals := q["sag"]
-
-	if len(framesVals) == 0 {
-		return nil
-	}
-	for _, col := range [][]string{sizeVals, forkVals, sagVals} {
-		if len(col) > 0 && len(col) != len(framesVals) {
-			return nil
-		}
-	}
-
-	at := func(vals []string, i int) string {
-		if len(vals) == 0 {
-			return ""
-		}
-		return strings.TrimSpace(vals[i])
-	}
-
-	var rows []compareSelectionRowView
-	for i := range framesVals {
-		f := strings.TrimSpace(framesVals[i])
-		sz := at(sizeVals, i)
-		fk := at(forkVals, i)
-		sg := at(sagVals, i)
-		if f == "" && sz == "" && fk == "" && sg == "" {
-			continue
-		}
-
-		removeURL := buildRemoveSelectionURL(q, i)
-		frame, ok := catalog.FrameByID(f)
-		if f == "" || !ok {
-			frameLabel := "(missing frame)"
-			if f != "" {
-				frameLabel = fmt.Sprintf("Invalid frame: %s", f)
-			}
-			rows = append(rows, compareSelectionRowView{
-				Index:           len(rows) + 1,
-				FrameID:         f,
-				FrameLabel:      frameLabel,
-				UnknownFrame:    true,
-				RawSize:         sz,
-				RawFork:         fk,
-				RawSag:          sg,
-				FrameInvalid:    true,
-				RemoveURL:       removeURL,
-				RemoveAriaLabel: fmt.Sprintf("Remove selection %d: %s", len(rows)+1, frameLabel),
-			})
-			continue
-		}
-
-		frameLabel := frame.Manufacturer + " " + frame.Model
-		sizeValid := sz == ""
-		if sz != "" {
-			_, sizeValid = frame.Size(sz)
-		}
-		var selectedFork *catalog.Fork
-		var matchedForks []catalog.ForkOption
-		forkValid := fk == ""
-		if fk != "" {
-			if matches, ok := frame.LookupFork(fk); ok {
-				matchedForks = matches
-				selected := matches[0].Fork
-				selectedFork = &selected
-				forkValid = true
-			}
-		}
-		sagValid := sg == ""
-		if sg != "" && forkValid && len(matchedForks) > 0 {
-			if v, err := strconv.ParseFloat(sg, 64); err == nil && !math.IsNaN(v) && !math.IsInf(v, 0) {
-				sagValid = true
-				for _, m := range matchedForks {
-					if (assembly.ForkSetup{Spec: m.Spec(), SagPct: v}).Validate() != nil {
-						sagValid = false
-						break
-					}
-				}
-			}
-		}
-
-		forkLeading, listedForks, otherForks := buildSelectionForkOptions(frame, fk, !forkValid)
-		rows = append(rows, compareSelectionRowView{
-			Index:           len(rows) + 1,
-			FrameID:         f,
-			FrameLabel:      frameLabel,
-			RawSize:         sz,
-			RawFork:         fk,
-			RawSag:          sg,
-			Sizes:           buildSelectionSizeOptions(frame, sz, !sizeValid),
-			ForkLeading:     forkLeading,
-			ListedForks:     listedForks,
-			OtherForks:      otherForks,
-			Sags:            buildSelectionSagOptions(sg, selectedFork, sagValid),
-			SizeInvalid:     !sizeValid,
-			ForkInvalid:     !forkValid,
-			SagInvalid:      !sagValid,
-			RemoveURL:       removeURL,
-			RemoveAriaLabel: fmt.Sprintf("Remove selection %d: %s", len(rows)+1, frameLabel),
-		})
-	}
-	return rows
-}
-
-func buildRemoveSelectionURL(q url.Values, removeIdx int) string {
-	nextQ := cloneURLValues(q)
-	removeAt := func(vals []string, idx int) []string {
-		if idx < 0 || idx >= len(vals) {
-			return vals
-		}
-		out := make([]string, 0, len(vals)-1)
-		out = append(out, vals[:idx]...)
-		out = append(out, vals[idx+1:]...)
-		return out
-	}
-
-	nextFrames := removeAt(nextQ["frame"], removeIdx)
-	if len(nextFrames) == 0 {
-		nextQ.Del("frame")
-		nextQ.Del("size")
-		nextQ.Del("fork")
-		nextQ.Del("sag")
-	} else {
-		nextQ["frame"] = nextFrames
-		for _, key := range []string{"size", "fork", "sag"} {
-			if len(nextQ[key]) > 0 {
-				nextQ[key] = removeAt(nextQ[key], removeIdx)
-			}
-		}
-		allBlank := true
-		at := func(vals []string, i int) string {
-			if len(vals) == 0 {
-				return ""
-			}
-			return strings.TrimSpace(vals[i])
-		}
-		for i := range nextFrames {
-			if strings.TrimSpace(nextFrames[i]) != "" || at(nextQ["size"], i) != "" || at(nextQ["fork"], i) != "" || at(nextQ["sag"], i) != "" {
-				allBlank = false
-				break
-			}
-		}
-		if allBlank {
-			nextQ.Del("frame")
-			nextQ.Del("size")
-			nextQ.Del("fork")
-			nextQ.Del("sag")
-		}
-	}
-	if len(nextQ) == 0 {
-		return "/"
-	}
-	return "/?" + nextQ.Encode()
-}
-
-func cloneURLValues(q url.Values) url.Values {
-	out := make(url.Values, len(q))
-	for k, v := range q {
-		cp := make([]string, len(v))
-		copy(cp, v)
-		out[k] = cp
-	}
-	return out
 }
 
 func buildPostSelectOptions(selectedID string, invalid bool) []selectOption {
@@ -764,158 +471,5 @@ func buildBarOptionModeOptions(allBars bool, raw string, invalid bool) []selectO
 			Selected: !invalid && allBars,
 		},
 	)
-	return opts
-}
-
-func buildSelectionSizeOptions(f catalog.Frame, selectedSize string, invalid bool) []selectOption {
-	opts := make([]selectOption, 0, len(f.Sizes)+2)
-	if invalid && selectedSize != "" {
-		opts = append(opts, selectOption{
-			Value:    selectedSize,
-			Label:    "Invalid: " + selectedSize,
-			Selected: true,
-			Invalid:  true,
-		})
-	}
-	opts = append(opts, selectOption{
-		Value:    "",
-		Label:    "Any size",
-		Selected: !invalid && selectedSize == "",
-	})
-	for _, sz := range f.Sizes {
-		opts = append(opts, selectOption{
-			Value:    sz.Name,
-			Label:    sz.Name,
-			Selected: !invalid && sz.Name == selectedSize,
-		})
-	}
-	return opts
-}
-
-// buildSelectionForkOptions returns a selection row's fork options in three
-// parts: the leading "Invalid: ..." and "Any fork" options, the frame's listed
-// forks, and its other compatible forks (Q139).
-func buildSelectionForkOptions(f catalog.Frame, selectedFork string, invalid bool) (leading, listed, other []selectOption) {
-	if invalid && selectedFork != "" {
-		leading = append(leading, selectOption{
-			Value:    selectedFork,
-			Label:    "Invalid: " + selectedFork,
-			Selected: true,
-			Invalid:  true,
-		})
-	}
-	leading = append(leading, selectOption{
-		Value:    "",
-		Label:    "Any fork",
-		Selected: !invalid && selectedFork == "",
-	})
-	for _, fk := range f.CompatibleForks() {
-		var group []selectOption
-		if !fk.IsMultiVariant() {
-			opt := catalog.ForkOption{Fork: fk, Variant: fk.Variants[0]}
-			group = append(group, selectOption{
-				Value:    opt.ID(),
-				Label:    makeForkOption(opt).Label,
-				Selected: !invalid && opt.ID() == selectedFork,
-			})
-		} else {
-			group = append(group, selectOption{
-				Value:    fk.ID,
-				Label:    fk.Name + " (all variants)",
-				Selected: !invalid && fk.ID == selectedFork,
-			})
-			for _, v := range fk.Variants {
-				opt := catalog.ForkOption{Fork: fk, Variant: v}
-				group = append(group, selectOption{
-					Value:    opt.ID(),
-					Label:    makeForkOption(opt).Label,
-					Selected: !invalid && opt.ID() == selectedFork,
-				})
-			}
-		}
-		if f.IsListedFork(fk.ID) {
-			listed = append(listed, group...)
-		} else {
-			other = append(other, group...)
-		}
-	}
-	return leading, listed, other
-}
-
-func buildSelectionSagOptions(rawSag string, selectedFork *catalog.Fork, sagValid bool) []selectOption {
-	type sagStep struct {
-		val   string
-		num   float64
-		label string
-	}
-	var steps []sagStep
-	switch {
-	case selectedFork == nil:
-		steps = []sagStep{
-			{"0", 0, "0% (rigid)"},
-			{"15", 15, "15%"},
-			{"20", 20, "20%"},
-			{"25", 25, "25%"},
-		}
-	case !selectedFork.Travel.IsSuspension():
-		steps = []sagStep{{"0", 0, "0% (rigid)"}}
-	default:
-		for _, pct := range selectedFork.Travel.SagPcts() {
-			val := query.FormatFloat(pct)
-			steps = append(steps, sagStep{val: val, num: pct, label: val + "%"})
-		}
-	}
-
-	var parsedSag float64
-	var hasParsed bool
-	if rawSag != "" {
-		if v, err := strconv.ParseFloat(rawSag, 64); err == nil && !math.IsNaN(v) && !math.IsInf(v, 0) {
-			parsedSag = v
-			hasParsed = true
-		}
-	}
-
-	matchedStep := false
-	opts := make([]selectOption, 0, len(steps)+2)
-	opts = append(opts, selectOption{
-		Value:    "",
-		Label:    "Any sag",
-		Selected: rawSag == "",
-	})
-	for _, st := range steps {
-		sel := false
-		inv := false
-		if rawSag != "" {
-			if (hasParsed && parsedSag == st.num) || rawSag == st.val {
-				sel = true
-				inv = !sagValid
-				matchedStep = true
-			}
-		}
-		opts = append(opts, selectOption{
-			Value:    st.val,
-			Label:    st.label,
-			Selected: sel,
-			Invalid:  inv,
-		})
-	}
-
-	if rawSag != "" && !matchedStep {
-		if sagValid && selectedFork != nil && hasParsed {
-			formatted := query.FormatFloat(parsedSag)
-			opts = append(opts, selectOption{
-				Value:    formatted,
-				Label:    formatted + "%",
-				Selected: true,
-			})
-		} else {
-			opts = slices.Insert(opts, 0, selectOption{
-				Value:    rawSag,
-				Label:    "Invalid: " + rawSag,
-				Selected: true,
-				Invalid:  true,
-			})
-		}
-	}
 	return opts
 }

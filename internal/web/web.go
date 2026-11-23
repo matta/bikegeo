@@ -14,6 +14,7 @@ import (
 
 	"bikegeo/internal/assembly"
 	"bikegeo/internal/catalog"
+	"bikegeo/internal/compare"
 	"bikegeo/internal/pose"
 	"bikegeo/internal/query"
 )
@@ -29,8 +30,17 @@ var (
 // NewHandler returns the HTTP handler for the workbench. The chart-consistency check
 // runs in the catalog's go test, not at startup (Q91).
 func NewHandler() http.Handler {
+	return newHandler(query.CatalogFrames)
+}
+
+// newHandler is NewHandler with / ranking the frames compareFrames returns.
+// Tests pass a few catalog frames trimmed to a size or fork, so a compare page
+// ranks a handful of rows instead of the whole catalog.
+func newHandler(compareFrames func() []compare.Frame) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/{$}", handleCompare)
+	mux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
+		handleCompare(w, r, compareFrames)
+	})
 	mux.HandleFunc("/bike", handleBikeWorkbench)
 	return mux
 }

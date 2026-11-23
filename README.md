@@ -26,10 +26,10 @@ make serve                           # build, serve on http://127.0.0.1:8080, op
 
 ### Web (for people)
 
-- `/` is the multi-frame comparison matrix: the best configuration of every frame (or a custom selection), ranked, with a leveled-geometry table and a collapsible score breakdown.
-- `/bike` is the single-bike inspector: the diagram, the fitting readouts, the submitted build's score, and the ranked builds.
+- `/` is the multi-frame comparison matrix: the best configuration of every frame, ranked, with a leveled-geometry table and a collapsible score breakdown. Each row links to `/bike`.
+- `/bike` is the single-bike inspector, where you refine one bike's size, fork, sag, cockpit, bar roll, and rail pitch: the diagram, the fitting readouts, the submitted build's score, and the ranked builds.
 
-Everything is a plain `GET` URL that you can bookmark or share, for example `/?frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20` and `/bike?frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20`. The URL query is the only state, there is no JavaScript, and the server listens on `127.0.0.1` only.
+Everything is a plain `GET` URL that you can bookmark or share, for example `/?top=5&bar_options=all` and `/bike?frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20`. The URL query is the only state, there is no JavaScript, and the server listens on `127.0.0.1` only.
 
 ### CLI (for agents and scripts)
 
@@ -42,9 +42,8 @@ Everything is a plain `GET` URL that you can bookmark or share, for example `/?f
 # Rank every frame (best row each), keep the top 3:
 ./bin/bikegeo compare 'top_per_frame=1&top=3'
 
-# One selection, then two frames across every handlebar:
-./bin/bikegeo compare 'frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20'
-./bin/bikegeo compare 'frame=surly-krampus&frame=otso-fenrir-stainless&bar_options=all&top=5'
+# Every size, fork, and sag row of every frame, on a 25 mm setback post:
+./bin/bikegeo compare 'top_per_frame=0&post=setback_25'
 
 # Evaluate one bike, with or without fit targets:
 ./bin/bikegeo bike

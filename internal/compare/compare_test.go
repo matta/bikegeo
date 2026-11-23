@@ -38,8 +38,8 @@ func fixtureFrames() []compare.Frame {
 			},
 			Forks: []compare.Fork{
 				{ID: "surly_krampus_483", Spec: assembly.ForkSpec{StaticA2cMm: 483, Travel: assembly.TravelRigid, RakeMm: 47, Steerer: assembly.SteererStraight118}},
-				{ID: "fox34_120-534x44", ModelID: "fox34_120", Spec: assembly.ForkSpec{StaticA2cMm: 534, Travel: assembly.Travel120, RakeMm: 44, Steerer: assembly.SteererTapered}},
-				{ID: "fox34_120-534x51", ModelID: "fox34_120", Spec: assembly.ForkSpec{StaticA2cMm: 534, Travel: assembly.Travel120, RakeMm: 51, Steerer: assembly.SteererTapered}},
+				{ID: "fox34_120-534x44", Spec: assembly.ForkSpec{StaticA2cMm: 534, Travel: assembly.Travel120, RakeMm: 44, Steerer: assembly.SteererTapered}},
+				{ID: "fox34_120-534x51", Spec: assembly.ForkSpec{StaticA2cMm: 534, Travel: assembly.Travel120, RakeMm: 51, Steerer: assembly.SteererTapered}},
 			},
 		},
 		{
@@ -63,10 +63,10 @@ func fixtureFrames() []compare.Frame {
 				},
 			},
 			Forks: []compare.Fork{
-				{ID: "lithic_carbon_mountain-495x44", ModelID: "lithic_carbon_mountain", Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 44, Steerer: assembly.SteererTapered}},
-				{ID: "lithic_carbon_mountain-498x51.5", ModelID: "lithic_carbon_mountain", Spec: assembly.ForkSpec{StaticA2cMm: 498, Travel: assembly.TravelRigid, RakeMm: 51.5, Steerer: assembly.SteererTapered}},
-				{ID: "sid_100-506x44", ModelID: "sid_100", Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}},
-				{ID: "sid_100-506x51", ModelID: "sid_100", Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 51, Steerer: assembly.SteererTapered}},
+				{ID: "lithic_carbon_mountain-495x44", Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 44, Steerer: assembly.SteererTapered}},
+				{ID: "lithic_carbon_mountain-498x51.5", Spec: assembly.ForkSpec{StaticA2cMm: 498, Travel: assembly.TravelRigid, RakeMm: 51.5, Steerer: assembly.SteererTapered}},
+				{ID: "sid_100-506x44", Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}},
+				{ID: "sid_100-506x51", Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 51, Steerer: assembly.SteererTapered}},
 			},
 		},
 	}
@@ -150,13 +150,10 @@ const (
 	krampusFrameID = "surly-krampus"
 	fenrirFrameID  = "otso-fenrir-stainless"
 	krampusForkID  = "surly_krampus_483"
-	foxModelID     = "fox34_120"
 	foxForkID      = "fox34_120-534x44"
 	foxFork51ID    = "fox34_120-534x51"
-	lithicModelID  = "lithic_carbon_mountain"
 	lithicForkID   = "lithic_carbon_mountain-495x44"
 	lithicFork51ID = "lithic_carbon_mountain-498x51.5"
-	sidModelID     = "sid_100"
 	sidForkID      = "sid_100-506x44"
 	sidFork51ID    = "sid_100-506x51"
 )
@@ -374,87 +371,7 @@ func TestRankPrunes(t *testing.T) {
 	}
 }
 
-func TestRankSelections(t *testing.T) {
-	sag := func(v float64) *float64 { return &v }
-	fullRanking, err := compare.Rank(fixtureRequest())
-	if err != nil {
-		t.Fatalf("full Rank: %v", err)
-	}
-	all := fullRanking.Rows
-	pick := func(indices ...int) []compare.Row {
-		out := make([]compare.Row, len(indices))
-		for i, idx := range indices {
-			out[i] = all[idx]
-		}
-		return out
-	}
-
-	cases := []struct {
-		name       string
-		selections []compare.Selection
-		wantCount  int
-		wantRows   []compare.Row
-	}{
-		{
-			name:       "bare model ID, open sag",
-			selections: []compare.Selection{{FrameID: krampusFrameID, Size: "XL", ForkID: foxModelID}},
-			wantCount:  6,
-			wantRows:   pick(0, 1, 2, 3, 4, 5),
-		},
-		{
-			name:       "bare model ID, explicit sag",
-			selections: []compare.Selection{{FrameID: krampusFrameID, Size: "XL", ForkID: foxModelID, SagPct: sag(20)}},
-			wantCount:  2,
-			wantRows:   pick(1, 3),
-		},
-		{
-			name:       "concrete fork, open sag",
-			selections: []compare.Selection{{FrameID: krampusFrameID, Size: "XL", ForkID: foxForkID}},
-			wantCount:  3,
-			wantRows:   pick(0, 1, 4),
-		},
-		{
-			name:       "frame only",
-			selections: []compare.Selection{{FrameID: krampusFrameID}},
-			wantCount:  14,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			req := fixtureRequest()
-			req.Selections = tc.selections
-			ranking, err := compare.Rank(req)
-			if err != nil {
-				t.Fatalf("Rank: %v", err)
-			}
-			if ranking.RowCount != tc.wantCount {
-				t.Fatalf("RowCount = %d, want %d", ranking.RowCount, tc.wantCount)
-			}
-			if tc.wantRows != nil && !reflect.DeepEqual(ranking.Rows, tc.wantRows) {
-				t.Fatalf("rows mismatch")
-			}
-		})
-	}
-
-	t.Run("explicit sag on concrete variant", func(t *testing.T) {
-		req := fixtureRequest()
-		req.Selections = []compare.Selection{{FrameID: krampusFrameID, Size: "L", ForkID: foxForkID, SagPct: sag(22)}}
-		ranking, err := compare.Rank(req)
-		if err != nil {
-			t.Fatalf("Rank: %v", err)
-		}
-		if ranking.RowCount != 1 || ranking.Evaluated != 70 {
-			t.Fatalf("RowCount %d, Evaluated %d; want 1, 70", ranking.RowCount, ranking.Evaluated)
-		}
-		assertRows(t, ranking.Rows, []wantRow{
-			{krampusFrameID, "L", foxForkID, 22, assembly.FitsAll, 79.359645, 0.934747, 120, -10, 0, false, 0},
-		})
-	})
-}
-
 func TestRankRejectsInvalidRequests(t *testing.T) {
-	sag := func(v float64) *float64 { return &v }
 	cases := []struct {
 		name   string
 		mutate func(*compare.Request)
@@ -476,17 +393,6 @@ func TestRankRejectsInvalidRequests(t *testing.T) {
 		{"fork options", func(r *compare.Request) { r.Parts.Forks = []assembly.ForkOption{{}} }, []string{"part options must not list forks"}},
 		{"negative top per frame", func(r *compare.Request) { r.TopPerFrame = -1 }, []string{"top per frame must be 0 or more, got -1"}},
 		{"negative top", func(r *compare.Request) { r.Top = -1 }, []string{"top must be 0 or more, got -1"}},
-		{"unknown frame", func(r *compare.Request) { r.Selections = []compare.Selection{{FrameID: "nope"}} }, []string{`unknown frame "nope"`}},
-		{"unknown size", func(r *compare.Request) { r.Selections = []compare.Selection{{FrameID: krampusFrameID, Size: "M"}} }, []string{`frame "surly-krampus" has no size "M"`}},
-		{"unknown fork", func(r *compare.Request) {
-			r.Selections = []compare.Selection{{FrameID: krampusFrameID, ForkID: sidForkID}}
-		}, []string{`frame "surly-krampus" has no fork "sid_100-506x44"`}},
-		{"sag without fork", func(r *compare.Request) {
-			r.Selections = []compare.Selection{{FrameID: krampusFrameID, Size: "L", SagPct: sag(20)}}
-		}, []string{`selection on frame "surly-krampus" sets sag without a fork`}},
-		{"rigid fork with sag", func(r *compare.Request) {
-			r.Selections = []compare.Selection{{FrameID: krampusFrameID, Size: "L", ForkID: krampusForkID, SagPct: sag(5)}}
-		}, []string{`frame "surly-krampus" size "L" fork "surly_krampus_483" at 5% sag:`, "rigid fork"}},
 		{"seatpost too deep for a size", func(r *compare.Request) {
 			r.Seatpost.MinInsertionMm = 300
 			r.Seatpost.MaxInsertionMm = 320

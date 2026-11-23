@@ -217,83 +217,6 @@
     .mode-note strong {
       color: var(--text);
     }
-    .scope-custom-head {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 0.4rem;
-      margin-block-end: 0.45rem;
-    }
-    .selection-table {
-      inline-size: 100%;
-      border-collapse: collapse;
-      font-size: 0.84rem;
-    }
-    .selection-table th,
-    .selection-table td {
-      padding: 0.35rem 0.5rem;
-      border-block-end: 1px solid var(--border);
-      text-align: left;
-      vertical-align: middle;
-    }
-    .selection-table thead th {
-      position: sticky;
-      inset-block-start: 0;
-      z-index: 1;
-      background: var(--surface-subtle);
-      color: var(--muted);
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      white-space: nowrap;
-    }
-    .selection-table tbody tr:last-child td {
-      border-block-end: 0;
-    }
-    .selection-table .frame-name {
-      font-weight: 600;
-      white-space: nowrap;
-    }
-    .selection-table .invalid-inline {
-      color: var(--error-text);
-      font-weight: 600;
-    }
-    .selection-table .muted-cell {
-      color: var(--muted);
-      font-size: 0.82rem;
-    }
-    .selection-table select {
-      min-inline-size: 8rem;
-    }
-    .add-frame-bar {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.45rem 0.65rem;
-      min-inline-size: 0;
-    }
-    .scope-bar-custom .add-frame-bar {
-      margin-block-start: 0.5rem;
-    }
-    .add-frame-bar label {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--text);
-      white-space: nowrap;
-    }
-    .add-frame-bar select {
-      inline-size: auto;
-      min-inline-size: min(100%, 13rem);
-      max-inline-size: 100%;
-    }
-    .field-note {
-      margin: 0;
-      font-size: 0.78rem;
-      color: var(--muted);
-      line-height: 1.35;
-    }
 
     /* 3-column hairline-separated parameter band */
     .settings-grid {
@@ -340,7 +263,7 @@
     }
     .components-row-bottom {
       display: grid;
-      grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 0.82fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 0.6rem;
     }
     .limits-grid {
@@ -374,11 +297,6 @@
       border-radius: var(--radius-sm);
       background: var(--surface);
       color: var(--text);
-    }
-    .controls .add-frame-bar select {
-      inline-size: auto;
-      min-inline-size: min(100%, 12rem);
-      max-inline-size: 100%;
     }
     .controls :is(input, select):user-invalid,
     .controls :is(input, select)[aria-invalid="true"] {
@@ -484,16 +402,6 @@
       font-weight: 500;
     }
 
-    .remove-link {
-      color: var(--danger);
-      font-size: 0.82rem;
-      font-weight: 600;
-      text-decoration: none;
-      white-space: nowrap;
-    }
-    .remove-link:hover {
-      text-decoration: underline;
-    }
     .inspect-link {
       color: var(--accent);
       font-weight: 600;
@@ -630,9 +538,6 @@
         radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 0.14), transparent) left center / 0.75rem 100% no-repeat scroll,
         radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.14), transparent) right center / 0.75rem 100% no-repeat scroll,
         var(--surface);
-    }
-    .scope-scroll {
-      max-block-size: 18rem;
     }
     table.data-table {
       inline-size: 100%;
@@ -842,93 +747,14 @@
         </div>
         {{end}}
 
-        <fieldset class="scope-bar{{if .Form.SelectionRows}} scope-bar-custom{{end}}">
-          <legend class="visually-hidden">Scope: Bikes to Compare</legend>
-          {{if not .Form.SelectionRows}}
+        <div class="scope-bar">
           <div class="scope-inline">
             <div class="scope-summary">
               <span class="scope-tag">Scope</span>
-              <p class="mode-note" data-compare-mode="all">Comparing <strong>all {{.Form.FrameCount}} catalog frames</strong> (best each)</p>
-            </div>
-            <div class="add-frame-bar">
-              <label for="ctrl-add-frame">Add a frame</label>
-              <select id="ctrl-add-frame" name="frame">
-                <option value="">Add a frame…</option>
-                {{range .Form.AddFrames}}<option value="{{.ID}}">{{.Label}}</option>{{end}}
-              </select>
-              <input type="hidden" name="size" value="">
-              <input type="hidden" name="fork" value="">
-              <input type="hidden" name="sag" value="">
+              <p class="mode-note" data-compare-mode="all">Comparing <strong>all {{.FrameCount}} catalog frames</strong> (best each)</p>
             </div>
           </div>
-          {{else}}
-          <div class="scope-custom-head">
-            <span class="scope-tag">Scope · Custom Selections</span>
-          </div>
-          <div class="table-scroll scope-scroll" tabindex="0" role="region" aria-label="Custom frame selections">
-            <table class="selection-table">
-              <thead>
-                <tr>
-                  <th scope="col">#</th>
-                  <th scope="col">Frame</th>
-                  <th scope="col">Size</th>
-                  <th scope="col">Fork</th>
-                  <th scope="col">Sag</th>
-                  <th scope="col">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {{range .Form.SelectionRows}}
-                <tr data-selection-row="{{.Index}}" data-frame-id="{{.FrameID}}">
-                  <td>{{.Index}}</td>
-                  {{if .UnknownFrame}}
-                  <td class="frame-name invalid-inline" aria-invalid="true">{{.FrameLabel}}</td>
-                  <td><span class="muted-cell">{{if .RawSize}}{{.RawSize}}{{else}}Any size{{end}}</span></td>
-                  <td><span class="muted-cell">{{if .RawFork}}{{.RawFork}}{{else}}Any fork{{end}}</span></td>
-                  <td><span class="muted-cell">{{if .RawSag}}{{.RawSag}}%{{else}}Any sag{{end}}</span></td>
-                  {{else}}
-                  <td class="frame-name">{{.FrameLabel}}<input type="hidden" name="frame" value="{{.FrameID}}"></td>
-                  <td>
-                    <select name="size" aria-label="Size for selection {{.Index}}"{{if .SizeInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
-                      {{range .Sizes}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
-                    </select>
-                  </td>
-                  <td>
-                    <select name="fork" aria-label="Fork for selection {{.Index}}"{{if .ForkInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
-                      {{range .ForkLeading}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
-                      <optgroup label="Listed Forks">
-                        {{range .ListedForks}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
-                      </optgroup>
-                      {{if .OtherForks}}<optgroup label="Other Compatible Forks">
-                        {{range .OtherForks}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
-                      </optgroup>{{end}}
-                    </select>
-                  </td>
-                  <td>
-                    <select name="sag" aria-label="Sag for selection {{.Index}}"{{if .SagInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
-                      {{range .Sags}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
-                    </select>
-                  </td>
-                  {{end}}
-                  <td><a class="remove-link" href="{{.RemoveURL}}" data-remove-selection="{{.Index}}" aria-label="{{.RemoveAriaLabel}}">Remove</a></td>
-                </tr>
-                {{end}}
-              </tbody>
-            </table>
-          </div>
-          <div class="add-frame-bar">
-            <label for="ctrl-add-frame">Add a frame</label>
-            <select id="ctrl-add-frame" name="frame">
-              <option value="">Add a frame…</option>
-              {{range .Form.AddFrames}}<option value="{{.ID}}">{{.Label}}</option>{{end}}
-            </select>
-            <input type="hidden" name="size" value="">
-            <input type="hidden" name="fork" value="">
-            <input type="hidden" name="sag" value="">
-            <span class="field-note">Pick a frame and click Compare Bikes to narrow by size, fork, and sag.</span>
-          </div>
-          {{end}}
-        </fieldset>
+        </div>
 
         <div class="settings-grid">
           <fieldset class="param-group param-group-targets">
@@ -977,14 +803,6 @@
                     {{range .Form.BarOptionModes}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
                   </select>
                 </div>
-                <div class="field">
-                  <label for="ctrl-bar-roll">Bar Roll (°)</label>
-                  <input id="ctrl-bar-roll" name="bar_roll" type="number" step="0.5" value="{{.Form.BarRoll}}"{{if .Form.BarRollInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
-                </div>
-                <div class="field">
-                  <label for="ctrl-rail-pitch">Rail Pitch (°)</label>
-                  <input id="ctrl-rail-pitch" name="rail_pitch" type="number" step="0.5" value="{{.Form.RailPitch}}"{{if .Form.RailPitchInvalid}} aria-invalid="true" aria-describedby="form-error"{{end}}>
-                </div>
               </div>
             </div>
           </fieldset>
@@ -994,7 +812,7 @@
             <div class="limits-grid">
               <div class="field">
                 <label for="ctrl-top-per-frame">Per frame</label>
-                <input id="ctrl-top-per-frame" name="top_per_frame" type="number" min="0" step="1" placeholder="auto" value="{{.Form.TopPerFrame}}" aria-describedby="{{if .Form.TopPerFrameInvalid}}top-per-frame-help form-error{{else}}top-per-frame-help{{end}}"{{if .Form.TopPerFrameInvalid}} aria-invalid="true"{{end}}>
+                <input id="ctrl-top-per-frame" name="top_per_frame" type="number" min="0" step="1" placeholder="1" value="{{.Form.TopPerFrame}}" aria-describedby="{{if .Form.TopPerFrameInvalid}}top-per-frame-help form-error{{else}}top-per-frame-help{{end}}"{{if .Form.TopPerFrameInvalid}} aria-invalid="true"{{end}}>
               </div>
               <div class="field">
                 <label for="ctrl-top">Overall limit</label>
@@ -1008,13 +826,11 @@
           <div class="control-actions">
             <button id="ctrl-submit" class="btn-primary" type="submit">Compare Bikes</button>
             <a id="preset-defaults" class="btn-secondary" href="/" data-preset="defaults">Reset Defaults</a>
-            {{if .Form.ShowAllFramesLink}}<a id="preset-all-frames" class="btn-secondary" href="{{.Form.AllFramesURL}}" data-preset="all-frames">All {{.Form.FrameCount}} Frames</a>{{end}}
           </div>
           {{if .HasResults}}
           <div class="telemetry-strip" aria-label="Comparison telemetry">
             <span class="telemetry-item" data-summary="configs">Showing <strong>{{.Summary.ShownCount}}</strong> of <strong>{{.Summary.RowCount}}</strong> configurations · <strong>{{.Summary.Evaluated}}</strong> builds evaluated</span>
             <span class="telemetry-item" data-summary="targets">Targets: <span class="telemetry-mono">BRP {{.Summary.BrpTargetText}} · HandGrip {{.Summary.GripTargetText}}</span></span>
-            {{if .Summary.PostureNote}}<span class="telemetry-item" data-summary="posture">{{.Summary.PostureNote}}</span>{{end}}
             {{if not .AllBarOptions}}<span class="telemetry-item" data-summary="bar">Handlebar: <strong>{{.Summary.HandlebarSummary}}</strong></span>{{end}}
           </div>
           {{end}}
@@ -1026,7 +842,7 @@
             <li id="targets-help">World coordinates in mm (BB at origin, +X forward, +Y up). Both targets are required. Defaults: BRP ({{.Form.ExampleBrpX}}, {{.Form.ExampleBrpY}}), HandGrip ({{.Form.ExampleGripX}}, {{.Form.ExampleGripY}}).</li>
             {{if .Form.RedshiftMixedStateNote}}<li data-note="redshift-mixed-state">{{.Form.RedshiftMixedStateNote}}</li>{{end}}
             <li data-note="bar-options-speed">All {{.Form.HandlebarCount}} handlebars evaluates ~15× more builds (about 2 s per frame).</li>
-            <li id="top-per-frame-help">Per-frame limit: blank = 1 in all-frames mode, unlimited in custom mode. 0 = unlimited.</li>
+            <li id="top-per-frame-help">Per-frame limit: most rows kept per frame. Blank = 1; 0 = unlimited.</li>
             <li id="top-help">Overall limit: maximum rows to show overall. Blank or 0 = all.</li>
           </ul>
         </details>

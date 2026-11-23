@@ -28,38 +28,19 @@ type Size struct {
 }
 
 // Fork is one physical fork variant the frame supports (Q66, Q128).
-// ModelID is the fork model ID (defaults to ID when empty) so a Selection may
-// target either a concrete variant ID or a multi-variant model ID (Q131).
 // LowerCup is the lower headset cup the fork installs with (Q136); the zero
 // value installs Size.Frame.DefaultLowerCup.
 type Fork struct {
 	ID       string
-	ModelID  string
 	Spec     assembly.ForkSpec
 	LowerCup assembly.LowerCupSetup
 }
 
-func (f Fork) modelID() string {
-	if f.ModelID != "" {
-		return f.ModelID
-	}
-	return f.ID
-}
-
-// Selection picks rows from one frame (Q87). An empty Size or ForkID selects
-// every size or fork. A nil SagPct selects 0% for a rigid fork and each of
-// Fork.Spec.Travel.SagPcts() for a suspension fork. A non-nil SagPct needs a ForkID.
-type Selection struct {
-	FrameID string
-	Size    string
-	ForkID  string
-	SagPct  *float64
-}
-
-// Request is one comparison.
+// Request is one comparison. Rank ranks every size, fork, and sag of every
+// frame: 0% for a rigid fork and each of Fork.Spec.Travel.SagPcts() for a
+// suspension fork.
 type Request struct {
 	Frames      []Frame
-	Selections  []Selection // empty selects every size, fork, and sag of every frame
 	Wheels      assembly.WheelSetup
 	Seatpost    assembly.SeatpostSpec
 	Saddle      assembly.SaddleSetup    // the saddle fit sets RailOffsetMm; RailPitchDeg is kept
@@ -102,27 +83,6 @@ func Rank(req Request) (Ranking, error) {
 		return Ranking{}, err
 	}
 
-	framesByID := make(map[string]Frame, len(req.Frames))
-	for _, f := range req.Frames {
-		framesByID[f.ID] = f
-	}
-
-	selections := req.Selections
-	if len(selections) == 0 {
-		selections = make([]Selection, len(req.Frames))
-		for i, f := range req.Frames {
-			selections[i] = Selection{FrameID: f.ID}
-		}
-	}
-
-	type rowKey struct {
-		frameID string
-		size    string
-		forkID  string
-		sagPct  float64
-	}
-	seen := make(map[rowKey]bool)
-
 	type expandedRow struct {
 		frameID   string
 		size      Size
@@ -133,37 +93,14 @@ func Rank(req Request) (Ranking, error) {
 	}
 	var expanded []expandedRow
 
-	for _, sel := range selections {
-		f := framesByID[sel.FrameID]
+	for _, f := range req.Frames {
 		for si, sz := range f.Sizes {
-			if sel.Size != "" && sz.Name != sel.Size {
-				continue
-			}
-			exactFork := sel.ForkID != "" && slices.ContainsFunc(f.Forks, func(fk Fork) bool { return fk.ID == sel.ForkID })
 			for fi, fk := range f.Forks {
-				if sel.ForkID != "" {
-					if exactFork && fk.ID != sel.ForkID {
-						continue
-					}
-					if !exactFork && fk.modelID() != sel.ForkID {
-						continue
-					}
-				}
-				var sags []float64
-				switch {
-				case sel.SagPct != nil:
-					sags = []float64{*sel.SagPct}
-				case fk.Spec.Travel == assembly.TravelRigid:
-					sags = []float64{0}
-				default:
+				sags := []float64{0}
+				if fk.Spec.Travel != assembly.TravelRigid {
 					sags = fk.Spec.Travel.SagPcts()
 				}
 				for _, sag := range sags {
-					key := rowKey{frameID: f.ID, size: sz.Name, forkID: fk.ID, sagPct: sag}
-					if seen[key] {
-						continue
-					}
-					seen[key] = true
 					expanded = append(expanded, expandedRow{
 						frameID:   f.ID,
 						size:      sz,
@@ -308,23 +245,6 @@ func (r Request) validate() error {
 	if r.Top < 0 {
 		return fmt.Errorf("top must be 0 or more, got %d", r.Top)
 	}
-
-	for _, sel := range r.Selections {
-		f, ok := framesByID[sel.FrameID]
-		if !ok {
-			return fmt.Errorf("unknown frame %q", sel.FrameID)
-		}
-		if sel.Size != "" && !hasSize(f.Sizes, sel.Size) {
-			return fmt.Errorf("frame %q has no size %q", sel.FrameID, sel.Size)
-		}
-		if sel.ForkID != "" && !hasFork(f.Forks, sel.ForkID) {
-			return fmt.Errorf("frame %q has no fork %q", sel.FrameID, sel.ForkID)
-		}
-		if sel.SagPct != nil && sel.ForkID == "" {
-			return fmt.Errorf("selection on frame %q sets sag without a fork", sel.FrameID)
-		}
-	}
-
 	return nil
 }
 
@@ -366,24 +286,6 @@ func validateForkLowerCup(fk Fork, sizes []Size) error {
 		}
 	}
 	return nil
-}
-
-func hasSize(sizes []Size, name string) bool {
-	for _, s := range sizes {
-		if s.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
-func hasFork(forks []Fork, id string) bool {
-	for _, f := range forks {
-		if f.ID == id || f.modelID() == id {
-			return true
-		}
-	}
-	return false
 }
 
 // compareRows orders rows best first: by CompareFitRank on the winning

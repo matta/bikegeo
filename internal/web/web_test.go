@@ -58,16 +58,9 @@ const legacyBuild = legacyPost + "&brp=off&grip=off"
 const legacyPost = "post=setback_0&post_insert=180.576"
 
 func TestRootServesComparePageAndNavLinks(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8080/", nil)
-	rec := httptest.NewRecorder()
-	NewHandler().ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", rec.Code)
-	}
-	rootDoc, err := goquery.NewDocumentFromReader(rec.Body)
-	if err != nil {
-		t.Fatalf("parse root HTML: %v", err)
+	status, rootDoc := loadCompareDoc(t, "/", krampusXLFox34)
+	if status != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", status)
 	}
 	if title := rootDoc.Find("h1").Text(); !strings.Contains(title, "bikegeo") {
 		t.Errorf("root h1 = %q, want bikegeo branding", title)
@@ -3812,39 +3805,6 @@ func TestBikeForkSelectGroupsListedAndOtherForks(t *testing.T) {
 }
 
 // TestCompareForkSelectGroupsListedAndOtherForks checks Q139 on /.
-func TestCompareForkSelectGroupsListedAndOtherForks(t *testing.T) {
-	leading := func(sel *goquery.Selection) []string {
-		return sel.ChildrenFiltered("option").Map(func(_ int, o *goquery.Selection) string { return strings.TrimSpace(o.Text()) })
-	}
-	_, doc := loadCompareDoc(t, "/?frame=surly-krampus")
-	sel := doc.Find(`tr[data-selection-row="1"] select[name="fork"]`)
-	if got := optgroupLabels(sel); !slices.Equal(got, []string{"Listed Forks", "Other Compatible Forks"}) {
-		t.Errorf("krampus optgroups = %v", got)
-	}
-	if got := leading(sel); !slices.Equal(got, []string{"Any fork"}) {
-		t.Errorf("krampus leading options = %v, want [Any fork]", got)
-	}
-
-	_, doc = loadCompareDoc(t, "/?frame=surly-ecr")
-	sel = doc.Find(`tr[data-selection-row="1"] select[name="fork"]`)
-	if got := optgroupLabels(sel); !slices.Equal(got, []string{"Listed Forks"}) {
-		t.Errorf("ecr optgroups = %v, want only Listed Forks", got)
-	}
-	if got := leading(sel); !slices.Equal(got, []string{"Any fork"}) {
-		t.Errorf("ecr leading options = %v, want [Any fork]", got)
-	}
-
-	// An invalid fork keeps "Invalid: ..." above the groups.
-	_, doc = loadCompareDoc(t, "/?frame=otso-fenrir-stainless&fork=nope")
-	sel = doc.Find(`tr[data-selection-row="1"] select[name="fork"]`)
-	if got := leading(sel); !slices.Equal(got, []string{"Invalid: nope", "Any fork"}) {
-		t.Errorf("invalid leading options = %v, want [Invalid: nope Any fork]", got)
-	}
-	if got := optgroupLabels(sel); !slices.Equal(got, []string{"Listed Forks", "Other Compatible Forks"}) {
-		t.Errorf("invalid optgroups = %v", got)
-	}
-}
-
 func TestBikeWorkbenchLayoutAndDisclosures(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike")
 	if got := strings.TrimSpace(doc.Find("head title").Text()); got != "Otso Fenrir Stainless (2024, Size L) — bikegeo" {

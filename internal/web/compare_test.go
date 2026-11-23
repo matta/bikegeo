@@ -5,18 +5,74 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
 	"bikegeo/internal/catalog"
+	"bikegeo/internal/compare"
+	"bikegeo/internal/query"
 	"github.com/PuerkitoBio/goquery"
 )
 
-func loadCompareDoc(t *testing.T, rawPath string) (int, *goquery.Document) {
+// frameSpec names a catalog frame trimmed to one size and one fork; a blank
+// size or fork keeps them all.
+type frameSpec struct{ frame, size, fork string }
+
+// krampusXLFox34 ranks the Surly Krampus XL on the Fox 34 534x44: three sag rows.
+var krampusXLFox34 = frameSpec{"surly-krampus", "XL", "fox34_120-534x44"}
+
+// havokLSklar ranks the sliding-dropout Binary Havok L on its rigid Sklar fork: one row.
+var havokLSklar = frameSpec{"binary-havok", "L", "sklar_steel_485"}
+
+// fullCatalogWinners trims six catalog frames to the size and fork that win
+// each of them on the full-catalog default page (query's
+// TestParseCompareDefaultAllFrames), so their rows match that page's rows.
+var fullCatalogWinners = []frameSpec{
+	{"surly-krampus", "XL", "fox34_120-534x44"},
+	{"sklar-pbj", "L", "fox36_sl_120"},
+	{"seven-custom", "Custom", "fox34_120-534x44"},
+	{"esker-hayduke", "S3", "enve_mountain_boost-492x52"},
+	{"otso-fenrir-stainless", "XL", "firestarter_deluxe_483"},
+	{"salsa-cutthroat", "60cm", "firestarter_deluxe_483"},
+}
+
+// trimmedFrames returns a compareFrames func ranking only specs' catalog
+// frames, each trimmed to its size and fork, so a compare page ranks a few
+// rows instead of the whole catalog.
+func trimmedFrames(t *testing.T, specs ...frameSpec) func() []compare.Frame {
 	t.Helper()
+	catalogFrames := query.CatalogFrames()
+	frames := make([]compare.Frame, 0, len(specs))
+	for _, spec := range specs {
+		i := slices.IndexFunc(catalogFrames, func(f compare.Frame) bool { return f.ID == spec.frame })
+		if i < 0 {
+			t.Fatalf("unknown frame %q", spec.frame)
+		}
+		f := catalogFrames[i]
+		if spec.size != "" {
+			f.Sizes = slices.DeleteFunc(f.Sizes, func(sz compare.Size) bool { return sz.Name != spec.size })
+		}
+		if spec.fork != "" {
+			f.Forks = slices.DeleteFunc(f.Forks, func(fk compare.Fork) bool { return fk.ID != spec.fork })
+		}
+		if len(f.Sizes) == 0 || len(f.Forks) == 0 {
+			t.Fatalf("frame %q has no size %q or fork %q", spec.frame, spec.size, spec.fork)
+		}
+		frames = append(frames, f)
+	}
+	return func() []compare.Frame { return frames }
+}
+
+// loadCompareDoc serves rawPath with / ranking specs' trimmed frames.
+func loadCompareDoc(t *testing.T, rawPath string, specs ...frameSpec) (int, *goquery.Document) {
+	t.Helper()
+	if len(specs) == 0 {
+		t.Fatalf("loadCompareDoc(%q) needs at least one frame", rawPath)
+	}
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8080"+rawPath, nil)
 	rec := httptest.NewRecorder()
-	NewHandler().ServeHTTP(rec, req)
+	newHandler(trimmedFrames(t, specs...)).ServeHTTP(rec, req)
 	doc, err := goquery.NewDocumentFromReader(rec.Body)
 	if err != nil {
 		t.Fatalf("parse HTML for %s: %v", rawPath, err)
@@ -24,29 +80,28 @@ func loadCompareDoc(t *testing.T, rawPath string) (int, *goquery.Document) {
 	return rec.Code, doc
 }
 
-func TestCompareDefaultAll19Frames(t *testing.T) {
-	status, doc := loadCompareDoc(t, "/")
+// TestCompareDefaultPage renders the default page over fullCatalogWinners, so
+// its six rows are rows 1, 2, 3, 8, 16, and 18 of the full-catalog page.
+func TestCompareDefaultPage(t *testing.T) {
+	status, doc := loadCompareDoc(t, "/", fullCatalogWinners...)
 	if status != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", status)
 	}
-	if got := strings.TrimSpace(doc.Find("title").Text()); got != "Compare 18 Frames — bikegeo" {
-		t.Errorf("title = %q, want Compare 18 Frames — bikegeo", got)
+	if got := strings.TrimSpace(doc.Find("title").Text()); got != "Compare 6 Frames — bikegeo" {
+		t.Errorf("title = %q, want Compare 6 Frames — bikegeo", got)
+	}
+	if got := strings.TrimSpace(doc.Find(".badge").First().Text()); got != "All 6 frames" {
+		t.Errorf("header badge = %q, want All 6 frames", got)
 	}
 	if doc.Find(`[data-compare-mode="all"]`).Length() != 1 {
 		t.Error("expected [data-compare-mode=all]")
 	}
-	if got := doc.Find(`[data-compare-mode="all"]`).Text(); !strings.Contains(got, "all 18 catalog frames") {
-		t.Errorf("compare-mode note = %q, want substring %q", got, "all 18 catalog frames")
+	if got := doc.Find(`[data-compare-mode="all"]`).Text(); !strings.Contains(got, "all 6 catalog frames") {
+		t.Errorf("compare-mode note = %q, want substring %q", got, "all 6 catalog frames")
 	}
 	wantSpeedNote := fmt.Sprintf("All %d handlebars evaluates ~15× more builds (about 2 s per frame).", len(catalog.Handlebars()))
 	if got := strings.TrimSpace(doc.Find(`[data-note="bar-options-speed"]`).Text()); got != wantSpeedNote {
 		t.Errorf("bar-options-speed note = %q, want %q", got, wantSpeedNote)
-	}
-	if n := doc.Find(`[data-selection-row]`).Length(); n != 0 {
-		t.Errorf("got %d selection rows, want 0", n)
-	}
-	if n := doc.Find(`#preset-all-frames`).Length(); n != 0 {
-		t.Errorf("got %d #preset-all-frames links, want 0", n)
 	}
 	notesDrawer := doc.Find(`[data-notes-drawer]`)
 	if notesDrawer.Length() != 1 {
@@ -82,7 +137,7 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	}
 
 	configsText := doc.Find(`[data-summary="configs"]`).Text()
-	for _, want := range []string{"18", "2889", "2163861"} {
+	for _, want := range []string{"6", "12", "8988"} {
 		if !strings.Contains(configsText, want) {
 			t.Errorf("configs summary %q missing %q", configsText, want)
 		}
@@ -99,8 +154,8 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 
 	for _, tableName := range []string{"fit", "geometry", "breakdown"} {
 		sel := fmt.Sprintf(`table[data-table="%s"] tbody tr`, tableName)
-		if n := doc.Find(sel).Length(); n != 18 {
-			t.Errorf("%s row count = %d, want 18", sel, n)
+		if n := doc.Find(sel).Length(); n != 6 {
+			t.Errorf("%s row count = %d, want 6", sel, n)
 		}
 	}
 
@@ -223,24 +278,15 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 		t.Errorf("row 3 ett = %q, want 619.4", got)
 	}
 
-	// Row #6: Seven Expedition 926d (or sliding dropouts check)
-	fit6 := doc.Find(`tr[data-compare-rank="6"]`)
-	if got := strings.TrimSpace(fit6.Find(`[data-compare-cell="frame"]`).Text()); !strings.Contains(got, "Seven Expedition 926d") {
-		t.Errorf("row 6 frame = %q, want Seven Expedition 926d", got)
-	}
-	if got := strings.TrimSpace(doc.Find(`tr[data-geometry-rank="6"] [data-geometry-cell="chainstay"]`).Text()); got != "453.0" {
-		t.Errorf("row 6 chainstay = %q, want 453.0", got)
-	}
-
-	// Row #8: Esker Hayduke S3 (sliding dropouts)
-	fit8 := doc.Find(`tr[data-compare-rank="8"]`)
+	// Row #4 (full-catalog #8): Esker Hayduke S3 (sliding dropouts)
+	fit8 := doc.Find(`tr[data-compare-rank="4"]`)
 	if got, _ := fit8.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_grip" {
 		t.Errorf("row 8 tier = %q, want fits_grip", got)
 	}
 	if got := strings.TrimSpace(fit8.Find(`[data-compare-cell="frame"] abbr.sliding-mark`).Text()); got != "*" {
 		t.Errorf("row 8 sliding-mark = %q, want *", got)
 	}
-	if got := strings.TrimSpace(doc.Find(`tr[data-geometry-rank="8"] [data-geometry-cell="chainstay"]`).Text()); got != "454.0*" {
+	if got := strings.TrimSpace(doc.Find(`tr[data-geometry-rank="4"] [data-geometry-cell="chainstay"]`).Text()); got != "454.0*" {
 		t.Errorf("row 8 chainstay = %q, want 454.0*", got)
 	}
 	if got := strings.TrimSpace(fit8.Find(`[data-compare-cell="score"]`).Text()); got != "81.3" {
@@ -250,8 +296,8 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 		t.Errorf("row 8 brp-miss = %q, want (-37.0, +0.0) mm", got)
 	}
 
-	// Row #16: Otso Fenrir Stainless XL (Tuning Chip frame, non-sliding)
-	fit16 := doc.Find(`tr[data-compare-rank="16"]`)
+	// Row #5 (full-catalog #16): Otso Fenrir Stainless XL (Tuning Chip frame, non-sliding)
+	fit16 := doc.Find(`tr[data-compare-rank="5"]`)
 	if got := strings.TrimSpace(fit16.Find(`[data-compare-cell="frame"]`).Text()); got != "Otso Fenrir Stainless" {
 		t.Errorf("row 16 frame = %q, want Otso Fenrir Stainless", got)
 	}
@@ -267,12 +313,12 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	if got := strings.TrimSpace(fit16.Find(`[data-compare-cell="oval-r"]`).Text()); got != "0.96" {
 		t.Errorf("row 16 oval-r = %q, want 0.96", got)
 	}
-	if got := strings.TrimSpace(doc.Find(`tr[data-geometry-rank="16"] [data-geometry-cell="chainstay"]`).Text()); got != "440.0" {
+	if got := strings.TrimSpace(doc.Find(`tr[data-geometry-rank="5"] [data-geometry-cell="chainstay"]`).Text()); got != "440.0" {
 		t.Errorf("row 16 chainstay = %q, want 440.0", got)
 	}
 
-	// Row #18: Salsa Cutthroat 60cm
-	fit18 := doc.Find(`tr[data-compare-rank="18"]`)
+	// Row #6 (full-catalog #18): Salsa Cutthroat 60cm
+	fit18 := doc.Find(`tr[data-compare-rank="6"]`)
 	if got, _ := fit18.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_neither" {
 		t.Errorf("row 18 tier = %q, want fits_neither", got)
 	}
@@ -284,10 +330,7 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	}
 
 	slidingNote := doc.Find(`[data-note="sliding-dropouts"]`).Text()
-	for _, name := range []string{
-		"Binary Havok", "Binary Kinetik", "Esker Hayduke",
-		"Revel El Jefe", "Salsa Fargo", "Sklar PBJ",
-	} {
+	for _, name := range []string{"Esker Hayduke", "Sklar PBJ"} {
 		if !strings.Contains(slidingNote, name) {
 			t.Errorf("sliding-dropouts note %q missing %q", slidingNote, name)
 		}
@@ -297,112 +340,58 @@ func TestCompareDefaultAll19Frames(t *testing.T) {
 	}
 }
 
-func TestCompareCustomSelectionsAndAutoTopPerFrame(t *testing.T) {
-	// Untouched Add-a-frame form stays in all-frames mode.
-	status, doc := loadCompareDoc(t, "/?frame=&size=&fork=&sag=")
+// TestCompareFormHasOnlyCompareKeys checks that every control on / submits a
+// key the compare query accepts: no custom selections, bar roll, or rail
+// pitch (Q158).
+func TestCompareFormHasOnlyCompareKeys(t *testing.T) {
+	status, doc := loadCompareDoc(t, "/", krampusXLFox34)
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
 	}
-	if doc.Find(`table[data-table="fit"] tbody tr`).Length() != 18 {
-		t.Errorf("expected 18 rows for blank frame query")
-	}
-	if doc.Find(`[data-selection-row]`).Length() != 0 {
-		t.Errorf("expected 0 selection rows for blank frame query")
-	}
-
-	// Single frame+size selection expands all forks/sags with auto top_per_frame=0.
-	status, doc = loadCompareDoc(t, "/?frame=otso-fenrir-stainless&size=L")
-	if status != http.StatusOK {
-		t.Fatalf("fenrir status = %d, want 200", status)
-	}
-	if doc.Find(`[data-selection-row]`).Length() != 1 {
-		t.Errorf("fenrir selection rows = %d, want 1", doc.Find(`[data-selection-row]`).Length())
-	}
-	for _, tbl := range []string{"fit", "geometry", "breakdown"} {
-		if n := doc.Find(fmt.Sprintf(`table[data-table="%s"] tbody tr`, tbl)).Length(); n != 32 {
-			t.Errorf("fenrir %s rows = %d, want 32", tbl, n)
+	allowed := []string{"top_per_frame", "top", "post", "bar", "bar_options", "brp_x", "brp_y", "grip_x", "grip_y"}
+	doc.Find(`form.controls [name]`).Each(func(_ int, el *goquery.Selection) {
+		name, _ := el.Attr("name")
+		if !slices.Contains(allowed, name) {
+			t.Errorf("form control name=%q is not a compare query key", name)
+		}
+	})
+	for _, sel := range []string{`[data-selection-row]`, `#ctrl-add-frame`, `#preset-all-frames`, `#ctrl-bar-roll`, `#ctrl-rail-pitch`, `[data-summary="posture"]`} {
+		if n := doc.Find(sel).Length(); n != 0 {
+			t.Errorf("got %d %s, want 0", n, sel)
 		}
 	}
-	if !strings.Contains(doc.Find(`[data-summary="configs"]`).Text(), "23968") {
-		t.Errorf("fenrir configs summary %q missing 23968", doc.Find(`[data-summary="configs"]`).Text())
+	for _, raw := range []string{"/?frame=surly-krampus", "/?frame=&size=&fork=&sag=", "/?bar_roll=10", "/?rail_pitch=-2"} {
+		status, doc := loadCompareDoc(t, raw, krampusXLFox34)
+		if status != http.StatusBadRequest {
+			t.Errorf("%s status = %d, want 400", raw, status)
+		}
+		if got := doc.Find(`#form-error`).Text(); !strings.Contains(got, "unknown query parameter") {
+			t.Errorf("%s error = %q, want unknown query parameter", raw, got)
+		}
+	}
+}
+
+func TestCompareTopLimits(t *testing.T) {
+	status, doc := loadCompareDoc(t, "/", krampusXLFox34)
+	if status != http.StatusOK {
+		t.Fatalf("default status = %d, want 200", status)
+	}
+	if n := doc.Find(`table[data-table="fit"] tbody tr`).Length(); n != 1 {
+		t.Errorf("default rows = %d, want 1 (best per frame)", n)
 	}
 	if val, _ := doc.Find(`#ctrl-top-per-frame`).Attr("value"); val != "" {
-		t.Errorf("#ctrl-top-per-frame value = %q, want empty", val)
-	}
-	if href, _ := doc.Find(`#preset-all-frames`).Attr("href"); href != "/" {
-		t.Errorf("#preset-all-frames href = %q, want /", href)
-	}
-	if href, _ := doc.Find(`a[data-remove-selection="1"]`).Attr("href"); href != "/" {
-		t.Errorf("remove-selection 1 href = %q, want /", href)
-	}
-	fit1 := doc.Find(`tr[data-compare-rank="1"]`)
-	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="fork"]`).Text()); got != "Salsa Firestarter / Cutthroat Carbon Deluxe 483mm" {
-		t.Errorf("fenrir row 1 fork = %q", got)
-	}
-	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="score"]`).Text()); got != "65.7" {
-		t.Errorf("fenrir row 1 score = %q, want 65.7", got)
-	}
-	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="oval-r"]`).Text()); got != "1.10" {
-		t.Errorf("fenrir row 1 oval-r = %q, want 1.10", got)
-	}
-	geom1 := doc.Find(`tr[data-geometry-rank="1"]`)
-	for cell, want := range map[string]string{"reach": "429.3", "stack": "641.1", "ett": "599.7", "chainstay": "440.0"} {
-		if got := strings.TrimSpace(geom1.Find(fmt.Sprintf(`[data-geometry-cell="%s"]`, cell)).Text()); got != want {
-			t.Errorf("fenrir row 1 %s = %q, want %q", cell, got, want)
-		}
+		t.Errorf("default #ctrl-top-per-frame value = %q, want empty", val)
 	}
 
-	// Multi-selection + Remove + All 18 Frames links.
-	status, multi := loadCompareDoc(t, "/?frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&frame=binary-havok&size=L&fork=sklar_steel_485&sag=&post=setback_25")
+	status, doc = loadCompareDoc(t, "/?top_per_frame=0", krampusXLFox34)
 	if status != http.StatusOK {
-		t.Fatalf("multi status = %d, want 200", status)
+		t.Fatalf("top_per_frame=0 status = %d, want 200", status)
 	}
-	if multi.Find(`[data-selection-row]`).Length() != 2 {
-		t.Fatalf("multi selection rows = %d, want 2", multi.Find(`[data-selection-row]`).Length())
-	}
-	if multi.Find(`table[data-table="fit"] tbody tr`).Length() != 2 {
-		t.Fatalf("multi ranked rows = %d, want 2", multi.Find(`table[data-table="fit"] tbody tr`).Length())
-	}
-	if got, _ := multi.Find(`tr[data-compare-rank="1"]`).Attr("data-frame-id"); got != "surly-krampus" {
-		t.Errorf("multi row 1 frame = %q, want surly-krampus", got)
-	}
-	if got, _ := multi.Find(`tr[data-compare-rank="2"]`).Attr("data-frame-id"); got != "binary-havok" {
-		t.Errorf("multi row 2 frame = %q, want binary-havok", got)
-	}
-	removeHref, _ := multi.Find(`a[data-remove-selection="1"]`).Attr("href")
-	if !strings.Contains(removeHref, "binary-havok") || !strings.Contains(removeHref, "post=setback_25") {
-		t.Errorf("remove 1 href = %q, want binary-havok and post=setback_25", removeHref)
-	}
-	rStatus, rDoc := loadCompareDoc(t, removeHref)
-	if rStatus != http.StatusOK || rDoc.Find(`table[data-table="fit"] tbody tr`).Length() != 1 {
-		t.Errorf("after remove 1: status %d, rows %d", rStatus, rDoc.Find(`table[data-table="fit"] tbody tr`).Length())
-	}
-	allHref, _ := multi.Find(`#preset-all-frames`).Attr("href")
-	if got := strings.TrimSpace(multi.Find("a#preset-all-frames").Text()); got != "All 18 Frames" {
-		t.Errorf("a#preset-all-frames text = %q, want %q", got, "All 18 Frames")
-	}
-	if !strings.Contains(allHref, "post=setback_25") || strings.Contains(allHref, "frame=") || strings.Contains(allHref, "top_per_frame=") {
-		t.Errorf("all-frames href = %q", allHref)
-	}
-	aStatus, aDoc := loadCompareDoc(t, allHref)
-	if aStatus != http.StatusOK || aDoc.Find(`table[data-table="fit"] tbody tr`).Length() != 18 {
-		t.Errorf("after all-frames: status %d, rows %d", aStatus, aDoc.Find(`table[data-table="fit"] tbody tr`).Length())
-	}
-	if val, _ := aDoc.Find(`#ctrl-post option[selected]`).Attr("value"); val != "setback_25" {
-		t.Errorf("after all-frames: post = %q, want setback_25", val)
+	if n := doc.Find(`table[data-table="fit"] tbody tr`).Length(); n != 3 {
+		t.Errorf("top_per_frame=0 rows = %d, want 3 (one per sag)", n)
 	}
 
-	// Custom URL sag 18%
-	status, sagDoc := loadCompareDoc(t, "/?frame=surly-krampus&size=XL&fork=fox34_120&sag=18")
-	if status != http.StatusOK {
-		t.Fatalf("custom sag status = %d, want 200", status)
-	}
-	if val, _ := sagDoc.Find(`tr[data-selection-row="1"] select[name="sag"] option[selected]`).Attr("value"); val != "18" {
-		t.Errorf("custom sag selected value = %q, want 18", val)
-	}
-
-	// Explicit limits
-	status, limDoc := loadCompareDoc(t, "/?top_per_frame=1&top=3")
+	status, limDoc := loadCompareDoc(t, "/?top_per_frame=1&top=3", fullCatalogWinners...)
 	if status != http.StatusOK {
 		t.Fatalf("limits status = %d, want 200", status)
 	}
@@ -418,7 +407,7 @@ func TestCompareCustomSelectionsAndAutoTopPerFrame(t *testing.T) {
 }
 
 func TestCompareAllBarOptionsShowsHandlebarColumn(t *testing.T) {
-	status, doc := loadCompareDoc(t, "/?frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&bar_options=all")
+	status, doc := loadCompareDoc(t, "/?bar_options=all&top_per_frame=0", krampusXLFox34)
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
 	}
@@ -429,7 +418,12 @@ func TestCompareAllBarOptionsShowsHandlebarColumn(t *testing.T) {
 	if !strings.Contains(strings.Join(headers, "|"), "Handlebar") {
 		t.Errorf("fit table headers %v missing Handlebar", headers)
 	}
-	fit1 := doc.Find(`tr[data-compare-rank="1"]`)
+	fit1 := doc.Find(`table[data-table="fit"] tbody tr`).FilterFunction(func(_ int, tr *goquery.Selection) bool {
+		return strings.HasSuffix(strings.TrimSpace(tr.Find(`[data-compare-cell="fork"]`).Text()), ", 20% sag")
+	})
+	if fit1.Length() != 1 {
+		t.Fatalf("got %d 20%% sag rows, want 1", fit1.Length())
+	}
 	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="bar"]`).Text()); got != "SQlab 311 2.0 Alloy 16°, 15 mm rise (740 mm)" {
 		t.Errorf("bar = %q", got)
 	}
@@ -442,8 +436,8 @@ func TestCompareAllBarOptionsShowsHandlebarColumn(t *testing.T) {
 	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="stem"]`).Text()); got != "100 mm, -7°" {
 		t.Errorf("stem = %q, want 100 mm, -7°", got)
 	}
-	if got := doc.Find(`[data-summary="configs"]`).Text(); !strings.Contains(got, "11235") {
-		t.Errorf("configs summary %q missing 11235", got)
+	if got := doc.Find(`[data-summary="configs"]`).Text(); !strings.Contains(got, "33705") {
+		t.Errorf("configs summary %q missing 33705 (3 sags x 11235)", got)
 	}
 	if n := doc.Find(`[data-summary="bar"]`).Length(); n != 0 {
 		t.Errorf("got %d [data-summary=bar] when bar_options=all, want 0", n)
@@ -451,7 +445,7 @@ func TestCompareAllBarOptionsShowsHandlebarColumn(t *testing.T) {
 }
 
 func TestCompareNonRedshiftPostOmitsCaveat(t *testing.T) {
-	status, doc := loadCompareDoc(t, "/?post=setback_0")
+	status, doc := loadCompareDoc(t, "/?post=setback_0", krampusXLFox34)
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
 	}
@@ -467,10 +461,10 @@ func TestCompareNonRedshiftPostOmitsCaveat(t *testing.T) {
 	}
 }
 
-func TestCompareErrorPagesAndRecoveryQ76Q112(t *testing.T) {
+func TestCompareErrorPagesAndRecoveryQ76(t *testing.T) {
 	assertCommonError := func(t *testing.T, raw string) *goquery.Document {
 		t.Helper()
-		status, doc := loadCompareDoc(t, raw)
+		status, doc := loadCompareDoc(t, raw, krampusXLFox34)
 		if status != http.StatusBadRequest {
 			t.Fatalf("%s status = %d, want 400", raw, status)
 		}
@@ -527,86 +521,6 @@ func TestCompareErrorPagesAndRecoveryQ76Q112(t *testing.T) {
 		t.Errorf("brp_y aria-invalid = %q, want true", inv)
 	}
 
-	// Rigid fork + 20% sag recovery
-	doc = assertCommonError(t, "/?frame=surly-krampus&size=XL&fork=surly_krampus_483&sag=20")
-	row1 := doc.Find(`tr[data-selection-row="1"]`)
-	if !strings.Contains(row1.Text(), "Surly Krampus") {
-		t.Errorf("row 1 missing Surly Krampus")
-	}
-	if val, _ := row1.Find(`select[name="size"] option[selected]`).Attr("value"); val != "XL" {
-		t.Errorf("row 1 size = %q, want XL", val)
-	}
-	if val, _ := row1.Find(`select[name="fork"] option[selected]`).Attr("value"); val != "surly_krampus_483" {
-		t.Errorf("row 1 fork = %q, want surly_krampus_483", val)
-	}
-	if inv, _ := row1.Find(`select[name="sag"]`).Attr("aria-invalid"); inv != "true" {
-		t.Errorf("row 1 sag aria-invalid = %q, want true", inv)
-	}
-	if val, _ := row1.Find(`select[name="sag"] option[selected]`).Attr("value"); val != "20" {
-		t.Errorf("row 1 sag selected = %q, want 20", val)
-	}
-	if href, _ := row1.Find(`a[data-remove-selection="1"]`).Attr("href"); href != "/" {
-		t.Errorf("row 1 remove href = %q, want /", href)
-	}
-	if rStatus, _ := loadCompareDoc(t, "/?frame=surly-krampus&size=XL&fork=surly_krampus_483&sag="); rStatus != http.StatusOK {
-		t.Errorf("recovered rigid fork status = %d, want 200", rStatus)
-	}
-
-	// Any fork + 20% sag
-	doc = assertCommonError(t, "/?frame=surly-krampus&size=XL&fork=&sag=20")
-	row1 = doc.Find(`tr[data-selection-row="1"]`)
-	if inv, _ := row1.Find(`select[name="sag"]`).Attr("aria-invalid"); inv != "true" {
-		t.Errorf("any-fork sag aria-invalid = %q, want true", inv)
-	}
-	if val, _ := row1.Find(`select[name="sag"] option[selected]`).Attr("value"); val != "20" {
-		t.Errorf("any-fork sag selected = %q, want 20", val)
-	}
-
-	// Invalid size
-	doc = assertCommonError(t, "/?frame=surly-krampus&size=XXL")
-	sel := doc.Find(`tr[data-selection-row="1"] select[name="size"]`)
-	if inv, _ := sel.Attr("aria-invalid"); inv != "true" {
-		t.Errorf("invalid size aria-invalid = %q, want true", inv)
-	}
-	if val, _ := sel.Find(`option[selected]`).Attr("value"); val != "XXL" {
-		t.Errorf("invalid size option value = %q, want XXL", val)
-	}
-	if txt := strings.TrimSpace(sel.Find(`option[selected]`).Text()); txt != "Invalid: XXL" {
-		t.Errorf("invalid size option text = %q, want Invalid: XXL", txt)
-	}
-
-	// Invalid fork (a catalog fork whose 130 mm class the frame does not unlock, plus deleted fox36_150)
-	for _, badFork := range []string{"fox34_130", "fox36_150"} {
-		doc = assertCommonError(t, "/?frame=surly-krampus&fork="+badFork)
-		sel = doc.Find(`tr[data-selection-row="1"] select[name="fork"]`)
-		if inv, _ := sel.Attr("aria-invalid"); inv != "true" {
-			t.Errorf("invalid fork %s aria-invalid = %q, want true", badFork, inv)
-		}
-		if val, _ := sel.Find(`option[selected]`).Attr("value"); val != badFork {
-			t.Errorf("invalid fork option value = %q, want %s", val, badFork)
-		}
-		if txt := strings.TrimSpace(sel.Find(`option[selected]`).Text()); txt != "Invalid: "+badFork {
-			t.Errorf("invalid fork option text = %q, want Invalid: %s", txt, badFork)
-		}
-	}
-
-	// A tapered fork does not fit the Surly ECR's 34 mm bore (Q130).
-	assertCommonError(t, "/?frame=surly-ecr&fork=firestarter_deluxe_483")
-	// An unlisted compatible fork is accepted (Q128).
-	if status, _ := loadCompareDoc(t, "/?frame=surly-krampus&fork=pike_120"); status != http.StatusOK {
-		t.Errorf("/?frame=surly-krampus&fork=pike_120 status = %d, want 200", status)
-	}
-
-	// Unknown frame
-	doc = assertCommonError(t, "/?frame=nope")
-	row1 = doc.Find(`tr[data-selection-row="1"]`)
-	if row1.Find(`[aria-invalid="true"]`).Length() == 0 {
-		t.Error("unknown frame row missing [aria-invalid=true]")
-	}
-	if href, _ := row1.Find(`a[data-remove-selection="1"]`).Attr("href"); href != "/" {
-		t.Errorf("unknown frame remove href = %q, want /", href)
-	}
-
 	// Invalid global selects
 	for _, tc := range []struct {
 		raw  string
@@ -635,8 +549,6 @@ func TestCompareErrorPagesAndRecoveryQ76Q112(t *testing.T) {
 	}{
 		{"/?top=-1", `#ctrl-top`, "-1"},
 		{"/?top_per_frame=abc", `#ctrl-top-per-frame`, "abc"},
-		{"/?bar_roll=NaN", `#ctrl-bar-roll`, "NaN"},
-		{"/?rail_pitch=Inf", `#ctrl-rail-pitch`, "Inf"},
 	} {
 		doc = assertCommonError(t, tc.raw)
 		inp := doc.Find(tc.sel)
@@ -654,27 +566,23 @@ func TestCompareErrorPagesAndRecoveryQ76Q112(t *testing.T) {
 		t.Errorf("unknown key error %q missing bar_option", doc.Find(`#form-error`).Text())
 	}
 
-	// Misaligned columns
-	doc = assertCommonError(t, "/?frame=surly-krampus&size=XL&size=L")
-	if !strings.Contains(doc.Find(`#form-error`).Text(), "must match") {
-		t.Errorf("misaligned error %q missing 'must match'", doc.Find(`#form-error`).Text())
-	}
-	if n := doc.Find(`[data-selection-row]`).Length(); n != 0 {
-		t.Errorf("misaligned query rendered %d selection rows, want 0", n)
-	}
 }
 
 func TestCompareToBikeLosslessEndToEndQ67Q77Q110(t *testing.T) {
-	scenarios := []string{
-		"frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20",
-		"frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&bar_options=all",
-		"frame=binary-havok&size=L&fork=sklar_steel_485",
-		"frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&post=setback_25&bar=sqlab311_20_16_50&bar_roll=10&rail_pitch=-2&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
+	scenarios := []struct {
+		raw   string
+		frame frameSpec
+	}{
+		{"", krampusXLFox34},
+		{"bar_options=all", krampusXLFox34},
+		{"", havokLSklar},
+		{"post=setback_25&bar=sqlab311_20_16_50&brp_x=-210&brp_y=720&grip_x=470&grip_y=730", krampusXLFox34},
 	}
 
-	for _, raw := range scenarios {
-		t.Run(raw, func(t *testing.T) {
-			status, cmpDoc := loadCompareDoc(t, "/?"+raw)
+	for _, sc := range scenarios {
+		raw := sc.raw
+		t.Run(fmt.Sprintf("%s/%s", sc.frame.frame, raw), func(t *testing.T) {
+			status, cmpDoc := loadCompareDoc(t, "/?"+raw, sc.frame)
 			if status != http.StatusOK {
 				t.Fatalf("GET /?%s status = %d, want 200", raw, status)
 			}
@@ -756,11 +664,11 @@ func TestCompareHTMLAccessibilityAndNoJS(t *testing.T) {
 		wantStatus int
 	}{
 		{"/", http.StatusOK},
-		{"/?frame=surly-krampus", http.StatusOK},
+		{"/?bar_options=all", http.StatusOK},
 		{"/?brp=off", http.StatusBadRequest},
 	} {
 		t.Run(tc.rawPath, func(t *testing.T) {
-			status, doc := loadCompareDoc(t, tc.rawPath)
+			status, doc := loadCompareDoc(t, tc.rawPath, fullCatalogWinners...)
 			if status != tc.wantStatus {
 				t.Fatalf("status = %d, want %d", status, tc.wantStatus)
 			}

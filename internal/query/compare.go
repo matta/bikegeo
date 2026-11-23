@@ -39,14 +39,11 @@ type Compare struct {
 	Bar                 catalog.Handlebar
 	AllBarOptions       bool
 	OfferedBars         []catalog.Handlebar // all catalog bars when AllBarOptions is true; nil otherwise
-	BarRollDeg          pose.Deg
-	RailPitchDeg        pose.Deg
 	BrpTarget           pose.Point
 	GripTarget          pose.Point
-	Selections          []compare.Selection
 	TopPerFrame         int
 	Top                 int
-	TopPerFrameExplicit bool // whether top_per_frame was explicitly set in the query (distinguishes explicit "0" from omitted auto mode)
+	TopPerFrameExplicit bool // whether top_per_frame was set in the query (distinguishes an explicit "1" from the omitted default)
 	TopExplicit         bool // whether top was explicitly set in the query (distinguishes explicit "0" from omitted)
 	Request             compare.Request
 }
@@ -69,20 +66,14 @@ type CompareResult struct {
 	Evaluated     int
 }
 
-// selectionCompareKeys are the repeated, aligned selection columns (Q87).
-var selectionCompareKeys = []string{"frame", "size", "fork", "sag"}
-
-// singleCompareKeys may each appear at most once.
-var singleCompareKeys = []string{
+// knownCompareKeys are every query key / accepts (Q107); each may appear at
+// most once.
+var knownCompareKeys = []string{
 	"top_per_frame", "top",
 	"post", "bar", "bar_options",
-	"bar_roll", "rail_pitch",
 	"brp_x", "brp_y", "brp",
 	"grip_x", "grip_y", "grip",
 }
-
-// knownCompareKeys are every query key / accepts (Q107).
-var knownCompareKeys = slices.Concat(selectionCompareKeys, singleCompareKeys)
 
 // CatalogFrames adapts catalog.Frames() into compare frames in ascending
 // frame ID order with declared size and fork order (Q69). Sliding-dropout
@@ -98,7 +89,7 @@ func CatalogFrames() []compare.Frame {
 		opts := f.ForkOptions()
 		forks := make([]compare.Fork, len(opts))
 		for j, opt := range opts {
-			forks[j] = compare.Fork{ID: opt.ID(), ModelID: opt.Fork.ID, Spec: opt.Spec(), LowerCup: opt.LowerCup}
+			forks[j] = compare.Fork{ID: opt.ID(), Spec: opt.Spec(), LowerCup: opt.LowerCup}
 		}
 		out[i] = compare.Frame{ID: f.ID, Sizes: sizes, Forks: forks}
 	}
@@ -112,23 +103,13 @@ func ParseCompare(q url.Values) (Compare, error) {
 	if err := checkKnownKeys(q, knownCompareKeys); err != nil {
 		return Compare{}, err
 	}
-	if err := checkSingleValueKeys(q, singleCompareKeys); err != nil {
-		return Compare{}, err
-	}
-
-	frames := CatalogFrames()
-	selections, err := parseSelections(q, frames)
-	if err != nil {
+	if err := checkSingleValueKeys(q, knownCompareKeys); err != nil {
 		return Compare{}, err
 	}
 
 	topPerFrameExplicit := strings.TrimSpace(q.Get("top_per_frame")) != ""
 	topExplicit := strings.TrimSpace(q.Get("top")) != ""
-	defaultTopPerFrame := 1
-	if len(selections) > 0 {
-		defaultTopPerFrame = 0
-	}
-	topPerFrame, err := parseNonNegInt(q, "top_per_frame", defaultTopPerFrame)
+	topPerFrame, err := parseNonNegInt(q, "top_per_frame", 1)
 	if err != nil {
 		return Compare{}, err
 	}
@@ -165,15 +146,6 @@ func ParseCompare(q url.Values) (Compare, error) {
 		return Compare{}, &InputError{Field: "bar_options", Err: fmt.Errorf("unknown handlebar options value %q", raw)}
 	}
 
-	barRollDeg, err := parseAngle(q, "bar_roll", "handlebar roll")
-	if err != nil {
-		return Compare{}, err
-	}
-	railPitchDeg, err := parseAngle(q, "rail_pitch", "saddle rail pitch")
-	if err != nil {
-		return Compare{}, err
-	}
-
 	brp, err := parseTarget(q, "brp", "brp_x", "brp_y", "BRP target", catalog.DefaultBrpTarget())
 	if err != nil {
 		return Compare{}, err
@@ -195,38 +167,29 @@ func ParseCompare(q url.Values) (Compare, error) {
 		offeredBars = catalog.Handlebars()
 		offeredSetups = make([]assembly.HandlebarSetup, len(offeredBars))
 		for i, b := range offeredBars {
-			offeredSetups[i] = b.Setup // BarRollDeg 0: FitBuilds installs Request.Handlebar.BarRollDeg (Q24)
+			offeredSetups[i] = b.Setup
 		}
 	}
-
-	saddle := catalog.DefaultSaddle().Setup
-	saddle.RailPitchDeg = railPitchDeg
-	barSetup := bar.Setup
-	barSetup.BarRollDeg = barRollDeg
 
 	return Compare{
 		Post:                post,
 		Bar:                 bar,
 		AllBarOptions:       allBars,
 		OfferedBars:         offeredBars,
-		BarRollDeg:          barRollDeg,
-		RailPitchDeg:        railPitchDeg,
 		BrpTarget:           *brp,
 		GripTarget:          *grip,
-		Selections:          selections,
 		TopPerFrame:         topPerFrame,
 		Top:                 top,
 		TopPerFrameExplicit: topPerFrameExplicit,
 		TopExplicit:         topExplicit,
 		Request: compare.Request{
-			Frames:     frames,
-			Selections: selections,
-			Wheels:     assembly.WheelSetup{RadiusMm: catalog.WheelRadiusMm},
-			Seatpost:   post.Spec,
-			Saddle:     saddle,
-			Stem:       catalog.DefaultStemSetup(),
-			Handlebar:  barSetup,
-			Target:     assembly.FitTarget{BRP: brp, HandGrip: grip},
+			Frames:    CatalogFrames(),
+			Wheels:    assembly.WheelSetup{RadiusMm: catalog.WheelRadiusMm},
+			Seatpost:  post.Spec,
+			Saddle:    catalog.DefaultSaddle().Setup,
+			Stem:      catalog.DefaultStemSetup(),
+			Handlebar: bar.Setup,
+			Target:    assembly.FitTarget{BRP: brp, HandGrip: grip},
 			Parts: assembly.PartOptions{
 				Stems:        catalog.StemOptions(),
 				SpacerStepMm: catalog.SpacerStepMm,
@@ -306,88 +269,6 @@ func (c Compare) RowBikeURL(row compare.Row) (string, error) {
 	return "/bike?" + v.Encode(), nil
 }
 
-// URL encodes c as a canonical / compare URL, omitting default global values.
-func (c Compare) URL() string {
-	v := url.Values{}
-	for _, sel := range c.Selections {
-		v.Add("frame", sel.FrameID)
-		v.Add("size", sel.Size)
-		v.Add("fork", sel.ForkID)
-		if sel.SagPct != nil {
-			v.Add("sag", FormatFloat(*sel.SagPct))
-		} else {
-			v.Add("sag", "")
-		}
-	}
-	if c.TopPerFrameExplicit {
-		v.Set("top_per_frame", strconv.Itoa(c.TopPerFrame))
-	}
-	if c.TopExplicit {
-		v.Set("top", strconv.Itoa(c.Top))
-	}
-	if c.Post.ID != catalog.DefaultSeatpostID {
-		v.Set("post", c.Post.ID)
-	}
-	if c.Bar.ID != catalog.DefaultHandlebarID {
-		v.Set("bar", c.Bar.ID)
-	}
-	if c.AllBarOptions {
-		v.Set("bar_options", BarOptionsAll)
-	}
-	if c.BarRollDeg != 0 {
-		v.Set("bar_roll", FormatFloat(float64(c.BarRollDeg)))
-	}
-	if c.RailPitchDeg != 0 {
-		v.Set("rail_pitch", FormatFloat(float64(c.RailPitchDeg)))
-	}
-	if c.BrpTarget != catalog.DefaultBrpTarget() {
-		v.Set("brp_x", FormatFloat(c.BrpTarget.X))
-		v.Set("brp_y", FormatFloat(c.BrpTarget.Y))
-	}
-	if c.GripTarget != catalog.DefaultGripTarget() {
-		v.Set("grip_x", FormatFloat(c.GripTarget.X))
-		v.Set("grip_y", FormatFloat(c.GripTarget.Y))
-	}
-	if len(v) == 0 {
-		return "/"
-	}
-	return "/?" + v.Encode()
-}
-
-// WithoutSelection returns a copy of c with custom selection index removed.
-// When removing the last selection and top_per_frame was not explicitly set,
-// TopPerFrame reverts to the all-frames default of 1 (Q87).
-func (c Compare) WithoutSelection(index int) Compare {
-	if index < 0 || index >= len(c.Selections) {
-		return c
-	}
-	next := make([]compare.Selection, 0, len(c.Selections)-1)
-	next = append(next, c.Selections[:index]...)
-	next = append(next, c.Selections[index+1:]...)
-	if len(next) == 0 {
-		next = nil
-	}
-	c.Selections = next
-	c.Request.Selections = next
-	if len(next) == 0 && !c.TopPerFrameExplicit {
-		c.TopPerFrame = 1
-		c.Request.TopPerFrame = 1
-	}
-	return c
-}
-
-// AllFrames returns a copy of c cleared back to all-frames mode with auto
-// per-frame ranking (TopPerFrame = 1, TopPerFrameExplicit = false), keeping
-// global seatpost, handlebar, posture, target, and overall top settings (Q112).
-func (c Compare) AllFrames() Compare {
-	c.Selections = nil
-	c.Request.Selections = nil
-	c.TopPerFrameExplicit = false
-	c.TopPerFrame = 1
-	c.Request.TopPerFrame = 1
-	return c
-}
-
 // ResolveResult pairs each ranked row with its winning catalog handlebar ID
 // (Q106).
 func (c Compare) ResolveResult(ranking compare.Ranking) (CompareResult, error) {
@@ -436,103 +317,6 @@ func checkSingleValueKeys(q url.Values, single []string) error {
 	return nil
 }
 
-// parseSelections reads the aligned frame/size/fork/sag columns into
-// selections, validated against frames (Q87). All-blank tuples from unused
-// HTML form rows are skipped.
-func parseSelections(q url.Values, frames []compare.Frame) ([]compare.Selection, error) {
-	framesVals := q["frame"]
-	sizeVals := q["size"]
-	forkVals := q["fork"]
-	sagVals := q["sag"]
-
-	type column struct {
-		name string
-		vals []string
-	}
-	columns := []column{{"size", sizeVals}, {"fork", forkVals}, {"sag", sagVals}}
-
-	if len(framesVals) == 0 {
-		for _, c := range columns {
-			if len(c.vals) > 0 {
-				return nil, &InputError{Field: c.name, Err: fmt.Errorf("%q requires \"frame\"", c.name)}
-			}
-		}
-		return nil, nil
-	}
-	for _, c := range columns {
-		if len(c.vals) > 0 && len(c.vals) != len(framesVals) {
-			return nil, &InputError{Field: c.name, Err: fmt.Errorf("%q count (%d) must match \"frame\" count (%d)", c.name, len(c.vals), len(framesVals))}
-		}
-	}
-
-	framesByID := make(map[string]compare.Frame, len(frames))
-	for _, f := range frames {
-		framesByID[f.ID] = f
-	}
-
-	at := func(vals []string, i int) string {
-		if len(vals) == 0 {
-			return ""
-		}
-		return strings.TrimSpace(vals[i])
-	}
-
-	var selections []compare.Selection
-	for i := range framesVals {
-		f := strings.TrimSpace(framesVals[i])
-		sz := at(sizeVals, i)
-		fk := at(forkVals, i)
-		sg := at(sagVals, i)
-
-		if f == "" && sz == "" && fk == "" && sg == "" {
-			continue
-		}
-		if f == "" {
-			return nil, &InputError{Field: "frame", Err: fmt.Errorf("selection %d is missing \"frame\"", i+1)}
-		}
-		fr, ok := framesByID[f]
-		if !ok {
-			return nil, &InputError{Field: "frame", Err: fmt.Errorf("selection %d: unknown frame %q", i+1, f)}
-		}
-		if sz != "" && !slices.ContainsFunc(fr.Sizes, func(s compare.Size) bool { return s.Name == sz }) {
-			return nil, &InputError{Field: "size", Err: fmt.Errorf("selection %d: frame %q has no size %q", i+1, f, sz)}
-		}
-		var matchedForks []compare.Fork
-		if fk != "" {
-			for _, k := range fr.Forks {
-				if k.ID == fk {
-					matchedForks = []compare.Fork{k}
-					break
-				}
-				if k.ModelID == fk {
-					matchedForks = append(matchedForks, k)
-				}
-			}
-			if len(matchedForks) == 0 {
-				return nil, &InputError{Field: "fork", Err: fmt.Errorf("selection %d: frame %q has no fork %q", i+1, f, fk)}
-			}
-		}
-		var sagPtr *float64
-		if sg != "" {
-			if fk == "" {
-				return nil, &InputError{Field: "sag", Err: fmt.Errorf("selection %d: sag requires a fork", i+1)}
-			}
-			v, ok := parseFiniteFloat(sg)
-			if !ok {
-				return nil, &InputError{Field: "sag", Err: fmt.Errorf("selection %d: fork sag must be a finite number, got %q", i+1, sg)}
-			}
-			for _, selectedFork := range matchedForks {
-				if err := (assembly.ForkSetup{Spec: selectedFork.Spec, SagPct: v}).Validate(); err != nil {
-					return nil, &InputError{Field: "sag", Err: fmt.Errorf("selection %d: %w", i+1, err)}
-				}
-			}
-			sagPtr = &v
-		}
-		selections = append(selections, compare.Selection{FrameID: f, Size: sz, ForkID: fk, SagPct: sagPtr})
-	}
-	return selections, nil
-}
-
 // parseNonNegInt reads a non-negative integer; blank selects defaultVal.
 func parseNonNegInt(q url.Values, key string, defaultVal int) (int, error) {
 	raw := strings.TrimSpace(q.Get(key))
@@ -544,19 +328,6 @@ func parseNonNegInt(q url.Values, key string, defaultVal int) (int, error) {
 		return 0, &InputError{Field: key, Err: fmt.Errorf("%s must be a non-negative integer, got %q", key, raw)}
 	}
 	return n, nil
-}
-
-// parseAngle reads a finite posture angle in degrees; blank selects 0.
-func parseAngle(q url.Values, key, label string) (pose.Deg, error) {
-	raw := strings.TrimSpace(q.Get(key))
-	if raw == "" {
-		return 0, nil
-	}
-	v, ok := parseFiniteFloat(raw)
-	if !ok {
-		return 0, &InputError{Field: key, Err: fmt.Errorf("%s must be a finite number, got %q", label, raw)}
-	}
-	return pose.Deg(v), nil
 }
 
 // parseTarget reads a fit target from its x/y keys and its "off" flag (Q53,

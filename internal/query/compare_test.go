@@ -2,9 +2,11 @@ package query_test
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"net/url"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -31,6 +33,54 @@ func mustParseCompare(t *testing.T, raw string) query.Compare {
 		t.Fatalf("ParseCompare(%q): %v", raw, err)
 	}
 	return c
+}
+
+// trimFrames returns catalog frame frameID as a compare frame keeping only
+// size and forkID (blank keeps every size or fork), so a test ranks a few rows
+// instead of the whole catalog.
+func trimFrames(t *testing.T, frameID, size, forkID string) []compare.Frame {
+	t.Helper()
+	for _, f := range query.CatalogFrames() {
+		if f.ID != frameID {
+			continue
+		}
+		if size != "" {
+			f.Sizes = slices.DeleteFunc(f.Sizes, func(sz compare.Size) bool { return sz.Name != size })
+		}
+		if forkID != "" {
+			f.Forks = slices.DeleteFunc(f.Forks, func(fk compare.Fork) bool { return fk.ID != forkID })
+		}
+		if len(f.Sizes) == 0 || len(f.Forks) == 0 {
+			t.Fatalf("frame %q has no size %q or fork %q", frameID, size, forkID)
+		}
+		return []compare.Frame{f}
+	}
+	t.Fatalf("unknown frame %q", frameID)
+	return nil
+}
+
+// bikeRow names one compare row: a frame, size, fork, and sag.
+type bikeRow struct {
+	frame, size, fork string
+	sagPct            float64
+}
+
+// rankRow ranks raw's compare query over row's frame trimmed to its size and
+// fork, keeping every sag, and returns the parsed query, the result, and the
+// ranked row at row's sag.
+func rankRow(t *testing.T, raw string, row bikeRow) (query.Compare, query.CompareResult, query.CompareRow) {
+	t.Helper()
+	c := mustParseCompare(t, raw)
+	c.Request.Frames = trimFrames(t, row.frame, row.size, row.fork)
+	c.Request.TopPerFrame = 0
+	result := mustRankAndResolve(t, c)
+	for _, r := range result.Rows {
+		if r.SagPct == row.sagPct {
+			return c, result, r
+		}
+	}
+	t.Fatalf("%q: no %v%% sag row for %+v", raw, row.sagPct, row)
+	return c, result, query.CompareRow{}
 }
 
 func assertNear(t *testing.T, name string, got, want, tol float64) {
@@ -73,9 +123,6 @@ func TestCatalogFrames(t *testing.T) {
 			if cf.Forks[j].ID != opt.ID() {
 				t.Errorf("%s fork %d = %q, want %q", f.ID, j, cf.Forks[j].ID, opt.ID())
 			}
-			if cf.Forks[j].ModelID != opt.Fork.ID {
-				t.Errorf("%s fork %d ModelID = %q, want %q", f.ID, j, cf.Forks[j].ModelID, opt.Fork.ID)
-			}
 			if cf.Forks[j].LowerCup != opt.LowerCup {
 				t.Errorf("%s fork %q cup = %+v, want %+v", f.ID, opt.ID(), cf.Forks[j].LowerCup, opt.LowerCup)
 			}
@@ -113,7 +160,7 @@ func TestCatalogFrames(t *testing.T) {
 
 // TestParseCompareDefaults checks the catalog compare defaults (Q53, Q56, Q62, Q87).
 func TestParseCompareDefaults(t *testing.T) {
-	for _, raw := range []string{"", "frame=&size=&fork=&sag="} {
+	for _, raw := range []string{"", "top_per_frame=&top="} {
 		c := mustParseCompare(t, raw)
 		if c.Post.ID != "redshift_shockstop_pro" {
 			t.Errorf("%q: Post.ID = %q", raw, c.Post.ID)
@@ -124,17 +171,11 @@ func TestParseCompareDefaults(t *testing.T) {
 		if c.AllBarOptions || c.OfferedBars != nil {
 			t.Errorf("%q: AllBarOptions = %v, OfferedBars = %v; want false, nil", raw, c.AllBarOptions, c.OfferedBars)
 		}
-		if c.BarRollDeg != 0 || c.RailPitchDeg != 0 {
-			t.Errorf("%q: BarRollDeg = %v, RailPitchDeg = %v; want 0, 0", raw, c.BarRollDeg, c.RailPitchDeg)
-		}
 		if c.BrpTarget != (pose.Point{X: -219, Y: 713.1}) {
 			t.Errorf("%q: BrpTarget = %+v", raw, c.BrpTarget)
 		}
 		if c.GripTarget != (pose.Point{X: 481, Y: 726}) {
 			t.Errorf("%q: GripTarget = %+v", raw, c.GripTarget)
-		}
-		if len(c.Selections) != 0 {
-			t.Errorf("%q: got %d selections, want 0", raw, len(c.Selections))
 		}
 		if c.TopPerFrame != 1 || c.Top != 0 {
 			t.Errorf("%q: TopPerFrame = %d, Top = %d; want 1, 0", raw, c.TopPerFrame, c.Top)
@@ -142,8 +183,11 @@ func TestParseCompareDefaults(t *testing.T) {
 		if c.TopPerFrameExplicit || c.TopExplicit {
 			t.Errorf("%q: TopPerFrameExplicit = %v, TopExplicit = %v; want false, false", raw, c.TopPerFrameExplicit, c.TopExplicit)
 		}
-		if got := c.URL(); got != "/" {
-			t.Errorf("%q: URL() = %q, want %q", raw, got, "/")
+		if c.Request.Handlebar.BarRollDeg != 0 || c.Request.Saddle.RailPitchDeg != 0 {
+			t.Errorf("%q: BarRollDeg = %v, RailPitchDeg = %v; want 0, 0", raw, c.Request.Handlebar.BarRollDeg, c.Request.Saddle.RailPitchDeg)
+		}
+		if len(c.Request.Frames) != len(catalog.Frames()) {
+			t.Errorf("%q: got %d frames, want every catalog frame (%d)", raw, len(c.Request.Frames), len(catalog.Frames()))
 		}
 		if c.Request.Parts.Handlebars != nil {
 			t.Errorf("%q: Request.Parts.Handlebars = %v, want nil", raw, c.Request.Parts.Handlebars)
@@ -157,41 +201,9 @@ func TestParseCompareDefaults(t *testing.T) {
 	}
 }
 
-func TestParseCompareSelectionsAndFlags(t *testing.T) {
-	t.Run("single selection", func(t *testing.T) {
-		c := mustParseCompare(t, "frame=surly-krampus&size=XL&fork=fox34_120&sag=20")
-		if len(c.Selections) != 1 || c.TopPerFrame != 0 {
-			t.Fatalf("got %d selections, TopPerFrame %d; want 1, 0", len(c.Selections), c.TopPerFrame)
-		}
-		if c.TopPerFrameExplicit || c.TopExplicit {
-			t.Errorf("TopPerFrameExplicit = %v, TopExplicit = %v; want false, false", c.TopPerFrameExplicit, c.TopExplicit)
-		}
-		if c.Selections[0].SagPct == nil || *c.Selections[0].SagPct != 20 {
-			t.Errorf("SagPct = %v, want 20", c.Selections[0].SagPct)
-		}
-	})
-
-	t.Run("omitted optional columns", func(t *testing.T) {
-		c := mustParseCompare(t, "frame=surly-krampus&frame=otso-fenrir-stainless")
-		if len(c.Selections) != 2 || c.TopPerFrame != 0 {
-			t.Fatalf("got %d selections, TopPerFrame %d; want 2, 0", len(c.Selections), c.TopPerFrame)
-		}
-		for i, s := range c.Selections {
-			if s.Size != "" || s.ForkID != "" || s.SagPct != nil {
-				t.Errorf("selection %d = %+v, want open size, fork, and sag", i, s)
-			}
-		}
-	})
-
-	t.Run("trailing blank form slot", func(t *testing.T) {
-		c := mustParseCompare(t, "frame=surly-krampus&size=XL&fork=&sag=&frame=&size=&fork=&sag=")
-		if len(c.Selections) != 1 || c.TopPerFrame != 0 {
-			t.Errorf("got %d selections, TopPerFrame %d; want 1, 0", len(c.Selections), c.TopPerFrame)
-		}
-	})
-
+func TestParseCompareFlags(t *testing.T) {
 	t.Run("explicit top limits", func(t *testing.T) {
-		for _, raw := range []string{"top_per_frame=2&top=5", "frame=surly-krampus&top_per_frame=2&top=5"} {
+		for _, raw := range []string{"top_per_frame=2&top=5", "top=5&top_per_frame=2"} {
 			c := mustParseCompare(t, raw)
 			if c.TopPerFrame != 2 || c.Top != 5 || c.Request.TopPerFrame != 2 || c.Request.Top != 5 {
 				t.Errorf("%q: TopPerFrame %d, Top %d; want 2, 5", raw, c.TopPerFrame, c.Top)
@@ -206,22 +218,8 @@ func TestParseCompareSelectionsAndFlags(t *testing.T) {
 		}
 	})
 
-	t.Run("rigid fork zero sag", func(t *testing.T) {
-		c := mustParseCompare(t, "frame=surly-krampus&fork=surly_krampus_483&sag=0")
-		if c.Selections[0].SagPct == nil || *c.Selections[0].SagPct != 0 {
-			t.Errorf("SagPct = %v, want 0", c.Selections[0].SagPct)
-		}
-	})
-
-	t.Run("decoded space in size", func(t *testing.T) {
-		c := mustParseCompare(t, "frame=seven-expedition-926d&size=S+58cm")
-		if c.Selections[0].Size != "S 58cm" {
-			t.Errorf("Size = %q, want %q", c.Selections[0].Size, "S 58cm")
-		}
-	})
-
 	t.Run("all bar options", func(t *testing.T) {
-		c := mustParseCompare(t, "bar_options=all&bar_roll=10")
+		c := mustParseCompare(t, "bar_options=all")
 		if !c.AllBarOptions || len(c.OfferedBars) != 15 || len(c.Request.Parts.Handlebars) != 15 {
 			t.Fatalf("AllBarOptions %v, %d offered bars, %d part bars; want true, 15, 15", c.AllBarOptions, len(c.OfferedBars), len(c.Request.Parts.Handlebars))
 		}
@@ -229,9 +227,6 @@ func TestParseCompareSelectionsAndFlags(t *testing.T) {
 			if b.BarRollDeg != 0 {
 				t.Errorf("Parts.Handlebars[%d].BarRollDeg = %v, want 0", i, b.BarRollDeg)
 			}
-		}
-		if c.Request.Handlebar.BarRollDeg != 10 {
-			t.Errorf("Request.Handlebar.BarRollDeg = %v, want 10 (Q24)", c.Request.Handlebar.BarRollDeg)
 		}
 	})
 
@@ -264,30 +259,13 @@ func TestParseCompareRejectsInvalidQueries(t *testing.T) {
 		{"post=setback_0&post=setback_15", "post", "may only be specified once"},
 		{"brp_x=-219&brp_x=-200", "brp_x", "may only be specified once"},
 
-		// parseSelections (Q87)
-		{"size=L", "size", `requires "frame"`},
-		{"fork=sid_100", "fork", `requires "frame"`},
-		{"sag=20", "sag", `requires "frame"`},
-		{"size=", "size", `requires "frame"`},
-		{"frame=surly-krampus&frame=otso-fenrir-stainless&size=XL", "size", "must match"},
-		{"frame=surly-krampus&fork=fox34_120&fork=surly_krampus_483", "fork", "must match"},
-		{"frame=surly-krampus&frame=otso-fenrir-stainless&sag=20", "sag", "must match"},
-		{"frame=&size=XL&fork=&sag=", "frame", `missing "frame"`},
-		{"frame=surly-krampus&size=XL&fork=&sag=&frame=&size=&fork=sid_100&sag=", "frame", `selection 2 is missing "frame"`},
-		{"frame=unknown-bike", "frame", "unknown frame"},
-		{"frame=surly-krampus&size=XXL", "size", "has no size"},
-		// fox34_130 is a catalog fork whose 130 mm class the Krampus's listing does not unlock; the ECR's 34 mm bore rejects tapered forks; fox36_150 is deleted.
-		{"frame=surly-krampus&fork=fox34_130", "fork", "has no fork"},
-		{"frame=surly-ecr&fork=firestarter_deluxe_483", "fork", "has no fork"},
-		{"frame=surly-krampus&fork=fox36_150", "fork", "has no fork"},
-		{"frame=surly-krampus&fork=basis", "fork", "has no fork"},
-		{"frame=surly-krampus&size=XL&sag=20", "sag", "sag requires a fork"},
-		{"frame=surly-krampus&fork=fox34_120&sag=abc", "sag", "finite number"},
-		{"frame=surly-krampus&fork=fox34_120&sag=NaN", "sag", "finite number"},
-		{"frame=surly-krampus&fork=fox34_120&sag=Inf", "sag", "finite number"},
-		{"frame=surly-krampus&fork=fox34_120&sag=-5", "sag", "fork sag must be in"},
-		{"frame=surly-krampus&fork=fox34_120&sag=105", "sag", "fork sag must be in"},
-		{"frame=surly-krampus&fork=surly_krampus_483&sag=5", "sag", "rigid fork"},
+		// custom selections, bar roll, and rail pitch left compare (Q158)
+		{"frame=surly-krampus", "frame", "unknown query parameter"},
+		{"frame=&size=&fork=&sag=", "fork", "unknown query parameter"},
+		{"size=L", "size", "unknown query parameter"},
+		{"sag=20", "sag", "unknown query parameter"},
+		{"bar_roll=10", "bar_roll", "unknown query parameter"},
+		{"rail_pitch=-2", "rail_pitch", "unknown query parameter"},
 
 		// parseNonNegInt
 		{"top_per_frame=-1", "top_per_frame", "non-negative integer"},
@@ -296,15 +274,11 @@ func TestParseCompareRejectsInvalidQueries(t *testing.T) {
 		{"top=-1", "top", "non-negative integer"},
 		{"top=abc", "top", "non-negative integer"},
 
-		// post, bar, bar_options, posture angles
+		// post, bar, bar_options
 		{"post=nope", "post", "unknown seatpost"},
 		{"bar=nope", "bar", "unknown handlebar"},
 		{"bar=nope&bar_options=all", "bar", "unknown handlebar"},
 		{"bar_options=some", "bar_options", "unknown handlebar options value"},
-		{"bar_roll=NaN", "bar_roll", "handlebar roll must be a finite number"},
-		{"bar_roll=abc", "bar_roll", "handlebar roll must be a finite number"},
-		{"rail_pitch=Inf", "rail_pitch", "saddle rail pitch must be a finite number"},
-		{"rail_pitch=abc", "rail_pitch", "saddle rail pitch must be a finite number"},
 
 		// parseTarget flags and pairs (Q70)
 		{"brp=on", "brp", `only "off" is supported`},
@@ -351,24 +325,25 @@ func TestParseCompareRejectsInvalidQueries(t *testing.T) {
 	}
 }
 
-func rankAndResolve(t *testing.T, raw string) (query.Compare, query.CompareResult) {
+func mustRankAndResolve(t *testing.T, c query.Compare) query.CompareResult {
 	t.Helper()
-	c := mustParseCompare(t, raw)
 	ranking, err := compare.Rank(c.Request)
 	if err != nil {
-		t.Fatalf("%q: compare.Rank: %v", raw, err)
+		t.Fatalf("compare.Rank: %v", err)
 	}
 	result, err := c.ResolveResult(ranking)
 	if err != nil {
-		t.Fatalf("%q: ResolveResult: %v", raw, err)
+		t.Fatalf("ResolveResult: %v", err)
 	}
-	return c, result
+	return result
 }
 
 func TestParseCompareRankAndResolve(t *testing.T) {
 	cases := []struct {
 		name         string
 		raw          string
+		row          bikeRow
+		rowCount     int
 		evaluated    int
 		postID       string
 		barID        string
@@ -385,14 +360,14 @@ func TestParseCompareRankAndResolve(t *testing.T) {
 		extra        func(t *testing.T, row query.CompareRow)
 	}{
 		{
-			name: "selected bar", raw: "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20",
-			evaluated: 749, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "persuader20_800",
+			name: "selected bar", raw: "", row: bikeRow{"surly-krampus", "XL", "fox34_120-534x44", 20},
+			rowCount: 3, evaluated: 749, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "persuader20_800",
 			tier: assembly.FitsAll, total: 84.690417237, gripR: 0.725092414,
 			stemLengthMm: 110, stemAngleDeg: -7, spacersMm: 0, insertionMm: 163.130143, railOffsetMm: 15.0,
 		},
 		{
-			name: "all bars", raw: "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&bar_options=all",
-			evaluated: 11235, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "sqlab311_20_16_15", allBars: true,
+			name: "all bars", raw: "bar_options=all", row: bikeRow{"surly-krampus", "XL", "fox34_120-534x44", 20},
+			rowCount: 3, evaluated: 11235, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "sqlab311_20_16_15", allBars: true,
 			tier: assembly.FitsAll, total: 87.120779384, gripR: 0.579375126,
 			stemLengthMm: 100, stemAngleDeg: -7, spacersMm: 0, insertionMm: 163.130143, railOffsetMm: 15.0,
 			extra: func(t *testing.T, row query.CompareRow) {
@@ -402,8 +377,8 @@ func TestParseCompareRankAndResolve(t *testing.T) {
 			},
 		},
 		{
-			name: "sliding dropout", raw: "frame=binary-havok&size=L&fork=sklar_steel_485",
-			evaluated: 749, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "persuader20_800",
+			name: "sliding dropout", raw: "", row: bikeRow{"binary-havok", "L", "sklar_steel_485", 0},
+			rowCount: 1, evaluated: 749, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "persuader20_800",
 			tier: assembly.FitsNeither, total: 49.155334622, gripR: 3.718610833,
 			stemLengthMm: 120, stemAngleDeg: -30, spacersMm: 0, insertionMm: 176.648907, railOffsetMm: 15.0,
 			extra: func(t *testing.T, row query.CompareRow) {
@@ -413,28 +388,27 @@ func TestParseCompareRankAndResolve(t *testing.T) {
 			},
 		},
 		{
-			name: "non-default parts", raw: "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&post=setback_25&bar=sqlab311_20_16_50&bar_roll=10&rail_pitch=-2",
-			evaluated: 749, postID: "setback_25", barID: "sqlab311_20_16_50", handlebarID: "sqlab311_20_16_50",
-			tier: assembly.FitsAll, total: 91.139658843, gripR: 0.284643315,
-			stemLengthMm: 80, stemAngleDeg: -30, spacersMm: 0, insertionMm: 207.770691, railOffsetMm: 4.292186,
+			name: "non-default parts", raw: "post=setback_25&bar=sqlab311_20_16_50", row: bikeRow{"surly-krampus", "XL", "fox34_120-534x44", 20},
+			rowCount: 3, evaluated: 749, postID: "setback_25", barID: "sqlab311_20_16_50", handlebarID: "sqlab311_20_16_50",
+			tier: assembly.FitsAll, total: 90.144412435, gripR: 0.631791160,
+			stemLengthMm: 100, stemAngleDeg: -17, spacersMm: 0, insertionMm: 208.818362118, railOffsetMm: 3.068405935,
 		},
 		{
-			name: "custom targets", raw: "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
-			evaluated: 749, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "persuader20_800",
+			name: "custom targets", raw: "brp_x=-210&brp_y=720&grip_x=470&grip_y=730", row: bikeRow{"surly-krampus", "XL", "fox34_120-534x44", 20},
+			rowCount: 3, evaluated: 749, postID: "redshift_shockstop_pro", barID: "persuader20_800", handlebarID: "persuader20_800",
 			tier: assembly.FitsAll, total: 93.656414150, gripR: 0.949174019,
 			stemLengthMm: 90, stemAngleDeg: -7, spacersMm: 0, insertionMm: 155.860514, railOffsetMm: 5.476248,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, result := rankAndResolve(t, tc.raw)
-			if result.RowCount != 1 || result.Evaluated != tc.evaluated || len(result.Rows) != 1 {
-				t.Fatalf("RowCount %d, Evaluated %d, %d rows; want 1, %d, 1", result.RowCount, result.Evaluated, len(result.Rows), tc.evaluated)
+			_, result, row := rankRow(t, tc.raw, tc.row)
+			if result.RowCount != tc.rowCount || len(result.Rows) != tc.rowCount || row.Evaluated != tc.evaluated {
+				t.Fatalf("RowCount %d, %d rows, row Evaluated %d; want %d, %d, %d", result.RowCount, len(result.Rows), row.Evaluated, tc.rowCount, tc.rowCount, tc.evaluated)
 			}
 			if result.PostID != tc.postID || result.BarID != tc.barID || result.AllBarOptions != tc.allBars {
 				t.Errorf("PostID %q, BarID %q, AllBarOptions %v; want %q, %q, %v", result.PostID, result.BarID, result.AllBarOptions, tc.postID, tc.barID, tc.allBars)
 			}
-			row := result.Rows[0]
 			if row.HandlebarID != tc.handlebarID {
 				t.Errorf("HandlebarID = %q, want %q", row.HandlebarID, tc.handlebarID)
 			}
@@ -471,10 +445,11 @@ func TestWinningHandlebarOutOfRange(t *testing.T) {
 	}
 }
 
-// TestParseCompareDefaultAll19Frames ranks every catalog frame on the
-// selected bar (~1.8 s, Q104).
-func TestParseCompareDefaultAll19Frames(t *testing.T) {
-	_, result := rankAndResolve(t, "")
+// TestParseCompareDefaultAllFrames ranks every catalog frame on the selected
+// bar (~3 s, Q104). It is the suite's one full-catalog ranking: it checks that
+// every catalog frame ranks, so every other compare test ranks trimmed frames.
+func TestParseCompareDefaultAllFrames(t *testing.T) {
+	result := mustRankAndResolve(t, mustParseCompare(t, ""))
 	if result.RowCount != 2889 || result.Evaluated != 2163861 || len(result.Rows) != 18 {
 		t.Fatalf("RowCount %d, Evaluated %d, %d rows; want 2889, 2163861, 18", result.RowCount, result.Evaluated, len(result.Rows))
 	}
@@ -514,77 +489,6 @@ func TestParseCompareDefaultAll19Frames(t *testing.T) {
 	}
 }
 
-func TestCompareURLAndSelectionHelpers(t *testing.T) {
-	t.Run("URL round-trip", func(t *testing.T) {
-		cases := []string{
-			"",
-			"frame=surly-krampus&size=XL&fork=fox34_120&sag=20",
-			"frame=surly-krampus&frame=binary-havok&top_per_frame=1&top=5&post=setback_25&bar=sqlab311_20_16_50&bar_options=all&bar_roll=10&rail_pitch=-2&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
-			"top_per_frame=0",
-		}
-		for _, raw := range cases {
-			c := mustParseCompare(t, raw)
-			u := c.URL()
-			if raw == "" && u != "/" {
-				t.Errorf("empty query URL() = %q, want %q", u, "/")
-			}
-			if raw == "top_per_frame=0" && !strings.Contains(u, "top_per_frame=0") {
-				t.Errorf("top_per_frame=0 URL() = %q, want top_per_frame=0", u)
-			}
-			parsedURL, err := url.Parse(u)
-			if err != nil {
-				t.Fatalf("url.Parse(%q): %v", u, err)
-			}
-			got, err := query.ParseCompare(parsedURL.Query())
-			if err != nil {
-				t.Fatalf("ParseCompare(%q): %v", u, err)
-			}
-			if got.Post.ID != c.Post.ID || got.Bar.ID != c.Bar.ID || got.AllBarOptions != c.AllBarOptions {
-				t.Errorf("%q round-trip parts mismatch: got (%q, %q, %v), want (%q, %q, %v)",
-					raw, got.Post.ID, got.Bar.ID, got.AllBarOptions, c.Post.ID, c.Bar.ID, c.AllBarOptions)
-			}
-			if got.BarRollDeg != c.BarRollDeg || got.RailPitchDeg != c.RailPitchDeg || got.BrpTarget != c.BrpTarget || got.GripTarget != c.GripTarget {
-				t.Errorf("%q round-trip posture/targets mismatch", raw)
-			}
-			if !reflect.DeepEqual(got.Selections, c.Selections) {
-				t.Errorf("%q round-trip Selections = %+v, want %+v", raw, got.Selections, c.Selections)
-			}
-			if got.TopPerFrame != c.TopPerFrame || got.TopPerFrameExplicit != c.TopPerFrameExplicit || got.Top != c.Top || got.TopExplicit != c.TopExplicit {
-				t.Errorf("%q round-trip limits mismatch: got (%d, %v, %d, %v), want (%d, %v, %d, %v)",
-					raw, got.TopPerFrame, got.TopPerFrameExplicit, got.Top, got.TopExplicit,
-					c.TopPerFrame, c.TopPerFrameExplicit, c.Top, c.TopExplicit)
-			}
-		}
-	})
-
-	t.Run("WithoutSelection", func(t *testing.T) {
-		c := mustParseCompare(t, "frame=surly-krampus&frame=binary-havok&post=setback_25")
-		c1 := c.WithoutSelection(0)
-		if len(c1.Selections) != 1 || c1.Selections[0].FrameID != "binary-havok" || c1.TopPerFrame != 0 || c1.Post.ID != "setback_25" {
-			t.Fatalf("after first WithoutSelection(0): %+v", c1)
-		}
-		c2 := c1.WithoutSelection(0)
-		if c2.Selections != nil || c2.TopPerFrame != 1 || c2.TopPerFrameExplicit || c2.URL() != "/?post=setback_25" {
-			t.Fatalf("after second WithoutSelection(0): Selections=%v TopPerFrame=%d Explicit=%v URL=%q",
-				c2.Selections, c2.TopPerFrame, c2.TopPerFrameExplicit, c2.URL())
-		}
-		for _, badIdx := range []int{-1, 2} {
-			unchanged := c.WithoutSelection(badIdx)
-			if !reflect.DeepEqual(unchanged.Selections, c.Selections) {
-				t.Errorf("WithoutSelection(%d) modified Selections", badIdx)
-			}
-		}
-	})
-
-	t.Run("AllFrames", func(t *testing.T) {
-		c := mustParseCompare(t, "frame=surly-krampus&size=XL&top_per_frame=2&top=5&post=setback_25&bar_options=all")
-		got := c.AllFrames()
-		if got.Selections != nil || got.TopPerFrame != 1 || got.TopPerFrameExplicit || got.Top != 5 || !got.TopExplicit || got.Post.ID != "setback_25" || !got.AllBarOptions {
-			t.Fatalf("AllFrames() = %+v", got)
-		}
-	})
-}
-
 func TestCompareRowBikeURLRoundTrip(t *testing.T) {
 	requiredKeys := []string{
 		"frame", "size", "fork", "sag", "post", "post_insert", "rail_offset", "rail_pitch",
@@ -593,6 +497,7 @@ func TestCompareRowBikeURLRoundTrip(t *testing.T) {
 	}
 	cases := []struct {
 		raw            string
+		row            bikeRow
 		wantTier       assembly.FitTier
 		wantScore      float64
 		wantBarID      string
@@ -600,21 +505,24 @@ func TestCompareRowBikeURLRoundTrip(t *testing.T) {
 		wantChainstay  float64
 	}{
 		{
-			raw:            "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20",
+			raw:            "",
+			row:            bikeRow{"surly-krampus", "XL", "fox34_120-534x44", 20},
 			wantTier:       assembly.FitsAll,
 			wantScore:      84.690417237,
 			wantBarID:      "persuader20_800",
 			wantBarOptions: query.BarOptionsSelected,
 		},
 		{
-			raw:            "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&bar_options=all",
+			raw:            "bar_options=all",
+			row:            bikeRow{"surly-krampus", "XL", "fox34_120-534x44", 20},
 			wantTier:       assembly.FitsAll,
 			wantScore:      87.120779384,
 			wantBarID:      "sqlab311_20_16_15",
 			wantBarOptions: query.BarOptionsAll,
 		},
 		{
-			raw:            "frame=binary-havok&size=L&fork=sklar_steel_485",
+			raw:            "",
+			row:            bikeRow{"binary-havok", "L", "sklar_steel_485", 0},
 			wantTier:       assembly.FitsNeither,
 			wantScore:      49.155334622,
 			wantBarID:      "persuader20_800",
@@ -622,22 +530,19 @@ func TestCompareRowBikeURLRoundTrip(t *testing.T) {
 			wantChainstay:  460,
 		},
 		{
-			raw:            "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20&post=setback_25&bar=sqlab311_20_16_50&bar_roll=10&rail_pitch=-2&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
+			raw:            "post=setback_25&bar=sqlab311_20_16_50&brp_x=-210&brp_y=720&grip_x=470&grip_y=730",
+			row:            bikeRow{"surly-krampus", "XL", "fox34_120-534x44", 20},
 			wantTier:       assembly.FitsAll,
-			wantScore:      92.369622515,
+			wantScore:      92.063410256,
 			wantBarID:      "sqlab311_20_16_50",
 			wantBarOptions: query.BarOptionsSelected,
 		},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.raw, func(t *testing.T) {
-			c := mustParseCompare(t, tc.raw)
-			ranking, err := compare.Rank(c.Request)
-			if err != nil {
-				t.Fatalf("compare.Rank: %v", err)
-			}
-			u, err := c.RowBikeURL(ranking.Rows[0])
+		t.Run(fmt.Sprintf("%s/%+v", tc.raw, tc.row), func(t *testing.T) {
+			c, _, row := rankRow(t, tc.raw, tc.row)
+			u, err := c.RowBikeURL(row.Row)
 			if err != nil {
 				t.Fatalf("RowBikeURL: %v", err)
 			}
@@ -725,7 +630,9 @@ func TestCompareRowBikeURLRoundTrip(t *testing.T) {
 // TestParseCompareOpenForkChoice selects a compatible fork a frame does not
 // list (Q128, Q135) and counts the open fork rows.
 func TestParseCompareOpenForkChoice(t *testing.T) {
-	_, result := rankAndResolve(t, "frame=surly-krampus&fork=pike_120")
+	c := mustParseCompare(t, "top_per_frame=0")
+	c.Request.Frames = trimFrames(t, "surly-krampus", "", "pike_120")
+	result := mustRankAndResolve(t, c)
 	if result.RowCount != 12 || len(result.Rows) != 12 {
 		t.Errorf("krampus pike_120 RowCount %d, %d rows; want 12, 12 (4 sizes x 3 sags)", result.RowCount, len(result.Rows))
 	}
