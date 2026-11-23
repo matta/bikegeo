@@ -79,27 +79,81 @@ Every row has the status *as in code*: it records the current meaning so it can 
 | BRP target, HandGrip target | Desired landmark positions relative to BB, in world axes | Points | Rider | Rider's choice | idmatch report (load state not attached) | Fitting, scoring |
 | BRP miss | `target − placed` | Displacement | World | Placement, target | Calculated | Gates, scores |
 
-## Proposed meanings to discuss
+## Proposed ruling: static and seated states (awaiting Matt's confirmation)
 
-These are proposals for discussion, not rulings.
+Matt agreed to the distinction on 2026-11-23 and set the direction: bicycle geometry is measured static and evaluated seated. He chose the names **static** and **seated** the same day (see [Names for the state pair](#names-for-the-state-pair)). The ruling is ready to record as a `Q#` once he confirms its text.
 
-- **Reference state.** The unloaded bike stands on a level floor with no rider, both tires on the floor, and the fork and post fully extended. Every installed angle and every workshop measurement is defined in this state, so it is the state Matt can measure.
-- **Installed angles.** A saddle's rail angle and a bar's roll are installation settings, relative to the post head and stem clamp. They could be *entered* as the world angle measured in the reference state, which is what a digital level reads. Other load states then carry them rigidly with the frame (case C).
-- **Load state.** A named, complete set of compressions: fork sag, post sag, and possibly tire compression. Every placement, readout, and target says which load state it is in.
-- **World axes.** Defined by the floor, with each wheel's radius (or measured axle height) given separately, rather than by the axle line.
+1. **Two states of one installation.** Every build is described in two load states:
+   - **Static:** no rider, every suspension part fully extended, both tires on a level floor. Geometry is measured and set up in the static state.
+   - **Seated:** rider seated in their riding position, each suspension part at the rider's seated sag for that part. Fit is evaluated in the seated state.
+2. **The installation doesn't change between states.** Moving one build between static and seated carries every clamped part rigidly with the frame and post: saddle rails, stem, bar roll. Only the suspension moves.
+   - A suspension fork changes length, which pitches the frame.
+   - A suspension post moves the saddle relative to the shaft. On the ShockStop this is a translation: the source record says saddle pitch stays constant relative to the post's mounting orientation through travel.
+   - Tire compression is open.
+3. **Fit means seated fit.** Across candidate builds, the goal is the seated fit closest to the source bike's seated fit. That includes seated BRP, seated HandGrip, seated saddle tilt, and seated bar roll, and possibly more (open). Scoring measures closeness to that goal.
+4. **The core workflow runs static → seated → static.**
+   1. Start from static measurements of the source bike (BRP, HandGrip, saddle tilt, bar roll), its components, and the rider's seated sag on each suspension part.
+   2. Compute the source's seated fit.
+   3. For each candidate build, with its own components and sag (a different fork travel and sag, a different post offset, a rigid or suspension post), choose adjustments that best reproduce that seated fit.
+   4. Report the candidate's static values for workshop setup.
+
+   The same saddle tilt is therefore static angle X on bike A and static angle Y on bike B, with the seated angles as close to equal as possible.
+5. **Every target names its bike and state.** A measured target is static on a named installed bike. A goal is seated.
+
+"Seated" leaves room for a standing state later, in which the post unloads and the fork loads more. No standing state is proposed now.
+
+Consequences to carry into later stages:
+
+- The default targets (Q53) are static measurements on Matt's ShockStop bike. The fork state of that bike is part of the Fenrir build facts.
+- Q78's mixed-state caveat would be resolved, not just documented.
+- Under item 2, the world-held `RailPitchDeg` and `BarRollDeg` (case B above) are a defect whenever one build is placed in both states.
+- **Seated sag is a physical premise to check.** Every sag value must be seated sag. Q132's fork ranges (`[15%, 20%]` for 100 mm, `[15%, 25%]` for 120 mm, `[20%, 25%]` for 130 mm) don't record whether they are seated or standing figures, and trail forks are often set up with the rider standing. If they are standing figures, the seated state needs its own fork sag. Q159's 20% post sag is seated (Redshift's manual identifies sag with the rider seated).
+
+**Correction, 2026-11-23.** In chat, Claude claimed that the ShockStop linkage tips the saddle as the post compresses. That claim was wrong. The [source record](../../internal/catalog/seatpost_redshift_shockstop_pro.md) gives saddle pitch through travel as constant relative to the post's mounting orientation, as Matt said. The rail angle can therefore be installed relative to the post shaft.
+
+## Names for the state pair
+
+**Chosen by Matt, 2026-11-23: static / seated.** Matt wanted a congruent pair: the same quantity, named once per state, as in `StaticBrp` / `SeatedBrp` or `StaticSaddleTiltDeg` / `SeatedSaddleTiltDeg`.
+
+Reasons, in bikegeo's context:
+
+- "Static" already means riderless and fully extended in `ForkSpec.StaticA2cMm`, in Redshift's "7 mm static", and in the industry's "static geometry". A seated rider is also in static equilibrium, but that is a physics objection, not usage. The glossary defines the term.
+- "Seated" names the posture that defines the state. BRP, saddle tilt, and the idmatch fit are seated by nature, and Q159 already says "from unloaded to seated."
+- It leaves room for a standing state, where "ridden" would become ambiguous.
+
+Rejected pairs and why:
+
+| Pair | Reason |
+| --- | --- |
+| static / ridden | "Ridden" covers seated and standing, and a seated rider is also static. |
+| unridden / ridden | "Unridden" can suggest a new, never-ridden bike. |
+| unsagged / sagged | Reads oddly on rigid parts and ignores tire compression. |
+| installed / ridden | The words name different things: a ridden bike is still installed. |
+| static / dynamic | "Dynamic" suggests motion; the seated state is a steady posture. |
+| unloaded / loaded | "Loaded" means carrying bags on bikepacking frames, which make up most of the catalog. |
+| unweighted / weighted | Collides with scoring's `ScoreWeights` and "weighted score". |
+| nominal / effective | "Effective" is already overloaded (next section). |
+
+With this pair, users may not need a third "installed" term. A build's installation is identified by its static values, and seated values are computed from them. Code may still store a part-relative angle internally.
+
+### Renames this implies (after the ruling)
+
+- `ForkSetup.EffectiveA2cMm` is the sagged A2C, so it is the seated A2C. "Effective" also means something unrelated in `InsertionBounds.EffectiveMinInsertionMm` (the combined frame and post bound) and in ETT and effective seat tube angle. The fork value's new name is to be settled when the ruling is applied.
+- The `Leveled…` readouts (glossary) describe whichever state was placed. Their names should say which.
+- `RailPitchDeg` and `BarRollDeg` become a static or seated tilt and roll, depending on which the input is.
 
 ## Code audit and tests
 
-Nothing has been committed yet. If Matt confirms the meaning in "Installed angles," a committed test should check that changing only `SagPct` moves every saddle and cockpit landmark by one rigid rotation about `BB` plus a translation, with the saddle and bar angles changing by the frame's pitch change. Under current code that test would fail, and it would be committed disabled under the [defect procedure](README.md#defects-and-fixes).
+Nothing has been committed yet. Once the static and seated ruling is confirmed, a committed test should check that changing only `SagPct` moves every saddle and cockpit landmark by one rigid rotation about `BB` plus a translation, with the saddle and bar angles changing by the frame's pitch change. Under current code that test would fail, and it would be committed disabled under the [defect procedure](README.md#defects-and-fixes).
 
 ## Session handoff
 
-- **Conclusion so far.** The model defines world axes by the axle line and load state by fork sag alone, and it holds rail pitch and bar roll fixed to the world. As a result, it doesn't carry the saddle and bar rigidly when sag changes. On the Fenrir L with SID 100 at 20% sag, that misplaces BRP and HandGrip by about 1 mm and the saddle and bar angles by 0.92°. Whether this is a defect depends on the meaning of the angle inputs (item 2), which Matt hasn't ruled on.
-- **Evidence.** The code at `b4a46e974e02` (symbols listed under Scope), and the CLI table above (**Observed**).
+- **Conclusion so far.** The model defines world axes by the axle line and load state by fork sag alone, and it holds rail pitch and bar roll fixed to the world. As a result, it doesn't carry the saddle and bar rigidly when sag changes. On the Fenrir L with SID 100 at 20% sag, that misplaces BRP and HandGrip by about 1 mm and the saddle and bar angles by 0.92°. Matt agreed to separate the static and seated states of one installation and chose those names. The ruling text above awaits his confirmation. Once it is confirmed, case B is a defect.
+- **Evidence.** The code at `b4a46e974e02` (symbols listed under Scope), and the CLI table above (**Observed**). Matt's direction and his choice of names are from chat on 2026-11-23.
 - **Waiting on Matt.**
-  1. Is the **reference state** above the right one for measuring and entering installed values?
-  2. Should rail pitch and bar roll be **installed angles** carried rigidly through load changes, entered as the reference-state world angle? Or is a world-relative angle intended for some use?
-  3. For the Fenrir check, how should the **unsagged ShockStop** be represented? Options: (a) measure with a rigid post installed; (b) add an unloaded state for the post, from Redshift's published offsets at rest (see the [source record](../../internal/catalog/seatpost_redshift_shockstop_pro.md)); (c) measure the unloaded post's cradle offset directly.
-  4. Should **world axes** come from the floor, with front and rear radii given separately?
-  5. Build facts for the Fenrir: see the [Fenrir measurement note](fenrir-measurements.md).
-- **Next question.** "Settle what a load state is and what an installed angle is. Should rail pitch and bar roll be installation settings relative to the post and stem, entered as the angle measured on the unloaded bike on a level floor?"
+  1. Confirm the **static and seated ruling** text above, so it can be recorded as Q160 in `DESIGN.md`.
+  2. Are bikegeo's fork sag ranges **seated sag**? If they are standing figures, how should the seated state get its fork sag?
+  3. Should **world axes** come from the floor, with front and rear radii given separately? This is part of the static state's definition.
+  4. For the Fenrir check, how should the **static ShockStop** be represented? Options: (a) measure with a rigid post installed; (b) add a static state for the post, from Redshift's published offsets at rest (see the [source record](../../internal/catalog/seatpost_redshift_shockstop_pro.md)); (c) measure the post's static cradle offset directly.
+  5. Build facts for the Fenrir: see the [Fenrir measurement note](fenrir-measurements.md). They include the fork's state when the idmatch BRP was measured.
+- **Next question.** "With static and seated confirmed, what does the model need to place one build in both states? List each suspension part's motion (fork length, post linkage translation, tires), its inputs, and where each comes from."
