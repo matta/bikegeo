@@ -532,7 +532,7 @@ func (f FrameSetup) seatTubeTurn() pose.TurnDeg[FrameAxis, SeatTubeAxis] {
 }
 
 func placeFramesetAtPitch[W any](pitch pose.Heading[W], frame FrameSetup, lowerCupMm float64, fork ForkGeometry, wheels WheelSetup) FramesetPlacement[W] {
-	// Start from +0° as before so an exactly level axle line yields +0° pitch.
+	// Add +0° to normalize -0° when the axle line is already level.
 	frameRoot := pose.NewPose[FrameAxis](pose.Point[W]{}, 0+pitch)
 	rearX := -pose.RightTriangleLeg(frame.ChainstayMm, frame.BbDropMm)
 	rearAxle := frameRoot.Translate(pose.Vec[FrameAxis]{X: rearX, Y: frame.BbDropMm})

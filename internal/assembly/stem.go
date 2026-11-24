@@ -38,6 +38,16 @@ type StemSetup struct {
 	MaxLengthMm  float64 // longest stem length fitting may choose; PlaceStem ignores it
 }
 
+// steererPerpAxis is the 0° stem datum: forward, perpendicular to the steerer
+// (-90° from SteererUpAxis).
+type steererPerpAxis struct{}
+
+const steererUpToPerp pose.TurnDeg[SteererUpAxis, steererPerpAxis] = -90.0
+
+func (s StemSetup) angleTurn() pose.TurnDeg[steererPerpAxis, StemAxis] {
+	return pose.TurnDeg[steererPerpAxis, StemAxis](s.AngleDeg)
+}
+
 // StemPlacement holds the Pose-valued landmarks produced by PlaceStem.
 // Each landmark retains its local coordinate frame orientation.
 type StemPlacement struct {
@@ -82,10 +92,9 @@ func PlaceStem(steererUp pose.Pose[SteererUpAxis, DynamicWorld], setup StemSetup
 	coverTop := steererUp.Advance(setup.UpperStackMm)
 	spacerTop := coverTop.Advance(setup.SpacersMm)
 	steererClamp := spacerTop.Advance(setup.ClampHeightMm / 2.0)
-	// Keep the perpendicular turn and angle adjustment separate to preserve rounding.
-	zeroAngleStem := pose.Turn(steererClamp, pose.TurnDeg[SteererUpAxis, StemAxis](-90.0))
-	stemAxis := pose.Turn(zeroAngleStem, pose.TurnDeg[StemAxis, StemAxis](setup.AngleDeg))
-	barClamp := stemAxis.Advance(setup.LengthMm)
+	// Turn -90° to the 0° stem datum perpendicular to the steerer, then rotate by the stem angle.
+	steererPerp := pose.Turn(steererClamp, steererUpToPerp)
+	barClamp := pose.Turn(steererPerp, setup.angleTurn()).Advance(setup.LengthMm)
 
 	if err := validatePlacementPoints("stem", steererUp.Origin(), steererClamp.Origin(), barClamp.Origin()); err != nil {
 		return StemPlacement{}, err

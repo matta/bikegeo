@@ -7,10 +7,11 @@ Review: required — architectural and geometric type-system change across `pose
 ## Implementation handoff
 
 - **Who & when** Codex (GPT-6), 2026-11-23.
-- **Commits** `650a359`, `610790b`, `1a39971`, and `:/^Separate unpitched and leveled frameset spaces` (this commit).
+- **Commits** `650a359`, `610790b`, `1a39971`, and `230a70c`, plus the `steererPerpAxis` review cleanup commit.
 - **Verification** `go vet ./...`, `go test ./...`, and `make pre-commit` passed. Six CLI outputs and six live HTTP responses covering the comparison and all three diagram views matched Commit 3 byte for byte.
 - **Deviations** Commit 3 typed the frameset landmark axes early and kept two stem turns to preserve evaluation order. Commit 4 retained the addition of positive zero when initializing pitch so exactly level axles still produce positive zero.
-- **Open issues** Independent review pending.
+- **Open issues** None.
+- **Independent review (Gemini 4 Argon, 2026-11-23):** Reviewed Commits 1–4 (`650a359`, `610790b`, `1a39971`, `230a70c`) against `SLICE23.md`, `DESIGN.md` (Q173), and `AGENTS.md`. Applied the `steererPerpAxis` datum cleanup in `internal/assembly/stem.go` (replacing the `TurnDeg[StemAxis, StemAxis]` self-turn with `steererUpToPerp` + `setup.angleTurn()`) and aligned `internal/web/diagram_test.go:462` to `pose.Vec[screenSpace]`. Ready for acceptance.
 
 ## Goal
 
@@ -682,8 +683,13 @@ func PlaceSaddle(railCradle pose.Pose[SeatTubeAxis, DynamicWorld], clampLengthMm
 }
 
 // --- stem.go ---
-func (s StemSetup) steererToStemTurn() pose.TurnDeg[SteererUpAxis, StemAxis] {
-	return pose.TurnDeg[SteererUpAxis, StemAxis](-90.0 + s.AngleDeg)
+// steererPerpAxis is the 0° stem datum: forward, perpendicular to the steerer (-90° from SteererUpAxis).
+type steererPerpAxis struct{}
+
+const steererUpToPerp pose.TurnDeg[SteererUpAxis, steererPerpAxis] = -90.0
+
+func (s StemSetup) angleTurn() pose.TurnDeg[steererPerpAxis, StemAxis] {
+	return pose.TurnDeg[steererPerpAxis, StemAxis](s.AngleDeg)
 }
 
 type StemPlacement struct {
@@ -699,7 +705,8 @@ func PlaceStem(steererUp pose.Pose[SteererUpAxis, DynamicWorld], setup StemSetup
 	coverTop := steererUp.Advance(setup.UpperStackMm)
 	spacerTop := coverTop.Advance(setup.SpacersMm)
 	steererClamp := spacerTop.Advance(setup.ClampHeightMm / 2.0)
-	barClamp := pose.Turn(steererClamp, setup.steererToStemTurn()).Advance(setup.LengthMm)
+	steererPerp := pose.Turn(steererClamp, steererUpToPerp)
+	barClamp := pose.Turn(steererPerp, setup.angleTurn()).Advance(setup.LengthMm)
 	// ...
 }
 
@@ -904,13 +911,14 @@ Each commit below compiles cleanly and passes `make pre-commit` (`go fix`, `go f
   - Update `internal/web/diagram.go` (`newPoseOutline[Axis]`, point-based `makeSegment` and `bikeLandmarkSpec`).
 - **Verification:** `make pre-commit`.
 
-### Commit 4: Migrate `FramesetPlacement[W]` (`UnpitchedChart` vs. `DynamicWorld`), `placeFramesetAtPitch[W]`, and Delete All Temporary Escape Hatches
-- **Scope:** [`internal/assembly/frameset.go`](../internal/assembly/frameset.go), [`validate.go`](../internal/assembly/validate.go), [`internal/catalog/chart_consistency_test.go`](../internal/catalog/chart_consistency_test.go), [`internal/pose/pose.go`](../internal/pose/pose.go), and [`docs/SLICE23.md`](SLICE23.md).
+### Commit 4: Migrate `FramesetPlacement[W]` (`UnpitchedChart` vs. `DynamicWorld`), Express `PlaceStem` via `steererPerpAxis`, and Delete All Temporary Escape Hatches
+- **Scope:** [`internal/assembly/frameset.go`](../internal/assembly/frameset.go), [`internal/assembly/stem.go`](../internal/assembly/stem.go), [`validate.go`](../internal/assembly/validate.go), [`internal/catalog/chart_consistency_test.go`](../internal/catalog/chart_consistency_test.go), [`internal/web/diagram_test.go`](../internal/web/diagram_test.go), [`internal/pose/pose.go`](../internal/pose/pose.go), and [`docs/SLICE23.md`](SLICE23.md).
 - **Changes:**
-  - Parameterize `FramesetPlacement[W]` over `W` (`PlaceUnpitchedFrameset` returns `FramesetPlacement[UnpitchedChart]`; `PlaceFrameset` returns `FramesetPlacement[DynamicWorld]`), with typed landmark axes (`FrameAxis`, `SeatTubeAxis`, `SteererUpAxis`, `SteererDownAxis`, `ForkRakeAxis`, `PlumbDownAxis`).
-  - Update `placeFramesetAtPitch[W]` to use `pose.Turn` with `frame.steererUpTurn()`, `steererUpToDown`, `steererDownToForkRake`, `frame.seatTubeTurn()`, and `pose.Face[PlumbDownAxis]`.
+  - Parameterize `FramesetPlacement[W]` over `W` (`PlaceUnpitchedFrameset` returns `FramesetPlacement[UnpitchedChart]`; `PlaceFrameset` returns `FramesetPlacement[DynamicWorld]`), and construct `frameRoot` in `placeFramesetAtPitch[W]` directly at `pitchDeg pose.Heading[W]`.
+  - In [`internal/assembly/stem.go`](../internal/assembly/stem.go), replace the `TurnDeg[StemAxis, StemAxis]` self-turn with the physical `0°` stem datum `steererPerpAxis` (`steererUpToPerp = pose.TurnDeg[SteererUpAxis, steererPerpAxis](-90.0)` and `setup.angleTurn() pose.TurnDeg[steererPerpAxis, StemAxis]`) so `steererPerp := pose.Turn(steererClamp, steererUpToPerp)` and `barClamp := pose.Turn(steererPerp, setup.angleTurn()).Advance(setup.LengthMm)` model stem angle relative to the line perpendicular to the steerer while preserving two-step addition order.
+  - Switch `internal/web/diagram_test.go:462` from `pose.Vec[assembly.DynamicWorld]` to `pose.Vec[screenSpace]` to match `diagram.go`.
   - Delete the temporary escape hatches (`TurnSameAxis`, `FaceSameAxis`) from `internal/pose/pose.go`.
-  - Fold the 3–5 line `## Implementation handoff` into `docs/SLICE23.md`.
+  - Update `SLICE23.md` header to `Status: Implemented 2026-11-23; awaiting review` and fold the final `## Implementation handoff` into `docs/SLICE23.md`.
 - **Verification:** `make pre-commit`.
 
 ---

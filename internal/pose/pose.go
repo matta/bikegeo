@@ -31,9 +31,8 @@
 //     because Go methods cannot introduce a new type parameter, Turn and Face
 //     are package-level functions returning Pose[NewAxis, W].
 //
-// Marker types carry no runtime data. Point[S] (16 bytes), Vec[S] (16 bytes),
-// and Pose[Axis, W] (24 bytes) preserve the size and flat JSON of their
-// untyped counterparts.
+// Marker types carry no runtime data, so Point[S], Vec[S], and Pose[Axis, W]
+// add no memory overhead and serialize to flat JSON.
 package pose
 
 import (
