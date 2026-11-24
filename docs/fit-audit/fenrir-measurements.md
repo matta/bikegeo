@@ -6,14 +6,16 @@ Status: Ready for measurement, 2026-11-24.
 
 Before using `bikegeo` to specify a custom frame, we measure Matt's physical Otso Fenrir to answer five foundational questions from primary physical evidence rather than trusting third-party reports or unverified model assumptions:
 
-1. **Ascertain Matt's true static fit coordinates (`BRP_static` and `HB_static`) directly from the bike, without trusting the idmatch report:**
-   - The idmatch report's `(-219, 713.1)` and `(481, 726)` numbers are not trusted on faith. Measuring `BRP_static` and `HB_static` directly on the physical Fenrir establishes Matt's actual static contact points (and the cockpit vector `brpToHbOffset = HB − BRP`), together with the source bike's seated fork sag needed to convert them into dynamic targets ([`brp-transfer.md` Section 3.C](brp-transfer.md#c-static--dynamic-target-conversion-source-bike-static-measurements--dynamic-targets)).
+1. **Establish Matt's new primary static fit baseline (`BRP_static` and `HB_static`) directly from the bike, and separate it from the derived riding targets:**
+   - **Directly measured in this session (unloaded, `0%` sag):** Measuring `BRP_static`, `HB_static`, and `brpToHbOffset_static = HB_static − BRP_static` directly on the physical Fenrir is expected to produce **new, distinct, primary fit coordinates** rather than validating the idmatch report. This session also measures the Fenrir's seated fork O-ring sag (`ForkSagMm`).
+   - **Derived afterward in Part C (dynamic riding targets):** The dynamic targets `(BRP_dynamic, HB_dynamic)` used by `bikegeo` are *not* measured directly while riding. Instead, Part C derives them from the measured static baseline by pitching the bike by the measured seated fork sag and applying the **documented Redshift ShockStop PRO linkage sag** (`Translate(-6, +5)` along `SeatTubeAxis`, [`brp-transfer.md` Section 3.C](brp-transfer.md#c-static--dynamic-target-conversion-source-bike-static-measurements--dynamic-targets)). Dynamic Redshift seatpost sag cannot be practically measured while riding and is taken from Redshift's documentation — this protocol does **not** ask to measure it dynamically.
+   - **Role of the idmatch comparison.** Part C compares the reported idmatch jig coordinates (produced by Matt's idmatch bike fit) with the measured Fenrir coordinates as a secondary sanity check. The saddle was transferred from the Fenrir with the seatpost unsagged. The idmatch report gives a hand-grip coordinate, but the exact idmatch grip measurement point is unconfirmed. The Fenrir protocol measures `HB` at `80 mm` inboard of the bar ends. See [`RIDER_FIT.md`](../RIDER_FIT.md).
 2. **Verify `bikegeo`'s handlebar model (`PlaceHandlebar`: `BarClamp → HB`), the most 3D/esoteric part of the geometry engine:**
    - [`PlaceHandlebar`](../../internal/assembly/handlebar.go) projects 3D handlebar width, `GripInsetMm` (`80 mm`), `BendStartMm`, `RiseMode` (`standard_knuckle` vs. `bar_end_center`), backsweep, upsweep, and bar roll onto the 2D side-view plane. Measuring the horizontal and vertical offset from the stem's handlebar clamp center (`BarClamp`) to `HB` tests `PlaceHandlebar` in complete isolation from the rest of the bike.
 3. **Determine the installed stem's actual length (`100 mm` vs. `110 mm`) and angle, and verify `PlaceStem` (`HeadTubeTop → BarClamp`):**
    - The installed stem's exact length (`100 mm` or `110 mm`) and angle are uncertain. Measuring the stem directly (extension length and angle relative to the steerer, plus the `HeadTubeTop → BarClamp` offset) identifies the installed stem and checks `PlaceStem` independently of the handlebar.
-4. **Verify the static Redshift ShockStop PRO seatpost model (`PlaceSeatpost`: `SeatTubeTop → RailCradle`) and replace guessed saddle/post constants:**
-   - Check whether the unloaded Redshift ShockStop PRO actually has the `7 mm` perpendicular static setback (`StaticSetbackMm`) and axial exposed length modeled in [`Q159`](../DESIGN.md), and replace the guessed (`illustrative`) catalog constants `SaddleSetup.RailToBrpHeightMm` (`45.0 mm`) and `SeatpostSpec.RailClampLengthMm` (`30.0 mm`) with physical measurements.
+4. **Verify the static (unloaded) Redshift ShockStop PRO seatpost model (`PlaceSeatpost`: `SeatTubeTop → RailCradle`) and replace guessed saddle/post catalog constants:**
+   - Check whether the unloaded Redshift ShockStop PRO actually has the `7 mm` perpendicular static setback (`StaticSetbackMm`) and axial exposed length modeled in [`Q159`](../DESIGN.md) (dynamic linkage sag remains on Redshift's published values), and measure the SQlab 610 `RailToBrpHeightMm` (currently guessed at `45.0 mm`) and Redshift `RailClampLengthMm` (currently guessed at `30.0 mm`) so those illustrative constants in `internal/catalog` can be replaced with physical values.
 5. **Verify the Otso Fenrir Stainless L bare frame geometry (`PlaceFrameset`):**
    - Check that Otso's published chart (`Reach = 428 mm`, `Stack = 642 mm`, `HTA = 68°`, `STA = 75°`, `HTL = 140 mm`, `STL = 490 mm`, `BbDrop = 70 mm`, `CS = 440 mm`) and `PlaceFrameset`'s axle-leveling pitch accurately predict the real frame's tube lengths, leveled angles, `BB` drop, `SeatTubeTop`, and `HeadTubeTop`.
 
@@ -192,7 +194,7 @@ With the bike's axles leveled, rest your **long level horizontally** (bubble cen
 
 ## Part C: Go uncertainty analysis, loop-closure verification, & derived fit targets (to be run after measurements)
 
-Once Part A and Part B are recorded, we run our `internal/assembly` Go test (calling the real `PlaceFrameset`, `PlaceSeatpost`, `PlaceSaddle`, `PlaceStem`, and `PlaceHandlebar` functions directly) to execute four automated passes on the raw data:
+Once Part A and Part B are recorded, we run our `internal/assembly` Go test (calling the real `PlaceFrameset`, `PlaceSeatpost`, `PlaceSaddle`, `PlaceStem`, and `PlaceHandlebar` functions directly) and complete the audit in five steps:
 
 1. **Repeatability & loop-closure consistency check (`|r| / σ_r ≤ 2.0`):**
    - Compute sample mean and repeatability standard uncertainty from each `R1 / R2 / R3` triplet.
@@ -201,8 +203,13 @@ Once Part A and Part B are recorded, we run our `internal/assembly` Go test (cal
    - Compute exact `1σ`, linear `95%` (`±1.96σ`), and empirical Monte Carlo `[2.5%, 97.5%]` confidence bands and variance shares (`Share_i`) for every derived coordinate from the actual measurement uncertainties.
 3. **Component-by-component model audit (comparing measured `±95%` intervals against `bikegeo` predictions):**
    - **Bare Fenrir frame (`PlaceFrameset`):** compare measured vs. modeled `LeveledBbDropMm`, `RearCenterMm`, `WheelbaseMm`, `SeatTubeTop`, and `HeadTubeTop` (`LeveledReachMm`, `LeveledStackMm`).
-   - **Static Redshift ShockStop PRO (`PlaceSeatpost`):** compare measured vs. modeled `StaticSetbackMm` (`7 mm`) and `SeatTubeTop → RailCradle` displacement.
+   - **Static Redshift ShockStop PRO (`PlaceSeatpost`):** compare measured vs. modeled unloaded `StaticSetbackMm` (`7 mm`) and `SeatTubeTop → RailCradle` displacement.
    - **Stem (`PlaceStem`):** confirm the installed stem's length (`100` vs. `110 mm`) and angle, and compare measured vs. modeled `HeadTubeTop → BarClamp`.
    - **Handlebar (`PlaceHandlebar`):** compare measured vs. modeled `BarClamp → HB`.
-4. **True fit targets (`BRP` & `HB`):**
-   - Compare Matt's directly measured `(BRP_static, HB_static)` (with `95%` confidence bands) against the idmatch report's `(-219, 713.1)` and `(481, 726)`, and compute `(BRP_dynamic, HB_dynamic)` (with propagated `95%` error bands) using the measured seated fork sag and Redshift sag transfer.
+4. **New static baseline, derived dynamic riding targets, & idmatch double-check:**
+   - Record Matt's directly measured unloaded `(BRP_static, HB_static)` and `brpToHbOffset_static` (with `95%` confidence bands) as the new primary physical baseline.
+   - Derive the dynamic riding targets `(BRP_dynamic, HB_dynamic)` (with propagated `95%` error bands) by pitching the measured static baseline by the measured seated fork sag and applying Redshift's documented linkage sag (`Translate(-6, +5)` along `SeatTubeAxis`).
+   - Compare the reported idmatch jig coordinates `(-219, 713.1)` and `(481, 726)` with the measured Fenrir coordinates `(BRP_static, HB_static)` and record the difference.
+5. **Catalog & fit-target updates to close the audit:**
+   - Replace the illustrative constants in `internal/catalog` with the verified physical measurements: `SaddleSetup.RailToBrpHeightMm` (currently `45.0 mm`) and `SeatpostSpec.RailClampLengthMm` (currently `30.0 mm`), plus `StaticSetbackMm` or `UpperStackMm` if measurements differ from current assumptions.
+   - Update [`RIDER_FIT.md`](../RIDER_FIT.md) and the catalog default fit target provenance with the newly established Fenrir static baseline and derived dynamic targets.
