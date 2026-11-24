@@ -70,7 +70,8 @@ Each slice plan lives in `docs/SLICE<n>.md` (for example `SLICE20.md`) only unti
 When Matt asks **"What's next?"**, inspect:
 1. `git status --short` (uncommitted work?)
 2. `docs/SLICE*.md` (any active slice plan, and its `Status:`, `Implementer:`, and `Review:` lines)
-3. `## Milestones` in [DESIGN.md](DESIGN.md) (next slice not marked `done and accepted`)
+3. [docs/fit-audit/README.md](fit-audit/README.md) (any active Fit Audit stage or physical measurement gate marked `Next` / blocking before the next slice)
+4. `## Milestones` in [DESIGN.md](DESIGN.md) (next milestone / slice not marked `done and accepted`)
 
 Match the first applicable row below, state the **current phase**, recommend the **model tier**, and wait (or proceed if already on the right tier and asked to act):
 
@@ -81,6 +82,7 @@ Match the first applicable row below, state the **current phase**, recommend the
 | `SLICE<n>.md` exists with `Status: Planned` (or `Partly implemented`) | **Slice Execution** | Read `Implementer:` in `SLICE<n>.md` (`Low` → fast/lower-tier, `Medium` → mid-tier, `High` → Frontier) | Implement `SLICE<n>.md`; stop and escalate to Frontier only if an unspec'd design fork appears |
 | `SLICE<n>.md` exists with `Status: Implemented …` and `Review: required` (not yet reviewed) | **Independent Review** | **Frontier** | Diff-only judgment review (§3); append concise findings under `## Implementation handoff` and report readiness |
 | `SLICE<n>.md` exists with `Status: Implemented …` and `Review: optional` (or review already done) | **Acceptance** | **Matt directly** (any model for cleanup commit) | Once Matt accepts, run the After acceptance cleanup (§1) |
+| No `SLICE*.md` exists; [docs/fit-audit/README.md](fit-audit/README.md) has an active stage or physical check marked `Next` / blocking | **Fit Audit Stage / Physical Check** | **Frontier** (plus Matt for physical bike measurements in [fenrir-measurements.md](fit-audit/fenrir-measurements.md)) | Execute or assist with the active stage in [docs/fit-audit/README.md](fit-audit/README.md) before planning the gated slices |
 | No `SLICE*.md` exists; next slice's direction in `DESIGN.md` has unresolved cross-slice ambiguity | **Horizon 1 — Direction Alignment** | **Frontier** | Resolve only the cross-slice fork(s) with Matt and update `DESIGN.md` |
 | No `SLICE*.md` exists; next slice's intent in `DESIGN.md` is clear | **Horizon 2 — Plan Next Slice** | **Frontier** | Inspect relevant committed code, surface only genuine slice-local choices, decide whether to sub-slice, and write `SLICE<n>.md` |
 
@@ -124,7 +126,7 @@ Copy any prompt below verbatim (filling in `<N>` where shown).
 ### A. Router — "What's next?" *(any model)*
 
 ```text
-Consult docs/WORKFLOW.md, check git status, docs/SLICE*.md, and docs/DESIGN.md Milestones.
+Consult docs/WORKFLOW.md, check git status, docs/SLICE*.md, docs/fit-audit/README.md, and docs/DESIGN.md Milestones.
 Tell me:
 1. What phase we are currently in.
 2. Exactly what the next step is.

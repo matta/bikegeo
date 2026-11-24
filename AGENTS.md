@@ -34,7 +34,7 @@ Write plain-language subjects (for example `Fix fork sag validation`). Conventio
 
 ## Workflow
 
-Work uses a Rolling-Wave workflow described in [docs/WORKFLOW.md](docs/WORKFLOW.md): [docs/DESIGN.md](docs/DESIGN.md) holds direction, invariants, and confirmed `Q#` rulings; `docs/SLICE<n>.md` is the just-in-time plan for the next slice only. When asked what's next, check `git status`, `docs/SLICE*.md`, and the `DESIGN.md` Milestones per `WORKFLOW.md`, state the current phase, and recommend the model tier (Frontier for direction, slice planning, and review; lower-tier for planned slice implementation).
+Work uses a Rolling-Wave workflow described in [docs/WORKFLOW.md](docs/WORKFLOW.md): [docs/DESIGN.md](docs/DESIGN.md) holds direction, invariants, and confirmed `Q#` rulings; [docs/fit-audit/README.md](docs/fit-audit/README.md) tracks the fit audit and physical Fenrir verification stages; `docs/SLICE<n>.md` is the just-in-time plan for the next slice only. When asked what's next, check `git status`, `docs/SLICE*.md`, `docs/fit-audit/README.md`, and the `DESIGN.md` Milestones per `WORKFLOW.md`, state the current phase, and recommend the model tier (Frontier for direction, audit stages, slice planning, and review; lower-tier for planned slice implementation).
 
 ## Architecture
 
