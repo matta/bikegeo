@@ -17,6 +17,14 @@ Write plain-language subjects (for example `Fix fork sag validation`). Conventio
 - **Don't force one prefix across every layer:** name each role for what it represents, and omit adjectives when plain prose is already clear.
 - **Avoid vague or architecture-leaking names:** confine generic terms (`Catalog`, `Candidate`) to their natural roles and don't bake incidental implementation choices into names.
 - **Match part of speech to role:** functions are accurate verbs; URL query keys, state keys, and data fields are nouns (never verb+noun commands like `try_bars`).
+- **Use descriptive names in math and specs too:** prefer `brpToHbOffset`, `coupledHbTarget`, `HB_dynamic`, and `forkSagPitchDelta` over single-letter placeholders (`V`) or cryptic abbreviations (`HB_dyn`, `pitch_source`).
+
+## Geometry & Technical Exposition
+
+- **Name the coordinate system before combining vectors:** a component displacement (insertion, setback, seatpost sag) lives in that component's invariant local coordinate system, never the bicycle's world `(X, Y)` frame (`BB = (0, 0)`, `+X` forward, `+Y` up). A component's local axes never rotate relative to the component; state the rigid transformation between the component's local frame and the world frame before combining points or vectors.
+- **Specify transforms with `pose.Pose` (turtle graphics):** express placements and coordinate transforms in specs as well as code as turtle steps (`Advance`, `Translate`, `Turn`, `Face`) from an oriented landmark pose (such as `SeatTubeTop`, where `local +X` is up the shaft and `local +Y` is rearward perpendicular to the shaft) rather than ad-hoc trig (`90° − STA`).
+- **Check signs and state transitions:** if a part sags down and back (`static → dynamic`, `Translate(-6, +5)`), unloading (`dynamic → static`) or pre-positioning it moves up and forward (`Translate(+6, -5)`). Don't confuse fitting a candidate in the dynamic world (where `Face` levels the saddle and orients the bar after pitching the frame) with unloading one already-clamped build to the static state.
+- **Define variables in plain English first:** state what each variable represents, its load state (`static` vs. `dynamic`), and its coordinate frame before writing formulas. Drop tables and ceremony when direct prose and turtle steps say it better.
 
 ## Verification
 
