@@ -1,7 +1,7 @@
 # Slice 23: Compile-Time Coordinate-Space, Axis, and Affine Type Safety in `pose` and `assembly`
 
 Status: Planned 2026-11-23
-Implementer: High (Frontier) — generic coordinate-space, orientation-axis, and affine (`Point` vs. `Vec`) type system across `internal/pose`, `internal/assembly`, `internal/catalog`, `internal/query`, `internal/compare`, and `internal/web`.
+Implementer: Medium (mid-tier) — behavior-preserving, compiler-guided migration to the generic `pose` and `assembly` types specified in this plan across 4 staged commits.
 Review: required — architectural and geometric type-system change across `pose` and `assembly`.
 
 ## Goal
@@ -863,6 +863,7 @@ func (b ScoredBuild) BrpMiss() (pose.Vec[DynamicWorld], bool) {
 
 Each commit below compiles cleanly and passes `make pre-commit` (`go fix`, `go fmt`, `go vet`, `make boundary`, `exhaustive`, `go test ./...`).
 
+- **One-commit-per-session rule:** Stop after completing and committing **one** commit from the staged plan below (or after landing an isolated bug-fix commit). In that commit, update `SLICE23.md`'s header to `Status: Partly implemented <YYYY-MM-DD>; stopped after Commit <k>` (or `Status: Implemented <YYYY-MM-DD>; awaiting review` on Commit 4) and update `## Implementation handoff` with the commit hash and verification status, then stop and wait for Matt before starting the next commit.
 - **Bug-isolation rule:** Every type-safety commit in this slice must be strictly behavior-preserving. If applying the new types exposes a real bug in existing code or tests (for example, a cross-frame or wrong-axis operation, a reversed offset sign, or an unpitched vs. leveled mix-up), **do not fix the bug inside the type-safety commit**. Instead, land the bug fix and its regression test in an isolated standalone commit first (passing `make pre-commit`), and then apply the pure type-safety commit on top.
 
 ### Commit 1: Separate Affine `pose.Point` (Position) and `pose.Vec` (Displacement), and Move Point-to-Point Measurements onto `Point`
