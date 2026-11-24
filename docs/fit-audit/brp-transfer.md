@@ -1,23 +1,80 @@
-# BRP and HandGrip transfer
+# Static and dynamic transfer specification
 
-Discussion snapshot, 2026-11-23, against `b961e8818121`. Use this as a source of questions and counterexamples during the fit audit. The discussion below has not undergone independent proof review.
+Status: Ruled 2026-11-23 ([Q159–Q172](../DESIGN.md)). Expresses static and dynamic placement, target conversion, and saddle-to-cockpit coupling using `pose.Pose` (turtle graphics).
 
-## Established inputs and decisions
+## 1. Coordinate systems and variables
 
-- Matt’s BRP was measured on an unloaded ShockStop. The fitter copied the position to a fixed jig using the same physical saddle. Reproducing the jig position and estimating the original bike’s seated position are two distinct fit intentions. The report gives BRP at approximately (−219, 713.1) mm and HandGrip at (481, 726) mm. The record establishes the source state for the saddle measurement. Preserve the provenance of each landmark. [Rider fit record](../RIDER_FIT.md)
-- Matt chose 20% seatpost sag for BRP transfer on the 35 mm Endurance and PRO Endurance (now PRO). The Endurance instructions give an unloaded setup 5 mm forward and 6 mm higher than a rigid setup. Using the inverse movement for the PRO assumes comparable linkage motion. Matt’s actual seated sag remains unmeasured. The 7 mm static and 12 mm at 25% specifications describe a separate pair of states. [Q159](../DESIGN.md) · [Catalog source record and manuals](../../internal/catalog/seatpost_redshift_shockstop_pro.md)
-- At the recorded revision, placement applies one 12 mm setback perpendicular to the post shaft. It has no unloaded-to-seated linkage calculation. The 25% setback cannot also serve as the unloaded starting position for a 20% transfer. [Seatpost catalog](../../internal/catalog/seatposts.go) · [Placement](../../internal/assembly/seatpost.go)
+### Coordinate systems
 
-## Questions worth preserving
+1. **World coordinate system (bike frame at a given state):**
+   - A 2D side-view plane with origin at `BB = (0, 0)`, `+X` horizontally forward along the leveled axle line (`0°` heading), and `+Y` vertically upward (`90°` heading). Positive turns are counter-clockwise.
+   - Each build has two world states (Q169):
+     - **Static world:** both wheels on level ground with the fork and seatpost fully extended (`0%` sag).
+     - **Dynamic world:** both wheels on level ground with the fork and seatpost compressed to their steady seated sag (Q159, Q161).
+2. **Seatpost coordinate system (invariant, owned by the seatpost):**
+   - Fixed to the seatpost shaft itself; it never changes relative to the seatpost.
+   - Matches `PlaceSeatpost`'s turtle at `SeatTubeTop`:
+     - **Along-shaft axis (`local +X`):** points upward along the seatpost shaft from bottom to head.
+     - **Setback axis (`local +Y`):** points rearward, perpendicular to the seatpost shaft (`90°` counter-clockwise from `local +X`).
+   - Because a turtle placed at `SeatTubeTop` already points along `local +X` (up the shaft), `Pose.Translate(alongShaftMm, rearwardSetbackMm)` rigidly transforms seatpost-local displacements into the active world coordinate system.
 
-**Which axes own each movement?** Insertion follows the shaft. Sliding the saddle follows the rails. ShockStop motion carries the cradle and saddle together relative to the post. The manual describes the components of that movement in its illustrated installation. Q159 currently states a BB-relative correction. A proposed refinement is to express the calibrated displacement in post-local axes and project it using the actual installed shaft angle. About 74° was estimated from the drawing. The calibration angle, the datum for the 7 mm static offset, and use of effective seat tube angle where the actual shaft angle is unknown all need review. [Manufacturer evidence](../../internal/catalog/seatpost_redshift_shockstop_pro.md)
+### Variables
 
-**Whose suspension determines the fit?** A proposed comparison keeps the source measurements, derives BRP and HandGrip at steady seated sag for the source, and places each destination at its own seated sag. Fork compression changes frame attitude and affects both landmarks. Post compression moves the saddle relative to the frame. Going between states of the same installation must carry the clamped saddle and handlebar with it. Rail pitch and bar roll are currently entered relative to world axes. Decide what source information is sufficient, what an unknown source fork state permits us to infer, and how to invert a destination placement into coordinates someone can measure on the unloaded bike. [Saddle placement](../../internal/assembly/saddle.go) · [Handlebar placement](../../internal/assembly/handlebar.go)
+- **`BRP_target`, `HB_target`:** The rider's desired saddle (`BRP`) and handgrip (`HB`) positions, expressed as points `(X, Y)` in the **dynamic world** coordinate system.
+- **`brpToHbOffset = HB_target − BRP_target`:** The rider's desired 2D saddle-to-handgrip displacement vector `(ΔX, ΔY)` in the **dynamic world** coordinate system (Q172).
+- **`BRP_dynamic`, `HB_dynamic`:** A build's placed saddle and handgrip points `(X, Y)` in the **dynamic world** coordinate system.
+- **`coupledHbTarget = BRP_dynamic + brpToHbOffset`:** The front-cockpit handgrip target in the **dynamic world** coordinate system after fitting the saddle to `BRP_dynamic` (Q172).
+- **`BRP_static`, `HB_static`:** A build's placed (or workshop-measured) saddle and handgrip points `(X, Y)` in the **static world** coordinate system.
+- **Frame leveling pitch (`FramesetPlacement.BB.HeadingDeg()`):** The angle by which `PlaceFrameset` rotates the unpitched chart frame about `BB` so the rear-to-front axle line is horizontal for the current fork length.
+- **`forkSagPitchDelta`:** How many degrees the frame rotates about `BB` when the fork compresses from static (`0%` sag) to dynamic (seated sag):
+  `forkSagPitchDelta = dynamicFrameset.BB.HeadingDeg() − staticFrameset.BB.HeadingDeg()`
+  *(negative when fork sag drops the front end nose-down; `0°` for a rigid fork).*
 
-**When does fitting unloaded give the same answer?** At fixed fork attitude, earlier checks found equal BRP misses when the candidate’s post displacement was applied to the placed saddle or subtracted from the target. An exact two-landmark match also survived identical fork rotation on both bikes. A direction-dependent tolerance can change the classification of an imperfect match under that same rotation. The audit should state conditions for each claim separately, including how to express the tolerance when changing coordinates.
+## 2. Seatpost geometry in seatpost coordinates (`redshift_shockstop_pro`, Q159)
 
-An earlier scratch check used the Fenrir L, SID 100 mm (506 × 44), a zero-setback rigid post, and 0% versus 20% fork sag. It used bikegeo placement and scoring and held the installed saddle and bar orientations fixed to the frame. With a locked source and sagging destination, an exact unloaded match developed destination movements of (+11.5, +2.5) mm at BRP and (+12.2, −6.3) mm at HandGrip. With identical fork motion, a BRP miss of (−9.50, +1.95) mm rotated to (−9.47, +2.10) mm, crossing the ±2 mm vertical gate. These are model observations from the earlier discussion, suitable for an independent reproduction.
+In the seatpost's invariant `(alongShaft, rearwardSetback)` coordinates ([source record](../../internal/catalog/seatpost_redshift_shockstop_pro.md)):
 
-## UX direction to revisit after the audit
+- **Static (unloaded) rail cradle from `SeatTubeTop`:**
+  - Advance up the shaft by `ExposedMm = 350 − InsertionMm`, then translate `7 mm` rearward perpendicular to the shaft (`StaticSetbackMm = 7 mm`):
+    `staticCradle = seatTubeTop.Advance(ExposedMm).Translate(0, 7)`
+- **20% seated sag step (static → dynamic):**
+  - When the rider sits down, the linkage moves **6 mm down along the shaft** (`−6 mm`) and **5 mm rearward perpendicular to the shaft** (`+5 mm`), keeping saddle pitch constant relative to the post shaft:
+    `dynamicCradle = staticCradle.Translate(-6, +5)`
+    *(landing at `ExposedMm − 6 mm` along the shaft and `7 + 5 = 12 mm` perpendicular rearward setback).*
+- **Unloading step (dynamic → static):**
+  - The inverse turtle step in seatpost coordinates moves **6 mm up along the shaft** (`+6 mm`) and **5 mm forward perpendicular to the shaft** (`−5 mm`):
+    `staticCradle = dynamicCradle.Translate(+6, -5)`
+- *(For a rigid seatpost, the sag and unloading steps are `Translate(0, 0)`.)*
 
-Matt prefers the checkbox **“BRP measured on an unsagged Redshift ShockStop seat post”** beside the measured coordinates. It describes the source post independently of the selected build. The leading proposal keeps the entered measurements and their reference in shared links and CLI output, shows the estimated seated fit for comparison, and gives the unloaded coordinates of the achieved build for workshop setup. How to represent source fork state and measurement uncertainty remains open. A standalone transfer calculator is a possible later surface. Transferring fit between different saddles by their modeled SIT landmarks is deferred indefinitely.
+## 3. Turtle-graphics operations
+
+### A. Fitting a candidate build in the Dynamic World (`PlaceBike` + `ApplyFitting`)
+
+1. **Frameset:** Place the frame with the fork's dynamic A2C (at class sag, Q161) and level the axles (`dynamicFrameset`).
+2. **Seatpost:** From `dynamicFrameset.SeatTubeTop`, walk to `staticCradle` and apply the seatpost sag step `.Translate(-6, +5)` to reach `dynamicCradle`.
+3. **Saddle:** At `dynamicCradle`, face the dynamic world rail heading (`Face(+5°)` on SQlab 610, Q165), slide by `−RailOffsetMm`, and place `BRP_dynamic` and `SIT_dynamic`.
+   - Record the clamped post-to-rail angle: `clampedRailTurn = +5° − dynamicCradle.HeadingDeg()`.
+   - Fit `InsertionMm` and `RailOffsetMm` to `BRP_target` (Q168), yielding the fitted `BRP_dynamic`.
+4. **Cockpit (Q172 coupling):**
+   - Compute `coupledHbTarget = BRP_dynamic + brpToHbOffset` (or `HB_target` when `brp=off` on `/bike`).
+   - At `BarClamp`, face the dynamic world roll (`Face(0°)`, Q163), recording the clamped stem-to-bar angle `clampedBarTurn = 0° − BarClamp.HeadingDeg()`, and fit/score the cockpit against `coupledHbTarget`.
+
+### B. Dynamic → Static unloading (Candidate Dynamic Build → Static Workshop Coordinates)
+
+To find `(BRP_static, HB_static)` for a fitted candidate build without loosening any clamp bolts:
+
+1. **Unload the seatpost (in the seatpost's coordinate system):**
+   - Place a turtle at `BRP_dynamic` oriented along the dynamic seatpost shaft (`dynamicFrameset.SeatTubeTop.HeadingDeg()`) and step `.Translate(+6, -5)` (`6 mm` up the shaft, `5 mm` forward perpendicular to the shaft).
+2. **Unload the fork (frame rotation about `BB`):**
+   - Rotate both the unloaded-post `BRP` point and `HB_dynamic` about `BB` by `−forkSagPitchDelta` (as the fork extends to `0%` sag and pitches the frame, stem, clamped bar, seatpost, and clamped saddle back to the static attitude), yielding `(BRP_static, HB_static)`.
+   - *(This produces the exact same `(BRP_static, HB_static)` as walking the static frameset from `BB` at `0%` fork sag, stopping at `staticCradle`, and using the clamped turns `Turn(clampedRailTurn)` and `Turn(clampedBarTurn)` instead of `Face`.)*
+
+### C. Static → Dynamic target conversion (Source Bike Static Measurements → Dynamic Targets)
+
+When a rider enters static workshop measurements `(BRP_static, HB_static)` taken on a source bike:
+
+1. **Apply the source fork's sag (frame rotation about `BB`):**
+   - Rotate both `BRP_static` and `HB_static` about `BB` by the source bike's `forkSagPitchDelta`.
+   - The rotated `HB` point is `HB_dynamic`.
+2. **Apply the source seatpost's sag (in the seatpost's coordinate system):**
+   - Place a turtle at the fork-rotated `BRP` point, give it the heading of the source bike's dynamic seatpost shaft (`dynamicFrameset.SeatTubeTop.HeadingDeg()`), and step `.Translate(-6, +5)` (`6 mm` down the shaft, `5 mm` rearward perpendicular to the shaft) to land on `BRP_dynamic`.
