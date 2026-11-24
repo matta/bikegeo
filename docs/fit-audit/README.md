@@ -82,6 +82,7 @@ Finish settling the physical geometry and domain rules before writing the new mo
 
 Once Phase 1 rulings are complete in `DESIGN.md`, plan and implement the Go code slices under [`WORKFLOW.md`](../WORKFLOW.md) (Horizon 2 → Horizon 3):
 
+- Compile-time coordinate-space (`UnpitchedChart`, `StaticWorld`, `DynamicWorld`), orientation-axis (`Pose[Axis, W]`, `TurnDeg[FromAxis, ToAxis]`), affine (`Point[S]` vs. `Vec[S]`), and rigid `Transform[Src, Dst]` type safety in `internal/pose` and `internal/assembly` (Q173, Slice 23), ahead of the behavior-changing model slices below.
 - Rigidly clamped saddle and handlebar orientation between static and dynamic placements (Q163, Q169).
 - Seated fork sag per travel class (Q161), single fixed handlebar (Q163), seatpost option fitting, and +5° SQlab 610 rail angle for rail-position scoring (Q164–Q165).
 - Static-to-dynamic target conversion and workshop readout derivation on `/bike` and `/` (Q159–Q160), T5 ruling, workshop proximity warnings (Q166–Q167), and `SIT` / `BRP.x` terminology updates (Q170–Q171).
