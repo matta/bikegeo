@@ -1,6 +1,6 @@
 # Fenrir physical check
 
-Status: Draft, 2026-11-23. The procedure depends on the Stage 1 static and dynamic ruling and the open world-axes question in [`01-definitions-and-states.md`](01-definitions-and-states.md). No measurements have been taken yet.
+Status: Draft, 2026-11-23. The procedure depends on the Stage 1 static and dynamic ruling in [`01-definitions-and-states.md`](01-definitions-and-states.md). Matt deferred the Fenrir setup and measurements until the other Stage 1 questions are resolved.
 
 Purpose: compare Matt's own Otso Fenrir, measured static, with the model's static placement of the same build (T4 in the [README](README.md#questions-the-audit-must-answer)).
 
@@ -50,10 +50,10 @@ Method: snap a chalk line or lay a straightedge on the floor through both tire c
 | M7 | Saddle rail angle | static saddle tilt (`RailPitchDeg` today) | |
 | M8 | HandGrip relative to BB, X and Y | `Handlebar.HandGrip` | |
 
-Open definitions before M6 and M8 can be measured (Stage 1 item 7):
+Use the Q162 landmarks for M6 and M8.
 
-- **BRP** needs a physical point on the saddle: the top surface on the centerline at the W70 station. Measuring the saddle's height above the rails at W70 also replaces the illustrative 45 mm `RailToBrpHeightMm`.
-- **HandGrip** needs a physical point on the bar: the bar's axis, `GripInsetMm` in from the cut end. RIDER_FIT confirms that the idmatch HandGrip is the physical grip location, but not which point of the grip.
+- **M6, BRP.** Locate the station where the saddle is 70 mm wide. Measure the point on the saddle’s top surface on its longitudinal centerline at that station. Measuring its height above the rails also replaces the illustrative 45 mm `RailToBrpHeightMm`.
+- **M8, HB.** Measure the center of the handlebar tube 8 cm in from its cut end. The idmatch record identifies the handgrip, but its exact measurement station is undocumented.
 
 ## 3. Comparison
 

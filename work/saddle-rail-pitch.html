@@ -1,0 +1,42 @@
+<section id="saddle-pitch-study">
+<style>
+#saddle-pitch-study .plates{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr));gap:1rem}
+#saddle-pitch-study .plate svg{display:block;width:100%;height:auto;max-width:340px}
+#saddle-pitch-study .plate,#saddle-pitch-study .controls{margin-top:.7rem}
+#saddle-pitch-study .key{display:flex;gap:.8rem;flex-wrap:wrap;margin:.8rem 0}
+#saddle-pitch-study .label{display:inline-flex;align-items:center;gap:.25rem}
+#saddle-pitch-study .label svg{width:18px;height:18px}
+</style>
+<h3>Rail pitch and the saddle reference point</h3>
+<div class="viz-row controls" aria-label="Placement">
+<button type="button" class="btn" aria-pressed="true" data-step="0">1 · Hold clamp fixed</button>
+<button type="button" class="btn" aria-pressed="false" data-step="1">2 · Refit to original BRP</button>
+</div>
+<div class="key text-small">
+<span class="label"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="5" fill="var(--viz-series-1)"/></svg>BRP</span>
+<span class="label"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Clamp</span>
+<span class="label"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M9 4l5 5-5 5-5-5z" fill="var(--viz-series-2)"/></svg>Rail center</span>
+<span>Dashed outline · 0° reference</span>
+</div>
+<div class="plates" aria-live="polite"></div>
+<script>
+(()=>{
+const host=document.getElementById('saddle-pitch-study');
+const cases=[
+ {pitch:0,free:[32,45],center:[0,0],clamp:[0,0],rail:0,insert:0},
+ {pitch:5,free:[27.956,47.618],center:[4.044,-2.618],clamp:[.808,-2.901],rail:3.247,insert:3.011},
+ {pitch:10,free:[23.699,49.873],center:[8.300,-4.873],clamp:[1.683,-6.040],rail:6.719,insert:6.270}
+];
+const x=v=>100+3*v,y=v=>176-3*v;
+function plate(c,fit) {
+ const [cx,cy]=fit?c.center:[0,0], [kx,ky]=fit?c.clamp:[0,0];
+ const [bx,by]=fit?[32,45]:c.free;
+ const desc=fit?(c.pitch?c.rail.toFixed(1)+' mm forward slide · '+c.insert.toFixed(1)+' mm deeper':'Centered rails · 175 mm insertion'):(c.pitch?(32-bx).toFixed(1)+' mm back · '+(by-45).toFixed(1)+' mm up':'Centered rails · 175 mm insertion');
+ const shape='<path d="M-90 0H90" stroke-width="3"/><path d="M0 0H96V-135" stroke-width="1.4"/>';
+ return '<article class="plate"><h3>'+c.pitch+'° rail pitch</h3><svg viewBox="0 0 244 211" role="img" aria-label="'+c.pitch+' degree rail pitch. '+desc+'"><g transform="translate(100 176)" fill="none" stroke="var(--muted-foreground)" opacity=".65" stroke-dasharray="3 3">'+shape+'<circle cx="96" cy="-135" r="6"/></g><g transform="translate('+x(cx)+' '+y(cy)+') rotate('+(-c.pitch)+')" fill="none" stroke="var(--viz-series-1)">'+shape+'</g><circle cx="'+x(kx)+'" cy="'+y(ky)+'" r="7" fill="var(--background)" stroke="var(--foreground)" stroke-width="2"/><path transform="translate('+x(cx)+' '+y(cy)+')" d="M0 -4l4 4-4 4-4-4z" fill="var(--viz-series-2)"/><circle cx="'+x(bx)+'" cy="'+y(by)+'" r="4.5" fill="var(--viz-series-1)"/>'+(c.pitch===0?'<g fill="var(--foreground)" font-size="12"><text x="120" y="168">32 mm along</text><text transform="translate(187 140) rotate(-90)">45 mm above</text></g>':'')+'</svg><div class="text-small">'+desc+'</div></article>';
+}
+function draw(fit){host.querySelector('.plates').innerHTML=cases.map(c=>plate(c,fit)).join('');host.querySelectorAll('[data-step]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.step)===fit)));}
+host.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>draw(Number(b.dataset.step)));draw(0);
+})();
+</script>
+</section>

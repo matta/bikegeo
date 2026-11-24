@@ -260,7 +260,9 @@ SIT is 10 mm above the W70 / BRP reference plane, physically measured by Matt an
 
 For the level-rail reference approximation, the W70-to-SIT displacement is 80 mm rearward and 10 mm upward: `(-80, +10) mm` in the shared positive-forward / positive-upward convention.
 
-Longitudinal distances run parallel to the saddle rails, which are closer to parallel to the ground than perpendicular to the seat tube. They must not be applied along the seat-tube perpendicular. Any conversion to bicycle-relative coordinates must state the assumed rail pitch and use a consistent saddle-coordinate transform. No numerical installed rail pitch has been supplied.
+Longitudinal distances run parallel to the saddle rails, which are closer to parallel to the ground than perpendicular to the seat tube. They must not be applied along the seat-tube perpendicular. Any conversion to bicycle-relative coordinates must state the assumed rail pitch and use a consistent saddle-coordinate transform.
+
+**Rail angle for SQlab 610 rail-position scoring.** On 2026-11-23 Matt reported that, with the flat top of the nose horizontal, the straight clamping section rises approximately +5° from rear to front. Use this owner-reported estimate only for scoring the required rail position on the SQlab 610. The installed pitch at the idmatch session remains unknown.
 
 ## 7. W70 measurement and external cross-check
 

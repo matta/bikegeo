@@ -1,6 +1,6 @@
 # Stage 1: Definitions, coordinates, and load states
 
-Status: In progress, started 2026-11-23. Code revision `b4a46e974e02`. No Go files have changed since `b961e8818121`. Names in the glossary are the current code names. Matt has chosen the state names static and dynamic, which are not yet recorded as a `Q#` (see [Nomenclature](README.md#nomenclature)).
+Status: In progress, started 2026-11-23. Code revision `b4a46e974e02`. No Go files have changed since `b961e8818121`. Names in the glossary are the current code names. Q169 defines the static and dynamic placements of one build.
 
 ## Scope and premises
 
@@ -43,7 +43,7 @@ The landmark error is about 1 mm, half the BRP Y gate. It grows with fork travel
 
 Each item is a question about meaning, not yet about names.
 
-1. **What defines "level"?** The model levels the axle line. A real bike is measured standing on a floor. The two agree only if both tires have the same radius and the floor is level. Matt's front and rear tires may differ.
+1. **What defines "level"?** The model uses one wheel radius for both ends. On a level floor the two axles therefore have the same height. From BB, +X is horizontally forward and +Y is vertically up. Keep the shared radius.
 
    *Note (Matt, 2026-11-23):* a level frame is the normal, expected case, so saying a frame is "leveled" is usually unnecessary, especially in the UI. The unleveled state is the one that needs calling out. It is degenerate and needs correcting. In code, the unleveled state is the chart's own attitude, used by `PlaceUnpitchedFrameset` and the chart values in `FrameSetup`.
 2. **What are the saddle-angle and bar-roll settings measured against?** Two of a build's settings are angles: `SaddleSetup.RailPitchDeg` (saddle rail angle) and `HandlebarSetup.BarRollDeg` (handlebar roll). `PlaceSaddle` and `PlaceHandlebar` measure both against world horizontal in whatever state the bike is placed in. Today that is the fork at its `SagPct`. On a real bike, a clamped saddle's rails hold a fixed angle relative to the seatpost, and a clamped bar holds a fixed roll relative to the stem. What a level reads on either one depends on the state the bike is in. The code doesn't separate the clamped angle from the level reading, which causes the difference between cases B and C above. This bears on T2 in the README's [question table](README.md#questions-the-audit-must-answer): "Do clamped parts rotate and translate rigidly with the frame and post when the same bike moves between unloaded and rider-loaded states?"
@@ -51,9 +51,9 @@ Each item is a question about meaning, not yet about names.
 
    *Ruling (Matt, 2026-11-23):* tire compression stays out of the model. It is close enough to identical across bikes that it doesn't matter.
 4. **In which state was each target measured?** The default BRP comes from an unsagged post, on a source bike whose fork state isn't recorded. The default HandGrip comes from the idmatch report. A target with no load state can't be compared with a placement unambiguously. Stage 3 owns transfer, but Stage 1 needs a term for a target's reference state.
-5. **One word, two meanings: "setback".** `SeatpostSpec.SetbackMm` is a post-local perpendicular offset of the rail cradle from the shaft axis. "BRP setback behind BB" (219 mm in `RIDER_FIT.md`) is a world horizontal distance. They're different quantities with different owners.
+5. **Seatpost setback and BRP.x (Q171).** Measure seatpost setback perpendicular to the post shaft, from its axis to the rail clamp center. Use BRP.x for the horizontal saddle coordinate relative to BB. The fit report’s 219 mm behind BB corresponds to BRP.x = −219 mm.
 6. **`SitBones` vs SIT.** The code's `SitBones` landmark and the `SitBonesToGripRiseMm` comment ("sit-bone contact point") suggest anatomy. `RIDER_FIT.md` says the landmark is a saddle support reference (SIT) and not a pelvic location.
-7. **What is measured at HandGrip and BRP?** `HandGrip` is the side-view projection of a 3D point on the bar, `GripInsetMm` in from the cut end, with `HandLateralMm` kept separately. BRP is a saddle-local point at the W70 station, whose height above the rails (`RailToBrpHeightMm` = 45 mm) is illustrative. Reproducing either on a real bike needs a physical definition of the point and its datum.
+7. **What is measured at HandGrip and BRP?** `HandGrip` is the side-view projection of a 3D point on the bar, `GripInsetMm` in from the cut end, with `HandLateralMm` kept separately. BRP is a saddle-local point at the W70 station, whose height above the rails (`RailToBrpHeightMm` = 45 mm) is illustrative. Q162 defines the workshop points: BRP is the top of the saddle on its centerline at W70. HB is the center of the handlebar tube 8 cm in from its cut end.
 8. **`Leveled` names the wrong thing.** `LeveledReachMm` and similar values change with sag, but their names don't say which state they describe. Per Matt's note under item 1, "leveled" is the default and doesn't need saying. The state does.
 
 ## Working glossary
@@ -75,7 +75,7 @@ Every row has the status *as in code*: it records the current meaning so it can 
 | `RailPitchDeg` | Rail heading in world axes | Angle | **World** (not the post) | Input | Input | Saddle landmarks |
 | `RailOffsetMm` | Saddle slide along rails; positive is rearward | Scalar | Rails | Adjustment | Input or fitting | Saddle landmarks |
 | `BRP` | Saddle landmark at W70, `RailCenterToBrpMm` forward of and `RailToBrpHeightMm` above rail center | Landmark (stored as Pose) | Saddle-local, placed in world | Everything upstream | Saddle data (height illustrative) | BRP target, gates, scores |
-| `SitBones` | Saddle support landmark (SIT), 80 mm behind and 10 mm above BRP | Landmark (stored as Pose) | Saddle-local | Everything upstream | Owner-measured saddle | Rise readout |
+| `SitBones` | Saddle support landmark (SIT under Q170), 80 mm behind and 10 mm above BRP | Landmark (stored as Pose) | Saddle-local | Everything upstream | Owner-measured saddle | Rise readout |
 | `AngleDeg` (stem) | Stem angle from perpendicular to the steerer | Angle | Steerer axis | Choosing a stem | Catalog or input | Bar clamp |
 | `SpacersMm`, `UpperStackMm` | Axial stack below the stem; upper stack fixed at 11 mm | Scalars | Steerer axis | Adjustment (spacers) | Input; 11 mm illustrative | Bar clamp |
 | `BarRollDeg` | Bar roll in world axes; positive rolls the top forward | Angle | **World** (not the stem) | Input | Input | HandGrip |
@@ -107,7 +107,7 @@ This is the complete list of `BikeSetup` inputs at `b4a46e974e02`. A **part** is
 | Stem | stem length and angle; steerer clamp height | spacers (`SpacersMm`) | spacer allowance (`MaxSpacersMm`); stem length range (`MinLengthMm`, `MaxLengthMm`) |
 | Handlebar | bar (stock width, backsweep, upsweep, rise and its convention, bend start) | cut width (`CurrentWidthMm`); grip position (`GripInsetMm`); roll (`BarRollDeg`) | none |
 
-Things a real bike has that `BikeSetup` lacks (examples, not a complete list): the Fenrir's Tuning Chip position (the catalog uses the middle chart only), separate front and rear radii, a seatpost's static state, a setback adapter such as the FAIR Drop Best, and the static position of a suspension post's head.
+Things a real bike has that `BikeSetup` lacks (examples, not a complete list): the Fenrir's Tuning Chip position (the catalog uses the middle chart only), a seatpost's static state, a setback adapter such as the FAIR Drop Best, and the static position of a suspension post's head.
 
 Two inputs don't fit the part/setting split cleanly:
 
@@ -134,18 +134,18 @@ Matt decided the role of every build input in matching a dynamic fit. The table 
 | Role | Inputs | Notes |
 | --- | --- | --- |
 | **Compared** (never fitted) | frame and size, with the wheel size that comes with the frame | What compare ranks. |
-| **Fixed by the rider** (never fitted) | saddle; handlebar, including its cut width and grip position; sag of each suspension part | The handlebar is chosen once and applied to every frame. Because it never changes, hand width needs no separate model. |
+| **Fixed by the rider** (never fitted) | saddle; handlebar, including its cut width (Q162 fixes the HB inset at 8 cm); sag of each suspension part | The handlebar is chosen once and applied to every frame. Because it never changes, hand width needs no separate model. |
 | **Part choices fitting may make** | fork, from the frame's supported forks (only frames that support more than one); seatpost, from an option list unless the rider fixes one post; stem, from the catalog; spacer stack, in steps; lower cup, which follows from the fork | |
 | **Settings fitting solves for** | insertion; rail offset; stem length, only where stems are hypothetical (`/bike`) | |
 
 Rulings behind the table:
 
-1. **Fork sag is a property of the fork.** Each fork class gets one sag value. Examples of classes: 100 mm XC, 120 mm XC, 130 mm trail. Fitting never chooses sag. The values per class are still to be chosen, and they must be seated sag (see the consequences of the static and dynamic ruling).
+1. **Fork sag is a property of the fork.** Each fork class gets one sag value. Examples of classes: 100 mm XC, 120 mm XC, 130 mm trail. Fitting never chooses sag. Use seated sag of 15% for 100 mm, 20% for 120 mm, and 25% for 130 mm (Q161).
 2. **The seatpost is a fitting choice, but can be fixed.** Fitting may choose the post from an option list. The rider must also be able to fix the fit to a single post: for example, a rider who needs the ShockStop, or a zero-offset post such as a dropper.
 3. **The handlebar is not a fitting choice.** The rider picks one bar, and it is applied to all frames. Using the same bar at the same fixed dynamic roll gives the hands the same angle across candidates. It also makes hand width a property of the bar, not a fit item.
 4. **The fork varies only in limited cases.** Some frames support a range of suspension forks or a set of rigid forks. For those, fitting varies the fork among the frame's supported forks, each at its class sag.
 
-**Dynamic angle assumptions (Matt, 2026-11-23).** Place the saddle level and the handlebar at a reasonable fixed roll in the dynamic state. Both angles affect landmark positions slightly. The model uses them internally, with no configuration, fitting search, or UI readout for either angle. In the static placement of that same build, the saddle follows the post head and the bar follows the stem. Matt did not specify a numerical bar roll.
+**Dynamic angle assumptions (Matt, 2026-11-23).** Place the saddle level and the handlebar at its catalog orientation (0° additional roll, Q163) in the dynamic state. Both angles affect landmark positions slightly. The model uses them internally, with no configuration, fitting search, or UI readout for either angle. In the static placement of that same build, the saddle follows the post head and the bar follows the stem.
 
 ### Behavior changes these rulings imply
 
@@ -156,9 +156,9 @@ These rulings deliberately change behavior. They aren't defects, so they become 
 - **Handlebars.** Fitting would stop choosing among handlebars (`bar_options=all` in compare and `/bike`). This revises Q22–Q24 and Q101.
 - **Angles.** Placement would apply the fixed angles in the dynamic state and carry the clamped parts into the static state (the case B defect).
 
-## Proposed ruling: static and dynamic states (awaiting Matt's confirmation)
+## Static and dynamic states
 
-Matt set the direction on 2026-11-23: bicycle geometry is measured static and evaluated dynamic. The same day he chose the names **static** and **dynamic**, replacing "seated" (see [Names for the state pair](#names-for-the-state-pair)). The ruling is ready to record as a `Q#` once he confirms this text.
+Matt set the direction on 2026-11-23: bicycle geometry is measured static and evaluated dynamic. The same day he chose the names **static** and **dynamic**, replacing "seated" (see [Names for the state pair](#names-for-the-state-pair)). Matt confirmed the one-build placement rule in Q169.
 
 Definitions:
 
@@ -188,7 +188,7 @@ Consequences to carry into later stages:
 - The default targets (Q53) are a static fit measured on Matt's ShockStop bike. The fork state of that bike is part of the Fenrir build facts.
 - Q78's mixed-state caveat would be resolved, not just documented.
 - Under rule 1, the world-held `RailPitchDeg` and `BarRollDeg` (case B above) are a defect whenever one build is placed in both states.
-- **Seated sag is a physical premise to check.** The dynamic state is seated, so every sag value must be seated sag. Q132's fork ranges (`[15%, 20%]` for 100 mm, `[15%, 25%]` for 120 mm, `[20%, 25%]` for 130 mm) don't record whether they are seated or standing figures, and trail forks are often set up with the rider standing. If they are standing figures, the dynamic state needs its own fork sag. Q159's 20% post sag is seated (Redshift's manual identifies sag with the rider seated).
+- **Seated fork sag (Q161).** Across all catalog fork variants, dynamic A2C is 491 mm at 100 mm travel, 506–512 mm at 120 mm, and 508–513.5 mm at 130 mm. Every Fox family offered at both 120 and 130 mm gains 1.5 mm. The two classes overlap across families.
 
 **Correction, 2026-11-23.** In chat, Claude claimed that the ShockStop linkage tips the saddle as the post compresses. That claim was wrong. The [source record](../../internal/catalog/seatpost_redshift_shockstop_pro.md) gives saddle pitch through travel as constant relative to the post's mounting orientation, as Matt said. The rail angle can therefore be clamped relative to the post shaft.
 
@@ -231,17 +231,13 @@ Placement can derive the static angles internally from the dynamic assumptions a
 
 ## Code audit and tests
 
-Nothing has been committed yet. Once the static and dynamic ruling is confirmed, a committed test should check that changing only `SagPct` moves every saddle and cockpit landmark by one rigid rotation about `BB` plus a translation, with the saddle and bar angles changing by the frame's pitch change. Under current code that test would fail, and it would be committed disabled under the [defect procedure](README.md#defects-and-fixes).
+The pending Q169 regression test should check that changing only `SagPct` moves every saddle and cockpit landmark by one rigid rotation about `BB` plus a translation, with the saddle and bar angles changing by the frame's pitch change. Under current code that test would fail, and it would be committed disabled under the [defect procedure](README.md#defects-and-fixes).
 
 ## Session handoff
 
-- **Conclusion so far.** The model defines world axes by the axle line and load state by fork sag alone, and it holds rail pitch and bar roll fixed to the world. As a result, it doesn't carry the saddle and bar rigidly when sag changes. On the Fenrir L with SID 100 at 20% sag, that misplaces BRP and HandGrip by about 1 mm and the saddle and bar angles by 0.92°. Matt agreed to separate the static and dynamic placements of one build, chose those names, and ruled tire compression out of the model. The note now lists every input of a build and what each fitting operation varies, and records Matt's rulings on the role of each input. The ruling text awaits his confirmation. Once it is confirmed, case B is a defect.
+- **Conclusion so far.** The model defines world axes by the axle line and load state by fork sag alone, and it holds rail pitch and bar roll fixed to the world. As a result, it doesn't carry the saddle and bar rigidly when sag changes. On the Fenrir L with SID 100 at 20% sag, that misplaces BRP and HandGrip by about 1 mm and the saddle and bar angles by 0.92°. Matt agreed to separate the static and dynamic placements of one build, chose those names, and ruled tire compression out of the model. The note now lists every input of a build and what each fitting operation varies, and records Matt's rulings on the role of each input. Case B violates Q169.
 - **Evidence.** The code at `b4a46e974e02` (symbols listed under Scope, plus `ApplyFitting`, `FitPostSetback`, `FitBuilds`, and `compare.Rank`), and the CLI table above (**Observed**). Matt's direction, rulings, and choice of names are from chat on 2026-11-23.
-- **Waiting on Matt.**
-  1. Review the remaining details of the **static and dynamic ruling** above (the measurement and scoring roles of BRP and HB are confirmed), for a subsequent design ruling. [Q160](../DESIGN.md) records the agreed target entry and workshop workflow.
-  2. Choose the **sag value for each fork class**, as seated sag. Today's defaults per travel are 20% for 100 mm and 25% for 120 mm and 130 mm (`ForkTravel.DefaultSagPct`).
-  3. Which items does a fit include, beyond BRP and HandGrip positions? With the handlebar fixed, hand width no longer needs to be one.
-  4. Should **world axes** come from the floor, with front and rear radii given separately? This is part of the static state's definition.
-  5. For the Fenrir check, how should the **static ShockStop** be represented? Options: (a) measure with a rigid post installed; (b) add a static state for the post, from Redshift's published offsets at rest (see the [source record](../../internal/catalog/seatpost_redshift_shockstop_pro.md)); (c) measure the post's static head offset directly.
-  6. Build facts for the Fenrir: see the [Fenrir measurement note](fenrir-measurements.md). They include the fork's state when the idmatch BRP was measured.
-- **Next question.** "With static and dynamic confirmed, what does the model need to place one build in both states? List each suspension part's motion (fork length, post linkage translation), its inputs, and where each comes from."
+- **Recorded decisions.** Q162 settles the physical BRP and HB measurement points used by Q160. Q163 fixes dynamic bar roll. For the SQlab 610, use the flat nose as the dynamic leveling reference. Q164 retains rail-position scoring. Q165 records Matt’s estimate of approximately +5° for SQlab 610 rail-position scoring only.
+- **Deferred physical check.** After all other Stage 1 questions are resolved, return to the static Fenrir with its ShockStop and Drop Best and the source build facts in the [Fenrir measurement note](fenrir-measurements.md).
+- **Resolved.** Q166 and Q167 set the proximity warnings. Q168 retains the existing fit-gate and height-first selection when a confirmed hardware limit binds.
+- **Remaining rider input.** Q170 and Q171 settle the outstanding terminology. The static Fenrir physical check is the remaining measurement task. The regression test and audit review are technical follow-through.

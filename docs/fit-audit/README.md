@@ -55,7 +55,7 @@ Follow the naming rules in [`AGENTS.md`](../../AGENTS.md). Define what something
 - **Working glossary.** The Stage 1 note keeps a glossary table: term, plain-English meaning, type, owner and axes, what can change it, how its value is known, the decision that consumes it, and status (*proposed*, *ruled Q#*, or *in code at commit*). Later stages add their own terms to it.
 - **Ruling.** A term becomes binding only after Matt confirms it in chat. The agent then records it as a `Q#` in `DESIGN.md`, and the glossary cites that `Q#`. `DESIGN.md` stays the source of truth, and the glossary is the audit’s index into it.
 - **Renaming.** A rename of code, form, URL, or CLI follows a ruling and lands as its own commit, separate from behavior changes, so it is easy to review.
-- Known tension to settle early: the code’s `SitBones` landmark and [`RIDER_FIT.md`](../RIDER_FIT.md)’s **SIT**, which that record says is a saddle support reference and not a pelvic location.
+- Q170 settles the landmark currently called `SitBones`: use **SIT** for the physical saddle support reference and **SIT-to-grip rise** for the vertical distance to HB. See [Rider fit provenance](../RIDER_FIT.md).
 
 ## Physical check on the Fenrir
 
