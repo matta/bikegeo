@@ -367,8 +367,8 @@ type WheelSetup struct {
 	RadiusMm float64
 }
 
-// FramesetPlacement holds the Pose-valued landmarks for a frameset (frame,
-// fork, lower headset cup, and wheel-ground contacts), anchored with BB at
+// FramesetPlacement holds frame, fork, lower headset cup, and wheel-ground
+// contact landmark poses in coordinate space W, anchored with BB at
 // (0, 0) (+X forward, +Y up). PlaceFrameset returns it leveled (horizontal
 // axle line, RearAxle.Origin().Y == FrontAxle.Origin().Y, with RearTireContact
 // and FrontTireContact on one horizontal ground line); PlaceUnpitchedFrameset
@@ -387,22 +387,22 @@ type WheelSetup struct {
 //   - FrontAxle points forward and up along the fork rake direction (90° -
 //     HeadTubeAngleDeg, perpendicular to the steerer).
 //   - RearTireContact and FrontTireContact point straight down (-90°) to the ground.
-type FramesetPlacement struct {
-	BB               pose.Pose[FrameAxis, DynamicWorld]
-	RearAxle         pose.Pose[FrameAxis, DynamicWorld]
-	RearTireContact  pose.Pose[PlumbDownAxis, DynamicWorld]
-	SeatAxis         pose.Pose[SeatTubeAxis, DynamicWorld]
-	SeatTubeTop      pose.Pose[SeatTubeAxis, DynamicWorld]
-	HeadTubeTop      pose.Pose[SteererUpAxis, DynamicWorld]
-	HeadTubeBottom   pose.Pose[SteererDownAxis, DynamicWorld]
-	LowerCupBottom   pose.Pose[SteererDownAxis, DynamicWorld]
-	ForkSteererBase  pose.Pose[SteererDownAxis, DynamicWorld]
-	FrontAxle        pose.Pose[ForkRakeAxis, DynamicWorld]
-	FrontTireContact pose.Pose[PlumbDownAxis, DynamicWorld]
+type FramesetPlacement[W any] struct {
+	BB               pose.Pose[FrameAxis, W]
+	RearAxle         pose.Pose[FrameAxis, W]
+	RearTireContact  pose.Pose[PlumbDownAxis, W]
+	SeatAxis         pose.Pose[SeatTubeAxis, W]
+	SeatTubeTop      pose.Pose[SeatTubeAxis, W]
+	HeadTubeTop      pose.Pose[SteererUpAxis, W]
+	HeadTubeBottom   pose.Pose[SteererDownAxis, W]
+	LowerCupBottom   pose.Pose[SteererDownAxis, W]
+	ForkSteererBase  pose.Pose[SteererDownAxis, W]
+	FrontAxle        pose.Pose[ForkRakeAxis, W]
+	FrontTireContact pose.Pose[PlumbDownAxis, W]
 }
 
 // PitchDeg returns the counter-clockwise frame leveling pitch applied at BB.
-func (f FramesetPlacement) PitchDeg() pose.Deg {
+func (f FramesetPlacement[W]) PitchDeg() pose.Deg {
 	return f.BB.HeadingDeg()
 }
 
@@ -410,45 +410,45 @@ func (f FramesetPlacement) PitchDeg() pose.Deg {
 // would put the axles level: nonzero on an unpitched placement whose fork
 // and cup differ from the chart's basis, and 0 (to rounding) on a
 // placement PlaceFrameset returned.
-func (f FramesetPlacement) LevelingPitchDeg() pose.Deg {
+func (f FramesetPlacement[W]) LevelingPitchDeg() pose.Deg {
 	return -f.RearAxle.Origin().AngleTo(f.FrontAxle.Origin()).Deg()
 }
 
 // PitchDeltaDeg returns f's leveling pitch minus reference's: positive when
 // f's front end sits higher, as an installed fork does against the basis fork.
-func (f FramesetPlacement) PitchDeltaDeg(reference FramesetPlacement) pose.Deg {
+func (f FramesetPlacement[W]) PitchDeltaDeg(reference FramesetPlacement[W]) pose.Deg {
 	return f.PitchDeg() - reference.PitchDeg()
 }
 
 // LeveledHeadTubeAngleDeg returns the leveled head tube angle in degrees.
-func (f FramesetPlacement) LeveledHeadTubeAngleDeg() pose.Deg {
+func (f FramesetPlacement[W]) LeveledHeadTubeAngleDeg() pose.Deg {
 	return 180.0 - f.HeadTubeTop.HeadingDeg()
 }
 
 // LeveledSeatTubeAngleDeg returns the leveled seat tube angle in degrees.
-func (f FramesetPlacement) LeveledSeatTubeAngleDeg() pose.Deg {
+func (f FramesetPlacement[W]) LeveledSeatTubeAngleDeg() pose.Deg {
 	return 180.0 - f.SeatAxis.HeadingDeg()
 }
 
 // WheelbaseMm returns the horizontal distance between the leveled rear and front axles.
-func (f FramesetPlacement) WheelbaseMm() float64 {
+func (f FramesetPlacement[W]) WheelbaseMm() float64 {
 	return f.RearAxle.Origin().DistanceTo(f.FrontAxle.Origin())
 }
 
 // LeveledBbDropMm returns the vertical drop from the leveled axle line to BB.
-func (f FramesetPlacement) LeveledBbDropMm() float64 {
+func (f FramesetPlacement[W]) LeveledBbDropMm() float64 {
 	return f.BB.Origin().VerticalOffsetTo(f.RearAxle.Origin())
 }
 
 // TrailMm returns the ground trail: the horizontal distance on the ground from
 // the front tire contact back to where the leveled steering axis meets the
 // ground. Positive when the contact sits behind that point.
-func (f FramesetPlacement) TrailMm() float64 {
+func (f FramesetPlacement[W]) TrailMm() float64 {
 	// Split HeadTubeTop → FrontTireContact into a run down the steering axis
 	// and a horizontal remainder. The steering axis meets the ground (the
 	// contact's height) at HeadTubeTop plus the run, so the remainder runs
 	// from that point to the contact, and trail is its negation.
-	steererDown := f.HeadTubeTop.Heading().Turn(180.0)
+	steererDown := pose.Turn(f.HeadTubeTop, steererUpToDown).Heading()
 	_, ahead, ok := pose.DecomposeAlong(f.HeadTubeTop.Origin().OffsetTo(f.FrontTireContact.Origin()), steererDown, 0)
 	if !ok {
 		return math.NaN() // a horizontal steering axis never meets the ground
@@ -458,31 +458,31 @@ func (f FramesetPlacement) TrailMm() float64 {
 
 // RearCenterMm returns the horizontal distance from the rear axle to BB on the
 // leveled bike (the RC in RC / WB).
-func (f FramesetPlacement) RearCenterMm() float64 {
+func (f FramesetPlacement[W]) RearCenterMm() float64 {
 	return f.RearAxle.Origin().OffsetTo(f.BB.Origin()).X
 }
 
 // RcWbRatioPct returns RearCenterMm as a percentage of WheelbaseMm.
-func (f FramesetPlacement) RcWbRatioPct() float64 {
+func (f FramesetPlacement[W]) RcWbRatioPct() float64 {
 	return 100.0 * f.RearCenterMm() / f.WheelbaseMm()
 }
 
 // LeveledReachMm returns the horizontal distance from BB to HeadTubeTop on the
 // leveled bike. It differs from the chart's reach by the leveling pitch (Q105).
-func (f FramesetPlacement) LeveledReachMm() float64 {
+func (f FramesetPlacement[W]) LeveledReachMm() float64 {
 	return f.BB.Origin().OffsetTo(f.HeadTubeTop.Origin()).X
 }
 
 // LeveledStackMm returns the vertical distance from BB to HeadTubeTop on the
 // leveled bike (Q105).
-func (f FramesetPlacement) LeveledStackMm() float64 {
+func (f FramesetPlacement[W]) LeveledStackMm() float64 {
 	return f.BB.Origin().VerticalOffsetTo(f.HeadTubeTop.Origin())
 }
 
 // EttMm returns the effective top tube: the horizontal distance, at
 // HeadTubeTop's height, from the leveled seat axis through BB to HeadTubeTop
 // (legacy BikeScene.EttMm, Q105).
-func (f FramesetPlacement) EttMm() float64 {
+func (f FramesetPlacement[W]) EttMm() float64 {
 	// Split BB → HeadTubeTop into a run up the seat axis and a horizontal
 	// remainder; the remainder is the ETT.
 	_, ett, ok := pose.DecomposeAlong(f.SeatAxis.Origin().OffsetTo(f.HeadTubeTop.Origin()), f.SeatAxis.Heading(), 0)
@@ -497,11 +497,11 @@ func (f FramesetPlacement) EttMm() float64 {
 // level only when the fork and cup reproduce the chart's basis, and
 // LevelingPitchDeg measures how far off they are. Tire contacts sit one wheel
 // radius straight below each axle.
-func PlaceUnpitchedFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, wheels WheelSetup) (FramesetPlacement, error) {
+func PlaceUnpitchedFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, wheels WheelSetup) (FramesetPlacement[UnpitchedChart], error) {
 	if err := validateFramesetInputs(frame, lowerCup, fork, wheels); err != nil {
-		return FramesetPlacement{}, err
+		return FramesetPlacement[UnpitchedChart]{}, err
 	}
-	return placeFramesetAtPitch(0, frame, lowerCup.StackMm, fork.Geometry(), wheels), nil
+	return placeFramesetAtPitch[UnpitchedChart](0, frame, lowerCup.StackMm, fork.Geometry(), wheels), nil
 }
 
 // PlaceFrameset constructs a leveled frameset (frame, lower headset cup, fork,
@@ -509,12 +509,13 @@ func PlaceUnpitchedFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkS
 // PlaceUnpitchedFrameset to measure the axle-leveling pitch at 0° frame pitch,
 // and Pass 2 builds the leveled frameset rooted at BB rotated by that pitch and
 // locates the wheel-ground contact landmarks directly below each axle.
-func PlaceFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, wheels WheelSetup) (FramesetPlacement, error) {
+func PlaceFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, wheels WheelSetup) (FramesetPlacement[DynamicWorld], error) {
 	unpitched, err := PlaceUnpitchedFrameset(frame, lowerCup, fork, wheels)
 	if err != nil {
-		return FramesetPlacement{}, err
+		return FramesetPlacement[DynamicWorld]{}, err
 	}
-	return placeFramesetAtPitch(unpitched.LevelingPitchDeg(), frame, lowerCup.StackMm, fork.Geometry(), wheels), nil
+	pitch := pose.Heading[DynamicWorld](unpitched.LevelingPitchDeg())
+	return placeFramesetAtPitch(pitch, frame, lowerCup.StackMm, fork.Geometry(), wheels), nil
 }
 
 const (
@@ -530,8 +531,9 @@ func (f FrameSetup) seatTubeTurn() pose.TurnDeg[FrameAxis, SeatTubeAxis] {
 	return pose.TurnDeg[FrameAxis, SeatTubeAxis](180.0 - f.SeatTubeAngleDeg)
 }
 
-func placeFramesetAtPitch(pitchDeg pose.Deg, frame FrameSetup, lowerCupMm float64, fork ForkGeometry, wheels WheelSetup) FramesetPlacement {
-	frameRoot := pose.NewPose[FrameAxis](pose.Point[DynamicWorld]{}, 0).TurnSameAxis(pitchDeg)
+func placeFramesetAtPitch[W any](pitch pose.Heading[W], frame FrameSetup, lowerCupMm float64, fork ForkGeometry, wheels WheelSetup) FramesetPlacement[W] {
+	// Start from +0° as before so an exactly level axle line yields +0° pitch.
+	frameRoot := pose.NewPose[FrameAxis](pose.Point[W]{}, 0+pitch)
 	rearX := -pose.RightTriangleLeg(frame.ChainstayMm, frame.BbDropMm)
 	rearAxle := frameRoot.Translate(pose.Vec[FrameAxis]{X: rearX, Y: frame.BbDropMm})
 
@@ -552,7 +554,7 @@ func placeFramesetAtPitch(pitchDeg pose.Deg, frame FrameSetup, lowerCupMm float6
 	rearTireContact := pose.Face[PlumbDownAxis](rearAxle, -90.0).Advance(wheels.RadiusMm)
 	frontTireContact := pose.Face[PlumbDownAxis](frontAxle, -90.0).Advance(wheels.RadiusMm)
 
-	return FramesetPlacement{
+	return FramesetPlacement[W]{
 		BB:               frameRoot,
 		RearAxle:         rearAxle,
 		RearTireContact:  rearTireContact,

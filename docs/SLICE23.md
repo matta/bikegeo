@@ -1,16 +1,16 @@
 # Slice 23: Compile-Time Coordinate-Space, Axis, and Affine Type Safety in `pose` and `assembly`
 
-Status: Partly implemented 2026-11-23; stopped after Commit 3
+Status: Implemented 2026-11-23; awaiting review
 Implementer: Medium (mid-tier) — behavior-preserving, compiler-guided migration to the generic `pose` and `assembly` types specified in this plan across 4 staged commits.
 Review: required — architectural and geometric type-system change across `pose` and `assembly`.
 
 ## Implementation handoff
 
 - **Who & when** Codex (GPT-6), 2026-11-23.
-- **Commits** Commit 1 is `650a359` and Commit 2 is `610790b`. `:/^Type component and diagram geometry axes` resolves to Commit 3.
-- **Verification** `go vet ./...`, `go test ./...`, and `make pre-commit` passed. `go fix` and `go fmt` left no changes. Six CLI outputs and six live HTTP responses covering the comparison and all three diagram views were byte-identical against Commit 2.
-- **Deviations** Frameset landmark axes moved into Commit 3 to feed the typed builders without retagging poses. Stem placement keeps two typed turns to preserve the original floating-point evaluation order.
-- **Open issues** Commit 4 still needs to separate unpitched and dynamic frameset spaces and remove the temporary pose bridges.
+- **Commits** `650a359`, `610790b`, `1a39971`, and `:/^Separate unpitched and leveled frameset spaces` (this commit).
+- **Verification** `go vet ./...`, `go test ./...`, and `make pre-commit` passed. Six CLI outputs and six live HTTP responses covering the comparison and all three diagram views matched Commit 3 byte for byte.
+- **Deviations** Commit 3 typed the frameset landmark axes early and kept two stem turns to preserve evaluation order. Commit 4 retained the addition of positive zero when initializing pitch so exactly level axles still produce positive zero.
+- **Open issues** Independent review pending.
 
 ## Goal
 

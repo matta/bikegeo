@@ -334,15 +334,3 @@ func Compose[A, B, C any](ab Transform[A, B], bc Transform[B, C]) Transform[A, C
 		sin: ab.sin*bc.cos + ab.cos*bc.sin,
 	}
 }
-
-// TurnSameAxis rotates the heading by delta while retaining the axis tag.
-// Temporary Slice 23 bridge; removed in Commit 4.
-func (p Pose[Axis, W]) TurnSameAxis(delta Deg) Pose[Axis, W] {
-	return Turn(p, TurnDeg[Axis, Axis](delta))
-}
-
-// FaceSameAxis sets the absolute heading while retaining the axis tag.
-// Temporary Slice 23 bridge; removed in Commit 4.
-func (p Pose[Axis, W]) FaceSameAxis(worldHeading Deg) Pose[Axis, W] {
-	return Face[Axis](p, Heading[W](worldHeading))
-}

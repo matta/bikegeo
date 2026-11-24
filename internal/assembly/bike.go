@@ -24,7 +24,7 @@ func (s BikeSetup) RailOffsetLimitMm() (float64, error) {
 // physical dimensions from one consistent build.
 type BikePlacement struct {
 	Setup     BikeSetup
-	Frameset  FramesetPlacement
+	Frameset  FramesetPlacement[DynamicWorld]
 	Seatpost  SeatpostPlacement
 	Saddle    SaddlePlacement
 	Stem      StemPlacement

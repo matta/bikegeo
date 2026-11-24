@@ -230,6 +230,23 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 	}
 }
 
+func TestPlaceFramesetExactlyLevelPitch(t *testing.T) {
+	frame := fenrirSizeLFrame()
+	frame.HeadTubeAngleDeg = 90
+	frame.StackMm = frame.HeadTubeLengthMm + 430 + frame.BbDropMm
+	fork := assembly.ForkSetup{
+		Spec: assembly.ForkSpec{StaticA2cMm: 430, Steerer: assembly.SteererBasis},
+	}
+
+	leveled, err := assembly.PlaceFrameset(frame, fenrirBasisCup(), fork, fenrirWheels())
+	if err != nil {
+		t.Fatalf("PlaceFrameset: %v", err)
+	}
+	if pitch := leveled.PitchDeg(); pitch != 0 || math.Signbit(float64(pitch)) {
+		t.Errorf("leveled.PitchDeg() = %v, want positive zero", pitch)
+	}
+}
+
 func TestPlaceUnpitchedFrameset(t *testing.T) {
 	frame := fenrirSizeLFrame()
 	cup := fenrirBasisCup()

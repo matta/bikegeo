@@ -538,7 +538,7 @@ func (b Bike) URL() string {
 
 // BasisFrameset places b's size on its published chart frame with the chart's
 // basis fork and lower cup (Q81, Q121), for the basis readouts and ΔPitch.
-func (b Bike) BasisFrameset() (assembly.FramesetPlacement, error) {
+func (b Bike) BasisFrameset() (assembly.FramesetPlacement[assembly.DynamicWorld], error) {
 	return assembly.PlaceFrameset(b.Size.ChartFrame, b.Frame.BasisLowerCup, basisForkSetup(b.Frame), b.Setup.Wheels)
 }
 

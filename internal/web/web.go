@@ -457,7 +457,7 @@ func formatFormFloat(v float64) string {
 func buildBikeView(
 	parsed query.Bike,
 	bike assembly.BikePlacement,
-	basis assembly.FramesetPlacement,
+	basis assembly.FramesetPlacement[assembly.DynamicWorld],
 ) bikeView {
 	diagram := buildBikeDiagram(parsed, bike)
 	placed := bike.Frameset
