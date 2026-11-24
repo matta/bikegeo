@@ -16,28 +16,9 @@ The construction below summarizes the code. Each item is **Tested** by the exist
 2. **The frame chart is a different attitude.** `FrameSetup` holds chart values (reach, stack, HTA, STA, BB drop) in the chart's *unpitched* attitude, which levels the axles only with the chart's basis fork and cup. An installed fork pitches the frame. Example: Fenrir L with SID 100 (506 × 44) unloaded pitches +1.08° (nose up) from the chart. The `Leveled…` readouts (`LeveledReachMm`, `LeveledSeatTubeAngleDeg`, and so on) are installed values in world axes, and they're what a tape measure would find.
 3. **Load state is a single number, the fork's sag.** `SagPct` shortens the fork's effective A2C by `travel × sag`, and the frame re-levels. Nothing else changes with load: tires don't compress, there's no rear suspension, and the seatpost has no unloaded and loaded pair.
 4. **Most parts ride rigidly with the frame.** The seatpost extends along the seat axis, and its `SetbackMm` is perpendicular to that axis. The stem starts from the steerer axis, and `AngleDeg` is measured from the perpendicular to the steerer. Rise and sweep are fixed relative to the bar clamp. All of these rotate with frame pitch.
-5. **Two angles are fixed to the world instead.** `PlaceSaddle` uses `Face(RailPitchDeg)` and `PlaceHandlebar` uses `Face(−BarRollDeg)`. Both set an absolute world heading, so they ignore the frame's pitch.
+5. **Saddle tilt and bar roll are set in the leveled world frame.** After pitching the frame so the axles are level for the given fork A2C and sag, `PlaceSaddle` uses `Face(RailPitchDeg)` and `PlaceHandlebar` uses `Face(−BarRollDeg)`. That matches dynamic fitting: for any candidate build at its seated sag, the rider sets the saddle tilt and handlebar roll to their desired world angles at that pitched riding attitude before fitting insertion, rail offset, stem, and spacers.
 6. **The ShockStop is modeled in one state.** `redshift_shockstop_pro` has a fixed 12 mm `SetbackMm`, which is owner-reported *when sagged* (Q28). It has no vertical compression. Q78 already notes that the default BRP target was measured with this post unsagged.
 7. **Targets are world points relative to BB, with no load state attached.** `DefaultBrpTarget` (−219, 713.1) and `DefaultGripTarget` (481, 726) are compared directly with placed landmarks in whatever state the placement used.
-
-## Contrast: the same build unloaded and at sag
-
-**Observed** with the `bikegeo bike` CLI at `b4a46e974e02`. The build is Fenrir L, `sid_100-506x44`, with defaults otherwise (ShockStop at 175 mm insertion, SQlab 610 centered, 60 mm −6° stem, Persuader 800, `rail_pitch=0`, `bar_roll=0`).
-
-| Case | Frame pitch | BRP | SitBones | HandGrip |
-| --- | --- | --- | --- | --- |
-| A. `sag=0` | +1.0765° | (−163.68, 680.67) | (−243.68, 690.67) | (382.25, 759.57) |
-| B. `sag=20`, angles held in world (current code) | +0.1535° | (−153.42, 683.74) | (−233.42, 693.74) | (393.70, 752.18) |
-| C. `sag=20`, angles carried with frame (`rail_pitch=−0.923`, `bar_roll=+0.923`) | +0.1535° | (−152.70, 683.22) | (−232.53, 694.51) | (394.44, 753.31) |
-
-Case C reproduces a rigidly clamped saddle and bar exactly. The rail frame and bar-roll frame are the only world-faced poses, so rotating each by the frame's pitch change (−0.923°) carries every downstream landmark rigidly. From A to C, the same build sagging 20% moves BRP by (+10.98, +2.55) mm and HandGrip by (+12.19, −6.26) mm.
-
-The current code (B) differs from the rigid case (C) by:
-
-- BRP (−0.72, +0.52) mm and HandGrip (−0.74, −1.13) mm;
-- the saddle staying level in the world when it should tip 0.92° nose-down with the frame. Bar roll has the same 0.92° error.
-
-The landmark error is about 1 mm, half the BRP Y gate. It grows with fork travel and sag.
 
 ## Ambiguities found
 
@@ -46,7 +27,7 @@ Each item is a question about meaning, not yet about names.
 1. **What defines "level"?** The model uses one wheel radius for both ends. On a level floor the two axles therefore have the same height. From BB, +X is horizontally forward and +Y is vertically up. Keep the shared radius.
 
    *Note (Matt, 2026-11-23):* a level frame is the normal, expected case, so saying a frame is "leveled" is usually unnecessary, especially in the UI. The unleveled state is the one that needs calling out. It is degenerate and needs correcting. In code, the unleveled state is the chart's own attitude, used by `PlaceUnpitchedFrameset` and the chart values in `FrameSetup`.
-2. **What are the saddle-angle and bar-roll settings measured against?** Two of a build's settings are angles: `SaddleSetup.RailPitchDeg` (saddle rail angle) and `HandlebarSetup.BarRollDeg` (handlebar roll). `PlaceSaddle` and `PlaceHandlebar` measure both against world horizontal in whatever state the bike is placed in. Today that is the fork at its `SagPct`. On a real bike, a clamped saddle's rails hold a fixed angle relative to the seatpost, and a clamped bar holds a fixed roll relative to the stem. What a level reads on either one depends on the state the bike is in. The code doesn't separate the clamped angle from the level reading, which causes the difference between cases B and C above. This bears on T2 in the README's [question table](README.md#questions-the-audit-must-answer): "Do clamped parts rotate and translate rigidly with the frame and post when the same bike moves between unloaded and rider-loaded states?"
+2. **In which state are the saddle-angle and bar-roll orientations defined?** During a dynamic fit attempt, `PlaceBike` pitches the frame so the axles are level at the fork's seated sag, and then sets the saddle tilt (`SaddleSetup.RailPitchDeg`) and handlebar roll (`HandlebarSetup.BarRollDeg`) relative to world horizontal in that dynamic state. Once a build is fitted and clamped, unloading that same build to the static workshop state (`sag=0`) rotates the frame, stem, and seatpost by `Δpitch = pitch_static − pitch_dynamic` about `BB`, carrying the clamped saddle and handlebar with them (Q163, Q169).
 3. **What is a load state?** In code it is fork `SagPct` alone. Physically it also includes post compression. The ShockStop's 12 mm setback is a loaded-state value for a part that also has an unloaded state. So the model can't represent Matt's *unsagged* Fenrir with the ShockStop installed, which the Fenrir check (T4) needs.
 
    *Ruling (Matt, 2026-11-23):* tire compression stays out of the model. It is close enough to identical across bikes that it doesn't matter.
@@ -154,7 +135,7 @@ These rulings deliberately change behavior. They aren't defects, so they become 
 - **Compare and fork sag.** Compare would place each fork at its class sag and stop trying each travel's standard sag values. Q132's sag score would no longer rank sag. It could become a check that the class sag lies in the manufacturer's range. This revises Q129, Q132, and Q134.
 - **Seatposts.** Seatpost options would become a fitting choice, with a control to fix one post.
 - **Handlebars.** Fitting would stop choosing among handlebars (`bar_options=all` in compare and `/bike`). This revises Q22–Q24 and Q101.
-- **Angles.** Placement would apply the fixed angles in the dynamic state and carry the clamped parts into the static state (the case B defect).
+- **Angles and static/dynamic conversion.** Dynamic placement continues to set the fork A2C at sag, pitch the frame so the axles are level, and set the dynamic saddle tilt and 0° bar roll in that leveled world frame (`Face`). Static placement of that finished build unloads the suspension and rotates the clamped saddle and bar with the frame pitch change (`Δpitch = pitch_static − pitch_dynamic`).
 
 ## Static and dynamic states
 
@@ -187,7 +168,7 @@ Consequences to carry into later stages:
 
 - The default targets (Q53) are a static fit measured on Matt's ShockStop bike. The fork state of that bike is part of the Fenrir build facts.
 - Q78's mixed-state caveat would be resolved, not just documented.
-- Under rule 1, the world-held `RailPitchDeg` and `BarRollDeg` (case B above) are a defect whenever one build is placed in both states.
+- During dynamic fitting, `PlaceBike` sets fork A2C at sag, pitches the frame so the axles are level, and sets saddle tilt and bar roll in world axes (`Face`). When converting a single fitted build between dynamic and static states (rule 1, Q169), the clamped saddle and handlebar rotate with the frame's pitch change (`Δpitch = pitch_static − pitch_dynamic`) rather than re-leveling to the floor at `sag=0`.
 - **Seated fork sag (Q161).** Across all catalog fork variants, dynamic A2C is 491 mm at 100 mm travel, 506–512 mm at 120 mm, and 508–513.5 mm at 130 mm. Every Fox family offered at both 120 and 130 mm gains 1.5 mm. The two classes overlap across families.
 
 **Correction, 2026-11-23.** In chat, Claude claimed that the ShockStop linkage tips the saddle as the post compresses. That claim was wrong. The [source record](../../internal/catalog/seatpost_redshift_shockstop_pro.md) gives saddle pitch through travel as constant relative to the post's mounting orientation, as Matt said. The rail angle can therefore be clamped relative to the post shaft.
@@ -231,13 +212,14 @@ Placement can derive the static angles internally from the dynamic assumptions a
 
 ## Code audit and tests
 
-The pending Q169 regression test should check that changing only `SagPct` moves every saddle and cockpit landmark by one rigid rotation about `BB` plus a translation, with the saddle and bar angles changing by the frame's pitch change. Under current code that test would fail, and it would be committed disabled under the [defect procedure](README.md#defects-and-fixes).
+During dynamic placement and fitting, `PlaceBike` already behaves as intended: it sets the fork's dynamic A2C, pitches the frame about the rear axle so the axles are level, sets the saddle tilt (`Face(RailPitchDeg)`) and handlebar roll (`Face(−BarRollDeg)`) in that leveled world frame, and fits insertion, rail offset, stem, and spacers.
+
+When Phase 2 adds the static ↔ dynamic conversion for a single clamped build (Q160, Q169), its tests will verify that unloading a fitted build from dynamic (`SagPct > 0`) to static (`SagPct = 0`) reverses any seatpost suspension displacement and rotates the frame-clamped saddle and cockpit landmarks about `BB` by `Δpitch = pitch_static − pitch_dynamic`.
 
 ## Session handoff
 
-- **Conclusion so far.** The model defines world axes by the axle line and load state by fork sag alone, and it holds rail pitch and bar roll fixed to the world. As a result, it doesn't carry the saddle and bar rigidly when sag changes. On the Fenrir L with SID 100 at 20% sag, that misplaces BRP and HandGrip by about 1 mm and the saddle and bar angles by 0.92°. Matt agreed to separate the static and dynamic placements of one build, chose those names, and ruled tire compression out of the model. The note now lists every input of a build and what each fitting operation varies, and records Matt's rulings on the role of each input. Case B violates Q169.
-- **Evidence.** The code at `b4a46e974e02` (symbols listed under Scope, plus `ApplyFitting`, `FitPostSetback`, `FitBuilds`, and `compare.Rank`), and the CLI table above (**Observed**). Matt's direction, rulings, and choice of names are from chat on 2026-11-23.
-- **Recorded decisions.** Q162 settles the physical BRP and HB measurement points used by Q160. Q163 fixes dynamic bar roll. For the SQlab 610, use the flat nose as the dynamic leveling reference. Q164 retains rail-position scoring. Q165 records Matt’s estimate of approximately +5° for SQlab 610 rail-position scoring only.
-- **Deferred physical check.** After all other Stage 1 questions are resolved, return to the static Fenrir with its ShockStop and Drop Best and the source build facts in the [Fenrir measurement note](fenrir-measurements.md).
-- **Resolved.** Q166 and Q167 set the proximity warnings. Q168 retains the existing fit-gate and height-first selection when a confirmed hardware limit binds.
-- **Remaining rider input.** Q170 and Q171 settle the outstanding terminology. The static Fenrir physical check is the remaining measurement task. The regression test and audit review are technical follow-through.
+- **Conclusion so far.** In dynamic placement, `PlaceBike` sets fork A2C at sag, levels the axle line, and sets saddle tilt and bar roll in world axes (`Face`) before varying the fit settings. Matt ruled **Q159–Q171** in [`DESIGN.md`](../DESIGN.md), settling the static/dynamic state pair and unloading rule for a single clamped build (Q169), target entry and workshop readout flow (Q160), seated fork sag per travel class (Q161), physical BRP and HB landmarks (Q162), fixed 0° dynamic bar roll (Q163), rail-position scoring at +5° on the SQlab 610 (Q164–Q165), workshop proximity warnings (Q166–Q167), height-first bounded saddle fitting (Q168), and `SIT` / `BRP.x` terminology (Q170–Q171).
+- **Remaining Phase 1 items before Phase 2 implementation slices:**
+  1. **Static ShockStop + FAIR Drop Best representation** (for the static Fenrir physical check in [`fenrir-measurements.md`](fenrir-measurements.md) and Stage 2).
+  2. **Stage 2 forward placement & Fenrir check** (verifying forward placement kinematics and comparing with Matt's measured static Fenrir).
+  3. **Stage 3 static ↔ dynamic transfer & T5 (saddle-to-cockpit coupling)** (deciding whether `HandGrip` stays BB-relative or shifts to preserve `BRP → HandGrip` reach when `BRP.x` clamps short within the ±10 mm gate).
