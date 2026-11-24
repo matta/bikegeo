@@ -87,21 +87,25 @@ func SeatpostInsertionBounds(frame FrameSetup, post SeatpostSpec) (InsertionBoun
 	return bounds, nil
 }
 
+func (p SeatpostSpec) setbackOffset() pose.Vec[SeatTubeAxis] {
+	return pose.Vec[SeatTubeAxis]{Y: p.SetbackMm}
+}
+
 // SeatpostPlacement holds the Pose-valued landmarks produced by PlaceSeatpost.
 // Each landmark carries the leveled seat-tube axis orientation (local +X
 // pointing up and rearward along the seat tube axis; local +Y pointing 90°
 // counter-clockwise, perpendicular rearward/downward).
 type SeatpostPlacement struct {
-	SeatTubeTop pose.Pose[FrameAxis, DynamicWorld]
-	ShaftTop    pose.Pose[FrameAxis, DynamicWorld]
-	RailCradle  pose.Pose[FrameAxis, DynamicWorld]
+	SeatTubeTop pose.Pose[SeatTubeAxis, DynamicWorld]
+	ShaftTop    pose.Pose[SeatTubeAxis, DynamicWorld]
+	RailCradle  pose.Pose[SeatTubeAxis, DynamicWorld]
 }
 
 // PlaceSeatpost mounts a seatpost in frame starting at seatTubeTop (positioned
 // at the top of the frame's seat tube and oriented up the seat tube axis). The
 // exposed length above the seat tube is the post's total length less its
 // insertion, which must lie within SeatpostInsertionBounds(frame, setup.Spec).
-func PlaceSeatpost(seatTubeTop pose.Pose[FrameAxis, DynamicWorld], frame FrameSetup, setup SeatpostSetup) (SeatpostPlacement, error) {
+func PlaceSeatpost(seatTubeTop pose.Pose[SeatTubeAxis, DynamicWorld], frame FrameSetup, setup SeatpostSetup) (SeatpostPlacement, error) {
 	if err := validatePose("seatTubeTop", seatTubeTop); err != nil {
 		return SeatpostPlacement{}, err
 	}
@@ -118,9 +122,9 @@ func PlaceSeatpost(seatTubeTop pose.Pose[FrameAxis, DynamicWorld], frame FrameSe
 
 	shaftTop := seatTubeTop.Advance(setup.ExposedMm())
 	// Setback is along local +Y from the shaft top, which points rearward.
-	railCradle := shaftTop.Translate(pose.Vec[FrameAxis]{Y: setup.Spec.SetbackMm})
+	railCradle := shaftTop.Translate(setup.Spec.setbackOffset())
 
-	if err := validatePlacementPoses("seatpost", seatTubeTop, shaftTop, railCradle); err != nil {
+	if err := validatePlacementPoints("seatpost", seatTubeTop.Origin(), shaftTop.Origin(), railCradle.Origin()); err != nil {
 		return SeatpostPlacement{}, err
 	}
 

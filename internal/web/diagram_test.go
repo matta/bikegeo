@@ -202,10 +202,10 @@ func TestDiagramTargetAwareFraming(t *testing.T) {
 	// Stem view contains Target Grip and all 4 oriented corners of its fit oval.
 	stemDoc := loadBikeDoc(t, "/bike?view=stem")
 	stemBox := parseViewBoxAttr(t, stemDoc)
-	ovalPose := pose.NewPose[assembly.FrameAxis](*def.GripTarget, pose.Heading[assembly.DynamicWorld](oval.MajorAxisHeadingDeg))
+	ovalPose := pose.NewPose[gripOvalAxis](*def.GripTarget, pose.Heading[assembly.DynamicWorld](oval.MajorAxisHeadingDeg))
 	for _, along := range []float64{-oval.SemiMajorMm, oval.SemiMajorMm} {
 		for _, across := range []float64{-oval.SemiMinorMm, oval.SemiMinorMm} {
-			c := toSVG(ovalPose.Translate(pose.Vec[assembly.FrameAxis]{X: along, Y: across}).Origin())
+			c := toSVG(ovalPose.Translate(pose.Vec[gripOvalAxis]{X: along, Y: across}).Origin())
 			if !stemBox.contains(c) {
 				t.Errorf("stem viewBox %+v does not contain Grip oval corner %+v", stemBox, c)
 			}

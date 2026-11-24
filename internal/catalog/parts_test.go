@@ -99,7 +99,7 @@ func TestHandlebars(t *testing.T) {
 		if bar.Setup.BarRollDeg != 0 {
 			t.Errorf("handlebar %q BarRollDeg = %v, want 0", bar.ID, bar.Setup.BarRollDeg)
 		}
-		if _, err := assembly.PlaceHandlebar(pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{}, 0), bar.Setup); err != nil {
+		if _, err := assembly.PlaceHandlebar(pose.NewPose[assembly.StemAxis](pose.Point[assembly.DynamicWorld]{}, 0), bar.Setup); err != nil {
 			t.Errorf("handlebar %q does not place: %v", bar.ID, err)
 		}
 	}
@@ -183,7 +183,7 @@ func TestCatalogDefaultsAndLookups(t *testing.T) {
 	}
 
 	stem := catalog.DefaultStemSetup()
-	if _, err := assembly.PlaceStem(pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{}, 111.75), stem); err != nil {
+	if _, err := assembly.PlaceStem(pose.NewPose[assembly.SteererUpAxis](pose.Point[assembly.DynamicWorld]{}, 111.75), stem); err != nil {
 		t.Errorf("PlaceStem(DefaultStemSetup()): %v", err)
 	}
 	if stem.UpperStackMm != assembly.DefaultUpperStackMm {

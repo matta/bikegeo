@@ -88,7 +88,7 @@ func TestSeatpostInsertionBounds(t *testing.T) {
 }
 
 func TestPlaceSeatpostInsertionEndpoints(t *testing.T) {
-	top := pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{}, 105)
+	top := pose.NewPose[assembly.SeatTubeAxis](pose.Point[assembly.DynamicWorld]{}, 105)
 	frame := fenrirSizeLFrame()
 	post := assembly.SeatpostSetup{Spec: genericPostSpec(0)}
 	for _, tc := range []struct {
@@ -122,7 +122,7 @@ func TestPlaceSeatpostInsertionEndpoints(t *testing.T) {
 // PlaceSeatpost derives its insertion limits from the frame, so the same
 // post and insertion can fit one frame and not another.
 func TestPlaceSeatpostUsesFrameInsertionLimits(t *testing.T) {
-	top := pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{}, 105)
+	top := pose.NewPose[assembly.SeatTubeAxis](pose.Point[assembly.DynamicWorld]{}, 105)
 	uncapped := fenrirSizeLFrame()
 	uncapped.MaxPostInsertionMm = 0 // 490 − 20 = 470 mm cap, so the post's 365 mm binds
 	withMinimum := fenrirSizeLFrame()

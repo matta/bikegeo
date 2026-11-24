@@ -46,7 +46,7 @@ func isFinitePoint(p pose.Point[DynamicWorld]) bool {
 	return isFinite(p.X) && isFinite(p.Y)
 }
 
-func validatePose(name string, p pose.Pose[FrameAxis, DynamicWorld]) error {
+func validatePose[Axis any](name string, p pose.Pose[Axis, DynamicWorld]) error {
 	if !isFinitePoint(p.Origin()) || !isFinite(float64(p.HeadingDeg())) {
 		return fmt.Errorf("%s pose must be finite, got (%v, %v) at %v°",
 			name, p.Origin().X, p.Origin().Y, p.HeadingDeg())
@@ -54,11 +54,11 @@ func validatePose(name string, p pose.Pose[FrameAxis, DynamicWorld]) error {
 	return nil
 }
 
-func validatePlacementPoses(component string, from pose.Pose[FrameAxis, DynamicWorld], outputs ...pose.Pose[FrameAxis, DynamicWorld]) error {
+func validatePlacementPoints(component string, from pose.Point[DynamicWorld], outputs ...pose.Point[DynamicWorld]) error {
 	for _, p := range outputs {
-		if !isFinitePoint(p.Origin()) {
+		if !isFinitePoint(p) {
 			return fmt.Errorf("%s placement overflow from (%v, %v)",
-				component, from.Origin().X, from.Origin().Y)
+				component, from.X, from.Y)
 		}
 	}
 	return nil

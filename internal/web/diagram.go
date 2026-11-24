@@ -89,59 +89,49 @@ const (
 	saddleRailOutlineHeight    = 5.0  // illustrative saddle rail thickness
 )
 
-// poseOutline is a component silhouette drawn as a rectangle in a pose's
-// local frame: lengthMm along the heading starting at startMm, thicknessMm
-// across it, centred on the pose.
+// poseOutline holds an SVG rectangle and its four corners for view framing.
 type poseOutline struct {
-	name        string
-	pose        pose.Pose[assembly.FrameAxis, assembly.DynamicWorld]
-	startMm     float64
-	lengthMm    float64
-	thicknessMm float64
+	rect    svgRect
+	corners [4]svgPoint
 }
 
-func (o poseOutline) rect() svgRect {
-	return poseRect(o.name, o.pose, o.startMm, o.lengthMm, o.thicknessMm)
-}
-
-// corners returns the outline's four corners in SVG coordinates.
-func (o poseOutline) corners() []svgPoint {
-	half := o.thicknessMm / 2.0
-	pts := make([]svgPoint, 0, 4)
-	for _, along := range []float64{o.startMm, o.startMm + o.lengthMm} {
-		for _, across := range []float64{-half, half} {
-			pts = append(pts, toSVG(o.pose.Translate(pose.Vec[assembly.FrameAxis]{X: along, Y: across}).Origin()))
+// newPoseOutline draws a rectangle along p's local +X starting at startMm,
+// with its thickness centered on the local axis.
+func newPoseOutline[Axis any](name string, p pose.Pose[Axis, assembly.DynamicWorld], startMm, lengthMm, thicknessMm float64) poseOutline {
+	o := toSVG(p.Origin())
+	half := thicknessMm / 2.0
+	outline := poseOutline{
+		rect: svgRect{
+			Name:      name,
+			X:         startMm,
+			Y:         -half,
+			Width:     lengthMm,
+			Height:    thicknessMm,
+			Transform: fmt.Sprintf("translate(%.2f %.2f) rotate(%.2f)", o.X, o.Y, -float64(p.HeadingDeg())),
+		},
+	}
+	for i, along := range []float64{startMm, startMm + lengthMm} {
+		for j, across := range []float64{-half, half} {
+			outline.corners[2*i+j] = toSVG(p.Translate(pose.Vec[Axis]{X: along, Y: across}).Origin())
 		}
 	}
-	return pts
+	return outline
 }
 
 func outlineRects(outlines []poseOutline) []svgRect {
 	rects := make([]svgRect, 0, len(outlines))
 	for _, o := range outlines {
-		rects = append(rects, o.rect())
+		rects = append(rects, o.rect)
 	}
 	return rects
 }
 
 func stemOutlines(placed assembly.StemPlacement, setup assembly.StemSetup) []poseOutline {
 	return []poseOutline{
-		{"upper-cover", placed.HeadTubeTop, 0, setup.UpperStackMm, upperCoverOutlineWidthMm},
-		{"spacers", placed.CoverTop, 0, setup.SpacersMm, spacerOutlineWidthMm},
-		{"steerer-clamp", placed.SteererClamp, -setup.ClampHeightMm / 2.0, setup.ClampHeightMm, steererClampOutlineWidthMm},
-		{"stem-body", placed.BarClamp, -setup.LengthMm, setup.LengthMm, stemBodyOutlineWidthMm},
-	}
-}
-
-func poseRect(name string, p pose.Pose[assembly.FrameAxis, assembly.DynamicWorld], startMm, lengthMm, thicknessMm float64) svgRect {
-	o := toSVG(p.Origin())
-	return svgRect{
-		Name:      name,
-		X:         startMm,
-		Y:         -thicknessMm / 2.0,
-		Width:     lengthMm,
-		Height:    thicknessMm,
-		Transform: fmt.Sprintf("translate(%.2f %.2f) rotate(%.2f)", o.X, o.Y, -float64(p.HeadingDeg())),
+		newPoseOutline("upper-cover", placed.HeadTubeTop, 0, setup.UpperStackMm, upperCoverOutlineWidthMm),
+		newPoseOutline("spacers", placed.CoverTop, 0, setup.SpacersMm, spacerOutlineWidthMm),
+		newPoseOutline("steerer-clamp", placed.SteererClamp, -setup.ClampHeightMm/2.0, setup.ClampHeightMm, steererClampOutlineWidthMm),
+		newPoseOutline("stem-body", placed.BarClamp, -setup.LengthMm, setup.LengthMm, stemBodyOutlineWidthMm),
 	}
 }
 
@@ -274,9 +264,9 @@ func (v bikeView) Px(size float64) string {
 	return formatSVGSize(size * v.DrawScale)
 }
 
-func makeSegment(name string, from, to pose.Pose[assembly.FrameAxis, assembly.DynamicWorld], color string, width float64, illustrative bool) svgSegment {
-	p1 := toSVG(from.Origin())
-	p2 := toSVG(to.Origin())
+func makeSegment(name string, from, to pose.Point[assembly.DynamicWorld], color string, width float64, illustrative bool) svgSegment {
+	p1 := toSVG(from)
+	p2 := toSVG(to)
 	return svgSegment{
 		Name:         name,
 		X1:           p1.X,
@@ -315,10 +305,12 @@ const (
 	labelBaselineDy      = "0.35em"
 )
 
+type screenSpace struct{}
+
 // bikeLandmarkSpec places a landmark label with a preferred direction and priority.
 type bikeLandmarkSpec struct {
 	name      string
-	pose      pose.Pose[assembly.FrameAxis, assembly.DynamicWorld]
+	point     pose.Point[assembly.DynamicWorld]
 	prefDx    float64
 	prefDy    float64
 	prefAnc   string
@@ -356,13 +348,15 @@ func brpTargetFramingPts(target pose.Point[assembly.DynamicWorld]) []svgPoint {
 	}
 }
 
+type gripOvalAxis struct{}
+
 func gripTargetFramingPts(target pose.Point[assembly.DynamicWorld]) []svgPoint {
 	oval := assembly.DefaultGripOval()
-	ovalPose := pose.NewPose[assembly.FrameAxis](target, pose.Heading[assembly.DynamicWorld](oval.MajorAxisHeadingDeg))
+	ovalPose := pose.NewPose[gripOvalAxis](target, pose.Heading[assembly.DynamicWorld](oval.MajorAxisHeadingDeg))
 	pts := make([]svgPoint, 0, 4)
 	for _, along := range []float64{-oval.SemiMajorMm, oval.SemiMajorMm} {
 		for _, across := range []float64{-oval.SemiMinorMm, oval.SemiMinorMm} {
-			pts = append(pts, toSVG(ovalPose.Translate(pose.Vec[assembly.FrameAxis]{X: along, Y: across}).Origin()))
+			pts = append(pts, toSVG(ovalPose.Translate(pose.Vec[gripOvalAxis]{X: along, Y: across}).Origin()))
 		}
 	}
 	return pts
@@ -714,7 +708,7 @@ func placeDiagramLabels(
 				}
 			}
 			nx, ny := cand.box.nearestPoint(px, py)
-			dist := pose.Vec[assembly.DynamicWorld]{X: nx - px, Y: ny - py}.Norm()
+			dist := pose.Vec[screenSpace]{X: nx - px, Y: ny - py}.Norm()
 			penalty := dist + float64(pointHits)*200.0
 			if cand.preferred {
 				penalty -= 4.0
@@ -763,7 +757,7 @@ func placeDiagramLabels(
 		ax, ay := anchorForBox(bestBox, bestAnchor)
 		svgLX, svgLY := toSVGCoords(ax, ay)
 		nx, ny := bestBox.nearestPoint(px, py)
-		dist := pose.Vec[assembly.DynamicWorld]{X: nx - px, Y: ny - py}.Norm()
+		dist := pose.Vec[screenSpace]{X: nx - px, Y: ny - py}.Norm()
 		hasLeader := dist > labelLeaderMinDistPx
 		lx2, ly2 := toSVGCoords(nx, ny)
 
@@ -830,22 +824,22 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 
 	stemParts := stemOutlines(stem, bike.Setup.Stem)
 	seatParts := []poseOutline{
-		{"seatpost-clamp", saddle.RailFrame, -bike.Setup.Seatpost.Spec.RailClampLengthMm / 2.0, bike.Setup.Seatpost.Spec.RailClampLengthMm, seatpostClampOutlineHeight},
-		{"saddle-rail", saddle.RailCenter, -bike.Setup.Saddle.RailLengthMm / 2.0, bike.Setup.Saddle.RailLengthMm, saddleRailOutlineHeight},
+		newPoseOutline("seatpost-clamp", saddle.RailFrame, -bike.Setup.Seatpost.Spec.RailClampLengthMm/2.0, bike.Setup.Seatpost.Spec.RailClampLengthMm, seatpostClampOutlineHeight),
+		newPoseOutline("saddle-rail", saddle.RailCenter, -bike.Setup.Saddle.RailLengthMm/2.0, bike.Setup.Saddle.RailLengthMm, saddleRailOutlineHeight),
 	}
 
 	// A close-up frames its poses and every corner of the outlines drawn
 	// around them, plus any active target and tolerance zone for that view.
-	var framingPoses []pose.Pose[assembly.FrameAxis, assembly.DynamicWorld]
+	var framingOrigins []pose.Point[assembly.DynamicWorld]
 	var framingOutlines []poseOutline
 	var extraFramingPts []svgPoint
 	switch view {
 	case diagramViewBike:
 	case diagramViewSeat:
 		// Every seatpost and saddle pose above SeatTubeTop, not the seat tube.
-		framingPoses = []pose.Pose[assembly.FrameAxis, assembly.DynamicWorld]{
-			seatpost.ShaftTop, seatpost.RailCradle, saddle.RailFrame,
-			saddle.RailCenter, saddle.BRP, saddle.SitBones,
+		framingOrigins = []pose.Point[assembly.DynamicWorld]{
+			seatpost.ShaftTop.Origin(), seatpost.RailCradle.Origin(), saddle.RailFrame.Origin(),
+			saddle.RailCenter.Origin(), saddle.BRP.Origin(), saddle.SitBones.Origin(),
 		}
 		framingOutlines = seatParts
 		if parsed.BrpTarget != nil {
@@ -855,9 +849,9 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 		// Every headset, stem, and handlebar pose above HeadTubeTop, not the
 		// head tube. The upper cover outline starts at HeadTubeTop, so its
 		// corners keep that end of the stack in view.
-		framingPoses = []pose.Pose[assembly.FrameAxis, assembly.DynamicWorld]{
-			stem.CoverTop, stem.SpacerTop, stem.SteererClamp, stem.BarClamp,
-			handlebar.BarRollFrame, handlebar.HandGrip,
+		framingOrigins = []pose.Point[assembly.DynamicWorld]{
+			stem.CoverTop.Origin(), stem.SpacerTop.Origin(), stem.SteererClamp.Origin(), stem.BarClamp.Origin(),
+			handlebar.BarRollFrame.Origin(), handlebar.HandGrip.Origin(),
 		}
 		framingOutlines = stemParts
 		if parsed.GripTarget != nil {
@@ -865,13 +859,13 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 		}
 	}
 	viewBox := wholeBox
-	if len(framingPoses) > 0 {
-		framingPts := make([]svgPoint, 0, len(framingPoses)+4*len(framingOutlines)+len(extraFramingPts))
-		for _, p := range framingPoses {
-			framingPts = append(framingPts, toSVG(p.Origin()))
+	if len(framingOrigins) > 0 {
+		framingPts := make([]svgPoint, 0, len(framingOrigins)+4*len(framingOutlines)+len(extraFramingPts))
+		for _, p := range framingOrigins {
+			framingPts = append(framingPts, toSVG(p))
 		}
 		for _, o := range framingOutlines {
-			framingPts = append(framingPts, o.corners()...)
+			framingPts = append(framingPts, o.corners[:]...)
 		}
 		framingPts = append(framingPts, extraFramingPts...)
 		unitsPerNominalPx := wholeBox.W / nominalDiagramWidthPx
@@ -886,40 +880,40 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 	// from BarClamp to HandGrip) are illustrative schematic lines rather than
 	// measured physical outlines.
 	segments := []svgSegment{
-		makeSegment("chainstay", placed.RearAxle, placed.BB, "#2f363d", 6*scale, false),
-		makeSegment("seat-tube", placed.SeatAxis, placed.SeatTubeTop, "#2f363d", 7*scale, true),
-		makeSegment("seatstay", placed.RearAxle, placed.SeatTubeTop, "#2f363d", 4*scale, true),
-		makeSegment("head-tube", placed.HeadTubeTop, placed.HeadTubeBottom, "#2f363d", 9*scale, false),
-		makeSegment("lower-cup", placed.HeadTubeBottom, placed.LowerCupBottom, "#0969da", 9*scale, false),
-		makeSegment("fork-a2c", placed.LowerCupBottom, placed.ForkSteererBase, "#59636e", 7*scale, false),
-		makeSegment("fork-rake", placed.ForkSteererBase, placed.FrontAxle, "#59636e", 5*scale, false),
-		makeSegment("seatpost", placed.SeatTubeTop, seatpost.ShaftTop, "#59636e", 5*scale, false),
-		makeSegment("seatpost-setback", seatpost.ShaftTop, seatpost.RailCradle, "#59636e", 5*scale, false),
-		makeSegment("saddle-profile", saddle.SitBones, saddle.BRP, "#2f363d", 4*scale, true),
-		makeSegment("handlebar-rise-sweep", handlebar.BarClamp, handlebar.HandGrip, "#2f363d", 5*scale, true),
+		makeSegment("chainstay", placed.RearAxle.Origin(), placed.BB.Origin(), "#2f363d", 6*scale, false),
+		makeSegment("seat-tube", placed.SeatAxis.Origin(), placed.SeatTubeTop.Origin(), "#2f363d", 7*scale, true),
+		makeSegment("seatstay", placed.RearAxle.Origin(), placed.SeatTubeTop.Origin(), "#2f363d", 4*scale, true),
+		makeSegment("head-tube", placed.HeadTubeTop.Origin(), placed.HeadTubeBottom.Origin(), "#2f363d", 9*scale, false),
+		makeSegment("lower-cup", placed.HeadTubeBottom.Origin(), placed.LowerCupBottom.Origin(), "#0969da", 9*scale, false),
+		makeSegment("fork-a2c", placed.LowerCupBottom.Origin(), placed.ForkSteererBase.Origin(), "#59636e", 7*scale, false),
+		makeSegment("fork-rake", placed.ForkSteererBase.Origin(), placed.FrontAxle.Origin(), "#59636e", 5*scale, false),
+		makeSegment("seatpost", placed.SeatTubeTop.Origin(), seatpost.ShaftTop.Origin(), "#59636e", 5*scale, false),
+		makeSegment("seatpost-setback", seatpost.ShaftTop.Origin(), seatpost.RailCradle.Origin(), "#59636e", 5*scale, false),
+		makeSegment("saddle-profile", saddle.SitBones.Origin(), saddle.BRP.Origin(), "#2f363d", 4*scale, true),
+		makeSegment("handlebar-rise-sweep", handlebar.BarClamp.Origin(), handlebar.HandGrip.Origin(), "#2f363d", 5*scale, true),
 	}
 
 	rects := append(outlineRects(stemParts), outlineRects(seatParts)...)
 
 	landmarkSpecs := []bikeLandmarkSpec{
-		{"RearAxle", placed.RearAxle, 0, -16, "middle", 1, true, false, false},
-		{"RearContact", placed.RearTireContact, 0, 18, "middle", 1, true, false, false},
-		{"BB", placed.BB, 0, 18, "middle", 1, true, false, false},
-		{"SeatTubeTop", placed.SeatTubeTop, -14, -10, "end", 2, true, true, false},
-		{"RailCradle", seatpost.RailCradle, 14, 2, "start", 2, false, true, false},
-		{"RailCenter", saddle.RailCenter, 14, 14, "start", 2, false, true, false},
-		{"BRP", saddle.BRP, 14, -10, "start", 1, true, true, false},
-		{"SitBones", saddle.SitBones, -14, -10, "end", 1, true, true, false},
-		{"HeadTubeTop", placed.HeadTubeTop, 14, 4, "start", 2, true, false, true},
-		{"CoverTop", stem.CoverTop, -14, 6, "end", 2, false, false, true},
-		{"SpacerTop", stem.SpacerTop, -14, -2, "end", 2, false, false, true},
-		{"SteererClamp", stem.SteererClamp, -14, -12, "end", 2, false, false, true},
-		{"BarClamp", stem.BarClamp, 14, 2, "start", 2, false, false, true},
-		{"HandGrip", handlebar.HandGrip, -14, -12, "end", 1, true, false, true},
-		{"HeadTubeBottom", placed.HeadTubeBottom, 14, 2, "start", 3, false, false, false},
-		{"LowerCupBottom", placed.LowerCupBottom, 14, 14, "start", 3, false, false, false},
-		{"FrontAxle", placed.FrontAxle, 0, -16, "middle", 1, true, false, false},
-		{"FrontContact", placed.FrontTireContact, 0, 18, "middle", 1, true, false, false},
+		{"RearAxle", placed.RearAxle.Origin(), 0, -16, "middle", 1, true, false, false},
+		{"RearContact", placed.RearTireContact.Origin(), 0, 18, "middle", 1, true, false, false},
+		{"BB", placed.BB.Origin(), 0, 18, "middle", 1, true, false, false},
+		{"SeatTubeTop", placed.SeatTubeTop.Origin(), -14, -10, "end", 2, true, true, false},
+		{"RailCradle", seatpost.RailCradle.Origin(), 14, 2, "start", 2, false, true, false},
+		{"RailCenter", saddle.RailCenter.Origin(), 14, 14, "start", 2, false, true, false},
+		{"BRP", saddle.BRP.Origin(), 14, -10, "start", 1, true, true, false},
+		{"SitBones", saddle.SitBones.Origin(), -14, -10, "end", 1, true, true, false},
+		{"HeadTubeTop", placed.HeadTubeTop.Origin(), 14, 4, "start", 2, true, false, true},
+		{"CoverTop", stem.CoverTop.Origin(), -14, 6, "end", 2, false, false, true},
+		{"SpacerTop", stem.SpacerTop.Origin(), -14, -2, "end", 2, false, false, true},
+		{"SteererClamp", stem.SteererClamp.Origin(), -14, -12, "end", 2, false, false, true},
+		{"BarClamp", stem.BarClamp.Origin(), 14, 2, "start", 2, false, false, true},
+		{"HandGrip", handlebar.HandGrip.Origin(), -14, -12, "end", 1, true, false, true},
+		{"HeadTubeBottom", placed.HeadTubeBottom.Origin(), 14, 2, "start", 3, false, false, false},
+		{"LowerCupBottom", placed.LowerCupBottom.Origin(), 14, 14, "start", 3, false, false, false},
+		{"FrontAxle", placed.FrontAxle.Origin(), 0, -16, "middle", 1, true, false, false},
+		{"FrontContact", placed.FrontTireContact.Origin(), 0, 18, "middle", 1, true, false, false},
 	}
 
 	unitsPerPx := viewBox.W / nominalDiagramWidthPx
@@ -928,7 +922,7 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 	var labelItems []labelPlaceItem
 
 	for i, spec := range landmarkSpecs {
-		o := toSVG(spec.pose.Origin())
+		o := toSVG(spec.point)
 		var show bool
 		switch view {
 		case diagramViewBike:

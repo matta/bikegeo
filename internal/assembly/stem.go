@@ -41,16 +41,16 @@ type StemSetup struct {
 // StemPlacement holds the Pose-valued landmarks produced by PlaceStem.
 // Each landmark retains its local coordinate frame orientation.
 type StemPlacement struct {
-	HeadTubeTop  pose.Pose[FrameAxis, DynamicWorld]
-	CoverTop     pose.Pose[FrameAxis, DynamicWorld]
-	SpacerTop    pose.Pose[FrameAxis, DynamicWorld]
-	SteererClamp pose.Pose[FrameAxis, DynamicWorld]
-	BarClamp     pose.Pose[FrameAxis, DynamicWorld]
+	HeadTubeTop  pose.Pose[SteererUpAxis, DynamicWorld]
+	CoverTop     pose.Pose[SteererUpAxis, DynamicWorld]
+	SpacerTop    pose.Pose[SteererUpAxis, DynamicWorld]
+	SteererClamp pose.Pose[SteererUpAxis, DynamicWorld]
+	BarClamp     pose.Pose[StemAxis, DynamicWorld]
 }
 
 // PlaceStem mounts a stem assembly starting at steererUp (positioned at the
 // head-tube top and oriented up the steerer axis).
-func PlaceStem(steererUp pose.Pose[FrameAxis, DynamicWorld], setup StemSetup) (StemPlacement, error) {
+func PlaceStem(steererUp pose.Pose[SteererUpAxis, DynamicWorld], setup StemSetup) (StemPlacement, error) {
 	if err := validatePose("steererUp", steererUp); err != nil {
 		return StemPlacement{}, err
 	}
@@ -82,11 +82,12 @@ func PlaceStem(steererUp pose.Pose[FrameAxis, DynamicWorld], setup StemSetup) (S
 	coverTop := steererUp.Advance(setup.UpperStackMm)
 	spacerTop := coverTop.Advance(setup.SpacersMm)
 	steererClamp := spacerTop.Advance(setup.ClampHeightMm / 2.0)
-	// Turn -90° to the stem axis perpendicular to the steerer, then rotate by the stem angle.
-	stemAxis := steererClamp.TurnSameAxis(-90.0).TurnSameAxis(setup.AngleDeg)
+	// Keep the perpendicular turn and angle adjustment separate to preserve rounding.
+	zeroAngleStem := pose.Turn(steererClamp, pose.TurnDeg[SteererUpAxis, StemAxis](-90.0))
+	stemAxis := pose.Turn(zeroAngleStem, pose.TurnDeg[StemAxis, StemAxis](setup.AngleDeg))
 	barClamp := stemAxis.Advance(setup.LengthMm)
 
-	if err := validatePlacementPoses("stem", steererUp, steererClamp, barClamp); err != nil {
+	if err := validatePlacementPoints("stem", steererUp.Origin(), steererClamp.Origin(), barClamp.Origin()); err != nil {
 		return StemPlacement{}, err
 	}
 
