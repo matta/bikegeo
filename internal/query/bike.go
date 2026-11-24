@@ -50,8 +50,8 @@ type Bike struct {
 	Bar            catalog.Handlebar
 	Post           catalog.Seatpost
 	View           string // ViewBike, ViewSeat, or ViewStem
-	BrpTarget      *pose.Point
-	GripTarget     *pose.Point
+	BrpTarget      *pose.Point[assembly.DynamicWorld]
+	GripTarget     *pose.Point[assembly.DynamicWorld]
 	AllBarOptions  bool
 	AllForkOptions bool
 	Setup          assembly.BikeSetup

@@ -52,8 +52,8 @@ func TestParseBikeDefaults(t *testing.T) {
 		if s.Seatpost.InsertionMm != 175.0 || s.Stem.SpacersMm != 20 || s.Stem.LengthMm != 60 || s.Stem.AngleDeg != -6 {
 			t.Errorf("%s: post/stem = %v / %+v", name, s.Seatpost.InsertionMm, s.Stem)
 		}
-		if b.BrpTarget == nil || *b.BrpTarget != (pose.Point{X: -219, Y: 713.1}) ||
-			b.GripTarget == nil || *b.GripTarget != (pose.Point{X: 481, Y: 726}) {
+		if b.BrpTarget == nil || *b.BrpTarget != (pose.Point[assembly.DynamicWorld]{X: -219, Y: 713.1}) ||
+			b.GripTarget == nil || *b.GripTarget != (pose.Point[assembly.DynamicWorld]{X: 481, Y: 726}) {
 			t.Errorf("%s: targets = %v / %v", name, b.BrpTarget, b.GripTarget)
 		}
 		if b.AllBarOptions || b.AllForkOptions {

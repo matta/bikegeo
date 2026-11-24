@@ -30,9 +30,9 @@ func fenrirFittingSetup() assembly.BikeSetup {
 }
 
 // fitReportBRP is Matt's idmatch fit report BRP (docs/RIDER_FIT.md).
-var fitReportBRP = pose.Point{X: -219, Y: 713.1}
+var fitReportBRP = pose.Point[assembly.DynamicWorld]{X: -219, Y: 713.1}
 
-func brpOf(t *testing.T, setup assembly.BikeSetup) pose.Point {
+func brpOf(t *testing.T, setup assembly.BikeSetup) pose.Point[assembly.DynamicWorld] {
 	t.Helper()
 	p, err := assembly.PlaceBike(setup)
 	if err != nil {
@@ -41,7 +41,7 @@ func brpOf(t *testing.T, setup assembly.BikeSetup) pose.Point {
 	return p.Saddle.BRP.Origin()
 }
 
-func mustFit(t *testing.T, setup assembly.BikeSetup, target pose.Point) assembly.Fitting {
+func mustFit(t *testing.T, setup assembly.BikeSetup, target pose.Point[assembly.DynamicWorld]) assembly.Fitting {
 	t.Helper()
 	fit, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &target})
 	if err != nil {
@@ -142,14 +142,14 @@ func TestApplyFittingExtensionLimits(t *testing.T) {
 	// The default Fenrir seat axis heading is 105.289°.
 	seat := 105.289 * math.Pi / 180
 
-	above := mustFit(t, base, pose.Point{X: baseBRP.X + 200*math.Cos(seat), Y: baseBRP.Y + 200*math.Sin(seat)})
+	above := mustFit(t, base, pose.Point[assembly.DynamicWorld]{X: baseBRP.X + 200*math.Cos(seat), Y: baseBRP.Y + 200*math.Sin(seat)})
 	ext, _ := fittedValues(above)
 	if len(above.LimitedBy) == 0 || above.LimitedBy[0] != assembly.InputSeatpostInsertion {
 		t.Fatalf("above LimitedBy = %v, want it to start with the seatpost extension", above.LimitedBy)
 	}
 	assertNear(t, "above extension", ext, 300, 0)
 
-	below := mustFit(t, base, pose.Point{X: baseBRP.X - 200*math.Cos(seat), Y: baseBRP.Y - 200*math.Sin(seat)})
+	below := mustFit(t, base, pose.Point[assembly.DynamicWorld]{X: baseBRP.X - 200*math.Cos(seat), Y: baseBRP.Y - 200*math.Sin(seat)})
 	ext, _ = fittedValues(below)
 	if len(below.LimitedBy) == 0 || below.LimitedBy[0] != assembly.InputSeatpostInsertion {
 		t.Fatalf("below LimitedBy = %v, want it to start with the seatpost extension", below.LimitedBy)
@@ -162,7 +162,7 @@ func TestApplyFittingBothLimitsInOrder(t *testing.T) {
 	baseBRP := brpOf(t, base)
 	seat := 105.289 * math.Pi / 180
 	// 200 mm up the seat axis plus 50 mm of rail offset (level rails: BRP moves -X).
-	target := pose.Point{X: baseBRP.X + 200*math.Cos(seat) - 50, Y: baseBRP.Y + 200*math.Sin(seat)}
+	target := pose.Point[assembly.DynamicWorld]{X: baseBRP.X + 200*math.Cos(seat) - 50, Y: baseBRP.Y + 200*math.Sin(seat)}
 	fit := mustFit(t, base, target)
 	want := []assembly.InputField{assembly.InputSeatpostInsertion, assembly.InputSaddleRailOffset}
 	if !reflect.DeepEqual(fit.LimitedBy, want) {
@@ -178,7 +178,7 @@ func TestApplyFittingErrors(t *testing.T) {
 	if _, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{}); err == nil {
 		t.Fatal("empty FitTarget: want error")
 	}
-	for _, bad := range []pose.Point{{X: math.NaN(), Y: 700}, {X: -200, Y: math.Inf(1)}} {
+	for _, bad := range []pose.Point[assembly.DynamicWorld]{{X: math.NaN(), Y: 700}, {X: -200, Y: math.Inf(1)}} {
 		_, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{BRP: &bad})
 		if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputFitTargetBRP {
 			t.Fatalf("target %v: err = %v, want InputFitTargetBRP", bad, err)
@@ -201,18 +201,18 @@ func TestApplyFittingErrors(t *testing.T) {
 }
 
 var (
-	gateTradeOffBRP     = pose.Point{X: -175.242919, Y: 710.580028}
-	pitchedInsertionBRP = pose.Point{X: -180.355237, Y: 819.658647}
+	gateTradeOffBRP     = pose.Point[assembly.DynamicWorld]{X: -175.242919, Y: 710.580028}
+	pitchedInsertionBRP = pose.Point[assembly.DynamicWorld]{X: -180.355237, Y: 819.658647}
 )
 
 func TestApplyFittingIsMinimalOverGrid(t *testing.T) {
 	const tol = 1e-6
-	inGate := func(miss pose.Vec) bool {
+	inGate := func(miss pose.Vec[assembly.DynamicWorld]) bool {
 		return math.Abs(miss.Y) <= assembly.FitGateBrpYMm+1e-9 && math.Abs(miss.X) <= assembly.FitGateBrpXMm+1e-9
 	}
 	for _, tc := range []struct {
 		name   string
-		target pose.Point
+		target pose.Point[assembly.DynamicWorld]
 		pitch  pose.Deg
 	}{
 		{"fit report outside gate", fitReportBRP, 0},
@@ -251,14 +251,14 @@ func TestApplyFittingGateAwareTradeOff(t *testing.T) {
 	// At 10.6 mm behind, entering the gate would require over 2 mm of height miss.
 	for _, tc := range []struct {
 		name      string
-		target    pose.Point
+		target    pose.Point[assembly.DynamicWorld]
 		insertion float64
 		missX     float64
 		missY     float64
 		inGate    bool
 	}{
 		{"gate passing", gateTradeOffBRP, 198.862281, -10, -1.097454, true},
-		{"outside gate", pose.Point{X: -175.542919, Y: 710.580028}, 200, -10.6, 0, false},
+		{"outside gate", pose.Point[assembly.DynamicWorld]{X: -175.542919, Y: 710.580028}, 200, -10.6, 0, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fit := mustFit(t, fenrirFittingSetup(), tc.target)
@@ -308,7 +308,7 @@ func TestApplyFittingDegenerateBox(t *testing.T) {
 	setup.Seatpost.Spec.RailClampLengthMm = 30
 	brp := brpOf(t, setup)
 
-	fit := mustFit(t, setup, pose.Point{X: brp.X - 20, Y: brp.Y + 5})
+	fit := mustFit(t, setup, pose.Point[assembly.DynamicWorld]{X: brp.X - 20, Y: brp.Y + 5})
 	want := []assembly.InputField{assembly.InputSeatpostInsertion, assembly.InputSaddleRailOffset}
 	if fit.Outcome != assembly.FitLimited || !reflect.DeepEqual(fit.LimitedBy, want) {
 		t.Fatalf("Outcome = %v, LimitedBy = %v, want limited by %v", fit.Outcome, fit.LimitedBy, want)
@@ -347,7 +347,7 @@ func TestApplyFittingCopiesTarget(t *testing.T) {
 
 // fitReportGrip is the idmatch fit report handlebar point (docs/RIDER_FIT.md).
 // Whether the report point is HandGrip or the stem clamp is unresolved.
-var fitReportGrip = pose.Point{X: 481, Y: 726}
+var fitReportGrip = pose.Point[assembly.DynamicWorld]{X: 481, Y: 726}
 
 func gripPlacement(t *testing.T, setup assembly.BikeSetup) assembly.BikePlacement {
 	t.Helper()
@@ -358,7 +358,7 @@ func gripPlacement(t *testing.T, setup assembly.BikeSetup) assembly.BikePlacemen
 	return p
 }
 
-func gripOf(t *testing.T, setup assembly.BikeSetup) pose.Point {
+func gripOf(t *testing.T, setup assembly.BikeSetup) pose.Point[assembly.DynamicWorld] {
 	t.Helper()
 	return gripPlacement(t, setup).Handlebar.HandGrip.Origin()
 }
@@ -369,7 +369,7 @@ func withStem(setup assembly.BikeSetup, spacers, length float64) assembly.BikeSe
 	return setup
 }
 
-func mustFitGrip(t *testing.T, setup assembly.BikeSetup, grip pose.Point) assembly.Fitting {
+func mustFitGrip(t *testing.T, setup assembly.BikeSetup, grip pose.Point[assembly.DynamicWorld]) assembly.Fitting {
 	t.Helper()
 	fit, err := assembly.ApplyFitting(setup, assembly.FitTarget{HandGrip: &grip})
 	if err != nil {
@@ -445,16 +445,16 @@ func TestApplyFittingFitReportGripLimitedByBoth(t *testing.T) {
 }
 
 // unitAt returns the unit vector at a heading, using independent math.
-func unitAt(h pose.Deg) pose.Vec {
+func unitAt(h pose.Deg) pose.Vec[assembly.DynamicWorld] {
 	r := float64(h) * math.Pi / 180
-	return pose.Vec{X: math.Cos(r), Y: math.Sin(r)}
+	return pose.Vec[assembly.DynamicWorld]{X: math.Cos(r), Y: math.Sin(r)}
 }
 
 func TestApplyFittingGripSpacersLimitOnly(t *testing.T) {
 	base := withStem(fenrirFittingSetup(), 0, 100)
 	u := unitAt(gripPlacement(t, base).Stem.SpacerTop.HeadingDeg())
 	g := gripOf(t, base)
-	target := pose.Point{X: g.X - 20*u.X, Y: g.Y - 20*u.Y}
+	target := pose.Point[assembly.DynamicWorld]{X: g.X - 20*u.X, Y: g.Y - 20*u.Y}
 	fit := mustFitGrip(t, fenrirFittingSetup(), target)
 	if want := []assembly.InputField{assembly.InputStemSpacers}; !reflect.DeepEqual(fit.LimitedBy, want) {
 		t.Fatalf("LimitedBy = %v, want %v", fit.LimitedBy, want)
@@ -481,7 +481,7 @@ func TestApplyFittingGripLengthLimitOnly(t *testing.T) {
 	base := withStem(fenrirFittingSetup(), 20, 130)
 	v := unitAt(gripPlacement(t, base).Stem.BarClamp.HeadingDeg())
 	g := gripOf(t, base)
-	target := pose.Point{X: g.X + 15*v.X, Y: g.Y + 15*v.Y}
+	target := pose.Point[assembly.DynamicWorld]{X: g.X + 15*v.X, Y: g.Y + 15*v.Y}
 	fit := mustFitGrip(t, fenrirFittingSetup(), target)
 	if want := []assembly.InputField{assembly.InputStemLength}; !reflect.DeepEqual(fit.LimitedBy, want) {
 		t.Fatalf("LimitedBy = %v, want %v", fit.LimitedBy, want)
@@ -526,7 +526,7 @@ func TestApplyFittingBothLandmarksMatchSingleFits(t *testing.T) {
 
 func TestApplyFittingGripErrors(t *testing.T) {
 	var inputErr *assembly.InputError
-	for _, bad := range []pose.Point{{X: math.NaN(), Y: 700}, {X: 400, Y: math.Inf(-1)}} {
+	for _, bad := range []pose.Point[assembly.DynamicWorld]{{X: math.NaN(), Y: 700}, {X: 400, Y: math.Inf(-1)}} {
 		_, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{HandGrip: &bad})
 		if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputFitTargetGrip {
 			t.Fatalf("target %v: err = %v, want InputFitTargetGrip", bad, err)
@@ -606,7 +606,7 @@ func TestFitPostSetbackIgnoresSubmittedSeatInputs(t *testing.T) {
 }
 
 func TestFitPostSetbackStopsAtZeroSetback(t *testing.T) {
-	target := pose.Point{X: -150, Y: 758.1} // the original 713.1 target, translated up the 45 mm BRP height
+	target := pose.Point[assembly.DynamicWorld]{X: -150, Y: 758.1} // the original 713.1 target, translated up the 45 mm BRP height
 	fit, err := assembly.FitPostSetback(fenrirFittingSetup(), target, 0)
 	if err != nil {
 		t.Fatalf("FitPostSetback: %v", err)
@@ -625,7 +625,7 @@ func TestFitPostSetbackStopsAtZeroSetback(t *testing.T) {
 }
 
 func TestFitPostSetbackForwardTarget(t *testing.T) {
-	target := pose.Point{X: -150, Y: 758.1} // the original 713.1 target, translated up the 45 mm BRP height
+	target := pose.Point[assembly.DynamicWorld]{X: -150, Y: 758.1} // the original 713.1 target, translated up the 45 mm BRP height
 	fit, err := assembly.FitPostSetback(fenrirFittingSetup(), target, -15)
 	if err != nil {
 		t.Fatalf("FitPostSetback: %v", err)
@@ -639,7 +639,7 @@ func TestFitPostSetbackForwardTarget(t *testing.T) {
 }
 
 func TestFitPostSetbackStopsAtExtension(t *testing.T) {
-	target := pose.Point{X: -219, Y: 945} // the original 900 target, translated up the 45 mm BRP height
+	target := pose.Point[assembly.DynamicWorld]{X: -219, Y: 945} // the original 900 target, translated up the 45 mm BRP height
 
 	fit0, err := assembly.FitPostSetback(fenrirFittingSetup(), target, 0)
 	if err != nil {
@@ -682,7 +682,7 @@ func TestFitPostSetbackRejectsRailBeyondClamp(t *testing.T) {
 		t.Fatalf("rail 15.5: err = %v, want InputSaddleRailOffset", err)
 	}
 
-	_, err = assembly.FitPostSetback(fenrirFittingSetup(), pose.Point{X: math.NaN(), Y: 713.1}, 0)
+	_, err = assembly.FitPostSetback(fenrirFittingSetup(), pose.Point[assembly.DynamicWorld]{X: math.NaN(), Y: 713.1}, 0)
 	if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputFitTargetBRP {
 		t.Fatalf("NaN BRP: err = %v, want InputFitTargetBRP", err)
 	}
@@ -716,7 +716,7 @@ func TestApplyFittingReferencePosts(t *testing.T) {
 func TestApplyFitting25mmPostReachesForwardTarget(t *testing.T) {
 	setup := fenrirFittingSetup()
 	setup.Seatpost = assembly.SeatpostSetup{Spec: genericPostSpec(25), InsertionMm: 150}
-	fit := mustFit(t, setup, pose.Point{X: -189, Y: 713.1})
+	fit := mustFit(t, setup, pose.Point[assembly.DynamicWorld]{X: -189, Y: 713.1})
 	if fit.Outcome != assembly.FitReached {
 		t.Fatalf("Outcome = %v, LimitedBy = %v, want reached", fit.Outcome, fit.LimitedBy)
 	}
@@ -727,7 +727,7 @@ func TestApplyFitting25mmPostReachesForwardTarget(t *testing.T) {
 func TestFitPostSetbackRedshiftForwardLimit(t *testing.T) {
 	setup := fenrirFittingSetup()
 	setup.Seatpost = assembly.SeatpostSetup{Spec: redshiftPostSpec(), InsertionMm: 150}
-	target := pose.Point{X: -150, Y: 758.1}
+	target := pose.Point[assembly.DynamicWorld]{X: -150, Y: 758.1}
 	fit := mustFit(t, setup, target)
 	assertNear(t, "rail offset", fit.Placement.Setup.Saddle.RailOffsetMm, -15, 1e-9)
 	assertNear(t, "insertion", fit.Placement.Setup.Seatpost.InsertionMm, 100, 1e-9)

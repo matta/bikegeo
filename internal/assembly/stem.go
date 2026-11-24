@@ -41,16 +41,16 @@ type StemSetup struct {
 // StemPlacement holds the Pose-valued landmarks produced by PlaceStem.
 // Each landmark retains its local coordinate frame orientation.
 type StemPlacement struct {
-	HeadTubeTop  pose.Pose
-	CoverTop     pose.Pose
-	SpacerTop    pose.Pose
-	SteererClamp pose.Pose
-	BarClamp     pose.Pose
+	HeadTubeTop  pose.Pose[FrameAxis, DynamicWorld]
+	CoverTop     pose.Pose[FrameAxis, DynamicWorld]
+	SpacerTop    pose.Pose[FrameAxis, DynamicWorld]
+	SteererClamp pose.Pose[FrameAxis, DynamicWorld]
+	BarClamp     pose.Pose[FrameAxis, DynamicWorld]
 }
 
 // PlaceStem mounts a stem assembly starting at steererUp (positioned at the
 // head-tube top and oriented up the steerer axis).
-func PlaceStem(steererUp pose.Pose, setup StemSetup) (StemPlacement, error) {
+func PlaceStem(steererUp pose.Pose[FrameAxis, DynamicWorld], setup StemSetup) (StemPlacement, error) {
 	if err := validatePose("steererUp", steererUp); err != nil {
 		return StemPlacement{}, err
 	}
@@ -83,7 +83,7 @@ func PlaceStem(steererUp pose.Pose, setup StemSetup) (StemPlacement, error) {
 	spacerTop := coverTop.Advance(setup.SpacersMm)
 	steererClamp := spacerTop.Advance(setup.ClampHeightMm / 2.0)
 	// Turn -90° to the stem axis perpendicular to the steerer, then rotate by the stem angle.
-	stemAxis := steererClamp.Turn(-90.0).Turn(setup.AngleDeg)
+	stemAxis := steererClamp.TurnSameAxis(-90.0).TurnSameAxis(setup.AngleDeg)
 	barClamp := stemAxis.Advance(setup.LengthMm)
 
 	if err := validatePlacementPoses("stem", steererUp, steererClamp, barClamp); err != nil {

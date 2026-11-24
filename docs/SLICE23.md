@@ -1,15 +1,15 @@
 # Slice 23: Compile-Time Coordinate-Space, Axis, and Affine Type Safety in `pose` and `assembly`
 
-Status: Partly implemented 2026-11-23; stopped after Commit 1
+Status: Partly implemented 2026-11-23; stopped after Commit 2
 Implementer: Medium (mid-tier) — behavior-preserving, compiler-guided migration to the generic `pose` and `assembly` types specified in this plan across 4 staged commits.
 Review: required — architectural and geometric type-system change across `pose` and `assembly`.
 
 ## Implementation handoff
 
 - **Who & when** Codex (GPT-6), 2026-11-23.
-- **Commit** `:/^Separate geometry points from displacement vectors` resolves to the commit introducing this handoff.
-- **Verification** `go vet ./...`, `go test ./...`, and `make pre-commit` passed. `go fix` and `go fmt` left no changes.
-- **Next** Commit 2 parameterizes the pose types. No deviations from Commit 1's implementation scope.
+- **Commits** Commit 1 is `650a359`. `:/^Parameterize geometry poses and coordinate spaces` resolves to Commit 2.
+- **Verification** `go vet ./...`, `go test ./...`, and `make pre-commit` passed. `go fix` and `go fmt` left no changes. Five `compare` and `bike` invocations produced byte-identical JSON against Commit 1.
+- **Deviations** None. Commit 3 assigns component-specific axes to the builders and updates diagram helpers.
 
 ## Goal
 

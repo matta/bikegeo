@@ -9,15 +9,16 @@ import (
 	"strings"
 	"testing"
 
+	"bikegeo/internal/assembly"
 	"bikegeo/internal/compare"
 	"bikegeo/internal/pose"
 	"bikegeo/internal/query"
 )
 
-// jsonPose mirrors pose.Pose's MarshalJSON output. pose.Pose has no
-// UnmarshalJSON, so decoding into query.CompareResult would zero every pose.
+// jsonPose decodes the exported fields of the CLI's pose JSON. The fields
+// of pose.Pose are unexported and cannot be populated by json.Unmarshal.
 type jsonPose struct {
-	Origin     pose.Point
+	Origin     pose.Point[assembly.DynamicWorld]
 	HeadingDeg pose.Deg
 }
 
@@ -305,7 +306,7 @@ func TestRunBikeDefaultAndWinningBuildJSON(t *testing.T) {
 	if r.Builds == nil || r.Builds.Evaluated != 749 || len(r.Builds.Builds) != 5 {
 		t.Fatalf("Builds = %+v, want 749 evaluated, 5 builds", r.Builds)
 	}
-	if r.Placement.Frameset.HeadTubeTop.Origin == (pose.Point{}) || r.Placement.Saddle.BRP.Origin == (pose.Point{}) {
+	if r.Placement.Frameset.HeadTubeTop.Origin == (pose.Point[assembly.DynamicWorld]{}) || r.Placement.Saddle.BRP.Origin == (pose.Point[assembly.DynamicWorld]{}) {
 		t.Errorf("HeadTubeTop %+v / BRP %+v must be non-zero", r.Placement.Frameset.HeadTubeTop, r.Placement.Saddle.BRP)
 	}
 

@@ -202,10 +202,10 @@ func TestDiagramTargetAwareFraming(t *testing.T) {
 	// Stem view contains Target Grip and all 4 oriented corners of its fit oval.
 	stemDoc := loadBikeDoc(t, "/bike?view=stem")
 	stemBox := parseViewBoxAttr(t, stemDoc)
-	ovalPose := pose.NewPose(*def.GripTarget, oval.MajorAxisHeadingDeg)
+	ovalPose := pose.NewPose[assembly.FrameAxis](*def.GripTarget, pose.Heading[assembly.DynamicWorld](oval.MajorAxisHeadingDeg))
 	for _, along := range []float64{-oval.SemiMajorMm, oval.SemiMajorMm} {
 		for _, across := range []float64{-oval.SemiMinorMm, oval.SemiMinorMm} {
-			c := toSVG(ovalPose.Translate(along, across).Origin())
+			c := toSVG(ovalPose.Translate(pose.Vec[assembly.FrameAxis]{X: along, Y: across}).Origin())
 			if !stemBox.contains(c) {
 				t.Errorf("stem viewBox %+v does not contain Grip oval corner %+v", stemBox, c)
 			}
@@ -221,14 +221,14 @@ func TestDiagramTargetAwareFraming(t *testing.T) {
 			t.Fatalf("%s extreme viewBox invalid: %+v", view, box)
 		}
 		if view == "bike" || view == "seat" {
-			for _, c := range brpTargetFramingPts(pose.Point{X: -650, Y: 1200}) {
+			for _, c := range brpTargetFramingPts(pose.Point[assembly.DynamicWorld]{X: -650, Y: 1200}) {
 				if !box.contains(c) {
 					t.Errorf("%s extreme viewBox %+v does not contain BRP corner %+v", view, box, c)
 				}
 			}
 		}
 		if view == "bike" || view == "stem" {
-			for _, c := range gripTargetFramingPts(pose.Point{X: 950, Y: 1150}) {
+			for _, c := range gripTargetFramingPts(pose.Point[assembly.DynamicWorld]{X: 950, Y: 1150}) {
 				if !box.contains(c) {
 					t.Errorf("%s extreme viewBox %+v does not contain Grip corner %+v", view, box, c)
 				}
@@ -459,7 +459,7 @@ func TestDiagramZeroLabelCollisionsAndViewBoxContainment(t *testing.T) {
 					ptPxX := (ptSVG.X - vb.X) / upp
 					ptPxY := (ptSVG.Y - vb.Y) / upp
 					nx, ny := box.nearestPoint(ptPxX, ptPxY)
-					dist := pose.Vec{X: nx - ptPxX, Y: ny - ptPxY}.Norm()
+					dist := pose.Vec[assembly.DynamicWorld]{X: nx - ptPxX, Y: ny - ptPxY}.Norm()
 					if dist > labelLeaderMinDistPx {
 						if leaderSel.Length() != 1 {
 							t.Errorf("displaced label %q (dist=%.1f px) missing .label-leader", name, dist)

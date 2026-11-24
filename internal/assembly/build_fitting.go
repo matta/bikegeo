@@ -57,7 +57,7 @@ func (p PartOptions) Validate() error {
 		if bar.BarRollDeg != 0 {
 			return fmt.Errorf("handlebar option %d must not set BarRollDeg; build fitting installs every bar at the submitted roll (Q24)", i)
 		}
-		if _, err := PlaceHandlebar(pose.NewPose(pose.Point{}, 0), bar); err != nil {
+		if _, err := PlaceHandlebar(pose.NewPose[FrameAxis](pose.Point[DynamicWorld]{}, 0), bar); err != nil {
 			return fmt.Errorf("handlebar option %d: %w", i, err)
 		}
 	}
@@ -75,24 +75,24 @@ func (p PartOptions) Validate() error {
 // ScoredBuild is one cockpit/fork build, placed forward and scored.
 type ScoredBuild struct {
 	Placement          BikePlacement
-	Target             pose.Point  // HandGrip target
-	HasHandlebarOption bool        // true when installed from PartOptions.Handlebars
-	HandlebarIndex     int         // index into PartOptions.Handlebars; meaningful only when HasHandlebarOption
-	HasForkOption      bool        // true when installed from PartOptions.Forks
-	ForkIndex          int         // index into PartOptions.Forks; meaningful only when HasForkOption
-	BrpTarget          *pose.Point // saddle BRP target; nil without one
-	Score              BuildScore  // 4-tier fit gate, 0–100 weighted total, misses, and 12 attribute scores
+	Target             pose.Point[DynamicWorld]  // HandGrip target
+	HasHandlebarOption bool                      // true when installed from PartOptions.Handlebars
+	HandlebarIndex     int                       // index into PartOptions.Handlebars; meaningful only when HasHandlebarOption
+	HasForkOption      bool                      // true when installed from PartOptions.Forks
+	ForkIndex          int                       // index into PartOptions.Forks; meaningful only when HasForkOption
+	BrpTarget          *pose.Point[DynamicWorld] // saddle BRP target; nil without one
+	Score              BuildScore                // 4-tier fit gate, 0–100 weighted total, misses, and 12 attribute scores
 }
 
 // GripMiss returns target − placed HandGrip (world mm).
-func (b ScoredBuild) GripMiss() pose.Vec {
+func (b ScoredBuild) GripMiss() pose.Vec[DynamicWorld] {
 	return b.Target.Sub(b.Placement.Handlebar.HandGrip.Origin())
 }
 
 // BrpMiss returns BrpTarget − placed BRP (world mm), and false without a BRP target.
-func (b ScoredBuild) BrpMiss() (pose.Vec, bool) {
+func (b ScoredBuild) BrpMiss() (pose.Vec[DynamicWorld], bool) {
 	if b.BrpTarget == nil {
-		return pose.Vec{}, false
+		return pose.Vec[DynamicWorld]{}, false
 	}
 	return b.BrpTarget.Sub(b.Placement.Saddle.BRP.Origin()), true
 }
@@ -171,7 +171,7 @@ func FitBuilds(setup BikeSetup, target FitTarget, parts PartOptions, weights Sco
 	}
 
 	grip := *target.HandGrip
-	var brp *pose.Point
+	var brp *pose.Point[DynamicWorld]
 	if target.BRP != nil {
 		p := *target.BRP
 		brp = &p

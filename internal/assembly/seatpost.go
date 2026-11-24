@@ -92,16 +92,16 @@ func SeatpostInsertionBounds(frame FrameSetup, post SeatpostSpec) (InsertionBoun
 // pointing up and rearward along the seat tube axis; local +Y pointing 90°
 // counter-clockwise, perpendicular rearward/downward).
 type SeatpostPlacement struct {
-	SeatTubeTop pose.Pose
-	ShaftTop    pose.Pose
-	RailCradle  pose.Pose
+	SeatTubeTop pose.Pose[FrameAxis, DynamicWorld]
+	ShaftTop    pose.Pose[FrameAxis, DynamicWorld]
+	RailCradle  pose.Pose[FrameAxis, DynamicWorld]
 }
 
 // PlaceSeatpost mounts a seatpost in frame starting at seatTubeTop (positioned
 // at the top of the frame's seat tube and oriented up the seat tube axis). The
 // exposed length above the seat tube is the post's total length less its
 // insertion, which must lie within SeatpostInsertionBounds(frame, setup.Spec).
-func PlaceSeatpost(seatTubeTop pose.Pose, frame FrameSetup, setup SeatpostSetup) (SeatpostPlacement, error) {
+func PlaceSeatpost(seatTubeTop pose.Pose[FrameAxis, DynamicWorld], frame FrameSetup, setup SeatpostSetup) (SeatpostPlacement, error) {
 	if err := validatePose("seatTubeTop", seatTubeTop); err != nil {
 		return SeatpostPlacement{}, err
 	}
@@ -118,7 +118,7 @@ func PlaceSeatpost(seatTubeTop pose.Pose, frame FrameSetup, setup SeatpostSetup)
 
 	shaftTop := seatTubeTop.Advance(setup.ExposedMm())
 	// Setback is along local +Y from the shaft top, which points rearward.
-	railCradle := shaftTop.Translate(0, setup.Spec.SetbackMm)
+	railCradle := shaftTop.Translate(pose.Vec[FrameAxis]{Y: setup.Spec.SetbackMm})
 
 	if err := validatePlacementPoses("seatpost", seatTubeTop, shaftTop, railCradle); err != nil {
 		return SeatpostPlacement{}, err

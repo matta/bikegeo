@@ -93,15 +93,15 @@ func TestFitOval(t *testing.T) {
 	if err := oval.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	center := pose.Point{X: 12, Y: -30}
+	center := pose.Point[assembly.DynamicWorld]{X: 12, Y: -30}
 	assertNear(t, "center radius", oval.NormalizedRadius(center, center), 0, 1e-12)
 	for _, tc := range []struct{ heading, distance, radius float64 }{{60, 20, 1}, {-30, 10, 1}, {-30, 30, 3}} {
 		sin, cos := math.Sincos(tc.heading * math.Pi / 180)
-		p := pose.Point{X: center.X + cos*tc.distance, Y: center.Y + sin*tc.distance}
+		p := pose.Point[assembly.DynamicWorld]{X: center.X + cos*tc.distance, Y: center.Y + sin*tc.distance}
 		assertNear(t, "axis radius", oval.NormalizedRadius(center, p), tc.radius, 1e-12)
 	}
-	for _, d := range []pose.Point{{X: 23, Y: -4}, {X: -6, Y: 47}, {X: -32, Y: -51}} {
-		p := pose.Point{X: center.X + d.X, Y: center.Y + d.Y}
+	for _, d := range []pose.Point[assembly.DynamicWorld]{{X: 23, Y: -4}, {X: -6, Y: 47}, {X: -32, Y: -51}} {
+		p := pose.Point[assembly.DynamicWorld]{X: center.X + d.X, Y: center.Y + d.Y}
 		assertNear(t, "legacy radius", oval.NormalizedRadius(center, p), legacyGripRadius(d.X, d.Y), 1e-12)
 	}
 	for _, bad := range []assembly.FitOval{
@@ -277,7 +277,7 @@ func interp(x float64, xs, ys []float64) float64 {
 
 func TestFitBuildsIndependentOracle(t *testing.T) {
 	base := fenrirFittingSetup()
-	for _, grip := range []pose.Point{fitReportGrip, gripOf(t, base)} {
+	for _, grip := range []pose.Point[assembly.DynamicWorld]{fitReportGrip, gripOf(t, base)} {
 		type built struct {
 			stem     stemConfig
 			total, r float64
@@ -530,7 +530,7 @@ func TestFitBuildsScoresBrpMissForSubmittedFork(t *testing.T) {
 func TestFitBuildsFourTiersAndBasisFork(t *testing.T) {
 	setback := fenrirFittingSetup()
 	setback.Seatpost.Spec = genericPostSpec(25)
-	brp := pose.Point{X: -189, Y: 713.1}
+	brp := pose.Point[assembly.DynamicWorld]{X: -189, Y: 713.1}
 	target := assembly.FitTarget{BRP: &brp, HandGrip: &fitReportGrip}
 
 	fit := mustFitBuilds(t, setback, target, 5)
@@ -646,7 +646,7 @@ func TestFitBuildsIgnoresContinuousStemLengthRange(t *testing.T) {
 }
 
 func TestFitBuildsErrors(t *testing.T) {
-	nan := pose.Point{X: math.NaN()}
+	nan := pose.Point[assembly.DynamicWorld]{X: math.NaN()}
 	w := testDefaultScoreWeights()
 	for _, tc := range []struct {
 		name    string
@@ -720,7 +720,7 @@ func TestPartOptionsValidation(t *testing.T) {
 	}
 	parts = twoBarOptions()
 	parts.Handlebars[0].GripInsetMm = 0
-	_, want := assembly.PlaceHandlebar(pose.NewPose(pose.Point{}, 0), parts.Handlebars[0])
+	_, want := assembly.PlaceHandlebar(pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{}, 0), parts.Handlebars[0])
 	if err := parts.Validate(); want == nil || err == nil || !strings.Contains(err.Error(), want.Error()) {
 		t.Errorf("handlebar option grip inset error = %v, want %v", err, want)
 	}

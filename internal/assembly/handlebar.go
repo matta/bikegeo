@@ -86,9 +86,9 @@ func (h HandlebarSetup) outboardSweepOffsetMm(zHand float64) (dx, upsweepDy floa
 //   - HandLateralMm: lateral grip coordinate (installed width/2 - GripInsetMm)
 //     preserved behind the 2D side projection.
 type HandlebarPlacement struct {
-	BarClamp      pose.Pose
-	BarRollFrame  pose.Pose
-	HandGrip      pose.Pose
+	BarClamp      pose.Pose[FrameAxis, DynamicWorld]
+	BarRollFrame  pose.Pose[FrameAxis, DynamicWorld]
+	HandGrip      pose.Pose[FrameAxis, DynamicWorld]
 	HandLateralMm float64
 }
 
@@ -96,7 +96,7 @@ type HandlebarPlacement struct {
 // -BarRollDeg via Pose.Face, applies the rise at the bend intersection, and
 // applies the outboard backsweep/upsweep projection to place HandGrip while
 // preserving HandLateralMm.
-func PlaceHandlebar(barClamp pose.Pose, setup HandlebarSetup) (HandlebarPlacement, error) {
+func PlaceHandlebar(barClamp pose.Pose[FrameAxis, DynamicWorld], setup HandlebarSetup) (HandlebarPlacement, error) {
 	if err := validatePose("barClamp", barClamp); err != nil {
 		return HandlebarPlacement{}, err
 	}
@@ -140,9 +140,9 @@ func PlaceHandlebar(barClamp pose.Pose, setup HandlebarSetup) (HandlebarPlacemen
 	dx, upsweepDy := setup.outboardSweepOffsetMm(zHand)
 
 	// Bar roll is clockwise and measured against world horizontal, so face -roll rather than turn.
-	barRollFrame := barClamp.Face(-setup.BarRollDeg)
-	bendRise := barRollFrame.Translate(0, baseRise)
-	handGrip := bendRise.Translate(dx, upsweepDy)
+	barRollFrame := barClamp.FaceSameAxis(-setup.BarRollDeg)
+	bendRise := barRollFrame.Translate(pose.Vec[FrameAxis]{Y: baseRise})
+	handGrip := bendRise.Translate(pose.Vec[FrameAxis]{X: dx, Y: upsweepDy})
 
 	if err := validatePlacementPoses("handlebar", barClamp, barRollFrame, bendRise, handGrip); err != nil {
 		return HandlebarPlacement{}, err

@@ -115,31 +115,32 @@ func (o FitOval) Validate() error {
 }
 
 // NormalizedRadius returns R for p around center (R = 1 on the oval's edge).
-func (o FitOval) NormalizedRadius(center, p pose.Point) float64 {
+func (o FitOval) NormalizedRadius(center, p pose.Point[DynamicWorld]) float64 {
 	return newGripOvalProjection(o).normalizedRadius(center, p)
 }
 
 // gripOvalProjection holds an oval's precomputed axis unit vectors so FitBuilds
 // can evaluate NormalizedRadius without repeating trig per candidate.
 type gripOvalProjection struct {
-	minorDir, majorDir       pose.Vec
+	minorDir, majorDir       pose.Vec[DynamicWorld]
 	semiMinorMm, semiMajorMm float64
 }
 
 func newGripOvalProjection(o FitOval) gripOvalProjection {
+	majorHeading := pose.Heading[DynamicWorld](o.MajorAxisHeadingDeg)
 	return gripOvalProjection{
-		minorDir:    pose.Along(o.MajorAxisHeadingDeg-90, 1),
-		majorDir:    pose.Along(o.MajorAxisHeadingDeg, 1),
+		minorDir:    pose.Along(majorHeading.Turn(-90), 1),
+		majorDir:    pose.Along(majorHeading, 1),
 		semiMinorMm: o.SemiMinorMm,
 		semiMajorMm: o.SemiMajorMm,
 	}
 }
 
-func (p gripOvalProjection) normalizedRadius(center, pt pose.Point) float64 {
+func (p gripOvalProjection) normalizedRadius(center, pt pose.Point[DynamicWorld]) float64 {
 	d := pt.Sub(center)
 	minor := (d.X*p.minorDir.X + d.Y*p.minorDir.Y) / p.semiMinorMm
 	major := (d.X*p.majorDir.X + d.Y*p.majorDir.Y) / p.semiMajorMm
-	return pose.Vec{X: minor, Y: major}.Norm()
+	return pose.Vec[DynamicWorld]{X: minor, Y: major}.Norm()
 }
 
 // DefaultGripOval returns the Q17 HandGrip fit oval.
@@ -388,7 +389,7 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 	rcWb := placement.Frameset.RcWbRatioPct()
 	bbDrop := placement.Frameset.LeveledBbDropMm()
 	trail := placement.Frameset.TrailMm()
-	var brpMiss pose.Vec
+	var brpMiss pose.Vec[DynamicWorld]
 	if hasBrp {
 		brpMiss = target.BRP.Sub(placement.Saddle.BRP.Origin())
 	}

@@ -47,7 +47,7 @@ func referenceFitBuilds(t *testing.T, setup assembly.BikeSetup, target assembly.
 	}
 
 	grip := *target.HandGrip
-	var brp *pose.Point
+	var brp *pose.Point[assembly.DynamicWorld]
 	if target.BRP != nil {
 		p := *target.BRP
 		brp = &p
@@ -116,11 +116,11 @@ func TestFitBuildsMatchesReference(t *testing.T) {
 		"bars_and_forks": multi,
 	}
 
-	setbackBRP := pose.Point{X: -189, Y: 713.1}
-	farBRP := pose.Point{X: -260, Y: 640}
-	brps := map[string]*pose.Point{"no_brp": nil, "report_brp": &fitReportBRP, "setback_brp": &setbackBRP, "far_brp": &farBRP}
+	setbackBRP := pose.Point[assembly.DynamicWorld]{X: -189, Y: 713.1}
+	farBRP := pose.Point[assembly.DynamicWorld]{X: -260, Y: 640}
+	brps := map[string]*pose.Point[assembly.DynamicWorld]{"no_brp": nil, "report_brp": &fitReportBRP, "setback_brp": &setbackBRP, "far_brp": &farBRP}
 
-	grips := []pose.Point{
+	grips := []pose.Point[assembly.DynamicWorld]{
 		{X: fitReportGrip.X - 60, Y: fitReportGrip.Y - 60},
 		fitReportGrip,
 		{X: fitReportGrip.X + 60, Y: fitReportGrip.Y + 60},

@@ -11,7 +11,7 @@ import (
 	"bikegeo/internal/query"
 )
 
-func toSVG(p pose.Point) svgPoint {
+func toSVG(p pose.Point[assembly.DynamicWorld]) svgPoint {
 	return svgPoint{X: p.X, Y: -p.Y}
 }
 
@@ -94,7 +94,7 @@ const (
 // across it, centred on the pose.
 type poseOutline struct {
 	name        string
-	pose        pose.Pose
+	pose        pose.Pose[assembly.FrameAxis, assembly.DynamicWorld]
 	startMm     float64
 	lengthMm    float64
 	thicknessMm float64
@@ -110,7 +110,7 @@ func (o poseOutline) corners() []svgPoint {
 	pts := make([]svgPoint, 0, 4)
 	for _, along := range []float64{o.startMm, o.startMm + o.lengthMm} {
 		for _, across := range []float64{-half, half} {
-			pts = append(pts, toSVG(o.pose.Translate(along, across).Origin()))
+			pts = append(pts, toSVG(o.pose.Translate(pose.Vec[assembly.FrameAxis]{X: along, Y: across}).Origin()))
 		}
 	}
 	return pts
@@ -133,7 +133,7 @@ func stemOutlines(placed assembly.StemPlacement, setup assembly.StemSetup) []pos
 	}
 }
 
-func poseRect(name string, p pose.Pose, startMm, lengthMm, thicknessMm float64) svgRect {
+func poseRect(name string, p pose.Pose[assembly.FrameAxis, assembly.DynamicWorld], startMm, lengthMm, thicknessMm float64) svgRect {
 	o := toSVG(p.Origin())
 	return svgRect{
 		Name:      name,
@@ -274,7 +274,7 @@ func (v bikeView) Px(size float64) string {
 	return formatSVGSize(size * v.DrawScale)
 }
 
-func makeSegment(name string, from, to pose.Pose, color string, width float64, illustrative bool) svgSegment {
+func makeSegment(name string, from, to pose.Pose[assembly.FrameAxis, assembly.DynamicWorld], color string, width float64, illustrative bool) svgSegment {
 	p1 := toSVG(from.Origin())
 	p2 := toSVG(to.Origin())
 	return svgSegment{
@@ -318,7 +318,7 @@ const (
 // bikeLandmarkSpec places a landmark label with a preferred direction and priority.
 type bikeLandmarkSpec struct {
 	name      string
-	pose      pose.Pose
+	pose      pose.Pose[assembly.FrameAxis, assembly.DynamicWorld]
 	prefDx    float64
 	prefDy    float64
 	prefAnc   string
@@ -346,7 +346,7 @@ type bikeDiagram struct {
 	FitTargets   []svgFitTarget
 }
 
-func brpTargetFramingPts(target pose.Point) []svgPoint {
+func brpTargetFramingPts(target pose.Point[assembly.DynamicWorld]) []svgPoint {
 	t := toSVG(target)
 	return []svgPoint{
 		{X: t.X - assembly.FitGateBrpXMm, Y: t.Y - assembly.FitGateBrpYMm},
@@ -356,13 +356,13 @@ func brpTargetFramingPts(target pose.Point) []svgPoint {
 	}
 }
 
-func gripTargetFramingPts(target pose.Point) []svgPoint {
+func gripTargetFramingPts(target pose.Point[assembly.DynamicWorld]) []svgPoint {
 	oval := assembly.DefaultGripOval()
-	ovalPose := pose.NewPose(target, oval.MajorAxisHeadingDeg)
+	ovalPose := pose.NewPose[assembly.FrameAxis](target, pose.Heading[assembly.DynamicWorld](oval.MajorAxisHeadingDeg))
 	pts := make([]svgPoint, 0, 4)
 	for _, along := range []float64{-oval.SemiMajorMm, oval.SemiMajorMm} {
 		for _, across := range []float64{-oval.SemiMinorMm, oval.SemiMinorMm} {
-			pts = append(pts, toSVG(ovalPose.Translate(along, across).Origin()))
+			pts = append(pts, toSVG(ovalPose.Translate(pose.Vec[assembly.FrameAxis]{X: along, Y: across}).Origin()))
 		}
 	}
 	return pts
@@ -714,7 +714,7 @@ func placeDiagramLabels(
 				}
 			}
 			nx, ny := cand.box.nearestPoint(px, py)
-			dist := pose.Vec{X: nx - px, Y: ny - py}.Norm()
+			dist := pose.Vec[assembly.DynamicWorld]{X: nx - px, Y: ny - py}.Norm()
 			penalty := dist + float64(pointHits)*200.0
 			if cand.preferred {
 				penalty -= 4.0
@@ -763,7 +763,7 @@ func placeDiagramLabels(
 		ax, ay := anchorForBox(bestBox, bestAnchor)
 		svgLX, svgLY := toSVGCoords(ax, ay)
 		nx, ny := bestBox.nearestPoint(px, py)
-		dist := pose.Vec{X: nx - px, Y: ny - py}.Norm()
+		dist := pose.Vec[assembly.DynamicWorld]{X: nx - px, Y: ny - py}.Norm()
 		hasLeader := dist > labelLeaderMinDistPx
 		lx2, ly2 := toSVGCoords(nx, ny)
 
@@ -836,14 +836,14 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 
 	// A close-up frames its poses and every corner of the outlines drawn
 	// around them, plus any active target and tolerance zone for that view.
-	var framingPoses []pose.Pose
+	var framingPoses []pose.Pose[assembly.FrameAxis, assembly.DynamicWorld]
 	var framingOutlines []poseOutline
 	var extraFramingPts []svgPoint
 	switch view {
 	case diagramViewBike:
 	case diagramViewSeat:
 		// Every seatpost and saddle pose above SeatTubeTop, not the seat tube.
-		framingPoses = []pose.Pose{
+		framingPoses = []pose.Pose[assembly.FrameAxis, assembly.DynamicWorld]{
 			seatpost.ShaftTop, seatpost.RailCradle, saddle.RailFrame,
 			saddle.RailCenter, saddle.BRP, saddle.SitBones,
 		}
@@ -855,7 +855,7 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 		// Every headset, stem, and handlebar pose above HeadTubeTop, not the
 		// head tube. The upper cover outline starts at HeadTubeTop, so its
 		// corners keep that end of the stack in view.
-		framingPoses = []pose.Pose{
+		framingPoses = []pose.Pose[assembly.FrameAxis, assembly.DynamicWorld]{
 			stem.CoverTop, stem.SpacerTop, stem.SteererClamp, stem.BarClamp,
 			handlebar.BarRollFrame, handlebar.HandGrip,
 		}

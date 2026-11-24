@@ -41,11 +41,11 @@ type SaddleSetup struct {
 // construction frame (local +X forward along the rail toward the nose at
 // world heading RailPitchDeg; local +Y 90° CCW, perpendicular to the rail).
 type SaddlePlacement struct {
-	RailCradle pose.Pose
-	RailFrame  pose.Pose
-	RailCenter pose.Pose
-	BRP        pose.Pose
-	SitBones   pose.Pose
+	RailCradle pose.Pose[FrameAxis, DynamicWorld]
+	RailFrame  pose.Pose[FrameAxis, DynamicWorld]
+	RailCenter pose.Pose[FrameAxis, DynamicWorld]
+	BRP        pose.Pose[FrameAxis, DynamicWorld]
+	SitBones   pose.Pose[FrameAxis, DynamicWorld]
 }
 
 // PlaceSaddle mounts a saddle at railCradle, orients the rails to the
@@ -53,7 +53,7 @@ type SaddlePlacement struct {
 // rails by -RailOffsetMm to RailCenter, and branches to BRP and SitBones.
 // clampLengthMm is the seatpost clamp head's fore-aft footprint; it bounds the
 // rail offset.
-func PlaceSaddle(railCradle pose.Pose, clampLengthMm float64, setup SaddleSetup) (SaddlePlacement, error) {
+func PlaceSaddle(railCradle pose.Pose[FrameAxis, DynamicWorld], clampLengthMm float64, setup SaddleSetup) (SaddlePlacement, error) {
 	if err := validatePose("railCradle", railCradle); err != nil {
 		return SaddlePlacement{}, err
 	}
@@ -88,12 +88,12 @@ func PlaceSaddle(railCradle pose.Pose, clampLengthMm float64, setup SaddleSetup)
 	}
 
 	// Rail pitch is measured against world horizontal, so face it rather than turn.
-	railFrame := railCradle.Face(setup.RailPitchDeg)
+	railFrame := railCradle.FaceSameAxis(setup.RailPitchDeg)
 	// A positive rail offset slides the saddle rearward, against the rail heading.
 	railCenter := railFrame.Advance(-setup.RailOffsetMm)
 	// Both landmarks are raised in the rail frame, so the height rotates with the rails.
-	brp := railCenter.Translate(setup.RailCenterToBrpMm, setup.RailToBrpHeightMm)
-	sitBones := railCenter.Translate(setup.RailCenterToSitBonesMm, setup.RailToBrpHeightMm+setup.SitBonesElevationMm)
+	brp := railCenter.Translate(pose.Vec[FrameAxis]{X: setup.RailCenterToBrpMm, Y: setup.RailToBrpHeightMm})
+	sitBones := railCenter.Translate(pose.Vec[FrameAxis]{X: setup.RailCenterToSitBonesMm, Y: setup.RailToBrpHeightMm + setup.SitBonesElevationMm})
 
 	if err := validatePlacementPoses("saddle", railCradle, railCenter, brp, sitBones); err != nil {
 		return SaddlePlacement{}, err

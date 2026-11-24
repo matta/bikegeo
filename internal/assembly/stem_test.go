@@ -9,7 +9,7 @@ import (
 	"bikegeo/internal/pose"
 )
 
-func dist(a, b pose.Point) float64 {
+func dist(a, b pose.Point[assembly.DynamicWorld]) float64 {
 	return math.Hypot(b.X-a.X, b.Y-a.Y)
 }
 
@@ -28,7 +28,7 @@ func TestPlaceStemWorkedExample60DegHTA(t *testing.T) {
 	// Stem angle = 0° => turn -90° to 30°; advance 100 mm.
 	// At 30°: cos(30°) = sqrt(3)/2, sin(30°) = 0.5.
 	// BarClamp = (-25 + 50*sqrt(3), 25*sqrt(3) + 50).
-	steererUp := pose.NewPose(pose.Point{X: 0, Y: 0}, 120)
+	steererUp := pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{X: 0, Y: 0}, 120)
 	got, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
 		UpperStackMm:  10,
 		SpacersMm:     20,
@@ -53,7 +53,7 @@ func TestPlaceStemWorkedExampleNonzeroAngle(t *testing.T) {
 	// 60° HTA => steererUp heading is 120°; SteererClamp at (-25, 25*sqrt(3)).
 	// Perpendicular (-90°) gives 30°, then +30° stem angle gives 60°.
 	// BarClamp = SteererClamp + 100*(cos 60°, sin 60°) = (25, 75*sqrt(3)).
-	steererUp := pose.NewPose(pose.Point{X: 0, Y: 0}, 120)
+	steererUp := pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{X: 0, Y: 0}, 120)
 	got, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
 		UpperStackMm:  10,
 		SpacersMm:     20,
@@ -83,9 +83,9 @@ func TestPlaceStemDimensions(t *testing.T) {
 		AngleDeg:      -6.0,
 	}
 	heading := pose.Deg(180.0 - 68.25)
-	origin := pose.Point{X: 428.0, Y: 642.0}
+	origin := pose.Point[assembly.DynamicWorld]{X: 428.0, Y: 642.0}
 
-	got, err := assembly.PlaceStem(pose.NewPose(origin, heading), setup)
+	got, err := assembly.PlaceStem(pose.NewPose[assembly.FrameAxis](origin, pose.Heading[assembly.DynamicWorld](heading)), setup)
 	if err != nil {
 		t.Fatalf("PlaceStem() error = %v", err)
 	}
@@ -97,7 +97,7 @@ func TestPlaceStemDimensions(t *testing.T) {
 }
 
 func TestPlaceStemValidation(t *testing.T) {
-	validPose := pose.NewPose(pose.Point{X: 0, Y: 0}, 111.75)
+	validPose := pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{X: 0, Y: 0}, 111.75)
 	validSetup := assembly.StemSetup{
 		UpperStackMm:  11,
 		SpacersMm:     20,
@@ -109,11 +109,11 @@ func TestPlaceStemValidation(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		pose  pose.Pose
+		pose  pose.Pose[assembly.FrameAxis, assembly.DynamicWorld]
 		setup assembly.StemSetup
 	}{
-		{"NaN origin X", pose.NewPose(pose.Point{X: math.NaN(), Y: 0}, 111.75), validSetup},
-		{"Inf heading", pose.NewPose(pose.Point{X: 0, Y: 0}, pose.Deg(math.Inf(1))), validSetup},
+		{"NaN origin X", pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{X: math.NaN(), Y: 0}, 111.75), validSetup},
+		{"Inf heading", pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{X: 0, Y: 0}, pose.Heading[assembly.DynamicWorld](math.Inf(1))), validSetup},
 		{"negative cover", validPose, assembly.StemSetup{UpperStackMm: -1, SpacersMm: 20, MaxSpacersMm: 30, ClampHeightMm: 40, LengthMm: 60, AngleDeg: -6}},
 		{"negative spacers", validPose, assembly.StemSetup{UpperStackMm: 11, SpacersMm: -1, MaxSpacersMm: 30, ClampHeightMm: 40, LengthMm: 60, AngleDeg: -6}},
 		{"zero clamp height", validPose, assembly.StemSetup{UpperStackMm: 11, SpacersMm: 20, MaxSpacersMm: 30, ClampHeightMm: 0, LengthMm: 60, AngleDeg: -6}},
@@ -134,7 +134,7 @@ func TestPlaceStemValidation(t *testing.T) {
 }
 
 func TestPlaceStemSpacersOverMaxIsInputError(t *testing.T) {
-	steererUp := pose.NewPose(pose.Point{}, 111.75)
+	steererUp := pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{}, 111.75)
 	_, err := assembly.PlaceStem(steererUp, assembly.StemSetup{UpperStackMm: 11, SpacersMm: 31, MaxSpacersMm: 30, ClampHeightMm: 40, LengthMm: 60})
 	var inputErr *assembly.InputError
 	if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputStemSpacers {
@@ -143,7 +143,7 @@ func TestPlaceStemSpacersOverMaxIsInputError(t *testing.T) {
 }
 
 func TestPlaceStemSpacersExactlyAtMaxPlaces(t *testing.T) {
-	steererUp := pose.NewPose(pose.Point{}, 111.75)
+	steererUp := pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{}, 111.75)
 	if _, err := assembly.PlaceStem(steererUp, assembly.StemSetup{UpperStackMm: 11, SpacersMm: 30, MaxSpacersMm: 30, ClampHeightMm: 40, LengthMm: 60}); err != nil {
 		t.Fatalf("PlaceStem at max spacers: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestPlaceStemSpacersExactlyAtMaxPlaces(t *testing.T) {
 
 func TestPlaceStemRejectsMaxSpacersAboveCeiling(t *testing.T) {
 	setup := assembly.StemSetup{UpperStackMm: assembly.DefaultUpperStackMm, SpacersMm: 0, MaxSpacersMm: assembly.DefaultMaxSpacersMm, ClampHeightMm: 40, LengthMm: 60}
-	steererUp := pose.NewPose(pose.Point{}, 111.75)
+	steererUp := pose.NewPose[assembly.FrameAxis](pose.Point[assembly.DynamicWorld]{}, 111.75)
 	if _, err := assembly.PlaceStem(steererUp, setup); err != nil {
 		t.Fatalf("max spacers at the ceiling: %v", err)
 	}
