@@ -211,8 +211,8 @@ func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 
 	// The stem stack and body keep their physical lengths from HeadTubeTop.
 	st := bikeSetup.Stem
-	assertNear(t, "stack distance", bike.Frameset.HeadTubeTop.DistanceTo(bike.Stem.SteererClamp), st.UpperStackMm+st.SpacersMm+st.ClampHeightMm/2.0, 1e-9)
-	assertNear(t, "stem length", bike.Stem.SteererClamp.DistanceTo(bike.Stem.BarClamp), st.LengthMm, 1e-9)
+	assertNear(t, "stack distance", bike.Frameset.HeadTubeTop.Origin().DistanceTo(bike.Stem.SteererClamp.Origin()), st.UpperStackMm+st.SpacersMm+st.ClampHeightMm/2.0, 1e-9)
+	assertNear(t, "stem length", bike.Stem.SteererClamp.Origin().DistanceTo(bike.Stem.BarClamp.Origin()), st.LengthMm, 1e-9)
 
 	// The bar roll frame sits at BarClamp, rolled against world horizontal.
 	assertNear(t, "BarRollFrame.X", bike.Handlebar.BarRollFrame.Origin().X, bike.Stem.BarClamp.Origin().X, 1e-12)

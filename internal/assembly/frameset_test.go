@@ -64,9 +64,9 @@ func TestPlaceFramesetBasisForkAndInvariants(t *testing.T) {
 	assertNear(t, "contact Y delta", placed.FrontTireContact.Origin().Y-placed.RearTireContact.Origin().Y, 0, 1e-9)
 	assertNear(t, "rear contact X", placed.RearTireContact.Origin().X, placed.RearAxle.Origin().X, 1e-9)
 	assertNear(t, "front contact X", placed.FrontTireContact.Origin().X, placed.FrontAxle.Origin().X, 1e-9)
-	assertNear(t, "rear wheel radius", placed.RearAxle.DistanceTo(placed.RearTireContact), wheels.RadiusMm, 1e-9)
-	assertNear(t, "front wheel radius", placed.FrontAxle.DistanceTo(placed.FrontTireContact), wheels.RadiusMm, 1e-9)
-	assertNear(t, "contact span equals axle wheelbase", placed.RearTireContact.DistanceTo(placed.FrontTireContact), placed.RearAxle.DistanceTo(placed.FrontAxle), 1e-9)
+	assertNear(t, "rear wheel radius", placed.RearAxle.Origin().DistanceTo(placed.RearTireContact.Origin()), wheels.RadiusMm, 1e-9)
+	assertNear(t, "front wheel radius", placed.FrontAxle.Origin().DistanceTo(placed.FrontTireContact.Origin()), wheels.RadiusMm, 1e-9)
+	assertNear(t, "contact span equals axle wheelbase", placed.RearTireContact.Origin().DistanceTo(placed.FrontTireContact.Origin()), placed.RearAxle.Origin().DistanceTo(placed.FrontAxle.Origin()), 1e-9)
 	assertNear(t, "BB height above ground", placed.BB.Origin().Y-placed.RearTireContact.Origin().Y, wheels.RadiusMm-placed.RearAxle.Origin().Y, 1e-9)
 
 	// basis fork on Otso Fenrir L is consistent within chart rounding (~0° pitch, ~1158 mm wheelbase).
@@ -80,18 +80,18 @@ func TestPlaceFramesetBasisForkAndInvariants(t *testing.T) {
 	assertNear(t, "leveled BB drop", placed.LeveledBbDropMm(), placed.RearAxle.Origin().Y-placed.BB.Origin().Y, 1e-12)
 
 	// Rigid physical lengths are preserved under leveling.
-	assertNear(t, "chainstay", placed.BB.DistanceTo(placed.RearAxle), frame.ChainstayMm, 1e-9)
-	assertNear(t, "head tube length", placed.HeadTubeTop.DistanceTo(placed.HeadTubeBottom), frame.HeadTubeLengthMm, 1e-9)
-	assertNear(t, "lower cup", placed.HeadTubeBottom.DistanceTo(placed.LowerCupBottom), basisCup.StackMm, 1e-9)
-	assertNear(t, "fork A2C", placed.LowerCupBottom.DistanceTo(placed.ForkSteererBase), basisFork.EffectiveA2cMm(), 1e-9)
-	assertNear(t, "fork rake", placed.ForkSteererBase.DistanceTo(placed.FrontAxle), basisFork.Spec.RakeMm, 1e-9)
-	assertNear(t, "seat tube length", placed.BB.DistanceTo(placed.SeatTubeTop), frame.SeatTubeLengthMm, 1e-9)
+	assertNear(t, "chainstay", placed.BB.Origin().DistanceTo(placed.RearAxle.Origin()), frame.ChainstayMm, 1e-9)
+	assertNear(t, "head tube length", placed.HeadTubeTop.Origin().DistanceTo(placed.HeadTubeBottom.Origin()), frame.HeadTubeLengthMm, 1e-9)
+	assertNear(t, "lower cup", placed.HeadTubeBottom.Origin().DistanceTo(placed.LowerCupBottom.Origin()), basisCup.StackMm, 1e-9)
+	assertNear(t, "fork A2C", placed.LowerCupBottom.Origin().DistanceTo(placed.ForkSteererBase.Origin()), basisFork.EffectiveA2cMm(), 1e-9)
+	assertNear(t, "fork rake", placed.ForkSteererBase.Origin().DistanceTo(placed.FrontAxle.Origin()), basisFork.Spec.RakeMm, 1e-9)
+	assertNear(t, "seat tube length", placed.BB.Origin().DistanceTo(placed.SeatTubeTop.Origin()), frame.SeatTubeLengthMm, 1e-9)
 
 	// SeatAxis is anchored at BB, points up the leveled seat tube axis, and parents SeatTubeTop.
 	assertNear(t, "SeatAxis.X", placed.SeatAxis.Origin().X, 0, 1e-12)
 	assertNear(t, "SeatAxis.Y", placed.SeatAxis.Origin().Y, 0, 1e-12)
 	assertNear(t, "SeatAxis.Heading == SeatTubeTop.Heading", float64(placed.SeatAxis.HeadingDeg()), float64(placed.SeatTubeTop.HeadingDeg()), 1e-12)
-	assertNear(t, "SeatAxis to SeatTubeTop", placed.SeatAxis.DistanceTo(placed.SeatTubeTop), frame.SeatTubeLengthMm, 1e-9)
+	assertNear(t, "SeatAxis to SeatTubeTop", placed.SeatAxis.Origin().DistanceTo(placed.SeatTubeTop.Origin()), frame.SeatTubeLengthMm, 1e-9)
 	assertNear(t, "SeatAxis.Heading == BB.Heading + 180 - STA", float64(placed.SeatAxis.HeadingDeg()), float64(placed.BB.HeadingDeg()+(180.0-frame.SeatTubeAngleDeg)), 1e-12)
 }
 
@@ -119,15 +119,15 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 
 	assertNear(t, "axle Y delta", placed.FrontAxle.Origin().Y-placed.RearAxle.Origin().Y, 0, 1e-9)
 	assertNear(t, "contact Y delta", placed.FrontTireContact.Origin().Y-placed.RearTireContact.Origin().Y, 0, 1e-9)
-	assertNear(t, "rear wheel radius", placed.RearAxle.DistanceTo(placed.RearTireContact), wheels.RadiusMm, 1e-9)
-	assertNear(t, "front wheel radius", placed.FrontAxle.DistanceTo(placed.FrontTireContact), wheels.RadiusMm, 1e-9)
+	assertNear(t, "rear wheel radius", placed.RearAxle.Origin().DistanceTo(placed.RearTireContact.Origin()), wheels.RadiusMm, 1e-9)
+	assertNear(t, "front wheel radius", placed.FrontAxle.Origin().DistanceTo(placed.FrontTireContact.Origin()), wheels.RadiusMm, 1e-9)
 	if placed.PitchDeg() <= 0 {
 		t.Fatalf("frame pitch = %.4f°, want > 0° for taller front end", placed.PitchDeg())
 	}
 	assertNear(t, "leveled HTA", float64(placed.LeveledHeadTubeAngleDeg()), float64(frame.HeadTubeAngleDeg-placed.PitchDeg()), 1e-12)
 	assertNear(t, "leveled STA", float64(placed.LeveledSeatTubeAngleDeg()), float64(frame.SeatTubeAngleDeg-placed.PitchDeg()), 1e-12)
-	assertNear(t, "fork A2C", placed.LowerCupBottom.DistanceTo(placed.ForkSteererBase), 506.0, 1e-9)
-	assertNear(t, "lower cup", placed.HeadTubeBottom.DistanceTo(placed.LowerCupBottom), 12.0, 1e-9)
+	assertNear(t, "fork A2C", placed.LowerCupBottom.Origin().DistanceTo(placed.ForkSteererBase.Origin()), 506.0, 1e-9)
+	assertNear(t, "lower cup", placed.HeadTubeBottom.Origin().DistanceTo(placed.LowerCupBottom.Origin()), 12.0, 1e-9)
 
 	// Increasing sag shortens resolved A2C, reduces frame pitch, and lowers BB above ground.
 	fork30 := assembly.ForkSetup{Spec: fox34Spec, SagPct: 30.0}
@@ -136,7 +136,7 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceFrameset 30%% sag: %v", err)
 	}
-	assertNear(t, "fork A2C at 30% sag", placedMoreSag.LowerCupBottom.DistanceTo(placedMoreSag.ForkSteererBase), 494.0, 1e-9)
+	assertNear(t, "fork A2C at 30% sag", placedMoreSag.LowerCupBottom.Origin().DistanceTo(placedMoreSag.ForkSteererBase.Origin()), 494.0, 1e-9)
 	if placedMoreSag.PitchDeg() >= placed.PitchDeg() {
 		t.Fatalf("30%% sag pitch = %.4f°, want < 20%% sag pitch %.4f°", placedMoreSag.PitchDeg(), placed.PitchDeg())
 	}
@@ -253,13 +253,13 @@ func TestPlaceUnpitchedFrameset(t *testing.T) {
 	assertNear(t, "unpitched.LevelingPitchDeg()", float64(unpitched.LevelingPitchDeg()), -0.010692172, 1e-9)
 	assertNear(t, "leveled.PitchDeg() - unpitched.LevelingPitchDeg()", float64(leveled.PitchDeg()-unpitched.LevelingPitchDeg()), 0, 1e-12)
 	assertNear(t, "leveled.LevelingPitchDeg()", float64(leveled.LevelingPitchDeg()), 0, 1e-12)
-	assertNear(t, "axle rise", unpitched.RearAxle.VerticalOffsetTo(unpitched.FrontAxle), 0.22, 0.005)
+	assertNear(t, "axle rise", unpitched.RearAxle.Origin().VerticalOffsetTo(unpitched.FrontAxle.Origin()), 0.22, 0.005)
 	assertNear(t, "wheelbase mismatch", (unpitched.FrontAxle.Origin().X-unpitched.RearAxle.Origin().X)-1158.0, -0.34, 0.005)
 	assertNear(t, "rear contact X", unpitched.RearTireContact.Origin().X, unpitched.RearAxle.Origin().X, 1e-9)
 	assertNear(t, "rear contact Y", unpitched.RearTireContact.Origin().Y, unpitched.RearAxle.Origin().Y-wheels.RadiusMm, 1e-9)
 	assertNear(t, "front contact X", unpitched.FrontTireContact.Origin().X, unpitched.FrontAxle.Origin().X, 1e-9)
 	assertNear(t, "front contact Y", unpitched.FrontTireContact.Origin().Y, unpitched.FrontAxle.Origin().Y-wheels.RadiusMm, 1e-9)
-	assertNear(t, "BB to FrontAxle distance", leveled.BB.DistanceTo(leveled.FrontAxle), unpitched.BB.DistanceTo(unpitched.FrontAxle), 1e-9)
+	assertNear(t, "BB to FrontAxle distance", leveled.BB.Origin().DistanceTo(leveled.FrontAxle.Origin()), unpitched.BB.Origin().DistanceTo(unpitched.FrontAxle.Origin()), 1e-9)
 	assertNear(t, "FrontAxle heading delta", float64(leveled.FrontAxle.HeadingDeg()-unpitched.FrontAxle.HeadingDeg()), -0.010692172, 1e-9)
 
 	installedFork := assembly.ForkSetup{

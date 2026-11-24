@@ -34,25 +34,25 @@ type BikePlacement struct {
 // SeatAxisToPostTopMm returns the axial distance from BB along the seat tube
 // axis to the top of the exposed seatpost shaft (ShaftTop).
 func (b BikePlacement) SeatAxisToPostTopMm() float64 {
-	return b.Frameset.SeatAxis.DistanceTo(b.Seatpost.ShaftTop)
+	return b.Frameset.SeatAxis.Origin().DistanceTo(b.Seatpost.ShaftTop.Origin())
 }
 
 // SaddleHeightMm returns the radial distance from BB to the saddle BRP (|BRP - BB|).
 func (b BikePlacement) SaddleHeightMm() float64 {
-	return b.Frameset.BB.DistanceTo(b.Saddle.BRP)
+	return b.Frameset.BB.Origin().DistanceTo(b.Saddle.BRP.Origin())
 }
 
 // BrpToGripDistMm returns the sagittal Euclidean distance from saddle BRP to HandGrip
 // (the cockpit reach-distance reference anchor).
 func (b BikePlacement) BrpToGripDistMm() float64 {
-	return b.Saddle.BRP.DistanceTo(b.Handlebar.HandGrip)
+	return b.Saddle.BRP.Origin().DistanceTo(b.Handlebar.HandGrip.Origin())
 }
 
 // SitBonesToGripRiseMm returns the vertical rise of HandGrip above SitBones.
 // Measured from SitBones rather than BRP so rider-fit cockpit elevation carries
 // consistently across saddles through the sit-bone contact point.
 func (b BikePlacement) SitBonesToGripRiseMm() float64 {
-	return b.Saddle.SitBones.VerticalOffsetTo(b.Handlebar.HandGrip)
+	return b.Saddle.SitBones.Origin().VerticalOffsetTo(b.Handlebar.HandGrip.Origin())
 }
 
 // PlaceBike constructs the leveled frameset, mounts the rear cockpit

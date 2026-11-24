@@ -109,7 +109,7 @@ func TestPlaceSeatpostInsertionEndpoints(t *testing.T) {
 				t.Errorf("insertion %v: %v", tc.insertion, err)
 				continue
 			}
-			assertNear(t, "exposed length", top.DistanceTo(placed.ShaftTop), tc.exposed, 1e-9)
+			assertNear(t, "exposed length", top.Origin().DistanceTo(placed.ShaftTop.Origin()), tc.exposed, 1e-9)
 			continue
 		}
 		var inputErr *assembly.InputError

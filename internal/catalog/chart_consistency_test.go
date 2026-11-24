@@ -67,7 +67,7 @@ func isFinite(v float64) bool {
 // FrontAxle.Y − RearAxle.Y, then the axle X span minus the published wheelbase.
 func chartMismatches(unpitched assembly.FramesetPlacement, publishedWheelbaseMm float64) [2]float64 {
 	return [2]float64{
-		unpitched.RearAxle.VerticalOffsetTo(unpitched.FrontAxle),
+		unpitched.RearAxle.Origin().VerticalOffsetTo(unpitched.FrontAxle.Origin()),
 		(unpitched.FrontAxle.Origin().X - unpitched.RearAxle.Origin().X) - publishedWheelbaseMm,
 	}
 }

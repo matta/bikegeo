@@ -85,14 +85,14 @@ type ScoredBuild struct {
 }
 
 // GripMiss returns target − placed HandGrip (world mm).
-func (b ScoredBuild) GripMiss() pose.Point {
+func (b ScoredBuild) GripMiss() pose.Vec {
 	return b.Target.Sub(b.Placement.Handlebar.HandGrip.Origin())
 }
 
 // BrpMiss returns BrpTarget − placed BRP (world mm), and false without a BRP target.
-func (b ScoredBuild) BrpMiss() (pose.Point, bool) {
+func (b ScoredBuild) BrpMiss() (pose.Vec, bool) {
 	if b.BrpTarget == nil {
-		return pose.Point{}, false
+		return pose.Vec{}, false
 	}
 	return b.BrpTarget.Sub(b.Placement.Saddle.BRP.Origin()), true
 }

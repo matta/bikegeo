@@ -48,17 +48,17 @@ type Fitting struct {
 }
 
 // BrpMiss returns target − placed BRP (world mm), and false when the target has no BRP.
-func (f Fitting) BrpMiss() (pose.Point, bool) {
+func (f Fitting) BrpMiss() (pose.Vec, bool) {
 	if f.Target.BRP == nil {
-		return pose.Point{}, false
+		return pose.Vec{}, false
 	}
 	return f.Target.BRP.Sub(f.Placement.Saddle.BRP.Origin()), true
 }
 
 // GripMiss returns target − placed HandGrip (world mm), and false when the target has no HandGrip.
-func (f Fitting) GripMiss() (pose.Point, bool) {
+func (f Fitting) GripMiss() (pose.Vec, bool) {
 	if f.Target.HandGrip == nil {
-		return pose.Point{}, false
+		return pose.Vec{}, false
 	}
 	return f.Target.HandGrip.Sub(f.Placement.Handlebar.HandGrip.Origin()), true
 }
@@ -300,7 +300,7 @@ func (r fitInterval) clip(c, s, limit float64) (fitInterval, bool) {
 
 // heightFirst returns the multiplier in r that brings direction closest to
 // target in Y, breaking ties by distance in X.
-func (r fitInterval) heightFirst(target, direction pose.Point) float64 {
+func (r fitInterval) heightFirst(target, direction pose.Vec) float64 {
 	if math.Abs(direction.Y) >= fitDirectionTol {
 		return r.clamp(target.Y / direction.Y)
 	}
@@ -340,13 +340,13 @@ type fitEdge struct {
 // ties by absolute X error. If the edge intersects the allowed error rectangle
 // around delta, it also returns the best distance within that intersection
 // using the same ordering.
-func (edge fitEdge) candidates(delta pose.Point, priority fitPriority) []float64 {
+func (edge fitEdge) candidates(delta pose.Vec, priority fitPriority) []float64 {
 	if priority == nearestPoint {
 		target := delta.Sub(pose.Along(edge.fixed.heading, edge.bound))
 		return []float64{edge.moving.clamp(pose.ProjectOnto(target, edge.moving.heading))}
 	}
 	fixedDir := pose.Along(edge.fixed.heading, 1)
-	target := delta.Sub(pose.Point{X: edge.bound * fixedDir.X, Y: edge.bound * fixedDir.Y})
+	target := delta.Sub(pose.Vec{X: edge.bound * fixedDir.X, Y: edge.bound * fixedDir.Y})
 	dir := pose.Along(edge.moving.heading, 1)
 	travel := edge.moving.heightFirst(target, dir)
 	gate, ok := edge.moving.clip(target.Y, dir.Y, FitGateBrpYMm)
@@ -363,16 +363,16 @@ func (edge fitEdge) candidates(delta pose.Point, priority fitPriority) []float64
 // displacements locate the point. nearestPoint subtracts each displacement
 // from delta in turn. The other priority subtracts their sum. Floating-point
 // rounding at a tolerance boundary can make the evaluation order significant.
-func (p fitPriority) miss(delta pose.Point, axes [2]fitAxis, travel [2]float64) pose.Point {
+func (p fitPriority) miss(delta pose.Vec, axes [2]fitAxis, travel [2]float64) pose.Vec {
 	if p == nearestPoint {
 		return delta.Sub(pose.Along(axes[0].heading, travel[0])).Sub(pose.Along(axes[1].heading, travel[1]))
 	}
 	dirA, dirB := pose.Along(axes[0].heading, 1), pose.Along(axes[1].heading, 1)
-	return delta.Sub(pose.Point{X: travel[0]*dirA.X + travel[1]*dirB.X, Y: travel[0]*dirA.Y + travel[1]*dirB.Y})
+	return delta.Sub(pose.Vec{X: travel[0]*dirA.X + travel[1]*dirB.X, Y: travel[0]*dirA.Y + travel[1]*dirB.Y})
 }
 
 // prefers compares target misses. Ties keep the first candidate visited.
-func (p fitPriority) prefers(miss, best pose.Point) bool {
+func (p fitPriority) prefers(miss, best pose.Vec) bool {
 	if p == nearestPoint {
 		return miss.Norm() < best.Norm()-fitBoundTolMm
 	}
@@ -394,7 +394,7 @@ func (p fitPriority) prefers(miss, best pose.Point) bool {
 // target, limited is nil, including at a bound within round-off. Otherwise
 // it fixes each axis at its finite bounds and reports the winning point's
 // limiting inputs in axis order. Parallel axes return ok=false.
-func fitBox(delta pose.Point, a, b fitAxis, priority fitPriority) (da, db float64, limited []InputField, ok bool) {
+func fitBox(delta pose.Vec, a, b fitAxis, priority fitPriority) (da, db float64, limited []InputField, ok bool) {
 	da, db, ok = pose.DecomposeAlong(delta, a.heading, b.heading)
 	if !ok {
 		return 0, 0, nil, false
@@ -405,7 +405,7 @@ func fitBox(delta pose.Point, a, b fitAxis, priority fitPriority) (da, db float6
 
 	axes := [2]fitAxis{a, b}
 	var best [2]float64
-	var bestMiss pose.Point
+	var bestMiss pose.Vec
 	haveBest := false
 	for fixed, axis := range axes {
 		moving := 1 - fixed

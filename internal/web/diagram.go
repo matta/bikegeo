@@ -373,10 +373,9 @@ func buildFitTargets(parsed query.Bike, bike assembly.BikePlacement, view diagra
 	if parsed.BrpTarget != nil {
 		target := *parsed.BrpTarget
 		tSVG := toSVG(target)
-		placedPose := bike.Saddle.BRP
-		placedSVG := toSVG(placedPose.Origin())
-		targetPose := pose.NewPose(target, 0)
-		miss := placedPose.OffsetTo(targetPose)
+		placed := bike.Saddle.BRP.Origin()
+		placedSVG := toSVG(placed)
+		miss := placed.OffsetTo(target)
 		pass := math.Abs(miss.X) <= assembly.FitGateBrpXMm+fitGateTolMm && math.Abs(miss.Y) <= assembly.FitGateBrpYMm+fitGateTolMm
 		status := "fail"
 		if pass {
@@ -390,7 +389,7 @@ func buildFitTargets(parsed query.Bike, bike assembly.BikePlacement, view diagra
 			Y:          tSVG.Y,
 			PlacedX:    placedSVG.X,
 			PlacedY:    placedSVG.Y,
-			ShowMiss:   placedPose.DistanceTo(targetPose) >= missLineMinMm,
+			ShowMiss:   placed.DistanceTo(target) >= missLineMinMm,
 			ZoneShape:  "rect",
 			ZoneX:      tSVG.X - assembly.FitGateBrpXMm,
 			ZoneY:      tSVG.Y - assembly.FitGateBrpYMm,
@@ -407,12 +406,11 @@ func buildFitTargets(parsed query.Bike, bike assembly.BikePlacement, view diagra
 	if parsed.GripTarget != nil {
 		target := *parsed.GripTarget
 		tSVG := toSVG(target)
-		placedPose := bike.Handlebar.HandGrip
-		placedSVG := toSVG(placedPose.Origin())
-		targetPose := pose.NewPose(target, 0)
-		miss := placedPose.OffsetTo(targetPose)
+		placed := bike.Handlebar.HandGrip.Origin()
+		placedSVG := toSVG(placed)
+		miss := placed.OffsetTo(target)
 		oval := assembly.DefaultGripOval()
-		gripR := oval.NormalizedRadius(target, placedPose.Origin())
+		gripR := oval.NormalizedRadius(target, placed)
 		pass := gripR <= assembly.FitGateGripNormalizedRadius+fitGateTolMm
 		status := "fail"
 		if pass {
@@ -426,7 +424,7 @@ func buildFitTargets(parsed query.Bike, bike assembly.BikePlacement, view diagra
 			Y:             tSVG.Y,
 			PlacedX:       placedSVG.X,
 			PlacedY:       placedSVG.Y,
-			ShowMiss:      placedPose.DistanceTo(targetPose) >= missLineMinMm,
+			ShowMiss:      placed.DistanceTo(target) >= missLineMinMm,
 			ZoneShape:     "ellipse",
 			ZoneRx:        oval.SemiMajorMm,
 			ZoneRy:        oval.SemiMinorMm,
@@ -716,7 +714,7 @@ func placeDiagramLabels(
 				}
 			}
 			nx, ny := cand.box.nearestPoint(px, py)
-			dist := pose.Point{X: nx - px, Y: ny - py}.Norm()
+			dist := pose.Vec{X: nx - px, Y: ny - py}.Norm()
 			penalty := dist + float64(pointHits)*200.0
 			if cand.preferred {
 				penalty -= 4.0
@@ -765,7 +763,7 @@ func placeDiagramLabels(
 		ax, ay := anchorForBox(bestBox, bestAnchor)
 		svgLX, svgLY := toSVGCoords(ax, ay)
 		nx, ny := bestBox.nearestPoint(px, py)
-		dist := pose.Point{X: nx - px, Y: ny - py}.Norm()
+		dist := pose.Vec{X: nx - px, Y: ny - py}.Norm()
 		hasLeader := dist > labelLeaderMinDistPx
 		lx2, ly2 := toSVGCoords(nx, ny)
 

@@ -459,7 +459,7 @@ func TestDiagramZeroLabelCollisionsAndViewBoxContainment(t *testing.T) {
 					ptPxX := (ptSVG.X - vb.X) / upp
 					ptPxY := (ptSVG.Y - vb.Y) / upp
 					nx, ny := box.nearestPoint(ptPxX, ptPxY)
-					dist := pose.Point{X: nx - ptPxX, Y: ny - ptPxY}.Norm()
+					dist := pose.Vec{X: nx - ptPxX, Y: ny - ptPxY}.Norm()
 					if dist > labelLeaderMinDistPx {
 						if leaderSel.Length() != 1 {
 							t.Errorf("displaced label %q (dist=%.1f px) missing .label-leader", name, dist)

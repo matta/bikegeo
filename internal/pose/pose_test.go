@@ -55,11 +55,42 @@ func TestTranslateAngleToAndDistanceTo(t *testing.T) {
 	assertNear(t, "p1.X", p1.Origin().X, -30, 1e-9)
 	assertNear(t, "p1.Y", p1.Origin().Y, 50, 1e-9)
 	assertNear(t, "p1.Heading", float64(p1.HeadingDeg()), 90, 1e-9)
-	assertNear(t, "p0.DistanceTo(p1)", p0.DistanceTo(p1), 50, 1e-9)
-	assertNear(t, "p0.VerticalOffsetTo(p1)", p0.VerticalOffsetTo(p1), 30, 1e-9)
-	assertNear(t, "p1.VerticalOffsetTo(p0)", p1.VerticalOffsetTo(p0), -30, 1e-9)
-	assertNear(t, "p0.VerticalOffsetTo(p0)", p0.VerticalOffsetTo(p0), 0, 1e-12)
-	assertNear(t, "p0.AngleTo(p1)", float64(p0.AngleTo(p1)), 180.0-math.Atan2(30, 40)*180.0/math.Pi, 1e-9)
+	start, end := p0.Origin(), p1.Origin()
+	assertNear(t, "distance", start.DistanceTo(end), 50, 1e-9)
+	assertNear(t, "vertical offset", start.VerticalOffsetTo(end), 30, 1e-9)
+	assertNear(t, "reverse vertical offset", end.VerticalOffsetTo(start), -30, 1e-9)
+	assertNear(t, "vertical offset to self", start.VerticalOffsetTo(start), 0, 1e-12)
+	assertNear(t, "angle", float64(start.AngleTo(end)), 180.0-math.Atan2(30, 40)*180.0/math.Pi, 1e-9)
+}
+
+func TestPointDisplacements(t *testing.T) {
+	start := pose.Point{X: 10, Y: 20}
+	end := pose.Point{X: 7, Y: 24}
+	move := start.OffsetTo(end)
+	if want := (pose.Vec{X: -3, Y: 4}); move != want {
+		t.Fatalf("offset = %v, want %v", move, want)
+	}
+	if got := start.Add(move); got != end {
+		t.Errorf("translated point = %v, want %v", got, end)
+	}
+	if got, want := start.Sub(end), (pose.Vec{X: 3, Y: -4}); got != want {
+		t.Errorf("reverse displacement = %v, want %v", got, want)
+	}
+	assertNear(t, "displacement norm", move.Norm(), 5, 1e-12)
+
+	adjustment := pose.Vec{X: 2, Y: -1}
+	if got, want := move.Add(adjustment), (pose.Vec{X: -1, Y: 3}); got != want {
+		t.Errorf("vector sum = %v, want %v", got, want)
+	}
+	if got, want := move.Sub(adjustment), (pose.Vec{X: -5, Y: 5}); got != want {
+		t.Errorf("vector difference = %v, want %v", got, want)
+	}
+	if got, want := move.Scale(2), (pose.Vec{X: -6, Y: 8}); got != want {
+		t.Errorf("scaled vector = %v, want %v", got, want)
+	}
+	if got, want := move.Neg(), (pose.Vec{X: 3, Y: -4}); got != want {
+		t.Errorf("negated vector = %v, want %v", got, want)
+	}
 }
 
 func TestFaceSetsAbsoluteHeading(t *testing.T) {
@@ -86,14 +117,14 @@ func TestPrimitivesDeflectionAndRightTriangleLeg(t *testing.T) {
 }
 
 func TestDecomposeAlong(t *testing.T) {
-	a, b, ok := pose.DecomposeAlong(pose.Point{X: 3, Y: 4}, 0, 90)
+	a, b, ok := pose.DecomposeAlong(pose.Vec{X: 3, Y: 4}, 0, 90)
 	if !ok {
 		t.Fatal("axis-aligned decomposition reported not ok")
 	}
 	assertNear(t, "a", a, 3, 1e-12)
 	assertNear(t, "b", b, 4, 1e-12)
 
-	v := pose.Point{X: -37.5, Y: 81.25}
+	v := pose.Vec{X: -37.5, Y: 81.25}
 	a, b, ok = pose.DecomposeAlong(v, 105.29, 180)
 	if !ok {
 		t.Fatal("oblique decomposition reported not ok")
@@ -115,7 +146,7 @@ func TestAlongAndProjectOnto(t *testing.T) {
 	p := pose.Along(90, 2)
 	assertNear(t, "Along.X", p.X, 0, 1e-12)
 	assertNear(t, "Along.Y", p.Y, 2, 1e-12)
-	assertNear(t, "ProjectOnto", pose.ProjectOnto(pose.Point{X: 1, Y: 1}, 45), math.Sqrt2, 1e-12)
+	assertNear(t, "ProjectOnto", pose.ProjectOnto(pose.Vec{X: 1, Y: 1}, 45), math.Sqrt2, 1e-12)
 }
 
 func TestPoseMarshalJSON(t *testing.T) {

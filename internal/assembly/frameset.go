@@ -411,7 +411,7 @@ func (f FramesetPlacement) PitchDeg() pose.Deg {
 // and cup differ from the chart's basis, and 0 (to rounding) on a
 // placement PlaceFrameset returned.
 func (f FramesetPlacement) LevelingPitchDeg() pose.Deg {
-	return -f.RearAxle.AngleTo(f.FrontAxle)
+	return -f.RearAxle.Origin().AngleTo(f.FrontAxle.Origin())
 }
 
 // PitchDeltaDeg returns f's leveling pitch minus reference's: positive when
@@ -432,12 +432,12 @@ func (f FramesetPlacement) LeveledSeatTubeAngleDeg() pose.Deg {
 
 // WheelbaseMm returns the horizontal distance between the leveled rear and front axles.
 func (f FramesetPlacement) WheelbaseMm() float64 {
-	return f.RearAxle.DistanceTo(f.FrontAxle)
+	return f.RearAxle.Origin().DistanceTo(f.FrontAxle.Origin())
 }
 
 // LeveledBbDropMm returns the vertical drop from the leveled axle line to BB.
 func (f FramesetPlacement) LeveledBbDropMm() float64 {
-	return f.BB.VerticalOffsetTo(f.RearAxle)
+	return f.BB.Origin().VerticalOffsetTo(f.RearAxle.Origin())
 }
 
 // TrailMm returns the ground trail: the horizontal distance on the ground from
@@ -449,7 +449,7 @@ func (f FramesetPlacement) TrailMm() float64 {
 	// contact's height) at HeadTubeTop plus the run, so the remainder runs
 	// from that point to the contact, and trail is its negation.
 	steererDown := f.HeadTubeTop.HeadingDeg() + 180.0
-	_, ahead, ok := pose.DecomposeAlong(f.HeadTubeTop.OffsetTo(f.FrontTireContact), steererDown, 0)
+	_, ahead, ok := pose.DecomposeAlong(f.HeadTubeTop.Origin().OffsetTo(f.FrontTireContact.Origin()), steererDown, 0)
 	if !ok {
 		return math.NaN() // a horizontal steering axis never meets the ground
 	}
@@ -459,7 +459,7 @@ func (f FramesetPlacement) TrailMm() float64 {
 // RearCenterMm returns the horizontal distance from the rear axle to BB on the
 // leveled bike (the RC in RC / WB).
 func (f FramesetPlacement) RearCenterMm() float64 {
-	return f.RearAxle.OffsetTo(f.BB).X
+	return f.RearAxle.Origin().OffsetTo(f.BB.Origin()).X
 }
 
 // RcWbRatioPct returns RearCenterMm as a percentage of WheelbaseMm.
@@ -470,13 +470,13 @@ func (f FramesetPlacement) RcWbRatioPct() float64 {
 // LeveledReachMm returns the horizontal distance from BB to HeadTubeTop on the
 // leveled bike. It differs from the chart's reach by the leveling pitch (Q105).
 func (f FramesetPlacement) LeveledReachMm() float64 {
-	return f.BB.OffsetTo(f.HeadTubeTop).X
+	return f.BB.Origin().OffsetTo(f.HeadTubeTop.Origin()).X
 }
 
 // LeveledStackMm returns the vertical distance from BB to HeadTubeTop on the
 // leveled bike (Q105).
 func (f FramesetPlacement) LeveledStackMm() float64 {
-	return f.BB.VerticalOffsetTo(f.HeadTubeTop)
+	return f.BB.Origin().VerticalOffsetTo(f.HeadTubeTop.Origin())
 }
 
 // EttMm returns the effective top tube: the horizontal distance, at
@@ -485,7 +485,7 @@ func (f FramesetPlacement) LeveledStackMm() float64 {
 func (f FramesetPlacement) EttMm() float64 {
 	// Split BB → HeadTubeTop into a run up the seat axis and a horizontal
 	// remainder; the remainder is the ETT.
-	_, ett, ok := pose.DecomposeAlong(f.SeatAxis.OffsetTo(f.HeadTubeTop), f.SeatAxis.HeadingDeg(), 0)
+	_, ett, ok := pose.DecomposeAlong(f.SeatAxis.Origin().OffsetTo(f.HeadTubeTop.Origin()), f.SeatAxis.HeadingDeg(), 0)
 	if !ok {
 		return math.NaN() // a horizontal seat axis never reaches HeadTubeTop's height
 	}

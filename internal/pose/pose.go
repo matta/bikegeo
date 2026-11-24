@@ -1,5 +1,5 @@
-// Package pose provides 2D planar poses and degree-valued angles for
-// component assembly.
+// Package pose provides 2D points, displacement vectors, turtle poses, and
+// degree-valued angles for component assembly.
 package pose
 
 import (
@@ -34,19 +34,75 @@ func (d Deg) tan() float64 {
 }
 
 // Point is a 2D position in millimeters in the sagittal plane (+X forward, +Y up).
+// Point-to-point measurements depend only on position, so a landmark's origin
+// can be compared directly with another origin or a target.
 type Point struct {
 	X float64
 	Y float64
 }
 
-// Sub returns p − q.
-func (p Point) Sub(q Point) Point {
-	return Point{X: p.X - q.X, Y: p.Y - q.Y}
+// Sub returns the displacement p − q.
+func (p Point) Sub(q Point) Vec {
+	return Vec{X: p.X - q.X, Y: p.Y - q.Y}
 }
 
-// Norm returns the Euclidean length of p as a vector.
-func (p Point) Norm() float64 {
-	return math.Hypot(p.X, p.Y)
+// Add returns p translated by the displacement v.
+func (p Point) Add(v Vec) Point {
+	return Point{X: p.X + v.X, Y: p.Y + v.Y}
+}
+
+// AngleTo returns the world angle in degrees from p to other (0° along +X,
+// positive counter-clockwise).
+func (p Point) AngleTo(other Point) Deg {
+	delta := p.OffsetTo(other)
+	return degFromRad(math.Atan2(delta.Y, delta.X))
+}
+
+// DistanceTo returns the Euclidean distance in millimeters between p and other.
+func (p Point) DistanceTo(other Point) float64 {
+	return p.OffsetTo(other).Norm()
+}
+
+// VerticalOffsetTo returns the signed vertical offset in millimeters from p to
+// other (positive when other is above p along world +Y).
+func (p Point) VerticalOffsetTo(other Point) float64 {
+	return other.Y - p.Y
+}
+
+// OffsetTo returns the world-frame displacement from p to other.
+func (p Point) OffsetTo(other Point) Vec {
+	return other.Sub(p)
+}
+
+// Vec is a 2D displacement in millimeters.
+type Vec struct {
+	X float64
+	Y float64
+}
+
+// Add returns v + w.
+func (v Vec) Add(w Vec) Vec {
+	return Vec{X: v.X + w.X, Y: v.Y + w.Y}
+}
+
+// Sub returns v − w.
+func (v Vec) Sub(w Vec) Vec {
+	return Vec{X: v.X - w.X, Y: v.Y - w.Y}
+}
+
+// Scale returns v multiplied by factor.
+func (v Vec) Scale(factor float64) Vec {
+	return Vec{X: v.X * factor, Y: v.Y * factor}
+}
+
+// Neg returns −v.
+func (v Vec) Neg() Vec {
+	return Vec{X: -v.X, Y: -v.Y}
+}
+
+// Norm returns the Euclidean length of v in millimeters.
+func (v Vec) Norm() float64 {
+	return math.Hypot(v.X, v.Y)
 }
 
 // Pose is an immutable 2D sagittal position and heading.
@@ -121,28 +177,4 @@ func (p Pose) Translate(localX, localY float64) Pose {
 		},
 		headingDeg: p.headingDeg,
 	}
-}
-
-// AngleTo returns the sagittal world angle in degrees (0° along +X, positive
-// counter-clockwise) from p's origin to other's origin.
-func (p Pose) AngleTo(other Pose) Deg {
-	dx := other.origin.X - p.origin.X
-	dy := other.origin.Y - p.origin.Y
-	return degFromRad(math.Atan2(dy, dx))
-}
-
-// DistanceTo returns the Euclidean distance in millimeters between p and other.
-func (p Pose) DistanceTo(other Pose) float64 {
-	return math.Hypot(other.origin.X-p.origin.X, other.origin.Y-p.origin.Y)
-}
-
-// VerticalOffsetTo returns the signed vertical offset in millimeters from p to other
-// (positive when other is above p along world +Y).
-func (p Pose) VerticalOffsetTo(other Pose) float64 {
-	return other.origin.Y - p.origin.Y
-}
-
-// OffsetTo returns other.Origin() − p.Origin() as a world-frame vector.
-func (p Pose) OffsetTo(other Pose) Point {
-	return other.origin.Sub(p.origin)
 }

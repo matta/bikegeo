@@ -10,7 +10,6 @@ import (
 
 	"bikegeo/internal/assembly"
 	"bikegeo/internal/catalog"
-	"bikegeo/internal/pose"
 	"bikegeo/internal/query"
 )
 
@@ -520,7 +519,7 @@ func buildFittingView(parsed query.Bike, res query.BikeResult) (*bikeFittingView
 	fitted := fitting.Placement.Setup
 	if brp := fitting.Target.BRP; brp != nil {
 		railLimit, _ := bike.Setup.RailOffsetLimitMm() // PlaceBike and ApplyFitting already accepted this setup
-		miss := bike.Saddle.BRP.OffsetTo(pose.NewPose(*brp, 0))
+		miss := bike.Saddle.BRP.Origin().OffsetTo(*brp)
 		fv.Saddle = &saddleFittingView{
 			TargetX: brp.X, TargetY: brp.Y,
 			MissX: cleanZero(miss.X, 0.05), MissY: cleanZero(miss.Y, 0.05), MissMm: miss.Norm(),
@@ -536,7 +535,7 @@ func buildFittingView(parsed query.Bike, res query.BikeResult) (*bikeFittingView
 		}
 	}
 	if grip := fitting.Target.HandGrip; grip != nil {
-		miss := bike.Handlebar.HandGrip.OffsetTo(pose.NewPose(*grip, 0))
+		miss := bike.Handlebar.HandGrip.Origin().OffsetTo(*grip)
 		stem := bike.Setup.Stem
 		fv.Cockpit = &cockpitFittingView{
 			TargetX: grip.X, TargetY: grip.Y,

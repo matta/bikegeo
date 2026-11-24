@@ -191,8 +191,8 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceSaddle ref: %v", err)
 	}
-	assertNear(t, "BB to shaft top along seat axis", refSeatAxis.DistanceTo(refPost.ShaftTop), 709.424, 1e-9)
-	assertNear(t, "reference (unpitched attitude) |BRP - BB|", refSeatAxis.DistanceTo(refSaddle.BRP), 746.000, 0.001)
+	assertNear(t, "BB to shaft top along seat axis", refSeatAxis.Origin().DistanceTo(refPost.ShaftTop.Origin()), 709.424, 1e-9)
+	assertNear(t, "reference (unpitched attitude) |BRP - BB|", refSeatAxis.Origin().DistanceTo(refSaddle.BRP.Origin()), 746.000, 0.001)
 
 	// Full leveled frameset + cockpits via PlaceBike.
 	bikeSetup := assembly.BikeSetup{
@@ -216,7 +216,7 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 	assertNear(t, "basis leveled |BRP - BB|", bike.SaddleHeightMm(), 746.008, 0.001)
 	assertNear(t, "Setup preserved on BikePlacement", bike.Setup.Seatpost.Spec.RailClampLengthMm, 30.0, 1e-12)
 	// The post shaft continues the seat axis from SeatTubeTop; the saddle shares the leveled-rail heading.
-	assertNear(t, "seat tube top to shaft top", bike.Frameset.SeatTubeTop.DistanceTo(bike.Seatpost.ShaftTop), postSetup.ExposedMm(), 1e-9)
+	assertNear(t, "seat tube top to shaft top", bike.Frameset.SeatTubeTop.Origin().DistanceTo(bike.Seatpost.ShaftTop.Origin()), postSetup.ExposedMm(), 1e-9)
 	assertNear(t, "RailFrame.Heading", float64(bike.Saddle.RailFrame.HeadingDeg()), float64(saddleSetup.RailPitchDeg), 1e-12)
 
 	badSeatpost := bikeSetup
@@ -352,7 +352,7 @@ func TestPlaceSaddleRailToBrpHeightRotatesWithRailPitch(t *testing.T) {
 		return saddle
 	}
 	raised, flat := place(45, 10), place(0, 10)
-	wantShift := pose.Point{X: -7.814168, Y: 44.316349}
+	wantShift := pose.Vec{X: -7.814168, Y: 44.316349}
 	for _, lm := range []struct {
 		name         string
 		raised, flat pose.Pose

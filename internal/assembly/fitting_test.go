@@ -207,7 +207,7 @@ var (
 
 func TestApplyFittingIsMinimalOverGrid(t *testing.T) {
 	const tol = 1e-6
-	inGate := func(miss pose.Point) bool {
+	inGate := func(miss pose.Vec) bool {
 		return math.Abs(miss.Y) <= assembly.FitGateBrpYMm+1e-9 && math.Abs(miss.X) <= assembly.FitGateBrpXMm+1e-9
 	}
 	for _, tc := range []struct {
@@ -445,9 +445,9 @@ func TestApplyFittingFitReportGripLimitedByBoth(t *testing.T) {
 }
 
 // unitAt returns the unit vector at a heading, using independent math.
-func unitAt(h pose.Deg) pose.Point {
+func unitAt(h pose.Deg) pose.Vec {
 	r := float64(h) * math.Pi / 180
-	return pose.Point{X: math.Cos(r), Y: math.Sin(r)}
+	return pose.Vec{X: math.Cos(r), Y: math.Sin(r)}
 }
 
 func TestApplyFittingGripSpacersLimitOnly(t *testing.T) {
