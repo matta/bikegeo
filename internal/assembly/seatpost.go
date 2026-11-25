@@ -6,9 +6,10 @@ import (
 	"bikegeo/internal/pose"
 )
 
-// frameInsertionFallbackMm is how far below the seat tube's C-T length the post
-// may reach when the frame declares no maximum insertion.
-const frameInsertionFallbackMm = 20.0
+// frameInsertionCushionMm is subtracted from the seat tube's C-T length to
+// leave clearance above the BB shell when the frame declares no maximum
+// insertion.
+const frameInsertionCushionMm = 20.0
 
 // SeatpostSpec describes a catalog seatpost:
 //   - TotalLengthMm: overall post length.
@@ -75,7 +76,7 @@ func SeatpostInsertionBounds(frame FrameSetup, post SeatpostSpec) (InsertionBoun
 	}
 	frameCap := frame.MaxPostInsertionMm
 	if frameCap == 0 {
-		frameCap = frame.SeatTubeLengthMm - frameInsertionFallbackMm
+		frameCap = frame.SeatTubeLengthMm - frameInsertionCushionMm
 	}
 	bounds := InsertionBounds{
 		EffectiveMinInsertionMm: max(post.MinInsertionMm, frame.MinFrameInsertionMm),
