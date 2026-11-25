@@ -30,7 +30,7 @@ Instead of measuring only the endpoints (`BRP` and `HB`) and guessing which comp
 ### 2. Why no parts need to be unbolted or swapped
 
 - **Leave the FAIR Drop Best bolted to the Redshift post (and the SQlab 610 clamped in the Drop Best):**
-  - Because the Drop Best replaces the Redshift post's original saddle-rail jaw, we do **not** try to measure a stock Redshift `RailCradle` on the bike (static Redshift setback and head stack stay on Redshift's published specs).
+  - Because the Drop Best replaces the Redshift post's original saddle-rail jaw, we do **not** try to measure a stock Redshift `RailPivot` on the bike (static Redshift setback and head stack stay on Redshift's published specs).
   - Instead, we tape the exact `SeatTubeTop` collar line on the shaft, slide the assembled `Redshift + Drop Best + SQlab 610` unit out as one piece for the mandatory flat-surface bench measurement of `SeatTubeTop → BRP` in `SeatTubeAxis` coordinates (Part A1), and then reinstall it flush to the tape mark before Part B.
   - Measuring `BB → BRP` directly on the bike in Part B (`B3`) and cross-checking it against `SeatTubeTop + bench(SeatTubeTop → BRP)` (**Closure 4**) locks down Matt's actual static riding saddle position `BRP_static`. When converting `BRP_static` to `BRP_dynamic` ([`brp-transfer.md` Section 3.C](brp-transfer.md#c-static--dynamic-target-conversion-source-bike-static-measurements--dynamic-targets)), the Drop Best is a rigid clamp attached to the top of the Redshift linkage: it rotates about `BB` with fork sag and translates by `Translate(-6, +5)` along `SeatTubeAxis` with Redshift linkage sag, so its internal offset cancels out completely.
 - **Leave the RockShox SID 35 mm (110 mm) fork installed:**

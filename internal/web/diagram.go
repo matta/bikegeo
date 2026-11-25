@@ -285,7 +285,7 @@ const (
 	nominalDiagramWidthPx = 720.0
 	// Margins around the landmarks a close-up view frames, in on-screen px at
 	// the nominal width. The side margin fits the longest 1rem label
-	// ("RailCradle") beside a point on the edge of the framing.
+	// ("RailPivot") beside a point on the edge of the framing.
 	closeUpPadXPx = 150.0
 	closeUpPadYPx = 40.0
 	// fitGateTolMm matches assembly's round-off tolerance on gate checks.
@@ -806,7 +806,7 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 		rearContactSVG,
 		toSVG(placed.HeadTubeTop.Origin()),
 		toSVG(placed.SeatTubeTop.Origin()),
-		toSVG(seatpost.RailCradle.Origin()),
+		toSVG(seatpost.RailPivot.Origin()),
 		toSVG(saddle.RailCenter.Origin()),
 		toSVG(saddle.BRP.Origin()),
 		toSVG(saddle.SitBones.Origin()),
@@ -838,7 +838,7 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 	case diagramViewSeat:
 		// Every seatpost and saddle pose above SeatTubeTop, not the seat tube.
 		framingOrigins = []pose.Point[assembly.DynamicWorld]{
-			seatpost.ShaftTop.Origin(), seatpost.RailCradle.Origin(), saddle.RailFrame.Origin(),
+			seatpost.ShaftTop.Origin(), seatpost.RailPivot.Origin(), saddle.RailFrame.Origin(),
 			saddle.RailCenter.Origin(), saddle.BRP.Origin(), saddle.SitBones.Origin(),
 		}
 		framingOutlines = seatParts
@@ -888,7 +888,7 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 		makeSegment("fork-a2c", placed.LowerCupBottom.Origin(), placed.ForkSteererBase.Origin(), "#59636e", 7*scale, false),
 		makeSegment("fork-rake", placed.ForkSteererBase.Origin(), placed.FrontAxle.Origin(), "#59636e", 5*scale, false),
 		makeSegment("seatpost", placed.SeatTubeTop.Origin(), seatpost.ShaftTop.Origin(), "#59636e", 5*scale, false),
-		makeSegment("seatpost-setback", seatpost.ShaftTop.Origin(), seatpost.RailCradle.Origin(), "#59636e", 5*scale, false),
+		makeSegment("seatpost-setback", seatpost.ShaftTop.Origin(), seatpost.RailPivot.Origin(), "#59636e", 5*scale, false),
 		makeSegment("saddle-profile", saddle.SitBones.Origin(), saddle.BRP.Origin(), "#2f363d", 4*scale, true),
 		makeSegment("handlebar-rise-sweep", handlebar.BarClamp.Origin(), handlebar.HandGrip.Origin(), "#2f363d", 5*scale, true),
 	}
@@ -900,7 +900,7 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 		{"RearContact", placed.RearTireContact.Origin(), 0, 18, "middle", 1, true, false, false},
 		{"BB", placed.BB.Origin(), 0, 18, "middle", 1, true, false, false},
 		{"SeatTubeTop", placed.SeatTubeTop.Origin(), -14, -10, "end", 2, true, true, false},
-		{"RailCradle", seatpost.RailCradle.Origin(), 14, 2, "start", 2, false, true, false},
+		{"RailPivot", seatpost.RailPivot.Origin(), 14, 2, "start", 2, false, true, false},
 		{"RailCenter", saddle.RailCenter.Origin(), 14, 14, "start", 2, false, true, false},
 		{"BRP", saddle.BRP.Origin(), 14, -10, "start", 1, true, true, false},
 		{"SitBones", saddle.SitBones.Origin(), -14, -10, "end", 1, true, true, false},

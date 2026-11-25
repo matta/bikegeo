@@ -288,7 +288,7 @@ func TestWebPackageUsesNoRawTrig(t *testing.T) {
 func TestDiagramLabelCurationAndDOMInvariants(t *testing.T) {
 	allLandmarks := []string{
 		"RearAxle", "RearContact", "BB", "SeatTubeTop",
-		"RailCradle", "RailCenter", "BRP", "SitBones",
+		"RailPivot", "RailCenter", "BRP", "SitBones",
 		"HeadTubeTop", "CoverTop", "SpacerTop", "SteererClamp",
 		"BarClamp", "HandGrip", "HeadTubeBottom", "LowerCupBottom",
 		"FrontAxle", "FrontContact",
@@ -310,7 +310,7 @@ func TestDiagramLabelCurationAndDOMInvariants(t *testing.T) {
 		},
 		{
 			path:          "/bike?view=seat",
-			wantLandmarks: []string{"RailCradle", "RailCenter", "BRP", "SitBones"},
+			wantLandmarks: []string{"RailPivot", "RailCenter", "BRP", "SitBones"},
 			wantTargets:   []string{"Target BRP"},
 		},
 		{
@@ -320,7 +320,7 @@ func TestDiagramLabelCurationAndDOMInvariants(t *testing.T) {
 		},
 		{
 			path:          "/bike?view=seat&brp_x=-219&brp_y=450",
-			wantLandmarks: []string{"SeatTubeTop", "RailCradle", "RailCenter", "BRP", "SitBones"},
+			wantLandmarks: []string{"SeatTubeTop", "RailPivot", "RailCenter", "BRP", "SitBones"},
 			wantTargets:   []string{"Target BRP"},
 		},
 	}
@@ -370,7 +370,7 @@ func TestDiagramLabelCurationAndDOMInvariants(t *testing.T) {
 
 	// In view=bike, detail dots render smaller (r="3") and subdued.
 	bikeDoc := loadBikeDoc(t, "/bike")
-	for _, detail := range []string{"RailCradle", "RailCenter", "CoverTop", "SpacerTop", "SteererClamp", "BarClamp", "HeadTubeBottom", "LowerCupBottom"} {
+	for _, detail := range []string{"RailPivot", "RailCenter", "CoverTop", "SpacerTop", "SteererClamp", "BarClamp", "HeadTubeBottom", "LowerCupBottom"} {
 		g := bikeDoc.Find(fmt.Sprintf(`svg.diagram .landmarks [data-landmark=%q]`, detail))
 		if d, _ := g.Attr("data-landmark-detail"); d != "true" {
 			t.Errorf("bike view %s data-landmark-detail = %q, want true", detail, d)

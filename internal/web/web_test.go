@@ -142,7 +142,7 @@ func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 
 	for _, name := range []string{
 		"RearAxle", "RearContact", "BB", "SeatTubeTop",
-		"RailCradle", "RailCenter", "BRP", "SitBones",
+		"RailPivot", "RailCenter", "BRP", "SitBones",
 		"HeadTubeTop", "CoverTop", "SpacerTop", "SteererClamp", "BarClamp", "HandGrip",
 		"HeadTubeBottom", "LowerCupBottom", "FrontAxle", "FrontContact",
 	} {
@@ -1455,7 +1455,7 @@ func TestBikeWorkbenchCloseUpViewsFrameTheirLandmarks(t *testing.T) {
 		far     string
 		label   string
 	}{
-		{"seat", []string{"RailCradle", "RailCenter", "BRP", "SitBones"}, "SeatTubeTop", "seat close-up"},
+		{"seat", []string{"RailPivot", "RailCenter", "BRP", "SitBones"}, "SeatTubeTop", "seat close-up"},
 		{"stem", []string{"CoverTop", "SpacerTop", "SteererClamp", "BarClamp", "HandGrip"}, "HeadTubeBottom", "stem close-up"},
 	}
 	for _, tc := range cases {
@@ -3153,7 +3153,7 @@ func TestBikeWorkbenchSeatViewShowsRaisedSaddleAboveRails(t *testing.T) {
 			whole := loadBikeDoc(t, "/bike?view=bike&rail_pitch="+pitch)
 			box := parseViewBoxAttr(t, seat)
 
-			names := []string{"RailCradle", "RailCenter", "BRP", "SitBones"}
+			names := []string{"RailPivot", "RailCenter", "BRP", "SitBones"}
 			for _, name := range names {
 				got, want := landmarkCentre(t, seat, name), landmarkCentre(t, whole, name)
 				if got != want {

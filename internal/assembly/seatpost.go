@@ -12,7 +12,7 @@ import (
 const frameInsertionCushionMm = 20.0
 
 // SeatpostSpec describes a catalog seatpost. The clamp pivot (modeled as
-// RailCradle) is the point in side view—a transverse axis in 3D—at the center
+// RailPivot) is the point in side view—a transverse axis in 3D—at the center
 // of the rail clamp where the saddle rails sit and tilt:
 //   - TotalLengthMm: nominal distance along the shaft from its bottom end to
 //     the clamp pivot, projected perpendicularly onto the shaft axis. Typically
@@ -109,13 +109,13 @@ func (p SeatpostSpec) setbackOffset() pose.Vec[SeatTubeAxis] {
 //   - ShaftTop: SeatTubeTop.Advance(ExposedMm()) along local +X — the
 //     perpendicular projection of the clamp pivot onto the shaft axis (not the
 //     top of the bare cylindrical tube, which ends below the head or linkage).
-//   - RailCradle: ShaftTop.Translate(0, SetbackMm) along local +Y — the clamp
+//   - RailPivot: ShaftTop.Translate(0, SetbackMm) along local +Y — the clamp
 //     pivot (see SeatpostSpec) where the saddle rails attach and tilt, passed
 //     to PlaceSaddle.
 type SeatpostPlacement struct {
 	SeatTubeTop pose.Pose[SeatTubeAxis, DynamicWorld]
 	ShaftTop    pose.Pose[SeatTubeAxis, DynamicWorld]
-	RailCradle  pose.Pose[SeatTubeAxis, DynamicWorld]
+	RailPivot   pose.Pose[SeatTubeAxis, DynamicWorld]
 }
 
 // PlaceSeatpost mounts a seatpost in frame starting at seatTubeTop (positioned
@@ -139,15 +139,15 @@ func PlaceSeatpost(seatTubeTop pose.Pose[SeatTubeAxis, DynamicWorld], frame Fram
 
 	shaftTop := seatTubeTop.Advance(setup.ExposedMm())
 	// Setback is along local +Y from the shaft top, which points rearward.
-	railCradle := shaftTop.Translate(setup.Spec.setbackOffset())
+	RailPivot := shaftTop.Translate(setup.Spec.setbackOffset())
 
-	if err := validatePlacementPoints("seatpost", seatTubeTop.Origin(), shaftTop.Origin(), railCradle.Origin()); err != nil {
+	if err := validatePlacementPoints("seatpost", seatTubeTop.Origin(), shaftTop.Origin(), RailPivot.Origin()); err != nil {
 		return SeatpostPlacement{}, err
 	}
 
 	return SeatpostPlacement{
 		SeatTubeTop: seatTubeTop,
 		ShaftTop:    shaftTop,
-		RailCradle:  railCradle,
+		RailPivot:   RailPivot,
 	}, nil
 }

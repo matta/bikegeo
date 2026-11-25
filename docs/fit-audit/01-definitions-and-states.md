@@ -52,7 +52,7 @@ Every row has the status *as in code*: it records the current meaning so it can 
 | `RadiusMm` | One radius for both wheels | Scalar | Wheels | Choosing tires | Input (catalog default 372 mm) | Ground line, BB height |
 | `InsertionMm` | Post shaft length below the seat tube top | Scalar | Post, along seat axis | Adjustment | Input or fitting | Rail cradle |
 | `SetbackMm` (post) | Rail cradle offset perpendicular to the shaft, rearward | Scalar | Post-local | Choosing a post | Catalog (ShockStop: owner-reported, sagged) | Rail cradle |
-| `RailCradle` | Post head's clamp point | Pose | Post-local axes | Post, insertion | Calculated | Saddle |
+| `RailPivot` | Post head's clamp point | Pose | Post-local axes | Post, insertion | Calculated | Saddle |
 | `RailPitchDeg` | Rail heading in world axes | Angle | **World** (not the post) | Input | Input | Saddle landmarks |
 | `RailOffsetMm` | Saddle slide along rails; positive is rearward | Scalar | Rails | Adjustment | Input or fitting | Saddle landmarks |
 | `BRP` | Saddle landmark at W70, `RailCenterToBrpMm` forward of and `RailToBrpHeightMm` above rail center | Landmark (stored as Pose) | Saddle-local, placed in world | Everything upstream | Saddle data (height illustrative) | BRP target, gates, scores |
