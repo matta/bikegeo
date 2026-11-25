@@ -95,9 +95,9 @@ type poseOutline struct {
 	corners [4]svgPoint
 }
 
-// newPoseOutline draws a rectangle along p's local +X starting at startMm,
-// with its thickness centered on the local axis.
-func newPoseOutline[Axis any](name string, p pose.Pose[Axis, assembly.DynamicWorld], startMm, lengthMm, thicknessMm float64) poseOutline {
+// newPoseOutline draws a rectangle along p's local +X axis (anchored at
+// p.Origin()) starting at startMm, with thickness centered on that line.
+func newPoseOutline[Dir any](name string, p pose.Pose[Dir, assembly.DynamicWorld], startMm, lengthMm, thicknessMm float64) poseOutline {
 	o := toSVG(p.Origin())
 	half := thicknessMm / 2.0
 	outline := poseOutline{
@@ -112,7 +112,7 @@ func newPoseOutline[Axis any](name string, p pose.Pose[Axis, assembly.DynamicWor
 	}
 	for i, along := range []float64{startMm, startMm + lengthMm} {
 		for j, across := range []float64{-half, half} {
-			outline.corners[2*i+j] = toSVG(p.Translate(pose.Vec[Axis]{X: along, Y: across}).Origin())
+			outline.corners[2*i+j] = toSVG(p.Translate(pose.Vec[Dir]{X: along, Y: across}).Origin())
 		}
 	}
 	return outline
@@ -348,15 +348,17 @@ func brpTargetFramingPts(target pose.Point[assembly.DynamicWorld]) []svgPoint {
 	}
 }
 
-type gripOvalAxis struct{}
+// gripOvalDir names the FitOval's orientation (+X along MajorAxisHeadingDeg,
+// +Y 90° CCW along the minor axis), anchored at target in gripTargetFramingPts.
+type gripOvalDir struct{}
 
 func gripTargetFramingPts(target pose.Point[assembly.DynamicWorld]) []svgPoint {
 	oval := assembly.DefaultGripOval()
-	ovalPose := pose.NewPose[gripOvalAxis](target, pose.Heading[assembly.DynamicWorld](oval.MajorAxisHeadingDeg))
+	ovalPose := pose.NewPose[gripOvalDir](target, pose.Heading[assembly.DynamicWorld](oval.MajorAxisHeadingDeg))
 	pts := make([]svgPoint, 0, 4)
 	for _, along := range []float64{-oval.SemiMajorMm, oval.SemiMajorMm} {
 		for _, across := range []float64{-oval.SemiMinorMm, oval.SemiMinorMm} {
-			pts = append(pts, toSVG(ovalPose.Translate(pose.Vec[gripOvalAxis]{X: along, Y: across}).Origin()))
+			pts = append(pts, toSVG(ovalPose.Translate(pose.Vec[gripOvalDir]{X: along, Y: across}).Origin()))
 		}
 	}
 	return pts

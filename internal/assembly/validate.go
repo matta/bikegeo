@@ -46,7 +46,7 @@ func isFinitePoint(p pose.Point[DynamicWorld]) bool {
 	return isFinite(p.X) && isFinite(p.Y)
 }
 
-func validatePose[Axis any](name string, p pose.Pose[Axis, DynamicWorld]) error {
+func validatePose[Dir any](name string, p pose.Pose[Dir, DynamicWorld]) error {
 	if !isFinitePoint(p.Origin()) || !isFinite(float64(p.HeadingDeg())) {
 		return fmt.Errorf("%s pose must be finite, got (%v, %v) at %v°",
 			name, p.Origin().X, p.Origin().Y, p.HeadingDeg())

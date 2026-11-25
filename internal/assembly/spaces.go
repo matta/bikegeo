@@ -1,40 +1,46 @@
 package assembly
 
-// These coordinate spaces share the bottom bracket as their origin.
+// Ambient coordinate spaces share the bottom bracket as their origin BB = (0, 0),
+// with +X forward, +Y up, and 1 unit = 1 millimeter.
 
-// UnpitchedChart is the chart reference attitude, with +X along reach and +Y along stack.
+// UnpitchedChart is the chart reference attitude (BB = (0, 0)), with +X along reach and +Y along stack.
 type UnpitchedChart struct{}
 
-// StaticWorld is the level-ground workshop coordinate space at 0% sag, with +X forward and +Y up.
+// StaticWorld is the level-ground workshop coordinate space at 0% sag (BB = (0, 0)), with +X forward and +Y up.
 type StaticWorld struct{}
 
-// DynamicWorld is the level-ground riding coordinate space at seated sag, with +X forward and +Y up.
+// DynamicWorld is the level-ground riding coordinate space at seated sag (BB = (0, 0)), with +X forward and +Y up.
 type DynamicWorld struct{}
 
-// FrameAxis has local +X along chart horizontal, rotated by the frame pitch.
-type FrameAxis struct{}
+// Orientation marker types define a local orthonormal 2D basis (+X basis
+// direction along the named orientation, +Y basis direction 90° CCW) without
+// pinning an origin. Each pose.Pose[Dir, W] anchors that local basis at its own
+// Origin() in W.
 
-// SeatTubeAxis points up the seat tube and seatpost shaft, with local +Y rearward.
-type SeatTubeAxis struct{}
+// FrameDir has local +X along chart horizontal, rotated by the frame pitch, with local +Y 90° CCW (upward).
+type FrameDir struct{}
 
-// SaddleRailAxis points along the saddle rails toward the nose, with local +Y upward.
-type SaddleRailAxis struct{}
+// SeatTubeDir points up the seat tube and seatpost shaft, with local +Y 90° CCW (rearward/downward).
+type SeatTubeDir struct{}
 
-// SteererUpAxis points up and rearward along the steerer.
-type SteererUpAxis struct{}
+// SaddleRailDir points along the saddle rails toward the nose, with local +Y 90° CCW (upward).
+type SaddleRailDir struct{}
 
-// SteererDownAxis points down and forward along the steerer.
-type SteererDownAxis struct{}
+// SteererUpDir points up and rearward along the steerer.
+type SteererUpDir struct{}
 
-// ForkRakeAxis points forward, perpendicular to the steerer in the rake direction.
-type ForkRakeAxis struct{}
+// SteererDownDir points down and forward along the steerer.
+type SteererDownDir struct{}
 
-// StemAxis points along the stem extension from the steerer clamp toward the bar clamp.
-type StemAxis struct{}
+// ForkRakeDir points forward, perpendicular to the steerer in the rake direction.
+type ForkRakeDir struct{}
 
-// HandlebarAxis describes the rolled side-view plane, with local +X forward
-// and local +Y along rise and upsweep.
-type HandlebarAxis struct{}
+// StemDir points along the stem extension from the steerer clamp toward the bar clamp.
+type StemDir struct{}
 
-// PlumbDownAxis points straight down from an axle toward the ground.
-type PlumbDownAxis struct{}
+// HandlebarDir describes the rolled side-view orientation, with local +X forward
+// and local +Y 90° CCW (along rise and upsweep).
+type HandlebarDir struct{}
+
+// PlumbDownDir points straight down (-90° in world space).
+type PlumbDownDir struct{}

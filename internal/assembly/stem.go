@@ -38,29 +38,29 @@ type StemSetup struct {
 	MaxLengthMm  float64 // longest stem length fitting may choose; PlaceStem ignores it
 }
 
-// steererPerpAxis is the 0° stem datum: forward, perpendicular to the steerer
-// (-90° from SteererUpAxis).
-type steererPerpAxis struct{}
+// steererPerpDir is the 0° stem datum direction: forward, perpendicular to the
+// steerer (-90° from SteererUpDir).
+type steererPerpDir struct{}
 
-const steererUpToPerp pose.TurnDeg[SteererUpAxis, steererPerpAxis] = -90.0
+const steererUpToPerp pose.TurnDeg[SteererUpDir, steererPerpDir] = -90.0
 
-func (s StemSetup) angleTurn() pose.TurnDeg[steererPerpAxis, StemAxis] {
-	return pose.TurnDeg[steererPerpAxis, StemAxis](s.AngleDeg)
+func (s StemSetup) angleTurn() pose.TurnDeg[steererPerpDir, StemDir] {
+	return pose.TurnDeg[steererPerpDir, StemDir](s.AngleDeg)
 }
 
 // StemPlacement holds the Pose-valued landmarks produced by PlaceStem.
-// Each landmark retains its local coordinate frame orientation.
+// Each landmark carries its local orientation anchored at its Origin().
 type StemPlacement struct {
-	HeadTubeTop  pose.Pose[SteererUpAxis, DynamicWorld]
-	CoverTop     pose.Pose[SteererUpAxis, DynamicWorld]
-	SpacerTop    pose.Pose[SteererUpAxis, DynamicWorld]
-	SteererClamp pose.Pose[SteererUpAxis, DynamicWorld]
-	BarClamp     pose.Pose[StemAxis, DynamicWorld]
+	HeadTubeTop  pose.Pose[SteererUpDir, DynamicWorld]
+	CoverTop     pose.Pose[SteererUpDir, DynamicWorld]
+	SpacerTop    pose.Pose[SteererUpDir, DynamicWorld]
+	SteererClamp pose.Pose[SteererUpDir, DynamicWorld]
+	BarClamp     pose.Pose[StemDir, DynamicWorld]
 }
 
 // PlaceStem mounts a stem assembly starting at steererUp (positioned at the
-// head-tube top and oriented up the steerer axis).
-func PlaceStem(steererUp pose.Pose[SteererUpAxis, DynamicWorld], setup StemSetup) (StemPlacement, error) {
+// head-tube top and oriented up the steerer direction).
+func PlaceStem(steererUp pose.Pose[SteererUpDir, DynamicWorld], setup StemSetup) (StemPlacement, error) {
 	if err := validatePose("steererUp", steererUp); err != nil {
 		return StemPlacement{}, err
 	}

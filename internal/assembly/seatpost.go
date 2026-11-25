@@ -95,39 +95,40 @@ func SeatpostInsertionBounds(frame FrameSetup, post SeatpostSpec) (InsertionBoun
 	return bounds, nil
 }
 
-// seatpostSetbackAxis points perpendicular rearward/downward from the seatpost
-// shaft (+90° counter-clockwise from SeatTubeAxis).
-type seatpostSetbackAxis struct{}
+// seatpostSetbackDir points perpendicular rearward/downward from the seatpost
+// shaft (+90° counter-clockwise from SeatTubeDir), independent of origin.
+type seatpostSetbackDir struct{}
 
 const (
-	seatTubeToSetback pose.TurnDeg[SeatTubeAxis, seatpostSetbackAxis] = 90.0
-	setbackToSeatTube pose.TurnDeg[seatpostSetbackAxis, SeatTubeAxis] = -90.0
+	seatTubeToSetback pose.TurnDeg[SeatTubeDir, seatpostSetbackDir] = 90.0
+	setbackToSeatTube pose.TurnDeg[seatpostSetbackDir, SeatTubeDir] = -90.0
 )
 
 // SeatpostPlacement holds the Pose-valued landmarks produced by PlaceSeatpost.
-// Each landmark carries the leveled seat-tube axis orientation (local +X
-// pointing up and rearward along the seat tube axis; local +Y pointing 90°
-// counter-clockwise, perpendicular rearward/downward):
+// Each landmark carries the leveled SeatTubeDir orientation anchored at its own
+// Origin() (local +X unit vector pointing up and rearward along the shaft
+// direction; local +Y unit vector pointing 90° counter-clockwise, perpendicular
+// rearward/downward):
 //   - SeatTubeTop: incoming landmark at the top of the frame's seat tube (seat
-//     collar) on the seat tube axis, where InsertionMm extends downward into
-//     the frame and ExposedMm extends upward.
+//     collar) on the seat axis, where InsertionMm extends downward into the
+//     frame and ExposedMm extends upward.
 //   - ShaftTop: SeatTubeTop.Advance(ExposedMm()) along local +X — the
 //     perpendicular projection of the clamp pivot onto the shaft axis (not the
 //     top of the bare cylindrical tube, which ends below the head or linkage).
 //   - RailPivot: Turn(+90°).Advance(SetbackMm).Turn(-90°) from ShaftTop — the
 //     clamp pivot (see SeatpostSpec) where the saddle rails attach and tilt,
-//     passed to PlaceSaddle.
+//     offset off the shaft axis by SetbackMm and passed to PlaceSaddle.
 type SeatpostPlacement struct {
-	SeatTubeTop pose.Pose[SeatTubeAxis, DynamicWorld]
-	ShaftTop    pose.Pose[SeatTubeAxis, DynamicWorld]
-	RailPivot   pose.Pose[SeatTubeAxis, DynamicWorld]
+	SeatTubeTop pose.Pose[SeatTubeDir, DynamicWorld]
+	ShaftTop    pose.Pose[SeatTubeDir, DynamicWorld]
+	RailPivot   pose.Pose[SeatTubeDir, DynamicWorld]
 }
 
 // PlaceSeatpost mounts a seatpost in frame starting at seatTubeTop (positioned
-// at the top of the frame's seat tube and oriented up the seat tube axis). The
-// exposed length above the seat tube is the post's total length less its
+// at the top of the frame's seat tube and oriented up the seat tube direction).
+// The exposed length above the seat tube is the post's total length less its
 // insertion, which must lie within SeatpostInsertionBounds(frame, setup.Spec).
-func PlaceSeatpost(seatTubeTop pose.Pose[SeatTubeAxis, DynamicWorld], frame FrameSetup, setup SeatpostSetup) (SeatpostPlacement, error) {
+func PlaceSeatpost(seatTubeTop pose.Pose[SeatTubeDir, DynamicWorld], frame FrameSetup, setup SeatpostSetup) (SeatpostPlacement, error) {
 	if err := validatePose("seatTubeTop", seatTubeTop); err != nil {
 		return SeatpostPlacement{}, err
 	}

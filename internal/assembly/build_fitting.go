@@ -57,7 +57,7 @@ func (p PartOptions) Validate() error {
 		if bar.BarRollDeg != 0 {
 			return fmt.Errorf("handlebar option %d must not set BarRollDeg; build fitting installs every bar at the submitted roll (Q24)", i)
 		}
-		if _, err := PlaceHandlebar(pose.NewPose[StemAxis](pose.Point[DynamicWorld]{}, 0), bar); err != nil {
+		if _, err := PlaceHandlebar(pose.NewPose[StemDir](pose.Point[DynamicWorld]{}, 0), bar); err != nil {
 			return fmt.Errorf("handlebar option %d: %w", i, err)
 		}
 	}

@@ -720,7 +720,7 @@ func TestPartOptionsValidation(t *testing.T) {
 	}
 	parts = twoBarOptions()
 	parts.Handlebars[0].GripInsetMm = 0
-	_, want := assembly.PlaceHandlebar(pose.NewPose[assembly.StemAxis](pose.Point[assembly.DynamicWorld]{}, 0), parts.Handlebars[0])
+	_, want := assembly.PlaceHandlebar(pose.NewPose[assembly.StemDir](pose.Point[assembly.DynamicWorld]{}, 0), parts.Handlebars[0])
 	if err := parts.Validate(); want == nil || err == nil || !strings.Contains(err.Error(), want.Error()) {
 		t.Errorf("handlebar option grip inset error = %v, want %v", err, want)
 	}

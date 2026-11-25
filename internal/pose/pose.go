@@ -1,17 +1,19 @@
 // Package pose provides type-safe 2D planar points, displacement vectors,
 // turtle poses, and rigid transforms parameterized by zero-sized phantom
-// coordinate-space and orientation-axis marker types.
+// coordinate-space and orientation marker types.
 //
 // The type parameters enforce three geometric invariants at compile time:
 //
 //  1. Affine separation (Point[S] vs. Vec[S]): positions and displacement
-//     vectors in coordinate space S are distinct types. Subtracting two
-//     Point[S] values yields a Vec[S]; adding a Vec[S] to a Point[S] yields a
-//     Point[S]; adding two Point[S] values is unrepresentable, and Euclidean
-//     length (Norm) exists only on Vec[S]. Point-to-point measurements in S
-//     (DistanceTo, VerticalOffsetTo, OffsetTo, AngleTo) live on Point[S]
-//     because they depend only on position in S, allowing landmarks with
-//     different local orientation axes to be compared directly in the same
+//     vectors in coordinate space S are distinct types. A Vec[S] has no fixed
+//     origin and carries signed displacements in millimeters (not unit-normalized
+//     unless explicitly constructed with unit norm, such as Along(h, 1)).
+//     Subtracting two Point[S] values yields a Vec[S]; adding a Vec[S] to a
+//     Point[S] yields a Point[S]; adding two Point[S] values is unrepresentable,
+//     and Euclidean length (Norm) exists only on Vec[S]. Point-to-point
+//     measurements in S (DistanceTo, VerticalOffsetTo, OffsetTo, AngleTo) live
+//     on Point[S] because they depend only on position in S, allowing landmarks
+//     with different local orientations to be compared directly in the same
 //     world space.
 //
 //  2. Ambient coordinate-space isolation (W / S): world states and coordinate
@@ -21,17 +23,20 @@
 //     alias `= struct{}`). Geometry operations require matching spaces. Use
 //     Transform[Src, Dst] to map coordinates between spaces.
 //
-//  3. Turtle orientation-axis tracking (Pose[Axis, W]): a Pose[Axis, W] places
-//     a turtle at an Origin() in ambient space W whose Heading() defines the
-//     local orientation Axis (+X along Heading(), +Y 90° counter-clockwise).
-//     Moving the turtle via Advance(distMm) or Translate(Vec[Axis]) changes its
-//     origin in W while keeping its local orientation Axis invariant, so both
-//     remain dot-chained methods on Pose[Axis, W] and Translate rejects vectors
-//     from any other component's local frame. Only Turn and Face change Axis;
-//     because Go methods cannot introduce a new type parameter, Turn and Face
-//     are package-level functions returning Pose[NewAxis, W].
+//  3. Turtle orientation tracking (Pose[Dir, W]): a Pose[Dir, W] places a
+//     turtle at an Origin() in ambient space W whose Heading() defines a local
+//     orthonormal 2D basis anchored at Origin() (+X basis direction along
+//     Heading(), +Y basis direction 90° counter-clockwise). Dir names the local
+//     orientation without pinning an origin, so multiple landmarks at distinct
+//     origins can share the same Dir type while carrying their own Origin().
+//     Moving the turtle via Advance(distMm) or Translate(Vec[Dir]) changes its
+//     origin in W while keeping its local orientation Dir invariant, so both
+//     remain dot-chained methods on Pose[Dir, W] and Translate rejects vectors
+//     from any other local basis. Only Turn and Face change Dir; because Go
+//     methods cannot introduce a new type parameter, Turn and Face are
+//     package-level functions returning Pose[NewDir, W].
 //
-// Marker types carry no runtime data, so Point[S], Vec[S], and Pose[Axis, W]
+// Marker types carry no runtime data, so Point[S], Vec[S], and Pose[Dir, W]
 // add no memory overhead and serialize to flat JSON.
 package pose
 
@@ -42,8 +47,8 @@ import (
 
 const radPerDeg = math.Pi / 180.0
 
-// Deg is a scalar angle in degrees with no bound coordinate space or axis pair,
-// used for catalog dimensions, tolerances, and user inputs.
+// Deg is a scalar angle in degrees with no bound coordinate space or
+// orientation, used for catalog dimensions, tolerances, and user inputs.
 type Deg float64
 
 func degFromRad(rad float64) Deg {
@@ -67,8 +72,8 @@ func (d Deg) tan() float64 {
 }
 
 // Heading is an absolute orientation angle in degrees in ambient coordinate
-// space W (0° along W's +X axis, 90° along W's +Y axis; positive angles rotate
-// counter-clockwise).
+// space W (0° along W's +X basis direction, 90° along W's +Y basis direction;
+// positive angles rotate counter-clockwise).
 type Heading[W any] float64
 
 // Deg returns h as a raw scalar degree value.
@@ -89,23 +94,24 @@ func (h Heading[W]) Sub(other Heading[W]) Deg {
 func (h Heading[W]) sin() float64 { return Deg(h).sin() }
 func (h Heading[W]) cos() float64 { return Deg(h).cos() }
 
-// TurnDeg is a directed relative rotation angle in degrees from FromAxis's +X
-// direction to ToAxis's +X direction (positive counter-clockwise). Encoding the
-// source and destination axes in the type allows Turn(p, delta) to infer all
-// type parameters without brackets. Swapping the poses in MeasureTurn
-// reverses both the sign and the type's axis order, so the resulting turn
-// cannot be applied to a pose with the original source axis.
-type TurnDeg[FromAxis, ToAxis any] float64
+// TurnDeg is a directed relative rotation angle in degrees from FromDir's +X
+// basis direction to ToDir's +X basis direction (positive counter-clockwise).
+// Encoding the source and destination orientations in the type allows
+// Turn(p, delta) to infer all type parameters without brackets. Swapping the
+// poses in MeasureTurn reverses both the sign and the type's orientation order,
+// so the resulting turn cannot be applied to a pose with the original source
+// orientation.
+type TurnDeg[FromDir, ToDir any] float64
 
 // Deg returns d as a raw scalar degree value.
-func (d TurnDeg[FromAxis, ToAxis]) Deg() Deg {
+func (d TurnDeg[FromDir, ToDir]) Deg() Deg {
 	return Deg(d)
 }
 
 // Point is a 2D position in millimeters in coordinate space S. Subtracting
 // positions yields a Vec[S], and adding a Vec[S] translates a position.
 // Comparing two points requires only their coordinates in S, so landmarks
-// with different pose axes and measured targets share the same measurements.
+// with different local orientations and measured targets share the same measurements.
 type Point[S any] struct {
 	X float64
 	Y float64
@@ -145,8 +151,10 @@ func (p Point[S]) AngleTo(other Point[S]) Heading[S] {
 }
 
 // Vec is a 2D displacement vector in millimeters in coordinate space S.
+// It carries no origin and is not unit-normalized unless explicitly
+// constructed with unit norm (for example via Along(heading, 1)).
 // Adding or subtracting displacements yields another Vec[S]. Norm measures
-// the length of a displacement.
+// the Euclidean length of a displacement in millimeters.
 type Vec[S any] struct {
 	X float64
 	Y float64
@@ -178,36 +186,38 @@ func (v Vec[S]) Norm() float64 {
 }
 
 // Pose is an immutable 2D position and heading in ambient coordinate space W
-// whose heading defines the local orientation Axis (local +X along heading,
-// local +Y 90° counter-clockwise).
-type Pose[Axis, W any] struct {
+// whose heading defines a local orthonormal 2D basis anchored at Origin()
+// (+X basis direction along heading, +Y basis direction 90° counter-clockwise).
+// Dir identifies the local orientation without pinning an origin, so poses at
+// distinct origins can share the same Dir type.
+type Pose[Dir, W any] struct {
 	origin     Point[W]
 	headingDeg Heading[W]
 }
 
-// NewPose creates a Pose[Axis, W] at origin with headingDeg in W.
-func NewPose[Axis, W any](origin Point[W], headingDeg Heading[W]) Pose[Axis, W] {
-	return Pose[Axis, W]{origin: origin, headingDeg: headingDeg}
+// NewPose creates a Pose[Dir, W] at origin with headingDeg in W.
+func NewPose[Dir, W any](origin Point[W], headingDeg Heading[W]) Pose[Dir, W] {
+	return Pose[Dir, W]{origin: origin, headingDeg: headingDeg}
 }
 
 // Origin returns the Pose's position in W in millimeters.
-func (p Pose[Axis, W]) Origin() Point[W] {
+func (p Pose[Dir, W]) Origin() Point[W] {
 	return p.origin
 }
 
 // Heading returns the Pose's typed heading in W.
-func (p Pose[Axis, W]) Heading() Heading[W] {
+func (p Pose[Dir, W]) Heading() Heading[W] {
 	return p.headingDeg
 }
 
 // HeadingDeg returns the Pose's heading in W as a scalar Deg value.
-func (p Pose[Axis, W]) HeadingDeg() Deg {
+func (p Pose[Dir, W]) HeadingDeg() Deg {
 	return Deg(p.headingDeg)
 }
 
 // MarshalJSON serializes a Pose's unexported Origin and HeadingDeg for
 // encoding/json CLI output (Q49a, Q88).
-func (p Pose[Axis, W]) MarshalJSON() ([]byte, error) {
+func (p Pose[Dir, W]) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Origin     Point[W]
 		HeadingDeg Deg
@@ -217,9 +227,9 @@ func (p Pose[Axis, W]) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// Advance returns a new Pose[Axis, W] moved distMm along Axis's +X direction.
-func (p Pose[Axis, W]) Advance(distMm float64) Pose[Axis, W] {
-	return Pose[Axis, W]{
+// Advance returns a new Pose[Dir, W] moved distMm along Dir's +X basis direction.
+func (p Pose[Dir, W]) Advance(distMm float64) Pose[Dir, W] {
+	return Pose[Dir, W]{
 		origin: Point[W]{
 			X: p.origin.X + distMm*p.headingDeg.cos(),
 			Y: p.origin.Y + distMm*p.headingDeg.sin(),
@@ -228,12 +238,12 @@ func (p Pose[Axis, W]) Advance(distMm float64) Pose[Axis, W] {
 	}
 }
 
-// Translate returns a new Pose[Axis, W] moved by local displacement v in Axis's
-// coordinate frame (+X along heading, +Y 90° counter-clockwise).
-func (p Pose[Axis, W]) Translate(v Vec[Axis]) Pose[Axis, W] {
+// Translate returns a new Pose[Dir, W] moved by local displacement v (in mm) in
+// Dir's local basis anchored at p.Origin() (+X along heading, +Y 90° counter-clockwise).
+func (p Pose[Dir, W]) Translate(v Vec[Dir]) Pose[Dir, W] {
 	cos := p.headingDeg.cos()
 	sin := p.headingDeg.sin()
-	return Pose[Axis, W]{
+	return Pose[Dir, W]{
 		origin: Point[W]{
 			X: p.origin.X + v.X*cos - v.Y*sin,
 			Y: p.origin.Y + v.X*sin + v.Y*cos,
@@ -242,52 +252,53 @@ func (p Pose[Axis, W]) Translate(v Vec[Axis]) Pose[Axis, W] {
 	}
 }
 
-// Turn returns a new Pose[ToAxis, W] at p's origin rotated from FromAxis into
-// ToAxis by delta. All type parameters (FromAxis, ToAxis, W) are inferred from
+// Turn returns a new Pose[ToDir, W] at p's origin rotated from FromDir into
+// ToDir by delta. All type parameters (FromDir, ToDir, W) are inferred from
 // the arguments without explicit type brackets at the call site.
-func Turn[FromAxis, ToAxis, W any](p Pose[FromAxis, W], delta TurnDeg[FromAxis, ToAxis]) Pose[ToAxis, W] {
-	return Pose[ToAxis, W]{
+func Turn[FromDir, ToDir, W any](p Pose[FromDir, W], delta TurnDeg[FromDir, ToDir]) Pose[ToDir, W] {
+	return Pose[ToDir, W]{
 		origin:     p.origin,
 		headingDeg: p.headingDeg.Turn(Deg(delta)),
 	}
 }
 
-// MeasureTurn returns the directed relative rotation from FromAxis to ToAxis
+// MeasureTurn returns the directed relative rotation from FromDir to ToDir
 // in W by subtracting from.Heading() from to.Heading().
-func MeasureTurn[FromAxis, ToAxis, W any](from Pose[FromAxis, W], to Pose[ToAxis, W]) TurnDeg[FromAxis, ToAxis] {
-	return TurnDeg[FromAxis, ToAxis](to.headingDeg.Sub(from.headingDeg))
+func MeasureTurn[FromDir, ToDir, W any](from Pose[FromDir, W], to Pose[ToDir, W]) TurnDeg[FromDir, ToDir] {
+	return TurnDeg[FromDir, ToDir](to.headingDeg.Sub(from.headingDeg))
 }
 
-// Face returns a new Pose[NewAxis, W] at p's origin with its heading in W set
-// directly to worldHeading, establishing NewAxis. Because NewAxis is first in
-// the type parameter list, callers pass only Face[NewAxis](p, worldHeading) and
-// Go infers OldAxis and W.
-func Face[NewAxis, OldAxis, W any](p Pose[OldAxis, W], worldHeading Heading[W]) Pose[NewAxis, W] {
-	return Pose[NewAxis, W]{
+// Face returns a new Pose[NewDir, W] at p's origin with its heading in W set
+// directly to worldHeading, establishing NewDir. Because NewDir is first in
+// the type parameter list, callers pass only Face[NewDir](p, worldHeading) and
+// Go infers OldDir and W.
+func Face[NewDir, OldDir, W any](p Pose[OldDir, W], worldHeading Heading[W]) Pose[NewDir, W] {
+	return Pose[NewDir, W]{
 		origin:     p.origin,
 		headingDeg: worldHeading,
 	}
 }
 
 // Transform returns the 2D rigid transformation mapping local coordinates in
-// Axis (anchored at p.Origin() with +X along p.Heading()) into ambient space W.
-// The pose determines both spaces and the placement of the local frame.
-func (p Pose[Axis, W]) Transform() Transform[Axis, W] {
-	return NewRigidTransform[Axis, W](p.origin, p.headingDeg)
+// Dir's frame (origin (0, 0) anchored at p.Origin(), +X basis direction along
+// p.Heading(), +Y basis direction 90° CCW) into ambient space W.
+func (p Pose[Dir, W]) Transform() Transform[Dir, W] {
+	return NewRigidTransform[Dir, W](p.origin, p.headingDeg)
 }
 
 // Transform is a 2D rigid transformation mapping points and vectors from
-// coordinate space Src into coordinate space Dst. It rotates both points
-// and vectors into Dst and then adds the destination-space origin to points.
-// Construct one with NewRigidTransform or Pose.Transform.
+// coordinate frame Src (local origin (0, 0), orthonormal basis +X / +Y) into
+// coordinate space Dst. It rotates both points and vectors into Dst and then
+// translates points by Src's origin in Dst. Construct one with NewRigidTransform
+// or Pose.Transform.
 type Transform[Src, Dst any] struct {
 	tx, ty float64
 	cos    float64
 	sin    float64
 }
 
-// NewRigidTransform constructs a Transform[Src, Dst] placing Src's origin at
-// originInDst with Src's +X axis oriented at headingInDst in Dst.
+// NewRigidTransform constructs a Transform[Src, Dst] placing Src's local origin
+// (0, 0) at originInDst with Src's +X basis direction oriented at headingInDst in Dst.
 func NewRigidTransform[Src, Dst any](originInDst Point[Dst], headingInDst Heading[Dst]) Transform[Src, Dst] {
 	return Transform[Src, Dst]{
 		tx:  originInDst.X,

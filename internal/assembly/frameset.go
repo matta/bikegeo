@@ -377,28 +377,29 @@ type WheelSetup struct {
 //
 // Each landmark is the Pose produced at that point as the turtle constructs
 // ("draws") the frameset from BB, so its local +X heading is a direct
-// consequence of the construction path:
-//   - BB and RearAxle carry the leveled frame reference axis (world PitchDeg).
-//   - SeatAxis (at BB) and SeatTubeTop point up and rearward along the leveled
-//     seat tube axis (180° - SeatTubeAngleDeg).
-//   - HeadTubeTop points up and rearward along the leveled steerer axis
-//     (180° - HeadTubeAngleDeg), ready for PlaceStem; HeadTubeBottom,
-//     LowerCupBottom, and ForkSteererBase point down the steerer (-HeadTubeAngleDeg).
-//   - FrontAxle points forward and up along the fork rake direction (90° -
+// consequence of the construction path (each *Dir tag carries the local
+// orientation without pinning an origin):
+//   - BB and RearAxle carry the leveled FrameDir (world PitchDeg).
+//   - SeatAxis (anchored at BB) and SeatTubeTop point up and rearward along
+//     SeatTubeDir (180° - SeatTubeAngleDeg).
+//   - HeadTubeTop points up and rearward along SteererUpDir (180° -
+//     HeadTubeAngleDeg), ready for PlaceStem; HeadTubeBottom, LowerCupBottom,
+//     and ForkSteererBase point down the steerer along SteererDownDir (-HeadTubeAngleDeg).
+//   - FrontAxle points forward and up along ForkRakeDir (90° -
 //     HeadTubeAngleDeg, perpendicular to the steerer).
-//   - RearTireContact and FrontTireContact point straight down (-90°) to the ground.
+//   - RearTireContact and FrontTireContact point straight down along PlumbDownDir (-90°).
 type FramesetPlacement[W any] struct {
-	BB               pose.Pose[FrameAxis, W]
-	RearAxle         pose.Pose[FrameAxis, W]
-	RearTireContact  pose.Pose[PlumbDownAxis, W]
-	SeatAxis         pose.Pose[SeatTubeAxis, W]
-	SeatTubeTop      pose.Pose[SeatTubeAxis, W]
-	HeadTubeTop      pose.Pose[SteererUpAxis, W]
-	HeadTubeBottom   pose.Pose[SteererDownAxis, W]
-	LowerCupBottom   pose.Pose[SteererDownAxis, W]
-	ForkSteererBase  pose.Pose[SteererDownAxis, W]
-	FrontAxle        pose.Pose[ForkRakeAxis, W]
-	FrontTireContact pose.Pose[PlumbDownAxis, W]
+	BB               pose.Pose[FrameDir, W]
+	RearAxle         pose.Pose[FrameDir, W]
+	RearTireContact  pose.Pose[PlumbDownDir, W]
+	SeatAxis         pose.Pose[SeatTubeDir, W]
+	SeatTubeTop      pose.Pose[SeatTubeDir, W]
+	HeadTubeTop      pose.Pose[SteererUpDir, W]
+	HeadTubeBottom   pose.Pose[SteererDownDir, W]
+	LowerCupBottom   pose.Pose[SteererDownDir, W]
+	ForkSteererBase  pose.Pose[SteererDownDir, W]
+	FrontAxle        pose.Pose[ForkRakeDir, W]
+	FrontTireContact pose.Pose[PlumbDownDir, W]
 }
 
 // PitchDeg returns the counter-clockwise frame leveling pitch applied at BB.
@@ -492,7 +493,7 @@ func (f FramesetPlacement[W]) EttMm() float64 {
 	return ett
 }
 
-// PlaceUnpitchedFrameset builds the frameset in the chart's own orientation:
+// PlaceUnpitchedFrameset builds the frameset in the chart's unpitched attitude:
 // BB at the origin, frame reference axis horizontal (0° pitch). The axles are
 // level only when the fork and cup reproduce the chart's basis, and
 // LevelingPitchDeg measures how far off they are. Tire contacts sit one wheel
@@ -519,25 +520,25 @@ func PlaceFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, whe
 }
 
 const (
-	steererUpToDown       pose.TurnDeg[SteererUpAxis, SteererDownAxis] = 180.0
-	steererDownToForkRake pose.TurnDeg[SteererDownAxis, ForkRakeAxis]  = 90.0
+	steererUpToDown       pose.TurnDeg[SteererUpDir, SteererDownDir] = 180.0
+	steererDownToForkRake pose.TurnDeg[SteererDownDir, ForkRakeDir]  = 90.0
 )
 
-func (f FrameSetup) steererUpTurn() pose.TurnDeg[FrameAxis, SteererUpAxis] {
-	return pose.TurnDeg[FrameAxis, SteererUpAxis](180.0 - f.HeadTubeAngleDeg)
+func (f FrameSetup) steererUpTurn() pose.TurnDeg[FrameDir, SteererUpDir] {
+	return pose.TurnDeg[FrameDir, SteererUpDir](180.0 - f.HeadTubeAngleDeg)
 }
 
-func (f FrameSetup) seatTubeTurn() pose.TurnDeg[FrameAxis, SeatTubeAxis] {
-	return pose.TurnDeg[FrameAxis, SeatTubeAxis](180.0 - f.SeatTubeAngleDeg)
+func (f FrameSetup) seatTubeTurn() pose.TurnDeg[FrameDir, SeatTubeDir] {
+	return pose.TurnDeg[FrameDir, SeatTubeDir](180.0 - f.SeatTubeAngleDeg)
 }
 
 func placeFramesetAtPitch[W any](pitch pose.Heading[W], frame FrameSetup, lowerCupMm float64, fork ForkGeometry, wheels WheelSetup) FramesetPlacement[W] {
 	// Add +0° to normalize -0° when the axle line is already level.
-	frameRoot := pose.NewPose[FrameAxis](pose.Point[W]{}, 0+pitch)
+	frameRoot := pose.NewPose[FrameDir](pose.Point[W]{}, 0+pitch)
 	rearX := -pose.RightTriangleLeg(frame.ChainstayMm, frame.BbDropMm)
-	rearAxle := frameRoot.Translate(pose.Vec[FrameAxis]{X: rearX, Y: frame.BbDropMm})
+	rearAxle := frameRoot.Translate(pose.Vec[FrameDir]{X: rearX, Y: frame.BbDropMm})
 
-	headTubeOrigin := frameRoot.Translate(pose.Vec[FrameAxis]{X: frame.ReachMm, Y: frame.StackMm})
+	headTubeOrigin := frameRoot.Translate(pose.Vec[FrameDir]{X: frame.ReachMm, Y: frame.StackMm})
 	headTubeTop := pose.Turn(headTubeOrigin, frame.steererUpTurn())
 	steererDown := pose.Turn(headTubeTop, steererUpToDown)
 	headTubeBottom := steererDown.Advance(frame.HeadTubeLengthMm)
@@ -546,13 +547,13 @@ func placeFramesetAtPitch[W any](pitch pose.Heading[W], frame FrameSetup, lowerC
 	// Turning 90° from steerer-down points forward: the fork rake direction.
 	frontAxle := pose.Turn(forkSteererBase, steererDownToForkRake).Advance(fork.RakeMm)
 
-	// The seat tube axis points up and back: 180° minus the seat tube angle.
+	// The seat axis is anchored at BB and points up and back: 180° minus the seat tube angle.
 	seatAxis := pose.Turn(frameRoot, frame.seatTubeTurn())
 	seatTubeTop := seatAxis.Advance(frame.SeatTubeLengthMm)
 
 	// Face straight down (-90°), then advance one wheel radius to the ground.
-	rearTireContact := pose.Face[PlumbDownAxis](rearAxle, -90.0).Advance(wheels.RadiusMm)
-	frontTireContact := pose.Face[PlumbDownAxis](frontAxle, -90.0).Advance(wheels.RadiusMm)
+	rearTireContact := pose.Face[PlumbDownDir](rearAxle, -90.0).Advance(wheels.RadiusMm)
+	frontTireContact := pose.Face[PlumbDownDir](frontAxle, -90.0).Advance(wheels.RadiusMm)
 
 	return FramesetPlacement[W]{
 		BB:               frameRoot,

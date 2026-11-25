@@ -10,8 +10,8 @@ import (
 )
 
 type testWorld struct{}
-type testAxis struct{}
-type testOtherAxis struct{}
+type testDir struct{}
+type testOtherDir struct{}
 
 func assertNear(t *testing.T, name string, got, want, tol float64) {
 	t.Helper()
@@ -21,10 +21,10 @@ func assertNear(t *testing.T, name string, got, want, tol float64) {
 }
 
 func TestPoseImmutabilityAndBranching(t *testing.T) {
-	root := pose.NewPose[testAxis](pose.Point[testWorld]{X: 10, Y: 20}, 90)
+	root := pose.NewPose[testDir](pose.Point[testWorld]{X: 10, Y: 20}, 90)
 
 	a := root.Advance(50)
-	b := pose.Turn(root, pose.TurnDeg[testAxis, testOtherAxis](-90)).Advance(30)
+	b := pose.Turn(root, pose.TurnDeg[testDir, testOtherDir](-90)).Advance(30)
 
 	// Root must be unchanged.
 	assertNear(t, "root.X", root.Origin().X, 10, 1e-9)
@@ -42,8 +42,8 @@ func TestPoseImmutabilityAndBranching(t *testing.T) {
 }
 
 func TestAdvanceTurnChain(t *testing.T) {
-	start := pose.NewPose[testAxis](pose.Point[testWorld]{}, 60).Advance(10)
-	p := pose.Turn(start, pose.TurnDeg[testAxis, testOtherAxis](-30)).Advance(20)
+	start := pose.NewPose[testDir](pose.Point[testWorld]{}, 60).Advance(10)
+	p := pose.Turn(start, pose.TurnDeg[testDir, testOtherDir](-30)).Advance(20)
 	// 10 along 60°, then 20 along 30°.
 	wantX := 10*math.Cos(60*math.Pi/180) + 20*math.Cos(30*math.Pi/180)
 	wantY := 10*math.Sin(60*math.Pi/180) + 20*math.Sin(30*math.Pi/180)
@@ -54,8 +54,8 @@ func TestAdvanceTurnChain(t *testing.T) {
 
 func TestTranslateAngleToAndDistanceTo(t *testing.T) {
 	// At 90° heading (+Y is local +X, -X is local +Y).
-	p0 := pose.NewPose[testAxis](pose.Point[testWorld]{X: 10, Y: 20}, 90)
-	p1 := p0.Translate(pose.Vec[testAxis]{X: 30, Y: 40})
+	p0 := pose.NewPose[testDir](pose.Point[testWorld]{X: 10, Y: 20}, 90)
+	p1 := p0.Translate(pose.Vec[testDir]{X: 30, Y: 40})
 
 	// World delta = (-40, +30) -> origin = (-30, 50).
 	assertNear(t, "p1.X", p1.Origin().X, -30, 1e-9)
@@ -100,9 +100,9 @@ func TestPointDisplacements(t *testing.T) {
 }
 
 func TestFaceSetsAbsoluteHeading(t *testing.T) {
-	start := pose.NewPose[testAxis](pose.Point[testWorld]{X: 100, Y: 72}, 382.75)
+	start := pose.NewPose[testDir](pose.Point[testWorld]{X: 100, Y: 72}, 382.75)
 	moved := start.Advance(10)
-	faced := pose.Face[testOtherAxis](moved, -90.0)
+	faced := pose.Face[testOtherDir](moved, -90.0)
 
 	assertNear(t, "faced.X", faced.Origin().X, moved.Origin().X, 1e-12)
 	assertNear(t, "faced.Y", faced.Origin().Y, moved.Origin().Y, 1e-12)
@@ -124,7 +124,7 @@ func TestPoseSizes(t *testing.T) {
 	}{
 		{"Point", unsafe.Sizeof(pose.Point[testWorld]{}), unsafe.Sizeof(untypedPoint{})},
 		{"Vec", unsafe.Sizeof(pose.Vec[testWorld]{}), unsafe.Sizeof(untypedPoint{})},
-		{"Pose", unsafe.Sizeof(pose.Pose[testAxis, testWorld]{}), unsafe.Sizeof(untypedPose{})},
+		{"Pose", unsafe.Sizeof(pose.Pose[testDir, testWorld]{}), unsafe.Sizeof(untypedPose{})},
 	} {
 		if tc.got != tc.want {
 			t.Errorf("%s size = %d bytes, want %d", tc.name, tc.got, tc.want)
@@ -133,9 +133,9 @@ func TestPoseSizes(t *testing.T) {
 }
 
 func TestTransformPointAndVector(t *testing.T) {
-	p := pose.NewPose[testAxis](pose.Point[testWorld]{X: 63, Y: -147}, 104.75)
-	localPoint := pose.Point[testAxis]{X: 30, Y: -14}
-	localVec := pose.Vec[testAxis]{X: 30, Y: -14}
+	p := pose.NewPose[testDir](pose.Point[testWorld]{X: 63, Y: -147}, 104.75)
+	localPoint := pose.Point[testDir]{X: 30, Y: -14}
+	localVec := pose.Vec[testDir]{X: 30, Y: -14}
 	transform := p.Transform()
 
 	worldPoint := transform.ApplyPoint(localPoint)
@@ -146,38 +146,38 @@ func TestTransformPointAndVector(t *testing.T) {
 	assertNear(t, "round-trip vector", transform.Inverse().ApplyVec(worldVec).Sub(localVec).Norm(), 0, 1e-12)
 }
 
-type postAxis struct{}
-type railAxis struct{}
+type postDir struct{}
+type railDir struct{}
 type staticWorld struct{}
 
 func TestComposeRailAndPostTransforms(t *testing.T) {
-	seatTubeTop := pose.NewPose[postAxis](pose.Point[testWorld]{X: -130, Y: 450}, 104.75)
-	cradleInPost := pose.Point[postAxis]{X: 180, Y: 12}
+	seatTubeTop := pose.NewPose[postDir](pose.Point[testWorld]{X: -130, Y: 450}, 104.75)
+	cradleInPost := pose.Point[postDir]{X: 180, Y: 12}
 	railHeading := pose.Heading[testWorld](5)
-	railInPost := pose.NewRigidTransform[railAxis](cradleInPost, pose.Heading[postAxis](railHeading.Sub(seatTubeTop.Heading())))
+	railInPost := pose.NewRigidTransform[railDir](cradleInPost, pose.Heading[postDir](railHeading.Sub(seatTubeTop.Heading())))
 	railToWorld := pose.Compose(railInPost, seatTubeTop.Transform())
 
-	brpInRail := pose.Point[railAxis]{X: 35, Y: 42}
-	cradle := seatTubeTop.Advance(cradleInPost.X).Translate(pose.Vec[postAxis]{Y: cradleInPost.Y})
-	want := pose.Face[railAxis](cradle, railHeading).
-		Advance(brpInRail.X).Translate(pose.Vec[railAxis]{Y: brpInRail.Y}).Origin()
+	brpInRail := pose.Point[railDir]{X: 35, Y: 42}
+	cradle := seatTubeTop.Advance(cradleInPost.X).Translate(pose.Vec[postDir]{Y: cradleInPost.Y})
+	want := pose.Face[railDir](cradle, railHeading).
+		Advance(brpInRail.X).Translate(pose.Vec[railDir]{Y: brpInRail.Y}).Origin()
 	assertNear(t, "composed BRP vs. turtle placement", railToWorld.ApplyPoint(brpInRail).DistanceTo(want), 0, 1e-12)
-	brpOffset := pose.Vec[railAxis]{X: 35, Y: 42}
+	brpOffset := pose.Vec[railDir]{X: 35, Y: 42}
 	wantOffset := seatTubeTop.Transform().ApplyVec(railInPost.ApplyVec(brpOffset))
 	assertNear(t, "composed vector vs. sequential rotation", railToWorld.ApplyVec(brpOffset).Sub(wantOffset).Norm(), 0, 1e-12)
 }
 
 func TestTransferClampedSaddle(t *testing.T) {
-	dynamicCradle := pose.NewPose[postAxis](pose.Point[testWorld]{X: -190, Y: 675}, 104.75)
-	dynamicRail := pose.Face[railAxis](dynamicCradle, 5)
+	dynamicCradle := pose.NewPose[postDir](pose.Point[testWorld]{X: -190, Y: 675}, 104.75)
+	dynamicRail := pose.Face[railDir](dynamicCradle, 5)
 	clampedRailTurn := pose.MeasureTurn(dynamicCradle, dynamicRail)
 	assertNear(t, "measured rail turn", float64(clampedRailTurn.Deg()), -99.75, 1e-12)
 	assertNear(t, "replayed dynamic heading", float64(pose.Turn(dynamicCradle, clampedRailTurn).HeadingDeg()), 5, 1e-12)
 
-	staticCradle := pose.NewPose[postAxis](pose.Point[staticWorld]{X: -183, Y: 684}, 106.25)
+	staticCradle := pose.NewPose[postDir](pose.Point[staticWorld]{X: -183, Y: 684}, 106.25)
 	staticRail := pose.Turn(staticCradle, clampedRailTurn)
 	assertNear(t, "replayed static heading", float64(staticRail.HeadingDeg()), 6.5, 1e-12)
-	brpOffset := pose.Vec[railAxis]{X: 35, Y: 42}
+	brpOffset := pose.Vec[railDir]{X: 35, Y: 42}
 	dynamicBrp := dynamicRail.Translate(brpOffset).Origin()
 	want := staticRail.Translate(brpOffset).Origin()
 	transfer := pose.Compose(dynamicCradle.Transform().Inverse(), staticCradle.Transform())
@@ -230,11 +230,11 @@ func TestAlongAndProjectOnto(t *testing.T) {
 func TestPoseMarshalJSON(t *testing.T) {
 	cases := []struct {
 		name string
-		p    pose.Pose[testAxis, testWorld]
+		p    pose.Pose[testDir, testWorld]
 		want string
 	}{
-		{"placed", pose.NewPose[testAxis](pose.Point[testWorld]{X: -219, Y: 713.1}, 104.75), `{"Origin":{"X":-219,"Y":713.1},"HeadingDeg":104.75}`},
-		{"zero", pose.Pose[testAxis, testWorld]{}, `{"Origin":{"X":0,"Y":0},"HeadingDeg":0}`},
+		{"placed", pose.NewPose[testDir](pose.Point[testWorld]{X: -219, Y: 713.1}, 104.75), `{"Origin":{"X":-219,"Y":713.1},"HeadingDeg":104.75}`},
+		{"zero", pose.Pose[testDir, testWorld]{}, `{"Origin":{"X":0,"Y":0},"HeadingDeg":0}`},
 	}
 	for _, tc := range cases {
 		got, err := json.Marshal(tc.p)
@@ -248,12 +248,12 @@ func TestPoseMarshalJSON(t *testing.T) {
 
 	nonFinite := []struct {
 		name string
-		p    pose.Pose[testAxis, testWorld]
+		p    pose.Pose[testDir, testWorld]
 	}{
-		{"NaN X", pose.NewPose[testAxis](pose.Point[testWorld]{X: math.NaN(), Y: 0}, 0)},
-		{"Inf Y", pose.NewPose[testAxis](pose.Point[testWorld]{X: 0, Y: math.Inf(1)}, 0)},
-		{"NaN heading", pose.NewPose[testAxis](pose.Point[testWorld]{}, pose.Heading[testWorld](math.NaN()))},
-		{"Inf heading", pose.NewPose[testAxis](pose.Point[testWorld]{}, pose.Heading[testWorld](math.Inf(-1)))},
+		{"NaN X", pose.NewPose[testDir](pose.Point[testWorld]{X: math.NaN(), Y: 0}, 0)},
+		{"Inf Y", pose.NewPose[testDir](pose.Point[testWorld]{X: 0, Y: math.Inf(1)}, 0)},
+		{"NaN heading", pose.NewPose[testDir](pose.Point[testWorld]{}, pose.Heading[testWorld](math.NaN()))},
+		{"Inf heading", pose.NewPose[testDir](pose.Point[testWorld]{}, pose.Heading[testWorld](math.Inf(-1)))},
 	}
 	for _, tc := range nonFinite {
 		if _, err := json.Marshal(tc.p); err == nil {

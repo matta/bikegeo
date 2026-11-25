@@ -97,7 +97,8 @@ type BuildScore struct {
 }
 
 // FitOval is the legacy Area of Reasonable Fit around a HandGrip target (Q17).
-// Its major axis follows MajorAxisHeadingDeg in world coordinates.
+// Its major and minor axes pass through the HandGrip target center (not BB),
+// with the major axis oriented at MajorAxisHeadingDeg in DynamicWorld.
 type FitOval struct {
 	SemiMinorMm, SemiMajorMm float64
 	MajorAxisHeadingDeg      pose.Deg
@@ -119,10 +120,12 @@ func (o FitOval) NormalizedRadius(center, p pose.Point[DynamicWorld]) float64 {
 	return newGripOvalProjection(o).normalizedRadius(center, p)
 }
 
-// gripOvalProjection holds an oval's precomputed axis unit vectors so FitBuilds
-// can evaluate NormalizedRadius without repeating trig per candidate.
+// gripOvalProjection holds an oval's precomputed unit-length direction vectors
+// (minorDir along the minor axis, majorDir along the major axis; anchored at
+// center in normalizedRadius) so FitBuilds can evaluate NormalizedRadius
+// without repeating trig per candidate.
 type gripOvalProjection struct {
-	minorDir, majorDir       pose.Vec[DynamicWorld]
+	minorDir, majorDir       pose.Vec[DynamicWorld] // unit vectors in DynamicWorld
 	semiMinorMm, semiMajorMm float64
 }
 
