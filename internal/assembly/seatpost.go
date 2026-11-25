@@ -96,6 +96,8 @@ func SeatpostInsertionBounds(frame FrameSetup, post SeatpostSpec) (InsertionBoun
 }
 
 func (p SeatpostSpec) setbackOffset() pose.Vec[SeatTubeAxis] {
+	// Setback is defined as a distance perpendicular to the seaet tube, which
+	// in the seat tube frame is along the +Y axis.
 	return pose.Vec[SeatTubeAxis]{Y: p.SetbackMm}
 }
 
@@ -138,7 +140,6 @@ func PlaceSeatpost(seatTubeTop pose.Pose[SeatTubeAxis, DynamicWorld], frame Fram
 	}
 
 	shaftTop := seatTubeTop.Advance(setup.ExposedMm())
-	// Setback is along local +Y from the shaft top, which points rearward.
 	RailPivot := shaftTop.Translate(setup.Spec.setbackOffset())
 
 	if err := validatePlacementPoints("seatpost", seatTubeTop.Origin(), shaftTop.Origin(), RailPivot.Origin()); err != nil {
