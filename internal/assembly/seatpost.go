@@ -11,18 +11,25 @@ import (
 // insertion.
 const frameInsertionCushionMm = 20.0
 
-// SeatpostSpec describes a catalog seatpost:
-//   - TotalLengthMm: overall post length.
+// SeatpostSpec describes a catalog seatpost. The clamp pivot (modeled as
+// RailCradle) is the point in side view—a transverse axis in 3D—at the center
+// of the rail clamp where the saddle rails sit and tilt:
+//   - TotalLengthMm: nominal distance along the shaft from its bottom end to
+//     the clamp pivot, projected perpendicularly onto the shaft axis. Typically
+//     a manufacturer spec; in practice it is only approximate because the rails
+//     sit at a variable angle and setback moves the clamp off the shaft axis.
 //   - MaxInsertionMm, MinInsertionMm: the post's own insertion limits (its
-//     max-insertion and minimum-insertion marks).
-//   - SetbackMm: perpendicular rearward offset from the shaft axis to the rail cradle.
-//   - RailClampLengthMm: fore-aft footprint of the post's rail clamp head.
+//     max-insertion and minimum-insertion marks, measured from the shaft bottom).
+//   - SetbackMm: perpendicular rearward offset from the shaft axis to the clamp
+//     pivot.
+//   - RailClampLengthMm: fore-aft length of the rail clamp along the rails,
+//     centered on the clamp pivot.
 type SeatpostSpec struct {
 	TotalLengthMm, MaxInsertionMm, MinInsertionMm float64
 	SetbackMm, RailClampLengthMm                  float64
 }
 
-// SeatpostSetup is an installed seatpost: its spec and how far the shaft
+// SeatpostSetup defines an installed seatpost: its spec and how far the shaft
 // reaches into the seat tube.
 type SeatpostSetup struct {
 	Spec        SeatpostSpec
@@ -95,7 +102,16 @@ func (p SeatpostSpec) setbackOffset() pose.Vec[SeatTubeAxis] {
 // SeatpostPlacement holds the Pose-valued landmarks produced by PlaceSeatpost.
 // Each landmark carries the leveled seat-tube axis orientation (local +X
 // pointing up and rearward along the seat tube axis; local +Y pointing 90°
-// counter-clockwise, perpendicular rearward/downward).
+// counter-clockwise, perpendicular rearward/downward):
+//   - SeatTubeTop: incoming landmark at the top of the frame's seat tube (seat
+//     collar) on the seat tube axis, where InsertionMm extends downward into
+//     the frame and ExposedMm extends upward.
+//   - ShaftTop: SeatTubeTop.Advance(ExposedMm()) along local +X — the
+//     perpendicular projection of the clamp pivot onto the shaft axis (not the
+//     top of the bare cylindrical tube, which ends below the head or linkage).
+//   - RailCradle: ShaftTop.Translate(0, SetbackMm) along local +Y — the clamp
+//     pivot (see SeatpostSpec) where the saddle rails attach and tilt, passed
+//     to PlaceSaddle.
 type SeatpostPlacement struct {
 	SeatTubeTop pose.Pose[SeatTubeAxis, DynamicWorld]
 	ShaftTop    pose.Pose[SeatTubeAxis, DynamicWorld]
