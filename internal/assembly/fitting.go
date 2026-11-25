@@ -182,7 +182,7 @@ func FitPostSetback(setup BikeSetup, brp pose.Point[DynamicWorld], railOffsetMm 
 	delta := brp.Sub(probe.Saddle.BRP.Origin())
 	shaft := probe.Seatpost.ShaftTop.Heading()
 	a := bounds.extensionAxis(shaft)
-	b := fitAxis{shaft.Turn(90), fitInterval{0, math.Inf(1)}, InputSeatpostSetback} // PlaceSeatpost translates setback along local +Y
+	b := fitAxis{shaft.Turn(90), fitInterval{0, math.Inf(1)}, InputSeatpostSetback} // PlaceSeatpost steps setback 90° CCW from the shaft axis
 	de, ds, limited, ok := fitBox(delta, a, b, nearestPoint)
 	if !ok {
 		return Fitting{}, fmt.Errorf("seatpost setback is parallel to the seat axis; cannot fit the setback")

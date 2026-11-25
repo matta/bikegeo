@@ -35,8 +35,8 @@ Status: Ruled 2026-11-23 ([Q159–Q172](../DESIGN.md)). Expresses static and dyn
 In the seatpost's invariant `(alongShaft, rearwardSetback)` coordinates ([source record](../../internal/catalog/seatpost_redshift_shockstop_pro.md)):
 
 - **Static (unloaded) rail cradle from `SeatTubeTop`:**
-  - Advance up the shaft by `ExposedMm = 350 − InsertionMm`, then translate `7 mm` rearward perpendicular to the shaft (`StaticSetbackMm = 7 mm`):
-    `staticCradle = seatTubeTop.Advance(ExposedMm).Translate(0, 7)`
+  - Advance up the shaft by `ExposedMm = 350 − InsertionMm`, then step `7 mm` rearward perpendicular to the shaft (`StaticSetbackMm = 7 mm`) by turning `+90°` counter-clockwise, advancing `7 mm`, and turning `-90°` back to the shaft axis:
+    `staticCradle = seatTubeTop.Advance(ExposedMm).Turn(+90°).Advance(7).Turn(-90°)`
 - **20% seated sag step (static → dynamic):**
   - When the rider sits down, the linkage moves **6 mm down along the shaft** (`−6 mm`) and **5 mm rearward perpendicular to the shaft** (`+5 mm`), keeping saddle pitch constant relative to the post shaft:
     `dynamicCradle = staticCradle.Translate(-6, +5)`
