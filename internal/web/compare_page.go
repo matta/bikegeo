@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"strings"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
-	"bikegeo/internal/compare"
-	"bikegeo/internal/pose"
-	"bikegeo/internal/query"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/compare"
+	"github.com/matta/bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/query"
 )
 
 const redshiftMixedStateNote = "Note: default BRP (−219, 713.1) mm comes from the unsagged Redshift transfer; this post models 12 mm sagged setback with no vertical compression adjustment."

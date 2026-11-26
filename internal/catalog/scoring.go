@@ -1,6 +1,6 @@
 package catalog
 
-import "bikegeo/internal/assembly"
+import "github.com/matta/bikegeo/internal/assembly"
 
 // DefaultScoreWeights returns the Q59a 12-attribute scoring weights (total 36;
 // 23 when no BRP target is set).

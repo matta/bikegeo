@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
 )
 
 // basisRange holds the inclusive [From, To] passing interval found by scanning

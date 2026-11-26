@@ -1,6 +1,6 @@
 package catalog
 
-import "bikegeo/internal/assembly"
+import "github.com/matta/bikegeo/internal/assembly"
 
 // Saddle is one saddle model and its setup.
 type Saddle struct {

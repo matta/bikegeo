@@ -6,7 +6,7 @@ import (
 	"math"
 	"sort"
 
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // ForkOption is one fork configuration build fitting may install: a fork at

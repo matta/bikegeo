@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"strings"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
-	"bikegeo/internal/compare"
-	"bikegeo/internal/pose"
-	"bikegeo/internal/query"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/compare"
+	"github.com/matta/bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/query"
 )
 
 //go:embed templates/bike.html templates/compare.html

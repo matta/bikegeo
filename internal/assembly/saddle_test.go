@@ -5,8 +5,8 @@ import (
 	"math"
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 func sqlab610DefaultSaddle() assembly.SaddleSetup {

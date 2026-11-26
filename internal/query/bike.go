@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // BasisForkID is the reserved fork query value selecting the frame's basis

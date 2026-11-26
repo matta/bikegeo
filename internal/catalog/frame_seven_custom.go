@@ -1,6 +1,6 @@
 package catalog
 
-import "bikegeo/internal/assembly"
+import "github.com/matta/bikegeo/internal/assembly"
 
 // sevenCollarOffsetMm converts Seven's published C-C seat tube lengths to C-T.
 const sevenCollarOffsetMm = 35.0 // illustrative C-C → C-T until Seven confirms (Q75d)

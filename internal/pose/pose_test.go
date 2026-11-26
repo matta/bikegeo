@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 type testWorld struct{}

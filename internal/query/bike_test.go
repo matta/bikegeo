@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
-	"bikegeo/internal/pose"
-	"bikegeo/internal/query"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/query"
 )
 
 func mustParseBike(t *testing.T, raw string) query.Bike {

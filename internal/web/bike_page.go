@@ -8,9 +8,9 @@ import (
 	"slices"
 	"strings"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
-	"bikegeo/internal/query"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/query"
 )
 
 // frameSelectOption is one entry of the frame <select>.

@@ -5,7 +5,7 @@ package assembly
 import (
 	"fmt"
 
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // Stem constants (Q82). DefaultUpperStackMm is illustrative (legacy

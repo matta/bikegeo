@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // referenceFitBuilds is the original exhaustive FitBuilds without a limit: it

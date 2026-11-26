@@ -1,8 +1,8 @@
 package catalog
 
 import (
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // ChartPrecision holds the rounding half-width of each published chart column

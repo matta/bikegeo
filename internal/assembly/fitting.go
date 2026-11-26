@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // FitTarget holds the landmark targets for ApplyFitting, in world coordinates

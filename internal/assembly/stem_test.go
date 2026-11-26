@@ -5,8 +5,8 @@ import (
 	"math"
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 func dist(a, b pose.Point[assembly.DynamicWorld]) float64 {

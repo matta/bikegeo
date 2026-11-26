@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/pose"
-	"bikegeo/internal/query"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/query"
 )
 
 func toSVG(p pose.Point[assembly.DynamicWorld]) svgPoint {

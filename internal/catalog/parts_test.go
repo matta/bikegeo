@@ -4,9 +4,9 @@ import (
 	"slices"
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // TestForks checks the 16 fork models, their variants, Q131 IDs, and Q72 steerers.

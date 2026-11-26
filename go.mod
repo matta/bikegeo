@@ -1,4 +1,4 @@
-module bikegeo
+module github.com/matta/bikegeo
 
 go 1.27.2
 

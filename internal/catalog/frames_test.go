@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
 )
 
 var wheels = assembly.WheelSetup{RadiusMm: catalog.WheelRadiusMm}

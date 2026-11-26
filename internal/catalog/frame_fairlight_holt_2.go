@@ -1,6 +1,6 @@
 package catalog
 
-import "bikegeo/internal/assembly"
+import "github.com/matta/bikegeo/internal/assembly"
 
 // fairlightHolt2 returns the Fairlight Holt 2.0.
 //

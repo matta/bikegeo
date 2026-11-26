@@ -13,7 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/assembly"
 )
 
 // Frame is one frame model offered for comparison.

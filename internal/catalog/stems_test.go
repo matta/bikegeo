@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"bikegeo/internal/catalog"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 func TestStems(t *testing.T) {

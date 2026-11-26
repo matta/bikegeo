@@ -1,6 +1,6 @@
 package catalog
 
-import "bikegeo/internal/assembly"
+import "github.com/matta/bikegeo/internal/assembly"
 
 // TypicalLowerCup returns the typical lower headset cup for a physical cup
 // standard: the Cane Creek 40-Series stack, which the /30 and /40 conversion

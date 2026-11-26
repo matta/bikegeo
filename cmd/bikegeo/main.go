@@ -15,9 +15,9 @@ import (
 	"strconv"
 	"strings"
 
-	"bikegeo/internal/compare"
-	"bikegeo/internal/query"
-	"bikegeo/internal/web"
+	"github.com/matta/bikegeo/internal/compare"
+	"github.com/matta/bikegeo/internal/query"
+	"github.com/matta/bikegeo/internal/web"
 )
 
 const usage = `Usage:

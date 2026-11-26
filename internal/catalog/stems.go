@@ -5,8 +5,8 @@ import (
 	"math"
 	"sort"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // LengthAvailability is how widely trail/XC-rated stems of one length are sold (stems.yaml).

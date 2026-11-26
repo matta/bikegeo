@@ -17,7 +17,7 @@ vet:
 # Enforce the zero-dependency rule and the banned words.
 boundary:
 	@bad="$$(go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo \
-	  | grep -vE '^bikegeo/(cmd/bikegeo|internal)(/|$$)' || true)"; \
+	  | grep -vE '^github\.com/matta/bikegeo/(cmd/bikegeo|internal)(/|$$)' || true)"; \
 	if [ -n "$$bad" ]; then \
 	  echo "$$bad"; \
 	  echo "boundary: cmd/bikegeo must depend only on bikegeo packages and the standard library"; \

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // FrameSetup specifies the bare frame dimensions in its unpitched reference

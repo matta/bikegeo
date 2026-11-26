@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
-	"bikegeo/internal/compare"
-	"bikegeo/internal/query"
 	"github.com/PuerkitoBio/goquery"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/compare"
+	"github.com/matta/bikegeo/internal/query"
 )
 
 // frameSpec names a catalog frame trimmed to one size and one fork; a blank

@@ -4,16 +4,17 @@ import (
 	"fmt"
 	"math"
 
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
-// SaddleSetup specifies a saddle's geometry in rail coordinates, world-relative
-// rail pitch, and fore-aft clamp offset along the rails:
-//   - RailCenterToBrpMm: axial distance along the rails (+X toward nose) from RailCenter to BRP.
-//   - RailCenterToSitBonesMm: axial offset along the rails from RailCenter to SitBones.
-//   - RailToBrpHeightMm: perpendicular offset (rail +Y, 90° CCW) from the rail axis up to BRP.
+// SaddleSetup specifies a saddle's geometry in SaddleRailDir local coordinates
+// (anchored at RailCenter), world-relative rail pitch, and fore-aft clamp offset
+// along the rails:
+//   - RailCenterToBrpMm: longitudinal offset along the rail line (+X toward nose) from RailCenter to BRP.
+//   - RailCenterToSitBonesMm: longitudinal offset along the rail line (+X toward nose) from RailCenter to SitBones.
+//   - RailToBrpHeightMm: perpendicular offset (rail +Y, 90° CCW) from the rail line up to BRP.
 //   - SitBonesElevationMm: perpendicular offset (rail +Y) of SitBones above BRP, so
-//     SitBones sits RailToBrpHeightMm + SitBonesElevationMm above the rail axis.
+//     SitBones sits RailToBrpHeightMm + SitBonesElevationMm above the rail line.
 //   - RailLengthMm: straight clamping span of the saddle rails.
 //   - RailPitchDeg: saddle rail pitch relative to world horizontal (0° level; positive raises nose CCW).
 //   - RailOffsetMm: clamp position along the rails; positive moves the saddle

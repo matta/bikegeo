@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
-	"bikegeo/internal/compare"
-	"bikegeo/internal/pose"
-	"bikegeo/internal/query"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/compare"
+	"github.com/matta/bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/query"
 )
 
 func mustParseQuery(t *testing.T, raw string) url.Values {

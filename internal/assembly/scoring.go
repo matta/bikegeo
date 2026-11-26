@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // FitTier classifies a build against the active fit gates (Q61, Q63, Q76, Q90).

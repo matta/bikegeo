@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/compare"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/compare"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // All fixture values below are copied from the catalog definitions for test isolation.

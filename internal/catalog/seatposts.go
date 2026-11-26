@@ -3,7 +3,7 @@ package catalog
 import (
 	"fmt"
 
-	"bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/assembly"
 )
 
 // Seatpost is one seatpost the workbench can install. Its insertion comes from

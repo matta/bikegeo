@@ -3,7 +3,7 @@ package assembly
 import (
 	"fmt"
 
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // RiseMeasurementMode identifies how a handlebar's StatedRiseMm is measured.

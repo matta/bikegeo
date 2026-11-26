@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // fenrirFittingSetup is the default Fenrir build (Lithic Carbon Mountain fork,

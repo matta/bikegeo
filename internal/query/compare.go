@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"strings"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
-	"bikegeo/internal/compare"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/compare"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // bar_options values (Q22, Q101).

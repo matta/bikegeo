@@ -1,8 +1,8 @@
 package catalog
 
 import (
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // Handlebar is one handlebar the workbench can install.

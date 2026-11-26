@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 func fenrirDefaultStem() assembly.StemSetup {

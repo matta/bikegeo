@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/assembly"
 )
 
 // ForkVariant is one published axle-to-crown and rake configuration of a Fork (Q128).

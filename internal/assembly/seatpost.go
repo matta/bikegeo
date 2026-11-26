@@ -3,7 +3,7 @@ package assembly
 import (
 	"fmt"
 
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // frameInsertionCushionMm is subtracted from the seat tube's C-T length to

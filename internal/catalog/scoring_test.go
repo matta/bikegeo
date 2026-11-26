@@ -3,8 +3,8 @@ package catalog_test
 import (
 	"testing"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
 )
 
 func TestDefaultScoreWeights(t *testing.T) {

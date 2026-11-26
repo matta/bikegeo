@@ -64,7 +64,7 @@ package catalog_test
 import (
 	"testing"
 
-	"bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/assembly"
 )
 
 func TestScratchBasis(t *testing.T) {

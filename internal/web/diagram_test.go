@@ -15,9 +15,9 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/pose"
-	"bikegeo/internal/query"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/query"
 )
 
 func parseFloatAttr(t *testing.T, sel *goquery.Selection, attr string) float64 {

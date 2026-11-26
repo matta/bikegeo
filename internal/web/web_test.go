@@ -14,9 +14,9 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/catalog"
-	"bikegeo/internal/query"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/catalog"
+	"github.com/matta/bikegeo/internal/query"
 )
 
 // mustBike parses a /bike query string.

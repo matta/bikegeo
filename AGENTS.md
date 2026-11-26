@@ -44,7 +44,7 @@ Work uses a Rolling-Wave workflow described in [docs/WORKFLOW.md](docs/WORKFLOW.
 
 ## Architecture
 
-- **Zero runtime dependencies:** the binary uses only the standard library. `goquery` is allowed only in `_test.go` files. `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo` must list only `bikegeo/...` (`make boundary`). `exhaustive` and `deadcode` are `go.mod` tool dependencies and are never linked into the binary.
+- **Zero runtime dependencies:** the binary uses only the standard library. `goquery` is allowed only in `_test.go` files. `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./cmd/bikegeo` must list only `github.com/matta/bikegeo/...` (`make boundary`). `exhaustive` and `deadcode` are `go.mod` tool dependencies and are never linked into the binary.
 - **Web:** server-rendered HTML/SVG driven by plain `GET` forms and the URL query, with no JavaScript, framework, `package.json`, npm, or build step, no cookies, and controls filled from the parsed query. `/` is the multi-frame comparison matrix and `/bike` is the single-bike inspector. Web tests are browserless Go (`httptest` + `goquery`).
 - **CLI:** the web is for people and the CLI is for agents. `bikegeo compare` and `bikegeo bike` take URL-query arguments, parse them through `internal/query`, and print JSON. The CLI never depends on `internal/web`; both call `internal/query`, `internal/compare`, and `internal/assembly` directly.
 - **Data is Go structs:** frames, forks, handlebars, seatposts, stems, the SQlab 610 saddle, and default fit targets are Go values in `internal/catalog`, validated by its go test (chart consistency, fork-list placement, seatpost bounds). There are no data or persistence files. Published chart values are never nudged.

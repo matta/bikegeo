@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/assembly"
 )
 
 func fenrirSizeLFrame() assembly.FrameSetup {

@@ -4,8 +4,8 @@
 package catalog
 
 import (
-	"bikegeo/internal/assembly"
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // WheelRadiusMm is the shared 29" × 2.4" wheel radius (legacy DefaultWheelRadius29Mm).

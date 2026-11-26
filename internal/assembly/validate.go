@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"bikegeo/internal/pose"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 // InputField identifies the physical input rejected by assembly validation.
