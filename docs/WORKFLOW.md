@@ -114,6 +114,7 @@ When reviewing an implemented slice:
   - **Code & tests (`internal/**`, `cmd/**`):** full rigor (geometry math, edge cases, physical invariants, nil/NaN safety, boundary rules).
   - **Docs (`DESIGN.md`, `WORKFLOW.md`, `AGENTS.md`):** directional rigor only — report real contradictions between active rules, broken provenance (`illustrative` mislabeled as measured/physical), or broken workflow routing/links.
 - **No `nit`-severity noise:** do not report `nit`-severity items or stylistic phrasing preferences. (Practical git-hygiene catches — such as a newly linked untracked file — are still welcome.)
+- **Last-digit floating-point drift is a `nit`:** ULP-level differences (e.g., from trig round-trips) are meaningless at mm and 0.1° scale. Compare floats with tolerances in tests, and don't flag ULP drift, contort code to avoid it, or treat JSON last-digit changes as behavior changes. Real numeric issues (NaN/Inf, cancellation, or drift crossing fit/bound tolerances) remain in scope.
 - **Assume a competent reader with live code:** never flag a doc omission that the Go compiler or the committed code of prior slices makes obvious.
 - **Senior-engineer bar:** before emitting any finding, ask whether a senior engineer would actually ask for a change or roll their eyes. Drop the second bucket, and never invent contrived literalist failure scenarios to justify a finding.
 

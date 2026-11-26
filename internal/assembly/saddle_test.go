@@ -63,7 +63,7 @@ func TestPlaceSeatpostAndSaddleWorkedExample60DegSTA(t *testing.T) {
 		name string
 		p    pose.Pose[assembly.SaddleRailDir, assembly.DynamicWorld]
 	}{
-		{"RailFrame", saddle.RailFrame},
+		{"RailClamp", saddle.RailClamp},
 		{"RailCenter", saddle.RailCenter},
 		{"BRP", saddle.BRP},
 		{"SitBones", saddle.SitBones},
@@ -217,7 +217,7 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 	assertNear(t, "Setup preserved on BikePlacement", bike.Setup.Seatpost.Spec.RailClampLengthMm, 30.0, 1e-12)
 	// The post shaft continues the seat axis from SeatTubeTop; the saddle shares the leveled-rail heading.
 	assertNear(t, "seat tube top to shaft top", bike.Frameset.SeatTubeTop.Origin().DistanceTo(bike.Seatpost.ShaftTop.Origin()), postSetup.ExposedMm(), 1e-9)
-	assertNear(t, "RailFrame.Heading", float64(bike.Saddle.RailFrame.HeadingDeg()), float64(saddleSetup.RailPitchDeg), 1e-12)
+	assertNear(t, "RailClamp.Heading", float64(bike.Saddle.RailClamp.HeadingDeg()), float64(saddleSetup.RailPitchDeg), 1e-12)
 
 	badSeatpost := bikeSetup
 	badSeatpost.Seatpost.InsertionMm = -1

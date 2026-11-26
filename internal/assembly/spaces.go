@@ -12,10 +12,9 @@ type StaticWorld struct{}
 // DynamicWorld is the level-ground riding coordinate space at seated sag (BB = (0, 0)), with +X forward and +Y up.
 type DynamicWorld struct{}
 
-// Orientation marker types define a local orthonormal 2D basis (+X basis
-// direction along the named orientation, +Y basis direction 90° CCW) without
-// pinning an origin. Each pose.Pose[Dir, W] anchors that local basis at its own
-// Origin() in W.
+// Orientation marker types name which way a part's local +X points (local +Y
+// is 90° CCW), with no position attached. Each pose.Pose[Dir, W] measures its
+// local coordinates from its own Origin() in W.
 
 // FrameDir has local +X along chart horizontal, rotated by the frame pitch, with local +Y 90° CCW (upward).
 type FrameDir struct{}

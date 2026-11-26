@@ -82,13 +82,14 @@ func (h HandlebarSetup) outboardSweepOffset(zHand float64) pose.Vec[HandlebarDir
 // HandlebarPlacement holds the Pose-valued sagittal landmarks and lateral grip
 // station produced by PlaceHandlebar:
 //   - BarClamp: incoming stem bar-clamp attachment pose.
-//   - BarRollFrame: pose at BarClamp re-oriented to world-relative -BarRollDeg.
+//   - BarCenter: the handlebar's center at BarClamp, turned to the bar's roll
+//     (world-relative -BarRollDeg).
 //   - HandGrip: sagittal hand-grip projection in the HandlebarDir orientation.
 //   - HandLateralMm: lateral grip coordinate (installed width/2 - GripInsetMm)
 //     preserved behind the 2D side projection.
 type HandlebarPlacement struct {
 	BarClamp      pose.Pose[StemDir, DynamicWorld]
-	BarRollFrame  pose.Pose[HandlebarDir, DynamicWorld]
+	BarCenter     pose.Pose[HandlebarDir, DynamicWorld]
 	HandGrip      pose.Pose[HandlebarDir, DynamicWorld]
 	HandLateralMm float64
 }
@@ -141,17 +142,17 @@ func PlaceHandlebar(barClamp pose.Pose[StemDir, DynamicWorld], setup HandlebarSe
 	sweepOffset := setup.outboardSweepOffset(zHand)
 
 	// Bar roll is clockwise and measured against world horizontal, so face -roll rather than turn.
-	barRollFrame := pose.Face[HandlebarDir](barClamp, pose.Heading[DynamicWorld](-setup.BarRollDeg))
-	bendRise := barRollFrame.Translate(pose.Vec[HandlebarDir]{Y: baseRise})
+	barCenter := pose.Face[HandlebarDir](barClamp, pose.Heading[DynamicWorld](-setup.BarRollDeg))
+	bendRise := barCenter.Translate(pose.Vec[HandlebarDir]{Y: baseRise})
 	handGrip := bendRise.Translate(sweepOffset)
 
-	if err := validatePlacementPoints("handlebar", barClamp.Origin(), barRollFrame.Origin(), bendRise.Origin(), handGrip.Origin()); err != nil {
+	if err := validatePlacementPoints("handlebar", barClamp.Origin(), barCenter.Origin(), bendRise.Origin(), handGrip.Origin()); err != nil {
 		return HandlebarPlacement{}, err
 	}
 
 	return HandlebarPlacement{
 		BarClamp:      barClamp,
-		BarRollFrame:  barRollFrame,
+		BarCenter:     barCenter,
 		HandGrip:      handGrip,
 		HandLateralMm: zHand,
 	}, nil

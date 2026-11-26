@@ -181,8 +181,10 @@ func FitPostSetback(setup BikeSetup, brp pose.Point[DynamicWorld], railOffsetMm 
 
 	delta := brp.Sub(probe.Saddle.BRP.Origin())
 	shaft := probe.Seatpost.ShaftTop.Heading()
-	a := bounds.extensionDir(shaft)
-	b := fitDir{shaft.Turn(90), fitInterval{0, math.Inf(1)}, InputSeatpostSetback} // PlaceSeatpost steps setback 90° CCW from the shaft direction
+	a := bounds.extensionAdjustment(shaft)
+	// Setback has no upper bound: the result describes a hypothetical post
+	// (Q29), so no installed hardware limits it.
+	b := fitAdjustment{shaft.Turn(seatTubeToSetback.Deg()), fitInterval{0, math.Inf(1)}, InputSeatpostSetback}
 	de, ds, limited, ok := fitBox(delta, a, b, nearestPoint)
 	if !ok {
 		return Fitting{}, fmt.Errorf("seatpost setback is parallel to the seat axis; cannot fit the setback")
@@ -225,8 +227,8 @@ func validateStemLengthRange(stem StemSetup) error {
 func fitCockpit(setup BikeSetup, probe BikePlacement, grip pose.Point[DynamicWorld]) (spacers, length float64, limited []InputField, err error) {
 	minLen, maxLen := setup.Stem.MinLengthMm, setup.Stem.MaxLengthMm
 	delta := grip.Sub(probe.Handlebar.HandGrip.Origin())
-	a := fitDir{probe.Stem.SpacerTop.Heading(), fitInterval{0, setup.Stem.MaxSpacersMm}, InputStemSpacers}
-	b := fitDir{probe.Stem.BarClamp.Heading(), fitInterval{0, maxLen - minLen}, InputStemLength}
+	a := fitAdjustment{probe.Stem.SpacerTop.Heading(), fitInterval{0, setup.Stem.MaxSpacersMm}, InputStemSpacers}
+	b := fitAdjustment{probe.Stem.BarClamp.Heading(), fitInterval{0, maxLen - minLen}, InputStemLength}
 	ds, dl, limited, ok := fitBox(delta, a, b, nearestPoint)
 	if !ok {
 		return 0, 0, nil, fmt.Errorf("stem axis is parallel to the steerer; cannot fit the cockpit")
@@ -243,8 +245,8 @@ func fitSaddle(setup BikeSetup, bounds InsertionBounds, probe BikePlacement, brp
 		return 0, 0, nil, err
 	}
 	delta := brp.Sub(probe.Saddle.BRP.Origin())
-	a := bounds.extensionDir(probe.Seatpost.ShaftTop.Heading())
-	b := fitDir{probe.Saddle.RailCenter.Heading().Turn(180), fitInterval{-railLimit, railLimit}, InputSaddleRailOffset}
+	a := bounds.extensionAdjustment(probe.Seatpost.ShaftTop.Heading())
+	b := fitAdjustment{probe.Saddle.RailCenter.Heading().Turn(180), fitInterval{-railLimit, railLimit}, InputSaddleRailOffset}
 	de, dr, limited, ok := fitBox(delta, a, b, inRectThenYFirst)
 	if !ok {
 		return 0, 0, nil, fmt.Errorf("saddle rail pitch is parallel to the seat axis; cannot fit the saddle")
@@ -252,10 +254,10 @@ func fitSaddle(setup BikeSetup, bounds InsertionBounds, probe BikePlacement, brp
 	return bounds.insertionAfterExtension(de), dr, limited, nil
 }
 
-// extensionDir returns the seatpost extension direction (out along the shaft
-// from maximum insertion).
-func (bounds InsertionBounds) extensionDir(heading pose.Heading[DynamicWorld]) fitDir {
-	return fitDir{heading, fitInterval{0, bounds.MaxAllowedInsertionMm - bounds.EffectiveMinInsertionMm}, InputSeatpostInsertion}
+// extensionAdjustment returns the seatpost insertion adjustment, with travel
+// measured as extension out along the shaft from maximum insertion.
+func (bounds InsertionBounds) extensionAdjustment(heading pose.Heading[DynamicWorld]) fitAdjustment {
+	return fitAdjustment{heading, fitInterval{0, bounds.MaxAllowedInsertionMm - bounds.EffectiveMinInsertionMm}, InputSeatpostInsertion}
 }
 
 func (bounds InsertionBounds) insertionAfterExtension(extension float64) float64 {
@@ -312,11 +314,11 @@ func (r fitInterval) heightFirst(target, direction pose.Vec[DynamicWorld]) float
 	return r.lo
 }
 
-// fitDir describes a signed adjustment direction along which an input translates
-// the landmark relative to the probe landmark (travel in millimeters along the
-// unit direction at heading; no fixed world origin). The upper bound can be
-// infinite for seatpost setback.
-type fitDir struct {
+// fitAdjustment is one fitting input as the solver sees it: the direction it
+// moves its landmark (BRP or HandGrip), how far it may move it, and which
+// input it is. Travel is in mm from where the landmark sits in the probe
+// build.
+type fitAdjustment struct {
 	heading pose.Heading[DynamicWorld]
 	fitInterval
 	field InputField
@@ -333,7 +335,7 @@ const (
 
 // A fitEdge holds one input at a bound and lets the other input vary.
 type fitEdge struct {
-	fixed, moving fitDir
+	fixed, moving fitAdjustment
 	bound         float64
 }
 
@@ -363,17 +365,17 @@ func (edge fitEdge) candidates(delta pose.Vec[DynamicWorld], priority fitPriorit
 }
 
 // miss returns the vector from the resulting point to the target delta.
-// Each travel[i] is a signed distance in mm along dirs[i].heading. Together
+// Each travel[i] is a signed distance in mm along adjustments[i].heading. Together
 // the two displacements locate the point relative to the probe landmark.
 // nearestPoint subtracts each displacement from delta in turn. The other
 // priority subtracts their sum using unit direction vectors dirA and dirB.
 // Floating-point rounding at a tolerance boundary can make the evaluation
 // order significant.
-func (p fitPriority) miss(delta pose.Vec[DynamicWorld], dirs [2]fitDir, travel [2]float64) pose.Vec[DynamicWorld] {
+func (p fitPriority) miss(delta pose.Vec[DynamicWorld], adjustments [2]fitAdjustment, travel [2]float64) pose.Vec[DynamicWorld] {
 	if p == nearestPoint {
-		return delta.Sub(pose.Along(dirs[0].heading, travel[0])).Sub(pose.Along(dirs[1].heading, travel[1]))
+		return delta.Sub(pose.Along(adjustments[0].heading, travel[0])).Sub(pose.Along(adjustments[1].heading, travel[1]))
 	}
-	dirA, dirB := pose.Along(dirs[0].heading, 1), pose.Along(dirs[1].heading, 1)
+	dirA, dirB := pose.Along(adjustments[0].heading, 1), pose.Along(adjustments[1].heading, 1)
 	return delta.Sub(pose.Vec[DynamicWorld]{X: travel[0]*dirA.X + travel[1]*dirB.X, Y: travel[0]*dirA.Y + travel[1]*dirB.Y})
 }
 
@@ -400,7 +402,7 @@ func (p fitPriority) prefers(miss, best pose.Vec[DynamicWorld]) bool {
 // reachable target, limited is nil, including at a bound within round-off.
 // Otherwise it fixes each input at its finite bounds and reports the winning
 // point's limiting inputs in (a, b) order. Parallel directions return ok=false.
-func fitBox(delta pose.Vec[DynamicWorld], a, b fitDir, priority fitPriority) (da, db float64, limited []InputField, ok bool) {
+func fitBox(delta pose.Vec[DynamicWorld], a, b fitAdjustment, priority fitPriority) (da, db float64, limited []InputField, ok bool) {
 	da, db, ok = pose.DecomposeAlong(delta, a.heading, b.heading)
 	if !ok {
 		return 0, 0, nil, false
@@ -409,21 +411,21 @@ func fitBox(delta pose.Vec[DynamicWorld], a, b fitDir, priority fitPriority) (da
 		return a.clamp(da), b.clamp(db), nil, true
 	}
 
-	dirs := [2]fitDir{a, b}
+	adjustments := [2]fitAdjustment{a, b}
 	var best [2]float64
 	var bestMiss pose.Vec[DynamicWorld]
 	haveBest := false
-	for fixed, dir := range dirs {
+	for fixed, adj := range adjustments {
 		moving := 1 - fixed
-		for _, bound := range [...]float64{dir.lo, dir.hi} {
+		for _, bound := range [...]float64{adj.lo, adj.hi} {
 			if math.IsInf(bound, 1) {
 				continue
 			}
-			edge := fitEdge{fixed: dir, moving: dirs[moving], bound: bound}
+			edge := fitEdge{fixed: adj, moving: adjustments[moving], bound: bound}
 			for _, travel := range edge.candidates(delta, priority) {
 				var setting [2]float64
 				setting[fixed], setting[moving] = bound, travel
-				miss := priority.miss(delta, dirs, setting)
+				miss := priority.miss(delta, adjustments, setting)
 				if !haveBest || priority.prefers(miss, bestMiss) {
 					best, bestMiss, haveBest = setting, miss, true
 				}
@@ -436,9 +438,9 @@ func fitBox(delta pose.Vec[DynamicWorld], a, b fitDir, priority fitPriority) (da
 	if priority == inRectThenYFirst {
 		boundTol = fitBoundTolMm
 	}
-	for i, dir := range dirs {
-		if math.Abs(best[i]-dir.lo) <= boundTol || math.Abs(best[i]-dir.hi) <= boundTol {
-			limited = append(limited, dir.field)
+	for i, adj := range adjustments {
+		if math.Abs(best[i]-adj.lo) <= boundTol || math.Abs(best[i]-adj.hi) <= boundTol {
+			limited = append(limited, adj.field)
 		}
 	}
 	return best[0], best[1], limited, true

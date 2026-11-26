@@ -79,7 +79,7 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	assertNear(t, "HandLateralMm", bar.HandLateralMm, 335.0, 1e-12)
 	assertNear(t, "HandGrip.X", bar.HandGrip.Origin().X, stem.BarClamp.Origin().X+wantDX, 1e-9)
 	assertNear(t, "HandGrip.Y", bar.HandGrip.Origin().Y, stem.BarClamp.Origin().Y+wantDY, 1e-9)
-	assertNear(t, "BarRollFrame.HeadingDeg", float64(bar.BarRollFrame.HeadingDeg()), -10.0, 1e-12)
+	assertNear(t, "BarCenter.HeadingDeg", float64(bar.BarCenter.HeadingDeg()), -10.0, 1e-12)
 	assertNear(t, "HandGrip.HeadingDeg", float64(bar.HandGrip.HeadingDeg()), -10.0, 1e-12)
 
 	// Reversing roll sign (-10°) negates the roll contribution.
@@ -215,9 +215,9 @@ func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 	assertNear(t, "stem length", bike.Stem.SteererClamp.Origin().DistanceTo(bike.Stem.BarClamp.Origin()), st.LengthMm, 1e-9)
 
 	// The bar roll frame sits at BarClamp, rolled against world horizontal.
-	assertNear(t, "BarRollFrame.X", bike.Handlebar.BarRollFrame.Origin().X, bike.Stem.BarClamp.Origin().X, 1e-12)
-	assertNear(t, "BarRollFrame.Y", bike.Handlebar.BarRollFrame.Origin().Y, bike.Stem.BarClamp.Origin().Y, 1e-12)
-	assertNear(t, "BarRollFrame.Heading", float64(bike.Handlebar.BarRollFrame.HeadingDeg()), -float64(bikeSetup.Handlebar.BarRollDeg), 1e-12)
+	assertNear(t, "BarCenter.X", bike.Handlebar.BarCenter.Origin().X, bike.Stem.BarClamp.Origin().X, 1e-12)
+	assertNear(t, "BarCenter.Y", bike.Handlebar.BarCenter.Origin().Y, bike.Stem.BarClamp.Origin().Y, 1e-12)
+	assertNear(t, "BarCenter.Heading", float64(bike.Handlebar.BarCenter.HeadingDeg()), -float64(bikeSetup.Handlebar.BarRollDeg), 1e-12)
 
 	// Error propagation from PlaceStem and PlaceHandlebar in PlaceBike.
 	badStem := bikeSetup

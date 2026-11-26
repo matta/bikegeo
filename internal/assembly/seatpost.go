@@ -96,7 +96,7 @@ func SeatpostInsertionBounds(frame FrameSetup, post SeatpostSpec) (InsertionBoun
 }
 
 // seatpostSetbackDir points perpendicular rearward/downward from the seatpost
-// shaft (+90° counter-clockwise from SeatTubeDir), independent of origin.
+// shaft (+90° counter-clockwise from SeatTubeDir).
 type seatpostSetbackDir struct{}
 
 const (
@@ -144,7 +144,7 @@ func PlaceSeatpost(seatTubeTop pose.Pose[SeatTubeDir, DynamicWorld], frame Frame
 	}
 
 	shaftTop := seatTubeTop.Advance(setup.ExposedMm())
-	// Turn 90° counter-clockwise (rearward) to advance along setback, then turn back to the shaft axis.
+	// Turn 90° counter-clockwise (rearward) to advance along setback, then turn back to the shaft direction.
 	railAtSetback := pose.Turn(shaftTop, seatTubeToSetback).Advance(setup.Spec.SetbackMm)
 	railPivot := pose.Turn(railAtSetback, setbackToSeatTube)
 

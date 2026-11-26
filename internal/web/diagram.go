@@ -826,7 +826,7 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 
 	stemParts := stemOutlines(stem, bike.Setup.Stem)
 	seatParts := []poseOutline{
-		newPoseOutline("seatpost-clamp", saddle.RailFrame, -bike.Setup.Seatpost.Spec.RailClampLengthMm/2.0, bike.Setup.Seatpost.Spec.RailClampLengthMm, seatpostClampOutlineHeight),
+		newPoseOutline("seatpost-clamp", saddle.RailClamp, -bike.Setup.Seatpost.Spec.RailClampLengthMm/2.0, bike.Setup.Seatpost.Spec.RailClampLengthMm, seatpostClampOutlineHeight),
 		newPoseOutline("saddle-rail", saddle.RailCenter, -bike.Setup.Saddle.RailLengthMm/2.0, bike.Setup.Saddle.RailLengthMm, saddleRailOutlineHeight),
 	}
 
@@ -840,7 +840,7 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 	case diagramViewSeat:
 		// Every seatpost and saddle pose above SeatTubeTop, not the seat tube.
 		framingOrigins = []pose.Point[assembly.DynamicWorld]{
-			seatpost.ShaftTop.Origin(), seatpost.RailPivot.Origin(), saddle.RailFrame.Origin(),
+			seatpost.ShaftTop.Origin(), seatpost.RailPivot.Origin(), saddle.RailClamp.Origin(),
 			saddle.RailCenter.Origin(), saddle.BRP.Origin(), saddle.SitBones.Origin(),
 		}
 		framingOutlines = seatParts
@@ -853,7 +853,7 @@ func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagra
 		// corners keep that end of the stack in view.
 		framingOrigins = []pose.Point[assembly.DynamicWorld]{
 			stem.CoverTop.Origin(), stem.SpacerTop.Origin(), stem.SteererClamp.Origin(), stem.BarClamp.Origin(),
-			handlebar.BarRollFrame.Origin(), handlebar.HandGrip.Origin(),
+			handlebar.BarCenter.Origin(), handlebar.HandGrip.Origin(),
 		}
 		framingOutlines = stemParts
 		if parsed.GripTarget != nil {

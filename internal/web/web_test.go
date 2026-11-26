@@ -3173,7 +3173,7 @@ func TestBikeWorkbenchSeatViewShowsRaisedSaddleAboveRails(t *testing.T) {
 			}
 
 			// The rail outline sits at RailCenter, and BRP is 32 mm along and 45 mm
-			// above it in the rail frame, whatever the pitch.
+			// above it along the rails' +Y, whatever the pitch.
 			rail := railCenterOf(t, seat)
 			center := landmarkCentre(t, seat, "RailCenter")
 			if math.Hypot(rail.X-center.X, rail.Y-center.Y) > 0.02 {

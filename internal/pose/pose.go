@@ -16,23 +16,23 @@
 //     with different local orientations to be compared directly in the same
 //     world space.
 //
-//  2. Ambient coordinate-space isolation (W / S): world states and coordinate
-//     frames (such as unpitched chart coordinates, static workshop coordinates,
-//     and dynamic riding coordinates) are represented by distinct defined empty
+//  2. Ambient coordinate-space isolation (W / S): coordinate systems (such as
+//     unpitched chart coordinates, static workshop coordinates, and dynamic
+//     riding coordinates) are represented by distinct defined empty
 //     struct types (for example, `type DynamicWorld struct{}`; never use a type
 //     alias `= struct{}`). Geometry operations require matching spaces. Use
 //     Transform[Src, Dst] to map coordinates between spaces.
 //
 //  3. Turtle orientation tracking (Pose[Dir, W]): a Pose[Dir, W] places a
-//     turtle at an Origin() in ambient space W whose Heading() defines a local
-//     orthonormal 2D basis anchored at Origin() (+X basis direction along
-//     Heading(), +Y basis direction 90° counter-clockwise). Dir names the local
+//     turtle at an Origin() in ambient space W whose Heading() sets its local
+//     +X direction (local +Y is 90° counter-clockwise), with local coordinates
+//     measured from Origin(). Dir names the local
 //     orientation without pinning an origin, so multiple landmarks at distinct
 //     origins can share the same Dir type while carrying their own Origin().
 //     Moving the turtle via Advance(distMm) or Translate(Vec[Dir]) changes its
 //     origin in W while keeping its local orientation Dir invariant, so both
 //     remain dot-chained methods on Pose[Dir, W] and Translate rejects vectors
-//     from any other local basis. Only Turn and Face change Dir; because Go
+//     in any other orientation's local coordinates. Only Turn and Face change Dir; because Go
 //     methods cannot introduce a new type parameter, Turn and Face are
 //     package-level functions returning Pose[NewDir, W].
 //
@@ -72,8 +72,8 @@ func (d Deg) tan() float64 {
 }
 
 // Heading is an absolute orientation angle in degrees in ambient coordinate
-// space W (0° along W's +X basis direction, 90° along W's +Y basis direction;
-// positive angles rotate counter-clockwise).
+// space W (0° along W's +X, 90° along W's +Y; positive angles rotate
+// counter-clockwise).
 type Heading[W any] float64
 
 // Deg returns h as a raw scalar degree value.
@@ -95,7 +95,7 @@ func (h Heading[W]) sin() float64 { return Deg(h).sin() }
 func (h Heading[W]) cos() float64 { return Deg(h).cos() }
 
 // TurnDeg is a directed relative rotation angle in degrees from FromDir's +X
-// basis direction to ToDir's +X basis direction (positive counter-clockwise).
+// direction to ToDir's +X direction (positive counter-clockwise).
 // Encoding the source and destination orientations in the type allows
 // Turn(p, delta) to infer all type parameters without brackets. Swapping the
 // poses in MeasureTurn reverses both the sign and the type's orientation order,
@@ -186,9 +186,8 @@ func (v Vec[S]) Norm() float64 {
 }
 
 // Pose is an immutable 2D position and heading in ambient coordinate space W
-// whose heading defines a local orthonormal 2D basis anchored at Origin()
-// (+X basis direction along heading, +Y basis direction 90° counter-clockwise).
-// Dir identifies the local orientation without pinning an origin, so poses at
+// whose heading sets its local +X direction (local +Y is 90° counter-clockwise),
+// with local coordinates measured from Origin(). Dir identifies the local orientation without pinning an origin, so poses at
 // distinct origins can share the same Dir type.
 type Pose[Dir, W any] struct {
 	origin     Point[W]
@@ -227,7 +226,7 @@ func (p Pose[Dir, W]) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// Advance returns a new Pose[Dir, W] moved distMm along Dir's +X basis direction.
+// Advance returns a new Pose[Dir, W] moved distMm along its local +X direction.
 func (p Pose[Dir, W]) Advance(distMm float64) Pose[Dir, W] {
 	return Pose[Dir, W]{
 		origin: Point[W]{
@@ -238,8 +237,8 @@ func (p Pose[Dir, W]) Advance(distMm float64) Pose[Dir, W] {
 	}
 }
 
-// Translate returns a new Pose[Dir, W] moved by local displacement v (in mm) in
-// Dir's local basis anchored at p.Origin() (+X along heading, +Y 90° counter-clockwise).
+// Translate returns a new Pose[Dir, W] moved by displacement v (in mm) in p's
+// local coordinates (+X along heading, +Y 90° counter-clockwise).
 func (p Pose[Dir, W]) Translate(v Vec[Dir]) Pose[Dir, W] {
 	cos := p.headingDeg.cos()
 	sin := p.headingDeg.sin()
@@ -279,16 +278,15 @@ func Face[NewDir, OldDir, W any](p Pose[OldDir, W], worldHeading Heading[W]) Pos
 	}
 }
 
-// Transform returns the 2D rigid transformation mapping local coordinates in
-// Dir's frame (origin (0, 0) anchored at p.Origin(), +X basis direction along
-// p.Heading(), +Y basis direction 90° CCW) into ambient space W.
+// Transform returns the 2D rigid transformation mapping p's local coordinates
+// (origin (0, 0) at p.Origin(), +X along p.Heading(), +Y 90° CCW) into
+// ambient space W.
 func (p Pose[Dir, W]) Transform() Transform[Dir, W] {
 	return NewRigidTransform[Dir, W](p.origin, p.headingDeg)
 }
 
 // Transform is a 2D rigid transformation mapping points and vectors from
-// coordinate frame Src (local origin (0, 0), orthonormal basis +X / +Y) into
-// coordinate space Dst. It rotates both points and vectors into Dst and then
+// coordinate system Src (local origin (0, 0)) into coordinate space Dst. It rotates both points and vectors into Dst and then
 // translates points by Src's origin in Dst. Construct one with NewRigidTransform
 // or Pose.Transform.
 type Transform[Src, Dst any] struct {
@@ -298,7 +296,7 @@ type Transform[Src, Dst any] struct {
 }
 
 // NewRigidTransform constructs a Transform[Src, Dst] placing Src's local origin
-// (0, 0) at originInDst with Src's +X basis direction oriented at headingInDst in Dst.
+// (0, 0) at originInDst with Src's +X oriented at headingInDst in Dst.
 func NewRigidTransform[Src, Dst any](originInDst Point[Dst], headingInDst Heading[Dst]) Transform[Src, Dst] {
 	return Transform[Src, Dst]{
 		tx:  originInDst.X,

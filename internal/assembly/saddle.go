@@ -7,12 +7,12 @@ import (
 	"bikegeo/internal/pose"
 )
 
-// SaddleSetup specifies a saddle's rail-frame geometry, world-relative rail
-// pitch, and fore-aft clamp offset along the rails:
+// SaddleSetup specifies a saddle's geometry in rail coordinates, world-relative
+// rail pitch, and fore-aft clamp offset along the rails:
 //   - RailCenterToBrpMm: axial distance along the rails (+X toward nose) from RailCenter to BRP.
 //   - RailCenterToSitBonesMm: axial offset along the rails from RailCenter to SitBones.
-//   - RailToBrpHeightMm: perpendicular offset (+Y in the rail frame, 90° CCW) from the rail axis up to BRP.
-//   - SitBonesElevationMm: perpendicular offset (+Y in the rail frame) of SitBones above BRP, so
+//   - RailToBrpHeightMm: perpendicular offset (rail +Y, 90° CCW) from the rail axis up to BRP.
+//   - SitBonesElevationMm: perpendicular offset (rail +Y) of SitBones above BRP, so
 //     SitBones sits RailToBrpHeightMm + SitBonesElevationMm above the rail axis.
 //   - RailLengthMm: straight clamping span of the saddle rails.
 //   - RailPitchDeg: saddle rail pitch relative to world horizontal (0° level; positive raises nose CCW).
@@ -39,19 +39,20 @@ func (s SaddleSetup) sitBonesOffset() pose.Vec[SaddleRailDir] {
 
 // SaddlePlacement holds the Pose-valued landmarks produced by PlaceSaddle:
 //   - RailPivot: incoming clamp attachment pose (in SeatTubeDir orientation).
-//   - RailFrame: pose at RailPivot re-oriented to world-relative RailPitchDeg.
+//   - RailClamp: the seatpost's rail clamp, centered on RailPivot and turned
+//     to lie along the rails at world-relative RailPitchDeg.
 //   - RailCenter: midpoint of the straight rail clamping section (along the rail line).
-//   - BRP: Biomechanical Reference Point (+RailCenterToBrpMm, +RailToBrpHeightMm) in RailCenter's local frame.
+//   - BRP: Biomechanical Reference Point (+RailCenterToBrpMm, +RailToBrpHeightMm) in RailCenter's local coordinates.
 //   - SitBones: modeled sit-bone support landmark (RailCenterToSitBonesMm,
-//     RailToBrpHeightMm + SitBonesElevationMm) in RailCenter's local frame.
+//     RailToBrpHeightMm + SitBonesElevationMm) in RailCenter's local coordinates.
 //
-// RailFrame, RailCenter, BRP, and SitBones all carry SaddleRailDir (local +X
+// RailClamp, RailCenter, BRP, and SitBones all carry SaddleRailDir (local +X
 // unit vector forward along the rail toward the nose at world heading
 // RailPitchDeg; local +Y unit vector 90° CCW, perpendicular to the rail),
 // anchored at each landmark's own Origin().
 type SaddlePlacement struct {
 	RailPivot  pose.Pose[SeatTubeDir, DynamicWorld]
-	RailFrame  pose.Pose[SaddleRailDir, DynamicWorld]
+	RailClamp  pose.Pose[SaddleRailDir, DynamicWorld]
 	RailCenter pose.Pose[SaddleRailDir, DynamicWorld]
 	BRP        pose.Pose[SaddleRailDir, DynamicWorld]
 	SitBones   pose.Pose[SaddleRailDir, DynamicWorld]
@@ -97,10 +98,10 @@ func PlaceSaddle(RailPivot pose.Pose[SeatTubeDir, DynamicWorld], clampLengthMm f
 	}
 
 	// Rail pitch is measured against world horizontal, so face it rather than turn.
-	railFrame := pose.Face[SaddleRailDir](RailPivot, pose.Heading[DynamicWorld](setup.RailPitchDeg))
+	railClamp := pose.Face[SaddleRailDir](RailPivot, pose.Heading[DynamicWorld](setup.RailPitchDeg))
 	// A positive rail offset slides the saddle rearward, against the rail heading.
-	railCenter := railFrame.Advance(-setup.RailOffsetMm)
-	// Both landmarks are raised in the rail frame, so the height rotates with the rails.
+	railCenter := railClamp.Advance(-setup.RailOffsetMm)
+	// Both landmarks are raised along the rails' +Y, so the height rotates with the rails.
 	brp := railCenter.Translate(setup.brpOffset())
 	sitBones := railCenter.Translate(setup.sitBonesOffset())
 
@@ -110,7 +111,7 @@ func PlaceSaddle(RailPivot pose.Pose[SeatTubeDir, DynamicWorld], clampLengthMm f
 
 	return SaddlePlacement{
 		RailPivot:  RailPivot,
-		RailFrame:  railFrame,
+		RailClamp:  railClamp,
 		RailCenter: railCenter,
 		BRP:        brp,
 		SitBones:   sitBones,

@@ -31,8 +31,8 @@ Instead of measuring only the endpoints (`BRP` and `HB`) and guessing which comp
 
 - **Leave the FAIR Drop Best bolted to the Redshift post (and the SQlab 610 clamped in the Drop Best):**
   - Because the Drop Best replaces the Redshift post's original saddle-rail jaw, we do **not** try to measure a stock Redshift `RailPivot` on the bike (static Redshift setback and head stack stay on Redshift's published specs).
-  - Instead, we tape the exact `SeatTubeTop` collar line on the shaft, slide the assembled `Redshift + Drop Best + SQlab 610` unit out as one piece for the mandatory flat-surface bench measurement of `SeatTubeTop → BRP` in `SeatTubeDir`'s local basis anchored at `SeatTubeTop` (Part A1), and then reinstall it flush to the tape mark before Part B.
-  - Measuring `BB → BRP` directly on the bike in Part B (`B3`) and cross-checking it against `SeatTubeTop + bench(SeatTubeTop → BRP)` (**Closure 4**) locks down Matt's actual static riding saddle position `BRP_static`. When converting `BRP_static` to `BRP_dynamic` ([`brp-transfer.md` Section 3.C](brp-transfer.md#c-static--dynamic-target-conversion-source-bike-static-measurements--dynamic-targets)), the Drop Best is a rigid clamp attached to the top of the Redshift linkage: it rotates about `BB` with fork sag and translates by `Translate(-6, +5)` in `SeatTubeDir`'s local basis with Redshift linkage sag, so its internal offset cancels out completely.
+  - Instead, we tape the exact `SeatTubeTop` collar line on the shaft, slide the assembled `Redshift + Drop Best + SQlab 610` unit out as one piece for the mandatory flat-surface bench measurement of `SeatTubeTop → BRP` in the seatpost's local coordinates from `SeatTubeTop` (Part A1), and then reinstall it flush to the tape mark before Part B.
+  - Measuring `BB → BRP` directly on the bike in Part B (`B3`) and cross-checking it against `SeatTubeTop + bench(SeatTubeTop → BRP)` (**Closure 4**) locks down Matt's actual static riding saddle position `BRP_static`. When converting `BRP_static` to `BRP_dynamic` ([`brp-transfer.md` Section 3.C](brp-transfer.md#c-static--dynamic-target-conversion-source-bike-static-measurements--dynamic-targets)), the Drop Best is a rigid clamp attached to the top of the Redshift linkage: it rotates about `BB` with fork sag and translates by `Translate(-6, +5)` in the seatpost's local coordinates with Redshift linkage sag, so its internal offset cancels out completely.
 - **Leave the RockShox SID 35 mm (110 mm) fork installed:**
   - Do not swap in the Lithic rigid fork. To [`PlaceFrameset`](../../internal/assembly/frameset.go), a fork is completely determined by its axle-to-crown length (`A2cMm`) and offset (`RakeMm`, `44 mm`). Measuring the installed SID 110's static A2C and its actual seated O-ring sag in millimeters tests the frame as built and captures the true pitch and fork sag of Matt's riding setup.
 
@@ -87,7 +87,7 @@ Running central-difference Jacobians and a 20,000-trial Monte Carlo simulation i
 - **`PlaceFrameset` (`HeadTubeTop`)** `(Reach, Stack)`:
   - Nominal: `(+418.7, +648.6) mm` | `1σ`: `(±1.20, ±1.64) mm` | Linear `95%`: **`(±2.35, ±3.21) mm`** | Monte Carlo `95%`: `(±2.35, ±3.18) mm`
   - Dominant variance contributors: `Reach` `100%` plumb `HeadTubeTop.X`; `Stack` **`76.8%` radial `d(BB, HeadTubeTop)`** (`∂Y/∂d = +1.20`), `23.2%` `HeadTubeTop.X`
-- **Off-bike bench `SeatTubeTop → BRP` in `SeatTubeDir`'s local basis anchored at `SeatTubeTop` `(ΔX_axial, ΔY_perp)`**:
+- **Off-bike bench `SeatTubeTop → BRP` in the seatpost's local coordinates from `SeatTubeTop` `(ΔX_axial, ΔY_perp)`**:
   - `1σ`: `(±0.80, ±0.80) mm` | Linear `95%`: **`(±1.57, ±1.57) mm`**
   - Isolates the rigid combined `Redshift + Drop Best + SQlab 610` offset directly on a flat bench without room-datum error
 - **Closure 1: Wheelbase residual `r_wheelbase`**:
@@ -109,7 +109,7 @@ Running central-difference Jacobians and a 20,000-trial Monte Carlo simulation i
 
 ### A1. Off-bike seatpost + saddle bench protocol (mandatory — `SeatTubeTop → BRP` & SQlab 610 geometry)
 
-*(Because the FAIR Drop Best completely replaces the Redshift ShockStop PRO's original saddle-rail clamp jaw, we skip measuring a stock Redshift rail cradle on the bike. Instead, we pull the assembled `Redshift + Drop Best + SQlab 610` unit out as one piece onto a flat bench to measure both the SQlab 610 saddle geometry and the exact rigid `SeatTubeTop → BRP` vector in `SeatTubeDir`'s local basis anchored at `SeatTubeTop` for **Closure 4**.)*
+*(Because the FAIR Drop Best completely replaces the Redshift ShockStop PRO's original saddle-rail clamp jaw, we skip measuring a stock Redshift rail cradle on the bike. Instead, we pull the assembled `Redshift + Drop Best + SQlab 610` unit out as one piece onto a flat bench to measure both the SQlab 610 saddle geometry and the exact rigid `SeatTubeTop → BRP` vector in the seatpost's local coordinates from `SeatTubeTop` for **Closure 4**.)*
 
 #### Bench setup steps
 1. **Mark `SeatTubeTop` and yaw before loosening the seat collar:** Wrap a strip of painter's tape tightly around the `Ø27.2 mm` Redshift shaft **flush with the top edge of the frame's seat tube collar** (`SeatTubeTop`), and draw a vertical alignment tick across the tape and seat collar so you can reinstall the post at the exact same height and straightness. Then slide the assembled post + Drop Best + saddle out of the frame.
@@ -351,7 +351,7 @@ Once Part A and Part B are recorded, we run our `internal/assembly` Go test (cal
    - *(Note: Stock Redshift `PlaceSeatpost` static setback `7 mm` and head stack `90 mm` remain on Redshift's published specifications because the Drop Best replaces the stock Redshift rail clamp jaw.)*
 4. **New static baseline, derived dynamic riding targets, & idmatch double-check:**
    - Record Matt's directly measured unloaded `(BRP_static, HB_static)` and `brpToHbOffset_static` (with `95%` confidence bands) as the new primary physical baseline.
-   - Derive the dynamic riding targets `(BRP_dynamic, HB_dynamic)` (with propagated `95%` error bands) by pitching the measured static baseline by the measured seated fork sag and applying Redshift's documented linkage sag (`Translate(-6, +5)` in `SeatTubeDir`'s local basis).
+   - Derive the dynamic riding targets `(BRP_dynamic, HB_dynamic)` (with propagated `95%` error bands) by pitching the measured static baseline by the measured seated fork sag and applying Redshift's documented linkage sag (`Translate(-6, +5)` in the seatpost's local coordinates).
    - Compare the reported idmatch jig coordinates `(-219, 713.1)` and `(481, 726)` with the measured Fenrir coordinates `(BRP_static, HB_static)` and record the difference.
 5. **Catalog & fit-target updates to close the audit:**
    - Replace the illustrative constants in `internal/catalog` with verified values: `SaddleSetup.RailToBrpHeightMm` (from Part A1), `UpperStackMm` (from Part A2), and (if measured off-bike from the removed stock Redshift clamp piece) `SeatpostSpec.RailClampLengthMm`.
