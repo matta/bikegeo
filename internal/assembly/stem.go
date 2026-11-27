@@ -38,30 +38,22 @@ type StemSetup struct {
 	MaxLengthMm  float64 // longest stem length fitting may choose; PlaceStem ignores it
 }
 
-// steererPerpDir is the 0° stem datum direction: forward, perpendicular to the
-// steerer (-90° from SteererUpDir).
-type steererPerpDir struct{}
-
-const steererUpToPerp pose.TurnDeg[SteererUpDir, steererPerpDir] = -90.0
-
-func (s StemSetup) angleTurn() pose.TurnDeg[steererPerpDir, StemDir] {
-	return pose.TurnDeg[steererPerpDir, StemDir](s.AngleDeg)
-}
-
 // StemPlacement holds the Pose-valued landmarks produced by PlaceStem.
 // Each landmark carries its local orientation anchored at its Origin().
 type StemPlacement struct {
-	HeadTubeTop  pose.Pose[SteererUpDir, DynamicWorld]
-	CoverTop     pose.Pose[SteererUpDir, DynamicWorld]
-	SpacerTop    pose.Pose[SteererUpDir, DynamicWorld]
-	SteererClamp pose.Pose[SteererUpDir, DynamicWorld]
-	BarClamp     pose.Pose[StemDir, DynamicWorld]
+	HeadTubeTop  pose.Pose
+	CoverTop     pose.Pose
+	SpacerTop    pose.Pose
+	SteererClamp pose.Pose
+	BarClamp     pose.Pose
 }
 
-// PlaceStem mounts a stem assembly starting at steererUp (positioned at the
-// head-tube top and oriented up the steerer direction).
-func PlaceStem(steererUp pose.Pose[SteererUpDir, DynamicWorld], setup StemSetup) (StemPlacement, error) {
-	if err := validatePose("steererUp", steererUp); err != nil {
+// PlaceStem mounts a stem assembly using steererInWorld (mapping SteererLocal
+// at HeadTubeTop with +X pointing up the steerer into the target world frame).
+func PlaceStem(steererInWorld pose.Transform, setup StemSetup) (StemPlacement, error) {
+	headTubeTopLocal := pose.OriginPose(SteererLocal)
+	headTubeTop := steererInWorld.ApplyPose(headTubeTopLocal)
+	if err := validatePose("steererUp", headTubeTop); err != nil {
 		return StemPlacement{}, err
 	}
 	if !isFinite(setup.UpperStackMm) || setup.UpperStackMm < 0 {
@@ -89,19 +81,23 @@ func PlaceStem(steererUp pose.Pose[SteererUpDir, DynamicWorld], setup StemSetup)
 		return StemPlacement{}, invalidInput(InputStemAngle, "stem angle must be finite, got %v°", setup.AngleDeg)
 	}
 
-	coverTop := steererUp.Advance(setup.UpperStackMm)
-	spacerTop := coverTop.Advance(setup.SpacersMm)
-	steererClamp := spacerTop.Advance(setup.ClampHeightMm / 2.0)
+	coverTopLocal := headTubeTopLocal.Advance(setup.UpperStackMm)
+	spacerTopLocal := coverTopLocal.Advance(setup.SpacersMm)
+	steererClampLocal := spacerTopLocal.Advance(setup.ClampHeightMm / 2.0)
 	// Turn -90° to the 0° stem datum perpendicular to the steerer, then rotate by the stem angle.
-	steererPerp := pose.Turn(steererClamp, steererUpToPerp)
-	barClamp := pose.Turn(steererPerp, setup.angleTurn()).Advance(setup.LengthMm)
+	barClampLocal := steererClampLocal.Turn(-90.0 + setup.AngleDeg).Advance(setup.LengthMm)
 
-	if err := validatePlacementPoints("stem", steererUp.Origin(), steererClamp.Origin(), barClamp.Origin()); err != nil {
+	coverTop := steererInWorld.ApplyPose(coverTopLocal)
+	spacerTop := steererInWorld.ApplyPose(spacerTopLocal)
+	steererClamp := steererInWorld.ApplyPose(steererClampLocal)
+	barClamp := steererInWorld.ApplyPose(barClampLocal)
+
+	if err := validatePlacementPoints("stem", headTubeTop.Origin(), steererClamp.Origin(), barClamp.Origin()); err != nil {
 		return StemPlacement{}, err
 	}
 
 	return StemPlacement{
-		HeadTubeTop:  steererUp,
+		HeadTubeTop:  headTubeTop,
 		CoverTop:     coverTop,
 		SpacerTop:    spacerTop,
 		SteererClamp: steererClamp,

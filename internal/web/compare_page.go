@@ -289,7 +289,7 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 			slidingFrames[f.ID] = f
 		}
 		gripMiss := row.Build.GripMiss()
-		gripMissText := fmt.Sprintf("(%+.1f, %+.1f) mm", cleanZero(gripMiss.X, 0.05), cleanZero(gripMiss.Y, 0.05))
+		gripMissText := fmt.Sprintf("(%+.1f, %+.1f) mm", cleanZero(gripMiss.X(), 0.05), cleanZero(gripMiss.Y(), 0.05))
 		brpMissText := fmt.Sprintf("(%+.1f, %+.1f) mm", cleanZero(sc.BrpMissXMm, 0.05), cleanZero(sc.BrpMissYMm, 0.05))
 		brpNote, err := brpFitNote(setup, sc.BrpMissXMm, sc.BrpMissYMm)
 		if err != nil {
@@ -317,7 +317,7 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 			Score:             sc.Total,
 			GripR:             sc.GripR,
 			GripMissText:      gripMissText,
-			GripFitText:       formatPlacedOffset(gripMiss.X, gripMiss.Y),
+			GripFitText:       formatPlacedOffset(gripMiss.X(), gripMiss.Y()),
 			GripFitTitle:      fmt.Sprintf("Oval R %.2f · target − placed %s (%.1f mm)", sc.GripR, gripMissText, gripMiss.Norm()),
 			BrpMissText:       brpMissText,
 			BrpFitText:        formatPlacedOffset(sc.BrpMissXMm, sc.BrpMissYMm),
@@ -394,17 +394,17 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 			PostOptions:            buildPostSelectOptions(parsed.Post.ID, false),
 			BarOptions:             buildBarSelectOptions(parsed.Bar.ID, false),
 			BarOptionModes:         buildBarOptionModeOptions(parsed.AllBarOptions, "", false),
-			BrpX:                   formatFormFloat(parsed.BrpTarget.X),
-			BrpY:                   formatFormFloat(parsed.BrpTarget.Y),
-			GripX:                  formatFormFloat(parsed.GripTarget.X),
-			GripY:                  formatFormFloat(parsed.GripTarget.Y),
+			BrpX:                   formatFormFloat(parsed.BrpTarget.X()),
+			BrpY:                   formatFormFloat(parsed.BrpTarget.Y()),
+			GripX:                  formatFormFloat(parsed.GripTarget.X()),
+			GripY:                  formatFormFloat(parsed.GripTarget.Y()),
 			TopPerFrame:            topPerFrameStr,
 			Top:                    topStr,
 			RedshiftMixedStateNote: mixedNote,
-			ExampleBrpX:            formatFormFloat(defBrp.X),
-			ExampleBrpY:            formatFormFloat(defBrp.Y),
-			ExampleGripX:           formatFormFloat(defGrip.X),
-			ExampleGripY:           formatFormFloat(defGrip.Y),
+			ExampleBrpX:            formatFormFloat(defBrp.X()),
+			ExampleBrpY:            formatFormFloat(defBrp.Y()),
+			ExampleGripX:           formatFormFloat(defGrip.X()),
+			ExampleGripY:           formatFormFloat(defGrip.Y()),
 			HandlebarCount:         len(bars),
 		},
 		Summary: compareSummaryView{
@@ -412,8 +412,8 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 			RowCount:         ranking.RowCount,
 			Evaluated:        ranking.Evaluated,
 			HandlebarSummary: handlebarSummary,
-			BrpTargetText:    fmt.Sprintf("(%s, %s) mm", formatFormFloat(parsed.BrpTarget.X), formatFormFloat(parsed.BrpTarget.Y)),
-			GripTargetText:   fmt.Sprintf("(%.1f, %.1f) mm", parsed.GripTarget.X, parsed.GripTarget.Y),
+			BrpTargetText:    fmt.Sprintf("(%s, %s) mm", formatFormFloat(parsed.BrpTarget.X()), formatFormFloat(parsed.BrpTarget.Y())),
+			GripTargetText:   fmt.Sprintf("(%.1f, %.1f) mm", parsed.GripTarget.X(), parsed.GripTarget.Y()),
 		},
 		AllBarOptions:          parsed.AllBarOptions,
 		ActiveWeight:           weights.ActiveTotal(true),
@@ -457,8 +457,8 @@ func renderCompareError(w http.ResponseWriter, q url.Values, frameCount int, inv
 	}
 
 	defBrp := catalog.DefaultBrpTarget()
-	brpX := formatFormFloat(defBrp.X)
-	brpY := formatFormFloat(defBrp.Y)
+	brpX := formatFormFloat(defBrp.X())
+	brpY := formatFormFloat(defBrp.Y())
 	if q.Has("brp_x") || q.Has("brp_y") {
 		brpX = strings.TrimSpace(q.Get("brp_x"))
 		brpY = strings.TrimSpace(q.Get("brp_y"))
@@ -468,8 +468,8 @@ func renderCompareError(w http.ResponseWriter, q url.Values, frameCount int, inv
 	}
 
 	defGrip := catalog.DefaultGripTarget()
-	gripX := formatFormFloat(defGrip.X)
-	gripY := formatFormFloat(defGrip.Y)
+	gripX := formatFormFloat(defGrip.X())
+	gripY := formatFormFloat(defGrip.Y())
 	if q.Has("grip_x") || q.Has("grip_y") {
 		gripX = strings.TrimSpace(q.Get("grip_x"))
 		gripY = strings.TrimSpace(q.Get("grip_y"))
@@ -509,10 +509,10 @@ func renderCompareError(w http.ResponseWriter, q url.Values, frameCount int, inv
 			TopPerFrameInvalid:     invalidField == "top_per_frame",
 			TopInvalid:             invalidField == "top",
 			RedshiftMixedStateNote: mixedNote,
-			ExampleBrpX:            formatFormFloat(defBrp.X),
-			ExampleBrpY:            formatFormFloat(defBrp.Y),
-			ExampleGripX:           formatFormFloat(defGrip.X),
-			ExampleGripY:           formatFormFloat(defGrip.Y),
+			ExampleBrpX:            formatFormFloat(defBrp.X()),
+			ExampleBrpY:            formatFormFloat(defBrp.Y()),
+			ExampleGripX:           formatFormFloat(defGrip.X()),
+			ExampleGripY:           formatFormFloat(defGrip.Y()),
 			HandlebarCount:         len(catalog.Handlebars()),
 		},
 	}

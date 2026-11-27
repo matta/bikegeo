@@ -106,7 +106,7 @@ func TestStemCloseUpDrawsStemBodyFromBarClamp(t *testing.T) {
 	}
 	clamp := bike.Stem.BarClamp
 	wantTransform := fmt.Sprintf("translate(%.2f %.2f) rotate(%.2f)",
-		clamp.Origin().X, -clamp.Origin().Y, -float64(clamp.HeadingDeg()))
+		clamp.Origin().X(), -clamp.Origin().Y(), -float64(clamp.HeadingDeg()))
 	if tf, _ := stemBody.Attr("transform"); tf != wantTransform {
 		t.Errorf("stem-body transform = %q, want %q", tf, wantTransform)
 	}
@@ -163,7 +163,7 @@ func TestBikeWorkbenchRendersAndRespondsToForkQuery(t *testing.T) {
 	parsed := mustBike(t, "fork=fox34_120-534x44&cup=12&sag=20")
 	bike := mustPlace(t, parsed)
 	placed := bike.Frameset
-	wantGroundY := fmt.Sprintf("%.2f", -placed.RearTireContact.Origin().Y)
+	wantGroundY := fmt.Sprintf("%.2f", -placed.RearTireContact.Origin().Y())
 	groundLine := doc.Find(`svg.diagram line[data-element="ground-line"]`)
 	if groundLine.Length() != 1 {
 		t.Fatalf("expected 1 ground-line element, got %d", groundLine.Length())
@@ -587,7 +587,7 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	if view.WheelRadiusMm != customWheels.RadiusMm {
 		t.Errorf("view.WheelRadiusMm = %.1f, want placed radius %.1f (not catalog %.1f)", view.WheelRadiusMm, customWheels.RadiusMm, catalog.WheelRadiusMm)
 	}
-	if wantGroundY := -bike.Frameset.RearTireContact.Origin().Y; math.Abs(view.GroundY1-wantGroundY) > 1e-12 {
+	if wantGroundY := -bike.Frameset.RearTireContact.Origin().Y(); math.Abs(view.GroundY1-wantGroundY) > 1e-12 {
 		t.Errorf("view.GroundY1 = %.6f, want %.6f", view.GroundY1, wantGroundY)
 	}
 	if gotSpan := view.GroundY1 - view.RearAxleSVG.Y; math.Abs(gotSpan-customWheels.RadiusMm) > 1e-9 {
@@ -1737,7 +1737,7 @@ func fittingTestTarget(t *testing.T, q url.Values) (x, y float64) {
 	t.Helper()
 	bike := mustPlace(t, mustBikeValues(t, q))
 	brp := bike.Saddle.BRP.Origin()
-	return brp.X, brp.Y
+	return brp.X(), brp.Y()
 }
 
 func hrefQuery(t *testing.T, doc *goquery.Document, selector string) url.Values {
@@ -1921,7 +1921,7 @@ func gripTestTarget(t *testing.T, q url.Values) (x, y float64) {
 	t.Helper()
 	bike := mustPlace(t, mustBikeValues(t, q))
 	grip := bike.Handlebar.HandGrip.Origin()
-	return grip.X, grip.Y
+	return grip.X(), grip.Y()
 }
 
 func metricText(doc *goquery.Document, name string) string {
@@ -2457,7 +2457,7 @@ func TestWorkbenchHandlebarReferenceHandGrips(t *testing.T) {
 			}
 			placed := mustPlace(t, mustBikeValues(t, url.Values{"bar": {opt.ID}}))
 			grip := placed.Handlebar.HandGrip.Origin()
-			if math.Abs(grip.X-ref.x) > 1e-3 || math.Abs(grip.Y-ref.y) > 1e-3 {
+			if math.Abs(grip.X()-ref.x) > 1e-3 || math.Abs(grip.Y()-ref.y) > 1e-3 {
 				t.Errorf("HandGrip = %v, want (%.3f, %.3f) within 0.001 mm", grip, ref.x, ref.y)
 			}
 			if got := placed.Handlebar.HandLateralMm; got != ref.lateral {
@@ -3229,8 +3229,8 @@ func TestBikeWorkbenchDefaultInsertionMidpointQ109(t *testing.T) {
 		t.Errorf("BRP height = %q, want 700.4 mm", got)
 	}
 	brp := mustPlace(t, mustBike(t, "")).Saddle.BRP.Origin()
-	assertWebNear(t, "BRP.X", brp.X, -158.061, 0.001)
-	assertWebNear(t, "BRP.Y", brp.Y, 682.374, 0.001)
+	assertWebNear(t, "BRP.X", brp.X(), -158.061, 0.001)
+	assertWebNear(t, "BRP.Y", brp.Y(), 682.374, 0.001)
 
 	setback := loadBikeDoc(t, "/bike?post=setback_0")
 	if got, _ := setback.Find("#ctrl-post-insert").Attr("value"); got != "195.0" {

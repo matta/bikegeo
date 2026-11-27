@@ -39,8 +39,8 @@ type Compare struct {
 	Bar                 catalog.Handlebar
 	AllBarOptions       bool
 	OfferedBars         []catalog.Handlebar // all catalog bars when AllBarOptions is true; nil otherwise
-	BrpTarget           pose.Point[assembly.DynamicWorld]
-	GripTarget          pose.Point[assembly.DynamicWorld]
+	BrpTarget           pose.Point
+	GripTarget          pose.Point
 	TopPerFrame         int
 	Top                 int
 	TopPerFrameExplicit bool // whether top_per_frame was set in the query (distinguishes an explicit "1" from the omitted default)
@@ -334,7 +334,7 @@ func parseNonNegInt(q url.Values, key string, defaultVal int) (int, error) {
 // Q70, Q76). A complete coordinate pair wins over "off"; a cleared target
 // ("off", or both keys present and blank) returns nil; neither key nor flag
 // selects defaultPt.
-func parseTarget(q url.Values, flagKey, xKey, yKey, label string, defaultPt pose.Point[assembly.DynamicWorld]) (*pose.Point[assembly.DynamicWorld], error) {
+func parseTarget(q url.Values, flagKey, xKey, yKey, label string, defaultPt pose.Point) (*pose.Point, error) {
 	flagRaw := strings.TrimSpace(q.Get(flagKey))
 	if flagRaw != "" && flagRaw != "off" {
 		return nil, &InputError{Field: flagKey, Err: fmt.Errorf("unknown %s flag %q; only \"off\" is supported", label, flagRaw)}
@@ -355,7 +355,8 @@ func parseTarget(q url.Values, flagKey, xKey, yKey, label string, defaultPt pose
 		if !ok {
 			return nil, &InputError{Field: yKey, Err: fmt.Errorf("%s %s must be a finite number, got %q", label, yKey, yRaw)}
 		}
-		return &pose.Point[assembly.DynamicWorld]{X: x, Y: y}, nil
+		pt := pose.Pt(assembly.DynamicWorld, x, y)
+		return &pt, nil
 	case xRaw == "" && yRaw != "":
 		return nil, incomplete(xKey)
 	case xRaw != "" && yRaw == "":

@@ -95,17 +95,8 @@ func SeatpostInsertionBounds(frame FrameSetup, post SeatpostSpec) (InsertionBoun
 	return bounds, nil
 }
 
-// seatpostSetbackDir points perpendicular rearward/downward from the seatpost
-// shaft (+90° counter-clockwise from SeatTubeDir).
-type seatpostSetbackDir struct{}
-
-const (
-	seatTubeToSetback pose.TurnDeg[SeatTubeDir, seatpostSetbackDir] = 90.0
-	setbackToSeatTube pose.TurnDeg[seatpostSetbackDir, SeatTubeDir] = -90.0
-)
-
 // SeatpostPlacement holds the Pose-valued landmarks produced by PlaceSeatpost.
-// Each landmark carries the leveled SeatTubeDir orientation anchored at its own
+// Each landmark carries the leveled seat-tube orientation anchored at its own
 // Origin() (local +X unit vector pointing up and rearward along the shaft
 // direction; local +Y unit vector pointing 90° counter-clockwise, perpendicular
 // rearward/downward):
@@ -119,16 +110,16 @@ const (
 //     clamp pivot (see SeatpostSpec) where the saddle rails attach and tilt,
 //     offset off the shaft axis by SetbackMm and passed to PlaceSaddle.
 type SeatpostPlacement struct {
-	SeatTubeTop pose.Pose[SeatTubeDir, DynamicWorld]
-	ShaftTop    pose.Pose[SeatTubeDir, DynamicWorld]
-	RailPivot   pose.Pose[SeatTubeDir, DynamicWorld]
+	SeatTubeTop pose.Pose
+	ShaftTop    pose.Pose
+	RailPivot   pose.Pose
 }
 
 // PlaceSeatpost mounts a seatpost in frame starting at seatTubeTop (positioned
 // at the top of the frame's seat tube and oriented up the seat tube direction).
 // The exposed length above the seat tube is the post's total length less its
 // insertion, which must lie within SeatpostInsertionBounds(frame, setup.Spec).
-func PlaceSeatpost(seatTubeTop pose.Pose[SeatTubeDir, DynamicWorld], frame FrameSetup, setup SeatpostSetup) (SeatpostPlacement, error) {
+func PlaceSeatpost(seatTubeTop pose.Pose, frame FrameSetup, setup SeatpostSetup) (SeatpostPlacement, error) {
 	if err := validatePose("seatTubeTop", seatTubeTop); err != nil {
 		return SeatpostPlacement{}, err
 	}
@@ -145,8 +136,7 @@ func PlaceSeatpost(seatTubeTop pose.Pose[SeatTubeDir, DynamicWorld], frame Frame
 
 	shaftTop := seatTubeTop.Advance(setup.ExposedMm())
 	// Turn 90° counter-clockwise (rearward) to advance along setback, then turn back to the shaft direction.
-	railAtSetback := pose.Turn(shaftTop, seatTubeToSetback).Advance(setup.Spec.SetbackMm)
-	railPivot := pose.Turn(railAtSetback, setbackToSeatTube)
+	railPivot := shaftTop.Turn(90.0).Advance(setup.Spec.SetbackMm).Turn(-90.0)
 
 	if err := validatePlacementPoints("seatpost", seatTubeTop.Origin(), shaftTop.Origin(), railPivot.Origin()); err != nil {
 		return SeatpostPlacement{}, err

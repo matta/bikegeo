@@ -1,45 +1,25 @@
 package assembly
 
-// Ambient coordinate spaces share the bottom bracket as their origin BB = (0, 0),
-// with +X forward, +Y up, and 1 unit = 1 millimeter.
+import "github.com/matta/bikegeo/internal/pose"
 
-// UnpitchedChart is the chart reference attitude (BB = (0, 0)), with +X along reach and +Y along stack.
-type UnpitchedChart struct{}
+// Ambient world coordinate frames share the bottom bracket as their origin
+// BB = (0, 0), with +X horizontally forward, +Y vertically up, and 1 unit = 1 mm.
+var (
+	// UnpitchedChart is the chart reference attitude (0° pitch, +X along reach, +Y along stack).
+	UnpitchedChart = pose.NewFrame("world:unpitched_chart")
 
-// StaticWorld is the level-ground workshop coordinate space at 0% sag (BB = (0, 0)), with +X forward and +Y up.
-type StaticWorld struct{}
+	// StaticWorld is the level-ground workshop coordinate frame at 0% sag.
+	StaticWorld = pose.NewFrame("world:static")
 
-// DynamicWorld is the level-ground riding coordinate space at seated sag (BB = (0, 0)), with +X forward and +Y up.
-type DynamicWorld struct{}
+	// DynamicWorld is the level-ground riding coordinate frame at seated sag.
+	DynamicWorld = pose.NewFrame("world:dynamic")
+)
 
-// Orientation marker types name which way a part's local +X points (local +Y
-// is 90° CCW), with no position attached. Each pose.Pose[Dir, W] measures its
-// local coordinates from its own Origin() in W.
+// Component local coordinate frames for steerer mating joints.
+var (
+	// SteererLocal has origin (0, 0) at HeadTubeTop and +X pointing up and rearward along the steerer.
+	SteererLocal = pose.NewFrame("part:steerer")
 
-// FrameDir has local +X along chart horizontal, rotated by the frame pitch, with local +Y 90° CCW (upward).
-type FrameDir struct{}
-
-// SeatTubeDir points up the seat tube and seatpost shaft, with local +Y 90° CCW (rearward/downward).
-type SeatTubeDir struct{}
-
-// SaddleRailDir points along the saddle rails toward the nose, with local +Y 90° CCW (upward).
-type SaddleRailDir struct{}
-
-// SteererUpDir points up and rearward along the steerer.
-type SteererUpDir struct{}
-
-// SteererDownDir points down and forward along the steerer.
-type SteererDownDir struct{}
-
-// ForkRakeDir points forward, perpendicular to the steerer in the rake direction.
-type ForkRakeDir struct{}
-
-// StemDir points along the stem extension from the steerer clamp toward the bar clamp.
-type StemDir struct{}
-
-// HandlebarDir describes the rolled side-view orientation, with local +X forward
-// and local +Y 90° CCW (along rise and upsweep).
-type HandlebarDir struct{}
-
-// PlumbDownDir points straight down (-90° in world space).
-type PlumbDownDir struct{}
+	// LowerHeadsetLocal has origin (0, 0) at HeadTubeBottom and +X pointing down and forward along the steerer.
+	LowerHeadsetLocal = pose.NewFrame("part:lower_headset")
+)

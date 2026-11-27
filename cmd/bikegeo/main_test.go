@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/matta/bikegeo/internal/assembly"
 	"github.com/matta/bikegeo/internal/compare"
 	"github.com/matta/bikegeo/internal/pose"
 	"github.com/matta/bikegeo/internal/query"
@@ -18,7 +17,9 @@ import (
 // jsonPose decodes the exported fields of the CLI's pose JSON. The fields
 // of pose.Pose are unexported and cannot be populated by json.Unmarshal.
 type jsonPose struct {
-	Origin     pose.Point[assembly.DynamicWorld]
+	Origin struct {
+		X, Y float64
+	}
 	HeadingDeg pose.Deg
 }
 
@@ -306,7 +307,7 @@ func TestRunBikeDefaultAndWinningBuildJSON(t *testing.T) {
 	if r.Builds == nil || r.Builds.Evaluated != 749 || len(r.Builds.Builds) != 5 {
 		t.Fatalf("Builds = %+v, want 749 evaluated, 5 builds", r.Builds)
 	}
-	if r.Placement.Frameset.HeadTubeTop.Origin == (pose.Point[assembly.DynamicWorld]{}) || r.Placement.Saddle.BRP.Origin == (pose.Point[assembly.DynamicWorld]{}) {
+	if r.Placement.Frameset.HeadTubeTop.Origin == (struct{ X, Y float64 }{}) || r.Placement.Saddle.BRP.Origin == (struct{ X, Y float64 }{}) {
 		t.Errorf("HeadTubeTop %+v / BRP %+v must be non-zero", r.Placement.Frameset.HeadTubeTop, r.Placement.Saddle.BRP)
 	}
 

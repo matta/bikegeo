@@ -116,7 +116,7 @@ func (o FitOval) Validate() error {
 }
 
 // NormalizedRadius returns R for p around center (R = 1 on the oval's edge).
-func (o FitOval) NormalizedRadius(center, p pose.Point[DynamicWorld]) float64 {
+func (o FitOval) NormalizedRadius(center, p pose.Point) float64 {
 	return newGripOvalProjection(o).normalizedRadius(center, p)
 }
 
@@ -125,12 +125,12 @@ func (o FitOval) NormalizedRadius(center, p pose.Point[DynamicWorld]) float64 {
 // center in normalizedRadius) so FitBuilds can evaluate NormalizedRadius
 // without repeating trig per candidate.
 type gripOvalProjection struct {
-	minorDir, majorDir       pose.Vec[DynamicWorld] // unit vectors in DynamicWorld
+	minorDir, majorDir       pose.Vec // unit vectors in DynamicWorld
 	semiMinorMm, semiMajorMm float64
 }
 
 func newGripOvalProjection(o FitOval) gripOvalProjection {
-	majorHeading := pose.Heading[DynamicWorld](o.MajorAxisHeadingDeg)
+	majorHeading := pose.NewHeading(DynamicWorld, o.MajorAxisHeadingDeg)
 	return gripOvalProjection{
 		minorDir:    pose.Along(majorHeading.Turn(-90), 1),
 		majorDir:    pose.Along(majorHeading, 1),
@@ -139,11 +139,11 @@ func newGripOvalProjection(o FitOval) gripOvalProjection {
 	}
 }
 
-func (p gripOvalProjection) normalizedRadius(center, pt pose.Point[DynamicWorld]) float64 {
+func (p gripOvalProjection) normalizedRadius(center, pt pose.Point) float64 {
 	d := pt.Sub(center)
-	minor := (d.X*p.minorDir.X + d.Y*p.minorDir.Y) / p.semiMinorMm
-	major := (d.X*p.majorDir.X + d.Y*p.majorDir.Y) / p.semiMajorMm
-	return pose.Vec[DynamicWorld]{X: minor, Y: major}.Norm()
+	minor := (d.X()*p.minorDir.X() + d.Y()*p.minorDir.Y()) / p.semiMinorMm
+	major := (d.X()*p.majorDir.X() + d.Y()*p.majorDir.Y()) / p.semiMajorMm
+	return pose.Vc(DynamicWorld, minor, major).Norm()
 }
 
 // DefaultGripOval returns the Q17 HandGrip fit oval.
@@ -362,10 +362,10 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 		return BuildScore{}, fmt.Errorf("build scoring needs a HandGrip target")
 	}
 	if !isFinitePoint(*target.HandGrip) {
-		return BuildScore{}, invalidInput(InputFitTargetGrip, "HandGrip fit target must be finite, got (%v, %v) mm", target.HandGrip.X, target.HandGrip.Y)
+		return BuildScore{}, invalidInput(InputFitTargetGrip, "HandGrip fit target must be finite, got (%v, %v) mm", target.HandGrip.X(), target.HandGrip.Y())
 	}
 	if target.BRP != nil && !isFinitePoint(*target.BRP) {
-		return BuildScore{}, invalidInput(InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", target.BRP.X, target.BRP.Y)
+		return BuildScore{}, invalidInput(InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", target.BRP.X(), target.BRP.Y())
 	}
 	if !isFinite(stemScore) || stemScore < 0 || stemScore > 100 {
 		return BuildScore{}, fmt.Errorf("stem score must be within 0–100, got %v", stemScore)
@@ -392,11 +392,11 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 	rcWb := placement.Frameset.RcWbRatioPct()
 	bbDrop := placement.Frameset.LeveledBbDropMm()
 	trail := placement.Frameset.TrailMm()
-	var brpMiss pose.Vec[DynamicWorld]
+	brpMiss := pose.Vc(DynamicWorld, 0, 0)
 	if hasBrp {
 		brpMiss = target.BRP.Sub(placement.Saddle.BRP.Origin())
 	}
-	for _, v := range []float64{gripR, rcWb, bbDrop, trail, brpMiss.X, brpMiss.Y} {
+	for _, v := range []float64{gripR, rcWb, bbDrop, trail, brpMiss.X(), brpMiss.Y()} {
 		if !isFinite(v) {
 			return BuildScore{}, fmt.Errorf("build scoring metric is not finite")
 		}
@@ -409,7 +409,7 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 			tier = FitsGrip
 		}
 	} else {
-		passBrp := math.Abs(brpMiss.Y) <= FitGateBrpYMm+fitBoundTolMm && math.Abs(brpMiss.X) <= FitGateBrpXMm+fitBoundTolMm
+		passBrp := math.Abs(brpMiss.Y()) <= FitGateBrpYMm+fitBoundTolMm && math.Abs(brpMiss.X()) <= FitGateBrpXMm+fitBoundTolMm
 		switch {
 		case passBrp && passGrip:
 			tier = FitsAll
@@ -437,8 +437,8 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 		{Attribute: AttrTrail, Weight: w.Trail, Score: scoreRange(trail, 98, 106, 78, 126), Active: true},
 	}
 	if hasBrp {
-		attrs[1].Score = scoreThreePoint(math.Abs(brpMiss.Y), 0.5, FitGateBrpYMm, 50, 4)
-		attrs[2].Score = scoreThreePoint(math.Abs(brpMiss.X), 1, FitGateBrpXMm, 50, 20)
+		attrs[1].Score = scoreThreePoint(math.Abs(brpMiss.Y()), 0.5, FitGateBrpYMm, 50, 4)
+		attrs[2].Score = scoreThreePoint(math.Abs(brpMiss.X()), 1, FitGateBrpXMm, 50, 20)
 		attrs[7].Score = scoreRange(setup.Saddle.RailOffsetMm, -5, 5, -15, 15)
 		attrs[9].Score = scoreInsertionMargin(setup.Seatpost.InsertionMm, bounds)
 	}
@@ -453,8 +453,8 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 		Total:      weighted / activeWeight,
 		GripR:      gripR,
 		HasBrp:     hasBrp,
-		BrpMissXMm: brpMiss.X,
-		BrpMissYMm: brpMiss.Y,
+		BrpMissXMm: brpMiss.X(),
+		BrpMissYMm: brpMiss.Y(),
 		Attributes: attrs,
 	}, nil
 }

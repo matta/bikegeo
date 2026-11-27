@@ -65,10 +65,10 @@ func isFinite(v float64) bool {
 
 // chartMismatches returns the chart's 0°-pitch mismatches with its basis fork:
 // FrontAxle.Y − RearAxle.Y, then the axle X span minus the published wheelbase.
-func chartMismatches(unpitched assembly.FramesetPlacement[assembly.UnpitchedChart], publishedWheelbaseMm float64) [2]float64 {
+func chartMismatches(unpitched assembly.FramesetPlacement, publishedWheelbaseMm float64) [2]float64 {
 	return [2]float64{
 		unpitched.RearAxle.Origin().VerticalOffsetTo(unpitched.FrontAxle.Origin()),
-		(unpitched.FrontAxle.Origin().X - unpitched.RearAxle.Origin().X) - publishedWheelbaseMm,
+		(unpitched.FrontAxle.Origin().X() - unpitched.RearAxle.Origin().X()) - publishedWheelbaseMm,
 	}
 }
 

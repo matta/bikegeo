@@ -53,8 +53,8 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 		BarRollDeg:   10.0,
 	}
 
-	steererUp := pose.NewPose[assembly.SteererUpDir](pose.Point[assembly.DynamicWorld]{X: 400, Y: 600}, 180.0-70.0)
-	stem, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
+	steerer := pose.NewPose(pose.Pt(assembly.DynamicWorld, 400, 600), 180.0-70.0).Anchor(assembly.SteererLocal)
+	stem, err := assembly.PlaceStem(steerer, assembly.StemSetup{
 		UpperStackMm:  10,
 		SpacersMm:     15,
 		MaxSpacersMm:  30,
@@ -77,8 +77,8 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	wantDY := -dx0*s10 + dy0*c10
 
 	assertNear(t, "HandLateralMm", bar.HandLateralMm, 335.0, 1e-12)
-	assertNear(t, "HandGrip.X", bar.HandGrip.Origin().X, stem.BarClamp.Origin().X+wantDX, 1e-9)
-	assertNear(t, "HandGrip.Y", bar.HandGrip.Origin().Y, stem.BarClamp.Origin().Y+wantDY, 1e-9)
+	assertNear(t, "HandGrip.X", bar.HandGrip.Origin().X(), stem.BarClamp.Origin().X()+wantDX, 1e-9)
+	assertNear(t, "HandGrip.Y", bar.HandGrip.Origin().Y(), stem.BarClamp.Origin().Y()+wantDY, 1e-9)
 	assertNear(t, "BarCenter.HeadingDeg", float64(bar.BarCenter.HeadingDeg()), -10.0, 1e-12)
 	assertNear(t, "HandGrip.HeadingDeg", float64(bar.HandGrip.HeadingDeg()), -10.0, 1e-12)
 
@@ -89,8 +89,8 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceHandlebar knuckle(-10°): %v", err)
 	}
-	assertNear(t, "HandGrip(-10°).X", barNeg.HandGrip.Origin().X, stem.BarClamp.Origin().X+(dx0*c10-dy0*s10), 1e-9)
-	assertNear(t, "HandGrip(-10°).Y", barNeg.HandGrip.Origin().Y, stem.BarClamp.Origin().Y+(dx0*s10+dy0*c10), 1e-9)
+	assertNear(t, "HandGrip(-10°).X", barNeg.HandGrip.Origin().X(), stem.BarClamp.Origin().X()+(dx0*c10-dy0*s10), 1e-9)
+	assertNear(t, "HandGrip(-10°).Y", barNeg.HandGrip.Origin().Y(), stem.BarClamp.Origin().Y()+(dx0*s10+dy0*c10), 1e-9)
 
 	// 2. Bar-end center mode, cut narrower than stock width:
 	//    StockWidth=800, CurrentWidth=760, inset=65, BendStart=135, upsweep=4°, backsweep=20°, statedRise=50
@@ -115,8 +115,8 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	wantCutDX := -180.0 * math.Tan(20.0*math.Pi/180.0)
 	wantCutDY := yk + 180.0*math.Tan(4.0*math.Pi/180.0)
 	assertNear(t, "cut bar-end HandLateralMm", barCut.HandLateralMm, 315.0, 1e-12)
-	assertNear(t, "cut bar-end HandGrip.X", barCut.HandGrip.Origin().X, stem.BarClamp.Origin().X+wantCutDX, 1e-9)
-	assertNear(t, "cut bar-end HandGrip.Y", barCut.HandGrip.Origin().Y, stem.BarClamp.Origin().Y+wantCutDY, 1e-9)
+	assertNear(t, "cut bar-end HandGrip.X", barCut.HandGrip.Origin().X(), stem.BarClamp.Origin().X()+wantCutDX, 1e-9)
+	assertNear(t, "cut bar-end HandGrip.Y", barCut.HandGrip.Origin().Y(), stem.BarClamp.Origin().Y()+wantCutDY, 1e-9)
 
 	// 3. Narrow bar where zHand <= BendStartMm clamps sweptSpan to 0 (no outboard sweep/upsweep).
 	narrow := knuckle
@@ -127,8 +127,8 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 		t.Fatalf("PlaceHandlebar narrow: %v", err)
 	}
 	assertNear(t, "narrow HandLateralMm", barNarrow.HandLateralMm, 75.0, 1e-12)
-	assertNear(t, "narrow HandGrip.X", barNarrow.HandGrip.Origin().X, stem.BarClamp.Origin().X, 1e-12)
-	assertNear(t, "narrow HandGrip.Y", barNarrow.HandGrip.Origin().Y, stem.BarClamp.Origin().Y+30.0, 1e-12)
+	assertNear(t, "narrow HandGrip.X", barNarrow.HandGrip.Origin().X(), stem.BarClamp.Origin().X(), 1e-12)
+	assertNear(t, "narrow HandGrip.Y", barNarrow.HandGrip.Origin().Y(), stem.BarClamp.Origin().Y()+30.0, 1e-12)
 }
 
 func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
@@ -138,8 +138,8 @@ func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 	barSetup.BarRollDeg = -7.5
 
 	placeFor := func(hta, stemAngle pose.Deg) (assembly.StemPlacement, assembly.HandlebarPlacement) {
-		steererUp := pose.NewPose[assembly.SteererUpDir](pose.Point[assembly.DynamicWorld]{X: 430, Y: 625}, pose.Heading[assembly.DynamicWorld](180.0-hta))
-		stem, err := assembly.PlaceStem(steererUp, assembly.StemSetup{
+		steerer := pose.NewPose(pose.Pt(assembly.DynamicWorld, 430, 625), 180.0-hta).Anchor(assembly.SteererLocal)
+		stem, err := assembly.PlaceStem(steerer, assembly.StemSetup{
 			UpperStackMm:  11,
 			SpacersMm:     15,
 			MaxSpacersMm:  30,
@@ -158,8 +158,8 @@ func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 	}
 
 	refStem, refBar := placeFor(70.0, -6.0)
-	refDX := refBar.HandGrip.Origin().X - refStem.BarClamp.Origin().X
-	refDY := refBar.HandGrip.Origin().Y - refStem.BarClamp.Origin().Y
+	refDX := refBar.HandGrip.Origin().X() - refStem.BarClamp.Origin().X()
+	refDY := refBar.HandGrip.Origin().Y() - refStem.BarClamp.Origin().Y()
 
 	for _, cfg := range []struct {
 		hta, stem pose.Deg
@@ -170,8 +170,8 @@ func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 		{73.5, 25.0},
 	} {
 		stem, bar := placeFor(cfg.hta, cfg.stem)
-		assertNear(t, "dX invariant", bar.HandGrip.Origin().X-stem.BarClamp.Origin().X, refDX, 1e-9)
-		assertNear(t, "dY invariant", bar.HandGrip.Origin().Y-stem.BarClamp.Origin().Y, refDY, 1e-9)
+		assertNear(t, "dX invariant", bar.HandGrip.Origin().X()-stem.BarClamp.Origin().X(), refDX, 1e-9)
+		assertNear(t, "dY invariant", bar.HandGrip.Origin().Y()-stem.BarClamp.Origin().Y(), refDY, 1e-9)
 		assertNear(t, "HandGrip heading", float64(bar.HandGrip.HeadingDeg()), 7.5, 1e-12)
 	}
 }
@@ -215,8 +215,8 @@ func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 	assertNear(t, "stem length", bike.Stem.SteererClamp.Origin().DistanceTo(bike.Stem.BarClamp.Origin()), st.LengthMm, 1e-9)
 
 	// The bar roll frame sits at BarClamp, rolled against world horizontal.
-	assertNear(t, "BarCenter.X", bike.Handlebar.BarCenter.Origin().X, bike.Stem.BarClamp.Origin().X, 1e-12)
-	assertNear(t, "BarCenter.Y", bike.Handlebar.BarCenter.Origin().Y, bike.Stem.BarClamp.Origin().Y, 1e-12)
+	assertNear(t, "BarCenter.X", bike.Handlebar.BarCenter.Origin().X(), bike.Stem.BarClamp.Origin().X(), 1e-12)
+	assertNear(t, "BarCenter.Y", bike.Handlebar.BarCenter.Origin().Y(), bike.Stem.BarClamp.Origin().Y(), 1e-12)
 	assertNear(t, "BarCenter.Heading", float64(bike.Handlebar.BarCenter.HeadingDeg()), -float64(bikeSetup.Handlebar.BarRollDeg), 1e-12)
 
 	// Error propagation from PlaceStem and PlaceHandlebar in PlaceBike.
@@ -234,7 +234,7 @@ func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 }
 
 func TestPlaceHandlebarValidation(t *testing.T) {
-	validPose := pose.NewPose[assembly.StemDir](pose.Point[assembly.DynamicWorld]{X: 460, Y: 700}, -15)
+	validPose := pose.NewPose(pose.Pt(assembly.DynamicWorld, 460, 700), -15)
 	valid := persuader800DefaultHandlebar()
 
 	badWidth := valid
@@ -288,11 +288,11 @@ func TestPlaceHandlebarValidation(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		pose  pose.Pose[assembly.StemDir, assembly.DynamicWorld]
+		pose  pose.Pose
 		setup assembly.HandlebarSetup
 	}{
-		{"NaN origin X", pose.NewPose[assembly.StemDir](pose.Point[assembly.DynamicWorld]{X: math.NaN(), Y: 700}, 0), valid},
-		{"Inf heading", pose.NewPose[assembly.StemDir](pose.Point[assembly.DynamicWorld]{X: 460, Y: 700}, pose.Heading[assembly.DynamicWorld](math.Inf(1))), valid},
+		{"NaN origin X", pose.NewPose(pose.Pt(assembly.DynamicWorld, math.NaN(), 700), 0), valid},
+		{"Inf heading", pose.NewPose(pose.Pt(assembly.DynamicWorld, 460, 700), pose.Deg(math.Inf(1))), valid},
 		{"zero effective width", validPose, badWidth},
 		{"negative current width", validPose, badCurrent},
 		{"current width exceeds stock", validPose, badCutWider},
@@ -308,7 +308,7 @@ func TestPlaceHandlebarValidation(t *testing.T) {
 		{"zero grip inset", validPose, badInsetZero},
 		{"grip inset >= half width", validPose, badInsetWide},
 		{"Inf bar roll", validPose, badRoll},
-		{"translate overflow", pose.NewPose[assembly.StemDir](pose.Point[assembly.DynamicWorld]{X: 0, Y: math.MaxFloat64}, 0), assembly.HandlebarSetup{
+		{"translate overflow", pose.NewPose(pose.Pt(assembly.DynamicWorld, 0, math.MaxFloat64), 0), assembly.HandlebarSetup{
 			StockWidthMm: 800,
 			StatedRiseMm: math.MaxFloat64,
 			RiseMode:     assembly.RiseModeStandardKnuckle,

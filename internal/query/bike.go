@@ -50,8 +50,8 @@ type Bike struct {
 	Bar            catalog.Handlebar
 	Post           catalog.Seatpost
 	View           string // ViewBike, ViewSeat, or ViewStem
-	BrpTarget      *pose.Point[assembly.DynamicWorld]
-	GripTarget     *pose.Point[assembly.DynamicWorld]
+	BrpTarget      *pose.Point
+	GripTarget     *pose.Point
 	AllBarOptions  bool
 	AllForkOptions bool
 	Setup          assembly.BikeSetup
@@ -510,14 +510,14 @@ func (b Bike) queryValues() url.Values {
 	v.Set("rail_pitch", FormatFloat(float64(s.Saddle.RailPitchDeg)))
 	v.Set("view", b.View)
 	if b.BrpTarget != nil {
-		v.Set("brp_x", FormatFloat(b.BrpTarget.X))
-		v.Set("brp_y", FormatFloat(b.BrpTarget.Y))
+		v.Set("brp_x", FormatFloat(b.BrpTarget.X()))
+		v.Set("brp_y", FormatFloat(b.BrpTarget.Y()))
 	} else {
 		v.Set("brp", "off")
 	}
 	if b.GripTarget != nil {
-		v.Set("grip_x", FormatFloat(b.GripTarget.X))
-		v.Set("grip_y", FormatFloat(b.GripTarget.Y))
+		v.Set("grip_x", FormatFloat(b.GripTarget.X()))
+		v.Set("grip_y", FormatFloat(b.GripTarget.Y()))
 	} else {
 		v.Set("grip", "off")
 	}
@@ -538,7 +538,7 @@ func (b Bike) URL() string {
 
 // BasisFrameset places b's size on its published chart frame with the chart's
 // basis fork and lower cup (Q81, Q121), for the basis readouts and ΔPitch.
-func (b Bike) BasisFrameset() (assembly.FramesetPlacement[assembly.DynamicWorld], error) {
+func (b Bike) BasisFrameset() (assembly.FramesetPlacement, error) {
 	return assembly.PlaceFrameset(b.Size.ChartFrame, b.Frame.BasisLowerCup, basisForkSetup(b.Frame), b.Setup.Wheels)
 }
 

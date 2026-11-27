@@ -31,7 +31,7 @@ func TestPlaceSeatpostAndSaddleWorkedExample60DegSTA(t *testing.T) {
 	//   BRP        = (-30, 50*sqrt(3) + 45) @ 0°  (45 mm RailToBrpHeightMm above the rails)
 	//   SitBones   = (-110, 50*sqrt(3) + 55) @ 0°  (10 mm above BRP)
 	sqrt3 := math.Sqrt(3)
-	seatAxis := pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{}, 120.0)
+	seatAxis := pose.NewPose(pose.Origin(assembly.DynamicWorld), 120.0)
 	seatTubeTop := seatAxis.Advance(60.0)
 
 	post, err := assembly.PlaceSeatpost(seatTubeTop, workedFrame, workedPost(0.0))
@@ -46,22 +46,22 @@ func TestPlaceSeatpostAndSaddleWorkedExample60DegSTA(t *testing.T) {
 		t.Fatalf("PlaceSaddle: %v", err)
 	}
 
-	assertNear(t, "ShaftTop.X", post.ShaftTop.Origin().X, -50.0, 1e-9)
-	assertNear(t, "ShaftTop.Y", post.ShaftTop.Origin().Y, 50.0*sqrt3, 1e-9)
-	assertNear(t, "RailPivot.X", post.RailPivot.Origin().X, -50.0, 1e-9)
-	assertNear(t, "RailPivot.Y", post.RailPivot.Origin().Y, 50.0*sqrt3, 1e-9)
+	assertNear(t, "ShaftTop.X", post.ShaftTop.Origin().X(), -50.0, 1e-9)
+	assertNear(t, "ShaftTop.Y", post.ShaftTop.Origin().Y(), 50.0*sqrt3, 1e-9)
+	assertNear(t, "RailPivot.X", post.RailPivot.Origin().X(), -50.0, 1e-9)
+	assertNear(t, "RailPivot.Y", post.RailPivot.Origin().Y(), 50.0*sqrt3, 1e-9)
 	assertNear(t, "RailPivot.Heading", float64(post.RailPivot.HeadingDeg()), 120.0, 1e-9)
 
-	assertNear(t, "RailCenter.X", saddle.RailCenter.Origin().X, -62.0, 1e-9)
-	assertNear(t, "RailCenter.Y", saddle.RailCenter.Origin().Y, 50.0*sqrt3, 1e-9)
-	assertNear(t, "BRP.X", saddle.BRP.Origin().X, -30.0, 1e-9)
-	assertNear(t, "BRP.Y", saddle.BRP.Origin().Y, 50.0*sqrt3+45.0, 1e-9)
-	assertNear(t, "SitBones.X", saddle.SitBones.Origin().X, -110.0, 1e-9)
-	assertNear(t, "SitBones.Y", saddle.SitBones.Origin().Y, 50.0*sqrt3+55.0, 1e-9)
+	assertNear(t, "RailCenter.X", saddle.RailCenter.Origin().X(), -62.0, 1e-9)
+	assertNear(t, "RailCenter.Y", saddle.RailCenter.Origin().Y(), 50.0*sqrt3, 1e-9)
+	assertNear(t, "BRP.X", saddle.BRP.Origin().X(), -30.0, 1e-9)
+	assertNear(t, "BRP.Y", saddle.BRP.Origin().Y(), 50.0*sqrt3+45.0, 1e-9)
+	assertNear(t, "SitBones.X", saddle.SitBones.Origin().X(), -110.0, 1e-9)
+	assertNear(t, "SitBones.Y", saddle.SitBones.Origin().Y(), 50.0*sqrt3+55.0, 1e-9)
 
 	for _, lm := range []struct {
 		name string
-		p    pose.Pose[assembly.SaddleRailDir, assembly.DynamicWorld]
+		p    pose.Pose
 	}{
 		{"RailClamp", saddle.RailClamp},
 		{"RailCenter", saddle.RailCenter},
@@ -76,7 +76,7 @@ func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 	// At 60° STA (heading 120°), local +Y is 120° + 90° = 210° (cos = -sqrt(3)/2, sin = -0.5).
 	// Adding +20 mm PostSetbackMm shifts RailPivot and all saddle landmarks by (-10*sqrt(3), -10) mm
 	// while leaving ShaftTop unchanged.
-	seatTubeTop := pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{X: -30, Y: 30 * math.Sqrt(3)}, 120.0)
+	seatTubeTop := pose.NewPose(pose.Pt(assembly.DynamicWorld, -30, 30*math.Sqrt(3)), 120.0)
 	basePost, err := assembly.PlaceSeatpost(seatTubeTop, workedFrame, workedPost(0.0))
 	if err != nil {
 		t.Fatalf("PlaceSeatpost base: %v", err)
@@ -97,22 +97,22 @@ func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 		t.Fatalf("PlaceSaddle setback: %v", err)
 	}
 
-	assertNear(t, "ShaftTop unchanged X", setbackPost.ShaftTop.Origin().X, basePost.ShaftTop.Origin().X, 1e-12)
-	assertNear(t, "ShaftTop unchanged Y", setbackPost.ShaftTop.Origin().Y, basePost.ShaftTop.Origin().Y, 1e-12)
+	assertNear(t, "ShaftTop unchanged X", setbackPost.ShaftTop.Origin().X(), basePost.ShaftTop.Origin().X(), 1e-12)
+	assertNear(t, "ShaftTop unchanged Y", setbackPost.ShaftTop.Origin().Y(), basePost.ShaftTop.Origin().Y(), 1e-12)
 
 	wantDX := -10.0 * math.Sqrt(3)
 	wantDY := -10.0
 	for _, pair := range []struct {
 		name string
-		a, b pose.Point[assembly.DynamicWorld]
+		a, b pose.Point
 	}{
 		{"RailPivot", basePost.RailPivot.Origin(), setbackPost.RailPivot.Origin()},
 		{"RailCenter", baseSaddle.RailCenter.Origin(), setbackSaddle.RailCenter.Origin()},
 		{"BRP", baseSaddle.BRP.Origin(), setbackSaddle.BRP.Origin()},
 		{"SitBones", baseSaddle.SitBones.Origin(), setbackSaddle.SitBones.Origin()},
 	} {
-		assertNear(t, pair.name+" setback dX", pair.b.X-pair.a.X, wantDX, 1e-9)
-		assertNear(t, pair.name+" setback dY", pair.b.Y-pair.a.Y, wantDY, 1e-9)
+		assertNear(t, pair.name+" setback dX", pair.b.X()-pair.a.X(), wantDX, 1e-9)
+		assertNear(t, pair.name+" setback dY", pair.b.Y()-pair.a.Y(), wantDY, 1e-9)
 	}
 
 	// Increasing RailOffsetMm by +10 mm moves saddle landmarks rearward (-10 mm X) while leaving clamp fixed.
@@ -122,10 +122,10 @@ func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceSaddle +15 offset: %v", err)
 	}
-	assertNear(t, "RailPivot fixed X", moreOffsetSaddle.RailPivot.Origin().X, baseSaddle.RailPivot.Origin().X, 1e-12)
-	assertNear(t, "RailCenter shifted -10", moreOffsetSaddle.RailCenter.Origin().X-baseSaddle.RailCenter.Origin().X, -10.0, 1e-12)
-	assertNear(t, "BRP shifted -10", moreOffsetSaddle.BRP.Origin().X-baseSaddle.BRP.Origin().X, -10.0, 1e-12)
-	assertNear(t, "SitBones shifted -10", moreOffsetSaddle.SitBones.Origin().X-baseSaddle.SitBones.Origin().X, -10.0, 1e-12)
+	assertNear(t, "RailPivot fixed X", moreOffsetSaddle.RailPivot.Origin().X(), baseSaddle.RailPivot.Origin().X(), 1e-12)
+	assertNear(t, "RailCenter shifted -10", moreOffsetSaddle.RailCenter.Origin().X()-baseSaddle.RailCenter.Origin().X(), -10.0, 1e-12)
+	assertNear(t, "BRP shifted -10", moreOffsetSaddle.BRP.Origin().X()-baseSaddle.BRP.Origin().X(), -10.0, 1e-12)
+	assertNear(t, "SitBones shifted -10", moreOffsetSaddle.SitBones.Origin().X()-baseSaddle.SitBones.Origin().X(), -10.0, 1e-12)
 
 	// Negative RailOffsetMm (-15 mm, delta -20 mm from +5 mm) moves saddle landmarks forward (+20 mm X).
 	negOffsetSetup := saddleSetup
@@ -134,8 +134,8 @@ func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceSaddle -15 offset: %v", err)
 	}
-	assertNear(t, "RailCenter shifted +20", negOffsetSaddle.RailCenter.Origin().X-baseSaddle.RailCenter.Origin().X, 20.0, 1e-12)
-	assertNear(t, "BRP shifted +20", negOffsetSaddle.BRP.Origin().X-baseSaddle.BRP.Origin().X, 20.0, 1e-12)
+	assertNear(t, "RailCenter shifted +20", negOffsetSaddle.RailCenter.Origin().X()-baseSaddle.RailCenter.Origin().X(), 20.0, 1e-12)
+	assertNear(t, "BRP shifted +20", negOffsetSaddle.BRP.Origin().X()-baseSaddle.BRP.Origin().X(), 20.0, 1e-12)
 }
 
 func TestPlaceSaddleWorldRelativePitch(t *testing.T) {
@@ -143,8 +143,8 @@ func TestPlaceSaddleWorldRelativePitch(t *testing.T) {
 	setup.RailPitchDeg = 10.0 // Positive pitch raises the nose CCW from world horizontal.
 	setup.RailOffsetMm = 5.0
 
-	clamp60 := pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{X: -180, Y: 720}, 180.0-60.0)
-	clamp75 := pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{X: -180, Y: 720}, 180.0-75.25)
+	clamp60 := pose.NewPose(pose.Pt(assembly.DynamicWorld, -180, 720), 180.0-60.0)
+	clamp75 := pose.NewPose(pose.Pt(assembly.DynamicWorld, -180, 720), 180.0-75.25)
 
 	s60, err := assembly.PlaceSaddle(clamp60, 30.0, setup)
 	if err != nil {
@@ -155,17 +155,17 @@ func TestPlaceSaddleWorldRelativePitch(t *testing.T) {
 		t.Fatalf("PlaceSaddle 75.25°: %v", err)
 	}
 
-	if s60.BRP.Origin().Y <= s60.RailCenter.Origin().Y {
+	if s60.BRP.Origin().Y() <= s60.RailCenter.Origin().Y() {
 		t.Fatalf("positive rail pitch must raise BRP above RailCenter: BRP.Y=%.4f, RailCenter.Y=%.4f",
-			s60.BRP.Origin().Y, s60.RailCenter.Origin().Y)
+			s60.BRP.Origin().Y(), s60.RailCenter.Origin().Y())
 	}
 
 	// Because Pose.Face sets an absolute world heading, saddle landmarks depend
 	// only on RailPivot.Origin() and world RailPitchDeg, never on STA heading.
-	assertNear(t, "BRP.X STA-independent", s60.BRP.Origin().X, s75.BRP.Origin().X, 1e-12)
-	assertNear(t, "BRP.Y STA-independent", s60.BRP.Origin().Y, s75.BRP.Origin().Y, 1e-12)
-	assertNear(t, "SitBones.X STA-independent", s60.SitBones.Origin().X, s75.SitBones.Origin().X, 1e-12)
-	assertNear(t, "SitBones.Y STA-independent", s60.SitBones.Origin().Y, s75.SitBones.Origin().Y, 1e-12)
+	assertNear(t, "BRP.X STA-independent", s60.BRP.Origin().X(), s75.BRP.Origin().X(), 1e-12)
+	assertNear(t, "BRP.Y STA-independent", s60.BRP.Origin().Y(), s75.BRP.Origin().Y(), 1e-12)
+	assertNear(t, "SitBones.X STA-independent", s60.SitBones.Origin().X(), s75.SitBones.Origin().X(), 1e-12)
+	assertNear(t, "SitBones.Y STA-independent", s60.SitBones.Origin().Y(), s75.SitBones.Origin().Y(), 1e-12)
 	assertNear(t, "BRP.Heading", float64(s60.BRP.HeadingDeg()), 10.0, 1e-12)
 	assertNear(t, "SitBones.Heading", float64(s60.SitBones.HeadingDeg()), 10.0, 1e-12)
 }
@@ -181,7 +181,7 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 
 	// Check the fixture's reference saddle height at the 75.25° STA attitude:
 	// 490.0 mm seat tube + 219.424 mm exposed = 709.424 mm along seat axis, and the raised BRP is |BRP - BB| = 746.000 mm (Q92) in the unpitched reference attitude.
-	refSeatAxis := pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{}, pose.Heading[assembly.DynamicWorld](180.0-frame.SeatTubeAngleDeg))
+	refSeatAxis := pose.NewPose(pose.Origin(assembly.DynamicWorld), 180.0-frame.SeatTubeAngleDeg)
 	refSeatTubeTop := refSeatAxis.Advance(frame.SeatTubeLengthMm)
 	refPost, err := assembly.PlaceSeatpost(refSeatTubeTop, frame, postSetup)
 	if err != nil {
@@ -233,7 +233,7 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 }
 
 func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
-	validPose := pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{X: -120, Y: 470}, 104.75)
+	validPose := pose.NewPose(pose.Pt(assembly.DynamicWorld, -120, 470), 104.75)
 	validPost := assembly.SeatpostSetup{Spec: genericPostSpec(0), InsertionMm: 136.5}
 	validFrame := fenrirSizeLFrame() // [100, 290] mm with the generic post
 	with := func(f func(*assembly.SeatpostSetup)) assembly.SeatpostSetup {
@@ -244,11 +244,11 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 
 	postCases := []struct {
 		name  string
-		pose  pose.Pose[assembly.SeatTubeDir, assembly.DynamicWorld]
+		pose  pose.Pose
 		setup assembly.SeatpostSetup
 	}{
-		{"NaN origin X", pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{X: math.NaN(), Y: 0}, 104.75), validPost},
-		{"Inf heading", pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{}, pose.Heading[assembly.DynamicWorld](math.Inf(1))), validPost},
+		{"NaN origin X", pose.NewPose(pose.Pt(assembly.DynamicWorld, math.NaN(), 0), 104.75), validPost},
+		{"Inf heading", pose.NewPose(pose.Origin(assembly.DynamicWorld), pose.Deg(math.Inf(1))), validPost},
 		{"negative insertion", validPose, with(func(s *assembly.SeatpostSetup) { s.InsertionMm = -1 })},
 		{"NaN insertion", validPose, with(func(s *assembly.SeatpostSetup) { s.InsertionMm = math.NaN() })},
 		{"insertion below minimum", validPose, with(func(s *assembly.SeatpostSetup) { s.InsertionMm = 99.999 })},
@@ -257,7 +257,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		{"NaN setback", validPose, with(func(s *assembly.SeatpostSetup) { s.Spec.SetbackMm = math.NaN() })},
 		{"zero clamp length", validPose, with(func(s *assembly.SeatpostSetup) { s.Spec.RailClampLengthMm = 0 })},
 		{"negative clamp length", validPose, with(func(s *assembly.SeatpostSetup) { s.Spec.RailClampLengthMm = -10 })},
-		{"exposure overflow", pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{X: -math.MaxFloat64, Y: 0}, 120), with(func(s *assembly.SeatpostSetup) { s.Spec.TotalLengthMm = math.MaxFloat64 })},
+		{"exposure overflow", pose.NewPose(pose.Pt(assembly.DynamicWorld, -math.MaxFloat64, 0), 120), with(func(s *assembly.SeatpostSetup) { s.Spec.TotalLengthMm = math.MaxFloat64 })},
 	}
 	for _, tc := range postCases {
 		t.Run("seatpost/"+tc.name, func(t *testing.T) {
@@ -270,11 +270,11 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 	validSaddle := sqlab610DefaultSaddle()
 	saddleCases := []struct {
 		name  string
-		pose  pose.Pose[assembly.SeatTubeDir, assembly.DynamicWorld]
+		pose  pose.Pose
 		setup assembly.SaddleSetup
 	}{
-		{"NaN origin Y", pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{X: 0, Y: math.NaN()}, 104.75), validSaddle},
-		{"Inf heading", pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{}, pose.Heading[assembly.DynamicWorld](math.Inf(-1))), validSaddle},
+		{"NaN origin Y", pose.NewPose(pose.Pt(assembly.DynamicWorld, 0, math.NaN()), 104.75), validSaddle},
+		{"Inf heading", pose.NewPose(pose.Origin(assembly.DynamicWorld), pose.Deg(math.Inf(-1))), validSaddle},
 		{"NaN RailCenterToBrpMm", validPose, assembly.SaddleSetup{RailCenterToBrpMm: math.NaN(), RailLengthMm: 60}},
 		{"Inf RailCenterToSitBonesMm", validPose, assembly.SaddleSetup{RailCenterToSitBonesMm: math.Inf(1), RailLengthMm: 60}},
 		{"NaN SitBonesElevationMm", validPose, assembly.SaddleSetup{SitBonesElevationMm: math.NaN(), RailLengthMm: 60}},
@@ -282,7 +282,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		{"negative RailLengthMm", validPose, assembly.SaddleSetup{RailCenterToBrpMm: 32, RailLengthMm: -60}},
 		{"NaN RailPitchDeg", validPose, assembly.SaddleSetup{RailLengthMm: 60, RailPitchDeg: pose.Deg(math.NaN())}},
 		{"Inf RailOffsetMm", validPose, assembly.SaddleSetup{RailLengthMm: 60, RailOffsetMm: math.Inf(1)}},
-		{"rail offset overflow", pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{X: math.MaxFloat64, Y: 0}, 104.75), assembly.SaddleSetup{RailLengthMm: 60, RailOffsetMm: -math.MaxFloat64}},
+		{"rail offset overflow", pose.NewPose(pose.Pt(assembly.DynamicWorld, math.MaxFloat64, 0), 104.75), assembly.SaddleSetup{RailLengthMm: 60, RailOffsetMm: -math.MaxFloat64}},
 	}
 	for _, tc := range saddleCases {
 		t.Run("saddle/"+tc.name, func(t *testing.T) {
@@ -294,7 +294,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 }
 
 func TestPlaceSaddleRailOffsetRange(t *testing.T) {
-	clamp := pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{X: -100, Y: 700}, 105.0)
+	clamp := pose.NewPose(pose.Pt(assembly.DynamicWorld, -100, 700), 105.0)
 	// 60 mm rails with a 30 mm clamp head allow ±15 mm.
 	for _, offset := range []float64{0, 14.999, 15, -15} {
 		setup := sqlab610DefaultSaddle()
@@ -335,7 +335,7 @@ func workedPost(setbackMm float64) assembly.SeatpostSetup {
 // The raised landmarks rotate with the rails: at +10° pitch the 45 mm BRP
 // height alone shifts BRP and SitBones by 45 mm turned 10° from vertical.
 func TestPlaceSaddleRailToBrpHeightRotatesWithRailPitch(t *testing.T) {
-	seatTubeTop := pose.NewPose[assembly.SeatTubeDir](pose.Point[assembly.DynamicWorld]{}, 120).Advance(60)
+	seatTubeTop := pose.NewPose(pose.Origin(assembly.DynamicWorld), 120).Advance(60)
 	post, err := assembly.PlaceSeatpost(seatTubeTop, workedFrame, workedPost(0))
 	if err != nil {
 		t.Fatal(err)
@@ -352,18 +352,18 @@ func TestPlaceSaddleRailToBrpHeightRotatesWithRailPitch(t *testing.T) {
 		return saddle
 	}
 	raised, flat := place(45, 10), place(0, 10)
-	wantShift := pose.Vec[assembly.DynamicWorld]{X: -7.814168, Y: 44.316349}
+	wantShift := pose.Vc(assembly.DynamicWorld, -7.814168, 44.316349)
 	for _, lm := range []struct {
 		name         string
-		raised, flat pose.Pose[assembly.SaddleRailDir, assembly.DynamicWorld]
+		raised, flat pose.Pose
 	}{{"BRP", raised.BRP, flat.BRP}, {"SitBones", raised.SitBones, flat.SitBones}} {
 		shift := lm.raised.Origin().Sub(lm.flat.Origin())
-		assertNear(t, lm.name+" shift X", shift.X, wantShift.X, 1e-6)
-		assertNear(t, lm.name+" shift Y", shift.Y, wantShift.Y, 1e-6)
+		assertNear(t, lm.name+" shift X", shift.X(), wantShift.X(), 1e-6)
+		assertNear(t, lm.name+" shift Y", shift.Y(), wantShift.Y(), 1e-6)
 	}
 	// The rails themselves do not move with the height.
-	assertNear(t, "RailCenter X", raised.RailCenter.Origin().X, flat.RailCenter.Origin().X, 1e-12)
-	assertNear(t, "RailCenter Y", raised.RailCenter.Origin().Y, flat.RailCenter.Origin().Y, 1e-12)
+	assertNear(t, "RailCenter X", raised.RailCenter.Origin().X(), flat.RailCenter.Origin().X(), 1e-12)
+	assertNear(t, "RailCenter Y", raised.RailCenter.Origin().Y(), flat.RailCenter.Origin().Y(), 1e-12)
 
 	for _, bad := range []float64{-1, math.NaN(), math.Inf(1)} {
 		setup := sqlab610DefaultSaddle()
@@ -385,6 +385,6 @@ func TestQ92DefaultInsertionOnInstalledFork(t *testing.T) {
 	assertNear(t, "shaft top distance from BB", bike.SeatAxisToPostTopMm(), 709.424, 1e-9)
 	assertNear(t, "exposed length", bike.Setup.Seatpost.ExposedMm(), 219.424, 1e-9)
 	assertNear(t, "installed Lithic |BRP - BB|", bike.SaddleHeightMm(), 745.619, 0.001)
-	assertNear(t, "installed Lithic BRP.X", bike.Saddle.BRP.Origin().X, -155.065, 0.001)
-	assertNear(t, "installed Lithic BRP.Y", bike.Saddle.BRP.Origin().Y, 729.317, 0.001)
+	assertNear(t, "installed Lithic BRP.X", bike.Saddle.BRP.Origin().X(), -155.065, 0.001)
+	assertNear(t, "installed Lithic BRP.Y", bike.Saddle.BRP.Origin().Y(), 729.317, 0.001)
 }

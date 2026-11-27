@@ -99,7 +99,7 @@ func TestHandlebars(t *testing.T) {
 		if bar.Setup.BarRollDeg != 0 {
 			t.Errorf("handlebar %q BarRollDeg = %v, want 0", bar.ID, bar.Setup.BarRollDeg)
 		}
-		if _, err := assembly.PlaceHandlebar(pose.NewPose[assembly.StemDir](pose.Point[assembly.DynamicWorld]{}, 0), bar.Setup); err != nil {
+		if _, err := assembly.PlaceHandlebar(pose.OriginPose(assembly.DynamicWorld), bar.Setup); err != nil {
 			t.Errorf("handlebar %q does not place: %v", bar.ID, err)
 		}
 	}
@@ -151,10 +151,10 @@ func TestDefaultSaddleAndTargets(t *testing.T) {
 	if saddle.Setup != want {
 		t.Errorf("saddle setup = %+v, want %+v", saddle.Setup, want)
 	}
-	if got := catalog.DefaultBrpTarget(); got != (pose.Point[assembly.DynamicWorld]{X: -219, Y: 713.1}) {
+	if got := catalog.DefaultBrpTarget(); got != pose.Pt(assembly.DynamicWorld, -219, 713.1) {
 		t.Errorf("DefaultBrpTarget() = %v", got)
 	}
-	if got := catalog.DefaultGripTarget(); got != (pose.Point[assembly.DynamicWorld]{X: 481, Y: 726}) {
+	if got := catalog.DefaultGripTarget(); got != pose.Pt(assembly.DynamicWorld, 481, 726) {
 		t.Errorf("DefaultGripTarget() = %v", got)
 	}
 }
@@ -183,7 +183,7 @@ func TestCatalogDefaultsAndLookups(t *testing.T) {
 	}
 
 	stem := catalog.DefaultStemSetup()
-	if _, err := assembly.PlaceStem(pose.NewPose[assembly.SteererUpDir](pose.Point[assembly.DynamicWorld]{}, 111.75), stem); err != nil {
+	if _, err := assembly.PlaceStem(pose.NewPose(pose.Origin(assembly.DynamicWorld), 111.75).Anchor(assembly.SteererLocal), stem); err != nil {
 		t.Errorf("PlaceStem(DefaultStemSetup()): %v", err)
 	}
 	if stem.UpperStackMm != assembly.DefaultUpperStackMm {

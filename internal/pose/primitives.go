@@ -17,24 +17,32 @@ func RightTriangleLeg(hypotenuseMm, otherLegMm float64) float64 {
 	return math.Sqrt(hypotenuseMm*hypotenuseMm - otherLegMm*otherLegMm)
 }
 
-// Along returns the displacement vector in W of Euclidean length lengthMm in
-// the direction of heading (pass lengthMm = 1 for a unit direction vector;
-// negative lengthMm points opposite heading).
-func Along[W any](heading Heading[W], lengthMm float64) Vec[W] {
-	return Vec[W]{X: lengthMm * heading.cos(), Y: lengthMm * heading.sin()}
+// Along returns the displacement vector in heading's FrameID of Euclidean length
+// lengthMm in the direction of heading (pass lengthMm = 1 for a unit direction
+// vector; negative lengthMm points opposite heading).
+func Along(heading Heading, lengthMm float64) Vec {
+	requireValidFrame(heading.frame)
+	return Vec{
+		x:     lengthMm * heading.cos(),
+		y:     lengthMm * heading.sin(),
+		frame: heading.frame,
+	}
 }
 
 // ProjectOnto returns the signed scalar projection in millimeters of v onto the
-// unit-length direction vector at heading in W.
-func ProjectOnto[W any](v Vec[W], heading Heading[W]) float64 {
-	return v.X*heading.cos() + v.Y*heading.sin()
+// unit-length direction vector at heading in the same FrameID.
+func ProjectOnto(v Vec, heading Heading) float64 {
+	requireSameFrame(v.frame, heading.frame)
+	return v.x*heading.cos() + v.y*heading.sin()
 }
 
 // DecomposeAlong returns the signed coefficients (a, b) in millimeters with
 // v = a·dir(headingA) + b·dir(headingB), where dir(h) is the unit-length
-// direction vector at heading h in W. ok is false when the directions are
-// parallel or antiparallel (|sin(headingB − headingA)| < 1e-12).
-func DecomposeAlong[W any](v Vec[W], headingA, headingB Heading[W]) (a, b float64, ok bool) {
+// direction vector at heading h in the same FrameID as v. ok is false when
+// the directions are parallel or antiparallel (|sin(headingB − headingA)| < 1e-12).
+func DecomposeAlong(v Vec, headingA, headingB Heading) (a, b float64, ok bool) {
+	requireSameFrame(v.frame, headingA.frame)
+	requireSameFrame(v.frame, headingB.frame)
 	dA := Along(headingA, 1)
 	dB := Along(headingB, 1)
 	den := cross(dA, dB)
@@ -44,6 +52,7 @@ func DecomposeAlong[W any](v Vec[W], headingA, headingB Heading[W]) (a, b float6
 	return cross(v, dB) / den, cross(dA, v) / den, true
 }
 
-func cross[W any](p, q Vec[W]) float64 {
-	return p.X*q.Y - p.Y*q.X
+func cross(p, q Vec) float64 {
+	requireSameFrame(p.frame, q.frame)
+	return p.x*q.y - p.y*q.x
 }

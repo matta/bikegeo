@@ -42,23 +42,23 @@ func isFinite(v float64) bool {
 	return !math.IsNaN(v) && !math.IsInf(v, 0)
 }
 
-func isFinitePoint(p pose.Point[DynamicWorld]) bool {
-	return isFinite(p.X) && isFinite(p.Y)
+func isFinitePoint(p pose.Point) bool {
+	return isFinite(p.X()) && isFinite(p.Y())
 }
 
-func validatePose[Dir any](name string, p pose.Pose[Dir, DynamicWorld]) error {
+func validatePose(name string, p pose.Pose) error {
 	if !isFinitePoint(p.Origin()) || !isFinite(float64(p.HeadingDeg())) {
 		return fmt.Errorf("%s pose must be finite, got (%v, %v) at %v°",
-			name, p.Origin().X, p.Origin().Y, p.HeadingDeg())
+			name, p.Origin().X(), p.Origin().Y(), p.HeadingDeg())
 	}
 	return nil
 }
 
-func validatePlacementPoints(component string, from pose.Point[DynamicWorld], outputs ...pose.Point[DynamicWorld]) error {
+func validatePlacementPoints(component string, from pose.Point, outputs ...pose.Point) error {
 	for _, p := range outputs {
 		if !isFinitePoint(p) {
 			return fmt.Errorf("%s placement overflow from (%v, %v)",
-				component, from.X, from.Y)
+				component, from.X(), from.Y())
 		}
 	}
 	return nil

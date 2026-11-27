@@ -24,7 +24,7 @@ func (s BikeSetup) RailOffsetLimitMm() (float64, error) {
 // physical dimensions from one consistent build.
 type BikePlacement struct {
 	Setup     BikeSetup
-	Frameset  FramesetPlacement[DynamicWorld]
+	Frameset  FramesetPlacement
 	Seatpost  SeatpostPlacement
 	Saddle    SaddlePlacement
 	Stem      StemPlacement
@@ -71,7 +71,7 @@ func PlaceBike(setup BikeSetup) (BikePlacement, error) {
 	if err != nil {
 		return BikePlacement{}, err
 	}
-	stem, err := PlaceStem(frameset.HeadTubeTop, setup.Stem)
+	stem, err := PlaceStem(frameset.SteererInWorld(), setup.Stem)
 	if err != nil {
 		return BikePlacement{}, err
 	}

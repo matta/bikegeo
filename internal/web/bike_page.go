@@ -138,10 +138,10 @@ func formFromBike(b query.Bike) bikeFormValues {
 		ForkOptions: query.ForkOptionsSelected,
 	}
 	if b.BrpTarget != nil {
-		form.BrpX, form.BrpY = formatFormFloat(b.BrpTarget.X), formatFormFloat(b.BrpTarget.Y)
+		form.BrpX, form.BrpY = formatFormFloat(b.BrpTarget.X()), formatFormFloat(b.BrpTarget.Y())
 	}
 	if b.GripTarget != nil {
-		form.GripX, form.GripY = formatFormFloat(b.GripTarget.X), formatFormFloat(b.GripTarget.Y)
+		form.GripX, form.GripY = formatFormFloat(b.GripTarget.X()), formatFormFloat(b.GripTarget.Y())
 	}
 	if b.AllBarOptions {
 		form.BarOptions = query.BarOptionsAll
@@ -273,10 +273,10 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs, invalidFie
 		Form:                 form,
 		MinRailOffsetMm:      minRail,
 		MaxRailOffsetMm:      maxRail,
-		ExampleBrpX:          formatFormFloat(brp.X),
-		ExampleBrpY:          formatFormFloat(brp.Y),
-		ExampleGripX:         formatFormFloat(grip.X),
-		ExampleGripY:         formatFormFloat(grip.Y),
+		ExampleBrpX:          formatFormFloat(brp.X()),
+		ExampleBrpY:          formatFormFloat(brp.Y()),
+		ExampleGripX:         formatFormFloat(grip.X()),
+		ExampleGripY:         formatFormFloat(grip.Y()),
 		MaxSpacersMm:         b.Setup.Stem.MaxSpacersMm,
 		MinPostInsertionMm:   postBounds.EffectiveMinInsertionMm,
 		MaxPostInsertionMm:   postBounds.MaxAllowedInsertionMm,
@@ -448,14 +448,14 @@ func presetBase(base query.Bike) query.Bike {
 		"post":  {base.Post.ID},
 	}
 	if base.BrpTarget != nil {
-		vals.Set("brp_x", query.FormatFloat(base.BrpTarget.X))
-		vals.Set("brp_y", query.FormatFloat(base.BrpTarget.Y))
+		vals.Set("brp_x", query.FormatFloat(base.BrpTarget.X()))
+		vals.Set("brp_y", query.FormatFloat(base.BrpTarget.Y()))
 	} else {
 		vals.Set("brp", "off")
 	}
 	if base.GripTarget != nil {
-		vals.Set("grip_x", query.FormatFloat(base.GripTarget.X))
-		vals.Set("grip_y", query.FormatFloat(base.GripTarget.Y))
+		vals.Set("grip_x", query.FormatFloat(base.GripTarget.X()))
+		vals.Set("grip_y", query.FormatFloat(base.GripTarget.Y()))
 	} else {
 		vals.Set("grip", "off")
 	}
@@ -521,8 +521,8 @@ func buildFittingView(parsed query.Bike, res query.BikeResult) (*bikeFittingView
 		railLimit, _ := bike.Setup.RailOffsetLimitMm() // PlaceBike and ApplyFitting already accepted this setup
 		miss := bike.Saddle.BRP.Origin().OffsetTo(*brp)
 		fv.Saddle = &saddleFittingView{
-			TargetX: brp.X, TargetY: brp.Y,
-			MissX: cleanZero(miss.X, 0.05), MissY: cleanZero(miss.Y, 0.05), MissMm: miss.Norm(),
+			TargetX: brp.X(), TargetY: brp.Y(),
+			MissX: cleanZero(miss.X(), 0.05), MissY: cleanZero(miss.Y(), 0.05), MissMm: miss.Norm(),
 			InsertionMm:  fitted.Seatpost.InsertionMm,
 			RailOffsetMm: fitted.Saddle.RailOffsetMm,
 			RailLimitMm:  railLimit,
@@ -538,8 +538,8 @@ func buildFittingView(parsed query.Bike, res query.BikeResult) (*bikeFittingView
 		miss := bike.Handlebar.HandGrip.Origin().OffsetTo(*grip)
 		stem := bike.Setup.Stem
 		fv.Cockpit = &cockpitFittingView{
-			TargetX: grip.X, TargetY: grip.Y,
-			MissX: cleanZero(miss.X, 0.05), MissY: cleanZero(miss.Y, 0.05), MissMm: miss.Norm(),
+			TargetX: grip.X(), TargetY: grip.Y(),
+			MissX: cleanZero(miss.X(), 0.05), MissY: cleanZero(miss.Y(), 0.05), MissMm: miss.Norm(),
 			SpacersMm:       fitted.Stem.SpacersMm,
 			MaxSpacersMm:    stem.MaxSpacersMm,
 			StemLengthMm:    fitted.Stem.LengthMm,
@@ -638,8 +638,8 @@ func makeBuildRankingView(parsed query.Bike, ranking query.BikeBuildRanking) (*b
 			SpacersMm:      stem.SpacersMm,
 			StemAngleDeg:   stem.AngleDeg,
 			GripMissMm:     gripMiss.Norm(),
-			GripMissXMm:    cleanZero(gripMiss.X, 0.05),
-			GripMissYMm:    cleanZero(gripMiss.Y, 0.05),
+			GripMissXMm:    cleanZero(gripMiss.X(), 0.05),
+			GripMissYMm:    cleanZero(gripMiss.Y(), 0.05),
 			GripR:          c.Score.GripR,
 			HasBrp:         c.Score.HasBrp,
 			BrpMissXMm:     cleanZero(c.Score.BrpMissXMm, 0.05),

@@ -52,8 +52,8 @@ func TestParseBikeDefaults(t *testing.T) {
 		if s.Seatpost.InsertionMm != 175.0 || s.Stem.SpacersMm != 20 || s.Stem.LengthMm != 60 || s.Stem.AngleDeg != -6 {
 			t.Errorf("%s: post/stem = %v / %+v", name, s.Seatpost.InsertionMm, s.Stem)
 		}
-		if b.BrpTarget == nil || *b.BrpTarget != (pose.Point[assembly.DynamicWorld]{X: -219, Y: 713.1}) ||
-			b.GripTarget == nil || *b.GripTarget != (pose.Point[assembly.DynamicWorld]{X: 481, Y: 726}) {
+		if b.BrpTarget == nil || *b.BrpTarget != pose.Pt(assembly.DynamicWorld, -219, 713.1) ||
+			b.GripTarget == nil || *b.GripTarget != pose.Pt(assembly.DynamicWorld, 481, 726) {
 			t.Errorf("%s: targets = %v / %v", name, b.BrpTarget, b.GripTarget)
 		}
 		if b.AllBarOptions || b.AllForkOptions {
@@ -258,8 +258,8 @@ func TestBikeEvaluate(t *testing.T) {
 	near(t, "ett", fs.EttMm(), 601.658169, 1e-5)
 	near(t, "wheelbase", fs.WheelbaseMm(), 1145.619462, 1e-5)
 	brp := r.Placement.Saddle.BRP.Origin()
-	near(t, "brp x", brp.X, -158.060601, 1e-5)
-	near(t, "brp y", brp.Y, 682.374276, 1e-5)
+	near(t, "brp x", brp.X(), -158.060601, 1e-5)
+	near(t, "brp y", brp.Y(), 682.374276, 1e-5)
 	if r.Score == nil {
 		t.Fatal("default Score nil")
 	}

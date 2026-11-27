@@ -56,18 +56,18 @@ func TestPlaceFramesetBasisForkAndInvariants(t *testing.T) {
 	}
 
 	// BB is fixed at (0, 0); axles are leveled to equal Y.
-	assertNear(t, "BB.X", placed.BB.Origin().X, 0, 1e-12)
-	assertNear(t, "BB.Y", placed.BB.Origin().Y, 0, 1e-12)
-	assertNear(t, "axle Y delta", placed.FrontAxle.Origin().Y-placed.RearAxle.Origin().Y, 0, 1e-9)
+	assertNear(t, "BB.X", placed.BB.Origin().X(), 0, 1e-12)
+	assertNear(t, "BB.Y", placed.BB.Origin().Y(), 0, 1e-12)
+	assertNear(t, "axle Y delta", placed.FrontAxle.Origin().Y()-placed.RearAxle.Origin().Y(), 0, 1e-9)
 
 	// Wheel/ground relationships: contact points sit vertically below axles on a level ground line.
-	assertNear(t, "contact Y delta", placed.FrontTireContact.Origin().Y-placed.RearTireContact.Origin().Y, 0, 1e-9)
-	assertNear(t, "rear contact X", placed.RearTireContact.Origin().X, placed.RearAxle.Origin().X, 1e-9)
-	assertNear(t, "front contact X", placed.FrontTireContact.Origin().X, placed.FrontAxle.Origin().X, 1e-9)
+	assertNear(t, "contact Y delta", placed.FrontTireContact.Origin().Y()-placed.RearTireContact.Origin().Y(), 0, 1e-9)
+	assertNear(t, "rear contact X", placed.RearTireContact.Origin().X(), placed.RearAxle.Origin().X(), 1e-9)
+	assertNear(t, "front contact X", placed.FrontTireContact.Origin().X(), placed.FrontAxle.Origin().X(), 1e-9)
 	assertNear(t, "rear wheel radius", placed.RearAxle.Origin().DistanceTo(placed.RearTireContact.Origin()), wheels.RadiusMm, 1e-9)
 	assertNear(t, "front wheel radius", placed.FrontAxle.Origin().DistanceTo(placed.FrontTireContact.Origin()), wheels.RadiusMm, 1e-9)
 	assertNear(t, "contact span equals axle wheelbase", placed.RearTireContact.Origin().DistanceTo(placed.FrontTireContact.Origin()), placed.RearAxle.Origin().DistanceTo(placed.FrontAxle.Origin()), 1e-9)
-	assertNear(t, "BB height above ground", placed.BB.Origin().Y-placed.RearTireContact.Origin().Y, wheels.RadiusMm-placed.RearAxle.Origin().Y, 1e-9)
+	assertNear(t, "BB height above ground", placed.BB.Origin().Y()-placed.RearTireContact.Origin().Y(), wheels.RadiusMm-placed.RearAxle.Origin().Y(), 1e-9)
 
 	// basis fork on Otso Fenrir L is consistent within chart rounding (~0° pitch, ~1158 mm wheelbase).
 	if math.Abs(float64(placed.PitchDeg())) > 0.2 {
@@ -77,7 +77,7 @@ func TestPlaceFramesetBasisForkAndInvariants(t *testing.T) {
 	assertNear(t, "leveled STA", float64(placed.LeveledSeatTubeAngleDeg()), float64(frame.SeatTubeAngleDeg-placed.PitchDeg()), 1e-12)
 	const publishedWheelbaseMm = 1158.0
 	assertNear(t, "basis wheelbase", placed.WheelbaseMm(), publishedWheelbaseMm, 1.5)
-	assertNear(t, "leveled BB drop", placed.LeveledBbDropMm(), placed.RearAxle.Origin().Y-placed.BB.Origin().Y, 1e-12)
+	assertNear(t, "leveled BB drop", placed.LeveledBbDropMm(), placed.RearAxle.Origin().Y()-placed.BB.Origin().Y(), 1e-12)
 
 	// Rigid physical lengths are preserved under leveling.
 	assertNear(t, "chainstay", placed.BB.Origin().DistanceTo(placed.RearAxle.Origin()), frame.ChainstayMm, 1e-9)
@@ -88,8 +88,8 @@ func TestPlaceFramesetBasisForkAndInvariants(t *testing.T) {
 	assertNear(t, "seat tube length", placed.BB.Origin().DistanceTo(placed.SeatTubeTop.Origin()), frame.SeatTubeLengthMm, 1e-9)
 
 	// SeatAxis is anchored at BB, points up the leveled seat tube axis, and parents SeatTubeTop.
-	assertNear(t, "SeatAxis.X", placed.SeatAxis.Origin().X, 0, 1e-12)
-	assertNear(t, "SeatAxis.Y", placed.SeatAxis.Origin().Y, 0, 1e-12)
+	assertNear(t, "SeatAxis.X", placed.SeatAxis.Origin().X(), 0, 1e-12)
+	assertNear(t, "SeatAxis.Y", placed.SeatAxis.Origin().Y(), 0, 1e-12)
 	assertNear(t, "SeatAxis.Heading == SeatTubeTop.Heading", float64(placed.SeatAxis.HeadingDeg()), float64(placed.SeatTubeTop.HeadingDeg()), 1e-12)
 	assertNear(t, "SeatAxis to SeatTubeTop", placed.SeatAxis.Origin().DistanceTo(placed.SeatTubeTop.Origin()), frame.SeatTubeLengthMm, 1e-9)
 	assertNear(t, "SeatAxis.Heading == BB.Heading + 180 - STA", float64(placed.SeatAxis.HeadingDeg()), float64(placed.BB.HeadingDeg()+(180.0-frame.SeatTubeAngleDeg)), 1e-12)
@@ -117,8 +117,8 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
 
-	assertNear(t, "axle Y delta", placed.FrontAxle.Origin().Y-placed.RearAxle.Origin().Y, 0, 1e-9)
-	assertNear(t, "contact Y delta", placed.FrontTireContact.Origin().Y-placed.RearTireContact.Origin().Y, 0, 1e-9)
+	assertNear(t, "axle Y delta", placed.FrontAxle.Origin().Y()-placed.RearAxle.Origin().Y(), 0, 1e-9)
+	assertNear(t, "contact Y delta", placed.FrontTireContact.Origin().Y()-placed.RearTireContact.Origin().Y(), 0, 1e-9)
 	assertNear(t, "rear wheel radius", placed.RearAxle.Origin().DistanceTo(placed.RearTireContact.Origin()), wheels.RadiusMm, 1e-9)
 	assertNear(t, "front wheel radius", placed.FrontAxle.Origin().DistanceTo(placed.FrontTireContact.Origin()), wheels.RadiusMm, 1e-9)
 	if placed.PitchDeg() <= 0 {
@@ -140,8 +140,8 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 	if placedMoreSag.PitchDeg() >= placed.PitchDeg() {
 		t.Fatalf("30%% sag pitch = %.4f°, want < 20%% sag pitch %.4f°", placedMoreSag.PitchDeg(), placed.PitchDeg())
 	}
-	bbHeight20 := placed.BB.Origin().Y - placed.RearTireContact.Origin().Y
-	bbHeight30 := placedMoreSag.BB.Origin().Y - placedMoreSag.RearTireContact.Origin().Y
+	bbHeight20 := placed.BB.Origin().Y() - placed.RearTireContact.Origin().Y()
+	bbHeight30 := placedMoreSag.BB.Origin().Y() - placedMoreSag.RearTireContact.Origin().Y()
 	if bbHeight20 <= bbHeight30 {
 		t.Fatalf("20%% sag BB height %.4f mm, want > 30%% sag BB height %.4f mm", bbHeight20, bbHeight30)
 	}
@@ -271,11 +271,11 @@ func TestPlaceUnpitchedFrameset(t *testing.T) {
 	assertNear(t, "leveled.PitchDeg() - unpitched.LevelingPitchDeg()", float64(leveled.PitchDeg()-unpitched.LevelingPitchDeg()), 0, 1e-12)
 	assertNear(t, "leveled.LevelingPitchDeg()", float64(leveled.LevelingPitchDeg()), 0, 1e-12)
 	assertNear(t, "axle rise", unpitched.RearAxle.Origin().VerticalOffsetTo(unpitched.FrontAxle.Origin()), 0.22, 0.005)
-	assertNear(t, "wheelbase mismatch", (unpitched.FrontAxle.Origin().X-unpitched.RearAxle.Origin().X)-1158.0, -0.34, 0.005)
-	assertNear(t, "rear contact X", unpitched.RearTireContact.Origin().X, unpitched.RearAxle.Origin().X, 1e-9)
-	assertNear(t, "rear contact Y", unpitched.RearTireContact.Origin().Y, unpitched.RearAxle.Origin().Y-wheels.RadiusMm, 1e-9)
-	assertNear(t, "front contact X", unpitched.FrontTireContact.Origin().X, unpitched.FrontAxle.Origin().X, 1e-9)
-	assertNear(t, "front contact Y", unpitched.FrontTireContact.Origin().Y, unpitched.FrontAxle.Origin().Y-wheels.RadiusMm, 1e-9)
+	assertNear(t, "wheelbase mismatch", (unpitched.FrontAxle.Origin().X()-unpitched.RearAxle.Origin().X())-1158.0, -0.34, 0.005)
+	assertNear(t, "rear contact X", unpitched.RearTireContact.Origin().X(), unpitched.RearAxle.Origin().X(), 1e-9)
+	assertNear(t, "rear contact Y", unpitched.RearTireContact.Origin().Y(), unpitched.RearAxle.Origin().Y()-wheels.RadiusMm, 1e-9)
+	assertNear(t, "front contact X", unpitched.FrontTireContact.Origin().X(), unpitched.FrontAxle.Origin().X(), 1e-9)
+	assertNear(t, "front contact Y", unpitched.FrontTireContact.Origin().Y(), unpitched.FrontAxle.Origin().Y()-wheels.RadiusMm, 1e-9)
 	assertNear(t, "BB to FrontAxle distance", leveled.BB.Origin().DistanceTo(leveled.FrontAxle.Origin()), unpitched.BB.Origin().DistanceTo(unpitched.FrontAxle.Origin()), 1e-9)
 	assertNear(t, "FrontAxle heading delta", float64(leveled.FrontAxle.HeadingDeg()-unpitched.FrontAxle.HeadingDeg()), -0.010692172, 1e-9)
 
@@ -525,12 +525,12 @@ func TestFramesetHandlingReadouts(t *testing.T) {
 			assertNear(t, "RcWbRatioPct", placed.RcWbRatioPct(), tc.wantRatio, 1e-5)
 			assertNear(t, "WheelbaseMm", placed.WheelbaseMm(), tc.wantWB, 1e-5)
 			assertNear(t, "RcWbRatioPct identity", placed.RcWbRatioPct(), 100.0*placed.RearCenterMm()/placed.WheelbaseMm(), 1e-12)
-			assertNear(t, "RearCenterMm == -RearAxle.X", placed.RearCenterMm(), -placed.RearAxle.Origin().X, 1e-12)
+			assertNear(t, "RearCenterMm == -RearAxle.X", placed.RearCenterMm(), -placed.RearAxle.Origin().X(), 1e-12)
 			assertNear(t, "LeveledReachMm", placed.LeveledReachMm(), tc.wantReach, 1e-6)
 			assertNear(t, "LeveledStackMm", placed.LeveledStackMm(), tc.wantStack, 1e-6)
 			assertNear(t, "EttMm", placed.EttMm(), tc.wantEtt, 1e-6)
-			assertNear(t, "LeveledReachMm == HeadTubeTop.X", placed.LeveledReachMm(), placed.HeadTubeTop.Origin().X, 1e-12)
-			assertNear(t, "LeveledStackMm == HeadTubeTop.Y", placed.LeveledStackMm(), placed.HeadTubeTop.Origin().Y, 1e-12)
+			assertNear(t, "LeveledReachMm == HeadTubeTop.X", placed.LeveledReachMm(), placed.HeadTubeTop.Origin().X(), 1e-12)
+			assertNear(t, "LeveledStackMm == HeadTubeTop.Y", placed.LeveledStackMm(), placed.HeadTubeTop.Origin().Y(), 1e-12)
 		})
 	}
 }
