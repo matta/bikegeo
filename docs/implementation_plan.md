@@ -146,8 +146,9 @@ Replace type parameters `[S]`, `[W]`, `[Dir, W]`, `[FromDir, ToDir]`, and `[Src,
 - Update `Along(heading Heading, lengthMm float64) Vec`, `ProjectOnto(v Vec, heading Heading) float64`, and `DecomposeAlong(v Vec, headingA, headingB Heading) (a, b float64, ok bool)` to assert matching `FrameID`s.
 - Add unit tests verifying deterministic panics on: (a) uninitialized zero-value `Point`/`Vec`/`Transform`, (b) cross-frame `Point.Sub` / `Point.Add`, (c) mismatched `Compose(ab, bc)`, and (d) origin-distinct frames (`RailClamp` vs. `SaddleLocal`).
 
-#### [MODIFY] Mechanical Caller Updates (`internal/assembly`, `internal/catalog`, `internal/query`, `internal/web`, `cmd/bikegeo/main_test.go`)
+#### [MODIFY] Mechanical Caller Updates & Steerer-Joint Safeguard (`internal/assembly`, `internal/catalog`, `internal/query`, `internal/web`, `cmd/bikegeo/main_test.go`)
 - Replace `[DynamicWorld]`, `[UnpitchedChart]`, and `*Dir` type brackets with `assembly.DynamicWorld` and `assembly.UnpitchedChart` `FrameID` values; replace `.X` / `.Y` field reads on `pose.Point` and `pose.Vec` with `.X()` / `.Y()`; update `main_test.go`'s `jsonPose.Origin` to `struct{ X, Y float64 }`.
+- **Demonstrate the steerer-direction safeguard in Stage 2 (before removing `SteererUpDir`/`SteererDownDir` without a replacement):** define `SteererLocal = pose.NewFrame("part:steerer")` (`(0, 0)` at `HeadTubeTop`, `+X` up the steerer) and `LowerHeadsetLocal = pose.NewFrame("part:lower_headset")` (`(0, 0)` at `HeadTubeBottom`, `+X` down the steerer) in `internal/assembly`, expose `SteererInWorld` (`SteererLocal → DynamicWorld`) and `LowerHeadsetInWorld` (`LowerHeadsetLocal → DynamicWorld`) from `FramesetPlacement`, have `PlaceStem` take `steererInWorld pose.Transform` (walking in `SteererLocal` along `+X` and applying `steererInWorld`), and add a negative unit test in `stem_test.go` proving that passing `LowerHeadsetInWorld` to `PlaceStem` panics deterministically on `FrameID` mismatch.
 
 ---
 
@@ -223,11 +224,10 @@ Refactor [saddle.go](file:///Users/matt/src/bikegeo/internal/assembly/saddle.go)
 - `MountHandlebar(barClamp BarClampPort, bar Handlebar, rollTurnFromStem pose.Deg) ClampedHandlebar` (with helper `BarTurnForWorldRoll(stemHeadingInWorld pose.Heading, worldBarRollDeg pose.Deg) pose.Deg`).
 
 #### [MODIFY] [stem.go](file:///Users/matt/src/bikegeo/internal/assembly/stem.go) & [stem_test.go](file:///Users/matt/src/bikegeo/internal/assembly/stem_test.go)
-- Define `SteererLocal = pose.NewFrame("part:steerer")` (`(0, 0)` at `HeadTubeTop`, `+X` up the steerer) and `LowerHeadsetLocal = pose.NewFrame("part:lower_headset")` (`(0, 0)` at `HeadTubeBottom`, `+X` down the steerer).
-- Move `UpperStackMm` and `MaxSpacersMm` onto a sealed `SteererPort` (unexported fields constructed via `Frame`/`Frameset` or validating constructor `NewSteererPort` asserting `SteererInFrame.Src() == SteererLocal` and `Dst() == FrameLocal`), carrying `SteererInFrame pose.Transform`, `UpperStackMm float64`, and `AllowedSpacers BoundedRange` (resolving the existing `TODO` on `StemSetup`).
+- Move `UpperStackMm` and `MaxSpacersMm` onto a sealed `SteererPort` (unexported fields constructed via `Frame`/`Frameset` or validating constructor `NewSteererPort` asserting `SteererInFrame.Src() == SteererLocal` and `Dst() == FrameLocal`), carrying `SteererInFrame pose.Transform`, `UpperStackMm float64`, and `AllowedSpacers BoundedRange` (resolving the existing `TODO` on `StemSetup` and lifting Stage 2's `SteererLocal → DynamicWorld` safeguard into `FrameLocal`).
 - Concrete `Stem` (`NewStem(clampHeightMm, lengthMm float64, angleDeg pose.Deg) (Stem, error)`, unexported fields): pure physical stem dimensions (no solver `MinLengthMm`/`MaxLengthMm` fields).
 - `MountStem(steerer SteererPort, spacersMm float64, stem Stem) (*ClampedStem, error)` → binds `Spacers BoundStatus`, walks in `SteererLocal` along `+X` (`CoverTop`, `SpacerTop`, `SteererClamp`, turns `-90° + AngleDeg`, advances `LengthMm` → `BarClamp`), and composes with `SteererInFrame` into `FrameLocal`.
-- Add a focused negative test in `stem_test.go` proving that constructing/passing a `LowerHeadsetLocal → FrameLocal` transform where `SteererLocal → FrameLocal` is required panics deterministically on `FrameID` mismatch (preserving the steerer-direction invariant under runtime `FrameID`s).
+- Carry forward Stage 2's negative `stem_test.go` check onto `NewSteererPort` / `MountStem`, proving that a `LowerHeadsetLocal → FrameLocal` transform still panics deterministically on `FrameID` mismatch.
 
 ---
 
