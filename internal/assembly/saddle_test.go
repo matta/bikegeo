@@ -397,3 +397,201 @@ func TestPlaceSaddleRejectsLocalPose(t *testing.T) {
 	}()
 	_, _ = assembly.PlaceSaddle(pose.OriginPose(assembly.SteererLocal), 30, sqlab610DefaultSaddle())
 }
+
+// Isolated Saddle tests below construct no bicycle frame or ambient world
+// except where explicitly verifying static-vs-dynamic rigid clamping.
+
+func sqlab610Dims() assembly.SaddleDimensions {
+	return assembly.SaddleDimensions{
+		RailCenterToBrpMm:      32.0,
+		RailCenterToSitBonesMm: -48.0,
+		RailToBrpHeightMm:      45.0,
+		SitBonesElevationMm:    10.0,
+		RailLengthMm:           60.0,
+	}
+}
+
+func TestSaddleIsolated(t *testing.T) {
+	dims := sqlab610Dims()
+	saddle, err := assembly.NewSaddle(dims)
+	if err != nil {
+		t.Fatalf("NewSaddle: %v", err)
+	}
+	if saddle.RailLengthMm() != 60.0 || saddle.Dimensions() != dims {
+		t.Errorf("unexpected saddle metadata: railLen=%v dims=%+v", saddle.RailLengthMm(), saddle.Dimensions())
+	}
+	brp := saddle.BRP()
+	sit := saddle.SIT()
+	if brp.CoordinateSystem() != assembly.SaddleLocal || sit.CoordinateSystem() != assembly.SaddleLocal {
+		t.Errorf("landmark systems = %s, %s; want %s", brp.CoordinateSystem(), sit.CoordinateSystem(), assembly.SaddleLocal)
+	}
+	assertNear(t, "BRP.X", brp.X(), 32.0, 1e-12)
+	assertNear(t, "BRP.Y", brp.Y(), 45.0, 1e-12)
+	assertNear(t, "SIT.X", sit.X(), -48.0, 1e-12)
+	assertNear(t, "SIT.Y", sit.Y(), 55.0, 1e-12)
+
+	for _, tc := range []struct {
+		name string
+		mut  func(*assembly.SaddleDimensions)
+	}{
+		{"NaN BRP X", func(d *assembly.SaddleDimensions) { d.RailCenterToBrpMm = math.NaN() }},
+		{"Inf SIT X", func(d *assembly.SaddleDimensions) { d.RailCenterToSitBonesMm = math.Inf(1) }},
+		{"negative BRP height", func(d *assembly.SaddleDimensions) { d.RailToBrpHeightMm = -0.1 }},
+		{"NaN BRP height", func(d *assembly.SaddleDimensions) { d.RailToBrpHeightMm = math.NaN() }},
+		{"Inf SIT elevation", func(d *assembly.SaddleDimensions) { d.SitBonesElevationMm = math.Inf(-1) }},
+		{"SIT height overflow", func(d *assembly.SaddleDimensions) {
+			d.RailToBrpHeightMm = math.MaxFloat64
+			d.SitBonesElevationMm = math.MaxFloat64
+		}},
+		{"zero rail length", func(d *assembly.SaddleDimensions) { d.RailLengthMm = 0 }},
+		{"negative rail length", func(d *assembly.SaddleDimensions) { d.RailLengthMm = -10 }},
+	} {
+		d := dims
+		tc.mut(&d)
+		if _, err := assembly.NewSaddle(d); err == nil {
+			t.Errorf("%s: want error", tc.name)
+		}
+	}
+
+	var zero assembly.Saddle
+	assertPanics(t, "zero Saddle BRP", func() { _ = zero.BRP() })
+	assertPanics(t, "zero Saddle SIT", func() { _ = zero.SIT() })
+	assertPanics(t, "zero Saddle RailLengthMm", func() { _ = zero.RailLengthMm() })
+	assertPanics(t, "zero Saddle Dimensions", func() { _ = zero.Dimensions() })
+}
+
+func TestMateSaddleAndClampedSaddleStaticVsDynamic(t *testing.T) {
+	saddle, err := assembly.NewSaddle(sqlab610Dims())
+	if err != nil {
+		t.Fatalf("NewSaddle: %v", err)
+	}
+
+	// Mate onto a standalone LinkagePost cradle in SeatpostLocal (no frame/world).
+	sag := pose.NewVector(assembly.SeatpostLocal, -6, 5)
+	post, err := assembly.NewLinkagePost(350, 100, 250, 7, 30, sag)
+	if err != nil {
+		t.Fatalf("NewLinkagePost: %v", err)
+	}
+	dof, err := assembly.MateSaddle(post.RailClamp(assembly.Dynamic), saddle)
+	if err != nil {
+		t.Fatalf("MateSaddle: %v", err)
+	}
+	allowed := dof.AllowedRailOffset()
+	assertNear(t, "allowed min", allowed.Min(), -15.0, 1e-12)
+	assertNear(t, "allowed max", allowed.Max(), 15.0, 1e-12)
+	if allowed.MinSource() != "saddle rail forward limit" || allowed.MaxSource() != "saddle rail rearward limit" {
+		t.Errorf("unexpected rail bound sources: %q, %q", allowed.MinSource(), allowed.MaxSource())
+	}
+
+	// Clamp wider than rails or non-positive is rejected.
+	wideClamp := post.RailClamp(assembly.Static)
+	wideClamp.ClampLengthMm = 65
+	if _, err := assembly.MateSaddle(wideClamp, saddle); err == nil {
+		t.Error("clamp wider than rails: want error")
+	}
+	zeroClamp := post.RailClamp(assembly.Static)
+	zeroClamp.ClampLengthMm = 0
+	if _, err := assembly.MateSaddle(zeroClamp, saddle); err == nil {
+		t.Error("zero clamp length: want error")
+	}
+	nanClamp := assembly.RailClampPort{
+		CradleInParent: pose.NewTransform(assembly.SeatpostCradle, assembly.SeatpostLocal, pose.NewPoint(assembly.SeatpostLocal, math.NaN(), 0), 0),
+		ClampLengthMm:  30,
+	}
+	if _, err := assembly.MateSaddle(nanClamp, saddle); err == nil {
+		t.Error("non-finite clamp transform: want error")
+	}
+
+	// Out-of-bounds rail offset and non-finite rail turn return field-attributed InputErrors.
+	var inputErr *assembly.InputError
+	if _, err := dof.Clamp(15.1, -100); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSaddleRailOffset {
+		t.Errorf("rail offset > max = %v, want InputSaddleRailOffset", err)
+	}
+	if _, err := dof.Clamp(0, pose.Deg(math.NaN())); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSaddleRailPitch {
+		t.Errorf("NaN rail turn = %v, want InputSaddleRailPitch", err)
+	}
+
+	// Assemble a Seatpost + ClampedSaddle in FrameLocal, clamp the rails to +5°
+	// in DynamicWorld (frame pitch -2.0°), then unload that exact ClampedSaddle
+	// to StaticWorld (frame pitch -0.5°, +1.5° nose-up pitch change).
+	collarInFrame := pose.NewPose(pose.NewPoint(assembly.FrameLocal, -120, 470), 105).Anchor(assembly.SeatTubeCollar)
+	frameRange, _ := assembly.NewBoundedRange(100, 290, "frame min", "frame max")
+	postDoF, err := assembly.MateSeatpost(assembly.SeatTubeSocket{CollarInFrame: collarInFrame, AllowedInsertion: frameRange}, post)
+	if err != nil {
+		t.Fatalf("MateSeatpost: %v", err)
+	}
+	clampedPost, err := postDoF.Clamp(150)
+	if err != nil {
+		t.Fatalf("postDoF.Clamp: %v", err)
+	}
+
+	frameToDynamic := pose.NewTransform(assembly.FrameLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), -2.0)
+	frameToStatic := pose.NewTransform(assembly.FrameLocal, assembly.StaticWorld, pose.Origin(assembly.StaticWorld), -0.5)
+	dynPost := clampedPost.PlaceInWorld(frameToDynamic)
+	statPost := clampedPost.PlaceInWorld(frameToStatic)
+
+	railTurn := assembly.RailTurnForWorldPitch(dynPost.CradleInWorld.HeadingInDst(), 5.0)
+	clampedSaddle, err := dof.Clamp(10.0, railTurn)
+	if err != nil {
+		t.Fatalf("dof.Clamp: %v", err)
+	}
+	if clampedSaddle.RailOffset().Value != 10.0 || clampedSaddle.RailOffset().MarginMm() != 5.0 {
+		t.Errorf("RailOffset = %+v, want Value=10 Margin=5", clampedSaddle.RailOffset())
+	}
+	assertNear(t, "RailTurnFromCradle", float64(clampedSaddle.RailTurnFromCradle()), 5.0-103.0, 1e-12)
+	if clampedSaddle.SaddleInCradle().Src() != assembly.SaddleLocal || clampedSaddle.SaddleInCradle().Dst() != assembly.SeatpostCradle {
+		t.Errorf("SaddleInCradle systems = %s -> %s", clampedSaddle.SaddleInCradle().Src(), clampedSaddle.SaddleInCradle().Dst())
+	}
+
+	dynSaddle := clampedSaddle.Place(dynPost.CradleInWorld)
+	statSaddle := clampedSaddle.Place(statPost.CradleInWorld)
+
+	// In DynamicWorld, every saddle landmark sits at exact +5.0° world pitch.
+	assertNear(t, "dynamic RailClamp heading", float64(dynSaddle.RailClamp.HeadingDeg()), 5.0, 1e-12)
+	assertNear(t, "dynamic BRP heading", float64(dynSaddle.BRP.HeadingDeg()), 5.0, 1e-12)
+	assertNear(t, "dynamic SitBones heading", float64(dynSaddle.SitBones.HeadingDeg()), 5.0, 1e-12)
+
+	// In StaticWorld (+1.5° pitch delta), the clamped saddle rotates rigidly to +6.5° (no gyroscope).
+	assertNear(t, "static RailClamp heading", float64(statSaddle.RailClamp.HeadingDeg()), 6.5, 1e-12)
+	assertNear(t, "static BRP heading", float64(statSaddle.BRP.HeadingDeg()), 6.5, 1e-12)
+	assertNear(t, "static SitBones heading", float64(statSaddle.SitBones.HeadingDeg()), 6.5, 1e-12)
+
+	// Rigid distances inside the saddle are preserved across Static and Dynamic states.
+	assertNear(t, "RailPivot→RailCenter static", statSaddle.RailPivot.Origin().DistanceTo(statSaddle.RailCenter.Origin()), 10.0, 1e-12)
+	assertNear(t, "RailCenter→BRP static", statSaddle.RailCenter.Origin().DistanceTo(statSaddle.BRP.Origin()), math.Hypot(32, 45), 1e-12)
+	assertNear(t, "BRP→SitBones static vs dynamic",
+		statSaddle.BRP.Origin().DistanceTo(statSaddle.SitBones.Origin()),
+		dynSaddle.BRP.Origin().DistanceTo(dynSaddle.SitBones.Origin()), 1e-12)
+
+	// Deterministic panics on coordinate-system mismatches and zero values.
+	assertPanics(t, "MateSaddle zero Saddle", func() {
+		_, _ = assembly.MateSaddle(post.RailClamp(assembly.Static), assembly.Saddle{})
+	})
+	assertPanics(t, "MateSaddle zero Transform", func() {
+		_, _ = assembly.MateSaddle(assembly.RailClampPort{ClampLengthMm: 30}, saddle)
+	})
+	assertPanics(t, "MateSaddle wrong Src", func() {
+		bad := pose.NewTransform(assembly.SteererLocal, assembly.FrameLocal, pose.Origin(assembly.FrameLocal), 0)
+		_, _ = assembly.MateSaddle(assembly.RailClampPort{CradleInParent: bad, ClampLengthMm: 30}, saddle)
+	})
+	assertPanics(t, "RailTurnForWorldPitch FrameLocal", func() {
+		_ = assembly.RailTurnForWorldPitch(pose.NewHeading(assembly.FrameLocal, 105), 0)
+	})
+	assertPanics(t, "RailTurnForWorldPitch UnpitchedChart", func() {
+		_ = assembly.RailTurnForWorldPitch(pose.NewHeading(assembly.UnpitchedChart, 105), 0)
+	})
+	assertPanics(t, "RailTurnForWorldPitch zero Heading", func() {
+		_ = assembly.RailTurnForWorldPitch(pose.Heading{}, 0)
+	})
+	assertPanics(t, "ClampedSaddle.Place wrong Src", func() {
+		wrong := pose.NewTransform(assembly.SteererLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), 0)
+		_ = clampedSaddle.Place(wrong)
+	})
+	assertPanics(t, "ClampedSaddle.Place zero transform", func() {
+		_ = clampedSaddle.Place(pose.Transform{})
+	})
+	assertPanics(t, "nil ClampedSaddle Place", func() {
+		var nilSaddle *assembly.ClampedSaddle
+		_ = nilSaddle.Place(dynPost.CradleInWorld)
+	})
+}

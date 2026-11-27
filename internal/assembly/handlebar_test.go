@@ -342,3 +342,186 @@ func TestPlaceHandlebarRejectsLocalPose(t *testing.T) {
 	}
 	_, _ = assembly.PlaceHandlebar(pose.OriginPose(assembly.SteererLocal), setup)
 }
+
+// Isolated Handlebar and ClampedHandlebar tests below construct no bicycle
+// frameset, verifying 3D-to-2D sagittal projection in HandlebarLocal and rigid
+// stem-clamped roll across StaticWorld and DynamicWorld.
+
+func persuader800Dims() assembly.HandlebarDimensions {
+	return assembly.HandlebarDimensions{
+		StockWidthMm:   800.0,
+		CurrentWidthMm: 800.0,
+		BacksweepDeg:   20.0,
+		UpsweepDeg:     4.0,
+		StatedRiseMm:   50.0,
+		RiseMode:       assembly.RiseModeBarEndCenter,
+		BendStartMm:    135.0,
+		GripInsetMm:    70.0,
+	}
+}
+
+func TestHandlebarIsolated(t *testing.T) {
+	// Bar-end center mode cut narrower than stock width.
+	cutDims := persuader800Dims()
+	cutDims.CurrentWidthMm = 760.0
+	cutDims.GripInsetMm = 65.0
+
+	bar, err := assembly.NewHandlebar(cutDims)
+	if err != nil {
+		t.Fatalf("NewHandlebar cut: %v", err)
+	}
+	if bar.GripInBar().CoordinateSystem() != assembly.HandlebarLocal {
+		t.Errorf("GripInBar system = %s, want %s", bar.GripInBar().CoordinateSystem(), assembly.HandlebarLocal)
+	}
+	yk := 50.0 - 265.0*math.Tan(4.0*math.Pi/180.0)
+	wantDX := -180.0 * math.Tan(20.0*math.Pi/180.0)
+	wantDY := yk + 180.0*math.Tan(4.0*math.Pi/180.0)
+	assertNear(t, "EffectiveWidthMm", bar.EffectiveWidthMm(), 760.0, 1e-12)
+	assertNear(t, "HandLateralMm", bar.HandLateralMm(), 315.0, 1e-12)
+	assertNear(t, "BaseRiseAtBendMm", bar.BaseRiseAtBendMm(), yk, 1e-9)
+	assertNear(t, "GripInBar.X", bar.GripInBar().X(), wantDX, 1e-9)
+	assertNear(t, "GripInBar.Y", bar.GripInBar().Y(), wantDY, 1e-9)
+	if bar.Dimensions() != cutDims {
+		t.Errorf("Dimensions = %+v, want %+v", bar.Dimensions(), cutDims)
+	}
+
+	// Standard knuckle mode with zHand <= BendStartMm has zero outboard sweep.
+	narrow, err := assembly.NewHandlebar(assembly.HandlebarDimensions{
+		StockWidthMm:   800,
+		CurrentWidthMm: 280,
+		BacksweepDeg:   16,
+		UpsweepDeg:     4,
+		StatedRiseMm:   30,
+		RiseMode:       assembly.RiseModeStandardKnuckle,
+		BendStartMm:    85,
+		GripInsetMm:    65,
+	})
+	if err != nil {
+		t.Fatalf("NewHandlebar narrow: %v", err)
+	}
+	assertNear(t, "narrow GripInBar.X", narrow.GripInBar().X(), 0, 1e-12)
+	assertNear(t, "narrow GripInBar.Y", narrow.GripInBar().Y(), 30, 1e-12)
+
+	// Invalid dimensions fail construction.
+	for _, tc := range []struct {
+		name string
+		mut  func(*assembly.HandlebarDimensions)
+	}{
+		{"zero widths", func(d *assembly.HandlebarDimensions) { d.StockWidthMm = 0; d.CurrentWidthMm = 0 }},
+		{"current > stock", func(d *assembly.HandlebarDimensions) { d.CurrentWidthMm = 820 }},
+		{"backsweep 90", func(d *assembly.HandlebarDimensions) { d.BacksweepDeg = 90 }},
+		{"upsweep -90", func(d *assembly.HandlebarDimensions) { d.UpsweepDeg = -90 }},
+		{"zero grip inset", func(d *assembly.HandlebarDimensions) { d.GripInsetMm = 0 }},
+		{"unknown rise mode", func(d *assembly.HandlebarDimensions) { d.RiseMode = "bogus" }},
+		{"bend > stock half-width", func(d *assembly.HandlebarDimensions) { d.BendStartMm = 405 }},
+	} {
+		d := persuader800Dims()
+		tc.mut(&d)
+		if _, err := assembly.NewHandlebar(d); err == nil {
+			t.Errorf("%s: want error", tc.name)
+		}
+	}
+
+	var zero assembly.Handlebar
+	assertPanics(t, "zero Handlebar GripInBar", func() { _ = zero.GripInBar() })
+	assertPanics(t, "zero Handlebar HandLateralMm", func() { _ = zero.HandLateralMm() })
+}
+
+func TestMountHandlebarAndClampedHandlebarStaticVsDynamic(t *testing.T) {
+	bar, err := assembly.NewHandlebar(persuader800Dims())
+	if err != nil {
+		t.Fatalf("NewHandlebar: %v", err)
+	}
+	steererInFrame := pose.NewPose(pose.NewPoint(assembly.FrameLocal, 428, 642), 111.75).Anchor(assembly.SteererLocal)
+	port, err := assembly.NewSteererPort(steererInFrame, 11, 30)
+	if err != nil {
+		t.Fatalf("NewSteererPort: %v", err)
+	}
+	stem, err := assembly.NewStem(40, 60, -6)
+	if err != nil {
+		t.Fatalf("NewStem: %v", err)
+	}
+	clampedStem, err := assembly.MountStem(port, 20, stem)
+	if err != nil {
+		t.Fatalf("MountStem: %v", err)
+	}
+
+	// Clamp bar to +7.5° world roll (heading -7.5°) in DynamicWorld (frame pitch -2.0°),
+	// then unload the exact same ClampedStem + ClampedHandlebar to StaticWorld
+	// (frame pitch -0.5°, +1.5° nose-up pitch change).
+	frameToDynamic := pose.NewTransform(assembly.FrameLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), -2.0)
+	frameToStatic := pose.NewTransform(assembly.FrameLocal, assembly.StaticWorld, pose.Origin(assembly.StaticWorld), -0.5)
+	dynStem := clampedStem.Place(frameToDynamic)
+	statStem := clampedStem.Place(frameToStatic)
+
+	rollTurn := assembly.BarTurnForWorldRoll(dynStem.BarClampInWorld.HeadingInDst(), 7.5)
+	clampedBar, err := assembly.MountHandlebar(clampedStem.BarClampInFrame(), bar, rollTurn)
+	if err != nil {
+		t.Fatalf("MountHandlebar: %v", err)
+	}
+	assertNear(t, "RollTurnFromStem", float64(clampedBar.RollTurnFromStem()), float64(rollTurn), 1e-12)
+	if clampedBar.BarInStem().Src() != assembly.HandlebarLocal || clampedBar.BarInStem().Dst() != assembly.StemLocal {
+		t.Errorf("BarInStem systems = %s -> %s", clampedBar.BarInStem().Src(), clampedBar.BarInStem().Dst())
+	}
+
+	dynBar := clampedBar.Place(dynStem.BarClampInWorld)
+	statBar := clampedBar.Place(statStem.BarClampInWorld)
+
+	// Dynamic bar sits at exact -7.5° world heading (+7.5° CW roll).
+	assertNear(t, "dynamic BarCenter heading", float64(dynBar.BarCenter.HeadingDeg()), -7.5, 1e-12)
+	assertNear(t, "dynamic HandGrip heading", float64(dynBar.HandGrip.HeadingDeg()), -7.5, 1e-12)
+	assertNear(t, "dynamic HandLateralMm", dynBar.HandLateralMm, 330.0, 1e-12)
+
+	// Static bar rotates rigidly with the frame/stem by +1.5° to -6.0° (no gyroscope).
+	assertNear(t, "static BarCenter heading", float64(statBar.BarCenter.HeadingDeg()), -6.0, 1e-12)
+	assertNear(t, "static HandGrip heading", float64(statBar.HandGrip.HeadingDeg()), -6.0, 1e-12)
+	assertNear(t, "BarClamp→HandGrip distance preserved",
+		statBar.BarClamp.Origin().DistanceTo(statBar.HandGrip.Origin()),
+		dynBar.BarClamp.Origin().DistanceTo(dynBar.HandGrip.Origin()), 1e-12)
+
+	// Verify the entire front cockpit rotated rigidly about BB by +1.5° between Dynamic and Static.
+	dynToStat := pose.NewTransform(assembly.DynamicWorld, assembly.StaticWorld, pose.Origin(assembly.StaticWorld), 1.5)
+	wantStatGrip := dynToStat.ApplyPoint(dynBar.HandGrip.Origin())
+	assertNear(t, "rigidly rotated static HandGrip.X", statBar.HandGrip.Origin().X(), wantStatGrip.X(), 1e-9)
+	assertNear(t, "rigidly rotated static HandGrip.Y", statBar.HandGrip.Origin().Y(), wantStatGrip.Y(), 1e-9)
+
+	// Non-finite rollTurnFromStem returns InputHandlebarRoll.
+	if _, err := assembly.MountHandlebar(clampedStem.BarClampInFrame(), bar, pose.Deg(math.Inf(1))); err == nil {
+		t.Error("Inf rollTurnFromStem: want error")
+	}
+	nanPort := assembly.BarClampPort{
+		ClampInParent: pose.NewTransform(assembly.StemLocal, assembly.FrameLocal, pose.NewPoint(assembly.FrameLocal, math.NaN(), 0), 0),
+	}
+	if _, err := assembly.MountHandlebar(nanPort, bar, 0); err == nil {
+		t.Error("non-finite BarClampPort: want error")
+	}
+
+	// Deterministic panics on coordinate-system mismatches and zero values.
+	assertPanics(t, "BarTurnForWorldRoll FrameLocal", func() {
+		_ = assembly.BarTurnForWorldRoll(pose.NewHeading(assembly.FrameLocal, 15), 0)
+	})
+	assertPanics(t, "BarTurnForWorldRoll UnpitchedChart", func() {
+		_ = assembly.BarTurnForWorldRoll(pose.NewHeading(assembly.UnpitchedChart, 15), 0)
+	})
+	assertPanics(t, "BarTurnForWorldRoll zero Heading", func() {
+		_ = assembly.BarTurnForWorldRoll(pose.Heading{}, 0)
+	})
+	assertPanics(t, "MountHandlebar zero Handlebar", func() {
+		_, _ = assembly.MountHandlebar(clampedStem.BarClampInFrame(), assembly.Handlebar{}, 0)
+	})
+	assertPanics(t, "MountHandlebar zero Transform", func() {
+		_, _ = assembly.MountHandlebar(assembly.BarClampPort{}, bar, 0)
+	})
+	assertPanics(t, "MountHandlebar wrong Src SteererLocal", func() {
+		wrong := pose.NewTransform(assembly.SteererLocal, assembly.FrameLocal, pose.Origin(assembly.FrameLocal), 0)
+		_, _ = assembly.MountHandlebar(assembly.BarClampPort{ClampInParent: wrong}, bar, 0)
+	})
+	assertPanics(t, "ClampedHandlebar.Place wrong Src", func() {
+		wrong := pose.NewTransform(assembly.SeatpostCradle, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), 0)
+		_ = clampedBar.Place(wrong)
+	})
+	assertPanics(t, "zero ClampedHandlebar Place", func() {
+		var zeroBar assembly.ClampedHandlebar
+		_ = zeroBar.Place(dynStem.BarClampInWorld)
+	})
+}
