@@ -1,8 +1,8 @@
 # Package-Sealed Delegation & `BikeSetup` Retirement Plan
 
 Status: Planned 2026-11-27
-Implementer: High (Frontier) for Stages 1–3, Medium for Stages 4–5 — seals package boundaries, delegates joint vectors and part sketches, and retires `BikeSetup`
-Review: required — architectural package boundaries, kinematic joint projection, and CLI JSON readout contract
+Implementer: Stage 1: Medium · Stages 2–3: High (Frontier) · Stage 4: Medium · Stage 5: Low (mapped to Gemini, Claude, and Codex models in WORKFLOW.md §2 and per stage below)
+Review: required — High / Frontier (Gemini 4 Carbon · Claude Opus 5.5 / Fable 5.2 · GPT-6.2 Astra)
 
 ## Goal Description
 
@@ -65,6 +65,8 @@ Every stage below must leave the repository compiling cleanly and passing `make 
 
 ### Stage 1: Extract `internal/bounds` & Self-Describing `SlideJoint`
 
+Recommended Implementer: **Medium** (`Gemini 4 Neon` · `Claude Sonnet 5.5` · `GPT-6.2 Sol`) — package extraction of existing tested types plus implementing `SlideJoint` from explicit formulas and invariants below.
+
 Create `internal/bounds` (importing only `internal/pose` and standard library) as the shared foundation for load states, attributed input errors, bounded intervals, and 1-DoF linear sliding joints.
 
 #### [NEW] `internal/bounds/` (`state.go`, `input.go`, `range.go`, `joint.go`, `bounds_test.go`)
@@ -90,6 +92,8 @@ Create `internal/bounds` (importing only `internal/pose` and standard library) a
 ---
 
 ### Stage 2: Extract Sealed `internal/parts` with Physical Head-Clamp Ownership, `SlideJoint`s, & Local `Sketch`es
+
+Recommended Implementer: **High / Frontier** (`Gemini 4 Carbon` · `Claude Opus 5.5` / `Fable 5.2` · `GPT-6.2 Astra`) — reshapes the physical `Seatpost` head-clamp vs. passive `Saddle` boundary across coordinate systems (`SeatTubeCollar`, `RailClampLocal`, `SaddleLocal`) and establishes each part's local `Sketch` anchors.
 
 Move all physical bicycle components and mating ports into `internal/parts` (importing only `internal/pose` and `internal/bounds`), sealing component internals away from `assembly`, `scoring`, `compare`, `query`, and `web`.
 
@@ -132,7 +136,7 @@ Move all physical bicycle components and mating ports into `internal/parts` (imp
     - **Head-clamp mate (`OpenRailClamp(clamp RailClampPort, saddle Saddle)` → `RailClampDoF` → `ClampedRailHead`):** validates `clamp.ClampLengthMm <= saddle.RailLengthMm()`, locks `railTurnFromCradle` (orienting `RailClampLocal` in `SeatpostCradle`, with helper `RailTurnForWorldPitch`), exposes `RailSlideJoint(railTurnFromCradle) bounds.SlideJoint` in `RailClampLocal` (`stepPerMm = NewVector(RailClampLocal, -1, 0)` over `[−limit, +limit]`), emits `RailClampLocal`'s `Sketch` (`SpanRailClamp` of length `ClampLengthMm` centered at `(0, 0)` along `+X`), and places both the tilted clamp jaws and the passive `Saddle` landmarks/sketch cleanly in separate coordinate systems (`RailClampLocal` and `SaddleLocal`).
   - `SteererPort`, `Stem`, & `ClampedStem` (`stem.go`):
     - `SteererPort` owns `SpacersJoint() bounds.SlideJoint` (`originAtZero = (UpperStackMm, 0)`, `stepPerMm = (+1, 0)` in `SteererLocal`) and `StemExtensionJoint(spacersMm, clampHeightMm float64, angleDeg pose.Deg, lengthRange bounds.BoundedRange) (bounds.SlideJoint, bounds.BoundStatus, error)`, sharing one internal clamp-center pose calculation (`UpperStackMm + spacersMm + clampHeightMm/2`, turned `−90° + angleDeg`) with `MountStem`.
-    - `ClampedStem` emits its steerer-local `Sketch` (`SpanUpperCover`, `SpanSpacers`, `SpanSteererClamp`) and stem-local `Sketch` (`SpanStemBody`).
+    - `ClampedStem` emits its steerer-local `Sketch` (`SpanUpperCover` from `HeadTubeTop` `[0, UpperStackMm]`, `SpanSpacers` from `CoverTop` `[0, SpacersMm]`, `SpanSteererClamp` centered on `SteererClamp` `[−ClampHeightMm/2, +ClampHeightMm/2]`) and stem-local `Sketch` (`SpanStemBody` anchored at `StemLocal` `(0, 0)` with `StartMm = −LengthMm, LengthMm = LengthMm` so projected SVG `<rect>` attributes match today's `diagram.go` output).
   - `Handlebar` & `ClampedHandlebar` (`handlebar.go`): exposes `LocalSketch()` (`SegHandlebarSweep` from `(0, 0)` to `GripInBar()` in `HandlebarLocal`).
 - **Tests (`internal/parts/*_test.go`):**
   - Move `seatpost_test.go`, `saddle_test.go`, `stem_test.go`, and `handlebar_test.go` into `internal/parts`, plus unit tests verifying `SteererPort.StemExtensionJoint` matches `MountStem` exactly (including `UpperStackMm`), head-clamp `RailClampLocal` vs. `SaddleLocal` sketches, `CheckSHIS`, and `Fork.SagStatus()`.
@@ -143,6 +147,8 @@ Move all physical bicycle components and mating ports into `internal/parts` (imp
 ---
 
 ### Stage 3: Joint-Projected `Solve2DoF` & `PlacedNode` Sketch Projection
+
+Recommended Implementer: **High / Frontier** (`Gemini 4 Carbon` · `Claude Opus 5.5` / `Fable 5.2` · `GPT-6.2 Astra`) — replaces signed `LinearDoF` probing across all three 2-DoF solvers (including unbounded `FitPostSetback`) and rewires `web/diagram.go`'s outline, segment, and close-up viewBox framing onto `PlacedNode`s while keeping SVG output unchanged.
 
 Eliminate manual `Planar2DoF` probe/sign choreography and unexported-field scraping in `internal/assembly`, and switch `internal/web/diagram.go` to uniform `PlacedNode` sketch projection.
 
@@ -166,6 +172,8 @@ Eliminate manual `Planar2DoF` probe/sign choreography and unexported-field scrap
 
 ### Stage 4: Extract `internal/scoring` Using Canonical `AttachFront`
 
+Recommended Implementer: **Medium** (`Gemini 4 Neon` · `Claude Sonnet 5.5` · `GPT-6.2 Sol`) — package extraction of `scoring.go` and `build_fitting.go`, cross-package test-fixture migration, and straightforward delegation to `Build` and `SeatedFrameset.AttachFront`.
+
 Move `0–100` rider-preference scoring and discrete front-cockpit search out of `internal/assembly` into `internal/scoring`, keeping `SeatedFrameset.AttachFront` as the single canonical front-cockpit assembly path.
 
 #### [NEW] `internal/scoring/` (`scoring.go`, `build_fitting.go`, `scoring_test.go`, `build_fitting_test.go`, `build_fitting_reference_test.go`)
@@ -181,6 +189,8 @@ Move `0–100` rider-preference scoring and discrete front-cockpit search out of
 ---
 
 ### Stage 5: Retire `Placement.Setup` (`BikeSetup`), Verify Cleanliness, and Delete Plan
+
+Recommended Implementer: **Low** (`Gemini 4 Hydrogen` · `Claude Haiku 5.5` · `GPT-6.1 Terra` / `GPT-6 Luna`) — compiler-guided removal of `Placement.Setup` in favor of the verbatim 11-field `FittedSettings` struct, `deadcode` / `TempSetupBridge` verification, roadmap cleanup, and deleting this plan file.
 
 Delete `setup_snapshot.go`, `forkMetadata`, and any `TempSetupBridge` helpers; replace `Placement.Setup` with pure 11-field `FittedSettings`; and delete this plan file.
 

@@ -82,22 +82,25 @@ Match the first applicable row below, state the **current phase**, recommend the
 
 | Observed Repo State | Current Phase | Recommended Model Tier | Next Action |
 | --- | --- | --- | --- |
-| `SLICE<n>.md` exists with `Status: Blocked` *(checked first, even if code is uncommitted)* | **Blocked on Design / Decision** | **Frontier** (e.g. Opus / Gemini Pro) | Resolve the blocking question with Matt, update `DESIGN.md` in place if lasting, update `SLICE<n>.md` |
+| `SLICE<n>.md` exists with `Status: Blocked` *(checked first, even if code is uncommitted)* | **Blocked on Design / Decision** | **High (Frontier)** | Resolve the blocking question with Matt, update `DESIGN.md` in place if lasting, update `SLICE<n>.md` |
 | Uncommitted code/test changes in working tree | **In-progress work / awaiting commit** | Match the active `SLICE<n>.md` `Implementer:` tier | Verify `make pre-commit`, finish/commit or revise before starting anything new |
-| `SLICE<n>.md` exists with `Status: Planned` (or `Partly implemented`) | **Slice Execution** | Read `Implementer:` in `SLICE<n>.md` (`Low` → fast/lower-tier, `Medium` → mid-tier, `High` → Frontier) | Implement `SLICE<n>.md`; stop and escalate to Frontier only if an unspec'd design fork appears |
-| `SLICE<n>.md` exists with `Status: Implemented …` and `Review: required` (not yet reviewed) | **Independent Review** | **Frontier** | Diff-only judgment review (§3); append concise findings under `## Implementation handoff` and report readiness |
+| `SLICE<n>.md` exists with `Status: Planned` (or `Partly implemented`) | **Slice Execution** | Read `Implementer:` in `SLICE<n>.md` (`Low`, `Medium`, or `High`) | Implement `SLICE<n>.md`; stop and escalate to Frontier only if an unspec'd design fork appears |
+| `SLICE<n>.md` exists with `Status: Implemented …` and `Review: required` (not yet reviewed) | **Independent Review** | **High (Frontier)** | Diff-only judgment review (§3); append concise findings under `## Implementation handoff` and report readiness |
 | `SLICE<n>.md` exists with `Status: Implemented …` and `Review: optional` (or review already done) | **Acceptance** | **Matt directly** (any model for cleanup commit) | Once Matt accepts, run the After acceptance cleanup (§1) |
-| No `SLICE*.md` exists; the next Active Roadmap item in `DESIGN.md` is a Fit Audit stage or physical check (marked `Next` / blocking in [docs/fit-audit/README.md](fit-audit/README.md)) | **Fit Audit Stage / Physical Check** | **Frontier** (plus Matt for physical bike measurements in [fenrir-measurements.md](fit-audit/fenrir-measurements.md)) | Execute or assist with the active stage in [docs/fit-audit/README.md](fit-audit/README.md) before planning the gated slices |
-| No `SLICE*.md` exists; next roadmap item in `DESIGN.md` has unresolved cross-slice ambiguity | **Horizon 1 — Direction Alignment** | **Frontier** | Resolve only the cross-slice fork(s) with Matt and update `DESIGN.md` in place |
-| No `SLICE*.md` exists; next roadmap item in `DESIGN.md` is clear | **Horizon 2 — Plan Next Slice** | **Frontier** | Inspect relevant committed code, surface only genuine slice-local choices, decide whether to sub-slice, and write `SLICE<n>.md` (or proceed with the next active stage in [implementation_plan.md](implementation_plan.md)) |
+| No `SLICE*.md` exists; the next Active Roadmap item in `DESIGN.md` is a Fit Audit stage or physical check (marked `Next` / blocking in [docs/fit-audit/README.md](fit-audit/README.md)) | **Fit Audit Stage / Physical Check** | **High (Frontier)** (plus Matt for physical bike measurements in [fenrir-measurements.md](fit-audit/fenrir-measurements.md)) | Execute or assist with the active stage in [docs/fit-audit/README.md](fit-audit/README.md) before planning the gated slices |
+| No `SLICE*.md` exists; next roadmap item in `DESIGN.md` has unresolved cross-slice ambiguity | **Horizon 1 — Direction Alignment** | **High (Frontier)** | Resolve only the cross-slice fork(s) with Matt and update `DESIGN.md` in place |
+| No `SLICE*.md` exists; next roadmap item in `DESIGN.md` is clear | **Horizon 2 — Plan Next Slice** | **High (Frontier)** | Inspect relevant committed code, surface only genuine slice-local choices, decide whether to sub-slice, and write `SLICE<n>.md` (or proceed with the next active stage in `implementation_plan.md`) |
 
 ### Complexity & Model-Tier Guide
 
-- **Planning, Direction, Review, Unblocking:** always **Frontier** (Opus / Gemini Pro / top reasoning tier).
-- **Implementation (`Implementer:` complexity rating in `SLICE<n>.md`):**
-  - **`Low` (fast / lower-tier, e.g. Flash / Sonnet):** mechanical refactors, renames, doc updates, straightforward wiring, repetitive catalog entries.
-  - **`Medium` (mid-tier, e.g. Sonnet):** multi-file feature work following established patterns, HTML/SVG template and query wiring, routine test additions.
-  - **`High` (Frontier, e.g. Opus / Gemini Pro):** novel geometry/physics math, scoring changes, tricky invariants or state interactions, or Small slices implemented directly during planning.
+| Tier | Task Profile in `bikegeo` | Google Gemini | Anthropic Claude | OpenAI Codex |
+| --- | --- | --- | --- | --- |
+| **`High` (Frontier)** | Direction, slice planning, Fit Audit stages, independent code review, unblocking, novel geometry/physics math, scoring changes, tricky coordinate or state invariants | **Gemini 4 Carbon** | **Claude Opus 5.5** (`claude-opus-5-5`) or **Claude Fable 5.2** (`claude-fable-5-2`) | **GPT-6.2 Astra** (`gpt-6.2-astra`) |
+| **`Medium` (Workhorse)** | Multi-file feature or package-extraction work following clear specs, cross-package test migration, HTML/SVG template and query wiring | **Gemini 4 Neon** | **Claude Sonnet 5.5** (`claude-sonnet-5-5`) | **GPT-6.2 Sol** (`gpt-6.2-sol`) |
+| **`Low` (Fast / Lightweight)** | Compiler-guided mechanical refactors, renames, doc updates, straightforward struct/field wiring, repetitive catalog entries | **Gemini 4 Hydrogen** | **Claude Haiku 5.5** (`claude-haiku-5-5`) | **GPT-6.1 Terra** (`gpt-6.1-terra`) or **GPT-6 Luna** (`gpt-6-luna`) |
+
+- **Planning, Direction, Review, Unblocking:** always **`High` (Frontier)** (with high reasoning effort where configurable).
+- **Implementation (`Implementer:` complexity rating in `SLICE<n>.md` or per stage in `implementation_plan.md`):** select `Low`, `Medium`, or `High` using the table above; Small 1-commit slices planned on `High` may also be implemented directly in the planning session.
 - **Review trigger (`Review:` in `SLICE<n>.md`):**
   - **`required`:** geometry/physics math, scoring logic, or architectural/package-boundary changes.
   - **`optional`:** mechanical refactors, docs, catalog data with existing test validation, or small/low-risk slices.
