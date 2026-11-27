@@ -50,11 +50,11 @@ func mustPlace(t *testing.T, b query.Bike) assembly.Placement {
 }
 
 // legacyBuild is the build earlier slices defaulted to on /bike: the generic
-// zero-setback post at its Q92 insertion, with both fit targets cleared (Q70).
+// zero-setback post at its insertion, with both fit targets cleared.
 // Tests that pin numbers for that build pass it explicitly.
 const legacyBuild = legacyPost + "&brp=off&grip=off"
 
-// legacyPost is the zero-setback post at its Q92 insertion.
+// legacyPost is the zero-setback post at its insertion.
 const legacyPost = "post=setback_0&post_insert=180.576"
 
 func TestRootServesComparePageAndNavLinks(t *testing.T) {
@@ -1819,7 +1819,7 @@ func TestBikeWorkbenchApplyFittingReachesReachableTarget(t *testing.T) {
 	}
 }
 
-// A half-entered target is rejected (Q70): the missing coordinate is marked
+// A half-entered target is rejected: the missing coordinate is marked
 // invalid and the typed value stays in its box.
 func TestBikeWorkbenchHalfEnteredTargetIsRejected(t *testing.T) {
 	for _, c := range []struct{ path, typedID, typed, missingID string }{
@@ -2675,7 +2675,7 @@ func TestBikeWorkbenchSeatpostSurvivesLinks(t *testing.T) {
 	}
 }
 
-// Retired and unknown query keys are rejected, not silently ignored (Q111).
+// Retired and unknown query keys are rejected, not silently ignored.
 func TestBikeWorkbenchRejectsUnknownAndRetiredKeys(t *testing.T) {
 	for _, key := range []string{"post_setback", "stock_bars", "stock_forks", "post_ext", "fram", "bar_option"} {
 		t.Run(key, func(t *testing.T) {
@@ -3091,7 +3091,7 @@ func TestBikeWorkbenchPostSwitchKeepsInsertionAndRecovers(t *testing.T) {
 	}
 
 	// Switching the post in the form clamps the carried insertion into the new
-	// post's bounds (Q109) instead of failing.
+	// post's bounds instead of failing.
 	rec, switched := submitForm(t, generic, map[string]string{"post": "redshift_shockstop_pro"})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("post switch status = %d, want 200", rec.Code)
@@ -3211,7 +3211,7 @@ func assertWebNear(t *testing.T, label string, got, want, tol float64) {
 	}
 }
 
-// Q92: the default build puts the leveled Lithic BRP at (-155.065, 729.317) mm and the basis fork at 746.008 mm.
+// the default build puts the leveled Lithic BRP at (-155.065, 729.317) mm and the basis fork at 746.008 mm.
 func TestBikeWorkbenchDefaultInsertionMidpointQ109(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike")
 	if got, _ := doc.Find(`select[name="post"] option[selected]`).Attr("value"); got != "redshift_shockstop_pro" {
@@ -3336,7 +3336,7 @@ func TestBikeWorkbenchBuildTiersAndLegend(t *testing.T) {
 		t.Errorf("Fits all definition = %q", got)
 	}
 
-	// No score readout without targets (Q98).
+	// No score readout without targets.
 	plain := loadBikeDoc(t, "/bike?brp=off&grip=off")
 	if n := plain.Find("[data-build-ranking], [data-fit-tier-legend]").Length(); n != 0 {
 		t.Errorf("/bike without targets shows %d build/score blocks, want none", n)
@@ -3437,7 +3437,7 @@ func TestBikeMultiFrameSelectAndSwitching(t *testing.T) {
 		if got := selectedValue(next, "size"); got != "L" {
 			t.Errorf("selected size = %q, want L", got)
 		}
-		// Q135: the Krampus lists fox34_120, which unlocks the 495 rigid class.
+		// the Krampus lists fox34_120, which unlocks the 495 rigid class.
 		if got := selectedValue(next, "fork"); got != "lithic_carbon_mountain-495x44" {
 			t.Errorf("selected fork = %q, want lithic_carbon_mountain-495x44", got)
 		}
@@ -3454,7 +3454,7 @@ func TestBikeMultiFrameSelectAndSwitching(t *testing.T) {
 			t.Fatalf("status = %d, want 200", rec.Code)
 		}
 		if got := selectedValue(next, "fork"); got != "surly_ecr_468" {
-			t.Errorf("selected fork = %q, want surly_ecr_468 (tapered forks do not fit 34 mm, Q130)", got)
+			t.Errorf("selected fork = %q, want surly_ecr_468 (tapered forks do not fit 34 mm)", got)
 		}
 	})
 	t.Run("switch to salsa-cutthroat keeps the shared fork", func(t *testing.T) {
@@ -3538,14 +3538,14 @@ func TestBikeSlidingDropoutsAndUnpublishedWheelbase(t *testing.T) {
 
 	moots := loadBikeDoc(t, "/bike?frame=moots-mountaineer&size=M")
 	if strings.Contains(moots.Text(), "(Published") {
-		t.Error("unpublished wheelbase must not print (Published ...) (Q57)")
+		t.Error("unpublished wheelbase must not print (Published ...)")
 	}
 	fenrir := loadBikeDoc(t, "/bike")
 	if strings.Contains(fenrir.Text(), "(Published") {
-		t.Error("Fenrir unpublished wheelbase must not print (Published ...) (Q141)")
+		t.Error("Fenrir unpublished wheelbase must not print (Published ...)")
 	}
 	if fenrir.Find(`[data-note="sliding-dropouts"]`).Length() != 0 {
-		t.Error("Fenrir Tuning Chip frame must not print sliding-dropouts note (Q140)")
+		t.Error("Fenrir Tuning Chip frame must not print sliding-dropouts note")
 	}
 	krampus := loadBikeDoc(t, "/bike?frame=surly-krampus&size=L")
 	if !strings.Contains(krampus.Text(), "(Published 1138.0 mm)") {
@@ -3561,7 +3561,7 @@ func TestBikeLeveledReadoutsAndRedshiftNote(t *testing.T) {
 		}
 	}
 	if doc.Find(`[data-note="redshift-mixed-state"]`).Length() != 1 {
-		t.Error("default /bike must render the Redshift mixed-state note (Q78)")
+		t.Error("default /bike must render the Redshift mixed-state note")
 	}
 	basis := loadBikeDoc(t, "/bike?fork=basis")
 	for name, want := range map[string]string{"leveled-reach": "429.3 mm", "leveled-stack": "641.1 mm", "ett": "599.7 mm"} {
@@ -3574,7 +3574,7 @@ func TestBikeLeveledReadoutsAndRedshiftNote(t *testing.T) {
 	}
 }
 
-func TestBikeSubmittedBuildScoreQ110(t *testing.T) {
+func TestBikeSubmittedBuildScore(t *testing.T) {
 	attrCells := func(doc *goquery.Document) map[string]string {
 		cells := map[string]string{}
 		doc.Find(`[data-submitted-score] [data-submitted-attr]`).Each(func(_ int, el *goquery.Selection) {
@@ -3672,7 +3672,7 @@ func TestBikeSubmittedBuildScoreQ110(t *testing.T) {
 	}
 }
 
-func TestBikeDurableClearedTargetsQ70(t *testing.T) {
+func TestBikeDurableClearedTargets(t *testing.T) {
 	clearedState := func(t *testing.T, doc *goquery.Document) {
 		t.Helper()
 		for _, sel := range []string{"[data-fitting]", "[data-submitted-score]", "[data-build-ranking]", "a#preset-clear-targets"} {
@@ -3770,7 +3770,7 @@ func optgroupLabels(sel *goquery.Selection) []string {
 	})
 }
 
-// TestBikeForkSelectGroupsListedAndOtherForks checks Q139 on /bike.
+// TestBikeForkSelectGroupsListedAndOtherForks checks listed/other fork optgroup grouping on /bike.
 func TestBikeForkSelectGroupsListedAndOtherForks(t *testing.T) {
 	for _, tc := range []struct {
 		path string
@@ -3795,14 +3795,13 @@ func TestBikeForkSelectGroupsListedAndOtherForks(t *testing.T) {
 	}
 	fenrirDoc := loadBikeDoc(t, "/bike")
 	if n := fenrirDoc.Find(`select[name="fork"] optgroup[label="Listed Forks"] option[value="enve_mountain_boost-490x44"]`).Length(); n != 1 {
-		t.Errorf("enve_mountain_boost-490x44 under Fenrir Listed Forks = %d, want 1 (Q128)", n)
+		t.Errorf("enve_mountain_boost-490x44 under Fenrir Listed Forks = %d, want 1", n)
 	}
 	if n := fenrirDoc.Find(`select[name="fork"] optgroup[label="Other Compatible Forks"] option[value="enve_mountain_boost-490x44"]`).Length(); n != 0 {
 		t.Errorf("enve_mountain_boost-490x44 under Fenrir Other Compatible Forks = %d, want 0", n)
 	}
 }
 
-// TestCompareForkSelectGroupsListedAndOtherForks checks Q139 on /.
 func TestBikeWorkbenchLayoutAndDisclosures(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike")
 	if got := strings.TrimSpace(doc.Find("head title").Text()); got != "Otso Fenrir Stainless (2024, Size L) — bikegeo" {

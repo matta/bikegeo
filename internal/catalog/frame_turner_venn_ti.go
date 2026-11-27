@@ -9,10 +9,10 @@ import "github.com/matta/bikegeo/internal/assembly"
 // bare head tube. Legacy notes the XL stack (670 mm) looks like a transcription
 // error for 690 mm; the published value is kept.
 //
-// Legacy notes: legacy_frame_notes.md, section turner-venn-ti (Q145).
+// Legacy notes: legacy_frame_notes.md, section turner-venn-ti.
 func turnerVennTi() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType ZS56; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType ZS56; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore56Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupZS56, StackMm: 4},
 	}
@@ -22,11 +22,11 @@ func turnerVennTi() Frame {
 		Model:        "Venn Ti",
 		Year:         2024,
 		DefaultSize:  "L",
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
+		// hypothesis: legacy GeoHeadsetSpacerMm 0, the bare head tube
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
-		// hypothesis (Q44, Q81): legacy fox34_130 @ 0% sag → 541 mm effective
+		// hypothesis: legacy fox34_130 @ 0% sag → 541 mm effective
 		BasisFork: mustBasisFork(541, 44),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -36,7 +36,7 @@ func turnerVennTi() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128, Q129)
+		// catalog: compatible forks
 		Forks: []Fork{fox34_130, fox34_120},
 		// published
 		Sizes: family.sizes(

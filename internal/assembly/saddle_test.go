@@ -34,14 +34,14 @@ func TestPlaceSeatpostAndSaddleWorkedExample60DegSTA(t *testing.T) {
 	seatAxis := pose.NewPose(pose.Origin(assembly.DynamicWorld), 120.0)
 	seatTubeTop := seatAxis.Advance(60.0)
 
-	post, err := assembly.PlaceSeatpost(seatTubeTop, workedFrame, workedPost(0.0))
+	post, err := placeSeatpost(seatTubeTop, workedFrame, workedPost(0.0))
 	if err != nil {
 		t.Fatalf("PlaceSeatpost: %v", err)
 	}
 
 	saddleSetup := sqlab610DefaultSaddle()
 	saddleSetup.RailOffsetMm = 12.0
-	saddle, err := assembly.PlaceSaddle(post.RailPivot, 30.0, saddleSetup)
+	saddle, err := placeSaddle(post.RailPivot, 30.0, saddleSetup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle: %v", err)
 	}
@@ -77,22 +77,22 @@ func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 	// Adding +20 mm PostSetbackMm shifts RailPivot and all saddle landmarks by (-10*sqrt(3), -10) mm
 	// while leaving ShaftTop unchanged.
 	seatTubeTop := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -30, 30*math.Sqrt(3)), 120.0)
-	basePost, err := assembly.PlaceSeatpost(seatTubeTop, workedFrame, workedPost(0.0))
+	basePost, err := placeSeatpost(seatTubeTop, workedFrame, workedPost(0.0))
 	if err != nil {
 		t.Fatalf("PlaceSeatpost base: %v", err)
 	}
-	setbackPost, err := assembly.PlaceSeatpost(seatTubeTop, workedFrame, workedPost(20.0))
+	setbackPost, err := placeSeatpost(seatTubeTop, workedFrame, workedPost(20.0))
 	if err != nil {
 		t.Fatalf("PlaceSeatpost setback: %v", err)
 	}
 
 	saddleSetup := sqlab610DefaultSaddle()
 	saddleSetup.RailOffsetMm = 5.0
-	baseSaddle, err := assembly.PlaceSaddle(basePost.RailPivot, 30.0, saddleSetup)
+	baseSaddle, err := placeSaddle(basePost.RailPivot, 30.0, saddleSetup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle base: %v", err)
 	}
-	setbackSaddle, err := assembly.PlaceSaddle(setbackPost.RailPivot, 30.0, saddleSetup)
+	setbackSaddle, err := placeSaddle(setbackPost.RailPivot, 30.0, saddleSetup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle setback: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 	// Increasing RailOffsetMm by +10 mm moves saddle landmarks rearward (-10 mm X) while leaving clamp fixed.
 	moreOffsetSetup := saddleSetup
 	moreOffsetSetup.RailOffsetMm = 15.0
-	moreOffsetSaddle, err := assembly.PlaceSaddle(basePost.RailPivot, 30.0, moreOffsetSetup)
+	moreOffsetSaddle, err := placeSaddle(basePost.RailPivot, 30.0, moreOffsetSetup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle +15 offset: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 	// Negative RailOffsetMm (-15 mm, delta -20 mm from +5 mm) moves saddle landmarks forward (+20 mm X).
 	negOffsetSetup := saddleSetup
 	negOffsetSetup.RailOffsetMm = -15.0
-	negOffsetSaddle, err := assembly.PlaceSaddle(basePost.RailPivot, 30.0, negOffsetSetup)
+	negOffsetSaddle, err := placeSaddle(basePost.RailPivot, 30.0, negOffsetSetup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle -15 offset: %v", err)
 	}
@@ -146,11 +146,11 @@ func TestPlaceSaddleWorldRelativePitch(t *testing.T) {
 	clamp60 := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -180, 720), 180.0-60.0)
 	clamp75 := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -180, 720), 180.0-75.25)
 
-	s60, err := assembly.PlaceSaddle(clamp60, 30.0, setup)
+	s60, err := placeSaddle(clamp60, 30.0, setup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle 60°: %v", err)
 	}
-	s75, err := assembly.PlaceSaddle(clamp75, 30.0, setup)
+	s75, err := placeSaddle(clamp75, 30.0, setup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle 75.25°: %v", err)
 	}
@@ -180,14 +180,14 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 	saddleSetup := sqlab610DefaultSaddle()
 
 	// Check the fixture's reference saddle height at the 75.25° STA attitude:
-	// 490.0 mm seat tube + 219.424 mm exposed = 709.424 mm along seat axis, and the raised BRP is |BRP - BB| = 746.000 mm (Q92) in the unpitched reference attitude.
+	// 490.0 mm seat tube + 219.424 mm exposed = 709.424 mm along seat axis, and the raised BRP is |BRP - BB| = 746.000 mm in the unpitched reference attitude.
 	refSeatAxis := pose.NewPose(pose.Origin(assembly.DynamicWorld), 180.0-frame.SeatTubeAngleDeg)
 	refSeatTubeTop := refSeatAxis.Advance(frame.SeatTubeLengthMm)
-	refPost, err := assembly.PlaceSeatpost(refSeatTubeTop, frame, postSetup)
+	refPost, err := placeSeatpost(refSeatTubeTop, frame, postSetup)
 	if err != nil {
 		t.Fatalf("PlaceSeatpost ref: %v", err)
 	}
-	refSaddle, err := assembly.PlaceSaddle(refPost.RailPivot, 30.0, saddleSetup)
+	refSaddle, err := placeSaddle(refPost.RailPivot, 30.0, saddleSetup)
 	if err != nil {
 		t.Fatalf("PlaceSaddle ref: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 		Stem:      fenrirDefaultStem(),
 		Handlebar: persuader800DefaultHandlebar(),
 	}
-	bike, err := assembly.PlaceBike(bikeSetup)
+	bike, err := placeBike(bikeSetup)
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -221,13 +221,13 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 
 	badSeatpost := bikeSetup
 	badSeatpost.Seatpost.InsertionMm = -1
-	if _, err := assembly.PlaceBike(badSeatpost); err == nil {
+	if _, err := placeBike(badSeatpost); err == nil {
 		t.Fatal("PlaceBike expected error for negative seatpost extension")
 	}
 
 	badSaddle := bikeSetup
 	badSaddle.Saddle.RailLengthMm = 0
-	if _, err := assembly.PlaceBike(badSaddle); err == nil {
+	if _, err := placeBike(badSaddle); err == nil {
 		t.Fatal("PlaceBike expected error for zero saddle rail length")
 	}
 }
@@ -261,7 +261,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 	}
 	for _, tc := range postCases {
 		t.Run("seatpost/"+tc.name, func(t *testing.T) {
-			if _, err := assembly.PlaceSeatpost(tc.pose, validFrame, tc.setup); err == nil {
+			if _, err := placeSeatpost(tc.pose, validFrame, tc.setup); err == nil {
 				t.Fatalf("expected error for %s, got nil", tc.name)
 			}
 		})
@@ -286,7 +286,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 	}
 	for _, tc := range saddleCases {
 		t.Run("saddle/"+tc.name, func(t *testing.T) {
-			if _, err := assembly.PlaceSaddle(tc.pose, 30.0, tc.setup); err == nil {
+			if _, err := placeSaddle(tc.pose, 30.0, tc.setup); err == nil {
 				t.Fatalf("expected error for %s, got nil", tc.name)
 			}
 		})
@@ -299,20 +299,20 @@ func TestPlaceSaddleRailOffsetRange(t *testing.T) {
 	for _, offset := range []float64{0, 14.999, 15, -15} {
 		setup := sqlab610DefaultSaddle()
 		setup.RailOffsetMm = offset
-		if _, err := assembly.PlaceSaddle(clamp, 30.0, setup); err != nil {
+		if _, err := placeSaddle(clamp, 30.0, setup); err != nil {
 			t.Errorf("offset %v: %v", offset, err)
 		}
 	}
 	for _, offset := range []float64{15.001, -15.001, 20} {
 		setup := sqlab610DefaultSaddle()
 		setup.RailOffsetMm = offset
-		_, err := assembly.PlaceSaddle(clamp, 30.0, setup)
+		_, err := placeSaddle(clamp, 30.0, setup)
 		var inputErr *assembly.InputError
 		if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSaddleRailOffset {
 			t.Errorf("offset %v: err = %v, want InputSaddleRailOffset", offset, err)
 		}
 	}
-	if _, err := assembly.PlaceSaddle(clamp, 70.0, sqlab610DefaultSaddle()); err == nil {
+	if _, err := placeSaddle(clamp, 70.0, sqlab610DefaultSaddle()); err == nil {
 		t.Error("clamp longer than the rails: want error")
 	}
 }
@@ -336,7 +336,7 @@ func workedPost(setbackMm float64) assembly.SeatpostSetup {
 // height alone shifts BRP and SitBones by 45 mm turned 10° from vertical.
 func TestPlaceSaddleRailToBrpHeightRotatesWithRailPitch(t *testing.T) {
 	seatTubeTop := pose.NewPose(pose.Origin(assembly.DynamicWorld), 120).Advance(60)
-	post, err := assembly.PlaceSeatpost(seatTubeTop, workedFrame, workedPost(0))
+	post, err := placeSeatpost(seatTubeTop, workedFrame, workedPost(0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,7 +345,7 @@ func TestPlaceSaddleRailToBrpHeightRotatesWithRailPitch(t *testing.T) {
 		setup.RailOffsetMm = 12
 		setup.RailToBrpHeightMm = heightMm
 		setup.RailPitchDeg = pitch
-		saddle, err := assembly.PlaceSaddle(post.RailPivot, 30, setup)
+		saddle, err := placeSaddle(post.RailPivot, 30, setup)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -368,17 +368,17 @@ func TestPlaceSaddleRailToBrpHeightRotatesWithRailPitch(t *testing.T) {
 	for _, bad := range []float64{-1, math.NaN(), math.Inf(1)} {
 		setup := sqlab610DefaultSaddle()
 		setup.RailToBrpHeightMm = bad
-		if _, err := assembly.PlaceSaddle(post.RailPivot, 30, setup); err == nil {
+		if _, err := placeSaddle(post.RailPivot, 30, setup); err == nil {
 			t.Errorf("RailToBrpHeightMm %v: want error", bad)
 		}
 	}
 }
 
-// Q92: the fixture's 180.576 mm default insertion puts the raised BRP 746.000 mm
+// the fixture's 180.576 mm default insertion puts the raised BRP 746.000 mm
 // from BB in the unpitched reference attitude. Installed forks level the frame
 // differently, so the leveled radial height differs from the reference.
 func TestQ92DefaultInsertionOnInstalledFork(t *testing.T) {
-	bike, err := assembly.PlaceBike(fenrirFittingSetup())
+	bike, err := placeBike(fenrirFittingSetup())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +395,7 @@ func TestPlaceSaddleRejectsLocalPose(t *testing.T) {
 			t.Fatal("PlaceSaddle accepted a SteererLocal pose; expected panic")
 		}
 	}()
-	_, _ = assembly.PlaceSaddle(pose.OriginPose(assembly.SteererLocal), 30, sqlab610DefaultSaddle())
+	_, _ = placeSaddle(pose.OriginPose(assembly.SteererLocal), 30, sqlab610DefaultSaddle())
 }
 
 // Isolated Saddle tests below construct no bicycle frame or ambient world
@@ -537,10 +537,6 @@ func TestMateSaddleAndClampedSaddleStaticVsDynamic(t *testing.T) {
 	}
 	if clampedSaddle.RailOffset().Value != 10.0 || clampedSaddle.RailOffset().MarginMm() != 5.0 {
 		t.Errorf("RailOffset = %+v, want Value=10 Margin=5", clampedSaddle.RailOffset())
-	}
-	assertNear(t, "RailTurnFromCradle", float64(clampedSaddle.RailTurnFromCradle()), 5.0-103.0, 1e-12)
-	if clampedSaddle.SaddleInCradle().Src() != assembly.SaddleLocal || clampedSaddle.SaddleInCradle().Dst() != assembly.SeatpostCradle {
-		t.Errorf("SaddleInCradle systems = %s -> %s", clampedSaddle.SaddleInCradle().Src(), clampedSaddle.SaddleInCradle().Dst())
 	}
 
 	dynSaddle := clampedSaddle.Place(dynPost.CradleInWorld)

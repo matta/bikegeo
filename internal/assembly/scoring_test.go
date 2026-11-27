@@ -55,7 +55,7 @@ func scoreExact(t *testing.T, setup assembly.BikeSetup, withBrp bool, stemScore 
 	return mustScore(t, p, target, stemScore)
 }
 
-func mustScore(t *testing.T, p assembly.BikePlacement, target assembly.FitTarget, stemScore float64) assembly.BuildScore {
+func mustScore(t *testing.T, p assembly.Placement, target assembly.FitTarget, stemScore float64) assembly.BuildScore {
 	t.Helper()
 	s, err := assembly.ScoreBuild(p, target, stemScore, testDefaultScoreWeights())
 	if err != nil {
@@ -303,7 +303,7 @@ func TestScoreBuildReferenceBuilds(t *testing.T) {
 		{"just outside", pose.NewPoint(assembly.DynamicWorld, -175.542919, 710.580028), assembly.FitsGrip, 88.017123, -10.6, 0, 100, 46.999999, 0, false},
 	} {
 		brp := c.brp
-		fit, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{BRP: &brp})
+		fit, err := applyFitting(fenrirFittingSetup(), assembly.FitTarget{BRP: &brp})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -369,7 +369,8 @@ func TestScoreBuildErrors(t *testing.T) {
 		t.Errorf("saddle-only weights with BRP: %v", err)
 	}
 	impossible := p
-	impossible.Setup.Frame.MaxPostInsertionMm = 50
+	impossible.Bounds.SeatpostInsertion.Min = 100
+	impossible.Bounds.SeatpostInsertion.Max = 50
 	if _, err := assembly.ScoreBuild(impossible, assembly.FitTarget{HandGrip: &grip, BRP: &brp}, 100, w); err == nil {
 		t.Error("impossible insertion bounds accepted")
 	}

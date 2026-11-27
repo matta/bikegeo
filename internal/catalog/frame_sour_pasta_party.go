@@ -8,12 +8,12 @@ import "github.com/matta/bikegeo/internal/assembly"
 // fork at 15% sag (512 mm effective) and a 12 mm EC44 cup. Legacy says its
 // wheelbases were adapted to a 44 mm offset fork, so they may not be Sour's
 // printed values; they stay labelled published until the frame is re-ingested
-// (Q146).
+// .
 //
-// Legacy notes: legacy_frame_notes.md, section sour-pasta-party (Q145).
+// Legacy notes: legacy_frame_notes.md, section sour-pasta-party.
 func sourPastaParty() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 	}
@@ -23,11 +23,11 @@ func sourPastaParty() Frame {
 		Model:        "Pasta Party",
 		Year:         2024,
 		DefaultSize:  "L",
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
+		// hypothesis: legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
-		// hypothesis (Q44, Q81): legacy fox34_120 @ 15% sag → 512 mm effective
+		// hypothesis: legacy fox34_120 @ 15% sag → 512 mm effective
 		BasisFork: mustBasisFork(512, 44),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -37,9 +37,9 @@ func sourPastaParty() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128)
+		// catalog: compatible forks
 		Forks: []Fork{fox34_120, sid100},
-		// published; wheelbases unverified (Q146)
+		// published; wheelbases unverified
 		Sizes: family.sizes(
 			publishedSize{
 				Name:             "S",

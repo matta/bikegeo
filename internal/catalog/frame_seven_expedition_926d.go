@@ -7,13 +7,13 @@ import "github.com/matta/bikegeo/internal/assembly"
 // The frame is a titanium drop-bar adventure frame in Standard ('S') and
 // Endurance ('E') fits of 12 sizes each. Its basis fork is the 472 mm ENVE
 // Mountain at 55 mm rake with a 10 mm EC44 basis cup. Seven publishes no
-// wheelbase (Q57) and C-C seat tubes (Q75d).
+// wheelbase and C-C seat tubes.
 //
 // Legacy notes: legacy_frame_notes.md, section seven-expedition-926d, and the
-// basis-fork analysis legacy_seven_expedition_926d.md (Q145).
+// basis-fork analysis legacy_seven_expedition_926d.md.
 func sevenExpedition926d() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 	}
@@ -23,11 +23,11 @@ func sevenExpedition926d() Frame {
 		Model:        "Expedition 926d",
 		Year:         2025,
 		DefaultSize:  "S 58cm",
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 10
+		// hypothesis: legacy GeoHeadsetSpacerMm 10
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 10},
-		// hypothesis (Q44, Q81): legacy enve_mountain_472 (rigid) → 472 mm effective
+		// hypothesis: legacy enve_mountain_472 (rigid) → 472 mm effective
 		BasisFork: mustBasisFork(472, 55),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -37,7 +37,7 @@ func sevenExpedition926d() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128, Q133)
+		// catalog: compatible forks
 		Forks: []Fork{enveMountainBoost, lithicCarbonMountain, fox34_120},
 		// published
 		Sizes: family.sizes(

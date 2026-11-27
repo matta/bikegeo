@@ -9,7 +9,7 @@ import (
 )
 
 func TestStems(t *testing.T) {
-	// Q58/Q64 anchor rows:
+	// anchor rows:
 	//   40 mm ±6° = 59.0, 40 mm 0° = 74.0
 	//   50 mm ±6° = 69.0, 50 mm 0° = 84.0
 	//   70 mm 0°/±6°/±7° = 100, 80 mm ±6°/±7° = 100

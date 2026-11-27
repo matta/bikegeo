@@ -7,12 +7,12 @@ import "github.com/matta/bikegeo/internal/assembly"
 // The frame is a titanium trail hardtail with an IS52 integrated headset. Its
 // basis fork is a 120 mm fork (530 mm static) at 20% sag, 506 mm effective, on
 // the bare head tube. Sliding dropouts run 420–435 mm. The seat tube is bent;
-// only the published effective STA is modeled (Q75f).
+// only the published effective STA is modeled.
 //
-// Legacy notes: legacy_frame_notes.md, section revel-el-jefe (Q145).
+// Legacy notes: legacy_frame_notes.md, section revel-el-jefe.
 func revelElJefe() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType IS52; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType IS52; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore52Integrated,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 1},
 	}
@@ -22,12 +22,12 @@ func revelElJefe() Frame {
 		Model:          "El Jefe",
 		Year:           2024,
 		DefaultSize:    "L",
-		MaxChainstayMm: 435, // published: sliding dropouts 420–435 mm (Q67)
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
+		MaxChainstayMm: 435, // published: sliding dropouts 420–435 mm
+		// hypothesis: legacy GeoHeadsetSpacerMm 0, the bare head tube
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
-		// hypothesis (Q44, Q81): legacy sid_120 @ 20% sag → 506 mm effective
+		// hypothesis: legacy sid_120 @ 20% sag → 506 mm effective
 		BasisFork: mustBasisFork(506, 44),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -37,7 +37,7 @@ func revelElJefe() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128)
+		// catalog: compatible forks
 		Forks: []Fork{sid120, sid100, fox34_130},
 		// published
 		Sizes: family.sizes(

@@ -2,7 +2,7 @@ package catalog
 
 import "github.com/matta/bikegeo/internal/assembly"
 
-// DefaultScoreWeights returns the Q59a 12-attribute scoring weights (total 36;
+// DefaultScoreWeights returns the 12-attribute scoring weights (total 36;
 // 23 when no BRP target is set).
 func DefaultScoreWeights() assembly.ScoreWeights {
 	return assembly.ScoreWeights{

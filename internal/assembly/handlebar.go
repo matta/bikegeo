@@ -139,22 +139,10 @@ func (h Handlebar) GripInBar() pose.Point {
 }
 
 // HandLateralMm returns the lateral distance from the handlebar centerline to
-// the hand-grip station (EffectiveWidthMm/2 − GripInsetMm).
+// the hand-grip station (installed width/2 − GripInsetMm).
 func (h Handlebar) HandLateralMm() float64 {
 	h.requireValid()
 	return h.handLateralMm
-}
-
-// EffectiveWidthMm returns the installed bar width (CurrentWidthMm if > 0, else StockWidthMm).
-func (h Handlebar) EffectiveWidthMm() float64 {
-	h.requireValid()
-	return h.effectiveWidthMm
-}
-
-// BaseRiseAtBendMm returns the sagittal rise at BendStartMm before outboard upsweep.
-func (h Handlebar) BaseRiseAtBendMm() float64 {
-	h.requireValid()
-	return h.baseRiseAtBendMm
 }
 
 // Dimensions returns the validated HandlebarDimensions used to construct h.
@@ -227,19 +215,6 @@ func (c ClampedHandlebar) Handlebar() Handlebar {
 	return c.bar
 }
 
-// RollTurnFromStem returns the locked physical clamp angle (CCW from
-// StemLocal's +X extension axis to HandlebarLocal's +X axis).
-func (c ClampedHandlebar) RollTurnFromStem() pose.Deg {
-	c.requireValid()
-	return c.rollTurnFromStem
-}
-
-// BarInStem returns the rigid transform mapping HandlebarLocal into StemLocal.
-func (c ClampedHandlebar) BarInStem() pose.Transform {
-	c.requireValid()
-	return c.barInStem
-}
-
 // HandlebarPlacement holds the Pose-valued sagittal landmarks and lateral grip
 // station produced for a mounted handlebar in a target coordinate system:
 //   - BarClamp: incoming stem bar-clamp attachment pose.
@@ -264,11 +239,11 @@ func (c ClampedHandlebar) Place(barClampInTarget pose.Transform) HandlebarPlacem
 	barInTarget := pose.Compose(c.barInStem, barClampInTarget)
 	barClampPose := barClampInTarget.PoseInDst()
 	barCenter := barInTarget.PoseInDst()
-	handGrip := barInTarget.ApplyPose(pose.NewPose(c.bar.gripInBar, 0))
+	handGrip := barInTarget.ApplyPose(pose.NewPose(c.bar.GripInBar(), 0))
 	return HandlebarPlacement{
 		BarClamp:      barClampPose,
 		BarCenter:     barCenter,
 		HandGrip:      handGrip,
-		HandLateralMm: c.bar.handLateralMm,
+		HandLateralMm: c.bar.HandLateralMm(),
 	}
 }

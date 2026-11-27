@@ -9,10 +9,10 @@ import "github.com/matta/bikegeo/internal/assembly"
 // head tube; physical forks install in the 12 mm EC44 cup. Alternator dropouts
 // run 445–462 mm.
 //
-// Legacy notes: legacy_frame_notes.md, section salsa-fargo (Q145).
+// Legacy notes: legacy_frame_notes.md, section salsa-fargo.
 func salsaFargo() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 	}
@@ -22,12 +22,12 @@ func salsaFargo() Frame {
 		Model:          "Fargo",
 		Year:           2024,
 		DefaultSize:    "L",
-		MaxChainstayMm: 462, // published: sliding dropouts 445–462 mm (Q67)
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
+		MaxChainstayMm: 462, // published: sliding dropouts 445–462 mm
+		// hypothesis: legacy GeoHeadsetSpacerMm 0, the bare head tube
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
-		// hypothesis (Q44, Q81): legacy firestarter_deluxe_483 (rigid) → 483 mm effective
+		// hypothesis: legacy firestarter_deluxe_483 (rigid) → 483 mm effective
 		BasisFork: mustBasisFork(483, 51),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -37,7 +37,7 @@ func salsaFargo() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128)
+		// catalog: compatible forks
 		Forks: []Fork{firestarterDeluxe483, sid100},
 		// published
 		Sizes: family.sizes(

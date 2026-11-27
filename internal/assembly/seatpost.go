@@ -433,11 +433,6 @@ func (c *ClampedSeatpost) setupSnapshot(state LoadState) SeatpostSetup {
 	}
 }
 
-// PostInFrame returns the rigid transform mapping SeatpostLocal into FrameLocal.
-func (c *ClampedSeatpost) PostInFrame() pose.Transform {
-	return c.postInFrame
-}
-
 // RailClampInFrame returns the rail-clamp port mapped into FrameLocal for state.
 func (c *ClampedSeatpost) RailClampInFrame(state LoadState) RailClampPort {
 	clamp := c.post.railClamp(state)
@@ -486,9 +481,8 @@ func (c *ClampedSeatpost) PlaceInWorld(frameToWorld pose.Transform) SeatpostPlac
 	seatTubeTop := collarInWorld.PoseInDst()
 	shaftTop := collarInWorld.ApplyPose(pose.NewPose(pose.NewPoint(SeatTubeCollar, c.ExposedMm(), 0), 0))
 
-	clamp := c.post.railClamp(state)
-	cradleInCollar := pose.Compose(clamp.CradleInParent, c.postInCollar)
-	cradleInWorld := pose.Compose(cradleInCollar, collarInWorld)
+	cradleInFrame := c.RailClampInFrame(state).CradleInParent
+	cradleInWorld := pose.Compose(cradleInFrame, frameToWorld)
 	railPivot := cradleInWorld.PoseInDst()
 
 	return SeatpostPlacement{

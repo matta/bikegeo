@@ -104,17 +104,6 @@ type FitOval struct {
 	MajorAxisHeadingDeg      pose.Deg
 }
 
-// Validate checks the oval's semi-axes and heading.
-func (o FitOval) Validate() error {
-	if !isFinite(o.SemiMinorMm) || !isFinite(o.SemiMajorMm) || o.SemiMinorMm <= 0 || o.SemiMajorMm <= 0 {
-		return fmt.Errorf("HandGrip oval: semi-axes must be positive and finite, got %v and %v mm", o.SemiMinorMm, o.SemiMajorMm)
-	}
-	if !isFinite(float64(o.MajorAxisHeadingDeg)) {
-		return fmt.Errorf("HandGrip oval: major axis heading must be finite, got %v°", o.MajorAxisHeadingDeg)
-	}
-	return nil
-}
-
 // NormalizedRadius returns R for p around center (R = 1 on the oval's edge).
 func (o FitOval) NormalizedRadius(center, p pose.Point) float64 {
 	return newGripOvalProjection(o).normalizedRadius(center, p)
@@ -491,23 +480,14 @@ func ScoreBuild(placement Placement, target FitTarget, stemScore float64, weight
 	setup := placement.Setup
 	var insertionMarginMm float64
 	if hasBrp {
-		if setup.Frame.SeatTubeLengthMm > 0 {
-			bounds, err := SeatpostInsertionBounds(setup.Frame, setup.Seatpost.Spec)
-			if err != nil {
-				return BuildScore{}, err
-			}
-			insertionMarginMm = min(
-				setup.Seatpost.InsertionMm-bounds.EffectiveMinInsertionMm,
-				bounds.MaxAllowedInsertionMm-setup.Seatpost.InsertionMm,
-			)
-		} else if placement.Bounds.SeatpostInsertion.Field == InputSeatpostInsertion {
-			if placement.Bounds.SeatpostInsertion.Min > placement.Bounds.SeatpostInsertion.Max {
-				return BuildScore{}, fmt.Errorf("impossible seatpost insertion bounds [%v, %v]", placement.Bounds.SeatpostInsertion.Min, placement.Bounds.SeatpostInsertion.Max)
-			}
-			insertionMarginMm = placement.Bounds.SeatpostInsertion.MarginMm()
-		} else {
+		ins := placement.Bounds.SeatpostInsertion
+		if ins.Field != InputSeatpostInsertion {
 			return BuildScore{}, fmt.Errorf("build scoring requires seatpost insertion bounds")
 		}
+		if !isFinite(ins.Min) || !isFinite(ins.Max) || !isFinite(ins.Value) || ins.Min > ins.Max {
+			return BuildScore{}, fmt.Errorf("impossible seatpost insertion bounds [%v, %v]", ins.Min, ins.Max)
+		}
+		insertionMarginMm = ins.MarginMm()
 	}
 
 	gripR := DefaultGripOval().NormalizedRadius(*target.HandGrip, placement.Handlebar.HandGrip.Origin())

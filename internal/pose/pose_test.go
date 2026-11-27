@@ -162,11 +162,6 @@ func TestTransformPointVectorAndPose(t *testing.T) {
 	roundPose := inv.ApplyPose(worldPose)
 	assertNear(t, "round-trip pose origin", roundPose.Origin().DistanceTo(localPoint), 0, 1e-12)
 	assertNear(t, "round-trip pose heading", float64(roundPose.HeadingDeg()), -15, 1e-12)
-
-	id := pose.IdentityTransform(postLocal)
-	if id.ApplyPoint(localPoint) != localPoint || id.ApplyVector(localVector) != localVector || id.ApplyPose(localPose) != localPose {
-		t.Errorf("IdentityTransform modified input")
-	}
 }
 
 func TestComposeRailAndPostTransforms(t *testing.T) {

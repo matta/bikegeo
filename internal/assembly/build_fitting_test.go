@@ -28,8 +28,8 @@ func fenrirStemOptions() []assembly.StemOption {
 	}
 }
 
-func fenrirPartOptions() assembly.PartOptions {
-	return assembly.PartOptions{Stems: fenrirStemOptions(), SpacerStepMm: 5}
+func fenrirPartOptions() testPartOptions {
+	return testPartOptions{Stems: fenrirStemOptions(), SpacerStepMm: 5}
 }
 
 func sqlab311Flx12x15Handlebar() assembly.HandlebarSetup {
@@ -40,20 +40,20 @@ func sqlab311Flx12x15Handlebar() assembly.HandlebarSetup {
 	}
 }
 
-func twoBarOptions() assembly.PartOptions {
+func twoBarOptions() testPartOptions {
 	parts := fenrirPartOptions()
 	parts.Handlebars = []assembly.HandlebarSetup{persuader800DefaultHandlebar(), sqlab311Flx12x15Handlebar()}
 	return parts
 }
 
-// fenrirForkOptions returns the Q31/Q129 configurations in fixture order: Lithic
+// fenrirForkOptions returns the configurations in fixture order: Lithic
 // rigid; SID at 15, 20% sag; Fox 34 at 15, 20, 25% sag; all on the EC44 12 mm cup.
-func fenrirForkOptions() []assembly.ForkOption {
+func fenrirForkOptions() []testForkOption {
 	lithic := assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 54, Steerer: assembly.SteererTapered}
 	sid := assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}
 	fox34 := assembly.ForkSpec{StaticA2cMm: 530, Travel: assembly.Travel120, RakeMm: 44, Steerer: assembly.SteererTapered}
 	cup := fenrirEc44Cup()
-	return []assembly.ForkOption{
+	return []testForkOption{
 		{Fork: assembly.ForkSetup{Spec: lithic}, LowerCup: cup},
 		{Fork: assembly.ForkSetup{Spec: sid, SagPct: 15}, LowerCup: cup},
 		{Fork: assembly.ForkSetup{Spec: sid, SagPct: 20}, LowerCup: cup},
@@ -63,15 +63,15 @@ func fenrirForkOptions() []assembly.ForkOption {
 	}
 }
 
-func fenrirMultiForkOptions() assembly.PartOptions {
+func fenrirMultiForkOptions() testPartOptions {
 	parts := fenrirPartOptions()
 	parts.Forks = fenrirForkOptions()
 	return parts
 }
 
-func mustFitBuildsWith(t *testing.T, setup assembly.BikeSetup, target assembly.FitTarget, parts assembly.PartOptions, limit int) assembly.BuildRanking {
+func mustFitBuildsWith(t *testing.T, setup assembly.BikeSetup, target assembly.FitTarget, parts testPartOptions, limit int) assembly.BuildRanking {
 	t.Helper()
-	result, err := assembly.FitBuilds(setup, target, parts, testDefaultScoreWeights(), limit)
+	result, err := fitBuilds(setup, target, parts, testDefaultScoreWeights(), limit)
 	if err != nil {
 		t.Fatalf("FitBuilds: %v", err)
 	}
@@ -90,9 +90,6 @@ func legacyGripRadius(dx, dy float64) float64 {
 
 func TestFitOval(t *testing.T) {
 	oval := assembly.DefaultGripOval()
-	if err := oval.Validate(); err != nil {
-		t.Fatal(err)
-	}
 	center := pose.NewPoint(assembly.DynamicWorld, 12, -30)
 	assertNear(t, "center radius", oval.NormalizedRadius(center, center), 0, 1e-12)
 	for _, tc := range []struct{ heading, distance, radius float64 }{{60, 20, 1}, {-30, 10, 1}, {-30, 30, 3}} {
@@ -103,14 +100,6 @@ func TestFitOval(t *testing.T) {
 	for _, d := range []pose.Point{pose.NewPoint(assembly.DynamicWorld, 23, -4), pose.NewPoint(assembly.DynamicWorld, -6, 47), pose.NewPoint(assembly.DynamicWorld, -32, -51)} {
 		p := pose.NewPoint(assembly.DynamicWorld, center.X()+d.X(), center.Y()+d.Y())
 		assertNear(t, "legacy radius", oval.NormalizedRadius(center, p), legacyGripRadius(d.X(), d.Y()), 1e-12)
-	}
-	for _, bad := range []assembly.FitOval{
-		{SemiMinorMm: 0, SemiMajorMm: 20}, {SemiMinorMm: 10, SemiMajorMm: -1}, {SemiMinorMm: math.NaN(), SemiMajorMm: 20},
-		{SemiMinorMm: 10, SemiMajorMm: math.Inf(1)}, {SemiMinorMm: 10, SemiMajorMm: 20, MajorAxisHeadingDeg: pose.Deg(math.NaN())},
-	} {
-		if bad.Validate() == nil {
-			t.Errorf("accepted oval %+v", bad)
-		}
 	}
 }
 
@@ -236,7 +225,7 @@ func TestFitBuildsForwardAndRankOrder(t *testing.T) {
 		assembly.AttrRcWbRatio, assembly.AttrSeatpostInsertion, assembly.AttrLeveledBbDrop, assembly.AttrTrail,
 	}
 	for i, c := range fit.Builds {
-		p, err := assembly.PlaceBike(c.Placement.Setup)
+		p, err := placeBike(c.Placement.Setup)
 		if err != nil || !reflect.DeepEqual(c.Placement, p) {
 			t.Fatalf("rank %d placement differs from PlaceBike: %v", i+1, err)
 		}
@@ -411,7 +400,7 @@ func TestFitBuildsCarriesSaddleAcrossBars(t *testing.T) {
 	setup := fenrirFittingSetup()
 	target := assembly.FitTarget{BRP: &fitReportBRP, HandGrip: &fitReportGrip}
 	fit := mustFitBuildsWith(t, setup, target, twoBarOptions(), 140)
-	saddle, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &fitReportBRP})
+	saddle, err := applyFitting(setup, assembly.FitTarget{BRP: &fitReportBRP})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -663,7 +652,7 @@ func TestFitBuildsErrors(t *testing.T) {
 		{"saddle-only weights", assembly.FitTarget{HandGrip: &fitReportGrip}, 5, assembly.ScoreWeights{SaddleBrpY: 1}, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := assembly.FitBuilds(fenrirFittingSetup(), tc.target, fenrirPartOptions(), tc.weights, tc.limit)
+			_, err := fitBuilds(fenrirFittingSetup(), tc.target, fenrirPartOptions(), tc.weights, tc.limit)
 			if err == nil {
 				t.Fatal("expected build fitting error")
 			}
@@ -680,8 +669,8 @@ func TestFitBuildsErrors(t *testing.T) {
 	for _, maxSpacers := range []float64{-1, math.Inf(1)} {
 		base := fenrirFittingSetup()
 		base.Stem.MaxSpacersMm = maxSpacers
-		_, want := assembly.PlaceBike(base)
-		if _, err := assembly.FitBuilds(base, target, fenrirPartOptions(), w, 5); err == nil || want == nil || err.Error() != want.Error() {
+		_, want := placeBike(base)
+		if _, err := fitBuilds(base, target, fenrirPartOptions(), w, 5); err == nil || want == nil || err.Error() != want.Error() {
 			t.Errorf("invalid base error = %v, want %v", err, want)
 		}
 	}
@@ -720,7 +709,7 @@ func TestPartOptionsValidation(t *testing.T) {
 	}
 	parts = twoBarOptions()
 	parts.Handlebars[0].GripInsetMm = 0
-	_, want := assembly.PlaceHandlebar(pose.OriginPose(assembly.DynamicWorld), parts.Handlebars[0])
+	_, want := placeHandlebar(pose.OriginPose(assembly.DynamicWorld), parts.Handlebars[0])
 	if err := parts.Validate(); want == nil || err == nil || !strings.Contains(err.Error(), want.Error()) {
 		t.Errorf("handlebar option grip inset error = %v, want %v", err, want)
 	}

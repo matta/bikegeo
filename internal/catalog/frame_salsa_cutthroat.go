@@ -8,10 +8,10 @@ import "github.com/matta/bikegeo/internal/assembly"
 // headset. The published geometry is drawn around a 100 mm fork (506 mm static)
 // at 25% sag, 481 mm effective, 51 mm offset, on the bare head tube.
 //
-// Legacy notes: legacy_frame_notes.md, section salsa-cutthroat (Q145).
+// Legacy notes: legacy_frame_notes.md, section salsa-cutthroat.
 func salsaCutthroat() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType IS52; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType IS52; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore52Integrated,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 1},
 	}
@@ -21,11 +21,11 @@ func salsaCutthroat() Frame {
 		Model:        "Cutthroat",
 		Year:         2024,
 		DefaultSize:  "56cm",
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
+		// hypothesis: legacy GeoHeadsetSpacerMm 0, the bare head tube
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
-		// hypothesis (Q44, Q81): legacy sid_100 @ 25% sag → 481 mm effective
+		// hypothesis: legacy sid_100 @ 25% sag → 481 mm effective
 		BasisFork: mustBasisFork(481, 51),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -35,7 +35,7 @@ func salsaCutthroat() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128)
+		// catalog: compatible forks
 		Forks: []Fork{firestarterDeluxe483, sid100},
 		// published
 		Sizes: family.sizes(

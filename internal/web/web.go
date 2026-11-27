@@ -28,7 +28,7 @@ var (
 )
 
 // NewHandler returns the HTTP handler for the workbench. The chart-consistency check
-// runs in the catalog's go test, not at startup (Q91).
+// runs in the catalog's go test, not at startup.
 func NewHandler() http.Handler {
 	return newHandler(query.CatalogFrames)
 }
@@ -146,14 +146,14 @@ type bikeView struct {
 
 // bikeFittingView is the fitting summary for a submitted build and its targets.
 type bikeFittingView struct {
-	SubmittedScore *submittedScoreView // nil unless a HandGrip target is set (Q110)
+	SubmittedScore *submittedScoreView // nil unless a HandGrip target is set
 	Saddle         *saddleFittingView  // nil unless a BRP target is set
 	Cockpit        *cockpitFittingView // nil unless a HandGrip target is set
 	Builds         *buildRankingView   // nil unless a HandGrip target is set
 	ApplyURL       string              // the fitted build, with the submitted targets kept
 }
 
-// submittedScoreView is the submitted build's 0–100 score readout (Q110).
+// submittedScoreView is the submitted build's 0–100 score readout.
 type submittedScoreView struct {
 	Scored           bool
 	OffCatalogNote   string
@@ -215,7 +215,7 @@ type scoredBuildView struct {
 	ApplyAriaLabel          string
 }
 
-// postSetbackView is one setback note (Q29): the setback and extension
+// postSetbackView is one setback note: the setback and extension
 // FitPostSetback found with the rails held at RailOffsetMm. It is never applied.
 type postSetbackView struct {
 	RailOffsetMm, SetbackMm, InsertionMm, MissMm float64
@@ -240,7 +240,7 @@ type saddleFittingView struct {
 	TargetX, TargetY, MissX, MissY, MissMm float64 // miss: target − the submitted build's BRP
 	InsertionMm, RailOffsetMm, RailLimitMm float64 // fitted values; ±RailLimitMm range
 	LimitedBy                              []assembly.InputField
-	Centered                               postSetbackView  // rails centered (Q29)
+	Centered                               postSetbackView  // rails centered
 	Reach                                  *postSetbackView // rails held at the fitted offset; nil unless saddle fitting is limited
 }
 
@@ -299,7 +299,7 @@ func fitTierPresentation(t assembly.FitTier) (class, label string) {
 	}
 }
 
-// fitTierLegend defines the four fit tiers in rank order (Q61, Q90).
+// fitTierLegend defines the four fit tiers in rank order.
 func fitTierLegend() []fitTierLegendItem {
 	oval := assembly.DefaultGripOval()
 	grip := fmt.Sprintf("HandGrip inside the ±%.0f × ±%.0f mm oval (R ≤ %.1f)", oval.SemiMinorMm, oval.SemiMajorMm, assembly.FitGateGripNormalizedRadius)

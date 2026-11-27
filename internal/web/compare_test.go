@@ -401,13 +401,13 @@ func TestCompareDefaultPage(t *testing.T) {
 		}
 	}
 	if strings.Contains(slidingNote, "Otso Fenrir Stainless") {
-		t.Errorf("sliding-dropouts note %q must not include Otso Fenrir Stainless (Q140)", slidingNote)
+		t.Errorf("sliding-dropouts note %q must not include Otso Fenrir Stainless", slidingNote)
 	}
 }
 
 // TestCompareFormHasOnlyCompareKeys checks that every control on / submits a
 // key the compare query accepts: no custom selections, bar roll, or rail
-// pitch (Q158).
+// pitch.
 func TestCompareFormHasOnlyCompareKeys(t *testing.T) {
 	status, doc := loadCompareDoc(t, "/", krampusXLFox34)
 	if status != http.StatusOK {
@@ -638,7 +638,7 @@ func TestCompareErrorPagesAndRecoveryQ76(t *testing.T) {
 
 }
 
-func TestCompareToBikeLosslessEndToEndQ67Q77Q110(t *testing.T) {
+func TestCompareToBikeLosslessEndToEnd(t *testing.T) {
 	scenarios := []struct {
 		raw   string
 		frame frameSpec

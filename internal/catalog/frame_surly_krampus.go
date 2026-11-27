@@ -7,10 +7,10 @@ import "github.com/matta/bikegeo/internal/assembly"
 // The frame is a chromoly 29+ trail hardtail designed around the 483 mm Krampus
 // fork (47 mm offset) with a 12 mm EC44 basis cup.
 //
-// Legacy notes: legacy_frame_notes.md, section surly-krampus (Q145).
+// Legacy notes: legacy_frame_notes.md, section surly-krampus.
 func surlyKrampus() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 	}
@@ -20,11 +20,11 @@ func surlyKrampus() Frame {
 		Model:        "Krampus",
 		Year:         2024,
 		DefaultSize:  "L",
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
+		// hypothesis: legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
-		// hypothesis (Q44, Q81): legacy surly_krampus_483 (rigid) → 483 mm effective
+		// hypothesis: legacy surly_krampus_483 (rigid) → 483 mm effective
 		BasisFork: mustBasisFork(483, 47),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -34,7 +34,7 @@ func surlyKrampus() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128)
+		// catalog: compatible forks
 		Forks: []Fork{surlyKrampus483, sid100, fox34_120},
 		// published
 		Sizes: family.sizes(

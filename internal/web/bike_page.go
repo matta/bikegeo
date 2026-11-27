@@ -165,7 +165,7 @@ func echoForm(q url.Values, base query.Bike, sel selectedIDs) bikeFormValues {
 	}
 	// The prev_* values stay base's resolved selections: they match the
 	// dependent size and fork options the page renders, so choosing another
-	// frame after a rejected one is seen as a switch and recovers (Q109).
+	// frame after a rejected one is seen as a switch and recovers.
 	override(&form.View, "view")
 	if base.ForkID != query.BasisForkID || sel.Fork == "" {
 		override(&form.ForkA2c, "fork_a2c")

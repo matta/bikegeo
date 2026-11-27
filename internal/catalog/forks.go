@@ -37,26 +37,6 @@ const (
 	RigidClass495  RigidClass = "495"
 )
 
-// ValidFor reports whether c is a legal class for a fork of the given travel:
-// a rigid fork has one of the four classes and a suspension fork has none.
-func (c RigidClass) ValidFor(travel assembly.ForkTravel) bool {
-	switch travel {
-	case assembly.TravelRigid:
-		switch c {
-		case RigidClass440, RigidClass470, RigidClass485, RigidClass495:
-			return true
-		case RigidClassNone:
-			return false
-		default:
-			return false
-		}
-	case assembly.Travel100, assembly.Travel120, assembly.Travel130:
-		return c == RigidClassNone
-	default:
-		return false
-	}
-}
-
 // standInRigidClasses returns the rigid classes a listed suspension fork of the
 // given travel also unlocks. The stand-in is one way: a rigid fork never
 // unlocks a suspension travel.
@@ -222,14 +202,4 @@ func Forks() []Fork {
 		sid100, fox34SL120, sid120, pike120, fox34_120, fox36SL120,
 		fox34SL130, fox34_130, fox36SL130,
 	}
-}
-
-// ForkByID returns the catalog fork model with the exact ID.
-func ForkByID(id string) (Fork, bool) {
-	for _, f := range Forks() {
-		if f.ID == id {
-			return f, true
-		}
-	}
-	return Fork{}, false
 }

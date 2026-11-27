@@ -14,14 +14,14 @@ import (
 // returns all of them sorted by CompareScoredBuilds, so FitBuilds at any limit
 // must return a prefix of it. It skips input validation, so callers pass valid
 // inputs only. TestFitBuildsMatchesReference holds FitBuilds to it.
-func referenceFitBuilds(t *testing.T, setup assembly.BikeSetup, target assembly.FitTarget, parts assembly.PartOptions, weights assembly.ScoreWeights) []assembly.ScoredBuild {
+func referenceFitBuilds(t *testing.T, setup assembly.BikeSetup, target assembly.FitTarget, parts testPartOptions, weights assembly.ScoreWeights) []assembly.ScoredBuild {
 	t.Helper()
 	type forkChoice struct {
 		fromOptions bool
 		index       int
-		option      assembly.ForkOption
+		option      testForkOption
 	}
-	forks := []forkChoice{{option: assembly.ForkOption{Fork: setup.Fork, LowerCup: setup.LowerCup}}}
+	forks := []forkChoice{{option: testForkOption{Fork: setup.Fork, LowerCup: setup.LowerCup}}}
 	if len(parts.Forks) > 0 {
 		forks = forks[:0]
 		for i, f := range parts.Forks {
@@ -57,7 +57,7 @@ func referenceFitBuilds(t *testing.T, setup assembly.BikeSetup, target assembly.
 		base := setup
 		base.Fork, base.LowerCup = fork.option.Fork, fork.option.LowerCup
 		if brp != nil {
-			saddle, err := assembly.ApplyFitting(base, assembly.FitTarget{BRP: brp})
+			saddle, err := applyFitting(base, assembly.FitTarget{BRP: brp})
 			if err != nil {
 				t.Fatalf("reference ApplyFitting: %v", err)
 			}
@@ -72,7 +72,7 @@ func referenceFitBuilds(t *testing.T, setup assembly.BikeSetup, target assembly.
 					candidate.Stem.LengthMm = stem.LengthMm
 					candidate.Stem.SpacersMm = spacers
 					candidate.Handlebar = bar.setup
-					placement, err := assembly.PlaceBike(candidate)
+					placement, err := placeBike(candidate)
 					if err != nil {
 						t.Fatalf("reference PlaceBike: %v", err)
 					}
@@ -109,7 +109,7 @@ func TestFitBuildsMatchesReference(t *testing.T) {
 
 	multi := twoBarOptions()
 	multi.Forks = fenrirForkOptions()
-	partSets := map[string]assembly.PartOptions{
+	partSets := map[string]testPartOptions{
 		"stems":          fenrirPartOptions(),
 		"bars":           twoBarOptions(),
 		"forks":          fenrirMultiForkOptions(),
@@ -144,7 +144,7 @@ func TestFitBuildsMatchesReference(t *testing.T) {
 						limits = fullLimits
 					}
 					for _, limit := range limits {
-						got, err := assembly.FitBuilds(setup, target, parts, weights, limit)
+						got, err := fitBuilds(setup, target, parts, weights, limit)
 						if err != nil {
 							t.Fatalf("%s/%s/%s grip %v limit %d: FitBuilds: %v", setupName, partsName, brpName, grip, limit, err)
 						}

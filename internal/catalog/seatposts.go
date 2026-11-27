@@ -28,11 +28,6 @@ func (p Seatpost) TotalLengthMm() float64 {
 	return p.Part.TotalLengthMm()
 }
 
-// InsertionLimits returns the post's own minimum and maximum insertion interval.
-func (p Seatpost) InsertionLimits() assembly.BoundedRange {
-	return p.Part.InsertionLimits()
-}
-
 // SetbackMm returns the post's dynamic rearward clamp offset from the shaft centerline.
 func (p Seatpost) SetbackMm() float64 {
 	return p.Part.RailClamp(assembly.Dynamic).CradleInParent.OriginInDst().Y()

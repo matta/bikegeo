@@ -52,14 +52,6 @@ func isFinitePoint(p pose.Point) bool {
 	return isFinite(p.X()) && isFinite(p.Y())
 }
 
-func validatePose(name string, p pose.Pose) error {
-	if !isFinitePoint(p.Origin()) || !isFinite(float64(p.HeadingDeg())) {
-		return fmt.Errorf("%s pose must be finite, got (%v, %v) at %v°",
-			name, p.Origin().X(), p.Origin().Y(), p.HeadingDeg())
-	}
-	return nil
-}
-
 func validatePlacementPoints(component string, from pose.Point, outputs ...pose.Point) error {
 	for _, p := range outputs {
 		if !isFinitePoint(p) {

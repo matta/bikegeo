@@ -6,12 +6,12 @@ import "github.com/matta/bikegeo/internal/assembly"
 //
 // The frame is a chromoly rigid touring frame designed around the 440 mm
 // unicrown fork (55 mm offset), whose straight steerer runs in an EC44/30
-// reducer cup (Q66); the basis cup is 13 mm EC44.
+// reducer cup; the basis cup is 13 mm EC44.
 //
-// Legacy notes: legacy_frame_notes.md, section tumbleweed-sunliner (Q145).
+// Legacy notes: legacy_frame_notes.md, section tumbleweed-sunliner.
 func tumbleweedSunliner() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 	}
@@ -21,11 +21,11 @@ func tumbleweedSunliner() Frame {
 		Model:        "Sunliner",
 		Year:         2024,
 		DefaultSize:  "L",
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 13
+		// hypothesis: legacy GeoHeadsetSpacerMm 13
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 13},
-		// hypothesis (Q44, Q81): legacy sunliner_440 (rigid) → 440 mm effective
+		// hypothesis: legacy sunliner_440 (rigid) → 440 mm effective
 		BasisFork: mustBasisFork(440, 55),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -35,7 +35,7 @@ func tumbleweedSunliner() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128)
+		// catalog: compatible forks
 		Forks: []Fork{sunliner440},
 		// published
 		Sizes: family.sizes(

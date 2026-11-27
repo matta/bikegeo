@@ -444,7 +444,7 @@ func NewTransform(src, dst CoordinateSystem, originInDst Point, headingInDst Deg
 	requireValidSystem(dst)
 	requireSameSystem(originInDst.system, dst)
 	if src == dst {
-		panic(fmt.Sprintf("pose: NewTransform requires distinct coordinate systems (%s == %s); use IdentityTransform", src, dst))
+		panic(fmt.Sprintf("pose: NewTransform requires distinct coordinate systems (%s == %s)", src, dst))
 	}
 	sin, cos := headingInDst.sincos()
 	return Transform{
@@ -456,12 +456,6 @@ func NewTransform(src, dst CoordinateSystem, originInDst Point, headingInDst Deg
 		sin:    sin,
 		rotDeg: headingInDst,
 	}
-}
-
-// IdentityTransform returns the identity Transform within system.
-func IdentityTransform(system CoordinateSystem) Transform {
-	requireValidSystem(system)
-	return Transform{src: system, dst: system, cos: 1}
 }
 
 // Src returns t's source coordinate system.

@@ -6,12 +6,12 @@ import "github.com/matta/bikegeo/internal/assembly"
 //
 // The frame is a titanium YBB micro-suspension trail frame. Its basis fork is a
 // 120 mm fork at 20% sag (507 mm effective) with a 12 mm EC44 basis cup. Moots
-// publishes no wheelbase (Q57).
+// publishes no wheelbase.
 //
-// Legacy notes: legacy_frame_notes.md, section moots-mountaineer (Q145).
+// Legacy notes: legacy_frame_notes.md, section moots-mountaineer.
 func mootsMountaineer() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 	}
@@ -21,11 +21,11 @@ func mootsMountaineer() Frame {
 		Model:        "Mountaineer",
 		Year:         2024,
 		DefaultSize:  "M",
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
+		// hypothesis: legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
-		// hypothesis (Q44, Q81): legacy pike_120 @ 20% sag → 507 mm effective
+		// hypothesis: legacy pike_120 @ 20% sag → 507 mm effective
 		BasisFork: mustBasisFork(507, 44),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -35,7 +35,7 @@ func mootsMountaineer() Frame {
 			ChainstayMm:      0.25,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128)
+		// catalog: compatible forks
 		Forks: []Fork{pike120},
 		// published
 		Sizes: family.sizes(

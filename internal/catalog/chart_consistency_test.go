@@ -45,7 +45,7 @@ type roundingTerm struct {
 	Mm     float64
 }
 
-// chartCheck is one chart-consistency check of one size (Q45, Q57, Q93).
+// chartCheck is one chart-consistency check of one size.
 type chartCheck struct {
 	Name        string         // "axle height" or "wheelbase"
 	MismatchMm  float64        // axle height: front axle rise above the rear axle; wheelbase: axle span minus the published wheelbase
@@ -56,7 +56,7 @@ type chartCheck struct {
 }
 
 // chartConsistency is one size's measurement: the axle height check, then the
-// wheelbase check unless the wheelbase is unpublished (Q57).
+// wheelbase check unless the wheelbase is unpublished.
 type chartConsistency struct{ Checks []chartCheck }
 
 func isFinite(v float64) bool {

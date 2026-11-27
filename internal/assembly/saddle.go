@@ -122,7 +122,7 @@ func MateSaddle(clamp RailClampPort, saddle Saddle) (*SaddleDoF, error) {
 	if !isFinite(clamp.ClampLengthMm) || clamp.ClampLengthMm <= 0 {
 		return nil, fmt.Errorf("seatpost clamp length must be finite and positive, got %v mm", clamp.ClampLengthMm)
 	}
-	limit, err := railOffsetLimitMm(saddle.dims.RailLengthMm, clamp.ClampLengthMm)
+	limit, err := railOffsetLimitMm(saddle.RailLengthMm(), clamp.ClampLengthMm)
 	if err != nil {
 		return nil, err
 	}
@@ -218,19 +218,6 @@ func (c *ClampedSaddle) RailOffset() BoundStatus {
 	return c.railOffset
 }
 
-// RailTurnFromCradle returns the locked physical bolt angle (CCW from
-// SeatpostCradle's +X axis to SaddleLocal's +X rail axis).
-func (c *ClampedSaddle) RailTurnFromCradle() pose.Deg {
-	c.requireValid()
-	return c.railTurnFromCradle
-}
-
-// SaddleInCradle returns the rigid transform mapping SaddleLocal into SeatpostCradle.
-func (c *ClampedSaddle) SaddleInCradle() pose.Transform {
-	c.requireValid()
-	return c.saddleInCradle
-}
-
 // SaddlePlacement holds the Pose-valued landmarks produced for a clamped saddle
 // in a target coordinate system:
 //   - RailPivot: incoming cradle attachment pose (oriented along the seatpost shaft).
@@ -262,8 +249,8 @@ func (c *ClampedSaddle) Place(cradleInTarget pose.Transform) SaddlePlacement {
 	railPivot := cradleInTarget.PoseInDst()
 	railClamp := cradleInTarget.ApplyPose(c.railClampInCradle)
 	railCenter := saddleInTarget.PoseInDst()
-	brp := saddleInTarget.ApplyPose(pose.NewPose(c.saddle.brp, 0))
-	sitBones := saddleInTarget.ApplyPose(pose.NewPose(c.saddle.sit, 0))
+	brp := saddleInTarget.ApplyPose(pose.NewPose(c.saddle.BRP(), 0))
+	sitBones := saddleInTarget.ApplyPose(pose.NewPose(c.saddle.SIT(), 0))
 	return SaddlePlacement{
 		RailPivot:  railPivot,
 		RailClamp:  railClamp,

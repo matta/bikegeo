@@ -54,7 +54,7 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	}
 
 	steerer := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 400, 600), 180.0-70.0).Anchor(assembly.SteererLocal)
-	stem, err := assembly.PlaceStem(steerer, assembly.StemSetup{
+	stem, err := placeStem(steerer, assembly.StemSetup{
 		UpperStackMm:  10,
 		SpacersMm:     15,
 		MaxSpacersMm:  30,
@@ -65,7 +65,7 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlaceStem: %v", err)
 	}
-	bar, err := assembly.PlaceHandlebar(stem.BarClamp, knuckle)
+	bar, err := placeHandlebar(stem.BarClamp, knuckle)
 	if err != nil {
 		t.Fatalf("PlaceHandlebar knuckle(+10°): %v", err)
 	}
@@ -85,7 +85,7 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	// Reversing roll sign (-10°) negates the roll contribution.
 	negRoll := knuckle
 	negRoll.BarRollDeg = -10.0
-	barNeg, err := assembly.PlaceHandlebar(stem.BarClamp, negRoll)
+	barNeg, err := placeHandlebar(stem.BarClamp, negRoll)
 	if err != nil {
 		t.Fatalf("PlaceHandlebar knuckle(-10°): %v", err)
 	}
@@ -107,7 +107,7 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 		GripInsetMm:    65.0,
 		BarRollDeg:     0.0,
 	}
-	barCut, err := assembly.PlaceHandlebar(stem.BarClamp, cutBarEnd)
+	barCut, err := placeHandlebar(stem.BarClamp, cutBarEnd)
 	if err != nil {
 		t.Fatalf("PlaceHandlebar cut bar-end: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 	narrow := knuckle
 	narrow.CurrentWidthMm = 280.0 // zHand = 140 - 65 = 75 < 85
 	narrow.BarRollDeg = 0.0
-	barNarrow, err := assembly.PlaceHandlebar(stem.BarClamp, narrow)
+	barNarrow, err := placeHandlebar(stem.BarClamp, narrow)
 	if err != nil {
 		t.Fatalf("PlaceHandlebar narrow: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 
 	placeFor := func(hta, stemAngle pose.Deg) (assembly.StemPlacement, assembly.HandlebarPlacement) {
 		steerer := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 430, 625), 180.0-hta).Anchor(assembly.SteererLocal)
-		stem, err := assembly.PlaceStem(steerer, assembly.StemSetup{
+		stem, err := placeStem(steerer, assembly.StemSetup{
 			UpperStackMm:  11,
 			SpacersMm:     15,
 			MaxSpacersMm:  30,
@@ -150,7 +150,7 @@ func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PlaceStem(hta=%v, stem=%v): %v", hta, stemAngle, err)
 		}
-		bar, err := assembly.PlaceHandlebar(stem.BarClamp, barSetup)
+		bar, err := placeHandlebar(stem.BarClamp, barSetup)
 		if err != nil {
 			t.Fatalf("PlaceHandlebar(hta=%v, stem=%v): %v", hta, stemAngle, err)
 		}
@@ -201,7 +201,7 @@ func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 		Handlebar: persuader800DefaultHandlebar(),
 	}
 
-	bike, err := assembly.PlaceBike(bikeSetup)
+	bike, err := placeBike(bikeSetup)
 	if err != nil {
 		t.Fatalf("PlaceBike: %v", err)
 	}
@@ -222,13 +222,13 @@ func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 	// Error propagation from PlaceStem and PlaceHandlebar in PlaceBike.
 	badStem := bikeSetup
 	badStem.Stem.LengthMm = 0
-	if _, err := assembly.PlaceBike(badStem); err == nil {
+	if _, err := placeBike(badStem); err == nil {
 		t.Fatal("PlaceBike expected error for zero stem length")
 	}
 
 	badBar := bikeSetup
 	badBar.Handlebar.GripInsetMm = 0
-	if _, err := assembly.PlaceBike(badBar); err == nil {
+	if _, err := placeBike(badBar); err == nil {
 		t.Fatal("PlaceBike expected error for zero grip inset")
 	}
 }
@@ -317,7 +317,7 @@ func TestPlaceHandlebarValidation(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := assembly.PlaceHandlebar(tc.pose, tc.setup); err == nil {
+			if _, err := placeHandlebar(tc.pose, tc.setup); err == nil {
 				t.Fatalf("expected error for %s, got nil", tc.name)
 			}
 		})
@@ -340,7 +340,7 @@ func TestPlaceHandlebarRejectsLocalPose(t *testing.T) {
 		GripInsetMm:  70,
 		BarRollDeg:   0,
 	}
-	_, _ = assembly.PlaceHandlebar(pose.OriginPose(assembly.SteererLocal), setup)
+	_, _ = placeHandlebar(pose.OriginPose(assembly.SteererLocal), setup)
 }
 
 // Isolated Handlebar and ClampedHandlebar tests below construct no bicycle
@@ -376,9 +376,7 @@ func TestHandlebarIsolated(t *testing.T) {
 	yk := 50.0 - 265.0*math.Tan(4.0*math.Pi/180.0)
 	wantDX := -180.0 * math.Tan(20.0*math.Pi/180.0)
 	wantDY := yk + 180.0*math.Tan(4.0*math.Pi/180.0)
-	assertNear(t, "EffectiveWidthMm", bar.EffectiveWidthMm(), 760.0, 1e-12)
 	assertNear(t, "HandLateralMm", bar.HandLateralMm(), 315.0, 1e-12)
-	assertNear(t, "BaseRiseAtBendMm", bar.BaseRiseAtBendMm(), yk, 1e-9)
 	assertNear(t, "GripInBar.X", bar.GripInBar().X(), wantDX, 1e-9)
 	assertNear(t, "GripInBar.Y", bar.GripInBar().Y(), wantDY, 1e-9)
 	if bar.Dimensions() != cutDims {
@@ -458,10 +456,6 @@ func TestMountHandlebarAndClampedHandlebarStaticVsDynamic(t *testing.T) {
 	clampedBar, err := assembly.MountHandlebar(clampedStem.BarClampInFrame(), bar, rollTurn)
 	if err != nil {
 		t.Fatalf("MountHandlebar: %v", err)
-	}
-	assertNear(t, "RollTurnFromStem", float64(clampedBar.RollTurnFromStem()), float64(rollTurn), 1e-12)
-	if clampedBar.BarInStem().Src() != assembly.HandlebarLocal || clampedBar.BarInStem().Dst() != assembly.StemLocal {
-		t.Errorf("BarInStem systems = %s -> %s", clampedBar.BarInStem().Src(), clampedBar.BarInStem().Dst())
 	}
 
 	dynBar := clampedBar.Place(dynStem.BarClampInWorld)

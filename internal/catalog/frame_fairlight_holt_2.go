@@ -6,12 +6,12 @@ import "github.com/matta/bikegeo/internal/assembly"
 //
 // The frame is a Reynolds 853 steel XC/downcountry hardtail. Its basis fork is a
 // 120 mm fork at 20% sag (507 mm effective) with a 12 mm EC44 basis cup. The seat
-// tube is bent; only the published effective STA is modeled (Q75f).
+// tube is bent; only the published effective STA is modeled.
 //
-// Legacy notes: legacy_frame_notes.md, section fairlight-holt-2 (Q145).
+// Legacy notes: legacy_frame_notes.md, section fairlight-holt-2.
 func fairlightHolt2() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 	}
@@ -21,11 +21,11 @@ func fairlightHolt2() Frame {
 		Model:        "Holt 2.0",
 		Year:         2025,
 		DefaultSize:  "L",
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
+		// hypothesis: legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
-		// hypothesis (Q44, Q81): legacy pike_120 @ 20% sag → 507 mm effective
+		// hypothesis: legacy pike_120 @ 20% sag → 507 mm effective
 		BasisFork: mustBasisFork(507, 44),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -35,7 +35,7 @@ func fairlightHolt2() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128)
+		// catalog: compatible forks
 		Forks: []Fork{pike120, sid100},
 		// published
 		Sizes: family.sizes(

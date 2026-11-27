@@ -30,12 +30,12 @@ func TestSeatpostInsertionBounds(t *testing.T) {
 		{"Fenrir with the Redshift", frame, redshiftPostSpec(), 100, 250},
 		{"260 mm C-T, no frame cap, frame minimum 125", uncapped, genericPostSpec(0), 125, 240},
 	} {
-		got, err := assembly.SeatpostInsertionBounds(tc.frame, tc.post)
+		got, err := seatpostInsertionBounds(tc.frame, tc.post)
 		if err != nil {
 			t.Errorf("%s: %v", tc.name, err)
 			continue
 		}
-		want := assembly.InsertionBounds{EffectiveMinInsertionMm: tc.min, MaxAllowedInsertionMm: tc.max}
+		want := insertionBounds{EffectiveMinInsertionMm: tc.min, MaxAllowedInsertionMm: tc.max}
 		if got != want {
 			t.Errorf("%s: bounds = %+v, want %+v", tc.name, got, want)
 		}
@@ -44,7 +44,7 @@ func TestSeatpostInsertionBounds(t *testing.T) {
 	// Equal endpoints permit exactly one installation.
 	pinned := frame
 	pinned.MinFrameInsertionMm = 290
-	got, err := assembly.SeatpostInsertionBounds(pinned, genericPostSpec(0))
+	got, err := seatpostInsertionBounds(pinned, genericPostSpec(0))
 	if err != nil || got.EffectiveMinInsertionMm != 290 || got.MaxAllowedInsertionMm != 290 {
 		t.Errorf("pinned bounds = %+v, %v; want [290, 290]", got, err)
 	}
@@ -75,14 +75,14 @@ func TestSeatpostInsertionBounds(t *testing.T) {
 		if tc.post != nil {
 			tc.post(&p)
 		}
-		if _, err := assembly.SeatpostInsertionBounds(f, p); err == nil {
+		if _, err := seatpostInsertionBounds(f, p); err == nil {
 			t.Errorf("%s: want error", tc.name)
 		}
 	}
 
 	var inputErr *assembly.InputError
 	badSetback := genericPostSpec(-1)
-	if _, err := assembly.SeatpostInsertionBounds(frame, badSetback); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSeatpostSetback {
+	if _, err := seatpostInsertionBounds(frame, badSetback); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSeatpostSetback {
 		t.Errorf("negative setback error = %v, want InputSeatpostSetback", err)
 	}
 }
@@ -103,7 +103,7 @@ func TestPlaceSeatpostInsertionEndpoints(t *testing.T) {
 		{math.Inf(1), 0, false},
 	} {
 		post.InsertionMm = tc.insertion
-		placed, err := assembly.PlaceSeatpost(top, frame, post)
+		placed, err := placeSeatpost(top, frame, post)
 		if tc.ok {
 			if err != nil {
 				t.Errorf("insertion %v: %v", tc.insertion, err)
@@ -146,7 +146,7 @@ func TestPlaceSeatpostUsesFrameInsertionLimits(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			post := assembly.SeatpostSetup{Spec: genericPostSpec(0), InsertionMm: tc.insertion}
-			_, err := assembly.PlaceSeatpost(top, tc.frame, post)
+			_, err := placeSeatpost(top, tc.frame, post)
 			if tc.ok {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
@@ -166,12 +166,12 @@ func TestPlaceSeatpostUsesFrameInsertionLimits(t *testing.T) {
 
 func TestRailOffsetLimitUsesPostClampLength(t *testing.T) {
 	setup := fenrirFittingSetup() // 60 mm rails, 30 mm clamp, level
-	limit, err := setup.RailOffsetLimitMm()
+	limit, err := railOffsetLimitMm(setup)
 	if err != nil || limit != 15 {
 		t.Fatalf("limit = %v, %v; want 15", limit, err)
 	}
 	setup.Seatpost.Spec.RailClampLengthMm = 70
-	if _, err := setup.RailOffsetLimitMm(); err == nil {
+	if _, err := railOffsetLimitMm(setup); err == nil {
 		t.Error("clamp longer than the rails: want error")
 	}
 }
@@ -179,7 +179,7 @@ func TestRailOffsetLimitUsesPostClampLength(t *testing.T) {
 func TestFittingProbesALegalPostEvenWhenSubmittedInsertionIsIllegal(t *testing.T) {
 	setup := fenrirFittingSetup()
 	setup.Seatpost.InsertionMm = 999 // not installable, but a BRP fit chooses its own insertion
-	fit, err := assembly.ApplyFitting(setup, assembly.FitTarget{BRP: &fitReportBRP})
+	fit, err := applyFitting(setup, assembly.FitTarget{BRP: &fitReportBRP})
 	if err != nil {
 		t.Fatalf("ApplyFitting: %v", err)
 	}
@@ -368,11 +368,6 @@ func TestMateSeatpostAndClampedSeatpostIsolated(t *testing.T) {
 		t.Error("WithinMargin check failed for 25 mm margin")
 	}
 	assertNear(t, "ExposedMm", clamped.ExposedMm(), 200, 1e-12)
-
-	// Shaft point X = 150 mm maps onto the collar origin (-120, 470) in FrameLocal.
-	atCollar := clamped.PostInFrame().ApplyPoint(pose.NewPoint(assembly.SeatpostLocal, 150, 0))
-	assertNear(t, "collar X", atCollar.X(), -120, 1e-12)
-	assertNear(t, "collar Y", atCollar.Y(), 470, 1e-12)
 
 	// RailClampInFrame shifts by sagStep rotated into FrameLocal between Static and Dynamic.
 	staticFrame := clamped.RailClampInFrame(assembly.Static)

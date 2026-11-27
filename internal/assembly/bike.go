@@ -55,12 +55,6 @@ func (d *RearCockpitDoF) AllowedInsertion() BoundedRange {
 	return d.postDoF.AllowedInsertion()
 }
 
-// AllowedRailOffset returns the legal saddle fore-aft rail offset bounds.
-func (d *RearCockpitDoF) AllowedRailOffset() BoundedRange {
-	d.requireValid()
-	return d.saddleDoF.AllowedRailOffset()
-}
-
 // Planar2DoF returns the 2-DoF affine BRP surface in DynamicWorld parameterized
 // by (SeatpostInsertion, SaddleRailOffset).
 func (d *RearCockpitDoF) Planar2DoF() Planar2DoF {
@@ -223,7 +217,7 @@ func (s *SeatedFrameset) AttachFront(spacersMm float64, stem Stem, bar Handlebar
 	if !isFinite(float64(dynamicBarRollDeg)) {
 		return nil, invalidInput(InputHandlebarRoll, "handlebar roll must be finite, got %v°", dynamicBarRollDeg)
 	}
-	clampedStem, err := mountStem(s.frameset.Steerer(), spacersMm, stem)
+	clampedStem, err := MountStem(s.frameset.Steerer(), spacersMm, stem)
 	if err != nil {
 		return nil, err
 	}
@@ -403,26 +397,6 @@ func summarizePlacement(p Placement) BuildSummary {
 	}
 }
 
-// BikeSetup specifies the complete single-bike physical build inputs for the
-// flat *Setup API and Placement.Setup readout snapshot.
-type BikeSetup struct {
-	Frame     FrameSetup
-	LowerCup  LowerCupSetup
-	Fork      ForkSetup
-	Wheels    WheelSetup
-	Seatpost  SeatpostSetup
-	Saddle    SaddleSetup
-	Stem      StemSetup
-	Handlebar HandlebarSetup
-}
-
-// RailOffsetLimitMm returns the symmetric saddle rail offset bound
-// L = (RailLengthMm − ClampLengthMm)/2. It errors when the clamp is longer
-// than the rails or the dimensions are not finite.
-func (s BikeSetup) RailOffsetLimitMm() (float64, error) {
-	return railOffsetLimitMm(s.Saddle.RailLengthMm, s.Seatpost.Spec.RailClampLengthMm)
-}
-
 // Placement holds the leveled whole-bike landmark readouts for a LoadState
 // alongside its fitted input snapshot, hardware bound statuses, and derived
 // geometry summary.
@@ -437,10 +411,6 @@ type Placement struct {
 	Bounds    BuildBounds
 	Summary   BuildSummary
 }
-
-// BikePlacement is a transitional alias for Placement preserved until outer
-// packages migrate directly to Placement.
-type BikePlacement = Placement
 
 // SeatAxisToPostTopMm returns the axial distance from BB along the seat tube
 // axis to the top of the exposed seatpost shaft (ShaftTop).
@@ -464,91 +434,4 @@ func (b Placement) BrpToGripDistMm() float64 {
 // consistently across saddles through the sit-bone contact point.
 func (b Placement) SitBonesToGripRiseMm() float64 {
 	return b.Saddle.SitBones.Origin().VerticalOffsetTo(b.Handlebar.HandGrip.Origin())
-}
-
-func (s BikeSetup) toParts() (fs *Frameset, post RigidPost, saddle Saddle, stem Stem, bar Handlebar, err error) {
-	frame, err := NewFrame(s.Frame.dimensions())
-	if err != nil {
-		return nil, RigidPost{}, Saddle{}, Stem{}, Handlebar{}, err
-	}
-	forkM, err := s.Fork.toForkMounter()
-	if err != nil {
-		return nil, RigidPost{}, Saddle{}, Stem{}, Handlebar{}, err
-	}
-	fs, err = MateFrameset(frame, s.LowerCup, s.Stem.UpperStackMm, forkM, s.Wheels)
-	if err != nil {
-		return nil, RigidPost{}, Saddle{}, Stem{}, Handlebar{}, err
-	}
-	if s.Stem.MaxSpacersMm != DefaultMaxSpacersMm {
-		fs, err = fs.WithMaxSpacers(s.Stem.MaxSpacersMm)
-		if err != nil {
-			return nil, RigidPost{}, Saddle{}, Stem{}, Handlebar{}, err
-		}
-	}
-	post, err = NewRigidPost(
-		s.Seatpost.Spec.TotalLengthMm,
-		s.Seatpost.Spec.MinInsertionMm,
-		s.Seatpost.Spec.MaxInsertionMm,
-		s.Seatpost.Spec.SetbackMm,
-		s.Seatpost.Spec.RailClampLengthMm,
-	)
-	if err != nil {
-		return nil, RigidPost{}, Saddle{}, Stem{}, Handlebar{}, err
-	}
-	saddle, err = NewSaddle(SaddleDimensions{
-		RailCenterToBrpMm:      s.Saddle.RailCenterToBrpMm,
-		RailCenterToSitBonesMm: s.Saddle.RailCenterToSitBonesMm,
-		RailToBrpHeightMm:      s.Saddle.RailToBrpHeightMm,
-		SitBonesElevationMm:    s.Saddle.SitBonesElevationMm,
-		RailLengthMm:           s.Saddle.RailLengthMm,
-	})
-	if err != nil {
-		return nil, RigidPost{}, Saddle{}, Stem{}, Handlebar{}, err
-	}
-	stem, err = NewStem(s.Stem.ClampHeightMm, s.Stem.LengthMm, s.Stem.AngleDeg)
-	if err != nil {
-		return nil, RigidPost{}, Saddle{}, Stem{}, Handlebar{}, err
-	}
-	bar, err = NewHandlebar(HandlebarDimensions{
-		StockWidthMm:   s.Handlebar.StockWidthMm,
-		CurrentWidthMm: s.Handlebar.CurrentWidthMm,
-		BacksweepDeg:   s.Handlebar.BacksweepDeg,
-		UpsweepDeg:     s.Handlebar.UpsweepDeg,
-		StatedRiseMm:   s.Handlebar.StatedRiseMm,
-		RiseMode:       s.Handlebar.RiseMode,
-		BendStartMm:    s.Handlebar.BendStartMm,
-		GripInsetMm:    s.Handlebar.GripInsetMm,
-	})
-	if err != nil {
-		return nil, RigidPost{}, Saddle{}, Stem{}, Handlebar{}, err
-	}
-	return fs, post, saddle, stem, bar, nil
-}
-
-// PlaceBike constructs the leveled frameset, mounts the rear cockpit
-// (Seatpost -> Saddle) on SeatTubeTop, and mounts the front cockpit
-// (Stem -> Handlebar) on HeadTubeTop by delegating to Frameset,
-// OpenRearCockpit, AttachFront, and Build.Place(Dynamic).
-func PlaceBike(setup BikeSetup) (Placement, error) {
-	fs, post, saddle, stem, bar, err := setup.toParts()
-	if err != nil {
-		return Placement{}, err
-	}
-	rear, err := OpenRearCockpit(fs, post, saddle, setup.Saddle.RailPitchDeg)
-	if err != nil {
-		return Placement{}, err
-	}
-	seated, err := rear.Clamp(setup.Seatpost.InsertionMm, setup.Saddle.RailOffsetMm)
-	if err != nil {
-		return Placement{}, err
-	}
-	build, err := seated.AttachFront(setup.Stem.SpacersMm, stem, bar, setup.Handlebar.BarRollDeg)
-	if err != nil {
-		return Placement{}, err
-	}
-	placed := build.Place(Dynamic)
-	// Preserve caller's continuous stem length range on the Setup snapshot.
-	placed.Setup.Stem.MinLengthMm = setup.Stem.MinLengthMm
-	placed.Setup.Stem.MaxLengthMm = setup.Stem.MaxLengthMm
-	return placed, nil
 }

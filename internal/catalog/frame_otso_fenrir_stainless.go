@@ -6,16 +6,16 @@ import "github.com/matta/bikegeo/internal/assembly"
 //
 // The frame is a stainless bikepacking frame. S1's geometry chart is transcribed
 // at the nominal middle Tuning Chip position (68° HTA, 75° STA, 70 mm BB drop,
-// 440 mm chainstay), with unpublished exact wheelbases (Q140, Q141) and all five
-// published seatpost insertion depths (Q143). Chart consistency passes on the
-// bare head tube with S1's printed 495 mm A2C / 51 mm offset basis fork (Q142);
-// physical forks install in the typical 12 mm EC44 cup (Q136).
+// 440 mm chainstay), with unpublished exact wheelbases and all five
+// published seatpost insertion depths. Chart consistency passes on the
+// bare head tube with S1's printed 495 mm A2C / 51 mm offset basis fork;
+// physical forks install in the typical 12 mm EC44 cup.
 //
 // Source record: frame_otso_fenrir_stainless.md.
-// Legacy notes: legacy_frame_notes.md, section otso-fenrir-stainless (Q145).
+// Legacy notes: legacy_frame_notes.md, section otso-fenrir-stainless.
 func otsoFenrirStainless() Frame {
 	family := frameFamily{
-		// published standard S1 (ZS44/28.6 upper, EC44/40.0 lower); stack is Cane Creek 40 typical EC44 (illustrative, Q136)
+		// published standard S1 (ZS44/28.6 upper, EC44/40.0 lower); stack is Cane Creek 40 typical EC44 (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 	}
@@ -25,11 +25,11 @@ func otsoFenrirStainless() Frame {
 		Model:        "Fenrir Stainless",
 		Year:         2024, // catalog (chart dates to 2022, S2/S4)
 		DefaultSize:  "L",
-		// hypothesis (Q44, Q81, Q142): bare head tube (S1 omits lower cup stack)
+		// hypothesis: bare head tube (S1 omits lower cup stack)
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
-		// hypothesis (Q44, Q81, Q142): S1 chart printed rigid fork 495 mm A2C / 51 mm offset
+		// hypothesis: S1 chart printed rigid fork 495 mm A2C / 51 mm offset
 		BasisFork: mustBasisFork(495, 51),
-		// derived from published S1 digits (68° integer HTA, whole-mm lengths), Q80, Q142
+		// derived from published S1 digits (68° integer HTA, whole-mm lengths)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -39,9 +39,9 @@ func otsoFenrirStainless() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128, Q133)
+		// catalog: compatible forks
 		Forks: []Fork{lithicCarbonMountain, enveMountainBoost, sid100, fox34_120},
-		// published S1 nominal middle Tuning Chip chart (Q140, Q141, Q143)
+		// published S1 nominal middle Tuning Chip chart
 		Sizes: family.sizes(
 			publishedSize{
 				Name:               "XS",
@@ -89,7 +89,7 @@ func otsoFenrirStainless() Frame {
 				BbDropMm:           70,
 				ChainstayMm:        440,
 				SeatTubeLengthMm:   490,
-				MaxPostInsertionMm: 290, // published (S1, S3, Q95)
+				MaxPostInsertionMm: 290, // published (S1, S3)
 			},
 			publishedSize{
 				Name:               "XL",

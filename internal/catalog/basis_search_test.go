@@ -216,7 +216,7 @@ func assertNearBasis(t *testing.T, label string, got, want, tol float64) {
 }
 
 // TestBasisSearchCatalogFrames verifies evalBasis across all catalog frames
-// and pins searchBasis outputs on representative frames (Q126).
+// and pins searchBasis outputs on representative frames.
 func TestBasisSearchCatalogFrames(t *testing.T) {
 	for _, f := range catalog.Frames() {
 		ev, err := evalBasis(f, f.BasisLowerCup, f.BasisFork.BasisA2cMm(), f.BasisFork.RakeMm())

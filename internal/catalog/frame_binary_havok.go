@@ -8,10 +8,10 @@ import "github.com/matta/bikegeo/internal/assembly"
 // mm rigid fork with a 10 mm EC44 basis cup. Rocker sliding dropouts run 445–460
 // mm; the chart is drawn at the forward 445 mm position.
 //
-// Legacy notes: legacy_frame_notes.md, section binary-havok (Q145).
+// Legacy notes: legacy_frame_notes.md, section binary-havok.
 func binaryHavok() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 	}
@@ -21,12 +21,12 @@ func binaryHavok() Frame {
 		Model:          "Havok",
 		Year:           2026,
 		DefaultSize:    "L",
-		MaxChainstayMm: 460, // published: sliding dropouts 445–460 mm (Q67)
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 10
+		MaxChainstayMm: 460, // published: sliding dropouts 445–460 mm
+		// hypothesis: legacy GeoHeadsetSpacerMm 10
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 10},
-		// hypothesis (Q44, Q81): legacy rigid_485 (rigid) → 485 mm effective
+		// hypothesis: legacy rigid_485 (rigid) → 485 mm effective
 		BasisFork: mustBasisFork(485, 45),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -36,7 +36,7 @@ func binaryHavok() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128)
+		// catalog: compatible forks
 		Forks: []Fork{sid100, fox34_120},
 		// published
 		Sizes: family.sizes(

@@ -216,7 +216,7 @@ func (fs *Frameset) forkSetupSnapshot() ForkSetup {
 }
 
 func (fs *Frameset) frameSetupSnapshot() FrameSetup {
-	d := fs.frame.Dimensions()
+	d := fs.Frame().Dimensions()
 	return FrameSetup{
 		ReachMm:             d.ReachMm,
 		StackMm:             d.StackMm,
@@ -268,12 +268,8 @@ func (fs *Frameset) Unpitched() FramesetPlacement {
 // or DynamicWorld) in a single pass from FrameLocal.
 func (fs *Frameset) Place(state LoadState) FramesetPlacement {
 	fs.requireValid()
-	axleInFork, frontInFrame := fs.axleForState(state)
-	// Add +0° to normalize -0° when the axle line is already level.
-	pitch := 0 - fs.frame.RearAxle().AngleTo(frontInFrame).Deg()
-	world := state.WorldSystem()
-	frameToWorld := pose.NewTransform(FrameLocal, world, pose.Origin(world), pitch)
-	return fs.placeWithTransform(frameToWorld, axleInFork)
+	axleInFork, _ := fs.axleForState(state)
+	return fs.placeWithTransform(fs.FrameToWorld(state), axleInFork)
 }
 
 func (fs *Frameset) placeWithTransform(frameToWorld pose.Transform, axleInFork pose.Point) FramesetPlacement {

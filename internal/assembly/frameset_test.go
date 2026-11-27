@@ -51,7 +51,7 @@ func TestPlaceFramesetBasisForkAndInvariants(t *testing.T) {
 		SagPct: 0.0,
 	}
 
-	placed, err := assembly.PlaceFrameset(frame, basisCup, basisFork, wheels)
+	placed, err := placeFrameset(frame, basisCup, basisFork, wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 	fork20 := assembly.ForkSetup{Spec: fox34Spec, SagPct: 20.0}
 	assertNear(t, "resolved A2C at 20% sag", fork20.EffectiveA2cMm(), 506.0, 1e-9)
 
-	placed, err := assembly.PlaceFrameset(frame, ec44Cup, fork20, wheels)
+	placed, err := placeFrameset(frame, ec44Cup, fork20, wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestPlaceFramesetInstalledForkPitchAndLeveling(t *testing.T) {
 	// Increasing sag shortens resolved A2C, reduces frame pitch, and lowers BB above ground.
 	fork30 := assembly.ForkSetup{Spec: fox34Spec, SagPct: 30.0}
 	assertNear(t, "resolved A2C at 30% sag", fork30.EffectiveA2cMm(), 494.0, 1e-9)
-	placedMoreSag, err := assembly.PlaceFrameset(frame, ec44Cup, fork30, wheels)
+	placedMoreSag, err := placeFrameset(frame, ec44Cup, fork30, wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset 30%% sag: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 
 	badFrame := frame
 	badFrame.ChainstayMm = 70 // <= BbDropMm (72)
-	if _, err := assembly.PlaceFrameset(badFrame, ec44Cup, fork, wheels); err == nil {
+	if _, err := placeFrameset(badFrame, ec44Cup, fork, wheels); err == nil {
 		t.Fatal("expected error when chainstay <= BB drop")
 	}
 
@@ -167,7 +167,7 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 		{RadiusMm: -10},
 		{RadiusMm: math.NaN()},
 	} {
-		if _, err := assembly.PlaceFrameset(frame, ec44Cup, fork, badWheels); err == nil {
+		if _, err := placeFrameset(frame, ec44Cup, fork, badWheels); err == nil {
 			t.Fatalf("expected error for WheelSetup %+v", badWheels)
 		}
 	}
@@ -179,7 +179,7 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 		{Standard: assembly.LowerCupZS44, StackMm: 0},
 		{Standard: assembly.LowerCupZS44, StackMm: 2},
 	} {
-		if _, err := assembly.PlaceFrameset(frame, validCup, straightFork, wheels); err != nil {
+		if _, err := placeFrameset(frame, validCup, straightFork, wheels); err != nil {
 			t.Fatalf("expected valid LowerCupSetup %+v to pass, got %v", validCup, err)
 		}
 	}
@@ -215,7 +215,7 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 	}
 	for _, tc := range inputCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := assembly.PlaceFrameset(frame, tc.lowerCup, tc.fork, wheels)
+			_, err := placeFrameset(frame, tc.lowerCup, tc.fork, wheels)
 			if err == nil {
 				t.Fatalf("expected error for %s", tc.name)
 			}
@@ -239,7 +239,7 @@ func TestPlaceFramesetExactlyLevelPitch(t *testing.T) {
 		Spec: assembly.ForkSpec{StaticA2cMm: 430, Steerer: assembly.SteererBasis},
 	}
 
-	leveled, err := assembly.PlaceFrameset(frame, fenrirBasisCup(), fork, fenrirWheels())
+	leveled, err := placeFrameset(frame, fenrirBasisCup(), fork, fenrirWheels())
 	if err != nil {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
@@ -256,11 +256,11 @@ func TestPlaceUnpitchedFrameset(t *testing.T) {
 		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0, Steerer: assembly.SteererBasis},
 	}
 
-	unpitched, err := assembly.PlaceUnpitchedFrameset(frame, cup, basisFork, wheels)
+	unpitched, err := placeUnpitchedFrameset(frame, cup, basisFork, wheels)
 	if err != nil {
 		t.Fatalf("PlaceUnpitchedFrameset: %v", err)
 	}
-	leveled, err := assembly.PlaceFrameset(frame, cup, basisFork, wheels)
+	leveled, err := placeFrameset(frame, cup, basisFork, wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset: %v", err)
 	}
@@ -284,7 +284,7 @@ func TestPlaceUnpitchedFrameset(t *testing.T) {
 		Spec:   assembly.ForkSpec{StaticA2cMm: 530.0, Travel: assembly.Travel120, RakeMm: 44.0, Steerer: assembly.SteererTapered},
 		SagPct: 20.0,
 	}
-	installed, err := assembly.PlaceFrameset(frame, fenrirEc44Cup(), installedFork, wheels)
+	installed, err := placeFrameset(frame, fenrirEc44Cup(), installedFork, wheels)
 	if err != nil {
 		t.Fatalf("PlaceFrameset installed: %v", err)
 	}
@@ -305,10 +305,10 @@ func TestPlaceUnpitchedFrameset(t *testing.T) {
 		{"EC44 with 0 mm stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 0}, basisFork},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := assembly.PlaceUnpitchedFrameset(frame, tc.cup, tc.fork, wheels); err == nil {
+			if _, err := placeUnpitchedFrameset(frame, tc.cup, tc.fork, wheels); err == nil {
 				t.Errorf("PlaceUnpitchedFrameset(%s): expected error", tc.name)
 			}
-			if _, err := assembly.PlaceFrameset(frame, tc.cup, tc.fork, wheels); err == nil {
+			if _, err := placeFrameset(frame, tc.cup, tc.fork, wheels); err == nil {
 				t.Errorf("PlaceFrameset(%s): expected error", tc.name)
 			}
 		})
@@ -346,7 +346,7 @@ func TestHeadsetPairingMatrix(t *testing.T) {
 			}
 		}
 		fork := assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: steerer}}
-		_, err := assembly.PlaceFrameset(frame, cup, fork, wheels)
+		_, err := placeFrameset(frame, cup, fork, wheels)
 		return err
 	}
 	for _, p := range matrix {
@@ -408,7 +408,7 @@ func TestHeadsetPairingMatrix(t *testing.T) {
 			// An unknown frame bore also invalidates the frame's own default.
 			frame.LowerBore = tc.bore
 		}
-		if _, err := assembly.PlaceFrameset(frame, tc.cup, fork, wheels); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+		if _, err := placeFrameset(frame, tc.cup, fork, wheels); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
 			t.Errorf("%s: error = %v, want InputLowerCup", tc.name, err)
 		}
 	}
@@ -427,7 +427,7 @@ func TestFrameDefaultLowerCupMustBePhysicalAndFitBore(t *testing.T) {
 		frame.DefaultLowerCup = tc.cup
 		fork := assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: assembly.SteererTapered}}
 		var inputErr *assembly.InputError
-		if _, err := assembly.PlaceFrameset(frame, fenrirEc44Cup(), fork, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+		if _, err := placeFrameset(frame, fenrirEc44Cup(), fork, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
 			t.Errorf("%s: PlaceFrameset error = %v, want InputLowerCup", tc.name, err)
 		}
 	}
@@ -440,16 +440,16 @@ func TestMismatchedBasisCupFailsUnpitchedPlacement(t *testing.T) {
 	}
 	badCup := assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0}
 	var inputErr *assembly.InputError
-	if _, err := assembly.PlaceUnpitchedFrameset(frame, badCup, basisFork, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+	if _, err := placeUnpitchedFrameset(frame, badCup, basisFork, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
 		t.Errorf("PlaceUnpitchedFrameset error = %v, want InputLowerCup", err)
 	}
 	// A matching physical cup on the basis fork is accepted.
-	if _, err := assembly.PlaceUnpitchedFrameset(frame, fenrirEc44Cup(), basisFork, fenrirWheels()); err != nil {
+	if _, err := placeUnpitchedFrameset(frame, fenrirEc44Cup(), basisFork, fenrirWheels()); err != nil {
 		t.Errorf("matching cup rejected: %v", err)
 	}
 }
 
-// fenrirPostTotalMm is the generic post's total length (Q75c: 400/365/100 mm, illustrative).
+// fenrirPostTotalMm is the generic post's total length (400/365/100 mm, illustrative).
 const fenrirPostTotalMm = 400.0
 
 func genericPostSpec(setbackMm float64) assembly.SeatpostSpec {
@@ -517,7 +517,7 @@ func TestFramesetHandlingReadouts(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			placed, err := assembly.PlaceFrameset(frame, tc.cup, tc.fork, wheels)
+			placed, err := placeFrameset(frame, tc.cup, tc.fork, wheels)
 			if err != nil {
 				t.Fatalf("PlaceFrameset: %v", err)
 			}

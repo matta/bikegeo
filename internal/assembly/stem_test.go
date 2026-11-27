@@ -33,7 +33,7 @@ func TestPlaceStemWorkedExample60DegHTA(t *testing.T) {
 	// Stem angle = 0° => turn -90° to 30°; advance 100 mm.
 	// At 30°: cos(30°) = sqrt(3)/2, sin(30°) = 0.5.
 	// BarClamp = (-25 + 50*sqrt(3), 25*sqrt(3) + 50).
-	got, err := assembly.PlaceStem(steererTransform(0, 0, 120), assembly.StemSetup{
+	got, err := placeStem(steererTransform(0, 0, 120), assembly.StemSetup{
 		UpperStackMm:  10,
 		SpacersMm:     20,
 		MaxSpacersMm:  30,
@@ -57,7 +57,7 @@ func TestPlaceStemWorkedExampleNonzeroAngle(t *testing.T) {
 	// 60° HTA => steererUp heading is 120°; SteererClamp at (-25, 25*sqrt(3)).
 	// Perpendicular (-90°) gives 30°, then +30° stem angle gives 60°.
 	// BarClamp = SteererClamp + 100*(cos 60°, sin 60°) = (25, 75*sqrt(3)).
-	got, err := assembly.PlaceStem(steererTransform(0, 0, 120), assembly.StemSetup{
+	got, err := placeStem(steererTransform(0, 0, 120), assembly.StemSetup{
 		UpperStackMm:  10,
 		SpacersMm:     20,
 		MaxSpacersMm:  30,
@@ -88,7 +88,7 @@ func TestPlaceStemDimensions(t *testing.T) {
 	heading := pose.Deg(180.0 - 68.25)
 	origin := pose.NewPoint(assembly.DynamicWorld, 428.0, 642.0)
 
-	got, err := assembly.PlaceStem(pose.NewPose(origin, heading).Anchor(assembly.SteererLocal), setup)
+	got, err := placeStem(pose.NewPose(origin, heading).Anchor(assembly.SteererLocal), setup)
 	if err != nil {
 		t.Fatalf("PlaceStem() error = %v", err)
 	}
@@ -129,7 +129,7 @@ func TestPlaceStemValidation(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := assembly.PlaceStem(tc.steerer, tc.setup); err == nil {
+			if _, err := placeStem(tc.steerer, tc.setup); err == nil {
 				t.Fatalf("expected error for %s, got nil", tc.name)
 			}
 		})
@@ -137,7 +137,7 @@ func TestPlaceStemValidation(t *testing.T) {
 }
 
 func TestPlaceStemRejectsLowerHeadsetTransform(t *testing.T) {
-	frameset, err := assembly.PlaceFrameset(
+	frameset, err := placeFrameset(
 		fenrirSizeLFrame(),
 		fenrirEc44Cup(),
 		assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: assembly.SteererTapered}},
@@ -165,11 +165,11 @@ func TestPlaceStemRejectsLowerHeadsetTransform(t *testing.T) {
 			t.Fatalf("panic = %v, want coordinate system mismatch", r)
 		}
 	}()
-	_, _ = assembly.PlaceStem(frameset.LowerHeadsetInWorld(), setup)
+	_, _ = placeStem(frameset.LowerHeadsetInWorld(), setup)
 }
 
 func TestPlaceStemSpacersOverMaxIsInputError(t *testing.T) {
-	_, err := assembly.PlaceStem(steererTransform(0, 0, 111.75), assembly.StemSetup{UpperStackMm: 11, SpacersMm: 31, MaxSpacersMm: 30, ClampHeightMm: 40, LengthMm: 60})
+	_, err := placeStem(steererTransform(0, 0, 111.75), assembly.StemSetup{UpperStackMm: 11, SpacersMm: 31, MaxSpacersMm: 30, ClampHeightMm: 40, LengthMm: 60})
 	var inputErr *assembly.InputError
 	if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputStemSpacers {
 		t.Fatalf("err = %v, want InputStemSpacers", err)
@@ -177,7 +177,7 @@ func TestPlaceStemSpacersOverMaxIsInputError(t *testing.T) {
 }
 
 func TestPlaceStemSpacersExactlyAtMaxPlaces(t *testing.T) {
-	if _, err := assembly.PlaceStem(steererTransform(0, 0, 111.75), assembly.StemSetup{UpperStackMm: 11, SpacersMm: 30, MaxSpacersMm: 30, ClampHeightMm: 40, LengthMm: 60}); err != nil {
+	if _, err := placeStem(steererTransform(0, 0, 111.75), assembly.StemSetup{UpperStackMm: 11, SpacersMm: 30, MaxSpacersMm: 30, ClampHeightMm: 40, LengthMm: 60}); err != nil {
 		t.Fatalf("PlaceStem at max spacers: %v", err)
 	}
 }
@@ -185,11 +185,11 @@ func TestPlaceStemSpacersExactlyAtMaxPlaces(t *testing.T) {
 func TestPlaceStemRejectsMaxSpacersAboveCeiling(t *testing.T) {
 	setup := assembly.StemSetup{UpperStackMm: assembly.DefaultUpperStackMm, SpacersMm: 0, MaxSpacersMm: assembly.DefaultMaxSpacersMm, ClampHeightMm: 40, LengthMm: 60}
 	steerer := steererTransform(0, 0, 111.75)
-	if _, err := assembly.PlaceStem(steerer, setup); err != nil {
+	if _, err := placeStem(steerer, setup); err != nil {
 		t.Fatalf("max spacers at the ceiling: %v", err)
 	}
 	setup.MaxSpacersMm = assembly.DefaultMaxSpacersMm + 1
-	if _, err := assembly.PlaceStem(steerer, setup); err == nil {
+	if _, err := placeStem(steerer, setup); err == nil {
 		t.Fatal("configured max spacers above 30 mm was accepted")
 	}
 }

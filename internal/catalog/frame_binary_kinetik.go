@@ -8,10 +8,10 @@ import "github.com/matta/bikegeo/internal/assembly"
 // (530 mm static) at 15% sag, 512 mm effective, with a 10 mm EC44 basis cup.
 // Rocker dropouts run 455–472 mm; the chart is drawn at 455 mm.
 //
-// Legacy notes: legacy_frame_notes.md, section binary-kinetik (Q145).
+// Legacy notes: legacy_frame_notes.md, section binary-kinetik.
 func binaryKinetik() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 	}
@@ -21,12 +21,12 @@ func binaryKinetik() Frame {
 		Model:          "Kinetik",
 		Year:           2026,
 		DefaultSize:    "L",
-		MaxChainstayMm: 472, // published: sliding dropouts 455–472 mm (Q67)
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 10
+		MaxChainstayMm: 472, // published: sliding dropouts 455–472 mm
+		// hypothesis: legacy GeoHeadsetSpacerMm 10
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 10},
-		// hypothesis (Q44, Q81): legacy fox34_120 @ 15% sag → 512 mm effective
+		// hypothesis: legacy fox34_120 @ 15% sag → 512 mm effective
 		BasisFork: mustBasisFork(512, 44),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -36,7 +36,7 @@ func binaryKinetik() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128)
+		// catalog: compatible forks
 		Forks: []Fork{fox34_120, sid100},
 		// published
 		Sizes: family.sizes(

@@ -127,8 +127,7 @@ func TestBuildStaticVsDynamicRigidClamping(t *testing.T) {
 	// 4. Seatpost cradle unloads by (+6, -5) mm in shaft coordinates (SeatpostLocal)
 	// while the clamped saddle rotates rigidly by pitchDelta without re-leveling.
 	unloadInShaft := pose.NewVector(assembly.SeatpostLocal, 6.0, -5.0)
-	postInStaticWorld := pose.Compose(seated.Seatpost().PostInFrame(), stat.Frameset.FrameToWorld)
-	unloadInStaticWorld := postInStaticWorld.ApplyVector(unloadInShaft)
+	unloadInStaticWorld := stat.Seatpost.SeatTubeTop.Anchor(assembly.SeatpostLocal).ApplyVector(unloadInShaft)
 
 	for _, lm := range []struct {
 		name string

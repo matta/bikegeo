@@ -9,6 +9,33 @@ import (
 	"github.com/matta/bikegeo/internal/pose"
 )
 
+func forkByID(id string) (catalog.Fork, bool) {
+	for _, f := range catalog.Forks() {
+		if f.ID == id {
+			return f, true
+		}
+	}
+	return catalog.Fork{}, false
+}
+
+func rigidClassValidFor(c catalog.RigidClass, travel assembly.ForkTravel) bool {
+	switch travel {
+	case assembly.TravelRigid:
+		switch c {
+		case catalog.RigidClass440, catalog.RigidClass470, catalog.RigidClass485, catalog.RigidClass495:
+			return true
+		case catalog.RigidClassNone:
+			return false
+		default:
+			return false
+		}
+	case assembly.Travel100, assembly.Travel120, assembly.Travel130:
+		return c == catalog.RigidClassNone
+	default:
+		return false
+	}
+}
+
 // TestForks checks the 16 fork models, their variants, IDs, and physical steerers.
 func TestForks(t *testing.T) {
 	forks := catalog.Forks()
@@ -16,8 +43,8 @@ func TestForks(t *testing.T) {
 		t.Fatalf("got %d forks, want 16", len(forks))
 	}
 	for _, id := range []string{"rigid_483", "rigid_485", "rigid_490", "rigid_500", "rigid_510"} {
-		if _, ok := catalog.ForkByID(id); ok {
-			t.Errorf("ForkByID(%q) ok = true, want false", id)
+		if _, ok := forkByID(id); ok {
+			t.Errorf("forkByID(%q) ok = true, want false", id)
 		}
 	}
 	seen := map[string]bool{}
@@ -34,7 +61,7 @@ func TestForks(t *testing.T) {
 		if f.Name == "" {
 			t.Errorf("fork %q has an empty name", f.ID)
 		}
-		if !f.RigidClass.ValidFor(f.Travel) {
+		if !rigidClassValidFor(f.RigidClass, f.Travel) {
 			t.Errorf("fork %q has rigid class %q for travel %v", f.ID, f.RigidClass, f.Travel)
 		}
 		if !f.Travel.Valid() {
@@ -59,8 +86,8 @@ func TestForks(t *testing.T) {
 			}
 			seenVariantIDs[vid] = true
 		}
-		if got, ok := catalog.ForkByID(f.ID); !ok || got.ID != f.ID {
-			t.Errorf("ForkByID(%q) = %q, %v", f.ID, got.ID, ok)
+		if got, ok := forkByID(f.ID); !ok || got.ID != f.ID {
+			t.Errorf("forkByID(%q) = %q, %v", f.ID, got.ID, ok)
 		}
 		switch f.Steerer {
 		case assembly.PhysicalSteererStraight118:
@@ -74,8 +101,8 @@ func TestForks(t *testing.T) {
 	if !slices.Equal(straight, want) {
 		t.Errorf("straight-steerer forks = %v, want %v", straight, want)
 	}
-	if _, ok := catalog.ForkByID("missing"); ok {
-		t.Errorf("ForkByID(missing) ok = true, want false")
+	if _, ok := forkByID("missing"); ok {
+		t.Errorf("forkByID(missing) ok = true, want false")
 	}
 }
 
@@ -130,7 +157,7 @@ func TestSeatposts(t *testing.T) {
 		} else if _, ok := p.Part.(assembly.RigidPost); !ok {
 			t.Errorf("%s type = %T, want assembly.RigidPost", p.ID, p.Part)
 		}
-		limits := p.InsertionLimits()
+		limits := p.Part.InsertionLimits()
 		if got := [3]float64{p.TotalLengthMm(), limits.Max(), limits.Min()}; got != want {
 			t.Errorf("seatpost %q length/max/min = %v, want %v", p.ID, got, want)
 		}
@@ -184,7 +211,10 @@ func TestCatalogDefaultsAndLookups(t *testing.T) {
 		t.Errorf("SpacerStepMm = %v, want 5", catalog.SpacerStepMm)
 	}
 
-	stem := catalog.DefaultStem()
+	stem, err := assembly.NewStem(catalog.DefaultStemClampHeightMm, catalog.DefaultStemLengthMm, catalog.DefaultStemAngleDeg)
+	if err != nil {
+		t.Fatalf("NewStem(defaults): %v", err)
+	}
 	steerer, err := assembly.NewSteererPort(
 		pose.NewPose(pose.Origin(assembly.FrameLocal), 111.75).Anchor(assembly.SteererLocal),
 		assembly.DefaultUpperStackMm,
@@ -194,10 +224,10 @@ func TestCatalogDefaultsAndLookups(t *testing.T) {
 		t.Fatalf("NewSteererPort: %v", err)
 	}
 	if _, err := assembly.MountStem(steerer, catalog.DefaultSpacersMm, stem); err != nil {
-		t.Errorf("MountStem(DefaultStem()): %v", err)
+		t.Errorf("MountStem(default stem): %v", err)
 	}
 	if stem.ClampHeightMm() != 40 || stem.LengthMm() != 60 || stem.AngleDeg() != -6 {
-		t.Errorf("DefaultStem = (%v, %v, %v), want (40, 60, -6)", stem.ClampHeightMm(), stem.LengthMm(), stem.AngleDeg())
+		t.Errorf("default stem = (%v, %v, %v), want (40, 60, -6)", stem.ClampHeightMm(), stem.LengthMm(), stem.AngleDeg())
 	}
 }
 
@@ -261,13 +291,13 @@ func TestLowerCupFor(t *testing.T) {
 // TestRigidClassValidFor checks the class and travel pairing.
 func TestRigidClassValidFor(t *testing.T) {
 	for _, c := range []catalog.RigidClass{catalog.RigidClass440, catalog.RigidClass470, catalog.RigidClass485, catalog.RigidClass495} {
-		if !c.ValidFor(assembly.TravelRigid) {
-			t.Errorf("%q.ValidFor(rigid) = false, want true", c)
+		if !rigidClassValidFor(c, assembly.TravelRigid) {
+			t.Errorf("rigidClassValidFor(%q, rigid) = false, want true", c)
 		}
 	}
 	for _, tr := range []assembly.ForkTravel{assembly.Travel100, assembly.Travel120, assembly.Travel130} {
-		if !catalog.RigidClassNone.ValidFor(tr) {
-			t.Errorf("none.ValidFor(%v) = false, want true", tr)
+		if !rigidClassValidFor(catalog.RigidClassNone, tr) {
+			t.Errorf("rigidClassValidFor(none, %v) = false, want true", tr)
 		}
 	}
 	for _, tc := range []struct {
@@ -279,8 +309,8 @@ func TestRigidClassValidFor(t *testing.T) {
 		{catalog.RigidClass("510"), assembly.TravelRigid},
 		{catalog.RigidClassNone, assembly.ForkTravel(-1)},
 	} {
-		if tc.c.ValidFor(tc.tr) {
-			t.Errorf("%q.ValidFor(%v) = true, want false", tc.c, tc.tr)
+		if rigidClassValidFor(tc.c, tc.tr) {
+			t.Errorf("rigidClassValidFor(%q, %v) = true, want false", tc.c, tc.tr)
 		}
 	}
 }

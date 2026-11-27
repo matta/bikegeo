@@ -3,7 +3,7 @@ package catalog
 import "github.com/matta/bikegeo/internal/assembly"
 
 // sevenCollarOffsetMm converts Seven's published C-C seat tube lengths to C-T.
-const sevenCollarOffsetMm = 35.0 // illustrative C-C → C-T until Seven confirms (Q75d)
+const sevenCollarOffsetMm = 35.0 // illustrative C-C → C-T until Seven confirms
 
 // sevenCustom returns the Seven Custom.
 //
@@ -11,12 +11,12 @@ const sevenCollarOffsetMm = 35.0 // illustrative C-C → C-T until Seven confirm
 // Its basis fork is the ENVE Mountain Boost at 492 mm / 52 mm rake with an 11 mm
 // EC44 basis cup. Stack, reach, and wheelbase come from the 1:5 design drawing.
 // Seven publishes C-C seat tubes, converted with the illustrative
-// sevenCollarOffsetMm (Q75d).
+// sevenCollarOffsetMm.
 //
-// Legacy notes: legacy_frame_notes.md, section seven-custom (Q145).
+// Legacy notes: legacy_frame_notes.md, section seven-custom.
 func sevenCustom() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 	}
@@ -26,11 +26,11 @@ func sevenCustom() Frame {
 		Model:        "Custom",
 		Year:         2026,
 		DefaultSize:  "Custom",
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 11
+		// hypothesis: legacy GeoHeadsetSpacerMm 11
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 11},
-		// hypothesis (Q44, Q81): legacy enve_mountain_boost (rigid) → 492 mm effective
+		// hypothesis: legacy enve_mountain_boost (rigid) → 492 mm effective
 		BasisFork: mustBasisFork(492, 52),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -40,7 +40,7 @@ func sevenCustom() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.05,
 		},
-		// catalog: compatible forks (Q128)
+		// catalog: compatible forks
 		Forks: []Fork{enveMountainBoost, sid100, fox34_120},
 		// published
 		Sizes: family.sizes(

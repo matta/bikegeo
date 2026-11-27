@@ -8,10 +8,10 @@ import "github.com/matta/bikegeo/internal/assembly"
 // ECR fork (43 mm offset), with a traditional 34 mm head tube (12 mm EC34 basis
 // cup). Only straight-steerer forks fit.
 //
-// Legacy notes: legacy_frame_notes.md, section surly-ecr (Q145).
+// Legacy notes: legacy_frame_notes.md, section surly-ecr.
 func surlyEcr() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType EC34; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType EC34; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore34Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC34, StackMm: 12},
 	}
@@ -21,11 +21,11 @@ func surlyEcr() Frame {
 		Model:        "ECR",
 		Year:         2021,
 		DefaultSize:  "L",
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
+		// hypothesis: legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC34, StackMm: 12},
-		// hypothesis (Q44, Q81): legacy surly_ecr_468 (rigid) → 468 mm effective
+		// hypothesis: legacy surly_ecr_468 (rigid) → 468 mm effective
 		BasisFork: mustBasisFork(468, 43),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.25,
 			StackMm:          0.25,
@@ -35,7 +35,7 @@ func surlyEcr() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.25,
 		},
-		// catalog: compatible forks (Q128)
+		// catalog: compatible forks
 		Forks: []Fork{surlyEcr468},
 		// published
 		Sizes: family.sizes(

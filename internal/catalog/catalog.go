@@ -14,12 +14,12 @@ const WheelRadiusMm = 372.0 // illustrative: standard loaded 29" × 2.4" radius
 // WheelLabel names the shared wheel.
 const WheelLabel = `29" × 2.4"`
 
-// DefaultBrpTarget returns the idmatch fit report's BRP (measured; docs/RIDER_FIT.md, Q53).
+// DefaultBrpTarget returns the idmatch fit report's BRP (measured; docs/RIDER_FIT.md).
 func DefaultBrpTarget() pose.Point {
 	return pose.NewPoint(assembly.DynamicWorld, -219.0, 713.1)
 }
 
-// DefaultGripTarget returns the idmatch fit report's HandGrip (measured; Q53, Q64).
+// DefaultGripTarget returns the idmatch fit report's HandGrip.
 func DefaultGripTarget() pose.Point {
 	return pose.NewPoint(assembly.DynamicWorld, 481.0, 726.0)
 }

@@ -29,7 +29,7 @@ const (
 )
 
 // Stem is one concrete stem: a length and a signed angle (negative drops,
-// matching assembly.StemSetup.AngleDeg), its availability, and its Q58
+// matching assembly.StemSetup.AngleDeg), its availability, and its
 // composite 0–100 score.
 type Stem struct {
 	LengthMm           float64
@@ -121,7 +121,7 @@ var stemLengths = []stemLength{
 	},
 }
 
-// Q58 composite stem score sub-attribute weights (sum 100).
+// composite stem score sub-attribute weights (sum 100).
 const (
 	stemLengthAvailabilityWeight = 35.0
 	stemAngleAvailabilityWeight  = 30.0
@@ -195,7 +195,7 @@ func Stems() []Stem {
 	return out
 }
 
-// stemScore returns the Q58 composite 0–100 score.
+// stemScore returns the composite 0–100 score.
 func stemScore(lengthMm float64, length LengthAvailability, angle pose.Deg, tier AngleAvailability, minMs, maxMs pose.Deg) float64 {
 	var lenAvail float64
 	switch length {
@@ -243,7 +243,7 @@ func clamp01(x float64) float64 {
 }
 
 // StemOptions returns the 107 catalog stems in assembly.StemOption form for
-// build fitting (Q97, Q100).
+// build fitting.
 func StemOptions() []assembly.StemOption {
 	stems := Stems()
 	out := make([]assembly.StemOption, len(stems))
@@ -270,15 +270,6 @@ const (
 	DefaultMaxStemLengthMm   = 130.0
 )
 
-// DefaultStem returns the validated baseline Stem for /bike defaults.
-func DefaultStem() assembly.Stem {
-	s, err := assembly.NewStem(DefaultStemClampHeightMm, DefaultStemLengthMm, DefaultStemAngleDeg)
-	if err != nil {
-		panic(fmt.Sprintf("catalog: invalid default stem: %v", err))
-	}
-	return s
-}
-
 // DefaultStemLengthRange returns the continuous-fitting stem length interval.
 func DefaultStemLengthRange() assembly.BoundedRange {
 	r, err := assembly.NewBoundedRange(DefaultMinStemLengthMm, DefaultMaxStemLengthMm, "min stem length", "max stem length")
@@ -289,7 +280,7 @@ func DefaultStemLengthRange() assembly.BoundedRange {
 }
 
 // StemByDimensions returns the catalog stem matching lengthMm and angleDeg
-// within 1e-9, or false if the stem is off-catalog or non-finite (Q110).
+// within 1e-9, or false if the stem is off-catalog or non-finite.
 func StemByDimensions(lengthMm float64, angleDeg pose.Deg) (Stem, bool) {
 	if math.IsNaN(lengthMm) || math.IsInf(lengthMm, 0) ||
 		math.IsNaN(float64(angleDeg)) || math.IsInf(float64(angleDeg), 0) {

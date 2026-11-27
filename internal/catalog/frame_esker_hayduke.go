@@ -7,12 +7,12 @@ import "github.com/matta/bikegeo/internal/assembly"
 // The frame is a chromoly adventure hardtail. Its basis fork is a 120 mm fork at
 // 30% sag (495 mm effective) with a 12 mm EC44 basis cup. Portage dropouts run
 // 440–454 mm; the chart is drawn at 440 mm. The S4 wheelbase needs a documented
-// allowance (Q71).
+// allowance.
 //
-// Legacy notes: legacy_frame_notes.md, section esker-hayduke (Q145).
+// Legacy notes: legacy_frame_notes.md, section esker-hayduke.
 func eskerHayduke() Frame {
 	family := frameFamily{
-		// Q66: inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
+		// inferred from legacy HeadsetCupType EC44; stack is legacy CupStackMm (illustrative)
 		LowerBore:       assembly.Bore44Pressed,
 		DefaultLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 	}
@@ -22,12 +22,12 @@ func eskerHayduke() Frame {
 		Model:          "Hayduke",
 		Year:           2024,
 		DefaultSize:    "S3",
-		MaxChainstayMm: 454, // published: sliding dropouts 440–454 mm (Q67)
-		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
+		MaxChainstayMm: 454, // published: sliding dropouts 440–454 mm
+		// hypothesis: legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
-		// hypothesis (Q44, Q81): legacy pike_120 @ 30% sag → 495 mm effective
+		// hypothesis: legacy pike_120 @ 30% sag → 495 mm effective
 		BasisFork: mustBasisFork(495, 44),
-		// inferred from published digits (legacy), Q80
+		// inferred from published digits (legacy)
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
 			StackMm:          0.5,
@@ -37,7 +37,7 @@ func eskerHayduke() Frame {
 			ChainstayMm:      0.5,
 			WheelbaseMm:      0.5,
 		},
-		// catalog: compatible forks (Q128, Q133)
+		// catalog: compatible forks
 		Forks: []Fork{pike120, fox34_130, enveMountainBoost, lithicCarbonMountain},
 		// published
 		Sizes: family.sizes(
@@ -90,7 +90,7 @@ func eskerHayduke() Frame {
 				WheelbaseMm:      1218,
 				Allowance: ChartAllowance{
 					WheelbaseMm: 1.2,
-					Reason:      "The published S4 wheelbase is 5.42 mm longer than the declared front axle position (HTL + cup + A2C) gives, 1.11 mm beyond rounding; S1–S3 are consistent within rounding (Q71).",
+					Reason:      "The published S4 wheelbase is 5.42 mm longer than the declared front axle position (HTL + cup + A2C) gives, 1.11 mm beyond rounding; S1–S3 are consistent within rounding.",
 				},
 			},
 		),

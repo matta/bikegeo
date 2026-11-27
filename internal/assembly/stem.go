@@ -175,15 +175,7 @@ type ClampedStem struct {
 // SteererLocal along +X through CoverTop, SpacerTop, SteererClamp, turns
 // (−90° + stem.AngleDeg()) and advances stem.LengthMm() to BarClamp, and
 // composes with steerer.SteererInFrame() into FrameLocal.
-func MountStem(steerer SteererPort, spacersMm float64, stem Stem) (*ClampedStem, error) {
-	clamped, err := mountStem(steerer, spacersMm, stem)
-	if err != nil {
-		return nil, err
-	}
-	return &clamped, nil
-}
-
-func mountStem(steerer SteererPort, spacersMm float64, stem Stem) (ClampedStem, error) {
+func MountStem(steerer SteererPort, spacersMm float64, stem Stem) (ClampedStem, error) {
 	steerer.requireValid()
 	stem.requireValid()
 

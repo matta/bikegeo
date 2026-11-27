@@ -98,7 +98,7 @@ func frameProblems(f catalog.Frame) []string {
 		if len(fk.Variants) == 0 {
 			problems = append(problems, fmt.Sprintf("fork %q has no variants", fk.ID))
 		}
-		if !fk.RigidClass.ValidFor(fk.Travel) {
+		if !rigidClassValidFor(fk.RigidClass, fk.Travel) {
 			problems = append(problems, fmt.Sprintf("fork %q has rigid class %q for travel %v", fk.ID, fk.RigidClass, fk.Travel))
 		}
 	}
@@ -190,7 +190,7 @@ func TestFrameProblemsCatchMistakes(t *testing.T) {
 	}
 }
 
-// TestEveryChartIsConsistent runs the chart-consistency check on every size (Q91).
+// TestEveryChartIsConsistent runs the chart-consistency check on every size.
 func TestEveryChartIsConsistent(t *testing.T) {
 	for _, f := range catalog.Frames() {
 		for _, s := range f.Sizes {
@@ -203,7 +203,7 @@ func TestEveryChartIsConsistent(t *testing.T) {
 	}
 }
 
-// TestChartAllowances checks exactly the two Q71 allowances exist and are needed (Q93).
+// TestChartAllowances checks exactly the two allowances exist and are needed.
 func TestChartAllowances(t *testing.T) {
 	want := map[string]struct {
 		allowance catalog.ChartAllowance
@@ -304,7 +304,7 @@ func TestForkListsPlace(t *testing.T) {
 func TestForkListsPlaceChecksSteerers(t *testing.T) {
 	f := mustFrame(t, "surly-ecr")
 	s := mustSize(t, f, "L")
-	sid, ok := catalog.ForkByID("sid_100")
+	sid, ok := forkByID("sid_100")
 	if !ok {
 		t.Fatal("sid_100 missing from catalog")
 	}
@@ -429,7 +429,7 @@ func compatibleIDs(f catalog.Frame) []string {
 	return ids
 }
 
-// TestCompatibleForksRules checks the Q128, Q135, Q136, and Q139 rules.
+// TestCompatibleForksRules checks the fork compatibility rules.
 func TestCompatibleForksRules(t *testing.T) {
 	cutthroat := compatibleIDs(mustFrame(t, "salsa-cutthroat"))
 	wantCutthroat := []string{"firestarter_deluxe_483", "sid_100", "surly_krampus_483", "sklar_steel_485"}
@@ -491,14 +491,14 @@ func TestCompatibleForksRules(t *testing.T) {
 		t.Errorf("otso-fenrir-stainless compatible forks prefix = %v, want %v", fenrirGot, wantFenrirPrefix)
 	}
 	if !fenrir.IsListedFork("enve_mountain_boost") {
-		t.Error("otso-fenrir-stainless IsListedFork(enve_mountain_boost) = false, want true (Q128)")
+		t.Error("otso-fenrir-stainless IsListedFork(enve_mountain_boost) = false, want true")
 	}
 }
 
-// TestForkOptionsResolveLowerCups checks per-fork cups on a ZS44 frame (Q136).
+// TestForkOptionsResolveLowerCups checks per-fork cups on a ZS44 frame.
 func TestForkOptionsResolveLowerCups(t *testing.T) {
 	f := mustFrame(t, "surly-krampus")
-	sid, _ := catalog.ForkByID("sid_100")
+	sid, _ := forkByID("sid_100")
 	for i := range f.Sizes {
 		f.Sizes[i].ChartDims.DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupZS44, StackMm: 4}
 	}

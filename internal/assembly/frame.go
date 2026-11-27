@@ -205,13 +205,13 @@ func (f Frame) SeatTube() SeatTubeSocket {
 // LowerBore returns the head tube's lower bore standard.
 func (f Frame) LowerBore() LowerBore {
 	f.requireValid()
-	return f.dims.LowerBore
+	return f.headTube.LowerBore()
 }
 
 // DefaultLowerCup returns the frame's stock physical lower headset cup.
 func (f Frame) DefaultLowerCup() LowerCupSetup {
 	f.requireValid()
-	return f.dims.DefaultLowerCup
+	return f.headTube.DefaultLowerCup()
 }
 
 // Dimensions returns the validated FrameDimensions used to construct f.
