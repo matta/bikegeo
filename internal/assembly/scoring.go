@@ -141,9 +141,9 @@ func newGripOvalProjection(o FitOval) gripOvalProjection {
 
 func (p gripOvalProjection) normalizedRadius(center, pt pose.Point) float64 {
 	d := pt.Sub(center)
-	minor := (d.X()*p.minorDir.X() + d.Y()*p.minorDir.Y()) / p.semiMinorMm
-	major := (d.X()*p.majorDir.X() + d.Y()*p.majorDir.Y()) / p.semiMajorMm
-	return pose.Vc(DynamicWorld, minor, major).Norm()
+	minor := d.Dot(p.minorDir) / p.semiMinorMm
+	major := d.Dot(p.majorDir) / p.semiMajorMm
+	return math.Hypot(minor, major)
 }
 
 // DefaultGripOval returns the Q17 HandGrip fit oval.

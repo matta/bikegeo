@@ -22,9 +22,10 @@ func RightTriangleLeg(hypotenuseMm, otherLegMm float64) float64 {
 // vector; negative lengthMm points opposite heading).
 func Along(heading Heading, lengthMm float64) Vec {
 	requireValidFrame(heading.frame)
+	sin, cos := heading.deg.sincos()
 	return Vec{
-		x:     lengthMm * heading.cos(),
-		y:     lengthMm * heading.sin(),
+		x:     lengthMm * cos,
+		y:     lengthMm * sin,
 		frame: heading.frame,
 	}
 }
@@ -33,7 +34,8 @@ func Along(heading Heading, lengthMm float64) Vec {
 // unit-length direction vector at heading in the same FrameID.
 func ProjectOnto(v Vec, heading Heading) float64 {
 	requireSameFrame(v.frame, heading.frame)
-	return v.x*heading.cos() + v.y*heading.sin()
+	sin, cos := heading.deg.sincos()
+	return v.x*cos + v.y*sin
 }
 
 // DecomposeAlong returns the signed coefficients (a, b) in millimeters with

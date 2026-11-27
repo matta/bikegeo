@@ -236,6 +236,7 @@ func FitBuilds(setup BikeSetup, target FitTarget, parts PartOptions, weights Sco
 				spacerWeights[i] = weights.Spacers * scoreSpacers(spacers)
 			}
 		}
+		steererInWorld := basePlacement.Frameset.SteererInWorld()
 		for si, spacers := range stacks {
 			spacersW := spacerWeights[si]
 			for ti, stem := range parts.Stems {
@@ -244,7 +245,7 @@ func FitBuilds(setup BikeSetup, target FitTarget, parts PartOptions, weights Sco
 				candidate.Stem.AngleDeg = stem.AngleDeg
 				candidate.Stem.LengthMm = stem.LengthMm
 				candidate.Stem.SpacersMm = spacers
-				stemPlacement, err := PlaceStem(basePlacement.Frameset.SteererInWorld(), candidate.Stem)
+				stemPlacement, err := PlaceStem(steererInWorld, candidate.Stem)
 				if err != nil {
 					return BuildRanking{}, err
 				}

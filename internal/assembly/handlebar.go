@@ -138,8 +138,8 @@ func PlaceHandlebar(barClamp pose.Pose, setup HandlebarSetup) (HandlebarPlacemen
 	zHand := setup.handLateralMm()
 	sweepDX, sweepDY := setup.outboardSweepOffset(zHand)
 
-	// Bar roll is clockwise and measured against world horizontal, so face -roll rather than turn.
-	barCenter := barClamp.Face(pose.NewHeading(barClamp.Frame(), -setup.BarRollDeg))
+	// Bar roll is clockwise and measured against world horizontal, so face -roll in DynamicWorld rather than turn.
+	barCenter := barClamp.Face(pose.NewHeading(DynamicWorld, -setup.BarRollDeg))
 	bendRise := barCenter.TranslateLocal(0, baseRise)
 	handGrip := bendRise.TranslateLocal(sweepDX, sweepDY)
 

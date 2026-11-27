@@ -442,3 +442,15 @@ func TestFitTierRankAndCompareFitRank(t *testing.T) {
 		t.Error("sorted order depends on input order")
 	}
 }
+
+func TestFitOvalRejectsNonWorldPoints(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("FitOval.NormalizedRadius accepted SteererLocal points; expected panic")
+		}
+	}()
+	_ = assembly.DefaultGripOval().NormalizedRadius(
+		pose.Origin(assembly.SteererLocal),
+		pose.Pt(assembly.SteererLocal, 12, 0),
+	)
+}

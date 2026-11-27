@@ -76,17 +76,28 @@ func (f FrameID) String() string {
 	return fmt.Sprintf("FrameID(%d)", f.id)
 }
 
+//go:noinline
+func panicUninitializedFrame() {
+	panic("pose: uninitialized zero-value FrameID")
+}
+
+//go:noinline
+func panicFrameMismatch(a, b FrameID) {
+	if a.id == 0 || b.id == 0 {
+		panic("pose: uninitialized zero-value FrameID")
+	}
+	panic(fmt.Sprintf("pose: coordinate frame mismatch (%s vs %s)", a, b))
+}
+
 func requireValidFrame(f FrameID) {
 	if f.id == 0 {
-		panic("pose: uninitialized zero-value FrameID")
+		panicUninitializedFrame()
 	}
 }
 
 func requireSameFrame(a, b FrameID) {
-	requireValidFrame(a)
-	requireValidFrame(b)
-	if a != b {
-		panic(fmt.Sprintf("pose: coordinate frame mismatch (%s vs %s)", a, b))
+	if a.id == 0 || a != b {
+		panicFrameMismatch(a, b)
 	}
 }
 
@@ -102,12 +113,11 @@ func (d Deg) rad() float64 {
 	return float64(d) * radPerDeg
 }
 
-func (d Deg) sin() float64 {
-	return math.Sin(d.rad())
-}
-
-func (d Deg) cos() float64 {
-	return math.Cos(d.rad())
+func (d Deg) sincos() (sin, cos float64) {
+	if d == 0 {
+		return 0, 1
+	}
+	return math.Sincos(d.rad())
 }
 
 func (d Deg) tan() float64 {
@@ -150,16 +160,6 @@ func (h Heading) Turn(deltaDeg Deg) Heading {
 func (h Heading) Sub(other Heading) Deg {
 	requireSameFrame(h.frame, other.frame)
 	return h.deg - other.deg
-}
-
-func (h Heading) sin() float64 {
-	requireValidFrame(h.frame)
-	return h.deg.sin()
-}
-
-func (h Heading) cos() float64 {
-	requireValidFrame(h.frame)
-	return h.deg.cos()
 }
 
 // Point is a 2D position in millimeters in a specific coordinate frame.
@@ -306,6 +306,12 @@ func (v Vec) Norm() float64 {
 	return math.Hypot(v.x, v.y)
 }
 
+// Dot returns the dot product v·other in the same FrameID.
+func (v Vec) Dot(other Vec) float64 {
+	requireSameFrame(v.frame, other.frame)
+	return v.x*other.x + v.y*other.y
+}
+
 // Pose is an immutable 2D position and heading in a coordinate frame whose
 // heading sets the turtle's local +X direction (local +Y is 90° counter-clockwise).
 type Pose struct {
@@ -353,10 +359,11 @@ func (p Pose) Frame() FrameID {
 // Advance returns a new Pose moved distMm along its local +X direction.
 func (p Pose) Advance(distMm float64) Pose {
 	requireSameFrame(p.origin.frame, p.heading.frame)
+	sin, cos := p.heading.deg.sincos()
 	return Pose{
 		origin: Point{
-			x:     p.origin.x + distMm*p.heading.cos(),
-			y:     p.origin.y + distMm*p.heading.sin(),
+			x:     p.origin.x + distMm*cos,
+			y:     p.origin.y + distMm*sin,
 			frame: p.origin.frame,
 		},
 		heading: p.heading,
@@ -367,8 +374,7 @@ func (p Pose) Advance(distMm float64) Pose {
 // p's local +Y (90° CCW) while staying in p's FrameID.
 func (p Pose) TranslateLocal(dx, dy float64) Pose {
 	requireSameFrame(p.origin.frame, p.heading.frame)
-	cos := p.heading.cos()
-	sin := p.heading.sin()
+	sin, cos := p.heading.deg.sincos()
 	return Pose{
 		origin: Point{
 			x:     p.origin.x + dx*cos - dy*sin,
@@ -435,13 +441,14 @@ func NewTransform(src, dst FrameID, originInDst Point, headingInDst Deg) Transfo
 	if src == dst {
 		panic(fmt.Sprintf("pose: NewTransform requires distinct frames (%s == %s); use IdentityTransform", src, dst))
 	}
+	sin, cos := headingInDst.sincos()
 	return Transform{
 		src:    src,
 		dst:    dst,
 		tx:     originInDst.x,
 		ty:     originInDst.y,
-		cos:    headingInDst.cos(),
-		sin:    headingInDst.sin(),
+		cos:    cos,
+		sin:    sin,
 		rotDeg: headingInDst,
 	}
 }
@@ -464,7 +471,6 @@ func (t Transform) Dst() FrameID {
 
 // ApplyPoint transforms a position from t.Src() into t.Dst() (rotation + translation).
 func (t Transform) ApplyPoint(p Point) Point {
-	requireValidFrame(t.src)
 	requireValidFrame(t.dst)
 	requireSameFrame(p.frame, t.src)
 	return Point{
@@ -476,7 +482,6 @@ func (t Transform) ApplyPoint(p Point) Point {
 
 // ApplyVec transforms a displacement vector from t.Src() into t.Dst() (rotation only).
 func (t Transform) ApplyVec(v Vec) Vec {
-	requireValidFrame(t.src)
 	requireValidFrame(t.dst)
 	requireSameFrame(v.frame, t.src)
 	return Vec{
@@ -488,11 +493,20 @@ func (t Transform) ApplyVec(v Vec) Vec {
 
 // ApplyPose transforms a Pose from t.Src() into t.Dst().
 func (t Transform) ApplyPose(p Pose) Pose {
-	requireValidFrame(t.src)
 	requireValidFrame(t.dst)
 	requireSameFrame(p.origin.frame, t.src)
 	requireSameFrame(p.heading.frame, t.src)
-	return NewPose(t.ApplyPoint(p.origin), p.heading.deg+t.rotDeg)
+	return Pose{
+		origin: Point{
+			x:     t.tx + p.origin.x*t.cos - p.origin.y*t.sin,
+			y:     t.ty + p.origin.x*t.sin + p.origin.y*t.cos,
+			frame: t.dst,
+		},
+		heading: Heading{
+			deg:   p.heading.deg + t.rotDeg,
+			frame: t.dst,
+		},
+	}
 }
 
 // OriginInDst returns t.Src()'s datum origin expressed in t.Dst().

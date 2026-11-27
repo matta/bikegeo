@@ -323,3 +323,22 @@ func TestPlaceHandlebarValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestPlaceHandlebarRejectsLocalPose(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("PlaceHandlebar accepted a SteererLocal pose; expected panic")
+		}
+	}()
+	setup := assembly.HandlebarSetup{
+		StockWidthMm: 800,
+		BacksweepDeg: 16,
+		UpsweepDeg:   5,
+		StatedRiseMm: 20,
+		RiseMode:     assembly.RiseModeStandardKnuckle,
+		BendStartMm:  90,
+		GripInsetMm:  70,
+		BarRollDeg:   0,
+	}
+	_, _ = assembly.PlaceHandlebar(pose.OriginPose(assembly.SteererLocal), setup)
+}

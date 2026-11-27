@@ -89,8 +89,8 @@ func PlaceSaddle(RailPivot pose.Pose, clampLengthMm float64, setup SaddleSetup) 
 		return SaddlePlacement{}, invalidInput(InputSaddleRailOffset, "saddle rail offset must be within ±%v mm, got %v mm", railLimit, setup.RailOffsetMm)
 	}
 
-	// Rail pitch is measured against world horizontal, so face it rather than turn.
-	railClamp := RailPivot.Face(pose.NewHeading(RailPivot.Frame(), setup.RailPitchDeg))
+	// Rail pitch is measured against world horizontal, so face it in DynamicWorld rather than turn.
+	railClamp := RailPivot.Face(pose.NewHeading(DynamicWorld, setup.RailPitchDeg))
 	// A positive rail offset slides the saddle rearward, against the rail heading.
 	railCenter := railClamp.Advance(-setup.RailOffsetMm)
 	// Both landmarks are raised along the rails' +Y, so the height rotates with the rails.

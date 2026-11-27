@@ -352,7 +352,7 @@ func (edge fitEdge) candidates(delta pose.Vec, priority fitPriority) []float64 {
 		return []float64{edge.moving.clamp(pose.ProjectOnto(target, edge.moving.heading))}
 	}
 	fixedDir := pose.Along(edge.fixed.heading, 1) // unit vector along fixed direction
-	target := delta.Sub(pose.Vc(delta.Frame(), edge.bound*fixedDir.X(), edge.bound*fixedDir.Y()))
+	target := delta.Sub(fixedDir.Scale(edge.bound))
 	dir := pose.Along(edge.moving.heading, 1) // unit vector along moving direction
 	travel := edge.moving.heightFirst(target, dir)
 	gate, ok := edge.moving.clip(target.Y(), dir.Y(), FitGateBrpYMm)
@@ -376,7 +376,7 @@ func (p fitPriority) miss(delta pose.Vec, adjustments [2]fitAdjustment, travel [
 		return delta.Sub(pose.Along(adjustments[0].heading, travel[0])).Sub(pose.Along(adjustments[1].heading, travel[1]))
 	}
 	dirA, dirB := pose.Along(adjustments[0].heading, 1), pose.Along(adjustments[1].heading, 1)
-	return delta.Sub(pose.Vc(delta.Frame(), travel[0]*dirA.X()+travel[1]*dirB.X(), travel[0]*dirA.Y()+travel[1]*dirB.Y()))
+	return delta.Sub(dirA.Scale(travel[0]).Add(dirB.Scale(travel[1])))
 }
 
 // prefers compares target misses. Ties keep the first candidate visited.

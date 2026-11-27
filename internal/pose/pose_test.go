@@ -118,6 +118,7 @@ func TestPointDisplacements(t *testing.T) {
 	if got, want := move.Neg(), pose.Vc(testWorld, 3, -4); got != want {
 		t.Errorf("negated vector = %v, want %v", got, want)
 	}
+	assertNear(t, "dot product", move.Dot(adjustment), -10, 1e-12)
 }
 
 func TestFaceSetsAbsoluteHeading(t *testing.T) {
@@ -235,6 +236,7 @@ func TestFrameIDNegativeSafeguards(t *testing.T) {
 	vecStatic := pose.Vc(staticWorld, 3, 4)
 	assertPanicsWith(t, "cross-frame Point.Sub", "coordinate frame mismatch", func() { _ = ptWorld.Sub(ptStatic) })
 	assertPanicsWith(t, "cross-frame Point.Add", "coordinate frame mismatch", func() { _ = ptWorld.Add(vecStatic) })
+	assertPanicsWith(t, "cross-frame Vec.Dot", "coordinate frame mismatch", func() { _ = pose.Vc(testWorld, 1, 0).Dot(vecStatic) })
 	assertPanicsWith(t, "cross-frame Pose.Face", "coordinate frame mismatch", func() { _ = pose.OriginPose(testWorld).Face(pose.NewHeading(staticWorld, 0)) })
 	assertPanicsWith(t, "cross-frame DecomposeAlong", "coordinate frame mismatch", func() {
 		_, _, _ = pose.DecomposeAlong(pose.Vc(testWorld, 1, 1), pose.NewHeading(testWorld, 0), pose.NewHeading(staticWorld, 90))

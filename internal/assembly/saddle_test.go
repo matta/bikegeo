@@ -388,3 +388,12 @@ func TestQ92DefaultInsertionOnInstalledFork(t *testing.T) {
 	assertNear(t, "installed Lithic BRP.X", bike.Saddle.BRP.Origin().X(), -155.065, 0.001)
 	assertNear(t, "installed Lithic BRP.Y", bike.Saddle.BRP.Origin().Y(), 729.317, 0.001)
 }
+
+func TestPlaceSaddleRejectsLocalPose(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("PlaceSaddle accepted a SteererLocal pose; expected panic")
+		}
+	}()
+	_, _ = assembly.PlaceSaddle(pose.OriginPose(assembly.SteererLocal), 30, sqlab610DefaultSaddle())
+}
