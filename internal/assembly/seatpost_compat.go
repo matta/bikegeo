@@ -6,11 +6,6 @@ import (
 	"github.com/matta/bikegeo/internal/pose"
 )
 
-// frameInsertionCushionMm is subtracted from the seat tube's C-T length to
-// leave clearance above the BB shell when a frame declares no maximum
-// insertion.
-const frameInsertionCushionMm = 20.0
-
 // SeatpostSpec describes a catalog seatpost for the flat *Setup API.
 type SeatpostSpec struct {
 	TotalLengthMm, MaxInsertionMm, MinInsertionMm float64

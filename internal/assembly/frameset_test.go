@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
 func fenrirSizeLFrame() assembly.FrameSetup {
@@ -533,4 +534,270 @@ func TestFramesetHandlingReadouts(t *testing.T) {
 			assertNear(t, "LeveledStackMm == HeadTubeTop.Y", placed.LeveledStackMm(), placed.HeadTubeTop.Origin().Y(), 1e-12)
 		})
 	}
+}
+
+// Isolated Frame, Fork, and single-pass Frameset tests below.
+
+func fenrirSizeLDims() assembly.FrameDimensions {
+	return assembly.FrameDimensions{
+		ReachMm:            428.0,
+		StackMm:            642.0,
+		HeadTubeAngleDeg:   68.25,
+		SeatTubeAngleDeg:   75.25,
+		HeadTubeLengthMm:   140.0,
+		BbDropMm:           72.0,
+		ChainstayMm:        450.0,
+		SeatTubeLengthMm:   490.0,
+		MaxPostInsertionMm: 290.0,
+		LowerBore:          assembly.Bore44Pressed,
+		DefaultLowerCup:    assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12.0},
+	}
+}
+
+func TestFrameIsolated(t *testing.T) {
+	dims := fenrirSizeLDims()
+	frame, err := assembly.NewFrame(dims)
+	if err != nil {
+		t.Fatalf("NewFrame: %v", err)
+	}
+	if frame.LowerBore() != assembly.Bore44Pressed || frame.DefaultLowerCup() != dims.DefaultLowerCup || frame.Dimensions() != dims {
+		t.Errorf("unexpected frame metadata")
+	}
+
+	rear := frame.RearAxle()
+	if rear.CoordinateSystem() != assembly.FrameLocal {
+		t.Errorf("RearAxle system = %s, want %s", rear.CoordinateSystem(), assembly.FrameLocal)
+	}
+	assertNear(t, "RearAxle.X", rear.X(), -math.Sqrt(450*450-72*72), 1e-9)
+	assertNear(t, "RearAxle.Y", rear.Y(), 72.0, 1e-12)
+
+	ht := frame.HeadTube()
+	if ht.SteererInFrame().Src() != assembly.SteererLocal || ht.SteererInFrame().Dst() != assembly.FrameLocal {
+		t.Errorf("SteererInFrame = %s -> %s", ht.SteererInFrame().Src(), ht.SteererInFrame().Dst())
+	}
+	if ht.LowerHeadsetInFrame().Src() != assembly.LowerHeadsetLocal || ht.LowerHeadsetInFrame().Dst() != assembly.FrameLocal {
+		t.Errorf("LowerHeadsetInFrame = %s -> %s", ht.LowerHeadsetInFrame().Src(), ht.LowerHeadsetInFrame().Dst())
+	}
+	assertNear(t, "HeadTubeTop.X", ht.SteererInFrame().OriginInDst().X(), 428.0, 1e-12)
+	assertNear(t, "HeadTubeTop.Y", ht.SteererInFrame().OriginInDst().Y(), 642.0, 1e-12)
+	assertNear(t, "head tube length", ht.SteererInFrame().OriginInDst().DistanceTo(ht.LowerHeadsetInFrame().OriginInDst()), 140.0, 1e-9)
+
+	st := frame.SeatTube()
+	if st.CollarInFrame.Src() != assembly.SeatTubeCollar || st.CollarInFrame.Dst() != assembly.FrameLocal {
+		t.Errorf("SeatTube CollarInFrame = %s -> %s", st.CollarInFrame.Src(), st.CollarInFrame.Dst())
+	}
+	assertNear(t, "SeatTubeTop distance from BB", pose.Origin(assembly.FrameLocal).DistanceTo(st.CollarInFrame.OriginInDst()), 490.0, 1e-9)
+	if st.AllowedInsertion.Min() != 0 || st.AllowedInsertion.Max() != 290 || st.AllowedInsertion.MaxSource() != "frame max insertion" {
+		t.Errorf("declared AllowedInsertion = %+v", st.AllowedInsertion)
+	}
+
+	// Undeclared MaxPostInsertionMm falls back to SeatTubeLengthMm - 20 mm.
+	uncapped := dims
+	uncapped.MaxPostInsertionMm = 0
+	uncapped.MinFrameInsertionMm = 125
+	fUncapped, err := assembly.NewFrame(uncapped)
+	if err != nil {
+		t.Fatalf("NewFrame uncapped: %v", err)
+	}
+	if fUncapped.SeatTube().AllowedInsertion.Min() != 125 || fUncapped.SeatTube().AllowedInsertion.Max() != 470 ||
+		fUncapped.SeatTube().AllowedInsertion.MaxSource() != "frame seat tube clearance" {
+		t.Errorf("fallback AllowedInsertion = %+v", fUncapped.SeatTube().AllowedInsertion)
+	}
+
+	// Invalid frame dimensions fail construction.
+	for _, tc := range []struct {
+		name string
+		mut  func(*assembly.FrameDimensions)
+	}{
+		{"zero reach", func(d *assembly.FrameDimensions) { d.ReachMm = 0 }},
+		{"zero stack", func(d *assembly.FrameDimensions) { d.StackMm = 0 }},
+		{"HTA 180", func(d *assembly.FrameDimensions) { d.HeadTubeAngleDeg = 180 }},
+		{"STA 0", func(d *assembly.FrameDimensions) { d.SeatTubeAngleDeg = 0 }},
+		{"chainstay <= |BbDrop|", func(d *assembly.FrameDimensions) { d.ChainstayMm = 72 }},
+		{"bare default cup", func(d *assembly.FrameDimensions) { d.DefaultLowerCup = fenrirBasisCup() }},
+		{"min insertion > max insertion", func(d *assembly.FrameDimensions) { d.MinFrameInsertionMm = 300 }},
+		{"too short uncapped seat tube", func(d *assembly.FrameDimensions) { d.MaxPostInsertionMm = 0; d.SeatTubeLengthMm = 15 }},
+	} {
+		d := dims
+		tc.mut(&d)
+		if _, err := assembly.NewFrame(d); err == nil {
+			t.Errorf("%s: want error", tc.name)
+		}
+	}
+
+	var zeroFrame assembly.Frame
+	assertPanics(t, "zero Frame RearAxle", func() { _ = zeroFrame.RearAxle() })
+	var zeroHT assembly.HeadTubePort
+	assertPanics(t, "zero HeadTubePort SteererInFrame", func() { _ = zeroHT.SteererInFrame() })
+}
+
+func TestConcreteForksIsolated(t *testing.T) {
+	// 1. RigidFork
+	rigid, err := assembly.NewRigidFork(495, 54, assembly.PhysicalSteererTapered)
+	if err != nil {
+		t.Fatalf("NewRigidFork: %v", err)
+	}
+	if rigid.StaticA2cMm() != 495 || rigid.RakeMm() != 54 || rigid.Steerer() != assembly.PhysicalSteererTapered {
+		t.Errorf("unexpected RigidFork accessors")
+	}
+	for _, state := range []assembly.LoadState{assembly.Static, assembly.Dynamic} {
+		p := rigid.AxleInFork(state)
+		if p.CoordinateSystem() != assembly.ForkLocal {
+			t.Errorf("RigidFork %s system = %s", state, p.CoordinateSystem())
+		}
+		assertNear(t, "rigid X", p.X(), 495, 1e-12)
+		assertNear(t, "rigid Y", p.Y(), 54, 1e-12)
+	}
+	if err := rigid.CheckHeadset(assembly.Bore44Pressed, fenrirEc44Cup()); err != nil {
+		t.Errorf("RigidFork EC44 check: %v", err)
+	}
+	if err := rigid.CheckHeadset(assembly.Bore44Pressed, fenrirBasisCup()); err == nil {
+		t.Error("RigidFork accepted LowerCupBareHeadTube")
+	}
+	if err := rigid.CheckHeadset(assembly.Bore44Pressed, assembly.LowerCupSetup{Standard: assembly.LowerCupZS44, StackMm: 4}); err == nil {
+		t.Error("tapered RigidFork accepted ZS44")
+	}
+
+	// 2. SuspensionFork
+	susp, err := assembly.NewSuspensionFork(530, 44, assembly.Travel120, assembly.PhysicalSteererTapered, 20)
+	if err != nil {
+		t.Fatalf("NewSuspensionFork: %v", err)
+	}
+	assertNear(t, "susp StaticA2cMm", susp.StaticA2cMm(), 530, 1e-12)
+	assertNear(t, "susp DynamicA2cMm", susp.DynamicA2cMm(), 506, 1e-12)
+	assertNear(t, "susp static X", susp.AxleInFork(assembly.Static).X(), 530, 1e-12)
+	assertNear(t, "susp dynamic X", susp.AxleInFork(assembly.Dynamic).X(), 506, 1e-12)
+	assertNear(t, "susp rake Y", susp.AxleInFork(assembly.Dynamic).Y(), 44, 1e-12)
+	if susp.Travel() != assembly.Travel120 || susp.SagPct() != 20 || susp.Steerer() != assembly.PhysicalSteererTapered {
+		t.Errorf("unexpected SuspensionFork accessors")
+	}
+	if _, err := assembly.NewSuspensionFork(530, 44, assembly.TravelRigid, assembly.PhysicalSteererTapered, 0); err == nil {
+		t.Error("NewSuspensionFork accepted TravelRigid")
+	}
+	var inputErr *assembly.InputError
+	if _, err := assembly.NewSuspensionFork(530, 44, assembly.Travel120, assembly.PhysicalSteererTapered, -1); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputForkSag {
+		t.Errorf("negative sag = %v, want InputForkSag", err)
+	}
+
+	// 3. BasisFork
+	basis, err := assembly.NewBasisFork(495, 54)
+	if err != nil {
+		t.Fatalf("NewBasisFork: %v", err)
+	}
+	if basis.BasisA2cMm() != 495 || basis.RakeMm() != 54 {
+		t.Errorf("unexpected BasisFork accessors")
+	}
+	if err := basis.CheckHeadset(assembly.Bore44Pressed, fenrirBasisCup()); err != nil {
+		t.Errorf("BasisFork bare cup check: %v", err)
+	}
+	if err := basis.CheckHeadset(assembly.Bore44Pressed, fenrirEc44Cup()); err != nil {
+		t.Errorf("BasisFork matching EC44 check: %v", err)
+	}
+	if err := basis.CheckHeadset(assembly.Bore44Pressed, assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 1}); err == nil {
+		t.Error("BasisFork accepted wrong-bore IS52 cup")
+	}
+
+	// Zero-value and invalid LoadState panics.
+	var zeroRigid assembly.RigidFork
+	var zeroSusp assembly.SuspensionFork
+	var zeroBasis assembly.BasisFork
+	assertPanics(t, "zero RigidFork", func() { _ = zeroRigid.AxleInFork(assembly.Static) })
+	assertPanics(t, "zero SuspensionFork", func() { _ = zeroSusp.AxleInFork(assembly.Static) })
+	assertPanics(t, "zero BasisFork", func() { _ = zeroBasis.AxleInFork(assembly.Static) })
+	assertPanics(t, "SuspensionFork invalid LoadState", func() { _ = susp.AxleInFork(assembly.LoadState("bad")) })
+}
+
+type badSystemFork struct {
+	axle pose.Point
+}
+
+func (f badSystemFork) CheckHeadset(assembly.LowerBore, assembly.LowerCupSetup) error { return nil }
+func (f badSystemFork) AxleInFork(assembly.LoadState) pose.Point                      { return f.axle }
+
+func TestMateFramesetSinglePassStaticVsDynamicAndSnapshot(t *testing.T) {
+	frame, err := assembly.NewFrame(fenrirSizeLDims())
+	if err != nil {
+		t.Fatalf("NewFrame: %v", err)
+	}
+	fork, err := assembly.NewSuspensionFork(530, 44, assembly.Travel120, assembly.PhysicalSteererTapered, 20)
+	if err != nil {
+		t.Fatalf("NewSuspensionFork: %v", err)
+	}
+
+	// Pass &fork so we can verify MateFrameset snapshots fork axles by value.
+	fs, err := assembly.MateFrameset(frame, fenrirEc44Cup(), assembly.DefaultUpperStackMm, &fork, fenrirWheels())
+	if err != nil {
+		t.Fatalf("MateFrameset: %v", err)
+	}
+
+	// Mutate caller's fork variable after mating.
+	shorter, err := assembly.NewSuspensionFork(480, 51, assembly.Travel100, assembly.PhysicalSteererTapered, 15)
+	if err != nil {
+		t.Fatalf("NewSuspensionFork shorter: %v", err)
+	}
+	fork = shorter
+
+	dynPlaced := fs.Place(assembly.Dynamic)
+	statPlaced := fs.Place(assembly.Static)
+	unpitched := fs.Unpitched()
+
+	if dynPlaced.BB.CoordinateSystem() != assembly.DynamicWorld {
+		t.Errorf("Dynamic BB system = %s, want %s", dynPlaced.BB.CoordinateSystem(), assembly.DynamicWorld)
+	}
+	if statPlaced.BB.CoordinateSystem() != assembly.StaticWorld {
+		t.Errorf("Static BB system = %s, want %s", statPlaced.BB.CoordinateSystem(), assembly.StaticWorld)
+	}
+	if unpitched.BB.CoordinateSystem() != assembly.UnpitchedChart {
+		t.Errorf("Unpitched BB system = %s, want %s", unpitched.BB.CoordinateSystem(), assembly.UnpitchedChart)
+	}
+	if dynPlaced.FrameToWorld.Src() != assembly.FrameLocal || dynPlaced.FrameToWorld.Dst() != assembly.DynamicWorld {
+		t.Errorf("Dynamic FrameToWorld = %s -> %s", dynPlaced.FrameToWorld.Src(), dynPlaced.FrameToWorld.Dst())
+	}
+	if statPlaced.FrameToWorld.Src() != assembly.FrameLocal || statPlaced.FrameToWorld.Dst() != assembly.StaticWorld {
+		t.Errorf("Static FrameToWorld = %s -> %s", statPlaced.FrameToWorld.Src(), statPlaced.FrameToWorld.Dst())
+	}
+
+	// Snapshotted A2C values survive caller mutation: Dynamic = 506 mm, Static = 530 mm.
+	assertNear(t, "dynamic A2C", dynPlaced.LowerCupBottom.Origin().DistanceTo(dynPlaced.ForkSteererBase.Origin()), 506.0, 1e-9)
+	assertNear(t, "static A2C", statPlaced.LowerCupBottom.Origin().DistanceTo(statPlaced.ForkSteererBase.Origin()), 530.0, 1e-9)
+	assertNear(t, "dynamic leveled axles", dynPlaced.FrontAxle.Origin().Y()-dynPlaced.RearAxle.Origin().Y(), 0, 1e-9)
+	assertNear(t, "static leveled axles", statPlaced.FrontAxle.Origin().Y()-statPlaced.RearAxle.Origin().Y(), 0, 1e-9)
+	if statPlaced.PitchDeg() <= dynPlaced.PitchDeg() {
+		t.Errorf("static pitch %.4f° should exceed dynamic pitch %.4f° (unloaded fork is taller)",
+			statPlaced.PitchDeg(), dynPlaced.PitchDeg())
+	}
+
+	// Frameset exposes ready-to-mate SeatTube and Steerer ports.
+	stem, err := assembly.NewStem(40, 60, -6)
+	if err != nil {
+		t.Fatalf("NewStem: %v", err)
+	}
+	if _, err := assembly.MountStem(fs.Steerer(), 20, stem); err != nil {
+		t.Fatalf("MountStem(fs.Steerer()): %v", err)
+	}
+	post, err := assembly.NewRigidPost(400, 100, 365, 0, 30)
+	if err != nil {
+		t.Fatalf("NewRigidPost: %v", err)
+	}
+	if _, err := assembly.MateSeatpost(fs.SeatTube(), post); err != nil {
+		t.Fatalf("MateSeatpost(fs.SeatTube()): %v", err)
+	}
+
+	// Negative tests.
+	if _, err := assembly.MateFrameset(frame, fenrirEc44Cup(), assembly.DefaultUpperStackMm, nil, fenrirWheels()); err == nil {
+		t.Error("nil fork: want error")
+	}
+	assertPanics(t, "wrong CoordinateSystem fork axle", func() {
+		_, _ = assembly.MateFrameset(frame, fenrirEc44Cup(), assembly.DefaultUpperStackMm, badSystemFork{axle: pose.NewPoint(assembly.FrameLocal, 500, 44)}, fenrirWheels())
+	})
+	assertPanics(t, "zero CoordinateSystem fork axle", func() {
+		_, _ = assembly.MateFrameset(frame, fenrirEc44Cup(), assembly.DefaultUpperStackMm, badSystemFork{}, fenrirWheels())
+	})
+	assertPanics(t, "nil Frameset Place", func() {
+		var nilFS *assembly.Frameset
+		_ = nilFS.Place(assembly.Dynamic)
+	})
+	assertPanics(t, "Frameset invalid LoadState", func() {
+		_ = fs.Place(assembly.LoadState("bad"))
+	})
 }
