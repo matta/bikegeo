@@ -201,7 +201,7 @@ Introduce shared load-state and bound-tracking primitives, then rewrite [seatpos
   ```
   *(Or 2 methods if `ExposedMm` is derived from shaft-top landmark `(TotalLengthMm, 0)` in `RailClampPort` / `ShaftSpec()`; keep to 2–3 methods max.)*
 - `MateSeatpost(socket SeatTubeSocket, post postMounter) (*SeatpostDoF, error)` → intersects `post.InsertionLimits()` with `socket.AllowedInsertion` immediately.
-- `(*SeatpostDoF).Clamp(insertionMm float64) (*ClampedSeatpost, error)` → binds `insertionMm` into `BoundStatus`, computes `postInFrame = Compose(NewTransform(SeatpostLocal, SeatTubeCollar, NewPoint(SeatTubeCollar, -insertionMm, 0), 0), socket.CollarInFrame)`, and exposes `RailClampInFrame(state LoadState) RailClampPort` and `PlaceInWorld(frameToWorld pose.Transform, state LoadState) SeatpostPlacement`.
+- `(*SeatpostDoF).Clamp(insertionMm float64) (*ClampedSeatpost, error)` → binds `insertionMm` into `BoundStatus`, computes `postInFrame = Compose(NewTransform(SeatpostLocal, SeatTubeCollar, NewPoint(SeatTubeCollar, -insertionMm, 0), 0), socket.CollarInFrame)`, and exposes `RailClampInFrame(state LoadState) RailClampPort` and `PlaceInWorld(frameToWorld pose.Transform) SeatpostPlacement` (deriving `LoadState` directly from `frameToWorld.Dst()` — `StaticWorld` or `DynamicWorld` — so sag state and world coordinate system cannot disagree).
 - Tests in `seatpost_test.go` verify `RigidPost`, `LinkagePost` static vs. dynamic cradle transforms (`(350, 7)` vs. `(344, 12)`), incompatible frame/post insertion rejection at `MateSeatpost` time, and `BoundStatus` margins — all without constructing a bicycle frame or world.
 
 ---
@@ -261,7 +261,7 @@ Split bare frame, forks, and SHIS mating cleanly so `BasisFork`, `RigidFork`, an
   }
   ```
 - `MateFrameset(frame Frame, lowerCup LowerCupSetup, upperStackMm float64, fork forkMounter, wheels WheelSetup) (*Frameset, error)`:
-  - Validates `fork.CheckHeadset(frame.LowerBore(), lowerCup)` and `wheels`.
+  - Validates `fork.CheckHeadset(frame.LowerBore(), lowerCup)` and `wheels`, and snapshots `fork.AxleInFork(Static)` and `fork.AxleInFork(Dynamic)` by value (mirroring `MateSeatpost`, so mutating a caller's pointer-passed fork after mating cannot corrupt the `Frameset`).
   - Computes `frontAxleInFrame(state)` via `Compose(forkInFrame, ...)`.
   - **Single-pass world placement:**
     - `Unpitched() FramesetPlacement` — applies `NewTransform(FrameLocal, UnpitchedChart, Origin(UnpitchedChart), 0)`.
@@ -306,7 +306,7 @@ Eliminate dummy `BikeSetup` mutations, parallel `PlaceBike` bypasses, and magic 
 - `(*Build).Place(state LoadState) Placement`:
   - Runs the **exact same forward transform composition** for `Static` and `Dynamic`:
     1. `fsPlaced := b.frameset.Place(state)` (`frameToWorld`)
-    2. `postPlaced := b.seatpost.Place(frameToWorld, state)` (`cradleInWorld` includes `sagStep` only when `state == Dynamic`)
+    2. `postPlaced := b.seatpost.PlaceInWorld(frameToWorld)` (`cradleInWorld` includes `sagStep` only when `frameToWorld.Dst() == DynamicWorld`)
     3. `saddlePlaced := b.saddle.Place(postPlaced.CradleInWorld)` (uses locked `railTurnFromCradle`!)
     4. `stemPlaced := b.stem.Place(frameToWorld)`
     5. `barPlaced := b.handlebar.Place(stemPlaced.BarClampInWorld)` (uses locked `rollTurnFromStem`!)
@@ -327,7 +327,7 @@ Eliminate dummy `BikeSetup` mutations, parallel `PlaceBike` bypasses, and magic 
 Wire all outer packages cleanly onto the new domain types and delete obsolete `*Setup` glue.
 
 #### [MODIFY] `internal/catalog` ([frame.go](file:///Users/matt/src/bikegeo/internal/catalog/frame.go), [forks.go](file:///Users/matt/src/bikegeo/internal/catalog/forks.go), [seatposts.go](file:///Users/matt/src/bikegeo/internal/catalog/seatposts.go), [saddle.go](file:///Users/matt/src/bikegeo/internal/catalog/saddle.go), [handlebars.go](file:///Users/matt/src/bikegeo/internal/catalog/handlebars.go), [stems.go](file:///Users/matt/src/bikegeo/internal/catalog/stems.go), [chart_consistency_test.go](file:///Users/matt/src/bikegeo/internal/catalog/chart_consistency_test.go), [basis_search_test.go](file:///Users/matt/src/bikegeo/internal/catalog/basis_search_test.go))
-- `catalog.FrameSize` holds `ChartDims assembly.FrameDimensions` (keeping `chart_consistency_test.go` column nudging simple and direct) and constructs validated `assembly.Frame` values via `NewCoordinateSystem`.
+- `catalog.FrameSize` holds `ChartDims assembly.FrameDimensions` (keeping `chart_consistency_test.go` column nudging simple and direct) and constructs validated `assembly.Frame` values via `assembly.NewFrame`.
 - `catalog.ForkOption` constructs a concrete `assembly.RigidFork` or `assembly.SuspensionFork`; `Frame.BasisFork` is a concrete `assembly.BasisFork` (eliminating `SteererBasis` sentinel checks!).
 - `catalog.Seatposts()` returns validated `RigidPost` / `LinkagePost` values (keeping `redshift_shockstop_pro` at `staticSetback: 12, sagStep: (0, 0)` in this behavior-preserving refactor so all existing numerical pins pass unchanged, ready for Milestone 6's `7 mm` + `(-6, +5)` switch).
 

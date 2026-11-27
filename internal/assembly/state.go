@@ -42,6 +42,21 @@ func (s LoadState) WorldSystem() pose.CoordinateSystem {
 	}
 }
 
+// LoadStateForWorld returns the LoadState corresponding to a leveled ambient
+// world coordinate system (StaticWorld → Static, DynamicWorld → Dynamic). For
+// any other coordinate system (including UnpitchedChart or an uninitialized
+// value), it returns ("", false).
+func LoadStateForWorld(system pose.CoordinateSystem) (LoadState, bool) {
+	switch system {
+	case StaticWorld:
+		return Static, true
+	case DynamicWorld:
+		return Dynamic, true
+	default:
+		return "", false
+	}
+}
+
 // Ambient world coordinate systems share the bottom bracket as their origin
 // BB = (0, 0), with +X horizontally forward, +Y vertically up, and 1 unit = 1 mm.
 var (

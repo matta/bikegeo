@@ -108,7 +108,7 @@ func PlaceSeatpost(seatTubeTop pose.Pose, frame FrameSetup, setup SeatpostSetup)
 	if err != nil {
 		return SeatpostPlacement{}, err
 	}
-	placed := clamped.PlaceInWorld(seatTubeTop.Anchor(FrameLocal), Dynamic)
+	placed := clamped.PlaceInWorld(seatTubeTop.Anchor(FrameLocal))
 	if err := validatePlacementPoints("seatpost", seatTubeTop.Origin(), placed.ShaftTop.Origin(), placed.RailPivot.Origin()); err != nil {
 		return SeatpostPlacement{}, err
 	}

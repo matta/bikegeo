@@ -1,6 +1,8 @@
 package assembly
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
 )
@@ -92,6 +94,9 @@ func (r BoundedRange) Midpoint() float64 {
 	if math.IsInf(r.max, 1) {
 		return math.Inf(1)
 	}
+	if r.min < 0 && r.max > 0 {
+		return (r.min + r.max) / 2.0
+	}
 	return r.min + (r.max-r.min)/2.0
 }
 
@@ -159,7 +164,9 @@ func IntersectRanges(a, b BoundedRange) (BoundedRange, bool) {
 }
 
 // BoundStatus is an exported readout snapshot recording a bound value together
-// with the physical limits and provenance labels that constrained it.
+// with the physical limits and provenance labels that constrained it. Unbounded
+// endpoints (-Inf for Min, +Inf for Max) serialize as JSON null and unmarshal
+// back to -Inf / +Inf.
 type BoundStatus struct {
 	Field     InputField
 	Value     float64
@@ -167,6 +174,76 @@ type BoundStatus struct {
 	Max       float64
 	MinSource string
 	MaxSource string
+}
+
+type boundStatusJSON struct {
+	Field     InputField
+	Value     float64
+	Min       *float64
+	Max       *float64
+	MinSource string
+	MaxSource string
+}
+
+// MarshalJSON encodes b with -Inf Min and +Inf Max represented as JSON null so
+// one-sided or unbounded intervals serialize cleanly for CLI output.
+func (b BoundStatus) MarshalJSON() ([]byte, error) {
+	var minPtr, maxPtr *float64
+	switch {
+	case math.IsInf(b.Min, -1):
+		minPtr = nil
+	case !isFinite(b.Min):
+		return nil, fmt.Errorf("assembly: BoundStatus.Min must be finite or -Inf, got %v", b.Min)
+	default:
+		v := b.Min
+		minPtr = &v
+	}
+	switch {
+	case math.IsInf(b.Max, 1):
+		maxPtr = nil
+	case !isFinite(b.Max):
+		return nil, fmt.Errorf("assembly: BoundStatus.Max must be finite or +Inf, got %v", b.Max)
+	default:
+		v := b.Max
+		maxPtr = &v
+	}
+	return json.Marshal(boundStatusJSON{
+		Field:     b.Field,
+		Value:     b.Value,
+		Min:       minPtr,
+		Max:       maxPtr,
+		MinSource: b.MinSource,
+		MaxSource: b.MaxSource,
+	})
+}
+
+// UnmarshalJSON decodes a JSON-encoded BoundStatus, restoring null Min/Max
+// endpoints to -Inf / +Inf.
+func (b *BoundStatus) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return nil
+	}
+	var wire boundStatusJSON
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	minVal := math.Inf(-1)
+	if wire.Min != nil {
+		minVal = *wire.Min
+	}
+	maxVal := math.Inf(1)
+	if wire.Max != nil {
+		maxVal = *wire.Max
+	}
+	*b = BoundStatus{
+		Field:     wire.Field,
+		Value:     wire.Value,
+		Min:       minVal,
+		Max:       maxVal,
+		MinSource: wire.MinSource,
+		MaxSource: wire.MaxSource,
+	}
+	return nil
 }
 
 // MarginMm returns the smaller clearance in millimeters from Value to Min or Max.

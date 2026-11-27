@@ -387,27 +387,146 @@ func TestMateSeatpostAndClampedSeatpostIsolated(t *testing.T) {
 	assertNear(t, "static heading in frame", float64(staticFrame.CradleInParent.HeadingInDst().Deg()), 105, 1e-12)
 	assertNear(t, "dynamic heading in frame", float64(dynamicFrame.CradleInParent.HeadingInDst().Deg()), 105, 1e-12)
 
-	// PlaceInWorld works in any isolated coordinate system without DynamicWorld.
-	benchWorld := pose.NewCoordinateSystem("test:bench_world")
-	frameToBench := pose.NewTransform(assembly.FrameLocal, benchWorld, pose.Origin(benchWorld), -2.5)
-	staticPlaced := clamped.PlaceInWorld(frameToBench, assembly.Static)
-	dynamicPlaced := clamped.PlaceInWorld(frameToBench, assembly.Dynamic)
+	// PlaceInWorld derives LoadState directly from frameToWorld.Dst() (StaticWorld or DynamicWorld).
+	frameToStatic := pose.NewTransform(assembly.FrameLocal, assembly.StaticWorld, pose.Origin(assembly.StaticWorld), -2.5)
+	frameToDynamic := pose.NewTransform(assembly.FrameLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), -2.5)
+	staticPlaced := clamped.PlaceInWorld(frameToStatic)
+	dynamicPlaced := clamped.PlaceInWorld(frameToDynamic)
 
 	assertNear(t, "exposed distance", staticPlaced.SeatTubeTop.Origin().DistanceTo(staticPlaced.ShaftTop.Origin()), 200, 1e-12)
-	assertNear(t, "shaft top invariant across states X", dynamicPlaced.ShaftTop.Origin().X(), staticPlaced.ShaftTop.Origin().X(), 1e-12)
-	assertNear(t, "shaft top invariant across states Y", dynamicPlaced.ShaftTop.Origin().Y(), staticPlaced.ShaftTop.Origin().Y(), 1e-12)
-	if staticPlaced.CradleInWorld.Src() != assembly.SeatpostCradle || staticPlaced.CradleInWorld.Dst() != benchWorld {
-		t.Errorf("CradleInWorld systems = %s -> %s", staticPlaced.CradleInWorld.Src(), staticPlaced.CradleInWorld.Dst())
+	assertNear(t, "dynamic exposed distance", dynamicPlaced.SeatTubeTop.Origin().DistanceTo(dynamicPlaced.ShaftTop.Origin()), 200, 1e-12)
+	assertNear(t, "shaft top X invariant across states", dynamicPlaced.ShaftTop.Origin().X(), staticPlaced.ShaftTop.Origin().X(), 1e-12)
+	assertNear(t, "shaft top Y invariant across states", dynamicPlaced.ShaftTop.Origin().Y(), staticPlaced.ShaftTop.Origin().Y(), 1e-12)
+	if staticPlaced.CradleInWorld.Src() != assembly.SeatpostCradle || staticPlaced.CradleInWorld.Dst() != assembly.StaticWorld {
+		t.Errorf("static CradleInWorld systems = %s -> %s", staticPlaced.CradleInWorld.Src(), staticPlaced.CradleInWorld.Dst())
 	}
-	assertNear(t, "cradle matches RailPivot X", dynamicPlaced.CradleInWorld.OriginInDst().X(), dynamicPlaced.RailPivot.Origin().X(), 1e-12)
-	assertNear(t, "cradle matches RailPivot Y", dynamicPlaced.CradleInWorld.OriginInDst().Y(), dynamicPlaced.RailPivot.Origin().Y(), 1e-12)
-	wantSagInBench := frameToBench.ApplyVector(wantSagInFrame)
-	gotSagInBench := dynamicPlaced.RailPivot.Origin().Sub(staticPlaced.RailPivot.Origin())
-	assertNear(t, "bench sag X", gotSagInBench.X(), wantSagInBench.X(), 1e-12)
-	assertNear(t, "bench sag Y", gotSagInBench.Y(), wantSagInBench.Y(), 1e-12)
+	if dynamicPlaced.CradleInWorld.Src() != assembly.SeatpostCradle || dynamicPlaced.CradleInWorld.Dst() != assembly.DynamicWorld {
+		t.Errorf("dynamic CradleInWorld systems = %s -> %s", dynamicPlaced.CradleInWorld.Src(), dynamicPlaced.CradleInWorld.Dst())
+	}
+	assertNear(t, "static cradle matches RailPivot X", staticPlaced.CradleInWorld.OriginInDst().X(), staticPlaced.RailPivot.Origin().X(), 1e-12)
+	assertNear(t, "static cradle matches RailPivot Y", staticPlaced.CradleInWorld.OriginInDst().Y(), staticPlaced.RailPivot.Origin().Y(), 1e-12)
+	assertNear(t, "dynamic cradle matches RailPivot X", dynamicPlaced.CradleInWorld.OriginInDst().X(), dynamicPlaced.RailPivot.Origin().X(), 1e-12)
+	assertNear(t, "dynamic cradle matches RailPivot Y", dynamicPlaced.CradleInWorld.OriginInDst().Y(), dynamicPlaced.RailPivot.Origin().Y(), 1e-12)
 
+	wantStaticWorld := frameToStatic.ApplyPoint(staticFrame.CradleInParent.OriginInDst())
+	wantDynamicWorld := frameToDynamic.ApplyPoint(dynamicFrame.CradleInParent.OriginInDst())
+	assertNear(t, "static RailPivot X", staticPlaced.RailPivot.Origin().X(), wantStaticWorld.X(), 1e-12)
+	assertNear(t, "static RailPivot Y", staticPlaced.RailPivot.Origin().Y(), wantStaticWorld.Y(), 1e-12)
+	assertNear(t, "dynamic RailPivot X", dynamicPlaced.RailPivot.Origin().X(), wantDynamicWorld.X(), 1e-12)
+	assertNear(t, "dynamic RailPivot Y", dynamicPlaced.RailPivot.Origin().Y(), wantDynamicWorld.Y(), 1e-12)
+
+	// PlaceInWorld panics on wrong Src or any Dst other than StaticWorld / DynamicWorld.
 	assertPanics(t, "PlaceInWorld wrong frameToWorld Src", func() {
-		wrong := pose.NewTransform(assembly.SteererLocal, benchWorld, pose.Origin(benchWorld), 0)
-		_ = clamped.PlaceInWorld(wrong, assembly.Static)
+		wrong := pose.NewTransform(assembly.SteererLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), 0)
+		_ = clamped.PlaceInWorld(wrong)
+	})
+	assertPanics(t, "PlaceInWorld UnpitchedChart Dst", func() {
+		chart := pose.NewTransform(assembly.FrameLocal, assembly.UnpitchedChart, pose.Origin(assembly.UnpitchedChart), 0)
+		_ = clamped.PlaceInWorld(chart)
+	})
+	assertPanics(t, "PlaceInWorld custom non-world Dst", func() {
+		other := pose.NewCoordinateSystem("test:other_world")
+		bad := pose.NewTransform(assembly.FrameLocal, other, pose.Origin(other), 0)
+		_ = clamped.PlaceInWorld(bad)
+	})
+	assertPanics(t, "PlaceInWorld zero transform", func() {
+		_ = clamped.PlaceInWorld(pose.Transform{})
+	})
+}
+
+type fakePost struct {
+	totalLengthMm float64
+	limits        assembly.BoundedRange
+	staticClamp   assembly.RailClampPort
+	dynamicClamp  assembly.RailClampPort
+}
+
+func (f fakePost) TotalLengthMm() float64                 { return f.totalLengthMm }
+func (f fakePost) InsertionLimits() assembly.BoundedRange { return f.limits }
+func (f fakePost) RailClamp(s assembly.LoadState) assembly.RailClampPort {
+	if s == assembly.Static {
+		return f.staticClamp
+	}
+	return f.dynamicClamp
+}
+
+func TestMateSeatpostSnapshotsPostByValueAndValidates(t *testing.T) {
+	collarInFrame := pose.NewPose(pose.NewPoint(assembly.FrameLocal, -120, 470), 105).Anchor(assembly.SeatTubeCollar)
+	frameRange, err := assembly.NewBoundedRange(100, 290, "frame min insertion", "frame max insertion")
+	if err != nil {
+		t.Fatalf("frameRange: %v", err)
+	}
+	socket := assembly.SeatTubeSocket{CollarInFrame: collarInFrame, AllowedInsertion: frameRange}
+
+	// Pass &post, clamp at 200 mm, then overwrite the caller's post variable with
+	// a shorter valid post. The clamped installation must remain fixed to the
+	// snapshotted 400 mm post rather than reporting -20 mm exposed shaft.
+	post, err := assembly.NewRigidPost(400, 100, 365, 12, 30)
+	if err != nil {
+		t.Fatalf("NewRigidPost 400: %v", err)
+	}
+	dof, err := assembly.MateSeatpost(socket, &post)
+	if err != nil {
+		t.Fatalf("MateSeatpost(&post): %v", err)
+	}
+	clamped, err := dof.Clamp(200)
+	if err != nil {
+		t.Fatalf("Clamp(200): %v", err)
+	}
+	beforeStatic := clamped.RailClampInFrame(assembly.Static)
+	beforeDynamic := clamped.RailClampInFrame(assembly.Dynamic)
+
+	shorter, err := assembly.NewRigidPost(180, 100, 150, 0, 25)
+	if err != nil {
+		t.Fatalf("NewRigidPost 180: %v", err)
+	}
+	post = shorter
+
+	assertNear(t, "ExposedMm after caller mutation", clamped.ExposedMm(), 200, 1e-12)
+	afterStatic := clamped.RailClampInFrame(assembly.Static)
+	afterDynamic := clamped.RailClampInFrame(assembly.Dynamic)
+	assertNear(t, "static cradle X unchanged", afterStatic.CradleInParent.OriginInDst().X(), beforeStatic.CradleInParent.OriginInDst().X(), 1e-12)
+	assertNear(t, "static cradle Y unchanged", afterStatic.CradleInParent.OriginInDst().Y(), beforeStatic.CradleInParent.OriginInDst().Y(), 1e-12)
+	assertNear(t, "dynamic cradle X unchanged", afterDynamic.CradleInParent.OriginInDst().X(), beforeDynamic.CradleInParent.OriginInDst().X(), 1e-12)
+	assertNear(t, "dynamic cradle Y unchanged", afterDynamic.CradleInParent.OriginInDst().Y(), beforeDynamic.CradleInParent.OriginInDst().Y(), 1e-12)
+	if afterStatic.ClampLengthMm != 30 {
+		t.Errorf("ClampLengthMm mutated to %v, want 30", afterStatic.ClampLengthMm)
+	}
+
+	// Clamping a second time from the same SeatpostDoF also sees the original snapshot.
+	clamped2, err := dof.Clamp(220)
+	if err != nil {
+		t.Fatalf("second Clamp(220): %v", err)
+	}
+	assertNear(t, "second clamp ExposedMm", clamped2.ExposedMm(), 180, 1e-12)
+
+	// MateSeatpost validates snapshotted post values even for custom post implementations.
+	goodClamp := assembly.RailClampPort{
+		CradleInParent: pose.NewTransform(assembly.SeatpostCradle, assembly.SeatpostLocal, pose.NewPoint(assembly.SeatpostLocal, 350, 0), 0),
+		ClampLengthMm:  30,
+	}
+	goodLimits, _ := assembly.NewBoundedRange(100, 250, "post min", "post max")
+
+	for _, tc := range []struct {
+		name string
+		post fakePost
+	}{
+		{"uninitialized limits", fakePost{totalLengthMm: 350, staticClamp: goodClamp, dynamicClamp: goodClamp}},
+		{"non-finite total length", fakePost{totalLengthMm: math.Inf(1), limits: goodLimits, staticClamp: goodClamp, dynamicClamp: goodClamp}},
+		{"max insertion >= total length", fakePost{totalLengthMm: 250, limits: goodLimits, staticClamp: goodClamp, dynamicClamp: goodClamp}},
+		{"zero clamp length", fakePost{totalLengthMm: 350, limits: goodLimits, staticClamp: assembly.RailClampPort{CradleInParent: goodClamp.CradleInParent, ClampLengthMm: 0}, dynamicClamp: goodClamp}},
+		{"non-finite cradle origin", fakePost{totalLengthMm: 350, limits: goodLimits, staticClamp: goodClamp, dynamicClamp: assembly.RailClampPort{CradleInParent: pose.NewTransform(assembly.SeatpostCradle, assembly.SeatpostLocal, pose.NewPoint(assembly.SeatpostLocal, math.NaN(), 0), 0), ClampLengthMm: 30}}},
+	} {
+		if _, err := assembly.MateSeatpost(socket, tc.post); err == nil {
+			t.Errorf("%s: want error", tc.name)
+		}
+	}
+
+	assertPanics(t, "wrong clamp CoordinateSystem", func() {
+		badClamp := assembly.RailClampPort{
+			CradleInParent: pose.NewTransform(assembly.SteererLocal, assembly.FrameLocal, pose.Origin(assembly.FrameLocal), 0),
+			ClampLengthMm:  30,
+		}
+		_, _ = assembly.MateSeatpost(socket, fakePost{totalLengthMm: 350, limits: goodLimits, staticClamp: badClamp, dynamicClamp: goodClamp})
 	})
 }
