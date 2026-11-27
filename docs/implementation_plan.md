@@ -1,371 +1,235 @@
-# Idiomatic Go Part-and-Mate Architecture Plan
+# Package-Sealed Delegation & `BikeSetup` Retirement Plan
+
+Status: Planned 2026-11-27
+Implementer: High (Frontier) for Stages 1–3, Medium for Stages 4–5 — seals package boundaries, delegates joint vectors and part sketches, and retires `BikeSetup`
+Review: required — architectural package boundaries, kinematic joint projection, and CLI JSON readout contract
 
 ## Goal Description
 
-Refactor `bikegeo` so each bicycle component (`Frame`, `Fork`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`) can be specified, designed, tested, and code-reviewed **in isolation**, and is guaranteed **by construction** to assemble accurately across the whole bike in both `Static` and `Dynamic` load states.
+Finish decoupling `bikegeo` along genuine object and invariant boundaries while keeping typed outer bicycle stages (`Frameset` → `SeatedFrameset` → `Build`) and preserving all physical geometry math, catalog invariants, ranking results, and SVG visual outputs:
 
-Today's codebase has three structural bottlenecks:
-1. **Phantom generics fight Go idioms:** Slice 23 parameterized [pose.go](file:///Users/matt/src/bikegeo/internal/pose/pose.go) with phantom coordinate tags (`Point[S]`, `Vec[S]`, `Pose[Dir, W]`, `TurnDeg[FromDir, ToDir]`, `Transform[Src, Dst]`). Because Go methods cannot introduce new type parameters and Go interfaces cannot have generic methods, turtle chaining broke into nested `pose.Turn(...)` calls with single-use empty structs, `[W]` propagation stalled at `FramesetPlacement[W]` (leaving components hardcoded to `DynamicWorld`), and `pose.Transform` ended up with zero non-test callers.
-2. **Flat `*Setup` structs blur part specs, mating ports, open degrees of freedom (DoFs), load states, and solver bounds:** `PlaceSeatpost` takes the whole `FrameSetup`; `StemSetup` holds headset upper stack, steerer spacer limits, and solver-only length bounds; `PlaceSaddle` and `PlaceHandlebar` apply world-level `Face` overrides that prevent unloading a clamped build to `StaticWorld`; SHIS headset rules are duplicated in three packages; `SeatpostInsertionBounds` is recomputed in six files; and `FitBuilds` bypasses `PlaceBike` using manual struct stitching and magic attribute array indices (`weighted(1)`, `weighted(7)`, `weighted(9)`).
-3. **`DESIGN.md` is a chronological legislative log:** [DESIGN.md](file:///Users/matt/src/bikegeo/docs/DESIGN.md) accumulated 173 cross-amending `Q#` rulings, and Go comments cite `(Q67, Q77)` instead of stating physical rationale directly.
-
-This plan resolves all three using idiomatic Go ([WRITE_CODE.md](file:///Users/matt/src/bikegeo/docs/WRITE_CODE.md)):
-- **Concrete `pose` types + deterministic runtime `CoordinateSystem` assertions** (preserving compile-time `Point` vs. `Vector` separation while catching both world-space and datum-origin mismatches at runtime and restoring fluent turtle chaining).
-- **Self-contained concrete part structs + thin consumer-side interfaces (1–2 methods)** defined at the point of use (`postMounter` in `seatpost.go`, `forkMounter` in `frameset.go`, `outliner` in `web/diagram.go`).
-- **Option 3 encapsulation:** unexported fields on invariant-carrying domain objects (`Point`, `Pose`, `Transform`, part specs, `Frameset`, `SeatedFrameset`, `Build`) so invalid assemblies cannot be forged or mutated, paired with **exported fields on output/readout snapshots** (`Placement`, `BoundStatus`, `BuildScore`, `Fitting`) so `encoding/json`, templates, and tests need minimal glue.
-- **Incremental monotonic assembly (`Frameset` → `SeatedFrameset` → `Build`)** with explicit `Planar2DoF` continuous solvers, `BoundStatus` auditability, clamped physical relative joint angles (unifying `Place(Static)` and `Place(Dynamic)`), and a modular present-tense `DESIGN.md` free of `Q#` citations.
-
-> [!IMPORTANT]
-> **Behavior-Preserving Refactoring Discipline:** While the new part and assembly types natively implement both `Static` and `Dynamic` load states (verified by unit tests on `LinkagePost`, `SuspensionFork`, and `Build.Place(Static)` vs. `Build.Place(Dynamic)`), `catalog`, `compare`, `/bike`, and CLI defaults preserve today's exact numerical outputs across all 7 stages. Intentional Milestone 6 model changes (switching catalog `redshift_shockstop_pro` from sagged-only `12 mm` to `7 mm` static + `(-6, +5) mm` sag, single travel-class sag, `+5°` SQlab rail angle, `coupledHbTarget`, and workshop warning UI) stay cleanly separated for follow-up slices once this architecture lands.
+1. **Compiler-enforced sealing via a 4-package domain split (`bounds` → `parts` → `assembly` → `scoring`):** replace the single 16-file `internal/assembly` scope (where outer orchestrators can read private component fields or literal-construct `&Build{...}`) with strict package walls so private invariants are sealed by the Go compiler.
+2. **Self-describing 1-DoF translational joints (`bounds.SlideJoint`):** let each sliding joint (`Insertion`, `RailOffset`, `Spacers`, continuous `StemLength`, hypothetical `Setback`) own its `BoundedRange` and local unit movement vector (`stepPerMm`) in its parent `CoordinateSystem`, eliminating manual `Sign: -1` / `Turn(180)` probe choreography in `RearCockpitDoF`, `FrontCockpitDoF`, and `FitPostSetback`.
+3. **Delegation over type-switching and duplicate interfaces:** export minimal 2–3 method polymorphic part-family interfaces from `internal/parts` (`parts.Seatpost`, `parts.Fork` with physical `SagStatus`, `parts.PhysicalFork`), deleting the duplicate interface copies in `catalog` and `compare` as well as `forkMetadata`'s type-switch in `frameset.go`.
+4. **Part-owned local millimeter `Sketch`es + uniform `PlacedNode` projection:** let each component describe its schematic spans and segments in its own `PartLocal` coordinate system (zero SVG/CSS concepts) so `web/diagram.go` projects `Placement.Nodes` through `NodeToWorld` without reaching into component scalar bags.
+5. **Retire `Placement.Setup` (`setup_snapshot.go` / `BikeSetup`) and delete this plan on completion:** replace the 70-field `BikeSetup` shadow struct with a compact `FittedSettings` readout carrying only the scalar build settings needed for lossless `/bike` URLs and CLI JSON, and delete `docs/implementation_plan.md` in Stage 5.
 
 ---
 
-## Architecture Overview
+## Target Package Architecture
 
 ```mermaid
 flowchart TD
-    subgraph Specs["Self-Contained Concrete Parts (Unexported Invariant Fields)"]
-        Frame["Frame (FrameLocal)"]
-        Fork["RigidFork / SuspensionFork / BasisFork (ForkLocal)"]
-        Post["RigidPost / LinkagePost (SeatpostLocal)"]
-        Saddle["Saddle (SaddleLocal)"]
-        Stem["Stem (StemLocal)"]
-        Bar["Handlebar (HandlebarLocal: 3D to 2D grip)"]
-    end
+    Pose["internal/pose\nPoint, Vector, Heading, Pose, Transform, CoordinateSystem"]
+    Bounds["internal/bounds\nLoadState, InputField/InputError, BoundedRange, BoundStatus, SlideJoint"]
+    Parts["internal/parts\nSealed Frame, Fork, Seatpost, Saddle, Stem, Handlebar, Ports, Local Sketch"]
+    Assembly["internal/assembly\nFrameset -> SeatedFrameset -> Build, Planar2DoF, PlacedNode, Placement + FittedSettings"]
+    Scoring["internal/scoring\nScoreWeights, FitOval, ScoreBuild, CompareFitRank, FitFrontBuilds"]
+    Catalog["internal/catalog"]
+    Compare["internal/compare"]
+    Query["internal/query"]
+    Web["internal/web"]
+    CLI["cmd/bikegeo"]
 
-    subgraph Mates["Incremental Sub-Assemblies & Explicit DoFs"]
-        FS["Frameset (SHIS checked; 1-pass FrameToWorld)"]
-        RearDoF["RearCockpitDoF (Planar2DoF: Insertion x RailOffset)"]
-        Seated["SeatedFrameset (Rear locked; BRP & BoundStatus known)"]
-        FrontDoF["FrontCockpitDoF (Planar2DoF: Spacers x StemLength)"]
-        Build["Build (Clamped joint turns; unforgeable)"]
-    end
-
-    subgraph Outputs["Exported-Field Readout Snapshots"]
-        StaticP["Placement (StaticWorld)"]
-        DynamicP["Placement (DynamicWorld)"]
-        Score["BuildScore & BoundStatus"]
-    end
-
-    Frame -->|"HeadTubePort + forkMounter"| FS
-    Fork --> FS
-    FS -->|"SeatTubeSocket + postMounter"| RearDoF
-    Post --> RearDoF
-    Saddle --> RearDoF
-    RearDoF -->|"Clamp or FitToBRP"| Seated
-    Seated -->|"SteererPort + AttachFront"| Build
-    Stem --> Build
-    Bar --> Build
-    Seated -.->|"Continuous /bike fit"| FrontDoF
-    Build -->|"Place(Static)"| StaticP
-    Build -->|"Place(Dynamic)"| DynamicP
-    DynamicP --> Score
+    Bounds --> Pose
+    Parts --> Bounds
+    Parts --> Pose
+    Assembly --> Parts
+    Assembly --> Bounds
+    Assembly --> Pose
+    Scoring --> Assembly
+    Scoring --> Parts
+    Scoring --> Bounds
+    Scoring --> Pose
+    Catalog --> Scoring
+    Compare --> Scoring
+    Query --> Compare
+    Query --> Catalog
+    Web --> Query
+    CLI --> Web
+    CLI --> Query
 ```
 
 ---
 
-## Execution Strategy (7 Atomic Stages)
+## Execution Strategy (5 Atomic Stages)
 
-Every stage below compiles cleanly and passes `make pre-commit` (`go fix`, `go fmt`, `go vet`, `make boundary`, `exhaustive`, `go test ./...`) so work can be reviewed commit-by-commit or part-by-part.
-
----
-
-### Stage 1: Workflow & Modular Design Specification (`docs/`, `AGENTS.md`)
-
-Retire permanent `Q#` numbering and reorganize the documentation so every component's design spec matches its Go file 1-to-1. Keep [WRITE_CODE.md](file:///Users/matt/src/bikegeo/docs/WRITE_CODE.md) as a permanent reference in the repo.
-
-#### [MODIFY] [WORKFLOW.md](file:///Users/matt/src/bikegeo/docs/WORKFLOW.md)
-- Keep the three Rolling-Wave horizons (Direction → 1-ahead `SLICE<n>.md` → Implementation & Diff Review) and model-tier routing.
-- Replace `Q#` ruling rules: open questions use temporary `1, 2, 3` numbering inside the chat turn only; once decided, update the owning component or surface section of `DESIGN.md` **in place** in present tense and let `git log` hold history.
-- Add review rule: code comments and docstrings must explain physical or engineering rationale in plain English and never cite `Q#` or `Slice #` identifiers.
-
-#### [MODIFY] [AGENTS.md](file:///Users/matt/src/bikegeo/AGENTS.md)
-- Update **Naming** and **Geometry & Technical Exposition** to reflect concrete `pose` types (`pose.CoordinateSystem`, `pose.Point`, `pose.Vector`, `pose.Pose`, `pose.Transform`) with runtime coordinate-frame checks rather than generic `Pose[Dir, W]` / `Vec[Dir]`.
-- Add idiomatic Go interface guidance: accept thin (1–3 method) interfaces defined in the consumer file where component implementations genuinely differ; return concrete structs; use plain structs where behavior is uniform.
-- Remove `Q#` citations from `AGENTS.md`, stating rules directly.
-
-#### [MODIFY] [DESIGN.md](file:///Users/matt/src/bikegeo/docs/DESIGN.md)
-- Rewrite as a concise, present-tense modular specification with zero historical `Q#` log:
-  1. **Requirements & Package Boundaries**
-  2. **Coordinate Systems, Affine Primitives, and `pose` Invariants** (`CoordinateSystem`, `Point` vs. `Vector`, `Pose` turtle chaining, `Transform` composition)
-  3. **Component & Mate Specifications** (one subsection per file, reviewable in isolation):
-     - *Frame & Headset* (`FrameLocal`, `HeadTubePort`, `SeatTubeSocket`, SHIS compatibility table, sliding dropouts)
-     - *Fork* (`ForkLocal`, `RigidFork`, `SuspensionFork`, `BasisFork`, travel classes and sag)
-     - *Seatpost* (`SeatpostLocal` from shaft bottom, `RigidPost`, `LinkagePost` static/dynamic cradle motion, socket insertion intersection)
-     - *Saddle* (`SaddleLocal` at `RailCenter`, `BRP` and `SIT` landmarks, rail clamp offset bounds, clamped relative rail angle)
-     - *Stem & Handlebar* (`SteererPort` upper stack and `30 mm` spacer cap, `StemLocal`, `HandlebarLocal` 3D-to-2D sagittal grip projection, clamped relative bar roll)
-  4. **Incremental Assembly & Load States** (`Frameset` → `SeatedFrameset` → `Build`; single-pass axle leveling; unified `Place(Static)` and `Place(Dynamic)`)
-  5. **Degrees of Freedom, Fitting, and `0–100` Scoring** (`BoundedRange`, `BoundStatus`, `Planar2DoF` solver objectives, 4-tier comparator, 12 attributes)
-  6. **Web, CLI JSON, and Catalog Validation** (chart consistency in `catalog` tests, lossless `/` → `/bike` URLs)
-  7. **Active Roadmap** (this behavior-preserving refactor, followed by a small `Placement.Setup` CLI readout cleanup slice, the paused Fit Audit Stage 2 Fenrir check, and Milestone 6 physical-model slices).
+Every stage below must leave the repository compiling cleanly and passing `make pre-commit` (`go fix`, `go fmt`, `go vet`, `make boundary`, `exhaustive`, `go test ./...`). Do not introduce any banned terms (`chassis`, `cad`, `price`, `pricing`, `cost`, `cheap`, `ledger`) in code, filenames, or comments.
 
 ---
 
-### Stage 2: Replace Phantom Generics in `internal/pose` with Runtime `CoordinateSystem` Checks
+### Stage 1: Extract `internal/bounds` & Self-Describing `SlideJoint`
 
-Replace type parameters `[S]`, `[W]`, `[Dir, W]`, `[FromDir, ToDir]`, and `[Src, Dst]` with concrete structs carrying a registered `uint16` `CoordinateSystem`. Update existing callers mechanically with zero behavior change.
+Create `internal/bounds` (importing only `internal/pose` and standard library) as the shared foundation for load states, attributed input errors, bounded intervals, and 1-DoF linear sliding joints.
 
-#### [MODIFY] [pose.go](file:///Users/matt/src/bikegeo/internal/pose/pose.go)
-- **Coordinate System Identity (`CoordinateSystem`):**
+#### [NEW] `internal/bounds/` (`state.go`, `input.go`, `range.go`, `joint.go`, `bounds_test.go`)
+- **`LoadState` & ambient world coordinate systems (`state.go`):**
+  - Move `LoadState` (`Static`, `Dynamic`), `UnpitchedChart`, `StaticWorld`, `DynamicWorld`, `LoadState.Valid()`, `LoadState.WorldSystem()`, and `LoadStateForWorld(pose.CoordinateSystem)` from `internal/assembly/state.go`.
+- **Attributed validation errors (`input.go`):**
+  - Move `InputField` (all 13 constants) and `*InputError` / `NewInputError` from `internal/assembly/validate.go` so `bounds`, `parts`, `assembly`, `scoring`, and `web` share one exhaustive error-attribution enum without import cycles.
+- **Validated intervals & bound status (`range.go`):**
+  - Move `BoundedRange`, `NewBoundedRange`, `IntersectRanges`, and `BoundStatus` (including `MarshalJSON`/`UnmarshalJSON`, `MarginMm`, `WithinMargin`, `AtMin`, `AtMax`) from `internal/assembly/bounds.go`.
+- **1-DoF translational joint (`joint.go`):**
+  - Define `SlideJoint` (unexported fields, zero value invalid):
+    - Constructed via `NewSlideJoint(field InputField, allowed BoundedRange, originAtZero pose.Point, stepPerMm pose.Vector, turnDeg pose.Deg, childSystem pose.CoordinateSystem) SlideJoint`.
+    - Asserts `allowed.Valid()`, `originAtZero.CoordinateSystem() == stepPerMm.CoordinateSystem()`, `childSystem.Valid()`, `childSystem != originAtZero.CoordinateSystem()`, and `|stepPerMm.Norm() - 1| <= 1e-9` (unit-length displacement vector in the parent `CoordinateSystem` per `+1 mm` of parameter increase).
+    - `Field() InputField`, `Allowed() BoundedRange`, `StepPerMm() pose.Vector`, `ParentSystem() pose.CoordinateSystem`, `ChildSystem() pose.CoordinateSystem`.
+    - `TransformAt(val float64) pose.Transform` (places `childSystem` at `originAtZero.Add(stepPerMm.Scale(val))` rotated by `turnDeg`, for internal probe placement).
+    - `Bind(val float64) (pose.Transform, BoundStatus, error)` (validates `val` via `allowed.Bind(field, val)` and returns `TransformAt(val)` + `BoundStatus`).
+- **Tests (`bounds_test.go`):**
+  - Migrate existing `bounds_test.go` cases and add unit tests for `SlideJoint` (`Bind` in-range/out-of-range, `TransformAt` along `(-1, 0)` vs. `(+1, 0)` vs. rotated rail directions, and deterministic panics on zero-value `SlideJoint`, non-unit `stepPerMm`, or mismatched parent/child `CoordinateSystem`s).
+
+#### [MODIFY] Caller Updates (`internal/assembly`, `internal/catalog`, `internal/compare`, `internal/query`, `internal/web`)
+- Update references to `bounds.LoadState`, `bounds.Static` / `bounds.Dynamic`, `bounds.StaticWorld` / `bounds.DynamicWorld` / `bounds.UnpitchedChart`, `bounds.BoundedRange`, `bounds.BoundStatus`, `bounds.InputField`, and `*bounds.InputError` (keeping `exhaustive` switches green in `web/web.go` and `web/bike_page.go`).
+
+---
+
+### Stage 2: Extract Sealed `internal/parts` with `SlideJoint` Mates & Local `Sketch`es
+
+Move all physical bicycle components and mating ports into `internal/parts` (importing only `internal/pose` and `internal/bounds`), sealing component internals away from `assembly`, `scoring`, `compare`, `query`, and `web`.
+
+#### [NEW] `internal/parts/` (`spaces.go`, `sketch.go`, `frame.go`, `fork.go`, `seatpost.go`, `saddle.go`, `stem.go`, `handlebar.go`, `*_test.go`)
+- **Local `CoordinateSystem`s (`spaces.go`):**
+  - `FrameLocal`, `SteererLocal`, `LowerHeadsetLocal`, `ForkLocal`, `SeatTubeCollar`, `SeatpostLocal`, `SeatpostCradle`, `SaddleLocal`, `StemLocal`, `HandlebarLocal`.
+- **Part-local millimeter visual geometry (`sketch.go`):**
+  - Pure geometric primitives with zero SVG/color/pixel fields:
+    - `SpanKind` enum (`SpanUpperCover`, `SpanSpacers`, `SpanSteererClamp`, `SpanStemBody`, `SpanRailClamp`, `SpanSaddleRail`) and `LocalSpan{Kind SpanKind; Axis pose.Pose; StartMm, LengthMm float64}`.
+    - `SegmentKind` enum (`SegChainstay`, `SegSeatTube`, `SegSeatstay`, `SegHeadTube`, `SegLowerCup`, `SegForkSteerer`, `SegForkRake`, `SegSeatpostShaft`, `SegSeatpostSetback`, `SegSaddleProfile`, `SegHandlebarSweep`) and `LocalSegment{Kind SegmentKind; From, To pose.Point}`.
+    - `Sketch{Spans []LocalSpan; Segments []LocalSegment}`.
+- **Polymorphic part-family interfaces (replacing 3× duplicate caller interfaces):**
+  - `parts.Fork` (3 physical methods):
+    ```go
+    type Fork interface {
+        CheckHeadset(bore LowerBore, cup LowerCupSetup) error
+        AxleInFork(state bounds.LoadState) pose.Point
+        SagStatus() (travel ForkTravel, sagPct float64, ok bool)
+    }
+    type PhysicalFork interface {
+        Fork
+        Steerer() PhysicalSteerer
+    }
+    ```
+    (`SuspensionFork.SagStatus()` returns `(f.travel, f.sagPct, true)`; `RigidFork` and `BasisFork` return `(TravelRigid, 0, false)`.)
+  - `parts.Seatpost` (3 physical methods):
+    ```go
+    type Seatpost interface {
+        TotalLengthMm() float64
+        InsertionLimits() bounds.BoundedRange
+        RailClamp(state bounds.LoadState) RailClampPort
+    }
+    ```
+- **`SlideJoint` ownership inside part mates & local `Sketch` methods:**
+  - `Frame` (`frame.go`): owns `LocalSketch()` (`SegChainstay`, `SegSeatTube`, `SegSeatstay`, `SegHeadTube` in `FrameLocal`), `RearAxle()`, `SeatAxis()`, `HeadTube()`, and `SeatTube()`.
+  - `SeatpostDoF` & `ClampedSeatpost` (`seatpost.go`): `MateSeatpost(socket SeatTubeSocket, post Seatpost)` builds an `InsertionJoint() bounds.SlideJoint` in `SeatTubeCollar` with `stepPerMm = NewVector(SeatTubeCollar, -1, 0)`; `Clamp(insertionMm)` delegates to `InsertionJoint().Bind(insertionMm)`. `ClampedSeatpost` exposes `LocalSketch(state)` (shaft segment `[0, ExposedMm]` in `SeatTubeCollar` + setback segment to cradle, and `SpanRailClamp` in `Saddle` / clamp orientation).
+  - `SaddleDoF` & `ClampedSaddle` (`saddle.go`): exposes `RailSlideJoint(railTurnFromCradle pose.Deg) bounds.SlideJoint` in `SeatpostCradle` with `stepPerMm = Along(NewHeading(SeatpostCradle, railTurnFromCradle), -1)`; `Clamp` binds that joint. `Saddle` / `ClampedSaddle` exposes `LocalSketch()` (`SpanSaddleRail` centered at `(0, 0)` along `+X` in `SaddleLocal` and `SegSaddleProfile` from `SIT` to `BRP`).
+  - `SteererPort`, `Stem`, & `ClampedStem` (`stem.go`): `SteererPort` exposes `SpacersJoint() bounds.SlideJoint` in `SteererLocal` (`originAtZero = (UpperStackMm, 0)`, `stepPerMm = (+1, 0)`); `MountStem` binds `SpacersJoint()` and exposes `LocalSketch()` (`SpanUpperCover`, `SpanSpacers`, `SpanSteererClamp`, `SpanStemBody`). Also provide `StemExtensionJoint(spacersMm, clampHeightMm float64, angleDeg pose.Deg, lengthRange bounds.BoundedRange) bounds.SlideJoint` for continuous stem-length fitting.
+  - `Handlebar` & `ClampedHandlebar` (`handlebar.go`): exposes `LocalSketch()` (`SegHandlebarSweep` from `(0, 0)` to `GripInBar()` in `HandlebarLocal`).
+- **Tests (`internal/parts/*_test.go`):**
+  - Move `seatpost_test.go`, `saddle_test.go`, `stem_test.go`, and `handlebar_test.go` into `internal/parts`, plus isolated unit tests for `Frame`, `RigidFork`/`SuspensionFork`/`BasisFork`, `CheckSHIS`, `SlideJoint` bindings, and part-local `Sketch` geometry.
+
+#### [MODIFY] `internal/assembly`, `internal/catalog`, `internal/compare`, `internal/query`, `internal/web`
+- Delete duplicate `SeatpostPart` / `Seatpost` / `PhysicalFork` interfaces from `catalog/seatposts.go`, `catalog/forks.go`, `compare/compare.go`, `assembly/seatpost.go`, and `assembly/frameset.go` in favor of `parts.Seatpost`, `parts.Fork`, and `parts.PhysicalFork`.
+
+---
+
+### Stage 3: Joint-Projected `Solve2DoF` & `PlacedNode` Sketch Projection
+
+Eliminate manual `Planar2DoF` probe/sign choreography and unexported-field scraping in `internal/assembly`, and switch `internal/web/diagram.go` to uniform `PlacedNode` sketch projection.
+
+#### [MODIFY] `internal/assembly/dof.go`, `bike.go`, `frameset.go`, `fitting.go`
+- **Direct `SlideJoint` → `LinearDoF` projection (`dof.go`):**
+  - Add `ProjectSlideJoint(joint bounds.SlideJoint, probeVal float64, parentToWorld pose.Transform) LinearDoF`:
+    rotates `joint.StepPerMm()` through `parentToWorld.ApplyVector(...)` into the target world so `Heading` points directly along `+1 mm` of parameter increase. Remove `LinearDoF.Sign` once all three callers use `ProjectSlideJoint` (with `paramFromTravel(travel) = Range.Clamp(Probe + travel)`).
+- **Simplify `RearCockpitDoF`, `FrontCockpitDoF`, and `FitPostSetback`:**
+  - `RearCockpitDoF.Planar2DoF()` projects `postDoF.InsertionJoint()` (through `collarInWorld`) and `saddleDoF.RailSlideJoint(railTurn)` (through `cradleInWorld`) — zero `Sign: -1` or `Turn(180)` hand-wiring.
+  - `FrontCockpitDoF.Planar2DoF()` projects `steerer.SpacersJoint()` and `parts.StemExtensionJoint(...)` through `steererInWorld`.
+  - Refactor `(*Build).FitPostSetback(brp pose.Point, railOffsetMm float64) (PostSetbackFitting, error)` to use public `Frameset` / `SeatedFrameset` / `Build` methods and `ProjectSlideJoint` over `(InsertionJoint, SetbackJoint)`, returning `PostSetbackFitting{Fitting; SetbackMm float64}` with zero access to private post fields.
+- **Uniform `PlacedNode` slice on `FramesetPlacement` and `Placement`:**
+  - Define `PlacedNode{Transform pose.Transform; Sketch parts.Sketch}` in `internal/assembly`.
+  - Populate `FramesetPlacement.Nodes` (`json:"-"`) in `Frameset.placeWithTransform` (covering frame tubes, lower cup segment, and fork steerer/rake segments) and `Placement.Nodes` (`json:"-"`) in `Build.Place` (appending seatpost, rail-clamp, saddle, steerer/stem, and handlebar nodes).
+  - Expose clean accessors on `SeatedFrameset` and `Build` (`Frameset()`, `Fork()`, `Seatpost()`, `Saddle()`, `DynamicRailPitchDeg()`, `Stem()`, `Handlebar()`, `DynamicBarRollDeg()`) so external packages (`scoring`, `query`, `web`) inspect domain objects cleanly without private field access.
+
+#### [MODIFY] `internal/web/diagram.go` & `diagram_test.go`
+- Replace `stemOutlines(stem, bike.Setup.Stem)`, `seatParts` `bike.Setup.*` reads, and hardcoded segment lists in `buildBikeDiagram` with a thin consumer helper projecting `bike.Nodes` (`[]assembly.PlacedNode`), mapping `parts.SpanKind` and `parts.SegmentKind` to SVG names, thicknesses, stroke widths, colors, and close-up framing groups (`view=seat` vs. `view=stem`).
+- Read `WheelRadiusMm` from `bike.Frameset.WheelRadiusMm` (added to `FramesetPlacement` or `Frameset` readout) instead of `bike.Setup.Wheels.RadiusMm`.
+- Verify all existing `diagram_test.go` and `web_test.go` SVG assertions pass unchanged, and add a unit test in `diagram_test.go` projecting an isolated `parts.Saddle` / `ClampedSeatpost` `PlacedNode` without constructing a `Build`.
+
+---
+
+### Stage 4: Extract `internal/scoring`
+
+Move `0–100` rider-preference scoring and discrete front-cockpit search out of `internal/assembly` into `internal/scoring`, sealing `Frameset`, `SeatedFrameset`, and `Build` against scoring/search internals.
+
+#### [NEW] `internal/scoring/` (`scoring.go`, `build_fitting.go`, `scoring_test.go`, `build_fitting_test.go`, `build_fitting_reference_test.go`)
+- Move `FitTier`, `AttributeName`, `AttributeScore`, `ScoreWeights`, `StemOption`, `BuildScore`, `FitOval`, `DefaultGripOval`, `CompareFitRank`, `ScoreBuild`, `ScoredBuild`, `CompareScoredBuilds`, `BuildRanking`, `FrontBuildOptions`, and `FitFrontBuilds` from `internal/assembly` to `internal/scoring` (importing `assembly`, `parts`, `bounds`, `pose`).
+- **Delegate `ScoreBuild` to `*assembly.Build` instead of `Placement.Setup`:**
+  - Change `ScoreBuild(build *assembly.Build, target assembly.FitTarget, stemScore float64, weights ScoreWeights) (BuildScore, error)` (or accept `build *assembly.Build` alongside an already-computed dynamic `assembly.Placement` if desired) so fork sag comes from `build.Fork().SagStatus()`, handlebar sweep from `build.Handlebar().Dimensions().BacksweepDeg`, spacers/rail/insertion from `build.Bounds()`, and handling geometry from `placement.Frameset` — **zero reads of `Placement.Setup`**.
+- **Keep `Build` construction sealed in `FitFrontBuilds`:**
+  - In `evalFrontOnSeated`, keep the fast `parts.MountStem` + `parts.MountHandlebar` inner-loop pruning, and for the `<= limit` kept builds call `seated.AttachFront(spacers, st.part, bar.part, dynamicBarRollDeg)` instead of `&assembly.Build{...}` struct literals.
+
+#### [MODIFY] `internal/catalog`, `internal/compare`, `internal/query`, `internal/web`
+- Update imports and type references (`scoring.ScoreWeights`, `scoring.StemOption`, `scoring.BuildScore`, `scoring.ScoredBuild`, `scoring.FitTier`, `scoring.AttributeScore`, `scoring.FitFrontBuilds`, `scoring.ScoreBuild`, `scoring.DefaultGripOval`).
+
+---
+
+### Stage 5: Retire `Placement.Setup` (`BikeSetup`), Verify `deadcode`, and Delete Plan
+
+Delete `setup_snapshot.go` and `forkMetadata`, replace `Placement.Setup` with compact `FittedSettings`, clean up remaining callers, and delete this plan file.
+
+#### [DELETE] `internal/assembly/setup_snapshot.go`
+- Delete `BikeSetup`, `FrameSetup`, `ForkSpec`, `ForkSetup`, `SeatpostSpec`, `SeatpostSetup`, `SaddleSetup`, `StemSetup`, and `HandlebarSetup`.
+- Delete `forkMetadata`, `forkSetupSnapshot`, `frameSetupSnapshot` from `internal/assembly/frameset.go` and `setupSnapshot` from `parts`/`assembly`.
+
+#### [MODIFY] `internal/assembly/bike.go`, `internal/scoring/build_fitting.go`, `internal/query/`, `internal/web/`, `cmd/bikegeo/main_test.go`
+- Add compact `FittedSettings` to `Placement.Settings`:
   ```go
-  // CoordinateSystem identifies a specific 2D coordinate system (both its datum origin and
-  // its +X/+Y axes). The zero value is invalid; register frames via NewCoordinateSystem.
-  type CoordinateSystem struct{ id uint16 }
-
-  func NewCoordinateSystem(name string) CoordinateSystem // allocates a unique non-zero id and records name
-  func (f CoordinateSystem) String() string
-  func (f CoordinateSystem) Valid() bool
-  ```
-  *Why `uint16` via `NewCoordinateSystem`:* Two coordinate systems never collide by string spelling; `s1 == s2` is one integer instruction; and **any uninitialized zero-value `Point{}`, `Vec{}`, `Heading{}`, `Pose{}`, or `Transform{}` has `id == 0` and fails immediately on first use** (`pose: uninitialized zero-value CoordinateSystem`).
-- **Affine & Angle Types (concrete, unexported fields):**
-  - `Deg float64` (unchanged scalar angle for catalog specs and relative turn amounts).
-  - `Heading struct { deg Deg; system CoordinateSystem }` — constructed via `NewHeading(system CoordinateSystem, deg Deg) Heading`; `CoordinateSystem() CoordinateSystem`, `Deg() Deg`, `Turn(delta Deg) Heading`, `Sub(other Heading) Deg` (panics if `frame != other.frame` or invalid).
-  - `Point struct { x, y float64; system CoordinateSystem }` — constructed via `NewPoint(system CoordinateSystem, x, y float64) Point` and `Origin(system CoordinateSystem) Point`; `X() float64`, `Y() float64`, `CoordinateSystem() CoordinateSystem`, `Sub(q Point) Vector`, `Add(v Vec) Point`, `OffsetTo(other Point) Vector`, `DistanceTo(other Point) float64`, `VerticalOffsetTo(other Point) float64`, `AngleTo(other Point) Heading`. Implements `MarshalJSON` emitting `{"X": p.x, "Y": p.y}`.
-  - `Vector struct { x, y float64; system CoordinateSystem }` — constructed via `NewVector(system CoordinateSystem, x, y float64) Vector`; `X() float64`, `Y() float64`, `CoordinateSystem() CoordinateSystem`, `Add(w Vec) Vector`, `Sub(w Vec) Vector`, `Scale(k float64) Vector`, `Neg() Vector`, `Norm() float64`.
-- **Fluent Turtle `Pose` & Rigid `Transform`:**
-  - `Pose struct { origin Point; heading Heading }` — constructed via `NewPose(origin Point, headingDeg Deg) Pose` or `OriginPose(system CoordinateSystem) Pose`:
-    - `Origin() Point`, `Heading() Heading`, `HeadingDeg() Deg`, `CoordinateSystem() CoordinateSystem`
-    - `Advance(distMm float64) Pose`
-    - `TranslateLocal(dx, dy float64) Pose` (moves `dx` along `p`'s local `+X` and `dy` along `p`'s local `+Y` while staying in `p.CoordinateSystem()`)
-    - `Turn(delta Deg) Pose` (fluent method chaining restored!)
-    - `Face(worldHeading Heading) Pose` (asserts `p.CoordinateSystem() == worldHeading.CoordinateSystem()`)
-    - `Anchor(childSystem CoordinateSystem) Transform` — returns `Transform` mapping `childSystem` (whose `(0, 0)` sits at `p.Origin()` and `+X` points along `p.Heading()`) into `p.CoordinateSystem()`.
-    - `MarshalJSON` emitting `{"Origin": p.origin, "HeadingDeg": p.heading.Deg()}`.
-  - `Transform struct { src, dst CoordinateSystem; tx, ty, cos, sin float64 }`:
-    - `NewTransform(src, dst CoordinateSystem, originInDst Point, headingInDst Deg) Transform` (asserts `originInDst.CoordinateSystem() == dst`, `src.Valid()`, `src != dst`)
-    - `IdentityTransform(system CoordinateSystem) Transform`
-    - `Src() CoordinateSystem`, `Dst() CoordinateSystem`
-    - `ApplyPoint(p Point) Point` (asserts `p.CoordinateSystem() == t.src`, returns `Point` in `t.dst`)
-    - `ApplyVector(v Vec) Vector` (asserts `v.CoordinateSystem() == t.src`, returns `Vector` in `t.dst`)
-    - `ApplyPose(p Pose) Pose` (asserts `p.CoordinateSystem() == t.src`, returns `Pose` in `t.dst`)
-    - `OriginInDst() Point`, `HeadingInDst() Heading` (`PoseInDst() Pose`)
-    - `Inverse() Transform` (`t.dst → t.src`)
-    - `Compose(ab, bc Transform) Transform` (asserts `ab.dst == bc.src`, returns `ab.src → bc.dst`).
-
-#### [MODIFY] [primitives.go](file:///Users/matt/src/bikegeo/internal/pose/primitives.go) & [pose_test.go](file:///Users/matt/src/bikegeo/internal/pose/pose_test.go)
-- Update `Along(heading Heading, lengthMm float64) Vector`, `ProjectOnto(v Vec, heading Heading) float64`, and `DecomposeAlong(v Vec, headingA, headingB Heading) (a, b float64, ok bool)` to assert matching `CoordinateSystem`s.
-- Add unit tests verifying deterministic panics on: (a) uninitialized zero-value `Point`/`Vector`/`Transform`, (b) cross-system `Point.Sub` / `Point.Add`, (c) mismatched `Compose(ab, bc)`, and (d) origin-distinct coordinate systems (`RailClamp` vs. `SaddleLocal`).
-
-#### [MODIFY] Mechanical Caller Updates & Steerer-Joint Safeguard (`internal/assembly`, `internal/catalog`, `internal/query`, `internal/web`, `cmd/bikegeo/main_test.go`)
-- Replace `[DynamicWorld]`, `[UnpitchedChart]`, and `*Dir` type brackets with `assembly.DynamicWorld` and `assembly.UnpitchedChart` `CoordinateSystem` values; replace `.X` / `.Y` field reads on `pose.Point` and `pose.Vector` with `.X()` / `.Y()`; update `main_test.go`'s `jsonPose.Origin` to `struct{ X, Y float64 }`.
-- **Demonstrate the steerer-direction safeguard in Stage 2 (before removing `SteererUpDir`/`SteererDownDir` without a replacement):** define `SteererLocal = pose.NewCoordinateSystem("part:steerer")` (`(0, 0)` at `HeadTubeTop`, `+X` up the steerer) and `LowerHeadsetLocal = pose.NewCoordinateSystem("part:lower_headset")` (`(0, 0)` at `HeadTubeBottom`, `+X` down the steerer) in `internal/assembly`, expose `SteererInWorld` (`SteererLocal → DynamicWorld`) and `LowerHeadsetInWorld` (`LowerHeadsetLocal → DynamicWorld`) from `FramesetPlacement`, have `PlaceStem` take `steererInWorld pose.Transform` (walking in `SteererLocal` along `+X` and applying `steererInWorld`), and add a negative unit test in `stem_test.go` proving that passing `LowerHeadsetInWorld` to `PlaceStem` panics deterministically on `CoordinateSystem` mismatch.
-
----
-
-### Stage 3: `LoadState`, `BoundedRange` / `BoundStatus`, and Isolated `Seatpost`
-
-Introduce shared load-state and bound-tracking primitives, then rewrite [seatpost.go](file:///Users/matt/src/bikegeo/internal/assembly/seatpost.go) so it has **zero dependency on `FrameSetup` or `DynamicWorld`**.
-
-#### [NEW] [state.go](file:///Users/matt/src/bikegeo/internal/assembly/state.go)
-- Define `LoadState` (`Static`, `Dynamic` — covered by `exhaustive` switches) and canonical world `CoordinateSystem`s (`UnpitchedChart`, `StaticWorld`, `DynamicWorld`).
-
-#### [NEW] [bounds.go](file:///Users/matt/src/bikegeo/internal/assembly/bounds.go)
-- `BoundedRange` (unexported fields `min, max float64; minSource, maxSource string`):
-  - `NewBoundedRange(min, max float64, minSource, maxSource string) (BoundedRange, error)`
-  - `IntersectRanges(a, b BoundedRange) (BoundedRange, bool)` (picks the tighter bound and preserves its `Source` label, e.g. `"seatpost min insertion"` vs. `"frame max insertion"`)
-  - `Min() float64`, `Max() float64`, `Midpoint() float64`, `Clamp(v float64) float64`
-  - `Bind(field InputField, v float64) (BoundStatus, error)` — returns `*InputError` if non-finite or outside `[min, max]`.
-- `BoundStatus` (plain exported readout struct for JSON, templates, scoring, and warnings):
-  ```go
-  type BoundStatus struct {
-      Field     InputField
-      Value     float64
-      Min       float64
-      Max       float64
-      MinSource string
-      MaxSource string
-  }
-  func (b BoundStatus) MarginMm() float64          // min(Value - Min, Max - Value)
-  func (b BoundStatus) WithinMargin(mm float64) bool
-  func (b BoundStatus) AtMin(tol float64) bool
-  func (b BoundStatus) AtMax(tol float64) bool
-  ```
-
-#### [MODIFY] [seatpost.go](file:///Users/matt/src/bikegeo/internal/assembly/seatpost.go) & [seatpost_test.go](file:///Users/matt/src/bikegeo/internal/assembly/seatpost_test.go)
-- Coordinate systems:
-  - `SeatpostLocal = pose.NewCoordinateSystem("part:seatpost")` — `(0, 0)` at shaft bottom tip, `+X` up shaft centerline, `+Y` perpendicular rearward (`90°` CCW).
-  - `SeatpostCradle = pose.NewCoordinateSystem("part:seatpost_cradle")` — `(0, 0)` at rail-clamp pivot, `+X` parallel to shaft centerline.
-- Ports:
-  - `SeatTubeSocket struct { CollarInFrame pose.Transform; AllowedInsertion BoundedRange }` (`CollarInFrame` maps `SeatTubeCollar → FrameLocal`, with `(0, 0)` at `SeatTubeTop` and `+X` up the seat axis).
-  - `RailClampPort struct { CradleInParent pose.Transform; ClampLengthMm float64 }`.
-- Concrete seatpost types (unexported fields, validated constructors):
-  - `RigidPost` (`NewRigidPost(totalLengthMm, minInsertionMm, maxInsertionMm, setbackMm, railClampLengthMm float64) (RigidPost, error)`): enforces `0 < min <= max < total`, `setback >= 0`, `clampLen > 0`; `RailClamp(state)` places `SeatpostCradle` at `(totalLengthMm, setbackMm)` for both `Static` and `Dynamic`.
-  - `LinkagePost` (`NewLinkagePost(totalLengthMm, minInsertionMm, maxInsertionMm, staticSetbackMm, railClampLengthMm float64, sagStep pose.Vector) (LinkagePost, error)`): `RailClamp(Static)` places `SeatpostCradle` at `(totalLengthMm, staticSetbackMm)`; `RailClamp(Dynamic)` adds `sagStep` (e.g. `NewVector(SeatpostLocal, -6, +5)`) with `0°` rotation.
-- Consumer-side 2-method interface right next to `MateSeatpost`:
-  ```go
-  type postMounter interface {
-      TotalLengthMm() float64
-      InsertionLimits() BoundedRange
-      RailClamp(state LoadState) RailClampPort
-  }
-  ```
-  *(Or 2 methods if `ExposedMm` is derived from shaft-top landmark `(TotalLengthMm, 0)` in `RailClampPort` / `ShaftSpec()`; keep to 2–3 methods max.)*
-- `MateSeatpost(socket SeatTubeSocket, post postMounter) (*SeatpostDoF, error)` → intersects `post.InsertionLimits()` with `socket.AllowedInsertion` immediately.
-- `(*SeatpostDoF).Clamp(insertionMm float64) (*ClampedSeatpost, error)` → binds `insertionMm` into `BoundStatus`, computes `postInFrame = Compose(NewTransform(SeatpostLocal, SeatTubeCollar, NewPoint(SeatTubeCollar, -insertionMm, 0), 0), socket.CollarInFrame)`, and exposes `RailClampInFrame(state LoadState) RailClampPort` and `PlaceInWorld(frameToWorld pose.Transform) SeatpostPlacement` (deriving `LoadState` directly from `frameToWorld.Dst()` — `StaticWorld` or `DynamicWorld` — so sag state and world coordinate system cannot disagree).
-- Tests in `seatpost_test.go` verify `RigidPost`, `LinkagePost` static vs. dynamic cradle transforms (`(350, 7)` vs. `(344, 12)`), incompatible frame/post insertion rejection at `MateSeatpost` time, and `BoundStatus` margins — all without constructing a bicycle frame or world.
-
----
-
-### Stage 4: Isolated `Saddle`, `Stem`, and `Handlebar`
-
-Refactor [saddle.go](file:///Users/matt/src/bikegeo/internal/assembly/saddle.go), [stem.go](file:///Users/matt/src/bikegeo/internal/assembly/stem.go), and [handlebar.go](file:///Users/matt/src/bikegeo/internal/assembly/handlebar.go) into self-contained concrete parts in their own local coordinate systems, storing **clamped physical relative turns** rather than hardcoded `DynamicWorld` `Face` overrides.
-
-#### [MODIFY] [saddle.go](file:///Users/matt/src/bikegeo/internal/assembly/saddle.go) & [saddle_test.go](file:///Users/matt/src/bikegeo/internal/assembly/saddle_test.go)
-- `SaddleLocal = pose.NewCoordinateSystem("part:saddle")` — `(0, 0)` at `RailCenter`, `+X` forward along rail toward nose, `+Y` perpendicular up.
-- Concrete `Saddle` (`NewSaddle(dims SaddleDimensions) (Saddle, error)`, unexported fields): owns `BRP() pose.Point` (`(+RailCenterToBrpMm, +RailToBrpHeightMm)` in `SaddleLocal`), `SIT() pose.Point` (`(+RailCenterToSitBonesMm, +RailToBrpHeightMm + SitBonesElevationMm)` in `SaddleLocal`), and `RailLengthMm() float64`.
-- `MateSaddle(clamp RailClampPort, saddle Saddle) (*SaddleDoF, error)`: validates `clamp.ClampLengthMm <= saddle.RailLengthMm()`, exposing `AllowedRailOffset() BoundedRange` (`±(railLength - clampLength)/2`).
-- `(*SaddleDoF).Clamp(railOffsetMm float64, railTurnFromCradle pose.Deg) (*ClampedSaddle, error)`:
-  - Stores `RailOffset BoundStatus` and `railTurnFromCradle pose.Deg` (the physical bolt angle relative to `SeatpostCradle`).
-  - Provide helper `RailTurnForWorldPitch(cradleHeadingInWorld pose.Heading, worldPitchDeg pose.Deg) pose.Deg` so dynamic fitting computes `railTurnFromCradle` once when clamping, after which `ClampedSaddle.Place(cradleInWorld pose.Transform)` places `RailClamp`, `RailCenter`, `BRP`, and `SitBones` identically in `StaticWorld` and `DynamicWorld`!
-
-#### [MODIFY] [handlebar.go](file:///Users/matt/src/bikegeo/internal/assembly/handlebar.go) & [handlebar_test.go](file:///Users/matt/src/bikegeo/internal/assembly/handlebar_test.go)
-- `HandlebarLocal = pose.NewCoordinateSystem("part:handlebar")` — `(0, 0)` at `BarClamp` center, `+X` forward at `0°` roll, `+Y` along rise/upsweep.
-- Concrete `Handlebar` (`NewHandlebar(dims HandlebarDimensions) (Handlebar, error)`, unexported fields): validates 3D width/bend/sweep/inset and precomputes the 3D-to-2D sagittal projection `GripInBar() pose.Point` (in `HandlebarLocal`) and `HandLateralMm() float64`.
-- `MountHandlebar(barClamp BarClampPort, bar Handlebar, rollTurnFromStem pose.Deg) ClampedHandlebar` (with helper `BarTurnForWorldRoll(stemHeadingInWorld pose.Heading, worldBarRollDeg pose.Deg) pose.Deg`).
-
-#### [MODIFY] [stem.go](file:///Users/matt/src/bikegeo/internal/assembly/stem.go) & [stem_test.go](file:///Users/matt/src/bikegeo/internal/assembly/stem_test.go)
-- Move `UpperStackMm` and `MaxSpacersMm` onto a sealed `SteererPort` (unexported fields constructed via `Frame`/`Frameset` or validating constructor `NewSteererPort` asserting `SteererInFrame.Src() == SteererLocal` and `Dst() == FrameLocal`), carrying `SteererInFrame pose.Transform`, `UpperStackMm float64`, and `AllowedSpacers BoundedRange` (resolving the existing `TODO` on `StemSetup` and lifting Stage 2's `SteererLocal → DynamicWorld` safeguard into `FrameLocal`).
-- Concrete `Stem` (`NewStem(clampHeightMm, lengthMm float64, angleDeg pose.Deg) (Stem, error)`, unexported fields): pure physical stem dimensions (no solver `MinLengthMm`/`MaxLengthMm` fields).
-- `MountStem(steerer SteererPort, spacersMm float64, stem Stem) (*ClampedStem, error)` → binds `Spacers BoundStatus`, walks in `SteererLocal` along `+X` (`CoverTop`, `SpacerTop`, `SteererClamp`, turns `-90° + AngleDeg`, advances `LengthMm` → `BarClamp`), and composes with `SteererInFrame` into `FrameLocal`.
-- Carry forward Stage 2's negative `stem_test.go` check onto `NewSteererPort` / `MountStem`, proving that a `LowerHeadsetLocal → FrameLocal` transform still panics deterministically on `CoordinateSystem` mismatch.
-
----
-
-### Stage 5: `Frame`, Concrete `Fork` Types, and Single-Pass `Frameset`
-
-Split bare frame, forks, and SHIS mating cleanly so `BasisFork`, `RigidFork`, and `SuspensionFork` are small concrete structs consumed through a 2-method `forkMounter` interface, and `Frameset` levels into any `LoadState` in one pass.
-
-#### [NEW] [frame.go](file:///Users/matt/src/bikegeo/internal/assembly/frame.go)
-- `FrameLocal = pose.NewCoordinateSystem("part:frame")` — `(0, 0)` at `BB`, `+X` chart reach, `+Y` chart stack.
-- Concrete `Frame` (`NewFrame(dims FrameDimensions) (Frame, error)`, unexported fields):
-  - Validates chart scalars, `ChainstayMm > |BbDropMm|`, `LowerBore`, and physical `DefaultLowerCup`.
-  - Precomputes in `FrameLocal`:
-    - `RearAxle() pose.Point`
-    - `HeadTube() HeadTubePort` (sealed `SteererInFrame` mapping `SteererLocal → FrameLocal` at `HeadTubeTop`, `LowerHeadsetInFrame` mapping `LowerHeadsetLocal → FrameLocal` at `HeadTubeBottom`, `LowerBore`, `DefaultLowerCup`)
-    - `SeatTube() SeatTubeSocket` (`CollarInFrame` at `SeatTubeTop`, `AllowedInsertion` resolving `MaxPostInsertionMm` or `SeatTubeLengthMm - 20 mm` fallback right here inside `Frame`).
-
-#### [NEW] [fork.go](file:///Users/matt/src/bikegeo/internal/assembly/fork.go)
-- `ForkLocal = pose.NewCoordinateSystem("part:fork")` — `(0, 0)` at crown race seat, `+X` down steerer, `+Y` forward in rake direction.
-- Canonical SHIS compatibility function `CheckSHIS(bore LowerBore, cup LowerCupSetup, steerer Steerer) error` (single source of truth across the entire repo).
-- Three concrete fork types (unexported fields, validated constructors):
-  1. `RigidFork` (`NewRigidFork(staticA2cMm, rakeMm float64, steerer PhysicalSteerer) (RigidFork, error)`): `CheckHeadset` enforces physical SHIS; `AxleInFork(_)` returns `NewPoint(ForkLocal, staticA2cMm, rakeMm)`.
-  2. `SuspensionFork` (`NewSuspensionFork(staticA2cMm, rakeMm float64, travel SuspensionTravel, steerer PhysicalSteerer, sagPct float64) (SuspensionFork, error)`): `AxleInFork(Static)` uses `staticA2cMm`; `AxleInFork(Dynamic)` uses `staticA2cMm - travel.Mm()*(sagPct/100)`.
-  3. `BasisFork` (`NewBasisFork(basisA2cMm, rakeMm float64) (BasisFork, error)`): `CheckHeadset` allows `LowerCupBareHeadTube` (0 mm) or any physical cup matching `bore`; `AxleInFork(_)` returns `NewPoint(ForkLocal, basisA2cMm, rakeMm)`.
-
-#### [MODIFY] [frameset.go](file:///Users/matt/src/bikegeo/internal/assembly/frameset.go) & [frameset_test.go](file:///Users/matt/src/bikegeo/internal/assembly/frameset_test.go)
-- Consumer-side 2-method interface right next to `MateFrameset`:
-  ```go
-  type forkMounter interface {
-      CheckHeadset(bore LowerBore, cup LowerCupSetup) error
-      AxleInFork(state LoadState) pose.Point
+  // FittedSettings records the scalar installation settings of a placed Build
+  // for lossless /bike URL reconstruction and CLI JSON output.
+  type FittedSettings struct {
+      ForkStaticA2cMm float64
+      ForkEffectiveA2cMm float64
+      ForkRakeMm      float64
+      ForkSagPct      float64
+      ForkHasSag      bool
+      LowerCupMm      float64
+      WheelRadiusMm   float64
+      PostInsertMm    float64
+      PostExposedMm   float64
+      RailOffsetMm    float64
+      RailPitchDeg    pose.Deg
+      SpacersMm       float64
+      StemLengthMm    float64
+      StemAngleDeg    pose.Deg
+      BarRollDeg      pose.Deg
   }
   ```
-- `MateFrameset(frame Frame, lowerCup LowerCupSetup, upperStackMm float64, fork forkMounter, wheels WheelSetup) (*Frameset, error)`:
-  - Validates `fork.CheckHeadset(frame.LowerBore(), lowerCup)` and `wheels`, and snapshots `fork.AxleInFork(Static)` and `fork.AxleInFork(Dynamic)` by value (mirroring `MateSeatpost`, so mutating a caller's pointer-passed fork after mating cannot corrupt the `Frameset`).
-  - Computes `frontAxleInFrame(state)` via `Compose(forkInFrame, ...)`.
-  - **Single-pass world placement:**
-    - `Unpitched() FramesetPlacement` — applies `NewTransform(FrameLocal, UnpitchedChart, Origin(UnpitchedChart), 0)`.
-    - `Place(state LoadState) FramesetPlacement` — computes `pitch = -rearInFrame.AngleTo(frontInFrame(state)).Deg()`, builds `frameToWorld := NewTransform(FrameLocal, worldSystem(state), Origin(worldSystem(state)), pitch)` in **one pass**, transforms all frame/headset/fork landmarks, and drops plumb-down (`-90°`) wheel-ground contact points in `worldSystem(state)`.
-  - Exposes `SeatTube() SeatTubeSocket` and `Steerer() SteererPort` (with `DefaultMaxSpacersMm = 30 mm`).
+- Update `scoring.CompareScoredBuilds` to read `Placement.Settings.{SpacersMm, StemLengthMm, StemAngleDeg}`.
+- Update `query.paramsFromSettings(p.Settings)` in `query/bike.go` and `query/compare.go`.
+- Update `web/web.go`, `web/bike_page.go` (`forkCellName` taking `assembly.FittedSettings`, `makePostSetbackView` reading `assembly.PostSetbackFitting`), and `web/compare_page.go` (`ChainstayMm: f.InstalledDims(sz).ChainstayMm`).
+- Update `cmd/bikegeo/main_test.go` CLI JSON assertions from `Placement.Setup.Stem.*` / `Placement.Setup.Seatpost.InsertionMm` to `Placement.Settings.*`, keeping all numerical score/pose assertions identical.
 
----
-
-### Stage 6: Incremental Assemblies (`SeatedFrameset` → `Build`), `Planar2DoF` Solver, and Named Scoring
-
-Eliminate dummy `BikeSetup` mutations, parallel `PlaceBike` bypasses, and magic attribute-slice indices.
-
-#### [NEW] [dof.go](file:///Users/matt/src/bikegeo/internal/assembly/dof.go)
-- Extract self-contained 2D bounded affine solver:
-  ```go
-  type LinearDoF struct {
-      Field   InputField
-      Heading pose.Heading // unit-step movement direction of the target landmark in World
-      Range   BoundedRange // parameter bounds [Min, Max]; travel is measured from ProbeValue
-      Probe   float64      // parameter value at Planar2DoF.Origin
-      Sign    float64      // +1 if increasing parameter advances along Heading, -1 if opposite
-  }
-
-  type Planar2DoF struct {
-      Origin pose.Point // landmark position when AxisA == AxisA.Probe and AxisB == AxisB.Probe
-      AxisA  LinearDoF
-      AxisB  LinearDoF
-  }
-
-  func SolvePlanar2DoF(sheet Planar2DoF, target pose.Point, priority FitPriority) (valA, valB float64, limited []InputField, ok bool)
-  ```
-  - Unit-test `SolvePlanar2DoF` directly across interior, edge, corner, unbounded (`+Inf`), parallel-axis, and BRP-gate-clipping cases without needing bicycle fixtures.
-
-#### [MODIFY] [bike.go](file:///Users/matt/src/bikegeo/internal/assembly/bike.go)
-- `OpenRearCockpit(frameset *Frameset, post postMounter, saddle Saddle, dynamicRailPitchDeg pose.Deg) (*RearCockpitDoF, error)`:
-  - Calls `MateSeatpost` and `MateSaddle` immediately (failing fast if incompatible).
-  - Exposes `Planar2DoF()` in `DynamicWorld` (computed directly from `frameset.Place(Dynamic)`'s `SeatTubeTop` heading and `dynamicRailPitchDeg` — no whole-bike `PlaceBike` probe!).
-  - `Clamp(insertionMm, railOffsetMm float64) (*SeatedFrameset, error)` — computes `railTurnFromCradle` in `DynamicWorld` so dynamic rail pitch equals `dynamicRailPitchDeg`, locks both `ClampedSeatpost` and `ClampedSaddle`, and returns an unforgeable `*SeatedFrameset`.
-  - `FitToBRP(target pose.Point) (*SeatedFrameset, []InputField, error)` — solves `Planar2DoF` with `PriorityBRPGate` and calls `Clamp`.
-- `(*SeatedFrameset).AttachFront(spacersMm float64, stem Stem, bar Handlebar, dynamicBarRollDeg pose.Deg) (*Build, error)`:
-  - Calls `MountStem` and `MountHandlebar` (computing `rollTurnFromStem` in `DynamicWorld`), returning an unforgeable `*Build`.
-- `(*Build).Place(state LoadState) Placement`:
-  - Runs the **exact same forward transform composition** for `Static` and `Dynamic`:
-    1. `fsPlaced := b.frameset.Place(state)` (`frameToWorld`)
-    2. `postPlaced := b.seatpost.PlaceInWorld(frameToWorld)` (`cradleInWorld` includes `sagStep` only when `frameToWorld.Dst() == DynamicWorld`)
-    3. `saddlePlaced := b.saddle.Place(postPlaced.CradleInWorld)` (uses locked `railTurnFromCradle`!)
-    4. `stemPlaced := b.stem.Place(frameToWorld)`
-    5. `barPlaced := b.handlebar.Place(stemPlaced.BarClampInWorld)` (uses locked `rollTurnFromStem`!)
-  - Returns `Placement` (plain **exported-field** readout struct carrying `State LoadState`, `Setup` — an exported snapshot of the fitted inputs preserving existing `Placement.Setup.*` CLI JSON paths such as `Placement.Setup.Stem.{LengthMm,AngleDeg,SpacersMm}` and `Placement.Setup.Seatpost.InsertionMm` as well as `query/compare.go` inspect-link reconstruction — plus `Frameset`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`, `Bounds BuildBounds`, and `Summary BuildSummary` for lossless JSON/template access).
-- Add dedicated `build_states_test.go` proving:
-  1. On a `Build` with `SuspensionFork` (20% sag) + `LinkagePost` (`(-6, +5)` sag), `Place(Dynamic)` places rails at exact `dynamicRailPitchDeg` and bar at `-dynamicBarRollDeg`.
-  2. Calling `Place(Static)` on that **exact same `*Build`** unloads the post by `(+6, -5)` in shaft coordinates and rotates all frame-clamped landmarks about `BB` by `pitch_static - pitch_dynamic` to `< 1e-12 mm`!
-
-#### [MODIFY] [fitting.go](file:///Users/matt/src/bikegeo/internal/assembly/fitting.go), [build_fitting.go](file:///Users/matt/src/bikegeo/internal/assembly/build_fitting.go), & [scoring.go](file:///Users/matt/src/bikegeo/internal/assembly/scoring.go)
-- `OpenFrontCockpit(seated *SeatedFrameset, stemAngleDeg pose.Deg, stemClampHeightMm float64, stemLenRange BoundedRange, bar Handlebar, dynamicBarRollDeg pose.Deg) (*FrontCockpitDoF, error)` → solves continuous `(SpacersMm, StemLengthMm)` via `SolvePlanar2DoF` for `/bike`'s continuous fitting readout.
-- `FitPostSetback` → uses `SolvePlanar2DoF` on the `(InsertionMm, SetbackMm)` sheet directly.
-- Replace `forkScoreBase`'s magic array index lookups (`weighted(1)`, `weighted(7)`, `weighted(9)`) in [scoring.go](file:///Users/matt/src/bikegeo/internal/assembly/scoring.go#L283-L307) with explicit named score methods evaluated on `*SeatedFrameset` (`scoreSeatedFrameset`), and have `FitBuilds` iterate `(spacers, stemOption, bar)` via `seated.AttachFront(...)` directly.
-
----
-
-### Stage 7: Migrate `catalog`, `compare`, `query`, `web`, and `cmd/bikegeo` + Clean Up `Q#` Comments
-
-Wire all outer packages cleanly onto the new domain types and delete obsolete `*Setup` glue.
-
-#### [MODIFY] `internal/catalog` ([frame.go](file:///Users/matt/src/bikegeo/internal/catalog/frame.go), [forks.go](file:///Users/matt/src/bikegeo/internal/catalog/forks.go), [seatposts.go](file:///Users/matt/src/bikegeo/internal/catalog/seatposts.go), [saddle.go](file:///Users/matt/src/bikegeo/internal/catalog/saddle.go), [handlebars.go](file:///Users/matt/src/bikegeo/internal/catalog/handlebars.go), [stems.go](file:///Users/matt/src/bikegeo/internal/catalog/stems.go), [chart_consistency_test.go](file:///Users/matt/src/bikegeo/internal/catalog/chart_consistency_test.go), [basis_search_test.go](file:///Users/matt/src/bikegeo/internal/catalog/basis_search_test.go))
-- `catalog.FrameSize` holds `ChartDims assembly.FrameDimensions` (keeping `chart_consistency_test.go` column nudging simple and direct) and constructs validated `assembly.Frame` values via `assembly.NewFrame`.
-- `catalog.ForkOption` constructs a concrete `assembly.RigidFork` or `assembly.SuspensionFork`; `Frame.BasisFork` is a concrete `assembly.BasisFork` (eliminating `SteererBasis` sentinel checks!).
-- `catalog.Seatposts()` returns validated `RigidPost` / `LinkagePost` values (keeping `redshift_shockstop_pro` at `staticSetback: 12, sagStep: (0, 0)` in this behavior-preserving refactor so all existing numerical pins pass unchanged, ready for Milestone 6's `7 mm` + `(-6, +5)` switch).
-
-#### [MODIFY] [compare.go](file:///Users/matt/src/bikegeo/internal/compare/compare.go)
-- Accept physical forks only (`PhysicalFork` consumer interface in `compare.go`), deleting both the `SteererBasis` runtime guard and the duplicate `validateForkLowerCup` SHIS switch table (`MateFrameset` validates SHIS in one canonical place).
-- Delete dummy `InsertionMm: bounds.EffectiveMinInsertionMm` (`// the saddle fit replaces it`) and dummy `StemSetup` fields from `compare.Request`.
-
-#### [MODIFY] `internal/query` ([bike.go](file:///Users/matt/src/bikegeo/internal/query/bike.go), [compare.go](file:///Users/matt/src/bikegeo/internal/query/compare.go)) & `internal/web` ([bike_page.go](file:///Users/matt/src/bikegeo/internal/web/bike_page.go), [compare_page.go](file:///Users/matt/src/bikegeo/internal/web/compare_page.go), [diagram.go](file:///Users/matt/src/bikegeo/internal/web/diagram.go))
-- `query.Bike` holds catalog-resolved parts + `BikeParams` (raw user form inputs so `400` error pages still echo invalid user numbers in `<input>` controls), and `b.Assemble() (*assembly.Build, error)` builds the validated `*assembly.Build` inside `Evaluate()`.
-- `compare_page.go`'s `brpFitNote` and `bike_page.go`'s form bounds read `Placement.Bounds` (`BoundStatus`) and `RearCockpitDoF` directly instead of recomputing `SeatpostInsertionBounds` and `RailOffsetLimitMm`.
-- `web/diagram.go` defines its own private `screenSpace = pose.NewCoordinateSystem("web:screen")` and thin consumer helpers for drawing component outlines from `Placement`.
-- Keep all existing `cmd/bikegeo/main_test.go` CLI assertions green unchanged via the exported `Placement.Setup` snapshot (deferring any cleanup of `Placement.Setup`'s JSON shape to a dedicated, isolated follow-up slice after Stage 7 so test-changing diffs stay small and easy to review).
-- Strip remaining `(Q...)` comment references across `cmd/` and `internal/`, keeping self-contained plain-English explanations.
+#### [MODIFY] Docs & [DELETE] `docs/implementation_plan.md` (Final Step)
+- Run `make pre-commit` and `make deadcode` (fixing any unreachable helper surfaced by retiring `BikeSetup`).
+- Update `docs/DESIGN.md` (§7 Active Roadmap) and `docs/fit-audit/README.md` to remove the completed refactor item and mark **Fit Audit Stage 2 & Physical Fenrir Check** as the active next step.
+- **Delete `docs/implementation_plan.md`** in the final commit of Stage 5.
 
 ---
 
 ## Verification Plan
 
-### Automated Tests & Static Checks
-After **every** stage (2 through 7):
+After **every** stage (Stages 1 through 5):
 ```sh
 make pre-commit
 ```
 Which runs:
 1. `go fix ./...` and `go fmt ./...`
 2. `go vet ./...`
-3. `make boundary` (std-lib-only binary check + banned terms check)
-4. `go tool exhaustive ./...` (verifies every `LoadState`, `LowerBore`, `LowerCupStandard`, `ForkTravel`, `FitTier`, and `InputField` switch is exhaustive)
-5. `go test -v ./...` (all unit, catalog chart-consistency, basis-search, solver, compare, query, browserless web HTML/SVG, and CLI JSON tests)
+3. `make boundary` (standard-library-only binary check + banned-word checks)
+4. `go tool exhaustive ./...` (all enum switches across `bounds`, `parts`, `assembly`, `scoring`, `web`)
+5. `go test -v ./...`
 
-After Stage 7 completes, also run:
+In Stage 5 before the final commit:
 ```sh
 make deadcode
-make bench
 ```
-- `make deadcode` verifies zero unreachable functions from `main` or `-test` (confirming no leftover `*Setup` shims remain).
-- `make bench` confirms `BenchmarkComparePage/selected_bar` stays on par with or faster than baseline (since single-pass `Frameset` leveling halves trig per frameset and `CoordinateSystem` is a `uint16` register compare).
-
-### Isolated Per-Part Review Check
-Verify the primary design goal directly:
-- Read `internal/assembly/seatpost.go`, `saddle.go`, `stem.go`, `handlebar.go`, `frame.go`, and `fork.go` one file at a time: confirm each file defines its own `CoordinateSystem`, validates its own intrinsic invariants at construction, imports zero catalog/web code, and exposes only its mating port without knowing downstream bike assembly details.
+Confirming zero unreachable functions in production or test packages after `setup_snapshot.go` and `forkMetadata` are removed.

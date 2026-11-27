@@ -44,7 +44,7 @@ The audit gives Matt a verdict on each question below: *holds*, *defect found*, 
 
 For T6, sample a grid of legal points and look for one that beats the solver under the caller’s objective. A sample that beats it by more than the tolerance stated in the note is a counterexample. A finite grid can miss an optimum between samples, so a clean grid alone leaves the claim **Observed**.
 
-Fit gates referenced throughout are the `FitGate*` constants and `fitBoundTolMm` in [`fitting.go`](../../internal/assembly/fitting.go), applied in [`scoring.go`](../../internal/assembly/scoring.go): `|BRP miss Y| ≤ 2 mm`, `|BRP miss X| ≤ 10 mm`, and `GripR ≤ 1`. `GripR` is the HandGrip miss normalized by the fit oval, where 1 is the oval’s edge. A BRP miss is `target − placed` (`BuildScore.BrpMissXMm`, `BrpMissYMm`).
+Fit gates referenced throughout are the `FitGate*` constants and `fitBoundTolMm` in `internal/assembly`, applied in `internal/scoring`: `|BRP miss Y| ≤ 2 mm`, `|BRP miss X| ≤ 10 mm`, and `GripR ≤ 1`. `GripR` is the HandGrip miss normalized by the fit oval, where 1 is the oval’s edge. A BRP miss is `target − placed` (`BuildScore.BrpMissXMm`, `BrpMissYMm`).
 
 ## Nomenclature
 
@@ -80,7 +80,7 @@ Finish settling the physical geometry and domain rules before writing the new mo
 
 ### Phase 2: Implement the ruled model slices (`WORKFLOW.md`)
 
-The behavior-preserving part-and-mate architecture refactor ([`implementation_plan.md`](../implementation_plan.md), Stages 1–7, plus the post-Stage-7 `Placement.Setup` readout cleanup) runs first while Stage 2 is paused. Once Stage 2 (including the Fenrir check) completes, plan and implement the Milestone 6 physical-model slices under [`WORKFLOW.md`](../WORKFLOW.md) (Horizon 2 → Horizon 3):
+The package-sealing and delegation refactor ([`implementation_plan.md`](../implementation_plan.md), Stages 1–5, including retiring `Placement.Setup`) runs first while Stage 2 is paused. Once Stage 2 (including the Fenrir check) completes, plan and implement the Milestone 6 physical-model slices under [`WORKFLOW.md`](../WORKFLOW.md) (Horizon 2 → Horizon 3):
 
 - **Done (Slice 23, Q173):** Compile-time coordinate-space (`UnpitchedChart`, `StaticWorld`, `DynamicWorld`), local orientation (`Pose[Dir, W]`, `TurnDeg[FromDir, ToDir]`), affine (`Point[S]` vs. `Vec[S]`), and rigid `Transform[Src, Dst]` type safety in `internal/pose` and `internal/assembly`.
 - Rigidly clamped saddle and handlebar orientation between static and dynamic placements (Q163, Q169).

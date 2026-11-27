@@ -18,22 +18,37 @@ This document is the present-tense normative specification for `bikegeo` (`cmd/b
 ```text
 cmd/bikegeo/          entrypoint: `serve` on :8080, plus URL-query JSON CLI (`compare`, `bike`)
 internal/pose/        concrete 2D affine primitives, fluent turtle poses, rigid transforms, runtime CoordinateSystems
-internal/assembly/    part specs, mating ports, incremental assemblies, load states, fitting, scoring
+internal/bounds/      LoadState, InputField/InputError, BoundedRange, BoundStatus, 1-DoF SlideJoint
+internal/parts/       sealed Frame, Fork, Seatpost, Saddle, Stem, Handlebar, typed ports, part-local Sketches
+internal/assembly/    Frameset → SeatedFrameset → Build, joint-projected Planar2DoF solver, PlacedNode & Placement
+internal/scoring/     0–100 weighted BuildScore, FitOval, 4-tier comparator, discrete FitFrontBuilds
 internal/catalog/     18 frames, 16 forks, 15 bars, 4 seatposts, 107 stems, SQlab 610, default targets & weights
 internal/compare/     multi-frame expansion, fitting, ranking, and pruning
 internal/query/       shared url.Values parsing and catalog resolution for CLI and web (no net/http or templates)
-internal/web/         pure Web 1.0 handlers, HTML/SVG views, embedded templates (no JS)
+internal/web/         pure Web 1.0 handlers, HTML/SVG views, PlacedNode SVG projection, embedded templates (no JS)
 ```
 
-- Dependencies flow `cmd → {web, query, compare, catalog, assembly}`, `web → {query, compare, catalog, assembly, pose}`, `query → {compare, catalog, assembly, pose}`, `compare → {assembly, pose}`, `catalog → {assembly, pose}`, `assembly → pose`.
-- Neither `assembly` nor `compare` imports `catalog`; callers pass catalog data explicitly so both packages unit-test with small fixtures.
+- Dependencies form a strict DAG:
+  - `cmd → {web, query, compare}`
+  - `web → {query, compare, catalog, scoring, assembly, parts, bounds, pose}`
+  - `query → {compare, catalog, scoring, assembly, parts, bounds, pose}`
+  - `compare → {scoring, assembly, parts, bounds, pose}`
+  - `catalog → {scoring, assembly, parts, bounds, pose}`
+  - `scoring → {assembly, parts, bounds, pose}`
+  - `assembly → {parts, bounds, pose}`
+  - `parts → {bounds, pose}`
+  - `bounds → {pose}`
+- Neither `parts`, `assembly`, `scoring`, nor `compare` imports `catalog`; callers pass catalog data explicitly so domain packages unit-test with small fixtures.
 - `cmd/bikegeo` depends only on `bikegeo` packages and the Go standard library (`make boundary`).
 - `make boundary` bans `chassis`, `cad` (use `basis`), and non-score words (`price`, `pricing`, `cost`, `cheap`, `ledger`) in any case under `cmd/` and `internal/`.
 
 ### Go Idioms & Encapsulation Policy
 
-- **Consumer-side thin interfaces (1–3 methods):** Producers return concrete structs (`RigidPost`, `LinkagePost`, `RigidFork`, `SuspensionFork`, `BasisFork`, `Frame`, `Saddle`, `Stem`, `Handlebar`). Interfaces are defined in the consumer file right next to the caller (`postMounter` in `seatpost.go`, `forkMounter` in `frameset.go`, rendering helpers in `web/diagram.go`) and only where implementations genuinely vary.
-- **Invariant-carrying types vs. readout snapshots:** Domain types whose validity must hold by construction (`pose.Point`/`Vector`/`Heading`/`Pose`/`Transform`, validated part specs, `Frameset`, `SeatedFrameset`, `Build`) keep **unexported fields** and are built only through validating constructors and mating functions. Output and readout structs (`Placement`, `BoundStatus`, `BuildScore`, `Fitting`, CLI result structs) use **exported fields** so `encoding/json`, `html/template`, and tests read them directly without custom linters or heavy adapter boilerplate.
+- **Package-level sealing:** Go's privacy boundary is the package, not the struct. Separating `bounds`, `parts`, `assembly`, and `scoring` ensures outer layers cannot scrape private component or build fields or construct domain structs outside their validating constructors. Even within a package, files collaborate through constructors and methods rather than cross-file private field access.
+- **Consumer-side thin interfaces + polymorphic part families:**
+  - Single-implementation roles (`Frame`, `Saddle`, `Stem`, `Handlebar`, `Frameset`, `SeatedFrameset`, `Build`) export concrete structs with zero producer interfaces; orthogonal consumers (such as `web/diagram.go`) define 1–3 method interfaces at the point of use.
+  - Polymorphic part families (`RigidPost` / `LinkagePost`; `RigidFork` / `SuspensionFork` / `BasisFork`) export one minimal 2–3 method physical interface from `internal/parts` (`parts.Seatpost`, `parts.Fork`, `parts.PhysicalFork`) so `catalog`, `compare`, and `assembly` hold and pass polymorphic part values without duplicating interface definitions across packages.
+- **Delegation over type-switching & shadow bags:** `assembly`, `scoring`, and `web` never type-switch on concrete part types or reconstruct raw `BikeSetup` property bags. Adjustable joints carry their own local unit movement vectors (`bounds.SlideJoint`), parts expose their own local millimeter `Sketch` geometry in `PartLocal`, and readout structs (`Placement`, `FittedSettings`, `BoundStatus`, `BuildScore`, `Fitting`) use **exported fields** restricted to placed poses, bound statuses, and compact query settings.
 
 ---
 
@@ -64,13 +79,15 @@ All trigonometry lives unexported inside `internal/pose`. Lengths are `float64` 
 
 ## 3. Component & Mate Specifications
 
-Each physical component lives in its own file under `internal/assembly`, owns its local coordinate system, validates its own dimensions, and connects to neighbors exclusively through typed ports.
+Each physical component lives in its own file under `internal/parts`, owns its local coordinate system and millimeter `Sketch` (`LocalSpan` and `LocalSegment` primitives with zero SVG/CSS knowledge), validates its own dimensions, and connects to neighbors exclusively through typed ports and `bounds.SlideJoint`s.
 
-### Shared Bounds (`bounds.go`) & Load States (`state.go`)
+### Shared Bounds, Load States, and Sliding Joints (`internal/bounds`)
 
-- `LoadState` is a closed enum (`Static`, `Dynamic`), checked by `exhaustive`.
+- `LoadState` is a closed enum (`Static`, `Dynamic`), checked by `exhaustive`, paired with the ambient world `CoordinateSystem`s (`UnpitchedChart`, `StaticWorld`, `DynamicWorld`).
+- `InputField` and `*InputError` attribute validation failures and hardware bound clamps to a canonical physical input across `bounds`, `parts`, `assembly`, `scoring`, `query`, and `web`.
 - `BoundedRange` holds a validated `[Min, Max]` interval with provenance labels (`MinSource`, `MaxSource`), supporting `IntersectRanges(a, b)` (taking the tighter bound and preserving its source), `Midpoint()`, `Clamp(v)`, and `Bind(field, value) (BoundStatus, error)`.
 - `BoundStatus` is an exported readout struct (`Field`, `Value`, `Min`, `Max`, `MinSource`, `MaxSource`) with `MarginMm()`, `WithinMargin(mm)`, `AtMin(tol)`, and `AtMax(tol)`, serving fitting limits, margin scoring, UI notes, and workshop proximity warnings from one source of truth.
+- `SlideJoint` encapsulates a bounded 1-DoF translational joint placing a child `CoordinateSystem` in a parent `CoordinateSystem` with fixed relative rotation `turnDeg` and unit-length movement vector `stepPerMm` (displacement of child origin per `+1 mm` of parameter increase), binding scalar values into `(pose.Transform, BoundStatus, error)` and projecting directly into world `LinearDoF` axes without external sign conventions.
 
 ### Frame & Headset (`frame.go`, `fork.go`)
 
@@ -96,13 +113,13 @@ Each physical component lives in its own file under `internal/assembly`, owns it
 - **Upper headset & steerer limit:** shared `DefaultUpperStackMm = 11 mm` (illustrative) above `HeadTubeTop` and conservative `DefaultMaxSpacersMm = 30 mm` spacer cap above the upper cover.
 - **Cup resolution in `catalog`:** when pairing a compatible physical fork with a frame, keep the frame's `DefaultLowerCup.Standard` whenever it accepts the steerer (so a straight steerer in a `Bore44Pressed` frame keeps `ZS44` if the frame defaults to `ZS44` and `EC44` otherwise; a tapered steerer always takes `EC44`).
 
-### Fork (`fork.go`)
+### Fork (`internal/parts/fork.go`)
 
 - **Local coordinate system (`ForkLocal`):** origin `(0, 0)` at the crown race seat (mating `LowerCupBottom`), `+X` down the steerer axis, `+Y` forward perpendicular to the steerer (rake direction, `90°` CCW from steerer-down).
-- **Concrete fork types** (all satisfy `frameset.go`'s 2-method consumer interface `forkMounter{CheckHeadset, AxleInFork}`):
-  - `RigidFork`: physical steerer (`Straight 1-1/8"` or `Tapered`), `StaticA2cMm > 0`, finite `RakeMm`; `AxleInFork(_)` is `(StaticA2cMm, RakeMm)` in both states.
-  - `SuspensionFork`: physical steerer, `StaticA2cMm > 0`, closed `ForkTravel`, `SagPct ∈ [0, 100]` with dynamic `A2C > 0`; `AxleInFork(Static)` is `(StaticA2cMm, RakeMm)` and `AxleInFork(Dynamic)` is `(StaticA2cMm − Travel·SagPct/100, RakeMm)`.
-  - `BasisFork`: chart-basis hypothesis (no physical steerer, no travel); `CheckHeadset` accepts `LowerCupBareHeadTube` or any physical cup fitting `LowerBore`; `AxleInFork(_)` is `(BasisA2cMm, RakeMm)`.
+- **Polymorphic fork family** (`parts.Fork` exports `CheckHeadset`, `AxleInFork(LoadState)`, and physical `SagStatus() (ForkTravel, float64, bool)`; `parts.PhysicalFork` embeds `Fork` and adds `Steerer() PhysicalSteerer`):
+  - `RigidFork`: physical steerer (`Straight 1-1/8"` or `Tapered`), `StaticA2cMm > 0`, finite `RakeMm`; `AxleInFork(_)` is `(StaticA2cMm, RakeMm)` in both states; `SagStatus()` returns `(TravelRigid, 0, false)`.
+  - `SuspensionFork`: physical steerer, `StaticA2cMm > 0`, closed `ForkTravel`, `SagPct ∈ [0, 100]` with dynamic `A2C > 0`; `AxleInFork(Static)` is `(StaticA2cMm, RakeMm)`, `AxleInFork(Dynamic)` is `(StaticA2cMm − Travel·SagPct/100, RakeMm)`, and `SagStatus()` returns `(Travel, SagPct, true)`.
+  - `BasisFork`: chart-basis hypothesis (no physical steerer, no travel); `CheckHeadset` accepts `LowerCupBareHeadTube` or any physical cup fitting `LowerBore`; `AxleInFork(_)` is `(BasisA2cMm, RakeMm)`; `SagStatus()` returns `(TravelRigid, 0, false)`.
 - **Closed travel & compatibility table:**
 
 | Travel | Recommended Sag | Current Compare Sweep | `/bike` Default Sag | Seated Class Sag (Milestone 6) | Stand-In Rigid Class Unlocked |
@@ -119,7 +136,7 @@ Each physical component lives in its own file under `internal/assembly`, owns it
   - `SeatpostLocal`: origin `(0, 0)` at the bottom tip of the shaft, `+X` upward along the shaft centerline, `+Y` perpendicular rearward (`90°` CCW).
   - `SeatpostCradle`: origin `(0, 0)` at the rail-clamp pivot (the transverse axis where saddle rails sit and tilt), `+X` parallel to the shaft centerline.
 - **Intrinsic invariants:** `0 < MinInsertionMm ≤ MaxInsertionMm < TotalLengthMm` (guaranteeing positive head/linkage stack height `TotalLengthMm − MaxInsertionMm`), `SetbackMm ≥ 0`, `RailClampLengthMm > 0`.
-- **Concrete seatpost types** (satisfying `seatpost.go`'s consumer interface `postMounter`):
+- **Concrete seatpost types** (satisfying `parts.Seatpost{TotalLengthMm, InsertionLimits, RailClamp}`):
   - `RigidPost`: constant cradle at `NewPoint(SeatpostLocal, TotalLengthMm, SetbackMm)` at `0°` relative rotation in both `Static` and `Dynamic`.
   - `LinkagePost`: static cradle at `NewPoint(SeatpostLocal, TotalLengthMm, StaticSetbackMm)`, dynamic cradle shifted by `sagStep Vector` in `SeatpostLocal` at `0°` relative rotation (keeping rail pitch constant relative to the shaft through travel). Catalog dimensions, shim/illustrative assumptions, and the Endurance-manual-inferred 20% sag vector for the 350 mm Redshift ShockStop PRO Endurance (whose rider-seated sag remains unmeasured) live in [seatpost_redshift_shockstop_pro.md](../internal/catalog/seatpost_redshift_shockstop_pro.md).
 - **Mate (`MateSeatpost(socket SeatTubeSocket, post postMounter)`):**
@@ -169,15 +186,15 @@ Assembly progresses monotonically through immutable, unforgeable domain objects:
 4. **Unified Multi-State Evaluation (`(*Build).Place(state LoadState) Placement`):**
    - Placing a `*Build` in `Static` and `Dynamic` runs the **exact same `pose.Compose` chain** using `Frameset.Place(state)` and `ClampedSeatpost.Place(frameToWorld, state)`.
    - Clamped saddle and handlebar orientations move rigidly with the post head and frame pitch between states without re-leveling to gravity.
-   - Returns an exported-field `Placement` readout snapshot (`State`, `Setup`, `Frameset`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`, `Bounds`, `Summary`) with derived readout methods (`WheelbaseMm`, `TrailMm`, `RearCenterMm`, `RcWbRatioPct`, `LeveledReachMm`, `LeveledStackMm`, `EttMm`, `SaddleHeightMm`, `BrpToGripDistMm`, `SitBonesToGripRiseMm`). `Setup` preserves the fitted input settings for CLI JSON consumers and lossless `/bike` inspect links through Stage 7, before a dedicated post-refactor slice cleans up that JSON shape.
+   - Returns an exported-field `Placement` readout snapshot (`State`, `Settings`, `Frameset`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`, `Bounds`, `Summary`, plus `Nodes []PlacedNode` carrying `json:"-"` for uniform SVG `Sketch` projection) with derived readout methods (`SeatAxisToPostTopMm`, `SaddleHeightMm`, `BrpToGripDistMm`, `SitBonesToGripRiseMm`). `Settings` (`FittedSettings`) holds only the compact scalar build settings needed for lossless `/bike` URL round-tripping and CLI JSON output, with zero duplicate `BikeSetup` spec bags.
 
 ---
 
 ## 5. Degrees of Freedom, Fitting, and `0–100` Scoring
 
-### Explicit 2-DoF Affine Solver (`dof.go`, `fitting.go`)
+### Explicit 2-DoF Affine Solver (`internal/assembly`)
 
-Continuous fitting (`ApplyFitting` on `/bike`, `FitToBRP`, `OpenFrontCockpit`, and hypothetical `FitPostSetback`) operates on a standalone `Planar2DoF` value (origin point plus two bounded `LinearDoF` axes in `DynamicWorld`) via `SolvePlanar2DoF`:
+Continuous fitting (`FitToBRP`, `OpenFrontCockpit`, and `FitPostSetback`) projects pairs of `bounds.SlideJoint`s through their parent-to-world `pose.Transform`s into a standalone `Planar2DoF` value (origin point plus two bounded `LinearDoF` movement headings in `DynamicWorld`) solved via `SolvePlanar2DoF`:
 
 - **Reachable target:** exact 2×2 decomposition (`pose.DecomposeAlong`) within bounds (`fitBoundTolMm = 1e-9 mm`).
 - **`PriorityNearest` (cockpit & setback):** minimizes Euclidean miss over the feasible boundary.
@@ -185,7 +202,7 @@ Continuous fitting (`ApplyFitting` on `/bike`, `FitToBRP`, `OpenFrontCockpit`, a
 - Every fitted result is verified by forward `Build.Place(Dynamic)`.
 - **Saddle-first rule:** saddle fit is primary; build fitting fits the saddle once per fork configuration and holds it fixed while evaluating front-cockpit options.
 
-### Discrete Build Fitting & `0–100` Weighted Scoring (`build_fitting.go`, `scoring.go`)
+### Discrete Build Fitting & `0–100` Weighted Scoring (`internal/scoring`)
 
 - **Stem catalog (`docs/stems.yaml` → `internal/catalog/stems.go`):** 107 concrete `(length, angle)` stems across `40–120 mm`, each carrying a composite `0–100` score from four sub-attributes: length availability (35), angle availability (30), length room in `40–100 mm` (20), and angle room in the length's mainstream span (15).
 - **HandGrip Fit Oval:** centered on the HandGrip target, semi-minor `10 mm`, semi-major `20 mm`, major axis tilted `30°` clockwise from vertical (`60°` world heading). Normalized radius `R ≤ 1.0` passes the grip gate.
@@ -240,20 +257,16 @@ Continuous fitting (`ApplyFitting` on `/bike`, `FitToBRP`, `OpenFrontCockpit`, a
 
 ## 7. Active Roadmap
 
-1. **Behavior-Preserving Idiomatic Go Part-and-Mate Refactor ([implementation_plan.md](implementation_plan.md), Stages 1–7):**
-   - Runs ahead of the paused Fenrir check without changing catalog/CLI/web numerical outputs or existing CLI `Placement.Setup` JSON assertions.
-   - Stage 1: Workflow & modular spec cleanup (`WORKFLOW.md`, `AGENTS.md`, `DESIGN.md`).
-   - Stage 2: Replace phantom generics in `internal/pose` with runtime `CoordinateSystem` checks and fluent turtle chaining.
-   - Stage 3: `LoadState`, `BoundedRange`/`BoundStatus`, and isolated `Seatpost` (`RigidPost`, `LinkagePost`, `postMounter`).
-   - Stage 4: Isolated `Saddle`, `Stem` (with sealed `SteererLocal → FrameLocal` `SteererPort`), and `Handlebar` with clamped relative joint angles.
-   - Stage 5: `Frame`, concrete `Fork` types (`RigidFork`, `SuspensionFork`, `BasisFork`, `forkMounter`), and single-pass `Frameset`.
-   - Stage 6: Incremental `SeatedFrameset` → `Build`, standalone `Planar2DoF` solver, and named scoring.
-   - Stage 7: Migrate `catalog`, `compare`, `query`, `web`, and CLI callers while retaining `Placement.Setup` readout compatibility; strip remaining `Q#` citations.
-2. **CLI & `Placement.Setup` Readout Cleanup (small follow-up slice after Stage 7):**
-   - Replace the transitional `Placement.Setup` snapshot with a cleaner fitted-settings readout shape and update CLI JSON assertions in one isolated, easy-to-review slice.
-3. **Fit Audit Stage 2 & Physical Fenrir Check ([docs/fit-audit/README.md](fit-audit/README.md), paused until after items 1–2):**
+1. **Package-Sealed Delegation & `BikeSetup` Retirement ([implementation_plan.md](implementation_plan.md), Stages 1–5):**
+   - Runs ahead of the paused Fenrir check, preserving all physical math, catalog invariants, and SVG visual outputs while sealing invariant layers across four domain packages, delegating joint kinematics and part sketches, retiring `Placement.Setup` (`BikeSetup`) in favor of compact `FittedSettings`, and deleting `implementation_plan.md` upon completion.
+   - Stage 1: Extract `internal/bounds` (`LoadState`, `InputField`/`InputError`, `BoundedRange`/`BoundStatus`, and 1-DoF `SlideJoint`).
+   - Stage 2: Extract sealed `internal/parts` (`Frame`, `Fork` with `SagStatus`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`, `SlideJoint` mates, and part-local millimeter `Sketch`es).
+   - Stage 3: Delegate 2-DoF joint projection (`ProjectSlideJoint`) in `internal/assembly` and `PlacedNode` `Sketch` projection in `internal/web/diagram.go`.
+   - Stage 4: Extract `internal/scoring` (`ScoreBuild` delegating directly to `*assembly.Build` and `FitFrontBuilds` constructing kept builds via `AttachFront`).
+   - Stage 5: Retire `Placement.Setup` (`setup_snapshot.go` and `forkMetadata`) in favor of `FittedSettings`, verify `make deadcode`, update roadmap links, and delete `docs/implementation_plan.md`.
+2. **Fit Audit Stage 2 & Physical Fenrir Check ([docs/fit-audit/README.md](fit-audit/README.md), paused until after item 1):**
    - Verify forward placement kinematics and reconcile Matt's physical static Otso Fenrir measurements ([fenrir-measurements.md](fit-audit/fenrir-measurements.md), currently frozen) against the matching installed component and static placements — accounting for the installed FAIR Drop Best rear assembly, matching grip inset station (`80 mm` workshop mark vs. `70 mm` catalog default), and converting straight crown-to-axle tape readings to steerer-parallel fork A2C rather than comparing directly against stock catalog defaults.
-4. **Milestone 6: Static/Dynamic Model & Rider Fit Updates (gated on Stage 2 Fenrir check):**
+3. **Milestone 6: Static/Dynamic Model & Rider Fit Updates (gated on Stage 2 Fenrir check):**
    - Switch catalog `redshift_shockstop_pro` to its `7 mm` static setback and Endurance-manual-inferred `(-6, +5) mm` 20% sag step (see provenance and unmeasured-sag status in [seatpost_redshift_shockstop_pro.md](../internal/catalog/seatpost_redshift_shockstop_pro.md)).
    - Seated fork sag per travel class (`15%` / `20%` / `25%`), single rider-chosen handlebar at `0°` dynamic roll, seatpost option fitting, and `+5°` SQlab 610 rail angle for rail-position scoring.
    - Saddle-to-cockpit coupling (`coupledHbTarget = BRP_dynamic + (HB_target − BRP_target)`).

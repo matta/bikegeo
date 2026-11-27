@@ -66,6 +66,7 @@ Each slice plan lives in `docs/SLICE<n>.md` (for example `SLICE24.md`) only unti
   1. Updates any affected component/surface spec sections in `DESIGN.md` in place.
   2. Updates the Active Roadmap in `DESIGN.md`.
   3. Deletes `docs/SLICE<n>.md` and removes/rewrites any links to it.
+- **Multi-stage `implementation_plan.md` lifecycle:** when a multi-stage `docs/implementation_plan.md` is used in place of a single `SLICE<n>.md`, its final stage must perform the same cleanup — updating `DESIGN.md` and `docs/fit-audit/README.md` roadmaps/links and **deleting `docs/implementation_plan.md`**.
 
 ---
 
