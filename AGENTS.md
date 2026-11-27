@@ -35,6 +35,8 @@ Write plain-language subjects (for example `Fix fork sag validation`). Conventio
 
 ## Idiomatic Go & Encapsulation
 
+Follow the generics and interface guidelines in [docs/WRITE_CODE.md](docs/WRITE_CODE.md):
+
 - **Accept thin interfaces, return concrete structs:** define interfaces in the **consumer** package and file (right next to the function that consumes them), never as large producer-side noun interfaces. Keep interfaces to **1–3 methods**, and use them only where physical or rendering implementations genuinely differ (for example `postMounter`, `forkMounter`, or a rendering helper in `web/diagram.go`). Where behavior is uniform, use plain concrete structs with zero interfaces.
 - **Avoid phantom generics:** reserve Go type parameters for language containers, general-purpose data structures, or eliminating identical duplicated functions. Prefer concrete structs with deterministic runtime `FrameID` assertions over type-level phantom tags.
 - **Correct-by-construction encapsulation:** invariant-carrying domain objects (`pose.Point`/`Pose`/`Transform`, validated part specs, `Frameset`, `SeatedFrameset`, `Build`) use **unexported fields** constructible only through validating constructors and mating functions. Output and readout snapshots (`Placement`, `BoundStatus`, `BuildScore`, `Fitting`, CLI result structs) use **exported fields** so `encoding/json`, templates, and tests work directly with minimal glue.

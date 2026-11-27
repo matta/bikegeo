@@ -72,10 +72,7 @@ Every stage below compiles cleanly and passes `make pre-commit` (`go fix`, `go f
 
 ### Stage 1: Workflow & Modular Design Specification (`docs/`, `AGENTS.md`)
 
-Retire permanent `Q#` numbering and reorganize the documentation so every component's design spec matches its Go file 1-to-1.
-
-#### [DELETE] [WRITE_CODE.md](file:///Users/matt/src/bikegeo/docs/WRITE_CODE.md)
-- Remove the untracked reference article copy before committing so the working tree stays clean.
+Retire permanent `Q#` numbering and reorganize the documentation so every component's design spec matches its Go file 1-to-1. Keep [WRITE_CODE.md](file:///Users/matt/src/bikegeo/docs/WRITE_CODE.md) as a permanent reference in the repo.
 
 #### [MODIFY] [WORKFLOW.md](file:///Users/matt/src/bikegeo/docs/WORKFLOW.md)
 - Keep the three Rolling-Wave horizons (Direction → 1-ahead `SLICE<n>.md` → Implementation & Diff Review) and model-tier routing.
