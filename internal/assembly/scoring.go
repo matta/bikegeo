@@ -8,7 +8,7 @@ import (
 	"github.com/matta/bikegeo/internal/pose"
 )
 
-// FitTier classifies a build against the active fit gates (Q61, Q63, Q76, Q90).
+// FitTier classifies a build against the active fit gates.
 type FitTier string
 
 const (
@@ -34,7 +34,7 @@ func (t FitTier) Rank() int {
 	}
 }
 
-// AttributeName names one of the 12 Q59a scoring attributes.
+// AttributeName names one of the 12 weighted build-scoring attributes.
 type AttributeName string
 
 const (
@@ -53,7 +53,7 @@ const (
 )
 
 // AttributeScore holds one attribute's 0–100 score and weight for a build.
-// Active is false for the four saddle-dependent attributes when no BRP target is active (Q63, Q76).
+// Active is false for the four saddle-dependent attributes when no BRP target is active.
 type AttributeScore struct {
 	Attribute AttributeName
 	Weight    float64
@@ -61,7 +61,7 @@ type AttributeScore struct {
 	Active    bool
 }
 
-// ScoreWeights holds the non-negative weights for the 12 Q59a attributes.
+// ScoreWeights holds the non-negative weights for the 12 scoring attributes.
 type ScoreWeights struct {
 	HandGrip          float64
 	SaddleBrpY        float64
@@ -77,7 +77,7 @@ type ScoreWeights struct {
 	Trail             float64
 }
 
-// StemOption is one discrete stem option (length, angle, and 0–100 composite score, Q58, Q97, Q100).
+// StemOption is one discrete stem option (length, angle, and 0–100 composite score).
 type StemOption struct {
 	LengthMm float64
 	AngleDeg pose.Deg
@@ -96,9 +96,9 @@ type BuildScore struct {
 	Attributes []AttributeScore
 }
 
-// FitOval is the legacy Area of Reasonable Fit around a HandGrip target (Q17).
-// Its major and minor axes pass through the HandGrip target center (not BB),
-// with the major axis oriented at MajorAxisHeadingDeg in DynamicWorld.
+// FitOval defines the HandGrip acceptance ellipse. Its major and minor axes
+// pass through the HandGrip target center (not BB), with the major axis
+// oriented at MajorAxisHeadingDeg in DynamicWorld.
 type FitOval struct {
 	SemiMinorMm, SemiMajorMm float64
 	MajorAxisHeadingDeg      pose.Deg
@@ -146,7 +146,8 @@ func (p gripOvalProjection) normalizedRadius(center, pt pose.Point) float64 {
 	return math.Hypot(minor, major)
 }
 
-// DefaultGripOval returns the Q17 HandGrip fit oval.
+// DefaultGripOval returns the standard HandGrip fit oval (10 mm semi-minor,
+// 20 mm semi-major, tilted 30° clockwise from vertical = 60° world heading).
 func DefaultGripOval() FitOval {
 	return FitOval{SemiMinorMm: 10, SemiMajorMm: 20, MajorAxisHeadingDeg: 60}
 }
@@ -244,13 +245,20 @@ func scoreForkSag(travel ForkTravel, sagPct float64) float64 {
 	}
 }
 
-func scoreInsertionMargin(insertionMm float64, bounds InsertionBounds) float64 {
-	margin := min(insertionMm-bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm-insertionMm)
-	return 100.0 * clamp01(margin/30.0)
+func scoreInsertionMarginMm(marginMm float64) float64 {
+	return 100.0 * clamp01(marginMm/30.0)
 }
 
 func scoreHandGrip(gripR float64) float64 {
 	return scoreThreePoint(gripR, 0, FitGateGripNormalizedRadius, 90, 2)
+}
+
+func scoreBrpY(absMissYMm float64) float64 {
+	return scoreThreePoint(absMissYMm, 0.5, FitGateBrpYMm, 50, 4)
+}
+
+func scoreBrpX(absMissXMm float64) float64 {
+	return scoreThreePoint(absMissXMm, 1, FitGateBrpXMm, 50, 20)
 }
 
 func scoreHandlebarSweep(backsweep pose.Deg) float64 {
@@ -261,72 +269,137 @@ func scoreSpacers(spacersMm float64) float64 {
 	return scoreRange(spacersMm, 0, 20, math.Inf(-1), DefaultMaxSpacersMm)
 }
 
-// forkScoreBase holds the fork-invariant parts of BuildScore computed once per
-// fork so FitBuilds can rank candidates without allocating AttributeScore slices.
-type forkScoreBase struct {
+func scoreRailOffset(railOffsetMm float64) float64 {
+	return scoreRange(railOffsetMm, -5, 5, -15, 15)
+}
+
+func scoreRcWbRatio(rcWbPct float64) float64 {
+	return scoreRange(rcWbPct, 37, 39, 34, 42)
+}
+
+func scoreLeveledBbDrop(bbDropMm float64) float64 {
+	return scoreRange(bbDropMm, 65, 75, 45, 95)
+}
+
+func scoreTrail(trailMm float64) float64 {
+	return scoreRange(trailMm, 98, 106, 78, 126)
+}
+
+func classifyFitTier(hasBrp, passBrp, passGrip bool) FitTier {
+	if !hasBrp {
+		if passGrip {
+			return FitsGrip
+		}
+		return FitsNeither
+	}
+	switch {
+	case passBrp && passGrip:
+		return FitsAll
+	case passBrp:
+		return FitsBRP
+	case passGrip:
+		return FitsGrip
+	default:
+		return FitsNeither
+	}
+}
+
+// seatedScoreBase holds the named rear-cockpit and frameset scoring terms
+// evaluated once on a *SeatedFrameset so FitBuilds can rank front-cockpit
+// combinations without allocating AttributeScore slices or indexing into
+// attribute arrays.
+type seatedScoreBase struct {
 	hasBrp       bool
 	passBrp      bool
 	brpMissXMm   float64
 	brpMissYMm   float64
 	activeWeight float64
-	handGripW    float64
-	brpYW        float64
-	brpXW        float64
-	forkSagW     float64
-	railW        float64
-	rcWbW        float64
-	insertW      float64
-	bbDropW      float64
-	trailW       float64
+	weights      ScoreWeights
+
+	brpYScore      float64
+	brpXScore      float64
+	forkSagScore   float64
+	railScore      float64
+	rcWbScore      float64
+	insertionScore float64
+	bbDropScore    float64
+	trailScore     float64
+
+	brpYW    float64
+	brpXW    float64
+	forkSagW float64
+	railW    float64
+	rcWbW    float64
+	insertW  float64
+	bbDropW  float64
+	trailW   float64
 }
 
-func newForkScoreBase(baseScore BuildScore, weights ScoreWeights) forkScoreBase {
-	a := baseScore.Attributes
-	weighted := func(i int) float64 {
-		if !a[i].Active {
-			return 0
+// scoreSeatedFrameset evaluates every rear-cockpit and frameset scoring
+// attribute directly on seated by name.
+func scoreSeatedFrameset(seated *SeatedFrameset, brpTarget *pose.Point, weights ScoreWeights) (seatedScoreBase, error) {
+	seated.requireValid()
+	fsPlaced := seated.DynamicFrameset()
+	rcWb := fsPlaced.RcWbRatioPct()
+	bbDrop := fsPlaced.LeveledBbDropMm()
+	trail := fsPlaced.TrailMm()
+	hasBrp := brpTarget != nil
+	brpMiss := pose.NewVector(DynamicWorld, 0, 0)
+	if hasBrp {
+		brpMiss = brpTarget.Sub(seated.DynamicSaddle().BRP.Origin())
+	}
+	for _, v := range []float64{rcWb, bbDrop, trail, brpMiss.X(), brpMiss.Y()} {
+		if !isFinite(v) {
+			return seatedScoreBase{}, fmt.Errorf("build scoring metric is not finite")
 		}
-		return a[i].Weight * a[i].Score
 	}
-	return forkScoreBase{
-		hasBrp:       baseScore.HasBrp,
-		passBrp:      baseScore.Tier == FitsAll || baseScore.Tier == FitsBRP,
-		brpMissXMm:   baseScore.BrpMissXMm,
-		brpMissYMm:   baseScore.BrpMissYMm,
-		activeWeight: weights.ActiveTotal(baseScore.HasBrp),
-		handGripW:    weights.HandGrip,
-		brpYW:        weighted(1),
-		brpXW:        weighted(2),
-		forkSagW:     weighted(5),
-		railW:        weighted(7),
-		rcWbW:        weighted(8),
-		insertW:      weighted(9),
-		bbDropW:      weighted(10),
-		trailW:       weighted(11),
+	activeWeight := weights.ActiveTotal(hasBrp)
+	if activeWeight <= 0 {
+		return seatedScoreBase{}, fmt.Errorf("score weights have zero active weight")
 	}
+
+	forkSagScore := scoreForkSag(seated.Frameset().ForkTravel(), seated.Frameset().ForkSagPct())
+	rcWbScore := scoreRcWbRatio(rcWb)
+	bbDropScore := scoreLeveledBbDrop(bbDrop)
+	trailScore := scoreTrail(trail)
+
+	base := seatedScoreBase{
+		hasBrp:       hasBrp,
+		brpMissXMm:   brpMiss.X(),
+		brpMissYMm:   brpMiss.Y(),
+		activeWeight: activeWeight,
+		weights:      weights,
+		forkSagScore: forkSagScore,
+		rcWbScore:    rcWbScore,
+		bbDropScore:  bbDropScore,
+		trailScore:   trailScore,
+		forkSagW:     weights.ForkSag * forkSagScore,
+		rcWbW:        weights.RcWbRatio * rcWbScore,
+		bbDropW:      weights.LeveledBbDrop * bbDropScore,
+		trailW:       weights.Trail * trailScore,
+	}
+	if hasBrp {
+		base.passBrp = math.Abs(brpMiss.Y()) <= FitGateBrpYMm+fitBoundTolMm &&
+			math.Abs(brpMiss.X()) <= FitGateBrpXMm+fitBoundTolMm
+		base.brpYScore = scoreBrpY(math.Abs(brpMiss.Y()))
+		base.brpXScore = scoreBrpX(math.Abs(brpMiss.X()))
+		base.railScore = scoreRailOffset(seated.Saddle().RailOffset().Value)
+		base.insertionScore = scoreInsertionMarginMm(seated.Seatpost().Insertion().MarginMm())
+		base.brpYW = weights.SaddleBrpY * base.brpYScore
+		base.brpXW = weights.SaddleBrpX * base.brpXScore
+		base.railW = weights.SaddleRailOffset * base.railScore
+		base.insertW = weights.SeatpostInsertion * base.insertionScore
+	}
+	return base, nil
 }
 
-// score returns a BuildScore without its Attributes slice, matching ScoreBuild
-// on Tier, Total, GripR, and BRP misses for ranking candidates in FitBuilds.
-func (b forkScoreBase) score(gripR, stemW, sweepW, spacersW float64) BuildScore {
+// rankScore returns a BuildScore without its Attributes slice, matching
+// buildScore on Tier, Total, GripR, and BRP misses for fast candidate pruning.
+func (b seatedScoreBase) rankScore(gripR, stemW, sweepW, spacersW float64) BuildScore {
 	passGrip := gripR <= FitGateGripNormalizedRadius+fitBoundTolMm
-	tier := FitsNeither
-	if !b.hasBrp {
-		if passGrip {
-			tier = FitsGrip
-		}
-	} else {
-		switch {
-		case b.passBrp && passGrip:
-			tier = FitsAll
-		case b.passBrp:
-			tier = FitsBRP
-		case passGrip:
-			tier = FitsGrip
-		}
-	}
-	// Sum in the same attribute order as ScoreBuild so floating-point rounding matches.
-	weighted := b.handGripW * scoreHandGrip(gripR)
+	tier := classifyFitTier(b.hasBrp, b.passBrp, passGrip)
+	// Sum in the exact 12-attribute order so floating-point rounding matches ScoreBuild.
+	weighted := b.weights.HandGrip * scoreHandGrip(gripR)
 	if b.hasBrp {
 		weighted += b.brpYW
 		weighted += b.brpXW
@@ -354,10 +427,46 @@ func (b forkScoreBase) score(gripR, stemW, sweepW, spacersW float64) BuildScore 
 	}
 }
 
+// buildScore returns the full BuildScore including the 12-attribute breakdown.
+func (b seatedScoreBase) buildScore(gripR, stemScore, sweepScore, spacersScore float64) BuildScore {
+	passGrip := gripR <= FitGateGripNormalizedRadius+fitBoundTolMm
+	tier := classifyFitTier(b.hasBrp, b.passBrp, passGrip)
+	w := b.weights
+	attrs := []AttributeScore{
+		{Attribute: AttrHandGrip, Weight: w.HandGrip, Score: scoreHandGrip(gripR), Active: true},
+		{Attribute: AttrSaddleBrpY, Weight: w.SaddleBrpY, Score: b.brpYScore, Active: b.hasBrp},
+		{Attribute: AttrSaddleBrpX, Weight: w.SaddleBrpX, Score: b.brpXScore, Active: b.hasBrp},
+		{Attribute: AttrStem, Weight: w.Stem, Score: stemScore, Active: true},
+		{Attribute: AttrHandlebarSweep, Weight: w.HandlebarSweep, Score: sweepScore, Active: true},
+		{Attribute: AttrForkSag, Weight: w.ForkSag, Score: b.forkSagScore, Active: true},
+		{Attribute: AttrSpacers, Weight: w.Spacers, Score: spacersScore, Active: true},
+		{Attribute: AttrSaddleRailOffset, Weight: w.SaddleRailOffset, Score: b.railScore, Active: b.hasBrp},
+		{Attribute: AttrRcWbRatio, Weight: w.RcWbRatio, Score: b.rcWbScore, Active: true},
+		{Attribute: AttrSeatpostInsertion, Weight: w.SeatpostInsertion, Score: b.insertionScore, Active: b.hasBrp},
+		{Attribute: AttrLeveledBbDrop, Weight: w.LeveledBbDrop, Score: b.bbDropScore, Active: true},
+		{Attribute: AttrTrail, Weight: w.Trail, Score: b.trailScore, Active: true},
+	}
+	var weighted float64
+	for _, a := range attrs {
+		if a.Active {
+			weighted += a.Weight * a.Score
+		}
+	}
+	return BuildScore{
+		Tier:       tier,
+		Total:      weighted / b.activeWeight,
+		GripR:      gripR,
+		HasBrp:     b.hasBrp,
+		BrpMissXMm: b.brpMissXMm,
+		BrpMissYMm: b.brpMissYMm,
+		Attributes: attrs,
+	}
+}
+
 // ScoreBuild classifies a placed build against the fit gates and scores its 12
-// attributes 0–100, combined by weights (Q59a). The four saddle attributes
-// count only when target.BRP is set (Q63, Q76).
-func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, weights ScoreWeights) (BuildScore, error) {
+// attributes 0–100, combined by weights. The four saddle attributes count only
+// when target.BRP is set.
+func ScoreBuild(placement Placement, target FitTarget, stemScore float64, weights ScoreWeights) (BuildScore, error) {
 	if target.HandGrip == nil {
 		return BuildScore{}, fmt.Errorf("build scoring needs a HandGrip target")
 	}
@@ -378,13 +487,26 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 	if activeWeight <= 0 {
 		return BuildScore{}, fmt.Errorf("score weights have zero active weight")
 	}
+
 	setup := placement.Setup
-	var bounds InsertionBounds
+	var insertionMarginMm float64
 	if hasBrp {
-		var err error
-		bounds, err = SeatpostInsertionBounds(setup.Frame, setup.Seatpost.Spec)
-		if err != nil {
-			return BuildScore{}, err
+		if setup.Frame.SeatTubeLengthMm > 0 {
+			bounds, err := SeatpostInsertionBounds(setup.Frame, setup.Seatpost.Spec)
+			if err != nil {
+				return BuildScore{}, err
+			}
+			insertionMarginMm = min(
+				setup.Seatpost.InsertionMm-bounds.EffectiveMinInsertionMm,
+				bounds.MaxAllowedInsertionMm-setup.Seatpost.InsertionMm,
+			)
+		} else if placement.Bounds.SeatpostInsertion.Field == InputSeatpostInsertion {
+			if placement.Bounds.SeatpostInsertion.Min > placement.Bounds.SeatpostInsertion.Max {
+				return BuildScore{}, fmt.Errorf("impossible seatpost insertion bounds [%v, %v]", placement.Bounds.SeatpostInsertion.Min, placement.Bounds.SeatpostInsertion.Max)
+			}
+			insertionMarginMm = placement.Bounds.SeatpostInsertion.MarginMm()
+		} else {
+			return BuildScore{}, fmt.Errorf("build scoring requires seatpost insertion bounds")
 		}
 	}
 
@@ -403,22 +525,8 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 	}
 
 	passGrip := gripR <= FitGateGripNormalizedRadius+fitBoundTolMm
-	tier := FitsNeither
-	if !hasBrp {
-		if passGrip {
-			tier = FitsGrip
-		}
-	} else {
-		passBrp := math.Abs(brpMiss.Y()) <= FitGateBrpYMm+fitBoundTolMm && math.Abs(brpMiss.X()) <= FitGateBrpXMm+fitBoundTolMm
-		switch {
-		case passBrp && passGrip:
-			tier = FitsAll
-		case passBrp:
-			tier = FitsBRP
-		case passGrip:
-			tier = FitsGrip
-		}
-	}
+	passBrp := hasBrp && math.Abs(brpMiss.Y()) <= FitGateBrpYMm+fitBoundTolMm && math.Abs(brpMiss.X()) <= FitGateBrpXMm+fitBoundTolMm
+	tier := classifyFitTier(hasBrp, passBrp, passGrip)
 
 	forkSag := scoreForkSag(setup.Fork.Spec.Travel, setup.Fork.SagPct)
 	w := weights
@@ -431,16 +539,16 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 		{Attribute: AttrForkSag, Weight: w.ForkSag, Score: forkSag, Active: true},
 		{Attribute: AttrSpacers, Weight: w.Spacers, Score: scoreSpacers(setup.Stem.SpacersMm), Active: true},
 		{Attribute: AttrSaddleRailOffset, Weight: w.SaddleRailOffset, Active: hasBrp},
-		{Attribute: AttrRcWbRatio, Weight: w.RcWbRatio, Score: scoreRange(rcWb, 37, 39, 34, 42), Active: true},
+		{Attribute: AttrRcWbRatio, Weight: w.RcWbRatio, Score: scoreRcWbRatio(rcWb), Active: true},
 		{Attribute: AttrSeatpostInsertion, Weight: w.SeatpostInsertion, Active: hasBrp},
-		{Attribute: AttrLeveledBbDrop, Weight: w.LeveledBbDrop, Score: scoreRange(bbDrop, 65, 75, 45, 95), Active: true},
-		{Attribute: AttrTrail, Weight: w.Trail, Score: scoreRange(trail, 98, 106, 78, 126), Active: true},
+		{Attribute: AttrLeveledBbDrop, Weight: w.LeveledBbDrop, Score: scoreLeveledBbDrop(bbDrop), Active: true},
+		{Attribute: AttrTrail, Weight: w.Trail, Score: scoreTrail(trail), Active: true},
 	}
 	if hasBrp {
-		attrs[1].Score = scoreThreePoint(math.Abs(brpMiss.Y()), 0.5, FitGateBrpYMm, 50, 4)
-		attrs[2].Score = scoreThreePoint(math.Abs(brpMiss.X()), 1, FitGateBrpXMm, 50, 20)
-		attrs[7].Score = scoreRange(setup.Saddle.RailOffsetMm, -5, 5, -15, 15)
-		attrs[9].Score = scoreInsertionMargin(setup.Seatpost.InsertionMm, bounds)
+		attrs[1].Score = scoreBrpY(math.Abs(brpMiss.Y()))
+		attrs[2].Score = scoreBrpX(math.Abs(brpMiss.X()))
+		attrs[7].Score = scoreRailOffset(setup.Saddle.RailOffsetMm)
+		attrs[9].Score = scoreInsertionMarginMm(insertionMarginMm)
 	}
 	var weighted float64
 	for _, a := range attrs {
@@ -460,7 +568,7 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 }
 
 // CompareFitRank orders builds best first: by tier, then by the tier's
-// tie-break chain (Q61, Q90). It returns a negative number when a ranks ahead of b.
+// tie-break chain. It returns a negative number when a ranks ahead of b.
 func CompareFitRank(a, b BuildScore) int {
 	if order := cmp.Compare(a.Tier.Rank(), b.Tier.Rank()); order != 0 {
 		return order

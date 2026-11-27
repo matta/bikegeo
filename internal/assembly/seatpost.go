@@ -263,9 +263,11 @@ type postMounter interface {
 // isolating SeatpostDoF and ClampedSeatpost from later mutations if a caller
 // passed a pointer to a post value.
 type postSnapshot struct {
-	totalLengthMm float64
-	staticClamp   RailClampPort
-	dynamicClamp  RailClampPort
+	totalLengthMm  float64
+	minInsertionMm float64
+	maxInsertionMm float64
+	staticClamp    RailClampPort
+	dynamicClamp   RailClampPort
 }
 
 func (s postSnapshot) railClamp(state LoadState) RailClampPort {
@@ -355,9 +357,11 @@ func MateSeatpost(socket SeatTubeSocket, post postMounter) (*SeatpostDoF, error)
 	return &SeatpostDoF{
 		socket: socket,
 		post: postSnapshot{
-			totalLengthMm: totalLengthMm,
-			staticClamp:   staticClamp,
-			dynamicClamp:  dynamicClamp,
+			totalLengthMm:  totalLengthMm,
+			minInsertionMm: postLimits.Min(),
+			maxInsertionMm: postLimits.Max(),
+			staticClamp:    staticClamp,
+			dynamicClamp:   dynamicClamp,
 		},
 		allowedInsertion: allowed,
 	}, nil
@@ -413,6 +417,20 @@ func (c *ClampedSeatpost) Insertion() BoundStatus {
 // (TotalLengthMm − InsertionMm).
 func (c *ClampedSeatpost) ExposedMm() float64 {
 	return c.post.totalLengthMm - c.insertion.Value
+}
+
+func (c *ClampedSeatpost) setupSnapshot(state LoadState) SeatpostSetup {
+	clamp := c.post.railClamp(state)
+	return SeatpostSetup{
+		Spec: SeatpostSpec{
+			TotalLengthMm:     c.post.totalLengthMm,
+			MaxInsertionMm:    c.post.maxInsertionMm,
+			MinInsertionMm:    c.post.minInsertionMm,
+			SetbackMm:         clamp.CradleInParent.OriginInDst().Y(),
+			RailClampLengthMm: clamp.ClampLengthMm,
+		},
+		InsertionMm: c.insertion.Value,
+	}
 }
 
 // PostInFrame returns the rigid transform mapping SeatpostLocal into FrameLocal.

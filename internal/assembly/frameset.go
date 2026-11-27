@@ -42,7 +42,28 @@ type Frameset struct {
 	dynamicAxleInFork  pose.Point
 	staticAxleInFrame  pose.Point
 	dynamicAxleInFrame pose.Point
+	forkSpec           ForkSpec
+	forkSagPct         float64
 	valid              bool
+}
+
+func forkMetadata(fork forkMounter, staticAxle pose.Point) (ForkSpec, float64) {
+	switch f := fork.(type) {
+	case RigidFork:
+		return ForkSpec{StaticA2cMm: f.staticA2cMm, Travel: TravelRigid, RakeMm: f.rakeMm, Steerer: f.steerer.Steerer()}, 0
+	case *RigidFork:
+		return ForkSpec{StaticA2cMm: f.staticA2cMm, Travel: TravelRigid, RakeMm: f.rakeMm, Steerer: f.steerer.Steerer()}, 0
+	case SuspensionFork:
+		return ForkSpec{StaticA2cMm: f.staticA2cMm, Travel: f.travel, RakeMm: f.rakeMm, Steerer: f.steerer.Steerer()}, f.sagPct
+	case *SuspensionFork:
+		return ForkSpec{StaticA2cMm: f.staticA2cMm, Travel: f.travel, RakeMm: f.rakeMm, Steerer: f.steerer.Steerer()}, f.sagPct
+	case BasisFork:
+		return ForkSpec{StaticA2cMm: f.basisA2cMm, Travel: TravelRigid, RakeMm: f.rakeMm, Steerer: SteererBasis}, 0
+	case *BasisFork:
+		return ForkSpec{StaticA2cMm: f.basisA2cMm, Travel: TravelRigid, RakeMm: f.rakeMm, Steerer: SteererBasis}, 0
+	default:
+		return ForkSpec{StaticA2cMm: staticAxle.X(), Travel: TravelRigid, RakeMm: staticAxle.Y(), Steerer: SteererBasis}, 0
+	}
 }
 
 func validateForkAxle(label string, p pose.Point) error {
@@ -109,6 +130,8 @@ func mateFrameset(frame Frame, lowerCup LowerCupSetup, upperStackMm float64, for
 		return Frameset{}, err
 	}
 
+	forkSpec, forkSagPct := forkMetadata(fork, staticAxle)
+
 	return Frameset{
 		frame:              frame,
 		lowerCup:           lowerCup,
@@ -119,6 +142,8 @@ func mateFrameset(frame Frame, lowerCup LowerCupSetup, upperStackMm float64, for
 		dynamicAxleInFork:  dynamicAxle,
 		staticAxleInFrame:  staticAxleInFrame,
 		dynamicAxleInFrame: dynamicAxleInFrame,
+		forkSpec:           forkSpec,
+		forkSagPct:         forkSagPct,
 		valid:              true,
 	}, nil
 }
@@ -157,6 +182,55 @@ func (fs *Frameset) SeatTube() SeatTubeSocket {
 func (fs *Frameset) Steerer() SteererPort {
 	fs.requireValid()
 	return fs.steererPort
+}
+
+// WithMaxSpacers returns a copy of fs whose upper SteererPort caps steerer
+// spacers at maxSpacersMm (0 <= maxSpacersMm <= DefaultMaxSpacersMm).
+func (fs *Frameset) WithMaxSpacers(maxSpacersMm float64) (*Frameset, error) {
+	fs.requireValid()
+	port, err := NewSteererPort(fs.steererPort.SteererInFrame(), fs.steererPort.UpperStackMm(), maxSpacersMm)
+	if err != nil {
+		return nil, err
+	}
+	copyFS := *fs
+	copyFS.steererPort = port
+	return &copyFS, nil
+}
+
+// ForkTravel returns the mated fork's suspension travel class (TravelRigid for
+// rigid and basis forks).
+func (fs *Frameset) ForkTravel() ForkTravel {
+	fs.requireValid()
+	return fs.forkSpec.Travel
+}
+
+// ForkSagPct returns the mated fork's seated sag percentage (0 for rigid and
+// basis forks).
+func (fs *Frameset) ForkSagPct() float64 {
+	fs.requireValid()
+	return fs.forkSagPct
+}
+
+func (fs *Frameset) forkSetupSnapshot() ForkSetup {
+	return ForkSetup{Spec: fs.forkSpec, SagPct: fs.forkSagPct}
+}
+
+func (fs *Frameset) frameSetupSnapshot() FrameSetup {
+	d := fs.frame.Dimensions()
+	return FrameSetup{
+		ReachMm:             d.ReachMm,
+		StackMm:             d.StackMm,
+		HeadTubeAngleDeg:    d.HeadTubeAngleDeg,
+		HeadTubeLengthMm:    d.HeadTubeLengthMm,
+		SeatTubeAngleDeg:    d.SeatTubeAngleDeg,
+		SeatTubeLengthMm:    d.SeatTubeLengthMm,
+		BbDropMm:            d.BbDropMm,
+		ChainstayMm:         d.ChainstayMm,
+		LowerBore:           d.LowerBore,
+		DefaultLowerCup:     d.DefaultLowerCup,
+		MaxPostInsertionMm:  d.MaxPostInsertionMm,
+		MinFrameInsertionMm: d.MinFrameInsertionMm,
+	}
 }
 
 func (fs *Frameset) axleForState(state LoadState) (inFork, inFrame pose.Point) {

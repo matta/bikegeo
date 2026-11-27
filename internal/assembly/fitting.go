@@ -7,12 +7,12 @@ import (
 	"github.com/matta/bikegeo/internal/pose"
 )
 
-// FitTarget holds the landmark targets for ApplyFitting, in world coordinates
-// (BB at origin, +X forward, +Y up, mm). A nil landmark is not fitted, and the
-// inputs that would fit it are kept from the setup.
+// FitTarget holds the landmark targets for fitting and scoring, in ambient
+// world coordinates (BB at origin, +X forward, +Y up, mm). A nil landmark is
+// not fitted, and the inputs that would fit it are kept from the setup.
 type FitTarget struct {
-	BRP      *pose.Point // saddle BRP (Q7)
-	HandGrip *pose.Point // handlebar HandGrip (Q11)
+	BRP      *pose.Point // saddle BRP target in DynamicWorld
+	HandGrip *pose.Point // handlebar HandGrip target in DynamicWorld
 }
 
 // FitGateGripNormalizedRadius is the largest normalized radius that passes
@@ -35,15 +35,16 @@ const (
 	FitLimited FitOutcome = "limited"
 )
 
-// Fitting is the result of ApplyFitting: the fitted setup, its forward
-// placement (the final check), and which limits stopped it.
+// Fitting is the result of ApplyFitting or FitPostSetback: the fitted setup,
+// its forward placement (the final check), and which limits stopped it.
 type Fitting struct {
-	Target    FitTarget     // copies of the requested landmark targets
-	Placement BikePlacement // PlaceBike(fitted setup); Placement.Setup is the fitted setup
+	Target    FitTarget // copies of the requested landmark targets
+	Placement Placement // forward placement of the fitted build
 	Outcome   FitOutcome
 	// LimitedBy lists the fitted inputs that sit on a hardware bound, in the
 	// order InputSeatpostInsertion, InputSaddleRailOffset, InputStemSpacers,
-	// InputStemLength; nil when every target was reached.
+	// InputStemLength (or InputSeatpostInsertion, InputSeatpostSetback for
+	// FitPostSetback); nil when every target was reached.
 	LimitedBy []InputField
 }
 
@@ -63,6 +64,138 @@ func (f Fitting) GripMiss() (pose.Vector, bool) {
 	return f.Target.HandGrip.Sub(f.Placement.Handlebar.HandGrip.Origin()), true
 }
 
+// FrontCockpitDoF represents a SeatedFrameset paired with a stem angle, clamp
+// height, stem length range, handlebar, and dynamic bar roll whose steerer
+// spacer stack and continuous stem length are still open.
+type FrontCockpitDoF struct {
+	seated            *SeatedFrameset
+	stemAngleDeg      pose.Deg
+	stemClampHeightMm float64
+	stemLenRange      BoundedRange
+	bar               Handlebar
+	dynamicBarRollDeg pose.Deg
+	probeBuild        *Build
+	probePlacement    Placement
+}
+
+// OpenFrontCockpit validates the continuous front-cockpit parameters on seated
+// and probes once at (0 mm spacers, stemLenRange.Min()) to construct the
+// 2-DoF affine HandGrip sheet in DynamicWorld.
+func OpenFrontCockpit(
+	seated *SeatedFrameset,
+	stemAngleDeg pose.Deg,
+	stemClampHeightMm float64,
+	stemLenRange BoundedRange,
+	bar Handlebar,
+	dynamicBarRollDeg pose.Deg,
+) (*FrontCockpitDoF, error) {
+	seated.requireValid()
+	bar.requireValid()
+	if !stemLenRange.Valid() || !isFinite(stemLenRange.Min()) || !isFinite(stemLenRange.Max()) || stemLenRange.Min() <= 0 {
+		return nil, fmt.Errorf("stem length range must be finite with 0 < min <= max")
+	}
+	if !isFinite(float64(dynamicBarRollDeg)) {
+		return nil, invalidInput(InputHandlebarRoll, "handlebar roll must be finite, got %v°", dynamicBarRollDeg)
+	}
+	probeStem, err := NewStem(stemClampHeightMm, stemLenRange.Min(), stemAngleDeg)
+	if err != nil {
+		return nil, err
+	}
+	probeBuild, err := seated.AttachFront(0, probeStem, bar, dynamicBarRollDeg)
+	if err != nil {
+		return nil, err
+	}
+	probePlacement := probeBuild.Place(Dynamic)
+	return &FrontCockpitDoF{
+		seated:            seated,
+		stemAngleDeg:      stemAngleDeg,
+		stemClampHeightMm: stemClampHeightMm,
+		stemLenRange:      stemLenRange,
+		bar:               bar,
+		dynamicBarRollDeg: dynamicBarRollDeg,
+		probeBuild:        probeBuild,
+		probePlacement:    probePlacement,
+	}, nil
+}
+
+func (d *FrontCockpitDoF) requireValid() {
+	if d == nil || d.seated == nil || d.probeBuild == nil {
+		panic("assembly: uninitialized FrontCockpitDoF")
+	}
+}
+
+// AllowedSpacers returns the frameset steerer's permitted spacer interval.
+func (d *FrontCockpitDoF) AllowedSpacers() BoundedRange {
+	d.requireValid()
+	return d.seated.Frameset().Steerer().AllowedSpacers()
+}
+
+// AllowedStemLength returns the permitted continuous stem length interval.
+func (d *FrontCockpitDoF) AllowedStemLength() BoundedRange {
+	d.requireValid()
+	return d.stemLenRange
+}
+
+// Planar2DoF returns the 2-DoF affine HandGrip surface in DynamicWorld
+// parameterized by (StemSpacers, StemLength).
+func (d *FrontCockpitDoF) Planar2DoF() Planar2DoF {
+	d.requireValid()
+	return Planar2DoF{
+		Origin: d.probePlacement.Handlebar.HandGrip.Origin(),
+		AxisA: LinearDoF{
+			Field:   InputStemSpacers,
+			Heading: d.probePlacement.Stem.SpacerTop.Heading(),
+			Range:   d.AllowedSpacers(),
+			Probe:   0,
+			Sign:    +1,
+		},
+		AxisB: LinearDoF{
+			Field:   InputStemLength,
+			Heading: d.probePlacement.Stem.BarClamp.Heading(),
+			Range:   d.stemLenRange,
+			Probe:   d.stemLenRange.Min(),
+			Sign:    +1,
+		},
+	}
+}
+
+// Clamp locks the front cockpit at spacersMm and stemLengthMm, returning an
+// immutable Build.
+func (d *FrontCockpitDoF) Clamp(spacersMm, stemLengthMm float64) (*Build, error) {
+	d.requireValid()
+	if _, err := d.stemLenRange.Bind(InputStemLength, stemLengthMm); err != nil {
+		return nil, err
+	}
+	stem, err := NewStem(d.stemClampHeightMm, stemLengthMm, d.stemAngleDeg)
+	if err != nil {
+		return nil, err
+	}
+	return d.seated.AttachFront(spacersMm, stem, d.bar, d.dynamicBarRollDeg)
+}
+
+// FitToGrip solves the front cockpit's Planar2DoF for target with
+// PriorityNearest and clamps the resulting Build.
+func (d *FrontCockpitDoF) FitToGrip(target pose.Point) (*Build, []InputField, error) {
+	d.requireValid()
+	if !isFinitePoint(target) {
+		return nil, nil, invalidInput(InputFitTargetGrip, "HandGrip fit target must be finite, got (%v, %v) mm", target.X(), target.Y())
+	}
+	spacers, length, limited, ok := SolvePlanar2DoF(d.Planar2DoF(), target, PriorityNearest)
+	if !ok {
+		return nil, nil, fmt.Errorf("stem axis is parallel to the steerer; cannot fit the cockpit")
+	}
+	build, err := d.Clamp(spacers, length)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(limited) == 0 {
+		if miss := target.Sub(build.Place(Dynamic).Handlebar.HandGrip.Origin()); miss.Norm() > 1e-6 {
+			return nil, nil, fmt.Errorf("cockpit fitting forward check missed target by %v mm", miss.Norm())
+		}
+	}
+	return build, limited, nil
+}
+
 // ApplyFitting fits Seatpost.InsertionMm and Saddle.RailOffsetMm so the saddle BRP
 // lands on a BRP target, and Stem.SpacersMm and Stem.LengthMm so the HandGrip
 // lands on a HandGrip target, each within hardware limits. All other setup
@@ -78,59 +211,114 @@ func ApplyFitting(setup BikeSetup, target FitTarget) (Fitting, error) {
 		return Fitting{}, invalidInput(InputFitTargetGrip, "HandGrip fit target must be finite, got (%v, %v) mm", target.HandGrip.X(), target.HandGrip.Y())
 	}
 
-	// Each landmark is linear in its two fitted inputs: place once at a probe
-	// and decompose the remaining offset along the two fixed directions.
-	probeSetup := setup
-	var bounds InsertionBounds
-	if target.BRP != nil {
-		var err error
-		bounds, err = SeatpostInsertionBounds(setup.Frame, setup.Seatpost.Spec)
+	frame, err := NewFrame(setup.Frame.dimensions())
+	if err != nil {
+		return Fitting{}, err
+	}
+	forkM, err := setup.Fork.toForkMounter()
+	if err != nil {
+		return Fitting{}, err
+	}
+	fs, err := MateFrameset(frame, setup.LowerCup, setup.Stem.UpperStackMm, forkM, setup.Wheels)
+	if err != nil {
+		return Fitting{}, err
+	}
+	if setup.Stem.MaxSpacersMm != DefaultMaxSpacersMm {
+		fs, err = fs.WithMaxSpacers(setup.Stem.MaxSpacersMm)
 		if err != nil {
 			return Fitting{}, err
 		}
-		// Probe at maximum insertion (shortest exposure): the fit then raises the
-		// saddle by pulling the post out.
-		probeSetup.Seatpost.InsertionMm = bounds.MaxAllowedInsertionMm
-		probeSetup.Saddle.RailOffsetMm = 0
 	}
+	post, err := NewRigidPost(
+		setup.Seatpost.Spec.TotalLengthMm,
+		setup.Seatpost.Spec.MinInsertionMm,
+		setup.Seatpost.Spec.MaxInsertionMm,
+		setup.Seatpost.Spec.SetbackMm,
+		setup.Seatpost.Spec.RailClampLengthMm,
+	)
+	if err != nil {
+		return Fitting{}, err
+	}
+	saddle, err := NewSaddle(SaddleDimensions{
+		RailCenterToBrpMm:      setup.Saddle.RailCenterToBrpMm,
+		RailCenterToSitBonesMm: setup.Saddle.RailCenterToSitBonesMm,
+		RailToBrpHeightMm:      setup.Saddle.RailToBrpHeightMm,
+		SitBonesElevationMm:    setup.Saddle.SitBonesElevationMm,
+		RailLengthMm:           setup.Saddle.RailLengthMm,
+	})
+	if err != nil {
+		return Fitting{}, err
+	}
+	bar, err := NewHandlebar(HandlebarDimensions{
+		StockWidthMm:   setup.Handlebar.StockWidthMm,
+		CurrentWidthMm: setup.Handlebar.CurrentWidthMm,
+		BacksweepDeg:   setup.Handlebar.BacksweepDeg,
+		UpsweepDeg:     setup.Handlebar.UpsweepDeg,
+		StatedRiseMm:   setup.Handlebar.StatedRiseMm,
+		RiseMode:       setup.Handlebar.RiseMode,
+		BendStartMm:    setup.Handlebar.BendStartMm,
+		GripInsetMm:    setup.Handlebar.GripInsetMm,
+	})
+	if err != nil {
+		return Fitting{}, err
+	}
+
+	rear, err := OpenRearCockpit(fs, post, saddle, setup.Saddle.RailPitchDeg)
+	if err != nil {
+		return Fitting{}, err
+	}
+
+	var (
+		seated    *SeatedFrameset
+		limitedBy []InputField
+	)
+	if target.BRP != nil {
+		var rearLimited []InputField
+		seated, rearLimited, err = rear.FitToBRP(*target.BRP)
+		if err != nil {
+			return Fitting{}, err
+		}
+		limitedBy = append(limitedBy, rearLimited...)
+	} else {
+		seated, err = rear.Clamp(setup.Seatpost.InsertionMm, setup.Saddle.RailOffsetMm)
+		if err != nil {
+			return Fitting{}, err
+		}
+	}
+
+	var build *Build
 	if target.HandGrip != nil {
 		if err := validateStemLengthRange(setup.Stem); err != nil {
 			return Fitting{}, err
 		}
-		probeSetup.Stem.SpacersMm = 0
-		probeSetup.Stem.LengthMm = setup.Stem.MinLengthMm
-	}
-	probe, err := PlaceBike(probeSetup)
-	if err != nil {
-		return Fitting{}, err
-	}
-
-	fitted := setup
-	var limitedBy []InputField
-	var saddleLimited, cockpitLimited bool
-	if target.BRP != nil {
-		insertion, rail, limited, err := fitSaddle(setup, bounds, probe, *target.BRP)
+		lenRange, err := NewBoundedRange(setup.Stem.MinLengthMm, setup.Stem.MaxLengthMm, "min stem length", "max stem length")
 		if err != nil {
 			return Fitting{}, err
 		}
-		fitted.Seatpost.InsertionMm, fitted.Saddle.RailOffsetMm = insertion, rail
-		saddleLimited = len(limited) > 0
-		limitedBy = append(limitedBy, limited...)
-	}
-	if target.HandGrip != nil {
-		spacers, length, limited, err := fitCockpit(setup, probe, *target.HandGrip)
+		front, err := OpenFrontCockpit(seated, setup.Stem.AngleDeg, setup.Stem.ClampHeightMm, lenRange, bar, setup.Handlebar.BarRollDeg)
 		if err != nil {
 			return Fitting{}, err
 		}
-		fitted.Stem.SpacersMm, fitted.Stem.LengthMm = spacers, length
-		cockpitLimited = len(limited) > 0
-		limitedBy = append(limitedBy, limited...)
+		var frontLimited []InputField
+		build, frontLimited, err = front.FitToGrip(*target.HandGrip)
+		if err != nil {
+			return Fitting{}, err
+		}
+		limitedBy = append(limitedBy, frontLimited...)
+	} else {
+		stem, err := NewStem(setup.Stem.ClampHeightMm, setup.Stem.LengthMm, setup.Stem.AngleDeg)
+		if err != nil {
+			return Fitting{}, err
+		}
+		build, err = seated.AttachFront(setup.Stem.SpacersMm, stem, bar, setup.Handlebar.BarRollDeg)
+		if err != nil {
+			return Fitting{}, err
+		}
 	}
 
-	placement, err := PlaceBike(fitted)
-	if err != nil {
-		return Fitting{}, err
-	}
+	placement := build.Place(Dynamic)
+	placement.Setup.Stem.MinLengthMm = setup.Stem.MinLengthMm
+	placement.Setup.Stem.MaxLengthMm = setup.Stem.MaxLengthMm
 
 	fit := Fitting{Placement: placement, Outcome: FitReached}
 	if target.BRP != nil {
@@ -145,58 +333,143 @@ func ApplyFitting(setup BikeSetup, target FitTarget) (Fitting, error) {
 		fit.Outcome = FitLimited
 		fit.LimitedBy = limitedBy
 	}
-	if miss, ok := fit.BrpMiss(); ok && !saddleLimited && miss.Norm() > 1e-6 {
-		return Fitting{}, fmt.Errorf("saddle fitting forward check missed target by %v mm", miss.Norm())
-	}
-	if miss, ok := fit.GripMiss(); ok && !cockpitLimited && miss.Norm() > 1e-6 {
-		return Fitting{}, fmt.Errorf("cockpit fitting forward check missed target by %v mm", miss.Norm())
-	}
 	return fit, nil
 }
 
 // FitPostSetback fits Seatpost.Spec.SetbackMm and Seatpost.InsertionMm so the
 // saddle BRP lands on brp, with Saddle.RailOffsetMm held at railOffsetMm. It
-// explains the post setback a BRP target needs (Q29), and callers never
-// install its build. Insertion keeps the frame and post limits. Setback is at least 0
-// and has no upper bound. LimitedBy lists InputSeatpostInsertion, then
+// explains the hypothetical post setback a BRP target needs, and callers never
+// install its build. Insertion keeps the frame and post limits. Setback is at
+// least 0 and has no upper bound. LimitedBy lists InputSeatpostInsertion, then
 // InputSeatpostSetback, for the inputs that sit on a bound. The submitted
 // insertion, setback, and rail offset are ignored; every other setup field is kept.
 func FitPostSetback(setup BikeSetup, brp pose.Point, railOffsetMm float64) (Fitting, error) {
 	if !isFinitePoint(brp) {
 		return Fitting{}, invalidInput(InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", brp.X(), brp.Y())
 	}
-	bounds, err := SeatpostInsertionBounds(setup.Frame, setup.Seatpost.Spec)
+	frame, err := NewFrame(setup.Frame.dimensions())
 	if err != nil {
 		return Fitting{}, err
 	}
-	// Probe a copy of the post at maximum insertion with no setback.
-	probeSetup := setup
-	probeSetup.Seatpost.InsertionMm = bounds.MaxAllowedInsertionMm
-	probeSetup.Seatpost.Spec.SetbackMm = 0
-	probeSetup.Saddle.RailOffsetMm = railOffsetMm
-	probe, err := PlaceBike(probeSetup)
+	forkM, err := setup.Fork.toForkMounter()
+	if err != nil {
+		return Fitting{}, err
+	}
+	fs, err := MateFrameset(frame, setup.LowerCup, setup.Stem.UpperStackMm, forkM, setup.Wheels)
+	if err != nil {
+		return Fitting{}, err
+	}
+	if setup.Stem.MaxSpacersMm != DefaultMaxSpacersMm {
+		fs, err = fs.WithMaxSpacers(setup.Stem.MaxSpacersMm)
+		if err != nil {
+			return Fitting{}, err
+		}
+	}
+	saddle, err := NewSaddle(SaddleDimensions{
+		RailCenterToBrpMm:      setup.Saddle.RailCenterToBrpMm,
+		RailCenterToSitBonesMm: setup.Saddle.RailCenterToSitBonesMm,
+		RailToBrpHeightMm:      setup.Saddle.RailToBrpHeightMm,
+		SitBonesElevationMm:    setup.Saddle.SitBonesElevationMm,
+		RailLengthMm:           setup.Saddle.RailLengthMm,
+	})
+	if err != nil {
+		return Fitting{}, err
+	}
+	stem, err := NewStem(setup.Stem.ClampHeightMm, setup.Stem.LengthMm, setup.Stem.AngleDeg)
+	if err != nil {
+		return Fitting{}, err
+	}
+	bar, err := NewHandlebar(HandlebarDimensions{
+		StockWidthMm:   setup.Handlebar.StockWidthMm,
+		CurrentWidthMm: setup.Handlebar.CurrentWidthMm,
+		BacksweepDeg:   setup.Handlebar.BacksweepDeg,
+		UpsweepDeg:     setup.Handlebar.UpsweepDeg,
+		StatedRiseMm:   setup.Handlebar.StatedRiseMm,
+		RiseMode:       setup.Handlebar.RiseMode,
+		BendStartMm:    setup.Handlebar.BendStartMm,
+		GripInsetMm:    setup.Handlebar.GripInsetMm,
+	})
 	if err != nil {
 		return Fitting{}, err
 	}
 
-	delta := brp.Sub(probe.Saddle.BRP.Origin())
-	shaft := probe.Seatpost.ShaftTop.Heading()
-	a := bounds.extensionAdjustment(shaft)
-	// Setback has no upper bound: the result describes a hypothetical post
-	// (Q29), so no installed hardware limits it.
-	b := fitAdjustment{shaft.Turn(90.0), fitInterval{0, math.Inf(1)}, InputSeatpostSetback}
-	de, ds, limited, ok := fitBox(delta, a, b, nearestPoint)
+	// Probe a zero-setback copy of the post at maximum insertion and railOffsetMm.
+	zeroSetbackPost, err := NewRigidPost(
+		setup.Seatpost.Spec.TotalLengthMm,
+		setup.Seatpost.Spec.MinInsertionMm,
+		setup.Seatpost.Spec.MaxInsertionMm,
+		0,
+		setup.Seatpost.Spec.RailClampLengthMm,
+	)
+	if err != nil {
+		return Fitting{}, err
+	}
+	probeRear, err := OpenRearCockpit(fs, zeroSetbackPost, saddle, setup.Saddle.RailPitchDeg)
+	if err != nil {
+		return Fitting{}, err
+	}
+	insRange := probeRear.AllowedInsertion()
+	probeSeated, err := probeRear.Clamp(insRange.Max(), railOffsetMm)
+	if err != nil {
+		return Fitting{}, err
+	}
+	// Validate the front cockpit up front just like PlaceBike(probeSetup).
+	if _, err := probeSeated.AttachFront(setup.Stem.SpacersMm, stem, bar, setup.Handlebar.BarRollDeg); err != nil {
+		return Fitting{}, err
+	}
+
+	setbackRange, err := NewBoundedRange(0, math.Inf(1), "min seatpost setback", "")
+	if err != nil {
+		return Fitting{}, err
+	}
+	shaftHeading := probeSeated.DynamicSeatpost().ShaftTop.Heading()
+	sheet := Planar2DoF{
+		Origin: probeSeated.DynamicSaddle().BRP.Origin(),
+		AxisA: LinearDoF{
+			Field:   InputSeatpostInsertion,
+			Heading: shaftHeading,
+			Range:   insRange,
+			Probe:   insRange.Max(),
+			Sign:    -1,
+		},
+		AxisB: LinearDoF{
+			Field:   InputSeatpostSetback,
+			Heading: shaftHeading.Turn(90.0),
+			Range:   setbackRange,
+			Probe:   0,
+			Sign:    +1,
+		},
+	}
+	ins, setback, limited, ok := SolvePlanar2DoF(sheet, brp, PriorityNearest)
 	if !ok {
 		return Fitting{}, fmt.Errorf("seatpost setback is parallel to the seat axis; cannot fit the setback")
 	}
 
-	fitted := probeSetup
-	fitted.Seatpost.InsertionMm = bounds.insertionAfterExtension(de)
-	fitted.Seatpost.Spec.SetbackMm = ds
-	placement, err := PlaceBike(fitted)
+	fittedPost, err := NewRigidPost(
+		setup.Seatpost.Spec.TotalLengthMm,
+		setup.Seatpost.Spec.MinInsertionMm,
+		setup.Seatpost.Spec.MaxInsertionMm,
+		setback,
+		setup.Seatpost.Spec.RailClampLengthMm,
+	)
 	if err != nil {
 		return Fitting{}, err
 	}
+	fittedRear, err := OpenRearCockpit(fs, fittedPost, saddle, setup.Saddle.RailPitchDeg)
+	if err != nil {
+		return Fitting{}, err
+	}
+	fittedSeated, err := fittedRear.Clamp(ins, railOffsetMm)
+	if err != nil {
+		return Fitting{}, err
+	}
+	build, err := fittedSeated.AttachFront(setup.Stem.SpacersMm, stem, bar, setup.Handlebar.BarRollDeg)
+	if err != nil {
+		return Fitting{}, err
+	}
+	placement := build.Place(Dynamic)
+	placement.Setup.Stem.MinLengthMm = setup.Stem.MinLengthMm
+	placement.Setup.Stem.MaxLengthMm = setup.Stem.MaxLengthMm
 
 	p := brp
 	fit := Fitting{
@@ -220,228 +493,4 @@ func validateStemLengthRange(stem StemSetup) error {
 		return fmt.Errorf("stem length range must be finite with 0 < min <= max, got [%v, %v] mm", minLen, maxLen)
 	}
 	return nil
-}
-
-// fitCockpit fits stem spacers and stem length to a HandGrip target, using
-// directions read from the probe placement (spacers 0, minimum stem length).
-func fitCockpit(setup BikeSetup, probe BikePlacement, grip pose.Point) (spacers, length float64, limited []InputField, err error) {
-	minLen, maxLen := setup.Stem.MinLengthMm, setup.Stem.MaxLengthMm
-	delta := grip.Sub(probe.Handlebar.HandGrip.Origin())
-	a := fitAdjustment{probe.Stem.SpacerTop.Heading(), fitInterval{0, setup.Stem.MaxSpacersMm}, InputStemSpacers}
-	b := fitAdjustment{probe.Stem.BarClamp.Heading(), fitInterval{0, maxLen - minLen}, InputStemLength}
-	ds, dl, limited, ok := fitBox(delta, a, b, nearestPoint)
-	if !ok {
-		return 0, 0, nil, fmt.Errorf("stem axis is parallel to the steerer; cannot fit the cockpit")
-	}
-	return ds, (fitInterval{minLen, maxLen}).clamp(minLen + dl), limited, nil
-}
-
-// fitSaddle fits seatpost insertion and saddle rail offset to a BRP target,
-// using directions read from the probe placement, which sits at maximum
-// insertion. Pulling the post out by the solved travel lowers the insertion.
-func fitSaddle(setup BikeSetup, bounds InsertionBounds, probe BikePlacement, brp pose.Point) (insertion, rail float64, limited []InputField, err error) {
-	railLimit, err := setup.RailOffsetLimitMm()
-	if err != nil {
-		return 0, 0, nil, err
-	}
-	delta := brp.Sub(probe.Saddle.BRP.Origin())
-	a := bounds.extensionAdjustment(probe.Seatpost.ShaftTop.Heading())
-	b := fitAdjustment{probe.Saddle.RailCenter.Heading().Turn(180), fitInterval{-railLimit, railLimit}, InputSaddleRailOffset}
-	de, dr, limited, ok := fitBox(delta, a, b, inRectThenYFirst)
-	if !ok {
-		return 0, 0, nil, fmt.Errorf("saddle rail pitch is parallel to the seat axis; cannot fit the saddle")
-	}
-	return bounds.insertionAfterExtension(de), dr, limited, nil
-}
-
-// extensionAdjustment returns the seatpost insertion adjustment, with travel
-// measured as extension out along the shaft from maximum insertion.
-func (bounds InsertionBounds) extensionAdjustment(heading pose.Heading) fitAdjustment {
-	return fitAdjustment{heading, fitInterval{0, bounds.MaxAllowedInsertionMm - bounds.EffectiveMinInsertionMm}, InputSeatpostInsertion}
-}
-
-func (bounds InsertionBounds) insertionAfterExtension(extension float64) float64 {
-	return (fitInterval{bounds.EffectiveMinInsertionMm, bounds.MaxAllowedInsertionMm}).clamp(bounds.MaxAllowedInsertionMm - extension)
-}
-
-const (
-	fitBoundTolMm   = 1e-9
-	fitDirectionTol = 1e-12 // treat round-off in a horizontal or vertical direction as zero
-)
-
-// fitInterval is a closed range of adjustment values in millimeters.
-type fitInterval struct{ lo, hi float64 }
-
-func (r fitInterval) clamp(value float64) float64 { return min(max(value, r.lo), r.hi) }
-
-func (r fitInterval) contains(value float64) bool {
-	return value >= r.lo-fitBoundTolMm && value <= r.hi+fitBoundTolMm
-}
-
-// clip clips the horizontal interval to the portion where the line with
-// intercept c and slope -s lies between heights -limit and +limit.
-// It returns that interval and true, or an empty result and false. For example,
-// clipping [0, 10] with c=6, s=2, limit=2 yields [2, 4].
-func (r fitInterval) clip(c, s, limit float64) (fitInterval, bool) {
-	if math.Abs(s) < fitDirectionTol {
-		if math.Abs(c) <= limit+fitBoundTolMm {
-			return r, true
-		}
-		return fitInterval{}, false
-	}
-	left, right := (c-limit)/s, (c+limit)/s
-	lo, hi := max(r.lo, min(left, right)), min(r.hi, max(left, right))
-	if lo > hi+fitBoundTolMm {
-		return fitInterval{}, false
-	}
-	if lo > hi {
-		touch := r.clamp((lo + hi) / 2)
-		return fitInterval{touch, touch}, true
-	}
-	return fitInterval{lo, hi}, true
-}
-
-// heightFirst returns the multiplier in r (in mm) that brings travel*direction
-// closest to target in Y, breaking ties by distance in X. direction is a
-// unit-length direction vector in DynamicWorld.
-func (r fitInterval) heightFirst(target, direction pose.Vector) float64 {
-	if math.Abs(direction.Y()) >= fitDirectionTol {
-		return r.clamp(target.Y() / direction.Y())
-	}
-	if math.Abs(direction.X()) >= fitDirectionTol {
-		return r.clamp(target.X() / direction.X())
-	}
-	return r.lo
-}
-
-// fitAdjustment is one fitting input as the solver sees it: the direction it
-// moves its landmark (BRP or HandGrip), how far it may move it, and which
-// input it is. Travel is in mm from where the landmark sits in the probe
-// build.
-type fitAdjustment struct {
-	heading pose.Heading
-	fitInterval
-	field InputField
-}
-
-type fitPriority int
-
-const (
-	nearestPoint fitPriority = iota
-	// inRectThenYFirst prefers points inside the target's allowed error
-	// rectangle, then minimizes absolute Y error followed by absolute X error.
-	inRectThenYFirst
-)
-
-// A fitEdge holds one input at a bound and lets the other input vary.
-type fitEdge struct {
-	fixed, moving fitAdjustment
-	bound         float64
-}
-
-// candidates returns signed travel distances (in mm) along the moving direction.
-// Each distance, paired with the fixed direction's bound, identifies a point on
-// the edge relative to the probe landmark. nearestPoint projects delta onto the
-// moving direction and clamps to the edge. inRectThenYFirst minimizes absolute
-// Y error over the whole edge, breaking ties by absolute X error. If the edge
-// intersects the allowed error rectangle around delta, it also returns the best
-// distance within that intersection using the same ordering.
-func (edge fitEdge) candidates(delta pose.Vector, priority fitPriority) []float64 {
-	if priority == nearestPoint {
-		target := delta.Sub(pose.Along(edge.fixed.heading, edge.bound))
-		return []float64{edge.moving.clamp(pose.ProjectOnto(target, edge.moving.heading))}
-	}
-	fixedDir := pose.Along(edge.fixed.heading, 1) // unit vector along fixed direction
-	target := delta.Sub(fixedDir.Scale(edge.bound))
-	dir := pose.Along(edge.moving.heading, 1) // unit vector along moving direction
-	travel := edge.moving.heightFirst(target, dir)
-	gate, ok := edge.moving.clip(target.Y(), dir.Y(), FitGateBrpYMm)
-	if ok {
-		if gate, ok = gate.clip(target.X(), dir.X(), FitGateBrpXMm); ok {
-			return []float64{travel, gate.heightFirst(target, dir)}
-		}
-	}
-	return []float64{travel}
-}
-
-// miss returns the vector from the resulting point to the target delta.
-// Each travel[i] is a signed distance in mm along adjustments[i].heading. Together
-// the two displacements locate the point relative to the probe landmark.
-// nearestPoint subtracts each displacement from delta in turn. The other
-// priority subtracts their sum using unit direction vectors dirA and dirB.
-// Floating-point rounding at a tolerance boundary can make the evaluation
-// order significant.
-func (p fitPriority) miss(delta pose.Vector, adjustments [2]fitAdjustment, travel [2]float64) pose.Vector {
-	if p == nearestPoint {
-		return delta.Sub(pose.Along(adjustments[0].heading, travel[0])).Sub(pose.Along(adjustments[1].heading, travel[1]))
-	}
-	dirA, dirB := pose.Along(adjustments[0].heading, 1), pose.Along(adjustments[1].heading, 1)
-	return delta.Sub(dirA.Scale(travel[0]).Add(dirB.Scale(travel[1])))
-}
-
-// prefers compares target misses. Ties keep the first candidate visited.
-func (p fitPriority) prefers(miss, best pose.Vector) bool {
-	if p == nearestPoint {
-		return miss.Norm() < best.Norm()-fitBoundTolMm
-	}
-	x, y := math.Abs(miss.X()), math.Abs(miss.Y())
-	bestX, bestY := math.Abs(best.X()), math.Abs(best.Y())
-	inGate := func(x, y float64) bool {
-		return y <= FitGateBrpYMm+fitBoundTolMm && x <= FitGateBrpXMm+fitBoundTolMm
-	}
-	if pass := inGate(x, y); pass != inGate(bestX, bestY) {
-		return pass
-	}
-	if math.Abs(y-bestY) > fitBoundTolMm {
-		return y < bestY
-	}
-	return x < bestX-fitBoundTolMm
-}
-
-// fitBox returns travel (in mm) along directions a and b to reach delta. For a
-// reachable target, limited is nil, including at a bound within round-off.
-// Otherwise it fixes each input at its finite bounds and reports the winning
-// point's limiting inputs in (a, b) order. Parallel directions return ok=false.
-func fitBox(delta pose.Vector, a, b fitAdjustment, priority fitPriority) (da, db float64, limited []InputField, ok bool) {
-	da, db, ok = pose.DecomposeAlong(delta, a.heading, b.heading)
-	if !ok {
-		return 0, 0, nil, false
-	}
-	if a.contains(da) && b.contains(db) {
-		return a.clamp(da), b.clamp(db), nil, true
-	}
-
-	adjustments := [2]fitAdjustment{a, b}
-	var best [2]float64
-	var bestMiss pose.Vector
-	haveBest := false
-	for fixed, adj := range adjustments {
-		moving := 1 - fixed
-		for _, bound := range [...]float64{adj.lo, adj.hi} {
-			if math.IsInf(bound, 1) {
-				continue
-			}
-			edge := fitEdge{fixed: adj, moving: adjustments[moving], bound: bound}
-			for _, travel := range edge.candidates(delta, priority) {
-				var setting [2]float64
-				setting[fixed], setting[moving] = bound, travel
-				miss := priority.miss(delta, adjustments, setting)
-				if !haveBest || priority.prefers(miss, bestMiss) {
-					best, bestMiss, haveBest = setting, miss, true
-				}
-			}
-		}
-	}
-
-	// Clipped error-rectangle intersections can reach a bound within round-off.
-	boundTol := 0.0
-	if priority == inRectThenYFirst {
-		boundTol = fitBoundTolMm
-	}
-	for i, adj := range adjustments {
-		if math.Abs(best[i]-adj.lo) <= boundTol || math.Abs(best[i]-adj.hi) <= boundTol {
-			limited = append(limited, adj.field)
-		}
-	}
-	return best[0], best[1], limited, true
 }
