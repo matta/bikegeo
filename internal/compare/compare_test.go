@@ -102,8 +102,8 @@ func sqlab311Bar() assembly.HandlebarSetup {
 }
 
 func fixtureRequest() compare.Request {
-	brp := pose.Pt(assembly.DynamicWorld, -219, 713.1)
-	grip := pose.Pt(assembly.DynamicWorld, 481, 726)
+	brp := pose.NewPoint(assembly.DynamicWorld, -219, 713.1)
+	grip := pose.NewPoint(assembly.DynamicWorld, 481, 726)
 	return compare.Request{
 		Frames: fixtureFrames(),
 		Wheels: assembly.WheelSetup{RadiusMm: 372},

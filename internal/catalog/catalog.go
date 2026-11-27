@@ -16,10 +16,10 @@ const WheelLabel = `29" × 2.4"`
 
 // DefaultBrpTarget returns the idmatch fit report's BRP (measured; docs/RIDER_FIT.md, Q53).
 func DefaultBrpTarget() pose.Point {
-	return pose.Pt(assembly.DynamicWorld, -219.0, 713.1)
+	return pose.NewPoint(assembly.DynamicWorld, -219.0, 713.1)
 }
 
 // DefaultGripTarget returns the idmatch fit report's HandGrip (measured; Q53, Q64).
 func DefaultGripTarget() pose.Point {
-	return pose.Pt(assembly.DynamicWorld, 481.0, 726.0)
+	return pose.NewPoint(assembly.DynamicWorld, 481.0, 726.0)
 }

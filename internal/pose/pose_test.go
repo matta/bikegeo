@@ -10,12 +10,12 @@ import (
 )
 
 var (
-	testWorld   = pose.NewFrame("test:world")
-	staticWorld = pose.NewFrame("test:static_world")
-	postLocal   = pose.NewFrame("test:post_local")
-	cradleLocal = pose.NewFrame("test:cradle_local")
-	railClamp   = pose.NewFrame("test:rail_clamp")
-	saddleLocal = pose.NewFrame("test:saddle_local")
+	testWorld   = pose.NewCoordinateSystem("test:world")
+	staticWorld = pose.NewCoordinateSystem("test:static_world")
+	postLocal   = pose.NewCoordinateSystem("test:post_local")
+	cradleLocal = pose.NewCoordinateSystem("test:cradle_local")
+	railClamp   = pose.NewCoordinateSystem("test:rail_clamp")
+	saddleLocal = pose.NewCoordinateSystem("test:saddle_local")
 )
 
 func assertNear(t *testing.T, name string, got, want, tol float64) {
@@ -43,7 +43,7 @@ func assertPanicsWith(t *testing.T, name, wantSubstr string, fn func()) {
 }
 
 func TestPoseImmutabilityAndBranching(t *testing.T) {
-	root := pose.NewPose(pose.Pt(testWorld, 10, 20), 90)
+	root := pose.NewPose(pose.NewPoint(testWorld, 10, 20), 90)
 
 	a := root.Advance(50)
 	b := root.Turn(-90).Advance(30)
@@ -75,7 +75,7 @@ func TestAdvanceTurnChain(t *testing.T) {
 
 func TestTranslateLocalAngleToAndDistanceTo(t *testing.T) {
 	// At 90° heading (+Y is local +X, -X is local +Y).
-	p0 := pose.NewPose(pose.Pt(testWorld, 10, 20), 90)
+	p0 := pose.NewPose(pose.NewPoint(testWorld, 10, 20), 90)
 	p1 := p0.TranslateLocal(30, 40)
 
 	// World delta = (-40, +30) -> origin = (-30, 50).
@@ -91,38 +91,38 @@ func TestTranslateLocalAngleToAndDistanceTo(t *testing.T) {
 }
 
 func TestPointDisplacements(t *testing.T) {
-	start := pose.Pt(testWorld, 10, 20)
-	end := pose.Pt(testWorld, 7, 24)
+	start := pose.NewPoint(testWorld, 10, 20)
+	end := pose.NewPoint(testWorld, 7, 24)
 	move := start.OffsetTo(end)
-	if want := pose.Vc(testWorld, -3, 4); move != want {
+	if want := pose.NewVector(testWorld, -3, 4); move != want {
 		t.Fatalf("offset = %v, want %v", move, want)
 	}
 	if got := start.Add(move); got != end {
 		t.Errorf("translated point = %v, want %v", got, end)
 	}
-	if got, want := start.Sub(end), pose.Vc(testWorld, 3, -4); got != want {
+	if got, want := start.Sub(end), pose.NewVector(testWorld, 3, -4); got != want {
 		t.Errorf("reverse displacement = %v, want %v", got, want)
 	}
 	assertNear(t, "displacement norm", move.Norm(), 5, 1e-12)
 
-	adjustment := pose.Vc(testWorld, 2, -1)
-	if got, want := move.Add(adjustment), pose.Vc(testWorld, -1, 3); got != want {
+	adjustment := pose.NewVector(testWorld, 2, -1)
+	if got, want := move.Add(adjustment), pose.NewVector(testWorld, -1, 3); got != want {
 		t.Errorf("vector sum = %v, want %v", got, want)
 	}
-	if got, want := move.Sub(adjustment), pose.Vc(testWorld, -5, 5); got != want {
+	if got, want := move.Sub(adjustment), pose.NewVector(testWorld, -5, 5); got != want {
 		t.Errorf("vector difference = %v, want %v", got, want)
 	}
-	if got, want := move.Scale(2), pose.Vc(testWorld, -6, 8); got != want {
+	if got, want := move.Scale(2), pose.NewVector(testWorld, -6, 8); got != want {
 		t.Errorf("scaled vector = %v, want %v", got, want)
 	}
-	if got, want := move.Neg(), pose.Vc(testWorld, 3, -4); got != want {
+	if got, want := move.Neg(), pose.NewVector(testWorld, 3, -4); got != want {
 		t.Errorf("negated vector = %v, want %v", got, want)
 	}
 	assertNear(t, "dot product", move.Dot(adjustment), -10, 1e-12)
 }
 
 func TestFaceSetsAbsoluteHeading(t *testing.T) {
-	start := pose.NewPose(pose.Pt(testWorld, 100, 72), 382.75)
+	start := pose.NewPose(pose.NewPoint(testWorld, 100, 72), 382.75)
 	moved := start.Advance(10)
 	faced := moved.Face(pose.NewHeading(testWorld, -90.0))
 
@@ -134,15 +134,15 @@ func TestFaceSetsAbsoluteHeading(t *testing.T) {
 	assertNear(t, "start.Heading", float64(start.HeadingDeg()), 382.75, 1e-12)
 }
 
-func TestTransformPointVecAndPose(t *testing.T) {
-	p := pose.NewPose(pose.Pt(testWorld, 63, -147), 104.75)
-	localPoint := pose.Pt(postLocal, 30, -14)
-	localVec := pose.Vc(postLocal, 30, -14)
+func TestTransformPointVectorAndPose(t *testing.T) {
+	p := pose.NewPose(pose.NewPoint(testWorld, 63, -147), 104.75)
+	localPoint := pose.NewPoint(postLocal, 30, -14)
+	localVector := pose.NewVector(postLocal, 30, -14)
 	localPose := pose.NewPose(localPoint, -15)
 	transform := p.Anchor(postLocal)
 
 	if transform.Src() != postLocal || transform.Dst() != testWorld {
-		t.Fatalf("transform frames = %s → %s", transform.Src(), transform.Dst())
+		t.Fatalf("transform coordinate systems = %s → %s", transform.Src(), transform.Dst())
 	}
 	if transform.OriginInDst() != p.Origin() || transform.HeadingInDst() != p.Heading() || transform.PoseInDst() != p {
 		t.Fatalf("PoseInDst mismatch: got %+v, want %+v", transform.PoseInDst(), p)
@@ -150,51 +150,51 @@ func TestTransformPointVecAndPose(t *testing.T) {
 
 	worldPoint := transform.ApplyPoint(localPoint)
 	assertNear(t, "transformed point vs. translation", worldPoint.DistanceTo(p.TranslateLocal(30, -14).Origin()), 0, 1e-12)
-	worldVec := transform.ApplyVec(localVec)
-	assertNear(t, "transformed vector vs. origin displacement", worldVec.Sub(p.Origin().OffsetTo(worldPoint)).Norm(), 0, 1e-12)
+	worldVector := transform.ApplyVector(localVector)
+	assertNear(t, "transformed vector vs. origin displacement", worldVector.Sub(p.Origin().OffsetTo(worldPoint)).Norm(), 0, 1e-12)
 	worldPose := transform.ApplyPose(localPose)
 	assertNear(t, "transformed pose origin", worldPose.Origin().DistanceTo(worldPoint), 0, 1e-12)
 	assertNear(t, "transformed pose heading", float64(worldPose.HeadingDeg()), 104.75-15, 1e-12)
 
 	inv := transform.Inverse()
 	assertNear(t, "round-trip point", inv.ApplyPoint(worldPoint).DistanceTo(localPoint), 0, 1e-12)
-	assertNear(t, "round-trip vector", inv.ApplyVec(worldVec).Sub(localVec).Norm(), 0, 1e-12)
+	assertNear(t, "round-trip vector", inv.ApplyVector(worldVector).Sub(localVector).Norm(), 0, 1e-12)
 	roundPose := inv.ApplyPose(worldPose)
 	assertNear(t, "round-trip pose origin", roundPose.Origin().DistanceTo(localPoint), 0, 1e-12)
 	assertNear(t, "round-trip pose heading", float64(roundPose.HeadingDeg()), -15, 1e-12)
 
 	id := pose.IdentityTransform(postLocal)
-	if id.ApplyPoint(localPoint) != localPoint || id.ApplyVec(localVec) != localVec || id.ApplyPose(localPose) != localPose {
+	if id.ApplyPoint(localPoint) != localPoint || id.ApplyVector(localVector) != localVector || id.ApplyPose(localPose) != localPose {
 		t.Errorf("IdentityTransform modified input")
 	}
 }
 
 func TestComposeRailAndPostTransforms(t *testing.T) {
-	seatTubeTop := pose.NewPose(pose.Pt(testWorld, -130, 450), 104.75)
-	cradleInPost := pose.Pt(postLocal, 180, 12)
+	seatTubeTop := pose.NewPose(pose.NewPoint(testWorld, -130, 450), 104.75)
+	cradleInPost := pose.NewPoint(postLocal, 180, 12)
 	railHeading := pose.NewHeading(testWorld, 5)
 	railInPost := pose.NewTransform(saddleLocal, postLocal, cradleInPost, railHeading.Sub(seatTubeTop.Heading()))
 	railToWorld := pose.Compose(railInPost, seatTubeTop.Anchor(postLocal))
 
-	brpInRail := pose.Pt(saddleLocal, 35, 42)
+	brpInRail := pose.NewPoint(saddleLocal, 35, 42)
 	cradle := seatTubeTop.Advance(cradleInPost.X()).TranslateLocal(0, cradleInPost.Y())
 	want := cradle.Face(railHeading).
 		Advance(brpInRail.X()).TranslateLocal(0, brpInRail.Y()).Origin()
 	assertNear(t, "composed BRP vs. turtle placement", railToWorld.ApplyPoint(brpInRail).DistanceTo(want), 0, 1e-12)
-	brpOffset := pose.Vc(saddleLocal, 35, 42)
-	wantOffset := seatTubeTop.Anchor(postLocal).ApplyVec(railInPost.ApplyVec(brpOffset))
-	assertNear(t, "composed vector vs. sequential rotation", railToWorld.ApplyVec(brpOffset).Sub(wantOffset).Norm(), 0, 1e-12)
+	brpOffset := pose.NewVector(saddleLocal, 35, 42)
+	wantOffset := seatTubeTop.Anchor(postLocal).ApplyVector(railInPost.ApplyVector(brpOffset))
+	assertNear(t, "composed vector vs. sequential rotation", railToWorld.ApplyVector(brpOffset).Sub(wantOffset).Norm(), 0, 1e-12)
 }
 
 func TestTransferClampedSaddle(t *testing.T) {
-	dynamicCradle := pose.NewPose(pose.Pt(testWorld, -190, 675), 104.75)
+	dynamicCradle := pose.NewPose(pose.NewPoint(testWorld, -190, 675), 104.75)
 	railHeading := pose.NewHeading(testWorld, 5)
 	dynamicRail := dynamicCradle.Face(railHeading)
 	clampedRailTurn := dynamicRail.Heading().Sub(dynamicCradle.Heading())
 	assertNear(t, "measured rail turn", float64(clampedRailTurn), -99.75, 1e-12)
 	assertNear(t, "replayed dynamic heading", float64(dynamicCradle.Turn(clampedRailTurn).HeadingDeg()), 5, 1e-12)
 
-	staticCradle := pose.NewPose(pose.Pt(staticWorld, -183, 684), 106.25)
+	staticCradle := pose.NewPose(pose.NewPoint(staticWorld, -183, 684), 106.25)
 	staticRail := staticCradle.Turn(clampedRailTurn)
 	assertNear(t, "replayed static heading", float64(staticRail.HeadingDeg()), 6.5, 1e-12)
 	dynamicBrp := dynamicRail.TranslateLocal(35, 42).Origin()
@@ -203,43 +203,43 @@ func TestTransferClampedSaddle(t *testing.T) {
 	assertNear(t, "transferred BRP vs. static turtle placement", transfer.ApplyPoint(dynamicBrp).DistanceTo(want), 0, 1e-12)
 }
 
-func TestFrameIDNegativeSafeguards(t *testing.T) {
-	// Zero-value FrameID and uninitialized geometric structs fail immediately on first use.
-	var zeroFrame pose.FrameID
-	if zeroFrame.Valid() {
-		t.Fatal("zero FrameID reported Valid() == true")
+func TestCoordinateSystemNegativeSafeguards(t *testing.T) {
+	// Zero-value CoordinateSystem and uninitialized geometric structs fail immediately on first use.
+	var zeroSystem pose.CoordinateSystem
+	if zeroSystem.Valid() {
+		t.Fatal("zero CoordinateSystem reported Valid() == true")
 	}
-	if zeroFrame.String() != "<uninitialized>" {
-		t.Fatalf("zero FrameID.String() = %q", zeroFrame.String())
+	if zeroSystem.String() != "<uninitialized>" {
+		t.Fatalf("zero CoordinateSystem.String() = %q", zeroSystem.String())
 	}
 
 	var zeroPt pose.Point
-	var zeroVec pose.Vec
+	var zeroVector pose.Vector
 	var zeroHeading pose.Heading
 	var zeroPose pose.Pose
 	var zeroTransform pose.Transform
 
-	assertPanicsWith(t, "zero Point.X", "uninitialized zero-value FrameID", func() { _ = zeroPt.X() })
-	assertPanicsWith(t, "zero Point.Sub", "uninitialized zero-value FrameID", func() { _ = zeroPt.Sub(pose.Origin(testWorld)) })
-	assertPanicsWith(t, "zero Point.MarshalJSON", "uninitialized zero-value FrameID", func() { _, _ = json.Marshal(zeroPt) })
-	assertPanicsWith(t, "zero Vec.Norm", "uninitialized zero-value FrameID", func() { _ = zeroVec.Norm() })
-	assertPanicsWith(t, "zero Heading.Deg", "uninitialized zero-value FrameID", func() { _ = zeroHeading.Deg() })
-	assertPanicsWith(t, "zero Pose.Advance", "uninitialized zero-value FrameID", func() { _ = zeroPose.Advance(10) })
-	assertPanicsWith(t, "zero Pose.MarshalJSON", "uninitialized zero-value FrameID", func() { _, _ = json.Marshal(zeroPose) })
-	assertPanicsWith(t, "zero Transform.ApplyPoint", "uninitialized zero-value FrameID", func() { _ = zeroTransform.ApplyPoint(pose.Origin(testWorld)) })
-	assertPanicsWith(t, "zero Transform.Inverse", "uninitialized zero-value FrameID", func() { _ = zeroTransform.Inverse() })
-	assertPanicsWith(t, "NewTransform zero src", "uninitialized zero-value FrameID", func() { _ = pose.NewTransform(zeroFrame, testWorld, pose.Origin(testWorld), 0) })
+	assertPanicsWith(t, "zero Point.X", "uninitialized zero-value CoordinateSystem", func() { _ = zeroPt.X() })
+	assertPanicsWith(t, "zero Point.Sub", "uninitialized zero-value CoordinateSystem", func() { _ = zeroPt.Sub(pose.Origin(testWorld)) })
+	assertPanicsWith(t, "zero Point.MarshalJSON", "uninitialized zero-value CoordinateSystem", func() { _, _ = json.Marshal(zeroPt) })
+	assertPanicsWith(t, "zero Vector.Norm", "uninitialized zero-value CoordinateSystem", func() { _ = zeroVector.Norm() })
+	assertPanicsWith(t, "zero Heading.Deg", "uninitialized zero-value CoordinateSystem", func() { _ = zeroHeading.Deg() })
+	assertPanicsWith(t, "zero Pose.Advance", "uninitialized zero-value CoordinateSystem", func() { _ = zeroPose.Advance(10) })
+	assertPanicsWith(t, "zero Pose.MarshalJSON", "uninitialized zero-value CoordinateSystem", func() { _, _ = json.Marshal(zeroPose) })
+	assertPanicsWith(t, "zero Transform.ApplyPoint", "uninitialized zero-value CoordinateSystem", func() { _ = zeroTransform.ApplyPoint(pose.Origin(testWorld)) })
+	assertPanicsWith(t, "zero Transform.Inverse", "uninitialized zero-value CoordinateSystem", func() { _ = zeroTransform.Inverse() })
+	assertPanicsWith(t, "NewTransform zero src", "uninitialized zero-value CoordinateSystem", func() { _ = pose.NewTransform(zeroSystem, testWorld, pose.Origin(testWorld), 0) })
 
-	// Cross-frame Point/Vec arithmetic panics.
-	ptWorld := pose.Pt(testWorld, 1, 2)
-	ptStatic := pose.Pt(staticWorld, 1, 2)
-	vecStatic := pose.Vc(staticWorld, 3, 4)
-	assertPanicsWith(t, "cross-frame Point.Sub", "coordinate frame mismatch", func() { _ = ptWorld.Sub(ptStatic) })
-	assertPanicsWith(t, "cross-frame Point.Add", "coordinate frame mismatch", func() { _ = ptWorld.Add(vecStatic) })
-	assertPanicsWith(t, "cross-frame Vec.Dot", "coordinate frame mismatch", func() { _ = pose.Vc(testWorld, 1, 0).Dot(vecStatic) })
-	assertPanicsWith(t, "cross-frame Pose.Face", "coordinate frame mismatch", func() { _ = pose.OriginPose(testWorld).Face(pose.NewHeading(staticWorld, 0)) })
-	assertPanicsWith(t, "cross-frame DecomposeAlong", "coordinate frame mismatch", func() {
-		_, _, _ = pose.DecomposeAlong(pose.Vc(testWorld, 1, 1), pose.NewHeading(testWorld, 0), pose.NewHeading(staticWorld, 90))
+	// Cross-system Point/Vector arithmetic panics.
+	ptWorld := pose.NewPoint(testWorld, 1, 2)
+	ptStatic := pose.NewPoint(staticWorld, 1, 2)
+	vecStatic := pose.NewVector(staticWorld, 3, 4)
+	assertPanicsWith(t, "cross-system Point.Sub", "coordinate system mismatch", func() { _ = ptWorld.Sub(ptStatic) })
+	assertPanicsWith(t, "cross-system Point.Add", "coordinate system mismatch", func() { _ = ptWorld.Add(vecStatic) })
+	assertPanicsWith(t, "cross-system Vector.Dot", "coordinate system mismatch", func() { _ = pose.NewVector(testWorld, 1, 0).Dot(vecStatic) })
+	assertPanicsWith(t, "cross-system Pose.Face", "coordinate system mismatch", func() { _ = pose.OriginPose(testWorld).Face(pose.NewHeading(staticWorld, 0)) })
+	assertPanicsWith(t, "cross-system DecomposeAlong", "coordinate system mismatch", func() {
+		_, _, _ = pose.DecomposeAlong(pose.NewVector(testWorld, 1, 1), pose.NewHeading(testWorld, 0), pose.NewHeading(staticWorld, 90))
 	})
 
 	// Transform Compose mismatch panics.
@@ -249,10 +249,10 @@ func TestFrameIDNegativeSafeguards(t *testing.T) {
 		_ = pose.Compose(tPostToWorld, tCradleToStatic)
 	})
 
-	// Origin-distinct local frames (RailClamp vs. SaddleLocal) cannot be mixed.
+	// Origin-distinct local coordinate systems (RailClamp vs. SaddleLocal) cannot be mixed.
 	tClampToWorld := pose.OriginPose(testWorld).Anchor(railClamp)
-	assertPanicsWith(t, "origin-distinct RailClamp vs SaddleLocal", "coordinate frame mismatch", func() {
-		_ = tClampToWorld.ApplyPoint(pose.Pt(saddleLocal, 32, 45))
+	assertPanicsWith(t, "origin-distinct RailClamp vs SaddleLocal", "coordinate system mismatch", func() {
+		_ = tClampToWorld.ApplyPoint(pose.NewPoint(saddleLocal, 32, 45))
 	})
 }
 
@@ -269,14 +269,14 @@ func TestPrimitivesDeflectionAndRightTriangleLeg(t *testing.T) {
 func TestDecomposeAlong(t *testing.T) {
 	h0 := pose.NewHeading(testWorld, 0)
 	h90 := pose.NewHeading(testWorld, 90)
-	a, b, ok := pose.DecomposeAlong(pose.Vc(testWorld, 3, 4), h0, h90)
+	a, b, ok := pose.DecomposeAlong(pose.NewVector(testWorld, 3, 4), h0, h90)
 	if !ok {
 		t.Fatal("axis-aligned decomposition reported not ok")
 	}
 	assertNear(t, "a", a, 3, 1e-12)
 	assertNear(t, "b", b, 4, 1e-12)
 
-	v := pose.Vc(testWorld, -37.5, 81.25)
+	v := pose.NewVector(testWorld, -37.5, 81.25)
 	a, b, ok = pose.DecomposeAlong(v, pose.NewHeading(testWorld, 105.29), pose.NewHeading(testWorld, 180))
 	if !ok {
 		t.Fatal("oblique decomposition reported not ok")
@@ -301,7 +301,7 @@ func TestAlongAndProjectOnto(t *testing.T) {
 	p := pose.Along(pose.NewHeading(testWorld, 90), 2)
 	assertNear(t, "Along.X", p.X(), 0, 1e-12)
 	assertNear(t, "Along.Y", p.Y(), 2, 1e-12)
-	assertNear(t, "ProjectOnto", pose.ProjectOnto(pose.Vc(testWorld, 1, 1), pose.NewHeading(testWorld, 45)), math.Sqrt2, 1e-12)
+	assertNear(t, "ProjectOnto", pose.ProjectOnto(pose.NewVector(testWorld, 1, 1), pose.NewHeading(testWorld, 45)), math.Sqrt2, 1e-12)
 }
 
 func TestPoseMarshalJSON(t *testing.T) {
@@ -310,7 +310,7 @@ func TestPoseMarshalJSON(t *testing.T) {
 		p    pose.Pose
 		want string
 	}{
-		{"placed", pose.NewPose(pose.Pt(testWorld, -219, 713.1), 104.75), `{"Origin":{"X":-219,"Y":713.1},"HeadingDeg":104.75}`},
+		{"placed", pose.NewPose(pose.NewPoint(testWorld, -219, 713.1), 104.75), `{"Origin":{"X":-219,"Y":713.1},"HeadingDeg":104.75}`},
 		{"origin", pose.OriginPose(testWorld), `{"Origin":{"X":0,"Y":0},"HeadingDeg":0}`},
 	}
 	for _, tc := range cases {
@@ -327,8 +327,8 @@ func TestPoseMarshalJSON(t *testing.T) {
 		name string
 		p    pose.Pose
 	}{
-		{"NaN X", pose.NewPose(pose.Pt(testWorld, math.NaN(), 0), 0)},
-		{"Inf Y", pose.NewPose(pose.Pt(testWorld, 0, math.Inf(1)), 0)},
+		{"NaN X", pose.NewPose(pose.NewPoint(testWorld, math.NaN(), 0), 0)},
+		{"Inf Y", pose.NewPose(pose.NewPoint(testWorld, 0, math.Inf(1)), 0)},
 		{"NaN heading", pose.NewPose(pose.Origin(testWorld), pose.Deg(math.NaN()))},
 		{"Inf heading", pose.NewPose(pose.Origin(testWorld), pose.Deg(math.Inf(-1)))},
 	}

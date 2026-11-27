@@ -368,7 +368,7 @@ type WheelSetup struct {
 }
 
 // FramesetPlacement holds frame, fork, lower headset cup, and wheel-ground
-// contact landmark poses in a world coordinate frame (UnpitchedChart or
+// contact landmark poses in a world coordinate system (UnpitchedChart or
 // DynamicWorld), anchored with BB at (0, 0) (+X forward, +Y up).
 // PlaceFrameset returns it leveled (horizontal axle line,
 // RearAxle.Origin().Y() == FrontAxle.Origin().Y(), with RearTireContact and
@@ -403,13 +403,13 @@ type FramesetPlacement struct {
 }
 
 // SteererInWorld returns the rigid transform mapping SteererLocal
-// ((0, 0) at HeadTubeTop, +X up the steerer) into HeadTubeTop's world frame.
+// ((0, 0) at HeadTubeTop, +X up the steerer) into HeadTubeTop's world coordinate system.
 func (f FramesetPlacement) SteererInWorld() pose.Transform {
 	return f.HeadTubeTop.Anchor(SteererLocal)
 }
 
 // LowerHeadsetInWorld returns the rigid transform mapping LowerHeadsetLocal
-// ((0, 0) at HeadTubeBottom, +X down the steerer) into HeadTubeBottom's world frame.
+// ((0, 0) at HeadTubeBottom, +X down the steerer) into HeadTubeBottom's world coordinate system.
 func (f FramesetPlacement) LowerHeadsetInWorld() pose.Transform {
 	return f.HeadTubeBottom.Anchor(LowerHeadsetLocal)
 }
@@ -462,7 +462,7 @@ func (f FramesetPlacement) TrailMm() float64 {
 	// contact's height) at HeadTubeTop plus the run, so the remainder runs
 	// from that point to the contact, and trail is its negation.
 	steererDown := f.HeadTubeTop.Turn(180.0).Heading()
-	worldHoriz := pose.NewHeading(f.HeadTubeTop.Frame(), 0)
+	worldHoriz := pose.NewHeading(f.HeadTubeTop.CoordinateSystem(), 0)
 	_, ahead, ok := pose.DecomposeAlong(f.HeadTubeTop.Origin().OffsetTo(f.FrontTireContact.Origin()), steererDown, worldHoriz)
 	if !ok {
 		return math.NaN() // a horizontal steering axis never meets the ground
@@ -499,7 +499,7 @@ func (f FramesetPlacement) LeveledStackMm() float64 {
 func (f FramesetPlacement) EttMm() float64 {
 	// Split BB → HeadTubeTop into a run up the seat axis and a horizontal
 	// remainder; the remainder is the ETT.
-	worldHoriz := pose.NewHeading(f.SeatAxis.Frame(), 0)
+	worldHoriz := pose.NewHeading(f.SeatAxis.CoordinateSystem(), 0)
 	_, ett, ok := pose.DecomposeAlong(f.SeatAxis.Origin().OffsetTo(f.HeadTubeTop.Origin()), f.SeatAxis.Heading(), worldHoriz)
 	if !ok {
 		return math.NaN() // a horizontal seat axis never reaches HeadTubeTop's height
@@ -532,7 +532,7 @@ func PlaceFrameset(frame FrameSetup, lowerCup LowerCupSetup, fork ForkSetup, whe
 	return placeFramesetAtPitch(DynamicWorld, unpitched.LevelingPitchDeg(), frame, lowerCup.StackMm, fork.Geometry(), wheels), nil
 }
 
-func placeFramesetAtPitch(world pose.FrameID, pitch pose.Deg, frame FrameSetup, lowerCupMm float64, fork ForkGeometry, wheels WheelSetup) FramesetPlacement {
+func placeFramesetAtPitch(world pose.CoordinateSystem, pitch pose.Deg, frame FrameSetup, lowerCupMm float64, fork ForkGeometry, wheels WheelSetup) FramesetPlacement {
 	// Add +0° to normalize -0° when the axle line is already level.
 	frameRoot := pose.NewPose(pose.Origin(world), 0+pitch)
 	rearX := -pose.RightTriangleLeg(frame.ChainstayMm, frame.BbDropMm)

@@ -125,7 +125,7 @@ func (o FitOval) NormalizedRadius(center, p pose.Point) float64 {
 // center in normalizedRadius) so FitBuilds can evaluate NormalizedRadius
 // without repeating trig per candidate.
 type gripOvalProjection struct {
-	minorDir, majorDir       pose.Vec // unit vectors in DynamicWorld
+	minorDir, majorDir       pose.Vector // unit vectors in DynamicWorld
 	semiMinorMm, semiMajorMm float64
 }
 
@@ -392,7 +392,7 @@ func ScoreBuild(placement BikePlacement, target FitTarget, stemScore float64, we
 	rcWb := placement.Frameset.RcWbRatioPct()
 	bbDrop := placement.Frameset.LeveledBbDropMm()
 	trail := placement.Frameset.TrailMm()
-	brpMiss := pose.Vc(DynamicWorld, 0, 0)
+	brpMiss := pose.NewVector(DynamicWorld, 0, 0)
 	if hasBrp {
 		brpMiss = target.BRP.Sub(placement.Saddle.BRP.Origin())
 	}

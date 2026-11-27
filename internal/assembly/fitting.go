@@ -48,17 +48,17 @@ type Fitting struct {
 }
 
 // BrpMiss returns target − placed BRP (world mm), and false when the target has no BRP.
-func (f Fitting) BrpMiss() (pose.Vec, bool) {
+func (f Fitting) BrpMiss() (pose.Vector, bool) {
 	if f.Target.BRP == nil {
-		return pose.Vec{}, false
+		return pose.Vector{}, false
 	}
 	return f.Target.BRP.Sub(f.Placement.Saddle.BRP.Origin()), true
 }
 
 // GripMiss returns target − placed HandGrip (world mm), and false when the target has no HandGrip.
-func (f Fitting) GripMiss() (pose.Vec, bool) {
+func (f Fitting) GripMiss() (pose.Vector, bool) {
 	if f.Target.HandGrip == nil {
-		return pose.Vec{}, false
+		return pose.Vector{}, false
 	}
 	return f.Target.HandGrip.Sub(f.Placement.Handlebar.HandGrip.Origin()), true
 }
@@ -304,7 +304,7 @@ func (r fitInterval) clip(c, s, limit float64) (fitInterval, bool) {
 // heightFirst returns the multiplier in r (in mm) that brings travel*direction
 // closest to target in Y, breaking ties by distance in X. direction is a
 // unit-length direction vector in DynamicWorld.
-func (r fitInterval) heightFirst(target, direction pose.Vec) float64 {
+func (r fitInterval) heightFirst(target, direction pose.Vector) float64 {
 	if math.Abs(direction.Y()) >= fitDirectionTol {
 		return r.clamp(target.Y() / direction.Y())
 	}
@@ -346,7 +346,7 @@ type fitEdge struct {
 // Y error over the whole edge, breaking ties by absolute X error. If the edge
 // intersects the allowed error rectangle around delta, it also returns the best
 // distance within that intersection using the same ordering.
-func (edge fitEdge) candidates(delta pose.Vec, priority fitPriority) []float64 {
+func (edge fitEdge) candidates(delta pose.Vector, priority fitPriority) []float64 {
 	if priority == nearestPoint {
 		target := delta.Sub(pose.Along(edge.fixed.heading, edge.bound))
 		return []float64{edge.moving.clamp(pose.ProjectOnto(target, edge.moving.heading))}
@@ -371,7 +371,7 @@ func (edge fitEdge) candidates(delta pose.Vec, priority fitPriority) []float64 {
 // priority subtracts their sum using unit direction vectors dirA and dirB.
 // Floating-point rounding at a tolerance boundary can make the evaluation
 // order significant.
-func (p fitPriority) miss(delta pose.Vec, adjustments [2]fitAdjustment, travel [2]float64) pose.Vec {
+func (p fitPriority) miss(delta pose.Vector, adjustments [2]fitAdjustment, travel [2]float64) pose.Vector {
 	if p == nearestPoint {
 		return delta.Sub(pose.Along(adjustments[0].heading, travel[0])).Sub(pose.Along(adjustments[1].heading, travel[1]))
 	}
@@ -380,7 +380,7 @@ func (p fitPriority) miss(delta pose.Vec, adjustments [2]fitAdjustment, travel [
 }
 
 // prefers compares target misses. Ties keep the first candidate visited.
-func (p fitPriority) prefers(miss, best pose.Vec) bool {
+func (p fitPriority) prefers(miss, best pose.Vector) bool {
 	if p == nearestPoint {
 		return miss.Norm() < best.Norm()-fitBoundTolMm
 	}
@@ -402,7 +402,7 @@ func (p fitPriority) prefers(miss, best pose.Vec) bool {
 // reachable target, limited is nil, including at a bound within round-off.
 // Otherwise it fixes each input at its finite bounds and reports the winning
 // point's limiting inputs in (a, b) order. Parallel directions return ok=false.
-func fitBox(delta pose.Vec, a, b fitAdjustment, priority fitPriority) (da, db float64, limited []InputField, ok bool) {
+func fitBox(delta pose.Vector, a, b fitAdjustment, priority fitPriority) (da, db float64, limited []InputField, ok bool) {
 	da, db, ok = pose.DecomposeAlong(delta, a.heading, b.heading)
 	if !ok {
 		return 0, 0, nil, false
@@ -413,7 +413,7 @@ func fitBox(delta pose.Vec, a, b fitAdjustment, priority fitPriority) (da, db fl
 
 	adjustments := [2]fitAdjustment{a, b}
 	var best [2]float64
-	var bestMiss pose.Vec
+	var bestMiss pose.Vector
 	haveBest := false
 	for fixed, adj := range adjustments {
 		moving := 1 - fixed

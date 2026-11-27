@@ -116,14 +116,14 @@ func TestFitBuildsMatchesReference(t *testing.T) {
 		"bars_and_forks": multi,
 	}
 
-	setbackBRP := pose.Pt(assembly.DynamicWorld, -189, 713.1)
-	farBRP := pose.Pt(assembly.DynamicWorld, -260, 640)
+	setbackBRP := pose.NewPoint(assembly.DynamicWorld, -189, 713.1)
+	farBRP := pose.NewPoint(assembly.DynamicWorld, -260, 640)
 	brps := map[string]*pose.Point{"no_brp": nil, "report_brp": &fitReportBRP, "setback_brp": &setbackBRP, "far_brp": &farBRP}
 
 	grips := []pose.Point{
-		pose.Pt(assembly.DynamicWorld, fitReportGrip.X()-60, fitReportGrip.Y()-60),
+		pose.NewPoint(assembly.DynamicWorld, fitReportGrip.X()-60, fitReportGrip.Y()-60),
 		fitReportGrip,
-		pose.Pt(assembly.DynamicWorld, fitReportGrip.X()+60, fitReportGrip.Y()+60),
+		pose.NewPoint(assembly.DynamicWorld, fitReportGrip.X()+60, fitReportGrip.Y()+60),
 	}
 
 	const everyBuild = 1 << 20

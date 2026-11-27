@@ -129,7 +129,7 @@ func TestAttributeCurves(t *testing.T) {
 	t.Run("HandGrip", func(t *testing.T) {
 		for _, c := range []struct{ r, want float64 }{{0, 100}, {0.5, 95}, {1, 90}, {1.5, 45}, {2, 0}, {3, 0}} {
 			// The oval's major axis runs at 60°; 20 mm along it is R = 1.
-			target := pose.Pt(assembly.DynamicWorld, grip.X()+c.r*20*math.Cos(math.Pi/3), grip.Y()+c.r*20*math.Sin(math.Pi/3))
+			target := pose.NewPoint(assembly.DynamicWorld, grip.X()+c.r*20*math.Cos(math.Pi/3), grip.Y()+c.r*20*math.Sin(math.Pi/3))
 			s := mustScore(t, placed, assembly.FitTarget{HandGrip: &target}, 100)
 			assertNear(t, "R", s.GripR, c.r, 1e-9)
 			assertNear(t, "score", attrScore(t, s, assembly.AttrHandGrip).Score, c.want, tol)
@@ -137,12 +137,12 @@ func TestAttributeCurves(t *testing.T) {
 	})
 	t.Run("Saddle BRP", func(t *testing.T) {
 		for _, c := range []struct{ d, want float64 }{{0, 100}, {0.5, 100}, {1.25, 75}, {2, 50}, {3, 25}, {4, 0}, {5, 0}} {
-			target := pose.Pt(assembly.DynamicWorld, brp.X(), brp.Y()+c.d)
+			target := pose.NewPoint(assembly.DynamicWorld, brp.X(), brp.Y()+c.d)
 			s := mustScore(t, placed, assembly.FitTarget{HandGrip: &grip, BRP: &target}, 100)
 			assertNear(t, "Y score", attrScore(t, s, assembly.AttrSaddleBrpY).Score, c.want, tol)
 		}
 		for _, c := range []struct{ d, want float64 }{{0, 100}, {1, 100}, {5.5, 75}, {10, 50}, {15, 25}, {20, 0}, {30, 0}} {
-			target := pose.Pt(assembly.DynamicWorld, brp.X()+c.d, brp.Y())
+			target := pose.NewPoint(assembly.DynamicWorld, brp.X()+c.d, brp.Y())
 			s := mustScore(t, placed, assembly.FitTarget{HandGrip: &grip, BRP: &target}, 100)
 			assertNear(t, "X score", attrScore(t, s, assembly.AttrSaddleBrpX).Score, c.want, tol)
 		}
@@ -300,7 +300,7 @@ func TestScoreBuildReferenceBuilds(t *testing.T) {
 		checkRail      bool
 	}{
 		{"gate boundary", gateTradeOffBRP, assembly.FitsAll, 85.031263, -10, -1.097455, 80.084835, 50, 0, true},
-		{"just outside", pose.Pt(assembly.DynamicWorld, -175.542919, 710.580028), assembly.FitsGrip, 88.017123, -10.6, 0, 100, 46.999999, 0, false},
+		{"just outside", pose.NewPoint(assembly.DynamicWorld, -175.542919, 710.580028), assembly.FitsGrip, 88.017123, -10.6, 0, 100, 46.999999, 0, false},
 	} {
 		brp := c.brp
 		fit, err := assembly.ApplyFitting(fenrirFittingSetup(), assembly.FitTarget{BRP: &brp})
@@ -344,12 +344,12 @@ func TestScoreBuildErrors(t *testing.T) {
 	if _, err := assembly.ScoreBuild(p, assembly.FitTarget{}, 100, w); err == nil {
 		t.Error("nil HandGrip accepted")
 	}
-	badGrip := pose.Pt(assembly.DynamicWorld, nan, 0)
+	badGrip := pose.NewPoint(assembly.DynamicWorld, nan, 0)
 	var inputErr *assembly.InputError
 	if _, err := assembly.ScoreBuild(p, assembly.FitTarget{HandGrip: &badGrip}, 100, w); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputFitTargetGrip {
 		t.Errorf("NaN HandGrip err = %v", err)
 	}
-	badBrp := pose.Pt(assembly.DynamicWorld, inf, 0)
+	badBrp := pose.NewPoint(assembly.DynamicWorld, inf, 0)
 	if _, err := assembly.ScoreBuild(p, assembly.FitTarget{HandGrip: &grip, BRP: &badBrp}, 100, w); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputFitTargetBRP {
 		t.Errorf("+Inf BRP err = %v", err)
 	}
@@ -451,6 +451,6 @@ func TestFitOvalRejectsNonWorldPoints(t *testing.T) {
 	}()
 	_ = assembly.DefaultGripOval().NormalizedRadius(
 		pose.Origin(assembly.SteererLocal),
-		pose.Pt(assembly.SteererLocal, 12, 0),
+		pose.NewPoint(assembly.SteererLocal, 12, 0),
 	)
 }

@@ -1,28 +1,30 @@
 // Package pose provides 2D planar points, displacement vectors, fluent turtle
-// poses, and rigid transforms tagged at runtime with an opaque FrameID.
+// poses, and rigid transforms tagged at runtime with an opaque CoordinateSystem.
 //
 // The types enforce three geometric invariants:
 //
-//  1. Affine separation (Point vs. Vec): positions and displacement vectors are
-//     distinct concrete types. A Vec has no fixed origin and carries signed
-//     displacements in millimeters (not unit-normalized unless explicitly
+//  1. Affine separation (Point vs. Vector): positions and displacement vectors
+//     are distinct concrete types. A Vector has no fixed origin and carries
+//     signed displacements in millimeters (not unit-normalized unless explicitly
 //     constructed with unit norm, such as Along(h, 1)). Subtracting two Points
-//     in the same FrameID yields a Vec; adding a Vec to a Point in the same
-//     FrameID yields a Point; adding two Points is unrepresentable, and
-//     Euclidean length (Norm) exists only on Vec.
+//     in the same CoordinateSystem yields a Vector; adding a Vector to a Point
+//     in the same CoordinateSystem yields a Point; adding two Points is
+//     unrepresentable, and Euclidean length (Norm) exists only on Vector.
 //
-//  2. Coordinate-frame isolation (FrameID): every Point, Vec, Heading, Pose,
-//     and Transform carries a non-zero FrameID registered via NewFrame. FrameID
-//     identifies both a coordinate frame's datum origin (0, 0) and its (+X, +Y)
-//     axes. Uninitialized zero-value structs have an invalid zero FrameID and
-//     panic immediately on first use; operations across mismatched FrameIDs
-//     panic with both frame names.
+//  2. Coordinate-system isolation (CoordinateSystem): every Point, Vector,
+//     Heading, Pose, and Transform carries a non-zero CoordinateSystem
+//     registered via NewCoordinateSystem. CoordinateSystem identifies both a
+//     coordinate system's datum origin (0, 0) and its (+X, +Y) axes.
+//     Uninitialized zero-value structs have an invalid zero CoordinateSystem
+//     and panic immediately on first use; operations across mismatched
+//     CoordinateSystems panic with both coordinate system names.
 //
 //  3. Fluent turtle Pose & rigid Transform: a Pose places a turtle at an
-//     Origin() in its FrameID whose Heading() sets its local +X direction
-//     (local +Y is 90° counter-clockwise). Advance, TranslateLocal, Turn, and
-//     Face chain fluently as methods. Anchor(childFrame) returns a rigid
-//     Transform mapping childFrame into the parent Pose's FrameID.
+//     Origin() in its CoordinateSystem whose Heading() sets its local +X
+//     direction (local +Y is 90° counter-clockwise). Advance, TranslateLocal,
+//     Turn, and Face chain fluently as methods. Anchor(childSystem) returns a
+//     rigid Transform mapping childSystem into the parent Pose's
+//     CoordinateSystem.
 package pose
 
 import (
@@ -35,73 +37,76 @@ import (
 const radPerDeg = math.Pi / 180.0
 
 var (
-	frameMu    sync.RWMutex
-	frameNames = []string{"<uninitialized>"}
+	systemMu    sync.RWMutex
+	systemNames = []string{"<uninitialized>"}
 )
 
-// FrameID identifies a specific 2D coordinate frame (both its datum origin and
-// its +X/+Y axes). The zero value is invalid; register frames via NewFrame.
-type FrameID struct{ id uint16 }
+// CoordinateSystem identifies a specific 2D coordinate system (both its datum
+// origin and its +X/+Y axes). The zero value is invalid; register coordinate
+// systems via NewCoordinateSystem.
+type CoordinateSystem struct{ id uint16 }
 
-// NewFrame allocates a unique non-zero FrameID and records its human-readable name.
-func NewFrame(name string) FrameID {
+// NewCoordinateSystem allocates a unique non-zero CoordinateSystem and records
+// its human-readable name.
+func NewCoordinateSystem(name string) CoordinateSystem {
 	if name == "" {
-		panic("pose: NewFrame requires a non-empty name")
+		panic("pose: NewCoordinateSystem requires a non-empty name")
 	}
-	frameMu.Lock()
-	defer frameMu.Unlock()
-	if len(frameNames) > math.MaxUint16 {
-		panic("pose: FrameID table overflow")
+	systemMu.Lock()
+	defer systemMu.Unlock()
+	if len(systemNames) > math.MaxUint16 {
+		panic("pose: CoordinateSystem table overflow")
 	}
-	id := uint16(len(frameNames))
-	frameNames = append(frameNames, name)
-	return FrameID{id: id}
+	id := uint16(len(systemNames))
+	systemNames = append(systemNames, name)
+	return CoordinateSystem{id: id}
 }
 
-// Valid reports whether f is a registered non-zero FrameID.
-func (f FrameID) Valid() bool {
-	return f.id != 0
+// Valid reports whether s is a registered non-zero CoordinateSystem.
+func (s CoordinateSystem) Valid() bool {
+	return s.id != 0
 }
 
-// String returns the frame's registered name, or "<uninitialized>" for the zero FrameID.
-func (f FrameID) String() string {
-	if f.id == 0 {
+// String returns the coordinate system's registered name, or "<uninitialized>"
+// for the zero CoordinateSystem.
+func (s CoordinateSystem) String() string {
+	if s.id == 0 {
 		return "<uninitialized>"
 	}
-	frameMu.RLock()
-	defer frameMu.RUnlock()
-	if int(f.id) < len(frameNames) {
-		return frameNames[f.id]
+	systemMu.RLock()
+	defer systemMu.RUnlock()
+	if int(s.id) < len(systemNames) {
+		return systemNames[s.id]
 	}
-	return fmt.Sprintf("FrameID(%d)", f.id)
+	return fmt.Sprintf("CoordinateSystem(%d)", s.id)
 }
 
 //go:noinline
-func panicUninitializedFrame() {
-	panic("pose: uninitialized zero-value FrameID")
+func panicUninitializedSystem() {
+	panic("pose: uninitialized zero-value CoordinateSystem")
 }
 
 //go:noinline
-func panicFrameMismatch(a, b FrameID) {
+func panicSystemMismatch(a, b CoordinateSystem) {
 	if a.id == 0 || b.id == 0 {
-		panic("pose: uninitialized zero-value FrameID")
+		panic("pose: uninitialized zero-value CoordinateSystem")
 	}
-	panic(fmt.Sprintf("pose: coordinate frame mismatch (%s vs %s)", a, b))
+	panic(fmt.Sprintf("pose: coordinate system mismatch (%s vs %s)", a, b))
 }
 
-func requireValidFrame(f FrameID) {
-	if f.id == 0 {
-		panicUninitializedFrame()
+func requireValidSystem(s CoordinateSystem) {
+	if s.id == 0 {
+		panicUninitializedSystem()
 	}
 }
 
-func requireSameFrame(a, b FrameID) {
+func requireSameSystem(a, b CoordinateSystem) {
 	if a.id == 0 || a != b {
-		panicFrameMismatch(a, b)
+		panicSystemMismatch(a, b)
 	}
 }
 
-// Deg is a scalar angle in degrees with no bound coordinate frame, used for
+// Deg is a scalar angle in degrees with no bound coordinate system, used for
 // catalog dimensions, relative turns, tolerances, and user inputs.
 type Deg float64
 
@@ -125,93 +130,93 @@ func (d Deg) tan() float64 {
 }
 
 // Heading is an absolute orientation angle in degrees within a specific
-// coordinate frame (0° along +X, 90° along +Y; positive angles rotate
+// coordinate system (0° along +X, 90° along +Y; positive angles rotate
 // counter-clockwise).
 type Heading struct {
-	deg   Deg
-	frame FrameID
+	deg    Deg
+	system CoordinateSystem
 }
 
-// NewHeading creates a Heading in frame with angle deg.
-func NewHeading(frame FrameID, deg Deg) Heading {
-	requireValidFrame(frame)
-	return Heading{deg: deg, frame: frame}
+// NewHeading creates a Heading in system with angle deg.
+func NewHeading(system CoordinateSystem, deg Deg) Heading {
+	requireValidSystem(system)
+	return Heading{deg: deg, system: system}
 }
 
-// Frame returns h's coordinate frame.
-func (h Heading) Frame() FrameID {
-	return h.frame
+// CoordinateSystem returns h's coordinate system.
+func (h Heading) CoordinateSystem() CoordinateSystem {
+	return h.system
 }
 
 // Deg returns h as a raw scalar degree value.
 func (h Heading) Deg() Deg {
-	requireValidFrame(h.frame)
+	requireValidSystem(h.system)
 	return h.deg
 }
 
-// Turn returns h rotated counter-clockwise by deltaDeg in the same FrameID.
+// Turn returns h rotated counter-clockwise by deltaDeg in the same CoordinateSystem.
 func (h Heading) Turn(deltaDeg Deg) Heading {
-	requireValidFrame(h.frame)
-	return Heading{deg: h.deg + deltaDeg, frame: h.frame}
+	requireValidSystem(h.system)
+	return Heading{deg: h.deg + deltaDeg, system: h.system}
 }
 
 // Sub returns the signed counter-clockwise angle from other to h (h − other)
-// in the same FrameID.
+// in the same CoordinateSystem.
 func (h Heading) Sub(other Heading) Deg {
-	requireSameFrame(h.frame, other.frame)
+	requireSameSystem(h.system, other.system)
 	return h.deg - other.deg
 }
 
-// Point is a 2D position in millimeters in a specific coordinate frame.
-// Subtracting two Points yields a Vec; adding a Vec translates a Point.
+// Point is a 2D position in millimeters in a specific coordinate system.
+// Subtracting two Points yields a Vector; adding a Vector translates a Point.
 type Point struct {
-	x, y  float64
-	frame FrameID
+	x, y   float64
+	system CoordinateSystem
 }
 
-// Pt creates a Point at (x, y) mm in frame.
-func Pt(frame FrameID, x, y float64) Point {
-	requireValidFrame(frame)
-	return Point{x: x, y: y, frame: frame}
+// NewPoint creates a Point at (x, y) mm in system.
+func NewPoint(system CoordinateSystem, x, y float64) Point {
+	requireValidSystem(system)
+	return Point{x: x, y: y, system: system}
 }
 
-// Origin returns the datum origin (0, 0) in frame.
-func Origin(frame FrameID) Point {
-	requireValidFrame(frame)
-	return Point{frame: frame}
+// Origin returns the datum origin (0, 0) in system.
+func Origin(system CoordinateSystem) Point {
+	requireValidSystem(system)
+	return Point{system: system}
 }
 
 // X returns p's X coordinate in millimeters.
 func (p Point) X() float64 {
-	requireValidFrame(p.frame)
+	requireValidSystem(p.system)
 	return p.x
 }
 
 // Y returns p's Y coordinate in millimeters.
 func (p Point) Y() float64 {
-	requireValidFrame(p.frame)
+	requireValidSystem(p.system)
 	return p.y
 }
 
-// Frame returns p's coordinate frame.
-func (p Point) Frame() FrameID {
-	return p.frame
+// CoordinateSystem returns p's coordinate system.
+func (p Point) CoordinateSystem() CoordinateSystem {
+	return p.system
 }
 
-// Sub returns the displacement vector p − q in the same FrameID.
-func (p Point) Sub(q Point) Vec {
-	requireSameFrame(p.frame, q.frame)
-	return Vec{x: p.x - q.x, y: p.y - q.y, frame: p.frame}
+// Sub returns the displacement vector p − q in the same CoordinateSystem.
+func (p Point) Sub(q Point) Vector {
+	requireSameSystem(p.system, q.system)
+	return Vector{x: p.x - q.x, y: p.y - q.y, system: p.system}
 }
 
-// Add returns the position p translated by displacement vector v in the same FrameID.
-func (p Point) Add(v Vec) Point {
-	requireSameFrame(p.frame, v.frame)
-	return Point{x: p.x + v.x, y: p.y + v.y, frame: p.frame}
+// Add returns the position p translated by displacement vector v in the same CoordinateSystem.
+func (p Point) Add(v Vector) Point {
+	requireSameSystem(p.system, v.system)
+	return Point{x: p.x + v.x, y: p.y + v.y, system: p.system}
 }
 
-// OffsetTo returns the displacement vector from p to other (other − p) in the same FrameID.
-func (p Point) OffsetTo(other Point) Vec {
+// OffsetTo returns the displacement vector from p to other (other − p) in the same CoordinateSystem.
+func (p Point) OffsetTo(other Point) Vector {
 	return other.Sub(p)
 }
 
@@ -221,21 +226,21 @@ func (p Point) DistanceTo(other Point) float64 {
 }
 
 // VerticalOffsetTo returns the signed +Y offset in millimeters from p to other
-// (other.Y() − p.Y()) in the same FrameID.
+// (other.Y() − p.Y()) in the same CoordinateSystem.
 func (p Point) VerticalOffsetTo(other Point) float64 {
-	requireSameFrame(p.frame, other.frame)
+	requireSameSystem(p.system, other.system)
 	return other.y - p.y
 }
 
 // AngleTo returns the heading (0° along +X, positive counter-clockwise) from p to other.
 func (p Point) AngleTo(other Point) Heading {
 	delta := p.OffsetTo(other)
-	return Heading{deg: degFromRad(math.Atan2(delta.y, delta.x)), frame: p.frame}
+	return Heading{deg: degFromRad(math.Atan2(delta.y, delta.x)), system: p.system}
 }
 
 // MarshalJSON serializes p as {"X":..., "Y":...}.
 func (p Point) MarshalJSON() ([]byte, error) {
-	requireValidFrame(p.frame)
+	requireValidSystem(p.system)
 	return json.Marshal(struct {
 		X float64
 		Y float64
@@ -245,141 +250,141 @@ func (p Point) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// Vec is a 2D displacement vector in millimeters in a specific coordinate frame.
-// It carries no origin and is not unit-normalized unless explicitly
+// Vector is a 2D displacement vector in millimeters in a specific coordinate
+// system. It carries no origin and is not unit-normalized unless explicitly
 // constructed with unit norm (for example via Along(heading, 1)).
-type Vec struct {
-	x, y  float64
-	frame FrameID
+type Vector struct {
+	x, y   float64
+	system CoordinateSystem
 }
 
-// Vc creates a Vec with components (x, y) mm in frame.
-func Vc(frame FrameID, x, y float64) Vec {
-	requireValidFrame(frame)
-	return Vec{x: x, y: y, frame: frame}
+// NewVector creates a Vector with signed components (dx, dy) mm in system.
+func NewVector(system CoordinateSystem, dx, dy float64) Vector {
+	requireValidSystem(system)
+	return Vector{x: dx, y: dy, system: system}
 }
 
 // X returns v's X component in millimeters.
-func (v Vec) X() float64 {
-	requireValidFrame(v.frame)
+func (v Vector) X() float64 {
+	requireValidSystem(v.system)
 	return v.x
 }
 
 // Y returns v's Y component in millimeters.
-func (v Vec) Y() float64 {
-	requireValidFrame(v.frame)
+func (v Vector) Y() float64 {
+	requireValidSystem(v.system)
 	return v.y
 }
 
-// Frame returns v's coordinate frame.
-func (v Vec) Frame() FrameID {
-	return v.frame
+// CoordinateSystem returns v's coordinate system.
+func (v Vector) CoordinateSystem() CoordinateSystem {
+	return v.system
 }
 
-// Add returns v + w in the same FrameID.
-func (v Vec) Add(w Vec) Vec {
-	requireSameFrame(v.frame, w.frame)
-	return Vec{x: v.x + w.x, y: v.y + w.y, frame: v.frame}
+// Add returns v + w in the same CoordinateSystem.
+func (v Vector) Add(w Vector) Vector {
+	requireSameSystem(v.system, w.system)
+	return Vector{x: v.x + w.x, y: v.y + w.y, system: v.system}
 }
 
-// Sub returns v − w in the same FrameID.
-func (v Vec) Sub(w Vec) Vec {
-	requireSameFrame(v.frame, w.frame)
-	return Vec{x: v.x - w.x, y: v.y - w.y, frame: v.frame}
+// Sub returns v − w in the same CoordinateSystem.
+func (v Vector) Sub(w Vector) Vector {
+	requireSameSystem(v.system, w.system)
+	return Vector{x: v.x - w.x, y: v.y - w.y, system: v.system}
 }
 
 // Scale returns v scaled by scalar factor k.
-func (v Vec) Scale(k float64) Vec {
-	requireValidFrame(v.frame)
-	return Vec{x: v.x * k, y: v.y * k, frame: v.frame}
+func (v Vector) Scale(k float64) Vector {
+	requireValidSystem(v.system)
+	return Vector{x: v.x * k, y: v.y * k, system: v.system}
 }
 
 // Neg returns −v.
-func (v Vec) Neg() Vec {
-	requireValidFrame(v.frame)
-	return Vec{x: -v.x, y: -v.y, frame: v.frame}
+func (v Vector) Neg() Vector {
+	requireValidSystem(v.system)
+	return Vector{x: -v.x, y: -v.y, system: v.system}
 }
 
 // Norm returns the Euclidean length of v in millimeters.
-func (v Vec) Norm() float64 {
-	requireValidFrame(v.frame)
+func (v Vector) Norm() float64 {
+	requireValidSystem(v.system)
 	return math.Hypot(v.x, v.y)
 }
 
-// Dot returns the dot product v·other in the same FrameID.
-func (v Vec) Dot(other Vec) float64 {
-	requireSameFrame(v.frame, other.frame)
+// Dot returns the dot product v·other in the same CoordinateSystem.
+func (v Vector) Dot(other Vector) float64 {
+	requireSameSystem(v.system, other.system)
 	return v.x*other.x + v.y*other.y
 }
 
-// Pose is an immutable 2D position and heading in a coordinate frame whose
+// Pose is an immutable 2D position and heading in a coordinate system whose
 // heading sets the turtle's local +X direction (local +Y is 90° counter-clockwise).
 type Pose struct {
 	origin  Point
 	heading Heading
 }
 
-// NewPose creates a Pose at origin with headingDeg in origin's FrameID.
+// NewPose creates a Pose at origin with headingDeg in origin's CoordinateSystem.
 func NewPose(origin Point, headingDeg Deg) Pose {
-	requireValidFrame(origin.frame)
+	requireValidSystem(origin.system)
 	return Pose{
 		origin:  origin,
-		heading: NewHeading(origin.frame, headingDeg),
+		heading: NewHeading(origin.system, headingDeg),
 	}
 }
 
-// OriginPose creates a Pose at the datum origin (0, 0) of frame with heading 0°.
-func OriginPose(frame FrameID) Pose {
-	return NewPose(Origin(frame), 0)
+// OriginPose creates a Pose at the datum origin (0, 0) of system with heading 0°.
+func OriginPose(system CoordinateSystem) Pose {
+	return NewPose(Origin(system), 0)
 }
 
 // Origin returns the Pose's position in millimeters.
 func (p Pose) Origin() Point {
-	requireValidFrame(p.origin.frame)
+	requireValidSystem(p.origin.system)
 	return p.origin
 }
 
 // Heading returns the Pose's Heading.
 func (p Pose) Heading() Heading {
-	requireValidFrame(p.heading.frame)
+	requireValidSystem(p.heading.system)
 	return p.heading
 }
 
 // HeadingDeg returns the Pose's heading as a scalar Deg value.
 func (p Pose) HeadingDeg() Deg {
-	requireValidFrame(p.heading.frame)
+	requireValidSystem(p.heading.system)
 	return p.heading.deg
 }
 
-// Frame returns the Pose's coordinate frame.
-func (p Pose) Frame() FrameID {
-	return p.origin.frame
+// CoordinateSystem returns the Pose's coordinate system.
+func (p Pose) CoordinateSystem() CoordinateSystem {
+	return p.origin.system
 }
 
 // Advance returns a new Pose moved distMm along its local +X direction.
 func (p Pose) Advance(distMm float64) Pose {
-	requireSameFrame(p.origin.frame, p.heading.frame)
+	requireSameSystem(p.origin.system, p.heading.system)
 	sin, cos := p.heading.deg.sincos()
 	return Pose{
 		origin: Point{
-			x:     p.origin.x + distMm*cos,
-			y:     p.origin.y + distMm*sin,
-			frame: p.origin.frame,
+			x:      p.origin.x + distMm*cos,
+			y:      p.origin.y + distMm*sin,
+			system: p.origin.system,
 		},
 		heading: p.heading,
 	}
 }
 
 // TranslateLocal returns a new Pose moved dx along p's local +X and dy along
-// p's local +Y (90° CCW) while staying in p's FrameID.
+// p's local +Y (90° CCW) while staying in p's CoordinateSystem.
 func (p Pose) TranslateLocal(dx, dy float64) Pose {
-	requireSameFrame(p.origin.frame, p.heading.frame)
+	requireSameSystem(p.origin.system, p.heading.system)
 	sin, cos := p.heading.deg.sincos()
 	return Pose{
 		origin: Point{
-			x:     p.origin.x + dx*cos - dy*sin,
-			y:     p.origin.y + dx*sin + dy*cos,
-			frame: p.origin.frame,
+			x:      p.origin.x + dx*cos - dy*sin,
+			y:      p.origin.y + dx*sin + dy*cos,
+			system: p.origin.system,
 		},
 		heading: p.heading,
 	}
@@ -387,7 +392,7 @@ func (p Pose) TranslateLocal(dx, dy float64) Pose {
 
 // Turn returns a new Pose at p's origin rotated counter-clockwise by deltaDeg.
 func (p Pose) Turn(deltaDeg Deg) Pose {
-	requireSameFrame(p.origin.frame, p.heading.frame)
+	requireSameSystem(p.origin.system, p.heading.system)
 	return Pose{
 		origin:  p.origin,
 		heading: p.heading.Turn(deltaDeg),
@@ -396,24 +401,24 @@ func (p Pose) Turn(deltaDeg Deg) Pose {
 
 // Face returns a new Pose at p's origin with its heading set directly to worldHeading.
 func (p Pose) Face(worldHeading Heading) Pose {
-	requireSameFrame(p.origin.frame, worldHeading.frame)
+	requireSameSystem(p.origin.system, worldHeading.system)
 	return Pose{
 		origin:  p.origin,
 		heading: worldHeading,
 	}
 }
 
-// Anchor returns the rigid Transform mapping childFrame (whose (0, 0) sits at
-// p.Origin() and +X points along p.Heading()) into p.Frame().
-func (p Pose) Anchor(childFrame FrameID) Transform {
-	requireSameFrame(p.origin.frame, p.heading.frame)
-	return NewTransform(childFrame, p.origin.frame, p.origin, p.heading.deg)
+// Anchor returns the rigid Transform mapping childSystem (whose (0, 0) sits at
+// p.Origin() and +X points along p.Heading()) into p.CoordinateSystem().
+func (p Pose) Anchor(childSystem CoordinateSystem) Transform {
+	requireSameSystem(p.origin.system, p.heading.system)
+	return NewTransform(childSystem, p.origin.system, p.origin, p.heading.deg)
 }
 
 // MarshalJSON serializes a Pose's unexported Origin and HeadingDeg for
 // encoding/json CLI output.
 func (p Pose) MarshalJSON() ([]byte, error) {
-	requireSameFrame(p.origin.frame, p.heading.frame)
+	requireSameSystem(p.origin.system, p.heading.system)
 	return json.Marshal(struct {
 		Origin     Point
 		HeadingDeg Deg
@@ -424,9 +429,9 @@ func (p Pose) MarshalJSON() ([]byte, error) {
 }
 
 // Transform is a 2D rigid transformation mapping points, vectors, and poses
-// from coordinate frame Src into coordinate frame Dst.
+// from coordinate system Src into coordinate system Dst.
 type Transform struct {
-	src, dst FrameID
+	src, dst CoordinateSystem
 	tx, ty   float64
 	cos, sin float64
 	rotDeg   Deg
@@ -434,12 +439,12 @@ type Transform struct {
 
 // NewTransform constructs a Transform placing src's datum origin (0, 0) at
 // originInDst with src's +X oriented at headingInDst in dst.
-func NewTransform(src, dst FrameID, originInDst Point, headingInDst Deg) Transform {
-	requireValidFrame(src)
-	requireValidFrame(dst)
-	requireSameFrame(originInDst.frame, dst)
+func NewTransform(src, dst CoordinateSystem, originInDst Point, headingInDst Deg) Transform {
+	requireValidSystem(src)
+	requireValidSystem(dst)
+	requireSameSystem(originInDst.system, dst)
 	if src == dst {
-		panic(fmt.Sprintf("pose: NewTransform requires distinct frames (%s == %s); use IdentityTransform", src, dst))
+		panic(fmt.Sprintf("pose: NewTransform requires distinct coordinate systems (%s == %s); use IdentityTransform", src, dst))
 	}
 	sin, cos := headingInDst.sincos()
 	return Transform{
@@ -453,74 +458,74 @@ func NewTransform(src, dst FrameID, originInDst Point, headingInDst Deg) Transfo
 	}
 }
 
-// IdentityTransform returns the identity Transform within frame.
-func IdentityTransform(frame FrameID) Transform {
-	requireValidFrame(frame)
-	return Transform{src: frame, dst: frame, cos: 1}
+// IdentityTransform returns the identity Transform within system.
+func IdentityTransform(system CoordinateSystem) Transform {
+	requireValidSystem(system)
+	return Transform{src: system, dst: system, cos: 1}
 }
 
-// Src returns t's source coordinate frame.
-func (t Transform) Src() FrameID {
+// Src returns t's source coordinate system.
+func (t Transform) Src() CoordinateSystem {
 	return t.src
 }
 
-// Dst returns t's destination coordinate frame.
-func (t Transform) Dst() FrameID {
+// Dst returns t's destination coordinate system.
+func (t Transform) Dst() CoordinateSystem {
 	return t.dst
 }
 
 // ApplyPoint transforms a position from t.Src() into t.Dst() (rotation + translation).
 func (t Transform) ApplyPoint(p Point) Point {
-	requireValidFrame(t.dst)
-	requireSameFrame(p.frame, t.src)
+	requireValidSystem(t.dst)
+	requireSameSystem(p.system, t.src)
 	return Point{
-		x:     t.tx + p.x*t.cos - p.y*t.sin,
-		y:     t.ty + p.x*t.sin + p.y*t.cos,
-		frame: t.dst,
+		x:      t.tx + p.x*t.cos - p.y*t.sin,
+		y:      t.ty + p.x*t.sin + p.y*t.cos,
+		system: t.dst,
 	}
 }
 
-// ApplyVec transforms a displacement vector from t.Src() into t.Dst() (rotation only).
-func (t Transform) ApplyVec(v Vec) Vec {
-	requireValidFrame(t.dst)
-	requireSameFrame(v.frame, t.src)
-	return Vec{
-		x:     v.x*t.cos - v.y*t.sin,
-		y:     v.x*t.sin + v.y*t.cos,
-		frame: t.dst,
+// ApplyVector transforms a displacement vector from t.Src() into t.Dst() (rotation only).
+func (t Transform) ApplyVector(v Vector) Vector {
+	requireValidSystem(t.dst)
+	requireSameSystem(v.system, t.src)
+	return Vector{
+		x:      v.x*t.cos - v.y*t.sin,
+		y:      v.x*t.sin + v.y*t.cos,
+		system: t.dst,
 	}
 }
 
 // ApplyPose transforms a Pose from t.Src() into t.Dst().
 func (t Transform) ApplyPose(p Pose) Pose {
-	requireValidFrame(t.dst)
-	requireSameFrame(p.origin.frame, t.src)
-	requireSameFrame(p.heading.frame, t.src)
+	requireValidSystem(t.dst)
+	requireSameSystem(p.origin.system, t.src)
+	requireSameSystem(p.heading.system, t.src)
 	return Pose{
 		origin: Point{
-			x:     t.tx + p.origin.x*t.cos - p.origin.y*t.sin,
-			y:     t.ty + p.origin.x*t.sin + p.origin.y*t.cos,
-			frame: t.dst,
+			x:      t.tx + p.origin.x*t.cos - p.origin.y*t.sin,
+			y:      t.ty + p.origin.x*t.sin + p.origin.y*t.cos,
+			system: t.dst,
 		},
 		heading: Heading{
-			deg:   p.heading.deg + t.rotDeg,
-			frame: t.dst,
+			deg:    p.heading.deg + t.rotDeg,
+			system: t.dst,
 		},
 	}
 }
 
 // OriginInDst returns t.Src()'s datum origin expressed in t.Dst().
 func (t Transform) OriginInDst() Point {
-	requireValidFrame(t.src)
-	requireValidFrame(t.dst)
-	return Point{x: t.tx, y: t.ty, frame: t.dst}
+	requireValidSystem(t.src)
+	requireValidSystem(t.dst)
+	return Point{x: t.tx, y: t.ty, system: t.dst}
 }
 
 // HeadingInDst returns t.Src()'s +X heading expressed in t.Dst().
 func (t Transform) HeadingInDst() Heading {
-	requireValidFrame(t.src)
-	requireValidFrame(t.dst)
-	return Heading{deg: t.rotDeg, frame: t.dst}
+	requireValidSystem(t.src)
+	requireValidSystem(t.dst)
+	return Heading{deg: t.rotDeg, system: t.dst}
 }
 
 // PoseInDst returns t.Src()'s origin and +X heading as a Pose in t.Dst().
@@ -530,8 +535,8 @@ func (t Transform) PoseInDst() Pose {
 
 // Inverse returns the inverse rigid transformation mapping t.Dst() back into t.Src().
 func (t Transform) Inverse() Transform {
-	requireValidFrame(t.src)
-	requireValidFrame(t.dst)
+	requireValidSystem(t.src)
+	requireValidSystem(t.dst)
 	rot := -t.rotDeg
 	if rot == 0 {
 		rot = 0
@@ -550,10 +555,10 @@ func (t Transform) Inverse() Transform {
 // Compose chains ab (A → B) with bc (B → C) to produce the composite rigid
 // transformation (A → C).
 func Compose(ab, bc Transform) Transform {
-	requireValidFrame(ab.src)
-	requireValidFrame(ab.dst)
-	requireValidFrame(bc.src)
-	requireValidFrame(bc.dst)
+	requireValidSystem(ab.src)
+	requireValidSystem(ab.dst)
+	requireValidSystem(bc.src)
+	requireValidSystem(bc.dst)
 	if ab.dst != bc.src {
 		panic(fmt.Sprintf("pose: transform compose mismatch (%s → %s cannot compose with %s → %s)", ab.src, ab.dst, bc.src, bc.dst))
 	}

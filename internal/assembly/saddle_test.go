@@ -76,7 +76,7 @@ func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 	// At 60° STA (heading 120°), local +Y is 120° + 90° = 210° (cos = -sqrt(3)/2, sin = -0.5).
 	// Adding +20 mm PostSetbackMm shifts RailPivot and all saddle landmarks by (-10*sqrt(3), -10) mm
 	// while leaving ShaftTop unchanged.
-	seatTubeTop := pose.NewPose(pose.Pt(assembly.DynamicWorld, -30, 30*math.Sqrt(3)), 120.0)
+	seatTubeTop := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -30, 30*math.Sqrt(3)), 120.0)
 	basePost, err := assembly.PlaceSeatpost(seatTubeTop, workedFrame, workedPost(0.0))
 	if err != nil {
 		t.Fatalf("PlaceSeatpost base: %v", err)
@@ -143,8 +143,8 @@ func TestPlaceSaddleWorldRelativePitch(t *testing.T) {
 	setup.RailPitchDeg = 10.0 // Positive pitch raises the nose CCW from world horizontal.
 	setup.RailOffsetMm = 5.0
 
-	clamp60 := pose.NewPose(pose.Pt(assembly.DynamicWorld, -180, 720), 180.0-60.0)
-	clamp75 := pose.NewPose(pose.Pt(assembly.DynamicWorld, -180, 720), 180.0-75.25)
+	clamp60 := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -180, 720), 180.0-60.0)
+	clamp75 := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -180, 720), 180.0-75.25)
 
 	s60, err := assembly.PlaceSaddle(clamp60, 30.0, setup)
 	if err != nil {
@@ -233,7 +233,7 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 }
 
 func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
-	validPose := pose.NewPose(pose.Pt(assembly.DynamicWorld, -120, 470), 104.75)
+	validPose := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -120, 470), 104.75)
 	validPost := assembly.SeatpostSetup{Spec: genericPostSpec(0), InsertionMm: 136.5}
 	validFrame := fenrirSizeLFrame() // [100, 290] mm with the generic post
 	with := func(f func(*assembly.SeatpostSetup)) assembly.SeatpostSetup {
@@ -247,7 +247,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		pose  pose.Pose
 		setup assembly.SeatpostSetup
 	}{
-		{"NaN origin X", pose.NewPose(pose.Pt(assembly.DynamicWorld, math.NaN(), 0), 104.75), validPost},
+		{"NaN origin X", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, math.NaN(), 0), 104.75), validPost},
 		{"Inf heading", pose.NewPose(pose.Origin(assembly.DynamicWorld), pose.Deg(math.Inf(1))), validPost},
 		{"negative insertion", validPose, with(func(s *assembly.SeatpostSetup) { s.InsertionMm = -1 })},
 		{"NaN insertion", validPose, with(func(s *assembly.SeatpostSetup) { s.InsertionMm = math.NaN() })},
@@ -257,7 +257,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		{"NaN setback", validPose, with(func(s *assembly.SeatpostSetup) { s.Spec.SetbackMm = math.NaN() })},
 		{"zero clamp length", validPose, with(func(s *assembly.SeatpostSetup) { s.Spec.RailClampLengthMm = 0 })},
 		{"negative clamp length", validPose, with(func(s *assembly.SeatpostSetup) { s.Spec.RailClampLengthMm = -10 })},
-		{"exposure overflow", pose.NewPose(pose.Pt(assembly.DynamicWorld, -math.MaxFloat64, 0), 120), with(func(s *assembly.SeatpostSetup) { s.Spec.TotalLengthMm = math.MaxFloat64 })},
+		{"exposure overflow", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -math.MaxFloat64, 0), 120), with(func(s *assembly.SeatpostSetup) { s.Spec.TotalLengthMm = math.MaxFloat64 })},
 	}
 	for _, tc := range postCases {
 		t.Run("seatpost/"+tc.name, func(t *testing.T) {
@@ -273,7 +273,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		pose  pose.Pose
 		setup assembly.SaddleSetup
 	}{
-		{"NaN origin Y", pose.NewPose(pose.Pt(assembly.DynamicWorld, 0, math.NaN()), 104.75), validSaddle},
+		{"NaN origin Y", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 0, math.NaN()), 104.75), validSaddle},
 		{"Inf heading", pose.NewPose(pose.Origin(assembly.DynamicWorld), pose.Deg(math.Inf(-1))), validSaddle},
 		{"NaN RailCenterToBrpMm", validPose, assembly.SaddleSetup{RailCenterToBrpMm: math.NaN(), RailLengthMm: 60}},
 		{"Inf RailCenterToSitBonesMm", validPose, assembly.SaddleSetup{RailCenterToSitBonesMm: math.Inf(1), RailLengthMm: 60}},
@@ -282,7 +282,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		{"negative RailLengthMm", validPose, assembly.SaddleSetup{RailCenterToBrpMm: 32, RailLengthMm: -60}},
 		{"NaN RailPitchDeg", validPose, assembly.SaddleSetup{RailLengthMm: 60, RailPitchDeg: pose.Deg(math.NaN())}},
 		{"Inf RailOffsetMm", validPose, assembly.SaddleSetup{RailLengthMm: 60, RailOffsetMm: math.Inf(1)}},
-		{"rail offset overflow", pose.NewPose(pose.Pt(assembly.DynamicWorld, math.MaxFloat64, 0), 104.75), assembly.SaddleSetup{RailLengthMm: 60, RailOffsetMm: -math.MaxFloat64}},
+		{"rail offset overflow", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, math.MaxFloat64, 0), 104.75), assembly.SaddleSetup{RailLengthMm: 60, RailOffsetMm: -math.MaxFloat64}},
 	}
 	for _, tc := range saddleCases {
 		t.Run("saddle/"+tc.name, func(t *testing.T) {
@@ -294,7 +294,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 }
 
 func TestPlaceSaddleRailOffsetRange(t *testing.T) {
-	clamp := pose.NewPose(pose.Pt(assembly.DynamicWorld, -100, 700), 105.0)
+	clamp := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -100, 700), 105.0)
 	// 60 mm rails with a 30 mm clamp head allow ±15 mm.
 	for _, offset := range []float64{0, 14.999, 15, -15} {
 		setup := sqlab610DefaultSaddle()
@@ -352,7 +352,7 @@ func TestPlaceSaddleRailToBrpHeightRotatesWithRailPitch(t *testing.T) {
 		return saddle
 	}
 	raised, flat := place(45, 10), place(0, 10)
-	wantShift := pose.Vc(assembly.DynamicWorld, -7.814168, 44.316349)
+	wantShift := pose.NewVector(assembly.DynamicWorld, -7.814168, 44.316349)
 	for _, lm := range []struct {
 		name         string
 		raised, flat pose.Pose

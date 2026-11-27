@@ -93,15 +93,15 @@ func TestFitOval(t *testing.T) {
 	if err := oval.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	center := pose.Pt(assembly.DynamicWorld, 12, -30)
+	center := pose.NewPoint(assembly.DynamicWorld, 12, -30)
 	assertNear(t, "center radius", oval.NormalizedRadius(center, center), 0, 1e-12)
 	for _, tc := range []struct{ heading, distance, radius float64 }{{60, 20, 1}, {-30, 10, 1}, {-30, 30, 3}} {
 		sin, cos := math.Sincos(tc.heading * math.Pi / 180)
-		p := pose.Pt(assembly.DynamicWorld, center.X()+cos*tc.distance, center.Y()+sin*tc.distance)
+		p := pose.NewPoint(assembly.DynamicWorld, center.X()+cos*tc.distance, center.Y()+sin*tc.distance)
 		assertNear(t, "axis radius", oval.NormalizedRadius(center, p), tc.radius, 1e-12)
 	}
-	for _, d := range []pose.Point{pose.Pt(assembly.DynamicWorld, 23, -4), pose.Pt(assembly.DynamicWorld, -6, 47), pose.Pt(assembly.DynamicWorld, -32, -51)} {
-		p := pose.Pt(assembly.DynamicWorld, center.X()+d.X(), center.Y()+d.Y())
+	for _, d := range []pose.Point{pose.NewPoint(assembly.DynamicWorld, 23, -4), pose.NewPoint(assembly.DynamicWorld, -6, 47), pose.NewPoint(assembly.DynamicWorld, -32, -51)} {
+		p := pose.NewPoint(assembly.DynamicWorld, center.X()+d.X(), center.Y()+d.Y())
 		assertNear(t, "legacy radius", oval.NormalizedRadius(center, p), legacyGripRadius(d.X(), d.Y()), 1e-12)
 	}
 	for _, bad := range []assembly.FitOval{
@@ -530,7 +530,7 @@ func TestFitBuildsScoresBrpMissForSubmittedFork(t *testing.T) {
 func TestFitBuildsFourTiersAndBasisFork(t *testing.T) {
 	setback := fenrirFittingSetup()
 	setback.Seatpost.Spec = genericPostSpec(25)
-	brp := pose.Pt(assembly.DynamicWorld, -189, 713.1)
+	brp := pose.NewPoint(assembly.DynamicWorld, -189, 713.1)
 	target := assembly.FitTarget{BRP: &brp, HandGrip: &fitReportGrip}
 
 	fit := mustFitBuilds(t, setback, target, 5)
@@ -646,7 +646,7 @@ func TestFitBuildsIgnoresContinuousStemLengthRange(t *testing.T) {
 }
 
 func TestFitBuildsErrors(t *testing.T) {
-	nan := pose.Pt(assembly.DynamicWorld, math.NaN(), 0)
+	nan := pose.NewPoint(assembly.DynamicWorld, math.NaN(), 0)
 	w := testDefaultScoreWeights()
 	for _, tc := range []struct {
 		name    string

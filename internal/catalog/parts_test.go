@@ -151,10 +151,10 @@ func TestDefaultSaddleAndTargets(t *testing.T) {
 	if saddle.Setup != want {
 		t.Errorf("saddle setup = %+v, want %+v", saddle.Setup, want)
 	}
-	if got := catalog.DefaultBrpTarget(); got != pose.Pt(assembly.DynamicWorld, -219, 713.1) {
+	if got := catalog.DefaultBrpTarget(); got != pose.NewPoint(assembly.DynamicWorld, -219, 713.1) {
 		t.Errorf("DefaultBrpTarget() = %v", got)
 	}
-	if got := catalog.DefaultGripTarget(); got != pose.Pt(assembly.DynamicWorld, 481, 726) {
+	if got := catalog.DefaultGripTarget(); got != pose.NewPoint(assembly.DynamicWorld, 481, 726) {
 		t.Errorf("DefaultGripTarget() = %v", got)
 	}
 }

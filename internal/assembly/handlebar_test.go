@@ -53,7 +53,7 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 		BarRollDeg:   10.0,
 	}
 
-	steerer := pose.NewPose(pose.Pt(assembly.DynamicWorld, 400, 600), 180.0-70.0).Anchor(assembly.SteererLocal)
+	steerer := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 400, 600), 180.0-70.0).Anchor(assembly.SteererLocal)
 	stem, err := assembly.PlaceStem(steerer, assembly.StemSetup{
 		UpperStackMm:  10,
 		SpacersMm:     15,
@@ -138,7 +138,7 @@ func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 	barSetup.BarRollDeg = -7.5
 
 	placeFor := func(hta, stemAngle pose.Deg) (assembly.StemPlacement, assembly.HandlebarPlacement) {
-		steerer := pose.NewPose(pose.Pt(assembly.DynamicWorld, 430, 625), 180.0-hta).Anchor(assembly.SteererLocal)
+		steerer := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 430, 625), 180.0-hta).Anchor(assembly.SteererLocal)
 		stem, err := assembly.PlaceStem(steerer, assembly.StemSetup{
 			UpperStackMm:  11,
 			SpacersMm:     15,
@@ -234,7 +234,7 @@ func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 }
 
 func TestPlaceHandlebarValidation(t *testing.T) {
-	validPose := pose.NewPose(pose.Pt(assembly.DynamicWorld, 460, 700), -15)
+	validPose := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 460, 700), -15)
 	valid := persuader800DefaultHandlebar()
 
 	badWidth := valid
@@ -291,8 +291,8 @@ func TestPlaceHandlebarValidation(t *testing.T) {
 		pose  pose.Pose
 		setup assembly.HandlebarSetup
 	}{
-		{"NaN origin X", pose.NewPose(pose.Pt(assembly.DynamicWorld, math.NaN(), 700), 0), valid},
-		{"Inf heading", pose.NewPose(pose.Pt(assembly.DynamicWorld, 460, 700), pose.Deg(math.Inf(1))), valid},
+		{"NaN origin X", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, math.NaN(), 700), 0), valid},
+		{"Inf heading", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 460, 700), pose.Deg(math.Inf(1))), valid},
 		{"zero effective width", validPose, badWidth},
 		{"negative current width", validPose, badCurrent},
 		{"current width exceeds stock", validPose, badCutWider},
@@ -308,7 +308,7 @@ func TestPlaceHandlebarValidation(t *testing.T) {
 		{"zero grip inset", validPose, badInsetZero},
 		{"grip inset >= half width", validPose, badInsetWide},
 		{"Inf bar roll", validPose, badRoll},
-		{"translate overflow", pose.NewPose(pose.Pt(assembly.DynamicWorld, 0, math.MaxFloat64), 0), assembly.HandlebarSetup{
+		{"translate overflow", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 0, math.MaxFloat64), 0), assembly.HandlebarSetup{
 			StockWidthMm: 800,
 			StatedRiseMm: math.MaxFloat64,
 			RiseMode:     assembly.RiseModeStandardKnuckle,

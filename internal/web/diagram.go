@@ -305,7 +305,7 @@ const (
 	labelBaselineDy      = "0.35em"
 )
 
-var screenSpace = pose.NewFrame("web:screen")
+var screenSpace = pose.NewCoordinateSystem("web:screen")
 
 // bikeLandmarkSpec places a landmark label with a preferred direction and priority.
 type bikeLandmarkSpec struct {
@@ -706,7 +706,7 @@ func placeDiagramLabels(
 				}
 			}
 			nx, ny := cand.box.nearestPoint(px, py)
-			dist := pose.Vc(screenSpace, nx-px, ny-py).Norm()
+			dist := pose.NewVector(screenSpace, nx-px, ny-py).Norm()
 			penalty := dist + float64(pointHits)*200.0
 			if cand.preferred {
 				penalty -= 4.0
@@ -755,7 +755,7 @@ func placeDiagramLabels(
 		ax, ay := anchorForBox(bestBox, bestAnchor)
 		svgLX, svgLY := toSVGCoords(ax, ay)
 		nx, ny := bestBox.nearestPoint(px, py)
-		dist := pose.Vc(screenSpace, nx-px, ny-py).Norm()
+		dist := pose.NewVector(screenSpace, nx-px, ny-py).Norm()
 		hasLeader := dist > labelLeaderMinDistPx
 		lx2, ly2 := toSVGCoords(nx, ny)
 

@@ -22,7 +22,7 @@ func assertNear(t *testing.T, name string, got, want, tol float64) {
 }
 
 func steererTransform(x, y float64, headingDeg pose.Deg) pose.Transform {
-	return pose.NewPose(pose.Pt(assembly.DynamicWorld, x, y), headingDeg).Anchor(assembly.SteererLocal)
+	return pose.NewPose(pose.NewPoint(assembly.DynamicWorld, x, y), headingDeg).Anchor(assembly.SteererLocal)
 }
 
 func TestPlaceStemWorkedExample60DegHTA(t *testing.T) {
@@ -86,7 +86,7 @@ func TestPlaceStemDimensions(t *testing.T) {
 		AngleDeg:      -6.0,
 	}
 	heading := pose.Deg(180.0 - 68.25)
-	origin := pose.Pt(assembly.DynamicWorld, 428.0, 642.0)
+	origin := pose.NewPoint(assembly.DynamicWorld, 428.0, 642.0)
 
 	got, err := assembly.PlaceStem(pose.NewPose(origin, heading).Anchor(assembly.SteererLocal), setup)
 	if err != nil {
@@ -158,11 +158,11 @@ func TestPlaceStemRejectsLowerHeadsetTransform(t *testing.T) {
 	defer func() {
 		r := recover()
 		if r == nil {
-			t.Fatal("expected PlaceStem(LowerHeadsetInWorld) to panic on FrameID mismatch")
+			t.Fatal("expected PlaceStem(LowerHeadsetInWorld) to panic on CoordinateSystem mismatch")
 		}
 		msg, ok := r.(string)
-		if !ok || !strings.Contains(msg, "coordinate frame mismatch") {
-			t.Fatalf("panic = %v, want coordinate frame mismatch", r)
+		if !ok || !strings.Contains(msg, "coordinate system mismatch") {
+			t.Fatalf("panic = %v, want coordinate system mismatch", r)
 		}
 	}()
 	_, _ = assembly.PlaceStem(frameset.LowerHeadsetInWorld(), setup)

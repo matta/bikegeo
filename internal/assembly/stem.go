@@ -49,7 +49,7 @@ type StemPlacement struct {
 }
 
 // PlaceStem mounts a stem assembly using steererInWorld (mapping SteererLocal
-// at HeadTubeTop with +X pointing up the steerer into the target world frame).
+// at HeadTubeTop with +X pointing up the steerer into the target world coordinate system).
 func PlaceStem(steererInWorld pose.Transform, setup StemSetup) (StemPlacement, error) {
 	headTubeTopLocal := pose.OriginPose(SteererLocal)
 	headTubeTop := steererInWorld.ApplyPose(headTubeTopLocal)

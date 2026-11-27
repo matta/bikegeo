@@ -8,7 +8,7 @@ This document is the present-tense normative specification for `bikegeo` (`cmd/b
 
 ### Core Requirements
 
-- **Isolated, correct-by-construction components:** Each bicycle part (`Frame`, `Fork`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`) defines its own local coordinate frame, validates its intrinsic invariants at construction, and composes with adjacent parts through explicit mating ports and bounds.
+- **Isolated, correct-by-construction components:** Each bicycle part (`Frame`, `Fork`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`) defines its own local coordinate system, validates its intrinsic invariants at construction, and composes with adjacent parts through explicit mating ports and bounds.
 - **Focused Web 1.0 interface:** Go-rendered HTML and schematic SVG driven by plain `GET` forms and URL query state with zero JavaScript, no cookies, and no build step. `/` is the multi-frame comparison matrix; `/bike` is the single-bike inspector with three fixed diagram views (`view=bike|seat|stem`). Open separate browser tabs to compare builds visually.
 - **Validated Go catalogs & thin JSON CLI:** Compiled Go structs in `internal/catalog` validated by `go test` (chart consistency, fork compatibility, seatpost bounds), plus thin JSON CLI output (`bikegeo compare [query]`, `bikegeo bike [query]`) via `encoding/json` over internal result structs. No file-based catalog persistence, no MCP server, and no chart-solver UI.
 - **Fitting, `0–100` weighted scoring, and multi-frame comparison:** Bounded 2-DoF continuous fitting and discrete build fitting over the stem catalog (`docs/stems.yaml`) and part options, ranked by a shared 4-tier fit gate and weighted `0–100` attribute scores.
@@ -17,7 +17,7 @@ This document is the present-tense normative specification for `bikegeo` (`cmd/b
 
 ```text
 cmd/bikegeo/          entrypoint: `serve` on :8080, plus URL-query JSON CLI (`compare`, `bike`)
-internal/pose/        concrete 2D affine primitives, fluent turtle poses, rigid transforms, runtime FrameIDs
+internal/pose/        concrete 2D affine primitives, fluent turtle poses, rigid transforms, runtime CoordinateSystems
 internal/assembly/    part specs, mating ports, incremental assemblies, load states, fitting, scoring
 internal/catalog/     18 frames, 16 forks, 15 bars, 4 seatposts, 107 stems, SQlab 610, default targets & weights
 internal/compare/     multi-frame expansion, fitting, ranking, and pruning
@@ -33,38 +33,38 @@ internal/web/         pure Web 1.0 handlers, HTML/SVG views, embedded templates 
 ### Go Idioms & Encapsulation Policy
 
 - **Consumer-side thin interfaces (1–3 methods):** Producers return concrete structs (`RigidPost`, `LinkagePost`, `RigidFork`, `SuspensionFork`, `BasisFork`, `Frame`, `Saddle`, `Stem`, `Handlebar`). Interfaces are defined in the consumer file right next to the caller (`postMounter` in `seatpost.go`, `forkMounter` in `frameset.go`, rendering helpers in `web/diagram.go`) and only where implementations genuinely vary.
-- **Invariant-carrying types vs. readout snapshots:** Domain types whose validity must hold by construction (`pose.Point`/`Vec`/`Heading`/`Pose`/`Transform`, validated part specs, `Frameset`, `SeatedFrameset`, `Build`) keep **unexported fields** and are built only through validating constructors and mating functions. Output and readout structs (`Placement`, `BoundStatus`, `BuildScore`, `Fitting`, CLI result structs) use **exported fields** so `encoding/json`, `html/template`, and tests read them directly without custom linters or heavy adapter boilerplate.
+- **Invariant-carrying types vs. readout snapshots:** Domain types whose validity must hold by construction (`pose.Point`/`Vector`/`Heading`/`Pose`/`Transform`, validated part specs, `Frameset`, `SeatedFrameset`, `Build`) keep **unexported fields** and are built only through validating constructors and mating functions. Output and readout structs (`Placement`, `BoundStatus`, `BuildScore`, `Fitting`, CLI result structs) use **exported fields** so `encoding/json`, `html/template`, and tests read them directly without custom linters or heavy adapter boilerplate.
 
 ---
 
-## 2. Coordinate Frames, Affine Primitives, and `pose` Invariants
+## 2. Coordinate Systems, Affine Primitives, and `pose` Invariants
 
 All trigonometry lives unexported inside `internal/pose`. Lengths are `float64` millimeters; scalar angles are `pose.Deg`.
 
-### World & Part Coordinate Frames (`pose.FrameID`)
+### World & Part Coordinate Systems (`pose.CoordinateSystem`)
 
-`pose.FrameID` is an opaque `uint16` identifier created via `pose.NewFrame(name)` that names **both** a coordinate system's datum origin `(0, 0)` and its `(+X, +Y)` axes (`+Y` is `90°` counter-clockwise from `+X`). The zero `FrameID` is invalid, so any uninitialized zero-value geometric struct fails immediately on first use.
+`pose.CoordinateSystem` is an opaque `uint16` identifier created via `pose.NewCoordinateSystem(name)` that names **both** a coordinate system's datum origin `(0, 0)` and its `(+X, +Y)` axes (`+Y` is `90°` counter-clockwise from `+X`). The zero `CoordinateSystem` is invalid, so any uninitialized zero-value geometric struct fails immediately on first use.
 
-- **Ambient world frames** (shared datum `BB = (0, 0)`, `+X` horizontally forward, `+Y` vertically up, positive turns CCW):
+- **Ambient world coordinate systems** (shared datum `BB = (0, 0)`, `+X` horizontally forward, `+Y` vertically up, positive turns CCW):
   - `UnpitchedChart`: the chart reference attitude (`0°` frame pitch, `+X` along reach, `+Y` along stack).
   - `StaticWorld`: level-ground workshop attitude with no rider and all suspension at `0%` sag (`RearAxle.Y == FrontAxle.Y`).
   - `DynamicWorld`: level-ground riding attitude with the rider seated and suspension at seated sag (`RearAxle.Y == FrontAxle.Y`).
-- **Component local frames** (invariant to the part; mapped into parent/world frames by rigid `pose.Transform`):
+- **Component local coordinate systems** (invariant to the part; mapped into parent/world coordinate systems by rigid `pose.Transform`):
   - `FrameLocal`, `LowerHeadsetLocal`, `ForkLocal`, `SeatTubeCollar`, `SeatpostLocal`, `SeatpostCradle`, `SaddleLocal`, `SteererLocal`, `StemLocal`, `HandlebarLocal`.
 
 ### Primitives (`internal/pose`)
 
-- **Affine separation (`Point` vs. `Vec`):** `Point` (position in a `FrameID`) and `Vec` (displacement in a `FrameID`) are distinct concrete structs. Subtracting two `Point`s in the same `FrameID` yields a `Vec`; adding a `Vec` to a `Point` in the same `FrameID` yields a `Point`; adding two `Point`s is unrepresentable; `Norm()` exists only on `Vec`. `Point.MarshalJSON` emits `{"X": ..., "Y": ...}`.
-- **`Heading`:** absolute angle in degrees within one `FrameID` (`0°` along `+X`, `90°` along `+Y`). `Turn(delta Deg)` rotates CCW; `Sub(other Heading)` asserts matching `FrameID` and returns `Deg`.
-- **Fluent turtle `Pose`:** immutable `(Origin Point, Heading)` in one `FrameID` with dot-chained `Advance(distMm)`, `TranslateLocal(dx, dy)`, `Turn(delta Deg)`, and `Face(heading)` (asserting matching `FrameID`). `Anchor(childFrame FrameID)` returns the `Transform` mapping `childFrame` into `p.Frame()`. `Pose.MarshalJSON` emits `{"Origin": ..., "HeadingDeg": ...}`.
-- **Rigid `Transform`:** maps `Src FrameID → Dst FrameID` via rotation + translation. `ApplyPoint`, `ApplyVec`, and `ApplyPose` assert `input.Frame() == t.Src()`; `Compose(ab, bc)` asserts `ab.Dst() == bc.Src()` and returns `ab.Src() → bc.Dst()`; `Inverse()` returns `t.Dst() → t.Src()`.
-- **Deterministic runtime checks:** any `FrameID` mismatch or uninitialized zero `FrameID` panics immediately with both frame names, catching both world-state mix-ups and origin mix-ups (`RailClamp` vs. `SaddleLocal`) deterministically in unit tests without generic type-parameter boilerplate.
+- **Affine separation (`Point` vs. `Vector`):** `Point` (position in a `CoordinateSystem`) and `Vector` (displacement in a `CoordinateSystem`) are distinct concrete structs. Subtracting two `Point`s in the same `CoordinateSystem` yields a `Vector`; adding a `Vector` to a `Point` in the same `CoordinateSystem` yields a `Point`; adding two `Point`s is unrepresentable; `Norm()` and `Dot(other)` exist only on `Vector`. `Point.MarshalJSON` emits `{"X": ..., "Y": ...}`.
+- **`Heading`:** absolute angle in degrees within one `CoordinateSystem` (`0°` along `+X`, `90°` along `+Y`). `Turn(delta Deg)` rotates CCW; `Sub(other Heading)` asserts matching `CoordinateSystem` and returns `Deg`.
+- **Fluent turtle `Pose`:** immutable `(Origin Point, Heading)` in one `CoordinateSystem` with dot-chained `Advance(distMm)`, `TranslateLocal(dx, dy)`, `Turn(delta Deg)`, and `Face(heading)` (asserting matching `CoordinateSystem`). `Anchor(childSystem CoordinateSystem)` returns the `Transform` mapping `childSystem` into `p.CoordinateSystem()`. `Pose.MarshalJSON` emits `{"Origin": ..., "HeadingDeg": ...}`.
+- **Rigid `Transform`:** maps `Src CoordinateSystem → Dst CoordinateSystem` via rotation + translation. `ApplyPoint`, `ApplyVector`, and `ApplyPose` assert `input.CoordinateSystem() == t.Src()`; `Compose(ab, bc)` asserts `ab.Dst() == bc.Src()` and returns `ab.Src() → bc.Dst()`; `Inverse()` returns `t.Dst() → t.Src()`.
+- **Deterministic runtime checks:** any `CoordinateSystem` mismatch or uninitialized zero `CoordinateSystem` panics immediately with both coordinate system names, catching both world-state mix-ups and origin mix-ups (`RailClamp` vs. `SaddleLocal`) deterministically in unit tests without generic type-parameter boilerplate.
 
 ---
 
 ## 3. Component & Mate Specifications
 
-Each physical component lives in its own file under `internal/assembly`, owns its local coordinate frame, validates its own dimensions, and connects to neighbors exclusively through typed ports.
+Each physical component lives in its own file under `internal/assembly`, owns its local coordinate system, validates its own dimensions, and connects to neighbors exclusively through typed ports.
 
 ### Shared Bounds (`bounds.go`) & Load States (`state.go`)
 
@@ -74,12 +74,12 @@ Each physical component lives in its own file under `internal/assembly`, owns it
 
 ### Frame & Headset (`frame.go`, `fork.go`)
 
-- **Local coordinate frame (`FrameLocal`):** origin `(0, 0)` at `BB`, `+X` along chart reach, `+Y` along chart stack.
+- **Local coordinate system (`FrameLocal`):** origin `(0, 0)` at `BB`, `+X` along chart reach, `+Y` along chart stack.
 - **Parameters (`FrameDimensions` → `NewFrame`):** `ReachMm > 0`, `StackMm > 0`, `HeadTubeAngleDeg ∈ (0°, 180°)`, `HeadTubeLengthMm > 0`, `SeatTubeAngleDeg ∈ (0°, 180°)` (straight effective STA for all catalog frames), `SeatTubeLengthMm > 0` (C-T; Seven frames include a `+35 mm` illustrative C-C → C-T collar offset), `BbDropMm`, `ChainstayMm > |BbDropMm|`, `LowerBore`, physical `DefaultLowerCup`, optional `MaxPostInsertionMm` (`0` = undeclared), optional `MinFrameInsertionMm` (`0` = none).
 - **Sliding dropouts & Tuning Chips:** sliding-dropout frames evaluate at `MaxChainstayMm` on `/` and `/bike` (flagged `*`) and at published `ChainstayMm` for chart consistency and `fork=basis`. The Otso Fenrir Stainless uses its nominal middle Tuning Chip geometry (`68°` HTA, `75°` STA, `70 mm` BB drop, `440 mm` chainstay) with `MaxChainstayMm = 0`.
 - **Exposed ports in `FrameLocal`:**
   - `RearAxle()`: `Point` at `(-sqrt(ChainstayMm² − BbDropMm²), BbDropMm)`.
-  - `HeadTube() HeadTubePort`: sealed port constructed by `Frame` carrying `SteererInFrame` (`SteererLocal → FrameLocal` at `HeadTubeTop` `(ReachMm, StackMm)` pointing up the steerer, `180° − HTA`), `LowerHeadsetInFrame` (`LowerHeadsetLocal → FrameLocal` at `HeadTubeBottom`, `HeadTubeLengthMm` down the steerer pointing along `-HTA`), `LowerBore`, and `DefaultLowerCup`. Distinct `SteererLocal` and `LowerHeadsetLocal` `FrameID`s ensure passing the bottom mount where an upper steerer transform is expected panics deterministically.
+  - `HeadTube() HeadTubePort`: sealed port constructed by `Frame` carrying `SteererInFrame` (`SteererLocal → FrameLocal` at `HeadTubeTop` `(ReachMm, StackMm)` pointing up the steerer, `180° − HTA`), `LowerHeadsetInFrame` (`LowerHeadsetLocal → FrameLocal` at `HeadTubeBottom`, `HeadTubeLengthMm` down the steerer pointing along `-HTA`), `LowerBore`, and `DefaultLowerCup`. Distinct `SteererLocal` and `LowerHeadsetLocal` `CoordinateSystem`s ensure passing the bottom mount where an upper steerer transform is expected panics deterministically.
   - `SeatTube() SeatTubeSocket`: `CollarInFrame` (`SeatTubeCollar → FrameLocal` at `SeatTubeTop`, `SeatTubeLengthMm` along `180° − STA`), and `AllowedInsertion` (`[MinFrameInsertionMm, frameCap]`, where `frameCap` is `MaxPostInsertionMm` when `> 0`, else `SeatTubeLengthMm − 20 mm` for BB-shell clearance).
 - **SHIS Lower-Headset Compatibility (single canonical rule in `fork.go`):**
 
@@ -98,7 +98,7 @@ Each physical component lives in its own file under `internal/assembly`, owns it
 
 ### Fork (`fork.go`)
 
-- **Local coordinate frame (`ForkLocal`):** origin `(0, 0)` at the crown race seat (mating `LowerCupBottom`), `+X` down the steerer axis, `+Y` forward perpendicular to the steerer (rake direction, `90°` CCW from steerer-down).
+- **Local coordinate system (`ForkLocal`):** origin `(0, 0)` at the crown race seat (mating `LowerCupBottom`), `+X` down the steerer axis, `+Y` forward perpendicular to the steerer (rake direction, `90°` CCW from steerer-down).
 - **Concrete fork types** (all satisfy `frameset.go`'s 2-method consumer interface `forkMounter{CheckHeadset, AxleInFork}`):
   - `RigidFork`: physical steerer (`Straight 1-1/8"` or `Tapered`), `StaticA2cMm > 0`, finite `RakeMm`; `AxleInFork(_)` is `(StaticA2cMm, RakeMm)` in both states.
   - `SuspensionFork`: physical steerer, `StaticA2cMm > 0`, closed `ForkTravel`, `SagPct ∈ [0, 100]` with dynamic `A2C > 0`; `AxleInFork(Static)` is `(StaticA2cMm, RakeMm)` and `AxleInFork(Dynamic)` is `(StaticA2cMm − Travel·SagPct/100, RakeMm)`.
@@ -115,23 +115,23 @@ Each physical component lives in its own file under `internal/assembly`, owns it
 
 ### Seatpost (`seatpost.go`)
 
-- **Local coordinate frames:**
+- **Local coordinate systems:**
   - `SeatpostLocal`: origin `(0, 0)` at the bottom tip of the shaft, `+X` upward along the shaft centerline, `+Y` perpendicular rearward (`90°` CCW).
   - `SeatpostCradle`: origin `(0, 0)` at the rail-clamp pivot (the transverse axis where saddle rails sit and tilt), `+X` parallel to the shaft centerline.
 - **Intrinsic invariants:** `0 < MinInsertionMm ≤ MaxInsertionMm < TotalLengthMm` (guaranteeing positive head/linkage stack height `TotalLengthMm − MaxInsertionMm`), `SetbackMm ≥ 0`, `RailClampLengthMm > 0`.
 - **Concrete seatpost types** (satisfying `seatpost.go`'s consumer interface `postMounter`):
-  - `RigidPost`: constant cradle at `Pt(SeatpostLocal, TotalLengthMm, SetbackMm)` at `0°` relative rotation in both `Static` and `Dynamic`.
-  - `LinkagePost`: static cradle at `Pt(SeatpostLocal, TotalLengthMm, StaticSetbackMm)`, dynamic cradle shifted by `sagStep Vec` in `SeatpostLocal` at `0°` relative rotation (keeping rail pitch constant relative to the shaft through travel). Catalog dimensions, shim/illustrative assumptions, and the Endurance-manual-inferred 20% sag vector for the 350 mm Redshift ShockStop PRO Endurance (whose rider-seated sag remains unmeasured) live in [seatpost_redshift_shockstop_pro.md](../internal/catalog/seatpost_redshift_shockstop_pro.md).
+  - `RigidPost`: constant cradle at `NewPoint(SeatpostLocal, TotalLengthMm, SetbackMm)` at `0°` relative rotation in both `Static` and `Dynamic`.
+  - `LinkagePost`: static cradle at `NewPoint(SeatpostLocal, TotalLengthMm, StaticSetbackMm)`, dynamic cradle shifted by `sagStep Vector` in `SeatpostLocal` at `0°` relative rotation (keeping rail pitch constant relative to the shaft through travel). Catalog dimensions, shim/illustrative assumptions, and the Endurance-manual-inferred 20% sag vector for the 350 mm Redshift ShockStop PRO Endurance (whose rider-seated sag remains unmeasured) live in [seatpost_redshift_shockstop_pro.md](../internal/catalog/seatpost_redshift_shockstop_pro.md).
 - **Mate (`MateSeatpost(socket SeatTubeSocket, post postMounter)`):**
   - Intersects `post.InsertionLimits()` with `socket.AllowedInsertion`; rejects incompatible pairs immediately.
   - Binding `InsertionMm` places shaft coordinate `X = InsertionMm` at `(0, 0)` of `SeatTubeCollar`, so `SeatpostLocal` sits at `(-InsertionMm, 0)` in `SeatTubeCollar` (`ExposedMm = TotalLengthMm − InsertionMm` follows automatically) and records `Insertion BoundStatus`.
 
 ### Saddle (`saddle.go`)
 
-- **Local coordinate frame (`SaddleLocal`):** origin `(0, 0)` at `RailCenter` (midpoint of the straight clamping span), `+X` forward along the rails toward the nose, `+Y` perpendicular upward (`90°` CCW).
+- **Local coordinate system (`SaddleLocal`):** origin `(0, 0)` at `RailCenter` (midpoint of the straight clamping span), `+X` forward along the rails toward the nose, `+Y` perpendicular upward (`90°` CCW).
 - **Intrinsic geometry (`Saddle`):**
-  - `BRP` (top surface on centerline where saddle is 70 mm wide, W70): `Pt(SaddleLocal, RailCenterToBrpMm, RailToBrpHeightMm)`.
-  - `SIT` (saddle support landmark, currently `SitBones` in code/UI until Milestone 6 rename): `Pt(SaddleLocal, RailCenterToSitBonesMm, RailToBrpHeightMm + SitBonesElevationMm)` (`SitBonesElevationMm` is height above BRP).
+  - `BRP` (top surface on centerline where saddle is 70 mm wide, W70): `NewPoint(SaddleLocal, RailCenterToBrpMm, RailToBrpHeightMm)`.
+  - `SIT` (saddle support landmark, currently `SitBones` in code/UI until Milestone 6 rename): `NewPoint(SaddleLocal, RailCenterToSitBonesMm, RailToBrpHeightMm + SitBonesElevationMm)` (`SitBonesElevationMm` is height above BRP).
   - SQlab 610 Ergolux Active 2.1: `RailCenterToBrpMm = +32 mm`, `RailToBrpHeightMm = +45 mm` (illustrative), `RailCenterToSitBonesMm = −48 mm`, `SitBonesElevationMm = +10 mm`, `RailLengthMm = 60 mm` (measured). Milestone 6 rail-position scoring uses `+5°` dynamic rail angle (nose flat horizontal).
 - **Mate (`MateSaddle(clamp RailClampPort, saddle Saddle)`):**
   - Rejects `clamp.ClampLengthMm > saddle.RailLengthMm()`.
@@ -243,7 +243,7 @@ Continuous fitting (`ApplyFitting` on `/bike`, `FitToBRP`, `OpenFrontCockpit`, a
 1. **Behavior-Preserving Idiomatic Go Part-and-Mate Refactor ([implementation_plan.md](implementation_plan.md), Stages 1–7):**
    - Runs ahead of the paused Fenrir check without changing catalog/CLI/web numerical outputs or existing CLI `Placement.Setup` JSON assertions.
    - Stage 1: Workflow & modular spec cleanup (`WORKFLOW.md`, `AGENTS.md`, `DESIGN.md`).
-   - Stage 2: Replace phantom generics in `internal/pose` with runtime `FrameID` checks and fluent turtle chaining.
+   - Stage 2: Replace phantom generics in `internal/pose` with runtime `CoordinateSystem` checks and fluent turtle chaining.
    - Stage 3: `LoadState`, `BoundedRange`/`BoundStatus`, and isolated `Seatpost` (`RigidPost`, `LinkagePost`, `postMounter`).
    - Stage 4: Isolated `Saddle`, `Stem` (with sealed `SteererLocal → FrameLocal` `SteererPort`), and `Handlebar` with clamped relative joint angles.
    - Stage 5: `Frame`, concrete `Fork` types (`RigidFork`, `SuspensionFork`, `BasisFork`, `forkMounter`), and single-pass `Frameset`.
