@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/compare"
 	"github.com/matta/bikegeo/internal/pose"
 )
@@ -149,8 +150,8 @@ func fixtureSaddle() assembly.Saddle {
 }
 
 func fixtureRequest() compare.Request {
-	brp := pose.NewPoint(assembly.DynamicWorld, -219, 713.1)
-	grip := pose.NewPoint(assembly.DynamicWorld, 481, 726)
+	brp := pose.NewPoint(bounds.DynamicWorld, -219, 713.1)
+	grip := pose.NewPoint(bounds.DynamicWorld, 481, 726)
 	return compare.Request{
 		Frames:            fixtureFrames(),
 		Wheels:            assembly.WheelSetup{RadiusMm: 372},

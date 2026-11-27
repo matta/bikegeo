@@ -3,6 +3,7 @@ package assembly
 import (
 	"fmt"
 
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -89,26 +90,26 @@ type LowerCupSetup struct {
 // stack height satisfies the physical constraint for that standard.
 func (c LowerCupSetup) Validate() error {
 	if !isFinite(c.StackMm) {
-		return invalidInput(InputLowerCup, "lower headset cup must be finite, got %v mm", c.StackMm)
+		return invalidInput(bounds.InputLowerCup, "lower headset cup must be finite, got %v mm", c.StackMm)
 	}
 	switch c.Standard {
 	case LowerCupEC34, LowerCupEC44:
 		if c.StackMm <= 0 {
-			return invalidInput(InputLowerCup, "%s external lower headset cup must have positive stack, got %v mm", c.Standard, c.StackMm)
+			return invalidInput(bounds.InputLowerCup, "%s external lower headset cup must have positive stack, got %v mm", c.Standard, c.StackMm)
 		}
 		return nil
 	case LowerCupZS44, LowerCupZS56, LowerCupIS42, LowerCupIS52:
 		if c.StackMm < 0 {
-			return invalidInput(InputLowerCup, "%s lower headset cup must be non-negative, got %v mm", c.Standard, c.StackMm)
+			return invalidInput(bounds.InputLowerCup, "%s lower headset cup must be non-negative, got %v mm", c.Standard, c.StackMm)
 		}
 		return nil
 	case LowerCupBareHeadTube:
 		if c.StackMm != 0 {
-			return invalidInput(InputLowerCup, "bare head tube has no lower headset cup (must be 0 mm), got %v mm", c.StackMm)
+			return invalidInput(bounds.InputLowerCup, "bare head tube has no lower headset cup (must be 0 mm), got %v mm", c.StackMm)
 		}
 		return nil
 	default:
-		return invalidInput(InputLowerCup, "unknown or missing lower headset cup standard %q", c.Standard)
+		return invalidInput(bounds.InputLowerCup, "unknown or missing lower headset cup standard %q", c.Standard)
 	}
 }
 
@@ -156,12 +157,12 @@ func CheckSHIS(bore LowerBore, cup LowerCupSetup, steerer Steerer) error {
 	switch bore {
 	case Bore34Pressed, Bore44Pressed, Bore56Pressed, Bore42Integrated, Bore52Integrated:
 	default:
-		return invalidInput(InputLowerCup, "unknown or missing head tube lower bore %q", bore)
+		return invalidInput(bounds.InputLowerCup, "unknown or missing head tube lower bore %q", bore)
 	}
 	switch steerer {
 	case SteererStraight118, SteererTapered, SteererBasis:
 	default:
-		return invalidInput(InputLowerCup, "unknown or missing fork steerer %q", steerer)
+		return invalidInput(bounds.InputLowerCup, "unknown or missing fork steerer %q", steerer)
 	}
 	if err := cup.Validate(); err != nil {
 		return err
@@ -169,19 +170,19 @@ func CheckSHIS(bore LowerBore, cup LowerCupSetup, steerer Steerer) error {
 	cupFits, physical := cupBore(cup.Standard)
 	if !physical {
 		if steerer != SteererBasis {
-			return invalidInput(InputLowerCup, "a %s steerer fork needs a physical lower cup, not %s", steerer, cup.Standard)
+			return invalidInput(bounds.InputLowerCup, "a %s steerer fork needs a physical lower cup, not %s", steerer, cup.Standard)
 		}
 		return nil
 	}
 	if cupFits != bore {
-		return invalidInput(InputLowerCup, "%s lower cup needs a %s head tube bore, but the frame has %s", cup.Standard, cupFits, bore)
+		return invalidInput(bounds.InputLowerCup, "%s lower cup needs a %s head tube bore, but the frame has %s", cup.Standard, cupFits, bore)
 	}
 	switch steerer {
 	case SteererStraight118, SteererBasis:
 		return nil
 	case SteererTapered:
 		if !cupTakesTaperedSteerer(cup.Standard) {
-			return invalidInput(InputLowerCup, "%s lower cup does not fit a tapered steerer", cup.Standard)
+			return invalidInput(bounds.InputLowerCup, "%s lower cup does not fit a tapered steerer", cup.Standard)
 		}
 		return nil
 	default:
@@ -314,13 +315,13 @@ type RigidFork struct {
 // NewRigidFork validates and constructs a physical RigidFork.
 func NewRigidFork(staticA2cMm, rakeMm float64, steerer PhysicalSteerer) (RigidFork, error) {
 	if !isFinite(staticA2cMm) || staticA2cMm <= 0 {
-		return RigidFork{}, invalidInput(InputForkA2c, "fork static A2C must be finite and positive, got %v mm", staticA2cMm)
+		return RigidFork{}, invalidInput(bounds.InputForkA2c, "fork static A2C must be finite and positive, got %v mm", staticA2cMm)
 	}
 	if !isFinite(rakeMm) {
 		return RigidFork{}, fmt.Errorf("fork rake must be finite, got %v mm", rakeMm)
 	}
 	if !steerer.Valid() {
-		return RigidFork{}, invalidInput(InputLowerCup, "unknown or missing fork steerer %q", steerer)
+		return RigidFork{}, invalidInput(bounds.InputLowerCup, "unknown or missing fork steerer %q", steerer)
 	}
 	return RigidFork{
 		staticA2cMm: staticA2cMm,
@@ -362,10 +363,10 @@ func (f RigidFork) CheckHeadset(bore LowerBore, cup LowerCupSetup) error {
 
 // AxleInFork returns the front axle position in ForkLocal. Rigid forks are
 // identical across Static and Dynamic load states.
-func (f RigidFork) AxleInFork(state LoadState) pose.Point {
+func (f RigidFork) AxleInFork(state bounds.LoadState) pose.Point {
 	f.requireValid()
 	switch state {
-	case Static, Dynamic:
+	case bounds.Static, bounds.Dynamic:
 		return pose.NewPoint(ForkLocal, f.staticA2cMm, f.rakeMm)
 	default:
 		panic(fmt.Sprintf("assembly: invalid LoadState %q", state))
@@ -388,20 +389,20 @@ type SuspensionFork struct {
 // NewSuspensionFork validates and constructs a physical SuspensionFork.
 func NewSuspensionFork(staticA2cMm, rakeMm float64, travel ForkTravel, steerer PhysicalSteerer, sagPct float64) (SuspensionFork, error) {
 	if !isFinite(staticA2cMm) || staticA2cMm <= 0 {
-		return SuspensionFork{}, invalidInput(InputForkA2c, "fork static A2C must be finite and positive, got %v mm", staticA2cMm)
+		return SuspensionFork{}, invalidInput(bounds.InputForkA2c, "fork static A2C must be finite and positive, got %v mm", staticA2cMm)
 	}
 	if !travel.IsSuspension() {
 		return SuspensionFork{}, fmt.Errorf("suspension fork requires a suspension travel class, got %d mm", travel)
 	}
 	if !steerer.Valid() {
-		return SuspensionFork{}, invalidInput(InputLowerCup, "unknown or missing fork steerer %q", steerer)
+		return SuspensionFork{}, invalidInput(bounds.InputLowerCup, "unknown or missing fork steerer %q", steerer)
 	}
 	if !isFinite(sagPct) || sagPct < 0 || sagPct > 100 {
-		return SuspensionFork{}, invalidInput(InputForkSag, "fork sag must be in [0%%, 100%%], got %v%%", sagPct)
+		return SuspensionFork{}, invalidInput(bounds.InputForkSag, "fork sag must be in [0%%, 100%%], got %v%%", sagPct)
 	}
 	dynamicA2c := staticA2cMm - travel.Mm()*(sagPct/100.0)
 	if !isFinite(dynamicA2c) || dynamicA2c <= 0 {
-		return SuspensionFork{}, invalidInput(InputForkA2c, "fork effective A2C must be finite and positive, got %v mm", dynamicA2c)
+		return SuspensionFork{}, invalidInput(bounds.InputForkA2c, "fork effective A2C must be finite and positive, got %v mm", dynamicA2c)
 	}
 	if !isFinite(rakeMm) {
 		return SuspensionFork{}, fmt.Errorf("fork rake must be finite, got %v mm", rakeMm)
@@ -467,12 +468,12 @@ func (f SuspensionFork) CheckHeadset(bore LowerBore, cup LowerCupSetup) error {
 
 // AxleInFork returns the front axle position in ForkLocal for state: Static
 // uses StaticA2cMm; Dynamic uses DynamicA2cMm.
-func (f SuspensionFork) AxleInFork(state LoadState) pose.Point {
+func (f SuspensionFork) AxleInFork(state bounds.LoadState) pose.Point {
 	f.requireValid()
 	switch state {
-	case Static:
+	case bounds.Static:
 		return pose.NewPoint(ForkLocal, f.staticA2cMm, f.rakeMm)
-	case Dynamic:
+	case bounds.Dynamic:
 		return pose.NewPoint(ForkLocal, f.dynamicA2cMm, f.rakeMm)
 	default:
 		panic(fmt.Sprintf("assembly: invalid LoadState %q", state))
@@ -491,7 +492,7 @@ type BasisFork struct {
 // basis-fork inspection.
 func NewBasisFork(basisA2cMm, rakeMm float64) (BasisFork, error) {
 	if !isFinite(basisA2cMm) || basisA2cMm <= 0 {
-		return BasisFork{}, invalidInput(InputForkA2c, "fork static A2C must be finite and positive, got %v mm", basisA2cMm)
+		return BasisFork{}, invalidInput(bounds.InputForkA2c, "fork static A2C must be finite and positive, got %v mm", basisA2cMm)
 	}
 	if !isFinite(rakeMm) {
 		return BasisFork{}, fmt.Errorf("fork rake must be finite, got %v mm", rakeMm)
@@ -530,10 +531,10 @@ func (f BasisFork) CheckHeadset(bore LowerBore, cup LowerCupSetup) error {
 
 // AxleInFork returns the basis front axle position in ForkLocal (identical
 // across Static and Dynamic load states).
-func (f BasisFork) AxleInFork(state LoadState) pose.Point {
+func (f BasisFork) AxleInFork(state bounds.LoadState) pose.Point {
 	f.requireValid()
 	switch state {
-	case Static, Dynamic:
+	case bounds.Static, bounds.Dynamic:
 		return pose.NewPoint(ForkLocal, f.basisA2cMm, f.rakeMm)
 	default:
 		panic(fmt.Sprintf("assembly: invalid LoadState %q", state))

@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
-func mustRange(t *testing.T, lo, hi float64) assembly.BoundedRange {
+func mustRange(t *testing.T, lo, hi float64) bounds.BoundedRange {
 	t.Helper()
-	r, err := assembly.NewBoundedRange(lo, hi, "min", "max")
+	r, err := bounds.NewBoundedRange(lo, hi, "min", "max")
 	if err != nil {
 		t.Fatalf("NewBoundedRange(%v, %v): %v", lo, hi, err)
 	}
@@ -23,17 +24,17 @@ func TestSolvePlanar2DoFInteriorEdgeCornerAndUnbounded(t *testing.T) {
 	// AxisB along +X (0°, Sign +1, range [-15, 15], Probe 0), Origin = (0, 500).
 	// Parameter (valA, valB) maps to (valB, 500 + (200 - valA)).
 	sheet := assembly.Planar2DoF{
-		Origin: pose.NewPoint(assembly.DynamicWorld, 0, 500),
+		Origin: pose.NewPoint(bounds.DynamicWorld, 0, 500),
 		AxisA: assembly.LinearDoF{
-			Field:   assembly.InputSeatpostInsertion,
-			Heading: pose.NewHeading(assembly.DynamicWorld, 90),
+			Field:   bounds.InputSeatpostInsertion,
+			Heading: pose.NewHeading(bounds.DynamicWorld, 90),
 			Range:   mustRange(t, 100, 200),
 			Probe:   200,
 			Sign:    -1,
 		},
 		AxisB: assembly.LinearDoF{
-			Field:   assembly.InputSaddleRailOffset,
-			Heading: pose.NewHeading(assembly.DynamicWorld, 0),
+			Field:   bounds.InputSaddleRailOffset,
+			Heading: pose.NewHeading(bounds.DynamicWorld, 0),
 			Range:   mustRange(t, -15, 15),
 			Probe:   0,
 			Sign:    +1,
@@ -41,7 +42,7 @@ func TestSolvePlanar2DoFInteriorEdgeCornerAndUnbounded(t *testing.T) {
 	}
 
 	// 1. Interior reachable target: (7, 540) => valA = 160, valB = 7, limited = nil.
-	va, vb, limited, ok := assembly.SolvePlanar2DoF(sheet, pose.NewPoint(assembly.DynamicWorld, 7, 540), assembly.PriorityNearest)
+	va, vb, limited, ok := assembly.SolvePlanar2DoF(sheet, pose.NewPoint(bounds.DynamicWorld, 7, 540), assembly.PriorityNearest)
 	if !ok || limited != nil {
 		t.Fatalf("interior: ok=%v limited=%v, want ok=true limited=nil", ok, limited)
 	}
@@ -49,16 +50,16 @@ func TestSolvePlanar2DoFInteriorEdgeCornerAndUnbounded(t *testing.T) {
 	assertNear(t, "interior valB", vb, 7, 1e-12)
 
 	// 2. Single-axis edge limited: (30, 540) => valA = 160, valB = 15, limited = [RailOffset].
-	va, vb, limited, ok = assembly.SolvePlanar2DoF(sheet, pose.NewPoint(assembly.DynamicWorld, 30, 540), assembly.PriorityNearest)
-	if !ok || !slices.Equal(limited, []assembly.InputField{assembly.InputSaddleRailOffset}) {
+	va, vb, limited, ok = assembly.SolvePlanar2DoF(sheet, pose.NewPoint(bounds.DynamicWorld, 30, 540), assembly.PriorityNearest)
+	if !ok || !slices.Equal(limited, []bounds.InputField{bounds.InputSaddleRailOffset}) {
 		t.Fatalf("edge: ok=%v limited=%v, want [RailOffset]", ok, limited)
 	}
 	assertNear(t, "edge valA", va, 160, 1e-12)
 	assertNear(t, "edge valB", vb, 15, 1e-12)
 
 	// 3. Corner limited: (-30, 650) => valA = 100 (min insertion), valB = -15, limited = [Insertion, RailOffset].
-	va, vb, limited, ok = assembly.SolvePlanar2DoF(sheet, pose.NewPoint(assembly.DynamicWorld, -30, 650), assembly.PriorityNearest)
-	if !ok || !slices.Equal(limited, []assembly.InputField{assembly.InputSeatpostInsertion, assembly.InputSaddleRailOffset}) {
+	va, vb, limited, ok = assembly.SolvePlanar2DoF(sheet, pose.NewPoint(bounds.DynamicWorld, -30, 650), assembly.PriorityNearest)
+	if !ok || !slices.Equal(limited, []bounds.InputField{bounds.InputSeatpostInsertion, bounds.InputSaddleRailOffset}) {
 		t.Fatalf("corner: ok=%v limited=%v, want [Insertion, RailOffset]", ok, limited)
 	}
 	assertNear(t, "corner valA", va, 100, 1e-12)
@@ -67,7 +68,7 @@ func TestSolvePlanar2DoFInteriorEdgeCornerAndUnbounded(t *testing.T) {
 	// 4. Unbounded upper axis (+Inf): AxisB in [0, +Inf) reaches arbitrarily far along +X.
 	unbounded := sheet
 	unbounded.AxisB.Range = mustRange(t, 0, math.Inf(1))
-	va, vb, limited, ok = assembly.SolvePlanar2DoF(unbounded, pose.NewPoint(assembly.DynamicWorld, 250, 550), assembly.PriorityNearest)
+	va, vb, limited, ok = assembly.SolvePlanar2DoF(unbounded, pose.NewPoint(bounds.DynamicWorld, 250, 550), assembly.PriorityNearest)
 	if !ok || limited != nil {
 		t.Fatalf("unbounded reachable: ok=%v limited=%v", ok, limited)
 	}
@@ -75,16 +76,16 @@ func TestSolvePlanar2DoFInteriorEdgeCornerAndUnbounded(t *testing.T) {
 	assertNear(t, "unbounded valB", vb, 250, 1e-12)
 
 	// Unbounded axis still clamps at its finite lower bound (0) when target is negative X.
-	va, vb, limited, ok = assembly.SolvePlanar2DoF(unbounded, pose.NewPoint(assembly.DynamicWorld, -10, 550), assembly.PriorityNearest)
-	if !ok || !slices.Equal(limited, []assembly.InputField{assembly.InputSaddleRailOffset}) {
+	va, vb, limited, ok = assembly.SolvePlanar2DoF(unbounded, pose.NewPoint(bounds.DynamicWorld, -10, 550), assembly.PriorityNearest)
+	if !ok || !slices.Equal(limited, []bounds.InputField{bounds.InputSaddleRailOffset}) {
 		t.Fatalf("unbounded lower bound: ok=%v limited=%v", ok, limited)
 	}
 	assertNear(t, "unbounded clamped valB", vb, 0, 1e-12)
 
 	// 5. Parallel axes return ok = false.
 	parallel := sheet
-	parallel.AxisB.Heading = pose.NewHeading(assembly.DynamicWorld, 90)
-	if _, _, _, ok := assembly.SolvePlanar2DoF(parallel, pose.NewPoint(assembly.DynamicWorld, 0, 550), assembly.PriorityNearest); ok {
+	parallel.AxisB.Heading = pose.NewHeading(bounds.DynamicWorld, 90)
+	if _, _, _, ok := assembly.SolvePlanar2DoF(parallel, pose.NewPoint(bounds.DynamicWorld, 0, 550), assembly.PriorityNearest); ok {
 		t.Error("parallel axes: want ok=false")
 	}
 }
@@ -102,26 +103,26 @@ func TestSolvePlanar2DoFBRPGateClipping(t *testing.T) {
 	//   - At exact Y=550: |ΔY| = 0, |ΔX| = 10.403 mm (fails X gate!)
 	//   - Raising Y to 551.8: |ΔY| = 1.8 <= 2.0, X = -28.880 -> |ΔX| = 9.920 <= 10.0 (PASSES BRP gate!)
 	sheet := assembly.Planar2DoF{
-		Origin: pose.NewPoint(assembly.DynamicWorld, 0, 500),
+		Origin: pose.NewPoint(bounds.DynamicWorld, 0, 500),
 		AxisA: assembly.LinearDoF{
-			Field:   assembly.InputSeatpostInsertion,
-			Heading: pose.NewHeading(assembly.DynamicWorld, 105),
+			Field:   bounds.InputSeatpostInsertion,
+			Heading: pose.NewHeading(bounds.DynamicWorld, 105),
 			Range:   mustRange(t, 100, 200),
 			Probe:   200,
 			Sign:    -1,
 		},
 		AxisB: assembly.LinearDoF{
-			Field:   assembly.InputSaddleRailOffset,
-			Heading: pose.NewHeading(assembly.DynamicWorld, 180),
+			Field:   bounds.InputSaddleRailOffset,
+			Heading: pose.NewHeading(bounds.DynamicWorld, 180),
 			Range:   mustRange(t, -15, 15),
 			Probe:   0,
 			Sign:    +1,
 		},
 	}
 
-	target := pose.NewPoint(assembly.DynamicWorld, -38.8, 550.0)
+	target := pose.NewPoint(bounds.DynamicWorld, -38.8, 550.0)
 	ins, rail, limited, ok := assembly.SolvePlanar2DoF(sheet, target, assembly.PriorityBRPGate)
-	if !ok || !slices.Equal(limited, []assembly.InputField{assembly.InputSaddleRailOffset}) {
+	if !ok || !slices.Equal(limited, []bounds.InputField{bounds.InputSaddleRailOffset}) {
 		t.Fatalf("BRP gate clip: ok=%v limited=%v", ok, limited)
 	}
 	assertNear(t, "rail clamped at +15", rail, 15.0, 1e-12)
@@ -140,33 +141,33 @@ func TestSolvePlanar2DoFBRPGateClipping(t *testing.T) {
 
 func TestSolvePlanar2DoFCoordinateSystemPanics(t *testing.T) {
 	sheet := assembly.Planar2DoF{
-		Origin: pose.NewPoint(assembly.DynamicWorld, 0, 500),
+		Origin: pose.NewPoint(bounds.DynamicWorld, 0, 500),
 		AxisA: assembly.LinearDoF{
-			Field:   assembly.InputSeatpostInsertion,
-			Heading: pose.NewHeading(assembly.DynamicWorld, 90),
+			Field:   bounds.InputSeatpostInsertion,
+			Heading: pose.NewHeading(bounds.DynamicWorld, 90),
 			Range:   mustRange(t, 100, 200),
 			Probe:   200,
 			Sign:    -1,
 		},
 		AxisB: assembly.LinearDoF{
-			Field:   assembly.InputSaddleRailOffset,
-			Heading: pose.NewHeading(assembly.DynamicWorld, 0),
+			Field:   bounds.InputSaddleRailOffset,
+			Heading: pose.NewHeading(bounds.DynamicWorld, 0),
 			Range:   mustRange(t, -15, 15),
 			Probe:   0,
 			Sign:    +1,
 		},
 	}
 	assertPanics(t, "target in StaticWorld vs DynamicWorld sheet", func() {
-		_, _, _, _ = assembly.SolvePlanar2DoF(sheet, pose.NewPoint(assembly.StaticWorld, 0, 550), assembly.PriorityNearest)
+		_, _, _, _ = assembly.SolvePlanar2DoF(sheet, pose.NewPoint(bounds.StaticWorld, 0, 550), assembly.PriorityNearest)
 	})
 	badAxis := sheet
 	badAxis.AxisA.Heading = pose.NewHeading(assembly.FrameLocal, 90)
 	assertPanics(t, "AxisA in FrameLocal", func() {
-		_, _, _, _ = assembly.SolvePlanar2DoF(badAxis, pose.NewPoint(assembly.DynamicWorld, 0, 550), assembly.PriorityNearest)
+		_, _, _, _ = assembly.SolvePlanar2DoF(badAxis, pose.NewPoint(bounds.DynamicWorld, 0, 550), assembly.PriorityNearest)
 	})
 	badSign := sheet
 	badSign.AxisA.Sign = 0
 	assertPanics(t, "invalid Sign 0", func() {
-		_, _, _, _ = assembly.SolvePlanar2DoF(badSign, pose.NewPoint(assembly.DynamicWorld, 0, 550), assembly.PriorityNearest)
+		_, _, _, _ = assembly.SolvePlanar2DoF(badSign, pose.NewPoint(bounds.DynamicWorld, 0, 550), assembly.PriorityNearest)
 	})
 }

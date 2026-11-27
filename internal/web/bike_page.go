@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/catalog"
 	"github.com/matta/bikegeo/internal/query"
 )
@@ -507,16 +508,16 @@ func renderBikeError(w http.ResponseWriter, q url.Values, base query.Bike, inval
 func buildFittingView(parsed query.Bike, res query.BikeResult) (*bikeFittingView, error) {
 	fitting, bike := *res.Fitting, res.Placement
 	fv := &bikeFittingView{}
-	var saddleLimits, cockpitLimits []assembly.InputField
+	var saddleLimits, cockpitLimits []bounds.InputField
 	for _, f := range fitting.LimitedBy {
 		switch f {
-		case assembly.InputSeatpostInsertion, assembly.InputSaddleRailOffset:
+		case bounds.InputSeatpostInsertion, bounds.InputSaddleRailOffset:
 			saddleLimits = append(saddleLimits, f)
-		case assembly.InputStemSpacers, assembly.InputStemLength:
+		case bounds.InputStemSpacers, bounds.InputStemLength:
 			cockpitLimits = append(cockpitLimits, f)
-		case assembly.InputForkA2c, assembly.InputForkSag, assembly.InputLowerCup, assembly.InputStemAngle,
-			assembly.InputHandlebarRoll, assembly.InputSeatpostSetback, assembly.InputSaddleRailPitch,
-			assembly.InputFitTargetBRP, assembly.InputFitTargetGrip:
+		case bounds.InputForkA2c, bounds.InputForkSag, bounds.InputLowerCup, bounds.InputStemAngle,
+			bounds.InputHandlebarRoll, bounds.InputSeatpostSetback, bounds.InputSaddleRailPitch,
+			bounds.InputFitTargetBRP, bounds.InputFitTargetGrip:
 			// Fitting never limits on these inputs.
 		}
 	}

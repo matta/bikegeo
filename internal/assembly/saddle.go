@@ -3,6 +3,7 @@ package assembly
 import (
 	"fmt"
 
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -100,7 +101,7 @@ func (s Saddle) Dimensions() SaddleDimensions {
 // rail slide and tilt angle still open.
 type SaddleDoF struct {
 	saddle            Saddle
-	allowedRailOffset BoundedRange
+	allowedRailOffset bounds.BoundedRange
 }
 
 // MateSaddle mates saddle onto clamp, verifying that clamp.CradleInParent maps
@@ -126,7 +127,7 @@ func MateSaddle(clamp RailClampPort, saddle Saddle) (*SaddleDoF, error) {
 	if err != nil {
 		return nil, err
 	}
-	allowed, err := NewBoundedRange(-limit, limit, "saddle rail forward limit", "saddle rail rearward limit")
+	allowed, err := bounds.NewBoundedRange(-limit, limit, "saddle rail forward limit", "saddle rail rearward limit")
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +139,7 @@ func MateSaddle(clamp RailClampPort, saddle Saddle) (*SaddleDoF, error) {
 
 // AllowedRailOffset returns the legal fore-aft rail offset interval
 // [−(RailLengthMm − ClampLengthMm)/2, +(RailLengthMm − ClampLengthMm)/2].
-func (d *SaddleDoF) AllowedRailOffset() BoundedRange {
+func (d *SaddleDoF) AllowedRailOffset() bounds.BoundedRange {
 	if d == nil || !d.allowedRailOffset.Valid() {
 		panic("assembly: uninitialized SaddleDoF")
 	}
@@ -152,9 +153,9 @@ func (d *SaddleDoF) AllowedRailOffset() BoundedRange {
 // It panics deterministically if cradleHeadingInWorld is not in StaticWorld or
 // DynamicWorld.
 func RailTurnForWorldPitch(cradleHeadingInWorld pose.Heading, worldPitchDeg pose.Deg) pose.Deg {
-	if _, ok := LoadStateForWorld(cradleHeadingInWorld.CoordinateSystem()); !ok {
+	if _, ok := bounds.LoadStateForWorld(cradleHeadingInWorld.CoordinateSystem()); !ok {
 		panic(fmt.Sprintf("assembly: RailTurnForWorldPitch requires %s or %s heading, got %s",
-			StaticWorld, DynamicWorld, cradleHeadingInWorld.CoordinateSystem()))
+			bounds.StaticWorld, bounds.DynamicWorld, cradleHeadingInWorld.CoordinateSystem()))
 	}
 	return pose.NewHeading(cradleHeadingInWorld.CoordinateSystem(), worldPitchDeg).Sub(cradleHeadingInWorld)
 }
@@ -168,9 +169,9 @@ func (d *SaddleDoF) Clamp(railOffsetMm float64, railTurnFromCradle pose.Deg) (*C
 		panic("assembly: uninitialized SaddleDoF")
 	}
 	if !isFinite(float64(railTurnFromCradle)) {
-		return nil, invalidInput(InputSaddleRailPitch, "saddle rail pitch must be finite, got %v°", railTurnFromCradle)
+		return nil, invalidInput(bounds.InputSaddleRailPitch, "saddle rail pitch must be finite, got %v°", railTurnFromCradle)
 	}
-	status, err := d.allowedRailOffset.Bind(InputSaddleRailOffset, railOffsetMm)
+	status, err := d.allowedRailOffset.Bind(bounds.InputSaddleRailOffset, railOffsetMm)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +195,7 @@ func (d *SaddleDoF) Clamp(railOffsetMm float64, railTurnFromCradle pose.Deg) (*C
 // rigidly with the post cradle without re-leveling to gravity.
 type ClampedSaddle struct {
 	saddle             Saddle
-	railOffset         BoundStatus
+	railOffset         bounds.BoundStatus
 	railTurnFromCradle pose.Deg
 	railClampInCradle  pose.Pose
 	saddleInCradle     pose.Transform
@@ -213,7 +214,7 @@ func (c *ClampedSaddle) Saddle() Saddle {
 }
 
 // RailOffset returns the clamped fore-aft rail offset and its bound provenance.
-func (c *ClampedSaddle) RailOffset() BoundStatus {
+func (c *ClampedSaddle) RailOffset() bounds.BoundStatus {
 	c.requireValid()
 	return c.railOffset
 }

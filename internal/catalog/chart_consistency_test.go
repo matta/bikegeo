@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/catalog"
 	"github.com/matta/bikegeo/internal/pose"
 )
@@ -442,12 +443,12 @@ func TestCheckChartConsistencyUnpublishedWheelbase(t *testing.T) {
 func TestCheckChartConsistencyRejectsMismatchedBasisCup(t *testing.T) {
 	f, s := fenrirL(t)
 	f.BasisLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0}
-	var inputErr *assembly.InputError
-	if err := checkChartConsistency(f, s); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+	var inputErr *bounds.InputError
+	if err := checkChartConsistency(f, s); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputLowerCup {
 		t.Errorf("checkChartConsistency error = %v, want InputLowerCup", err)
 	}
 	f.BasisLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12}
-	if err := checkChartConsistency(f, s); err != nil && errors.As(err, &inputErr) && inputErr.Field == assembly.InputLowerCup {
+	if err := checkChartConsistency(f, s); err != nil && errors.As(err, &inputErr) && inputErr.Field == bounds.InputLowerCup {
 		t.Errorf("matching cup rejected as a headset error: %v", err)
 	}
 }

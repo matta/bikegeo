@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/catalog"
 )
 
@@ -334,12 +335,12 @@ func TestBasisSearchErrorsAndRakeIndependence(t *testing.T) {
 
 	krampus := mustFrame(t, "surly-krampus")
 	badCup := assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 1}
-	var ie *assembly.InputError
-	if _, err := evalBasis(krampus, badCup, 483, 47); !errors.As(err, &ie) || ie.Field != assembly.InputLowerCup {
+	var ie *bounds.InputError
+	if _, err := evalBasis(krampus, badCup, 483, 47); !errors.As(err, &ie) || ie.Field != bounds.InputLowerCup {
 		t.Errorf("evalBasis(bad cup) = %v, want InputLowerCup", err)
 	}
 	ie = nil
-	if _, err := searchBasis(krampus, badCup, 47, nil); !errors.As(err, &ie) || ie.Field != assembly.InputLowerCup {
+	if _, err := searchBasis(krampus, badCup, 47, nil); !errors.As(err, &ie) || ie.Field != bounds.InputLowerCup {
 		t.Errorf("searchBasis(bad cup) = %v, want InputLowerCup", err)
 	}
 

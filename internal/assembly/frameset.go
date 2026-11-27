@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -24,7 +25,7 @@ func validateWheels(wheels WheelSetup) error {
 // concrete fork implementation (RigidFork, SuspensionFork, or BasisFork).
 type forkMounter interface {
 	CheckHeadset(bore LowerBore, cup LowerCupSetup) error
-	AxleInFork(state LoadState) pose.Point
+	AxleInFork(state bounds.LoadState) pose.Point
 }
 
 // Frameset is an immutable mated frame, lower headset cup, fork, and wheelset.
@@ -75,7 +76,7 @@ func validateForkAxle(label string, p pose.Point) error {
 			label, ForkLocal, p.CoordinateSystem()))
 	}
 	if !isFinitePoint(p) || p.X() <= 0 {
-		return invalidInput(InputForkA2c, "fork %s effective A2C must be finite and positive, got (%v, %v) mm", label, p.X(), p.Y())
+		return invalidInput(bounds.InputForkA2c, "fork %s effective A2C must be finite and positive, got (%v, %v) mm", label, p.X(), p.Y())
 	}
 	return nil
 }
@@ -109,8 +110,8 @@ func mateFrameset(frame Frame, lowerCup LowerCupSetup, upperStackMm float64, for
 		return Frameset{}, err
 	}
 
-	staticAxle := fork.AxleInFork(Static)
-	dynamicAxle := fork.AxleInFork(Dynamic)
+	staticAxle := fork.AxleInFork(bounds.Static)
+	dynamicAxle := fork.AxleInFork(bounds.Dynamic)
 	if err := validateForkAxle("static", staticAxle); err != nil {
 		return Frameset{}, err
 	}
@@ -233,11 +234,11 @@ func (fs *Frameset) frameSetupSnapshot() FrameSetup {
 	}
 }
 
-func (fs *Frameset) axleForState(state LoadState) (inFork, inFrame pose.Point) {
+func (fs *Frameset) axleForState(state bounds.LoadState) (inFork, inFrame pose.Point) {
 	switch state {
-	case Static:
+	case bounds.Static:
 		return fs.staticAxleInFork, fs.staticAxleInFrame
-	case Dynamic:
+	case bounds.Dynamic:
 		return fs.dynamicAxleInFork, fs.dynamicAxleInFrame
 	default:
 		panic(fmt.Sprintf("assembly: invalid LoadState %q", state))
@@ -247,7 +248,7 @@ func (fs *Frameset) axleForState(state LoadState) (inFork, inFrame pose.Point) {
 // FrameToWorld returns the single-pass rigid transform mapping FrameLocal into
 // state's leveled world coordinate system (StaticWorld or DynamicWorld) with
 // RearAxle.Y == FrontAxle.Y.
-func (fs *Frameset) FrameToWorld(state LoadState) pose.Transform {
+func (fs *Frameset) FrameToWorld(state bounds.LoadState) pose.Transform {
 	fs.requireValid()
 	_, frontInFrame := fs.axleForState(state)
 	// Add +0° to normalize -0° when the axle line is already level.
@@ -260,13 +261,13 @@ func (fs *Frameset) FrameToWorld(state LoadState) pose.Transform {
 // fork's dynamic axle position (identical to static for rigid and basis forks).
 func (fs *Frameset) Unpitched() FramesetPlacement {
 	fs.requireValid()
-	frameToChart := pose.NewTransform(FrameLocal, UnpitchedChart, pose.Origin(UnpitchedChart), 0)
+	frameToChart := pose.NewTransform(FrameLocal, bounds.UnpitchedChart, pose.Origin(bounds.UnpitchedChart), 0)
 	return fs.placeWithTransform(frameToChart, fs.dynamicAxleInFork)
 }
 
 // Place levels the frameset into state's world coordinate system (StaticWorld
 // or DynamicWorld) in a single pass from FrameLocal.
-func (fs *Frameset) Place(state LoadState) FramesetPlacement {
+func (fs *Frameset) Place(state bounds.LoadState) FramesetPlacement {
 	fs.requireValid()
 	axleInFork, _ := fs.axleForState(state)
 	return fs.placeWithTransform(fs.FrameToWorld(state), axleInFork)

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/catalog"
 	"github.com/matta/bikegeo/internal/compare"
 	"github.com/matta/bikegeo/internal/pose"
@@ -219,7 +220,7 @@ type scoredBuildView struct {
 // FitPostSetback found with the rails held at RailOffsetMm. It is never applied.
 type postSetbackView struct {
 	RailOffsetMm, SetbackMm, InsertionMm, MissMm float64
-	LimitedBy                                    []assembly.InputField
+	LimitedBy                                    []bounds.InputField
 }
 
 // OutcomeText describes the setback fitting outcome.
@@ -239,7 +240,7 @@ func makePostSetbackView(f assembly.Fitting) postSetbackView {
 type saddleFittingView struct {
 	TargetX, TargetY, MissX, MissY, MissMm float64 // miss: target − the submitted build's BRP
 	InsertionMm, RailOffsetMm, RailLimitMm float64 // fitted values; ±RailLimitMm range
-	LimitedBy                              []assembly.InputField
+	LimitedBy                              []bounds.InputField
 	Centered                               postSetbackView  // rails centered
 	Reach                                  *postSetbackView // rails held at the fitted offset; nil unless saddle fitting is limited
 }
@@ -249,7 +250,7 @@ type cockpitFittingView struct {
 	SpacersMm, MaxSpacersMm                        float64 // fitted; range 0..MaxSpacersMm
 	StemLengthMm, MinStemLengthMm, MaxStemLengthMm float64
 	StemAngleDeg, BarRollDeg                       pose.Deg // fixed inputs the fit used
-	LimitedBy                                      []assembly.InputField
+	LimitedBy                                      []bounds.InputField
 }
 
 // OutcomeText describes the saddle fitting outcome as a fact about this build.
@@ -258,7 +259,7 @@ func (f saddleFittingView) OutcomeText() string { return fitOutcomeText(f.Limite
 // OutcomeText describes the cockpit fitting outcome as a fact about this build.
 func (f cockpitFittingView) OutcomeText() string { return fitOutcomeText(f.LimitedBy) }
 
-func fitOutcomeText(limits []assembly.InputField) string {
+func fitOutcomeText(limits []bounds.InputField) string {
 	if len(limits) == 0 {
 		return "reached"
 	}
@@ -356,36 +357,36 @@ func isFiniteFloat(v float64) bool {
 }
 
 func bikeInputField(err error) string {
-	var inputErr *assembly.InputError
+	var inputErr *bounds.InputError
 	if !errors.As(err, &inputErr) {
 		return ""
 	}
 	switch inputErr.Field {
-	case assembly.InputForkA2c:
+	case bounds.InputForkA2c:
 		return "fork_a2c"
-	case assembly.InputForkSag:
+	case bounds.InputForkSag:
 		return "sag"
-	case assembly.InputLowerCup:
+	case bounds.InputLowerCup:
 		return "cup"
-	case assembly.InputFitTargetGrip:
+	case bounds.InputFitTargetGrip:
 		return "grip_x"
-	case assembly.InputStemSpacers:
+	case bounds.InputStemSpacers:
 		return "spacers"
-	case assembly.InputStemLength:
+	case bounds.InputStemLength:
 		return "stem_length"
-	case assembly.InputStemAngle:
+	case bounds.InputStemAngle:
 		return "stem_angle"
-	case assembly.InputHandlebarRoll:
+	case bounds.InputHandlebarRoll:
 		return "bar_roll"
-	case assembly.InputSeatpostInsertion:
+	case bounds.InputSeatpostInsertion:
 		return "post_insert"
-	case assembly.InputSeatpostSetback:
+	case bounds.InputSeatpostSetback:
 		return "post"
-	case assembly.InputSaddleRailOffset:
+	case bounds.InputSaddleRailOffset:
 		return "rail_offset"
-	case assembly.InputSaddleRailPitch:
+	case bounds.InputSaddleRailPitch:
 		return "rail_pitch"
-	case assembly.InputFitTargetBRP:
+	case bounds.InputFitTargetBRP:
 		return "brp_x"
 	default:
 		return ""

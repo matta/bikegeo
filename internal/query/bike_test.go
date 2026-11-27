@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/catalog"
 	"github.com/matta/bikegeo/internal/pose"
 	"github.com/matta/bikegeo/internal/query"
@@ -61,8 +62,8 @@ func TestParseBikeDefaults(t *testing.T) {
 		if p.PostInsertMm != 175.0 || p.SpacersMm != 20 || p.StemLengthMm != 60 || p.StemAngleDeg != -6 {
 			t.Errorf("%s: post/stem = %v / spacers %v len %v ang %v", name, p.PostInsertMm, p.SpacersMm, p.StemLengthMm, p.StemAngleDeg)
 		}
-		if b.BrpTarget == nil || *b.BrpTarget != pose.NewPoint(assembly.DynamicWorld, -219, 713.1) ||
-			b.GripTarget == nil || *b.GripTarget != pose.NewPoint(assembly.DynamicWorld, 481, 726) {
+		if b.BrpTarget == nil || *b.BrpTarget != pose.NewPoint(bounds.DynamicWorld, -219, 713.1) ||
+			b.GripTarget == nil || *b.GripTarget != pose.NewPoint(bounds.DynamicWorld, 481, 726) {
 			t.Errorf("%s: targets = %v / %v", name, b.BrpTarget, b.GripTarget)
 		}
 		if b.AllBarOptions || b.AllForkOptions {
@@ -354,8 +355,8 @@ func TestBikeEvaluate(t *testing.T) {
 	near(t, "all forks gripR", top.Score.GripR, 1.104821393, 1e-6)
 
 	_, err := mustParseBike(t, "post=redshift_shockstop_pro&post_insert=275").Evaluate(query.RankedBuildLimit)
-	var ie *assembly.InputError
-	if !errors.As(err, &ie) || ie.Field != assembly.InputSeatpostInsertion {
+	var ie *bounds.InputError
+	if !errors.As(err, &ie) || ie.Field != bounds.InputSeatpostInsertion {
 		t.Errorf("out-of-bounds Evaluate err = %v, want InputError seatpost insertion", err)
 	}
 }

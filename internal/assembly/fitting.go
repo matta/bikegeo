@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -45,7 +46,7 @@ type Fitting struct {
 	// order InputSeatpostInsertion, InputSaddleRailOffset, InputStemSpacers,
 	// InputStemLength (or InputSeatpostInsertion, InputSeatpostSetback for
 	// FitPostSetback); nil when every target was reached.
-	LimitedBy []InputField
+	LimitedBy []bounds.InputField
 }
 
 // BrpMiss returns target − placed BRP (world mm), and false when the target has no BRP.
@@ -71,7 +72,7 @@ type FrontCockpitDoF struct {
 	seated            *SeatedFrameset
 	stemAngleDeg      pose.Deg
 	stemClampHeightMm float64
-	stemLenRange      BoundedRange
+	stemLenRange      bounds.BoundedRange
 	bar               Handlebar
 	dynamicBarRollDeg pose.Deg
 	probeBuild        *Build
@@ -85,7 +86,7 @@ func OpenFrontCockpit(
 	seated *SeatedFrameset,
 	stemAngleDeg pose.Deg,
 	stemClampHeightMm float64,
-	stemLenRange BoundedRange,
+	stemLenRange bounds.BoundedRange,
 	bar Handlebar,
 	dynamicBarRollDeg pose.Deg,
 ) (*FrontCockpitDoF, error) {
@@ -95,7 +96,7 @@ func OpenFrontCockpit(
 		return nil, fmt.Errorf("stem length range must be finite with 0 < min <= max")
 	}
 	if !isFinite(float64(dynamicBarRollDeg)) {
-		return nil, invalidInput(InputHandlebarRoll, "handlebar roll must be finite, got %v°", dynamicBarRollDeg)
+		return nil, invalidInput(bounds.InputHandlebarRoll, "handlebar roll must be finite, got %v°", dynamicBarRollDeg)
 	}
 	probeStem, err := NewStem(stemClampHeightMm, stemLenRange.Min(), stemAngleDeg)
 	if err != nil {
@@ -105,7 +106,7 @@ func OpenFrontCockpit(
 	if err != nil {
 		return nil, err
 	}
-	probePlacement := probeBuild.Place(Dynamic)
+	probePlacement := probeBuild.Place(bounds.Dynamic)
 	return &FrontCockpitDoF{
 		seated:            seated,
 		stemAngleDeg:      stemAngleDeg,
@@ -125,7 +126,7 @@ func (d *FrontCockpitDoF) requireValid() {
 }
 
 // AllowedSpacers returns the frameset steerer's permitted spacer interval.
-func (d *FrontCockpitDoF) AllowedSpacers() BoundedRange {
+func (d *FrontCockpitDoF) AllowedSpacers() bounds.BoundedRange {
 	d.requireValid()
 	return d.seated.Frameset().Steerer().AllowedSpacers()
 }
@@ -137,14 +138,14 @@ func (d *FrontCockpitDoF) Planar2DoF() Planar2DoF {
 	return Planar2DoF{
 		Origin: d.probePlacement.Handlebar.HandGrip.Origin(),
 		AxisA: LinearDoF{
-			Field:   InputStemSpacers,
+			Field:   bounds.InputStemSpacers,
 			Heading: d.probePlacement.Stem.SpacerTop.Heading(),
 			Range:   d.AllowedSpacers(),
 			Probe:   0,
 			Sign:    +1,
 		},
 		AxisB: LinearDoF{
-			Field:   InputStemLength,
+			Field:   bounds.InputStemLength,
 			Heading: d.probePlacement.Stem.BarClamp.Heading(),
 			Range:   d.stemLenRange,
 			Probe:   d.stemLenRange.Min(),
@@ -157,7 +158,7 @@ func (d *FrontCockpitDoF) Planar2DoF() Planar2DoF {
 // immutable Build.
 func (d *FrontCockpitDoF) Clamp(spacersMm, stemLengthMm float64) (*Build, error) {
 	d.requireValid()
-	if _, err := d.stemLenRange.Bind(InputStemLength, stemLengthMm); err != nil {
+	if _, err := d.stemLenRange.Bind(bounds.InputStemLength, stemLengthMm); err != nil {
 		return nil, err
 	}
 	stem, err := NewStem(d.stemClampHeightMm, stemLengthMm, d.stemAngleDeg)
@@ -169,10 +170,10 @@ func (d *FrontCockpitDoF) Clamp(spacersMm, stemLengthMm float64) (*Build, error)
 
 // FitToGrip solves the front cockpit's Planar2DoF for target with
 // PriorityNearest and clamps the resulting Build.
-func (d *FrontCockpitDoF) FitToGrip(target pose.Point) (*Build, []InputField, error) {
+func (d *FrontCockpitDoF) FitToGrip(target pose.Point) (*Build, []bounds.InputField, error) {
 	d.requireValid()
 	if !isFinitePoint(target) {
-		return nil, nil, invalidInput(InputFitTargetGrip, "HandGrip fit target must be finite, got (%v, %v) mm", target.X(), target.Y())
+		return nil, nil, invalidInput(bounds.InputFitTargetGrip, "HandGrip fit target must be finite, got (%v, %v) mm", target.X(), target.Y())
 	}
 	spacers, length, limited, ok := SolvePlanar2DoF(d.Planar2DoF(), target, PriorityNearest)
 	if !ok {
@@ -183,7 +184,7 @@ func (d *FrontCockpitDoF) FitToGrip(target pose.Point) (*Build, []InputField, er
 		return nil, nil, err
 	}
 	if len(limited) == 0 {
-		if miss := target.Sub(build.Place(Dynamic).Handlebar.HandGrip.Origin()); miss.Norm() > 1e-6 {
+		if miss := target.Sub(build.Place(bounds.Dynamic).Handlebar.HandGrip.Origin()); miss.Norm() > 1e-6 {
 			return nil, nil, fmt.Errorf("cockpit fitting forward check missed target by %v mm", miss.Norm())
 		}
 	}
@@ -199,7 +200,7 @@ func (d *FrontCockpitDoF) FitToGrip(target pose.Point) (*Build, []InputField, er
 func (b *Build) FitPostSetback(brp pose.Point, railOffsetMm float64) (Fitting, error) {
 	b.requireValid()
 	if !isFinitePoint(brp) {
-		return Fitting{}, invalidInput(InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", brp.X(), brp.Y())
+		return Fitting{}, invalidInput(bounds.InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", brp.X(), brp.Y())
 	}
 	fs := b.seated.frameset
 	postSnap := b.seated.seatpost.post
@@ -232,7 +233,7 @@ func (b *Build) FitPostSetback(brp pose.Point, railOffsetMm float64) (Fitting, e
 		return Fitting{}, err
 	}
 
-	setbackRange, err := NewBoundedRange(0, math.Inf(1), "min seatpost setback", "")
+	setbackRange, err := bounds.NewBoundedRange(0, math.Inf(1), "min seatpost setback", "")
 	if err != nil {
 		return Fitting{}, err
 	}
@@ -240,14 +241,14 @@ func (b *Build) FitPostSetback(brp pose.Point, railOffsetMm float64) (Fitting, e
 	sheet := Planar2DoF{
 		Origin: probeSeated.DynamicSaddle().BRP.Origin(),
 		AxisA: LinearDoF{
-			Field:   InputSeatpostInsertion,
+			Field:   bounds.InputSeatpostInsertion,
 			Heading: shaftHeading,
 			Range:   insRange,
 			Probe:   insRange.Max(),
 			Sign:    -1,
 		},
 		AxisB: LinearDoF{
-			Field:   InputSeatpostSetback,
+			Field:   bounds.InputSeatpostSetback,
 			Heading: shaftHeading.Turn(90.0),
 			Range:   setbackRange,
 			Probe:   0,
@@ -281,7 +282,7 @@ func (b *Build) FitPostSetback(brp pose.Point, railOffsetMm float64) (Fitting, e
 	if err != nil {
 		return Fitting{}, err
 	}
-	placement := fittedBuild.Place(Dynamic)
+	placement := fittedBuild.Place(bounds.Dynamic)
 
 	p := brp
 	fit := Fitting{

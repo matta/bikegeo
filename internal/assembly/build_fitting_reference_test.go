@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -116,14 +117,14 @@ func TestFitBuildsMatchesReference(t *testing.T) {
 		"bars_and_forks": multi,
 	}
 
-	setbackBRP := pose.NewPoint(assembly.DynamicWorld, -189, 713.1)
-	farBRP := pose.NewPoint(assembly.DynamicWorld, -260, 640)
+	setbackBRP := pose.NewPoint(bounds.DynamicWorld, -189, 713.1)
+	farBRP := pose.NewPoint(bounds.DynamicWorld, -260, 640)
 	brps := map[string]*pose.Point{"no_brp": nil, "report_brp": &fitReportBRP, "setback_brp": &setbackBRP, "far_brp": &farBRP}
 
 	grips := []pose.Point{
-		pose.NewPoint(assembly.DynamicWorld, fitReportGrip.X()-60, fitReportGrip.Y()-60),
+		pose.NewPoint(bounds.DynamicWorld, fitReportGrip.X()-60, fitReportGrip.Y()-60),
 		fitReportGrip,
-		pose.NewPoint(assembly.DynamicWorld, fitReportGrip.X()+60, fitReportGrip.Y()+60),
+		pose.NewPoint(bounds.DynamicWorld, fitReportGrip.X()+60, fitReportGrip.Y()+60),
 	}
 
 	const everyBuild = 1 << 20

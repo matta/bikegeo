@@ -1,4 +1,4 @@
-package assembly
+package bounds
 
 import (
 	"bytes"
@@ -48,7 +48,7 @@ func NewBoundedRange(minVal, maxVal float64, minSource, maxSource string) (Bound
 
 func (r BoundedRange) requireValid() {
 	if !r.valid {
-		panic("assembly: uninitialized zero-value BoundedRange")
+		panic("bounds: uninitialized zero-value BoundedRange")
 	}
 }
 
@@ -120,10 +120,10 @@ func (r BoundedRange) Clamp(v float64) float64 {
 func (r BoundedRange) Bind(field InputField, v float64) (BoundStatus, error) {
 	r.requireValid()
 	if !isFinite(v) {
-		return BoundStatus{}, invalidInput(field, "%s must be finite, got %v mm", field, v)
+		return BoundStatus{}, NewInputError(field, "%s must be finite, got %v mm", field, v)
 	}
 	if v < r.min || v > r.max {
-		return BoundStatus{}, invalidInput(field, "%s must be within %v–%v mm, got %v mm", field, r.min, r.max, v)
+		return BoundStatus{}, NewInputError(field, "%s must be within %v–%v mm, got %v mm", field, r.min, r.max, v)
 	}
 	return BoundStatus{
 		Field:     field,
@@ -193,7 +193,7 @@ func (b BoundStatus) MarshalJSON() ([]byte, error) {
 	case math.IsInf(b.Min, -1):
 		minPtr = nil
 	case !isFinite(b.Min):
-		return nil, fmt.Errorf("assembly: BoundStatus.Min must be finite or -Inf, got %v", b.Min)
+		return nil, fmt.Errorf("bounds: BoundStatus.Min must be finite or -Inf, got %v", b.Min)
 	default:
 		v := b.Min
 		minPtr = &v
@@ -202,7 +202,7 @@ func (b BoundStatus) MarshalJSON() ([]byte, error) {
 	case math.IsInf(b.Max, 1):
 		maxPtr = nil
 	case !isFinite(b.Max):
-		return nil, fmt.Errorf("assembly: BoundStatus.Max must be finite or +Inf, got %v", b.Max)
+		return nil, fmt.Errorf("bounds: BoundStatus.Max must be finite or +Inf, got %v", b.Max)
 	default:
 		v := b.Max
 		maxPtr = &v

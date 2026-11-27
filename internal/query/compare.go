@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/catalog"
 	"github.com/matta/bikegeo/internal/compare"
 	"github.com/matta/bikegeo/internal/pose"
@@ -364,7 +365,7 @@ func parseTarget(q url.Values, flagKey, xKey, yKey, label string, defaultPt pose
 		if !ok {
 			return nil, &InputError{Field: yKey, Err: fmt.Errorf("%s %s must be a finite number, got %q", label, yKey, yRaw)}
 		}
-		pt := pose.NewPoint(assembly.DynamicWorld, x, y)
+		pt := pose.NewPoint(bounds.DynamicWorld, x, y)
 		return &pt, nil
 	case xRaw == "" && yRaw != "":
 		return nil, incomplete(xKey)

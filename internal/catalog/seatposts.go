@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -11,8 +12,8 @@ import (
 // (satisfied by assembly.RigidPost and assembly.LinkagePost).
 type SeatpostPart interface {
 	TotalLengthMm() float64
-	InsertionLimits() assembly.BoundedRange
-	RailClamp(state assembly.LoadState) assembly.RailClampPort
+	InsertionLimits() bounds.BoundedRange
+	RailClamp(state bounds.LoadState) assembly.RailClampPort
 }
 
 // Seatpost is one seatpost the workbench can install. Its insertion comes from
@@ -30,12 +31,12 @@ func (p Seatpost) TotalLengthMm() float64 {
 
 // SetbackMm returns the post's dynamic rearward clamp offset from the shaft centerline.
 func (p Seatpost) SetbackMm() float64 {
-	return p.Part.RailClamp(assembly.Dynamic).CradleInParent.OriginInDst().Y()
+	return p.Part.RailClamp(bounds.Dynamic).CradleInParent.OriginInDst().Y()
 }
 
 // RailClampLengthMm returns the fore-aft rail clamping footprint.
 func (p Seatpost) RailClampLengthMm() float64 {
-	return p.Part.RailClamp(assembly.Static).ClampLengthMm
+	return p.Part.RailClamp(bounds.Static).ClampLengthMm
 }
 
 const (

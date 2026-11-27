@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -65,11 +66,11 @@ func TestBuildStaticVsDynamicRigidClamping(t *testing.T) {
 		t.Fatalf("AttachFront: %v", err)
 	}
 
-	dyn := build.Place(assembly.Dynamic)
-	stat := build.Place(assembly.Static)
+	dyn := build.Place(bounds.Dynamic)
+	stat := build.Place(bounds.Static)
 
 	// 1. State tags, bounds, and exact dynamic rail pitch / bar roll headings.
-	if dyn.State != assembly.Dynamic || stat.State != assembly.Static {
+	if dyn.State != bounds.Dynamic || stat.State != bounds.Static {
 		t.Fatalf("States = (%q, %q), want (dynamic, static)", dyn.State, stat.State)
 	}
 	assertNear(t, "dynamic RailClamp heading", float64(dyn.Saddle.RailClamp.HeadingDeg()), float64(dynamicRailPitch), 1e-12)
@@ -79,13 +80,13 @@ func TestBuildStaticVsDynamicRigidClamping(t *testing.T) {
 	assertNear(t, "dynamic HandGrip heading", float64(dyn.Handlebar.HandGrip.HeadingDeg()), float64(-dynamicBarRoll), 1e-12)
 
 	// Bounds carry provenance for all three clamped inputs.
-	if dyn.Bounds.SeatpostInsertion.Field != assembly.InputSeatpostInsertion || dyn.Bounds.SeatpostInsertion.Value != 150.0 {
+	if dyn.Bounds.SeatpostInsertion.Field != bounds.InputSeatpostInsertion || dyn.Bounds.SeatpostInsertion.Value != 150.0 {
 		t.Errorf("SeatpostInsertion bound = %+v", dyn.Bounds.SeatpostInsertion)
 	}
-	if dyn.Bounds.SaddleRailOffset.Field != assembly.InputSaddleRailOffset || dyn.Bounds.SaddleRailOffset.Value != 8.0 {
+	if dyn.Bounds.SaddleRailOffset.Field != bounds.InputSaddleRailOffset || dyn.Bounds.SaddleRailOffset.Value != 8.0 {
 		t.Errorf("SaddleRailOffset bound = %+v", dyn.Bounds.SaddleRailOffset)
 	}
-	if dyn.Bounds.StemSpacers.Field != assembly.InputStemSpacers || dyn.Bounds.StemSpacers.Value != 20.0 {
+	if dyn.Bounds.StemSpacers.Field != bounds.InputStemSpacers || dyn.Bounds.StemSpacers.Value != 20.0 {
 		t.Errorf("StemSpacers bound = %+v", dyn.Bounds.StemSpacers)
 	}
 
@@ -99,7 +100,7 @@ func TestBuildStaticVsDynamicRigidClamping(t *testing.T) {
 
 	// 3. Every frame-clamped landmark (frame + stem + handlebar + seatpost shaft)
 	// rotates rigidly about BB by pitchDelta to < 1e-12 mm!
-	dynToStat := pose.NewTransform(assembly.DynamicWorld, assembly.StaticWorld, pose.Origin(assembly.StaticWorld), pitchDelta)
+	dynToStat := pose.NewTransform(bounds.DynamicWorld, bounds.StaticWorld, pose.Origin(bounds.StaticWorld), pitchDelta)
 	for _, lm := range []struct {
 		name string
 		dyn  pose.Pose
@@ -159,7 +160,7 @@ func TestBuildStaticVsDynamicRigidClamping(t *testing.T) {
 	assertNear(t, "stat Summary.TrailMm", stat.Summary.TrailMm, stat.Frameset.TrailMm(), 1e-12)
 
 	// Verify FrontCockpitDoF + FitToGrip works cleanly on SeatedFrameset.
-	lenRange, err := assembly.NewBoundedRange(40, 130, "min stem", "max stem")
+	lenRange, err := bounds.NewBoundedRange(40, 130, "min stem", "max stem")
 	if err != nil {
 		t.Fatalf("NewBoundedRange: %v", err)
 	}
@@ -175,18 +176,18 @@ func TestBuildStaticVsDynamicRigidClamping(t *testing.T) {
 	if len(limited) != 0 {
 		t.Fatalf("expected reachable gripTarget, limited = %v", limited)
 	}
-	fittedDyn := fittedBuild.Place(assembly.Dynamic)
+	fittedDyn := fittedBuild.Place(bounds.Dynamic)
 	assertNear(t, "fitted grip miss", gripTarget.DistanceTo(fittedDyn.Handlebar.HandGrip.Origin()), 0, 1e-9)
 	assertNear(t, "fitted spacers", fittedDyn.Bounds.StemSpacers.Value, 20.0, 1e-6)
 	assertNear(t, "fitted stem length", fittedDyn.Setup.Stem.LengthMm, 60.0, 1e-6)
 
 	// Verify invalid LoadState panics deterministically on Build.Place.
 	assertPanics(t, "Build.Place invalid LoadState", func() {
-		_ = build.Place(assembly.LoadState("bad"))
+		_ = build.Place(bounds.LoadState("bad"))
 	})
 	assertPanics(t, "nil Build.Place", func() {
 		var nilBuild *assembly.Build
-		_ = nilBuild.Place(assembly.Dynamic)
+		_ = nilBuild.Place(bounds.Dynamic)
 	})
 	if math.IsNaN(dyn.Summary.WheelbaseMm) {
 		t.Error("unexpected NaN WheelbaseMm")

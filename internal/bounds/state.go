@@ -1,4 +1,7 @@
-package assembly
+// Package bounds provides load-state world coordinate systems, attributed
+// physical input errors, validated closed millimeter intervals with provenance,
+// and self-describing 1-DoF linear sliding joints.
+package bounds
 
 import (
 	"fmt"
@@ -38,7 +41,7 @@ func (s LoadState) WorldSystem() pose.CoordinateSystem {
 	case Dynamic:
 		return DynamicWorld
 	default:
-		panic(fmt.Sprintf("assembly: invalid LoadState %q", s))
+		panic(fmt.Sprintf("bounds: invalid LoadState %q", s))
 	}
 }
 

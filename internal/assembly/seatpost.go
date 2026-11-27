@@ -3,6 +3,7 @@ package assembly
 import (
 	"fmt"
 
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -30,7 +31,7 @@ var (
 // insertion interval in millimeters.
 type SeatTubeSocket struct {
 	CollarInFrame    pose.Transform
-	AllowedInsertion BoundedRange
+	AllowedInsertion bounds.BoundedRange
 }
 
 // RailClampPort is a seatpost's upper mating port where a saddle attaches.
@@ -43,22 +44,22 @@ type RailClampPort struct {
 	ClampLengthMm  float64
 }
 
-func validatePostShaft(totalLengthMm, minInsertionMm, maxInsertionMm, setbackMm, railClampLengthMm float64) (BoundedRange, error) {
+func validatePostShaft(totalLengthMm, minInsertionMm, maxInsertionMm, setbackMm, railClampLengthMm float64) (bounds.BoundedRange, error) {
 	for _, v := range []float64{totalLengthMm, maxInsertionMm, minInsertionMm} {
 		if !isFinite(v) {
-			return BoundedRange{}, fmt.Errorf("seatpost length and insertion limits must be finite, got %v, %v, %v mm", totalLengthMm, maxInsertionMm, minInsertionMm)
+			return bounds.BoundedRange{}, fmt.Errorf("seatpost length and insertion limits must be finite, got %v, %v, %v mm", totalLengthMm, maxInsertionMm, minInsertionMm)
 		}
 	}
 	if !(0 < minInsertionMm && minInsertionMm <= maxInsertionMm && maxInsertionMm < totalLengthMm) {
-		return BoundedRange{}, fmt.Errorf("seatpost needs 0 < min insertion <= max insertion < total length, got min %v, max %v, total %v mm", minInsertionMm, maxInsertionMm, totalLengthMm)
+		return bounds.BoundedRange{}, fmt.Errorf("seatpost needs 0 < min insertion <= max insertion < total length, got min %v, max %v, total %v mm", minInsertionMm, maxInsertionMm, totalLengthMm)
 	}
 	if !isFinite(setbackMm) || setbackMm < 0 {
-		return BoundedRange{}, invalidInput(InputSeatpostSetback, "seatpost setback must be finite and non-negative, got %v mm", setbackMm)
+		return bounds.BoundedRange{}, invalidInput(bounds.InputSeatpostSetback, "seatpost setback must be finite and non-negative, got %v mm", setbackMm)
 	}
 	if !isFinite(railClampLengthMm) || railClampLengthMm <= 0 {
-		return BoundedRange{}, fmt.Errorf("seatpost clamp length must be finite and positive, got %v mm", railClampLengthMm)
+		return bounds.BoundedRange{}, fmt.Errorf("seatpost clamp length must be finite and positive, got %v mm", railClampLengthMm)
 	}
-	return NewBoundedRange(minInsertionMm, maxInsertionMm, "seatpost min insertion", "seatpost max insertion")
+	return bounds.NewBoundedRange(minInsertionMm, maxInsertionMm, "seatpost min insertion", "seatpost max insertion")
 }
 
 // RigidPost is a fixed-geometry seatpost whose rail-clamp cradle sits at a
@@ -66,7 +67,7 @@ func validatePostShaft(totalLengthMm, minInsertionMm, maxInsertionMm, setbackMm,
 // Construct instances with NewRigidPost.
 type RigidPost struct {
 	totalLengthMm     float64
-	insertionLimits   BoundedRange
+	insertionLimits   bounds.BoundedRange
 	setbackMm         float64
 	railClampLengthMm float64
 }
@@ -101,7 +102,7 @@ func (p RigidPost) TotalLengthMm() float64 {
 }
 
 // InsertionLimits returns the post's own valid insertion interval.
-func (p RigidPost) InsertionLimits() BoundedRange {
+func (p RigidPost) InsertionLimits() bounds.BoundedRange {
 	if !p.insertionLimits.Valid() {
 		panic("assembly: uninitialized zero-value RigidPost")
 	}
@@ -127,12 +128,12 @@ func (p RigidPost) RailClampLengthMm() float64 {
 // RailClamp returns the rail-clamp port in SeatpostLocal. A rigid post places
 // SeatpostCradle at (TotalLengthMm, SetbackMm) with 0° rotation in both Static
 // and Dynamic load states.
-func (p RigidPost) RailClamp(state LoadState) RailClampPort {
+func (p RigidPost) RailClamp(state bounds.LoadState) RailClampPort {
 	if !p.insertionLimits.Valid() {
 		panic("assembly: uninitialized zero-value RigidPost")
 	}
 	switch state {
-	case Static, Dynamic:
+	case bounds.Static, bounds.Dynamic:
 		return RailClampPort{
 			CradleInParent: pose.NewTransform(
 				SeatpostCradle,
@@ -153,7 +154,7 @@ func (p RigidPost) RailClamp(state LoadState) RailClampPort {
 // Construct instances with NewLinkagePost.
 type LinkagePost struct {
 	totalLengthMm     float64
-	insertionLimits   BoundedRange
+	insertionLimits   bounds.BoundedRange
 	staticSetbackMm   float64
 	railClampLengthMm float64
 	sagStep           pose.Vector
@@ -198,7 +199,7 @@ func (p LinkagePost) TotalLengthMm() float64 {
 }
 
 // InsertionLimits returns the post's own valid insertion interval.
-func (p LinkagePost) InsertionLimits() BoundedRange {
+func (p LinkagePost) InsertionLimits() bounds.BoundedRange {
 	if !p.insertionLimits.Valid() {
 		panic("assembly: uninitialized zero-value LinkagePost")
 	}
@@ -233,14 +234,14 @@ func (p LinkagePost) RailClampLengthMm() float64 {
 // RailClamp returns the rail-clamp port in SeatpostLocal for state. In Static,
 // SeatpostCradle sits at (TotalLengthMm, StaticSetbackMm); in Dynamic, sagStep
 // is added with 0° rotation so rail pitch stays constant relative to the shaft.
-func (p LinkagePost) RailClamp(state LoadState) RailClampPort {
+func (p LinkagePost) RailClamp(state bounds.LoadState) RailClampPort {
 	if !p.insertionLimits.Valid() {
 		panic("assembly: uninitialized zero-value LinkagePost")
 	}
 	cradleOrigin := pose.NewPoint(SeatpostLocal, p.totalLengthMm, p.staticSetbackMm)
 	switch state {
-	case Static:
-	case Dynamic:
+	case bounds.Static:
+	case bounds.Dynamic:
 		cradleOrigin = cradleOrigin.Add(p.sagStep)
 	default:
 		panic(fmt.Sprintf("assembly: invalid LoadState %q", state))
@@ -255,8 +256,8 @@ func (p LinkagePost) RailClamp(state LoadState) RailClampPort {
 // concrete seatpost implementation (RigidPost or LinkagePost).
 type postMounter interface {
 	TotalLengthMm() float64
-	InsertionLimits() BoundedRange
-	RailClamp(state LoadState) RailClampPort
+	InsertionLimits() bounds.BoundedRange
+	RailClamp(state bounds.LoadState) RailClampPort
 }
 
 // postSnapshot holds the immutable post geometry captured by value when mating,
@@ -270,11 +271,11 @@ type postSnapshot struct {
 	dynamicClamp   RailClampPort
 }
 
-func (s postSnapshot) railClamp(state LoadState) RailClampPort {
+func (s postSnapshot) railClamp(state bounds.LoadState) RailClampPort {
 	switch state {
-	case Static:
+	case bounds.Static:
 		return s.staticClamp
-	case Dynamic:
+	case bounds.Dynamic:
 		return s.dynamicClamp
 	default:
 		panic(fmt.Sprintf("assembly: invalid LoadState %q", state))
@@ -303,7 +304,7 @@ func validateRailClampPort(label string, port RailClampPort) error {
 type SeatpostDoF struct {
 	socket           SeatTubeSocket
 	post             postSnapshot
-	allowedInsertion BoundedRange
+	allowedInsertion bounds.BoundedRange
 }
 
 // MateSeatpost mates post into socket, snapshots the post's shaft length and
@@ -329,8 +330,8 @@ func MateSeatpost(socket SeatTubeSocket, post postMounter) (*SeatpostDoF, error)
 	}
 	postLimits := post.InsertionLimits()
 	totalLengthMm := post.TotalLengthMm()
-	staticClamp := post.RailClamp(Static)
-	dynamicClamp := post.RailClamp(Dynamic)
+	staticClamp := post.RailClamp(bounds.Static)
+	dynamicClamp := post.RailClamp(bounds.Dynamic)
 
 	if err := validateRailClampPort("static", staticClamp); err != nil {
 		return nil, err
@@ -348,7 +349,7 @@ func MateSeatpost(socket SeatTubeSocket, post postMounter) (*SeatpostDoF, error)
 		return nil, fmt.Errorf("seatpost needs 0 < min insertion <= max insertion < total length, got min %v, max %v, total %v mm",
 			postLimits.Min(), postLimits.Max(), totalLengthMm)
 	}
-	allowed, ok := IntersectRanges(postLimits, socket.AllowedInsertion)
+	allowed, ok := bounds.IntersectRanges(postLimits, socket.AllowedInsertion)
 	if !ok {
 		return nil, fmt.Errorf("frame and seatpost allow no insertion: minimum %v mm exceeds maximum %v mm",
 			max(postLimits.Min(), socket.AllowedInsertion.Min()),
@@ -369,7 +370,7 @@ func MateSeatpost(socket SeatTubeSocket, post postMounter) (*SeatpostDoF, error)
 
 // AllowedInsertion returns the intersected insertion interval permitted by both
 // the seatpost and the frame's seat tube socket.
-func (d *SeatpostDoF) AllowedInsertion() BoundedRange {
+func (d *SeatpostDoF) AllowedInsertion() bounds.BoundedRange {
 	return d.allowedInsertion
 }
 
@@ -377,7 +378,7 @@ func (d *SeatpostDoF) AllowedInsertion() BoundedRange {
 // coordinate X = insertionMm coincides with SeatTubeCollar's origin (0, 0), so
 // SeatpostLocal sits at (-insertionMm, 0) in SeatTubeCollar.
 func (d *SeatpostDoF) Clamp(insertionMm float64) (*ClampedSeatpost, error) {
-	status, err := d.allowedInsertion.Bind(InputSeatpostInsertion, insertionMm)
+	status, err := d.allowedInsertion.Bind(bounds.InputSeatpostInsertion, insertionMm)
 	if err != nil {
 		return nil, err
 	}
@@ -403,13 +404,13 @@ func (d *SeatpostDoF) Clamp(insertionMm float64) (*ClampedSeatpost, error) {
 type ClampedSeatpost struct {
 	socket       SeatTubeSocket
 	post         postSnapshot
-	insertion    BoundStatus
+	insertion    bounds.BoundStatus
 	postInCollar pose.Transform
 	postInFrame  pose.Transform
 }
 
 // Insertion returns the clamped insertion depth and bound provenance status.
-func (c *ClampedSeatpost) Insertion() BoundStatus {
+func (c *ClampedSeatpost) Insertion() bounds.BoundStatus {
 	return c.insertion
 }
 
@@ -419,7 +420,7 @@ func (c *ClampedSeatpost) ExposedMm() float64 {
 	return c.post.totalLengthMm - c.insertion.Value
 }
 
-func (c *ClampedSeatpost) setupSnapshot(state LoadState) SeatpostSetup {
+func (c *ClampedSeatpost) setupSnapshot(state bounds.LoadState) SeatpostSetup {
 	clamp := c.post.railClamp(state)
 	return SeatpostSetup{
 		Spec: SeatpostSpec{
@@ -434,7 +435,7 @@ func (c *ClampedSeatpost) setupSnapshot(state LoadState) SeatpostSetup {
 }
 
 // RailClampInFrame returns the rail-clamp port mapped into FrameLocal for state.
-func (c *ClampedSeatpost) RailClampInFrame(state LoadState) RailClampPort {
+func (c *ClampedSeatpost) RailClampInFrame(state bounds.LoadState) RailClampPort {
 	clamp := c.post.railClamp(state)
 	// Compose Cradle → SeatpostLocal → SeatTubeCollar first so the axial offset
 	// resolves cleanly as (TotalLengthMm - InsertionMm) before rotating into FrameLocal.
@@ -472,10 +473,10 @@ type SeatpostPlacement struct {
 // cannot disagree. It panics deterministically if frameToWorld does not map
 // FrameLocal into StaticWorld or DynamicWorld.
 func (c *ClampedSeatpost) PlaceInWorld(frameToWorld pose.Transform) SeatpostPlacement {
-	state, ok := LoadStateForWorld(frameToWorld.Dst())
+	state, ok := bounds.LoadStateForWorld(frameToWorld.Dst())
 	if !ok {
 		panic(fmt.Sprintf("assembly: PlaceInWorld requires frameToWorld destination %s or %s, got %s",
-			StaticWorld, DynamicWorld, frameToWorld.Dst()))
+			bounds.StaticWorld, bounds.DynamicWorld, frameToWorld.Dst()))
 	}
 	collarInWorld := pose.Compose(c.socket.CollarInFrame, frameToWorld)
 	seatTubeTop := collarInWorld.PoseInDst()

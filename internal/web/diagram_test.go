@@ -16,6 +16,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 	"github.com/matta/bikegeo/internal/query"
 )
@@ -221,14 +222,14 @@ func TestDiagramTargetAwareFraming(t *testing.T) {
 			t.Fatalf("%s extreme viewBox invalid: %+v", view, box)
 		}
 		if view == "bike" || view == "seat" {
-			for _, c := range brpTargetFramingPts(pose.NewPoint(assembly.DynamicWorld, -650, 1200)) {
+			for _, c := range brpTargetFramingPts(pose.NewPoint(bounds.DynamicWorld, -650, 1200)) {
 				if !box.contains(c) {
 					t.Errorf("%s extreme viewBox %+v does not contain BRP corner %+v", view, box, c)
 				}
 			}
 		}
 		if view == "bike" || view == "stem" {
-			for _, c := range gripTargetFramingPts(pose.NewPoint(assembly.DynamicWorld, 950, 1150)) {
+			for _, c := range gripTargetFramingPts(pose.NewPoint(bounds.DynamicWorld, 950, 1150)) {
 				if !box.contains(c) {
 					t.Errorf("%s extreme viewBox %+v does not contain Grip corner %+v", view, box, c)
 				}

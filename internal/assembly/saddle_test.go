@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -31,7 +32,7 @@ func TestPlaceSeatpostAndSaddleWorkedExample60DegSTA(t *testing.T) {
 	//   BRP        = (-30, 50*sqrt(3) + 45) @ 0°  (45 mm RailToBrpHeightMm above the rails)
 	//   SitBones   = (-110, 50*sqrt(3) + 55) @ 0°  (10 mm above BRP)
 	sqrt3 := math.Sqrt(3)
-	seatAxis := pose.NewPose(pose.Origin(assembly.DynamicWorld), 120.0)
+	seatAxis := pose.NewPose(pose.Origin(bounds.DynamicWorld), 120.0)
 	seatTubeTop := seatAxis.Advance(60.0)
 
 	post, err := placeSeatpost(seatTubeTop, workedFrame, workedPost(0.0))
@@ -76,7 +77,7 @@ func TestPlaceSeatpostSetbackAndSaddleRailOffsetSigns(t *testing.T) {
 	// At 60° STA (heading 120°), local +Y is 120° + 90° = 210° (cos = -sqrt(3)/2, sin = -0.5).
 	// Adding +20 mm PostSetbackMm shifts RailPivot and all saddle landmarks by (-10*sqrt(3), -10) mm
 	// while leaving ShaftTop unchanged.
-	seatTubeTop := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -30, 30*math.Sqrt(3)), 120.0)
+	seatTubeTop := pose.NewPose(pose.NewPoint(bounds.DynamicWorld, -30, 30*math.Sqrt(3)), 120.0)
 	basePost, err := placeSeatpost(seatTubeTop, workedFrame, workedPost(0.0))
 	if err != nil {
 		t.Fatalf("PlaceSeatpost base: %v", err)
@@ -143,8 +144,8 @@ func TestPlaceSaddleWorldRelativePitch(t *testing.T) {
 	setup.RailPitchDeg = 10.0 // Positive pitch raises the nose CCW from world horizontal.
 	setup.RailOffsetMm = 5.0
 
-	clamp60 := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -180, 720), 180.0-60.0)
-	clamp75 := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -180, 720), 180.0-75.25)
+	clamp60 := pose.NewPose(pose.NewPoint(bounds.DynamicWorld, -180, 720), 180.0-60.0)
+	clamp75 := pose.NewPose(pose.NewPoint(bounds.DynamicWorld, -180, 720), 180.0-75.25)
 
 	s60, err := placeSaddle(clamp60, 30.0, setup)
 	if err != nil {
@@ -181,7 +182,7 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 
 	// Check the fixture's reference saddle height at the 75.25° STA attitude:
 	// 490.0 mm seat tube + 219.424 mm exposed = 709.424 mm along seat axis, and the raised BRP is |BRP - BB| = 746.000 mm in the unpitched reference attitude.
-	refSeatAxis := pose.NewPose(pose.Origin(assembly.DynamicWorld), 180.0-frame.SeatTubeAngleDeg)
+	refSeatAxis := pose.NewPose(pose.Origin(bounds.DynamicWorld), 180.0-frame.SeatTubeAngleDeg)
 	refSeatTubeTop := refSeatAxis.Advance(frame.SeatTubeLengthMm)
 	refPost, err := placeSeatpost(refSeatTubeTop, frame, postSetup)
 	if err != nil {
@@ -233,7 +234,7 @@ func TestOtsoFenrirRearCockpit(t *testing.T) {
 }
 
 func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
-	validPose := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -120, 470), 104.75)
+	validPose := pose.NewPose(pose.NewPoint(bounds.DynamicWorld, -120, 470), 104.75)
 	validPost := assembly.SeatpostSetup{Spec: genericPostSpec(0), InsertionMm: 136.5}
 	validFrame := fenrirSizeLFrame() // [100, 290] mm with the generic post
 	with := func(f func(*assembly.SeatpostSetup)) assembly.SeatpostSetup {
@@ -247,8 +248,8 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		pose  pose.Pose
 		setup assembly.SeatpostSetup
 	}{
-		{"NaN origin X", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, math.NaN(), 0), 104.75), validPost},
-		{"Inf heading", pose.NewPose(pose.Origin(assembly.DynamicWorld), pose.Deg(math.Inf(1))), validPost},
+		{"NaN origin X", pose.NewPose(pose.NewPoint(bounds.DynamicWorld, math.NaN(), 0), 104.75), validPost},
+		{"Inf heading", pose.NewPose(pose.Origin(bounds.DynamicWorld), pose.Deg(math.Inf(1))), validPost},
 		{"negative insertion", validPose, with(func(s *assembly.SeatpostSetup) { s.InsertionMm = -1 })},
 		{"NaN insertion", validPose, with(func(s *assembly.SeatpostSetup) { s.InsertionMm = math.NaN() })},
 		{"insertion below minimum", validPose, with(func(s *assembly.SeatpostSetup) { s.InsertionMm = 99.999 })},
@@ -257,7 +258,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		{"NaN setback", validPose, with(func(s *assembly.SeatpostSetup) { s.Spec.SetbackMm = math.NaN() })},
 		{"zero clamp length", validPose, with(func(s *assembly.SeatpostSetup) { s.Spec.RailClampLengthMm = 0 })},
 		{"negative clamp length", validPose, with(func(s *assembly.SeatpostSetup) { s.Spec.RailClampLengthMm = -10 })},
-		{"exposure overflow", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -math.MaxFloat64, 0), 120), with(func(s *assembly.SeatpostSetup) { s.Spec.TotalLengthMm = math.MaxFloat64 })},
+		{"exposure overflow", pose.NewPose(pose.NewPoint(bounds.DynamicWorld, -math.MaxFloat64, 0), 120), with(func(s *assembly.SeatpostSetup) { s.Spec.TotalLengthMm = math.MaxFloat64 })},
 	}
 	for _, tc := range postCases {
 		t.Run("seatpost/"+tc.name, func(t *testing.T) {
@@ -273,8 +274,8 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		pose  pose.Pose
 		setup assembly.SaddleSetup
 	}{
-		{"NaN origin Y", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 0, math.NaN()), 104.75), validSaddle},
-		{"Inf heading", pose.NewPose(pose.Origin(assembly.DynamicWorld), pose.Deg(math.Inf(-1))), validSaddle},
+		{"NaN origin Y", pose.NewPose(pose.NewPoint(bounds.DynamicWorld, 0, math.NaN()), 104.75), validSaddle},
+		{"Inf heading", pose.NewPose(pose.Origin(bounds.DynamicWorld), pose.Deg(math.Inf(-1))), validSaddle},
 		{"NaN RailCenterToBrpMm", validPose, assembly.SaddleSetup{RailCenterToBrpMm: math.NaN(), RailLengthMm: 60}},
 		{"Inf RailCenterToSitBonesMm", validPose, assembly.SaddleSetup{RailCenterToSitBonesMm: math.Inf(1), RailLengthMm: 60}},
 		{"NaN SitBonesElevationMm", validPose, assembly.SaddleSetup{SitBonesElevationMm: math.NaN(), RailLengthMm: 60}},
@@ -282,7 +283,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 		{"negative RailLengthMm", validPose, assembly.SaddleSetup{RailCenterToBrpMm: 32, RailLengthMm: -60}},
 		{"NaN RailPitchDeg", validPose, assembly.SaddleSetup{RailLengthMm: 60, RailPitchDeg: pose.Deg(math.NaN())}},
 		{"Inf RailOffsetMm", validPose, assembly.SaddleSetup{RailLengthMm: 60, RailOffsetMm: math.Inf(1)}},
-		{"rail offset overflow", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, math.MaxFloat64, 0), 104.75), assembly.SaddleSetup{RailLengthMm: 60, RailOffsetMm: -math.MaxFloat64}},
+		{"rail offset overflow", pose.NewPose(pose.NewPoint(bounds.DynamicWorld, math.MaxFloat64, 0), 104.75), assembly.SaddleSetup{RailLengthMm: 60, RailOffsetMm: -math.MaxFloat64}},
 	}
 	for _, tc := range saddleCases {
 		t.Run("saddle/"+tc.name, func(t *testing.T) {
@@ -294,7 +295,7 @@ func TestPlaceSeatpostAndSaddleValidation(t *testing.T) {
 }
 
 func TestPlaceSaddleRailOffsetRange(t *testing.T) {
-	clamp := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, -100, 700), 105.0)
+	clamp := pose.NewPose(pose.NewPoint(bounds.DynamicWorld, -100, 700), 105.0)
 	// 60 mm rails with a 30 mm clamp head allow ±15 mm.
 	for _, offset := range []float64{0, 14.999, 15, -15} {
 		setup := sqlab610DefaultSaddle()
@@ -307,8 +308,8 @@ func TestPlaceSaddleRailOffsetRange(t *testing.T) {
 		setup := sqlab610DefaultSaddle()
 		setup.RailOffsetMm = offset
 		_, err := placeSaddle(clamp, 30.0, setup)
-		var inputErr *assembly.InputError
-		if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSaddleRailOffset {
+		var inputErr *bounds.InputError
+		if !errors.As(err, &inputErr) || inputErr.Field != bounds.InputSaddleRailOffset {
 			t.Errorf("offset %v: err = %v, want InputSaddleRailOffset", offset, err)
 		}
 	}
@@ -335,7 +336,7 @@ func workedPost(setbackMm float64) assembly.SeatpostSetup {
 // The raised landmarks rotate with the rails: at +10° pitch the 45 mm BRP
 // height alone shifts BRP and SitBones by 45 mm turned 10° from vertical.
 func TestPlaceSaddleRailToBrpHeightRotatesWithRailPitch(t *testing.T) {
-	seatTubeTop := pose.NewPose(pose.Origin(assembly.DynamicWorld), 120).Advance(60)
+	seatTubeTop := pose.NewPose(pose.Origin(bounds.DynamicWorld), 120).Advance(60)
 	post, err := placeSeatpost(seatTubeTop, workedFrame, workedPost(0))
 	if err != nil {
 		t.Fatal(err)
@@ -352,7 +353,7 @@ func TestPlaceSaddleRailToBrpHeightRotatesWithRailPitch(t *testing.T) {
 		return saddle
 	}
 	raised, flat := place(45, 10), place(0, 10)
-	wantShift := pose.NewVector(assembly.DynamicWorld, -7.814168, 44.316349)
+	wantShift := pose.NewVector(bounds.DynamicWorld, -7.814168, 44.316349)
 	for _, lm := range []struct {
 		name         string
 		raised, flat pose.Pose
@@ -472,7 +473,7 @@ func TestMateSaddleAndClampedSaddleStaticVsDynamic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLinkagePost: %v", err)
 	}
-	dof, err := assembly.MateSaddle(post.RailClamp(assembly.Dynamic), saddle)
+	dof, err := assembly.MateSaddle(post.RailClamp(bounds.Dynamic), saddle)
 	if err != nil {
 		t.Fatalf("MateSaddle: %v", err)
 	}
@@ -484,12 +485,12 @@ func TestMateSaddleAndClampedSaddleStaticVsDynamic(t *testing.T) {
 	}
 
 	// Clamp wider than rails or non-positive is rejected.
-	wideClamp := post.RailClamp(assembly.Static)
+	wideClamp := post.RailClamp(bounds.Static)
 	wideClamp.ClampLengthMm = 65
 	if _, err := assembly.MateSaddle(wideClamp, saddle); err == nil {
 		t.Error("clamp wider than rails: want error")
 	}
-	zeroClamp := post.RailClamp(assembly.Static)
+	zeroClamp := post.RailClamp(bounds.Static)
 	zeroClamp.ClampLengthMm = 0
 	if _, err := assembly.MateSaddle(zeroClamp, saddle); err == nil {
 		t.Error("zero clamp length: want error")
@@ -503,11 +504,11 @@ func TestMateSaddleAndClampedSaddleStaticVsDynamic(t *testing.T) {
 	}
 
 	// Out-of-bounds rail offset and non-finite rail turn return field-attributed InputErrors.
-	var inputErr *assembly.InputError
-	if _, err := dof.Clamp(15.1, -100); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSaddleRailOffset {
+	var inputErr *bounds.InputError
+	if _, err := dof.Clamp(15.1, -100); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputSaddleRailOffset {
 		t.Errorf("rail offset > max = %v, want InputSaddleRailOffset", err)
 	}
-	if _, err := dof.Clamp(0, pose.Deg(math.NaN())); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSaddleRailPitch {
+	if _, err := dof.Clamp(0, pose.Deg(math.NaN())); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputSaddleRailPitch {
 		t.Errorf("NaN rail turn = %v, want InputSaddleRailPitch", err)
 	}
 
@@ -515,7 +516,7 @@ func TestMateSaddleAndClampedSaddleStaticVsDynamic(t *testing.T) {
 	// in DynamicWorld (frame pitch -2.0°), then unload that exact ClampedSaddle
 	// to StaticWorld (frame pitch -0.5°, +1.5° nose-up pitch change).
 	collarInFrame := pose.NewPose(pose.NewPoint(assembly.FrameLocal, -120, 470), 105).Anchor(assembly.SeatTubeCollar)
-	frameRange, _ := assembly.NewBoundedRange(100, 290, "frame min", "frame max")
+	frameRange, _ := bounds.NewBoundedRange(100, 290, "frame min", "frame max")
 	postDoF, err := assembly.MateSeatpost(assembly.SeatTubeSocket{CollarInFrame: collarInFrame, AllowedInsertion: frameRange}, post)
 	if err != nil {
 		t.Fatalf("MateSeatpost: %v", err)
@@ -525,8 +526,8 @@ func TestMateSaddleAndClampedSaddleStaticVsDynamic(t *testing.T) {
 		t.Fatalf("postDoF.Clamp: %v", err)
 	}
 
-	frameToDynamic := pose.NewTransform(assembly.FrameLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), -2.0)
-	frameToStatic := pose.NewTransform(assembly.FrameLocal, assembly.StaticWorld, pose.Origin(assembly.StaticWorld), -0.5)
+	frameToDynamic := pose.NewTransform(assembly.FrameLocal, bounds.DynamicWorld, pose.Origin(bounds.DynamicWorld), -2.0)
+	frameToStatic := pose.NewTransform(assembly.FrameLocal, bounds.StaticWorld, pose.Origin(bounds.StaticWorld), -0.5)
 	dynPost := clampedPost.PlaceInWorld(frameToDynamic)
 	statPost := clampedPost.PlaceInWorld(frameToStatic)
 
@@ -561,7 +562,7 @@ func TestMateSaddleAndClampedSaddleStaticVsDynamic(t *testing.T) {
 
 	// Deterministic panics on coordinate-system mismatches and zero values.
 	assertPanics(t, "MateSaddle zero Saddle", func() {
-		_, _ = assembly.MateSaddle(post.RailClamp(assembly.Static), assembly.Saddle{})
+		_, _ = assembly.MateSaddle(post.RailClamp(bounds.Static), assembly.Saddle{})
 	})
 	assertPanics(t, "MateSaddle zero Transform", func() {
 		_, _ = assembly.MateSaddle(assembly.RailClampPort{ClampLengthMm: 30}, saddle)
@@ -574,13 +575,13 @@ func TestMateSaddleAndClampedSaddleStaticVsDynamic(t *testing.T) {
 		_ = assembly.RailTurnForWorldPitch(pose.NewHeading(assembly.FrameLocal, 105), 0)
 	})
 	assertPanics(t, "RailTurnForWorldPitch UnpitchedChart", func() {
-		_ = assembly.RailTurnForWorldPitch(pose.NewHeading(assembly.UnpitchedChart, 105), 0)
+		_ = assembly.RailTurnForWorldPitch(pose.NewHeading(bounds.UnpitchedChart, 105), 0)
 	})
 	assertPanics(t, "RailTurnForWorldPitch zero Heading", func() {
 		_ = assembly.RailTurnForWorldPitch(pose.Heading{}, 0)
 	})
 	assertPanics(t, "ClampedSaddle.Place wrong Src", func() {
-		wrong := pose.NewTransform(assembly.SteererLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), 0)
+		wrong := pose.NewTransform(assembly.SteererLocal, bounds.DynamicWorld, pose.Origin(bounds.DynamicWorld), 0)
 		_ = clampedSaddle.Place(wrong)
 	})
 	assertPanics(t, "ClampedSaddle.Place zero transform", func() {

@@ -3,6 +3,7 @@ package assembly
 import (
 	"fmt"
 
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -24,13 +25,13 @@ func OpenRearCockpit(frameset *Frameset, post postMounter, saddle Saddle, dynami
 	frameset.requireValid()
 	saddle.requireValid()
 	if !isFinite(float64(dynamicRailPitchDeg)) {
-		return nil, invalidInput(InputSaddleRailPitch, "saddle rail pitch must be finite, got %v°", dynamicRailPitchDeg)
+		return nil, invalidInput(bounds.InputSaddleRailPitch, "saddle rail pitch must be finite, got %v°", dynamicRailPitchDeg)
 	}
 	postDoF, err := MateSeatpost(frameset.SeatTube(), post)
 	if err != nil {
 		return nil, err
 	}
-	saddleDoF, err := MateSaddle(post.RailClamp(Dynamic), saddle)
+	saddleDoF, err := MateSaddle(post.RailClamp(bounds.Dynamic), saddle)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +40,7 @@ func OpenRearCockpit(frameset *Frameset, post postMounter, saddle Saddle, dynami
 		postDoF:             postDoF,
 		saddleDoF:           saddleDoF,
 		dynamicRailPitchDeg: dynamicRailPitchDeg,
-		dynFrameset:         frameset.Place(Dynamic),
+		dynFrameset:         frameset.Place(bounds.Dynamic),
 	}, nil
 }
 
@@ -50,7 +51,7 @@ func (d *RearCockpitDoF) requireValid() {
 }
 
 // AllowedInsertion returns the intersected seatpost insertion bounds.
-func (d *RearCockpitDoF) AllowedInsertion() BoundedRange {
+func (d *RearCockpitDoF) AllowedInsertion() bounds.BoundedRange {
 	d.requireValid()
 	return d.postDoF.AllowedInsertion()
 }
@@ -82,14 +83,14 @@ func (d *RearCockpitDoF) Planar2DoF() Planar2DoF {
 	return Planar2DoF{
 		Origin: saddleDyn.BRP.Origin(),
 		AxisA: LinearDoF{
-			Field:   InputSeatpostInsertion,
+			Field:   bounds.InputSeatpostInsertion,
 			Heading: postDyn.ShaftTop.Heading(),
 			Range:   insRange,
 			Probe:   probeIns,
 			Sign:    -1,
 		},
 		AxisB: LinearDoF{
-			Field:   InputSaddleRailOffset,
+			Field:   bounds.InputSaddleRailOffset,
 			Heading: saddleDyn.RailCenter.Heading().Turn(180),
 			Range:   railRange,
 			Probe:   0,
@@ -133,10 +134,10 @@ func (d *RearCockpitDoF) Clamp(insertionMm, railOffsetMm float64) (*SeatedFrames
 
 // FitToBRP solves the rear cockpit's Planar2DoF for target with PriorityBRPGate
 // and clamps the resulting SeatedFrameset.
-func (d *RearCockpitDoF) FitToBRP(target pose.Point) (*SeatedFrameset, []InputField, error) {
+func (d *RearCockpitDoF) FitToBRP(target pose.Point) (*SeatedFrameset, []bounds.InputField, error) {
 	d.requireValid()
 	if !isFinitePoint(target) {
-		return nil, nil, invalidInput(InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", target.X(), target.Y())
+		return nil, nil, invalidInput(bounds.InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", target.X(), target.Y())
 	}
 	ins, rail, limited, ok := SolvePlanar2DoF(d.Planar2DoF(), target, PriorityBRPGate)
 	if !ok {
@@ -215,7 +216,7 @@ func (s *SeatedFrameset) AttachFront(spacersMm float64, stem Stem, bar Handlebar
 	s.requireValid()
 	bar.requireValid()
 	if !isFinite(float64(dynamicBarRollDeg)) {
-		return nil, invalidInput(InputHandlebarRoll, "handlebar roll must be finite, got %v°", dynamicBarRollDeg)
+		return nil, invalidInput(bounds.InputHandlebarRoll, "handlebar roll must be finite, got %v°", dynamicBarRollDeg)
 	}
 	clampedStem, err := MountStem(s.frameset.Steerer(), spacersMm, stem)
 	if err != nil {
@@ -276,18 +277,18 @@ func (b *Build) Bounds() BuildBounds {
 // Place runs the unified forward transform chain for state (Static or Dynamic),
 // moving all clamped saddle, stem, and handlebar joints rigidly with the
 // frameset pitch and seatpost cradle motion.
-func (b *Build) Place(state LoadState) Placement {
+func (b *Build) Place(state bounds.LoadState) Placement {
 	b.requireValid()
 	var fsPlaced FramesetPlacement
 	var postPlaced SeatpostPlacement
 	var saddlePlaced SaddlePlacement
 	switch state {
-	case Dynamic:
+	case bounds.Dynamic:
 		fsPlaced = b.seated.dynFrameset
 		postPlaced = b.seated.dynSeatpost
 		saddlePlaced = b.seated.dynSaddle
-	case Static:
-		fsPlaced = b.seated.frameset.Place(Static)
+	case bounds.Static:
+		fsPlaced = b.seated.frameset.Place(bounds.Static)
 		postPlaced = b.seated.seatpost.PlaceInWorld(fsPlaced.FrameToWorld)
 		saddlePlaced = b.seated.saddle.Place(postPlaced.CradleInWorld)
 	default:
@@ -310,7 +311,7 @@ func (b *Build) Place(state LoadState) Placement {
 	return p
 }
 
-func (b *Build) setupSnapshot(state LoadState) BikeSetup {
+func (b *Build) setupSnapshot(state bounds.LoadState) BikeSetup {
 	saddleDims := b.seated.saddle.Saddle().Dimensions()
 	barDims := b.handlebar.Handlebar().Dimensions()
 	stem := b.stem.Stem()
@@ -353,9 +354,9 @@ func (b *Build) setupSnapshot(state LoadState) BikeSetup {
 
 // BuildBounds holds the BoundStatus snapshots for a build's bounded hardware inputs.
 type BuildBounds struct {
-	SeatpostInsertion BoundStatus
-	SaddleRailOffset  BoundStatus
-	StemSpacers       BoundStatus
+	SeatpostInsertion bounds.BoundStatus
+	SaddleRailOffset  bounds.BoundStatus
+	StemSpacers       bounds.BoundStatus
 }
 
 // BuildSummary holds derived geometric readouts computed from a Placement.
@@ -401,7 +402,7 @@ func summarizePlacement(p Placement) BuildSummary {
 // alongside its fitted input snapshot, hardware bound statuses, and derived
 // geometry summary.
 type Placement struct {
-	State     LoadState
+	State     bounds.LoadState
 	Setup     BikeSetup
 	Frameset  FramesetPlacement
 	Seatpost  SeatpostPlacement

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/catalog"
 	"github.com/matta/bikegeo/internal/pose"
 )
@@ -140,7 +141,7 @@ func TestHandlebars(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	barClamp := assembly.BarClampPort{
-		ClampInParent: pose.OriginPose(assembly.DynamicWorld).Anchor(assembly.StemLocal),
+		ClampInParent: pose.OriginPose(bounds.DynamicWorld).Anchor(assembly.StemLocal),
 	}
 	for _, bar := range bars {
 		if seen[bar.ID] {
@@ -203,10 +204,10 @@ func TestDefaultSaddleAndTargets(t *testing.T) {
 	if saddle.Part.Dimensions() != want {
 		t.Errorf("saddle dims = %+v, want %+v", saddle.Part.Dimensions(), want)
 	}
-	if got := catalog.DefaultBrpTarget(); got != pose.NewPoint(assembly.DynamicWorld, -219, 713.1) {
+	if got := catalog.DefaultBrpTarget(); got != pose.NewPoint(bounds.DynamicWorld, -219, 713.1) {
 		t.Errorf("DefaultBrpTarget() = %v", got)
 	}
-	if got := catalog.DefaultGripTarget(); got != pose.NewPoint(assembly.DynamicWorld, 481, 726) {
+	if got := catalog.DefaultGripTarget(); got != pose.NewPoint(bounds.DynamicWorld, 481, 726) {
 		t.Errorf("DefaultGripTarget() = %v", got)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/catalog"
 )
 
@@ -275,7 +276,7 @@ func TestForkListsPlace(t *testing.T) {
 					if err != nil {
 						t.Errorf("%s/%s with %s at %v%% sag: %v", f.ID, s.Name, opt.ID(), sag, err)
 					} else {
-						_ = fs.Place(assembly.Dynamic)
+						_ = fs.Place(bounds.Dynamic)
 					}
 					placements++
 				}
@@ -288,7 +289,7 @@ func TestForkListsPlace(t *testing.T) {
 			if err != nil {
 				t.Errorf("%s/%s basis fork: %v", f.ID, s.Name, err)
 			} else {
-				_ = fs.Place(assembly.Dynamic)
+				_ = fs.Place(bounds.Dynamic)
 			}
 			bases++
 		}

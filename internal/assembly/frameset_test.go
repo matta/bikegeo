@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -188,30 +189,30 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 		name      string
 		lowerCup  assembly.LowerCupSetup
 		fork      assembly.ForkSetup
-		wantField assembly.InputField
+		wantField bounds.InputField
 	}{
-		{"zero static A2C", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 0, RakeMm: 54, Steerer: assembly.SteererTapered}}, assembly.InputForkA2c},
+		{"zero static A2C", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 0, RakeMm: 54, Steerer: assembly.SteererTapered}}, bounds.InputForkA2c},
 		{"negative travel", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: -10, RakeMm: 44, Steerer: assembly.SteererTapered}}, ""},
 		{"unsupported 110mm travel", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: 110, RakeMm: 44, Steerer: assembly.SteererTapered}}, ""},
 		{"unsupported 140mm travel", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 551, Travel: 140, RakeMm: 44, Steerer: assembly.SteererTapered}}, ""},
 		{"unsupported 150mm travel", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 561, Travel: 150, RakeMm: 44, Steerer: assembly.SteererTapered}}, ""},
 		{"NaN rake", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, RakeMm: math.NaN(), Steerer: assembly.SteererTapered}}, ""},
-		{"negative sag", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: -5}, assembly.InputForkSag},
-		{"sag over 100%", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 105}, assembly.InputForkSag},
-		{"non-zero sag on rigid fork", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 54, Steerer: assembly.SteererTapered}, SagPct: 20}, assembly.InputForkSag},
-		{"non-positive effective A2C", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 80, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 90}, assembly.InputForkA2c},
+		{"negative sag", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: -5}, bounds.InputForkSag},
+		{"sag over 100%", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 105}, bounds.InputForkSag},
+		{"non-zero sag on rigid fork", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 54, Steerer: assembly.SteererTapered}, SagPct: 20}, bounds.InputForkSag},
+		{"non-positive effective A2C", ec44Cup, assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 80, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}, SagPct: 90}, bounds.InputForkA2c},
 		{"basis fork with travel at 0% sag", fenrirBasisCup(), assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererBasis}, SagPct: 0}, ""},
 		{"basis fork with travel and sag", fenrirBasisCup(), assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererBasis}, SagPct: 20}, ""},
-		{"basis fork with zero travel and non-zero sag", fenrirBasisCup(), assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 54, Steerer: assembly.SteererBasis}, SagPct: 20}, assembly.InputForkSag},
-		{"missing lower cup standard", assembly.LowerCupSetup{}, fork, assembly.InputLowerCup},
-		{"unknown lower cup standard", assembly.LowerCupSetup{Standard: "EC99", StackMm: 12}, fork, assembly.InputLowerCup},
-		{"EC44 zero stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 0}, fork, assembly.InputLowerCup},
-		{"EC44 negative stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: -1}, fork, assembly.InputLowerCup},
-		{"EC34 zero stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC34, StackMm: 0}, fork, assembly.InputLowerCup},
-		{"BareHeadTube non-zero stack", assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 12}, fork, assembly.InputLowerCup},
-		{"IS52 negative stack", assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: -1}, fork, assembly.InputLowerCup},
-		{"ZS44 negative stack", assembly.LowerCupSetup{Standard: assembly.LowerCupZS44, StackMm: -1}, fork, assembly.InputLowerCup},
-		{"NaN lower cup stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: math.NaN()}, fork, assembly.InputLowerCup},
+		{"basis fork with zero travel and non-zero sag", fenrirBasisCup(), assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 54, Steerer: assembly.SteererBasis}, SagPct: 20}, bounds.InputForkSag},
+		{"missing lower cup standard", assembly.LowerCupSetup{}, fork, bounds.InputLowerCup},
+		{"unknown lower cup standard", assembly.LowerCupSetup{Standard: "EC99", StackMm: 12}, fork, bounds.InputLowerCup},
+		{"EC44 zero stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 0}, fork, bounds.InputLowerCup},
+		{"EC44 negative stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: -1}, fork, bounds.InputLowerCup},
+		{"EC34 zero stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC34, StackMm: 0}, fork, bounds.InputLowerCup},
+		{"BareHeadTube non-zero stack", assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 12}, fork, bounds.InputLowerCup},
+		{"IS52 negative stack", assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: -1}, fork, bounds.InputLowerCup},
+		{"ZS44 negative stack", assembly.LowerCupSetup{Standard: assembly.LowerCupZS44, StackMm: -1}, fork, bounds.InputLowerCup},
+		{"NaN lower cup stack", assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: math.NaN()}, fork, bounds.InputLowerCup},
 	}
 	for _, tc := range inputCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -219,7 +220,7 @@ func TestPlaceFramesetAndForkSpecRejectInvalidInputs(t *testing.T) {
 			if err == nil {
 				t.Fatalf("expected error for %s", tc.name)
 			}
-			var inputErr *assembly.InputError
+			var inputErr *bounds.InputError
 			if tc.wantField != "" {
 				if !errors.As(err, &inputErr) || inputErr.Field != tc.wantField {
 					t.Fatalf("error = %v, want InputError with field %q", err, tc.wantField)
@@ -366,8 +367,8 @@ func TestHeadsetPairingMatrix(t *testing.T) {
 					t.Errorf("%s on %s with %s steerer: %v", p.std, bore, steerer, err)
 				}
 				if !want {
-					var inputErr *assembly.InputError
-					if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+					var inputErr *bounds.InputError
+					if !errors.As(err, &inputErr) || inputErr.Field != bounds.InputLowerCup {
 						t.Errorf("%s on %s with %s steerer: error = %v, want InputLowerCup", p.std, bore, steerer, err)
 					}
 				}
@@ -400,7 +401,7 @@ func TestHeadsetPairingMatrix(t *testing.T) {
 		{"missing steerer", assembly.Bore44Pressed, "", fenrirEc44Cup()},
 		{"unknown steerer with bare head tube", assembly.Bore44Pressed, "threaded", bare},
 	} {
-		var inputErr *assembly.InputError
+		var inputErr *bounds.InputError
 		frame := fenrirSizeLFrame()
 		frame.LowerBore = assembly.Bore44Pressed
 		fork := assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: tc.steerer}}
@@ -408,7 +409,7 @@ func TestHeadsetPairingMatrix(t *testing.T) {
 			// An unknown frame bore also invalidates the frame's own default.
 			frame.LowerBore = tc.bore
 		}
-		if _, err := placeFrameset(frame, tc.cup, fork, wheels); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+		if _, err := placeFrameset(frame, tc.cup, fork, wheels); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputLowerCup {
 			t.Errorf("%s: error = %v, want InputLowerCup", tc.name, err)
 		}
 	}
@@ -426,8 +427,8 @@ func TestFrameDefaultLowerCupMustBePhysicalAndFitBore(t *testing.T) {
 		frame := fenrirSizeLFrame()
 		frame.DefaultLowerCup = tc.cup
 		fork := assembly.ForkSetup{Spec: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 54, Steerer: assembly.SteererTapered}}
-		var inputErr *assembly.InputError
-		if _, err := placeFrameset(frame, fenrirEc44Cup(), fork, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+		var inputErr *bounds.InputError
+		if _, err := placeFrameset(frame, fenrirEc44Cup(), fork, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputLowerCup {
 			t.Errorf("%s: PlaceFrameset error = %v, want InputLowerCup", tc.name, err)
 		}
 	}
@@ -439,8 +440,8 @@ func TestMismatchedBasisCupFailsUnpitchedPlacement(t *testing.T) {
 		Spec: assembly.ForkSpec{StaticA2cMm: 495.0, RakeMm: 54.0, Steerer: assembly.SteererBasis},
 	}
 	badCup := assembly.LowerCupSetup{Standard: assembly.LowerCupIS52, StackMm: 0}
-	var inputErr *assembly.InputError
-	if _, err := placeUnpitchedFrameset(frame, badCup, basisFork, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputLowerCup {
+	var inputErr *bounds.InputError
+	if _, err := placeUnpitchedFrameset(frame, badCup, basisFork, fenrirWheels()); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputLowerCup {
 		t.Errorf("PlaceUnpitchedFrameset error = %v, want InputLowerCup", err)
 	}
 	// A matching physical cup on the basis fork is accepted.
@@ -640,7 +641,7 @@ func TestConcreteForksIsolated(t *testing.T) {
 	if rigid.StaticA2cMm() != 495 || rigid.RakeMm() != 54 || rigid.Steerer() != assembly.PhysicalSteererTapered {
 		t.Errorf("unexpected RigidFork accessors")
 	}
-	for _, state := range []assembly.LoadState{assembly.Static, assembly.Dynamic} {
+	for _, state := range []bounds.LoadState{bounds.Static, bounds.Dynamic} {
 		p := rigid.AxleInFork(state)
 		if p.CoordinateSystem() != assembly.ForkLocal {
 			t.Errorf("RigidFork %s system = %s", state, p.CoordinateSystem())
@@ -665,17 +666,17 @@ func TestConcreteForksIsolated(t *testing.T) {
 	}
 	assertNear(t, "susp StaticA2cMm", susp.StaticA2cMm(), 530, 1e-12)
 	assertNear(t, "susp DynamicA2cMm", susp.DynamicA2cMm(), 506, 1e-12)
-	assertNear(t, "susp static X", susp.AxleInFork(assembly.Static).X(), 530, 1e-12)
-	assertNear(t, "susp dynamic X", susp.AxleInFork(assembly.Dynamic).X(), 506, 1e-12)
-	assertNear(t, "susp rake Y", susp.AxleInFork(assembly.Dynamic).Y(), 44, 1e-12)
+	assertNear(t, "susp static X", susp.AxleInFork(bounds.Static).X(), 530, 1e-12)
+	assertNear(t, "susp dynamic X", susp.AxleInFork(bounds.Dynamic).X(), 506, 1e-12)
+	assertNear(t, "susp rake Y", susp.AxleInFork(bounds.Dynamic).Y(), 44, 1e-12)
 	if susp.Travel() != assembly.Travel120 || susp.SagPct() != 20 || susp.Steerer() != assembly.PhysicalSteererTapered {
 		t.Errorf("unexpected SuspensionFork accessors")
 	}
 	if _, err := assembly.NewSuspensionFork(530, 44, assembly.TravelRigid, assembly.PhysicalSteererTapered, 0); err == nil {
 		t.Error("NewSuspensionFork accepted TravelRigid")
 	}
-	var inputErr *assembly.InputError
-	if _, err := assembly.NewSuspensionFork(530, 44, assembly.Travel120, assembly.PhysicalSteererTapered, -1); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputForkSag {
+	var inputErr *bounds.InputError
+	if _, err := assembly.NewSuspensionFork(530, 44, assembly.Travel120, assembly.PhysicalSteererTapered, -1); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputForkSag {
 		t.Errorf("negative sag = %v, want InputForkSag", err)
 	}
 
@@ -701,10 +702,10 @@ func TestConcreteForksIsolated(t *testing.T) {
 	var zeroRigid assembly.RigidFork
 	var zeroSusp assembly.SuspensionFork
 	var zeroBasis assembly.BasisFork
-	assertPanics(t, "zero RigidFork", func() { _ = zeroRigid.AxleInFork(assembly.Static) })
-	assertPanics(t, "zero SuspensionFork", func() { _ = zeroSusp.AxleInFork(assembly.Static) })
-	assertPanics(t, "zero BasisFork", func() { _ = zeroBasis.AxleInFork(assembly.Static) })
-	assertPanics(t, "SuspensionFork invalid LoadState", func() { _ = susp.AxleInFork(assembly.LoadState("bad")) })
+	assertPanics(t, "zero RigidFork", func() { _ = zeroRigid.AxleInFork(bounds.Static) })
+	assertPanics(t, "zero SuspensionFork", func() { _ = zeroSusp.AxleInFork(bounds.Static) })
+	assertPanics(t, "zero BasisFork", func() { _ = zeroBasis.AxleInFork(bounds.Static) })
+	assertPanics(t, "SuspensionFork invalid LoadState", func() { _ = susp.AxleInFork(bounds.LoadState("bad")) })
 }
 
 type badSystemFork struct {
@@ -712,7 +713,7 @@ type badSystemFork struct {
 }
 
 func (f badSystemFork) CheckHeadset(assembly.LowerBore, assembly.LowerCupSetup) error { return nil }
-func (f badSystemFork) AxleInFork(assembly.LoadState) pose.Point                      { return f.axle }
+func (f badSystemFork) AxleInFork(bounds.LoadState) pose.Point                        { return f.axle }
 
 func TestMateFramesetSinglePassStaticVsDynamicAndSnapshot(t *testing.T) {
 	frame, err := assembly.NewFrame(fenrirSizeLDims())
@@ -737,23 +738,23 @@ func TestMateFramesetSinglePassStaticVsDynamicAndSnapshot(t *testing.T) {
 	}
 	fork = shorter
 
-	dynPlaced := fs.Place(assembly.Dynamic)
-	statPlaced := fs.Place(assembly.Static)
+	dynPlaced := fs.Place(bounds.Dynamic)
+	statPlaced := fs.Place(bounds.Static)
 	unpitched := fs.Unpitched()
 
-	if dynPlaced.BB.CoordinateSystem() != assembly.DynamicWorld {
-		t.Errorf("Dynamic BB system = %s, want %s", dynPlaced.BB.CoordinateSystem(), assembly.DynamicWorld)
+	if dynPlaced.BB.CoordinateSystem() != bounds.DynamicWorld {
+		t.Errorf("Dynamic BB system = %s, want %s", dynPlaced.BB.CoordinateSystem(), bounds.DynamicWorld)
 	}
-	if statPlaced.BB.CoordinateSystem() != assembly.StaticWorld {
-		t.Errorf("Static BB system = %s, want %s", statPlaced.BB.CoordinateSystem(), assembly.StaticWorld)
+	if statPlaced.BB.CoordinateSystem() != bounds.StaticWorld {
+		t.Errorf("Static BB system = %s, want %s", statPlaced.BB.CoordinateSystem(), bounds.StaticWorld)
 	}
-	if unpitched.BB.CoordinateSystem() != assembly.UnpitchedChart {
-		t.Errorf("Unpitched BB system = %s, want %s", unpitched.BB.CoordinateSystem(), assembly.UnpitchedChart)
+	if unpitched.BB.CoordinateSystem() != bounds.UnpitchedChart {
+		t.Errorf("Unpitched BB system = %s, want %s", unpitched.BB.CoordinateSystem(), bounds.UnpitchedChart)
 	}
-	if dynPlaced.FrameToWorld.Src() != assembly.FrameLocal || dynPlaced.FrameToWorld.Dst() != assembly.DynamicWorld {
+	if dynPlaced.FrameToWorld.Src() != assembly.FrameLocal || dynPlaced.FrameToWorld.Dst() != bounds.DynamicWorld {
 		t.Errorf("Dynamic FrameToWorld = %s -> %s", dynPlaced.FrameToWorld.Src(), dynPlaced.FrameToWorld.Dst())
 	}
-	if statPlaced.FrameToWorld.Src() != assembly.FrameLocal || statPlaced.FrameToWorld.Dst() != assembly.StaticWorld {
+	if statPlaced.FrameToWorld.Src() != assembly.FrameLocal || statPlaced.FrameToWorld.Dst() != bounds.StaticWorld {
 		t.Errorf("Static FrameToWorld = %s -> %s", statPlaced.FrameToWorld.Src(), statPlaced.FrameToWorld.Dst())
 	}
 
@@ -795,9 +796,9 @@ func TestMateFramesetSinglePassStaticVsDynamicAndSnapshot(t *testing.T) {
 	})
 	assertPanics(t, "nil Frameset Place", func() {
 		var nilFS *assembly.Frameset
-		_ = nilFS.Place(assembly.Dynamic)
+		_ = nilFS.Place(bounds.Dynamic)
 	})
 	assertPanics(t, "Frameset invalid LoadState", func() {
-		_ = fs.Place(assembly.LoadState("bad"))
+		_ = fs.Place(bounds.LoadState("bad"))
 	})
 }

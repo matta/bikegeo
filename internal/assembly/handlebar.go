@@ -3,6 +3,7 @@ package assembly
 import (
 	"fmt"
 
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -159,9 +160,9 @@ func (h Handlebar) Dimensions() HandlebarDimensions {
 // It panics deterministically if stemHeadingInWorld is not in StaticWorld or
 // DynamicWorld.
 func BarTurnForWorldRoll(stemHeadingInWorld pose.Heading, worldBarRollDeg pose.Deg) pose.Deg {
-	if _, ok := LoadStateForWorld(stemHeadingInWorld.CoordinateSystem()); !ok {
+	if _, ok := bounds.LoadStateForWorld(stemHeadingInWorld.CoordinateSystem()); !ok {
 		panic(fmt.Sprintf("assembly: BarTurnForWorldRoll requires %s or %s heading, got %s",
-			StaticWorld, DynamicWorld, stemHeadingInWorld.CoordinateSystem()))
+			bounds.StaticWorld, bounds.DynamicWorld, stemHeadingInWorld.CoordinateSystem()))
 	}
 	return pose.NewHeading(stemHeadingInWorld.CoordinateSystem(), -worldBarRollDeg).Sub(stemHeadingInWorld)
 }
@@ -193,7 +194,7 @@ func MountHandlebar(barClamp BarClampPort, bar Handlebar, rollTurnFromStem pose.
 		return ClampedHandlebar{}, fmt.Errorf("bar clamp transform must be finite")
 	}
 	if !isFinite(float64(rollTurnFromStem)) {
-		return ClampedHandlebar{}, invalidInput(InputHandlebarRoll, "handlebar roll must be finite, got %v°", rollTurnFromStem)
+		return ClampedHandlebar{}, invalidInput(bounds.InputHandlebarRoll, "handlebar roll must be finite, got %v°", rollTurnFromStem)
 	}
 	barInStem := pose.OriginPose(StemLocal).Turn(rollTurnFromStem).Anchor(HandlebarLocal)
 	return ClampedHandlebar{

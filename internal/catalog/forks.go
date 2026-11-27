@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -77,7 +78,7 @@ func formatDim(x float64) string {
 // assembly.BasisFork).
 type PhysicalFork interface {
 	CheckHeadset(bore assembly.LowerBore, cup assembly.LowerCupSetup) error
-	AxleInFork(state assembly.LoadState) pose.Point
+	AxleInFork(state bounds.LoadState) pose.Point
 	Steerer() assembly.PhysicalSteerer
 }
 
@@ -118,7 +119,7 @@ func (o ForkOption) PhysicalForkWithA2c(staticA2cMm, sagPct float64) (PhysicalFo
 		return nil, err
 	}
 	if sagPct != 0 {
-		return nil, assembly.NewInputError(assembly.InputForkSag, "rigid fork cannot sag (sag must be 0%%), got %v%%", sagPct)
+		return nil, bounds.NewInputError(bounds.InputForkSag, "rigid fork cannot sag (sag must be 0%%), got %v%%", sagPct)
 	}
 	return fork, nil
 }

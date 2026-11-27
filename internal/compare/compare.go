@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -22,15 +23,15 @@ import (
 // basis fork has no physical steerer standard.
 type PhysicalFork interface {
 	CheckHeadset(bore assembly.LowerBore, cup assembly.LowerCupSetup) error
-	AxleInFork(state assembly.LoadState) pose.Point
+	AxleInFork(state bounds.LoadState) pose.Point
 	Steerer() assembly.PhysicalSteerer
 }
 
 // Seatpost is a rigid or linkage seatpost mated onto a frameset's seat tube.
 type Seatpost interface {
 	TotalLengthMm() float64
-	InsertionLimits() assembly.BoundedRange
-	RailClamp(state assembly.LoadState) assembly.RailClampPort
+	InsertionLimits() bounds.BoundedRange
+	RailClamp(state bounds.LoadState) assembly.RailClampPort
 }
 
 // Frame is one frame model offered for comparison.

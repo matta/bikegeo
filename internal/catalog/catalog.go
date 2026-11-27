@@ -4,7 +4,7 @@
 package catalog
 
 import (
-	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -16,10 +16,10 @@ const WheelLabel = `29" × 2.4"`
 
 // DefaultBrpTarget returns the idmatch fit report's BRP (measured; docs/RIDER_FIT.md).
 func DefaultBrpTarget() pose.Point {
-	return pose.NewPoint(assembly.DynamicWorld, -219.0, 713.1)
+	return pose.NewPoint(bounds.DynamicWorld, -219.0, 713.1)
 }
 
 // DefaultGripTarget returns the idmatch fit report's HandGrip.
 func DefaultGripTarget() pose.Point {
-	return pose.NewPoint(assembly.DynamicWorld, 481.0, 726.0)
+	return pose.NewPoint(bounds.DynamicWorld, 481.0, 726.0)
 }

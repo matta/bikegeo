@@ -4,14 +4,26 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
+func assertPanics(t *testing.T, name string, fn func()) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("%s: expected panic, got none", name)
+		}
+	}()
+	fn()
+}
+
 type testForkMounter interface {
 	CheckHeadset(bore assembly.LowerBore, cup assembly.LowerCupSetup) error
-	AxleInFork(state assembly.LoadState) pose.Point
+	AxleInFork(state bounds.LoadState) pose.Point
 }
 
 func frameDims(f assembly.FrameSetup) assembly.FrameDimensions {
@@ -53,7 +65,7 @@ func validateTestPose(name string, p pose.Pose) error {
 
 func validateForkSetup(f assembly.ForkSetup) error {
 	if !isFiniteVal(f.Spec.StaticA2cMm) || f.Spec.StaticA2cMm <= 0 {
-		return assembly.NewInputError(assembly.InputForkA2c, "fork static A2C must be finite and positive, got %v mm", f.Spec.StaticA2cMm)
+		return bounds.NewInputError(bounds.InputForkA2c, "fork static A2C must be finite and positive, got %v mm", f.Spec.StaticA2cMm)
 	}
 	if !f.Spec.Travel.Valid() {
 		return fmt.Errorf("unsupported fork travel %d mm", f.Spec.Travel)
@@ -62,14 +74,14 @@ func validateForkSetup(f assembly.ForkSetup) error {
 		return fmt.Errorf("basis fork cannot have travel, got %d mm", f.Spec.Travel)
 	}
 	if !isFiniteVal(f.SagPct) || f.SagPct < 0 || f.SagPct > 100 {
-		return assembly.NewInputError(assembly.InputForkSag, "fork sag must be in [0%%, 100%%], got %v%%", f.SagPct)
+		return bounds.NewInputError(bounds.InputForkSag, "fork sag must be in [0%%, 100%%], got %v%%", f.SagPct)
 	}
 	if f.Spec.Travel == assembly.TravelRigid && f.SagPct != 0 {
-		return assembly.NewInputError(assembly.InputForkSag, "rigid fork (0 mm travel) cannot have non-zero sag, got %v%%", f.SagPct)
+		return bounds.NewInputError(bounds.InputForkSag, "rigid fork (0 mm travel) cannot have non-zero sag, got %v%%", f.SagPct)
 	}
 	eff := f.EffectiveA2cMm()
 	if !isFiniteVal(eff) || eff <= 0 {
-		return assembly.NewInputError(assembly.InputForkA2c, "fork effective A2C must be finite and positive, got %v mm", eff)
+		return bounds.NewInputError(bounds.InputForkA2c, "fork effective A2C must be finite and positive, got %v mm", eff)
 	}
 	if !isFiniteVal(f.Spec.RakeMm) {
 		return fmt.Errorf("fork rake must be finite, got %v mm", f.Spec.RakeMm)
@@ -95,7 +107,7 @@ func forkMounterFromSetup(f assembly.ForkSetup) (testForkMounter, error) {
 		}
 		return assembly.NewRigidFork(f.Spec.StaticA2cMm, f.Spec.RakeMm, assembly.PhysicalSteererTapered)
 	default:
-		return nil, assembly.NewInputError(assembly.InputLowerCup, "unknown or missing fork steerer %q", f.Spec.Steerer)
+		return nil, bounds.NewInputError(bounds.InputLowerCup, "unknown or missing fork steerer %q", f.Spec.Steerer)
 	}
 }
 
@@ -128,7 +140,7 @@ func placeFrameset(frame assembly.FrameSetup, lowerCup assembly.LowerCupSetup, f
 	if err != nil {
 		return assembly.FramesetPlacement{}, err
 	}
-	return fs.Place(assembly.Dynamic), nil
+	return fs.Place(bounds.Dynamic), nil
 }
 
 type insertionBounds struct {
@@ -149,7 +161,7 @@ func seatTubeSocketFromSetup(frame assembly.FrameSetup) (assembly.SeatTubeSocket
 		frameCap = frame.SeatTubeLengthMm - 20.0
 		maxSource = "frame seat tube clearance"
 	}
-	allowed, err := assembly.NewBoundedRange(frame.MinFrameInsertionMm, frameCap, "frame min insertion", maxSource)
+	allowed, err := bounds.NewBoundedRange(frame.MinFrameInsertionMm, frameCap, "frame min insertion", maxSource)
 	if err != nil {
 		return assembly.SeatTubeSocket{}, fmt.Errorf("frame allows no seatpost insertion: %w", err)
 	}
@@ -387,7 +399,7 @@ func placeBike(setup assembly.BikeSetup) (assembly.Placement, error) {
 	if err != nil {
 		return assembly.Placement{}, err
 	}
-	placed := build.Place(assembly.Dynamic)
+	placed := build.Place(bounds.Dynamic)
 	placed.Setup.Stem.MinLengthMm = setup.Stem.MinLengthMm
 	placed.Setup.Stem.MaxLengthMm = setup.Stem.MaxLengthMm
 	return placed, nil
@@ -398,10 +410,10 @@ func applyFitting(setup assembly.BikeSetup, target assembly.FitTarget) (assembly
 		return assembly.Fitting{}, fmt.Errorf("fit target has no landmarks")
 	}
 	if target.BRP != nil && (!isFiniteVal(target.BRP.X()) || !isFiniteVal(target.BRP.Y())) {
-		return assembly.Fitting{}, assembly.NewInputError(assembly.InputFitTargetBRP, "BRP fit target must be finite")
+		return assembly.Fitting{}, bounds.NewInputError(bounds.InputFitTargetBRP, "BRP fit target must be finite")
 	}
 	if target.HandGrip != nil && (!isFiniteVal(target.HandGrip.X()) || !isFiniteVal(target.HandGrip.Y())) {
-		return assembly.Fitting{}, assembly.NewInputError(assembly.InputFitTargetGrip, "HandGrip fit target must be finite")
+		return assembly.Fitting{}, bounds.NewInputError(bounds.InputFitTargetGrip, "HandGrip fit target must be finite")
 	}
 	frame, err := assembly.NewFrame(frameDims(setup.Frame))
 	if err != nil {
@@ -453,9 +465,9 @@ func applyFitting(setup assembly.BikeSetup, target assembly.FitTarget) (assembly
 		return assembly.Fitting{}, err
 	}
 	var seated *assembly.SeatedFrameset
-	var limitedBy []assembly.InputField
+	var limitedBy []bounds.InputField
 	if target.BRP != nil {
-		var rl []assembly.InputField
+		var rl []bounds.InputField
 		seated, rl, err = rear.FitToBRP(*target.BRP)
 		if err != nil {
 			return assembly.Fitting{}, err
@@ -472,7 +484,7 @@ func applyFitting(setup assembly.BikeSetup, target assembly.FitTarget) (assembly
 		if !isFiniteVal(setup.Stem.MinLengthMm) || !isFiniteVal(setup.Stem.MaxLengthMm) || setup.Stem.MinLengthMm <= 0 || setup.Stem.MinLengthMm > setup.Stem.MaxLengthMm {
 			return assembly.Fitting{}, fmt.Errorf("invalid stem length range")
 		}
-		lenRange, err := assembly.NewBoundedRange(setup.Stem.MinLengthMm, setup.Stem.MaxLengthMm, "min stem length", "max stem length")
+		lenRange, err := bounds.NewBoundedRange(setup.Stem.MinLengthMm, setup.Stem.MaxLengthMm, "min stem length", "max stem length")
 		if err != nil {
 			return assembly.Fitting{}, err
 		}
@@ -480,7 +492,7 @@ func applyFitting(setup assembly.BikeSetup, target assembly.FitTarget) (assembly
 		if err != nil {
 			return assembly.Fitting{}, err
 		}
-		var fl []assembly.InputField
+		var fl []bounds.InputField
 		build, fl, err = front.FitToGrip(*target.HandGrip)
 		if err != nil {
 			return assembly.Fitting{}, err
@@ -496,7 +508,7 @@ func applyFitting(setup assembly.BikeSetup, target assembly.FitTarget) (assembly
 			return assembly.Fitting{}, err
 		}
 	}
-	placement := build.Place(assembly.Dynamic)
+	placement := build.Place(bounds.Dynamic)
 	placement.Setup.Stem.MinLengthMm = setup.Stem.MinLengthMm
 	placement.Setup.Stem.MaxLengthMm = setup.Stem.MaxLengthMm
 	fit := assembly.Fitting{Placement: placement, Outcome: assembly.FitReached}
@@ -517,7 +529,7 @@ func applyFitting(setup assembly.BikeSetup, target assembly.FitTarget) (assembly
 
 func fitPostSetback(setup assembly.BikeSetup, brp pose.Point, railOffsetMm float64) (assembly.Fitting, error) {
 	if !isFiniteVal(brp.X()) || !isFiniteVal(brp.Y()) {
-		return assembly.Fitting{}, assembly.NewInputError(assembly.InputFitTargetBRP, "BRP fit target must be finite")
+		return assembly.Fitting{}, bounds.NewInputError(bounds.InputFitTargetBRP, "BRP fit target must be finite")
 	}
 	probe := setup
 	probe.Seatpost.Spec.SetbackMm = 0

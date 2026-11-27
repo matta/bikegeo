@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -80,15 +81,15 @@ func TestSeatpostInsertionBounds(t *testing.T) {
 		}
 	}
 
-	var inputErr *assembly.InputError
+	var inputErr *bounds.InputError
 	badSetback := genericPostSpec(-1)
-	if _, err := seatpostInsertionBounds(frame, badSetback); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSeatpostSetback {
+	if _, err := seatpostInsertionBounds(frame, badSetback); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputSeatpostSetback {
 		t.Errorf("negative setback error = %v, want InputSeatpostSetback", err)
 	}
 }
 
 func TestPlaceSeatpostInsertionEndpoints(t *testing.T) {
-	top := pose.NewPose(pose.Origin(assembly.DynamicWorld), 105)
+	top := pose.NewPose(pose.Origin(bounds.DynamicWorld), 105)
 	frame := fenrirSizeLFrame()
 	post := assembly.SeatpostSetup{Spec: genericPostSpec(0)}
 	for _, tc := range []struct {
@@ -112,8 +113,8 @@ func TestPlaceSeatpostInsertionEndpoints(t *testing.T) {
 			assertNear(t, "exposed length", top.Origin().DistanceTo(placed.ShaftTop.Origin()), tc.exposed, 1e-9)
 			continue
 		}
-		var inputErr *assembly.InputError
-		if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSeatpostInsertion {
+		var inputErr *bounds.InputError
+		if !errors.As(err, &inputErr) || inputErr.Field != bounds.InputSeatpostInsertion {
 			t.Errorf("insertion %v: error = %v, want InputSeatpostInsertion", tc.insertion, err)
 		}
 	}
@@ -122,7 +123,7 @@ func TestPlaceSeatpostInsertionEndpoints(t *testing.T) {
 // PlaceSeatpost derives its insertion limits from the frame, so the same
 // post and insertion can fit one frame and not another.
 func TestPlaceSeatpostUsesFrameInsertionLimits(t *testing.T) {
-	top := pose.NewPose(pose.Origin(assembly.DynamicWorld), 105)
+	top := pose.NewPose(pose.Origin(bounds.DynamicWorld), 105)
 	uncapped := fenrirSizeLFrame()
 	uncapped.MaxPostInsertionMm = 0 // 490 − 20 = 470 mm cap, so the post's 365 mm binds
 	withMinimum := fenrirSizeLFrame()
@@ -134,13 +135,13 @@ func TestPlaceSeatpostUsesFrameInsertionLimits(t *testing.T) {
 		frame     assembly.FrameSetup
 		insertion float64
 		ok        bool
-		field     assembly.InputField
+		field     bounds.InputField
 	}{
 		{"300 mm within the post's 365 mm on an uncapped frame", uncapped, 300, true, ""},
 		{"365 mm at the post maximum on an uncapped frame", uncapped, 365, true, ""},
-		{"365.001 mm past the post maximum", uncapped, 365.001, false, assembly.InputSeatpostInsertion},
-		{"300 mm past the Fenrir's 290 mm cap", fenrirSizeLFrame(), 300, false, assembly.InputSeatpostInsertion},
-		{"110 mm below a 125 mm frame minimum", withMinimum, 110, false, assembly.InputSeatpostInsertion},
+		{"365.001 mm past the post maximum", uncapped, 365.001, false, bounds.InputSeatpostInsertion},
+		{"300 mm past the Fenrir's 290 mm cap", fenrirSizeLFrame(), 300, false, bounds.InputSeatpostInsertion},
+		{"110 mm below a 125 mm frame minimum", withMinimum, 110, false, bounds.InputSeatpostInsertion},
 		{"125 mm at the frame minimum", withMinimum, 125, true, ""},
 		{"invalid frame seat tube", noSeatTube, 200, false, ""},
 	} {
@@ -156,7 +157,7 @@ func TestPlaceSeatpostUsesFrameInsertionLimits(t *testing.T) {
 			if err == nil {
 				t.Fatal("want error")
 			}
-			var inputErr *assembly.InputError
+			var inputErr *bounds.InputError
 			if tc.field != "" && (!errors.As(err, &inputErr) || inputErr.Field != tc.field) {
 				t.Errorf("error = %v, want %s", err, tc.field)
 			}
@@ -205,7 +206,7 @@ func TestRigidPostIsolated(t *testing.T) {
 		t.Errorf("unexpected limits: %+v", limits)
 	}
 
-	for _, state := range []assembly.LoadState{assembly.Static, assembly.Dynamic} {
+	for _, state := range []bounds.LoadState{bounds.Static, bounds.Dynamic} {
 		clamp := post.RailClamp(state)
 		if clamp.ClampLengthMm != 30 {
 			t.Errorf("%s clamp length = %v, want 30", state, clamp.ClampLengthMm)
@@ -219,8 +220,8 @@ func TestRigidPostIsolated(t *testing.T) {
 		assertNear(t, string(state)+" heading", float64(clamp.CradleInParent.HeadingInDst().Deg()), 0, 1e-12)
 	}
 
-	var inputErr *assembly.InputError
-	if _, err := assembly.NewRigidPost(400, 100, 365, -1, 30); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSeatpostSetback {
+	var inputErr *bounds.InputError
+	if _, err := assembly.NewRigidPost(400, 100, 365, -1, 30); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputSeatpostSetback {
 		t.Errorf("negative setback error = %v, want InputSeatpostSetback", err)
 	}
 	for _, tc := range []struct {
@@ -241,8 +242,8 @@ func TestRigidPostIsolated(t *testing.T) {
 	}
 
 	var zero assembly.RigidPost
-	assertPanics(t, "zero RigidPost RailClamp", func() { _ = zero.RailClamp(assembly.Static) })
-	assertPanics(t, "RigidPost invalid LoadState", func() { _ = post.RailClamp(assembly.LoadState("")) })
+	assertPanics(t, "zero RigidPost RailClamp", func() { _ = zero.RailClamp(bounds.Static) })
+	assertPanics(t, "RigidPost invalid LoadState", func() { _ = post.RailClamp(bounds.LoadState("")) })
 }
 
 func TestLinkagePostStaticVsDynamic(t *testing.T) {
@@ -258,8 +259,8 @@ func TestLinkagePostStaticVsDynamic(t *testing.T) {
 		t.Errorf("SagStep = (%v, %v), want (-6, 5)", post.SagStep().X(), post.SagStep().Y())
 	}
 
-	staticClamp := post.RailClamp(assembly.Static)
-	dynamicClamp := post.RailClamp(assembly.Dynamic)
+	staticClamp := post.RailClamp(bounds.Static)
+	dynamicClamp := post.RailClamp(bounds.Dynamic)
 
 	staticOrigin := staticClamp.CradleInParent.OriginInDst()
 	dynamicOrigin := dynamicClamp.CradleInParent.OriginInDst()
@@ -291,13 +292,13 @@ func TestLinkagePostStaticVsDynamic(t *testing.T) {
 		_, _ = assembly.NewLinkagePost(350, 100, 250, 7, 30, pose.Vector{})
 	})
 	assertPanics(t, "LinkagePost invalid LoadState", func() {
-		_ = post.RailClamp(assembly.LoadState("bad"))
+		_ = post.RailClamp(bounds.LoadState("bad"))
 	})
 }
 
 func TestMateSeatpostAndClampedSeatpostIsolated(t *testing.T) {
 	collarInFrame := pose.NewPose(pose.NewPoint(assembly.FrameLocal, -120, 470), 105).Anchor(assembly.SeatTubeCollar)
-	frameRange, err := assembly.NewBoundedRange(125, 290, "frame min insertion", "frame max insertion")
+	frameRange, err := bounds.NewBoundedRange(125, 290, "frame min insertion", "frame max insertion")
 	if err != nil {
 		t.Fatalf("frameRange: %v", err)
 	}
@@ -323,7 +324,7 @@ func TestMateSeatpostAndClampedSeatpostIsolated(t *testing.T) {
 	}
 
 	// Incompatible socket and post fail immediately at MateSeatpost time.
-	shortRange, _ := assembly.NewBoundedRange(0, 90, "frame min insertion", "frame seat tube clearance")
+	shortRange, _ := bounds.NewBoundedRange(0, 90, "frame min insertion", "frame seat tube clearance")
 	shortSocket := assembly.SeatTubeSocket{CollarInFrame: collarInFrame, AllowedInsertion: shortRange}
 	if _, err := assembly.MateSeatpost(shortSocket, linkage); err == nil {
 		t.Error("incompatible socket/post should fail at MateSeatpost time")
@@ -345,11 +346,11 @@ func TestMateSeatpostAndClampedSeatpostIsolated(t *testing.T) {
 	})
 
 	// Clamp validates insertion bounds and produces BoundStatus margins.
-	var inputErr *assembly.InputError
-	if _, err := dof.Clamp(124.9); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSeatpostInsertion {
+	var inputErr *bounds.InputError
+	if _, err := dof.Clamp(124.9); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputSeatpostInsertion {
 		t.Errorf("below min Clamp = %v, want InputSeatpostInsertion", err)
 	}
-	if _, err := dof.Clamp(250.1); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputSeatpostInsertion {
+	if _, err := dof.Clamp(250.1); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputSeatpostInsertion {
 		t.Errorf("above max Clamp = %v, want InputSeatpostInsertion", err)
 	}
 
@@ -358,7 +359,7 @@ func TestMateSeatpostAndClampedSeatpostIsolated(t *testing.T) {
 		t.Fatalf("Clamp(150): %v", err)
 	}
 	ins := clamped.Insertion()
-	if ins.Field != assembly.InputSeatpostInsertion || ins.Value != 150 ||
+	if ins.Field != bounds.InputSeatpostInsertion || ins.Value != 150 ||
 		ins.Min != 125 || ins.Max != 250 ||
 		ins.MinSource != "frame min insertion" || ins.MaxSource != "seatpost max insertion" {
 		t.Errorf("Insertion BoundStatus = %+v", ins)
@@ -370,8 +371,8 @@ func TestMateSeatpostAndClampedSeatpostIsolated(t *testing.T) {
 	assertNear(t, "ExposedMm", clamped.ExposedMm(), 200, 1e-12)
 
 	// RailClampInFrame shifts by sagStep rotated into FrameLocal between Static and Dynamic.
-	staticFrame := clamped.RailClampInFrame(assembly.Static)
-	dynamicFrame := clamped.RailClampInFrame(assembly.Dynamic)
+	staticFrame := clamped.RailClampInFrame(bounds.Static)
+	dynamicFrame := clamped.RailClampInFrame(bounds.Dynamic)
 	if staticFrame.CradleInParent.Src() != assembly.SeatpostCradle || staticFrame.CradleInParent.Dst() != assembly.FrameLocal {
 		t.Errorf("RailClampInFrame systems = %s -> %s", staticFrame.CradleInParent.Src(), staticFrame.CradleInParent.Dst())
 	}
@@ -383,8 +384,8 @@ func TestMateSeatpostAndClampedSeatpostIsolated(t *testing.T) {
 	assertNear(t, "dynamic heading in frame", float64(dynamicFrame.CradleInParent.HeadingInDst().Deg()), 105, 1e-12)
 
 	// PlaceInWorld derives LoadState directly from frameToWorld.Dst() (StaticWorld or DynamicWorld).
-	frameToStatic := pose.NewTransform(assembly.FrameLocal, assembly.StaticWorld, pose.Origin(assembly.StaticWorld), -2.5)
-	frameToDynamic := pose.NewTransform(assembly.FrameLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), -2.5)
+	frameToStatic := pose.NewTransform(assembly.FrameLocal, bounds.StaticWorld, pose.Origin(bounds.StaticWorld), -2.5)
+	frameToDynamic := pose.NewTransform(assembly.FrameLocal, bounds.DynamicWorld, pose.Origin(bounds.DynamicWorld), -2.5)
 	staticPlaced := clamped.PlaceInWorld(frameToStatic)
 	dynamicPlaced := clamped.PlaceInWorld(frameToDynamic)
 
@@ -392,10 +393,10 @@ func TestMateSeatpostAndClampedSeatpostIsolated(t *testing.T) {
 	assertNear(t, "dynamic exposed distance", dynamicPlaced.SeatTubeTop.Origin().DistanceTo(dynamicPlaced.ShaftTop.Origin()), 200, 1e-12)
 	assertNear(t, "shaft top X invariant across states", dynamicPlaced.ShaftTop.Origin().X(), staticPlaced.ShaftTop.Origin().X(), 1e-12)
 	assertNear(t, "shaft top Y invariant across states", dynamicPlaced.ShaftTop.Origin().Y(), staticPlaced.ShaftTop.Origin().Y(), 1e-12)
-	if staticPlaced.CradleInWorld.Src() != assembly.SeatpostCradle || staticPlaced.CradleInWorld.Dst() != assembly.StaticWorld {
+	if staticPlaced.CradleInWorld.Src() != assembly.SeatpostCradle || staticPlaced.CradleInWorld.Dst() != bounds.StaticWorld {
 		t.Errorf("static CradleInWorld systems = %s -> %s", staticPlaced.CradleInWorld.Src(), staticPlaced.CradleInWorld.Dst())
 	}
-	if dynamicPlaced.CradleInWorld.Src() != assembly.SeatpostCradle || dynamicPlaced.CradleInWorld.Dst() != assembly.DynamicWorld {
+	if dynamicPlaced.CradleInWorld.Src() != assembly.SeatpostCradle || dynamicPlaced.CradleInWorld.Dst() != bounds.DynamicWorld {
 		t.Errorf("dynamic CradleInWorld systems = %s -> %s", dynamicPlaced.CradleInWorld.Src(), dynamicPlaced.CradleInWorld.Dst())
 	}
 	assertNear(t, "static cradle matches RailPivot X", staticPlaced.CradleInWorld.OriginInDst().X(), staticPlaced.RailPivot.Origin().X(), 1e-12)
@@ -412,11 +413,11 @@ func TestMateSeatpostAndClampedSeatpostIsolated(t *testing.T) {
 
 	// PlaceInWorld panics on wrong Src or any Dst other than StaticWorld / DynamicWorld.
 	assertPanics(t, "PlaceInWorld wrong frameToWorld Src", func() {
-		wrong := pose.NewTransform(assembly.SteererLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), 0)
+		wrong := pose.NewTransform(assembly.SteererLocal, bounds.DynamicWorld, pose.Origin(bounds.DynamicWorld), 0)
 		_ = clamped.PlaceInWorld(wrong)
 	})
 	assertPanics(t, "PlaceInWorld UnpitchedChart Dst", func() {
-		chart := pose.NewTransform(assembly.FrameLocal, assembly.UnpitchedChart, pose.Origin(assembly.UnpitchedChart), 0)
+		chart := pose.NewTransform(assembly.FrameLocal, bounds.UnpitchedChart, pose.Origin(bounds.UnpitchedChart), 0)
 		_ = clamped.PlaceInWorld(chart)
 	})
 	assertPanics(t, "PlaceInWorld custom non-world Dst", func() {
@@ -431,15 +432,15 @@ func TestMateSeatpostAndClampedSeatpostIsolated(t *testing.T) {
 
 type fakePost struct {
 	totalLengthMm float64
-	limits        assembly.BoundedRange
+	limits        bounds.BoundedRange
 	staticClamp   assembly.RailClampPort
 	dynamicClamp  assembly.RailClampPort
 }
 
-func (f fakePost) TotalLengthMm() float64                 { return f.totalLengthMm }
-func (f fakePost) InsertionLimits() assembly.BoundedRange { return f.limits }
-func (f fakePost) RailClamp(s assembly.LoadState) assembly.RailClampPort {
-	if s == assembly.Static {
+func (f fakePost) TotalLengthMm() float64               { return f.totalLengthMm }
+func (f fakePost) InsertionLimits() bounds.BoundedRange { return f.limits }
+func (f fakePost) RailClamp(s bounds.LoadState) assembly.RailClampPort {
+	if s == bounds.Static {
 		return f.staticClamp
 	}
 	return f.dynamicClamp
@@ -447,7 +448,7 @@ func (f fakePost) RailClamp(s assembly.LoadState) assembly.RailClampPort {
 
 func TestMateSeatpostSnapshotsPostByValueAndValidates(t *testing.T) {
 	collarInFrame := pose.NewPose(pose.NewPoint(assembly.FrameLocal, -120, 470), 105).Anchor(assembly.SeatTubeCollar)
-	frameRange, err := assembly.NewBoundedRange(100, 290, "frame min insertion", "frame max insertion")
+	frameRange, err := bounds.NewBoundedRange(100, 290, "frame min insertion", "frame max insertion")
 	if err != nil {
 		t.Fatalf("frameRange: %v", err)
 	}
@@ -468,8 +469,8 @@ func TestMateSeatpostSnapshotsPostByValueAndValidates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Clamp(200): %v", err)
 	}
-	beforeStatic := clamped.RailClampInFrame(assembly.Static)
-	beforeDynamic := clamped.RailClampInFrame(assembly.Dynamic)
+	beforeStatic := clamped.RailClampInFrame(bounds.Static)
+	beforeDynamic := clamped.RailClampInFrame(bounds.Dynamic)
 
 	shorter, err := assembly.NewRigidPost(180, 100, 150, 0, 25)
 	if err != nil {
@@ -478,8 +479,8 @@ func TestMateSeatpostSnapshotsPostByValueAndValidates(t *testing.T) {
 	post = shorter
 
 	assertNear(t, "ExposedMm after caller mutation", clamped.ExposedMm(), 200, 1e-12)
-	afterStatic := clamped.RailClampInFrame(assembly.Static)
-	afterDynamic := clamped.RailClampInFrame(assembly.Dynamic)
+	afterStatic := clamped.RailClampInFrame(bounds.Static)
+	afterDynamic := clamped.RailClampInFrame(bounds.Dynamic)
 	assertNear(t, "static cradle X unchanged", afterStatic.CradleInParent.OriginInDst().X(), beforeStatic.CradleInParent.OriginInDst().X(), 1e-12)
 	assertNear(t, "static cradle Y unchanged", afterStatic.CradleInParent.OriginInDst().Y(), beforeStatic.CradleInParent.OriginInDst().Y(), 1e-12)
 	assertNear(t, "dynamic cradle X unchanged", afterDynamic.CradleInParent.OriginInDst().X(), beforeDynamic.CradleInParent.OriginInDst().X(), 1e-12)
@@ -500,7 +501,7 @@ func TestMateSeatpostSnapshotsPostByValueAndValidates(t *testing.T) {
 		CradleInParent: pose.NewTransform(assembly.SeatpostCradle, assembly.SeatpostLocal, pose.NewPoint(assembly.SeatpostLocal, 350, 0), 0),
 		ClampLengthMm:  30,
 	}
-	goodLimits, _ := assembly.NewBoundedRange(100, 250, "post min", "post max")
+	goodLimits, _ := bounds.NewBoundedRange(100, 250, "post min", "post max")
 
 	for _, tc := range []struct {
 		name string

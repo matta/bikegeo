@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -271,8 +272,8 @@ const (
 )
 
 // DefaultStemLengthRange returns the continuous-fitting stem length interval.
-func DefaultStemLengthRange() assembly.BoundedRange {
-	r, err := assembly.NewBoundedRange(DefaultMinStemLengthMm, DefaultMaxStemLengthMm, "min stem length", "max stem length")
+func DefaultStemLengthRange() bounds.BoundedRange {
+	r, err := bounds.NewBoundedRange(DefaultMinStemLengthMm, DefaultMaxStemLengthMm, "min stem length", "max stem length")
 	if err != nil {
 		panic(fmt.Sprintf("catalog: invalid default stem length range: %v", err))
 	}

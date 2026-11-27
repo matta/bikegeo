@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -34,9 +35,9 @@ const (
 //   - Sign: +1 if increasing the parameter advances the landmark along Heading,
 //     −1 if increasing the parameter moves opposite Heading.
 type LinearDoF struct {
-	Field   InputField
+	Field   bounds.InputField
 	Heading pose.Heading
-	Range   BoundedRange
+	Range   bounds.BoundedRange
 	Probe   float64
 	Sign    float64
 }
@@ -86,7 +87,7 @@ func (d LinearDoF) paramFromTravel(travel float64) float64 {
 // inputs in (AxisA, AxisB) order. Parallel axes return ok = false.
 // Coordinate-system mismatches between Origin, target, and axis headings panic
 // deterministically.
-func SolvePlanar2DoF(sheet Planar2DoF, target pose.Point, priority FitPriority) (valA, valB float64, limited []InputField, ok bool) {
+func SolvePlanar2DoF(sheet Planar2DoF, target pose.Point, priority FitPriority) (valA, valB float64, limited []bounds.InputField, ok bool) {
 	switch priority {
 	case PriorityNearest, PriorityBRPGate:
 	default:
@@ -150,7 +151,7 @@ func (r fitInterval) heightFirst(target, direction pose.Vector) float64 {
 type fitAdjustment struct {
 	heading pose.Heading
 	fitInterval
-	field InputField
+	field bounds.InputField
 }
 
 // fitEdge holds one input at a finite bound and lets the other input vary.
@@ -216,7 +217,7 @@ func (p FitPriority) prefers(miss, best pose.Vector) bool {
 }
 
 // fitBox returns signed travel (in mm) along directions a and b to reach delta.
-func fitBox(delta pose.Vector, a, b fitAdjustment, priority FitPriority) (da, db float64, limited []InputField, ok bool) {
+func fitBox(delta pose.Vector, a, b fitAdjustment, priority FitPriority) (da, db float64, limited []bounds.InputField, ok bool) {
 	da, db, ok = pose.DecomposeAlong(delta, a.heading, b.heading)
 	if !ok {
 		return 0, 0, nil, false

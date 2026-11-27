@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -90,15 +91,15 @@ func legacyGripRadius(dx, dy float64) float64 {
 
 func TestFitOval(t *testing.T) {
 	oval := assembly.DefaultGripOval()
-	center := pose.NewPoint(assembly.DynamicWorld, 12, -30)
+	center := pose.NewPoint(bounds.DynamicWorld, 12, -30)
 	assertNear(t, "center radius", oval.NormalizedRadius(center, center), 0, 1e-12)
 	for _, tc := range []struct{ heading, distance, radius float64 }{{60, 20, 1}, {-30, 10, 1}, {-30, 30, 3}} {
 		sin, cos := math.Sincos(tc.heading * math.Pi / 180)
-		p := pose.NewPoint(assembly.DynamicWorld, center.X()+cos*tc.distance, center.Y()+sin*tc.distance)
+		p := pose.NewPoint(bounds.DynamicWorld, center.X()+cos*tc.distance, center.Y()+sin*tc.distance)
 		assertNear(t, "axis radius", oval.NormalizedRadius(center, p), tc.radius, 1e-12)
 	}
-	for _, d := range []pose.Point{pose.NewPoint(assembly.DynamicWorld, 23, -4), pose.NewPoint(assembly.DynamicWorld, -6, 47), pose.NewPoint(assembly.DynamicWorld, -32, -51)} {
-		p := pose.NewPoint(assembly.DynamicWorld, center.X()+d.X(), center.Y()+d.Y())
+	for _, d := range []pose.Point{pose.NewPoint(bounds.DynamicWorld, 23, -4), pose.NewPoint(bounds.DynamicWorld, -6, 47), pose.NewPoint(bounds.DynamicWorld, -32, -51)} {
+		p := pose.NewPoint(bounds.DynamicWorld, center.X()+d.X(), center.Y()+d.Y())
 		assertNear(t, "legacy radius", oval.NormalizedRadius(center, p), legacyGripRadius(d.X(), d.Y()), 1e-12)
 	}
 }
@@ -519,7 +520,7 @@ func TestFitBuildsScoresBrpMissForSubmittedFork(t *testing.T) {
 func TestFitBuildsFourTiersAndBasisFork(t *testing.T) {
 	setback := fenrirFittingSetup()
 	setback.Seatpost.Spec = genericPostSpec(25)
-	brp := pose.NewPoint(assembly.DynamicWorld, -189, 713.1)
+	brp := pose.NewPoint(bounds.DynamicWorld, -189, 713.1)
 	target := assembly.FitTarget{BRP: &brp, HandGrip: &fitReportGrip}
 
 	fit := mustFitBuilds(t, setback, target, 5)
@@ -635,18 +636,18 @@ func TestFitBuildsIgnoresContinuousStemLengthRange(t *testing.T) {
 }
 
 func TestFitBuildsErrors(t *testing.T) {
-	nan := pose.NewPoint(assembly.DynamicWorld, math.NaN(), 0)
+	nan := pose.NewPoint(bounds.DynamicWorld, math.NaN(), 0)
 	w := testDefaultScoreWeights()
 	for _, tc := range []struct {
 		name    string
 		target  assembly.FitTarget
 		limit   int
 		weights assembly.ScoreWeights
-		field   assembly.InputField
+		field   bounds.InputField
 	}{
 		{"missing grip", assembly.FitTarget{}, 5, w, ""},
-		{"invalid grip", assembly.FitTarget{HandGrip: &nan}, 5, w, assembly.InputFitTargetGrip},
-		{"invalid BRP", assembly.FitTarget{HandGrip: &fitReportGrip, BRP: &nan}, 5, w, assembly.InputFitTargetBRP},
+		{"invalid grip", assembly.FitTarget{HandGrip: &nan}, 5, w, bounds.InputFitTargetGrip},
+		{"invalid BRP", assembly.FitTarget{HandGrip: &fitReportGrip, BRP: &nan}, 5, w, bounds.InputFitTargetBRP},
 		{"zero limit", assembly.FitTarget{HandGrip: &fitReportGrip}, 0, w, ""},
 		{"invalid weights", assembly.FitTarget{HandGrip: &fitReportGrip}, 5, assembly.ScoreWeights{Stem: -1}, ""},
 		{"saddle-only weights", assembly.FitTarget{HandGrip: &fitReportGrip}, 5, assembly.ScoreWeights{SaddleBrpY: 1}, ""},
@@ -657,7 +658,7 @@ func TestFitBuildsErrors(t *testing.T) {
 				t.Fatal("expected build fitting error")
 			}
 			if tc.field != "" {
-				var input *assembly.InputError
+				var input *bounds.InputError
 				if !errors.As(err, &input) || input.Field != tc.field {
 					t.Errorf("error = %v, want InputError for %q", err, tc.field)
 				}
@@ -709,7 +710,7 @@ func TestPartOptionsValidation(t *testing.T) {
 	}
 	parts = twoBarOptions()
 	parts.Handlebars[0].GripInsetMm = 0
-	_, want := placeHandlebar(pose.OriginPose(assembly.DynamicWorld), parts.Handlebars[0])
+	_, want := placeHandlebar(pose.OriginPose(bounds.DynamicWorld), parts.Handlebars[0])
 	if err := parts.Validate(); want == nil || err == nil || !strings.Contains(err.Error(), want.Error()) {
 		t.Errorf("handlebar option grip inset error = %v, want %v", err, want)
 	}

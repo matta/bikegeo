@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -22,7 +23,7 @@ func assertNear(t *testing.T, name string, got, want, tol float64) {
 }
 
 func steererTransform(x, y float64, headingDeg pose.Deg) pose.Transform {
-	return pose.NewPose(pose.NewPoint(assembly.DynamicWorld, x, y), headingDeg).Anchor(assembly.SteererLocal)
+	return pose.NewPose(pose.NewPoint(bounds.DynamicWorld, x, y), headingDeg).Anchor(assembly.SteererLocal)
 }
 
 func TestPlaceStemWorkedExample60DegHTA(t *testing.T) {
@@ -86,7 +87,7 @@ func TestPlaceStemDimensions(t *testing.T) {
 		AngleDeg:      -6.0,
 	}
 	heading := pose.Deg(180.0 - 68.25)
-	origin := pose.NewPoint(assembly.DynamicWorld, 428.0, 642.0)
+	origin := pose.NewPoint(bounds.DynamicWorld, 428.0, 642.0)
 
 	got, err := placeStem(pose.NewPose(origin, heading).Anchor(assembly.SteererLocal), setup)
 	if err != nil {
@@ -170,8 +171,8 @@ func TestPlaceStemRejectsLowerHeadsetTransform(t *testing.T) {
 
 func TestPlaceStemSpacersOverMaxIsInputError(t *testing.T) {
 	_, err := placeStem(steererTransform(0, 0, 111.75), assembly.StemSetup{UpperStackMm: 11, SpacersMm: 31, MaxSpacersMm: 30, ClampHeightMm: 40, LengthMm: 60})
-	var inputErr *assembly.InputError
-	if !errors.As(err, &inputErr) || inputErr.Field != assembly.InputStemSpacers {
+	var inputErr *bounds.InputError
+	if !errors.As(err, &inputErr) || inputErr.Field != bounds.InputStemSpacers {
 		t.Fatalf("err = %v, want InputStemSpacers", err)
 	}
 }
@@ -252,7 +253,7 @@ func TestSteererPortIsolatedAndLowerHeadsetSafeguard(t *testing.T) {
 	})
 
 	assertPanics(t, "SteererLocal to DynamicWorld", func() {
-		worldSteerer := pose.NewPose(pose.Origin(assembly.DynamicWorld), 111.75).Anchor(assembly.SteererLocal)
+		worldSteerer := pose.NewPose(pose.Origin(bounds.DynamicWorld), 111.75).Anchor(assembly.SteererLocal)
 		_, _ = assembly.NewSteererPort(worldSteerer, 11, 30)
 	})
 	assertPanics(t, "zero Transform", func() {
@@ -273,11 +274,11 @@ func TestStemAndMountStemIsolated(t *testing.T) {
 			stem.ClampHeightMm(), stem.LengthMm(), stem.AngleDeg())
 	}
 
-	var inputErr *assembly.InputError
-	if _, err := assembly.NewStem(40, 0, 0); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputStemLength {
+	var inputErr *bounds.InputError
+	if _, err := assembly.NewStem(40, 0, 0); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputStemLength {
 		t.Errorf("zero length err = %v, want InputStemLength", err)
 	}
-	if _, err := assembly.NewStem(40, 60, pose.Deg(math.NaN())); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputStemAngle {
+	if _, err := assembly.NewStem(40, 60, pose.Deg(math.NaN())); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputStemAngle {
 		t.Errorf("NaN angle err = %v, want InputStemAngle", err)
 	}
 	if _, err := assembly.NewStem(0, 60, 0); err == nil {
@@ -293,10 +294,10 @@ func TestStemAndMountStemIsolated(t *testing.T) {
 		t.Fatalf("NewSteererPort: %v", err)
 	}
 
-	if _, err := assembly.MountStem(port, 30.1, stem); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputStemSpacers {
+	if _, err := assembly.MountStem(port, 30.1, stem); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputStemSpacers {
 		t.Errorf("spacers over max = %v, want InputStemSpacers", err)
 	}
-	if _, err := assembly.MountStem(port, -1, stem); !errors.As(err, &inputErr) || inputErr.Field != assembly.InputStemSpacers {
+	if _, err := assembly.MountStem(port, -1, stem); !errors.As(err, &inputErr) || inputErr.Field != bounds.InputStemSpacers {
 		t.Errorf("negative spacers = %v, want InputStemSpacers", err)
 	}
 
@@ -304,7 +305,7 @@ func TestStemAndMountStemIsolated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MountStem: %v", err)
 	}
-	if clamped.Spacers().Field != assembly.InputStemSpacers || clamped.Spacers().Value != 20 || clamped.Spacers().MarginMm() != 10 {
+	if clamped.Spacers().Field != bounds.InputStemSpacers || clamped.Spacers().Value != 20 || clamped.Spacers().MarginMm() != 10 {
 		t.Errorf("Spacers BoundStatus = %+v", clamped.Spacers())
 	}
 	if clamped.UpperStackMm() != 10 || clamped.Stem() != stem {
@@ -321,8 +322,8 @@ func TestStemAndMountStemIsolated(t *testing.T) {
 	assertNear(t, "FrameLocal BarClamp.Heading", float64(inFrame.ClampInParent.HeadingInDst().Deg()), 60.0, 1e-9)
 
 	// Placing into DynamicWorld (0° pitch) vs StaticWorld (+2.5° pitch) rotates rigidly.
-	dynPlaced := clamped.Place(pose.NewTransform(assembly.FrameLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), 0))
-	statPlaced := clamped.Place(pose.NewTransform(assembly.FrameLocal, assembly.StaticWorld, pose.Origin(assembly.StaticWorld), 2.5))
+	dynPlaced := clamped.Place(pose.NewTransform(assembly.FrameLocal, bounds.DynamicWorld, pose.Origin(bounds.DynamicWorld), 0))
+	statPlaced := clamped.Place(pose.NewTransform(assembly.FrameLocal, bounds.StaticWorld, pose.Origin(bounds.StaticWorld), 2.5))
 
 	assertNear(t, "dyn SteererClamp.X", dynPlaced.SteererClamp.Origin().X(), -25.0, 1e-9)
 	assertNear(t, "dyn SteererClamp.Y", dynPlaced.SteererClamp.Origin().Y(), 25.0*sqrt3, 1e-9)
@@ -330,7 +331,7 @@ func TestStemAndMountStemIsolated(t *testing.T) {
 	assertNear(t, "dyn BarClamp.Y", dynPlaced.BarClamp.Origin().Y(), 75.0*sqrt3, 1e-9)
 	assertNear(t, "dyn BarClampInWorld matches BarClamp X", dynPlaced.BarClampInWorld.OriginInDst().X(), dynPlaced.BarClamp.Origin().X(), 1e-12)
 	assertNear(t, "dyn BarClampInWorld matches BarClamp Y", dynPlaced.BarClampInWorld.OriginInDst().Y(), dynPlaced.BarClamp.Origin().Y(), 1e-12)
-	if dynPlaced.BarClampInWorld.Src() != assembly.StemLocal || dynPlaced.BarClampInWorld.Dst() != assembly.DynamicWorld {
+	if dynPlaced.BarClampInWorld.Src() != assembly.StemLocal || dynPlaced.BarClampInWorld.Dst() != bounds.DynamicWorld {
 		t.Errorf("dyn BarClampInWorld systems = %s -> %s", dynPlaced.BarClampInWorld.Src(), dynPlaced.BarClampInWorld.Dst())
 	}
 	assertNear(t, "stat BarClamp heading", float64(statPlaced.BarClamp.HeadingDeg()), 62.5, 1e-12)
@@ -343,11 +344,11 @@ func TestStemAndMountStemIsolated(t *testing.T) {
 	assertPanics(t, "MountStem zero Stem", func() { _, _ = assembly.MountStem(port, 10, zeroStem) })
 	assertPanics(t, "MountStem zero SteererPort", func() { _, _ = assembly.MountStem(assembly.SteererPort{}, 10, stem) })
 	assertPanics(t, "ClampedStem.Place wrong Src", func() {
-		wrong := pose.NewTransform(assembly.SteererLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), 0)
+		wrong := pose.NewTransform(assembly.SteererLocal, bounds.DynamicWorld, pose.Origin(bounds.DynamicWorld), 0)
 		_ = clamped.Place(wrong)
 	})
 	assertPanics(t, "nil ClampedStem Place", func() {
 		var nilStem *assembly.ClampedStem
-		_ = nilStem.Place(pose.NewTransform(assembly.FrameLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), 0))
+		_ = nilStem.Place(pose.NewTransform(assembly.FrameLocal, bounds.DynamicWorld, pose.Origin(bounds.DynamicWorld), 0))
 	})
 }

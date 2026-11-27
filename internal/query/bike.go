@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/catalog"
 	"github.com/matta/bikegeo/internal/pose"
 )
@@ -475,18 +476,18 @@ func (b Bike) Wheels() assembly.WheelSetup {
 
 // RearBounds returns the legal seatpost insertion and saddle rail offset ranges
 // for b's selected frame, seatpost, and saddle without requiring a valid fork.
-func (b Bike) RearBounds() (insertion, railOffset assembly.BoundedRange, err error) {
+func (b Bike) RearBounds() (insertion, railOffset bounds.BoundedRange, err error) {
 	frame, err := b.FramePart()
 	if err != nil {
-		return assembly.BoundedRange{}, assembly.BoundedRange{}, err
+		return bounds.BoundedRange{}, bounds.BoundedRange{}, err
 	}
 	postDoF, err := assembly.MateSeatpost(frame.SeatTube(), b.Post.Part)
 	if err != nil {
-		return assembly.BoundedRange{}, assembly.BoundedRange{}, err
+		return bounds.BoundedRange{}, bounds.BoundedRange{}, err
 	}
-	saddleDoF, err := assembly.MateSaddle(b.Post.Part.RailClamp(assembly.Dynamic), catalog.DefaultSaddle().Part)
+	saddleDoF, err := assembly.MateSaddle(b.Post.Part.RailClamp(bounds.Dynamic), catalog.DefaultSaddle().Part)
 	if err != nil {
-		return assembly.BoundedRange{}, assembly.BoundedRange{}, err
+		return bounds.BoundedRange{}, bounds.BoundedRange{}, err
 	}
 	return postDoF.AllowedInsertion(), saddleDoF.AllowedRailOffset(), nil
 }
@@ -644,7 +645,7 @@ func (b Bike) BasisFrameset() (assembly.FramesetPlacement, error) {
 	if err != nil {
 		return assembly.FramesetPlacement{}, err
 	}
-	return fs.Place(assembly.Dynamic), nil
+	return fs.Place(bounds.Dynamic), nil
 }
 
 // Evaluate assembles and places the bike and, when targets are set, scores the
@@ -654,7 +655,7 @@ func (b Bike) Evaluate(limit int) (BikeResult, error) {
 	if err != nil {
 		return BikeResult{}, err
 	}
-	placement := build.Place(assembly.Dynamic)
+	placement := build.Place(bounds.Dynamic)
 	res := BikeResult{
 		FrameID:        b.Frame.ID,
 		Size:           b.Size.Name,
@@ -684,14 +685,14 @@ func (b Bike) Evaluate(limit int) (BikeResult, error) {
 	// Continuous rear + front cockpit fitting on the submitted frameset.
 	var (
 		fittedSeated *assembly.SeatedFrameset
-		limitedBy    []assembly.InputField
+		limitedBy    []bounds.InputField
 	)
 	if target.BRP != nil {
 		rear, err := assembly.OpenRearCockpit(build.SeatedFrameset().Frameset(), b.Post.Part, catalog.DefaultSaddle().Part, b.Params.RailPitchDeg)
 		if err != nil {
 			return BikeResult{}, err
 		}
-		var rearLimited []assembly.InputField
+		var rearLimited []bounds.InputField
 		fittedSeated, rearLimited, err = rear.FitToBRP(*target.BRP)
 		if err != nil {
 			return BikeResult{}, err
@@ -714,7 +715,7 @@ func (b Bike) Evaluate(limit int) (BikeResult, error) {
 		if err != nil {
 			return BikeResult{}, err
 		}
-		var frontLimited []assembly.InputField
+		var frontLimited []bounds.InputField
 		fittedBuild, frontLimited, err = front.FitToGrip(*target.HandGrip)
 		if err != nil {
 			return BikeResult{}, err
@@ -733,7 +734,7 @@ func (b Bike) Evaluate(limit int) (BikeResult, error) {
 
 	fit := assembly.Fitting{
 		Target:    target,
-		Placement: fittedBuild.Place(assembly.Dynamic),
+		Placement: fittedBuild.Place(bounds.Dynamic),
 		Outcome:   assembly.FitReached,
 	}
 	if len(limitedBy) > 0 {
@@ -748,7 +749,7 @@ func (b Bike) Evaluate(limit int) (BikeResult, error) {
 			return BikeResult{}, err
 		}
 		res.SetbackCentered = &centered
-		if slices.Contains(fit.LimitedBy, assembly.InputSeatpostInsertion) || slices.Contains(fit.LimitedBy, assembly.InputSaddleRailOffset) {
+		if slices.Contains(fit.LimitedBy, bounds.InputSeatpostInsertion) || slices.Contains(fit.LimitedBy, bounds.InputSaddleRailOffset) {
 			reach, err := build.FitPostSetback(*target.BRP, fit.Placement.Setup.Saddle.RailOffsetMm)
 			if err != nil {
 				return BikeResult{}, err

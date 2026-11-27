@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -53,7 +54,7 @@ func TestPlaceHandlebarWorkedExamplesAndRiseModes(t *testing.T) {
 		BarRollDeg:   10.0,
 	}
 
-	steerer := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 400, 600), 180.0-70.0).Anchor(assembly.SteererLocal)
+	steerer := pose.NewPose(pose.NewPoint(bounds.DynamicWorld, 400, 600), 180.0-70.0).Anchor(assembly.SteererLocal)
 	stem, err := placeStem(steerer, assembly.StemSetup{
 		UpperStackMm:  10,
 		SpacersMm:     15,
@@ -138,7 +139,7 @@ func TestPlaceHandlebarWorldRelativeRollAcrossAttitudesAndStems(t *testing.T) {
 	barSetup.BarRollDeg = -7.5
 
 	placeFor := func(hta, stemAngle pose.Deg) (assembly.StemPlacement, assembly.HandlebarPlacement) {
-		steerer := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 430, 625), 180.0-hta).Anchor(assembly.SteererLocal)
+		steerer := pose.NewPose(pose.NewPoint(bounds.DynamicWorld, 430, 625), 180.0-hta).Anchor(assembly.SteererLocal)
 		stem, err := placeStem(steerer, assembly.StemSetup{
 			UpperStackMm:  11,
 			SpacersMm:     15,
@@ -234,7 +235,7 @@ func TestOtsoFenrirFullBikeFrontCockpit(t *testing.T) {
 }
 
 func TestPlaceHandlebarValidation(t *testing.T) {
-	validPose := pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 460, 700), -15)
+	validPose := pose.NewPose(pose.NewPoint(bounds.DynamicWorld, 460, 700), -15)
 	valid := persuader800DefaultHandlebar()
 
 	badWidth := valid
@@ -291,8 +292,8 @@ func TestPlaceHandlebarValidation(t *testing.T) {
 		pose  pose.Pose
 		setup assembly.HandlebarSetup
 	}{
-		{"NaN origin X", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, math.NaN(), 700), 0), valid},
-		{"Inf heading", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 460, 700), pose.Deg(math.Inf(1))), valid},
+		{"NaN origin X", pose.NewPose(pose.NewPoint(bounds.DynamicWorld, math.NaN(), 700), 0), valid},
+		{"Inf heading", pose.NewPose(pose.NewPoint(bounds.DynamicWorld, 460, 700), pose.Deg(math.Inf(1))), valid},
 		{"zero effective width", validPose, badWidth},
 		{"negative current width", validPose, badCurrent},
 		{"current width exceeds stock", validPose, badCutWider},
@@ -308,7 +309,7 @@ func TestPlaceHandlebarValidation(t *testing.T) {
 		{"zero grip inset", validPose, badInsetZero},
 		{"grip inset >= half width", validPose, badInsetWide},
 		{"Inf bar roll", validPose, badRoll},
-		{"translate overflow", pose.NewPose(pose.NewPoint(assembly.DynamicWorld, 0, math.MaxFloat64), 0), assembly.HandlebarSetup{
+		{"translate overflow", pose.NewPose(pose.NewPoint(bounds.DynamicWorld, 0, math.MaxFloat64), 0), assembly.HandlebarSetup{
 			StockWidthMm: 800,
 			StatedRiseMm: math.MaxFloat64,
 			RiseMode:     assembly.RiseModeStandardKnuckle,
@@ -447,8 +448,8 @@ func TestMountHandlebarAndClampedHandlebarStaticVsDynamic(t *testing.T) {
 	// Clamp bar to +7.5° world roll (heading -7.5°) in DynamicWorld (frame pitch -2.0°),
 	// then unload the exact same ClampedStem + ClampedHandlebar to StaticWorld
 	// (frame pitch -0.5°, +1.5° nose-up pitch change).
-	frameToDynamic := pose.NewTransform(assembly.FrameLocal, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), -2.0)
-	frameToStatic := pose.NewTransform(assembly.FrameLocal, assembly.StaticWorld, pose.Origin(assembly.StaticWorld), -0.5)
+	frameToDynamic := pose.NewTransform(assembly.FrameLocal, bounds.DynamicWorld, pose.Origin(bounds.DynamicWorld), -2.0)
+	frameToStatic := pose.NewTransform(assembly.FrameLocal, bounds.StaticWorld, pose.Origin(bounds.StaticWorld), -0.5)
 	dynStem := clampedStem.Place(frameToDynamic)
 	statStem := clampedStem.Place(frameToStatic)
 
@@ -474,7 +475,7 @@ func TestMountHandlebarAndClampedHandlebarStaticVsDynamic(t *testing.T) {
 		dynBar.BarClamp.Origin().DistanceTo(dynBar.HandGrip.Origin()), 1e-12)
 
 	// Verify the entire front cockpit rotated rigidly about BB by +1.5° between Dynamic and Static.
-	dynToStat := pose.NewTransform(assembly.DynamicWorld, assembly.StaticWorld, pose.Origin(assembly.StaticWorld), 1.5)
+	dynToStat := pose.NewTransform(bounds.DynamicWorld, bounds.StaticWorld, pose.Origin(bounds.StaticWorld), 1.5)
 	wantStatGrip := dynToStat.ApplyPoint(dynBar.HandGrip.Origin())
 	assertNear(t, "rigidly rotated static HandGrip.X", statBar.HandGrip.Origin().X(), wantStatGrip.X(), 1e-9)
 	assertNear(t, "rigidly rotated static HandGrip.Y", statBar.HandGrip.Origin().Y(), wantStatGrip.Y(), 1e-9)
@@ -495,7 +496,7 @@ func TestMountHandlebarAndClampedHandlebarStaticVsDynamic(t *testing.T) {
 		_ = assembly.BarTurnForWorldRoll(pose.NewHeading(assembly.FrameLocal, 15), 0)
 	})
 	assertPanics(t, "BarTurnForWorldRoll UnpitchedChart", func() {
-		_ = assembly.BarTurnForWorldRoll(pose.NewHeading(assembly.UnpitchedChart, 15), 0)
+		_ = assembly.BarTurnForWorldRoll(pose.NewHeading(bounds.UnpitchedChart, 15), 0)
 	})
 	assertPanics(t, "BarTurnForWorldRoll zero Heading", func() {
 		_ = assembly.BarTurnForWorldRoll(pose.Heading{}, 0)
@@ -511,7 +512,7 @@ func TestMountHandlebarAndClampedHandlebarStaticVsDynamic(t *testing.T) {
 		_, _ = assembly.MountHandlebar(assembly.BarClampPort{ClampInParent: wrong}, bar, 0)
 	})
 	assertPanics(t, "ClampedHandlebar.Place wrong Src", func() {
-		wrong := pose.NewTransform(assembly.SeatpostCradle, assembly.DynamicWorld, pose.Origin(assembly.DynamicWorld), 0)
+		wrong := pose.NewTransform(assembly.SeatpostCradle, bounds.DynamicWorld, pose.Origin(bounds.DynamicWorld), 0)
 		_ = clampedBar.Place(wrong)
 	})
 	assertPanics(t, "zero ClampedHandlebar Place", func() {

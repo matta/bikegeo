@@ -5,6 +5,7 @@ package assembly
 import (
 	"fmt"
 
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -28,7 +29,7 @@ var StemLocal = pose.NewCoordinateSystem("part:stem")
 type SteererPort struct {
 	steererInFrame pose.Transform
 	upperStackMm   float64
-	allowedSpacers BoundedRange
+	allowedSpacers bounds.BoundedRange
 }
 
 // NewSteererPort validates and constructs a SteererPort:
@@ -59,7 +60,7 @@ func NewSteererPort(steererInFrame pose.Transform, upperStackMm, maxSpacersMm fl
 	if maxSpacersMm > DefaultMaxSpacersMm {
 		return SteererPort{}, fmt.Errorf("max spacers must be at most %v mm, got %v mm", DefaultMaxSpacersMm, maxSpacersMm)
 	}
-	allowed, err := NewBoundedRange(0, maxSpacersMm, "steerer min spacers", "steerer max spacers")
+	allowed, err := bounds.NewBoundedRange(0, maxSpacersMm, "steerer min spacers", "steerer max spacers")
 	if err != nil {
 		return SteererPort{}, err
 	}
@@ -89,7 +90,7 @@ func (p SteererPort) UpperStackMm() float64 {
 }
 
 // AllowedSpacers returns the legal spacer stack interval [0, maxSpacersMm].
-func (p SteererPort) AllowedSpacers() BoundedRange {
+func (p SteererPort) AllowedSpacers() bounds.BoundedRange {
 	p.requireValid()
 	return p.allowedSpacers
 }
@@ -120,10 +121,10 @@ func NewStem(clampHeightMm, lengthMm float64, angleDeg pose.Deg) (Stem, error) {
 		return Stem{}, fmt.Errorf("clamp height must be finite and positive, got %v mm", clampHeightMm)
 	}
 	if !isFinite(lengthMm) || lengthMm <= 0 {
-		return Stem{}, invalidInput(InputStemLength, "stem length must be finite and positive, got %v mm", lengthMm)
+		return Stem{}, invalidInput(bounds.InputStemLength, "stem length must be finite and positive, got %v mm", lengthMm)
 	}
 	if !isFinite(float64(angleDeg)) {
-		return Stem{}, invalidInput(InputStemAngle, "stem angle must be finite, got %v°", angleDeg)
+		return Stem{}, invalidInput(bounds.InputStemAngle, "stem angle must be finite, got %v°", angleDeg)
 	}
 	return Stem{
 		clampHeightMm: clampHeightMm,
@@ -163,7 +164,7 @@ func (s Stem) AngleDeg() pose.Deg {
 type ClampedStem struct {
 	steerer           SteererPort
 	stem              Stem
-	spacers           BoundStatus
+	spacers           bounds.BoundStatus
 	coverTopLocal     pose.Pose
 	spacerTopLocal    pose.Pose
 	steererClampLocal pose.Pose
@@ -179,7 +180,7 @@ func MountStem(steerer SteererPort, spacersMm float64, stem Stem) (ClampedStem, 
 	steerer.requireValid()
 	stem.requireValid()
 
-	status, err := steerer.allowedSpacers.Bind(InputStemSpacers, spacersMm)
+	status, err := steerer.allowedSpacers.Bind(bounds.InputStemSpacers, spacersMm)
 	if err != nil {
 		return ClampedStem{}, err
 	}
@@ -226,7 +227,7 @@ func (c *ClampedStem) Stem() Stem {
 }
 
 // Spacers returns the bound spacer stack and its provenance status.
-func (c *ClampedStem) Spacers() BoundStatus {
+func (c *ClampedStem) Spacers() bounds.BoundStatus {
 	c.requireValid()
 	return c.spacers
 }

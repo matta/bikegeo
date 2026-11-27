@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -122,7 +123,7 @@ func NewFrame(dims FrameDimensions) (Frame, error) {
 		return Frame{}, fmt.Errorf("frame insertion limits must be finite and non-negative, got max %v, min %v mm", dims.MaxPostInsertionMm, dims.MinFrameInsertionMm)
 	}
 	if dims.DefaultLowerCup.Standard == LowerCupBareHeadTube {
-		return Frame{}, invalidInput(InputLowerCup, "frame default lower cup must be a physical cup, not %s", dims.DefaultLowerCup.Standard)
+		return Frame{}, invalidInput(bounds.InputLowerCup, "frame default lower cup must be a physical cup, not %s", dims.DefaultLowerCup.Standard)
 	}
 	if err := CheckSHIS(dims.LowerBore, dims.DefaultLowerCup, SteererBasis); err != nil {
 		return Frame{}, err
@@ -134,7 +135,7 @@ func NewFrame(dims FrameDimensions) (Frame, error) {
 		frameCap = dims.SeatTubeLengthMm - frameInsertionCushionMm
 		maxSource = "frame seat tube clearance"
 	}
-	allowedInsertion, err := NewBoundedRange(dims.MinFrameInsertionMm, frameCap, "frame min insertion", maxSource)
+	allowedInsertion, err := bounds.NewBoundedRange(dims.MinFrameInsertionMm, frameCap, "frame min insertion", maxSource)
 	if err != nil {
 		return Frame{}, fmt.Errorf("frame allows no seatpost insertion: %w", err)
 	}

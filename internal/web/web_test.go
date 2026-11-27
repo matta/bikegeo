@@ -15,6 +15,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/catalog"
 	"github.com/matta/bikegeo/internal/query"
 )
@@ -46,7 +47,7 @@ func mustPlace(t *testing.T, b query.Bike) assembly.Placement {
 	if err != nil {
 		t.Fatalf("Assemble: %v", err)
 	}
-	return build.Place(assembly.Dynamic)
+	return build.Place(bounds.Dynamic)
 }
 
 // legacyBuild is the build earlier slices defaulted to on /bike: the generic

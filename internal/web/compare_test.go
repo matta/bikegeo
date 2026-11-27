@@ -11,6 +11,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/catalog"
 	"github.com/matta/bikegeo/internal/compare"
 	"github.com/matta/bikegeo/internal/query"
@@ -846,8 +847,8 @@ func TestBrpFitNote(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			placement := assembly.Placement{
 				Bounds: assembly.BuildBounds{
-					SeatpostInsertion: assembly.BoundStatus{Value: tc.insertion, Min: 100, Max: 250},
-					SaddleRailOffset:  assembly.BoundStatus{Value: tc.railOffset, Min: -15, Max: 15},
+					SeatpostInsertion: bounds.BoundStatus{Value: tc.insertion, Min: 100, Max: 250},
+					SaddleRailOffset:  bounds.BoundStatus{Value: tc.railOffset, Min: -15, Max: 15},
 				},
 			}
 			got := brpFitNote(placement, tc.missX, tc.missY)

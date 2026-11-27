@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/catalog"
 	"github.com/matta/bikegeo/internal/compare"
 	"github.com/matta/bikegeo/internal/pose"
@@ -181,10 +182,10 @@ func TestParseCompareDefaults(t *testing.T) {
 		if c.AllBarOptions || c.OfferedBars != nil {
 			t.Errorf("%q: AllBarOptions = %v, OfferedBars = %v; want false, nil", raw, c.AllBarOptions, c.OfferedBars)
 		}
-		if c.BrpTarget != pose.NewPoint(assembly.DynamicWorld, -219, 713.1) {
+		if c.BrpTarget != pose.NewPoint(bounds.DynamicWorld, -219, 713.1) {
 			t.Errorf("%q: BrpTarget = %+v", raw, c.BrpTarget)
 		}
-		if c.GripTarget != pose.NewPoint(assembly.DynamicWorld, 481, 726) {
+		if c.GripTarget != pose.NewPoint(bounds.DynamicWorld, 481, 726) {
 			t.Errorf("%q: GripTarget = %+v", raw, c.GripTarget)
 		}
 		if c.TopPerFrame != 1 || c.Top != 0 {
@@ -241,10 +242,10 @@ func TestParseCompareFlags(t *testing.T) {
 
 	t.Run("coordinates win over off", func(t *testing.T) {
 		c := mustParseCompare(t, "brp_x=-210&brp_y=720&brp=off&grip_x=470&grip_y=730&grip=off")
-		if c.BrpTarget != pose.NewPoint(assembly.DynamicWorld, -210, 720) {
+		if c.BrpTarget != pose.NewPoint(bounds.DynamicWorld, -210, 720) {
 			t.Errorf("BrpTarget = %+v, want {-210 720}", c.BrpTarget)
 		}
-		if c.GripTarget != pose.NewPoint(assembly.DynamicWorld, 470, 730) {
+		if c.GripTarget != pose.NewPoint(bounds.DynamicWorld, 470, 730) {
 			t.Errorf("GripTarget = %+v, want {470 730}", c.GripTarget)
 		}
 	})

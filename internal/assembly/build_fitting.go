@@ -6,6 +6,7 @@ import (
 	"math"
 	"sort"
 
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -126,10 +127,10 @@ func FitFrontBuilds(
 		return BuildRanking{}, fmt.Errorf("build fitting needs a HandGrip target")
 	}
 	if !isFinitePoint(*target.HandGrip) {
-		return BuildRanking{}, invalidInput(InputFitTargetGrip, "HandGrip fit target must be finite, got (%v, %v) mm", target.HandGrip.X(), target.HandGrip.Y())
+		return BuildRanking{}, invalidInput(bounds.InputFitTargetGrip, "HandGrip fit target must be finite, got (%v, %v) mm", target.HandGrip.X(), target.HandGrip.Y())
 	}
 	if target.BRP != nil && !isFinitePoint(*target.BRP) {
-		return BuildRanking{}, invalidInput(InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", target.BRP.X(), target.BRP.Y())
+		return BuildRanking{}, invalidInput(bounds.InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", target.BRP.X(), target.BRP.Y())
 	}
 	if limit < 1 {
 		return BuildRanking{}, fmt.Errorf("build fitting needs a positive build limit, got %d", limit)
@@ -144,7 +145,7 @@ func FitFrontBuilds(
 		return BuildRanking{}, fmt.Errorf("build fitting needs at least one handlebar")
 	}
 	if !isFinite(float64(front.DynamicBarRollDeg)) {
-		return BuildRanking{}, invalidInput(InputHandlebarRoll, "handlebar roll must be finite, got %v°", front.DynamicBarRollDeg)
+		return BuildRanking{}, invalidInput(bounds.InputHandlebarRoll, "handlebar roll must be finite, got %v°", front.DynamicBarRollDeg)
 	}
 	if err := weights.Validate(); err != nil {
 		return BuildRanking{}, err
@@ -271,7 +272,7 @@ func evalFrontOnSeated(
 					handlebar:         clampedBar,
 					dynamicBarRollDeg: dynamicBarRollDeg,
 				}
-				placement := buildObj.Place(Dynamic)
+				placement := buildObj.Place(bounds.Dynamic)
 				fullScore := seatedScore.buildScore(gripR, st.opt.Score, bar.sweepScore, spacersScore)
 				scored := ScoredBuild{
 					Placement:          placement,

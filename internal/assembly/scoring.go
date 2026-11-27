@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/matta/bikegeo/internal/bounds"
 	"github.com/matta/bikegeo/internal/pose"
 )
 
@@ -119,7 +120,7 @@ type gripOvalProjection struct {
 }
 
 func newGripOvalProjection(o FitOval) gripOvalProjection {
-	majorHeading := pose.NewHeading(DynamicWorld, o.MajorAxisHeadingDeg)
+	majorHeading := pose.NewHeading(bounds.DynamicWorld, o.MajorAxisHeadingDeg)
 	return gripOvalProjection{
 		minorDir:    pose.Along(majorHeading.Turn(-90), 1),
 		majorDir:    pose.Along(majorHeading, 1),
@@ -333,7 +334,7 @@ func scoreSeatedFrameset(seated *SeatedFrameset, brpTarget *pose.Point, weights 
 	bbDrop := fsPlaced.LeveledBbDropMm()
 	trail := fsPlaced.TrailMm()
 	hasBrp := brpTarget != nil
-	brpMiss := pose.NewVector(DynamicWorld, 0, 0)
+	brpMiss := pose.NewVector(bounds.DynamicWorld, 0, 0)
 	if hasBrp {
 		brpMiss = brpTarget.Sub(seated.DynamicSaddle().BRP.Origin())
 	}
@@ -460,10 +461,10 @@ func ScoreBuild(placement Placement, target FitTarget, stemScore float64, weight
 		return BuildScore{}, fmt.Errorf("build scoring needs a HandGrip target")
 	}
 	if !isFinitePoint(*target.HandGrip) {
-		return BuildScore{}, invalidInput(InputFitTargetGrip, "HandGrip fit target must be finite, got (%v, %v) mm", target.HandGrip.X(), target.HandGrip.Y())
+		return BuildScore{}, invalidInput(bounds.InputFitTargetGrip, "HandGrip fit target must be finite, got (%v, %v) mm", target.HandGrip.X(), target.HandGrip.Y())
 	}
 	if target.BRP != nil && !isFinitePoint(*target.BRP) {
-		return BuildScore{}, invalidInput(InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", target.BRP.X(), target.BRP.Y())
+		return BuildScore{}, invalidInput(bounds.InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", target.BRP.X(), target.BRP.Y())
 	}
 	if !isFinite(stemScore) || stemScore < 0 || stemScore > 100 {
 		return BuildScore{}, fmt.Errorf("stem score must be within 0–100, got %v", stemScore)
@@ -481,7 +482,7 @@ func ScoreBuild(placement Placement, target FitTarget, stemScore float64, weight
 	var insertionMarginMm float64
 	if hasBrp {
 		ins := placement.Bounds.SeatpostInsertion
-		if ins.Field != InputSeatpostInsertion {
+		if ins.Field != bounds.InputSeatpostInsertion {
 			return BuildScore{}, fmt.Errorf("build scoring requires seatpost insertion bounds")
 		}
 		if !isFinite(ins.Min) || !isFinite(ins.Max) || !isFinite(ins.Value) || ins.Min > ins.Max {
@@ -494,7 +495,7 @@ func ScoreBuild(placement Placement, target FitTarget, stemScore float64, weight
 	rcWb := placement.Frameset.RcWbRatioPct()
 	bbDrop := placement.Frameset.LeveledBbDropMm()
 	trail := placement.Frameset.TrailMm()
-	brpMiss := pose.NewVector(DynamicWorld, 0, 0)
+	brpMiss := pose.NewVector(bounds.DynamicWorld, 0, 0)
 	if hasBrp {
 		brpMiss = target.BRP.Sub(placement.Saddle.BRP.Origin())
 	}
