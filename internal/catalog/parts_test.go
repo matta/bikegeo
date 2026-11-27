@@ -2,6 +2,7 @@ package catalog_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/matta/bikegeo/internal/assembly"
@@ -103,6 +104,28 @@ func TestForks(t *testing.T) {
 	}
 	if _, ok := forkByID("missing"); ok {
 		t.Errorf("forkByID(missing) ok = true, want false")
+	}
+
+	// Verify ForkOption.Name() includes "(<A2C>/<Rake>)" for every fork variant,
+	// including single-variant models.
+	wantNames := map[string]string{
+		"sunliner_440":                    "Tumbleweed Chromoly Steel Unicrown 440mm (440/55)",
+		"enve_mountain_boost-490x44":      "ENVE Mountain Carbon Boost (490/44)",
+		"lithic_carbon_mountain-498x51.5": "Lithic Carbon Mountain (498/51.5)",
+		"fox34_sl_120":                    "Fox 34 SL 120mm (530.5/44)",
+		"fox36_sl_120":                    "Fox 36 SL 120mm (536/44)",
+	}
+	for _, f := range forks {
+		for _, v := range f.Variants {
+			opt := catalog.ForkOption{Fork: f, Variant: v}
+			got := opt.Name()
+			if want, ok := wantNames[opt.ID()]; ok && got != want {
+				t.Errorf("ForkOption(%q).Name() = %q, want %q", opt.ID(), got, want)
+			}
+			if !strings.HasPrefix(got, f.Name+" (") || !strings.HasSuffix(got, ")") {
+				t.Errorf("ForkOption(%q).Name() = %q, want %q (<A2C>/<Rake>)", opt.ID(), got, f.Name)
+			}
+		}
 	}
 }
 

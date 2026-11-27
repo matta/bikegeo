@@ -3,8 +3,6 @@ package web
 import (
 	"fmt"
 	"math"
-	"strconv"
-	"strings"
 
 	"github.com/matta/bikegeo/internal/assembly"
 	"github.com/matta/bikegeo/internal/pose"
@@ -195,11 +193,7 @@ func closeUpViewBox(pts []svgPoint, whole svgViewBox, padX, padY float64) svgVie
 // trailing zeros, so unscaled sizes print exactly like their literals ("18",
 // "1.5").
 func formatSVGSize(v float64) string {
-	s := strings.TrimSuffix(strings.TrimRight(strconv.FormatFloat(v, 'f', 2, 64), "0"), ".")
-	if s == "" || s == "-0" || s == "-" {
-		return "0"
-	}
-	return s
+	return formatTrimmedFloat(v)
 }
 
 type svgSegment struct {

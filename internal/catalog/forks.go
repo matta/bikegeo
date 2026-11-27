@@ -95,11 +95,8 @@ func (o ForkOption) ID() string {
 	return o.Fork.VariantID(o.Variant)
 }
 
-// Name returns the display name for o, appending "(<A2C>/<Rake>)" for multi-variant models.
+// Name returns the display name for o with "(<A2C>/<Rake>)" appended.
 func (o ForkOption) Name() string {
-	if !o.Fork.IsMultiVariant() {
-		return o.Fork.Name
-	}
 	return fmt.Sprintf("%s (%s/%s)", o.Fork.Name, formatDim(o.Variant.StaticA2cMm), formatDim(o.Variant.RakeMm))
 }
 

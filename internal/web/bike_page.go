@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/matta/bikegeo/internal/assembly"
@@ -19,28 +20,19 @@ type frameSelectOption struct {
 	Label string
 }
 
-// forkOption is one fork <option> for the selected frame.
-type forkOption struct {
-	ID       string
-	Name     string
-	Label    string
-	TravelMm float64
-}
-
 const basisForkName = "Chart Basis Fork"
 
-func makeForkOption(opt catalog.ForkOption) forkOption {
+func makeForkOption(opt catalog.ForkOption, selected bool) selectOption {
 	var kind string
 	if !opt.Fork.Travel.IsSuspension() {
 		kind = "Rigid"
 	} else {
 		kind = fmt.Sprintf("%.0f mm travel", opt.Fork.Travel.Mm())
 	}
-	return forkOption{
-		ID:       opt.ID(),
-		Name:     opt.Name(),
+	return selectOption{
+		Value:    opt.ID(),
 		Label:    fmt.Sprintf("%s (%s, %s mm A2C / %s mm rake)", opt.Fork.Name, kind, query.FormatFloat(opt.Variant.StaticA2cMm), query.FormatFloat(opt.Variant.RakeMm)),
-		TravelMm: opt.Fork.Travel.Mm(),
+		Selected: selected,
 	}
 }
 
@@ -53,26 +45,36 @@ func makeBasisForkOption(frame catalog.Frame, selected bool) selectOption {
 	}
 }
 
-// forkCellName names a fork configuration in a ranked build row: the fork
-// name, plus ", N% sag" for a suspension fork.
-func forkCellName(name string, travelMm, sagPct float64) string {
-	if travelMm == 0 {
-		return name
+// formatTrimmedFloat formats v with at most two decimals and no trailing zeros.
+func formatTrimmedFloat(v float64) string {
+	s := strings.TrimSuffix(strings.TrimRight(strconv.FormatFloat(v, 'f', 2, 64), "0"), ".")
+	if s == "" || s == "-0" || s == "-" {
+		return "0"
 	}
-	return fmt.Sprintf("%s, %.0f%% sag", name, sagPct)
+	return s
 }
 
-// forkNameAndTravel resolves a build's fork ID on b's frame.
-func forkNameAndTravel(b query.Bike, id string) (string, float64) {
+// forkCellName names a fork configuration in a ranked build row, appending
+// ", N% sag" for suspension forks and "(<EffectiveA2C>/<Rake>)" at the end.
+func forkCellName(modelName string, fork assembly.ForkSetup) string {
+	dims := fmt.Sprintf("(%s/%s)", formatTrimmedFloat(fork.EffectiveA2cMm()), formatTrimmedFloat(fork.Spec.RakeMm))
+	if fork.Spec.Travel == assembly.TravelRigid {
+		return fmt.Sprintf("%s %s", modelName, dims)
+	}
+	return fmt.Sprintf("%s, %.0f%% sag %s", modelName, fork.SagPct, dims)
+}
+
+// forkModelName resolves a build's fork model name (without A2C/rake) on b's frame.
+func forkModelName(b query.Bike, id string) string {
 	if id == query.BasisForkID {
-		return basisForkName, 0
+		return basisForkName
 	}
 	for _, opt := range b.Frame.ForkOptions() {
 		if opt.ID() == id {
-			return opt.Name(), opt.Fork.Travel.Mm()
+			return opt.Fork.Name
 		}
 	}
-	return id, 0
+	return id
 }
 
 type bikeFormValues struct {
@@ -246,8 +248,7 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs, invalidFie
 		forkLeading = append(forkLeading, selectOption{Value: invalidRaw, Label: "Invalid: " + invalidRaw, Selected: true, Invalid: true})
 	}
 	for _, opt := range frameForkOptions {
-		fo := makeForkOption(opt)
-		so := selectOption{Value: fo.ID, Label: fo.Label, Selected: !forkInvalid && fo.ID == sel.Fork}
+		so := makeForkOption(opt, !forkInvalid && opt.ID() == sel.Fork)
 		if b.Frame.IsListedFork(opt.Fork.ID) {
 			listedForks = append(listedForks, so)
 		} else {
@@ -625,8 +626,7 @@ func makeBuildRankingView(parsed query.Bike, ranking query.BikeBuildRanking) (*b
 			applied.ForkID = c.ForkID
 			applied.ForkOption = opt
 		}
-		forkName, travelMm := forkNameAndTravel(parsed, c.ForkID)
-		forkLabel := forkCellName(forkName, travelMm, c.Placement.Setup.Fork.SagPct)
+		forkLabel := forkCellName(forkModelName(parsed, c.ForkID), c.Placement.Setup.Fork)
 		tierClass, tierLabel := fitTierPresentation(c.Score.Tier)
 		gripMiss := c.GripMiss()
 		view.Rows = append(view.Rows, scoredBuildView{

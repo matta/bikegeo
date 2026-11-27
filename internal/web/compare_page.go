@@ -250,11 +250,13 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 		if !ok {
 			return compareView{}, fmt.Errorf("unknown frame %q", row.FrameID)
 		}
+		fs := row.Build.Placement.Frameset
+		setup := row.Build.Placement.Setup
 		frameLabel := f.Manufacturer + " " + f.Model
 		var forkLabel string
 		for _, opt := range f.ForkOptions() {
 			if opt.ID() == row.ForkID {
-				forkLabel = forkCellName(opt.Name(), opt.Fork.Travel.Mm(), row.SagPct)
+				forkLabel = forkCellName(opt.Fork.Name, setup.Fork)
 				break
 			}
 		}
@@ -271,8 +273,6 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 			return compareView{}, err
 		}
 
-		fs := row.Build.Placement.Frameset
-		setup := row.Build.Placement.Setup
 		sc := row.Build.Score
 		st := setup.Stem
 		tierClass, tierLabel := fitTierPresentation(sc.Tier)

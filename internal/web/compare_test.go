@@ -160,7 +160,7 @@ func TestCompareDefaultPage(t *testing.T) {
 		}
 	}
 
-	// Row #1: Surly Krampus XL, Fox Float 34 120mm (534/44), 25% sag.
+	// Row #1: Surly Krampus XL, Fox Float 34 120mm, 25% sag (504/44).
 	fit1 := doc.Find(`tr[data-compare-rank="1"]`)
 	if got := strings.TrimSpace(fit1.Find(`[data-compare-cell="frame"]`).Text()); got != "Surly Krampus" {
 		t.Errorf("row 1 frame = %q, want Surly Krampus", got)
@@ -170,7 +170,7 @@ func TestCompareDefaultPage(t *testing.T) {
 	}
 	for cell, want := range map[string]string{
 		"size":        "XL",
-		"fork":        "Fox Float 34 120mm (534/44), 25% sag",
+		"fork":        "Fox Float 34 120mm, 25% sag (504/44)",
 		"score":       "85.1",
 		"grip-fit":    "8.8 mm back, 3.6 mm high",
 		"stem":        "100 mm, -7°",
@@ -261,13 +261,13 @@ func TestCompareDefaultPage(t *testing.T) {
 		}
 	}
 
-	// Row #2: Sklar PBJ L, Fox 36 SL 120mm at 15% sag (Slice 16d open fork choice)
+	// Row #2: Sklar PBJ L, Fox 36 SL 120mm, 15% sag (518/44) (Slice 16d open fork choice)
 	fit2 := doc.Find(`tr[data-compare-rank="2"]`)
 	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="frame"]`).Text()); !strings.Contains(got, "Sklar PBJ") {
 		t.Errorf("row 2 frame = %q, want Sklar PBJ", got)
 	}
-	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="fork"]`).Text()); got != "Fox 36 SL 120mm, 15% sag" {
-		t.Errorf("row 2 fork = %q, want Fox 36 SL 120mm, 15%% sag", got)
+	if got := strings.TrimSpace(fit2.Find(`[data-compare-cell="fork"]`).Text()); got != "Fox 36 SL 120mm, 15% sag (518/44)" {
+		t.Errorf("row 2 fork = %q, want Fox 36 SL 120mm, 15%% sag (518/44)", got)
 	}
 	if got, _ := fit2.Find(`[data-fit-tier]`).Attr("data-fit-tier"); got != "fits_all" {
 		t.Errorf("row 2 tier = %q, want fits_all", got)
@@ -484,7 +484,7 @@ func TestCompareAllBarOptionsShowsHandlebarColumn(t *testing.T) {
 		t.Errorf("fit table headers %v missing Handlebar", headers)
 	}
 	fit1 := doc.Find(`table[data-table="fit"] tbody tr`).FilterFunction(func(_ int, tr *goquery.Selection) bool {
-		return strings.HasSuffix(strings.TrimSpace(tr.Find(`[data-compare-cell="fork"]`).Text()), ", 20% sag")
+		return strings.Contains(strings.TrimSpace(tr.Find(`[data-compare-cell="fork"]`).Text()), ", 20% sag")
 	})
 	if fit1.Length() != 1 {
 		t.Fatalf("got %d 20%% sag rows, want 1", fit1.Length())

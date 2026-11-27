@@ -2843,8 +2843,8 @@ func assertSelectedForkOptions(t *testing.T, doc *goquery.Document, want string)
 func TestBikeWorkbenchForkOptionsDefaultKeepsSubmittedFork(t *testing.T) {
 	for _, tc := range []struct{ name, query, fork, sagScore string }{
 		{"rigid", "", "Lithic Carbon Mountain (495/44)", "100.0"},
-		{"suspension", "&fork=sid_100-506x44&sag=25", "RockShox SID 100mm (506/44), 25% sag", "50.0"},
-		{"Basis", "&fork=basis", "", "100.0"},
+		{"suspension", "&fork=sid_100-506x44&sag=25", "RockShox SID 100mm, 25% sag (481/44)", "50.0"},
+		{"Basis", "&fork=basis", "Chart Basis Fork (495/51)", "100.0"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			doc := loadBikeDoc(t, "/bike?brp=off"+tc.query)
@@ -2887,13 +2887,13 @@ func TestBikeWorkbenchForkOptionsDefaultKeepsSubmittedFork(t *testing.T) {
 
 const (
 	forkLithic      = "Lithic Carbon Mountain (495/44)"
-	forkSID15       = "RockShox SID 100mm (506/44), 15% sag"
-	forkSID20       = "RockShox SID 100mm (506/44), 20% sag"
-	forkSID51_20    = "RockShox SID 100mm (506/51), 20% sag"
-	forkFirestarter = "Salsa Firestarter / Cutthroat Carbon Deluxe 483mm"
-	forkSklar       = "Sklar Chromoly Steel 485mm"
-	forkKrampus483  = "Surly Krampus 4130 Chromoly 483mm"
-	forkFox20       = "Fox Float 34 120mm (534/44), 20% sag"
+	forkSID15       = "RockShox SID 100mm, 15% sag (491/44)"
+	forkSID20       = "RockShox SID 100mm, 20% sag (486/44)"
+	forkSID51_20    = "RockShox SID 100mm, 20% sag (486/51)"
+	forkFirestarter = "Salsa Firestarter / Cutthroat Carbon Deluxe 483mm (483/51)"
+	forkSklar       = "Sklar Chromoly Steel 485mm (485/52)"
+	forkKrampus483  = "Surly Krampus 4130 Chromoly 483mm (483/47)"
+	forkFox20       = "Fox Float 34 120mm, 20% sag (510/44)"
 	firstBuildApply = `tr[data-build-rank="1"] a[data-build-apply]`
 )
 
