@@ -1,6 +1,8 @@
 package catalog
 
 import (
+	"fmt"
+
 	"github.com/matta/bikegeo/internal/assembly"
 	"github.com/matta/bikegeo/internal/pose"
 )
@@ -9,7 +11,7 @@ import (
 // that the chart-consistency test reads: a length printed as 642 could be
 // anything in 642 ± 0.5 before the manufacturer rounded it. Zero means the
 // column is exact and gets no term. The basis fork and basis lower cup are
-// hypotheses, not rounded chart numbers, so they have no half-width (Q44).
+// hypotheses, not rounded chart numbers, so they have no half-width.
 type ChartPrecision struct {
 	ReachMm          float64
 	StackMm          float64
@@ -21,10 +23,10 @@ type ChartPrecision struct {
 }
 
 // ChartAllowance widens one size's consistency checks beyond what rounding of
-// its published columns explains (Q65, Q71). The chart-consistency test reads
-// these and rejects an allowance on a check that passes on rounding alone, or
-// one more than 0.5 mm beyond that check's excess (Q93). Reason documents why
-// the chart is inconsistent and is required whenever a field is non-zero.
+// its published columns explains. The chart-consistency test reads these and
+// rejects an allowance on a check that passes on rounding alone, or one more
+// than 0.5 mm beyond that check's excess. Reason documents why the chart is
+// inconsistent and is required whenever a field is non-zero.
 type ChartAllowance struct {
 	AxleHeightMm float64
 	WheelbaseMm  float64
@@ -38,30 +40,37 @@ type Frame struct {
 	Model        string
 	Year         int
 	DefaultSize  string
-	Sizes        []FrameSize // declared order (Q69)
-	Forks        []Fork      // declared order (Q69, Q128)
+	Sizes        []FrameSize // declared order
+	Forks        []Fork      // declared order
 	// MaxChainstayMm is the rearmost sliding-dropout position, where / and
-	// /bike evaluate the frame (Q67); 0 means fixed dropouts.
+	// /bike evaluate the frame; 0 means fixed dropouts.
 	MaxChainstayMm float64
 	// BasisLowerCup and BasisFork are the chart's basis: the lower cup and
-	// fork its numbers are computed on (Q44, Q81, Q121), whether stated by
-	// the manufacturer or inferred from the chart; not physical parts.
-	// BasisFork uses assembly.SteererBasis and has no travel; its StaticA2cMm
-	// is the basis axle-to-crown, sag included.
+	// fork its numbers are computed on, whether stated by the manufacturer or
+	// inferred from the chart; not physical parts.
 	BasisLowerCup assembly.LowerCupSetup
-	BasisFork     assembly.ForkSpec
-	// ChartPrecision is the rounding half-width of each published column (Q43, Q80).
+	BasisFork     assembly.BasisFork
+	// ChartPrecision is the rounding half-width of each published column.
 	ChartPrecision ChartPrecision
 }
 
 // FrameSize is one size's published chart.
 type FrameSize struct {
 	Name string
-	// ChartFrame is the bare frame at its published dimensions (published
-	// chainstay); Frame.InstalledFrame gives the frame / and /bike build (Q67).
-	ChartFrame           assembly.FrameSetup
-	PublishedWheelbaseMm float64        // 0 = unpublished; skips the wheelbase check (Q57)
-	Allowance            ChartAllowance // documented widening beyond rounding (Q65, Q71, Q93)
+	// ChartDims holds the bare frame's published chart dimensions (published
+	// chainstay); Frame.InstalledDims / Frame.InstalledFrame gives the frame /
+	// and /bike build.
+	ChartDims            assembly.FrameDimensions
+	PublishedWheelbaseMm float64        // 0 = unpublished; skips the wheelbase check
+	Allowance            ChartAllowance // documented widening beyond rounding
+}
+
+func mustBasisFork(a2cMm, rakeMm float64) assembly.BasisFork {
+	f, err := assembly.NewBasisFork(a2cMm, rakeMm)
+	if err != nil {
+		panic(fmt.Sprintf("catalog: invalid basis fork (%v, %v): %v", a2cMm, rakeMm, err))
+	}
+	return f
 }
 
 // Size returns the named size.
@@ -74,14 +83,24 @@ func (f Frame) Size(name string) (FrameSize, bool) {
 	return FrameSize{}, false
 }
 
-// InstalledFrame returns the size's frame as / and /bike build it: sliding
-// dropouts at MaxChainstayMm (Q67), otherwise the published chart frame.
-func (f Frame) InstalledFrame(size FrameSize) assembly.FrameSetup {
-	frame := size.ChartFrame
+// ChartFrame validates and returns the bare frame at its published chart dimensions.
+func (f Frame) ChartFrame(size FrameSize) (assembly.Frame, error) {
+	return assembly.NewFrame(size.ChartDims)
+}
+
+// InstalledDims returns the size's dimensions as / and /bike build it: sliding
+// dropouts at MaxChainstayMm, otherwise the published chart dimensions.
+func (f Frame) InstalledDims(size FrameSize) assembly.FrameDimensions {
+	dims := size.ChartDims
 	if f.MaxChainstayMm != 0 {
-		frame.ChainstayMm = f.MaxChainstayMm
+		dims.ChainstayMm = f.MaxChainstayMm
 	}
-	return frame
+	return dims
+}
+
+// InstalledFrame validates and returns the bare frame as / and /bike build it.
+func (f Frame) InstalledFrame(size FrameSize) (assembly.Frame, error) {
+	return assembly.NewFrame(f.InstalledDims(size))
 }
 
 // headset returns the lower bore and default cup standard every size shares
@@ -90,11 +109,11 @@ func (f Frame) headset() (assembly.LowerBore, assembly.LowerCupStandard) {
 	if len(f.Sizes) == 0 {
 		return "", ""
 	}
-	fr := f.Sizes[0].ChartFrame
+	fr := f.Sizes[0].ChartDims
 	return fr.LowerBore, fr.DefaultLowerCup.Standard
 }
 
-// IsListedFork reports whether modelID is one of f's listed forks (Q128).
+// IsListedFork reports whether modelID is one of f's listed forks.
 func (f Frame) IsListedFork(modelID string) bool {
 	for _, fk := range f.Forks {
 		if fk.ID == modelID {
@@ -104,12 +123,11 @@ func (f Frame) IsListedFork(modelID string) bool {
 	return false
 }
 
-// CompatibleForks returns the forks the frame accepts (Q128, Q129, Q130,
-// Q135): its listed forks first in declared order, then every other catalog
-// fork, in catalog order, whose steerer fits the head tube and whose class a
-// listed fork unlocks. A listed rigid fork unlocks only its own rigid class; a
-// listed suspension fork unlocks its own travel and the rigid classes that
-// stand in for it.
+// CompatibleForks returns the forks the frame accepts: its listed forks first
+// in declared order, then every other catalog fork, in catalog order, whose
+// steerer fits the head tube and whose class a listed fork unlocks. A listed
+// rigid fork unlocks only its own rigid class; a listed suspension fork
+// unlocks its own travel and the rigid classes that stand in for it.
 func (f Frame) CompatibleForks() []Fork {
 	bore, std := f.headset()
 	seen := make(map[string]bool, len(f.Forks))
@@ -149,7 +167,7 @@ func (f Frame) CompatibleForks() []Fork {
 }
 
 // ForkOptions expands CompatibleForks into concrete ForkOptions in fork and
-// variant order, each with the typical lower cup it installs with (Q128, Q136).
+// variant order, each with the typical lower cup it installs with.
 func (f Frame) ForkOptions() []ForkOption {
 	bore, std := f.headset()
 	var out []ForkOption
@@ -165,7 +183,7 @@ func (f Frame) ForkOptions() []ForkOption {
 	return out
 }
 
-// LookupFork resolves id against f's compatible forks (Q131):
+// LookupFork resolves id against f's compatible forks:
 //   - a concrete variant ID (bare ID on a single-variant fork, or
 //     "<model>-<a2c>x<rake>" on a multi-variant fork) returns that single ForkOption;
 //   - a bare multi-variant fork model ID returns all variants of that model.
@@ -209,7 +227,7 @@ func Frames() []Frame {
 	}
 }
 
-// DefaultFrameID is the default frame for /bike (Q109).
+// DefaultFrameID is the default frame for /bike.
 const DefaultFrameID = "otso-fenrir-stainless"
 
 // FrameByID returns the frame with the exact ID.
@@ -235,8 +253,8 @@ type publishedSize struct {
 	HeadTubeAngleDeg, SeatTubeAngleDeg pose.Deg
 	HeadTubeLengthMm, BbDropMm         float64
 	ChainstayMm, SeatTubeLengthMm      float64
-	WheelbaseMm                        float64 // 0 = unpublished (Q57)
-	MaxPostInsertionMm                 float64 // 0 = unpublished (Q95)
+	WheelbaseMm                        float64 // 0 = unpublished
+	MaxPostInsertionMm                 float64 // 0 = unpublished
 	Allowance                          ChartAllowance
 }
 
@@ -246,7 +264,7 @@ func (f frameFamily) sizes(published ...publishedSize) []FrameSize {
 	for i, p := range published {
 		out[i] = FrameSize{
 			Name: p.Name,
-			ChartFrame: assembly.FrameSetup{
+			ChartDims: assembly.FrameDimensions{
 				ReachMm:             p.ReachMm,
 				StackMm:             p.StackMm,
 				HeadTubeAngleDeg:    p.HeadTubeAngleDeg,

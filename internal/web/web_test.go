@@ -39,14 +39,14 @@ func mustBikeValues(t *testing.T, q url.Values) query.Bike {
 	return b
 }
 
-// mustPlace places a parsed bike.
-func mustPlace(t *testing.T, b query.Bike) assembly.BikePlacement {
+// mustPlace assembles and places a parsed bike in DynamicWorld.
+func mustPlace(t *testing.T, b query.Bike) assembly.Placement {
 	t.Helper()
-	placed, err := assembly.PlaceBike(b.Setup)
+	build, err := b.Assemble()
 	if err != nil {
-		t.Fatalf("PlaceBike: %v", err)
+		t.Fatalf("Assemble: %v", err)
 	}
-	return placed
+	return build.Place(assembly.Dynamic)
 }
 
 // legacyBuild is the build earlier slices defaulted to on /bike: the generic
@@ -397,8 +397,8 @@ func TestBikeWorkbenchCockpitControlsUpdateBuild(t *testing.T) {
 	}
 
 	parsedBike := mustBike(t, strings.TrimPrefix(query, "/bike?"))
-	forkSetup := parsedBike.Setup.Fork
 	bike := mustPlace(t, parsedBike)
+	forkSetup := bike.Setup.Fork
 
 	for _, metric := range []struct {
 		key  string
@@ -572,11 +572,11 @@ func TestBikeWorkbenchAcceptsSeatpostInsertionLimits(t *testing.T) {
 
 func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	parsed := mustBike(t, "fork=fox34_120-534x44&cup=12&sag=20&post=setback_15&post_insert=160&rail_offset=12&rail_pitch=-1.5&spacers=15&stem_length=70&stem_angle=6&bar_roll=-4")
-	forkSetup := parsed.Setup.Fork
 	customWheels := assembly.WheelSetup{RadiusMm: 340.0}
-	parsed.Setup.Wheels = customWheels
+	parsed.Params.WheelRadiusMm = customWheels.RadiusMm
 
 	bike := mustPlace(t, parsed)
+	forkSetup := bike.Setup.Fork
 	basis, err := parsed.BasisFrameset()
 	if err != nil {
 		t.Fatalf("BasisFrameset: %v", err)
@@ -643,12 +643,12 @@ func TestBuildBikeViewUsesPlacedDimensions(t *testing.T) {
 	if basisDecoded.URL() != wantBasis.URL() {
 		t.Errorf("decoded BasisForkURL = %s, want %s", basisDecoded.URL(), wantBasis.URL())
 	}
-	if basisDecoded.ForkID != query.BasisForkID || basisDecoded.Setup.Fork.Spec.StaticA2cMm != parsed.Frame.BasisFork.StaticA2cMm ||
-		basisDecoded.Setup.LowerCup.StackMm != parsed.Frame.BasisLowerCup.StackMm || basisDecoded.Setup.Fork.SagPct != 0 {
-		t.Errorf("decoded basis build = fork %q a2c %v cup %v sag %v", basisDecoded.ForkID, basisDecoded.Setup.Fork.Spec.StaticA2cMm, basisDecoded.Setup.LowerCup.StackMm, basisDecoded.Setup.Fork.SagPct)
+	if basisDecoded.ForkID != query.BasisForkID || basisDecoded.Params.ForkA2cMm != parsed.Frame.BasisFork.BasisA2cMm() ||
+		basisDecoded.Params.LowerCupMm != parsed.Frame.BasisLowerCup.StackMm || basisDecoded.Params.SagPct != 0 {
+		t.Errorf("decoded basis build = fork %q a2c %v cup %v sag %v", basisDecoded.ForkID, basisDecoded.Params.ForkA2cMm, basisDecoded.Params.LowerCupMm, basisDecoded.Params.SagPct)
 	}
-	if s := basisDecoded.Setup.Stem; s.SpacersMm != 15 || s.LengthMm != 70 || s.AngleDeg != 6 || basisDecoded.Setup.Seatpost.InsertionMm != 160 {
-		t.Errorf("decoded basis build lost the cockpit: stem %+v insertion %v", s, basisDecoded.Setup.Seatpost.InsertionMm)
+	if p := basisDecoded.Params; p.SpacersMm != 15 || p.StemLengthMm != 70 || p.StemAngleDeg != 6 || p.PostInsertMm != 160 {
+		t.Errorf("decoded basis build lost the cockpit: params %+v", p)
 	}
 }
 
@@ -966,26 +966,24 @@ func TestBikeBasisForkURLDecodesToChartFork(t *testing.T) {
 	if decoded.ForkID != query.BasisForkID {
 		t.Errorf("decoded ForkID = %q, want %q", decoded.ForkID, query.BasisForkID)
 	}
-	if decoded.Setup.Frame != decoded.Size.ChartFrame {
-		t.Errorf("decoded Frame = %+v, want %+v", decoded.Setup.Frame, decoded.Size.ChartFrame)
+	fr, err := decoded.FramePart()
+	if err != nil {
+		t.Fatalf("FramePart: %v", err)
 	}
-	if decoded.Setup.LowerCup != decoded.Frame.BasisLowerCup {
-		t.Errorf("decoded LowerCup = %+v, want %+v", decoded.Setup.LowerCup, decoded.Frame.BasisLowerCup)
+	if fr.Dimensions() != decoded.Size.ChartDims {
+		t.Errorf("decoded Frame = %+v, want %+v", fr.Dimensions(), decoded.Size.ChartDims)
 	}
-	if err := decoded.Setup.Fork.Validate(); err != nil {
-		t.Fatalf("decoded Fork.Validate: %v", err)
+	if decoded.LowerCup() != decoded.Frame.BasisLowerCup {
+		t.Errorf("decoded LowerCup = %+v, want %+v", decoded.LowerCup(), decoded.Frame.BasisLowerCup)
 	}
-	if decoded.Setup.Fork.Spec != decoded.Frame.BasisFork {
-		t.Errorf("decoded Fork.Spec = %+v, want %+v", decoded.Setup.Fork.Spec, decoded.Frame.BasisFork)
+	if decoded.Params.ForkA2cMm != decoded.Frame.BasisFork.BasisA2cMm() || decoded.Params.SagPct != 0 {
+		t.Errorf("decoded basis fork params = a2c %v sag %v, want %v 0", decoded.Params.ForkA2cMm, decoded.Params.SagPct, decoded.Frame.BasisFork.BasisA2cMm())
 	}
 	basis, err := decoded.BasisFrameset()
 	if err != nil {
 		t.Fatalf("BasisFrameset: %v", err)
 	}
-	placed, err := assembly.PlaceFrameset(decoded.Setup.Frame, decoded.Setup.LowerCup, decoded.Setup.Fork, decoded.Setup.Wheels)
-	if err != nil {
-		t.Fatalf("PlaceFrameset: %v", err)
-	}
+	placed := mustPlace(t, decoded).Frameset
 	if gotDelta := placed.PitchDeltaDeg(basis); math.Abs(float64(gotDelta)) > 1e-12 {
 		t.Errorf("basis PitchDeltaDeg = %.6f°, want 0°", gotDelta)
 	}
@@ -1535,8 +1533,8 @@ func TestBikeWorkbenchControlChangesAndPresetsKeepView(t *testing.T) {
 	doc := loadBikeDoc(t, "/bike?view=stem&spacers=30")
 	canonical := activeViewHref(t, doc)
 	state := decodeHref(t, canonical)
-	if state.View != query.ViewStem || state.Setup.Stem.SpacersMm != 30 {
-		t.Errorf("canonical %q: view=%q spacers=%v, want stem and 30", canonical, state.View, state.Setup.Stem.SpacersMm)
+	if state.View != query.ViewStem || state.Params.SpacersMm != 30 {
+		t.Errorf("canonical %q: view=%q spacers=%v, want stem and 30", canonical, state.View, state.Params.SpacersMm)
 	}
 	if got := hiddenViewValue(doc); got != "stem" {
 		t.Errorf("hidden view input = %q, want stem", got)

@@ -56,9 +56,13 @@ func evalBasis(f catalog.Frame, cup assembly.LowerCupSetup, a2c, rake float64) (
 	if len(f.Sizes) == 0 {
 		return basisEval{}, fmt.Errorf("frame %q has no sizes", f.ID)
 	}
+	basisFork, err := assembly.NewBasisFork(a2c, rake)
+	if err != nil {
+		return basisEval{}, fmt.Errorf("A2C %v, rake %v: %w", a2c, rake, err)
+	}
 	g := f
 	g.BasisLowerCup = cup
-	g.BasisFork = assembly.ForkSpec{StaticA2cMm: a2c, RakeMm: rake, Steerer: assembly.SteererBasis}
+	g.BasisFork = basisFork
 	passes := true
 	axleExcess := math.Inf(-1)
 	wbExcess := math.Inf(-1)
@@ -97,15 +101,24 @@ func searchBasis(f catalog.Frame, cup assembly.LowerCupSetup, rake float64, comp
 	if len(f.Sizes) == 0 {
 		return basisSearchResult{}, fmt.Errorf("frame %q has no sizes", f.ID)
 	}
+	const probeA2c = 480.0
+	baseFork, err := assembly.NewBasisFork(probeA2c, rake)
+	if err != nil {
+		return basisSearchResult{}, err
+	}
+	upFork, err := assembly.NewBasisFork(probeA2c+1, rake)
+	if err != nil {
+		return basisSearchResult{}, err
+	}
 	base := f
 	base.BasisLowerCup = cup
-	base.BasisFork = assembly.ForkSpec{StaticA2cMm: 480, RakeMm: rake, Steerer: assembly.SteererBasis}
+	base.BasisFork = baseFork
+	up := base
+	up.BasisFork = upFork
 
 	lowest, highest := math.Inf(1), math.Inf(-1)
 	sizes := make([]sizeImpliedA2c, len(base.Sizes))
 	for i, s := range base.Sizes {
-		up := base
-		up.BasisFork.StaticA2cMm++
 		at, err := measureChartConsistency(base, s)
 		if err != nil {
 			return basisSearchResult{}, err
@@ -116,7 +129,7 @@ func searchBasis(f catalog.Frame, cup assembly.LowerCupSetup, rake float64, comp
 		}
 		m0, m1 := at.Checks[0].MismatchMm, above.Checks[0].MismatchMm
 		// Axle-height mismatch is linear in A2C, so two placements 1 mm apart solve zero mismatch.
-		implied := base.BasisFork.StaticA2cMm - m0/(m1-m0)
+		implied := probeA2c - m0/(m1-m0)
 		lowest, highest = min(lowest, implied), max(highest, implied)
 		sizes[i] = sizeImpliedA2c{
 			SizeName:           s.Name,
@@ -206,7 +219,7 @@ func assertNearBasis(t *testing.T, label string, got, want, tol float64) {
 // and pins searchBasis outputs on representative frames (Q126).
 func TestBasisSearchCatalogFrames(t *testing.T) {
 	for _, f := range catalog.Frames() {
-		ev, err := evalBasis(f, f.BasisLowerCup, f.BasisFork.StaticA2cMm, f.BasisFork.RakeMm)
+		ev, err := evalBasis(f, f.BasisLowerCup, f.BasisFork.BasisA2cMm(), f.BasisFork.RakeMm())
 		if err != nil {
 			t.Fatalf("%s declared basis: %v", f.ID, err)
 		}
@@ -330,11 +343,13 @@ func TestBasisSearchErrorsAndRakeIndependence(t *testing.T) {
 		t.Errorf("searchBasis(bad cup) = %v, want InputLowerCup", err)
 	}
 
-	// Regression guard: implied A2C depends on rake, so f.BasisFork.RakeMm must not bleed into searchBasis.
+	// Regression guard: implied A2C depends on rake, so f.BasisFork.RakeMm() must not bleed into searchBasis.
 	f54 := mustFrame(t, "otso-fenrir-stainless")
-	f54.BasisFork.RakeMm = 54
+	bf54, _ := assembly.NewBasisFork(f54.BasisFork.BasisA2cMm(), 54)
+	f54.BasisFork = bf54
 	f44 := f54
-	f44.BasisFork.RakeMm = 44
+	bf44, _ := assembly.NewBasisFork(f44.BasisFork.BasisA2cMm(), 44)
+	f44.BasisFork = bf44
 	resFrom54, err := searchBasis(f54, f54.BasisLowerCup, 44, []float64{44})
 	if err != nil {
 		t.Fatalf("searchBasis(f54, 44): %v", err)

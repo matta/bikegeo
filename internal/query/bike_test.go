@@ -34,23 +34,32 @@ func cupString(c assembly.LowerCupSetup) string {
 	return string(c.Standard) + " " + query.FormatFloat(c.StackMm)
 }
 
+func frameChainstay(t *testing.T, b query.Bike) float64 {
+	t.Helper()
+	fr, err := b.FramePart()
+	if err != nil {
+		t.Fatalf("FramePart: %v", err)
+	}
+	return fr.Dimensions().ChainstayMm
+}
+
 func TestParseBikeDefaults(t *testing.T) {
 	for name, q := range map[string]url.Values{"nil": nil, "empty": {}} {
 		b, err := query.ParseBike(q)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		s := b.Setup
+		p := b.Params
 		if b.Frame.ID != "otso-fenrir-stainless" || b.Size.Name != "L" || b.ForkID != "lithic_carbon_mountain-495x44" ||
 			b.Bar.ID != "persuader20_800" || b.Post.ID != "redshift_shockstop_pro" || b.View != query.ViewBike {
 			t.Errorf("%s: unexpected IDs %q %q %q %q %q view %q", name, b.Frame.ID, b.Size.Name, b.ForkID, b.Bar.ID, b.Post.ID, b.View)
 		}
-		if s.LowerCup.Standard != assembly.LowerCupEC44 || s.LowerCup.StackMm != 12 ||
-			s.Fork.Spec.StaticA2cMm != 495 || s.Fork.SagPct != 0 {
-			t.Errorf("%s: cup/fork = %+v / %+v", name, s.LowerCup, s.Fork)
+		if b.LowerCup().Standard != assembly.LowerCupEC44 || p.LowerCupMm != 12 ||
+			p.ForkA2cMm != 495 || p.SagPct != 0 {
+			t.Errorf("%s: cup/fork = %+v / a2c %v sag %v", name, b.LowerCup(), p.ForkA2cMm, p.SagPct)
 		}
-		if s.Seatpost.InsertionMm != 175.0 || s.Stem.SpacersMm != 20 || s.Stem.LengthMm != 60 || s.Stem.AngleDeg != -6 {
-			t.Errorf("%s: post/stem = %v / %+v", name, s.Seatpost.InsertionMm, s.Stem)
+		if p.PostInsertMm != 175.0 || p.SpacersMm != 20 || p.StemLengthMm != 60 || p.StemAngleDeg != -6 {
+			t.Errorf("%s: post/stem = %v / spacers %v len %v ang %v", name, p.PostInsertMm, p.SpacersMm, p.StemLengthMm, p.StemAngleDeg)
 		}
 		if b.BrpTarget == nil || *b.BrpTarget != pose.NewPoint(assembly.DynamicWorld, -219, 713.1) ||
 			b.GripTarget == nil || *b.GripTarget != pose.NewPoint(assembly.DynamicWorld, 481, 726) {
@@ -68,29 +77,29 @@ func TestParseBikeDefaults(t *testing.T) {
 func TestParseBikeAllFramesAndSlidingDropouts(t *testing.T) {
 	b := mustParseBike(t, "frame=surly-krampus&size=XL&fork=fox34_120-534x44&sag=20")
 	if b.Frame.ID != "surly-krampus" || b.Size.Name != "XL" || b.ForkID != "fox34_120-534x44" ||
-		b.Setup.Fork.SagPct != 20 || cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Seatpost.InsertionMm != 175.0 {
-		t.Errorf("krampus = %s %s %s sag %v cup %s ins %v", b.Frame.ID, b.Size.Name, b.ForkID, b.Setup.Fork.SagPct, cupString(b.Setup.LowerCup), b.Setup.Seatpost.InsertionMm)
+		b.Params.SagPct != 20 || cupString(b.LowerCup()) != "EC44 12" || b.Params.PostInsertMm != 175.0 {
+		t.Errorf("krampus = %s %s %s sag %v cup %s ins %v", b.Frame.ID, b.Size.Name, b.ForkID, b.Params.SagPct, cupString(b.LowerCup()), b.Params.PostInsertMm)
 	}
 
 	b = mustParseBike(t, "frame=binary-havok&size=L")
-	if b.ForkID != "sid_100-506x44" || b.Setup.Fork.SagPct != 20 || b.Setup.Frame.ChainstayMm != 460 || cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Seatpost.InsertionMm != 175.0 {
-		t.Errorf("havok default = %s chainstay %v cup %s ins %v", b.ForkID, b.Setup.Frame.ChainstayMm, cupString(b.Setup.LowerCup), b.Setup.Seatpost.InsertionMm)
+	if b.ForkID != "sid_100-506x44" || b.Params.SagPct != 20 || frameChainstay(t, b) != 460 || cupString(b.LowerCup()) != "EC44 12" || b.Params.PostInsertMm != 175.0 {
+		t.Errorf("havok default = %s chainstay %v cup %s ins %v", b.ForkID, frameChainstay(t, b), cupString(b.LowerCup()), b.Params.PostInsertMm)
 	}
 
 	b = mustParseBike(t, "frame=binary-havok&size=L&fork=basis&cup=99&fork_a2c=999&sag=50")
-	if b.Setup.Frame.ChainstayMm != 445 || cupString(b.Setup.LowerCup) != "EC44 10" || b.Setup.Fork.Spec.StaticA2cMm != 485 ||
-		b.Setup.Fork.SagPct != 0 || b.Setup.Fork.Spec.Steerer != assembly.SteererBasis {
-		t.Errorf("havok basis = chainstay %v cup %s fork %+v", b.Setup.Frame.ChainstayMm, cupString(b.Setup.LowerCup), b.Setup.Fork)
+	if frameChainstay(t, b) != 445 || cupString(b.LowerCup()) != "EC44 10" || b.Params.ForkA2cMm != 485 ||
+		b.Params.SagPct != 0 || !b.IsBasisFork() {
+		t.Errorf("havok basis = chainstay %v cup %s a2c %v sag %v basis %v", frameChainstay(t, b), cupString(b.LowerCup()), b.Params.ForkA2cMm, b.Params.SagPct, b.IsBasisFork())
 	}
 
 	b = mustParseBike(t, "frame=salsa-fargo&size=XS&post=setback_0")
-	bounds, err := assembly.SeatpostInsertionBounds(b.Setup.Frame, b.Post.Spec)
+	insBounds, _, err := b.RearBounds()
 	if err != nil {
 		t.Fatal(err)
 	}
-	near(t, "fargo min", bounds.EffectiveMinInsertionMm, 100, 1e-9)
-	near(t, "fargo max", bounds.MaxAllowedInsertionMm, 335.6, 1e-9)
-	near(t, "fargo insertion", b.Setup.Seatpost.InsertionMm, 217.8, 1e-9)
+	near(t, "fargo min", insBounds.Min(), 100, 1e-9)
+	near(t, "fargo max", insBounds.Max(), 335.6, 1e-9)
+	near(t, "fargo insertion", b.Params.PostInsertMm, 217.8, 1e-9)
 
 	for _, f := range catalog.Frames() {
 		for _, sz := range f.Sizes {
@@ -101,72 +110,73 @@ func TestParseBikeAllFramesAndSlidingDropouts(t *testing.T) {
 	}
 }
 
-func TestParseBikeSwitchesQ109(t *testing.T) {
-	// D8: esker-hayduke now carries lithic_carbon_mountain, so switching from Fenrir's default
-	// preserves lithic_carbon_mountain-495x44, while switching from sid_100-506x44 falls back to pike_120.
+func TestParseBikeManualSwitches(t *testing.T) {
+	// Esker Hayduke carries lithic_carbon_mountain, so switching from Fenrir's
+	// default preserves lithic_carbon_mountain-495x44, while switching from
+	// sid_100-506x44 falls back to pike_120.
 	b := mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=esker-hayduke&size=L&fork=lithic_carbon_mountain-495x44&fork_a2c=495&cup=12&sag=0&stem_length=80&bar=sqlab3ox_16_30")
-	if b.Size.Name != "S3" || b.ForkID != "lithic_carbon_mountain-495x44" || b.Setup.Fork.Spec.StaticA2cMm != 495 ||
-		cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Fork.SagPct != 0 || b.Setup.Stem.LengthMm != 80 || b.Bar.ID != "sqlab3ox_16_30" {
-		t.Errorf("esker switch (lithic) = %s %s a2c %v cup %s sag %v stem %v bar %s", b.Size.Name, b.ForkID, b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct, b.Setup.Stem.LengthMm, b.Bar.ID)
+	if b.Size.Name != "S3" || b.ForkID != "lithic_carbon_mountain-495x44" || b.Params.ForkA2cMm != 495 ||
+		cupString(b.LowerCup()) != "EC44 12" || b.Params.SagPct != 0 || b.Params.StemLengthMm != 80 || b.Bar.ID != "sqlab3ox_16_30" {
+		t.Errorf("esker switch (lithic) = %s %s a2c %v cup %s sag %v stem %v bar %s", b.Size.Name, b.ForkID, b.Params.ForkA2cMm, cupString(b.LowerCup()), b.Params.SagPct, b.Params.StemLengthMm, b.Bar.ID)
 	}
 	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=esker-hayduke&size=L&fork=sid_100-506x44&fork_a2c=506&cup=12&sag=20&stem_length=80&bar=sqlab3ox_16_30")
-	if b.Size.Name != "S3" || b.ForkID != "pike_120" || b.Setup.Fork.Spec.StaticA2cMm != 531 ||
-		cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Fork.SagPct != 25 || b.Setup.Stem.LengthMm != 80 || b.Bar.ID != "sqlab3ox_16_30" {
-		t.Errorf("esker switch (sid->pike) = %s %s a2c %v cup %s sag %v stem %v bar %s", b.Size.Name, b.ForkID, b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct, b.Setup.Stem.LengthMm, b.Bar.ID)
+	if b.Size.Name != "S3" || b.ForkID != "pike_120" || b.Params.ForkA2cMm != 531 ||
+		cupString(b.LowerCup()) != "EC44 12" || b.Params.SagPct != 25 || b.Params.StemLengthMm != 80 || b.Bar.ID != "sqlab3ox_16_30" {
+		t.Errorf("esker switch (sid->pike) = %s %s a2c %v cup %s sag %v stem %v bar %s", b.Size.Name, b.ForkID, b.Params.ForkA2cMm, cupString(b.LowerCup()), b.Params.SagPct, b.Params.StemLengthMm, b.Bar.ID)
 	}
 
-	// Q135: the Krampus lists fox34_120, which unlocks the 495 rigid class, so
-	// Fenrir's lithic fork stays.
+	// Krampus lists fox34_120, which unlocks the 495 rigid class, so Fenrir's
+	// lithic fork stays.
 	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=surly-krampus&size=L&fork=lithic_carbon_mountain-495x44&fork_a2c=495&cup=12&sag=0")
-	if b.Size.Name != "L" || b.ForkID != "lithic_carbon_mountain-495x44" || b.Setup.Fork.Spec.StaticA2cMm != 495 ||
-		cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Fork.SagPct != 0 {
-		t.Errorf("krampus switch = %s %s a2c %v cup %s sag %v", b.Size.Name, b.ForkID, b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct)
+	if b.Size.Name != "L" || b.ForkID != "lithic_carbon_mountain-495x44" || b.Params.ForkA2cMm != 495 ||
+		cupString(b.LowerCup()) != "EC44 12" || b.Params.SagPct != 0 {
+		t.Errorf("krampus switch = %s %s a2c %v cup %s sag %v", b.Size.Name, b.ForkID, b.Params.ForkA2cMm, cupString(b.LowerCup()), b.Params.SagPct)
 	}
 
-	// The tapered lithic fork does not fit the Surly ECR's 34 mm bore (Q130),
-	// so a frame switch falls back to the ECR's default fork.
+	// The tapered lithic fork does not fit the Surly ECR's 34 mm bore, so a
+	// frame switch falls back to the ECR's default fork.
 	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=surly-ecr&size=L&fork=lithic_carbon_mountain-495x44&fork_a2c=495&cup=12&sag=0")
-	if b.ForkID != "surly_ecr_468" || cupString(b.Setup.LowerCup) != "EC34 12" {
-		t.Errorf("ecr switch = %s cup %s, want surly_ecr_468 EC34 12", b.ForkID, cupString(b.Setup.LowerCup))
+	if b.ForkID != "surly_ecr_468" || cupString(b.LowerCup()) != "EC34 12" {
+		t.Errorf("ecr switch = %s cup %s, want surly_ecr_468 EC34 12", b.ForkID, cupString(b.LowerCup()))
 	}
 
 	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=salsa-cutthroat&size=L&fork=sid_100-506x44&fork_a2c=506&cup=12&sag=25")
-	if b.Size.Name != "56cm" || b.ForkID != "sid_100-506x44" || cupString(b.Setup.LowerCup) != "IS52 1" ||
-		b.Setup.Fork.Spec.StaticA2cMm != 506 || b.Setup.Fork.Spec.RakeMm != 44 || b.Setup.Fork.SagPct != 20 {
-		t.Errorf("cutthroat switch = %s %s cup %s a2c %v rake %v sag %v", b.Size.Name, b.ForkID, cupString(b.Setup.LowerCup), b.Setup.Fork.Spec.StaticA2cMm, b.Setup.Fork.Spec.RakeMm, b.Setup.Fork.SagPct)
+	if b.Size.Name != "56cm" || b.ForkID != "sid_100-506x44" || cupString(b.LowerCup()) != "IS52 1" ||
+		b.Params.ForkA2cMm != 506 || b.ForkOption.Variant.RakeMm != 44 || b.Params.SagPct != 20 {
+		t.Errorf("cutthroat switch = %s %s cup %s a2c %v rake %v sag %v", b.Size.Name, b.ForkID, cupString(b.LowerCup()), b.Params.ForkA2cMm, b.ForkOption.Variant.RakeMm, b.Params.SagPct)
 	}
 
 	b = mustParseBike(t, "prev_frame=otso-fenrir-stainless&frame=binary-havok&fork=basis&fork_a2c=495&cup=0&sag=0")
-	if b.ForkID != query.BasisForkID || b.Setup.Fork.Spec.StaticA2cMm != 485 || cupString(b.Setup.LowerCup) != "EC44 10" || b.Setup.Frame.ChainstayMm != 445 {
-		t.Errorf("havok basis switch = %s a2c %v cup %s chainstay %v", b.ForkID, b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Frame.ChainstayMm)
+	if b.ForkID != query.BasisForkID || b.Params.ForkA2cMm != 485 || cupString(b.LowerCup()) != "EC44 10" || frameChainstay(t, b) != 445 {
+		t.Errorf("havok basis switch = %s a2c %v cup %s chainstay %v", b.ForkID, b.Params.ForkA2cMm, cupString(b.LowerCup()), frameChainstay(t, b))
 	}
 
 	b = mustParseBike(t, "prev_post=setback_0&post=redshift_shockstop_pro&post_insert=275")
-	if b.Setup.Seatpost.InsertionMm != 250 {
-		t.Errorf("post switch insertion = %v, want 250", b.Setup.Seatpost.InsertionMm)
+	if b.Params.PostInsertMm != 250 {
+		t.Errorf("post switch insertion = %v, want 250", b.Params.PostInsertMm)
 	}
 	b = mustParseBike(t, "post=redshift_shockstop_pro&post_insert=275")
-	if b.Setup.Seatpost.InsertionMm != 275 {
-		t.Errorf("direct insertion = %v, want 275", b.Setup.Seatpost.InsertionMm)
+	if b.Params.PostInsertMm != 275 {
+		t.Errorf("direct insertion = %v, want 275", b.Params.PostInsertMm)
 	}
 	b = mustParseBike(t, "frame=otso-fenrir-stainless&prev_size=XL&size=L&post=setback_0&post_insert=350")
-	if b.Setup.Seatpost.InsertionMm != 290 {
-		t.Errorf("size switch insertion = %v, want 290", b.Setup.Seatpost.InsertionMm)
+	if b.Params.PostInsertMm != 290 {
+		t.Errorf("size switch insertion = %v, want 290", b.Params.PostInsertMm)
 	}
 
 	b = mustParseBike(t, "prev_fork=basis&fork=fox34_120-534x44&fork_a2c=495&cup=0&sag=0")
-	if b.Setup.Fork.Spec.StaticA2cMm != 534 || cupString(b.Setup.LowerCup) != "EC44 12" || b.Setup.Fork.SagPct != 25 {
-		t.Errorf("basis->fox = a2c %v cup %s sag %v", b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct)
+	if b.Params.ForkA2cMm != 534 || cupString(b.LowerCup()) != "EC44 12" || b.Params.SagPct != 25 {
+		t.Errorf("basis->fox = a2c %v cup %s sag %v", b.Params.ForkA2cMm, cupString(b.LowerCup()), b.Params.SagPct)
 	}
-	// Leaving the basis restores the physical cup even when the cup
-	// standard is shared (binary-havok: basis EC44 10 mm, physical EC44 12 mm).
+	// Leaving the basis restores the physical cup even when the cup standard is
+	// shared (binary-havok: basis EC44 10 mm, physical EC44 12 mm).
 	b = mustParseBike(t, "frame=binary-havok&size=L&prev_fork=basis&fork=sklar_steel_485&fork_a2c=485&cup=10&sag=0")
-	if cupString(b.Setup.LowerCup) != "EC44 12" {
-		t.Errorf("basis->physical cup = %s, want EC44 12", cupString(b.Setup.LowerCup))
+	if cupString(b.LowerCup()) != "EC44 12" {
+		t.Errorf("basis->physical cup = %s, want EC44 12", cupString(b.LowerCup()))
 	}
 	b = mustParseBike(t, "prev_fork=lithic_carbon_mountain-495x44&fork=fox34_120-534x44&fork_a2c=495&cup=14&sag=0")
-	if b.Setup.Fork.Spec.StaticA2cMm != 534 || cupString(b.Setup.LowerCup) != "EC44 14" || b.Setup.Fork.SagPct != 25 {
-		t.Errorf("fork switch = a2c %v cup %s sag %v", b.Setup.Fork.Spec.StaticA2cMm, cupString(b.Setup.LowerCup), b.Setup.Fork.SagPct)
+	if b.Params.ForkA2cMm != 534 || cupString(b.LowerCup()) != "EC44 14" || b.Params.SagPct != 25 {
+		t.Errorf("fork switch = a2c %v cup %s sag %v", b.Params.ForkA2cMm, cupString(b.LowerCup()), b.Params.SagPct)
 	}
 }
 
@@ -359,15 +369,15 @@ func TestBasisFrameset(t *testing.T) {
 }
 
 // TestParseBikeOpenForkChoice opens an unlisted compatible fork directly and
-// rejects incompatible or deleted ones (Q128, Q130, Q135, Q137).
+// rejects incompatible or deleted ones.
 func TestParseBikeOpenForkChoice(t *testing.T) {
 	b := mustParseBike(t, "frame=surly-krampus&size=L&fork=pike_120")
-	if b.ForkID != "pike_120" || b.Setup.Fork.SagPct != 25 || cupString(b.Setup.LowerCup) != "EC44 12" {
-		t.Errorf("krampus pike_120 = %s sag %v cup %s, want pike_120 25%% EC44 12", b.ForkID, b.Setup.Fork.SagPct, cupString(b.Setup.LowerCup))
+	if b.ForkID != "pike_120" || b.Params.SagPct != 25 || cupString(b.LowerCup()) != "EC44 12" {
+		t.Errorf("krampus pike_120 = %s sag %v cup %s, want pike_120 25%% EC44 12", b.ForkID, b.Params.SagPct, cupString(b.LowerCup()))
 	}
 	b = mustParseBike(t, "frame=binary-havok&size=L&fork=sklar_steel_485")
-	if b.ForkID != "sklar_steel_485" || b.Setup.Fork.SagPct != 0 || cupString(b.Setup.LowerCup) != "EC44 12" {
-		t.Errorf("havok sklar = %s sag %v cup %s, want sklar_steel_485 0%% EC44 12", b.ForkID, b.Setup.Fork.SagPct, cupString(b.Setup.LowerCup))
+	if b.ForkID != "sklar_steel_485" || b.Params.SagPct != 0 || cupString(b.LowerCup()) != "EC44 12" {
+		t.Errorf("havok sklar = %s sag %v cup %s, want sklar_steel_485 0%% EC44 12", b.ForkID, b.Params.SagPct, cupString(b.LowerCup()))
 	}
 	for _, raw := range []string{
 		"frame=surly-ecr&size=L&fork=firestarter_deluxe_483", // tapered steerer on a 34 mm bore

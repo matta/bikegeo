@@ -34,6 +34,12 @@ type InputError struct {
 
 func (e *InputError) Error() string { return e.message }
 
+// NewInputError returns an *InputError attributing a formatted validation
+// message to field.
+func NewInputError(field InputField, format string, args ...any) error {
+	return invalidInput(field, format, args...)
+}
+
 func invalidInput(field InputField, format string, args ...any) error {
 	return &InputError{Field: field, message: fmt.Sprintf(format, args...)}
 }

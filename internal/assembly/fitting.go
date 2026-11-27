@@ -336,6 +336,114 @@ func ApplyFitting(setup BikeSetup, target FitTarget) (Fitting, error) {
 	return fit, nil
 }
 
+// FitPostSetback fits a hypothetical rigid seatpost's SetbackMm and
+// InsertionMm on b so the saddle BRP lands on brp, with saddle rail offset
+// held at railOffsetMm. It explains the post setback a BRP target needs, and
+// callers never install its build. Insertion keeps the frame and post limits.
+// Setback is at least 0 and has no upper bound. LimitedBy lists
+// InputSeatpostInsertion, then InputSeatpostSetback, for inputs on a bound.
+func (b *Build) FitPostSetback(brp pose.Point, railOffsetMm float64) (Fitting, error) {
+	b.requireValid()
+	if !isFinitePoint(brp) {
+		return Fitting{}, invalidInput(InputFitTargetBRP, "BRP fit target must be finite, got (%v, %v) mm", brp.X(), brp.Y())
+	}
+	fs := b.seated.frameset
+	postSnap := b.seated.seatpost.post
+	saddle := b.seated.saddle.Saddle()
+	railPitch := b.seated.dynamicRailPitchDeg
+	spacersMm := b.stem.Spacers().Value
+	stem := b.stem.Stem()
+	bar := b.handlebar.Handlebar()
+	barRoll := b.dynamicBarRollDeg
+
+	// Probe a zero-setback rigid post with the same length, insertion, and clamp
+	// geometry at maximum insertion and railOffsetMm.
+	zeroSetbackPost, err := NewRigidPost(
+		postSnap.totalLengthMm,
+		postSnap.minInsertionMm,
+		postSnap.maxInsertionMm,
+		0,
+		postSnap.dynamicClamp.ClampLengthMm,
+	)
+	if err != nil {
+		return Fitting{}, err
+	}
+	probeRear, err := OpenRearCockpit(fs, zeroSetbackPost, saddle, railPitch)
+	if err != nil {
+		return Fitting{}, err
+	}
+	insRange := probeRear.AllowedInsertion()
+	probeSeated, err := probeRear.Clamp(insRange.Max(), railOffsetMm)
+	if err != nil {
+		return Fitting{}, err
+	}
+
+	setbackRange, err := NewBoundedRange(0, math.Inf(1), "min seatpost setback", "")
+	if err != nil {
+		return Fitting{}, err
+	}
+	shaftHeading := probeSeated.DynamicSeatpost().ShaftTop.Heading()
+	sheet := Planar2DoF{
+		Origin: probeSeated.DynamicSaddle().BRP.Origin(),
+		AxisA: LinearDoF{
+			Field:   InputSeatpostInsertion,
+			Heading: shaftHeading,
+			Range:   insRange,
+			Probe:   insRange.Max(),
+			Sign:    -1,
+		},
+		AxisB: LinearDoF{
+			Field:   InputSeatpostSetback,
+			Heading: shaftHeading.Turn(90.0),
+			Range:   setbackRange,
+			Probe:   0,
+			Sign:    +1,
+		},
+	}
+	ins, setback, limited, ok := SolvePlanar2DoF(sheet, brp, PriorityNearest)
+	if !ok {
+		return Fitting{}, fmt.Errorf("seatpost setback is parallel to the seat axis; cannot fit the setback")
+	}
+
+	fittedPost, err := NewRigidPost(
+		postSnap.totalLengthMm,
+		postSnap.minInsertionMm,
+		postSnap.maxInsertionMm,
+		setback,
+		postSnap.dynamicClamp.ClampLengthMm,
+	)
+	if err != nil {
+		return Fitting{}, err
+	}
+	fittedRear, err := OpenRearCockpit(fs, fittedPost, saddle, railPitch)
+	if err != nil {
+		return Fitting{}, err
+	}
+	fittedSeated, err := fittedRear.Clamp(ins, railOffsetMm)
+	if err != nil {
+		return Fitting{}, err
+	}
+	fittedBuild, err := fittedSeated.AttachFront(spacersMm, stem, bar, barRoll)
+	if err != nil {
+		return Fitting{}, err
+	}
+	placement := fittedBuild.Place(Dynamic)
+
+	p := brp
+	fit := Fitting{
+		Target:    FitTarget{BRP: &p},
+		Placement: placement,
+		Outcome:   FitReached,
+	}
+	if len(limited) > 0 {
+		fit.Outcome = FitLimited
+		fit.LimitedBy = limited
+	} else if miss, ok := fit.BrpMiss(); ok && miss.Norm() > 1e-6 {
+		return Fitting{}, fmt.Errorf("post setback fitting forward check missed target by %v mm", miss.Norm())
+	}
+	return fit, nil
+}
+
 // FitPostSetback fits Seatpost.Spec.SetbackMm and Seatpost.InsertionMm so the
 // saddle BRP lands on brp, with Saddle.RailOffsetMm held at railOffsetMm. It
 // explains the hypothetical post setback a BRP target needs, and callers never

@@ -29,7 +29,7 @@ func sevenCustom() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 11
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 11},
 		// hypothesis (Q44, Q81): legacy enve_mountain_boost (rigid) → 492 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 492, RakeMm: 52, Steerer: assembly.SteererBasis},
+		BasisFork: mustBasisFork(492, 52),
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

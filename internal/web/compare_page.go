@@ -150,31 +150,23 @@ func formatPlacedOffset(missX, missY float64) string {
 }
 
 // brpFitNote returns a concise physical explanation for a non-zero BRP miss.
-func brpFitNote(setup assembly.BikeSetup, missX, missY float64) (string, error) {
+func brpFitNote(placement assembly.Placement, missX, missY float64) string {
 	dx := cleanZero(-missX, 0.05)
 	dy := cleanZero(-missY, 0.05)
 	if dx == 0 && dy == 0 {
-		return "", nil
-	}
-	railLimit, err := setup.RailOffsetLimitMm()
-	if err != nil {
-		return "", err
-	}
-	bounds, err := assembly.SeatpostInsertionBounds(setup.Frame, setup.Seatpost.Spec)
-	if err != nil {
-		return "", err
+		return ""
 	}
 	const tol = 1e-4
-	railAtRear := math.Abs(setup.Saddle.RailOffsetMm-railLimit) <= tol
-	railAtFront := math.Abs(setup.Saddle.RailOffsetMm+railLimit) <= tol
-	postAtMaxExt := math.Abs(setup.Seatpost.InsertionMm-bounds.EffectiveMinInsertionMm) <= tol
-	postAtBottom := math.Abs(setup.Seatpost.InsertionMm-bounds.MaxAllowedInsertionMm) <= tol
+	railAtRear := placement.Bounds.SaddleRailOffset.AtMax(tol)
+	railAtFront := placement.Bounds.SaddleRailOffset.AtMin(tol)
+	postAtMaxExt := placement.Bounds.SeatpostInsertion.AtMin(tol)
+	postAtBottom := placement.Bounds.SeatpostInsertion.AtMax(tol)
 
 	if (railAtRear || railAtFront) && !postAtMaxExt && !postAtBottom && dy != 0 {
 		if dy > 0 {
-			return "raised for setback", nil
+			return "raised for setback"
 		}
-		return "lowered for setback", nil
+		return "lowered for setback"
 	}
 	var reasons []string
 	if railAtRear {
@@ -187,7 +179,7 @@ func brpFitNote(setup assembly.BikeSetup, missX, missY float64) (string, error) 
 	} else if postAtBottom {
 		reasons = append(reasons, "post bottomed out")
 	}
-	return strings.Join(reasons, ", "), nil
+	return strings.Join(reasons, ", ")
 }
 
 // formatRailPosition describes where the saddle sits along its rails relative
@@ -291,14 +283,8 @@ func buildCompareView(parsed query.Compare, ranking compare.Ranking) (compareVie
 		gripMiss := row.Build.GripMiss()
 		gripMissText := fmt.Sprintf("(%+.1f, %+.1f) mm", cleanZero(gripMiss.X(), 0.05), cleanZero(gripMiss.Y(), 0.05))
 		brpMissText := fmt.Sprintf("(%+.1f, %+.1f) mm", cleanZero(sc.BrpMissXMm, 0.05), cleanZero(sc.BrpMissYMm, 0.05))
-		brpNote, err := brpFitNote(setup, sc.BrpMissXMm, sc.BrpMissYMm)
-		if err != nil {
-			return compareView{}, err
-		}
-		railLimit, err := setup.RailOffsetLimitMm()
-		if err != nil {
-			return compareView{}, err
-		}
+		brpNote := brpFitNote(row.Build.Placement, sc.BrpMissXMm, sc.BrpMissYMm)
+		railLimit := row.Build.Placement.Bounds.SaddleRailOffset.Max
 		railOffsetText := fmt.Sprintf("%+.1f mm", cleanZero(setup.Saddle.RailOffsetMm, 0.05))
 
 		rows[i] = compareRowView{

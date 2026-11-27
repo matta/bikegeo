@@ -28,7 +28,7 @@ func otsoFenrirStainless() Frame {
 		// hypothesis (Q44, Q81, Q142): bare head tube (S1 omits lower cup stack)
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
 		// hypothesis (Q44, Q81, Q142): S1 chart printed rigid fork 495 mm A2C / 51 mm offset
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 51, Steerer: assembly.SteererBasis},
+		BasisFork: mustBasisFork(495, 51),
 		// derived from published S1 digits (68° integer HTA, whole-mm lengths), Q80, Q142
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

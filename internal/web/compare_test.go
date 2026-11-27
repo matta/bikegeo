@@ -826,26 +826,6 @@ func TestFormatPlacedOffset(t *testing.T) {
 }
 
 func TestBrpFitNote(t *testing.T) {
-	baseSetup := assembly.BikeSetup{
-		Frame: assembly.FrameSetup{
-			SeatTubeLengthMm:    480,
-			MinFrameInsertionMm: 100,
-			MaxPostInsertionMm:  250,
-		},
-		Seatpost: assembly.SeatpostSetup{
-			Spec: assembly.SeatpostSpec{
-				TotalLengthMm:     400,
-				MinInsertionMm:    80,
-				MaxInsertionMm:    270,
-				RailClampLengthMm: 40,
-			},
-			InsertionMm: 165,
-		},
-		Saddle: assembly.SaddleSetup{
-			RailLengthMm: 70,
-		},
-	}
-
 	for _, tc := range []struct {
 		name         string
 		railOffset   float64
@@ -864,13 +844,13 @@ func TestBrpFitNote(t *testing.T) {
 		{"rail and post combined", 15, 100, -4.0, 6.0, "rail maxed back, post maxed out"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			setup := baseSetup
-			setup.Saddle.RailOffsetMm = tc.railOffset
-			setup.Seatpost.InsertionMm = tc.insertion
-			got, err := brpFitNote(setup, tc.missX, tc.missY)
-			if err != nil {
-				t.Fatalf("brpFitNote returned error: %v", err)
+			placement := assembly.Placement{
+				Bounds: assembly.BuildBounds{
+					SeatpostInsertion: assembly.BoundStatus{Value: tc.insertion, Min: 100, Max: 250},
+					SaddleRailOffset:  assembly.BoundStatus{Value: tc.railOffset, Min: -15, Max: 15},
+				},
 			}
+			got := brpFitNote(placement, tc.missX, tc.missY)
 			if got != tc.want {
 				t.Errorf("brpFitNote = %q, want %q", got, tc.want)
 			}

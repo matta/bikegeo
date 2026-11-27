@@ -1,7 +1,7 @@
 // Package compare ranks bikes across frames. It expands frame, size, fork, and
-// sag rows, finds each row's winning build with assembly.FitBuilds, and ranks
-// and prunes the rows (Q52, Q61, Q69). It never imports catalog: callers pass
-// frames, parts, and weights as arguments.
+// sag rows, fits each row's winning build with assembly.FitFrontBuilds, and
+// ranks and prunes the rows. It never imports catalog: callers pass frames,
+// parts, and weights as arguments.
 package compare
 
 import (
@@ -14,59 +14,84 @@ import (
 	"sync/atomic"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
 )
+
+// PhysicalFork is a physical rigid or suspension fork mated onto a frameset.
+// Requiring Steerer rejects assembly.BasisFork at compile time because a chart
+// basis fork has no physical steerer standard.
+type PhysicalFork interface {
+	CheckHeadset(bore assembly.LowerBore, cup assembly.LowerCupSetup) error
+	AxleInFork(state assembly.LoadState) pose.Point
+	Steerer() assembly.PhysicalSteerer
+}
+
+// Seatpost is a rigid or linkage seatpost mated onto a frameset's seat tube.
+type Seatpost interface {
+	TotalLengthMm() float64
+	InsertionLimits() assembly.BoundedRange
+	RailClamp(state assembly.LoadState) assembly.RailClampPort
+}
 
 // Frame is one frame model offered for comparison.
 type Frame struct {
 	ID    string
-	Sizes []Size // declared order (Q69)
-	Forks []Fork // declared order (Q69)
+	Sizes []Size // declared order
+	Forks []Fork // declared order
 }
 
 // Size is one frame size as compare installs it. Callers set sliding
-// dropouts to max chainstay before passing it (Q67).
+// dropouts to max chainstay before constructing Frame.
 type Size struct {
 	Name  string
-	Frame assembly.FrameSetup
+	Frame assembly.Frame
 }
 
-// Fork is one physical fork variant the frame supports (Q66, Q128).
-// LowerCup is the lower headset cup the fork installs with (Q136); the zero
-// value installs Size.Frame.DefaultLowerCup.
+// Fork is one physical fork variant the frame supports. LowerCup is the lower
+// headset cup the fork installs with; the zero value installs
+// Size.Frame.DefaultLowerCup().
 type Fork struct {
 	ID       string
-	Spec     assembly.ForkSpec
+	Travel   assembly.ForkTravel
 	LowerCup assembly.LowerCupSetup
+	// Build constructs the validated physical fork at sagPct (0 for rigid forks).
+	Build func(sagPct float64) (PhysicalFork, error)
 }
 
 // Request is one comparison. Rank ranks every size, fork, and sag of every
-// frame: 0% for a rigid fork and each of Fork.Spec.Travel.SagPcts() for a
+// frame: 0% for a rigid fork and each of Fork.Travel.SagPcts() for a
 // suspension fork.
 type Request struct {
-	Frames      []Frame
-	Wheels      assembly.WheelSetup
-	Seatpost    assembly.SeatpostSpec
-	Saddle      assembly.SaddleSetup    // the saddle fit sets RailOffsetMm; RailPitchDeg is kept
-	Stem        assembly.StemSetup      // build fitting sets LengthMm, AngleDeg, and SpacersMm
-	Handlebar   assembly.HandlebarSetup // the selected bar; its BarRollDeg applies to every bar (Q24)
-	Target      assembly.FitTarget      // needs both BRP and HandGrip (Q76)
-	Parts       assembly.PartOptions    // Forks must be empty: each row fixes its fork
-	Weights     assembly.ScoreWeights
-	TopPerFrame int // most rows kept per frame; 0 keeps all
-	Top         int // most rows kept overall; 0 keeps all
+	Frames            []Frame
+	Wheels            assembly.WheelSetup
+	Seatpost          Seatpost
+	Saddle            assembly.Saddle
+	DynamicRailPitch  pose.Deg
+	UpperStackMm      float64
+	MaxSpacersMm      float64
+	StemClampHeightMm float64
+	Stems             []assembly.StemOption
+	SpacerStepMm      float64
+	Handlebars        []assembly.Handlebar // selected bar (len 1 when HasBarOptions is false) or offered bars
+	HasBarOptions     bool                 // marks ScoredBuild.HasHandlebarOption when true
+	DynamicBarRoll    pose.Deg
+	Target            assembly.FitTarget // requires both BRP and HandGrip
+	Weights           assembly.ScoreWeights
+	TopPerFrame       int // most rows kept per frame; 0 keeps all
+	Top               int // most rows kept overall; 0 keeps all
 }
 
-// Row is one distinct (frame, size, fork, sag) and its winning build (Q69).
+// Row is one distinct (frame, size, fork, sag) and its winning build.
 type Row struct {
 	FrameID   string
 	Size      string
 	ForkID    string
 	SagPct    float64
 	Build     assembly.ScoredBuild
-	Evaluated int // combinations FitBuilds placed for this row
+	Evaluated int // combinations FitFrontBuilds placed for this row
 
-	sizeIndex int // position of Size in Frame.Sizes (Q69 tie-break)
-	forkIndex int // position of ForkID in Frame.Forks (Q69 tie-break)
+	sizeIndex int // position of Size in Frame.Sizes for deterministic tie-breaking
+	forkIndex int // position of ForkID in Frame.Forks for deterministic tie-breaking
 }
 
 // Ranking is the result of Rank.
@@ -76,7 +101,7 @@ type Ranking struct {
 	Evaluated int   // combinations placed across every row
 }
 
-// idealSagPct is the sag the Q69 cross-row tie-break prefers (the Q59a ideal).
+// idealSagPct is the suspension sag percentage preferred by cross-row tie-breaks.
 const idealSagPct = 20.0
 
 type expandedRow struct {
@@ -88,26 +113,34 @@ type expandedRow struct {
 	sagPct    float64
 }
 
-func rankExpandedRow(req Request, item expandedRow) (Row, error) {
-	bounds, err := assembly.SeatpostInsertionBounds(item.size.Frame, req.Seatpost)
+func rankExpandedRow(req Request, frontOpts assembly.FrontBuildOptions, item expandedRow) (Row, error) {
+	fk, err := item.fork.Build(item.sagPct)
 	if err != nil {
 		return Row{}, fmt.Errorf("frame %q size %q fork %q at %v%% sag: %w", item.frameID, item.size.Name, item.fork.ID, item.sagPct, err)
 	}
-	lowerCup := item.size.Frame.DefaultLowerCup
+	lowerCup := item.size.Frame.DefaultLowerCup()
 	if item.fork.LowerCup != (assembly.LowerCupSetup{}) {
 		lowerCup = item.fork.LowerCup
 	}
-	setup := assembly.BikeSetup{
-		Frame:     item.size.Frame,
-		LowerCup:  lowerCup,
-		Fork:      assembly.ForkSetup{Spec: item.fork.Spec, SagPct: item.sagPct},
-		Wheels:    req.Wheels,
-		Seatpost:  assembly.SeatpostSetup{Spec: req.Seatpost, InsertionMm: bounds.EffectiveMinInsertionMm}, // the saddle fit replaces it
-		Saddle:    req.Saddle,
-		Stem:      req.Stem,
-		Handlebar: req.Handlebar,
+	fs, err := assembly.MateFrameset(item.size.Frame, lowerCup, req.UpperStackMm, fk, req.Wheels)
+	if err != nil {
+		return Row{}, fmt.Errorf("frame %q size %q fork %q at %v%% sag: %w", item.frameID, item.size.Name, item.fork.ID, item.sagPct, err)
 	}
-	ranking, err := assembly.FitBuilds(setup, req.Target, req.Parts, req.Weights, 1)
+	if req.MaxSpacersMm != assembly.DefaultMaxSpacersMm {
+		fs, err = fs.WithMaxSpacers(req.MaxSpacersMm)
+		if err != nil {
+			return Row{}, fmt.Errorf("frame %q size %q fork %q at %v%% sag: %w", item.frameID, item.size.Name, item.fork.ID, item.sagPct, err)
+		}
+	}
+	rear, err := assembly.OpenRearCockpit(fs, req.Seatpost, req.Saddle, req.DynamicRailPitch)
+	if err != nil {
+		return Row{}, fmt.Errorf("frame %q size %q fork %q at %v%% sag: %w", item.frameID, item.size.Name, item.fork.ID, item.sagPct, err)
+	}
+	seated, _, err := rear.FitToBRP(*req.Target.BRP)
+	if err != nil {
+		return Row{}, fmt.Errorf("frame %q size %q fork %q at %v%% sag: %w", item.frameID, item.size.Name, item.fork.ID, item.sagPct, err)
+	}
+	ranking, err := assembly.FitFrontBuilds(seated, req.Target, frontOpts, req.Weights, 1)
 	if err != nil {
 		return Row{}, fmt.Errorf("frame %q size %q fork %q at %v%% sag: %w", item.frameID, item.size.Name, item.fork.ID, item.sagPct, err)
 	}
@@ -124,10 +157,19 @@ func rankExpandedRow(req Request, item expandedRow) (Row, error) {
 }
 
 // Rank expands the requested rows, fits each row's winning build with
-// assembly.FitBuilds, orders the rows best first, and prunes them.
+// assembly.FitFrontBuilds, orders the rows best first, and prunes them.
 func Rank(req Request) (Ranking, error) {
 	if err := req.validate(); err != nil {
 		return Ranking{}, err
+	}
+
+	frontOpts := assembly.FrontBuildOptions{
+		StemClampHeightMm: req.StemClampHeightMm,
+		Stems:             req.Stems,
+		SpacerStepMm:      req.SpacerStepMm,
+		Handlebars:        req.Handlebars,
+		HasHandlebarOpts:  req.HasBarOptions,
+		DynamicBarRollDeg: req.DynamicBarRoll,
 	}
 
 	var expanded []expandedRow
@@ -136,8 +178,8 @@ func Rank(req Request) (Ranking, error) {
 		for si, sz := range f.Sizes {
 			for fi, fk := range f.Forks {
 				sags := []float64{0}
-				if fk.Spec.Travel != assembly.TravelRigid {
-					sags = fk.Spec.Travel.SagPcts()
+				if fk.Travel != assembly.TravelRigid {
+					sags = fk.Travel.SagPcts()
 				}
 				for _, sag := range sags {
 					expanded = append(expanded, expandedRow{
@@ -157,7 +199,7 @@ func Rank(req Request) (Ranking, error) {
 	workers := min(runtime.GOMAXPROCS(0), len(expanded))
 	if workers <= 1 {
 		for i, item := range expanded {
-			row, err := rankExpandedRow(req, item)
+			row, err := rankExpandedRow(req, frontOpts, item)
 			if err != nil {
 				return Ranking{}, err
 			}
@@ -177,7 +219,7 @@ func Rank(req Request) (Ranking, error) {
 					if i >= len(expanded) {
 						return
 					}
-					row, err := rankExpandedRow(req, expanded[i])
+					row, err := rankExpandedRow(req, frontOpts, expanded[i])
 					if err != nil {
 						errs[i] = err
 						failed.Store(true)
@@ -264,28 +306,26 @@ func (r Request) validate() error {
 				return fmt.Errorf("frame %q has duplicate fork %q", f.ID, fk.ID)
 			}
 			seenForks[fk.ID] = true
-			if fk.Spec.Steerer == assembly.SteererBasis {
-				return fmt.Errorf("frame %q fork %q is the chart basis fork; compare installs physical forks only", f.ID, fk.ID)
+			if fk.Build == nil {
+				return fmt.Errorf("frame %q fork %q has no fork builder", f.ID, fk.ID)
 			}
-			if !fk.Spec.Travel.Valid() {
-				return fmt.Errorf("frame %q fork %q has unsupported travel %d mm", f.ID, fk.ID, fk.Spec.Travel)
-			}
-			if fk.LowerCup != (assembly.LowerCupSetup{}) {
-				if err := validateForkLowerCup(fk, f.Sizes); err != nil {
-					return fmt.Errorf("frame %q fork %q: %w", f.ID, fk.ID, err)
-				}
+			if !fk.Travel.Valid() {
+				return fmt.Errorf("frame %q fork %q has unsupported travel %d mm", f.ID, fk.ID, fk.Travel)
 			}
 		}
 	}
 
+	if r.Seatpost == nil {
+		return fmt.Errorf("compare needs a seatpost")
+	}
+	if len(r.Handlebars) == 0 {
+		return fmt.Errorf("compare needs at least one handlebar")
+	}
 	if r.Target.BRP == nil {
-		return fmt.Errorf("compare needs a BRP target (Q76)")
+		return fmt.Errorf("compare needs a BRP target")
 	}
 	if r.Target.HandGrip == nil {
-		return fmt.Errorf("compare needs a HandGrip target (Q76)")
-	}
-	if len(r.Parts.Forks) != 0 {
-		return fmt.Errorf("compare fixes each row's fork; part options must not list forks")
+		return fmt.Errorf("compare needs a HandGrip target")
 	}
 	if r.TopPerFrame < 0 {
 		return fmt.Errorf("top per frame must be 0 or more, got %d", r.TopPerFrame)
@@ -296,49 +336,9 @@ func (r Request) validate() error {
 	return nil
 }
 
-// validateForkLowerCup checks a fork's own lower cup: a physical standard with
-// a valid stack that fits every size's lower bore and the fork's steerer (Q136).
-func validateForkLowerCup(fk Fork, sizes []Size) error {
-	cup := fk.LowerCup
-	if cup.Standard == assembly.LowerCupBareHeadTube {
-		return fmt.Errorf("lower cup must be a physical cup, not %s", cup.Standard)
-	}
-	if err := cup.Validate(); err != nil {
-		return err
-	}
-	for _, sz := range sizes {
-		bore := sz.Frame.LowerBore
-		var allowed []assembly.LowerCupStandard
-		switch bore {
-		case assembly.Bore34Pressed:
-			allowed = []assembly.LowerCupStandard{assembly.LowerCupEC34}
-		case assembly.Bore42Integrated:
-			allowed = []assembly.LowerCupStandard{assembly.LowerCupIS42}
-		case assembly.Bore44Pressed:
-			allowed = []assembly.LowerCupStandard{assembly.LowerCupEC44}
-			if fk.Spec.Steerer == assembly.SteererStraight118 {
-				allowed = append(allowed, assembly.LowerCupZS44)
-			}
-		case assembly.Bore56Pressed:
-			allowed = []assembly.LowerCupStandard{assembly.LowerCupZS56}
-		case assembly.Bore52Integrated:
-			allowed = []assembly.LowerCupStandard{assembly.LowerCupIS52}
-		default:
-			return fmt.Errorf("size %q has unknown lower bore %q", sz.Name, bore)
-		}
-		if !slices.Contains(allowed, cup.Standard) {
-			return fmt.Errorf("%s lower cup does not fit %s on size %q with a %s steerer", cup.Standard, bore, sz.Name, fk.Spec.Steerer)
-		}
-		if fk.Spec.Steerer == assembly.SteererTapered && (bore == assembly.Bore34Pressed || bore == assembly.Bore42Integrated) {
-			return fmt.Errorf("a tapered steerer does not fit %s on size %q", bore, sz.Name)
-		}
-	}
-	return nil
-}
-
 // compareRows orders rows best first: by CompareFitRank on the winning
-// builds, then the Q69 cross-row tie-breaks (frame ID, declared size order,
-// declared fork order, sag closest to 20%, then lower sag).
+// builds, then cross-row tie-breaks (frame ID, declared size order, declared
+// fork order, sag closest to 20%, then lower sag).
 func compareRows(a, b Row) int {
 	return cmp.Or(
 		assembly.CompareFitRank(a.Build.Score, b.Build.Score),

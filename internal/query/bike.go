@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -12,11 +13,11 @@ import (
 	"github.com/matta/bikegeo/internal/pose"
 )
 
-// BasisForkID is the reserved fork query value selecting the frame's basis
-// fork and basis lower cup (Q81, Q89).
+// BasisForkID is the reserved fork query value selecting the frame's chart
+// basis fork and basis lower cup.
 const BasisForkID = "basis"
 
-// fork_options values (Q33, Q101).
+// fork_options values.
 const (
 	ForkOptionsSelected = "selected"
 	ForkOptionsAll      = "all"
@@ -29,23 +30,55 @@ const (
 	ViewStem = "stem"
 )
 
-// RankedBuildLimit is the default number of ranked builds on /bike and CLI (Q18).
+// RankedBuildLimit is the default number of ranked builds on /bike and CLI.
 const RankedBuildLimit = 5
 
 // BikeForkOption is one physical fork configuration a frame offers to build
-// fitting when fork_options=all (Q31).
+// fitting when fork_options=all.
 type BikeForkOption struct {
 	ForkOption catalog.ForkOption
 	SagPct     float64
 	LowerCup   assembly.LowerCupSetup
 }
 
-// Bike holds the parsed, catalog-resolved /bike query and ready-to-place
-// BikeSetup (Q88).
+// BikeParams holds the numeric geometry inputs parsed from a /bike query.
+// Keeping raw numbers allows error pages to echo rejected values while
+// Bike.Assemble validates and clamps the physical parts.
+type BikeParams struct {
+	ForkA2cMm     float64
+	LowerCupMm    float64
+	SagPct        float64
+	SpacersMm     float64
+	StemLengthMm  float64
+	StemAngleDeg  pose.Deg
+	BarRollDeg    pose.Deg
+	PostInsertMm  float64
+	RailOffsetMm  float64
+	RailPitchDeg  pose.Deg
+	WheelRadiusMm float64
+}
+
+func paramsFromSetup(s assembly.BikeSetup) BikeParams {
+	return BikeParams{
+		ForkA2cMm:     s.Fork.Spec.StaticA2cMm,
+		LowerCupMm:    s.LowerCup.StackMm,
+		SagPct:        s.Fork.SagPct,
+		SpacersMm:     s.Stem.SpacersMm,
+		StemLengthMm:  s.Stem.LengthMm,
+		StemAngleDeg:  s.Stem.AngleDeg,
+		BarRollDeg:    s.Handlebar.BarRollDeg,
+		PostInsertMm:  s.Seatpost.InsertionMm,
+		RailOffsetMm:  s.Saddle.RailOffsetMm,
+		RailPitchDeg:  s.Saddle.RailPitchDeg,
+		WheelRadiusMm: s.Wheels.RadiusMm,
+	}
+}
+
+// Bike holds the parsed, catalog-resolved /bike query and numeric build inputs.
 type Bike struct {
 	Frame          catalog.Frame
 	Size           catalog.FrameSize
-	ForkID         string             // concrete Q131 variant ID or BasisForkID
+	ForkID         string             // concrete fork variant ID or BasisForkID
 	ForkOption     catalog.ForkOption // zero when ForkID == BasisForkID
 	Bar            catalog.Handlebar
 	Post           catalog.Seatpost
@@ -54,12 +87,11 @@ type Bike struct {
 	GripTarget     *pose.Point
 	AllBarOptions  bool
 	AllForkOptions bool
-	Setup          assembly.BikeSetup
+	Params         BikeParams
 }
 
 // BikeScoredBuild pairs a ranked assembly.ScoredBuild with the build's catalog
-// handlebar and fork IDs (Q88, Q106). Embedding ScoredBuild flattens its JSON
-// fields.
+// handlebar and fork IDs. Embedding ScoredBuild flattens its JSON fields.
 type BikeScoredBuild struct {
 	assembly.ScoredBuild
 	HandlebarID string
@@ -74,7 +106,7 @@ type BikeBuildRanking struct {
 }
 
 // BikeResult is a catalog-resolved single-bike evaluation for /bike and
-// bikegeo bike JSON output (Q49a, Q88, Q106, Q110).
+// bikegeo bike JSON output.
 type BikeResult struct {
 	FrameID         string
 	Size            string
@@ -83,15 +115,15 @@ type BikeResult struct {
 	PostID          string
 	AllBarOptions   bool
 	AllForkOptions  bool
-	Placement       assembly.BikePlacement
-	Score           *assembly.BuildScore // non-nil when HandGrip target is set and stem is in catalog (Q110)
+	Placement       assembly.Placement
+	Score           *assembly.BuildScore // non-nil when HandGrip target is set and stem is in catalog
 	Fitting         *assembly.Fitting    // non-nil when BRP or HandGrip target is set
-	SetbackCentered *assembly.Fitting    // non-nil when BRP target is set (Q29)
-	SetbackReach    *assembly.Fitting    // non-nil when BRP target is set and saddle fit is limited (Q29)
+	SetbackCentered *assembly.Fitting    // non-nil when BRP target is set
+	SetbackReach    *assembly.Fitting    // non-nil when BRP target is set and saddle fit is limited
 	Builds          *BikeBuildRanking    // non-nil when HandGrip target is set
 }
 
-// knownBikeKeys are every query key /bike accepts (Q111); all are single-valued.
+// knownBikeKeys are every query key /bike accepts; all are single-valued.
 var knownBikeKeys = []string{
 	"frame", "size",
 	"fork", "fork_a2c", "cup", "sag",
@@ -104,7 +136,7 @@ var knownBikeKeys = []string{
 	"prev_frame", "prev_size", "prev_fork", "prev_post",
 }
 
-// FormatFloat formats v losslessly for URLs (Q77), normalizing -0 to "0".
+// FormatFloat formats v losslessly for URLs, normalizing -0 to "0".
 func FormatFloat(v float64) string {
 	if v == 0 {
 		return "0"
@@ -121,7 +153,7 @@ func DefaultBike() Bike {
 	return b
 }
 
-// findForkOption returns the frame's single concrete ForkOption with the given Q131 ID.
+// findForkOption returns the frame's single concrete ForkOption with the given ID.
 func findForkOption(frame catalog.Frame, id string) (catalog.ForkOption, bool) {
 	matches, ok := frame.LookupFork(id)
 	if !ok || len(matches) != 1 {
@@ -143,14 +175,9 @@ func parseFloatOrDefault(q url.Values, key string, def float64, label string) (f
 	return v, nil
 }
 
-// basisForkSetup returns the chart basis fork for frame (Q81, Q120).
-func basisForkSetup(frame catalog.Frame) assembly.ForkSetup {
-	return assembly.ForkSetup{Spec: frame.BasisFork}
-}
-
 // ParseBike parses a /bike query into a catalog-resolved Bike, applying the
-// catalog defaults and manual-switch rules (Q53, Q70, Q109, Q111). Every
-// rejection is an *InputError naming its query key.
+// catalog defaults and manual-switch rules. Every rejection is an *InputError
+// naming its query key.
 func ParseBike(q url.Values) (Bike, error) {
 	if err := checkKnownKeys(q, knownBikeKeys); err != nil {
 		return Bike{}, err
@@ -165,7 +192,7 @@ func ParseBike(q url.Values) (Bike, error) {
 	}
 
 	b := Bike{Frame: frame, Size: size}
-	frameSetup, lowerCup, forkSetup, err := parseBikeFork(q, &b, frameSwitched)
+	a2cMm, cupMm, sagPct, err := parseBikeFork(q, &b, frameSwitched)
 	if err != nil {
 		return Bike{}, err
 	}
@@ -189,21 +216,24 @@ func ParseBike(q url.Values) (Bike, error) {
 	prevPost := strings.TrimSpace(q.Get("prev_post"))
 	postSwitched := prevPost != "" && prevPost != post.ID
 
-	insertionMm, err := parseBikePostInsertion(q, frameSetup, post, frameSwitched || sizeSwitched || postSwitched)
+	framePart, err := b.FramePart()
+	if err != nil {
+		return Bike{}, &InputError{Field: "frame", Err: err}
+	}
+	insertionMm, err := parseBikePostInsertion(q, framePart, post, frameSwitched || sizeSwitched || postSwitched)
 	if err != nil {
 		return Bike{}, err
 	}
 
-	defaultStem := catalog.DefaultStemSetup()
-	spacers, err := parseFloatOrDefault(q, "spacers", defaultStem.SpacersMm, "spacers")
+	spacers, err := parseFloatOrDefault(q, "spacers", catalog.DefaultSpacersMm, "spacers")
 	if err != nil {
 		return Bike{}, err
 	}
-	stemLength, err := parseFloatOrDefault(q, "stem_length", defaultStem.LengthMm, "stem length")
+	stemLength, err := parseFloatOrDefault(q, "stem_length", catalog.DefaultStemLengthMm, "stem length")
 	if err != nil {
 		return Bike{}, err
 	}
-	stemAngle, err := parseFloatOrDefault(q, "stem_angle", float64(defaultStem.AngleDeg), "stem angle")
+	stemAngle, err := parseFloatOrDefault(q, "stem_angle", float64(catalog.DefaultStemAngleDeg), "stem angle")
 	if err != nil {
 		return Bike{}, err
 	}
@@ -234,16 +264,6 @@ func ParseBike(q url.Values) (Bike, error) {
 		return Bike{}, err
 	}
 
-	stem := defaultStem
-	stem.SpacersMm = spacers
-	stem.LengthMm = stemLength
-	stem.AngleDeg = pose.Deg(stemAngle)
-	saddle := catalog.DefaultSaddle().Setup
-	saddle.RailOffsetMm = railOffset
-	saddle.RailPitchDeg = pose.Deg(railPitch)
-	barSetup := bar.Setup
-	barSetup.BarRollDeg = pose.Deg(barRoll)
-
 	b.Bar = bar
 	b.Post = post
 	b.View = view
@@ -251,20 +271,23 @@ func ParseBike(q url.Values) (Bike, error) {
 	b.GripTarget = grip
 	b.AllBarOptions = allBars
 	b.AllForkOptions = allForks
-	b.Setup = assembly.BikeSetup{
-		Frame:     frameSetup,
-		LowerCup:  lowerCup,
-		Fork:      forkSetup,
-		Wheels:    assembly.WheelSetup{RadiusMm: catalog.WheelRadiusMm},
-		Seatpost:  assembly.SeatpostSetup{Spec: post.Spec, InsertionMm: insertionMm},
-		Saddle:    saddle,
-		Stem:      stem,
-		Handlebar: barSetup,
+	b.Params = BikeParams{
+		ForkA2cMm:     a2cMm,
+		LowerCupMm:    cupMm,
+		SagPct:        sagPct,
+		SpacersMm:     spacers,
+		StemLengthMm:  stemLength,
+		StemAngleDeg:  pose.Deg(stemAngle),
+		BarRollDeg:    pose.Deg(barRoll),
+		PostInsertMm:  insertionMm,
+		RailOffsetMm:  railOffset,
+		RailPitchDeg:  pose.Deg(railPitch),
+		WheelRadiusMm: catalog.WheelRadiusMm,
 	}
 	return b, nil
 }
 
-// parseBikeFrameAndSize resolves frame and size, honoring Q109 manual-switch
+// parseBikeFrameAndSize resolves frame and size, honoring manual-switch
 // fallbacks driven by prev_frame and prev_size.
 func parseBikeFrameAndSize(q url.Values) (frame catalog.Frame, size catalog.FrameSize, frameSwitched, sizeSwitched bool, err error) {
 	frameID := strings.TrimSpace(q.Get("frame"))
@@ -294,10 +317,10 @@ func parseBikeFrameAndSize(q url.Values) (frame catalog.Frame, size catalog.Fram
 	return frame, size, frameSwitched, sizeSwitched, nil
 }
 
-// parseBikeFork resolves the fork, installed frame, lower cup, and fork setup,
+// parseBikeFork resolves the fork, static A2C, lower cup stack, and sag,
 // recording ForkID and ForkOption on b.
-func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSetup, assembly.LowerCupSetup, assembly.ForkSetup, error) {
-	frame, size := b.Frame, b.Size
+func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (a2cMm, cupMm, sagPct float64, err error) {
+	frame := b.Frame
 	rawFork := strings.TrimSpace(q.Get("fork"))
 	prevFork := strings.TrimSpace(q.Get("prev_fork"))
 
@@ -320,31 +343,26 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 			opt = frame.ForkOptions()[0]
 			forkID = opt.ID()
 		} else {
-			return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{},
-				&InputError{Field: "fork", Err: fmt.Errorf("fork %q has multiple variants; select a specific variant such as %q", rawFork, matches[0].ID())}
+			return 0, 0, 0, &InputError{Field: "fork", Err: fmt.Errorf("fork %q has multiple variants; select a specific variant such as %q", rawFork, matches[0].ID())}
 		}
 	case frameSwitched:
 		opt = frame.ForkOptions()[0]
 		forkID = opt.ID()
 	default:
-		return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{},
-			&InputError{Field: "fork", Err: fmt.Errorf("frame %q has no fork %q", frame.ID, rawFork)}
+		return 0, 0, 0, &InputError{Field: "fork", Err: fmt.Errorf("frame %q has no fork %q", frame.ID, rawFork)}
 	}
 	forkSwitched := !frameSwitched && prevFork != "" && prevFork != forkID
 
 	b.ForkID = forkID
 	if isBasis {
 		b.ForkOption = catalog.ForkOption{}
-		return size.ChartFrame, frame.BasisLowerCup, basisForkSetup(frame), nil
+		return frame.BasisFork.BasisA2cMm(), frame.BasisLowerCup.StackMm, 0, nil
 	}
 	b.ForkOption = opt
 
-	frameSetup := frame.InstalledFrame(size)
 	defaultSag := opt.Fork.Travel.DefaultSagPct()
 	defaultCup := opt.LowerCup.StackMm
 
-	var a2cMm, cupMm, sagPct float64
-	var err error
 	switch {
 	case frameSwitched:
 		a2cMm, cupMm, sagPct = opt.Variant.StaticA2cMm, defaultCup, defaultSag
@@ -361,39 +379,37 @@ func parseBikeFork(q url.Values, b *Bike, frameSwitched bool) (assembly.FrameSet
 		if prevFork == BasisForkID || prevCupStd != opt.LowerCup.Standard {
 			cupMm = defaultCup
 		} else if cupMm, err = parseFloatOrDefault(q, "cup", defaultCup, "lower cup"); err != nil {
-			return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{}, err
+			return 0, 0, 0, err
 		}
 	default:
 		if a2cMm, err = parseFloatOrDefault(q, "fork_a2c", opt.Variant.StaticA2cMm, "fork static A2C"); err != nil {
-			return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{}, err
+			return 0, 0, 0, err
 		}
 		if cupMm, err = parseFloatOrDefault(q, "cup", defaultCup, "lower cup"); err != nil {
-			return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{}, err
+			return 0, 0, 0, err
 		}
 		if sagPct, err = parseFloatOrDefault(q, "sag", defaultSag, "fork sag"); err != nil {
-			return assembly.FrameSetup{}, assembly.LowerCupSetup{}, assembly.ForkSetup{}, err
+			return 0, 0, 0, err
 		}
 	}
-	lowerCup := assembly.LowerCupSetup{Standard: opt.LowerCup.Standard, StackMm: cupMm}
-	spec := opt.Spec()
-	spec.StaticA2cMm = a2cMm
-	return frameSetup, lowerCup, assembly.ForkSetup{Spec: spec, SagPct: sagPct}, nil
+	return a2cMm, cupMm, sagPct, nil
 }
 
 // parseBikePostInsertion reads post_insert, defaulting to the midpoint of the
-// frame/post bounds and clamping it into them after a manual switch (Q109).
-func parseBikePostInsertion(q url.Values, frameSetup assembly.FrameSetup, post catalog.Seatpost, clamp bool) (float64, error) {
-	bounds, err := assembly.SeatpostInsertionBounds(frameSetup, post.Spec)
+// frame/post bounds and clamping it into them after a manual switch.
+func parseBikePostInsertion(q url.Values, frame assembly.Frame, post catalog.Seatpost, clamp bool) (float64, error) {
+	postDoF, err := assembly.MateSeatpost(frame.SeatTube(), post.Part)
 	if err != nil {
 		return 0, &InputError{Field: "post", Err: err}
 	}
-	defaultInsert := (bounds.EffectiveMinInsertionMm + bounds.MaxAllowedInsertionMm) / 2.0
+	bounds := postDoF.AllowedInsertion()
+	defaultInsert := (bounds.Min() + bounds.Max()) / 2.0
 	insertionMm, err := parseFloatOrDefault(q, "post_insert", defaultInsert, "seatpost insertion")
 	if err != nil {
 		return 0, err
 	}
 	if clamp {
-		insertionMm = min(max(insertionMm, bounds.EffectiveMinInsertionMm), bounds.MaxAllowedInsertionMm)
+		insertionMm = min(max(insertionMm, bounds.Min()), bounds.Max())
 	}
 	return insertionMm, nil
 }
@@ -427,6 +443,88 @@ func parseBikeOptionsAndView(q url.Values) (allBars, allForks bool, view string,
 	return allBars, allForks, view, nil
 }
 
+// IsBasisFork reports whether b selects the chart basis fork.
+func (b Bike) IsBasisFork() bool {
+	return b.ForkID == BasisForkID
+}
+
+// FramePart constructs b's validated bare assembly.Frame (published chart
+// chainstay for the basis fork, max chainstay for physical forks).
+func (b Bike) FramePart() (assembly.Frame, error) {
+	if b.IsBasisFork() {
+		return b.Frame.ChartFrame(b.Size)
+	}
+	return b.Frame.InstalledFrame(b.Size)
+}
+
+// LowerCup returns b's lower headset cup specification.
+func (b Bike) LowerCup() assembly.LowerCupSetup {
+	if b.IsBasisFork() {
+		return b.Frame.BasisLowerCup
+	}
+	return assembly.LowerCupSetup{
+		Standard: b.ForkOption.LowerCup.Standard,
+		StackMm:  b.Params.LowerCupMm,
+	}
+}
+
+// Wheels returns b's wheel setup.
+func (b Bike) Wheels() assembly.WheelSetup {
+	return assembly.WheelSetup{RadiusMm: b.Params.WheelRadiusMm}
+}
+
+// RearBounds returns the legal seatpost insertion and saddle rail offset ranges
+// for b's selected frame, seatpost, and saddle without requiring a valid fork.
+func (b Bike) RearBounds() (insertion, railOffset assembly.BoundedRange, err error) {
+	frame, err := b.FramePart()
+	if err != nil {
+		return assembly.BoundedRange{}, assembly.BoundedRange{}, err
+	}
+	postDoF, err := assembly.MateSeatpost(frame.SeatTube(), b.Post.Part)
+	if err != nil {
+		return assembly.BoundedRange{}, assembly.BoundedRange{}, err
+	}
+	saddleDoF, err := assembly.MateSaddle(b.Post.Part.RailClamp(assembly.Dynamic), catalog.DefaultSaddle().Part)
+	if err != nil {
+		return assembly.BoundedRange{}, assembly.BoundedRange{}, err
+	}
+	return postDoF.AllowedInsertion(), saddleDoF.AllowedRailOffset(), nil
+}
+
+// Assemble constructs and validates b's complete clamped *assembly.Build.
+func (b Bike) Assemble() (*assembly.Build, error) {
+	frame, err := b.FramePart()
+	if err != nil {
+		return nil, err
+	}
+	var fs *assembly.Frameset
+	if b.IsBasisFork() {
+		fs, err = assembly.MateFrameset(frame, b.Frame.BasisLowerCup, assembly.DefaultUpperStackMm, b.Frame.BasisFork, b.Wheels())
+	} else {
+		fk, fkErr := b.ForkOption.PhysicalForkWithA2c(b.Params.ForkA2cMm, b.Params.SagPct)
+		if fkErr != nil {
+			return nil, fkErr
+		}
+		fs, err = assembly.MateFrameset(frame, b.LowerCup(), assembly.DefaultUpperStackMm, fk, b.Wheels())
+	}
+	if err != nil {
+		return nil, err
+	}
+	rear, err := assembly.OpenRearCockpit(fs, b.Post.Part, catalog.DefaultSaddle().Part, b.Params.RailPitchDeg)
+	if err != nil {
+		return nil, err
+	}
+	seated, err := rear.Clamp(b.Params.PostInsertMm, b.Params.RailOffsetMm)
+	if err != nil {
+		return nil, err
+	}
+	stem, err := assembly.NewStem(catalog.DefaultStemClampHeightMm, b.Params.StemLengthMm, b.Params.StemAngleDeg)
+	if err != nil {
+		return nil, err
+	}
+	return seated.AttachFront(b.Params.SpacersMm, stem, b.Bar.Part, b.Params.BarRollDeg)
+}
+
 // FitTarget returns copies of the bike's BRP and HandGrip targets.
 func (b Bike) FitTarget() assembly.FitTarget {
 	var t assembly.FitTarget
@@ -443,7 +541,7 @@ func (b Bike) FitTarget() assembly.FitTarget {
 
 // ForkOptions enumerates the frame's physical fork configurations offered to
 // build fitting, listed forks first: a rigid fork once at 0% sag, a suspension
-// fork at each Travel.SagPcts() (Q31, Q129), each with its own cup (Q136).
+// fork at each Travel.SagPcts(), each with its own cup.
 func (b Bike) ForkOptions() []BikeForkOption {
 	var out []BikeForkOption
 	for _, opt := range b.Frame.ForkOptions() {
@@ -459,9 +557,9 @@ func (b Bike) ForkOptions() []BikeForkOption {
 	return out
 }
 
-// WithSetup returns a copy of b with Setup replaced.
-func (b Bike) WithSetup(setup assembly.BikeSetup) Bike {
-	b.Setup = setup
+// WithPlacement returns a copy of b whose numeric parameters match p.Setup.
+func (b Bike) WithPlacement(p assembly.Placement) Bike {
+	b.Params = paramsFromSetup(p.Setup)
 	return b
 }
 
@@ -471,43 +569,43 @@ func (b Bike) WithView(view string) Bike {
 	return b
 }
 
-// WithBasisFork returns a copy of b using the basis fork, lower
-// cup, and published chainstay (Q81).
+// WithBasisFork returns a copy of b using the basis fork, lower cup, and
+// published chainstay.
 func (b Bike) WithBasisFork() Bike {
 	b.ForkID = BasisForkID
 	b.ForkOption = catalog.ForkOption{}
-	b.Setup.Frame = b.Size.ChartFrame
-	b.Setup.LowerCup = b.Frame.BasisLowerCup
-	b.Setup.Fork = basisForkSetup(b.Frame)
+	b.Params.ForkA2cMm = b.Frame.BasisFork.BasisA2cMm()
+	b.Params.LowerCupMm = b.Frame.BasisLowerCup.StackMm
+	b.Params.SagPct = 0
 	return b
 }
 
-// WithoutTargets returns a copy of b with both fit targets cleared (Q70).
+// WithoutTargets returns a copy of b with both fit targets cleared.
 func (b Bike) WithoutTargets() Bike {
 	b.BrpTarget = nil
 	b.GripTarget = nil
 	return b
 }
 
-// queryValues encodes b into /bike query values (Q70, Q77), omitting prev_* keys.
+// queryValues encodes b into /bike query values, omitting prev_* keys.
 func (b Bike) queryValues() url.Values {
-	s := b.Setup
+	p := b.Params
 	v := url.Values{}
 	v.Set("frame", b.Frame.ID)
 	v.Set("size", b.Size.Name)
 	v.Set("fork", b.ForkID)
 	v.Set("bar", b.Bar.ID)
 	v.Set("post", b.Post.ID)
-	v.Set("fork_a2c", FormatFloat(s.Fork.Spec.StaticA2cMm))
-	v.Set("cup", FormatFloat(s.LowerCup.StackMm))
-	v.Set("sag", FormatFloat(s.Fork.SagPct))
-	v.Set("spacers", FormatFloat(s.Stem.SpacersMm))
-	v.Set("stem_length", FormatFloat(s.Stem.LengthMm))
-	v.Set("stem_angle", FormatFloat(float64(s.Stem.AngleDeg)))
-	v.Set("bar_roll", FormatFloat(float64(s.Handlebar.BarRollDeg)))
-	v.Set("post_insert", FormatFloat(s.Seatpost.InsertionMm))
-	v.Set("rail_offset", FormatFloat(s.Saddle.RailOffsetMm))
-	v.Set("rail_pitch", FormatFloat(float64(s.Saddle.RailPitchDeg)))
+	v.Set("fork_a2c", FormatFloat(p.ForkA2cMm))
+	v.Set("cup", FormatFloat(p.LowerCupMm))
+	v.Set("sag", FormatFloat(p.SagPct))
+	v.Set("spacers", FormatFloat(p.SpacersMm))
+	v.Set("stem_length", FormatFloat(p.StemLengthMm))
+	v.Set("stem_angle", FormatFloat(float64(p.StemAngleDeg)))
+	v.Set("bar_roll", FormatFloat(float64(p.BarRollDeg)))
+	v.Set("post_insert", FormatFloat(p.PostInsertMm))
+	v.Set("rail_offset", FormatFloat(p.RailOffsetMm))
+	v.Set("rail_pitch", FormatFloat(float64(p.RailPitchDeg)))
 	v.Set("view", b.View)
 	if b.BrpTarget != nil {
 		v.Set("brp_x", FormatFloat(b.BrpTarget.X()))
@@ -530,25 +628,33 @@ func (b Bike) queryValues() url.Values {
 	return v
 }
 
-// URL encodes the bike as a lossless /bike URL (Q70, Q77). It never emits
-// prev_* keys.
+// URL encodes the bike as a lossless /bike URL. It never emits prev_* keys.
 func (b Bike) URL() string {
 	return "/bike?" + b.queryValues().Encode()
 }
 
 // BasisFrameset places b's size on its published chart frame with the chart's
-// basis fork and lower cup (Q81, Q121), for the basis readouts and ΔPitch.
+// basis fork and lower cup, for the basis readouts and ΔPitch.
 func (b Bike) BasisFrameset() (assembly.FramesetPlacement, error) {
-	return assembly.PlaceFrameset(b.Size.ChartFrame, b.Frame.BasisLowerCup, basisForkSetup(b.Frame), b.Setup.Wheels)
+	chartFrame, err := b.Frame.ChartFrame(b.Size)
+	if err != nil {
+		return assembly.FramesetPlacement{}, err
+	}
+	fs, err := assembly.MateFrameset(chartFrame, b.Frame.BasisLowerCup, assembly.DefaultUpperStackMm, b.Frame.BasisFork, b.Wheels())
+	if err != nil {
+		return assembly.FramesetPlacement{}, err
+	}
+	return fs.Place(assembly.Dynamic), nil
 }
 
-// Evaluate places the bike and, when targets are set, scores the submitted
-// build (Q110), fits it, and ranks builds (Q88, Q106).
+// Evaluate assembles and places the bike and, when targets are set, scores the
+// submitted build, fits it, and ranks builds.
 func (b Bike) Evaluate(limit int) (BikeResult, error) {
-	placement, err := assembly.PlaceBike(b.Setup)
+	build, err := b.Assemble()
 	if err != nil {
 		return BikeResult{}, err
 	}
+	placement := build.Place(assembly.Dynamic)
 	res := BikeResult{
 		FrameID:        b.Frame.ID,
 		Size:           b.Size.Name,
@@ -563,10 +669,11 @@ func (b Bike) Evaluate(limit int) (BikeResult, error) {
 		return res, nil
 	}
 	target := b.FitTarget()
+	weights := catalog.DefaultScoreWeights()
 
 	if target.HandGrip != nil {
-		if stem, ok := catalog.StemByDimensions(b.Setup.Stem.LengthMm, b.Setup.Stem.AngleDeg); ok {
-			sc, err := assembly.ScoreBuild(placement, target, stem.Score, catalog.DefaultScoreWeights())
+		if stem, ok := catalog.StemByDimensions(b.Params.StemLengthMm, b.Params.StemAngleDeg); ok {
+			sc, err := assembly.ScoreBuild(placement, target, stem.Score, weights)
 			if err != nil {
 				return BikeResult{}, err
 			}
@@ -574,20 +681,75 @@ func (b Bike) Evaluate(limit int) (BikeResult, error) {
 		}
 	}
 
-	fit, err := assembly.ApplyFitting(b.Setup, target)
-	if err != nil {
-		return BikeResult{}, err
+	// Continuous rear + front cockpit fitting on the submitted frameset.
+	var (
+		fittedSeated *assembly.SeatedFrameset
+		limitedBy    []assembly.InputField
+	)
+	if target.BRP != nil {
+		rear, err := assembly.OpenRearCockpit(build.SeatedFrameset().Frameset(), b.Post.Part, catalog.DefaultSaddle().Part, b.Params.RailPitchDeg)
+		if err != nil {
+			return BikeResult{}, err
+		}
+		var rearLimited []assembly.InputField
+		fittedSeated, rearLimited, err = rear.FitToBRP(*target.BRP)
+		if err != nil {
+			return BikeResult{}, err
+		}
+		limitedBy = append(limitedBy, rearLimited...)
+	} else {
+		fittedSeated = build.SeatedFrameset()
+	}
+
+	var fittedBuild *assembly.Build
+	if target.HandGrip != nil {
+		front, err := assembly.OpenFrontCockpit(
+			fittedSeated,
+			b.Params.StemAngleDeg,
+			catalog.DefaultStemClampHeightMm,
+			catalog.DefaultStemLengthRange(),
+			b.Bar.Part,
+			b.Params.BarRollDeg,
+		)
+		if err != nil {
+			return BikeResult{}, err
+		}
+		var frontLimited []assembly.InputField
+		fittedBuild, frontLimited, err = front.FitToGrip(*target.HandGrip)
+		if err != nil {
+			return BikeResult{}, err
+		}
+		limitedBy = append(limitedBy, frontLimited...)
+	} else {
+		stem, err := assembly.NewStem(catalog.DefaultStemClampHeightMm, b.Params.StemLengthMm, b.Params.StemAngleDeg)
+		if err != nil {
+			return BikeResult{}, err
+		}
+		fittedBuild, err = fittedSeated.AttachFront(b.Params.SpacersMm, stem, b.Bar.Part, b.Params.BarRollDeg)
+		if err != nil {
+			return BikeResult{}, err
+		}
+	}
+
+	fit := assembly.Fitting{
+		Target:    target,
+		Placement: fittedBuild.Place(assembly.Dynamic),
+		Outcome:   assembly.FitReached,
+	}
+	if len(limitedBy) > 0 {
+		fit.Outcome = assembly.FitLimited
+		fit.LimitedBy = limitedBy
 	}
 	res.Fitting = &fit
 
 	if target.BRP != nil {
-		centered, err := assembly.FitPostSetback(b.Setup, *target.BRP, 0)
+		centered, err := build.FitPostSetback(*target.BRP, 0)
 		if err != nil {
 			return BikeResult{}, err
 		}
 		res.SetbackCentered = &centered
 		if slices.Contains(fit.LimitedBy, assembly.InputSeatpostInsertion) || slices.Contains(fit.LimitedBy, assembly.InputSaddleRailOffset) {
-			reach, err := assembly.FitPostSetback(b.Setup, *target.BRP, fit.Placement.Setup.Saddle.RailOffsetMm)
+			reach, err := build.FitPostSetback(*target.BRP, fit.Placement.Setup.Saddle.RailOffsetMm)
 			if err != nil {
 				return BikeResult{}, err
 			}
@@ -596,37 +758,47 @@ func (b Bike) Evaluate(limit int) (BikeResult, error) {
 	}
 
 	if target.HandGrip != nil {
-		parts := assembly.PartOptions{
-			Stems:        catalog.StemOptions(),
-			SpacerStepMm: catalog.SpacerStepMm,
-		}
 		var offeredBars []catalog.Handlebar
+		bars := []assembly.Handlebar{b.Bar.Part}
 		if b.AllBarOptions {
 			offeredBars = catalog.Handlebars()
-			parts.Handlebars = make([]assembly.HandlebarSetup, len(offeredBars))
+			bars = make([]assembly.Handlebar, len(offeredBars))
 			for i, bar := range offeredBars {
-				parts.Handlebars[i] = bar.Setup // BarRollDeg 0: FitBuilds installs Setup.Handlebar.BarRollDeg (Q24)
+				bars[i] = bar.Part
 			}
 		}
-		var offeredForks []BikeForkOption
-		fitSetup := b.Setup
-		if b.AllForkOptions {
+		frontOpts := assembly.FrontBuildOptions{
+			StemClampHeightMm: catalog.DefaultStemClampHeightMm,
+			Stems:             catalog.StemOptions(),
+			SpacerStepMm:      catalog.SpacerStepMm,
+			Handlebars:        bars,
+			HasHandlebarOpts:  b.AllBarOptions,
+			DynamicBarRollDeg: b.Params.BarRollDeg,
+		}
+
+		var (
+			offeredForks []BikeForkOption
+			ranking      assembly.BuildRanking
+		)
+		if !b.AllForkOptions {
+			ranking, err = assembly.FitFrontBuilds(fittedSeated, target, frontOpts, weights, limit)
+			if err != nil {
+				return BikeResult{}, err
+			}
+		} else {
 			offeredForks = b.ForkOptions()
-			parts.Forks = make([]assembly.ForkOption, len(offeredForks))
-			for i, o := range offeredForks {
-				parts.Forks[i] = assembly.ForkOption{
-					Fork:     assembly.ForkSetup{Spec: o.ForkOption.Spec(), SagPct: o.SagPct},
-					LowerCup: o.LowerCup,
-				}
+			// Installed physical forks use the sliding-dropout max chainstay
+			// even when the submitted bike is on the basis fork.
+			installedFrame, err := b.Frame.InstalledFrame(b.Size)
+			if err != nil {
+				return BikeResult{}, err
 			}
-			// Installed physical forks use the sliding-dropout max chainstay even
-			// when the submitted bike is on the basis fork (Q67).
-			fitSetup.Frame = b.Frame.InstalledFrame(b.Size)
+			ranking, err = b.fitAcrossForks(installedFrame, offeredForks, target, frontOpts, weights, limit)
+			if err != nil {
+				return BikeResult{}, err
+			}
 		}
-		ranking, err := assembly.FitBuilds(fitSetup, target, parts, catalog.DefaultScoreWeights(), limit)
-		if err != nil {
-			return BikeResult{}, err
-		}
+
 		rows := make([]BikeScoredBuild, len(ranking.Builds))
 		for i, c := range ranking.Builds {
 			row := BikeScoredBuild{ScoredBuild: c, HandlebarID: b.Bar.ID, ForkID: b.ForkID}
@@ -647,4 +819,66 @@ func (b Bike) Evaluate(limit int) (BikeResult, error) {
 		res.Builds = &BikeBuildRanking{Evaluated: ranking.Evaluated, Builds: rows}
 	}
 	return res, nil
+}
+
+func (b Bike) fitAcrossForks(
+	installedFrame assembly.Frame,
+	offeredForks []BikeForkOption,
+	target assembly.FitTarget,
+	frontOpts assembly.FrontBuildOptions,
+	weights assembly.ScoreWeights,
+	limit int,
+) (assembly.BuildRanking, error) {
+	if limit < 1 {
+		return assembly.BuildRanking{}, fmt.Errorf("build fitting needs a positive build limit, got %d", limit)
+	}
+	best := make([]assembly.ScoredBuild, 0, min(limit, 16))
+	evaluated := 0
+	for fi, o := range offeredForks {
+		fk, err := o.ForkOption.PhysicalFork(o.SagPct)
+		if err != nil {
+			return assembly.BuildRanking{}, err
+		}
+		fs, err := assembly.MateFrameset(installedFrame, o.LowerCup, assembly.DefaultUpperStackMm, fk, b.Wheels())
+		if err != nil {
+			return assembly.BuildRanking{}, err
+		}
+		rear, err := assembly.OpenRearCockpit(fs, b.Post.Part, catalog.DefaultSaddle().Part, b.Params.RailPitchDeg)
+		if err != nil {
+			return assembly.BuildRanking{}, err
+		}
+		var seated *assembly.SeatedFrameset
+		if target.BRP != nil {
+			seated, _, err = rear.FitToBRP(*target.BRP)
+		} else {
+			seated, err = rear.Clamp(b.Params.PostInsertMm, b.Params.RailOffsetMm)
+		}
+		if err != nil {
+			return assembly.BuildRanking{}, err
+		}
+		sub, err := assembly.FitFrontBuilds(seated, target, frontOpts, weights, limit)
+		if err != nil {
+			return assembly.BuildRanking{}, err
+		}
+		evaluated += sub.Evaluated
+		for _, cand := range sub.Builds {
+			cand.HasForkOption = true
+			cand.ForkIndex = fi
+			best = mergeBestBuild(best, cand, limit)
+		}
+	}
+	return assembly.BuildRanking{Builds: best, Evaluated: evaluated}, nil
+}
+
+func mergeBestBuild(best []assembly.ScoredBuild, build assembly.ScoredBuild, limit int) []assembly.ScoredBuild {
+	if len(best) == limit && assembly.CompareScoredBuilds(build, best[len(best)-1]) >= 0 {
+		return best
+	}
+	i := sort.Search(len(best), func(i int) bool { return assembly.CompareScoredBuilds(build, best[i]) < 0 })
+	if len(best) < limit {
+		best = append(best, assembly.ScoredBuild{})
+	}
+	copy(best[i+1:], best[i:len(best)-1])
+	best[i] = build
+	return best
 }

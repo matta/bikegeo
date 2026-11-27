@@ -257,24 +257,35 @@ func StemOptions() []assembly.StemOption {
 	return out
 }
 
-// SpacerStepMm is the steerer spacer increment build fitting enumerates (Q82).
-const SpacerStepMm = 5.0
+// SpacerStepMm is the steerer spacer increment build fitting enumerates.
+// The default stem clamp height (40 mm), length/angle (60 mm, -6°), spacer
+// stack (20 mm), and continuous-fit length range (40–130 mm) are illustrative.
+const (
+	SpacerStepMm             = 5.0
+	DefaultSpacersMm         = 20.0
+	DefaultStemClampHeightMm = 40.0
+	DefaultStemLengthMm      = 60.0
+	DefaultStemAngleDeg      = pose.Deg(-6.0)
+	DefaultMinStemLengthMm   = 40.0
+	DefaultMaxStemLengthMm   = 130.0
+)
 
-// DefaultStemSetup returns the baseline stem dimensions used to place builds.
-// UpperStackMm (11 mm) and MaxSpacersMm (30 mm) are Q82 constants; ClampHeightMm
-// (40 mm) and the continuous-fit length range (40–130 mm) are illustrative.
-// Build fitting overwrites LengthMm, AngleDeg, and SpacersMm from StemOptions().
-func DefaultStemSetup() assembly.StemSetup {
-	return assembly.StemSetup{
-		UpperStackMm:  assembly.DefaultUpperStackMm,
-		SpacersMm:     20.0,
-		ClampHeightMm: 40.0,
-		LengthMm:      60.0,
-		AngleDeg:      -6.0,
-		MaxSpacersMm:  assembly.DefaultMaxSpacersMm,
-		MinLengthMm:   40.0,
-		MaxLengthMm:   130.0,
+// DefaultStem returns the validated baseline Stem for /bike defaults.
+func DefaultStem() assembly.Stem {
+	s, err := assembly.NewStem(DefaultStemClampHeightMm, DefaultStemLengthMm, DefaultStemAngleDeg)
+	if err != nil {
+		panic(fmt.Sprintf("catalog: invalid default stem: %v", err))
 	}
+	return s
+}
+
+// DefaultStemLengthRange returns the continuous-fitting stem length interval.
+func DefaultStemLengthRange() assembly.BoundedRange {
+	r, err := assembly.NewBoundedRange(DefaultMinStemLengthMm, DefaultMaxStemLengthMm, "min stem length", "max stem length")
+	if err != nil {
+		panic(fmt.Sprintf("catalog: invalid default stem length range: %v", err))
+	}
+	return r
 }
 
 // StemByDimensions returns the catalog stem matching lengthMm and angleDeg

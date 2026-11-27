@@ -28,7 +28,7 @@ func sklarPbj() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy sklar_steel_485 (rigid) → 485 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 485, RakeMm: 52, Steerer: assembly.SteererBasis},
+		BasisFork: mustBasisFork(485, 52),
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

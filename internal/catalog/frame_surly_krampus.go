@@ -23,7 +23,7 @@ func surlyKrampus() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy surly_krampus_483 (rigid) → 483 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 483, RakeMm: 47, Steerer: assembly.SteererBasis},
+		BasisFork: mustBasisFork(483, 47),
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

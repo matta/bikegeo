@@ -25,7 +25,7 @@ func turnerVennTi() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
 		// hypothesis (Q44, Q81): legacy fox34_130 @ 0% sag → 541 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 541, RakeMm: 44, Steerer: assembly.SteererBasis},
+		BasisFork: mustBasisFork(541, 44),
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

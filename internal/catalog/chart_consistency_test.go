@@ -30,12 +30,12 @@ var chartColumns = []struct {
 	halfWidth func(catalog.ChartPrecision) float64
 	nudge     func(*catalog.FrameSize, float64)
 }{
-	{"Reach", func(p catalog.ChartPrecision) float64 { return p.ReachMm }, func(s *catalog.FrameSize, d float64) { s.ChartFrame.ReachMm += d }},
-	{"Stack", func(p catalog.ChartPrecision) float64 { return p.StackMm }, func(s *catalog.FrameSize, d float64) { s.ChartFrame.StackMm += d }},
-	{"HTA", func(p catalog.ChartPrecision) float64 { return float64(p.HeadTubeAngleDeg) }, func(s *catalog.FrameSize, d float64) { s.ChartFrame.HeadTubeAngleDeg += pose.Deg(d) }},
-	{"HTL", func(p catalog.ChartPrecision) float64 { return p.HeadTubeLengthMm }, func(s *catalog.FrameSize, d float64) { s.ChartFrame.HeadTubeLengthMm += d }},
-	{"BB drop", func(p catalog.ChartPrecision) float64 { return p.BbDropMm }, func(s *catalog.FrameSize, d float64) { s.ChartFrame.BbDropMm += d }},
-	{"Chainstay", func(p catalog.ChartPrecision) float64 { return p.ChainstayMm }, func(s *catalog.FrameSize, d float64) { s.ChartFrame.ChainstayMm += d }},
+	{"Reach", func(p catalog.ChartPrecision) float64 { return p.ReachMm }, func(s *catalog.FrameSize, d float64) { s.ChartDims.ReachMm += d }},
+	{"Stack", func(p catalog.ChartPrecision) float64 { return p.StackMm }, func(s *catalog.FrameSize, d float64) { s.ChartDims.StackMm += d }},
+	{"HTA", func(p catalog.ChartPrecision) float64 { return float64(p.HeadTubeAngleDeg) }, func(s *catalog.FrameSize, d float64) { s.ChartDims.HeadTubeAngleDeg += pose.Deg(d) }},
+	{"HTL", func(p catalog.ChartPrecision) float64 { return p.HeadTubeLengthMm }, func(s *catalog.FrameSize, d float64) { s.ChartDims.HeadTubeLengthMm += d }},
+	{"BB drop", func(p catalog.ChartPrecision) float64 { return p.BbDropMm }, func(s *catalog.FrameSize, d float64) { s.ChartDims.BbDropMm += d }},
+	{"Chainstay", func(p catalog.ChartPrecision) float64 { return p.ChainstayMm }, func(s *catalog.FrameSize, d float64) { s.ChartDims.ChainstayMm += d }},
 	{"Wheelbase", func(p catalog.ChartPrecision) float64 { return p.WheelbaseMm }, func(s *catalog.FrameSize, d float64) { s.PublishedWheelbaseMm += d }},
 }
 
@@ -72,12 +72,23 @@ func chartMismatches(unpitched assembly.FramesetPlacement, publishedWheelbaseMm 
 	}
 }
 
+func unpitchedBasisFrameset(dims assembly.FrameDimensions, cup assembly.LowerCupSetup, fork assembly.BasisFork) (assembly.FramesetPlacement, error) {
+	frame, err := assembly.NewFrame(dims)
+	if err != nil {
+		return assembly.FramesetPlacement{}, err
+	}
+	fs, err := assembly.MateFrameset(frame, cup, assembly.DefaultUpperStackMm, fork, wheels)
+	if err != nil {
+		return assembly.FramesetPlacement{}, err
+	}
+	return fs.Unpitched(), nil
+}
+
 // measureChartConsistency places the chart's unpitched basis frameset and each
 // ±half-width column nudge, and returns every check. Its error reports input
 // the check cannot measure.
 func measureChartConsistency(f catalog.Frame, s catalog.FrameSize) (chartConsistency, error) {
-	basisFork := assembly.ForkSetup{Spec: f.BasisFork}
-	unpitched, err := assembly.PlaceUnpitchedFrameset(s.ChartFrame, f.BasisLowerCup, basisFork, wheels)
+	unpitched, err := unpitchedBasisFrameset(s.ChartDims, f.BasisLowerCup, f.BasisFork)
 	if err != nil {
 		return chartConsistency{}, err
 	}
@@ -124,11 +135,11 @@ func measureChartConsistency(f catalog.Frame, s catalog.FrameSize) (chartConsist
 		up, down := s, s
 		col.nudge(&up, hw)
 		col.nudge(&down, -hw)
-		upPlaced, err := assembly.PlaceUnpitchedFrameset(up.ChartFrame, f.BasisLowerCup, basisFork, wheels)
+		upPlaced, err := unpitchedBasisFrameset(up.ChartDims, f.BasisLowerCup, f.BasisFork)
 		if err != nil {
 			return chartConsistency{}, fmt.Errorf("chart precision: %s ±%v moves the chart out of range: %w", col.name, hw, err)
 		}
-		downPlaced, err := assembly.PlaceUnpitchedFrameset(down.ChartFrame, f.BasisLowerCup, basisFork, wheels)
+		downPlaced, err := unpitchedBasisFrameset(down.ChartDims, f.BasisLowerCup, f.BasisFork)
 		if err != nil {
 			return chartConsistency{}, fmt.Errorf("chart precision: %s ±%v moves the chart out of range: %w", col.name, hw, err)
 		}
@@ -240,12 +251,12 @@ func TestCheckChartConsistencyBudgetEdges(t *testing.T) {
 	}{
 		{
 			name:   "axle height inside",
-			mutate: func(s *catalog.FrameSize) { s.ChartFrame.StackMm = 616.7 },
+			mutate: func(s *catalog.FrameSize) { s.ChartDims.StackMm = 616.7 },
 			want:   "",
 		},
 		{
 			name:   "axle height outside",
-			mutate: func(s *catalog.FrameSize) { s.ChartFrame.StackMm = 616.8 },
+			mutate: func(s *catalog.FrameSize) { s.ChartDims.StackMm = 616.8 },
 			want:   "chart consistency: axle height mismatch +3.83 mm exceeds its ±3.76 mm rounding budget (Stack 0.50 mm, HTA 2.30 mm, HTL 0.47 mm, BB drop 0.50 mm)",
 		},
 		{
@@ -303,7 +314,7 @@ func TestCheckChartConsistencyInvalidPrecision(t *testing.T) {
 
 func TestCheckChartConsistencyNudgeOutOfRange(t *testing.T) {
 	f, s := fenrirL(t)
-	s.ChartFrame.ChainstayMm = 70.4
+	s.ChartDims.ChainstayMm = 70.4
 	f.ChartPrecision = catalog.ChartPrecision{ChainstayMm: 0.5}
 	err := checkChartConsistency(f, s)
 	if err == nil {
@@ -418,7 +429,7 @@ func TestCheckChartConsistencyUnpublishedWheelbase(t *testing.T) {
 	})
 	t.Run("axle height outside budget", func(t *testing.T) {
 		s := s
-		s.ChartFrame.StackMm = 644.0
+		s.ChartDims.StackMm = 644.0
 		requireChartConsistency(t, f, s, "chart consistency: axle height mismatch +4.34 mm exceeds its ±3.97 mm rounding budget (Stack 0.50 mm, HTA 2.51 mm, HTL 0.46 mm, BB drop 0.50 mm)")
 	})
 	t.Run("no rounding", func(t *testing.T) {

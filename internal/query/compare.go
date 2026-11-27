@@ -1,5 +1,5 @@
 // Package query parses URL query values into catalog-resolved inputs shared by
-// the CLI and web handlers (Q88). It has zero net/http or template dependencies.
+// the CLI and web handlers. It has zero net/http or template dependencies.
 package query
 
 import (
@@ -16,7 +16,7 @@ import (
 	"github.com/matta/bikegeo/internal/pose"
 )
 
-// bar_options values (Q22, Q101).
+// bar_options values.
 const (
 	BarOptionsSelected = "selected"
 	BarOptionsAll      = "all"
@@ -49,14 +49,13 @@ type Compare struct {
 }
 
 // CompareRow pairs a ranked compare.Row with the winning build's catalog
-// handlebar ID (Q106). Embedding compare.Row flattens its JSON fields.
+// handlebar ID. Embedding compare.Row flattens its JSON fields.
 type CompareRow struct {
 	compare.Row
 	HandlebarID string
 }
 
-// CompareResult is a catalog-resolved comparison ranking for CLI JSON output
-// (Q49a, Q88, Q106).
+// CompareResult is a catalog-resolved comparison ranking for CLI JSON output.
 type CompareResult struct {
 	PostID        string
 	BarID         string
@@ -66,8 +65,7 @@ type CompareResult struct {
 	Evaluated     int
 }
 
-// knownCompareKeys are every query key / accepts (Q107); each may appear at
-// most once.
+// knownCompareKeys are every query key / accepts; each may appear at most once.
 var knownCompareKeys = []string{
 	"top_per_frame", "top",
 	"post", "bar", "bar_options",
@@ -76,20 +74,31 @@ var knownCompareKeys = []string{
 }
 
 // CatalogFrames adapts catalog.Frames() into compare frames in ascending
-// frame ID order with declared size and fork order (Q69). Sliding-dropout
-// frames are installed at MaxChainstayMm (Q67).
+// frame ID order with declared size and fork order. Sliding-dropout frames are
+// installed at MaxChainstayMm.
 func CatalogFrames() []compare.Frame {
 	frames := catalog.Frames()
 	out := make([]compare.Frame, len(frames))
 	for i, f := range frames {
 		sizes := make([]compare.Size, len(f.Sizes))
 		for j, sz := range f.Sizes {
-			sizes[j] = compare.Size{Name: sz.Name, Frame: f.InstalledFrame(sz)}
+			fr, err := f.InstalledFrame(sz)
+			if err != nil {
+				panic(fmt.Sprintf("catalog frame %q size %q is invalid: %v", f.ID, sz.Name, err))
+			}
+			sizes[j] = compare.Size{Name: sz.Name, Frame: fr}
 		}
 		opts := f.ForkOptions()
 		forks := make([]compare.Fork, len(opts))
 		for j, opt := range opts {
-			forks[j] = compare.Fork{ID: opt.ID(), Spec: opt.Spec(), LowerCup: opt.LowerCup}
+			forks[j] = compare.Fork{
+				ID:       opt.ID(),
+				Travel:   opt.Fork.Travel,
+				LowerCup: opt.LowerCup,
+				Build: func(sagPct float64) (compare.PhysicalFork, error) {
+					return opt.PhysicalFork(sagPct)
+				},
+			}
 		}
 		out[i] = compare.Frame{ID: f.ID, Sizes: sizes, Forks: forks}
 	}
@@ -97,8 +106,8 @@ func CatalogFrames() []compare.Frame {
 }
 
 // ParseCompare parses a / compare query into catalog-resolved inputs and a
-// ready-to-run compare.Request, applying the catalog compare defaults (Q53,
-// Q56, Q62, Q87). Every rejection is an *InputError naming its query key.
+// ready-to-run compare.Request, applying the catalog compare defaults. Every
+// rejection is an *InputError naming its query key.
 func ParseCompare(q url.Values) (Compare, error) {
 	if err := checkKnownKeys(q, knownCompareKeys); err != nil {
 		return Compare{}, err
@@ -162,12 +171,12 @@ func ParseCompare(q url.Values) (Compare, error) {
 	}
 
 	var offeredBars []catalog.Handlebar
-	var offeredSetups []assembly.HandlebarSetup
+	bars := []assembly.Handlebar{bar.Part}
 	if allBars {
 		offeredBars = catalog.Handlebars()
-		offeredSetups = make([]assembly.HandlebarSetup, len(offeredBars))
+		bars = make([]assembly.Handlebar, len(offeredBars))
 		for i, b := range offeredBars {
-			offeredSetups[i] = b.Setup
+			bars[i] = b.Part
 		}
 	}
 
@@ -183,27 +192,29 @@ func ParseCompare(q url.Values) (Compare, error) {
 		TopPerFrameExplicit: topPerFrameExplicit,
 		TopExplicit:         topExplicit,
 		Request: compare.Request{
-			Frames:    CatalogFrames(),
-			Wheels:    assembly.WheelSetup{RadiusMm: catalog.WheelRadiusMm},
-			Seatpost:  post.Spec,
-			Saddle:    catalog.DefaultSaddle().Setup,
-			Stem:      catalog.DefaultStemSetup(),
-			Handlebar: bar.Setup,
-			Target:    assembly.FitTarget{BRP: brp, HandGrip: grip},
-			Parts: assembly.PartOptions{
-				Stems:        catalog.StemOptions(),
-				SpacerStepMm: catalog.SpacerStepMm,
-				Handlebars:   offeredSetups,
-			},
-			Weights:     catalog.DefaultScoreWeights(),
-			TopPerFrame: topPerFrame,
-			Top:         top,
+			Frames:            CatalogFrames(),
+			Wheels:            assembly.WheelSetup{RadiusMm: catalog.WheelRadiusMm},
+			Seatpost:          post.Part,
+			Saddle:            catalog.DefaultSaddle().Part,
+			DynamicRailPitch:  0,
+			UpperStackMm:      assembly.DefaultUpperStackMm,
+			MaxSpacersMm:      assembly.DefaultMaxSpacersMm,
+			StemClampHeightMm: catalog.DefaultStemClampHeightMm,
+			Stems:             catalog.StemOptions(),
+			SpacerStepMm:      catalog.SpacerStepMm,
+			Handlebars:        bars,
+			HasBarOptions:     allBars,
+			DynamicBarRoll:    0,
+			Target:            assembly.FitTarget{BRP: brp, HandGrip: grip},
+			Weights:           catalog.DefaultScoreWeights(),
+			TopPerFrame:       topPerFrame,
+			Top:               top,
 		},
 	}, nil
 }
 
 // WinningHandlebar returns the catalog handlebar a ranked row's winning build
-// installed: the offered bar at HandlebarIndex, or the selected bar (Q106).
+// installed: the offered bar at HandlebarIndex, or the selected bar.
 func (c Compare) WinningHandlebar(row compare.Row) (catalog.Handlebar, error) {
 	if !row.Build.HasHandlebarOption {
 		return c.Bar, nil
@@ -216,7 +227,7 @@ func (c Compare) WinningHandlebar(row compare.Row) (catalog.Handlebar, error) {
 }
 
 // BikeForRow constructs the exact single-bike workbench state represented by a
-// ranked compare row (Q67, Q77).
+// ranked compare row.
 func (c Compare) BikeForRow(row compare.Row) (Bike, error) {
 	frame, ok := catalog.FrameByID(row.FrameID)
 	if !ok {
@@ -248,12 +259,12 @@ func (c Compare) BikeForRow(row compare.Row) (Bike, error) {
 		GripTarget:     &grip,
 		AllBarOptions:  c.AllBarOptions,
 		AllForkOptions: false,
-		Setup:          row.Build.Placement.Setup,
+		Params:         paramsFromSetup(row.Build.Placement.Setup),
 	}, nil
 }
 
-// RowBikeURL returns the lossless /bike inspect URL for a ranked compare row
-// (Q67, Q77), carrying explicit bar_options and fork_options=selected.
+// RowBikeURL returns the lossless /bike inspect URL for a ranked compare row,
+// carrying explicit bar_options and fork_options=selected.
 func (c Compare) RowBikeURL(row compare.Row) (string, error) {
 	b, err := c.BikeForRow(row)
 	if err != nil {
@@ -269,8 +280,7 @@ func (c Compare) RowBikeURL(row compare.Row) (string, error) {
 	return "/bike?" + v.Encode(), nil
 }
 
-// ResolveResult pairs each ranked row with its winning catalog handlebar ID
-// (Q106).
+// ResolveResult pairs each ranked row with its winning catalog handlebar ID.
 func (c Compare) ResolveResult(ranking compare.Ranking) (CompareResult, error) {
 	rows := make([]CompareRow, len(ranking.Rows))
 	for i, r := range ranking.Rows {
@@ -290,8 +300,8 @@ func (c Compare) ResolveResult(ranking compare.Ranking) (CompareResult, error) {
 	}, nil
 }
 
-// checkKnownKeys rejects any query key not in known (Q107). The first unknown
-// key in ascending order is reported so the error is deterministic.
+// checkKnownKeys rejects any query key not in known. The first unknown key in
+// ascending order is reported so the error is deterministic.
 func checkKnownKeys(q url.Values, known []string) error {
 	var unknown []string
 	for key := range q {
@@ -330,10 +340,9 @@ func parseNonNegInt(q url.Values, key string, defaultVal int) (int, error) {
 	return n, nil
 }
 
-// parseTarget reads a fit target from its x/y keys and its "off" flag (Q53,
-// Q70, Q76). A complete coordinate pair wins over "off"; a cleared target
-// ("off", or both keys present and blank) returns nil; neither key nor flag
-// selects defaultPt.
+// parseTarget reads a fit target from its x/y keys and its "off" flag. A
+// complete coordinate pair wins over "off"; a cleared target ("off", or both
+// keys present and blank) returns nil; neither key nor flag selects defaultPt.
 func parseTarget(q url.Values, flagKey, xKey, yKey, label string, defaultPt pose.Point) (*pose.Point, error) {
 	flagRaw := strings.TrimSpace(q.Get(flagKey))
 	if flagRaw != "" && flagRaw != "off" {

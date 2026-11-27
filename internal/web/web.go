@@ -99,7 +99,7 @@ type bikeView struct {
 	CupReadOnly            bool
 	SagReadOnly            bool
 	BasisForkNote          string
-	BasisFork              assembly.ForkSpec
+	BasisFork              assembly.BasisFork
 	BasisLowerCupMm        float64
 	LowerCupMm             float64
 	SagPct                 float64
@@ -339,27 +339,6 @@ func buildAttributeHeaders(w assembly.ScoreWeights) []buildAttributeHeader {
 	}
 }
 
-// railOffsetRange returns the saddle rail offset input bounds ∓L for saddle
-// and post.
-func railOffsetRange(saddle assembly.SaddleSetup, post assembly.SeatpostSetup) (minMm, maxMm float64) {
-	limit, err := assembly.BikeSetup{Saddle: saddle, Seatpost: post}.RailOffsetLimitMm()
-	if err != nil {
-		return 0, 0 // validate() rejects such a workbench before any page renders
-	}
-	return -limit, limit
-}
-
-// postInsertionBounds returns the insertion interval the frame and post allow,
-// the one calculation behind placement, fitting, and the form bounds. It is
-// zero when the pair allows no insertion; placement then reports the error.
-func postInsertionBounds(frame assembly.FrameSetup, spec assembly.SeatpostSpec) assembly.InsertionBounds {
-	bounds, err := assembly.SeatpostInsertionBounds(frame, spec)
-	if err != nil {
-		return assembly.InsertionBounds{}
-	}
-	return bounds
-}
-
 func renderBikeTemplate(w http.ResponseWriter, status int, view bikeView) {
 	var buf bytes.Buffer
 	if err := bikeTemplate.Execute(&buf, view); err != nil {
@@ -456,7 +435,7 @@ func formatFormFloat(v float64) string {
 // buildBikeView renders the placed bike for the parsed query.
 func buildBikeView(
 	parsed query.Bike,
-	bike assembly.BikePlacement,
+	bike assembly.Placement,
 	basis assembly.FramesetPlacement,
 ) bikeView {
 	diagram := buildBikeDiagram(parsed, bike)

@@ -12,6 +12,26 @@ import (
 	"github.com/matta/bikegeo/internal/pose"
 )
 
+func mustFrame(dims assembly.FrameDimensions) assembly.Frame {
+	f, err := assembly.NewFrame(dims)
+	if err != nil {
+		panic(err)
+	}
+	return f
+}
+
+func rigidForkBuilder(staticA2cMm, rakeMm float64, steerer assembly.PhysicalSteerer) func(float64) (compare.PhysicalFork, error) {
+	return func(float64) (compare.PhysicalFork, error) {
+		return assembly.NewRigidFork(staticA2cMm, rakeMm, steerer)
+	}
+}
+
+func suspensionForkBuilder(staticA2cMm, rakeMm float64, travel assembly.ForkTravel, steerer assembly.PhysicalSteerer) func(float64) (compare.PhysicalFork, error) {
+	return func(sagPct float64) (compare.PhysicalFork, error) {
+		return assembly.NewSuspensionFork(staticA2cMm, rakeMm, travel, steerer, sagPct)
+	}
+}
+
 // All fixture values below are copied from the catalog definitions for test isolation.
 func fixtureFrames() []compare.Frame {
 	ec44 := assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12}
@@ -21,25 +41,25 @@ func fixtureFrames() []compare.Frame {
 			Sizes: []compare.Size{
 				{
 					Name: "L",
-					Frame: assembly.FrameSetup{
+					Frame: mustFrame(assembly.FrameDimensions{
 						ReachMm: 448, StackMm: 612, HeadTubeAngleDeg: 69, SeatTubeAngleDeg: 73,
 						HeadTubeLengthMm: 110, BbDropMm: 65, ChainstayMm: 435, SeatTubeLengthMm: 470,
 						LowerBore: assembly.Bore44Pressed, DefaultLowerCup: ec44,
-					},
+					}),
 				},
 				{
 					Name: "XL",
-					Frame: assembly.FrameSetup{
+					Frame: mustFrame(assembly.FrameDimensions{
 						ReachMm: 470, StackMm: 621, HeadTubeAngleDeg: 69, SeatTubeAngleDeg: 73,
 						HeadTubeLengthMm: 120, BbDropMm: 65, ChainstayMm: 435, SeatTubeLengthMm: 521,
 						LowerBore: assembly.Bore44Pressed, DefaultLowerCup: ec44,
-					},
+					}),
 				},
 			},
 			Forks: []compare.Fork{
-				{ID: "surly_krampus_483", Spec: assembly.ForkSpec{StaticA2cMm: 483, Travel: assembly.TravelRigid, RakeMm: 47, Steerer: assembly.SteererStraight118}},
-				{ID: "fox34_120-534x44", Spec: assembly.ForkSpec{StaticA2cMm: 534, Travel: assembly.Travel120, RakeMm: 44, Steerer: assembly.SteererTapered}},
-				{ID: "fox34_120-534x51", Spec: assembly.ForkSpec{StaticA2cMm: 534, Travel: assembly.Travel120, RakeMm: 51, Steerer: assembly.SteererTapered}},
+				{ID: "surly_krampus_483", Travel: assembly.TravelRigid, Build: rigidForkBuilder(483, 47, assembly.PhysicalSteererStraight118)},
+				{ID: "fox34_120-534x44", Travel: assembly.Travel120, Build: suspensionForkBuilder(534, 44, assembly.Travel120, assembly.PhysicalSteererTapered)},
+				{ID: "fox34_120-534x51", Travel: assembly.Travel120, Build: suspensionForkBuilder(534, 51, assembly.Travel120, assembly.PhysicalSteererTapered)},
 			},
 		},
 		{
@@ -47,26 +67,26 @@ func fixtureFrames() []compare.Frame {
 			Sizes: []compare.Size{
 				{
 					Name: "L",
-					Frame: assembly.FrameSetup{
+					Frame: mustFrame(assembly.FrameDimensions{
 						ReachMm: 428, StackMm: 642, HeadTubeAngleDeg: 68.25, SeatTubeAngleDeg: 75.25,
 						HeadTubeLengthMm: 140, BbDropMm: 72, ChainstayMm: 450, SeatTubeLengthMm: 490,
 						MaxPostInsertionMm: 290, LowerBore: assembly.Bore44Pressed, DefaultLowerCup: ec44,
-					},
+					}),
 				},
 				{
 					Name: "XL",
-					Frame: assembly.FrameSetup{
+					Frame: mustFrame(assembly.FrameDimensions{
 						ReachMm: 441, StackMm: 660, HeadTubeAngleDeg: 68.25, SeatTubeAngleDeg: 75.25,
 						HeadTubeLengthMm: 160, BbDropMm: 72, ChainstayMm: 450, SeatTubeLengthMm: 530,
 						LowerBore: assembly.Bore44Pressed, DefaultLowerCup: ec44,
-					},
+					}),
 				},
 			},
 			Forks: []compare.Fork{
-				{ID: "lithic_carbon_mountain-495x44", Spec: assembly.ForkSpec{StaticA2cMm: 495, Travel: assembly.TravelRigid, RakeMm: 44, Steerer: assembly.SteererTapered}},
-				{ID: "lithic_carbon_mountain-498x51.5", Spec: assembly.ForkSpec{StaticA2cMm: 498, Travel: assembly.TravelRigid, RakeMm: 51.5, Steerer: assembly.SteererTapered}},
-				{ID: "sid_100-506x44", Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 44, Steerer: assembly.SteererTapered}},
-				{ID: "sid_100-506x51", Spec: assembly.ForkSpec{StaticA2cMm: 506, Travel: assembly.Travel100, RakeMm: 51, Steerer: assembly.SteererTapered}},
+				{ID: "lithic_carbon_mountain-495x44", Travel: assembly.TravelRigid, Build: rigidForkBuilder(495, 44, assembly.PhysicalSteererTapered)},
+				{ID: "lithic_carbon_mountain-498x51.5", Travel: assembly.TravelRigid, Build: rigidForkBuilder(498, 51.5, assembly.PhysicalSteererTapered)},
+				{ID: "sid_100-506x44", Travel: assembly.Travel100, Build: suspensionForkBuilder(506, 44, assembly.Travel100, assembly.PhysicalSteererTapered)},
+				{ID: "sid_100-506x51", Travel: assembly.Travel100, Build: suspensionForkBuilder(506, 51, assembly.Travel100, assembly.PhysicalSteererTapered)},
 			},
 		},
 	}
@@ -87,41 +107,65 @@ func fixtureStems() []assembly.StemOption {
 	}
 }
 
-func persuaderBar() assembly.HandlebarSetup {
-	return assembly.HandlebarSetup{
+func persuaderBar() assembly.Handlebar {
+	bar, err := assembly.NewHandlebar(assembly.HandlebarDimensions{
 		StockWidthMm: 800, CurrentWidthMm: 800, StatedRiseMm: 50, RiseMode: assembly.RiseModeBarEndCenter,
-		BacksweepDeg: 20, UpsweepDeg: 4, BendStartMm: 135, GripInsetMm: 70, BarRollDeg: 0,
+		BacksweepDeg: 20, UpsweepDeg: 4, BendStartMm: 135, GripInsetMm: 70,
+	})
+	if err != nil {
+		panic(err)
 	}
+	return bar
 }
 
-func sqlab311Bar() assembly.HandlebarSetup {
-	return assembly.HandlebarSetup{
+func sqlab311Bar() assembly.Handlebar {
+	bar, err := assembly.NewHandlebar(assembly.HandlebarDimensions{
 		StockWidthMm: 740, CurrentWidthMm: 740, StatedRiseMm: 50, RiseMode: assembly.RiseModeStandardKnuckle,
-		BacksweepDeg: 16, UpsweepDeg: 5, BendStartMm: 100.0, GripInsetMm: 70, BarRollDeg: 0,
+		BacksweepDeg: 16, UpsweepDeg: 5, BendStartMm: 100.0, GripInsetMm: 70,
+	})
+	if err != nil {
+		panic(err)
 	}
+	return bar
+}
+
+func fixtureSeatpost() assembly.RigidPost {
+	post, err := assembly.NewRigidPost(350, 100, 250, 12, 30)
+	if err != nil {
+		panic(err)
+	}
+	return post
+}
+
+func fixtureSaddle() assembly.Saddle {
+	saddle, err := assembly.NewSaddle(assembly.SaddleDimensions{
+		RailCenterToBrpMm: 32, RailCenterToSitBonesMm: -48, RailToBrpHeightMm: 45,
+		SitBonesElevationMm: 10, RailLengthMm: 60,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return saddle
 }
 
 func fixtureRequest() compare.Request {
 	brp := pose.NewPoint(assembly.DynamicWorld, -219, 713.1)
 	grip := pose.NewPoint(assembly.DynamicWorld, 481, 726)
 	return compare.Request{
-		Frames: fixtureFrames(),
-		Wheels: assembly.WheelSetup{RadiusMm: 372},
-		Seatpost: assembly.SeatpostSpec{
-			TotalLengthMm: 350, MaxInsertionMm: 250, MinInsertionMm: 100, SetbackMm: 12, RailClampLengthMm: 30,
-		},
-		Saddle: assembly.SaddleSetup{
-			RailCenterToBrpMm: 32, RailCenterToSitBonesMm: -48, RailToBrpHeightMm: 45,
-			SitBonesElevationMm: 10, RailLengthMm: 60, RailPitchDeg: 0, RailOffsetMm: 0,
-		},
-		Stem: assembly.StemSetup{
-			UpperStackMm: assembly.DefaultUpperStackMm, SpacersMm: 20, ClampHeightMm: 40,
-			LengthMm: 60, AngleDeg: -6, MaxSpacersMm: assembly.DefaultMaxSpacersMm,
-			MinLengthMm: 40, MaxLengthMm: 130,
-		},
-		Handlebar: persuaderBar(),
-		Target:    assembly.FitTarget{BRP: &brp, HandGrip: &grip},
-		Parts:     assembly.PartOptions{Stems: fixtureStems(), SpacerStepMm: 5},
+		Frames:            fixtureFrames(),
+		Wheels:            assembly.WheelSetup{RadiusMm: 372},
+		Seatpost:          fixtureSeatpost(),
+		Saddle:            fixtureSaddle(),
+		DynamicRailPitch:  0,
+		UpperStackMm:      assembly.DefaultUpperStackMm,
+		MaxSpacersMm:      assembly.DefaultMaxSpacersMm,
+		StemClampHeightMm: 40,
+		Stems:             fixtureStems(),
+		SpacerStepMm:      5,
+		Handlebars:        []assembly.Handlebar{persuaderBar()},
+		HasBarOptions:     false,
+		DynamicBarRoll:    0,
+		Target:            assembly.FitTarget{BRP: &brp, HandGrip: &grip},
 		Weights: assembly.ScoreWeights{
 			HandGrip: 6, SaddleBrpY: 6, SaddleBrpX: 4, Stem: 5, HandlebarSweep: 3, ForkSag: 3,
 			Spacers: 2, SaddleRailOffset: 2, RcWbRatio: 2, SeatpostInsertion: 1, LeveledBbDrop: 1, Trail: 1,
@@ -157,23 +201,6 @@ const (
 	sidForkID      = "sid_100-506x44"
 	sidFork51ID    = "sid_100-506x51"
 )
-
-var t1WantRows = []wantRow{
-	{krampusFrameID, "XL", foxForkID, 15, assembly.FitsAll, 82.485025, 0.254290, 110, -17, 5, false, 0},
-	{krampusFrameID, "XL", foxForkID, 20, assembly.FitsAll, 81.534691, 0.146116, 110, -17, 10, false, 0},
-	{krampusFrameID, "XL", foxForkID, 25, assembly.FitsAll, 80.237499, 0.089092, 110, -17, 15, false, 0},
-	{krampusFrameID, "L", foxForkID, 20, assembly.FitsAll, 78.846121, 0.850141, 120, -10, 0, false, 0},
-	{krampusFrameID, "L", foxForkID, 25, assembly.FitsAll, 77.826666, 0.613347, 120, -10, 0, false, 0},
-	{krampusFrameID, "L", foxForkID, 15, assembly.FitsBRP, 77.108743, 1.069619, 120, -17, 5, false, 0},
-	{krampusFrameID, "XL", krampusForkID, 0, assembly.FitsGrip, 76.852325, 0.741170, 90, -17, 15, false, 0},
-	{krampusFrameID, "L", krampusForkID, 0, assembly.FitsGrip, 72.694567, 0.245436, 120, -10, 15, false, 0},
-	{fenrirFrameID, "XL", sidForkID, 20, assembly.FitsGrip, 68.479876, 0.578741, 120, -30, 0, false, 0},
-	{fenrirFrameID, "XL", lithicForkID, 0, assembly.FitsGrip, 67.571942, 0.811560, 120, -30, 0, false, 0},
-	{fenrirFrameID, "XL", sidForkID, 15, assembly.FitsGrip, 67.249134, 0.817186, 120, -30, 0, false, 0},
-	{fenrirFrameID, "L", sidForkID, 20, assembly.FitsNeither, 58.531310, 1.616431, 120, -20, 0, false, 0},
-	{fenrirFrameID, "L", lithicForkID, 0, assembly.FitsNeither, 55.768206, 1.764743, 120, -30, 0, false, 0},
-	{fenrirFrameID, "L", sidForkID, 15, assembly.FitsNeither, 55.430997, 1.767563, 120, -30, 0, false, 0},
-}
 
 func assertNear(t *testing.T, label string, got, want, tol float64) {
 	t.Helper()
@@ -249,7 +276,7 @@ func TestRankFullFixture(t *testing.T) {
 	checkRow(25, fenrirFrameID, "L", lithicForkID, 0, assembly.FitsNeither, 54.271845, 1.897639, 120, -30, 0)
 }
 
-func TestRankRowsMatchFitBuilds(t *testing.T) {
+func TestRankRowsMatchFitFrontBuilds(t *testing.T) {
 	req := fixtureRequest()
 	ranking, err := compare.Rank(req)
 	if err != nil {
@@ -260,44 +287,54 @@ func TestRankRowsMatchFitBuilds(t *testing.T) {
 	for _, f := range req.Frames {
 		frameByID[f.ID] = f
 	}
+	frontOpts := assembly.FrontBuildOptions{
+		StemClampHeightMm: req.StemClampHeightMm,
+		Stems:             req.Stems,
+		SpacerStepMm:      req.SpacerStepMm,
+		Handlebars:        req.Handlebars,
+		HasHandlebarOpts:  req.HasBarOptions,
+		DynamicBarRollDeg: req.DynamicBarRoll,
+	}
 
 	for i, row := range ranking.Rows {
 		f := frameByID[row.FrameID]
-		var frameSetup assembly.FrameSetup
+		var framePart assembly.Frame
 		for _, sz := range f.Sizes {
 			if sz.Name == row.Size {
-				frameSetup = sz.Frame
+				framePart = sz.Frame
 				break
 			}
 		}
-		var forkSpec assembly.ForkSpec
+		var forkItem compare.Fork
 		for _, fk := range f.Forks {
 			if fk.ID == row.ForkID {
-				forkSpec = fk.Spec
+				forkItem = fk
 				break
 			}
 		}
 
-		bounds, err := assembly.SeatpostInsertionBounds(frameSetup, req.Seatpost)
+		fk, err := forkItem.Build(row.SagPct)
 		if err != nil {
-			t.Fatalf("row %d SeatpostInsertionBounds: %v", i, err)
+			t.Fatalf("row %d Build: %v", i, err)
 		}
-		setup := assembly.BikeSetup{
-			Frame:     frameSetup,
-			LowerCup:  frameSetup.DefaultLowerCup,
-			Fork:      assembly.ForkSetup{Spec: forkSpec, SagPct: row.SagPct},
-			Wheels:    req.Wheels,
-			Seatpost:  assembly.SeatpostSetup{Spec: req.Seatpost, InsertionMm: bounds.EffectiveMinInsertionMm},
-			Saddle:    req.Saddle,
-			Stem:      req.Stem,
-			Handlebar: req.Handlebar,
-		}
-		want, err := assembly.FitBuilds(setup, req.Target, req.Parts, req.Weights, 1)
+		fs, err := assembly.MateFrameset(framePart, framePart.DefaultLowerCup(), req.UpperStackMm, fk, req.Wheels)
 		if err != nil {
-			t.Fatalf("row %d FitBuilds: %v", i, err)
+			t.Fatalf("row %d MateFrameset: %v", i, err)
+		}
+		rear, err := assembly.OpenRearCockpit(fs, req.Seatpost, req.Saddle, req.DynamicRailPitch)
+		if err != nil {
+			t.Fatalf("row %d OpenRearCockpit: %v", i, err)
+		}
+		seated, _, err := rear.FitToBRP(*req.Target.BRP)
+		if err != nil {
+			t.Fatalf("row %d FitToBRP: %v", i, err)
+		}
+		want, err := assembly.FitFrontBuilds(seated, req.Target, frontOpts, req.Weights, 1)
+		if err != nil {
+			t.Fatalf("row %d FitFrontBuilds: %v", i, err)
 		}
 		if !reflect.DeepEqual(row.Build, want.Builds[0]) {
-			t.Fatalf("row %d Build != FitBuilds[0]", i)
+			t.Fatalf("row %d Build != FitFrontBuilds[0]", i)
 		}
 		if row.Evaluated != want.Evaluated {
 			t.Fatalf("row %d Evaluated = %d, want %d", i, row.Evaluated, want.Evaluated)
@@ -307,7 +344,8 @@ func TestRankRowsMatchFitBuilds(t *testing.T) {
 
 func TestRankAllHandlebars(t *testing.T) {
 	req := fixtureRequest()
-	req.Parts.Handlebars = []assembly.HandlebarSetup{persuaderBar(), sqlab311Bar()}
+	req.Handlebars = []assembly.Handlebar{persuaderBar(), sqlab311Bar()}
+	req.HasBarOptions = true
 	ranking, err := compare.Rank(req)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
@@ -372,6 +410,10 @@ func TestRankPrunes(t *testing.T) {
 }
 
 func TestRankRejectsInvalidRequests(t *testing.T) {
+	deepPost, err := assembly.NewRigidPost(350, 300, 320, 12, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cases := []struct {
 		name   string
 		mutate func(*compare.Request)
@@ -386,16 +428,16 @@ func TestRankRejectsInvalidRequests(t *testing.T) {
 		{"duplicate size", func(r *compare.Request) { r.Frames[0].Sizes[1].Name = "L" }, []string{`frame "surly-krampus" has duplicate size "L"`}},
 		{"empty fork ID", func(r *compare.Request) { r.Frames[0].Forks[1].ID = "" }, []string{`frame "surly-krampus" fork 1 has an empty ID`}},
 		{"duplicate fork", func(r *compare.Request) { r.Frames[0].Forks[1].ID = krampusForkID }, []string{`frame "surly-krampus" has duplicate fork "surly_krampus_483"`}},
-		{"basis fork", func(r *compare.Request) { r.Frames[0].Forks[0].Spec.Steerer = assembly.SteererBasis }, []string{"is the chart basis fork"}},
-		{"unsupported travel", func(r *compare.Request) { r.Frames[0].Forks[1].Spec.Travel = assembly.ForkTravel(110) }, []string{"has unsupported travel 110 mm"}},
+		{"missing fork builder", func(r *compare.Request) { r.Frames[0].Forks[0].Build = nil }, []string{"has no fork builder"}},
+		{"unsupported travel", func(r *compare.Request) { r.Frames[0].Forks[1].Travel = assembly.ForkTravel(110) }, []string{"has unsupported travel 110 mm"}},
+		{"no seatpost", func(r *compare.Request) { r.Seatpost = nil }, []string{"compare needs a seatpost"}},
+		{"no handlebars", func(r *compare.Request) { r.Handlebars = nil }, []string{"compare needs at least one handlebar"}},
 		{"no BRP", func(r *compare.Request) { r.Target.BRP = nil }, []string{"compare needs a BRP target"}},
 		{"no HandGrip", func(r *compare.Request) { r.Target.HandGrip = nil }, []string{"compare needs a HandGrip target"}},
-		{"fork options", func(r *compare.Request) { r.Parts.Forks = []assembly.ForkOption{{}} }, []string{"part options must not list forks"}},
 		{"negative top per frame", func(r *compare.Request) { r.TopPerFrame = -1 }, []string{"top per frame must be 0 or more, got -1"}},
 		{"negative top", func(r *compare.Request) { r.Top = -1 }, []string{"top must be 0 or more, got -1"}},
 		{"seatpost too deep for a size", func(r *compare.Request) {
-			r.Seatpost.MinInsertionMm = 300
-			r.Seatpost.MaxInsertionMm = 320
+			r.Seatpost = deepPost
 		}, []string{`frame "otso-fenrir-stainless" size "L" fork "lithic_carbon_mountain-495x44" at 0% sag:`}},
 	}
 
@@ -417,7 +459,8 @@ func TestRankRejectsInvalidRequests(t *testing.T) {
 	}
 }
 
-// TestRankRejectsInvalidForkLowerCups checks each per-fork cup rule (Q136).
+// TestRankRejectsInvalidForkLowerCups checks that MateFrameset's canonical SHIS
+// validation rejects every illegal per-fork lower headset cup.
 func TestRankRejectsInvalidForkLowerCups(t *testing.T) {
 	cup := func(std assembly.LowerCupStandard, stack float64) assembly.LowerCupSetup {
 		return assembly.LowerCupSetup{Standard: std, StackMm: stack}
@@ -428,13 +471,13 @@ func TestRankRejectsInvalidForkLowerCups(t *testing.T) {
 		lowerCup assembly.LowerCupSetup
 		want     string
 	}{
-		{"bare head tube", 0, cup(assembly.LowerCupBareHeadTube, 0), "must be a physical cup"},
+		{"bare head tube", 0, cup(assembly.LowerCupBareHeadTube, 0), "needs a physical lower cup"},
 		{"unknown standard", 0, cup("nope", 4), "unknown or missing lower headset cup standard"},
 		{"negative stack", 0, cup(assembly.LowerCupZS44, -1), "non-negative"},
 		{"NaN stack", 0, cup(assembly.LowerCupZS44, math.NaN()), "finite"},
 		{"Inf stack", 0, cup(assembly.LowerCupZS44, math.Inf(1)), "finite"},
-		{"wrong standard for bore", 0, cup(assembly.LowerCupEC34, 12), "does not fit"},
-		{"ZS44 with tapered steerer", 1, cup(assembly.LowerCupZS44, 4), "does not fit"},
+		{"wrong standard for bore", 0, cup(assembly.LowerCupEC34, 12), "needs a 34_pressed head tube bore"},
+		{"ZS44 with tapered steerer", 1, cup(assembly.LowerCupZS44, 4), "does not fit a tapered steerer"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -449,7 +492,7 @@ func TestRankRejectsInvalidForkLowerCups(t *testing.T) {
 }
 
 // TestRankUsesForkLowerCup checks that a straight fork with ZS44 and a tapered
-// fork with EC44 each place with their own cup on one 44 mm frame (Q136).
+// fork with EC44 each place with their own cup on one 44 mm frame.
 func TestRankUsesForkLowerCup(t *testing.T) {
 	req := fixtureRequest()
 	req.Frames = req.Frames[:1]

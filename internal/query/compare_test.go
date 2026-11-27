@@ -90,7 +90,7 @@ func assertNear(t *testing.T, name string, got, want, tol float64) {
 	}
 }
 
-// TestCatalogFrames checks the catalog-to-compare frame adapter (Q67, Q69).
+// TestCatalogFrames checks the catalog-to-compare frame adapter.
 func TestCatalogFrames(t *testing.T) {
 	frames := catalog.Frames()
 	got := query.CatalogFrames()
@@ -110,7 +110,11 @@ func TestCatalogFrames(t *testing.T) {
 			if cf.Sizes[j].Name != sz.Name {
 				t.Errorf("%s size %d = %q, want %q", f.ID, j, cf.Sizes[j].Name, sz.Name)
 			}
-			if !reflect.DeepEqual(cf.Sizes[j].Frame, f.InstalledFrame(sz)) {
+			wantFrame, err := f.InstalledFrame(sz)
+			if err != nil {
+				t.Fatalf("%s/%s InstalledFrame: %v", f.ID, sz.Name, err)
+			}
+			if !reflect.DeepEqual(cf.Sizes[j].Frame.Dimensions(), wantFrame.Dimensions()) {
 				t.Errorf("%s size %q frame differs from InstalledFrame", f.ID, sz.Name)
 			}
 		}
@@ -126,8 +130,14 @@ func TestCatalogFrames(t *testing.T) {
 			if cf.Forks[j].LowerCup != opt.LowerCup {
 				t.Errorf("%s fork %q cup = %+v, want %+v", f.ID, opt.ID(), cf.Forks[j].LowerCup, opt.LowerCup)
 			}
-			if cf.Forks[j].Spec != opt.Spec() {
-				t.Errorf("%s fork %q spec = %+v, want %+v", f.ID, opt.ID(), cf.Forks[j].Spec, opt.Spec())
+			if cf.Forks[j].Travel != opt.Fork.Travel {
+				t.Errorf("%s fork %q travel = %v, want %v", f.ID, opt.ID(), cf.Forks[j].Travel, opt.Fork.Travel)
+			}
+			fk, err := cf.Forks[j].Build(opt.Fork.Travel.DefaultSagPct())
+			if err != nil {
+				t.Errorf("%s fork %q Build: %v", f.ID, opt.ID(), err)
+			} else if fk.Steerer() != opt.Fork.Steerer {
+				t.Errorf("%s fork %q steerer = %q, want %q", f.ID, opt.ID(), fk.Steerer(), opt.Fork.Steerer)
 			}
 		}
 	}
@@ -143,22 +153,22 @@ func TestCatalogFrames(t *testing.T) {
 	if !ok {
 		t.Fatal("binary-havok has no size L")
 	}
-	if sz.ChartFrame.ChainstayMm != 445 {
-		t.Errorf("binary-havok L published chainstay = %v, want 445", sz.ChartFrame.ChainstayMm)
+	if sz.ChartDims.ChainstayMm != 445 {
+		t.Errorf("binary-havok L published chainstay = %v, want 445", sz.ChartDims.ChainstayMm)
 	}
 	for _, cf := range got {
 		if cf.ID != "binary-havok" {
 			continue
 		}
 		for _, s := range cf.Sizes {
-			if s.Name == "L" && s.Frame.ChainstayMm != 460 {
-				t.Errorf("binary-havok L installed chainstay = %v, want 460 (Q67)", s.Frame.ChainstayMm)
+			if s.Name == "L" && s.Frame.Dimensions().ChainstayMm != 460 {
+				t.Errorf("binary-havok L installed chainstay = %v, want 460", s.Frame.Dimensions().ChainstayMm)
 			}
 		}
 	}
 }
 
-// TestParseCompareDefaults checks the catalog compare defaults (Q53, Q56, Q62, Q87).
+// TestParseCompareDefaults checks the catalog compare defaults.
 func TestParseCompareDefaults(t *testing.T) {
 	for _, raw := range []string{"", "top_per_frame=&top="} {
 		c := mustParseCompare(t, raw)
@@ -183,20 +193,20 @@ func TestParseCompareDefaults(t *testing.T) {
 		if c.TopPerFrameExplicit || c.TopExplicit {
 			t.Errorf("%q: TopPerFrameExplicit = %v, TopExplicit = %v; want false, false", raw, c.TopPerFrameExplicit, c.TopExplicit)
 		}
-		if c.Request.Handlebar.BarRollDeg != 0 || c.Request.Saddle.RailPitchDeg != 0 {
-			t.Errorf("%q: BarRollDeg = %v, RailPitchDeg = %v; want 0, 0", raw, c.Request.Handlebar.BarRollDeg, c.Request.Saddle.RailPitchDeg)
+		if c.Request.DynamicBarRoll != 0 || c.Request.DynamicRailPitch != 0 {
+			t.Errorf("%q: DynamicBarRoll = %v, DynamicRailPitch = %v; want 0, 0", raw, c.Request.DynamicBarRoll, c.Request.DynamicRailPitch)
 		}
 		if len(c.Request.Frames) != len(catalog.Frames()) {
 			t.Errorf("%q: got %d frames, want every catalog frame (%d)", raw, len(c.Request.Frames), len(catalog.Frames()))
 		}
-		if c.Request.Parts.Handlebars != nil {
-			t.Errorf("%q: Request.Parts.Handlebars = %v, want nil", raw, c.Request.Parts.Handlebars)
+		if c.Request.HasBarOptions || len(c.Request.Handlebars) != 1 {
+			t.Errorf("%q: HasBarOptions = %v, len(Handlebars) = %d; want false, 1", raw, c.Request.HasBarOptions, len(c.Request.Handlebars))
 		}
-		if len(c.Request.Parts.Stems) != 107 {
-			t.Errorf("%q: got %d stems, want 107", raw, len(c.Request.Parts.Stems))
+		if len(c.Request.Stems) != 107 {
+			t.Errorf("%q: got %d stems, want 107", raw, len(c.Request.Stems))
 		}
-		if c.Request.Parts.SpacerStepMm != 5 {
-			t.Errorf("%q: SpacerStepMm = %v, want 5", raw, c.Request.Parts.SpacerStepMm)
+		if c.Request.SpacerStepMm != 5 {
+			t.Errorf("%q: SpacerStepMm = %v, want 5", raw, c.Request.SpacerStepMm)
 		}
 	}
 }
@@ -220,13 +230,12 @@ func TestParseCompareFlags(t *testing.T) {
 
 	t.Run("all bar options", func(t *testing.T) {
 		c := mustParseCompare(t, "bar_options=all")
-		if !c.AllBarOptions || len(c.OfferedBars) != 15 || len(c.Request.Parts.Handlebars) != 15 {
-			t.Fatalf("AllBarOptions %v, %d offered bars, %d part bars; want true, 15, 15", c.AllBarOptions, len(c.OfferedBars), len(c.Request.Parts.Handlebars))
+		if !c.AllBarOptions || !c.Request.HasBarOptions || len(c.OfferedBars) != 15 || len(c.Request.Handlebars) != 15 {
+			t.Fatalf("AllBarOptions %v, HasBarOptions %v, %d offered bars, %d request bars; want true, true, 15, 15",
+				c.AllBarOptions, c.Request.HasBarOptions, len(c.OfferedBars), len(c.Request.Handlebars))
 		}
-		for i, b := range c.Request.Parts.Handlebars {
-			if b.BarRollDeg != 0 {
-				t.Errorf("Parts.Handlebars[%d].BarRollDeg = %v, want 0", i, b.BarRollDeg)
-			}
+		if c.Request.DynamicBarRoll != 0 {
+			t.Errorf("DynamicBarRoll = %v, want 0", c.Request.DynamicBarRoll)
 		}
 	})
 
@@ -247,19 +256,19 @@ func TestParseCompareRejectsInvalidQueries(t *testing.T) {
 		field   string
 		wantErr string
 	}{
-		// checkKnownKeys (Q107)
+		// Unknown query parameters
 		{"bar_option=all", "bar_option", "unknown query parameter"},
 		{"top_per_fram=0", "top_per_fram", "unknown query parameter"},
 		{"stock_bars=all", "stock_bars", "unknown query parameter"},
 		{"post_ext=200", "post_ext", "unknown query parameter"},
 		{"z_bad=1&a_bad=2", "a_bad", `unknown query parameter "a_bad"`},
 
-		// checkSingleValueKeys
+		// Duplicate single-value keys
 		{"top=1&top=2", "top", "may only be specified once"},
 		{"post=setback_0&post=setback_15", "post", "may only be specified once"},
 		{"brp_x=-219&brp_x=-200", "brp_x", "may only be specified once"},
 
-		// custom selections, bar roll, and rail pitch left compare (Q158)
+		// Single-bike selection keys are not accepted on compare
 		{"frame=surly-krampus", "frame", "unknown query parameter"},
 		{"frame=&size=&fork=&sag=", "fork", "unknown query parameter"},
 		{"size=L", "size", "unknown query parameter"},
@@ -267,7 +276,7 @@ func TestParseCompareRejectsInvalidQueries(t *testing.T) {
 		{"bar_roll=10", "bar_roll", "unknown query parameter"},
 		{"rail_pitch=-2", "rail_pitch", "unknown query parameter"},
 
-		// parseNonNegInt
+		// Non-negative integer limits
 		{"top_per_frame=-1", "top_per_frame", "non-negative integer"},
 		{"top_per_frame=1.5", "top_per_frame", "non-negative integer"},
 		{"top_per_frame=abc", "top_per_frame", "non-negative integer"},
@@ -280,7 +289,7 @@ func TestParseCompareRejectsInvalidQueries(t *testing.T) {
 		{"bar=nope&bar_options=all", "bar", "unknown handlebar"},
 		{"bar_options=some", "bar_options", "unknown handlebar options value"},
 
-		// parseTarget flags and pairs (Q70)
+		// Target flags and coordinate pairs
 		{"brp=on", "brp", `only "off" is supported`},
 		{"grip=yes", "grip", `only "off" is supported`},
 		{"brp_x=-219", "brp_y", "requires both"},
@@ -297,7 +306,7 @@ func TestParseCompareRejectsInvalidQueries(t *testing.T) {
 		{"brp_x=-219&brp_y=NaN", "brp_y", "finite number"},
 		{"grip_x=Inf&grip_y=726", "grip_x", "finite number"},
 
-		// required targets (Q76)
+		// Both targets are required for compare
 		{"brp=off", "brp", "compare requires a BRP target"},
 		{"brp_x=&brp_y=", "brp", "compare requires a BRP target"},
 		{"brp=off&brp_x=&brp_y=", "brp", "compare requires a BRP target"},
@@ -383,7 +392,7 @@ func TestParseCompareRankAndResolve(t *testing.T) {
 			stemLengthMm: 120, stemAngleDeg: -30, spacersMm: 0, insertionMm: 176.648907, railOffsetMm: 15.0,
 			extra: func(t *testing.T, row query.CompareRow) {
 				if got := row.Build.Placement.Setup.Frame.ChainstayMm; got != 460 {
-					t.Errorf("Setup.Frame.ChainstayMm = %v, want 460 (Q67)", got)
+					t.Errorf("Setup.Frame.ChainstayMm = %v, want 460", got)
 				}
 			},
 		},
@@ -446,8 +455,8 @@ func TestWinningHandlebarOutOfRange(t *testing.T) {
 }
 
 // TestParseCompareDefaultAllFrames ranks every catalog frame on the selected
-// bar (~3 s, Q104). It is the suite's one full-catalog ranking: it checks that
-// every catalog frame ranks, so every other compare test ranks trimmed frames.
+// bar. It is the suite's one full-catalog ranking: it checks that every catalog
+// frame ranks, so every other compare test ranks trimmed frames.
 func TestParseCompareDefaultAllFrames(t *testing.T) {
 	result := mustRankAndResolve(t, mustParseCompare(t, ""))
 	if result.RowCount != 2889 || result.Evaluated != 2163861 || len(result.Rows) != 18 {
@@ -569,8 +578,14 @@ func TestCompareRowBikeURLRoundTrip(t *testing.T) {
 			if b.Bar.ID != tc.wantBarID {
 				t.Errorf("Bar.ID = %q, want %q", b.Bar.ID, tc.wantBarID)
 			}
-			if tc.wantChainstay != 0 && b.Setup.Frame.ChainstayMm != tc.wantChainstay {
-				t.Errorf("Setup.Frame.ChainstayMm = %v, want %v", b.Setup.Frame.ChainstayMm, tc.wantChainstay)
+			if tc.wantChainstay != 0 {
+				fr, err := b.FramePart()
+				if err != nil {
+					t.Fatalf("FramePart: %v", err)
+				}
+				if fr.Dimensions().ChainstayMm != tc.wantChainstay {
+					t.Errorf("Frame.ChainstayMm = %v, want %v", fr.Dimensions().ChainstayMm, tc.wantChainstay)
+				}
 			}
 			res, err := b.Evaluate(query.RankedBuildLimit)
 			if err != nil {
@@ -628,7 +643,7 @@ func TestCompareRowBikeURLRoundTrip(t *testing.T) {
 }
 
 // TestParseCompareOpenForkChoice selects a compatible fork a frame does not
-// list (Q128, Q135) and counts the open fork rows.
+// list and counts the open fork rows.
 func TestParseCompareOpenForkChoice(t *testing.T) {
 	c := mustParseCompare(t, "top_per_frame=0")
 	c.Request.Frames = trimFrames(t, "surly-krampus", "", "pike_120")

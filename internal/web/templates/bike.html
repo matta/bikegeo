@@ -1389,7 +1389,7 @@
             <div class="kv-section">
               <h3>Chart Basis Reference</h3>
               <dl class="kv-grid">
-                <div class="kv-row kv-row-wide"><dt>Basis fork</dt><dd class="mono">{{printf "%.0f" .BasisFork.StaticA2cMm}} mm A2C / {{printf "%.0f" .BasisFork.RakeMm}} mm rake · {{printf "%.0f" .BasisLowerCupMm}} mm cup</dd></div>
+                <div class="kv-row kv-row-wide"><dt>Basis fork</dt><dd class="mono">{{printf "%.0f" .BasisFork.BasisA2cMm}} mm A2C / {{printf "%.0f" .BasisFork.RakeMm}} mm rake · {{printf "%.0f" .BasisLowerCupMm}} mm cup</dd></div>
                 <div class="kv-row kv-row-wide"><dt>Basis HTA / WB</dt><dd class="mono">{{printf "%.2f°" .BasisHtaDeg}} HTA, {{printf "%.1f mm" .BasisWheelbaseMm}} WB{{if gt .PublishedWheelbaseMm 0.0}} (Published {{printf "%.1f mm" .PublishedWheelbaseMm}}){{end}}</dd></div>
                 <div class="kv-row kv-row-wide"><dt>ΔPitch vs Basis</dt><dd class="mono" data-metric="delta-pitch">{{printf "%+.2f°" .DeltaPitchDeg}}</dd></div>
               </dl>

@@ -48,7 +48,7 @@ func makeBasisForkOption(frame catalog.Frame, selected bool) selectOption {
 	return selectOption{
 		Value: query.BasisForkID,
 		Label: fmt.Sprintf("%s (%.0f mm A2C / %.0f mm rake, %.0f mm cup)",
-			basisForkName, frame.BasisFork.StaticA2cMm, frame.BasisFork.RakeMm, frame.BasisLowerCup.StackMm),
+			basisForkName, frame.BasisFork.BasisA2cMm(), frame.BasisFork.RakeMm(), frame.BasisLowerCup.StackMm),
 		Selected: selected,
 	}
 }
@@ -112,7 +112,7 @@ type selectedIDs struct {
 
 // formFromBike returns the form values describing a parsed bike.
 func formFromBike(b query.Bike) bikeFormValues {
-	s := b.Setup
+	p := b.Params
 	form := bikeFormValues{
 		View:        b.View,
 		Frame:       b.Frame.ID,
@@ -124,16 +124,16 @@ func formFromBike(b query.Bike) bikeFormValues {
 		PrevSize:    b.Size.Name,
 		PrevFork:    b.ForkID,
 		PrevPost:    b.Post.ID,
-		ForkA2c:     formatFormFloat(s.Fork.Spec.StaticA2cMm),
-		Cup:         formatFormFloat(s.LowerCup.StackMm),
-		Sag:         formatFormFloat(s.Fork.SagPct),
-		Spacers:     formatFormFloat(s.Stem.SpacersMm),
-		StemLength:  formatFormFloat(s.Stem.LengthMm),
-		StemAngle:   formatFormFloat(float64(s.Stem.AngleDeg)),
-		BarRoll:     formatFormFloat(float64(s.Handlebar.BarRollDeg)),
-		PostInsert:  formatFormFloat(s.Seatpost.InsertionMm),
-		RailOffset:  formatFormFloat(s.Saddle.RailOffsetMm),
-		RailPitch:   formatFormFloat(float64(s.Saddle.RailPitchDeg)),
+		ForkA2c:     formatFormFloat(p.ForkA2cMm),
+		Cup:         formatFormFloat(p.LowerCupMm),
+		Sag:         formatFormFloat(p.SagPct),
+		Spacers:     formatFormFloat(p.SpacersMm),
+		StemLength:  formatFormFloat(p.StemLengthMm),
+		StemAngle:   formatFormFloat(float64(p.StemAngleDeg)),
+		BarRoll:     formatFormFloat(float64(p.BarRollDeg)),
+		PostInsert:  formatFormFloat(p.PostInsertMm),
+		RailOffset:  formatFormFloat(p.RailOffsetMm),
+		RailPitch:   formatFormFloat(float64(p.RailPitchDeg)),
 		BarOptions:  query.BarOptionsSelected,
 		ForkOptions: query.ForkOptionsSelected,
 	}
@@ -266,8 +266,11 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs, invalidFie
 	}
 	bars := catalog.Handlebars()
 	forkA2cRO, cupRO, sagRO, cupLabel := forkFieldViewState(b, sel.Fork, form.Sag)
-	minRail, maxRail := railOffsetRange(b.Setup.Saddle, b.Setup.Seatpost)
-	postBounds := postInsertionBounds(b.Setup.Frame, b.Setup.Seatpost.Spec)
+	var minPostIns, maxPostIns, minRail, maxRail float64
+	if insBounds, railBounds, err := b.RearBounds(); err == nil {
+		minPostIns, maxPostIns = insBounds.Min(), insBounds.Max()
+		minRail, maxRail = railBounds.Min(), railBounds.Max()
+	}
 	brp, grip := catalog.DefaultBrpTarget(), catalog.DefaultGripTarget()
 	v := bikeView{
 		Form:                 form,
@@ -277,12 +280,12 @@ func controlsView(b query.Bike, form bikeFormValues, sel selectedIDs, invalidFie
 		ExampleBrpY:          formatFormFloat(brp.Y()),
 		ExampleGripX:         formatFormFloat(grip.X()),
 		ExampleGripY:         formatFormFloat(grip.Y()),
-		MaxSpacersMm:         b.Setup.Stem.MaxSpacersMm,
-		MinPostInsertionMm:   postBounds.EffectiveMinInsertionMm,
-		MaxPostInsertionMm:   postBounds.MaxAllowedInsertionMm,
-		PostTotalLengthMm:    b.Setup.Seatpost.Spec.TotalLengthMm,
-		PostSetbackMm:        b.Setup.Seatpost.Spec.SetbackMm,
-		PostClampLengthMm:    b.Setup.Seatpost.Spec.RailClampLengthMm,
+		MaxSpacersMm:         assembly.DefaultMaxSpacersMm,
+		MinPostInsertionMm:   minPostIns,
+		MaxPostInsertionMm:   maxPostIns,
+		PostTotalLengthMm:    b.Post.TotalLengthMm(),
+		PostSetbackMm:        b.Post.SetbackMm(),
+		PostClampLengthMm:    b.Post.RailClampLengthMm(),
 		BikeName:             fmt.Sprintf("%s %s (%d, Size %s)", b.Frame.Manufacturer, b.Frame.Model, b.Frame.Year, b.Size.Name),
 		FrameOptions:         buildBikeFrameOptions(sel.Frame, invalidRaw, invalidField == "frame" && invalidRaw != ""),
 		SizeOptions:          buildBikeSizeOptions(b.Frame, sel.Size, invalidRaw, invalidField == "size" && invalidRaw != ""),
@@ -319,9 +322,9 @@ func forkFieldViewState(b query.Bike, selectedForkID, sagValue string) (forkA2cR
 	// On a known rigid fork, keep sag read-only only when the displayed value is
 	// already valid zero; if an invalid or non-zero sag was submitted, leave the
 	// input editable so the user can reset it to 0 without losing other settings.
-	rigid := !isBasis && !b.Setup.Fork.Spec.Travel.IsSuspension()
+	rigid := !isBasis && !b.ForkOption.Fork.Travel.IsSuspension()
 	sagRO = isBasis || (selectedForkID != "" && rigid && isZeroFormFloat(sagValue))
-	cupLabel = lowerCupLabel(b.Setup.LowerCup.Standard)
+	cupLabel = lowerCupLabel(b.LowerCup().Standard)
 	return forkA2cRO, cupRO, sagRO, cupLabel
 }
 
@@ -330,7 +333,7 @@ func basisForkNote(b query.Bike, selectedForkID string) string {
 		return ""
 	}
 	basisCup := b.Frame.BasisLowerCup
-	physCup := b.Frame.InstalledFrame(b.Size).DefaultLowerCup
+	physCup := b.Frame.InstalledDims(b.Size).DefaultLowerCup
 	if basisCup.Standard == assembly.LowerCupBareHeadTube {
 		return fmt.Sprintf(
 			"Chart Basis Fork: the published frame chart omits the lower headset cup (%s, %s mm), and these chart fields are locked. Physical fork pairings default to %s (%s mm) — switch to an installed fork to explore cup or sag changes.",
@@ -346,13 +349,13 @@ func basisForkNote(b query.Bike, selectedForkID string) string {
 }
 
 // slidingDropoutsNote explains which chainstay a sliding-dropout frame is
-// evaluated at (Q57, Q67); empty for fixed dropouts.
+// evaluated at; empty for fixed dropouts.
 func slidingDropoutsNote(b query.Bike) string {
 	maxCs := b.Frame.MaxChainstayMm
 	if maxCs <= 0 {
 		return ""
 	}
-	published := b.Size.ChartFrame.ChainstayMm
+	published := b.Size.ChartDims.ChainstayMm
 	switch {
 	case b.ForkID == query.BasisForkID && maxCs != published:
 		return fmt.Sprintf("Chart Basis Fork uses published chainstay (%.0f mm); installed physical forks evaluate sliding dropouts at max chainstay (%.0f mm).", published, maxCs)
@@ -518,7 +521,7 @@ func buildFittingView(parsed query.Bike, res query.BikeResult) (*bikeFittingView
 	}
 	fitted := fitting.Placement.Setup
 	if brp := fitting.Target.BRP; brp != nil {
-		railLimit, _ := bike.Setup.RailOffsetLimitMm() // PlaceBike and ApplyFitting already accepted this setup
+		railLimit := bike.Bounds.SaddleRailOffset.Max
 		miss := bike.Saddle.BRP.Origin().OffsetTo(*brp)
 		fv.Saddle = &saddleFittingView{
 			TargetX: brp.X(), TargetY: brp.Y(),
@@ -541,17 +544,17 @@ func buildFittingView(parsed query.Bike, res query.BikeResult) (*bikeFittingView
 			TargetX: grip.X(), TargetY: grip.Y(),
 			MissX: cleanZero(miss.X(), 0.05), MissY: cleanZero(miss.Y(), 0.05), MissMm: miss.Norm(),
 			SpacersMm:       fitted.Stem.SpacersMm,
-			MaxSpacersMm:    stem.MaxSpacersMm,
+			MaxSpacersMm:    bike.Bounds.StemSpacers.Max,
 			StemLengthMm:    fitted.Stem.LengthMm,
-			MinStemLengthMm: stem.MinLengthMm,
-			MaxStemLengthMm: stem.MaxLengthMm,
+			MinStemLengthMm: catalog.DefaultMinStemLengthMm,
+			MaxStemLengthMm: catalog.DefaultMaxStemLengthMm,
 			StemAngleDeg:    stem.AngleDeg,
 			BarRollDeg:      bike.Setup.Handlebar.BarRollDeg,
 			LimitedBy:       cockpitLimits,
 		}
 		fv.SubmittedScore = makeSubmittedScoreView(parsed, res.Score)
 	}
-	fv.ApplyURL = parsed.WithSetup(fitted).URL()
+	fv.ApplyURL = parsed.WithPlacement(fitting.Placement).URL()
 	if res.Builds != nil {
 		var err error
 		fv.Builds, err = makeBuildRankingView(parsed, *res.Builds)
@@ -563,12 +566,11 @@ func buildFittingView(parsed query.Bike, res query.BikeResult) (*bikeFittingView
 }
 
 // makeSubmittedScoreView presents the submitted build's score, or the note
-// that an off-catalog stem has none (Q110).
+// that an off-catalog stem has none.
 func makeSubmittedScoreView(parsed query.Bike, score *assembly.BuildScore) *submittedScoreView {
 	if score == nil {
-		stem := parsed.Setup.Stem
 		return &submittedScoreView{
-			OffCatalogNote: fmt.Sprintf("Off-catalog stem (%s mm, %+.1f°): build score applies to catalog stems.", query.FormatFloat(stem.LengthMm), stem.AngleDeg),
+			OffCatalogNote: fmt.Sprintf("Off-catalog stem (%s mm, %+.1f°): build score applies to catalog stems.", query.FormatFloat(parsed.Params.StemLengthMm), parsed.Params.StemAngleDeg),
 		}
 	}
 	weights := catalog.DefaultScoreWeights()
@@ -605,7 +607,7 @@ func makeBuildRankingView(parsed query.Bike, ranking query.BikeBuildRanking) (*b
 	}
 	for i, c := range ranking.Builds {
 		stem := c.Placement.Setup.Stem
-		applied := parsed.WithSetup(c.Placement.Setup)
+		applied := parsed.WithPlacement(c.Placement)
 		bar := parsed.Bar
 		if c.HasHandlebarOption {
 			found, ok := catalog.HandlebarByID(c.HandlebarID)

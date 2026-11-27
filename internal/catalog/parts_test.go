@@ -9,7 +9,7 @@ import (
 	"github.com/matta/bikegeo/internal/pose"
 )
 
-// TestForks checks the 16 fork models, their variants, Q131 IDs, and Q72 steerers.
+// TestForks checks the 16 fork models, their variants, IDs, and physical steerers.
 func TestForks(t *testing.T) {
 	forks := catalog.Forks()
 	if len(forks) != 16 {
@@ -17,7 +17,7 @@ func TestForks(t *testing.T) {
 	}
 	for _, id := range []string{"rigid_483", "rigid_485", "rigid_490", "rigid_500", "rigid_510"} {
 		if _, ok := catalog.ForkByID(id); ok {
-			t.Errorf("ForkByID(%q) ok = true, want false (Q137)", id)
+			t.Errorf("ForkByID(%q) ok = true, want false", id)
 		}
 	}
 	seen := map[string]bool{}
@@ -63,25 +63,23 @@ func TestForks(t *testing.T) {
 			t.Errorf("ForkByID(%q) = %q, %v", f.ID, got.ID, ok)
 		}
 		switch f.Steerer {
-		case assembly.SteererStraight118:
+		case assembly.PhysicalSteererStraight118:
 			straight = append(straight, f.ID)
-		case assembly.SteererTapered:
-		case assembly.SteererBasis:
-			t.Errorf("fork %q uses the basis sentinel steerer", f.ID)
+		case assembly.PhysicalSteererTapered:
 		default:
 			t.Errorf("fork %q has unknown steerer %q", f.ID, f.Steerer)
 		}
 	}
 	want := []string{"sunliner_440", "surly_ecr_468", "surly_krampus_483", "sklar_steel_485"}
 	if !slices.Equal(straight, want) {
-		t.Errorf("straight-steerer forks = %v, want %v (Q72)", straight, want)
+		t.Errorf("straight-steerer forks = %v, want %v", straight, want)
 	}
 	if _, ok := catalog.ForkByID("missing"); ok {
 		t.Errorf("ForkByID(missing) ok = true, want false")
 	}
 }
 
-// TestHandlebars checks the 15 handlebars place and leave the roll to the workbench.
+// TestHandlebars checks the 15 catalog handlebars construct valid Handlebar parts.
 func TestHandlebars(t *testing.T) {
 	bars := catalog.Handlebars()
 	if len(bars) != 15 {
@@ -91,21 +89,24 @@ func TestHandlebars(t *testing.T) {
 		t.Errorf("first handlebar = %q, want persuader20_800", bars[0].ID)
 	}
 	seen := map[string]bool{}
+	barClamp := assembly.BarClampPort{
+		ClampInParent: pose.OriginPose(assembly.DynamicWorld).Anchor(assembly.StemLocal),
+	}
 	for _, bar := range bars {
 		if seen[bar.ID] {
 			t.Errorf("duplicate handlebar ID %q", bar.ID)
 		}
 		seen[bar.ID] = true
-		if bar.Setup.BarRollDeg != 0 {
-			t.Errorf("handlebar %q BarRollDeg = %v, want 0", bar.ID, bar.Setup.BarRollDeg)
+		if bar.Part.GripInBar().CoordinateSystem() != assembly.HandlebarLocal {
+			t.Errorf("handlebar %q GripInBar system = %s", bar.ID, bar.Part.GripInBar().CoordinateSystem())
 		}
-		if _, err := assembly.PlaceHandlebar(pose.OriginPose(assembly.DynamicWorld), bar.Setup); err != nil {
-			t.Errorf("handlebar %q does not place: %v", bar.ID, err)
+		if _, err := assembly.MountHandlebar(barClamp, bar.Part, 0); err != nil {
+			t.Errorf("handlebar %q does not mount: %v", bar.ID, err)
 		}
 	}
 }
 
-// TestSeatposts checks the four seatposts (Q28, Q75c).
+// TestSeatposts checks the four seatposts (three RigidPost and one LinkagePost).
 func TestSeatposts(t *testing.T) {
 	posts := catalog.Seatposts()
 	var ids []string
@@ -117,39 +118,40 @@ func TestSeatposts(t *testing.T) {
 	}
 	for i, setback := range []float64{0, 15, 25, 12} {
 		p := posts[i]
-		if err := p.Spec.Validate(); err != nil {
-			t.Errorf("seatpost %q invalid: %v", p.ID, err)
-		}
-		if p.Spec.SetbackMm != setback {
-			t.Errorf("seatpost %q setback = %v mm, want %v", p.ID, p.Spec.SetbackMm, setback)
+		if p.SetbackMm() != setback {
+			t.Errorf("seatpost %q setback = %v mm, want %v", p.ID, p.SetbackMm(), setback)
 		}
 		want := [3]float64{400, 365, 100}
 		if p.ID == "redshift_shockstop_pro" {
 			want = [3]float64{350, 250, 100}
+			if _, ok := p.Part.(assembly.LinkagePost); !ok {
+				t.Errorf("redshift_shockstop_pro type = %T, want assembly.LinkagePost", p.Part)
+			}
+		} else if _, ok := p.Part.(assembly.RigidPost); !ok {
+			t.Errorf("%s type = %T, want assembly.RigidPost", p.ID, p.Part)
 		}
-		if got := [3]float64{p.Spec.TotalLengthMm, p.Spec.MaxInsertionMm, p.Spec.MinInsertionMm}; got != want {
+		limits := p.InsertionLimits()
+		if got := [3]float64{p.TotalLengthMm(), limits.Max(), limits.Min()}; got != want {
 			t.Errorf("seatpost %q length/max/min = %v, want %v", p.ID, got, want)
 		}
 	}
 }
 
-// TestDefaultSaddleAndTargets checks the SQlab 610, the idmatch targets, and the sag steps.
+// TestDefaultSaddleAndTargets checks the SQlab 610 and the default idmatch targets.
 func TestDefaultSaddleAndTargets(t *testing.T) {
 	saddle := catalog.DefaultSaddle()
 	if saddle.ID != "sqlab_610" || saddle.Name != "SQlab 610 Ergolux Active 2.1" {
 		t.Errorf("saddle = %q %q", saddle.ID, saddle.Name)
 	}
-	want := assembly.SaddleSetup{
+	want := assembly.SaddleDimensions{
 		RailCenterToBrpMm:      32,
 		RailCenterToSitBonesMm: -48,
 		RailToBrpHeightMm:      45,
 		SitBonesElevationMm:    10,
 		RailLengthMm:           60,
-		RailPitchDeg:           0,
-		RailOffsetMm:           0,
 	}
-	if saddle.Setup != want {
-		t.Errorf("saddle setup = %+v, want %+v", saddle.Setup, want)
+	if saddle.Part.Dimensions() != want {
+		t.Errorf("saddle dims = %+v, want %+v", saddle.Part.Dimensions(), want)
 	}
 	if got := catalog.DefaultBrpTarget(); got != pose.NewPoint(assembly.DynamicWorld, -219, 713.1) {
 		t.Errorf("DefaultBrpTarget() = %v", got)
@@ -160,7 +162,7 @@ func TestDefaultSaddleAndTargets(t *testing.T) {
 }
 
 // TestCatalogDefaultsAndLookups checks the default part IDs, ID lookups, and
-// the default stem setup (Q56, Q62, Q82).
+// default stem dimensions.
 func TestCatalogDefaultsAndLookups(t *testing.T) {
 	bar, ok := catalog.HandlebarByID(catalog.DefaultHandlebarID)
 	if !ok || bar.ID != "persuader20_800" {
@@ -182,22 +184,24 @@ func TestCatalogDefaultsAndLookups(t *testing.T) {
 		t.Errorf("SpacerStepMm = %v, want 5", catalog.SpacerStepMm)
 	}
 
-	stem := catalog.DefaultStemSetup()
-	if _, err := assembly.PlaceStem(pose.NewPose(pose.Origin(assembly.DynamicWorld), 111.75).Anchor(assembly.SteererLocal), stem); err != nil {
-		t.Errorf("PlaceStem(DefaultStemSetup()): %v", err)
+	stem := catalog.DefaultStem()
+	steerer, err := assembly.NewSteererPort(
+		pose.NewPose(pose.Origin(assembly.FrameLocal), 111.75).Anchor(assembly.SteererLocal),
+		assembly.DefaultUpperStackMm,
+		assembly.DefaultMaxSpacersMm,
+	)
+	if err != nil {
+		t.Fatalf("NewSteererPort: %v", err)
 	}
-	if stem.UpperStackMm != assembly.DefaultUpperStackMm {
-		t.Errorf("UpperStackMm = %v, want %v", stem.UpperStackMm, assembly.DefaultUpperStackMm)
+	if _, err := assembly.MountStem(steerer, catalog.DefaultSpacersMm, stem); err != nil {
+		t.Errorf("MountStem(DefaultStem()): %v", err)
 	}
-	if stem.MaxSpacersMm != assembly.DefaultMaxSpacersMm {
-		t.Errorf("MaxSpacersMm = %v, want %v", stem.MaxSpacersMm, assembly.DefaultMaxSpacersMm)
-	}
-	if stem.ClampHeightMm != 40 {
-		t.Errorf("ClampHeightMm = %v, want 40", stem.ClampHeightMm)
+	if stem.ClampHeightMm() != 40 || stem.LengthMm() != 60 || stem.AngleDeg() != -6 {
+		t.Errorf("DefaultStem = (%v, %v, %v), want (40, 60, -6)", stem.ClampHeightMm(), stem.LengthMm(), stem.AngleDeg())
 	}
 }
 
-// TestTypicalLowerCup checks the Cane Creek 40-Series stacks (Q136).
+// TestTypicalLowerCup checks the Cane Creek 40-Series stacks.
 func TestTypicalLowerCup(t *testing.T) {
 	want := map[assembly.LowerCupStandard]float64{
 		assembly.LowerCupEC34: 12, assembly.LowerCupEC44: 12,
@@ -217,17 +221,17 @@ func TestTypicalLowerCup(t *testing.T) {
 	}
 }
 
-// TestLowerCupFor checks per-fork cup resolution and steerer rejection (Q130, Q136).
+// TestLowerCupFor checks per-fork cup resolution and steerer rejection.
 func TestLowerCupFor(t *testing.T) {
 	cup := func(std assembly.LowerCupStandard, stack float64) assembly.LowerCupSetup {
 		return assembly.LowerCupSetup{Standard: std, StackMm: stack}
 	}
-	straight, tapered := assembly.SteererStraight118, assembly.SteererTapered
+	straight, tapered := assembly.PhysicalSteererStraight118, assembly.PhysicalSteererTapered
 	cases := []struct {
 		name       string
 		bore       assembly.LowerBore
 		defaultStd assembly.LowerCupStandard
-		steerer    assembly.Steerer
+		steerer    assembly.PhysicalSteerer
 		want       assembly.LowerCupSetup
 		ok         bool
 	}{
@@ -246,19 +250,6 @@ func TestLowerCupFor(t *testing.T) {
 		{"unknown bore", "nope", assembly.LowerCupEC44, straight, assembly.LowerCupSetup{}, false},
 		{"unknown steerer", assembly.Bore44Pressed, assembly.LowerCupEC44, "nope", assembly.LowerCupSetup{}, false},
 	}
-	for _, bore := range []assembly.LowerBore{
-		assembly.Bore34Pressed, assembly.Bore44Pressed, assembly.Bore56Pressed,
-		assembly.Bore42Integrated, assembly.Bore52Integrated,
-	} {
-		cases = append(cases, struct {
-			name       string
-			bore       assembly.LowerBore
-			defaultStd assembly.LowerCupStandard
-			steerer    assembly.Steerer
-			want       assembly.LowerCupSetup
-			ok         bool
-		}{"basis steerer on " + string(bore), bore, assembly.LowerCupEC44, assembly.SteererBasis, assembly.LowerCupSetup{}, false})
-	}
 	for _, tc := range cases {
 		got, ok := catalog.LowerCupFor(tc.bore, tc.defaultStd, tc.steerer)
 		if ok != tc.ok || got != tc.want {
@@ -267,7 +258,7 @@ func TestLowerCupFor(t *testing.T) {
 	}
 }
 
-// TestRigidClassValidFor checks the class and travel pairing (Q135).
+// TestRigidClassValidFor checks the class and travel pairing.
 func TestRigidClassValidFor(t *testing.T) {
 	for _, c := range []catalog.RigidClass{catalog.RigidClass440, catalog.RigidClass470, catalog.RigidClass485, catalog.RigidClass495} {
 		if !c.ValidFor(assembly.TravelRigid) {

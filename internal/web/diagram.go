@@ -360,7 +360,7 @@ func gripTargetFramingPts(target pose.Point) []svgPoint {
 	return pts
 }
 
-func buildFitTargets(parsed query.Bike, bike assembly.BikePlacement, view diagramView) []svgFitTarget {
+func buildFitTargets(parsed query.Bike, bike assembly.Placement, view diagramView) []svgFitTarget {
 	var targets []svgFitTarget
 	if parsed.BrpTarget != nil {
 		target := *parsed.BrpTarget
@@ -785,7 +785,7 @@ func placeDiagramLabels(
 	}
 }
 
-func buildBikeDiagram(parsed query.Bike, bike assembly.BikePlacement) bikeDiagram {
+func buildBikeDiagram(parsed query.Bike, bike assembly.Placement) bikeDiagram {
 	view := diagramView(parsed.View)
 	placed := bike.Frameset
 	seatpost := bike.Seatpost

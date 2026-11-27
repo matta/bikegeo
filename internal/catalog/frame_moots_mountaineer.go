@@ -24,7 +24,7 @@ func mootsMountaineer() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy pike_120 @ 20% sag → 507 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 507, RakeMm: 44, Steerer: assembly.SteererBasis},
+		BasisFork: mustBasisFork(507, 44),
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

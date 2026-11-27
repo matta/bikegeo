@@ -4,14 +4,43 @@ import (
 	"fmt"
 
 	"github.com/matta/bikegeo/internal/assembly"
+	"github.com/matta/bikegeo/internal/pose"
 )
 
+// SeatpostPart is the validated seatpost contract carried by catalog.Seatpost
+// (satisfied by assembly.RigidPost and assembly.LinkagePost).
+type SeatpostPart interface {
+	TotalLengthMm() float64
+	InsertionLimits() assembly.BoundedRange
+	RailClamp(state assembly.LoadState) assembly.RailClampPort
+}
+
 // Seatpost is one seatpost the workbench can install. Its insertion comes from
-// the workbench state (Q27).
+// the workbench state.
 type Seatpost struct {
 	ID   string
 	Name string
-	Spec assembly.SeatpostSpec
+	Part SeatpostPart
+}
+
+// TotalLengthMm returns the post's nominal length from bottom tip to clamp pivot.
+func (p Seatpost) TotalLengthMm() float64 {
+	return p.Part.TotalLengthMm()
+}
+
+// InsertionLimits returns the post's own minimum and maximum insertion interval.
+func (p Seatpost) InsertionLimits() assembly.BoundedRange {
+	return p.Part.InsertionLimits()
+}
+
+// SetbackMm returns the post's dynamic rearward clamp offset from the shaft centerline.
+func (p Seatpost) SetbackMm() float64 {
+	return p.Part.RailClamp(assembly.Dynamic).CradleInParent.OriginInDst().Y()
+}
+
+// RailClampLengthMm returns the fore-aft rail clamping footprint.
+func (p Seatpost) RailClampLengthMm() float64 {
+	return p.Part.RailClamp(assembly.Static).ClampLengthMm
 }
 
 const (
@@ -24,42 +53,64 @@ const (
 	genericPostMinInsertionMm = 100.0
 )
 
+func mustRigidPost(total, minIns, maxIns, setback, clampLen float64) assembly.RigidPost {
+	p, err := assembly.NewRigidPost(total, minIns, maxIns, setback, clampLen)
+	if err != nil {
+		panic(fmt.Sprintf("catalog: invalid rigid seatpost: %v", err))
+	}
+	return p
+}
+
+func mustLinkagePost(total, minIns, maxIns, staticSetback, clampLen float64, sagStep pose.Vector) assembly.LinkagePost {
+	p, err := assembly.NewLinkagePost(total, minIns, maxIns, staticSetback, clampLen, sagStep)
+	if err != nil {
+		panic(fmt.Sprintf("catalog: invalid linkage seatpost: %v", err))
+	}
+	return p
+}
+
 // genericSeatpost is an illustrative generic post with the Ritchey-based
 // length and insertion limits above.
 func genericSeatpost(id string, setbackMm float64) Seatpost {
 	return Seatpost{
 		ID:   id,
 		Name: fmt.Sprintf("Generic %.0f mm setback post", setbackMm),
-		Spec: assembly.SeatpostSpec{
-			TotalLengthMm:     genericPostLengthMm,
-			MaxInsertionMm:    genericPostMaxInsertionMm,
-			MinInsertionMm:    genericPostMinInsertionMm,
-			SetbackMm:         setbackMm,
-			RailClampLengthMm: 30.0, // measured
-		},
+		Part: mustRigidPost(
+			genericPostLengthMm,
+			genericPostMinInsertionMm,
+			genericPostMaxInsertionMm,
+			setbackMm,
+			30.0, // measured
+		),
 	}
 }
 
-// Seatposts returns the three generic setback posts and the Redshift ShockStop
-// PRO (Q28, Q75c).
+// Seatposts returns the three generic setback posts and the Redshift ShockStop PRO.
 func Seatposts() []Seatpost {
 	return []Seatpost{
 		genericSeatpost("setback_0", 0),
 		genericSeatpost("setback_15", 15),
 		genericSeatpost("setback_25", 25),
-		// owner-reported 2026-11-19: 12 mm setback when sagged (Q28). The fit
-		// report was transferred with this post unsagged (docs/RIDER_FIT.md).
-		{ID: "redshift_shockstop_pro", Name: "Redshift ShockStop PRO (12 mm setback, sagged)", Spec: assembly.SeatpostSpec{
-			TotalLengthMm:     350.0, // catalog
-			MaxInsertionMm:    250.0, // illustrative: 100 mm linkage stack height (Q75c)
-			MinInsertionMm:    100.0, // catalog: matches 100 mm Cane Creek ST27316 shim (Q75c)
-			SetbackMm:         12.0,  // owner-reported (sagged, Q28)
-			RailClampLengthMm: 30.0,  // illustrative (Q75c)
-		}},
+		// owner-reported 2026-11-19: 12 mm setback when sagged. Kept at 12 mm
+		// with zero sagStep during this behavior-preserving refactor so all
+		// existing numerical pins match; Milestone 6 switches to 7 mm static +
+		// (-6, +5) mm sagStep after the Fenrir verification check.
+		{
+			ID:   "redshift_shockstop_pro",
+			Name: "Redshift ShockStop PRO (12 mm setback, sagged)",
+			Part: mustLinkagePost(
+				350.0, // catalog
+				100.0, // catalog: matches 100 mm Cane Creek ST27316 shim
+				250.0, // illustrative: 100 mm linkage stack height
+				12.0,  // owner-reported (sagged)
+				30.0,  // illustrative
+				pose.NewVector(assembly.SeatpostLocal, 0, 0),
+			),
+		},
 	}
 }
 
-// DefaultSeatpostID is the default seatpost for / and /bike (Q62, Q78).
+// DefaultSeatpostID is the default seatpost for / and /bike.
 const DefaultSeatpostID = "redshift_shockstop_pro"
 
 // SeatpostByID returns the seatpost with the exact ID.

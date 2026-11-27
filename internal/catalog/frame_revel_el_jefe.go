@@ -26,7 +26,7 @@ func revelElJefe() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 0, the bare head tube
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupBareHeadTube, StackMm: 0},
 		// hypothesis (Q44, Q81): legacy sid_120 @ 20% sag → 506 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 506, RakeMm: 44, Steerer: assembly.SteererBasis},
+		BasisFork: mustBasisFork(506, 44),
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,

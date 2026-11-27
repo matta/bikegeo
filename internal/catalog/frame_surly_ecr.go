@@ -24,7 +24,7 @@ func surlyEcr() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC34, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy surly_ecr_468 (rigid) → 468 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 468, RakeMm: 43, Steerer: assembly.SteererBasis},
+		BasisFork: mustBasisFork(468, 43),
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.25,

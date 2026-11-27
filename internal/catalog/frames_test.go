@@ -103,9 +103,9 @@ func frameProblems(f catalog.Frame) []string {
 		}
 	}
 	if len(f.Sizes) > 0 {
-		first := f.Sizes[0].ChartFrame
+		first := f.Sizes[0].ChartDims
 		for _, sz := range f.Sizes {
-			if sz.ChartFrame.LowerBore != first.LowerBore || sz.ChartFrame.DefaultLowerCup != first.DefaultLowerCup {
+			if sz.ChartDims.LowerBore != first.LowerBore || sz.ChartDims.DefaultLowerCup != first.DefaultLowerCup {
 				problems = append(problems, fmt.Sprintf("size %q headset differs from size %q", sz.Name, f.Sizes[0].Name))
 			}
 		}
@@ -127,17 +127,11 @@ func frameProblems(f catalog.Frame) []string {
 	if f.MaxChainstayMm != 0 {
 		longest := 0.0
 		for _, s := range f.Sizes {
-			longest = math.Max(longest, s.ChartFrame.ChainstayMm)
+			longest = math.Max(longest, s.ChartDims.ChainstayMm)
 		}
 		if f.MaxChainstayMm < longest {
 			problems = append(problems, fmt.Sprintf("max chainstay %v mm is below a published %v mm chainstay", f.MaxChainstayMm, longest))
 		}
-	}
-	if f.BasisFork.Steerer != assembly.SteererBasis {
-		problems = append(problems, fmt.Sprintf("basis fork steerer is %q, want %q", f.BasisFork.Steerer, assembly.SteererBasis))
-	}
-	if f.BasisFork.Travel != assembly.TravelRigid {
-		problems = append(problems, fmt.Sprintf("basis fork has %v travel, want rigid", f.BasisFork.Travel))
 	}
 	return problems
 }
@@ -162,11 +156,11 @@ func TestFrameProblemsCatchMistakes(t *testing.T) {
 		{"no forks", func(f *catalog.Frame) { f.Forks = nil }, "no forks"},
 		{"duplicate fork", func(f *catalog.Frame) { f.Forks[1] = f.Forks[0] }, "duplicate fork"},
 		{"max chainstay below a size", func(f *catalog.Frame) { f.MaxChainstayMm = 430 }, "max chainstay"},
-		{"size headset bore differs", func(f *catalog.Frame) { f.Sizes[1].ChartFrame.LowerBore = assembly.Bore56Pressed }, "headset differs"},
-		{"size default cup differs", func(f *catalog.Frame) { f.Sizes[1].ChartFrame.DefaultLowerCup.StackMm = 5 }, "headset differs"},
+		{"size headset bore differs", func(f *catalog.Frame) { f.Sizes[1].ChartDims.LowerBore = assembly.Bore56Pressed }, "headset differs"},
+		{"size default cup differs", func(f *catalog.Frame) { f.Sizes[1].ChartDims.DefaultLowerCup.StackMm = 5 }, "headset differs"},
 		{"non-typical default cup", func(f *catalog.Frame) {
 			for i := range f.Sizes {
-				f.Sizes[i].ChartFrame.DefaultLowerCup.StackMm = 0
+				f.Sizes[i].ChartDims.DefaultLowerCup.StackMm = 0
 			}
 		}, "not the typical cup"},
 		{"rigid fork without class", func(f *catalog.Frame) {
@@ -177,12 +171,10 @@ func TestFrameProblemsCatchMistakes(t *testing.T) {
 		{"tapered fork on a 34 mm bore", func(f *catalog.Frame) {
 			f.Forks = f.Forks[:1]
 			for i := range f.Sizes {
-				f.Sizes[i].ChartFrame.LowerBore = assembly.Bore34Pressed
-				f.Sizes[i].ChartFrame.DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupEC34, StackMm: 12}
+				f.Sizes[i].ChartDims.LowerBore = assembly.Bore34Pressed
+				f.Sizes[i].ChartDims.DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupEC34, StackMm: 12}
 			}
 		}, "has no lower cup"},
-		{"basis fork non-basis steerer", func(f *catalog.Frame) { f.BasisFork.Steerer = assembly.SteererTapered }, "basis fork steerer"},
-		{"basis fork with travel", func(f *catalog.Frame) { f.BasisFork.Travel = assembly.Travel120 }, "basis fork has"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := mustFrame(t, "otso-fenrir-stainless")
@@ -259,27 +251,44 @@ func TestChartAllowances(t *testing.T) {
 }
 
 // TestForkListsPlace places every size with every listed fork at every
-// enumerated sag, plus its basis fork (Q83).
+// enumerated sag, plus its basis fork.
 func TestForkListsPlace(t *testing.T) {
 	placements, bases := 0, 0
 	for _, f := range catalog.Frames() {
 		for _, s := range f.Sizes {
-			installed := f.InstalledFrame(s)
+			installed, err := f.InstalledFrame(s)
+			if err != nil {
+				t.Fatalf("%s/%s InstalledFrame: %v", f.ID, s.Name, err)
+			}
 			for _, opt := range f.ForkOptions() {
 				sags := []float64{0}
 				if opt.Fork.Travel.IsSuspension() {
 					sags = opt.Fork.Travel.SagPcts()
 				}
 				for _, sag := range sags {
-					fork := assembly.ForkSetup{Spec: opt.Spec(), SagPct: sag}
-					if _, err := assembly.PlaceFrameset(installed, opt.LowerCup, fork, wheels); err != nil {
+					fork, err := opt.PhysicalFork(sag)
+					if err != nil {
 						t.Errorf("%s/%s with %s at %v%% sag: %v", f.ID, s.Name, opt.ID(), sag, err)
+						continue
+					}
+					fs, err := assembly.MateFrameset(installed, opt.LowerCup, assembly.DefaultUpperStackMm, fork, wheels)
+					if err != nil {
+						t.Errorf("%s/%s with %s at %v%% sag: %v", f.ID, s.Name, opt.ID(), sag, err)
+					} else {
+						_ = fs.Place(assembly.Dynamic)
 					}
 					placements++
 				}
 			}
-			if _, err := assembly.PlaceFrameset(s.ChartFrame, f.BasisLowerCup, assembly.ForkSetup{Spec: f.BasisFork}, wheels); err != nil {
+			chartFrame, err := f.ChartFrame(s)
+			if err != nil {
+				t.Fatalf("%s/%s ChartFrame: %v", f.ID, s.Name, err)
+			}
+			fs, err := assembly.MateFrameset(chartFrame, f.BasisLowerCup, assembly.DefaultUpperStackMm, f.BasisFork, wheels)
+			if err != nil {
 				t.Errorf("%s/%s basis fork: %v", f.ID, s.Name, err)
+			} else {
+				_ = fs.Place(assembly.Dynamic)
 			}
 			bases++
 		}
@@ -300,7 +309,15 @@ func TestForkListsPlaceChecksSteerers(t *testing.T) {
 		t.Fatal("sid_100 missing from catalog")
 	}
 	opt := catalog.ForkOption{Fork: sid, Variant: sid.Variants[0]}
-	_, err := assembly.PlaceFrameset(f.InstalledFrame(s), s.ChartFrame.DefaultLowerCup, assembly.ForkSetup{Spec: opt.Spec(), SagPct: 20}, wheels)
+	installed, err := f.InstalledFrame(s)
+	if err != nil {
+		t.Fatalf("InstalledFrame: %v", err)
+	}
+	fork, err := opt.PhysicalFork(20)
+	if err != nil {
+		t.Fatalf("PhysicalFork: %v", err)
+	}
+	_, err = assembly.MateFrameset(installed, s.ChartDims.DefaultLowerCup, assembly.DefaultUpperStackMm, fork, wheels)
 	if err == nil || !strings.Contains(err.Error(), "does not fit a tapered steerer") {
 		t.Errorf("err = %v, want one containing %q", err, "does not fit a tapered steerer")
 	}
@@ -310,16 +327,20 @@ func TestForkListsPlaceChecksSteerers(t *testing.T) {
 func TestSeatpostBoundsEverySize(t *testing.T) {
 	for _, f := range catalog.Frames() {
 		for _, s := range f.Sizes {
+			fr, err := f.ChartFrame(s)
+			if err != nil {
+				t.Fatalf("%s/%s ChartFrame: %v", f.ID, s.Name, err)
+			}
 			for _, p := range catalog.Seatposts() {
-				if _, err := assembly.SeatpostInsertionBounds(s.ChartFrame, p.Spec); err != nil {
+				if _, err := assembly.MateSeatpost(fr.SeatTube(), p.Part); err != nil {
 					t.Errorf("%s/%s with %s: %v", f.ID, s.Name, p.ID, err)
 				}
 			}
 		}
 	}
-	posts := map[string]assembly.SeatpostSpec{}
+	posts := map[string]catalog.Seatpost{}
 	for _, p := range catalog.Seatposts() {
-		posts[p.ID] = p.Spec
+		posts[p.ID] = p
 	}
 	for _, tc := range []struct {
 		frame, size, post string
@@ -336,22 +357,28 @@ func TestSeatpostBoundsEverySize(t *testing.T) {
 		{"otso-fenrir-stainless", "XL", "setback_0", 100, 330},
 		{"otso-fenrir-stainless", "XL", "redshift_shockstop_pro", 100, 250},
 		{"salsa-fargo", "XS", "setback_0", 100, 335.6},
-		// post-limited: the frame cap is C-C 355 + 35 − 20 = 370 (Q75d)
+		// post-limited: the frame cap is C-C 355 + 35 − 20 = 370
 		{"seven-expedition-926d", "S 52cm", "setback_0", 100, 365},
 	} {
-		s := mustSize(t, mustFrame(t, tc.frame), tc.size)
-		b, err := assembly.SeatpostInsertionBounds(s.ChartFrame, posts[tc.post])
+		f := mustFrame(t, tc.frame)
+		s := mustSize(t, f, tc.size)
+		fr, err := f.ChartFrame(s)
+		if err != nil {
+			t.Fatalf("%s/%s ChartFrame: %v", tc.frame, tc.size, err)
+		}
+		dof, err := assembly.MateSeatpost(fr.SeatTube(), posts[tc.post].Part)
 		if err != nil {
 			t.Errorf("%s/%s with %s: %v", tc.frame, tc.size, tc.post, err)
 			continue
 		}
-		if math.Abs(b.EffectiveMinInsertionMm-tc.lo) > 1e-9 || math.Abs(b.MaxAllowedInsertionMm-tc.hi) > 1e-9 {
-			t.Errorf("%s/%s with %s: bounds [%v, %v], want [%v, %v]", tc.frame, tc.size, tc.post, b.EffectiveMinInsertionMm, b.MaxAllowedInsertionMm, tc.lo, tc.hi)
+		b := dof.AllowedInsertion()
+		if math.Abs(b.Min()-tc.lo) > 1e-9 || math.Abs(b.Max()-tc.hi) > 1e-9 {
+			t.Errorf("%s/%s with %s: bounds [%v, %v], want [%v, %v]", tc.frame, tc.size, tc.post, b.Min(), b.Max(), tc.lo, tc.hi)
 		}
 	}
 }
 
-// TestInstalledFrameUsesMaxChainstay checks sliding dropouts evaluate at max chainstay (Q67).
+// TestInstalledFrameUsesMaxChainstay checks sliding dropouts evaluate at max chainstay.
 func TestInstalledFrameUsesMaxChainstay(t *testing.T) {
 	for _, tc := range []struct {
 		frame, size        string
@@ -359,26 +386,26 @@ func TestInstalledFrameUsesMaxChainstay(t *testing.T) {
 	}{
 		{"esker-hayduke", "S4", 440, 454},
 		{"salsa-fargo", "L", 462, 462},
-		{"otso-fenrir-stainless", "L", 0, 0}, // Tuning Chip frame stays at chart chainstay (Q140)
+		{"otso-fenrir-stainless", "L", 0, 0}, // Tuning Chip frame stays at chart chainstay
 	} {
 		f := mustFrame(t, tc.frame)
 		s := mustSize(t, f, tc.size)
-		got := f.InstalledFrame(s)
+		got := f.InstalledDims(s)
 		if tc.chart != 0 {
-			if s.ChartFrame.ChainstayMm != tc.chart || got.ChainstayMm != tc.installedCs {
-				t.Errorf("%s/%s chainstay chart %v installed %v, want %v and %v", tc.frame, tc.size, s.ChartFrame.ChainstayMm, got.ChainstayMm, tc.chart, tc.installedCs)
+			if s.ChartDims.ChainstayMm != tc.chart || got.ChainstayMm != tc.installedCs {
+				t.Errorf("%s/%s chainstay chart %v installed %v, want %v and %v", tc.frame, tc.size, s.ChartDims.ChainstayMm, got.ChainstayMm, tc.chart, tc.installedCs)
 			}
 		}
-		want := s.ChartFrame
+		want := s.ChartDims
 		if tc.chart == 0 {
 			if got != want {
-				t.Errorf("%s/%s installed frame %+v, want the chart frame %+v", tc.frame, tc.size, got, want)
+				t.Errorf("%s/%s installed dims %+v, want the chart dims %+v", tc.frame, tc.size, got, want)
 			}
 			continue
 		}
 		want.ChainstayMm = got.ChainstayMm
 		if got != want {
-			t.Errorf("%s/%s installed frame differs from the chart beyond ChainstayMm: %+v vs %+v", tc.frame, tc.size, got, want)
+			t.Errorf("%s/%s installed dims differ from the chart beyond ChainstayMm: %+v vs %+v", tc.frame, tc.size, got, want)
 		}
 	}
 }
@@ -473,7 +500,7 @@ func TestForkOptionsResolveLowerCups(t *testing.T) {
 	f := mustFrame(t, "surly-krampus")
 	sid, _ := catalog.ForkByID("sid_100")
 	for i := range f.Sizes {
-		f.Sizes[i].ChartFrame.DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupZS44, StackMm: 4}
+		f.Sizes[i].ChartDims.DefaultLowerCup = assembly.LowerCupSetup{Standard: assembly.LowerCupZS44, StackMm: 4}
 	}
 	f.Forks = []catalog.Fork{sid}
 	want := map[string]assembly.LowerCupSetup{

@@ -26,7 +26,7 @@ func eskerHayduke() Frame {
 		// hypothesis (Q44, Q81): legacy GeoHeadsetSpacerMm 12
 		BasisLowerCup: assembly.LowerCupSetup{Standard: assembly.LowerCupEC44, StackMm: 12},
 		// hypothesis (Q44, Q81): legacy pike_120 @ 30% sag → 495 mm effective
-		BasisFork: assembly.ForkSpec{StaticA2cMm: 495, RakeMm: 44, Steerer: assembly.SteererBasis},
+		BasisFork: mustBasisFork(495, 44),
 		// inferred from published digits (legacy), Q80
 		ChartPrecision: ChartPrecision{
 			ReachMm:          0.5,
