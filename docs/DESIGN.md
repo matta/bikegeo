@@ -65,7 +65,7 @@ All trigonometry lives unexported inside `internal/pose`. Lengths are `float64` 
   - `StaticWorld`: level-ground workshop attitude with no rider and all suspension at `0%` sag (`RearAxle.Y == FrontAxle.Y`).
   - `DynamicWorld`: level-ground riding attitude with the rider seated and suspension at seated sag (`RearAxle.Y == FrontAxle.Y`).
 - **Component local coordinate systems** (invariant to the part; mapped into parent/world coordinate systems by rigid `pose.Transform`):
-  - `FrameLocal`, `LowerHeadsetLocal`, `ForkLocal`, `SeatTubeCollar`, `SeatpostLocal`, `SeatpostCradle`, `SaddleLocal`, `SteererLocal`, `StemLocal`, `HandlebarLocal`.
+  - `FrameLocal`, `LowerHeadsetLocal`, `ForkLocal`, `SeatTubeCollar`, `SeatpostLocal`, `SeatpostCradle`, `RailClampLocal`, `SaddleLocal`, `SteererLocal`, `StemLocal`, `HandlebarLocal`.
 
 ### Primitives (`internal/pose`)
 
@@ -130,37 +130,37 @@ Each physical component lives in its own file under `internal/parts`, owns its l
 
 - **Open fork compatibility (`catalog`):** Each fork model owns its published `(StaticA2cMm, RakeMm)` variants; a model is compatible in all its variants or none. A frame's listed forks are a minimum set: a listed rigid fork unlocks only its own `RigidClass` (`440`, `470`, `485`, `495`); a listed suspension fork unlocks its `ForkTravel` row and any stand-in rigid class above (one-way: rigid never unlocks suspension). Every compatible fork must also fit the frame's `LowerBore` in a valid lower cup. Multi-variant query IDs format as `<Fork.ID>-<StaticA2cMm>x<RakeMm>`.
 
-### Seatpost (`seatpost.go`)
+### Seatpost & Head Clamp (`internal/parts/seatpost.go`)
 
 - **Local coordinate systems:**
   - `SeatpostLocal`: origin `(0, 0)` at the bottom tip of the shaft, `+X` upward along the shaft centerline, `+Y` perpendicular rearward (`90°` CCW).
-  - `SeatpostCradle`: origin `(0, 0)` at the rail-clamp pivot (the transverse axis where saddle rails sit and tilt), `+X` parallel to the shaft centerline.
+  - `SeatpostCradle`: origin `(0, 0)` at the rail-clamp pivot (the transverse axis where the clamp head pivots), `+X` parallel to the shaft centerline.
+  - `RailClampLocal`: origin `(0, 0)` at the rail-clamp pivot, rotated by `railTurnFromCradle` so `+X` points forward along the clamped saddle rails; owns the `ClampLengthMm` (`30 mm`) clamp-jaw footprint (`SpanRailClamp`).
 - **Intrinsic invariants:** `0 < MinInsertionMm ≤ MaxInsertionMm < TotalLengthMm` (guaranteeing positive head/linkage stack height `TotalLengthMm − MaxInsertionMm`), `SetbackMm ≥ 0`, `RailClampLengthMm > 0`.
-- **Concrete seatpost types** (satisfying `parts.Seatpost{TotalLengthMm, InsertionLimits, RailClamp}`):
+- **Concrete seatpost types** (immutable value structs satisfying `parts.Seatpost{TotalLengthMm, InsertionLimits, RailClamp}`):
   - `RigidPost`: constant cradle at `NewPoint(SeatpostLocal, TotalLengthMm, SetbackMm)` at `0°` relative rotation in both `Static` and `Dynamic`.
   - `LinkagePost`: static cradle at `NewPoint(SeatpostLocal, TotalLengthMm, StaticSetbackMm)`, dynamic cradle shifted by `sagStep Vector` in `SeatpostLocal` at `0°` relative rotation (keeping rail pitch constant relative to the shaft through travel). Catalog dimensions, shim/illustrative assumptions, and the Endurance-manual-inferred 20% sag vector for the 350 mm Redshift ShockStop PRO Endurance (whose rider-seated sag remains unmeasured) live in [seatpost_redshift_shockstop_pro.md](../internal/catalog/seatpost_redshift_shockstop_pro.md).
-- **Mate (`MateSeatpost(socket SeatTubeSocket, post postMounter)`):**
+- **Shaft mate (`MateSeatpost(socket SeatTubeSocket, post Seatpost)`):**
   - Intersects `post.InsertionLimits()` with `socket.AllowedInsertion`; rejects incompatible pairs immediately.
-  - Binding `InsertionMm` places shaft coordinate `X = InsertionMm` at `(0, 0)` of `SeatTubeCollar`, so `SeatpostLocal` sits at `(-InsertionMm, 0)` in `SeatTubeCollar` (`ExposedMm = TotalLengthMm − InsertionMm` follows automatically) and records `Insertion BoundStatus`.
+  - Exposes `InsertionJoint() bounds.SlideJoint` in `SeatTubeCollar` (`stepPerMm = (−1, 0)`). Binding `InsertionMm` places shaft coordinate `X = InsertionMm` at `(0, 0)` of `SeatTubeCollar`, so `SeatpostLocal` sits at `(−InsertionMm, 0)` in `SeatTubeCollar` (`SeatpostPlacement.ExposedMm = TotalLengthMm − InsertionMm`), and records `Insertion BoundStatus`.
+- **Head-clamp mate (`OpenRailClamp` / `ClampedRailHead` on the seatpost head):**
+  - Physically, both saddle tilt and fore-aft rail clamping are adjustments on the seatpost's head clamp. Mating `RailClampPort` with a passive `Saddle` rejects `ClampLengthMm > saddle.RailLengthMm()`, locks physical `railTurnFromCradle` (orienting `RailClampLocal`, solved via `RailTurnForWorldPitch` during dynamic fitting), and slides `SaddleLocal` along `RailClampLocal` via `RailSlideJoint` (`stepPerMm = (−1, 0)` in `RailClampLocal`) within `[−limit, +limit]` where `limit = (RailLengthMm − ClampLengthMm)/2` (positive `RailOffsetMm` slides the saddle rearward).
 
-### Saddle (`saddle.go`)
+### Saddle (`internal/parts/saddle.go`)
 
 - **Local coordinate system (`SaddleLocal`):** origin `(0, 0)` at `RailCenter` (midpoint of the straight clamping span), `+X` forward along the rails toward the nose, `+Y` perpendicular upward (`90°` CCW).
-- **Intrinsic geometry (`Saddle`):**
+- **Passive intrinsic geometry (`Saddle`):**
+  - `Saddle` is a purely passive rigid component owning its rail clamping span (`RailLengthMm`), landmarks, and local `Sketch` (`SpanSaddleRail` centered at `(0, 0)` along `+X`, plus `SegSaddleProfile` from `SIT` to `BRP`), with zero tilt or clamp state.
   - `BRP` (top surface on centerline where saddle is 70 mm wide, W70): `NewPoint(SaddleLocal, RailCenterToBrpMm, RailToBrpHeightMm)`.
   - `SIT` (saddle support landmark, currently `SitBones` in code/UI until Milestone 6 rename): `NewPoint(SaddleLocal, RailCenterToSitBonesMm, RailToBrpHeightMm + SitBonesElevationMm)` (`SitBonesElevationMm` is height above BRP).
   - SQlab 610 Ergolux Active 2.1: `RailCenterToBrpMm = +32 mm`, `RailToBrpHeightMm = +45 mm` (illustrative), `RailCenterToSitBonesMm = −48 mm`, `SitBonesElevationMm = +10 mm`, `RailLengthMm = 60 mm` (measured). Milestone 6 rail-position scoring uses `+5°` dynamic rail angle (nose flat horizontal).
-- **Mate (`MateSaddle(clamp RailClampPort, saddle Saddle)`):**
-  - Rejects `clamp.ClampLengthMm > saddle.RailLengthMm()`.
-  - Legal `RailOffsetMm ∈ [−limit, +limit]` where `limit = (RailLengthMm − ClampLengthMm)/2`. Positive `RailOffsetMm` slides the saddle rearward (`RailCenter` sits at `−RailOffsetMm` along the rail heading from `RailClamp`).
-  - Stores `railTurnFromCradle` (physical clamp bolt angle relative to `SeatpostCradle`) so static and dynamic placements share the exact same clamped saddle orientation. Helper `RailTurnForWorldPitch` solves `railTurnFromCradle` from a desired world rail pitch during dynamic fitting.
 
-### Stem & Handlebar (`stem.go`, `handlebar.go`)
+### Stem & Handlebar (`internal/parts/stem.go`, `internal/parts/handlebar.go`)
 
 - **Steerer mate (`SteererPort` + `MountStem`):**
   - `SteererPort` carries a sealed `SteererInFrame` transform (`SteererLocal → FrameLocal`, constructed by `Frame`/`Frameset` with `(0, 0)` at `HeadTubeTop` and `+X` pointing up the steerer), `UpperStackMm` (`11 mm`), and `AllowedSpacers` (`[0, 30] mm`).
   - `Stem` holds pure physical dimensions (`ClampHeightMm > 0`, `LengthMm > 0`, finite `AngleDeg` CCW from perpendicular to the steerer) with no solver search bounds.
-  - `MountStem` binds `SpacersMm` into `BoundStatus`, walks in `SteererLocal` along `+X` by `UpperStackMm` → `CoverTop`, `SpacersMm` → `SpacerTop`, `ClampHeightMm/2` → `SteererClamp`, turns `−90° + AngleDeg`, advances `LengthMm` → `BarClampPort`, and maps into `FrameLocal` via `SteererInFrame`.
+  - `SteererPort` owns both `SpacersJoint()` and `StemExtensionJoint(spacersMm, clampHeightMm, angleDeg, lengthRange)`, sharing the exact steerer-clamp center datum (`UpperStackMm + spacersMm + clampHeightMm/2`, turned `−90° + angleDeg`) with `MountStem` so continuous stem fitting and forward stem placement can never diverge.
 - **Handlebar (`HandlebarLocal`):**
   - Origin `(0, 0)` at `BarClamp` center, `+X` forward at `0°` roll, `+Y` upward along rise/upsweep.
   - `Handlebar` separates 3D bar geometry (`StockWidthMm`, `CurrentWidthMm`, `GripInsetMm`, `BendStartMm`, `StatedRiseMm`, `RiseMode` [`standard_knuckle` or `bar_end_center`], `BacksweepDeg`, `UpsweepDeg`) from its analytical 2D sagittal projection `GripInBar() pose.Point` (at `HandLateralMm = effectiveWidth/2 − GripInsetMm`, with `sweptSpan = max(0, HandLateralMm − BendStartMm)`).
@@ -182,11 +182,11 @@ Assembly progresses monotonically through immutable, unforgeable domain objects:
    - Mates `SeatTubeSocket`, `postMounter`, and `Saddle` immediately, checking insertion and rail bounds upfront.
    - Clamping via `.Clamp(insertionMm, railOffsetMm)` or solving via `.FitToBRP(brpTarget)` locks the rear cockpit and returns `*SeatedFrameset`.
 3. **`Build` (`(*SeatedFrameset).AttachFront`):**
-   - Mates `(spacersMm, Stem, Handlebar)` at `SteererPort` and locks physical `rollTurnFromStem`, returning `*Build`.
+   - Single canonical front-cockpit assembly path: mates `(spacersMm, Stem, Handlebar)` at `SteererPort`, locks physical `rollTurnFromStem`, retains the already-computed `DynamicStem` and `DynamicHandlebar` placements (so `scoring.FitFrontBuilds` evaluates candidates directly via `AttachFront` without duplicating front-cockpit mounting steps), and returns `*Build`.
 4. **Unified Multi-State Evaluation (`(*Build).Place(state LoadState) Placement`):**
-   - Placing a `*Build` in `Static` and `Dynamic` runs the **exact same `pose.Compose` chain** using `Frameset.Place(state)` and `ClampedSeatpost.Place(frameToWorld, state)`.
+   - Placing a `*Build` in `Static` and `Dynamic` runs the **exact same `pose.Compose` chain** using `Frameset.Place(state)` and `ClampedSeatpost.PlaceInWorld(frameToWorld)`.
    - Clamped saddle and handlebar orientations move rigidly with the post head and frame pitch between states without re-leveling to gravity.
-   - Returns an exported-field `Placement` readout snapshot (`State`, `Settings`, `Frameset`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`, `Bounds`, `Summary`, plus `Nodes []PlacedNode` carrying `json:"-"` for uniform SVG `Sketch` projection) with derived readout methods (`SeatAxisToPostTopMm`, `SaddleHeightMm`, `BrpToGripDistMm`, `SitBonesToGripRiseMm`). `Settings` (`FittedSettings`) holds only the compact scalar build settings needed for lossless `/bike` URL round-tripping and CLI JSON output, with zero duplicate `BikeSetup` spec bags.
+   - Returns an exported-field `Placement` readout snapshot (`State`, `Settings`, `Frameset`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`, `Bounds`, `Summary`, plus `Nodes []PlacedNode` carrying `json:"-"` for uniform SVG `Sketch` projection) with derived readout methods (`SeatAxisToPostTopMm`, `SaddleHeightMm`, `BrpToGripDistMm`, `SitBonesToGripRiseMm`). `Settings` (`FittedSettings`) holds strictly the 11 scalar installation settings mirroring `query.BikeParams` for lossless `/bike` URL round-tripping and CLI JSON output, while placed measurements (`FramesetPlacement.EffectiveA2cMm`, `ForkRakeMm`, `WheelRadiusMm`, and `SeatpostPlacement.ExposedMm`) live on their owning placement structs.
 
 ---
 
