@@ -97,7 +97,7 @@ Retire permanent `Q#` numbering and reorganize the documentation so every compon
   4. **Incremental Assembly & Load States** (`Frameset` → `SeatedFrameset` → `Build`; single-pass axle leveling; unified `Place(Static)` and `Place(Dynamic)`)
   5. **Degrees of Freedom, Fitting, and `0–100` Scoring** (`BoundedRange`, `BoundStatus`, `Planar2DoF` solver objectives, 4-tier comparator, 12 attributes)
   6. **Web, CLI JSON, and Catalog Validation** (chart consistency in `catalog` tests, lossless `/` → `/bike` URLs)
-  7. **Active Roadmap** (this architecture refactor, followed by Fit Audit Stage 2 Fenrir static check and Milestone 6 model slices).
+  7. **Active Roadmap** (this behavior-preserving refactor, followed by a small `Placement.Setup` CLI readout cleanup slice, the paused Fit Audit Stage 2 Fenrir check, and Milestone 6 physical-model slices).
 
 ---
 
@@ -223,9 +223,11 @@ Refactor [saddle.go](file:///Users/matt/src/bikegeo/internal/assembly/saddle.go)
 - `MountHandlebar(barClamp BarClampPort, bar Handlebar, rollTurnFromStem pose.Deg) ClampedHandlebar` (with helper `BarTurnForWorldRoll(stemHeadingInWorld pose.Heading, worldBarRollDeg pose.Deg) pose.Deg`).
 
 #### [MODIFY] [stem.go](file:///Users/matt/src/bikegeo/internal/assembly/stem.go) & [stem_test.go](file:///Users/matt/src/bikegeo/internal/assembly/stem_test.go)
-- Move `UpperStackMm` and `MaxSpacersMm` onto `SteererPort struct { HeadTubeTopInFrame pose.Pose; UpperStackMm float64; AllowedSpacers BoundedRange }` (resolving the existing `TODO` on `StemSetup`).
+- Define `SteererLocal = pose.NewFrame("part:steerer")` (`(0, 0)` at `HeadTubeTop`, `+X` up the steerer) and `LowerHeadsetLocal = pose.NewFrame("part:lower_headset")` (`(0, 0)` at `HeadTubeBottom`, `+X` down the steerer).
+- Move `UpperStackMm` and `MaxSpacersMm` onto a sealed `SteererPort` (unexported fields constructed via `Frame`/`Frameset` or validating constructor `NewSteererPort` asserting `SteererInFrame.Src() == SteererLocal` and `Dst() == FrameLocal`), carrying `SteererInFrame pose.Transform`, `UpperStackMm float64`, and `AllowedSpacers BoundedRange` (resolving the existing `TODO` on `StemSetup`).
 - Concrete `Stem` (`NewStem(clampHeightMm, lengthMm float64, angleDeg pose.Deg) (Stem, error)`, unexported fields): pure physical stem dimensions (no solver `MinLengthMm`/`MaxLengthMm` fields).
-- `MountStem(steerer SteererPort, spacersMm float64, stem Stem) (*ClampedStem, error)` → binds `Spacers BoundStatus`, computes `CoverTop`, `SpacerTop`, `SteererClamp`, and `BarClampPort` in `FrameLocal`.
+- `MountStem(steerer SteererPort, spacersMm float64, stem Stem) (*ClampedStem, error)` → binds `Spacers BoundStatus`, walks in `SteererLocal` along `+X` (`CoverTop`, `SpacerTop`, `SteererClamp`, turns `-90° + AngleDeg`, advances `LengthMm` → `BarClamp`), and composes with `SteererInFrame` into `FrameLocal`.
+- Add a focused negative test in `stem_test.go` proving that constructing/passing a `LowerHeadsetLocal → FrameLocal` transform where `SteererLocal → FrameLocal` is required panics deterministically on `FrameID` mismatch (preserving the steerer-direction invariant under runtime `FrameID`s).
 
 ---
 
@@ -239,7 +241,7 @@ Split bare frame, forks, and SHIS mating cleanly so `BasisFork`, `RigidFork`, an
   - Validates chart scalars, `ChainstayMm > |BbDropMm|`, `LowerBore`, and physical `DefaultLowerCup`.
   - Precomputes in `FrameLocal`:
     - `RearAxle() pose.Point`
-    - `HeadTube() HeadTubePort` (`TopPose`, `BottomPose` in `FrameLocal`, `LowerBore`, `DefaultLowerCup`)
+    - `HeadTube() HeadTubePort` (sealed `SteererInFrame` mapping `SteererLocal → FrameLocal` at `HeadTubeTop`, `LowerHeadsetInFrame` mapping `LowerHeadsetLocal → FrameLocal` at `HeadTubeBottom`, `LowerBore`, `DefaultLowerCup`)
     - `SeatTube() SeatTubeSocket` (`CollarInFrame` at `SeatTubeTop`, `AllowedInsertion` resolving `MaxPostInsertionMm` or `SeatTubeLengthMm - 20 mm` fallback right here inside `Frame`).
 
 #### [NEW] [fork.go](file:///Users/matt/src/bikegeo/internal/assembly/fork.go)
@@ -308,7 +310,7 @@ Eliminate dummy `BikeSetup` mutations, parallel `PlaceBike` bypasses, and magic 
     3. `saddlePlaced := b.saddle.Place(postPlaced.CradleInWorld)` (uses locked `railTurnFromCradle`!)
     4. `stemPlaced := b.stem.Place(frameToWorld)`
     5. `barPlaced := b.handlebar.Place(stemPlaced.BarClampInWorld)` (uses locked `rollTurnFromStem`!)
-  - Returns `Placement` (plain **exported-field** readout struct carrying `State LoadState`, `Frameset`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`, `Bounds BuildBounds`, and `Summary BuildSummary` for lossless JSON/template access).
+  - Returns `Placement` (plain **exported-field** readout struct carrying `State LoadState`, `Setup` — an exported snapshot of the fitted inputs preserving existing `Placement.Setup.*` CLI JSON paths such as `Placement.Setup.Stem.{LengthMm,AngleDeg,SpacersMm}` and `Placement.Setup.Seatpost.InsertionMm` as well as `query/compare.go` inspect-link reconstruction — plus `Frameset`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`, `Bounds BuildBounds`, and `Summary BuildSummary` for lossless JSON/template access).
 - Add dedicated `build_states_test.go` proving:
   1. On a `Build` with `SuspensionFork` (20% sag) + `LinkagePost` (`(-6, +5)` sag), `Place(Dynamic)` places rails at exact `dynamicRailPitchDeg` and bar at `-dynamicBarRollDeg`.
   2. Calling `Place(Static)` on that **exact same `*Build`** unloads the post by `(+6, -5)` in shaft coordinates and rotates all frame-clamped landmarks about `BB` by `pitch_static - pitch_dynamic` to `< 1e-12 mm`!
@@ -337,6 +339,7 @@ Wire all outer packages cleanly onto the new domain types and delete obsolete `*
 - `query.Bike` holds catalog-resolved parts + `BikeParams` (raw user form inputs so `400` error pages still echo invalid user numbers in `<input>` controls), and `b.Assemble() (*assembly.Build, error)` builds the validated `*assembly.Build` inside `Evaluate()`.
 - `compare_page.go`'s `brpFitNote` and `bike_page.go`'s form bounds read `Placement.Bounds` (`BoundStatus`) and `RearCockpitDoF` directly instead of recomputing `SeatpostInsertionBounds` and `RailOffsetLimitMm`.
 - `web/diagram.go` defines its own private `screenSpace = pose.NewFrame("web:screen")` and thin consumer helpers for drawing component outlines from `Placement`.
+- Keep all existing `cmd/bikegeo/main_test.go` CLI assertions green unchanged via the exported `Placement.Setup` snapshot (deferring any cleanup of `Placement.Setup`'s JSON shape to a dedicated, isolated follow-up slice after Stage 7 so test-changing diffs stay small and easy to review).
 - Strip remaining `(Q...)` comment references across `cmd/` and `internal/`, keeping self-contained plain-English explanations.
 
 ---

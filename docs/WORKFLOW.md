@@ -74,8 +74,8 @@ Each slice plan lives in `docs/SLICE<n>.md` (for example `SLICE24.md`) only unti
 When Matt asks **"What's next?"**, inspect:
 1. `git status --short` (uncommitted work?)
 2. `docs/SLICE*.md` (any active slice plan, and its `Status:`, `Implementer:`, and `Review:` lines)
-3. [docs/fit-audit/README.md](fit-audit/README.md) (any active Fit Audit stage or physical measurement gate marked `Next` / blocking)
-4. `## Active Roadmap` in [DESIGN.md](DESIGN.md) (and [implementation_plan.md](implementation_plan.md) while active)
+3. `## Active Roadmap` in [DESIGN.md](DESIGN.md) (and [implementation_plan.md](implementation_plan.md) while active)
+4. [docs/fit-audit/README.md](fit-audit/README.md) (check whether the next Active Roadmap item is an active Fit Audit stage or physical measurement gate marked `Next` / blocking)
 
 Match the first applicable row below, state the **current phase**, recommend the **model tier**, and wait (or proceed if already on the right tier and asked to act):
 
@@ -86,9 +86,9 @@ Match the first applicable row below, state the **current phase**, recommend the
 | `SLICE<n>.md` exists with `Status: Planned` (or `Partly implemented`) | **Slice Execution** | Read `Implementer:` in `SLICE<n>.md` (`Low` → fast/lower-tier, `Medium` → mid-tier, `High` → Frontier) | Implement `SLICE<n>.md`; stop and escalate to Frontier only if an unspec'd design fork appears |
 | `SLICE<n>.md` exists with `Status: Implemented …` and `Review: required` (not yet reviewed) | **Independent Review** | **Frontier** | Diff-only judgment review (§3); append concise findings under `## Implementation handoff` and report readiness |
 | `SLICE<n>.md` exists with `Status: Implemented …` and `Review: optional` (or review already done) | **Acceptance** | **Matt directly** (any model for cleanup commit) | Once Matt accepts, run the After acceptance cleanup (§1) |
-| No `SLICE*.md` exists; [docs/fit-audit/README.md](fit-audit/README.md) has an active stage or physical check marked `Next` / blocking | **Fit Audit Stage / Physical Check** | **Frontier** (plus Matt for physical bike measurements in [fenrir-measurements.md](fit-audit/fenrir-measurements.md)) | Execute or assist with the active stage in [docs/fit-audit/README.md](fit-audit/README.md) before planning the gated slices |
+| No `SLICE*.md` exists; the next Active Roadmap item in `DESIGN.md` is a Fit Audit stage or physical check (marked `Next` / blocking in [docs/fit-audit/README.md](fit-audit/README.md)) | **Fit Audit Stage / Physical Check** | **Frontier** (plus Matt for physical bike measurements in [fenrir-measurements.md](fit-audit/fenrir-measurements.md)) | Execute or assist with the active stage in [docs/fit-audit/README.md](fit-audit/README.md) before planning the gated slices |
 | No `SLICE*.md` exists; next roadmap item in `DESIGN.md` has unresolved cross-slice ambiguity | **Horizon 1 — Direction Alignment** | **Frontier** | Resolve only the cross-slice fork(s) with Matt and update `DESIGN.md` in place |
-| No `SLICE*.md` exists; next roadmap item in `DESIGN.md` is clear | **Horizon 2 — Plan Next Slice** | **Frontier** | Inspect relevant committed code, surface only genuine slice-local choices, decide whether to sub-slice, and write `SLICE<n>.md` |
+| No `SLICE*.md` exists; next roadmap item in `DESIGN.md` is clear | **Horizon 2 — Plan Next Slice** | **Frontier** | Inspect relevant committed code, surface only genuine slice-local choices, decide whether to sub-slice, and write `SLICE<n>.md` (or proceed with the next active stage in [implementation_plan.md](implementation_plan.md)) |
 
 ### Complexity & Model-Tier Guide
 

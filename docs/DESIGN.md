@@ -50,7 +50,7 @@ All trigonometry lives unexported inside `internal/pose`. Lengths are `float64` 
   - `StaticWorld`: level-ground workshop attitude with no rider and all suspension at `0%` sag (`RearAxle.Y == FrontAxle.Y`).
   - `DynamicWorld`: level-ground riding attitude with the rider seated and suspension at seated sag (`RearAxle.Y == FrontAxle.Y`).
 - **Component local frames** (invariant to the part; mapped into parent/world frames by rigid `pose.Transform`):
-  - `FrameLocal`, `ForkLocal`, `SeatTubeCollar`, `SeatpostLocal`, `SeatpostCradle`, `SaddleLocal`, `SteererLocal`, `StemLocal`, `HandlebarLocal`.
+  - `FrameLocal`, `LowerHeadsetLocal`, `ForkLocal`, `SeatTubeCollar`, `SeatpostLocal`, `SeatpostCradle`, `SaddleLocal`, `SteererLocal`, `StemLocal`, `HandlebarLocal`.
 
 ### Primitives (`internal/pose`)
 
@@ -79,7 +79,7 @@ Each physical component lives in its own file under `internal/assembly`, owns it
 - **Sliding dropouts & Tuning Chips:** sliding-dropout frames evaluate at `MaxChainstayMm` on `/` and `/bike` (flagged `*`) and at published `ChainstayMm` for chart consistency and `fork=basis`. The Otso Fenrir Stainless uses its nominal middle Tuning Chip geometry (`68°` HTA, `75°` STA, `70 mm` BB drop, `440 mm` chainstay) with `MaxChainstayMm = 0`.
 - **Exposed ports in `FrameLocal`:**
   - `RearAxle()`: `Point` at `(-sqrt(ChainstayMm² − BbDropMm²), BbDropMm)`.
-  - `HeadTube() HeadTubePort`: `HeadTubeTop` pose at `(ReachMm, StackMm)` pointing up the steerer (`180° − HTA`), `HeadTubeBottom` pose `HeadTubeLengthMm` down the steerer (`-HTA`), `LowerBore`, and `DefaultLowerCup`.
+  - `HeadTube() HeadTubePort`: sealed port constructed by `Frame` carrying `SteererInFrame` (`SteererLocal → FrameLocal` at `HeadTubeTop` `(ReachMm, StackMm)` pointing up the steerer, `180° − HTA`), `LowerHeadsetInFrame` (`LowerHeadsetLocal → FrameLocal` at `HeadTubeBottom`, `HeadTubeLengthMm` down the steerer pointing along `-HTA`), `LowerBore`, and `DefaultLowerCup`. Distinct `SteererLocal` and `LowerHeadsetLocal` `FrameID`s ensure passing the bottom mount where an upper steerer transform is expected panics deterministically.
   - `SeatTube() SeatTubeSocket`: `CollarInFrame` (`SeatTubeCollar → FrameLocal` at `SeatTubeTop`, `SeatTubeLengthMm` along `180° − STA`), and `AllowedInsertion` (`[MinFrameInsertionMm, frameCap]`, where `frameCap` is `MaxPostInsertionMm` when `> 0`, else `SeatTubeLengthMm − 20 mm` for BB-shell clearance).
 - **SHIS Lower-Headset Compatibility (single canonical rule in `fork.go`):**
 
@@ -121,7 +121,7 @@ Each physical component lives in its own file under `internal/assembly`, owns it
 - **Intrinsic invariants:** `0 < MinInsertionMm ≤ MaxInsertionMm < TotalLengthMm` (guaranteeing positive head/linkage stack height `TotalLengthMm − MaxInsertionMm`), `SetbackMm ≥ 0`, `RailClampLengthMm > 0`.
 - **Concrete seatpost types** (satisfying `seatpost.go`'s consumer interface `postMounter`):
   - `RigidPost`: constant cradle at `Pt(SeatpostLocal, TotalLengthMm, SetbackMm)` at `0°` relative rotation in both `Static` and `Dynamic`.
-  - `LinkagePost`: static cradle at `Pt(SeatpostLocal, TotalLengthMm, StaticSetbackMm)`, dynamic cradle shifted by `sagStep Vec` in `SeatpostLocal` at `0°` relative rotation (for the 350 mm Redshift ShockStop PRO Endurance: `Min 100 mm`, `Max 250 mm`, `Clamp 30 mm`, static setback `7 mm`, 20% seated sag step `(-6, +5) mm` → `(344, 12) mm` dynamic; rail pitch stays constant relative to the shaft through travel).
+  - `LinkagePost`: static cradle at `Pt(SeatpostLocal, TotalLengthMm, StaticSetbackMm)`, dynamic cradle shifted by `sagStep Vec` in `SeatpostLocal` at `0°` relative rotation (keeping rail pitch constant relative to the shaft through travel). Catalog dimensions, shim/illustrative assumptions, and the Endurance-manual-inferred 20% sag vector for the 350 mm Redshift ShockStop PRO Endurance (whose rider-seated sag remains unmeasured) live in [seatpost_redshift_shockstop_pro.md](../internal/catalog/seatpost_redshift_shockstop_pro.md).
 - **Mate (`MateSeatpost(socket SeatTubeSocket, post postMounter)`):**
   - Intersects `post.InsertionLimits()` with `socket.AllowedInsertion`; rejects incompatible pairs immediately.
   - Binding `InsertionMm` places shaft coordinate `X = InsertionMm` at `(0, 0)` of `SeatTubeCollar`, so `SeatpostLocal` sits at `(-InsertionMm, 0)` in `SeatTubeCollar` (`ExposedMm = TotalLengthMm − InsertionMm` follows automatically) and records `Insertion BoundStatus`.
@@ -141,9 +141,9 @@ Each physical component lives in its own file under `internal/assembly`, owns it
 ### Stem & Handlebar (`stem.go`, `handlebar.go`)
 
 - **Steerer mate (`SteererPort` + `MountStem`):**
-  - `SteererPort` carries `HeadTubeTopInFrame`, `UpperStackMm` (`11 mm`), and `AllowedSpacers` (`[0, 30] mm`).
+  - `SteererPort` carries a sealed `SteererInFrame` transform (`SteererLocal → FrameLocal`, constructed by `Frame`/`Frameset` with `(0, 0)` at `HeadTubeTop` and `+X` pointing up the steerer), `UpperStackMm` (`11 mm`), and `AllowedSpacers` (`[0, 30] mm`).
   - `Stem` holds pure physical dimensions (`ClampHeightMm > 0`, `LengthMm > 0`, finite `AngleDeg` CCW from perpendicular to the steerer) with no solver search bounds.
-  - `MountStem` binds `SpacersMm` into `BoundStatus`, walks `UpperStackMm` → `CoverTop`, `SpacersMm` → `SpacerTop`, `ClampHeightMm/2` → `SteererClamp`, turns `−90° + AngleDeg`, and advances `LengthMm` → `BarClampPort`.
+  - `MountStem` binds `SpacersMm` into `BoundStatus`, walks in `SteererLocal` along `+X` by `UpperStackMm` → `CoverTop`, `SpacersMm` → `SpacerTop`, `ClampHeightMm/2` → `SteererClamp`, turns `−90° + AngleDeg`, advances `LengthMm` → `BarClampPort`, and maps into `FrameLocal` via `SteererInFrame`.
 - **Handlebar (`HandlebarLocal`):**
   - Origin `(0, 0)` at `BarClamp` center, `+X` forward at `0°` roll, `+Y` upward along rise/upsweep.
   - `Handlebar` separates 3D bar geometry (`StockWidthMm`, `CurrentWidthMm`, `GripInsetMm`, `BendStartMm`, `StatedRiseMm`, `RiseMode` [`standard_knuckle` or `bar_end_center`], `BacksweepDeg`, `UpsweepDeg`) from its analytical 2D sagittal projection `GripInBar() pose.Point` (at `HandLateralMm = effectiveWidth/2 − GripInsetMm`, with `sweptSpan = max(0, HandLateralMm − BendStartMm)`).
@@ -169,7 +169,7 @@ Assembly progresses monotonically through immutable, unforgeable domain objects:
 4. **Unified Multi-State Evaluation (`(*Build).Place(state LoadState) Placement`):**
    - Placing a `*Build` in `Static` and `Dynamic` runs the **exact same `pose.Compose` chain** using `Frameset.Place(state)` and `ClampedSeatpost.Place(frameToWorld, state)`.
    - Clamped saddle and handlebar orientations move rigidly with the post head and frame pitch between states without re-leveling to gravity.
-   - Returns an exported-field `Placement` readout snapshot (`State`, `Frameset`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`, `Bounds`, `Summary`) with derived readout methods (`WheelbaseMm`, `TrailMm`, `RearCenterMm`, `RcWbRatioPct`, `LeveledReachMm`, `LeveledStackMm`, `EttMm`, `SaddleHeightMm`, `BrpToGripDistMm`, `SitBonesToGripRiseMm`).
+   - Returns an exported-field `Placement` readout snapshot (`State`, `Setup`, `Frameset`, `Seatpost`, `Saddle`, `Stem`, `Handlebar`, `Bounds`, `Summary`) with derived readout methods (`WheelbaseMm`, `TrailMm`, `RearCenterMm`, `RcWbRatioPct`, `LeveledReachMm`, `LeveledStackMm`, `EttMm`, `SaddleHeightMm`, `BrpToGripDistMm`, `SitBonesToGripRiseMm`). `Setup` preserves the fitted input settings for CLI JSON consumers and lossless `/bike` inspect links through Stage 7, before a dedicated post-refactor slice cleans up that JSON shape.
 
 ---
 
@@ -240,18 +240,21 @@ Continuous fitting (`ApplyFitting` on `/bike`, `FitToBRP`, `OpenFrontCockpit`, a
 
 ## 7. Active Roadmap
 
-1. **Idiomatic Go Part-and-Mate Refactor ([implementation_plan.md](implementation_plan.md), Stages 1–7):**
+1. **Behavior-Preserving Idiomatic Go Part-and-Mate Refactor ([implementation_plan.md](implementation_plan.md), Stages 1–7):**
+   - Runs ahead of the paused Fenrir check without changing catalog/CLI/web numerical outputs or existing CLI `Placement.Setup` JSON assertions.
    - Stage 1: Workflow & modular spec cleanup (`WORKFLOW.md`, `AGENTS.md`, `DESIGN.md`).
    - Stage 2: Replace phantom generics in `internal/pose` with runtime `FrameID` checks and fluent turtle chaining.
    - Stage 3: `LoadState`, `BoundedRange`/`BoundStatus`, and isolated `Seatpost` (`RigidPost`, `LinkagePost`, `postMounter`).
-   - Stage 4: Isolated `Saddle`, `Stem`, and `Handlebar` with clamped relative joint angles.
+   - Stage 4: Isolated `Saddle`, `Stem` (with sealed `SteererLocal → FrameLocal` `SteererPort`), and `Handlebar` with clamped relative joint angles.
    - Stage 5: `Frame`, concrete `Fork` types (`RigidFork`, `SuspensionFork`, `BasisFork`, `forkMounter`), and single-pass `Frameset`.
    - Stage 6: Incremental `SeatedFrameset` → `Build`, standalone `Planar2DoF` solver, and named scoring.
-   - Stage 7: Migrate `catalog`, `compare`, `query`, `web`, and CLI callers; strip remaining `Q#` citations.
-2. **Fit Audit Stage 2 & Physical Fenrir Check ([docs/fit-audit/README.md](fit-audit/README.md)):**
-   - Verify forward placement kinematics and compare Matt's physical static Otso Fenrir measurements ([fenrir-measurements.md](fit-audit/fenrir-measurements.md)) directly against `Build.Place(Static)`.
-3. **Milestone 6: Static/Dynamic Model & Rider Fit Updates (gated on Stage 2 Fenrir check):**
-   - Switch catalog `redshift_shockstop_pro` to `7 mm` static setback + `(-6, +5) mm` 20% sag step.
+   - Stage 7: Migrate `catalog`, `compare`, `query`, `web`, and CLI callers while retaining `Placement.Setup` readout compatibility; strip remaining `Q#` citations.
+2. **CLI & `Placement.Setup` Readout Cleanup (small follow-up slice after Stage 7):**
+   - Replace the transitional `Placement.Setup` snapshot with a cleaner fitted-settings readout shape and update CLI JSON assertions in one isolated, easy-to-review slice.
+3. **Fit Audit Stage 2 & Physical Fenrir Check ([docs/fit-audit/README.md](fit-audit/README.md), paused until after items 1–2):**
+   - Verify forward placement kinematics and reconcile Matt's physical static Otso Fenrir measurements ([fenrir-measurements.md](fit-audit/fenrir-measurements.md), currently frozen) against the matching installed component and static placements — accounting for the installed FAIR Drop Best rear assembly, matching grip inset station (`80 mm` workshop mark vs. `70 mm` catalog default), and converting straight crown-to-axle tape readings to steerer-parallel fork A2C rather than comparing directly against stock catalog defaults.
+4. **Milestone 6: Static/Dynamic Model & Rider Fit Updates (gated on Stage 2 Fenrir check):**
+   - Switch catalog `redshift_shockstop_pro` to its `7 mm` static setback and Endurance-manual-inferred `(-6, +5) mm` 20% sag step (see provenance and unmeasured-sag status in [seatpost_redshift_shockstop_pro.md](../internal/catalog/seatpost_redshift_shockstop_pro.md)).
    - Seated fork sag per travel class (`15%` / `20%` / `25%`), single rider-chosen handlebar at `0°` dynamic roll, seatpost option fitting, and `+5°` SQlab 610 rail angle for rail-position scoring.
    - Saddle-to-cockpit coupling (`coupledHbTarget = BRP_dynamic + (HB_target − BRP_target)`).
    - Static-to-dynamic target entry on `/bike` → `/`, static workshop readouts alongside dynamic fit results, workshop proximity warnings (`≤ 30 mm` insertion margin, `≤ 5 mm` usable rail slide), and `SIT` / `BRP.x` terminology updates.

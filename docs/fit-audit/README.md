@@ -1,6 +1,6 @@
 # Method for auditing bikegeo fit
 
-Status: methodology revised 2026-11-23; Stage 1 in progress (Q160–Q171 ruled in [`DESIGN.md`](../DESIGN.md)).
+Status: methodology revised 2026-11-23; Stage 1 & Stage 3 ruled; Stage 2 (Fenrir physical check) paused during the behavior-preserving part-and-mate architecture refactor ([`implementation_plan.md`](../implementation_plan.md)) and still gates Milestone 6 physical-model changes.
 
 The audit has one purpose: to earn trust in `bikegeo`’s geometry, fitting, and ranking before Matt uses it to specify a custom frame. It has three outcomes:
 
@@ -75,12 +75,12 @@ Finish settling the physical geometry and domain rules before writing the new mo
 | Stage | Note | Status | Open questions to settle |
 | --- | --- | --- | --- |
 | 1. Definitions, coordinates, and load states | [`01-definitions-and-states.md`](01-definitions-and-states.md) | Ruled (Q159–Q172) | None (FAIR Drop Best is needed only if modeling the physical Fenrir setup in Stage 2). |
-| 2. Forward placement & Fenrir check | `02-forward-placement.md` · [`fenrir-measurements.md`](fenrir-measurements.md) | **Next (blocking Phase 2 model slices)** | Verify forward placement math and measure Matt's physical static Fenrir in [`fenrir-measurements.md`](fenrir-measurements.md) to compare with the model's static placement (T4). |
+| 2. Forward placement & Fenrir check | `02-forward-placement.md` · [`fenrir-measurements.md`](fenrir-measurements.md) *(frozen until resumed)* | **Paused (resumes after architecture refactor; gates Milestone 6 physical-model changes)** | Verify forward placement math and measure Matt's physical static Fenrir in [`fenrir-measurements.md`](fenrir-measurements.md) to compare with the matching installed component/static placements (T4). |
 | 3. Measurement, transfer, and coupling | [`brp-transfer.md`](brp-transfer.md) | Ruled (Q159, Q160, Q169, Q172) | Specified via `pose.Pose` turtle-graphics steps in [`brp-transfer.md`](brp-transfer.md). |
 
 ### Phase 2: Implement the ruled model slices (`WORKFLOW.md`)
 
-Once Phase 1 (including the Stage 2 Fenrir check) is complete, plan and implement the remaining Go code slices under [`WORKFLOW.md`](../WORKFLOW.md) (Horizon 2 → Horizon 3):
+The behavior-preserving part-and-mate architecture refactor ([`implementation_plan.md`](../implementation_plan.md), Stages 1–7, plus the post-Stage-7 `Placement.Setup` readout cleanup) runs first while Stage 2 is paused. Once Stage 2 (including the Fenrir check) completes, plan and implement the Milestone 6 physical-model slices under [`WORKFLOW.md`](../WORKFLOW.md) (Horizon 2 → Horizon 3):
 
 - **Done (Slice 23, Q173):** Compile-time coordinate-space (`UnpitchedChart`, `StaticWorld`, `DynamicWorld`), local orientation (`Pose[Dir, W]`, `TurnDeg[FromDir, ToDir]`), affine (`Point[S]` vs. `Vec[S]`), and rigid `Transform[Src, Dst]` type safety in `internal/pose` and `internal/assembly`.
 - Rigidly clamped saddle and handlebar orientation between static and dynamic placements (Q163, Q169).

@@ -1,3 +1,13 @@
+# When To Use Generics
+
+> **Attribution & License**
+>
+> - **Author:** Ian Lance Taylor (published 12 April 2022)
+> - **Source:** <https://go.dev/blog/when-generics>
+> - **Copyright & License:** Copyright The Go Authors. Per the [Go copyright terms](https://go.dev/copyright), the article text is licensed under the [Creative Commons Attribution 4.0 International License (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) and the code examples are licensed under Go's [BSD 3-Clause License](https://go.dev/LICENSE). Reproduced verbatim below (aside from this attribution header).
+
+---
+
 The Go 1.18 release adds a major new language feature: support for generic programming. In this article I’m not going to describe what generics are nor how to use them. This article is about when to use generics in Go code, and when not to use them.
 
 To be clear, I’ll provide general guidelines, not hard and fast rules. Use your own judgement. But if you aren’t sure, I recommend using the guidelines discussed here.
